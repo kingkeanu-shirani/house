@@ -72,8 +72,8 @@
         "blocked": false
       },
       "room_5": {
-        "label": "Work area",
-        "type": "hallway",
+        "label": "Kitchen: dishes",
+        "type": "kitchen",
         "floor": 2,
         "area_m2": 13,
         "exits": [

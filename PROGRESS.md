@@ -26,3 +26,14 @@ Started UTC: 2026-10-07T07:33:27.074933+00:00
 - Each mapped entry is being rechecked on five seeds against the final source hash.
 - Full-catalog implementation is still partial; remaining requirements are retained.
 - Checkpoint UTC: 2026-10-07T14:09:19.489882+00:00
+
+## Delivered prototype milestone
+
+- Final source verification: 723 / 723 implemented entries pass
+  on all five seeds (3615 trials), each with negative baselines.
+- Regression tests: 35 passed, zero failures/errors.
+- Section demos: 75 / 105, all saved and replay-verified.
+- Coverage: {'DONE': 723, 'TODO': 1995, 'BLOCKED': 1}; all implemented fidelity is S.
+- Original source bytes verified unchanged; all entries retained.
+- Known gaps and next steps recorded in FINAL_REPORT.md and docs/KNOWN_LIMITS.md.
+- Report checkpoint UTC: 2026-10-07T14:16:23.321734+00:00.

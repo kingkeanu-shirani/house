@@ -72,7 +72,7 @@
         "blocked": false
       },
       "room_5": {
-        "label": "Work area",
+        "label": "General object interaction and movement",
         "type": "hallway",
         "floor": 2,
         "area_m2": 13,

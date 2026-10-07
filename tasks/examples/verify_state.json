@@ -72,9 +72,9 @@
         "blocked": false
       },
       "room_5": {
-        "label": "Work area",
-        "type": "hallway",
-        "floor": 2,
+        "label": "Pool and spa area",
+        "type": "poolside",
+        "floor": 0,
         "area_m2": 13,
         "exits": [
           "room_4",
@@ -84,7 +84,8 @@
         "private": false,
         "floor_material": "wood",
         "ceiling_m": 2.83,
-        "blocked": false
+        "blocked": false,
+        "outdoor": true
       },
       "room_6": {
         "label": "Kitchen 6",

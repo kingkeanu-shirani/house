@@ -1,0 +1,26 @@
+{
+  "entries": 2719,
+  "candidate_entries": 723,
+  "families": {
+    "pickup": 21,
+    "unimplemented": 1996,
+    "sort": 7,
+    "transform": 39,
+    "access": 80,
+    "relocate": 169,
+    "clean": 297,
+    "appliance": 6,
+    "inventory": 23,
+    "fill": 12,
+    "water": 10,
+    "switch": 19,
+    "report": 26,
+    "verify_state": 8,
+    "find": 1,
+    "clarify": 1,
+    "clarify_destination": 1,
+    "quiet_clean": 1,
+    "laundry_watch": 1,
+    "rain_watch": 1
+  }
+}

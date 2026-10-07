@@ -72,7 +72,7 @@
         "blocked": false
       },
       "room_5": {
-        "label": "Work area",
+        "label": "General object interaction and movement",
         "type": "hallway",
         "floor": 2,
         "area_m2": 13,
@@ -1714,7 +1714,7 @@
       },
       "target_1": {
         "category": "a_cable",
-        "material": "ceramic",
+        "material": "rubber",
         "mass_kg": 0.54,
         "volume_l": 0.5,
         "capacity_l": 50.0,
@@ -1734,10 +1734,7 @@
         "freshness": 1.0,
         "hazards": [],
         "affordances": [
-          "fold",
-          "flatten",
-          "coil",
-          "tighten"
+          "coil"
         ],
         "private": false,
         "broken": false,

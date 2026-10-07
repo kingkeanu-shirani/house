@@ -1,0 +1,66 @@
+[
+  {
+    "args": [
+      "--rooms",
+      "20",
+      "--floors",
+      "3",
+      "--seed",
+      "42",
+      "--export",
+      "/tmp/house_cli_8zxjvz_8/house.json"
+    ],
+    "expected_exit": 0,
+    "exit_code": 0,
+    "passed": true
+  },
+  {
+    "args": [
+      "--export",
+      "/tmp/house_cli_8zxjvz_8/house.json"
+    ],
+    "expected_exit": 2,
+    "exit_code": 2,
+    "passed": true
+  },
+  {
+    "args": [
+      "--house",
+      "/tmp/house_cli_8zxjvz_8/house.json"
+    ],
+    "expected_exit": 0,
+    "exit_code": 0,
+    "passed": true
+  },
+  {
+    "args": [
+      "--headless",
+      "-",
+      "--save-state",
+      "/tmp/house_cli_8zxjvz_8/state.json",
+      "--replay-out",
+      "/tmp/house_cli_8zxjvz_8/replay.json"
+    ],
+    "expected_exit": 0,
+    "exit_code": 0,
+    "passed": true
+  },
+  {
+    "args": [
+      "--load-state",
+      "/tmp/house_cli_8zxjvz_8/state.json"
+    ],
+    "expected_exit": 0,
+    "exit_code": 0,
+    "passed": true
+  },
+  {
+    "args": [
+      "--replay",
+      "/tmp/house_cli_8zxjvz_8/replay.json"
+    ],
+    "expected_exit": 0,
+    "exit_code": 0,
+    "passed": true
+  }
+]

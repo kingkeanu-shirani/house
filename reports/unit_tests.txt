@@ -1,0 +1,40 @@
+test_every_nonblank_source_line_is_accounted_and_verbatim (test_catalog.CatalogTests.test_every_nonblank_source_line_is_accounted_and_verbatim) ... ok
+test_existing_ids_survive_unrelated_append (test_catalog.CatalogTests.test_existing_ids_survive_unrelated_append) ... ok
+test_affordance_query_has_no_state_side_effect (test_engine.EngineTests.test_affordance_query_has_no_state_side_effect) ... ok
+test_appliance_requires_load_compatibility_and_power (test_engine.EngineTests.test_appliance_requires_load_compatibility_and_power) ... ok
+test_capacity_and_protected_disposal (test_engine.EngineTests.test_capacity_and_protected_disposal) ... ok
+test_child_cannot_grant_approval_and_risk_requires_presence (test_engine.EngineTests.test_child_cannot_grant_approval_and_risk_requires_presence) ... ok
+test_cleaning_dirt_conservation_depletion_and_quiet (test_engine.EngineTests.test_cleaning_dirt_conservation_depletion_and_quiet) ... ok
+test_copy_observations_do_not_mutate_world (test_engine.EngineTests.test_copy_observations_do_not_mutate_world) ... ok
+test_filling_cannot_make_held_load_overweight (test_engine.EngineTests.test_filling_cannot_make_held_load_overweight) ... ok
+test_goal_checks_side_effects_and_budget (test_engine.EngineTests.test_goal_checks_side_effects_and_budget) ... ok
+test_heavy_surface_can_be_cleaned_without_lifting (test_engine.EngineTests.test_heavy_surface_can_be_cleaned_without_lifting) ... ok
+test_hidden_and_remote_objects_cannot_be_manipulated (test_engine.EngineTests.test_hidden_and_remote_objects_cannot_be_manipulated) ... ok
+test_invalid_actions_are_atomic (test_engine.EngineTests.test_invalid_actions_are_atomic) ... ok
+test_invalid_schemas (test_engine.EngineTests.test_invalid_schemas) ... ok
+test_liquid_conservation_and_overflow (test_engine.EngineTests.test_liquid_conservation_and_overflow) ... ok
+test_parent_mass_includes_hidden_contents_and_liquid (test_engine.EngineTests.test_parent_mass_includes_hidden_contents_and_liquid) ... ok
+test_persistence_continuation_undo_and_replay (test_engine.EngineTests.test_persistence_continuation_undo_and_replay) ... ok
+test_portable_container_visibility_and_no_cycles (test_engine.EngineTests.test_portable_container_visibility_and_no_cycles) ... ok
+test_private_contents_not_visible_and_ownership_required (test_engine.EngineTests.test_private_contents_not_visible_and_ownership_required) ... ok
+test_private_descendant_cannot_be_carried_out_in_box (test_engine.EngineTests.test_private_descendant_cannot_be_carried_out_in_box) ... ok
+test_repeated_known_question_is_penalized (test_engine.EngineTests.test_repeated_known_question_is_penalized) ... ok
+test_reward_cannot_be_farmed_by_repeating_a_completed_goal (test_engine.EngineTests.test_reward_cannot_be_farmed_by_repeating_a_completed_goal) ... ok
+test_safety_alarm_cannot_be_disabled (test_engine.EngineTests.test_safety_alarm_cannot_be_disabled) ... ok
+test_schedules_cannot_bypass_duration_or_guards (test_engine.EngineTests.test_schedules_cannot_bypass_duration_or_guards) ... ok
+test_snapshot_diff_redacts_private_fields (test_engine.EngineTests.test_snapshot_diff_redacts_private_fields) ... ok
+test_stop_resume_and_events_keep_running (test_engine.EngineTests.test_stop_resume_and_events_keep_running) ... ok
+test_unavailable_sensors_fail_explicitly (test_engine.EngineTests.test_unavailable_sensors_fail_explicitly) ... ok
+test_undo_pickup_after_container_closes (test_engine.EngineTests.test_undo_pickup_after_container_closes) ... ok
+test_undo_rechecks_path_and_never_reverses_time (test_engine.EngineTests.test_undo_rechecks_path_and_never_reverses_time) ... ok
+test_wrong_cleaner_and_mixed_chemicals (test_engine.EngineTests.test_wrong_cleaner_and_mixed_chemicals) ... ok
+test_every_family_reference_idle_wrong_and_replay (test_scenarios.ScenarioTests.test_every_family_reference_idle_wrong_and_replay) ... ok
+test_language_does_not_guess_ambiguous_or_hidden_targets (test_scenarios.ScenarioTests.test_language_does_not_guess_ambiguous_or_hidden_targets) ... ok
+test_moving_mess_fails_and_preserved_object_movement_fails (test_scenarios.ScenarioTests.test_moving_mess_fails_and_preserved_object_movement_fails) ... ok
+test_observation_only_agent_generalizes_to_layouts_and_hidden_cup (test_scenarios.ScenarioTests.test_observation_only_agent_generalizes_to_layouts_and_hidden_cup) ... ok
+test_section_context_and_material_are_grounded (test_scenarios.ScenarioTests.test_section_context_and_material_are_grounded) ... ok
+
+----------------------------------------------------------------------
+Ran 35 tests in 1.726s
+
+OK
