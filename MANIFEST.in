@@ -1,0 +1,8 @@
+recursive-include house_sim *.py *.json
+recursive-include catalog *.json *.jsonl *.txt *.py
+recursive-include tasks *.json *.jsonl
+recursive-include reports *.json *.jsonl *.md
+recursive-include demos *.json *.jsonl
+recursive-include docs *.md
+recursive-include tests *.py
+include coverage.csv README.md PLAN.md PROGRESS.md DECISIONS.md house_env.py setup_project.py

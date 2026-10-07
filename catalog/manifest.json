@@ -1,0 +1,344 @@
+{
+  "source_sha256": "73437773d40255207d83e6c8e85044f1e37390c0901a68e768df246ef127a107",
+  "source_bytes": 95274,
+  "nonblank_lines": 2756,
+  "entries": 2719,
+  "headings": [
+    {
+      "source_line": 1,
+      "original_text": "General object interaction and movement",
+      "byte_start": 0,
+      "byte_end": 41
+    },
+    {
+      "source_line": 127,
+      "original_text": "Whole-house navigation",
+      "byte_start": 2996,
+      "byte_end": 3020
+    },
+    {
+      "source_line": 178,
+      "original_text": "General cleaning",
+      "byte_start": 4245,
+      "byte_end": 4263
+    },
+    {
+      "source_line": 281,
+      "original_text": "Kitchen: dishes",
+      "byte_start": 6455,
+      "byte_end": 6472
+    },
+    {
+      "source_line": 330,
+      "original_text": "Kitchen: food preparation",
+      "byte_start": 7555,
+      "byte_end": 7582
+    },
+    {
+      "source_line": 411,
+      "original_text": "Kitchen: cooking",
+      "byte_start": 9176,
+      "byte_end": 9194
+    },
+    {
+      "source_line": 462,
+      "original_text": "Kitchen: storage and organization",
+      "byte_start": 10182,
+      "byte_end": 10217
+    },
+    {
+      "source_line": 500,
+      "original_text": "Kitchen cleaning",
+      "byte_start": 11094,
+      "byte_end": 11112
+    },
+    {
+      "source_line": 548,
+      "original_text": "Dining",
+      "byte_start": 12203,
+      "byte_end": 12211
+    },
+    {
+      "source_line": 576,
+      "original_text": "Laundry",
+      "byte_start": 12724,
+      "byte_end": 12733
+    },
+    {
+      "source_line": 2508,
+      "original_text": "Emergency, Safety, and First Aid",
+      "byte_start": 59136,
+      "byte_end": 59170
+    },
+    {
+      "source_line": 2515,
+      "original_text": "Delicate Electronics and IT Maintenance",
+      "byte_start": 59511,
+      "byte_end": 59552
+    },
+    {
+      "source_line": 2522,
+      "original_text": "Advanced Culinary and Kitchen",
+      "byte_start": 60148,
+      "byte_end": 60179
+    },
+    {
+      "source_line": 2527,
+      "original_text": "Pet and Bio-Care",
+      "byte_start": 60528,
+      "byte_end": 60546
+    },
+    {
+      "source_line": 2531,
+      "original_text": "Physical Human Assistance",
+      "byte_start": 60754,
+      "byte_end": 60781
+    },
+    {
+      "source_line": 2538,
+      "original_text": "Emergency response (must-have). Detection and alerting are covered well, but active response is thin.",
+      "byte_start": 61994,
+      "byte_end": 62097
+    },
+    {
+      "source_line": 2541,
+      "original_text": "Doors, visitors, and communication (must-have).",
+      "byte_start": 62730,
+      "byte_end": 62779
+    },
+    {
+      "source_line": 2546,
+      "original_text": "Reaching, climbing, and fixing. Tool handling stops at basic hand tools, and there's no height access.",
+      "byte_start": 63549,
+      "byte_end": 63653
+    },
+    {
+      "source_line": 2551,
+      "original_text": "Messy, nasty, and hazardous.",
+      "byte_start": 64171,
+      "byte_end": 64201
+    },
+    {
+      "source_line": 2555,
+      "original_text": "The robot itself.",
+      "byte_start": 64628,
+      "byte_end": 64647
+    },
+    {
+      "source_line": 2560,
+      "original_text": "Cooking gaps.",
+      "byte_start": 65678,
+      "byte_end": 65693
+    },
+    {
+      "source_line": 2570,
+      "original_text": "ADAPTABILITY TASKS",
+      "byte_start": 67026,
+      "byte_end": 67046
+    },
+    {
+      "source_line": 2774,
+      "original_text": "Physics and Reflexive Edge Cases",
+      "byte_start": 87803,
+      "byte_end": 87837
+    },
+    {
+      "source_line": 2779,
+      "original_text": "Advanced Delicate Handling",
+      "byte_start": 88576,
+      "byte_end": 88604
+    },
+    {
+      "source_line": 2782,
+      "original_text": "Resourcefulness and Optimization",
+      "byte_start": 88962,
+      "byte_end": 88996
+    },
+    {
+      "source_line": 2786,
+      "original_text": "Social, Contextual, and Aesthetic Intelligence",
+      "byte_start": 89628,
+      "byte_end": 89676
+    },
+    {
+      "source_line": 2791,
+      "original_text": "Security and Trust Delegation",
+      "byte_start": 90277,
+      "byte_end": 90308
+    },
+    {
+      "source_line": 2794,
+      "original_text": "Who's asking, and should I? (must-have)",
+      "byte_start": 90657,
+      "byte_end": 90698
+    },
+    {
+      "source_line": 2799,
+      "original_text": "Emergencies (must-have)",
+      "byte_start": 91334,
+      "byte_end": 91359
+    },
+    {
+      "source_line": 2804,
+      "original_text": "Feedback and recovery (must-have)",
+      "byte_start": 91908,
+      "byte_end": 91943
+    },
+    {
+      "source_line": 2809,
+      "original_text": "Standing orders and watching",
+      "byte_start": 92455,
+      "byte_end": 92485
+    },
+    {
+      "source_line": 2814,
+      "original_text": "Is it okay? (judging state)",
+      "byte_start": 92973,
+      "byte_end": 93002
+    },
+    {
+      "source_line": 2819,
+      "original_text": "Improvising physical fixes",
+      "byte_start": 93472,
+      "byte_end": 93500
+    },
+    {
+      "source_line": 2823,
+      "original_text": "New devices and new homes",
+      "byte_start": 93825,
+      "byte_end": 93852
+    },
+    {
+      "source_line": 2826,
+      "original_text": "Reading the room",
+      "byte_start": 94122,
+      "byte_end": 94140
+    },
+    {
+      "source_line": 2831,
+      "original_text": "Constraints beyond time",
+      "byte_start": 94706,
+      "byte_end": 94731
+    },
+    {
+      "source_line": 2835,
+      "original_text": "Pets",
+      "byte_start": 95055,
+      "byte_end": 95061
+    }
+  ],
+  "counts_by_kind": {
+    "task": 2240,
+    "primitive": 108,
+    "variation": 74,
+    "appendix": 45,
+    "adaptability": 252
+  },
+  "sections": [
+    "Accessibility assistance",
+    "Advanced Culinary and Kitchen",
+    "Advanced Delicate Handling",
+    "Autumn tasks",
+    "BBQ / outdoor meal support",
+    "Backyard",
+    "Basic household maintenance",
+    "Basic sewing and clothing upkeep",
+    "Bathrooms",
+    "Bedrooms",
+    "Child-related household assistance",
+    "Cleaning supply management",
+    "Closets and storage",
+    "Composting",
+    "Constraints beyond time",
+    "Cooking gaps.",
+    "Craft and hobby area",
+    "Daily reset",
+    "Deep-clean cycle",
+    "Delicate Electronics and IT Maintenance",
+    "Dining",
+    "Doors, visitors, and communication (must-have).",
+    "Driveway and walkway",
+    "Emergencies (must-have)",
+    "Emergency response (must-have). Detection and alerting are covered well, but active response is thin.",
+    "Emergency, Safety, and First Aid",
+    "Entertainment setup",
+    "Entryway / mudroom",
+    "Evening routine",
+    "Feedback and recovery (must-have)",
+    "Fence and gate",
+    "Food waste reduction",
+    "Front yard",
+    "Furniture care",
+    "Garage",
+    "Gardening",
+    "General adaptability",
+    "General cleaning",
+    "General object interaction and movement",
+    "Guest preparation",
+    "Holiday and event preparation",
+    "Home climate and utilities",
+    "Home departure routine",
+    "Home electronics",
+    "Home exercise-area maintenance",
+    "Home inventory",
+    "Home organization",
+    "Home security routines",
+    "Human-assistance primitives a general-purpose robot needs",
+    "Improvising physical fixes",
+    "Is it okay? (judging state)",
+    "Kitchen cleaning",
+    "Kitchen: cooking",
+    "Kitchen: dishes",
+    "Kitchen: food preparation",
+    "Kitchen: storage and organization",
+    "Laundry",
+    "Lawn and landscaping",
+    "Living room / family room",
+    "Mail and household paperwork",
+    "Meal cleanup",
+    "Messy, nasty, and hazardous.",
+    "Monthly / occasional reset",
+    "Morning routine support",
+    "Moving / rearranging",
+    "New devices and new homes",
+    "Office / study area",
+    "Outdoor cleaning",
+    "Outdoor recreation setup",
+    "Package and delivery handling",
+    "Pet and Bio-Care",
+    "Pet care",
+    "Pets",
+    "Physical Human Assistance",
+    "Physics and Reflexive Edge Cases",
+    "Plant care",
+    "Pool and spa area",
+    "Reaching, climbing, and fixing. Tool handling stops at basic hand tools, and there's no height access.",
+    "Reading / relaxation setup",
+    "Reading the room",
+    "Recycling processing",
+    "Renovation/project assistance",
+    "Resourcefulness and Optimization",
+    "Return-home routine",
+    "Safety inspection",
+    "Seasonal spring tasks",
+    "Security and Trust Delegation",
+    "Shopping and replenishment",
+    "Simple food and drink service",
+    "Situational variations your robot must learn for essentially every task",
+    "Social, Contextual, and Aesthetic Intelligence",
+    "Standing orders and watching",
+    "Storage shed",
+    "Summer tasks",
+    "Textile care beyond laundry",
+    "The robot itself.",
+    "Tool handling",
+    "Trash, recycling, and compost",
+    "Travel packing at home",
+    "Vehicle-adjacent household tasks",
+    "Weather-response chores",
+    "Weekly reset",
+    "Who's asking, and should I? (must-have)",
+    "Whole-house navigation",
+    "Winter tasks"
+  ]
+}

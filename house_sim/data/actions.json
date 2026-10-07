@@ -1,0 +1,201 @@
+{
+  "wipe": {
+    "affordance": "clean",
+    "effects": {
+      "soil": 0.0,
+      "wetness": 0.0
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "wipe"
+  },
+  "dust": {
+    "affordance": "clean",
+    "effects": {
+      "soil": 0.0
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "dust"
+  },
+  "scrub": {
+    "affordance": "clean",
+    "effects": {
+      "soil": 0.0,
+      "wetness": 0.2
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "scrub"
+  },
+  "sweep": {
+    "affordance": "sweep",
+    "effects": {
+      "soil": 0.0
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "sweep"
+  },
+  "vacuum": {
+    "affordance": "vacuum",
+    "effects": {
+      "soil": 0.0
+    },
+    "duration_s": 5,
+    "noise": 0.8,
+    "reversible": false,
+    "power": true,
+    "tool": "vacuum"
+  },
+  "mop": {
+    "affordance": "mop",
+    "effects": {
+      "soil": 0.0,
+      "wetness": 0.4
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "mop"
+  },
+  "wash": {
+    "affordance": "wash",
+    "effects": {
+      "soil": 0.0,
+      "wetness": 1.0,
+      "soapy": true
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "water": 2.0,
+    "detergent": 1.0
+  },
+  "rinse": {
+    "affordance": "rinse",
+    "effects": {
+      "soapy": false,
+      "wetness": 1.0
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "water": 1.0,
+    "requires": {
+      "soil": 0.0
+    }
+  },
+  "dry": {
+    "affordance": "dry",
+    "effects": {
+      "wetness": 0.0
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "dry"
+  },
+  "disinfect": {
+    "affordance": "disinfect",
+    "effects": {
+      "contaminated": false
+    },
+    "duration_s": 60,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "disinfect",
+    "requires": {
+      "soil": 0.0
+    }
+  },
+  "polish": {
+    "affordance": "polish",
+    "effects": {
+      "polished": true
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "polish",
+    "requires": {
+      "soil": 0.0,
+      "wetness": 0.0
+    }
+  },
+  "fold": {
+    "affordance": "fold",
+    "effects": {
+      "folded": true
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": true,
+    "requires": {
+      "soil": 0.0,
+      "wetness": 0.0
+    }
+  },
+  "unfold": {
+    "affordance": "fold",
+    "effects": {
+      "folded": false
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": true
+  },
+  "flatten": {
+    "affordance": "flatten",
+    "effects": {
+      "flattened": true
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "requires": {
+      "empty": true
+    }
+  },
+  "coil": {
+    "affordance": "coil",
+    "effects": {
+      "coiled": true
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": true,
+    "requires": {
+      "plugged": false
+    }
+  },
+  "uncoil": {
+    "affordance": "coil",
+    "effects": {
+      "coiled": false
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": true,
+    "requires": {
+      "plugged": false
+    }
+  },
+  "tighten": {
+    "affordance": "tighten",
+    "effects": {
+      "loose": false
+    },
+    "duration_s": 5,
+    "noise": 0.1,
+    "reversible": false,
+    "tool": "screwdriver",
+    "requires": {
+      "broken": false
+    }
+  }
+}
