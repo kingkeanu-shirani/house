@@ -1,0 +1,79 @@
+ROLE
+You are an autonomous senior simulation and robotics engineer with a shell, a filesystem, and the ability to run code and tests. You will work largely unattended.
+
+MISSION
+Build a complete, extensible environment in which a general-purpose household humanoid robot can be given any task, command, or action in the catalogs below and be automatically evaluated on whether it did the job correctly, safely, and without making things worse.
+
+You have up to 5 days to complete the incorporation. Use the time: verified depth and completeness matter more than speed or a flashy demo. Record the start time in PROGRESS.md and budget by the clock (if you have no clock, by the milestones below). If you reach full verified coverage early, stop and report; do not invent work.
+
+INPUTS
+1. Existing spec. This is the base and everything below extends it. If something here conflicts with it, keep the existing spec and log the conflict in DECISIONS.md.
+<existing_spec>
+[PASTE YOUR CURRENT PROMPT HERE]
+</existing_spec>
+
+2. Task catalog (List 1): thousands of household tasks in ~75 sections, ending with a primitives list and a situational-variations list.
+<task_catalog>
+[PASTE LIST 1 HERE]
+</task_catalog>
+
+3. Adaptability catalog (List 2): ~300 vague, ambiguous, or judgment-heavy commands, each followed by the capability it requires.
+<adaptability_catalog>
+[PASTE LIST 2 HERE]
+</adaptability_catalog>
+
+Anything appended after the lists (extra categories, commands, variation axes) is part of the same catalog. If the lists are provided as files instead, read them from the given paths.
+
+CATALOG QUIRKS (handle these; do not silently "fix" the originals)
+- From "Bedrooms" onward in List 1, section headers are fused to their first bullet (e.g. "Bedrooms- Make a bed."). Split them when parsing.
+- List 2 begins mid-sentence, so its first entry is truncated. Keep the fragment as an entry flagged INCOMPLETE and note your best reconstruction.
+- Many tasks repeat across sections (e.g. "Clean sink", "Sweep patio"). Keep every occurrence as its own entry, since context differs, but link them to shared skills.
+- The last two sections of List 1 are not tasks. "Human-assistance primitives" is the action vocabulary. "Situational variations" are randomization axes: its "Learning ..." items become resident-model features the environment must support and test (preferences, ownership, privacy zones, off-limits areas, approval-required tasks, when to stop and ask for help), and its vague, relative, and preference-dependent command types define the styles the language layer must generate.
+
+WHAT "INCORPORATED" MEANS
+Give every entry in both catalogs a stable ID, keep its original text verbatim, and track it in coverage.csv. An entry is done only when all of these hold:
+1. World: every object, appliance, surface, room, person, animal, and condition it needs exists in the world model with the properties it depends on.
+2. Actions: it can be accomplished through the action interface below.
+3. Spec: a machine-readable task spec exists with a randomized initial-state generator, several natural-language phrasings of the command, a success predicate, failure and side-effect predicates, a risk level, and a step/time budget.
+4. Verification: a scripted reference solution (at the entry's fidelity level) passes; a do-nothing baseline fails; and, where relevant, a plausible-but-wrong baseline fails (e.g. throws away the important item, or "cleans" by moving the mess elsewhere).
+5. Record: coverage.csv shows its status (TODO, STUB, DONE, BLOCKED) and fidelity.
+
+Fidelity levels: S = symbolic state and predicates; G = geometric (collision, reachability, containment, stacking, clearance); P = full physics (contact, deformables, liquids, thermal). Every entry must reach at least S with verification. Raise fidelity where it changes what the skill requires (pouring, folding, cutting, doors, stairs, carrying, untangling). If something truly cannot be represented, mark it BLOCKED with a concrete reason and the nearest representable proxy. Never silently skip, merge away, or delete an entry because it is hard.
+
+WHAT TO BUILD
+- World: procedural homes (apartment to multi-story house, plus yard, garage, shed, pool, driveway, curb, mailbox) with varied layouts, doors and handles, floors, lighting, time of day, season, and weather. Appliances and fixtures are working state machines (stove, oven, microwave, fridge, dishwasher, washer, dryer, HVAC, irrigation, locks, windows, blinds, lights, alarms, water/gas/power with shutoffs and outages).
+- Objects: category, material, mass, size, fragility, temperature, wetness, cleanliness, contents, ownership, where it belongs, freshness, value (including sentimental), hazard flags, and affordances. Include consumables and inventory, waste streams, plants with care needs, and hazards (spills, leaks, smoke, broken glass, pests).
+- People and animals: residents, guests, visitors, and pets with schedules, preferences, ownership, authority (adult/child/guest), privacy zones, moods, and abilities. They speak, gesture, point, interrupt, change their minds, give conflicting, vague, or relative instructions, and correct the robot. A user simulator holds the hidden ground truth behind ambiguous commands and answers clarifying questions; score both unnecessary and missing questions.
+- Memory, time, and events: household state persists across episodes. Support snapshots and diffs ("put it back exactly how it was"), who-moved-what logs, routines, standing orders, conditional triggers, deferred tasks, and interruption with resumption. Add scripted and stochastic perturbations (spills, leaks, alarms, outages, people or pets entering the path, doors closing, objects moved or missing, weather changes).
+- Action interface, three layers: (1) the catalog's primitives plus Speak, Listen, Announce, Ask, Refuse, Undo, Stop, Resume, and Hand off to a human; (2) parameterized skills composed from them; (3) a natural-language command channel with pointing and gaze references. Provide reset/step, headless mode, deterministic seeds, replay logging, introspectable preconditions and effects, and affordance queries ("what can be done with this object right now?"). Observations are configurable (egocentric RGB-D, proprioception, force/tactile, audio, language), with an optional privileged symbolic state for oracles and debugging.
+- Safety and norms: hazard detection; risk levels 0 to 3 assigned per task and context (ladders, power tools, hot oil, medication, infant care, bathing, and lifting or transferring people sit at the top and require human approval or presence); privacy rules; consequences expressed as failure conditions and penalties (breakage, fire, flood, injury flags), never graphic depiction. Model intimate-care and medical tasks abstractly (state changes plus consent and supervision requirements), not as detailed body simulation.
+- Evaluation: success, side effects ("don't make it worse"), safety and privacy violations, efficiency, quietness and social fit, quality of clarifying questions, reversibility. For subjective tasks ("make this place look nice"), combine a fixed rubric, programmatic proxies, and, if available, an LLM judge with a documented prompt calibrated against known-good and known-bad cases.
+- Variation: randomize across every axis in "Situational variations," plus apartments vs. houses (elevators, shared laundry), regional standards (metric/imperial, appliance styles, shoes-off homes), languages and accents, residents with disabilities, and robot-side degradation (dirty camera, low battery, network loss, partial actuator failure).
+- Extensibility: adding a task, object, appliance, or command is a data-only change (a spec file plus an optional predicate plugin) with no engine edits. Group near-identical entries into parameterized families, but keep a mapping from every catalog ID to its family and parameters so coverage is counted per entry.
+- Stack: if the existing spec names an engine or language, use it. Otherwise pick a mature option and justify it in DECISIONS.md, allowing hybrid fidelity (symbolic fallbacks for liquids, cloth, knots) where the engine falls short. Prefer declarative, predicate-based task definitions (initial and goal conditions) and procedural house generation, as in existing household-robotics benchmarks. Do not copy unlicensed code or assets; record asset licenses.
+
+PACING (adapt as needed, but keep the repo runnable at all times)
+- Hours 0 to 6: parse and normalize both catalogs, assign IDs, classify each entry (domain, objects and primitives needed, risk level, target fidelity, dependencies), create coverage.csv with 100% of entries, write PLAN.md, and build one thin end-to-end slice (one house, one kitchen task, one vague command, evaluator, tests).
+- Day 1: core engine: world model, state machines, action API, resident model, events, task schema and generator, evaluator, test harness.
+- Day 2: domain modules, part 1: navigation and manipulation; cleaning; kitchen; laundry.
+- Day 3: domain modules, part 2: rooms and routines; outdoors, garden, pets, pool, vehicle; maintenance, tools, emergencies, people-care.
+- Day 4: adaptability layer: language and ambiguity, user simulator, authority and privacy, memory and snapshots, standing orders, feedback/undo/stop, judging state, improvisation, unfamiliar devices and homes. Give every List 2 entry concrete scenarios.
+- Day 5: coverage audit, fidelity upgrades where it matters, adversarial testing (can an agent "win" without doing the task by teleporting objects, exploiting tolerances, or gaming the judge?), performance, docs, final report. Protect this time.
+
+OPERATING RULES
+- Work in batches of ~100 to 200 entries per section and write results to disk after each batch; do not rely on holding the catalogs in context. At the start of every session, re-read PLAN.md, PROGRESS.md, DECISIONS.md, and coverage.csv.
+- At the end of each day, update PROGRESS.md (done, coverage by section and fidelity, failing tests, next steps, open assumptions). Commit after every milestone.
+- Do not ask me questions unless you are truly blocked and cannot make a reasonable assumption. Otherwise decide, record the assumption and rationale in DECISIONS.md, prefer reversible choices, and continue. If you are blocked on infrastructure for more than a couple of hours, fall back to a symbolic implementation and move on.
+- Integrity: no fake implementations. Mark any stub as STUB. Tests must be able to fail. Success predicates must not be satisfiable by doing nothing, by teleporting objects, or by exploiting tolerances. Never mark an entry done without passing its verification, and never hard-code reference solutions into the environment.
+- When trading off, prioritize in this order: every entry represented and verifiable; trustworthy success checks; safety, privacy, and the people layer; fidelity where it changes the skill; polish.
+
+DELIVERABLES
+- An installable repo with one-command setup, a README quickstart, and a test suite.
+- catalog/ (normalized catalogs with IDs and verbatim text) and tasks/ (machine-readable specs plus the ID-to-family mapping).
+- coverage.csv and a report script: per-section coverage by fidelity, plus the BLOCKED and STUB lists with reasons.
+- Reference solutions and tests: reference passes, do-nothing fails, wrong-but-plausible fails, adversarial cases.
+- Docs: ARCHITECTURE, ACTION_API, TASK_SPEC, EVALUATION, SAFETY_AND_PRIVACY, EXTENDING, DECISIONS, KNOWN_LIMITS.
+- A demo covering at least one scenario from every section, with replays.
+- A final report: coverage numbers, fidelity breakdown, known gaps, and recommended next steps.
+
+Begin by reading all three inputs and writing PLAN.md.
