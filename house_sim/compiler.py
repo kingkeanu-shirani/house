@@ -123,7 +123,7 @@ def compile_specs(root=ROOT):
     for entry in entries:
         family, params, reason = classify(entry)
         command = entry["text"].split("”", 1)[0].lstrip("“") if entry["kind"] == "adaptability" else entry["text"]
-        specs.append({"schema_version": 1, "catalog_id": entry["id"], "family": family,
+        specs.append({"schema_version": 1, "catalog_id": entry["id"], "section": entry["section"], "kind": entry["kind"], "family": family,
                       "parameters": params, "instruction": command,
                       "phrasings": [command, "Please " + command[0].lower() + command[1:], "Could you " + command[0].lower() + command[1:].rstrip(".") + "?"],
                       "generator": {"name": family, "seeded": True, "parameters": params} if family else None,

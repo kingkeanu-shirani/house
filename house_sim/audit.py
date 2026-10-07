@@ -2,6 +2,7 @@
 import csv
 import json
 import time
+from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
@@ -14,8 +15,9 @@ from .scenarios import build
 
 
 def fingerprint(root=ROOT):
-    paths = sorted((root / "house_sim").glob("*.py")) + sorted((root / "house_sim/data").glob("*.json"))
-    return digest({str(p.relative_to(root)): p.read_text(encoding="utf-8") for p in paths})
+    source = Path(__file__).resolve().parent
+    paths = sorted(source.glob("*.py")) + sorted((source / "data").glob("*.json"))
+    return digest({"house_sim/" + p.relative_to(source).as_posix(): p.read_text(encoding="utf-8") for p in paths})
 
 
 def verify(root=ROOT, seeds=(0, 1, 2, 41, 97), emit=print):

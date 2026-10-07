@@ -231,6 +231,32 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(e.step('undo')['reward'],-1)
         self.assertEqual(e.step('pick_up','toy')['reward'],1)
 
+    def test_heavy_surface_can_be_cleaned_without_lifting(self):
+        c=fixture();c['entities']['table']=object_record('heavy table','room_1',mass_kg=100,soil=1,affordances=['clean'])
+        c['entities']['cloth']=object_record('cloth','room_1',portable=True,affordances=['wipe'],uses=2)
+        e=HouseEnv(c);e.step('pick_up','cloth')
+        self.assertTrue(e.step('wipe','table',tool='cloth')['ok'])
+
+    def test_filling_cannot_make_held_load_overweight(self):
+        c=fixture();c['entities']['pitcher']=object_record('pitcher','room_1',portable=True,liquid_container=True,liquid_l=0,capacity_l=30)
+        e=HouseEnv(c);e.step('pick_up','pitcher')
+        self.assertFalse(e.step('fill','pitcher','sink',amount_l=20)['ok'])
+
+    def test_snapshot_diff_redacts_private_fields(self):
+        c=fixture();c['entities']['box']['private']=True
+        c['events']=[{'at_step':2,'changes':{'entities.box.soil':0.8}}]
+        e=HouseEnv(c);e.step('snapshot','before');e.step('wait')
+        result=e.step('diff','before')
+        self.assertNotIn('soil',result['message'])
+
+    def test_repeated_known_question_is_penalized(self):
+        c=fixture();c['user_simulator']={'answers':{'target':'toy'}}
+        e=HouseEnv(c)
+        e.step('ask','resident_1',topic='target');e.step('ask','resident_1',topic='target')
+        stats=e.evaluate()['metrics']
+        self.assertEqual(stats['necessary_questions'],1)
+        self.assertEqual(stats['unnecessary_questions'],1)
+
     def test_persistence_continuation_undo_and_replay(self):
         e=HouseEnv(fixture());e.step('open','box');e.step('pick_up','toy')
         with tempfile.TemporaryDirectory() as directory:

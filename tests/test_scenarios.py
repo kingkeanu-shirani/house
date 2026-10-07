@@ -12,6 +12,14 @@ from house_sim.world import make_house, object_record
 
 
 class ScenarioTests(unittest.TestCase):
+    def test_section_context_and_material_are_grounded(self):
+        specs=read_jsonl(ROOT/'tasks/specs.jsonl')
+        bedroom=next(s for s in specs if s.get('section')=='Bedrooms' and s['family']=='transform')
+        world,task,oracle=build(bedroom,5)
+        self.assertEqual(world['rooms'][oracle['work_room']]['type'],'bedroom')
+        self.assertEqual(world['entities']['target_1']['affordances'],['fold'])
+        self.assertIn(world['entities']['target_1']['material'],['cotton','linen'])
+
     def test_every_family_reference_idle_wrong_and_replay(self):
         families={}
         for spec in read_jsonl(ROOT/'tasks/specs.jsonl'):

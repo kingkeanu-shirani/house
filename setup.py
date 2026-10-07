@@ -13,9 +13,6 @@ class Build(build_py):
         for folder in ('catalog','tasks','reports','demos'):
             shutil.copytree(root/folder,out/folder,dirs_exist_ok=True)
         shutil.copy2(root/'coverage.csv',out/'coverage.csv')
-        # Preserve the engine source alongside packaged resources for report hashes.
-        shutil.copytree(root/'house_sim',out/'house_sim',dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns('__pycache__','resources'))
 
 
 setup(name='house-ai-symbolic',version='0.3.0',python_requires='>=3.9',

@@ -27,6 +27,17 @@ def build(spec, seed=0):
     # Each generated object has a semantic category and actual attributes, rather
     # than a single task completion bit. Surface tasks remain fixed in place.
     config["rooms"][work_room]["label"] = spec.get("section", "Work area")
+    section = spec.get("section", "").lower()
+    for word, kind in [("garage", "garage"), ("shed", "shed"), ("bedroom", "bedroom"),
+                       ("bathroom", "bathroom"), ("kitchen", "kitchen"), ("laundry", "laundry"),
+                       ("office", "office"), ("living", "living_room"), ("dining", "dining_room"),
+                       ("yard", "yard"), ("garden", "garden"), ("lawn", "lawn"),
+                       ("pool", "poolside"), ("driveway", "driveway"), ("outdoor", "yard")]:
+        if word in section:
+            config["rooms"][work_room]["type"] = kind
+            if kind in ("yard", "garden", "lawn", "poolside", "driveway"):
+                config["rooms"][work_room].update(outdoor=True, floor=0)
+            break
     config["entities"]["worktop"] = object_record("work surface", work_room, accepts_items=True, capacity_l=100)
     config["entities"]["storage"] = object_record(params.get("destination_label", "designated storage"), work_room,
                                                  accepts_items=True, openable=True, open=False, capacity_l=100)
@@ -100,7 +111,9 @@ def build(spec, seed=0):
         field = {"fold": "folded", "unfold": "folded", "flatten": "flattened", "coil": "coiled", "uncoil": "coiled", "tighten": "loose"}[method]
         final = method not in ("unfold", "uncoil", "tighten")
         for tid in targets:
-            obj(tid, affordances=["fold", "flatten", "coil", "tighten"], empty=True, plugged=False, **{field: not final})
+            affordance = {"unfold": "fold", "uncoil": "coil"}.get(method, method)
+            material = rng.choice(["cotton", "linen"]) if affordance == "fold" else {"coil": "rubber", "tighten": "steel", "flatten": "cardboard"}[affordance]
+            obj(tid, affordances=[affordance], material=material, empty=True, plugged=False, **{field: not final})
             success.append(pred("entities." + tid + "." + field, final))
             preserve.append("entities." + tid + ".location")
         oracle["method"] = method
@@ -149,6 +162,9 @@ def build(spec, seed=0):
                          "size": ["small", "large"]}[field][n % 2]
                 if field == "size": field = "size_class"
                 config["entities"][tid][field] = value
+                if field == "owner" and value not in config["people"]:
+                    config["people"][value] = {"label": value, "role": "adult", "location": work_room,
+                                               "consent": True, "permissions": [], "preferences": {}, "mood": "neutral"}
                 dest = "bin_" + str(n % 2)
                 config["entities"][dest] = object_record("storage for " + value, work_room, accepts_items=True, capacity_l=100, sort_field=field, sort_value=value)
             oracle["destinations"][tid] = dest

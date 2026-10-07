@@ -16,3 +16,13 @@ Started UTC: 2026-10-07T07:33:27.074933+00:00
   preferring an object whose ID happens to equal the shared label.
 - Final verification, docs and packaging remain. No five-day completion is claimed.
 - Checkpoint UTC: 2026-10-07T13:53:20.515155+00:00
+
+## Verification and packaging milestone
+
+- 35 regression tests pass, covering all 19 families and adversarial behavior.
+- Tested optional offline wheel build/install and six CLI/export/save/replay paths.
+- Tightened undo guards, private snapshot diffs, repeated-question scoring, carried
+  liquid mass, fixed-surface cleaning and reward accounting.
+- Each mapped entry is being rechecked on five seeds against the final source hash.
+- Full-catalog implementation is still partial; remaining requirements are retained.
+- Checkpoint UTC: 2026-10-07T14:09:19.489882+00:00
