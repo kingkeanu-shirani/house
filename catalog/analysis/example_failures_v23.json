@@ -1,0 +1,549 @@
+{
+ "cleaning": [
+  {
+   "id": "T-48266979ae98d3-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.reachable: no accessible kitchen_trash_can in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-d389e2979f6aad-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.reachable: no accessible kitchen_trash_can in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-7e93003b0dcefa-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.reachable: no accessible kitchen_trash_can in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-69c80ea246f3d7-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.reachable: no accessible kitchen_trash_can in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-442191e0145b6b-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.reachable: no accessible kitchen_trash_can in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-db0caa23574cee-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.fixture: no accessible spot for generic_item in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-538be222afc7b7-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.fixture: no accessible spot for generic_item in kitchen_1",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-902505feb41f4e-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: cleaning.reachable: no accessible kitchen_trash_can in kitchen_1",
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "electrical": [
+  {
+   "id": "T-64361790eed0cb-01",
+   "failures": [
+    {
+     "seed": 97,
+     "error": "SpecError: electrical.outlet: no floor space beside table_lamp_1",
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "food": [
+  {
+   "id": "T-1df40780f5ddf2-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": 0,
+     "error": "TypeError: can only concatenate str (not \"NoneType\") to str",
+     "initial_fails": true,
+     "idle_fails": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "X-44e90cc83ba0db-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": null,
+     "error": "KeyError: None",
+     "initial_fails": true,
+     "idle_fails": true,
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "manipulation": [
+  {
+   "id": "T-0d99b00f1f2278-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: spawn: no room for storage_bin ({'var': 'can', 'type': 'storage_bin', 'floor': 'kitchen_1', 'near': [0, 2]})",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-6c5d74d78e26dd-01",
+   "failures": [
+    {
+     "seed": 41,
+     "error": "SpecError: spawn: no room for storage_bin ({'var': 'b1', 'type': 'storage_bin', 'floor': 'garage_1'})",
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "outdoor_plants": [
+  {
+   "id": "T-b0ab19967436e0-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "spread_granular ice_melt_bag_2 walkway_1 failed: Approach it first; it is out of arm's reach",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 2,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "spread_granular ice_melt_bag_2 walkway_1 failed: Approach it first; it is out of arm's reach",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 41,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "spread_granular ice_melt_bag_2 walkway_1 failed: Approach it first; it is out of arm's reach",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 97,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "spread_granular ice_melt_bag_1 walkway_1 failed: Approach it first; it is out of arm's reach",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "people": [
+  {
+   "id": "X-1742e6de23d6be-01",
+   "failures": [
+    {
+     "seed": 1,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": true,
+     "wrong_fails": false,
+     "wrong_ran": true,
+     "wrong": [
+      {
+       "name": "clears the toy out of the way without telling Pat",
+       "ran": true,
+       "refusals": 3,
+       "fails": false,
+       "why": "goal_fraction=1.0"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "pets": [
+  {
+   "id": "T-e9cf6ca709ec77-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in kitchen_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-7fe081a3de29f8-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "approach all_purpose_flour_1  failed: That is not visible here",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 41,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "place cat_food_bowl_1 counter_1 failed: No free space there",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 97,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in kitchen_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-79a861877a2a67-01",
+   "failures": [
+    {
+     "seed": 2,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "approach hvac_filter_1  failed: That is not visible here",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-457afb032d7be7-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in kitchen_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "A-afe8d8c6d6d883-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": true,
+     "wrong_fails": false,
+     "wrong_ran": true,
+     "wrong": [
+      {
+       "name": "drops it in the kitchen trash can",
+       "ran": true,
+       "refusals": 1,
+       "fails": false,
+       "why": "goal_fraction=1.0"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "plumbing_liquids": [
+  {
+   "id": "T-151f6733397156-01",
+   "failures": [
+    {
+     "seed": 1,
+     "error": "SpecError: spawn: no room for generic_item ({'var': 'trash', 'type': 'generic_item', 'floor': 'kitchen_1'})",
+     "wrong": []
+    },
+    {
+     "seed": 97,
+     "error": "SpecError: spawn: no room for generic_item ({'var': 'trash', 'type': 'generic_item', 'floor': 'kitchen_1'})",
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "safety": [
+  {
+   "id": "X-bf82170244be22-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_failures": [
+      "failure_predicate_0"
+     ],
+     "reference_goal_fraction": 1.0,
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 1,
+     "variant": 1,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in bedroom_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 41,
+     "variant": 1,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in bedroom_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 97,
+     "variant": 1,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in bedroom_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "X-d734ea3e299b16-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: spawn: no room for generic_item ({'var': 'pitcher', 'type': 'generic_item', 'floor': 'kitchen_1'})",
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "T-1970299fc6d849-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in master_bedroom_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 2,
+     "variant": 0,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in bedroom_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "X-befab43585cde3-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: spawn: no room for snap_trap ({'var': 'trap_2', 'type': 'snap_trap', 'floor': 'kitchen_1'})",
+     "wrong": []
+    },
+    {
+     "seed": 41,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in kitchen_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 97,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in kitchen_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "X-404f39e74f6d5f-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in laundry_room_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    },
+    {
+     "seed": 1,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "No route in garage_1 that avoids stepping on sharp or fragile things, sleeping animals or people",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  },
+  {
+   "id": "X-bc4e8d373e62c5-01",
+   "failures": [
+    {
+     "seed": 41,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_error": "inspect floor_kitchen_1  failed: That is not visible here",
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "textiles_laundry": [
+  {
+   "id": "T-28ff695081cd2c-01",
+   "failures": [
+    {
+     "seed": 0,
+     "variant": null,
+     "initial_fails": true,
+     "idle_fails": true,
+     "reference_passes": false,
+     "reference_failures": [
+      "pet_escape"
+     ],
+     "reference_goal_fraction": 1.0,
+     "wrong_fails": true,
+     "wrong_ran": true,
+     "wrong": []
+    }
+   ]
+  }
+ ],
+ "tools_vehicles": [
+  {
+   "id": "T-0b4f248ae32c87-01",
+   "failures": [
+    {
+     "seed": 0,
+     "error": "SpecError: No floor space for the mats",
+     "wrong": []
+    }
+   ]
+  }
+ ]
+}

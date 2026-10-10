@@ -1,0 +1,420 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-9615ae9f7570b4-01",
+   "title": "Measure the space available in an alcove: narrowest width, depth and height with a tape (realistic perception)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "navigation_robot.measure_target",
+     "args": {
+      "kind": "space"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "tape",
+     "type": "tape_measure",
+     "floor": "{room}"
+    }
+   ],
+   "instruction": "We're moving a bookcase into the alcove. Measure the space available - its narrowest width, its depth and its height - and report them in our usual units.",
+   "phrasings": [
+    "We're moving a bookcase into the alcove. Measure the space available - its narrowest width, its depth and its height - and report them in our usual units.",
+    "Measure available space in the alcove for the new bookcase (width at the tightest point, depth, height).",
+    "Can you tape the alcove? I need the real usable width, the depth and the height before I buy shelves."
+   ],
+   "success": [
+    {
+     "path": "reports.{target}.width_{unit_suffix}",
+     "op": "approx",
+     "value": [
+      "{truth_width}",
+      "{tolerance}"
+     ]
+    },
+    {
+     "path": "reports.{target}.depth_{unit_suffix}",
+     "op": "approx",
+     "value": [
+      "{truth_depth}",
+      "{tolerance}"
+     ]
+    },
+    {
+     "path": "reports.{target}.height_{unit_suffix}",
+     "op": "approx",
+     "value": [
+      "{truth_height}",
+      "{tolerance}"
+     ]
+    }
+   ],
+   "side_effects": {
+    "no_damage": true,
+    "no_moves_except": [
+     "{tape}"
+    ]
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 50,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{tape}"
+    },
+    {
+     "do": "read",
+     "target": "{tape}",
+     "note": "the label: case length 76 mm, add it for inside readings"
+    },
+    {
+     "skill": "navigation_robot.measure_report",
+     "target": "{target}",
+     "field": "width_{unit_suffix}",
+     "dimension": "width",
+     "at": "min",
+     "add_case": true,
+     "units": "{units}",
+     "tool": "{tape}"
+    },
+    {
+     "skill": "navigation_robot.measure_report",
+     "target": "{target}",
+     "field": "depth_{unit_suffix}",
+     "dimension": "depth",
+     "add_case": true,
+     "units": "{units}",
+     "tool": "{tape}"
+    },
+    {
+     "skill": "navigation_robot.measure_report",
+     "target": "{target}",
+     "field": "height_{unit_suffix}",
+     "dimension": "height",
+     "add_case": true,
+     "units": "{units}",
+     "tool": "{tape}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "eyeballs the alcove from the camera and reports estimates where a tape measurement is needed",
+     "plan": [
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "width_{unit_suffix}",
+       "dimension": "width",
+       "units": "{units}"
+      },
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "depth_{unit_suffix}",
+       "dimension": "depth",
+       "units": "{units}"
+      },
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "height_{unit_suffix}",
+       "dimension": "height",
+       "units": "{units}"
+      }
+     ]
+    },
+    {
+     "name": "skips the tape's label and takes the inside spans at the case without adding its length (76 mm short)",
+     "plan": [
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "width_{unit_suffix}",
+       "dimension": "width",
+       "at": "min",
+       "units": "{units}",
+       "tool": "{tape}"
+      },
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "depth_{unit_suffix}",
+       "dimension": "depth",
+       "units": "{units}",
+       "tool": "{tape}"
+      },
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "height_{unit_suffix}",
+       "dimension": "height",
+       "units": "{units}",
+       "tool": "{tape}"
+      }
+     ]
+    },
+    {
+     "name": "measures the width once at mid height, missing the narrowing at the top of the opening",
+     "plan": [
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "width_{unit_suffix}",
+       "dimension": "width",
+       "add_case": true,
+       "units": "{units}",
+       "tool": "{tape}"
+      },
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "depth_{unit_suffix}",
+       "dimension": "depth",
+       "add_case": true,
+       "units": "{units}",
+       "tool": "{tape}"
+      },
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "height_{unit_suffix}",
+       "dimension": "height",
+       "add_case": true,
+       "units": "{units}",
+       "tool": "{tape}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: the camera sees the alcove's size only to about 5 cm (size_m estimate) and its width narrows toward the top by 12-35 mm (hidden _measure profile). Only a tape reading taken at the narrowest point with the case length added (the tape's label says so; read it) is within 3 mm / 1/8 in. Units follow metadata.units."
+  },
+  {
+   "catalog_id": "T-c39a630dc5c6f6-01",
+   "title": "Measure the distance between two pieces of furniture with a tape measure (realistic perception)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "navigation_robot.measure_target",
+     "args": {
+      "kind": "gap"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "tape",
+     "type": "tape_measure",
+     "floor": "{room}"
+    }
+   ],
+   "instruction": "How far apart are the {from_label} and the {to_label}? Measure the clear gap between them with the tape measure and tell me in our usual units.",
+   "phrasings": [
+    "How far apart are the {from_label} and the {to_label}? Measure the clear gap between them with the tape measure and tell me in our usual units.",
+    "Measure distance: the gap from the {from_label} to the {to_label}, please.",
+    "Grab the tape and check exactly how much room there is between the {from_label} and the {to_label}."
+   ],
+   "success": [
+    {
+     "path": "reports.{target}.distance_{unit_suffix}",
+     "op": "approx",
+     "value": [
+      "{truth_distance}",
+      "{tolerance}"
+     ]
+    }
+   ],
+   "side_effects": {
+    "no_damage": true,
+    "no_moves_except": [
+     "{tape}"
+    ]
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 30,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{tape}"
+    },
+    {
+     "do": "read",
+     "target": "{tape}",
+     "note": "the label: case length 76 mm, add it for inside readings"
+    },
+    {
+     "skill": "navigation_robot.measure_report",
+     "target": "{target}",
+     "field": "distance_{unit_suffix}",
+     "destination": "{destination}",
+     "add_case": true,
+     "units": "{units}",
+     "tool": "{tape}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "judges the gap from the camera (an estimate where a measurement is needed)",
+     "plan": [
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "distance_{unit_suffix}",
+       "destination": "{destination}",
+       "units": "{units}"
+      }
+     ]
+    },
+    {
+     "name": "never reads the tape's label: an inside reading taken at the case without adding the case length",
+     "plan": [
+      {
+       "skill": "navigation_robot.measure_report",
+       "target": "{target}",
+       "field": "distance_{unit_suffix}",
+       "destination": "{destination}",
+       "units": "{units}",
+       "tool": "{tape}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: the map only gives the cells both pieces stand on; the true surface-to-surface gap is hidden (_measure to:<id>). A camera estimate is off by 3-8 %; a tape between two surfaces reads 76 mm short unless the case length printed on its label is added; tape error is under 1 mm. Units follow metadata.units."
+  },
+  {
+   "catalog_id": "A-926bc611ae9158-01",
+   "title": "Tell a reflection from a real opening: inspect the 'doorway' in the way before routing (realistic perception)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "navigation_robot.hazard_band",
+       "args": {
+        "kind": "glass",
+        "props": {
+         "reflective": true,
+         "label": "floor-to-ceiling glass partition"
+        }
+       }
+      }
+     ],
+     "notes": "A clear glass partition across the direct route reflects the room beyond: at a glance it is an open doorway."
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "navigation_robot.hazard_band",
+       "args": {
+        "kind": "glass",
+        "props": {
+         "category": "mirror",
+         "label": "floor-to-ceiling mirrored divider"
+        }
+       }
+      }
+     ],
+     "notes": "A full-height mirror panel on the direct route shows the room behind the robot: at a glance it is a doorway into more room."
+    }
+   ],
+   "instruction": "Please go to the {goal_room}. Watch out - this room has floor-to-ceiling glass and mirrors that can look like openings.",
+   "phrasings": [
+    "Please go to the {goal_room}. Watch out - this room has floor-to-ceiling glass and mirrors that can look like openings.",
+    "Head over to the {goal_room}, and don't mistake a reflection for a way through.",
+    "Can you get to the {goal_room}? Mind the big mirror and glass panels in here."
+   ],
+   "success": [
+    {
+     "path": "robot.room",
+     "op": "eq",
+     "value": "{goal_room}"
+    },
+    {
+     "path": "robot.fallen",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{hazard}.cracked",
+     "op": "exists",
+     "value": false
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "G",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 30,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{hazard}"
+    },
+    {
+     "do": "inspect",
+     "target": "{hazard}",
+     "note": "the 'open doorway' turns out to be glass / a mirror"
+    },
+    {
+     "do": "move",
+     "target": "{goal_room}",
+     "avoid": [
+      "glass"
+     ]
+    }
+   ],
+   "wrong": [
+    {
+     "name": "trusts the opening it sees: plans around every known hazard (avoid glass) without looking closer and walks into the panel",
+     "plan": [
+      {
+       "do": "move",
+       "target": "{goal_room}",
+       "avoid": [
+        "glass"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "walks straight through the 'doorway'",
+     "plan": [
+      {
+       "do": "move",
+       "target": "{goal_room}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception shows a mirror or reflective glass panel as an open doorway until it is inspected; until then the planner has no glass margin to route around (navigation_robot masks it), so avoid=['glass'] alone does not help. Walking into it is a collision (global harm) and cracks the panel at walking pace."
+  }
+ ]
+}

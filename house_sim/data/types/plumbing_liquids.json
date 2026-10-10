@@ -1,0 +1,2198 @@
+{
+ "domain": "plumbing_liquids",
+ "looks_like": {
+  "water_valve": {
+   "descriptor": "water shutoff valve",
+   "resolve": "inspect",
+   "members": [
+    "shutoff_valve"
+   ],
+   "kind": "water valve",
+   "candidates": [
+    "main water shutoff",
+    "hot water stop",
+    "cold water stop",
+    "washer valve",
+    "water heater inlet valve",
+    "spigot shutoff"
+   ]
+  },
+  "rubber_plunger": {
+   "descriptor": "rubber plunger",
+   "resolve": "inspect",
+   "members": [
+    "flange_plunger",
+    "cup_plunger"
+   ],
+   "kind": "plunger",
+   "candidates": [
+    "flange (toilet) plunger",
+    "cup (sink) plunger"
+   ]
+  },
+  "water_stain": {
+   "descriptor": "brownish water stain",
+   "resolve": "inspect",
+   "members": [
+    "water_stain"
+   ],
+   "kind": "stain",
+   "candidates": [
+    "active leak stain",
+    "old dry stain"
+   ]
+  },
+  "reusable_bottle": {
+   "descriptor": "reusable drink bottle",
+   "resolve": "inspect",
+   "members": [
+    "water_bottle"
+   ],
+   "kind": "bottle",
+   "candidates": [
+    "water bottle",
+    "insulated drink bottle"
+   ]
+  }
+ },
+ "field_tiers": {
+  "glance": [
+   "lid_fell"
+  ],
+  "measure": {
+   "soap_ml_per_l": "test_strip",
+   "chem_ml_per_l": "test_strip",
+   "ice_g": "scale"
+  },
+  "hidden": [
+   "liquid_in_bin_l",
+   "wrong_liquid",
+   "foam_l",
+   "fizz",
+   "lodged_in_drain",
+   "food_scraps_g",
+   "cabinet_water_l",
+   "ceiling_water_l",
+   "drained_l",
+   "drip_left_l",
+   "frozen_spill_l",
+   "drying_owner",
+   "plumb_source"
+  ],
+  "room": {
+   "hidden": [
+    "wet_cells",
+    "floor_hazards"
+   ]
+  }
+ },
+ "types": {
+  "plumbing_fixture": {
+   "is_a": "fixture",
+   "props": {
+    "label": "plumbing fixture",
+    "category": "plumbing",
+    "material": "porcelain",
+    "plumb": {
+     "kind": "fixture"
+    },
+    "blocks_path": false,
+    "affordances": [
+     "inspect"
+    ]
+   },
+   "doc": "Base of the domain's fixtures; the `plumb` marker means this domain simulates it.",
+   "perception": {
+    "glance": [
+     "water_running",
+     "joint_spraying"
+    ],
+    "read": [
+     "reading_l",
+     "program",
+     "remote_status",
+     "power_w"
+    ],
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer",
+     "flow_lpm": "measuring_cup",
+     "drip_lpm": "measuring_cup",
+     "outlet_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "faucet",
+     "potable",
+     "water_source",
+     "drain_capacity_lpm",
+     "overflow_hole_lpm",
+     "overflow_level",
+     "thermal_tau_s",
+     "inner_floor_m",
+     "fill_lpm",
+     "flush_hold_s",
+     "normal_bowl_l",
+     "bowl_rim_l",
+     "max_torque_nm",
+     "turns_to_close",
+     "recovery_kw",
+     "tank_temp_c",
+     "fixed_temperature",
+     "base_reading_l",
+     "delay_until_s",
+     "cycle_s",
+     "harvest_g",
+     "ice_capacity_g",
+     "drain_speed",
+     "overflowed_l",
+     "standing_l",
+     "flushes",
+     "last_flush",
+     "filled_s",
+     "stale",
+     "driver",
+     "interior_valve",
+     "drained",
+     "drained_l",
+     "precip_mm_h",
+     "radius_m",
+     "thermal_tripped",
+     "contamination",
+     "bowl_l",
+     "tank_level_l",
+     "strainer_g",
+     "mech"
+    ]
+   }
+  },
+  "kitchen_sink": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "kitchen sink",
+    "category": "sink",
+    "material": "stainless_steel",
+    "plumb": {
+     "kind": "sink"
+    },
+    "size_m": [
+     0.8,
+     0.55,
+     0.23
+    ],
+    "mass_kg": 15.0,
+    "mounted": true,
+    "water_source": true,
+    "drain": true,
+    "potable": true,
+    "sink_zone": "kitchen",
+    "food_prep": true,
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 60.0,
+    "inner_size_m": [
+     0.7,
+     0.42,
+     0.2
+    ],
+    "inner_floor_m": 0.02,
+    "basin_l": 32.0,
+    "drain_capacity_lpm": 30.0,
+    "plug": "open",
+    "plug_kind": "basket",
+    "strainer": true,
+    "strainer_g": 0.0,
+    "faucet": {
+     "kind": "single_lever",
+     "max_lpm": 6.8,
+     "warm_up_s": 20.0,
+     "sprayer": true
+    },
+    "settings": {
+     "flow": 0.0,
+     "mix": 0.0
+    },
+    "setting_options": {
+     "flow": {
+      "min": 0.0,
+      "max": 1.0
+     },
+     "mix": {
+      "min": -1.0,
+      "max": 1.0
+     }
+    },
+    "control_kinds": {
+     "flow": "lever",
+     "mix": "lever"
+    },
+    "mech": {
+     "lever": {
+      "kind": "mixer",
+      "max_lpm": 6.8
+     }
+    },
+    "lines": [
+     "hot",
+     "cold"
+    ],
+    "water_running": false,
+    "flow_lpm": 0.0,
+    "outlet_temp_c": null,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "thermal_tau_s": 5400.0,
+    "+affordances": [
+     "turn_on_water",
+     "turn_off_water",
+     "fill",
+     "plug_drain",
+     "drain",
+     "wash",
+     "rinse"
+    ]
+   },
+   "doc": "Single 32 L stainless basin (to the rim) in a counter-height base cabinet; 1.8 gpm (6.8 L/min) single-lever faucet; basket strainer (food scraps collect in strainer_g) plugged with a separate sink_stopper; 1.5 in drain ~30 L/min; no overflow outlet."
+  },
+  "bathroom_sink": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "bathroom sink",
+    "category": "sink",
+    "material": "porcelain",
+    "plumb": {
+     "kind": "sink"
+    },
+    "size_m": [
+     0.5,
+     0.42,
+     0.18
+    ],
+    "mass_kg": 12.0,
+    "mounted": true,
+    "water_source": true,
+    "drain": true,
+    "potable": true,
+    "sink_zone": "bathroom",
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 8.0,
+    "inner_size_m": [
+     0.42,
+     0.32,
+     0.15
+    ],
+    "inner_floor_m": 0.02,
+    "basin_l": 7.0,
+    "overflow_hole_lpm": 4.0,
+    "overflow_level": 0.85,
+    "drain_capacity_lpm": 18.0,
+    "plug": "open",
+    "plug_kind": "popup",
+    "faucet": {
+     "kind": "two_handle",
+     "max_lpm": 4.5,
+     "warm_up_s": 25.0,
+     "marks": {
+      "left": "hot",
+      "right": "cold"
+     }
+    },
+    "_hot_handle": "left",
+    "settings": {
+     "left": 0.0,
+     "right": 0.0
+    },
+    "setting_options": {
+     "left": {
+      "min": 0.0,
+      "max": 1.0
+     },
+     "right": {
+      "min": 0.0,
+      "max": 1.0
+     }
+    },
+    "control_kinds": {
+     "left": "handle",
+     "right": "handle"
+    },
+    "lines": [
+     "hot",
+     "cold"
+    ],
+    "water_running": false,
+    "flow_lpm": 0.0,
+    "outlet_temp_c": null,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "thermal_tau_s": 2400.0,
+    "secret_fields": [
+     "_hot_handle",
+     "_worn",
+     "_nonpotable"
+    ],
+    "+affordances": [
+     "turn_on_water",
+     "turn_off_water",
+     "fill",
+     "plug_drain",
+     "drain"
+    ]
+   },
+   "doc": "Lavatory basin 7 L to the rim with an overflow outlet (~4 L/min at 85 %), pop-up stopper, 1.2 gpm (4.5 L/min) two-handle faucet whose marks may not match reversed plumbing (hidden _hot_handle)."
+  },
+  "utility_sink": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "utility sink",
+    "category": "sink",
+    "material": "plastic",
+    "plumb": {
+     "kind": "sink"
+    },
+    "size_m": [
+     0.6,
+     0.55,
+     0.3
+    ],
+    "mass_kg": 9.0,
+    "mounted": true,
+    "mount_height_m": 0.55,
+    "blocks_path": true,
+    "water_source": true,
+    "drain": true,
+    "potable": true,
+    "sink_zone": "utility",
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 70.0,
+    "inner_size_m": [
+     0.55,
+     0.45,
+     0.3
+    ],
+    "inner_floor_m": 0.02,
+    "basin_l": 45.0,
+    "drain_capacity_lpm": 30.0,
+    "plug": "open",
+    "plug_kind": "basket",
+    "strainer": true,
+    "strainer_g": 0.0,
+    "faucet": {
+     "kind": "two_handle",
+     "max_lpm": 8.3,
+     "warm_up_s": 30.0,
+     "marks": {
+      "left": "hot",
+      "right": "cold"
+     }
+    },
+    "_hot_handle": "left",
+    "settings": {
+     "left": 0.0,
+     "right": 0.0
+    },
+    "setting_options": {
+     "left": {
+      "min": 0.0,
+      "max": 1.0
+     },
+     "right": {
+      "min": 0.0,
+      "max": 1.0
+     }
+    },
+    "control_kinds": {
+     "left": "handle",
+     "right": "handle"
+    },
+    "lines": [
+     "hot",
+     "cold"
+    ],
+    "water_running": false,
+    "flow_lpm": 0.0,
+    "outlet_temp_c": null,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "thermal_tau_s": 6000.0,
+    "accepts_wastewater": true,
+    "+affordances": [
+     "turn_on_water",
+     "turn_off_water",
+     "fill",
+     "plug_drain",
+     "drain"
+    ]
+   },
+   "doc": "Laundry/utility tub 45 L, 2.2 gpm two-handle faucet: the right place for mop water and dirty cleaning water."
+  },
+  "bathtub": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "bathtub",
+    "category": "bathtub",
+    "material": "enamel",
+    "plumb": {
+     "kind": "tub"
+    },
+    "size_m": [
+     1.5,
+     0.75,
+     0.55
+    ],
+    "mass_kg": 45.0,
+    "blocks_path": true,
+    "water_source": true,
+    "drain": true,
+    "potable": true,
+    "sink_zone": "bathroom",
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 300.0,
+    "inner_size_m": [
+     1.35,
+     0.6,
+     0.4
+    ],
+    "inner_floor_m": 0.05,
+    "surface_height_m": 0.55,
+    "basin_l": 190.0,
+    "overflow_hole_lpm": 18.0,
+    "overflow_level": 0.75,
+    "drain_capacity_lpm": 25.0,
+    "plug": "open",
+    "plug_kind": "toe_touch",
+    "faucet": {
+     "kind": "single_lever",
+     "max_lpm": 15.0,
+     "warm_up_s": 30.0,
+     "diverter_return": true
+    },
+    "settings": {
+     "flow": 0.0,
+     "mix": 0.0,
+     "diverter": "tub"
+    },
+    "setting_options": {
+     "flow": {
+      "min": 0.0,
+      "max": 1.0
+     },
+     "mix": {
+      "min": -1.0,
+      "max": 1.0
+     },
+     "diverter": [
+      "tub",
+      "shower"
+     ]
+    },
+    "control_kinds": {
+     "flow": "lever",
+     "mix": "lever",
+     "diverter": "knob"
+    },
+    "mech": {
+     "lever": {
+      "kind": "mixer",
+      "max_lpm": 15.0
+     }
+    },
+    "lines": [
+     "hot",
+     "cold"
+    ],
+    "water_running": false,
+    "flow_lpm": 0.0,
+    "outlet_temp_c": null,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "thermal_tau_s": 7200.0,
+    "+affordances": [
+     "turn_on_water",
+     "turn_off_water",
+     "fill",
+     "plug_drain",
+     "drain"
+    ]
+   },
+   "doc": "Alcove tub 190 L to the rim, overflow outlet at ~140 L (18 L/min), 4 gpm spout with a shower diverter (gravity type drops back to tub when the water is off)."
+  },
+  "shower_stall": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "shower",
+    "category": "shower",
+    "material": "tile",
+    "plumb": {
+     "kind": "shower"
+    },
+    "size_m": [
+     0.9,
+     0.9,
+     2.0
+    ],
+    "mass_kg": 60.0,
+    "blocks_path": true,
+    "water_source": true,
+    "drain": true,
+    "potable": true,
+    "sink_zone": "bathroom",
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 40.0,
+    "inner_size_m": [
+     0.85,
+     0.85,
+     0.05
+    ],
+    "basin_l": 25.0,
+    "drain_capacity_lpm": 25.0,
+    "plug": "open",
+    "plug_kind": "none",
+    "openable": true,
+    "open": false,
+    "faucet": {
+     "kind": "thermostatic",
+     "max_lpm": 7.6,
+     "warm_up_s": 30.0
+    },
+    "settings": {
+     "flow": 0.0,
+     "temp_c": 38.0
+    },
+    "setting_options": {
+     "flow": {
+      "min": 0.0,
+      "max": 1.0
+     },
+     "temp_c": {
+      "min": 20.0,
+      "max": 49.0
+     }
+    },
+    "control_kinds": {
+     "flow": "lever",
+     "temp_c": "dial"
+    },
+    "lines": [
+     "hot",
+     "cold"
+    ],
+    "water_running": false,
+    "flow_lpm": 0.0,
+    "outlet_temp_c": null,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "+affordances": [
+     "turn_on_water",
+     "turn_off_water"
+    ]
+   },
+   "doc": "Stall shower with a 2 gpm head and a thermostatic valve (temp_c set point, max 49 C); the pan holds ~25 L above its drain."
+  },
+  "toilet": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "toilet",
+    "category": "toilet",
+    "material": "porcelain",
+    "plumb": {
+     "kind": "toilet"
+    },
+    "toilet": true,
+    "size_m": [
+     0.4,
+     0.7,
+     0.78
+    ],
+    "mass_kg": 40.0,
+    "blocks_path": true,
+    "openable": true,
+    "open": false,
+    "cover_open": false,
+    "tank_l": 6.0,
+    "tank_level_l": 6.0,
+    "bowl_l": 1.9,
+    "normal_bowl_l": 1.9,
+    "bowl_rim_l": 6.5,
+    "fill_lpm": 9.0,
+    "flush_hold_s": 0.8,
+    "settings": {
+     "supply_valve": "open"
+    },
+    "setting_options": {
+     "supply_valve": [
+      "open",
+      "closed"
+     ]
+    },
+    "control_kinds": {
+     "supply_valve": "valve"
+    },
+    "lines": [
+     "cold"
+    ],
+    "valve_open": true,
+    "float_propped": false,
+    "bowl_waste": 0.0,
+    "flush_handle": true,
+    "_tank": {
+     "chain_slack_mm": 10.0,
+     "float_mm": -25.0,
+     "flapper_seal": 1.0,
+     "fill_valve_ok": true
+    },
+    "_clog": {
+     "kind": "none",
+     "amount": 0.0
+    },
+    "sink_zone": "toilet",
+    "secret_fields": [
+     "_supply_seized"
+    ],
+    "+affordances": [
+     "flush",
+     "plunge",
+     "shut_off",
+     "open_valve",
+     "open_cover"
+    ],
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 6.0,
+    "inner_size_m": [
+     0.3,
+     0.25,
+     0.2
+    ],
+    "inner_floor_m": 0.25
+   },
+   "doc": "1.6 gpf (6 L) gravity toilet: bowl holds 1.9 L normally and ~6.5 L to the rim; fill valve 9 L/min; supply stop behind it (settings.supply_valve, possibly seized)."
+  },
+  "outdoor_spigot": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "outdoor spigot",
+    "category": "spigot",
+    "material": "brass",
+    "plumb": {
+     "kind": "spigot"
+    },
+    "size_m": [
+     0.1,
+     0.15,
+     0.1
+    ],
+    "mass_kg": 0.6,
+    "mounted": true,
+    "mount_height_m": 0.45,
+    "water_source": true,
+    "potable": true,
+    "faucet": {
+     "kind": "spigot",
+     "max_lpm": 18.0
+    },
+    "settings": {
+     "valve": 0.0
+    },
+    "setting_options": {
+     "valve": {
+      "min": 0.0,
+      "max": 1.0
+     }
+    },
+    "control_kinds": {
+     "valve": "handle"
+    },
+    "lines": [
+     "cold"
+    ],
+    "frost_free": true,
+    "water_running": false,
+    "flow_lpm": 0.0,
+    "+affordances": [
+     "turn_on_water",
+     "turn_off_water",
+     "connect_hose"
+    ],
+    "weatherproof": true
+   },
+   "doc": "Hose bib on the house wall, 3/4 in hose thread, ~18 L/min. frost_free sillcocks close inside the wall; standard ones need their interior_valve closed and the tap opened to drain before winter."
+  },
+  "shutoff_valve": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "shutoff valve",
+    "category": "valve",
+    "material": "brass",
+    "plumb": {
+     "kind": "valve"
+    },
+    "size_m": [
+     0.06,
+     0.06,
+     0.08
+    ],
+    "mass_kg": 0.2,
+    "valve_kind": "multi_turn_stop",
+    "turns_to_close": 2.5,
+    "max_torque_nm": 20.0,
+    "settings": {
+     "position": 1.0
+    },
+    "setting_options": {
+     "position": {
+      "min": 0.0,
+      "max": 1.0
+     }
+    },
+    "control_kinds": {
+     "position": "valve"
+    },
+    "mech": {
+     "rotary": {
+      "setting": "position",
+      "per_turn": 0.4,
+      "cw": "decrease",
+      "max_turns_past_stop": 0.25
+     }
+    },
+    "valve_open": true,
+    "line": "cold",
+    "feeds": [],
+    "secret_fields": [
+     "_seized"
+    ],
+    "+affordances": [
+     "shut_off",
+     "open_valve"
+    ]
+   },
+   "doc": "Fixture stop (angle stop) under a sink, behind a toilet, at a washer box, ice-maker line or water heater inlet; feeds lists the fixtures it isolates, line hot|cold."
+  },
+  "main_shutoff_valve": {
+   "is_a": "shutoff_valve",
+   "props": {
+    "label": "main water shutoff valve",
+    "category": "valve",
+    "main": true,
+    "valve_kind": "gate",
+    "turns_to_close": 6.0,
+    "max_torque_nm": 60.0,
+    "size_m": [
+     0.12,
+     0.12,
+     0.15
+    ],
+    "mass_kg": 1.2,
+    "line": "both",
+    "mech": {
+     "rotary": {
+      "setting": "position",
+      "per_turn": 0.1667,
+      "cw": "decrease",
+      "max_turns_past_stop": 0.25
+     }
+    },
+    "label_text": "MAIN"
+   },
+   "doc": "House main where the service enters (basement wall, utility closet or garage): 3/4 in gate valve (~6 turns clockwise) or ball valve (lever perpendicular = closed)."
+  },
+  "water_meter": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "water meter",
+    "category": "meter",
+    "material": "brass",
+    "plumb": {
+     "kind": "water_meter"
+    },
+    "size_m": [
+     0.2,
+     0.15,
+     0.15
+    ],
+    "mass_kg": 2.0,
+    "base_reading_l": 482113.0,
+    "display": "482113.0 L total; flow indicator still",
+    "flow_indicator": false,
+    "+affordances": [
+     "read"
+    ]
+   },
+   "doc": "Positive-displacement meter: cumulative reading and a flow indicator that turns with any flow, leaks included.",
+   "perception": {
+    "read": [
+     "display",
+     "reading_l"
+    ]
+   }
+  },
+  "water_heater": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "water heater",
+    "category": "water_heater",
+    "material": "steel",
+    "plumb": {
+     "kind": "water_heater"
+    },
+    "size_m": [
+     0.56,
+     0.56,
+     1.5
+    ],
+    "mass_kg": 70.0,
+    "blocks_path": true,
+    "tank_l": 190.0,
+    "tank_temp_c": 49.0,
+    "recovery_kw": 9.0,
+    "fuel": "gas",
+    "settings": {
+     "temp_c": 49.0
+    },
+    "setting_options": {
+     "temp_c": {
+      "min": 30.0,
+      "max": 70.0
+     }
+    },
+    "control_kinds": {
+     "temp_c": "dial"
+    },
+    "hazards": [
+     "hot"
+    ],
+    "temperature_c": 30.0,
+    "fixed_temperature": true,
+    "label_text": "Recommended setting 120 F (49 C). Hotter water scalds in seconds."
+   },
+   "doc": "50 gal (190 L) gas tank heater, ~9 kW effective recovery; its cold inlet stop (feeds_hot) cuts hot water house-wide but not cold.",
+   "perception": {
+    "read": [
+     "recovery_kw"
+    ]
+   }
+  },
+  "water_pipe": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "water pipe",
+    "category": "pipe",
+    "material": "copper",
+    "plumb": {
+     "kind": "pipe"
+    },
+    "size_m": [
+     2.0,
+     0.05,
+     0.05
+    ],
+    "mass_kg": 1.5,
+    "mounted": true,
+    "mount_height_m": 2.1,
+    "line": "cold",
+    "condensation_prone": false
+   },
+   "doc": "Exposed supply run (basement/utility ceiling); may carry a hidden _leak or sweat in humid air (condensation_prone)."
+  },
+  "drain_trap": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "P-trap",
+    "category": "pipe",
+    "material": "pvc",
+    "plumb": {
+     "kind": "trap"
+    },
+    "size_m": [
+     0.3,
+     0.1,
+     0.25
+    ],
+    "mass_kg": 0.4
+   },
+   "doc": "Sink drain trap under a basin (slip nuts, tailpiece); drain-side leaks only drip while water drains."
+  },
+  "floor_drain": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "floor drain",
+    "category": "drain",
+    "material": "cast_iron",
+    "plumb": {
+     "kind": "floor_drain"
+    },
+    "size_m": [
+     0.15,
+     0.15,
+     0.01
+    ],
+    "mass_kg": 1.0,
+    "ground_layer": true,
+    "floor_drain": true,
+    "drain": true,
+    "accepts_wastewater": true
+   },
+   "doc": "Basement/laundry/garage floor drain to the sanitary sewer: an acceptable place for dirty cleaning water and dehumidifier condensate."
+  },
+  "storm_drain": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "storm drain",
+    "category": "drain",
+    "material": "cast_iron",
+    "plumb": {
+     "kind": "storm_drain"
+    },
+    "size_m": [
+     0.6,
+     0.3,
+     0.05
+    ],
+    "mass_kg": 40.0,
+    "ground_layer": true,
+    "storm_drain": true,
+    "outdoor": true,
+    "label_text": "NO DUMPING - DRAINS TO CREEK"
+   },
+   "doc": "Street/curb inlet: goes untreated to a creek. Only plain water belongs here."
+  },
+  "garbage_disposal": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "garbage disposal",
+    "category": "disposal",
+    "material": "steel",
+    "plumb": {
+     "kind": "disposal"
+    },
+    "size_m": [
+     0.22,
+     0.22,
+     0.35
+    ],
+    "mass_kg": 5.5,
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": true,
+    "power_w": 500.0,
+    "_jam": {
+     "jammed": false,
+     "object": null,
+     "seized": false
+    },
+    "thermal_tripped": false,
+    "pinch_hazard_when_powered": true,
+    "hazards": [
+     "sharp"
+    ],
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 1.5,
+    "inner_size_m": [
+     0.12,
+     0.12,
+     0.12
+    ]
+   },
+   "doc": "1/2 hp disposal under the kitchen sink (tools_vehicles' reset_disposal contract: _jam, thermal_tripped)."
+  },
+  "irrigation_controller": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "sprinkler controller",
+    "category": "controller",
+    "material": "plastic",
+    "plumb": {
+     "kind": "controller"
+    },
+    "size_m": [
+     0.2,
+     0.06,
+     0.15
+    ],
+    "mass_kg": 0.5,
+    "mounted": true,
+    "mount_height_m": 1.4,
+    "irrigation_controller": true,
+    "driver": "plumbing_liquids",
+    "settings": {
+     "mode": "auto",
+     "rain_delay_h": 24,
+     "manual_zone": "none"
+    },
+    "setting_options": {
+     "mode": [
+      "auto",
+      "off",
+      "rain_delay"
+     ],
+     "rain_delay_h": [
+      24,
+      48,
+      72
+     ],
+     "manual_zone": [
+      "none",
+      "zone_1",
+      "zone_2",
+      "zone_3"
+     ]
+    },
+    "control_kinds": {
+     "mode": "app",
+     "rain_delay_h": "app",
+     "manual_zone": "app"
+    },
+    "zones": {},
+    "program": [],
+    "rain_sensor": false,
+    "delay_until_s": null,
+    "display": "Mode: AUTO",
+    "remote_status": true,
+    "+affordances": [
+     "set",
+     "read"
+    ],
+    "weatherproof": true
+   },
+   "doc": "Wi-Fi sprinkler timer (app-controlled settings, core set works): mode auto|off|rain_delay (24/48/72 h, resumes by itself), zones of emitters and a weekly program.",
+   "perception": {
+    "read": [
+     "display",
+     "program",
+     "remote_status"
+    ]
+   }
+  },
+  "sprinkler_head": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "pop-up sprinkler",
+    "category": "sprinkler",
+    "material": "plastic",
+    "plumb": {
+     "kind": "emitter"
+    },
+    "size_m": [
+     0.08,
+     0.08,
+     0.1
+    ],
+    "mass_kg": 0.2,
+    "ground_layer": true,
+    "irrigation_emitter": true,
+    "on": false,
+    "precip_mm_h": 40.0,
+    "radius_m": 4.0,
+    "flow_lpm": 7.5
+   },
+   "doc": "Pop-up spray head: ~1.5 in/h (40 mm/h) over a 4 m radius at ~2 gpm."
+  },
+  "oscillating_sprinkler": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "oscillating sprinkler",
+    "category": "sprinkler",
+    "material": "plastic",
+    "plumb": {
+     "kind": "emitter"
+    },
+    "size_m": [
+     0.45,
+     0.15,
+     0.1
+    ],
+    "mass_kg": 0.7,
+    "irrigation_emitter": true,
+    "on": false,
+    "precip_mm_h": 12.0,
+    "radius_m": 6.0,
+    "flow_lpm": 12.0,
+    "washer": true
+   },
+   "doc": "Hose-end sprinkler (attach with connect_hose); runs while its hose has water.",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  },
+  "rain_barrel": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "rain barrel",
+    "category": "rain_barrel",
+    "material": "plastic",
+    "plumb": {
+     "kind": "barrel"
+    },
+    "size_m": [
+     0.6,
+     0.6,
+     0.9
+    ],
+    "mass_kg": 8.0,
+    "blocks_path": true,
+    "liquid_container": true,
+    "liquid": "rainwater",
+    "liquid_l": 120.0,
+    "_mix": {
+     "rainwater": 120.0
+    },
+    "capacity_l": 200.0,
+    "dispenser_spigot": true,
+    "drain_spigot": true,
+    "potable": false,
+    "openable": true,
+    "open": false
+   },
+   "doc": "200 L (55 gal) barrel under a downspout with a bottom spigot; rainwater is for plants, not drinking."
+  },
+  "freezer_ice_maker": {
+   "is_a": "plumbing_fixture",
+   "props": {
+    "label": "ice maker",
+    "category": "ice_maker",
+    "material": "plastic",
+    "plumb": {
+     "kind": "ice_maker"
+    },
+    "size_m": [
+     0.3,
+     0.12,
+     0.12
+    ],
+    "mass_kg": 1.5,
+    "ice_maker": true,
+    "ice_bin": true,
+    "switchable": true,
+    "on": true,
+    "lines": [
+     "cold"
+    ],
+    "settings": {
+     "arm": "down"
+    },
+    "setting_options": {
+     "arm": [
+      "down",
+      "up"
+     ]
+    },
+    "control_kinds": {
+     "arm": "lever"
+    },
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 4.0,
+    "inner_size_m": [
+     0.28,
+     0.2,
+     0.12
+    ],
+    "ice_g": 600.0,
+    "ice_cubes": 24,
+    "ice_capacity_g": 3000.0,
+    "cycle_s": 5400.0,
+    "harvest_g": 115.0,
+    "status": "making ice",
+    "food_safe": true
+   },
+   "doc": "Freezer ice maker with its bin: on (switch) and bail arm down; 8 cubes (~115 g) every 90 min (~1.8 kg/day) up to a 3 kg bin, if its water-line valve is open and nothing blocks the arm."
+  },
+  "ice_storage_bin": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "ice bin",
+    "category": "ice_bin",
+    "material": "plastic",
+    "ice_bin": true,
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 4.0,
+    "inner_size_m": [
+     0.28,
+     0.2,
+     0.12
+    ],
+    "size_m": [
+     0.3,
+     0.22,
+     0.14
+    ],
+    "mass_kg": 0.4,
+    "ice_g": 0.0,
+    "ice_cubes": 0,
+    "ice_capacity_g": 3000.0,
+    "food_safe": true
+   },
+   "doc": "Lidless freezer ice bin (~3 kg of cubes).",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "ice_cube_tray": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "ice cube tray",
+    "category": "ice_tray",
+    "material": "plastic",
+    "ice_tray": true,
+    "cells": 14,
+    "cell_ml": 28.0,
+    "cell_fill": 0.0,
+    "frozen_frac": 0.0,
+    "ice_g": 0.0,
+    "ice_cubes": 0,
+    "joined": false,
+    "cracked": false,
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 0.42,
+    "size_m": [
+     0.28,
+     0.11,
+     0.04
+    ],
+    "inner_size_m": [
+     0.26,
+     0.1,
+     0.025
+    ],
+    "mass_kg": 0.1,
+    "volume_l": 1.2,
+    "food_safe": true,
+    "carry_level": true,
+    "openable": true,
+    "open": true
+   },
+   "doc": "14 x 28 ml cube tray with a snap-on lid (open = lid off): fill each cell 80-95 %, close the lid or carry it level, set it flat in the freezer; freezes in ~3 h at -18 C.",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "garden_hose": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "garden hose",
+    "category": "hose",
+    "material": "rubber",
+    "plumb": {
+     "kind": "hose"
+    },
+    "hose": true,
+    "tool_kind": "garden_hose",
+    "length_m": 15.0,
+    "volume_l": 3.0,
+    "liquid_l": 0.0,
+    "liquid": null,
+    "size_m": [
+     0.45,
+     0.45,
+     0.2
+    ],
+    "mass_kg": 2.5,
+    "attached_to": null,
+    "nozzle": null,
+    "pressurized": false,
+    "kinks": 0,
+    "coiled": true,
+    "coupling_washer": true,
+    "cross_threaded": false,
+    "grit": 0.0,
+    "+affordances": [
+     "spray",
+     "connect_hose",
+     "disconnect_hose",
+     "drain",
+     "flush"
+    ],
+    "joint_spraying": false
+   },
+   "doc": "50 ft x 5/8 in hose (~3 L inside, 2.5 kg dry, 5.5 kg full).",
+   "perception": {
+    "glance": [
+     "attached_to",
+     "nozzle",
+     "coiled",
+     "joint_spraying"
+    ],
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  },
+  "hose_nozzle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "hose nozzle",
+    "category": "nozzle",
+    "material": "metal",
+    "hose_nozzle": true,
+    "tool_kind": "hose_nozzle",
+    "size_m": [
+     0.2,
+     0.05,
+     0.15
+    ],
+    "mass_kg": 0.35,
+    "washer": true,
+    "cross_threaded": false,
+    "settings": {
+     "pattern": "shower",
+     "trigger": "closed"
+    },
+    "setting_options": {
+     "pattern": [
+      "jet",
+      "full",
+      "flat",
+      "shower",
+      "cone",
+      "mist",
+      "soaker",
+      "angle"
+     ],
+     "trigger": [
+      "open",
+      "closed"
+     ]
+    },
+    "control_kinds": {
+     "pattern": "dial",
+     "trigger": "trigger"
+    },
+    "+affordances": [
+     "connect_hose",
+     "spray"
+    ]
+   },
+   "doc": "Pistol-grip, 8-pattern nozzle; trigger closes when released (lock clip holds it open).",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  },
+  "hose_hanger": {
+   "is_a": "fixture",
+   "props": {
+    "label": "hose hanger",
+    "category": "hooks",
+    "material": "metal",
+    "accepts_items": true,
+    "hang_slots": 1,
+    "hang_height_m": 0.0,
+    "mount_height_m": 1.0,
+    "size_m": [
+     0.3,
+     0.2,
+     0.2
+    ],
+    "mass_kg": 1.0,
+    "hose_storage": true
+   },
+   "doc": "Wall bracket for one coiled hose (kept off the floor).",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  },
+  "hose_reel": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "hose reel",
+    "category": "hose_reel",
+    "material": "plastic",
+    "accepts_items": true,
+    "hang_slots": 1,
+    "hang_height_m": 0.5,
+    "size_m": [
+     0.6,
+     0.45,
+     0.6
+    ],
+    "mass_kg": 5.0,
+    "hose_storage": true,
+    "two_handed": true
+   },
+   "doc": "Cart reel: a hose hung on it is wound without twists.",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  },
+  "hose_washer": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "hose washer",
+    "category": "part",
+    "material": "rubber",
+    "part_type": "hose_washer_3_4",
+    "size_m": [
+     0.025,
+     0.025,
+     0.003
+    ],
+    "mass_kg": 0.002,
+    "volume_l": 0.001
+   },
+   "doc": "3/4 in garden-hose coupling washer.",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  },
+  "flange_plunger": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "flange plunger",
+    "category": "plunger",
+    "material": "rubber",
+    "plunger_kind": "flange",
+    "tool_kind": "plunger",
+    "size_m": [
+     0.15,
+     0.15,
+     0.55
+    ],
+    "mass_kg": 0.45,
+    "volume_l": 2.0,
+    "capabilities": [
+     "plunge"
+    ],
+    "has_handle": true,
+    "handle_rating_kg": 3.0,
+    "safe_grips": [
+     "handle"
+    ]
+   },
+   "doc": "Flange (toilet) plunger: the fold-out lip seals in a toilet outlet.",
+   "perception": {
+    "hidden": [
+     "handle_rating_kg"
+    ]
+   }
+  },
+  "cup_plunger": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "cup plunger",
+    "category": "plunger",
+    "material": "rubber",
+    "plunger_kind": "cup",
+    "tool_kind": "plunger",
+    "size_m": [
+     0.14,
+     0.14,
+     0.45
+    ],
+    "mass_kg": 0.35,
+    "volume_l": 1.5,
+    "capabilities": [
+     "plunge"
+    ],
+    "has_handle": true,
+    "handle_rating_kg": 3.0,
+    "safe_grips": [
+     "handle"
+    ]
+   },
+   "doc": "Flat cup plunger for sink and tub drains; it cannot seal on a toilet.",
+   "perception": {
+    "hidden": [
+     "handle_rating_kg"
+    ]
+   }
+  },
+  "sink_stopper": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "sink stopper",
+    "category": "stopper",
+    "material": "rubber",
+    "stopper_for": "basket",
+    "size_m": [
+     0.09,
+     0.09,
+     0.04
+    ],
+    "mass_kg": 0.05,
+    "volume_l": 0.1
+   },
+   "doc": "Basket-strainer stopper for a kitchen or utility sink.",
+   "perception": {
+    "hidden": [
+     "handle_rating_kg"
+    ]
+   }
+  },
+  "utility_bucket": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "bucket",
+    "category": "bucket",
+    "material": "plastic",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 19.0,
+    "fill_line_l": 15.0,
+    "inner_size_m": [
+     0.28,
+     0.28,
+     0.35
+    ],
+    "size_m": [
+     0.3,
+     0.3,
+     0.37
+    ],
+    "mass_kg": 1.0,
+    "volume_l": 22.0,
+    "safe_grips": [
+     "handle"
+    ],
+    "watertight": true,
+    "has_handle": true,
+    "handle_rating_kg": 25.0
+   },
+   "doc": "5 gal (19 L) bucket with a bail handle; 15 L is a carryable fill (~16 kg).",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "watering_can": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "watering can",
+    "category": "watering_can",
+    "material": "plastic",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 7.5,
+    "fill_line_l": 6.5,
+    "inner_size_m": [
+     0.3,
+     0.15,
+     0.25
+    ],
+    "size_m": [
+     0.5,
+     0.2,
+     0.3
+    ],
+    "mass_kg": 0.6,
+    "volume_l": 9.0,
+    "rose": true,
+    "tool_kind": "watering_can",
+    "neck_mm": 70,
+    "watertight": true,
+    "has_handle": true,
+    "handle_rating_kg": 12.0,
+    "safe_grips": [
+     "handle"
+    ]
+   },
+   "doc": "2 gal (7.5 L) can with a rose; full it weighs 8 kg.",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "water_pitcher": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "water pitcher",
+    "category": "pitcher",
+    "material": "glass",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 2.0,
+    "fill_line_l": 1.8,
+    "inner_size_m": [
+     0.11,
+     0.11,
+     0.22
+    ],
+    "size_m": [
+     0.18,
+     0.12,
+     0.25
+    ],
+    "mass_kg": 0.9,
+    "volume_l": 2.5,
+    "openable": true,
+    "open": true,
+    "fragile": true,
+    "serving": true,
+    "food_safe": true,
+    "safe_grips": [
+     "handle"
+    ],
+    "has_handle": true,
+    "handle_rating_kg": 4.0
+   },
+   "doc": "2 L glass pitcher with a handle.",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "drink_pitcher": {
+   "is_a": "water_pitcher",
+   "props": {
+    "label": "drink pitcher",
+    "liquid": "lemonade",
+    "liquid_l": 1.5,
+    "_mix": {
+     "lemonade": 1.5
+    }
+   },
+   "doc": "Party pitcher (lemonade, iced tea or sangria - set liquid)."
+  },
+  "filter_pitcher": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "water filter pitcher",
+    "category": "pitcher",
+    "material": "plastic",
+    "liquid_container": true,
+    "liquid": "filtered_water",
+    "liquid_l": 0.6,
+    "_mix": {
+     "filtered_water": 0.6
+    },
+    "capacity_l": 1.4,
+    "fill_line_l": 1.3,
+    "reservoir_l": 0.0,
+    "reservoir_cap_l": 1.1,
+    "filter_rate_lpm": 0.12,
+    "inner_size_m": [
+     0.12,
+     0.25,
+     0.24
+    ],
+    "size_m": [
+     0.13,
+     0.27,
+     0.26
+    ],
+    "mass_kg": 0.6,
+    "openable": true,
+    "open": false,
+    "serving": true,
+    "food_safe": true,
+    "temperature_c": 4.0,
+    "slots": {
+     "cartridge": {
+      "accepts": [
+       "pitcher_cartridge"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    },
+    "settings": {
+     "indicator": "ok"
+    },
+    "setting_options": {
+     "indicator": [
+      "ok",
+      "replace"
+     ]
+    },
+    "label_text": "Fill the top reservoir with COLD tap water only. Replace the filter every 40 gal (150 L) or 2 months.",
+    "pour_spout_open": true,
+    "has_handle": true,
+    "handle_rating_kg": 4.0,
+    "safe_grips": [
+     "handle"
+    ]
+   },
+   "doc": "10-cup filter pitcher: 1.1 L top reservoir drains through the cartridge (~0.12 L/min) into a 1.4 L chamber.",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "pitcher_filter_cartridge": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "pitcher filter cartridge",
+    "category": "filter",
+    "material": "plastic",
+    "part_type": "pitcher_cartridge",
+    "used_l": 0.0,
+    "rated_l": 150.0,
+    "discard_fills": 0,
+    "hot_damaged": false,
+    "size_m": [
+     0.06,
+     0.06,
+     0.12
+    ],
+    "mass_kg": 0.1,
+    "volume_l": 0.3,
+    "label_text": "Rinse 15 s. Lasts 40 gal (150 L)."
+   },
+   "doc": "Gravity pitcher cartridge (carbon + ion exchange).",
+   "perception": {
+    "read": [
+     "rated_l",
+     "discard_fills"
+    ],
+    "hidden": [
+     "used_l",
+     "hot_damaged"
+    ]
+   }
+  },
+  "water_bottle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "water bottle",
+    "category": "bottle",
+    "material": "stainless_steel",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 0.75,
+    "fill_line_l": 0.68,
+    "inner_size_m": [
+     0.065,
+     0.065,
+     0.22
+    ],
+    "size_m": [
+     0.075,
+     0.075,
+     0.26
+    ],
+    "mass_kg": 0.35,
+    "volume_l": 0.9,
+    "openable": true,
+    "open": false,
+    "neck_mm": 45,
+    "water_bottle": true,
+    "food_safe": true
+   },
+   "doc": "750 ml reusable bottle with a screw cap (closed = sealed for a bag).",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ],
+    "looks_like": "reusable_bottle"
+   }
+  },
+  "water_carafe": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "bedside water carafe",
+    "category": "pitcher",
+    "material": "glass",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 1.0,
+    "fill_line_l": 0.9,
+    "inner_size_m": [
+     0.09,
+     0.09,
+     0.2
+    ],
+    "size_m": [
+     0.1,
+     0.1,
+     0.24
+    ],
+    "mass_kg": 0.5,
+    "volume_l": 1.2,
+    "fragile": true,
+    "serving": true,
+    "food_safe": true,
+    "neck_mm": 40
+   },
+   "doc": "1 L carafe with a tumbler lid (guest nightstand).",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "drink_dispenser": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "drink dispenser",
+    "category": "dispenser",
+    "material": "glass",
+    "liquid_container": true,
+    "liquid": "lemonade",
+    "liquid_l": 6.0,
+    "_mix": {
+     "lemonade": 6.0
+    },
+    "capacity_l": 7.5,
+    "fill_line_l": 7.0,
+    "drink_dispenser": true,
+    "dispenser_spigot": true,
+    "inner_size_m": [
+     0.2,
+     0.2,
+     0.3
+    ],
+    "size_m": [
+     0.22,
+     0.22,
+     0.4
+    ],
+    "mass_kg": 3.0,
+    "volume_l": 10.0,
+    "fragile": true,
+    "serving": true,
+    "food_safe": true,
+    "openable": true,
+    "open": false,
+    "two_handed": true
+   },
+   "doc": "2 gal (7.5 L) glass beverage dispenser with a spigot; fill cups under the spigot (fill source=dispenser).",
+   "perception": {
+    "measure": {
+     "cl_chem": "test_strip",
+     "soap_ml_per_l": "test_strip",
+     "chem_ml_per_l": "test_strip",
+     "ice_g": "scale",
+     "reservoir_temp_c": "thermometer"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "stale",
+     "handle_rating_kg",
+     "contamination",
+     "filter_rate_lpm",
+     "ice_capacity_g",
+     "product_mismatch",
+     "wrong_liquid",
+     "overflowed_l"
+    ]
+   }
+  },
+  "water_stain": {
+   "is_a": "fixture",
+   "props": {
+    "label": "water stain",
+    "category": "stain",
+    "material": "drywall",
+    "water_stain": true,
+    "mounted": true,
+    "mount_height_m": 2.4,
+    "size_m": [
+     0.5,
+     0.5,
+     0.01
+    ],
+    "mass_kg": 0.0,
+    "stain_m2": 0.1,
+    "wet": false,
+    "dripping": false,
+    "ceiling_water_l": 0.0,
+    "inspect_from_afar": true
+   },
+   "doc": "A water stain on a ceiling or wall (active: wet, growing, dripping after ~2 L; historic: dry).",
+   "perception": {
+    "inspect": [
+     "wet",
+     "dripping",
+     "stain_m2"
+    ],
+    "measure": {
+     "moisture": "moisture_meter"
+    },
+    "hidden": [
+     "ceiling_water_l",
+     "growing"
+    ]
+   }
+  },
+  "appliance_supply_hose": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "appliance supply hose",
+    "category": "appliance_hose",
+    "material": "rubber",
+    "plumb": {
+     "kind": "appliance_hose"
+    },
+    "hose_kind": "rubber",
+    "line": "cold",
+    "attached": true,
+    "slack_m": 0.4,
+    "length_m": 1.5,
+    "size_m": [
+     0.3,
+     0.3,
+     0.05
+    ],
+    "mass_kg": 0.4,
+    "volume_l": 0.4,
+    "label_text": "MFD 2016",
+    "portable": false,
+    "secret_fields": [
+     "_defect"
+    ]
+   },
+   "doc": "Washer/dishwasher/ice-maker supply line behind its appliance (relation behind: revealed by inspect where=behind). Hidden _defect none|bulge|crack|kink shows on a close inspection; the date stamp is readable. Pulling the appliance out further than slack_m strains it into a leak; disconnecting it with the valve open sprays.",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "flow_lpm": "measuring_cup"
+    },
+    "hidden": [
+     "plumb",
+     "potable",
+     "filled_s",
+     "grit",
+     "kinks_set",
+     "coiled_s",
+     "installed_s",
+     "precip_mm_h",
+     "radius_m"
+    ]
+   }
+  }
+ }
+}

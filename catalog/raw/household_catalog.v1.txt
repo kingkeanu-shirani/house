@@ -1,0 +1,2838 @@
+General object interaction and movement
+- Pick up an object from the floor.
+- Pick up an object from a table.
+- Pick up an object from a shelf.
+- Pick up an object from inside a drawer.
+- Pick up an object from inside a cabinet.
+- Pick up an object from inside a container.
+- Pick up a fragile object.
+- Pick up a heavy object.
+- Pick up a soft object.
+- Pick up a flexible object.
+- Pick up an irregularly shaped object.
+- Pick up a slippery object.
+- Pick up an object with two hands.
+- Put an object down.
+- Place an object precisely.
+- Stack objects.
+- Unstack objects.
+- Arrange objects in a row.
+- Arrange objects in a grid.
+- Sort objects by type.
+- Sort objects by size.
+- Sort objects by color.
+- Sort objects by owner.
+- Sort objects by destination.
+- Sort objects by cleanliness.
+- Sort objects by material.
+- Sort objects into containers.
+- Move objects between rooms.
+- Carry one object.
+- Carry multiple objects.
+- Carry a tray.
+- Carry a basket.
+- Carry a box.
+- Carry a bag.
+- Carry a bin.
+- Carry something upstairs.
+- Carry something downstairs.
+- Push an object.
+- Pull an object.
+- Drag an object.
+- Roll an object.
+- Rotate an object.
+- Flip an object.
+- Turn an object upright.
+- Turn an object upside down.
+- Insert an object.
+- Remove an object.
+- Attach two objects.
+- Detach two objects.
+- Plug something in.
+- Unplug something.
+- Connect a cable.
+- Disconnect a cable.
+- Coil a cable.
+- Uncoil a cable.
+- Tie something.
+- Untie something.
+- Fold something.
+- Unfold something.
+- Wrap something.
+- Unwrap something.
+- Cover something.
+- Uncover something.
+- Open a container.
+- Close a container.
+- Open a hinged lid.
+- Close a hinged lid.
+- Open a sliding lid.
+- Close a sliding lid.
+- Open a drawer.
+- Close a drawer.
+- Open a cabinet.
+- Close a cabinet.
+- Open a door.
+- Close a door.
+- Lock a door.
+- Unlock a door.
+- Open a window.
+- Close a window.
+- Lock a window.
+- Raise blinds.
+- Lower blinds.
+- Open curtains.
+- Close curtains.
+- Turn a knob.
+- Turn a dial.
+- Flip a switch.
+- Press a button.
+- Hold a button.
+- Use a touchscreen.
+- Move a lever.
+- Pull a handle.
+- Push a handle.
+- Squeeze a trigger.
+- Pump a dispenser.
+- Twist a cap.
+- Remove a cap.
+- Replace a cap.
+- Screw something together.
+- Unscrew something.
+- Clip something.
+- Unclip something.
+- Zip something.
+- Unzip something.
+- Snap something closed.
+- Unsnap something.
+- Fasten Velcro.
+- Separate Velcro.
+- Use tape.
+- Remove tape.
+- Apply a label.
+- Remove a label.
+- Hand an object to a person.
+- Receive an object from a person.
+- Hold an object while another person works.
+- Retrieve an object on request.
+- Return an object to its normal location.
+- Search for a missing object.
+- Identify an object.
+- Identify an object's owner.
+- Identify where an object belongs.
+- Detect an object that is out of place.
+- Detect clutter.
+- Clear a path through clutter.
+
+Whole-house navigation
+- Walk through a hallway.
+- Enter a room.
+- Exit a room.
+- Move through a doorway.
+- Navigate around furniture.
+- Navigate around people.
+- Navigate around pets.
+- Navigate around toys.
+- Navigate around temporary obstacles.
+- Move through narrow spaces.
+- Move through crowded spaces.
+- Move while carrying objects.
+- Walk upstairs.
+- Walk downstairs.
+- Use a handrail.
+- Step over a threshold.
+- Move between floors.
+- Navigate in darkness.
+- Navigate in low light.
+- Turn lights on before entering a dark space.
+- Avoid wet floors.
+- Avoid broken objects.
+- Avoid fragile objects.
+- Avoid sleeping people or pets.
+- Avoid cords.
+- Avoid rugs that may slip.
+- Navigate outdoors.
+- Navigate grass.
+- Navigate gravel.
+- Navigate pavement.
+- Navigate dirt.
+- Navigate slopes.
+- Navigate a driveway.
+- Navigate a patio.
+- Navigate a deck.
+- Navigate a garage.
+- Navigate a shed.
+- Navigate around parked cars.
+- Open a gate.
+- Close a gate.
+- Navigate through a gate.
+- Follow a person.
+- Lead a person to a location.
+- Go to a named room.
+- Go to a named object.
+- Patrol the house.
+- Inspect rooms sequentially.
+- Return to a charging location.
+- Return to a home position.
+
+General cleaning
+- Pick up trash.
+- Identify trash versus reusable objects.
+- Put trash in a trash can.
+- Replace a trash-can liner.
+- Remove a full trash bag.
+- Tie a trash bag.
+- Carry trash outside.
+- Put trash into an outdoor bin.
+- Separate recycling.
+- Separate compost.
+- Empty recycling bins.
+- Empty compost bins.
+- Break down cardboard boxes.
+- Flatten packaging.
+- Sweep a floor.
+- Sweep under furniture.
+- Sweep corners.
+- Sweep stairs.
+- Sweep a porch.
+- Sweep a garage.
+- Sweep a patio.
+- Collect a dirt pile with a dustpan.
+- Empty a dustpan.
+- Vacuum carpet.
+- Vacuum rugs.
+- Vacuum hardwood.
+- Vacuum tile.
+- Vacuum stairs.
+- Vacuum upholstery.
+- Vacuum under furniture.
+- Vacuum behind furniture.
+- Vacuum corners.
+- Vacuum baseboards.
+- Vacuum pet hair.
+- Empty a vacuum.
+- Clean a vacuum filter.
+- Replace a vacuum bag.
+- Mop floors.
+- Wet mop.
+- Dry mop.
+- Steam mop.
+- Mop around furniture.
+- Mop under furniture.
+- Mop stairs.
+- Rinse a mop.
+- Wring out a mop.
+- Change mop water.
+- Spot-clean floors.
+- Scrub a stain.
+- Wipe a spill.
+- Absorb a spill.
+- Disinfect a spill.
+- Dry a wet surface.
+- Dust surfaces.
+- Dust shelves.
+- Dust electronics.
+- Dust furniture.
+- Dust lamps.
+- Dust picture frames.
+- Dust decorations.
+- Dust vents.
+- Dust fan blades.
+- Dust blinds.
+- Dust baseboards.
+- Dust door frames.
+- Dust window sills.
+- Dust ceiling corners.
+- Remove cobwebs.
+- Wipe fingerprints.
+- Disinfect high-touch surfaces.
+- Clean door handles.
+- Clean light switches.
+- Clean remotes.
+- Clean cabinet handles.
+- Clean railings.
+- Clean mirrors.
+- Clean glass.
+- Clean windows.
+- Clean window tracks.
+- Clean screens.
+- Clean walls.
+- Spot-clean walls.
+- Remove scuff marks.
+- Clean doors.
+- Wash baseboards.
+- Clean vents.
+- Clean air-return grilles.
+- Clean ceiling fans.
+- Clean chandeliers.
+- Clean lampshades.
+- Shake out rugs.
+- Beat dust from mats.
+- Wash mats.
+- Rotate rugs.
+- Move furniture for cleaning.
+- Return furniture after cleaning.
+- Clean behind appliances.
+- Clean under appliances.
+- Deep-clean a room.
+- Perform a quick tidy.
+- Perform an end-of-day reset.
+
+Kitchen: dishes
+- Collect dirty dishes around the house.
+- Bring dishes to the kitchen.
+- Scrape leftover food into trash or compost.
+- Rinse dishes.
+- Soak dishes.
+- Fill the sink.
+- Drain the sink.
+- Wash plates.
+- Wash bowls.
+- Wash cups.
+- Wash mugs.
+- Wash glasses.
+- Wash utensils.
+- Wash knives safely.
+- Wash cutting boards.
+- Wash pots.
+- Wash pans.
+- Wash baking sheets.
+- Wash mixing bowls.
+- Wash blender parts.
+- Wash food processor parts.
+- Wash reusable bottles.
+- Wash thermoses.
+- Wash pet bowls.
+- Wash serving dishes.
+- Scrub burnt food.
+- Remove grease.
+- Rinse soap from dishes.
+- Place dishes on a drying rack.
+- Dry dishes by hand.
+- Put dishes away.
+- Load a dishwasher.
+- Arrange dishes correctly in a dishwasher.
+- Add dishwasher detergent.
+- Add rinse aid.
+- Start a dishwasher.
+- Pause a dishwasher.
+- Unload a dishwasher.
+- Clean a dishwasher filter.
+- Clean dishwasher seals.
+- Wipe the dishwasher exterior.
+- Put silverware away.
+- Stack plates.
+- Stack bowls.
+- Organize glasses.
+- Organize mugs.
+- Organize cookware.
+
+Kitchen: food preparation
+- Wash hands before preparing food.
+- Retrieve ingredients.
+- Retrieve cookware.
+- Retrieve utensils.
+- Read a recipe.
+- Follow recipe steps.
+- Measure ingredients.
+- Weigh ingredients.
+- Count ingredients.
+- Pour liquids.
+- Pour solids.
+- Scoop ingredients.
+- Spoon ingredients.
+- Transfer ingredients between containers.
+- Wash fruit.
+- Wash vegetables.
+- Peel vegetables.
+- Peel fruit.
+- Remove stems.
+- Remove leaves.
+- Remove seeds.
+- Remove pits.
+- Hull fruit.
+- Trim vegetables.
+- Cut vegetables.
+- Slice vegetables.
+- Dice vegetables.
+- Mince vegetables.
+- Chop herbs.
+- Slice fruit.
+- Cube fruit.
+- Cut meat.
+- Portion meat.
+- Debone food where appropriate.
+- Crack eggs.
+- Separate egg whites and yolks.
+- Beat eggs.
+- Whisk ingredients.
+- Stir ingredients.
+- Mix ingredients.
+- Knead dough.
+- Roll dough.
+- Shape dough.
+- Spread ingredients.
+- Mash food.
+- Crush food.
+- Grind food.
+- Grate food.
+- Shred cheese.
+- Zest citrus.
+- Juice fruit.
+- Drain food.
+- Strain food.
+- Sift dry ingredients.
+- Marinate food.
+- Season food.
+- Salt food.
+- Pepper food.
+- Coat food.
+- Bread food.
+- Batter food.
+- Assemble sandwiches.
+- Assemble salads.
+- Assemble wraps.
+- Assemble tacos.
+- Assemble burgers.
+- Prepare cereal.
+- Prepare oatmeal.
+- Prepare toast.
+- Prepare eggs.
+- Prepare sandwiches.
+- Prepare smoothies.
+- Prepare snacks.
+- Prepare packed lunches.
+- Prepare a meal from leftovers.
+- Portion meals into containers.
+- Label meal-prep containers.
+- Refrigerate prepared food.
+- Freeze prepared food.
+
+Kitchen: cooking
+- Preheat an oven.
+- Set an oven temperature.
+- Put food into an oven.
+- Remove food from an oven.
+- Use oven mitts.
+- Set a cooking timer.
+- Check food while cooking.
+- Turn food during cooking.
+- Bake food.
+- Roast food.
+- Broil food.
+- Toast food.
+- Use a stovetop.
+- Ignite a gas burner where applicable.
+- Set burner heat.
+- Boil water.
+- Simmer food.
+- Saute food.
+- Fry food.
+- Stir-fry food.
+- Pan-sear food.
+- Cook pasta.
+- Cook rice.
+- Cook soup.
+- Cook sauce.
+- Steam food.
+- Poach food.
+- Use a pressure cooker.
+- Use a slow cooker.
+- Use a rice cooker.
+- Use an air fryer.
+- Use a microwave.
+- Use a toaster.
+- Use a toaster oven.
+- Use an electric kettle.
+- Use a blender.
+- Use a mixer.
+- Use a food processor.
+- Use a coffee maker.
+- Use an espresso machine.
+- Use a waffle maker.
+- Use a griddle.
+- Use a grill.
+- Check food temperature.
+- Check doneness.
+- Cool cooked food.
+- Plate food.
+- Garnish food.
+- Serve food.
+
+Kitchen: storage and organization
+- Put groceries away.
+- Sort pantry goods.
+- Rotate food by expiration date.
+- Check expiration dates.
+- Dispose of expired food.
+- Organize canned goods.
+- Organize spices.
+- Organize baking supplies.
+- Organize snacks.
+- Organize beverages.
+- Organize refrigerator shelves.
+- Organize freezer contents.
+- Organize refrigerator drawers.
+- Store leftovers.
+- Cover leftovers.
+- Label leftovers.
+- Date leftovers.
+- Transfer food into storage containers.
+- Seal bags.
+- Reseal packages.
+- Refill jars.
+- Refill cereal containers.
+- Refill rice containers.
+- Refill flour containers.
+- Refill sugar containers.
+- Restock paper towels.
+- Restock napkins.
+- Restock foil.
+- Restock plastic wrap.
+- Restock storage bags.
+- Make ice.
+- Fill ice trays.
+- Empty ice trays.
+- Refill water pitcher.
+- Replace water filter.
+- Restock bottled drinks.
+
+Kitchen cleaning
+- Wipe counters.
+- Disinfect counters.
+- Clean backsplash.
+- Clean sink.
+- Scrub sink.
+- Clean faucet.
+- Polish faucet.
+- Clean drain stopper.
+- Clean garbage disposal.
+- Clean stovetop.
+- Clean burner grates.
+- Clean burner caps.
+- Clean oven interior.
+- Clean oven racks.
+- Run self-clean cycle if appropriate.
+- Clean microwave interior.
+- Clean microwave exterior.
+- Clean refrigerator exterior.
+- Clean refrigerator shelves.
+- Clean refrigerator drawers.
+- Clean refrigerator seals.
+- Clean freezer.
+- Defrost freezer where needed.
+- Clean toaster.
+- Empty toaster crumbs.
+- Clean coffee maker.
+- Descale coffee maker.
+- Clean kettle.
+- Descale kettle.
+- Clean blender.
+- Clean food processor.
+- Clean mixer.
+- Clean air fryer.
+- Clean range hood.
+- Clean range hood filter.
+- Clean cabinet fronts.
+- Clean kitchen handles.
+- Wash trash can.
+- Wash recycling bin.
+- Wash compost container.
+- Clean pantry shelves.
+- Clean kitchen floor.
+- Clean grease splatter.
+- Clean under refrigerator.
+- Clean under stove.
+- Clean behind appliances.
+
+Dining
+- Clear a dining table.
+- Wipe a dining table.
+- Set placemats.
+- Set plates.
+- Set bowls.
+- Set forks.
+- Set knives.
+- Set spoons.
+- Set glasses.
+- Set napkins.
+- Place condiments.
+- Place serving dishes.
+- Pull out chairs.
+- Push chairs in.
+- Serve food.
+- Pour drinks.
+- Refill drinks.
+- Pass dishes.
+- Clear dishes after eating.
+- Package leftovers.
+- Wipe chairs.
+- Clean under the table.
+- Replace tablecloth.
+- Wash tablecloth.
+- Fold tablecloth.
+- Decorate table for an event.
+
+Laundry
+- Collect dirty clothes.
+- Collect towels.
+- Collect bedding.
+- Carry laundry basket.
+- Sort whites.
+- Sort darks.
+- Sort colors.
+- Sort delicates.
+- Sort towels.
+- Sort bedding.
+- Sort by fabric type.
+- Check pockets.
+- Empty pockets.
+- Close zippers.
+- Unroll sleeves.
+- Turn garments inside out when required.
+- Treat stains.
+- Apply stain remover.
+- Soak stained clothing.
+- Load washing machine.
+- Add detergent.
+- Add fabric softener.
+- Add bleach when appropriate.
+- Select wash cycle.
+- Set temperature.
+- Start washer.
+- Pause washer.
+- Transfer wet laundry to dryer.
+- Add dryer sheet.
+- Select dryer cycle.
+- Start dryer.
+- Remove dry clothes.
+- Check whether clothes are dry.
+- Hang-dry clothes.
+- Use a drying rack.
+- Hang clothes on a clothesline.
+- Remove clothes from clothesline.
+- Fold shirts.
+- Fold pants.
+- Fold shorts.
+- Fold underwear.
+- Pair socks.
+- Fold socks.
+- Fold towels.
+- Fold sheets.
+- Fold pillowcases.
+- Fold blankets.
+- Hang shirts.
+- Hang jackets.
+- Hang dresses.
+- Hang pants.
+- Put clothing into drawers.
+- Put clothing into closets.
+- Sort clothing by owner.
+- Sort clothing by category.
+- Sort clothing by season.
+- Iron clothes.
+- Steam clothes.
+- Remove lint.
+- Use lint roller.
+- Clean dryer lint filter.
+- Clean washer drum.
+- Clean detergent drawer.
+- Clean washer seal.
+- Clean dryer exterior.
+- Clean laundry room.
+- Refill detergent.
+- Restock laundry supplies.
+- Sew on a loose button.
+- Repair a simple tear.
+- Remove a loose thread.
+- Polish shoes.
+- Clean shoes.
+- Wash shoelaces.
+- Store shoes.
+- Rotate seasonal clothing.
+
+Bedrooms- Make a bed.
+- Strip a bed.
+- Remove pillowcases.
+- Remove fitted sheet.
+- Remove top sheet.
+- Remove duvet cover.
+- Put on fitted sheet.
+- Put on top sheet.
+- Put on pillowcases.
+- Put duvet into duvet cover.
+- Arrange pillows.
+- Tuck sheets.
+- Fold blankets.
+- Put away blankets.
+- Rotate mattress.
+- Vacuum mattress.
+- Spot-clean mattress.
+- Clear nightstand.
+- Wipe nightstand.
+- Organize nightstand.
+- Pick up clothing.
+- Put dirty clothing in hamper.
+- Hang clean clothing.
+- Fold clean clothing.
+- Organize dresser.
+- Organize closet.
+- Arrange shoes.
+- Organize accessories.
+- Put jewelry away.
+- Organize bags.
+- Organize books.
+- Organize desk.
+- Empty bedroom trash.
+- Dust bedroom.
+- Vacuum bedroom.
+- Mop bedroom.
+- Close curtains at night.
+- Open curtains in morning.
+- Adjust blinds.
+- Turn bedside lights on or off.
+- Plug in devices.
+- Place devices on chargers.
+- Unplug charged devices.
+- Set alarm clock.
+- Change alarm clock settings.
+- Adjust thermostat or fan.
+- Humidify room if desired.
+- Refill humidifier.
+- Clean humidifier.
+- Change air purifier filter.
+- Tidy children's bedrooms.
+- Put toys away.
+- Sort toys.
+- Remove broken toys.
+- Store stuffed animals.
+
+Bathrooms- Clean sink.
+- Scrub sink.
+- Clean faucet.
+- Clean countertop.
+- Clean mirror.
+- Clean vanity.
+- Organize toiletries.
+- Refill soap dispenser.
+- Replace bar soap.
+- Restock toilet paper.
+- Mount toilet-paper roll.
+- Restock tissues.
+- Restock towels.
+- Fold towels.
+- Hang towels.
+- Replace hand towel.
+- Replace bath towel.
+- Replace bath mat.
+- Wash bath mat.
+- Clean toilet seat.
+- Clean toilet lid.
+- Clean toilet bowl.
+- Scrub toilet bowl.
+- Clean toilet exterior.
+- Disinfect flush handle.
+- Unclog toilet with safe tools where appropriate.
+- Clean shower walls.
+- Clean shower doors.
+- Clean shower curtain.
+- Replace shower curtain liner.
+- Scrub bathtub.
+- Rinse bathtub.
+- Remove soap scum.
+- Remove mildew.
+- Clean grout.
+- Clean showerhead.
+- Descale showerhead.
+- Clean shower drain cover.
+- Remove hair from drain cover.
+- Squeegee shower glass.
+- Clean bathroom floor.
+- Mop bathroom floor.
+- Empty bathroom trash.
+- Replace bathroom trash liner.
+- Wipe switches.
+- Wipe handles.
+- Clean exhaust fan cover.
+- Organize medicine cabinet.
+- Check expiration dates on toiletries.
+- Dispose of empty containers.
+- Refill toothbrush holder.
+- Clean toothbrush holder.
+- Clean soap dish.
+- Clean toilet brush.
+- Clean plunger exterior.
+- Restock cleaning supplies.
+
+Living room / family room- Pick up clutter.
+- Fold throw blankets.
+- Arrange throw pillows.
+- Fluff cushions.
+- Vacuum sofa.
+- Vacuum under cushions.
+- Remove crumbs from furniture.
+- Spot-clean upholstery.
+- Dust coffee table.
+- Wipe coffee table.
+- Clean side tables.
+- Organize remotes.
+- Replace remote batteries.
+- Organize magazines.
+- Organize books.
+- Organize games.
+- Put toys away.
+- Dust television.
+- Clean television screen appropriately.
+- Dust speakers.
+- Dust consoles.
+- Organize entertainment center.
+- Manage cables.
+- Turn television on or off.
+- Change input source.
+- Operate remote control.
+- Adjust volume.
+- Close blinds for glare.
+- Open blinds.
+- Turn lamps on or off.
+- Water indoor plants.
+- Rotate indoor plants.
+- Remove dead leaves.
+- Vacuum rug.
+- Sweep floor.
+- Mop floor.
+- Move furniture back into position.
+- Prepare room for guests.
+- Restore room after guests.
+
+Office / study area- Clear desk.
+- Organize papers.
+- Stack papers.
+- File papers.
+- Put documents into folders.
+- Label folders.
+- Retrieve documents.
+- Shred documents when instructed.
+- Recycle paper.
+- Refill printer paper.
+- Replace printer ink or toner.
+- Print documents.
+- Scan documents.
+- Copy documents.
+- Staple papers.
+- Remove staples.
+- Hole-punch papers.
+- Clip papers together.
+- Bind papers.
+- Put pens away.
+- Sharpen pencils.
+- Organize stationery.
+- Clean keyboard.
+- Clean mouse.
+- Clean monitor.
+- Dust computer.
+- Organize cables.
+- Connect peripherals.
+- Disconnect peripherals.
+- Plug in laptop.
+- Charge devices.
+- Set up a workstation.
+- Pack a school bag.
+- Unpack a school bag.
+- Pack a work bag.
+- Sort mail.
+- Open mail.
+- Recycle junk mail.
+- Place important mail in designated area.
+
+Entryway / mudroom- Pick up shoes.
+- Arrange shoes.
+- Put shoes on rack.
+- Store umbrellas.
+- Dry wet umbrellas.
+- Hang coats.
+- Remove coats from hooks.
+- Store bags.
+- Store backpacks.
+- Organize keys.
+- Put keys in designated place.
+- Receive packages.
+- Bring packages inside.
+- Open packages.
+- Remove packaging.
+- Break down boxes.
+- Store delivered items.
+- Sweep entryway.
+- Mop entryway.
+- Shake out doormat.
+- Clean doormat.
+- Wipe muddy footprints.
+- Wipe wet floors.
+- Organize seasonal footwear.
+- Put away hats.
+- Put away gloves.
+- Prepare items to leave the house.
+- Gather wallet, keys, bag, coat, and other essentials.
+
+Closets and storage- Open closet.
+- Remove items.
+- Put items away.
+- Sort clothing.
+- Sort supplies.
+- Sort seasonal items.
+- Create storage categories.
+- Place items into bins.
+- Label bins.
+- Stack bins.
+- Retrieve bins.
+- Move bins.
+- Inventory stored items.
+- Identify duplicates.
+- Identify unused items.
+- Prepare donation items.
+- Bag donation items.
+- Store luggage.
+- Retrieve luggage.
+- Store holiday decorations.
+- Retrieve holiday decorations.
+- Store tools.
+- Store cleaning supplies.
+- Organize linen closet.
+- Organize coat closet.
+- Organize utility closet.
+- Organize pantry.
+- Organize attic storage.
+- Organize basement storage.
+- Organize under-bed storage.
+
+Home climate and utilities- Adjust thermostat.
+- Switch heating on.
+- Switch cooling on.
+- Change thermostat schedule.
+- Open windows for ventilation.
+- Close windows when weather changes.
+- Turn ceiling fan on.
+- Turn ceiling fan off.
+- Change fan speed.
+- Reverse ceiling fan direction when appropriate.
+- Turn portable fan on or off.
+- Position portable fan.
+- Turn heater on or off when safely appropriate.
+- Operate humidifier.
+- Operate dehumidifier.
+- Empty dehumidifier reservoir.
+- Replace HVAC filter.
+- Check HVAC vents.
+- Open vents.
+- Close vents.
+- Clean vent covers.
+- Check thermostat batteries.
+- Replace thermostat batteries.
+- Turn lights off in unused rooms.
+- Turn lights on as needed.
+- Replace light bulbs.
+- Reset approved breakers under appropriate supervision.
+- Check smoke detector status.
+- Replace smoke detector batteries.
+- Check carbon-monoxide detector status.
+- Replace detector batteries.
+- Test detectors.
+- Check for water leaks.
+- Shut off a faucet completely.
+- Report abnormal utility conditions.
+
+Furniture care- Dust furniture.
+- Wipe furniture.
+- Polish wood furniture.
+- Condition leather furniture.
+- Vacuum upholstered furniture.
+- Spot-clean fabric furniture.
+- Tighten accessible furniture screws.
+- Realign chairs.
+- Push chairs under tables.
+- Assemble simple furniture.
+- Disassemble simple furniture.
+- Move a chair.
+- Move a small table.
+- Reposition furniture.
+- Place protective pads under furniture.
+- Cover furniture.
+- Remove furniture covers.
+- Rotate sofa cushions.
+- Flip reversible cushions.
+- Check furniture for damage.
+
+Pet care- Fill pet water bowl.
+- Refill pet water fountain.
+- Clean pet water bowl.
+- Fill pet food bowl.
+- Measure pet food.
+- Serve pet food.
+- Store pet food.
+- Clean pet food bowl.
+- Wash pet feeding mat.
+- Give pet treats when instructed.
+- Pick up pet toys.
+- Store pet toys.
+- Throw toy for pet.
+- Retrieve pet toy.
+- Clean pet toys.
+- Brush pet where appropriate.
+- Wipe muddy paws.
+- Clean pet bedding.
+- Wash pet blankets.
+- Replace pet bedding.
+- Scoop litter box.
+- Refill litter.
+- Change litter.
+- Sweep around litter box.
+- Clean litter box.
+- Pick up dog waste outdoors.
+- Dispose of pet waste.
+- Let pet into yard.
+- Let pet back inside.
+- Open pet door.
+- Secure pet door.
+- Attach leash.
+- Remove leash.
+- Hang leash.
+- Prepare supplies for a walk.
+- Walk a pet.
+- Monitor pet location.
+- Check pet's water availability.
+- Refill bird food.
+- Refill bird water.
+- Clean bird dishes.
+- Replace cage liner.
+- Clean cage exterior.
+- Clean aquarium exterior.
+- Feed fish.
+- Turn aquarium lights on or off.
+- Report unusual pet behavior rather than guessing at medical treatment.
+
+Plant care- Identify houseplants.
+- Check soil moisture.
+- Water houseplants.
+- Water outdoor potted plants.
+- Water garden beds.
+- Empty plant saucers.
+- Rotate pots.
+- Move plants toward light.
+- Move plants away from excess heat.
+- Dust plant leaves.
+- Wipe plant leaves.
+- Remove dead leaves.
+- Remove dead flowers.
+- Prune small plants.
+- Trim herbs.
+- Harvest herbs.
+- Repot plants.
+- Add potting soil.
+- Transplant seedlings.
+- Support plants with stakes.
+- Tie plants to supports.
+- Fertilize according to instructions.
+- Inspect plants for visible pests.
+- Isolate affected plants when directed.
+- Clean gardening tools after use.
+
+Child-related household assistance- Pick up toys.
+- Sort toys.
+- Store toys.
+- Organize books.
+- Prepare a safe play area.
+- Clear hazards from play area.
+- Bring requested supplies to an adult.
+- Prepare age-appropriate food under adult direction.
+- Set up high chair.
+- Clean high chair.
+- Wash children's dishes.
+- Organize children's clothing.
+- Pack school lunch.
+- Pack school bag.
+- Lay out clothing.
+- Organize homework supplies.
+- Prepare craft supplies.
+- Clean craft area.
+- Put craft supplies away.
+- Clean spills.
+- Clean playroom.
+- Set up board game.
+- Put board game away.
+- Locate missing toy.
+- Retrieve blanket.
+- Retrieve water.
+- Alert an adult when assistance is needed.
+
+Guest preparation- Clean guest room.
+- Make guest bed.
+- Put out clean towels.
+- Stock guest bathroom.
+- Clear guest closet space.
+- Clear guest drawer space.
+- Dust guest room.
+- Vacuum guest room.
+- Prepare water.
+- Prepare toiletries.
+- Set dining table.
+- Prepare serving area.
+- Arrange chairs.
+- Add extra chairs.
+- Remove extra chairs afterward.
+- Take coats.
+- Hang guest coats.
+- Serve refreshments.
+- Clear refreshments.
+- Clean after gathering.
+- Wash guest bedding.
+- Reset guest room.
+
+Garage- Sweep garage.
+- Vacuum garage.
+- Pick up garage clutter.
+- Sort tools.
+- Put tools away.
+- Organize shelves.
+- Organize workbench.
+- Store extension cords.
+- Coil hoses.
+- Store automotive supplies.
+- Organize sports equipment.
+- Hang bicycles.
+- Move bicycles.
+- Inflate bicycle tires using appropriate equipment.
+- Clean bicycles.
+- Clean helmets.
+- Store helmets.
+- Bring trash bins out.
+- Bring trash bins back.
+- Break down boxes.
+- Organize recycling.
+- Wipe garage door.
+- Clean garage windows.
+- Operate garage door.
+- Verify garage door closes.
+- Turn garage lights off.
+- Move permitted lightweight storage bins.
+- Clean spills using appropriate safe methods.
+- Report chemical leaks or hazardous spills.
+
+Vehicle-adjacent household tasks- Carry groceries from car.
+- Load groceries into car.
+- Load luggage.
+- Unload luggage.
+- Load sports equipment.
+- Unload sports equipment.
+- Put bags in trunk.
+- Remove bags from trunk.
+- Clean loose trash from vehicle.
+- Vacuum vehicle interior.
+- Wipe dashboard.
+- Clean cup holders.
+- Clean windows.
+- Shake out floor mats.
+- Wash floor mats.
+- Reinstall floor mats.
+- Organize trunk.
+- Store emergency kit.
+- Retrieve emergency kit.
+- Wash vehicle exterior.
+- Rinse vehicle.
+- Soap vehicle.
+- Dry vehicle.
+- Clean wheels.
+- Put charging cable away for an EV.
+- Connect an EV charging cable under appropriate conditions.
+- Disconnect charging cable when charging is complete.
+
+Front yard- Pick up litter.
+- Pick up branches.
+- Pick up leaves.
+- Rake leaves.
+- Bag leaves.
+- Move leaf bags.
+- Sweep walkway.
+- Sweep driveway.
+- Sweep porch.
+- Hose down walkway.
+- Hose down driveway.
+- Clean front steps.
+- Clean handrails.
+- Clean front door.
+- Clean exterior windows.
+- Clean mailbox.
+- Retrieve mail.
+- Deliver outgoing mail to mailbox.
+- Water lawn.
+- Move sprinkler.
+- Turn irrigation on or off.
+- Inspect sprinkler operation.
+- Water flowers.
+- Water shrubs.
+- Weed flower beds.
+- Pull weeds from cracks.
+- Remove dead flowers.
+- Mulch flower beds.
+- Spread soil.
+- Plant flowers.
+- Plant shrubs.
+- Plant seeds.
+- Edge garden beds.
+- Trim small shrubs.
+- Collect trimmings.
+- Put yard waste in green bin.
+- Arrange outdoor decorations.
+- Remove outdoor decorations.
+- Bring packages from porch inside.
+
+Backyard- Pick up toys.
+- Put outdoor toys away.
+- Pick up pet waste.
+- Rake leaves.
+- Sweep patio.
+- Wash patio.
+- Clean deck.
+- Wash deck furniture.
+- Wipe outdoor tables.
+- Wipe outdoor chairs.
+- Arrange patio chairs.
+- Fold patio umbrellas.
+- Open patio umbrellas.
+- Secure umbrellas in wind.
+- Cover outdoor furniture.
+- Uncover outdoor furniture.
+- Store cushions.
+- Put cushions outside.
+- Clean cushions.
+- Water garden.
+- Weed garden.
+- Harvest vegetables.
+- Harvest fruit.
+- Harvest herbs.
+- Pick up fallen fruit.
+- Compost garden waste.
+- Turn compost where appropriate.
+- Add appropriate material to compost.
+- Move garden hose.
+- Coil garden hose.
+- Turn hose on.
+- Turn hose off.
+- Attach hose nozzle.
+- Disconnect hose nozzle.
+- Fill watering can.
+- Empty watering can.
+- Clean grill exterior.
+- Clean cold grill grates.
+- Cover grill.
+- Uncover grill.
+- Clean outdoor sink.
+- Clean fire-pit area when completely cold.
+- Stack firewood.
+- Move small amounts of firewood.
+- Clean shed.
+- Organize shed.
+- Close shed.
+- Lock shed.
+- Check fence visually.
+- Close gate.
+- Latch gate.
+
+Lawn and landscaping- Inspect lawn.
+- Pick up obstacles before mowing.
+- Move lawn furniture.
+- Return lawn furniture.
+- Mow lawn where equipment and safety constraints allow.
+- Edge lawn.
+- Trim grass around obstacles.
+- Rake grass clippings.
+- Bag grass clippings.
+- Overseed lawn.
+- Spread lawn seed.
+- Spread safe lawn amendments according to instructions.
+- Water newly seeded lawn.
+- Aerate lawn with appropriate equipment.
+- Remove weeds.
+- Dig planting holes.
+- Fill planting holes.
+- Spread mulch.
+- Move mulch.
+- Move soil.
+- Spread topsoil.
+- Level loose soil.
+- Place landscape stones.
+- Remove small loose stones.
+- Collect branches.
+- Trim small branches with appropriate safe hand tools.
+- Prune bushes.
+- Shape hedges using safe equipment where appropriate.
+- Collect trimmings.
+- Empty yard-waste containers.
+
+Outdoor cleaning- Sweep patio.
+- Sweep deck.
+- Sweep driveway.
+- Sweep sidewalk.
+- Sweep porch.
+- Sweep steps.
+- Remove cobwebs.
+- Wash outdoor furniture.
+- Clean exterior doors.
+- Clean exterior windows.
+- Wash trash bins.
+- Wash recycling bins.
+- Clean gutters only under safe, appropriate human-supervised conditions.
+- Clear ground-level drainage grates.
+- Remove leaves from drains.
+- Clean hose.
+- Clean gardening tools.
+- Clean gardening pots.
+- Wash muddy boots.
+- Wash outdoor mats.
+- Clean outdoor storage boxes.
+- Clean barbecue tools.
+- Clean poolside furniture.
+- Pick up windblown trash.
+
+Pool and spa area- Pick up pool toys.
+- Store pool toys.
+- Fold towels.
+- Put clean towels out.
+- Collect used towels.
+- Clean pool furniture.
+- Sweep pool deck.
+- Remove leaves from deck.
+- Use a pool skimmer from a safe position.
+- Empty skimmer basket when appropriate.
+- Cover pool.
+- Uncover pool with suitable equipment.
+- Secure pool cover.
+- Organize flotation devices.
+- Clean flotation devices.
+- Store flotation devices.
+- Check that gates are closed.
+- Keep pool area free of clutter.
+- Report unsafe water conditions rather than attempting hazardous maintenance.
+
+Trash, recycling, and compost- Identify garbage.
+- Identify recycling.
+- Identify compost.
+- Separate waste correctly.
+- Empty small trash cans.
+- Empty kitchen trash.
+- Empty bathroom trash.
+- Empty office trash.
+- Replace trash liners.
+- Tie trash bags.
+- Carry trash outside.
+- Put garbage in correct bin.
+- Put recycling in correct bin.
+- Put compost in correct bin.
+- Break down cardboard.
+- Rinse recyclable containers.
+- Remove caps when locally required.
+- Move bins to curb.
+- Return bins from curb.
+- Clean bins.
+- Remove debris around bins.
+- Keep bin area organized.
+
+Home organization- Declutter a room.
+- Group similar objects.
+- Create storage zones.
+- Label storage.
+- Put frequently used items within reach.
+- Put infrequently used items into storage.
+- Sort keep/donate/discard items.
+- Create donation pile.
+- Bag donations.
+- Box donations.
+- Inventory pantry.
+- Inventory refrigerator.
+- Inventory freezer.
+- Inventory cleaning supplies.
+- Inventory toiletries.
+- Inventory laundry supplies.
+- Inventory pet supplies.
+- Inventory office supplies.
+- Inventory household tools.
+- Restock consumables.
+- Detect low supplies.
+- Make a shopping list.
+- Update a shopping list.
+- Cross items off a list.
+- Unpack purchases.
+- Put purchases away.
+- Organize cables.
+- Label cables.
+- Organize chargers.
+- Organize batteries.
+- Store manuals.
+- Organize warranties.
+- Store receipts.
+- Organize keys.
+- Organize remote controls.
+- Organize shoes.
+- Organize coats.
+- Organize linens.
+- Organize towels.
+- Organize cleaning products.
+- Organize crafts.
+- Organize toys.
+- Organize books.
+- Organize media.
+- Organize sports equipment.
+
+Shopping and replenishment- Identify depleted items.
+- Build grocery list.
+- Build household supply list.
+- Check pantry before shopping.
+- Check refrigerator before shopping.
+- Check freezer before shopping.
+- Check bathroom supplies.
+- Check cleaning supplies.
+- Check pet supplies.
+- Collect reusable shopping bags.
+- Unload groceries.
+- Sort refrigerated groceries.
+- Sort frozen groceries.
+- Sort pantry groceries.
+- Put groceries away.
+- Remove excess packaging.
+- Rotate old food forward.
+- Store new food behind older food.
+- Refill dispensers.
+- Refill soap.
+- Refill detergent.
+- Refill tissues.
+- Refill paper towels.
+- Refill toilet paper.
+- Refill trash bags.
+- Refill pet supplies.
+
+Package and delivery handling- Detect delivery.
+- Notify resident of delivery.
+- Retrieve package from porch.
+- Verify package label.
+- Carry package inside.
+- Place package in designated area.
+- Open package when requested.
+- Remove packing material.
+- Sort package contents.
+- Put contents away.
+- Flatten cardboard.
+- Separate recyclable packaging.
+- Dispose of non-recyclable packaging.
+- Save return packaging when requested.
+- Repackage an item for return.
+- Apply a return label.
+- Place outgoing package in designated pickup area.
+
+Basic household maintenance- Inspect for loose handles.
+- Tighten simple screws.
+- Tighten cabinet handles.
+- Tighten drawer pulls.
+- Replace simple batteries.
+- Replace remote batteries.
+- Replace clock batteries.
+- Replace detector batteries.
+- Replace light bulbs.
+- Replace simple filters.
+- Replace vacuum filter.
+- Replace air purifier filter.
+- Replace water filter.
+- Lubricate simple hinges using approved lubricant.
+- Report leaking faucet.
+- Report damaged cable.
+- Report cracked glass.
+- Report structural damage.
+- Report unusual appliance noises.
+- Report unusual smells.
+- Report water damage.
+- Report mold-like growth.
+- Check under sinks for leaks.
+- Check appliance hoses visually.
+- Inspect weather stripping.
+- Replace simple removable weather stripping.
+- Apply furniture pads.
+- Apply door bumpers.
+- Replace felt pads.
+- Hang lightweight decorations using approved hardware.
+- Remove decorations.
+- Assemble flat-pack furniture.
+- Disassemble furniture.
+- Mount simple removable accessories where safe.
+- Change clock settings.
+- Reset appliance clocks after power loss.
+
+Tool handling- Retrieve screwdriver.
+- Retrieve wrench.
+- Retrieve pliers.
+- Retrieve hammer.
+- Retrieve measuring tape.
+- Retrieve level.
+- Retrieve flashlight.
+- Use screwdriver.
+- Use wrench for light household adjustment.
+- Use pliers for appropriate simple tasks.
+- Use measuring tape.
+- Measure distance.
+- Measure object dimensions.
+- Mark a measurement.
+- Use level.
+- Hold flashlight for another person.
+- Organize tools.
+- Clean tools.
+- Return tools.
+- Charge cordless tools.
+- Store tool batteries.
+- Identify damaged tools.
+- Avoid using damaged tools.
+- Follow tool-specific safety rules.
+
+Seasonal spring tasks- Open windows for airing out.
+- Wash windows.
+- Clean window screens.
+- Deep-clean rooms.
+- Rotate seasonal clothing.
+- Store winter clothing.
+- Bring out warm-weather clothing.
+- Clean patio furniture.
+- Uncover outdoor furniture.
+- Prepare garden beds.
+- Plant flowers.
+- Plant vegetables.
+- Mulch beds.
+- Inspect outdoor areas.
+- Clean porch.
+- Clean patio.
+- Organize garage.
+- Organize shed.
+
+Summer tasks- Water plants.
+- Water lawn.
+- Maintain garden.
+- Harvest produce.
+- Clean outdoor furniture.
+- Set up patio.
+- Set up outdoor meals.
+- Put umbrellas up.
+- Store cushions before rain.
+- Close curtains during peak heat.
+- Adjust fans.
+- Refill water containers.
+- Keep pet water full.
+- Clean grill after use.
+- Store pool equipment.
+- Collect outdoor towels.
+
+Autumn tasks- Rake leaves.
+- Bag leaves.
+- Compost leaves.
+- Clear walkways.
+- Store summer furniture.
+- Cover outdoor furniture.
+- Store cushions.
+- Store garden tools.
+- Harvest remaining garden produce.
+- Clean gutters at safe accessible levels.
+- Bring out cooler-weather clothing.
+- Store summer clothing.
+- Inspect door seals.
+- Inspect window seals.
+- Prepare blankets.
+- Set up seasonal decorations.
+- Remove seasonal decorations afterward.
+
+Winter tasks- Bring in outdoor cushions.
+- Cover outdoor equipment.
+- Store hoses.
+- Protect sensitive plants.
+- Close windows.
+- Check door seals.
+- Put out extra blankets.
+- Rotate winter clothing.
+- Clean muddy entryway.
+- Remove wet shoes.
+- Dry wet floors.
+- Sweep salt or debris from entryway.
+- Clear light snow from walkway with appropriate safe tools.
+- Spread approved ice melt according to instructions.
+- Bring packages inside promptly.
+- Put holiday decorations up.
+- Remove holiday decorations.
+- Pack decorations.
+- Store decorations.
+- Wrap gifts.
+- Unwrap packaging after holidays.
+- Recycle boxes and paper where appropriate.
+
+Holiday and event preparation- Decorate room.
+- Hang decorations.
+- Arrange decorations.
+- Set table.
+- Add tablecloth.
+- Arrange chairs.
+- Prepare serving area.
+- Prepare drink station.
+- Put out plates.
+- Put out utensils.
+- Put out cups.
+- Put out napkins.
+- Put out snacks.
+- Refill snacks.
+- Refill beverages.
+- Collect dirty dishes.
+- Empty trash during event.
+- Clean spills during event.
+- Take decorations down.
+- Sort reusable decorations.
+- Store decorations.
+- Clean room afterward.
+- Return furniture to normal positions.
+
+Home security routines- Verify exterior doors are closed.
+- Verify exterior doors are locked.
+- Verify windows are closed.
+- Verify windows are locked.
+- Verify garage door is closed.
+- Verify gates are closed.
+- Turn outdoor lights on.
+- Turn outdoor lights off.
+- Close curtains at night.
+- Check that appliances are off when appropriate.
+- Check that faucets are off.
+- Check that stove is off.
+- Check that oven is off.
+- Check that doors are unobstructed.
+- Report broken lock.
+- Report open door.
+- Report open window.
+- Report unexpected water.
+- Report smoke detector alert.
+- Report carbon-monoxide alert.
+- Notify household members of suspicious or abnormal conditions without confronting threats.
+
+Home departure routine- Put dirty dishes in sink.
+- Shut refrigerator.
+- Turn off unnecessary lights.
+- Turn off selected electronics.
+- Close windows.
+- Lock windows.
+- Close doors.
+- Lock doors.
+- Close garage.
+- Set thermostat appropriately.
+- Fill pet water.
+- Feed pets if scheduled.
+- Take trash out if needed.
+- Bring required bags to entryway.
+- Gather keys.
+- Gather wallet.
+- Gather phone.
+- Gather chargers.
+- Gather medication only under the person's own instructions.
+- Gather school supplies.
+- Gather work supplies.
+- Gather sports equipment.
+- Load vehicle.
+- Confirm house is secure.
+
+Return-home routine- Unlock door.
+- Open door.
+- Bring bags inside.
+- Close door.
+- Lock door.
+- Put keys away.
+- Put shoes away.
+- Hang coat.
+- Store backpack.
+- Store shopping bags.
+- Unload groceries.
+- Let pets greet safely.
+- Check pet water.
+- Turn lights on as needed.
+- Adjust thermostat if appropriate.
+- Sort mail.
+- Put charging devices on chargers.
+- Put dirty clothing in hamper.
+- Reset entryway.
+
+Morning routine support- Open curtains.
+- Raise blinds.
+- Turn lights on.
+- Adjust room temperature.
+- Make bed.
+- Prepare coffee.
+- Prepare tea.
+- Prepare breakfast.
+- Set breakfast table.
+- Fill water bottle.
+- Pack lunch.
+- Load dishwasher.
+- Put breakfast items away.
+- Prepare school or work bag.
+- Gather keys.
+- Gather shoes.
+- Gather coat.
+- Check weather-appropriate household items if instructed.
+- Feed pets.
+- Refill pet water.
+- Open curtains in common areas.
+
+Evening routine- Clear dinner dishes.
+- Wash dishes.
+- Load dishwasher.
+- Start dishwasher.
+- Wipe kitchen counters.
+- Wipe dining table.
+- Put leftovers away.
+- Take trash out if needed.
+- Pick up living room clutter.
+- Fold blankets.
+- Put toys away.
+- Close curtains.
+- Lower blinds.
+- Dim lights.
+- Lock exterior doors.
+- Check windows.
+- Check garage.
+- Turn off unused electronics.
+- Set thermostat.
+- Refill bedside water if requested.
+- Charge devices.
+- Prepare items for morning.
+- Set out clean towels.
+- Check pet food/water.
+- Perform final room reset.
+
+Cleaning supply management- Identify cleaning product.
+- Retrieve correct cleaner.
+- Read label instructions.
+- Use correct cloth.
+- Use correct sponge.
+- Use correct brush.
+- Fill spray bottle with approved solution.
+- Spray surface.
+- Wipe surface.
+- Rinse surface.
+- Dry surface.
+- Rinse cleaning cloth.
+- Wash cleaning cloths.
+- Dry cleaning cloths.
+- Store cleaning cloths.
+- Clean brushes.
+- Clean sponges.
+- Replace worn sponges.
+- Clean bucket.
+- Empty dirty water.
+- Store cleaning products.
+- Keep incompatible products separated.
+- Avoid mixing chemicals.
+- Identify an unlabeled chemical and avoid using it.
+- Report spilled chemicals.
+- Restock cleaning supplies.
+
+Textile care beyond laundry- Shake blankets.
+- Air out blankets.
+- Wash curtains when appropriate.
+- Remove curtains.
+- Rehang curtains.
+- Vacuum curtains.
+- Clean blinds.
+- Wash removable cushion covers.
+- Remove cushion covers.
+- Replace cushion covers.
+- Wash pillow protectors.
+- Wash mattress protector.
+- Install mattress protector.
+- Wash table linens.
+- Fold table linens.
+- Store table linens.
+- Wash reusable shopping bags.
+- Clean backpacks.
+- Clean fabric bins.
+- Wash pet bedding.
+
+Home inventory- Count food items.
+- Count beverages.
+- Count cleaning supplies.
+- Count toiletries.
+- Count paper goods.
+- Count batteries.
+- Count light bulbs.
+- Count pet food.
+- Count trash bags.
+- Count laundry supplies.
+- Identify low-stock items.
+- Identify duplicate purchases.
+- Identify expired food.
+- Identify damaged items.
+- Identify missing common items.
+- Maintain item-location map.
+- Maintain pantry inventory.
+- Maintain freezer inventory.
+- Maintain household-supply inventory.
+
+Simple food and drink service- Get a glass of water.
+- Refill a water glass.
+- Add ice.
+- Pour juice.
+- Pour milk.
+- Pour coffee.
+- Pour tea.
+- Make tea.
+- Make coffee.
+- Make hot chocolate.
+- Prepare a snack plate.
+- Serve fruit.
+- Serve crackers.
+- Serve prepared food.
+- Carry food to another room.
+- Carry dishes back.
+- Bring napkin.
+- Bring utensil.
+- Bring condiment.
+- Clear empty containers.
+
+Home exercise-area maintenance- Put weights away.
+- Rack dumbbells.
+- Store resistance bands.
+- Roll yoga mat.
+- Unroll yoga mat.
+- Wipe exercise equipment.
+- Disinfect handles.
+- Organize gym accessories.
+- Refill water bottle.
+- Fold workout towels.
+- Put dirty towels in laundry.
+- Clear exercise floor.
+- Move bench.
+- Return bench.
+- Charge fitness devices.
+
+Craft and hobby area- Sort art supplies.
+- Store markers.
+- Store pencils.
+- Store paintbrushes.
+- Clean paintbrushes.
+- Close paint containers.
+- Put paper away.
+- Organize craft materials.
+- Pick up beads or small parts.
+- Sort building pieces.
+- Sort game pieces.
+- Set up board game.
+- Pack board game.
+- Organize puzzle pieces.
+- Clear hobby table.
+- Wipe hobby table.
+- Put music equipment away.
+- Coil instrument cables.
+- Store controllers.
+- Charge controllers.
+- Store books.
+- Store collectibles safely.
+
+Home electronics- Turn device on.
+- Turn device off.
+- Plug device in.
+- Unplug device.
+- Charge phone.
+- Charge tablet.
+- Charge laptop.
+- Charge headphones.
+- Charge game controllers.
+- Charge cordless vacuum.
+- Place robot devices on charging dock.
+- Connect HDMI cable.
+- Disconnect HDMI cable.
+- Connect USB cable.
+- Disconnect USB cable.
+- Connect power cable.
+- Organize power cables.
+- Replace remote batteries.
+- Restart device when instructed.
+- Clean device exterior.
+- Clean screen appropriately.
+- Dust ventilation openings.
+- Report overheating.
+- Report damaged cable.
+- Turn unused equipment off.
+
+Moving / rearranging- Pack books.
+- Pack clothing.
+- Pack kitchenware.
+- Pack decorations.
+- Pack electronics.
+- Wrap fragile objects.
+- Label boxes.
+- Seal boxes.
+- Move lightweight boxes.
+- Sort boxes by room.
+- Unpack boxes.
+- Put contents away.
+- Collapse empty boxes.
+- Move chairs.
+- Move small tables.
+- Reposition rugs.
+- Rearrange shelving contents.
+- Clear room before furniture movement.
+- Measure available space.
+- Verify object fits.
+- Stage items for movers.
+- Clean empty rooms.
+- Set up rooms after moving.
+
+Renovation/project assistance- Clear workspace.
+- Cover furniture.
+- Lay protective drop cloth.
+- Move objects away from work area.
+- Bring tools to worker.
+- Hold flashlight.
+- Measure distance.
+- Mark locations.
+- Hand supplies to worker.
+- Sort screws and hardware.
+- Collect packaging.
+- Collect debris.
+- Sweep workspace.
+- Vacuum dust using appropriate equipment.
+- Remove protective coverings.
+- Put tools away.
+- Clean completed area.
+- Reinstall moved objects.
+- Report damage.
+
+Basic sewing and clothing upkeep- Thread a needle.
+- Sew on button.
+- Repair small seam.
+- Trim loose threads.
+- Remove lint.
+- Remove pilling with appropriate device.
+- Fold garment.
+- Hang garment.
+- Steam garment.
+- Iron garment.
+- Polish dress shoes.
+- Clean sneakers.
+- Replace shoelaces.
+- Lace shoes.
+- Store seasonal shoes.
+- Pack clothing for travel.
+
+Travel packing at home- Retrieve suitcase.
+- Open suitcase.
+- Make packing checklist.
+- Fold clothing.
+- Roll clothing.
+- Pack shirts.
+- Pack pants.
+- Pack underwear.
+- Pack socks.
+- Pack shoes.
+- Pack toiletries.
+- Pack electronics.
+- Pack chargers.
+- Pack documents.
+- Pack snacks.
+- Organize compartments.
+- Close suitcase.
+- Weigh suitcase.
+- Add luggage tag.
+- Move suitcase to entryway.
+- Unpack suitcase after trip.
+- Put dirty clothes into hamper.
+- Put clean clothes away.
+- Store suitcase.
+
+Mail and household paperwork- Retrieve mail.
+- Sort mail by recipient.
+- Identify junk mail.
+- Recycle junk mail.
+- Place bills in designated location.
+- Place important letters in designated location.
+- Open envelopes when instructed.
+- Remove contents.
+- Flatten envelopes.
+- File documents.
+- Label folders.
+- Retrieve documents.
+- Prepare outgoing envelope.
+- Insert documents.
+- Seal envelope.
+- Apply postage when instructed.
+- Place outgoing mail for collection.
+
+Food waste reduction- Identify food nearing expiration.
+- Move older food to front.
+- Suggest using older ingredients first.
+- Consolidate duplicate containers.
+- Portion leftovers.
+- Freeze suitable leftovers.
+- Label frozen food.
+- Date frozen food.
+- Thaw food safely in refrigerator when instructed.
+- Compost suitable scraps.
+- Dispose of spoiled food.
+- Clean containers after spoiled food.
+- Clean refrigerator spill.
+
+Accessibility assistance- Retrieve dropped object.
+- Bring commonly used items closer.
+- Open jar.
+- Open packaging.
+- Open door.
+- Close door.
+- Turn light on.
+- Turn light off.
+- Open curtains.
+- Close curtains.
+- Bring water.
+- Carry dishes.
+- Move lightweight obstruction.
+- Position chair.
+- Retrieve mobility-related accessories.
+- Carry bag.
+- Fetch phone.
+- Fetch charger.
+- Fetch remote.
+- Fetch blanket.
+- Place items within reachable distance.
+- Report hazards in walking path.
+
+Safety inspection- Detect smoke alarm sound.
+- Detect carbon-monoxide alarm sound.
+- Detect water on floor.
+- Detect broken glass.
+- Detect exposed cable.
+- Detect fallen furniture.
+- Detect blocked doorway.
+- Detect stove left on.
+- Detect running faucet.
+- Detect overflowing sink.
+- Detect open exterior door.
+- Detect open gate.
+- Detect refrigerator door left open.
+- Detect freezer door left open.
+- Detect burning smell.
+- Detect unusual appliance noise.
+- Detect water leak.
+- Detect pet trapped in room.
+- Detect child-accessible hazard.
+- Alert a responsible person.
+- Keep people away from unsafe area.
+- Retrieve first-aid kit for an adult when requested.
+- Call for human assistance when instructed or clearly necessary.
+
+Weather-response chores- Close windows when rain begins.
+- Bring cushions inside before rain.
+- Bring laundry inside before rain.
+- Bring tools inside before rain.
+- Close patio umbrella in wind.
+- Secure lightweight outdoor objects.
+- Wipe rainwater near doors.
+- Dry wet entryway.
+- Put umbrella in drying location.
+- Turn off irrigation during rain.
+- Water plants during dry periods.
+- Shade sensitive plants during extreme sun if configured.
+- Pick up branches after wind.
+- Clear leaves after storm.
+- Inspect property for visible storm damage.
+- Report damaged roof material from ground-level observation.
+- Report fallen branches.
+- Report flooding.
+
+Outdoor recreation setup- Set up patio chairs.
+- Bring cushions outside.
+- Set up table.
+- Put out drinks.
+- Put out snacks.
+- Retrieve sports equipment.
+- Inflate ball.
+- Set up lawn game.
+- Put lawn game away.
+- Retrieve pool toys.
+- Store pool toys.
+- Set up picnic.
+- Pack picnic.
+- Bring blankets outside.
+- Bring blankets back inside.
+- Clean outdoor equipment afterward.
+
+BBQ / outdoor meal support- Uncover grill.
+- Clean cold grill grate.
+- Bring utensils.
+- Bring ingredients.
+- Bring plates.
+- Bring condiments.
+- Bring napkins.
+- Set outdoor table.
+- Carry prepared food outside.
+- Bring cooked food inside.
+- Clear table.
+- Collect trash.
+- Wash dishes.
+- Clean cooled grill.
+- Cover grill.
+- Store utensils.
+- Store condiments.
+
+Gardening- Prepare seed trays.
+- Fill pots with soil.
+- Plant seeds.
+- Label seedlings.
+- Water seedlings.
+- Transplant seedlings.
+- Dig holes.
+- Place plant.
+- Fill soil around plant.
+- Press soil gently.
+- Add mulch.
+- Water new planting.
+- Install plant stake.
+- Tie plant to stake.
+- Weed beds.
+- Thin seedlings.
+- Deadhead flowers.
+- Prune herbs.
+- Harvest herbs.
+- Harvest vegetables.
+- Harvest fruit.
+- Carry harvest inside.
+- Wash harvested produce.
+- Compost plant scraps.
+- Clean tools.
+
+Storage shed- Unlock shed.
+- Open shed.
+- Retrieve garden tools.
+- Retrieve hose equipment.
+- Retrieve seasonal decorations.
+- Retrieve outdoor furniture covers.
+- Store tools.
+- Store soil bags.
+- Store pots.
+- Stack pots.
+- Store garden chemicals only according to safe storage rules.
+- Sweep shed.
+- Organize shelves.
+- Inventory supplies.
+- Close shed.
+- Lock shed.
+
+Driveway and walkway- Pick up debris.
+- Sweep driveway.
+- Sweep walkway.
+- Remove leaves.
+- Remove small branches.
+- Move trash bins.
+- Return trash bins.
+- Clean spills with safe materials.
+- Hose dirt away where permitted.
+- Pick up toys.
+- Move bicycles.
+- Put bicycles away.
+- Clear obstacles.
+- Clear light snow where applicable.
+- Spread approved ice melt where applicable.
+- Inspect for obvious hazards.
+- Report cracks or major damage.
+
+Fence and gate- Open gate.
+- Close gate.
+- Latch gate.
+- Unlatch gate.
+- Lock gate.
+- Unlock gate.
+- Clean gate.
+- Wipe latch.
+- Check that gate closes properly.
+- Inspect fence visually.
+- Pick up debris near fence.
+- Trim light vegetation away from fence using safe tools.
+- Report broken boards.
+- Report damaged latch.
+- Report open gate.
+
+Composting- Collect kitchen scraps suitable for compost.
+- Carry scraps to compost bin.
+- Open compost bin.
+- Add scraps.
+- Add dry material.
+- Close compost bin.
+- Stir small compost bin when appropriate.
+- Empty countertop compost container.
+- Wash countertop compost container.
+- Keep unsuitable waste out.
+- Collect finished compost.
+- Spread compost in garden.
+
+Recycling processing- Identify recyclable material.
+- Empty containers.
+- Rinse containers.
+- Dry containers.
+- Flatten cardboard.
+- Flatten paper bags.
+- Sort accepted materials.
+- Remove non-recyclable contamination.
+- Fill recycling bin.
+- Move recycling bin.
+- Bring recycling bin to collection point.
+- Return empty recycling bin.
+- Wash recycling bin.
+
+Entertainment setup- Turn television on.
+- Turn game console on.
+- Select television input.
+- Retrieve remote.
+- Retrieve controller.
+- Charge controller.
+- Arrange seating.
+- Close curtains.
+- Dim lights.
+- Bring snacks.
+- Bring drinks.
+- Clear snacks afterward.
+- Put controllers away.
+- Turn equipment off.
+- Reset seating.
+
+Reading / relaxation setup- Retrieve book.
+- Bring blanket.
+- Arrange pillow.
+- Turn reading lamp on.
+- Close curtains.
+- Bring water.
+- Place side table near chair.
+- Return book to shelf.
+- Fold blanket.
+- Turn lamp off.
+
+Meal cleanup- Collect plates.
+- Collect utensils.
+- Collect glasses.
+- Collect serving dishes.
+- Scrape plates.
+- Put leftovers into containers.
+- Refrigerate leftovers.
+- Load dishwasher.
+- Hand-wash remaining items.
+- Wipe dining table.
+- Wipe counters.
+- Sweep crumbs.
+- Mop spills.
+- Empty trash if full.
+- Replace trash liner.
+- Put condiments away.
+- Push chairs in.
+- Reset kitchen.
+
+Deep-clean cycle- Move movable furniture.
+- Dust high surfaces.
+- Dust low surfaces.
+- Clean vents.
+- Clean baseboards.
+- Clean door frames.
+- Clean doors.
+- Clean walls.
+- Clean light fixtures.
+- Clean fan blades.
+- Wash windows.
+- Clean blinds.
+- Vacuum upholstery.
+- Vacuum mattress.
+- Vacuum floors.
+- Mop hard floors.
+- Clean under furniture.
+- Clean behind furniture.
+- Clean under appliances.
+- Clean behind appliances.
+- Wash rugs if appropriate.
+- Wash curtains if appropriate.
+- Disinfect high-touch surfaces.
+- Return furniture.
+- Empty cleaning equipment.
+- Wash cleaning tools.
+- Store cleaning tools.
+
+Daily reset- Walk through every room.
+- Pick up obvious trash.
+- Put dishes in kitchen.
+- Put clothing in hamper.
+- Put shoes away.
+- Put toys away.
+- Return remotes.
+- Return books.
+- Fold blankets.
+- Arrange pillows.
+- Wipe major surfaces.
+- Sweep obvious debris.
+- Check trash levels.
+- Check pet water.
+- Check kitchen counters.
+- Close drawers.
+- Close cabinets.
+- Close closet doors.
+- Turn unnecessary lights off.
+- Place charging devices on chargers.
+- Lock exterior doors.
+
+Weekly reset- Change bed linens.
+- Wash towels.
+- Wash clothing.
+- Clean bathrooms.
+- Vacuum house.
+- Mop hard floors.
+- Dust furniture.
+- Empty trash.
+- Empty recycling.
+- Clean kitchen appliances.
+- Check refrigerator.
+- Dispose of expired food.
+- Clean pet area.
+- Water plants.
+- Organize entryway.
+- Restock supplies.
+- Wipe mirrors.
+- Clean frequently touched surfaces.
+- Sweep outdoor entry areas.
+
+Monthly / occasional reset- Clean refrigerator deeply.
+- Clean freezer.
+- Clean oven.
+- Clean dishwasher filter.
+- Clean washer.
+- Clean dryer area.
+- Vacuum under furniture.
+- Vacuum behind furniture.
+- Dust vents.
+- Dust ceiling fans.
+- Clean baseboards.
+- Clean windows.
+- Clean window tracks.
+- Clean blinds.
+- Wash shower curtain.
+- Descale faucets.
+- Descale showerhead.
+- Check filters.
+- Replace filters as necessary.
+- Organize pantry.
+- Organize closets.
+- Organize garage.
+- Organize shed.
+- Check stored food expiration.
+- Inventory emergency supplies.
+- Rotate seasonal goods.
+
+Human-assistance primitives a general-purpose robot needs- Find.
+- Search.
+- Locate.
+- Identify.
+- Recognize.
+- Inspect.
+- Compare.
+- Count.
+- Measure.
+- Weigh.
+- Read.
+- Sort.
+- Categorize.
+- Prioritize.
+- Plan.
+- Sequence.
+- Navigate.
+- Approach.
+- Avoid.
+- Reach.
+- Grasp.
+- Lift.
+- Lower.
+- Carry.
+- Push.
+- Pull.
+- Slide.
+- Roll.
+- Rotate.
+- Turn.
+- Flip.
+- Tilt.
+- Shake.
+- Pour.
+- Scoop.
+- Stir.
+- Mix.
+- Spread.
+- Scrape.
+- Wipe.
+- Scrub.
+- Sweep.
+- Mop.
+- Vacuum.
+- Rinse.
+- Wash.
+- Dry.
+- Fold.
+- Unfold.
+- Stack.
+- Unstack.
+- Insert.
+- Remove.
+- Attach.
+- Detach.
+- Fasten.
+- Unfasten.
+- Open.
+- Close.
+- Lock.
+- Unlock.
+- Plug.
+- Unplug.
+- Press.
+- Release.
+- Twist.
+- Untwist.
+- Squeeze.
+- Pump.
+- Tie.
+- Untie.
+- Wrap.
+- Unwrap.
+- Cover.
+- Uncover.
+- Fill.
+- Empty.
+- Load.
+- Unload.
+- Pack.
+- Unpack.
+- Store.
+- Retrieve.
+- Deliver.
+- Hand over.
+- Receive.
+- Hold.
+- Support.
+- Arrange.
+- Reposition.
+- Align.
+- Level.
+- Clean.
+- Disinfect.
+- Organize.
+- Restock.
+- Label.
+- Inventory.
+- Monitor.
+- Detect.
+- Report.
+- Alert.
+- Wait.
+- Resume.
+- Stop.
+- Ask for clarification when genuinely necessary.
+- Verify task completion.
+
+Situational variations your robot must learn for essentially every task- Different house sizes.
+- Different room layouts.
+- Different ceiling heights.
+- Different door sizes.
+- Different door-handle types.
+- Different cabinet designs.
+- Different drawer designs.
+- Different faucet designs.
+- Different appliances.
+- Different appliance brands.
+- Different light switches.
+- Different furniture styles.
+- Different floor materials.
+- Carpet.
+- Hardwood.
+- Laminate.
+- Tile.
+- Stone.
+- Concrete.
+- Rugs.
+- Uneven outdoor terrain.
+- Different object sizes.
+- Different object weights.
+- Different object materials.
+- Different object shapes.
+- Different levels of clutter.
+- Different lighting.
+- Different time of day.
+- Different weather.
+- Different temperatures.
+- Different numbers of residents.
+- Children present.
+- Adults present.
+- Elderly residents present.
+- Pets present.
+- Guests present.
+- Multiple people moving simultaneously.
+- People giving conflicting instructions.
+- Objects changing location.
+- Furniture being rearranged.
+- Unknown objects.
+- Missing objects.
+- Damaged objects.
+- Spilled liquids.
+- Fragile objects.
+- Valuable objects.
+- Sharp objects.
+- Hot objects.
+- Wet objects.
+- Heavy objects.
+- Moving objects.
+- Doors unexpectedly closing.
+- Pets unexpectedly moving.
+- People unexpectedly entering the path.
+- Tasks interrupted midway.
+- Tasks resumed later.
+- Multiple chores combined into one request.
+- Vague commands like “clean this up.”
+- Relative commands like “put that over there.”
+- Preference-dependent instructions like “put everything back where I normally keep it.”
+- Learning where individual residents prefer items to be stored.
+- Learning household routines.
+- Learning room semantics.
+- Learning object affordances.
+- Learning which objects may safely contact each other.
+- Learning which surfaces tolerate water.
+- Learning which items are fragile.
+- Learning which items belong to which person.
+- Learning privacy boundaries.
+- Learning areas it should not enter.
+- Learning tasks requiring human approval.
+- Learning when a task is beyond its safe capability.
+- Learning when to stop and request human intervention.
+Emergency, Safety, and First Aid
+Turn off the main water shutoff valve.
+Turn off the main electrical breaker.
+Retrieve a specific medical item (e.g., EpiPen, inhaler, ice pack, heating pad).
+Operate a household fire extinguisher (pull pin, aim, squeeze, sweep).
+Unlock and open a window specifically for emergency egress.
+Clear a path for emergency medical personnel.
+Delicate Electronics and IT Maintenance
+Handle electrostatic-sensitive components (e.g., holding a motherboard by the edges without touching pins).
+Install or seat a delicate component (e.g., seating an NVMe SSD or RAM stick until it clicks).
+Perform tight-space cable management (routing, zipping, and hiding cables behind a desk or PC chassis).
+Dust computer internals using compressed air while holding fans stationary to prevent over-spinning.
+Plug cables into rear I/O ports by feel or from tight visual angles (e.g., distinguishing DisplayPort from HDMI by touch/shape).
+Pair a new smart home device or Bluetooth accessory.
+Advanced Culinary and Kitchen
+Sharpen knives using a whetstone or pull-through sharpener.
+Operate high-risk manual kitchen tools (e.g., mandoline slicer, box grater) without damaging the tool or the robot's end-effectors.
+Skim foam or fat off the top of a boiling liquid.
+Extinguish a small stovetop grease fire (e.g., by covering it with a lid or baking soda, never water).
+Pet and Bio-Care
+Administer pet medication (e.g., hiding a pill in a treat, dropping liquid into a water bowl).
+Clean out and replace an aquarium or terrarium filter.
+Check the temperature gradient of a reptile enclosure.
+Physical Human Assistance
+Provide a stable, locked-joint physical brace for a person attempting to stand up or sit down.
+Guide a visually impaired person through a cluttered room (acting as a sighted guide).Caring for people (must-have). Most entries are about objects and rooms. People mostly show up as obstacles or as someone to hand things to.
+Wake someone up; help someone sit, stand, or steady themselves; offer an arm on stairs; help with buttons, zips, and shoes; fetch and clean glasses and hearing aids; push or fold a wheelchair or walker.
+Sick-day care: take a temperature, bring fluids, tissues, and a heating pad, clean up after vomiting, fetch an inhaler or EpiPen, bring medication on the person's own schedule and log it.
+Kids: bedtime routine (bath-water temperature check, pajamas, story, night light, checking on a sleeping child), bottle and formula prep, sterilizing, supervised play (catch, hide-and-seek, card and board games), reading aloud.
+Accessibility beyond mobility: describe layout and obstacles for low-vision residents, read mail and labels aloud, flash lights for the doorbell and alarms for deaf residents, keep furniture in consistent positions, dementia-friendly routines (labels, door checks).
+Emergency response (must-have). Detection and alerting are covered well, but active response is thin.
+Detect: a person who has fallen or is unresponsive, calls for help or choking sounds, glass-break or forced-entry sounds, gas smell, a car running in a closed garage, a child near stairs, a pool, or a stove.
+Respond: shut off the main water, a fixture valve, or gas; use a fire extinguisher; evacuate people and pets; call emergency services and relay the address and symptoms; unlock the door and guide responders; fetch the AED and first-aid kit; run a power-outage routine (flashlights, unplug sensitive electronics, protect the fridge and freezer); shelter during severe weather; know where the breaker panel and shutoffs are.
+Doors, visitors, and communication (must-have).
+Answer the doorbell or intercom; screen visitors and decline solicitors; let in expected guests; supervise repair people; accept and sign for deliveries.
+Take and relay messages ("tell the kids dinner's ready"), announce visitors, set up and tidy for video calls, take group photos.
+Hospitality: simple cocktails and mocktails, uncork wine, open cans and bottles, offer slippers, follow household rules on who may be served alcohol.
+Primitives: communication is thin (you have Report, Alert, and Ask for clarification). Add Speak, Listen, Announce, Explain, Confirm, Refuse, Undo, Hand off to a human, Remember, Forget. Physical verbs also missing: Cut/Slice, Peel, Crack, Tear, Hammer, Drill, Climb, Kneel/Crouch, Balance, Throw/Catch, Point/Gesture, Spray, Brush.
+Reaching, climbing, and fixing. Tool handling stops at basic hand tools, and there's no height access.
+Use a step stool, ladder, or reacher (with stability checks) for high shelves, ceiling bulbs, attic hatches, and hanging lights.
+Tools to add: drill/driver, stud finder, wall anchors, utility knife, scissors, staple gun, caulk gun, Allen keys.
+Repairs: paint walls and touch up scuffs, caulk a tub or sink, patch small holes, sand, regrout, pressure-wash, seal a deck.
+Small plumbing and fixes: unclog sinks and shower drains, fix a running toilet, reset a garbage disposal, clear a printer jam, bleed a radiator.
+Messy, nasty, and hazardous.
+Clean up broken glass and ceramic, spilled flour, sugar, or oil, vomit, urine, and pet accidents.
+Pests: remove insects and spiders, clean ant trails, set and check traps, report droppings or nests, empty standing water, pantry-moth and fruit-fly traps.
+Hazardous and bulky disposal: batteries, bulbs, e-waste, paint, aerosols, old medications, cooking oil, old furniture; stage items until drop-off day and transport them.
+The robot itself.
+Charge or swap its own battery; wipe its cameras and sensors; get up after a fall; wait in an unobtrusive spot; quiet and privacy modes (cameras and mics off in bathrooms and bedrooms); knock before entering an occupied room; ask for remote help; log its own faults.
+Maintain other household robots: empty the robot vacuum, clean its brushes, refill the mop tank, rescue it when stuck, clear cords and socks before it runs.
+Away mode. Your departure routine covers daily exits. Add a vacation or house-sitting mode: arm the alarm, set lights on timers, bring in mail and packages, water plants, check for leaks and pests, run taps, check the freezer after an outage, care for pets, send status photos.
+Pets beyond feeding and walking. Give owner-directed medication, bathe and dry a dog, check for ticks and fleas, open and close crates, keep pets' meals separate, calm a pet during storms or fireworks. Aquarium water changes, filter, and glass, small-animal cages, and backyard chickens (eggs, coop, water) are also missing.
+Cooking gaps.
+Food safety: avoid cross-contamination (raw-meat boards, hands), control allergens (read labels, clean shared tools), discard food left out too long.
+Diets and planning: halal, kosher, vegan, gluten-free, low-sodium, diabetic, texture-modified; meal planning; scaling recipes; baby food.
+Technique: carve, fillet, shuck; awkward produce (squash, pineapple, mango, coconut); baking steps (grease and line pans, proof dough, cool on racks, frost); grilling (light, flip, check temperature, propane level); disposing of cooking oil; espresso with steamed milk, pour-over.
+Vehicles, bikes, and errands (only if scope goes past the property line). Refuel, check and inflate tires, top off washer fluid, change wipers, jump-start, change a flat, scrape ice and snow, check the back seat before locking, check a car seat; lube a bike chain, patch a flat, charge an e-bike; curbside pickup, pharmacy, post office, donation and return drop-offs.
+Situational variations. Apartments and condos (elevators, shared laundry, HOA rules), regional standards (metric vs. imperial, front vs. top-load, induction vs. gas, shoes-off homes), languages, accents, and speech differences, residents with disabilities or dementia, residents' emotional states, and robot-side degradation (dirty camera, low battery, network down, a failing arm).
+
+
+
+
+ADAPTABILITY TASKS
+intentionally left out, and where everything belongs.
+“Make this place look nice.” There may be no single correct state; it has to reason about symmetry, spacing, aesthetics, furniture placement, and household preferences.
+“Put everything back where it belongs.” It may never have seen the objects or their normal locations before.
+“Put this somewhere safe.” “Safe” changes depending on whether the object is fragile, hot, valuable, dangerous to pets, sensitive to moisture, etc.
+“Put this somewhere I won’t lose it.” The robot has to choose a memorable but sensible storage location.
+“Hide this somewhere the dog can’t reach it.” Requires reasoning about the pet’s reach, jumping ability, room access, and object safety.
+“Move this out of the way.” It must infer where “out of the way” is without creating another obstruction.
+“Get this out of here.” It must determine whether that means trash it, relocate it, store it, return it, or simply move it to another room.
+“Deal with this mess.” It has to inspect the situation and create its own cleanup plan.
+“Fix this up.” The robot must determine what looks wrong before deciding what actions to take.
+“Make this usable again.” Could mean clearing clutter, reconnecting something, cleaning it, reorganizing it, or finding missing components.
+“Make some room.” Requires rearranging objects without making the environment worse.
+“Clear enough space for three people.” It must understand human body space, seating, walking clearance, and the activity being performed.
+“Move the furniture around so we can watch the TV.” Requires understanding lines of sight and practical seating arrangements.
+“Set this room up for a party.” Number of guests, seating, food locations, walking paths, decorations, trash locations, and breakable objects all matter.
+“Set this room back to normal.” Requires remembering the previous room state.
+“Make the house presentable before guests arrive.” It must prioritize visible problems rather than blindly deep-cleaning everything.
+“Clean whatever needs cleaning.” Requires inspection, prioritization, and deciding when something is clean enough.
+“Do a quick cleanup.” Requires balancing quality against time.
+“Do the important stuff first.” Requires ranking chores by urgency and impact.
+“You have ten minutes. Make this look better.” The robot must optimize its action sequence.
+“Finish whatever I forgot to do.” It needs to inspect the environment and infer incomplete chores.
+“Check whether I left anything out.” Requires understanding what the expected household state normally looks like.
+“Check the house before we leave.” It has to inspect locks, windows, appliances, pets, lights, faucets, garage doors, and other household-specific concerns.
+“Get the house ready for bed.” It must combine locking doors, dimming lights, closing blinds, checking appliances, preparing rooms, and possibly pet routines.
+“Get the house ready for the morning.” It might prepare coffee equipment, bags, clothes, lunch items, blinds, and room temperature.
+“Prepare everything I’ll need tomorrow.” Requires reasoning from calendar/context, weather, activities, school/work needs, and personal habits.
+“Pack my bag for tomorrow.” Contents vary depending on destination and schedule.
+“Pack for a weekend trip.” Requires selecting clothing and supplies based on duration, weather, planned activities, and available luggage space.
+“Pack lightly.” The robot needs to optimize what is essential versus optional.
+“Pack everything we might need.” The opposite objective, requiring uncertainty management.
+“Pack the fragile stuff carefully.” It has to recognize fragility and invent appropriate packing strategies.
+“Make this fit in the box.” Requires spatial reasoning, rotation, rearrangement, folding, and possibly choosing another box.
+“Fit everything into the trunk.” A 3D packing problem involving fragile, heavy, accessible, and awkwardly shaped objects.
+“Load the car so the important things are easy to reach.” Requires understanding future use order.
+“Unload the car and put everything away.” It has to classify items and route them to different locations.
+“Bring in the groceries, but take the frozen stuff first.” Requires prioritizing temperature-sensitive items.
+“Put away the groceries properly.” It may encounter unfamiliar food and must infer pantry, refrigerator, freezer, or countertop storage.
+“Figure out where this new kitchen gadget should go.” Requires estimating frequency of use, size, compatibility with existing organization, and available space.
+“Reorganize this cabinet so everything fits better.” Requires 3D planning and category reasoning.
+“Make more room in the refrigerator.” Requires rearranging containers while considering temperature zones, spills, expiration, and food safety.
+“Use these leftovers before they go bad.” Requires inspecting ingredients, judging compatible combinations, and planning a meal.
+“Make dinner with whatever we have.” One of the hardest: identify ingredients, possible dishes, missing substitutes, preparation order, and dietary constraints.
+“Make something similar to what we ate yesterday.” Requires episodic memory and approximation.
+“Make something everyone will like.” Requires preferences, allergies, past feedback, and compromise.
+“Make enough food for whoever is here.” Requires estimating portions dynamically.
+“Make this recipe even though we’re missing one ingredient.” Requires substitution reasoning.
+“Cook this without using the oven because it’s broken.” Requires replanning using different appliances.
+“Finish cooking this for me.” The robot has to infer what stage the human reached.
+“Watch this while it cooks.” It has to understand visual, temperature, smell, texture, and timing cues rather than just a timer.
+“Take it off when it looks done.” “Done” is a perception and judgment problem.
+“Make this less salty.” Requires corrective cooking reasoning.
+“Save this dish; I messed it up.” Requires diagnosing what went wrong and identifying possible recovery actions.
+“Cut these into roughly equal pieces.” Requires estimating volume, not simply following a predefined cut pattern.
+“Cut this so everyone gets a fair piece.” Fairness may depend on size, toppings, preferences, or number of people.
+“Make this easier for a kid to eat.” Requires contextual food preparation and safety judgment.
+“Use whichever pan makes sense.” The robot must select a tool from available options.
+“Grab something I can use as a bowl.” Requires functional substitution rather than object-label matching.
+“Find something to prop this up.” Requires discovering an object based on physical affordances.
+“Find something heavy enough to hold this down.” Requires approximate physics reasoning.
+“Find something soft to protect this.” It must select padding from unrelated household items.
+“Find something waterproof to put under this.” Requires material-property reasoning.
+“Find something I can stand this on.” Requires assessing stability and load.
+“Figure out how to open this.” The container may have a mechanism the robot has never encountered.
+“Figure out how this latch works.” Requires visual and physical exploration.
+“Open this without spilling it.” Manipulation must adapt to unknown contents and container geometry.
+“Carry this without tipping it.” Requires estimating center of mass and liquid movement.
+“Carry all of these in one trip if you can.” Requires deciding how objects can be stacked, held, bagged, or transported together.
+“Move this without scratching the floor.” Requires modifying the plan based on surface and object material.
+“Move this through that doorway.” Requires rotating and maneuvering bulky objects.
+“Get this sofa around the corner.” A classic high-dimensional geometry and coordination problem.
+“Move this upstairs.” Requires judging weight, balance, stair geometry, grip opportunities, and whether human assistance is necessary.
+“Move everything off this table except what we still need.” Requires understanding the current activity.
+“Leave the important stuff.” Requires distinguishing importance contextually.
+“Don’t move anything that looks intentional.” Requires interpreting arrangements rather than just object categories.
+“Don’t disturb my setup.” It has to understand which relationships between objects must remain unchanged.
+“Clean around this.” Requires preserving an existing configuration.
+“Dust this shelf without knocking anything over.” Requires manipulating around dense, fragile clutter.
+“Clean under there without moving everything.” Requires selecting tools and alternate approaches.
+“Clean behind the couch.” The robot must determine whether it can reach, move the couch, use an attachment, or request help.
+“Clean the spots people usually miss.” Requires knowledge of common cleaning failures.
+“Find where that smell is coming from.” Requires active investigation across rooms and possible causes.
+“Figure out why the floor is wet.” Could be spilled water, a leak, pet water, rain, appliance overflow, etc.
+“Something is leaking. Find it.” Requires tracing evidence to a source.
+“There’s a weird noise somewhere.” Requires localization, appliance knowledge, and anomaly detection.
+“Something fell upstairs. Check what happened.” Requires investigating an uncertain event.
+“The room feels weird. Check it.” Very ambiguous: temperature, smell, noise, lighting, objects out of place, or equipment malfunction.
+“Make sure nothing looks wrong.” General anomaly detection across an open world.
+“Check whether anything changed since I left.” Requires storing and comparing previous environmental states.
+“Find what’s missing.” Requires knowing the expected inventory.
+“Find my keys.” Requires systematic search and understanding likely human placement habits.
+“Find the thing I was using earlier.” Requires tracking recent human-object interactions.
+“Find the remote; I think someone moved it.” Requires probabilistic search.
+“Look somewhere I wouldn’t normally put it.” Requires modeling abnormal human behavior.
+“Find something my kid hid.” Requires adversarial search through plausible hiding locations.
+“Find where the dog took my sock.” Requires reasoning about pet behavior.
+“Grab the thing next to the blue thing.” Requires resolving vague referring expressions.
+“Give me that.” Requires gaze, pointing, conversation context, and object disambiguation.
+“Put it over there.” Requires understanding gestures and shared spatial reference.
+“Put it where I usually put it.” Requires personalized long-term memory.
+“Get the usual.” Requires learning routines and preferences.
+“Set things up how I like them.” Requires user-specific configuration memory.
+“Make my room how it was yesterday.” Requires state reconstruction.
+“Put everything back exactly how it was.” Requires high-fidelity spatial memory.
+“Move this a little to the left.” Must resolve coordinate frame: robot-left, human-left, object's left, room-left, etc.
+“Straighten this.” Requires determining the intended reference line.
+“Center this.” Center relative to what?
+“Line these up.” Requires inferring the relevant axis and spacing.
+“Make these evenly spaced.” Requires visual geometry estimation.
+“Arrange these nicely.” Requires aesthetic planning.
+“Make the bed look hotel-quality.” Requires understanding a qualitative standard rather than just task completion.
+“Fold this the way I normally fold it.” Personalized manipulation.
+“Fold this weird-shaped thing.” Requires handling unseen deformable objects.
+“Untangle these cables.” Requires topology reasoning.
+“Untangle this necklace.” Extremely difficult fine manipulation and visual reasoning.
+“Untie this knot.” Requires understanding knot topology.
+“Untangle the garden hose.” Larger-scale flexible-object planning.
+“Roll this cable so it doesn’t get tangled.” Requires predicting future physical behavior.
+“Put this fitted sheet on the bed.” Deformable-object manipulation with corners that can be misidentified.
+“Fold a fitted sheet.” Difficult even for many humans.
+“Put this duvet into the cover.” Requires large deformable-object coordination.
+“Figure out which corner goes where.” General correspondence reasoning.
+“Zip this bag even though it’s really full.” Requires rearranging contents and controlling deformation.
+“Close this drawer; something is blocking it.” Requires diagnosing the obstruction.
+“The cabinet won’t close. Fix it.” It has to inspect contents and rearrange them.
+“This lid doesn’t fit. Find the right one.” Requires shape matching among similar objects.
+“Find the matching sock.” Requires visual similarity under deformation and partial occlusion.
+“Pair all these shoes.” Same challenge with orientation, size, color, and style.
+“Separate everyone’s laundry.” Requires learning ownership from size, style, location, history, and possibly labels.
+“Put these clothes somewhere they won’t wrinkle.” Requires fabric/clothing knowledge.
+“Hang whatever should be hung.” Requires garment classification.
+“Wash these without ruining anything.” Requires reading tags, recognizing fabric, colors, special treatments, and machine capabilities.
+“Get this stain out.” Requires identifying probable stain/material combination and choosing an appropriate treatment.
+“Dry this without shrinking it.” Requires garment-care reasoning.
+“Make these shoes look better.” Different materials require different cleaning methods.
+“Prepare the backyard for people.” Requires inspecting and deciding what matters: seating, debris, shade, toys, wet surfaces, pet waste, etc.
+“Make the patio comfortable.” Requires adapting to weather, sun position, furniture, and guests.
+“Move those chairs into the shade.” Shade changes spatially over time.
+“Water anything that needs water.” Requires plant identification and soil/moisture judgment.
+“Take care of the plants while I’m gone.” Different plants may need different schedules and amounts.
+“Save that plant; it looks bad.” Requires identifying possible stress without overreacting.
+“Clean up after the storm.” Requires adapting to unpredictable debris and possibly unsafe conditions.
+“Secure everything outside before the wind gets worse.” Requires deciding what can blow away, what needs folding, what needs moving, and what is already secure.
+“Get everything outside that shouldn’t get wet.” Requires material and ownership reasoning.
+“Bring in anything valuable.” Requires semantic judgment about value.
+“Make a path through this clutter.” Requires choosing what can safely be moved and where.
+“Clear a wheelchair path.” Requires understanding minimum practical clearance and accessibility.
+“Make sure nobody trips over anything.” Requires hazard identification from a human perspective.
+“Baby-proof this room.” Requires predicting how a small child could interact with the environment.
+“Make this safe for the dog.” Requires pet-specific hazard reasoning.
+“Put fragile things somewhere safer before the kids come over.” Requires predicting future interactions.
+“Keep the cat out while you clean this room.” Requires simultaneous task execution and dynamic agent management.
+“Don’t let the dog escape when you open the door.” Requires planning around another autonomous agent.
+“Open the door for the delivery person but keep the pets inside.” Multi-agent dynamic reasoning.
+“Help me carry this.” Requires synchronized cooperative manipulation with a human.
+“Hold this while I screw it in.” Requires understanding another human's task and maintaining an appropriate pose.
+“Lift your side.” Requires force and motion coordination.
+“Turn it toward me.” Requires interpreting human-relative orientation during shared manipulation.
+“Move when I move.” Requires adaptive cooperative control.
+“Follow me and carry these.” Combines tracking, navigation, load management, and obstacle avoidance.
+“Hand me tools as I need them.” Requires predicting or recognizing stages in another person's work.
+“Give me the right screwdriver.” Requires matching hardware to tool.
+“Grab something that will work instead.” Requires tool substitution.
+“Help me assemble this even though we lost the instructions.” Requires structural inference from parts.
+“Figure out where this piece goes.” Requires matching geometry, function, and incomplete assemblies.
+“Take this apart without breaking anything.” Requires discovering hidden fasteners and assembly sequence.
+“Put this back together.” Requires remembering or inferring previous structure.
+“Fix the wobbly table.” Requires diagnosing whether the issue is loose hardware, uneven floor, damaged leg, etc.
+“Stop this door from slamming.” Requires understanding cause and possible non-destructive solutions.
+“Make this shelf level.” Requires sensing, adjustment, and iterative verification.
+“Find why this drawer keeps sticking.” Requires mechanical diagnosis.
+“Figure out why this appliance isn’t turning on.” Requires safe diagnostic reasoning while knowing when not to proceed.
+“Try the obvious things first.” Requires ranking troubleshooting steps.
+“Don’t make it worse.” Requires uncertainty-aware behavior and conservative intervention.
+“If you’re not sure, find another way.” Requires generating alternative plans rather than freezing.
+“Do it without moving the sleeping baby.” Requires low-noise, low-vibration planning.
+“Clean quietly.” Requires changing tools and motion profile.
+“Do it without waking anyone up.” Requires reasoning about doors, floors, lights, vacuum noise, dishes, etc.
+“Do it without bothering the people in the room.” Requires social navigation.
+“Clean while people are still using the kitchen.” Requires dynamically working around moving humans and active tasks.
+“Work around me.” Requires continuous path and manipulation replanning.
+“Wait until I’m done with that.” Requires recognizing task dependencies.
+“Finish this after they leave.” Requires postponed task memory.
+“Do this whenever you get a chance.” Requires scheduling around other priorities.
+“Do this before it becomes a problem.” Requires predictive maintenance reasoning.
+“Only clean things that actually need it.” Requires determining condition rather than following a fixed schedule.
+“Don’t throw away anything important.” Requires high precision and conservative uncertainty handling.
+“Throw away anything obviously useless.” Requires semantic and personal-value judgment.
+“Get rid of the junk.” Very difficult because one person's junk may be another person's valuable possession.
+“Sort this pile into what we keep, donate, and throw away.” Requires household preferences and sometimes asking for confirmation.
+“Organize this however makes the most sense.” Requires generating its own organizational system.
+“Make this easier for me to find later.” Requires modeling human retrieval behavior.
+“Put the things we use most somewhere convenient.” Requires frequency-of-use memory.
+“Move rarely used stuff out of the way.” Requires long-term usage statistics.
+“Reorganize this room now that we bought this new thing.” Requires adapting an existing organization system.
+“Figure out what changed and update everything accordingly.” A general reconfiguration problem.
+“Do the rest the same way I did this one.” Requires imitation from a single example.
+“Watch me do this once, then do the others.” Few-shot physical learning.
+“Do this like I showed you last time.” Long-term skill memory.
+“Copy what that person is doing.” Requires action interpretation and embodiment transfer.
+“Do something similar, but for this object.” Requires abstraction rather than imitation.
+“Use your best judgment.” The robot has to choose without explicit procedural instruction.
+“Figure it out.” Possibly the ultimate generalization benchmark: inspect state, infer intent, construct a plan, act, detect failure, recover, and know when to ask for help.
+Physics and Reflexive Edge Cases
+“Catch this falling object.” Requires dynamic reflexive control, predicting the trajectory of an object in freefall, and deciding whether it is safe to catch (e.g., catching a falling cup vs. letting a falling knife hit the floor).
+“Open this carbonated drink without it exploding.” Requires force control, auditory/tactile feedback to detect pressure release, and pacing.
+“Carry this stack of plates quietly.” Requires modifying a standard walking gait to act as an active suspension system, minimizing vertical vibration.
+Identify reflections vs. reality. A classic embodied AI vision challenge—the robot must navigate a room with floor-to-ceiling mirrors or glass doors without perceiving the reflection as a hallway.
+Advanced Delicate Handling
+“Clean the inside of this computer.” The robot must distinguish between dust and delicate capacitors, knowing how much physical force (or air pressure) is safe to apply near a motherboard.
+“ untangle these cords without unplugging the computer.” Requires topology reasoning while simultaneously identifying and protecting active power constraints.
+Resourcefulness and Optimization
+“We’re out of paper towels; find something else to clean this up.” The robot must evaluate the nature of the spill (oil, water, biohazard) and find a suitable, safe alternative (a rag, a sponge, newspaper) without ruining a nice towel.
+“Optimize the house for low energy today.” Requires reasoning across multiple systems: lowering the thermostat, closing blinds facing the sun, turning off vampire-draw electronics, and delaying the dishwasher until off-peak hours.
+“Make a meal using only ingredients that expire this week.” Combines inventory scanning, expiration date reading, and recipe generation on the fly.
+Social, Contextual, and Aesthetic Intelligence
+“Read the room.” If humans are having a tense argument, or someone is crying, the robot must infer that it should cancel its noisy vacuuming task and leave quietly.
+“Keep the kids busy for ten minutes.” The robot must invent a safe, engaging game using only the objects currently available in the room.
+“Take a good family photo.” Requires aesthetic judgment regarding lighting, framing, composition, and timing (waiting for everyone to look and smile).
+“Arrange these flowers so they look nice.” Requires aesthetic planning, understanding balance, height, and color distribution.
+Security and Trust Delegation
+“Don't let anyone into the garage but me.” Requires persistent facial/voice recognition and the ability to politely refuse commands from unauthorized humans.
+“Let me know if anyone suspicious comes to the door.” Requires differentiating between a regular delivery driver, a neighbor, and someone acting erratically or trying door handles.
+Who's asking, and should I? (must-have)
+“Open the door for that man.” or “Give me the knife.” (from a child) Requires deciding who can command what, refusing without escalating, and alerting an adult.
+“Dad said leave it, Mom said do it.” Requires resolving conflicting instructions from people with different authority.
+“Turn off the smoke alarm, it’s annoying.” Requires telling a nuisance from a safety function before complying, verifying, or refusing.
+“Hide the presents where the kids won’t find them.” Requires keeping secrets, tracking who knows what, and modeling how kids search (the mirror image of your “find something my kid hid”).
+Emergencies (must-have)
+“Something’s burning!” Requires locating the source, then choosing between cutting power or gas, smothering, evacuating, or calling for help in seconds.
+“Grandma’s on the floor.” Requires not moving her unsafely, summoning help, relaying details, and keeping others calm.
+“The toilet’s overflowing — do something!” Requires improvising a response (shutoff valve, float, towels) with no named procedure.
+“The power just went out.” Requires working out what matters right now: light, fridge, medical devices, kids, phones.
+Feedback and recovery (must-have)
+“Stop.” / “Not like that.” / “Undo that.” Requires halting safely, working out what to revert, and restoring the prior state.
+“Why did you put it there?” Requires explaining its reasoning in a way the person can correct.
+“Gentler.” / “Faster.” / “Be more careful with that.” Requires adjusting its motion with no numeric target.
+“Don’t ever do that again.” / “Forget what I said about that.” Requires editing persistent memory and deciding how broadly the rule applies.
+Standing orders and watching
+“Tell me when the laundry’s done.” Requires monitoring cues (sound, status light) and choosing when and how to notify.
+“If it starts raining, close the windows.” Requires conditional rules that persist for days.
+“Keep an eye on the kids while I shower.” Requires deciding what to watch for, when to intervene, and when to come get me.
+“Run the house while we’re away for a week.” Requires long-horizon autonomy, contingency handling, and knowing when to escalate.
+Is it okay? (judging state)
+“Is this still good?” / “Is this ripe?” Requires smell, appearance, dates, and storage history, and comfort with uncertainty.
+“Is it dry yet?” (laundry, paint, a mopped floor) Requires judging state from sparse cues.
+“Can this go in the microwave / dishwasher / dryer?” Requires reasoning about materials, labels, and safety.
+“Is that pan still hot?” / “Is this safe to stand on?” Requires inferring temperature or stability before touching.
+Improvising physical fixes
+“Reach the top shelf.” Requires choosing a stool, reacher, or ladder, or asking for help.
+“Something fell behind the fridge.” Requires retrieving it without moving the appliance.
+“This lid’s stuck.” / “This window won’t open.” Requires loosening it without breaking it (heat, tapping, leverage, grip).
+New devices and new homes
+“Figure out how this washer works.” Requires reading the panel and manual, then testing options safely.
+“Learn the house.” Requires mapping rooms, objects, owners, no-go zones, shutoff locations, and the emergency plan, including in a home that isn’t yours.
+Reading the room
+“I’ve had a rough day.” Requires choosing between quiet, dinner, tea, or leaving them alone.
+“We’re on a call, be quiet.” Requires switching to a quiet mode and blocking noisy interruptions (doorbell, vacuum, notifications).
+“Make Grandma comfortable.” Requires adapting temperature, seating, lighting, and reach to one specific person.
+“Keep the meat and dairy dishes separate.” / “Shoes stay off.” / “Don’t touch Grandpa’s chair.” Requires picking up household rules, including cultural or sentimental ones that look arbitrary.
+Constraints beyond time
+“Clean it without bleach — the baby’s crawling.” Requires substituting methods under a new constraint.
+“Don’t buy anything; use what we have.” Requires substitution under resource limits.
+“Get ready for the storm / the plumber / the newborn.” Requires building an event-specific prep list from context.
+Pets
+“Calm the dog down.” Requires reading animal state (storm, fireworks, separation) and choosing a response.
+“The dog’s limping.” Requires noticing and reporting without guessing at medical treatment.
+

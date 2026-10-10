@@ -1,68 +1,64 @@
-"""Evidence-based catalog coverage; unsupported requirements remain explicit."""
+"""Evidence-based catalog coverage, held-out demos and reports."""
 import csv
 import json
 import time
-from pathlib import Path
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .catalog import ROOT, read_jsonl, write_jsonl
 from .compiler import compile_specs
-from .engine import HouseEnv
-from .predicates import digest
-from .reference import solve, wrong
-from .scenarios import build
+from .kernel.predicates import digest
+from .tasks.verify import SEEDS, spec_hash, verify_many
+
+FIDELITY_NOTE = {"S": "Symbolic state and predicates", "G": "Geometric grid/box checks (reach, clearance, fit, stacking, stairs)",
+                 "P-approx": "Approximate lumped physical model (liquids, heat, cloth/knot topology); not rigid-body or fluid simulation"}
 
 
 def fingerprint(root=ROOT):
     source = Path(__file__).resolve().parent
-    paths = sorted(source.glob("*.py")) + sorted((source / "data").glob("*.json"))
-    return digest({"house_sim/" + p.relative_to(source).as_posix(): p.read_text(encoding="utf-8") for p in paths})
+    # simulation code and data only: evaluation tooling (house_sim/eval) does not change outcomes
+    paths = sorted(p for p in source.rglob("*.py") if "legacy_v1" not in p.parts and "__pycache__" not in p.parts
+                   and "eval" not in p.relative_to(source).parts)
+    paths += sorted(p for p in (source / "data").rglob("*.json"))
+    templates = root / "tasks" / "templates"
+    if templates.is_dir():
+        paths += sorted(templates.glob("*.json"))
+    return digest({p.relative_to(source.parent).as_posix(): p.read_text(encoding="utf-8") for p in paths})
 
 
-def verify(root=ROOT, seeds=(0, 1, 2, 41, 97), emit=print):
-    entries, specs, manifest = compile_specs(root)
+def harness_fingerprint():
+    """Digest of the evaluation tooling (house_sim/eval/**): recorded with agent runs so results scored by different
+    harness code are never mixed, while simulation evidence (fingerprint()) stays valid across harness edits."""
+    source = Path(__file__).resolve().parent / "eval"
+    paths = sorted(p for p in source.rglob("*") if p.is_file() and p.suffix in (".py", ".json", ".html") and "__pycache__" not in p.parts)
+    return digest({p.relative_to(source.parent).as_posix(): p.read_text(encoding="utf-8") for p in paths})
+
+
+def _evidence(root):
+    path = root / "reports/verification.jsonl"
+    return {r["catalog_id"]: r for r in read_jsonl(path)} if path.exists() else {}
+
+
+def verify(root=ROOT, seeds=SEEDS, emit=print, only=None, workers=None, perception=None):
+    entries, records, manifest = compile_specs(root)
     implementation = fingerprint(root)
-    evidence, total = [], sum(s["family"] is not None for s in specs)
+    evidence = _evidence(root) if only else {}
+    candidates = [r for r in records if r["status"] == "CANDIDATE" and (only is None or r["catalog_id"] in only or r["section"] in only or r.get("source_file") in only)]
     started = time.monotonic()
-    for spec in specs:
-        if not spec["family"]: continue
-        record = {"catalog_id": spec["catalog_id"], "implementation_hash": implementation,
-                  "spec_hash": digest(spec), "fidelity": "S", "trials": [], "passed": False}
-        for seed in seeds:
-            trial = {"seed": seed, "passed": False}
-            try:
-                config, task, oracle = build(spec, seed)
-                trial["initial_hash"] = digest(config)
-                trial["task_hash"] = digest(task)
-                env = HouseEnv(config, task, seed)
-                initial_passes = env.task_complete()
-                env.step("wait", seconds=min(task["time_budget_s"], 600))
-                idle_passes = env.task_complete()
-                env = HouseEnv(config, task, seed)
-                reference = solve(env, oracle)
-                bad = HouseEnv(config, task, seed)
-                wrong_result = wrong(bad, oracle)
-                trial.update(initial_fails=not initial_passes, idle_fails=not idle_passes,
-                             reference_passes=reference["success"], wrong_fails=not wrong_result["success"],
-                             reference_steps=reference["steps"], reference_state_hash=digest(env.privileged_state()),
-                             wrong_state_hash=digest(bad.privileged_state()))
-                trial["passed"] = all(trial[k] for k in ("initial_fails", "idle_fails", "reference_passes", "wrong_fails"))
-                if not trial["passed"]:
-                    trial["failure_details"] = {"reference": reference, "wrong": wrong_result}
-            except Exception as exc:
-                trial["error"] = type(exc).__name__ + ": " + str(exc)
-            record["trials"].append(trial)
-        record["passed"] = bool(record["trials"]) and all(t["passed"] for t in record["trials"])
-        evidence.append(record)
-        if len(evidence) % 100 == 0:
-            write_jsonl(root / "reports/verification.jsonl", evidence)
-            emit("Verified {}/{} candidate entries; {} passed all seeds".format(len(evidence), total, sum(e["passed"] for e in evidence)), flush=True)
-    write_jsonl(root / "reports/verification.jsonl", evidence)
+    def progress(i, total, result):
+        if i % 100 == 0 or i == total:
+            emit("Verified {}/{} candidate entries ({:.0f}s)".format(i, total, time.monotonic() - started), flush=True)
+    results = verify_many([r["spec"] for r in candidates], seeds=seeds, workers=workers, progress=progress, perception=perception)
+    for record in results:
+        record["implementation_hash"] = implementation
+        evidence[record["catalog_id"]] = record
+    ordered = [evidence[r["catalog_id"]] for r in records if r["catalog_id"] in evidence]
+    write_jsonl(root / "reports/verification.jsonl", ordered)
     run = {"generated_at": datetime.now(timezone.utc).isoformat(), "elapsed_seconds": round(time.monotonic() - started, 3),
-           "implementation_hash": implementation, "source_sha256": manifest["source_sha256"],
-           "seeds": list(seeds), "candidate_entries": total, "passed_entries": sum(e["passed"] for e in evidence),
-           "failed_entries": [e["catalog_id"] for e in evidence if not e["passed"]]}
+           "implementation_hash": implementation, "source_sha256": manifest["source_sha256"], "seeds": list(seeds),
+           "candidate_entries": len(candidates), "passed_entries": sum(r["passed"] for r in results),
+           "failed_entries": [r["catalog_id"] for r in results if not r["passed"]], "partial": only is not None}
     (root / "reports/verification_run.json").write_text(json.dumps(run, indent=2) + "\n", encoding="utf-8")
     summary = report(root)
     emit(json.dumps(summary, indent=2))
@@ -70,81 +66,125 @@ def verify(root=ROOT, seeds=(0, 1, 2, 41, 97), emit=print):
 
 
 def report(root=ROOT):
-    entries = read_jsonl(root / "catalog/entries.jsonl")
-    specs = {s["catalog_id"]: s for s in read_jsonl(root / "tasks/specs.jsonl")}
-    evidence_path = root / "reports/verification.jsonl"
-    evidence = {r["catalog_id"]: r for r in read_jsonl(evidence_path)} if evidence_path.exists() else {}
-    current_hash = fingerprint(root)
+    records = read_jsonl(root / "tasks/specs.jsonl")
+    entries = {e["id"]: e for e in read_jsonl(root / "catalog/entries.jsonl")}
+    evidence = _evidence(root)
+    current = fingerprint(root)
     rows = []
-    for entry in entries:
-        spec = specs[entry["id"]]
-        proof = evidence.get(entry["id"], {})
-        status, reason = spec["status"], spec["reason"]
-        verified = bool(proof.get("passed")) and proof.get("implementation_hash") == current_hash and proof.get("spec_hash") == digest(spec)
-        if verified:
-            status, reason = "DONE", "Reference passes and idle/wrong baselines fail for all recorded seeds; bounded symbolic fidelity only."
-        elif spec["family"]:
+    for record in records:
+        proof = evidence.get(record["catalog_id"], {})
+        status, reason = record["status"], record["reason"]
+        verified = False
+        if record["status"] == "CANDIDATE":
+            verified = bool(proof.get("passed")) and proof.get("implementation_hash") == current and proof.get("spec_hash") == spec_hash(record["spec"])
+            if verified:
+                status = "DONE"
+                reason = "Reference passes; idle and every plausible-wrong plan fail on all seeds."
+                if record.get("reconstructed"):
+                    reason += " Implemented against the documented reconstruction of a truncated source line."
+            else:
+                status = "STUB"
+                reason = "Authored but verification is missing, stale or failing: " + _why(proof, current, record)
+        elif record["status"] == "INVALID":
             status = "STUB"
-            reason = "Missing, stale, or failed verification; not counted complete."
-        rows.append({"id": entry["id"], "kind": entry["kind"], "section": entry["section"],
-                     "text": entry["text"], "source_line": entry["source_line"], "status": status,
-                     "fidelity": "S" if verified else "unverified", "target_fidelity": spec["target_fidelity"],
-                     "family": spec["family"] or "", "parameters": json.dumps(spec["parameters"], sort_keys=True),
-                     "risk_level": spec["risk_level"], "risk_review": "heuristic triage; runtime guards apply",
-                     "world": verified, "actions": verified, "spec": bool(spec["family"]), "verification": verified,
+        fidelity = record.get("fidelity") if verified else "unverified"
+        rows.append({"id": record["catalog_id"], "kind": record["kind"], "section": record["section"], "text": record["text"],
+                     "source_line": record["source_line"], "status": status, "fidelity": fidelity,
+                     "target_fidelity": record.get("target_fidelity") or "", "family": record.get("family") or "",
+                     "title": record.get("title") or "", "risk_level": record.get("risk_level") if record.get("risk_level") is not None else "",
+                     "world": verified, "actions": verified, "spec": record["status"] in ("CANDIDATE", "INVALID"), "verification": verified,
                      "seeds": ";".join(str(t["seed"]) for t in proof.get("trials", [])) if verified else "",
-                     "reason": reason, "physical_limit": "No geometry/physics validation" if spec["target_fidelity"] != "S" else "Symbolic only"})
+                     "reason": reason, "fidelity_note": FIDELITY_NOTE.get(fidelity, "Not implemented"),
+                     "reconstructed": bool(record.get("reconstructed")), "source_file": record.get("source_file") or ""})
     with (root / "coverage.csv").open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
-        writer.writeheader(); writer.writerows(rows)
+        writer.writeheader()
+        writer.writerows(rows)
     statuses = Counter(r["status"] for r in rows)
-    task_rows = [r for r in rows if r["kind"] in ("task", "adaptability", "appendix")]
-    summary = {"total_entries": len(rows), "catalog_sections": len({r["section"] for r in rows}),
-               "statuses": dict(statuses), "executable_task_entries": sum(r["status"] == "DONE" for r in task_rows),
-               "task_requirement_entries": len(task_rows),
+    summary = {"total_entries": len(rows), "catalog_sections": len({r["section"] for r in rows}), "statuses": dict(statuses),
                "coverage_percent_all_entries": round(100 * statuses["DONE"] / len(rows), 2),
                "fidelity_done": dict(Counter(r["fidelity"] for r in rows if r["status"] == "DONE")),
-               "full_catalog_complete": all(r["status"] == "DONE" for r in rows),
-               "implementation_hash": current_hash}
+               "by_kind": {k: dict(Counter(r["status"] for r in rows if r["kind"] == k)) for k in sorted({r["kind"] for r in rows})},
+               "full_catalog_complete": all(r["status"] == "DONE" for r in rows), "implementation_hash": current}
     (root / "reports/coverage_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     sections = defaultdict(Counter)
-    for row in rows: sections[row["section"]][row["status"]] += 1
-    lines = ["# Coverage report", "", "Catalog representation is complete. Implementation coverage is partial.", "",
-             "DONE means verified only within the documented symbolic scenario distribution.", "",
-             "| Section | DONE S | STUB | TODO | BLOCKED |", "|---|---:|---:|---:|---:|"]
+    fidelity = defaultdict(Counter)
+    for row in rows:
+        sections[row["section"]][row["status"]] += 1
+        if row["status"] == "DONE":
+            fidelity[row["section"]][row["fidelity"]] += 1
+    lines = ["# Coverage report", "", "DONE means verified within the documented simulated scenario distribution (5 seeds,",
+             "reference passes; idle and plausible-wrong baselines fail). It is not evidence of real-robot competence.", "",
+             "| Section | DONE | S | G | P-approx | STUB | TODO | BLOCKED |", "|---|---:|---:|---:|---:|---:|---:|---:|"]
     for section, counts in sections.items():
-        lines.append("| {} | {} | {} | {} | {} |".format(section.replace("|", "/"), counts["DONE"], counts["STUB"], counts["TODO"], counts["BLOCKED"]))
+        f = fidelity[section]
+        lines.append("| {} | {} | {} | {} | {} | {} | {} | {} |".format(section.replace("|", "/"), counts["DONE"], f["S"], f["G"], f["P-approx"],
+                                                                          counts["STUB"], counts["TODO"], counts["BLOCKED"]))
     lines.extend(["", "## STUB and BLOCKED entries", ""])
     lines.extend("- {} — {}: {} ({})".format(r["id"], r["status"], r["text"], r["reason"]) for r in rows if r["status"] in ("STUB", "BLOCKED"))
-    lines.extend(["", "All TODO entries and reasons are retained in coverage.csv and reports/pending.jsonl."])
+    lines.extend(["", "TODO entries and reasons are retained in coverage.csv and reports/pending.jsonl."])
     (root / "reports/COVERAGE.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     write_jsonl(root / "reports/pending.jsonl", [r for r in rows if r["status"] != "DONE"])
     return summary
 
 
-def demo(root=ROOT, emit=print):
-    entries = {e["id"]: e for e in read_jsonl(root / "catalog/entries.jsonl")}
-    specs = read_jsonl(root / "tasks/specs.jsonl")
+def _why(proof, current, record):
+    if not proof:
+        return "not yet verified"
+    if proof.get("implementation_hash") != current:
+        return "implementation changed since verification"
+    if proof.get("spec_hash") != spec_hash(record["spec"]):
+        return "spec changed since verification"
+    reasons = []
+    for trial in proof.get("trials", []):
+        if trial.get("passed"):
+            continue
+        if trial.get("error"):
+            reasons.append("seed {}: {}".format(trial["seed"], trial["error"][:160]))
+        else:
+            parts = [k for k in ("initial_fails", "idle_fails", "reference_passes", "wrong_fails", "wrong_ran") if not trial.get(k)]
+            detail = trial.get("reference_error") or trial.get("reference_failures") or ""
+            reasons.append("seed {}: {} {}".format(trial["seed"], ",".join(parts), str(detail)[:160]))
+    return "; ".join(reasons[:2]) or "failed"
+
+
+def demo(root=ROOT, emit=print, seed=701):
+    """Held-out seed demo for one DONE entry per section, saved as replays and replay-verified."""
+    from .kernel.engine import HouseEnv
+    from .tasks.runner import build, run_plan
     with (root / "coverage.csv").open(encoding="utf-8") as stream:
         done = {r["id"] for r in csv.DictReader(stream) if r["status"] == "DONE"}
-    seen, records = set(), []
-    for spec in specs:
-        section = entries[spec["catalog_id"]]["section"]
-        if section in seen or spec["catalog_id"] not in done: continue
-        seen.add(section)
-        config, task, oracle = build(spec, 701)
-        env = HouseEnv(config, task, 701)
-        result = solve(env, oracle)
-        if not result["success"]: raise RuntimeError("Held-out demo failed: " + spec["catalog_id"])
-        path = root / "demos/replays" / (spec["catalog_id"] + ".json")
-        env.save_replay(path)
-        replayed = HouseEnv.replay(path)
-        if not replayed.task_complete(): raise RuntimeError("Replay failed")
-        records.append({"section": section, "catalog_id": spec["catalog_id"], "seed": 701,
-                        "replay": str(path.relative_to(root)), "evaluation": result})
-    sections = {e["section"] for e in entries.values()}
+    records = read_jsonl(root / "tasks/specs.jsonl")
+    sections = []
+    seen, scenarios, failures = set(), [], []
+    (root / "demos/replays").mkdir(parents=True, exist_ok=True)
+    for record in records:
+        if record["section"] not in sections:
+            sections.append(record["section"])
+        if record["section"] in seen or record["catalog_id"] not in done:
+            continue
+        try:
+            config, task, oracle = build(record["spec"], seed)
+            env = HouseEnv(config, task, seed)
+            run_plan(env, oracle["reference"], oracle["bindings"], strict=True)
+            result = env.evaluate()
+            if not result["success"]:
+                failures.append(record["catalog_id"])
+                continue
+            path = root / "demos/replays" / (record["catalog_id"] + ".json")
+            env.save_replay(path)
+            if not HouseEnv.replay(path).task_complete():
+                failures.append(record["catalog_id"])
+                continue
+        except Exception as exc:
+            failures.append("{}: {}".format(record["catalog_id"], exc))
+            continue
+        seen.add(record["section"])
+        scenarios.append({"section": record["section"], "catalog_id": record["catalog_id"], "seed": seed,
+                          "replay": "demos/replays/{}.json".format(record["catalog_id"]),
+                          "evaluation": {k: result[k] for k in ("success", "steps", "time_s", "score")}})
     result = {"demonstrated_sections": len(seen), "total_sections": len(sections),
-              "unimplemented_sections": sorted(sections - seen), "scenarios": records}
+              "missing_sections": [s for s in sections if s not in seen], "failures": failures, "scenarios": scenarios}
     (root / "demos/manifest.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    emit("Demonstrated and replay-verified {}/{} sections; missing sections are explicit in demos/manifest.json.".format(len(seen), len(sections)))
+    emit("Demonstrated and replay-verified {}/{} sections on held-out seed {}.".format(len(seen), len(sections), seed))
     return result

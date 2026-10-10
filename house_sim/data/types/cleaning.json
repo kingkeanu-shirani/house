@@ -1,0 +1,3884 @@
+{
+ "domain": "cleaning",
+ "looks_like": {
+  "cleaning_bottle": {
+   "descriptor": "plastic bottle of cleaning product",
+   "resolve": "read",
+   "members": [
+    "all_purpose_cleaner",
+    "ammonia_cleaner",
+    "bird_safe_cleaner",
+    "bleach",
+    "citric_descaler",
+    "cleaning_baking_soda",
+    "cleaning_vinegar",
+    "cream_cleanser",
+    "deck_cleaner",
+    "degreaser",
+    "dish_soap",
+    "disinfectant_spray",
+    "distilled_water",
+    "enzymatic_cleaner",
+    "floor_cleaner",
+    "glass_cleaner",
+    "glass_cleaner_ammonia_free",
+    "grill_cleaner",
+    "grout_cleaner",
+    "hydrogen_peroxide",
+    "isopropyl_alcohol",
+    "leather_conditioner",
+    "metal_polish",
+    "mildew_remover",
+    "mineral_spirits",
+    "oil_absorbent",
+    "oven_cleaner",
+    "oxygen_bleach",
+    "patio_cleaner",
+    "screen_cleaner",
+    "stainless_polish",
+    "stone_cleaner",
+    "toilet_bowl_cleaner",
+    "upholstery_cleaner",
+    "upholstery_solvent",
+    "wood_floor_cleaner",
+    "wood_polish"
+   ],
+   "kind": "cleaning product",
+   "candidates": [
+    "abrasive cleanser or powder",
+    "ammonia product",
+    "chlorine product",
+    "descaling acid",
+    "disinfecting product",
+    "floor product",
+    "grease cutter",
+    "outdoor cleaner",
+    "plain water",
+    "polish or conditioner",
+    "soap or detergent",
+    "solvent",
+    "stain remover",
+    "surface spray",
+    "window spray"
+   ],
+   "label_fields": [
+    "label_text",
+    "text",
+    "name_label"
+   ]
+  },
+  "spray_bottle": {
+   "descriptor": "spray bottle of liquid",
+   "resolve": "read",
+   "members": [
+    "glass_cleaner",
+    "glass_cleaner_ammonia_free",
+    "all_purpose_cleaner",
+    "disinfectant_spray",
+    "degreaser",
+    "mildew_remover",
+    "enzymatic_cleaner",
+    "upholstery_cleaner",
+    "bird_safe_cleaner",
+    "stone_cleaner",
+    "grill_cleaner",
+    "spray_bottle"
+   ],
+   "candidates": [
+    "barbecue spray",
+    "chlorine spray",
+    "disinfecting spray",
+    "enzyme spray",
+    "fabric spray",
+    "grease-cutting spray",
+    "mould spray",
+    "multi-surface spray",
+    "plain water or a homemade mix",
+    "stone-safe spray",
+    "window spray"
+   ]
+  },
+  "plastic_jug": {
+   "descriptor": "white plastic jug of liquid",
+   "resolve": "read",
+   "members": [
+    "bleach",
+    "cleaning_vinegar",
+    "distilled_water",
+    "ammonia_cleaner"
+   ],
+   "kind": "jug of liquid",
+   "candidates": [
+    "ammonia solution",
+    "chlorine (sodium hypochlorite) solution",
+    "purified water",
+    "white vinegar"
+   ],
+   "label_fields": [
+    "label_text",
+    "text",
+    "name_label"
+   ]
+  },
+  "white_powder_jar": {
+   "descriptor": "jar of white powder",
+   "resolve": "read",
+   "members": [
+    "cleaning_baking_soda",
+    "oxygen_bleach",
+    "citric_descaler"
+   ]
+  },
+  "clear_liquid_bottle": {
+   "descriptor": "bottle of clear liquid",
+   "resolve": "read",
+   "members": [
+    "isopropyl_alcohol"
+   ]
+  },
+  "pleated_filter": {
+   "descriptor": "pleated vacuum filter",
+   "resolve": "inspect",
+   "members": [
+    "vacuum_filter_hepa",
+    "vacuum_filter_hepa_washable"
+   ]
+  },
+  "kitchen_sponge": {
+   "descriptor": "kitchen sponge",
+   "resolve": "inspect",
+   "members": [
+    "sponge",
+    "non_scratch_sponge"
+   ]
+  },
+  "grill_brush": {
+   "descriptor": "grill brush",
+   "resolve": "inspect",
+   "members": [
+    "wire_grill_brush",
+    "nylon_grill_brush"
+   ]
+  },
+  "rolled_trash_bag": {
+   "descriptor": "rolled-up trash bag",
+   "resolve": "inspect",
+   "members": [
+    "trash_liner_4gal",
+    "trash_liner_8gal",
+    "trash_liner_13gal",
+    "cart_liner"
+   ],
+   "kind": "trash bag",
+   "candidates": [
+    "4-gallon trash liner",
+    "8-gallon trash liner",
+    "13-gallon trash liner",
+    "cart liner"
+   ]
+  },
+  "wheeled_cart": {
+   "descriptor": "wheeled waste cart",
+   "resolve": "read",
+   "members": [
+    "trash_cart",
+    "recycling_cart",
+    "yard_waste_cart",
+    "organics_cart"
+   ],
+   "kind": "waste cart",
+   "candidates": [
+    "food scraps and organics",
+    "landfill trash",
+    "recyclables",
+    "yard trimmings"
+   ],
+   "label_fields": [
+    "stream_label",
+    "label_text",
+    "text"
+   ]
+  },
+  "slip_of_paper": {
+   "descriptor": "slip of paper",
+   "resolve": "inspect",
+   "members": [
+    "thermal_receipt",
+    "paper_scrap"
+   ]
+  },
+  "gift_wrap": {
+   "descriptor": "crumpled wrapping paper",
+   "resolve": "inspect",
+   "members": [
+    "wrapping_paper",
+    "foil_wrapping_paper"
+   ]
+  },
+  "plastic_food_tub": {
+   "descriptor": "plastic food tub",
+   "resolve": "inspect",
+   "members": [
+    "yogurt_cup",
+    "takeout_container"
+   ]
+  },
+  "puddle": {
+   "descriptor": "puddle of liquid",
+   "resolve": "inspect",
+   "members": [
+    "spill"
+   ],
+   "kind": "puddle",
+   "candidates": [
+    "water",
+    "juice",
+    "soda",
+    "milk",
+    "wine",
+    "coffee",
+    "cooking oil",
+    "motor oil",
+    "cleaning product",
+    "urine",
+    "vomit",
+    "paint"
+   ]
+  }
+ },
+ "field_tiers": {
+  "hidden": [
+   "soil_faces",
+   "stain_area_m2",
+   "internal_dust",
+   "drain_debris_g",
+   "conditioned_t",
+   "oiled_t",
+   "washed_t",
+   "moisture_since",
+   "spinning_until",
+   "discarded_t",
+   "thermal_cutoff_until",
+   "installed_wet",
+   "mould_risk",
+   "superheated",
+   "bag_seal",
+   "chem_conflict",
+   "sharp_hazard",
+   "has_meat_waste",
+   "stream_errors",
+   "spread_factor",
+   "soaked_l"
+  ],
+  "measure": {
+   "moisture_inner": "moisture_meter"
+  },
+  "room": {
+   "hidden": [
+    "water_film",
+    "cl_air",
+    "cl_trapped_moisture"
+   ]
+  }
+ },
+ "types": {
+  "cleaning_tool": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "cleaning_tool",
+    "soil_load": 0.0,
+    "wetness": 0.0,
+    "wear": 0.0,
+    "cl_used_zones": [],
+    "contamination": {},
+    "material": "plastic",
+    "affordances": [
+     "clean"
+    ],
+    "tags": [
+     "cleaning_tool"
+    ]
+   },
+   "doc": "Base of hand cleaning tools; tracks soil_load, wetness, wear, zone use and carried contamination.",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "contamination",
+     "cl_used_zones",
+     "cl_zone",
+     "cl_chem",
+     "cl_carried",
+     "cl_sanitized",
+     "cl_soaked_with",
+     "hazardous_waste",
+     "cl_strength",
+     "odor"
+    ]
+   }
+  },
+  "microfiber_cloth": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "microfiber cloth",
+    "tool_kind": "microfiber_cloth",
+    "mass_kg": 0.04,
+    "size_m": [
+     0.3,
+     0.3,
+     0.005
+    ],
+    "volume_l": 0.1,
+    "material": "microfiber",
+    "color": "blue",
+    "+affordances": [
+     "wipe",
+     "dust",
+     "dry",
+     "polish",
+     "rinse"
+    ]
+   },
+   "doc": "Lint-free microfiber cloth 30x30 cm (holds ~150 ml); traps dust, buffs glass streak-free."
+  },
+  "cotton_rag": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "cotton rag",
+    "tool_kind": "cotton_rag",
+    "mass_kg": 0.06,
+    "size_m": [
+     0.35,
+     0.35,
+     0.005
+    ],
+    "volume_l": 0.15,
+    "material": "cotton",
+    "+affordances": [
+     "wipe",
+     "dry",
+     "absorb"
+    ]
+   },
+   "doc": "Old cotton rag: absorbent, linty on glass."
+  },
+  "chamois": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "chamois",
+    "tool_kind": "chamois",
+    "mass_kg": 0.05,
+    "size_m": [
+     0.4,
+     0.3,
+     0.003
+    ],
+    "material": "pva",
+    "+affordances": [
+     "dry"
+    ]
+   },
+   "doc": "Synthetic chamois for streak-free drying."
+  },
+  "paper_towel_roll": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "paper towel roll",
+    "tool_kind": "paper_towel",
+    "sheets": 60,
+    "stock_item": true,
+    "mass_kg": 0.25,
+    "size_m": [
+     0.11,
+     0.11,
+     0.28
+    ],
+    "volume_l": 2.5,
+    "material": "paper",
+    "+affordances": [
+     "wipe",
+     "absorb",
+     "dry"
+    ]
+   },
+   "doc": "Paper towel roll (60 sheets, ~50 ml each). Disposable; linty and slightly abrasive on coated screens."
+  },
+  "disinfecting_wipes": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "disinfecting wipes",
+    "tool_kind": "disinfecting_wipe",
+    "product": "disinfecting_wipes",
+    "count": 35,
+    "mass_kg": 0.6,
+    "size_m": [
+     0.09,
+     0.09,
+     0.19
+    ],
+    "volume_l": 1.2,
+    "label_text": "Disinfecting Wipes. Use enough wipes for surface to remain visibly wet for 4 minutes. Rinse food-contact surfaces.",
+    "+affordances": [
+     "wipe",
+     "disinfect"
+    ]
+   },
+   "doc": "Canister of 35 quat disinfecting wipes (4 min wet contact).",
+   "perception": {
+    "read": [
+     "product",
+     "chem_hazards"
+    ]
+   }
+  },
+  "sponge": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "sponge",
+    "tool_kind": "sponge",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.11,
+     0.07,
+     0.04
+    ],
+    "volume_l": 0.3,
+    "material": "cellulose",
+    "color": "yellow",
+    "+affordances": [
+     "wipe",
+     "scrub",
+     "wash"
+    ]
+   },
+   "doc": "Cellulose sponge with a green scrub side (side=scrub is abrasive, scratches nonstick/acrylic/stainless)."
+  },
+  "non_scratch_sponge": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "non-scratch sponge",
+    "tool_kind": "non_scratch_sponge",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.11,
+     0.07,
+     0.035
+    ],
+    "volume_l": 0.3,
+    "material": "cellulose",
+    "color": "blue",
+    "+affordances": [
+     "wipe",
+     "scrub",
+     "wash"
+    ]
+   },
+   "doc": "Non-scratch sponge (blue): safe for nonstick, glass cooktops, acrylic."
+  },
+  "scouring_pad": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "scouring pad",
+    "tool_kind": "scouring_pad",
+    "mass_kg": 0.01,
+    "size_m": [
+     0.15,
+     0.1,
+     0.008
+    ],
+    "material": "nylon",
+    "+affordances": [
+     "scrub"
+    ]
+   },
+   "doc": "Green scouring pad: aggressive, scratches most finishes except porcelain, cast iron, concrete."
+  },
+  "steel_wool_pad": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "steel wool",
+    "tool_kind": "steel_wool",
+    "metal": true,
+    "mass_kg": 0.015,
+    "size_m": [
+     0.08,
+     0.06,
+     0.03
+    ],
+    "material": "steel",
+    "+affordances": [
+     "scrub"
+    ]
+   },
+   "doc": "Steel wool pad: only for cast iron, rust, unfinished metal. Arcs in microwaves."
+  },
+  "melamine_sponge": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "melamine sponge",
+    "tool_kind": "melamine_sponge",
+    "mass_kg": 0.01,
+    "size_m": [
+     0.11,
+     0.06,
+     0.03
+    ],
+    "material": "melamine",
+    "+affordances": [
+     "scrub"
+    ]
+   },
+   "doc": "Melamine 'magic eraser': micro-abrasive; removes scuffs/crayon but burnishes flat and gloss paint."
+  },
+  "pumice_stone": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "pumice stone",
+    "tool_kind": "pumice_stone",
+    "mass_kg": 0.08,
+    "size_m": [
+     0.12,
+     0.06,
+     0.04
+    ],
+    "material": "pumice",
+    "+affordances": [
+     "scrub"
+    ]
+   },
+   "doc": "Pumice stone for toilet mineral rings: use wet only (dry it scratches porcelain)."
+  },
+  "scrub_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "scrub brush",
+    "tool_kind": "scrub_brush",
+    "mass_kg": 0.15,
+    "size_m": [
+     0.18,
+     0.07,
+     0.06
+    ]
+   },
+   "doc": "Stiff nylon scrub brush."
+  },
+  "grout_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "grout brush",
+    "tool_kind": "grout_brush",
+    "mass_kg": 0.08,
+    "size_m": [
+     0.2,
+     0.03,
+     0.04
+    ]
+   },
+   "doc": "Narrow stiff grout brush for tile joints."
+  },
+  "toilet_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "toilet brush",
+    "tool_kind": "toilet_brush",
+    "mass_kg": 0.18,
+    "size_m": [
+     0.1,
+     0.1,
+     0.4
+    ],
+    "cl_zone": "toilet",
+    "cl_used_zones": [
+     "toilet"
+    ]
+   },
+   "doc": "Toilet bowl brush (toilet zone only)."
+  },
+  "bottle_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "bottle brush",
+    "tool_kind": "bottle_brush",
+    "mass_kg": 0.06,
+    "size_m": [
+     0.05,
+     0.05,
+     0.35
+    ]
+   },
+   "doc": "Long bottle brush reaching bottle and thermos interiors."
+  },
+  "dish_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "dish brush",
+    "tool_kind": "dish_brush",
+    "mass_kg": 0.08,
+    "size_m": [
+     0.06,
+     0.06,
+     0.25
+    ]
+   },
+   "doc": "Dish brush with handle."
+  },
+  "detail_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "detail brush",
+    "tool_kind": "detail_brush",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.02,
+     0.02,
+     0.18
+    ]
+   },
+   "doc": "Small detail brush (old toothbrush) for crevices, aerators, seals."
+  },
+  "wire_grill_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "wire grill brush",
+    "tool_kind": "wire_brush",
+    "mass_kg": 0.3,
+    "size_m": [
+     0.1,
+     0.06,
+     0.45
+    ],
+    "metal": true
+   },
+   "doc": "Wire grill brush: only for bare cast-iron/stainless grates; worn ones shed bristles."
+  },
+  "nylon_grill_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "nylon grill brush",
+    "tool_kind": "nylon_grill_brush",
+    "mass_kg": 0.25,
+    "size_m": [
+     0.1,
+     0.06,
+     0.45
+    ]
+   },
+   "doc": "Bristle-free/nylon grill scraper safe for porcelain grates (cold grill)."
+  },
+  "soft_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "soft brush",
+    "tool_kind": "soft_brush",
+    "mass_kg": 0.05,
+    "size_m": [
+     0.12,
+     0.04,
+     0.05
+    ]
+   },
+   "doc": "Soft upholstery/lampshade brush."
+  },
+  "deck_brush": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "deck brush",
+    "tool_kind": "deck_brush",
+    "mass_kg": 0.9,
+    "size_m": [
+     0.3,
+     0.08,
+     1.4
+    ],
+    "two_handed": true,
+    "orientation": "upright"
+   },
+   "doc": "Long-handled stiff deck/patio brush."
+  },
+  "rug_beater": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "rug beater",
+    "tool_kind": "rug_beater",
+    "mass_kg": 0.4,
+    "size_m": [
+     0.3,
+     0.05,
+     0.8
+    ]
+   },
+   "doc": "Rattan rug beater for mats draped over a railing."
+  },
+  "feather_duster": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "feather duster",
+    "tool_kind": "feather_duster",
+    "mass_kg": 0.1,
+    "size_m": [
+     0.12,
+     0.12,
+     0.6
+    ]
+   },
+   "doc": "Feather duster: flicks most dust into the air to settle lower."
+  },
+  "microfiber_duster": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "microfiber duster",
+    "tool_kind": "microfiber_duster",
+    "mass_kg": 0.12,
+    "size_m": [
+     0.1,
+     0.1,
+     0.5
+    ]
+   },
+   "doc": "Microfiber hand duster that traps dust."
+  },
+  "extendable_duster": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "extendable duster",
+    "tool_kind": "extendable_duster",
+    "mass_kg": 0.4,
+    "size_m": [
+     0.12,
+     0.12,
+     1.2
+    ],
+    "orientation": "upright"
+   },
+   "doc": "Telescoping microfiber duster reaching ~1.6 m higher (ceiling corners, fan blades, cabinet tops) from the floor."
+  },
+  "flexible_duster": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "flexible under-appliance duster",
+    "tool_kind": "flexible_duster",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.1,
+     0.02,
+     1.0
+    ]
+   },
+   "doc": "Thin flexible duster that slides 2 cm gaps under fridges and stoves."
+  },
+  "compressed_air_can": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "compressed air can",
+    "tool_kind": "compressed_air",
+    "mass_kg": 0.3,
+    "size_m": [
+     0.07,
+     0.07,
+     0.25
+    ],
+    "hazards": [
+     "cold"
+    ]
+   },
+   "doc": "Canned air: short bursts, can upright, hold fans still."
+  },
+  "plastic_scraper": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "plastic scraper",
+    "tool_kind": "plastic_scraper",
+    "mass_kg": 0.03,
+    "size_m": [
+     0.08,
+     0.1,
+     0.01
+    ]
+   },
+   "doc": "Plastic scraper for stuck food, pans, labels."
+  },
+  "razor_scraper": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "razor scraper",
+    "tool_kind": "razor_scraper",
+    "mass_kg": 0.05,
+    "size_m": [
+     0.05,
+     0.12,
+     0.015
+    ],
+    "hazards": [
+     "sharp"
+    ],
+    "safe_grips": [
+     "handle"
+    ]
+   },
+   "doc": "Razor scraper for glass cooktops/paint drips at a low angle."
+  },
+  "squeegee": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "squeegee",
+    "tool_kind": "squeegee",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.3,
+     0.05,
+     0.25
+    ]
+   },
+   "doc": "Rubber-blade glass squeegee."
+  },
+  "litter_picker": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "litter picker",
+    "tool_kind": "litter_picker",
+    "mass_kg": 0.4,
+    "size_m": [
+     0.08,
+     0.05,
+     0.85
+    ],
+    "grabber": true
+   },
+   "doc": "Reacher/tongs for litter and sharps."
+  },
+  "broom": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "broom",
+    "tool_kind": "broom",
+    "mass_kg": 0.6,
+    "size_m": [
+     0.3,
+     0.05,
+     1.3
+    ],
+    "volume_l": 3.0,
+    "color": "red",
+    "+affordances": [
+     "sweep"
+    ],
+    "orientation": "upright"
+   },
+   "doc": "Indoor angled-bristle broom (head 6 cm; reaches ~0.5 m under furniture)."
+  },
+  "angled_broom": {
+   "is_a": "broom",
+   "props": {
+    "label": "angled broom",
+    "tool_kind": "angled_broom"
+   },
+   "doc": "Angled broom that gets into corners."
+  },
+  "push_broom": {
+   "is_a": "broom",
+   "props": {
+    "label": "push broom",
+    "tool_kind": "push_broom",
+    "mass_kg": 1.4,
+    "size_m": [
+     0.6,
+     0.08,
+     1.5
+    ],
+    "two_handed": true
+   },
+   "doc": "Outdoor/garage push broom (60 cm stiff head)."
+  },
+  "hand_brush": {
+   "is_a": "broom",
+   "props": {
+    "label": "hand brush",
+    "tool_kind": "hand_brush",
+    "mass_kg": 0.08,
+    "size_m": [
+     0.25,
+     0.05,
+     0.08
+    ],
+    "orientation": null
+   },
+   "doc": "Hand brush paired with a dustpan."
+  },
+  "dustpan": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "dustpan",
+    "dustpan": true,
+    "capacity_g": 900.0,
+    "cl_load": {},
+    "cl_load_g": 0.0,
+    "handle_m": 0.1,
+    "mass_kg": 0.2,
+    "size_m": [
+     0.3,
+     0.25,
+     0.08
+    ],
+    "volume_l": 2.0,
+    "+affordances": [
+     "collect_debris",
+     "empty_into"
+    ]
+   },
+   "doc": "Dustpan (~1 l, 900 g of debris). Hold it with the broom or hand brush; crouch unless long-handled."
+  },
+  "long_handled_dustpan": {
+   "is_a": "dustpan",
+   "props": {
+    "label": "long-handled dustpan",
+    "handle_m": 0.9,
+    "mass_kg": 0.5,
+    "size_m": [
+     0.3,
+     0.25,
+     0.9
+    ]
+   },
+   "doc": "Lobby dustpan with a 90 cm handle (no crouching)."
+  },
+  "dust_mop": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "dust mop",
+    "tool_kind": "dust_mop",
+    "mass_kg": 0.6,
+    "size_m": [
+     0.45,
+     0.12,
+     1.4
+    ],
+    "cl_load": {},
+    "cl_load_g": 0.0,
+    "+affordances": [
+     "mop"
+    ],
+    "orientation": "upright"
+   },
+   "doc": "Dry microfiber dust mop (traps dust and hair; does not remove sticky spots)."
+  },
+  "flat_mop": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "flat mop",
+    "tool_kind": "flat_mop",
+    "mass_kg": 0.7,
+    "size_m": [
+     0.45,
+     0.12,
+     1.4
+    ],
+    "+affordances": [
+     "mop"
+    ],
+    "orientation": "upright"
+   },
+   "doc": "Flat microfiber mop with a 45 cm pad; 5 cm thick head slides under furniture."
+  },
+  "string_mop": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "string mop",
+    "tool_kind": "string_mop",
+    "mass_kg": 0.9,
+    "size_m": [
+     0.3,
+     0.3,
+     1.4
+    ],
+    "+affordances": [
+     "mop"
+    ],
+    "orientation": "upright"
+   },
+   "doc": "Cotton string mop: holds ~0.6 l; drips unless wrung hard."
+  },
+  "steam_mop": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "steam mop",
+    "tool_kind": "steam_mop",
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": true,
+    "power_w": 1500,
+    "water_l": 0.35,
+    "distilled_only": true,
+    "mass_kg": 2.5,
+    "size_m": [
+     0.3,
+     0.15,
+     1.2
+    ],
+    "slots": {
+     "pad": {
+      "accepts": [
+       "steam_mop_pad"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "+affordances": [
+     "mop"
+    ],
+    "orientation": "upright"
+   },
+   "doc": "Steam mop (1500 W, 0.35 l tank, 100 C steam). Sealed tile/vinyl only; never park it; unplug and cool before changing the pad."
+  },
+  "steam_mop_pad": {
+   "is_a": "cleaning_tool",
+   "props": {
+    "label": "steam mop pad",
+    "part_type": "steam_mop_pad",
+    "mass_kg": 0.05,
+    "size_m": [
+     0.3,
+     0.15,
+     0.01
+    ]
+   },
+   "doc": "Microfiber steam mop pad."
+  },
+  "mop_bucket": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "mop bucket",
+    "mop_bucket": true,
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 12.0,
+    "cl_chem": {},
+    "cl_soil_g": 0.0,
+    "wringer": true,
+    "mass_kg": 1.2,
+    "size_m": [
+     0.45,
+     0.3,
+     0.32
+    ],
+    "inner_size_m": [
+     0.4,
+     0.26,
+     0.28
+    ],
+    "volume_l": 14.0,
+    "material": "plastic",
+    "category": "cleaning_tool",
+    "cl_zone": "floor",
+    "+affordances": [
+     "fill",
+     "pour",
+     "empty_into"
+    ]
+   },
+   "doc": "Mop bucket with wringer (12 l). Holds water, dissolved cleaner (cl_chem ml) and the dirt rinsed out (cl_soil_g).",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "cl_chem",
+     "cl_strength",
+     "cl_soil_g",
+     "cl_zone",
+     "odor"
+    ]
+   }
+  },
+  "spray_bottle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "spray bottle",
+    "category": "cleaning_tool",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 0.75,
+    "cl_chem": {},
+    "mass_kg": 0.08,
+    "size_m": [
+     0.1,
+     0.06,
+     0.26
+    ],
+    "volume_l": 0.9,
+    "material": "plastic",
+    "label_text": "",
+    "+affordances": [
+     "apply_cleaner",
+     "spray"
+    ]
+   },
+   "doc": "Refillable 750 ml trigger spray bottle; label it with contents and date.",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "product",
+     "liquid",
+     "cl_chem",
+     "cl_strength",
+     "cl_unlabeled_contents",
+     "_known_contents",
+     "liquid_l",
+     "fill_level"
+    ]
+   }
+  },
+  "rubber_gloves": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "rubber gloves",
+    "wearable": true,
+    "gear_kind": "rubber_gloves",
+    "wear_slot": "hands",
+    "mass_kg": 0.07,
+    "size_m": [
+     0.15,
+     0.1,
+     0.3
+    ],
+    "material": "rubber",
+    "category": "gear"
+   },
+   "doc": "Reusable rubber cleaning gloves (wear them)."
+  },
+  "disposable_gloves": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "disposable gloves",
+    "wearable": true,
+    "gear_kind": "disposable_gloves",
+    "wear_slot": "hands",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.12,
+     0.1,
+     0.25
+    ],
+    "material": "nitrile",
+    "category": "gear"
+   },
+   "doc": "Box of disposable nitrile gloves."
+  },
+  "dust_mask": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "dust mask",
+    "wearable": true,
+    "gear_kind": "mask",
+    "wear_slot": "face",
+    "mass_kg": 0.01,
+    "size_m": [
+     0.15,
+     0.1,
+     0.05
+    ],
+    "category": "gear"
+   },
+   "doc": "N95 dust mask."
+  },
+  "safety_goggles": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "safety goggles",
+    "wearable": true,
+    "gear_kind": "goggles",
+    "wear_slot": "eyes",
+    "mass_kg": 0.06,
+    "size_m": [
+     0.18,
+     0.08,
+     0.07
+    ],
+    "category": "gear"
+   },
+   "doc": "Splash goggles."
+  },
+  "wet_floor_sign": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "wet floor sign",
+    "wet_floor_sign": true,
+    "mass_kg": 0.9,
+    "size_m": [
+     0.3,
+     0.3,
+     0.62
+    ],
+    "volume_l": 4.0,
+    "color": "yellow",
+    "category": "sign"
+   },
+   "doc": "A-frame 'Caution: wet floor' sign; placing it in a room warns people."
+  },
+  "cleaning_caddy": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "cleaning caddy",
+    "capacity_l": 12.0,
+    "inner_size_m": [
+     0.38,
+     0.22,
+     0.2
+    ],
+    "size_m": [
+     0.4,
+     0.25,
+     0.28
+    ],
+    "mass_kg": 0.5
+   },
+   "doc": "Cleaning caddy for carrying supplies room to room.",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "chem_conflict"
+    ]
+   }
+  },
+  "vacuum_cleaner": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "vacuum cleaner",
+    "category": "appliance",
+    "vacuum_kind": "upright",
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": true,
+    "power_w": 1200,
+    "settings": {
+     "mode": "carpet",
+     "suction": "high"
+    },
+    "setting_options": {
+     "mode": [
+      "carpet",
+      "hard_floor"
+     ],
+     "suction": [
+      "low",
+      "medium",
+      "high"
+     ]
+    },
+    "brushroll_wrap": 0.0,
+    "jammed": false,
+    "mass_kg": 7.0,
+    "size_m": [
+     0.35,
+     0.3,
+     1.1
+    ],
+    "volume_l": 40.0,
+    "two_handed": false,
+    "accepts_items": true,
+    "slots": {
+     "filter": {
+      "accepts": [
+       "vacuum_filter"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "tool": {
+      "accepts": [
+       "vacuum_attachment"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "wand": {
+      "accepts": [
+       "extension_wand"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "affordances": [
+     "vacuum"
+    ],
+    "material": "plastic"
+   },
+   "doc": "Household vacuum. settings.mode carpet|hard_floor (beater bar on/off), suction low|medium|high (62/68/74 dB). Slots: bin or bag, filter, tool (attachment), wand.",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "thermal_cutoff_until",
+     "power_w"
+    ],
+    "read": [
+     "bag_model"
+    ]
+   }
+  },
+  "upright_vacuum": {
+   "is_a": "vacuum_cleaner",
+   "props": {
+    "label": "upright vacuum",
+    "slots": {
+     "bin": {
+      "accepts": [
+       "vacuum_bin"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Corded upright vacuum (13 cm floor head: does not fit under most furniture)."
+  },
+  "stick_vacuum": {
+   "is_a": "vacuum_cleaner",
+   "props": {
+    "label": "stick vacuum",
+    "vacuum_kind": "stick",
+    "plug_required": false,
+    "plugged_in": false,
+    "battery_powered": true,
+    "battery_level": 1.0,
+    "mass_kg": 2.8,
+    "size_m": [
+     0.26,
+     0.22,
+     1.15
+    ],
+    "slots": {
+     "bin": {
+      "accepts": [
+       "vacuum_bin"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Cordless stick vacuum (9 cm head, 40 min battery)."
+  },
+  "canister_vacuum": {
+   "is_a": "vacuum_cleaner",
+   "props": {
+    "label": "canister vacuum",
+    "vacuum_kind": "canister",
+    "mass_kg": 6.0,
+    "size_m": [
+     0.45,
+     0.3,
+     0.3
+    ],
+    "bag_model": "C",
+    "slots": {
+     "bag": {
+      "accepts": [
+       "vacuum_bag"
+      ],
+      "item": null,
+      "access": "cover"
+     }
+    },
+    "cover_open": false
+   },
+   "doc": "Bagged canister vacuum with hose and wand."
+  },
+  "handheld_vacuum": {
+   "is_a": "vacuum_cleaner",
+   "props": {
+    "label": "handheld vacuum",
+    "vacuum_kind": "handheld",
+    "handheld": true,
+    "plug_required": false,
+    "plugged_in": false,
+    "battery_powered": true,
+    "battery_level": 1.0,
+    "mass_kg": 1.3,
+    "size_m": [
+     0.4,
+     0.12,
+     0.2
+    ],
+    "default_head": "handheld_nozzle",
+    "settings": {
+     "mode": "hard_floor",
+     "suction": "high"
+    },
+    "slots": {
+     "bin": {
+      "accepts": [
+       "vacuum_bin"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Cordless handheld vacuum for crumbs, upholstery, cars, stairs."
+  },
+  "shop_vacuum": {
+   "is_a": "vacuum_cleaner",
+   "props": {
+    "label": "shop vacuum",
+    "vacuum_kind": "shop",
+    "wet_dry": true,
+    "mass_kg": 8.0,
+    "size_m": [
+     0.45,
+     0.45,
+     0.6
+    ],
+    "settings": {
+     "mode": "hard_floor",
+     "suction": "high"
+    },
+    "slots": {
+     "bin": {
+      "accepts": [
+       "vacuum_bin"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Wet/dry shop vacuum (16 l). Use the cartridge/HEPA filter and a bag for fine dust; foam filter for water."
+  },
+  "vacuum_part": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "vacuum_part",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.15,
+     0.1,
+     0.1
+    ],
+    "material": "plastic"
+   },
+   "doc": "Base for vacuum parts.",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "cl_load",
+     "odor"
+    ],
+    "read": [
+     "model"
+    ]
+   }
+  },
+  "vacuum_bin": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "vacuum bin",
+    "part_type": "vacuum_bin",
+    "capacity_g": 250.0,
+    "cl_load": {},
+    "cl_load_g": 0.0,
+    "fill_level": 0.0,
+    "container": true,
+    "accepts_items": true,
+    "size_m": [
+     0.12,
+     0.12,
+     0.22
+    ],
+    "inner_size_m": [
+     0.1,
+     0.1,
+     0.2
+    ],
+    "openable": false,
+    "+affordances": [
+     "empty_into"
+    ]
+   },
+   "doc": "Bagless dust bin (0.6 l, ~250 g). Detach (uninstall), empty low into the trash, reinstall."
+  },
+  "vacuum_bag": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "vacuum bag",
+    "part_type": "vacuum_bag",
+    "tags": [
+     "vacuum_bag"
+    ],
+    "model": "C",
+    "capacity_g": 1200.0,
+    "cl_load": {},
+    "cl_load_g": 0.0,
+    "container": true,
+    "accepts_items": true,
+    "inner_size_m": [
+     0.2,
+     0.15,
+     0.1
+    ],
+    "size_m": [
+     0.25,
+     0.2,
+     0.05
+    ]
+   },
+   "doc": "Disposable vacuum bag (model must match)."
+  },
+  "vacuum_filter_foam": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "foam vacuum filter",
+    "part_type": "vacuum_filter",
+    "filter_kind": "foam",
+    "washable": true,
+    "clog": 0.0,
+    "size_m": [
+     0.1,
+     0.1,
+     0.02
+    ],
+    "material": "foam"
+   },
+   "doc": "Washable foam pre-motor filter: rinse with water only, air-dry 24 h before refitting."
+  },
+  "vacuum_filter_hepa": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "HEPA filter",
+    "part_type": "vacuum_filter",
+    "filter_kind": "hepa_paper",
+    "washable": false,
+    "clog": 0.0,
+    "size_m": [
+     0.12,
+     0.08,
+     0.04
+    ],
+    "material": "paper"
+   },
+   "doc": "Pleated paper HEPA filter: never wet it; tap out or replace."
+  },
+  "vacuum_filter_hepa_washable": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "washable HEPA filter",
+    "part_type": "vacuum_filter",
+    "filter_kind": "hepa_washable",
+    "washable": true,
+    "clog": 0.0,
+    "size_m": [
+     0.12,
+     0.08,
+     0.04
+    ]
+   },
+   "doc": "Washable HEPA filter (rinse, 24 h dry)."
+  },
+  "shop_vac_cartridge_filter": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "cartridge filter",
+    "part_type": "vacuum_filter",
+    "filter_kind": "cartridge",
+    "washable": false,
+    "clog": 0.0,
+    "size_m": [
+     0.2,
+     0.2,
+     0.25
+    ],
+    "material": "paper"
+   },
+   "doc": "Shop-vac cartridge filter rated for fine dust."
+  },
+  "shop_vac_foam_filter": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "foam sleeve filter",
+    "part_type": "vacuum_filter",
+    "filter_kind": "foam",
+    "washable": true,
+    "clog": 0.0,
+    "size_m": [
+     0.2,
+     0.2,
+     0.25
+    ],
+    "material": "foam"
+   },
+   "doc": "Shop-vac foam sleeve for wet pickup (passes fine dust)."
+  },
+  "crevice_tool": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "crevice tool",
+    "part_type": "vacuum_attachment",
+    "head_kind": "crevice_tool",
+    "size_m": [
+     0.3,
+     0.06,
+     0.06
+    ]
+   },
+   "doc": "Narrow crevice tool: corners, edges, crevices, 3 cm gaps."
+  },
+  "dust_brush_attachment": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "dust brush attachment",
+    "part_type": "vacuum_attachment",
+    "head_kind": "dust_brush",
+    "size_m": [
+     0.3,
+     0.06,
+     0.06
+    ]
+   },
+   "doc": "Soft dusting brush: shelves, vents, baseboards, lampshades."
+  },
+  "upholstery_tool": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "upholstery tool",
+    "part_type": "vacuum_attachment",
+    "head_kind": "upholstery_tool",
+    "size_m": [
+     0.3,
+     0.06,
+     0.06
+    ]
+   },
+   "doc": "Clean upholstery tool for sofas, mattresses, curtains."
+  },
+  "pet_hair_tool": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "pet hair tool",
+    "part_type": "vacuum_attachment",
+    "head_kind": "pet_tool",
+    "size_m": [
+     0.3,
+     0.06,
+     0.06
+    ]
+   },
+   "doc": "Mini turbo/rubber pet hair tool."
+  },
+  "low_profile_head": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "low-profile floor head",
+    "part_type": "vacuum_attachment",
+    "head_kind": "low_profile_head",
+    "size_m": [
+     0.3,
+     0.06,
+     0.06
+    ]
+   },
+   "doc": "5 cm low-profile floor head that slides under sofas and beds."
+  },
+  "extension_wand": {
+   "is_a": "vacuum_part",
+   "props": {
+    "label": "extension wand",
+    "part_type": "extension_wand",
+    "size_m": [
+     0.04,
+     0.04,
+     0.6
+    ],
+    "mass_kg": 0.3
+   },
+   "doc": "Extension wand: +60 cm reach under furniture and up walls."
+  },
+  "cleaning_product": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "cleaning_product",
+    "product": "water",
+    "amount_ml": 750.0,
+    "mass_kg": 0.85,
+    "size_m": [
+     0.1,
+     0.06,
+     0.26
+    ],
+    "volume_l": 0.9,
+    "material": "plastic",
+    "affordances": [
+     "apply_cleaner",
+     "read"
+    ],
+    "tags": [
+     "chemical"
+    ]
+   },
+   "doc": "A cleaning product bottle: product (chemistry key), amount_ml, label_text with directions; keep incompatible classes apart.",
+   "perception": {
+    "read": [
+     "product",
+     "chem_hazards",
+     "hazards"
+    ],
+    "measure": {
+     "amount_ml": "scale"
+    },
+    "hidden": [
+     "tags",
+     "affordances",
+     "risk",
+     "cl_unlabeled_contents"
+    ]
+   }
+  },
+  "all_purpose_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "all-purpose cleaner",
+    "product": "all_purpose",
+    "label_text": "All-Purpose Cleaner. Spray, wipe. Safe on sealed surfaces. Not for natural stone, wood floors or screens.",
+    "+tags": [
+     "chem:alkali",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "All-Purpose Cleaner. Spray, wipe. Safe on sealed surfaces. Not for natural stone, wood floors or screens."
+  },
+  "dish_soap": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "dish soap",
+    "product": "dish_soap",
+    "label_text": "Dish Soap. Add 1-2 ml per litre of warm water or a drop to a sponge. Rinse dishes.",
+    "amount_ml": 500.0,
+    "size_m": [
+     0.07,
+     0.05,
+     0.22
+    ],
+    "+tags": [
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Dish Soap. Add 1-2 ml per litre of warm water or a drop to a sponge. Rinse dishes."
+  },
+  "degreaser": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "kitchen degreaser",
+    "product": "degreaser",
+    "label_text": "Kitchen Degreaser. Spray, let stand 1-2 minutes, wipe, rinse food-contact surfaces. Not for aluminum.",
+    "+tags": [
+     "chem:alkali",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Kitchen Degreaser. Spray, let stand 1-2 minutes, wipe, rinse food-contact surfaces. Not for aluminum."
+  },
+  "glass_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "glass cleaner",
+    "product": "glass_cleaner",
+    "label_text": "Glass Cleaner with Ammonia-D. Spray on glass and mirrors, wipe dry. Do not use on screens or wood finishes.",
+    "color": "blue",
+    "+tags": [
+     "chem:ammonia",
+     "chem:solvent_light",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Glass Cleaner with Ammonia-D. Spray on glass and mirrors, wipe dry. Do not use on screens or wood finishes."
+  },
+  "glass_cleaner_ammonia_free": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "ammonia-free glass cleaner",
+    "product": "glass_cleaner_ammonia_free",
+    "label_text": "Streak-Free Glass Cleaner (ammonia-free). Safe on tinted glass. Spray on cloth for screens? No - use screen cleaner.",
+    "+tags": [
+     "chem:solvent_light",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Streak-Free Glass Cleaner (ammonia-free). Safe on tinted glass. Spray on cloth for screens? No - use screen cleaner."
+  },
+  "screen_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "screen cleaner",
+    "product": "screen_cleaner",
+    "label_text": "Screen Cleaner. Spray onto microfiber cloth, never directly on screen. Safe for anti-glare coatings.",
+    "amount_ml": 200.0,
+    "size_m": [
+     0.05,
+     0.04,
+     0.15
+    ],
+    "+tags": [
+     "chem:solvent_light",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Screen Cleaner. Spray onto microfiber cloth, never directly on screen. Safe for anti-glare coatings."
+  },
+  "isopropyl_alcohol": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "70% isopropyl alcohol",
+    "product": "isopropyl_alcohol",
+    "label_text": "70% Isopropyl Alcohol. Disinfects hard non-porous surfaces in 30 s. Flammable. Not for coated screens.",
+    "amount_ml": 473.0,
+    "chem_hazards": [
+     "flammable"
+    ],
+    "hazards": [
+     "flammable"
+    ],
+    "+tags": [
+     "chem:solvent_light"
+    ]
+   },
+   "doc": "70% Isopropyl Alcohol. Disinfects hard non-porous surfaces in 30 s. Flammable. Not for coated screens."
+  },
+  "disinfectant_spray": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "disinfectant spray",
+    "product": "disinfectant",
+    "label_text": "Disinfectant Spray (quaternary ammonium). Pre-clean heavily soiled surfaces. Keep surface visibly wet 10 minutes to disinfect. Rinse food-contact surfaces with potable water.",
+    "+tags": [
+     "chem:quat",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Disinfectant Spray (quaternary ammonium). Pre-clean heavily soiled surfaces. Keep surface visibly wet 10 minutes to disinfect. Rinse food-contact surfaces with potable water."
+  },
+  "bleach": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "bleach",
+    "product": "bleach",
+    "label_text": "Regular Bleach 6% sodium hypochlorite. Disinfect: 20 ml per litre of water, leave wet 5 minutes, rinse food-contact surfaces. NEVER mix with ammonia, vinegar or acids. Not for wood, metal, wool, coloured fabrics.",
+    "amount_ml": 1900.0,
+    "size_m": [
+     0.12,
+     0.08,
+     0.3
+    ],
+    "mass_kg": 2.0,
+    "risk": 1,
+    "chem_hazards": [
+     "corrosive",
+     "toxic"
+    ],
+    "+tags": [
+     "chem:alkali",
+     "chem:chlorine",
+     "chem:oxidizer"
+    ]
+   },
+   "doc": "Regular Bleach 6% sodium hypochlorite. Disinfect: 20 ml per litre of water, leave wet 5 minutes, rinse food-contact surfaces. NEVER mix with ammonia, vinegar or acids. Not for wood, metal, wool, coloured fabrics.",
+   "perception": {
+    "looks_like": "plastic_jug"
+   }
+  },
+  "hydrogen_peroxide": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "hydrogen peroxide 3%",
+    "product": "hydrogen_peroxide",
+    "label_text": "3% Hydrogen Peroxide. Disinfects in 10 minutes. Safe around children once dry. Lifts fresh blood with cold water.",
+    "amount_ml": 946.0,
+    "+tags": [
+     "chem:oxidizer",
+     "chem:oxidizer_peroxide"
+    ]
+   },
+   "doc": "3% Hydrogen Peroxide. Disinfects in 10 minutes. Safe around children once dry. Lifts fresh blood with cold water."
+  },
+  "oxygen_bleach": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "oxygen bleach powder",
+    "product": "oxygen_bleach",
+    "label_text": "Oxygen Bleach (sodium percarbonate). Dissolve 30 g per litre warm water. Grout, decks, outdoor mildew, colourfast stains. No chlorine.",
+    "amount_ml": 1400.0,
+    "+tags": [
+     "chem:alkali",
+     "chem:oxidizer"
+    ]
+   },
+   "doc": "Oxygen Bleach (sodium percarbonate). Dissolve 30 g per litre warm water. Grout, decks, outdoor mildew, colourfast stains. No chlorine."
+  },
+  "cleaning_vinegar": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "cleaning vinegar",
+    "product": "vinegar",
+    "label_text": "Cleaning Vinegar 6% acetic acid. Dilute 1:1 for glass and limescale. Do not use on marble, granite, travertine, grout or wood floors. Not a disinfectant.",
+    "amount_ml": 1900.0,
+    "size_m": [
+     0.12,
+     0.08,
+     0.3
+    ],
+    "mass_kg": 2.0,
+    "+tags": [
+     "chem:acid"
+    ]
+   },
+   "doc": "Cleaning Vinegar 6% acetic acid. Dilute 1:1 for glass and limescale. Do not use on marble, granite, travertine, grout or wood floors. Not a disinfectant.",
+   "perception": {
+    "looks_like": "plastic_jug"
+   }
+  },
+  "citric_descaler": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "citric acid descaler",
+    "product": "citric_descaler",
+    "label_text": "Citric Acid Descaler. Dissolve 25 g per litre, fill to cover scale (never above MAX), heat or soak 15-30 min, then rinse 3 times. Not for natural stone.",
+    "amount_ml": 500.0,
+    "+tags": [
+     "chem:acid"
+    ]
+   },
+   "doc": "Citric Acid Descaler. Dissolve 25 g per litre, fill to cover scale (never above MAX), heat or soak 15-30 min, then rinse 3 times. Not for natural stone."
+  },
+  "toilet_bowl_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "toilet bowl cleaner",
+    "product": "toilet_bowl_cleaner",
+    "label_text": "Toilet Bowl Cleaner (hydrochloric acid 9.5%). Apply under rim, wait 10 minutes, brush, flush. DANGER: never mix with bleach.",
+    "amount_ml": 710.0,
+    "risk": 1,
+    "chem_hazards": [
+     "corrosive"
+    ],
+    "+tags": [
+     "chem:acid"
+    ]
+   },
+   "doc": "Toilet Bowl Cleaner (hydrochloric acid 9.5%). Apply under rim, wait 10 minutes, brush, flush. DANGER: never mix with bleach."
+  },
+  "cream_cleanser": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "cream cleanser",
+    "product": "cream_cleanser",
+    "label_text": "Cream Cleanser (mild abrasive). Porcelain, enamel, stainless sinks. Not for acrylic, glass cooktops or screens.",
+    "amount_ml": 500.0,
+    "+tags": [
+     "chem:abrasive_mild",
+     "chem:alkali",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Cream Cleanser (mild abrasive). Porcelain, enamel, stainless sinks. Not for acrylic, glass cooktops or screens."
+  },
+  "cleaning_baking_soda": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "baking soda (cleaning)",
+    "product": "baking_soda",
+    "label_text": "Baking Soda. Paste with water; let sit up to overnight on burnt-on soil; deodorizes. Gentle abrasive.",
+    "amount_ml": 900.0,
+    "material": "cardboard",
+    "+tags": [
+     "chem:abrasive_mild",
+     "chem:alkali"
+    ]
+   },
+   "doc": "Baking Soda. Paste with water; let sit up to overnight on burnt-on soil; deodorizes. Gentle abrasive."
+  },
+  "oven_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "oven cleaner",
+    "product": "oven_cleaner",
+    "label_text": "Oven Cleaner (sodium hydroxide). Cold oven only. Wear gloves, ventilate. Let stand 20 min - overnight. Rinse thoroughly. Keep off heating elements, gaskets, aluminum, self-cleaning enamel.",
+    "amount_ml": 400.0,
+    "risk": 2,
+    "chem_hazards": [
+     "corrosive"
+    ],
+    "+tags": [
+     "chem:alkali",
+     "chem:alkali_strong"
+    ]
+   },
+   "doc": "Oven Cleaner (sodium hydroxide). Cold oven only. Wear gloves, ventilate. Let stand 20 min - overnight. Rinse thoroughly. Keep off heating elements, gaskets, aluminum, self-cleaning enamel."
+  },
+  "enzymatic_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "enzyme stain & odor remover",
+    "product": "enzymatic_cleaner",
+    "label_text": "Enzyme Stain & Odor Remover. Saturate urine, vomit or organic stains, blot, let dwell 10 min, blot dry. Pet safe.",
+    "+tags": [
+     "chem:enzyme"
+    ]
+   },
+   "doc": "Enzyme Stain & Odor Remover. Saturate urine, vomit or organic stains, blot, let dwell 10 min, blot dry. Pet safe."
+  },
+  "wood_polish": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "furniture polish",
+    "product": "wood_polish",
+    "label_text": "Furniture Polish. Finished wood only. Spray onto cloth, buff with the grain. Not for floors, handrails, laminate, fabric or leather.",
+    "amount_ml": 350.0,
+    "+tags": [
+     "chem:polish",
+     "chem:solvent_light"
+    ]
+   },
+   "doc": "Furniture Polish. Finished wood only. Spray onto cloth, buff with the grain. Not for floors, handrails, laminate, fabric or leather."
+  },
+  "leather_conditioner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "leather conditioner",
+    "product": "leather_conditioner",
+    "label_text": "Leather Conditioner. Finished/protected leather only; test on hidden area; thin coat, buff. Not for suede, nubuck or faux leather.",
+    "amount_ml": 250.0,
+    "+tags": [
+     "chem:conditioner"
+    ]
+   },
+   "doc": "Leather Conditioner. Finished/protected leather only; test on hidden area; thin coat, buff. Not for suede, nubuck or faux leather."
+  },
+  "stone_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "stone cleaner",
+    "product": "stone_cleaner",
+    "label_text": "pH-Neutral Stone Cleaner. Safe on marble, granite, travertine, sealed stone. Spray, wipe, buff dry.",
+    "+tags": [
+     "chem:surfactant"
+    ]
+   },
+   "doc": "pH-Neutral Stone Cleaner. Safe on marble, granite, travertine, sealed stone. Spray, wipe, buff dry."
+  },
+  "wood_floor_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "wood floor cleaner",
+    "product": "wood_floor_cleaner",
+    "label_text": "Hardwood & Laminate Floor Cleaner. Use with barely damp microfiber mop. Never wet-mop or steam.",
+    "amount_ml": 950.0,
+    "+tags": [
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Hardwood & Laminate Floor Cleaner. Use with barely damp microfiber mop. Never wet-mop or steam."
+  },
+  "floor_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "floor cleaner concentrate",
+    "product": "floor_cleaner",
+    "label_text": "Multi-Surface Floor Cleaner (tile, vinyl, sealed concrete). 30 ml per 4 litres warm water.",
+    "amount_ml": 950.0,
+    "+tags": [
+     "chem:alkali",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Multi-Surface Floor Cleaner (tile, vinyl, sealed concrete). 30 ml per 4 litres warm water."
+  },
+  "upholstery_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "upholstery cleaner",
+    "product": "upholstery_cleaner",
+    "label_text": "Upholstery Cleaner (water-based). For fabric code W or W/S only. Test hidden area, blot - do not rub or soak.",
+    "+tags": [
+     "chem:enzyme",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Upholstery Cleaner (water-based). For fabric code W or W/S only. Test hidden area, blot - do not rub or soak."
+  },
+  "upholstery_solvent": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "dry-cleaning spot remover",
+    "product": "upholstery_solvent",
+    "label_text": "Dry-Cleaning Solvent Spot Remover. For fabric code S or W/S. Ventilate. Blot from outside in.",
+    "amount_ml": 300.0,
+    "chem_hazards": [
+     "flammable"
+    ],
+    "hazards": [
+     "flammable"
+    ],
+    "+tags": [
+     "chem:solvent",
+     "chem:solvent_light"
+    ]
+   },
+   "doc": "Dry-Cleaning Solvent Spot Remover. For fabric code S or W/S. Ventilate. Blot from outside in."
+  },
+  "mineral_spirits": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "mineral spirits",
+    "product": "mineral_spirits",
+    "label_text": "Odorless Mineral Spirits. Oil paint and brush cleaning. Flammable; ventilate; never pour down drains - let settle, reuse, dispose as hazardous waste.",
+    "amount_ml": 950.0,
+    "risk": 1,
+    "chem_hazards": [
+     "flammable",
+     "toxic"
+    ],
+    "hazards": [
+     "flammable"
+    ],
+    "+tags": [
+     "chem:solvent"
+    ]
+   },
+   "doc": "Odorless Mineral Spirits. Oil paint and brush cleaning. Flammable; ventilate; never pour down drains - let settle, reuse, dispose as hazardous waste."
+  },
+  "stainless_polish": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "stainless steel polish",
+    "product": "stainless_polish",
+    "label_text": "Stainless Steel Cleaner & Polish. Spray onto cloth, wipe with the grain.",
+    "amount_ml": 350.0,
+    "+tags": [
+     "chem:polish",
+     "chem:solvent_light"
+    ]
+   },
+   "doc": "Stainless Steel Cleaner & Polish. Spray onto cloth, wipe with the grain."
+  },
+  "metal_polish": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "metal polish",
+    "product": "metal_polish",
+    "label_text": "Metal Polish (brass, chrome). Mild abrasive. Not for lacquered, plated, matte or oil-rubbed finishes.",
+    "amount_ml": 200.0,
+    "+tags": [
+     "chem:abrasive_mild",
+     "chem:ammonia",
+     "chem:polish"
+    ]
+   },
+   "doc": "Metal Polish (brass, chrome). Mild abrasive. Not for lacquered, plated, matte or oil-rubbed finishes."
+  },
+  "mildew_remover": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "mold & mildew remover",
+    "product": "mildew_remover",
+    "label_text": "Mold & Mildew Remover (contains bleach). Ventilate, wear gloves, leave 10 min, rinse. Never mix with ammonia or acids.",
+    "risk": 1,
+    "chem_hazards": [
+     "corrosive"
+    ],
+    "+tags": [
+     "chem:alkali",
+     "chem:chlorine",
+     "chem:oxidizer"
+    ]
+   },
+   "doc": "Mold & Mildew Remover (contains bleach). Ventilate, wear gloves, leave 10 min, rinse. Never mix with ammonia or acids."
+  },
+  "grout_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "grout cleaner",
+    "product": "grout_cleaner",
+    "label_text": "Grout Cleaner (alkaline, oxygen). Apply to grout lines, wait 5 min, scrub with grout brush, rinse. Acid-free.",
+    "+tags": [
+     "chem:alkali",
+     "chem:oxidizer",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Grout Cleaner (alkaline, oxygen). Apply to grout lines, wait 5 min, scrub with grout brush, rinse. Acid-free."
+  },
+  "deck_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "deck cleaner",
+    "product": "deck_cleaner",
+    "label_text": "Deck & Siding Cleaner (oxygen bleach). Wood and composite. Wet plants before and after. No chlorine.",
+    "amount_ml": 1900.0,
+    "mass_kg": 2.0,
+    "+tags": [
+     "chem:alkali",
+     "chem:oxidizer",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Deck & Siding Cleaner (oxygen bleach). Wood and composite. Wet plants before and after. No chlorine."
+  },
+  "patio_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "patio cleaner",
+    "product": "patio_cleaner",
+    "label_text": "Patio & Paver Cleaner (alkaline, acid-free). Safe on limestone and concrete. Rinse toward lawn, not drains.",
+    "amount_ml": 1900.0,
+    "mass_kg": 2.0,
+    "+tags": [
+     "chem:alkali",
+     "chem:oxidizer",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Patio & Paver Cleaner (alkaline, acid-free). Safe on limestone and concrete. Rinse toward lawn, not drains."
+  },
+  "grill_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "grill cleaner",
+    "product": "grill_cleaner",
+    "label_text": "Grill Cleaner. Cool grill only. Spray, wait 5 min, scrub, rinse.",
+    "+tags": [
+     "chem:alkali",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Grill Cleaner. Cool grill only. Spray, wait 5 min, scrub, rinse."
+  },
+  "ammonia_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "household ammonia",
+    "product": "ammonia",
+    "label_text": "Household Ammonia. Dilute 120 ml per 4 litres. Ventilate. NEVER mix with bleach.",
+    "amount_ml": 1900.0,
+    "risk": 1,
+    "chem_hazards": [
+     "toxic"
+    ],
+    "+tags": [
+     "chem:alkali",
+     "chem:ammonia"
+    ],
+    "mass_kg": 2.0,
+    "size_m": [
+     0.12,
+     0.08,
+     0.3
+    ]
+   },
+   "doc": "Household Ammonia. Dilute 120 ml per 4 litres. Ventilate. NEVER mix with bleach.",
+   "perception": {
+    "looks_like": "plastic_jug"
+   }
+  },
+  "bird_safe_cleaner": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "bird-safe cage cleaner",
+    "product": "bird_safe_cleaner",
+    "label_text": "Bird-Safe Cage Cleaner (enzyme, fragrance-free). Spray on cloth; no fumes.",
+    "+tags": [
+     "chem:enzyme",
+     "chem:surfactant"
+    ]
+   },
+   "doc": "Bird-Safe Cage Cleaner (enzyme, fragrance-free). Spray on cloth; no fumes."
+  },
+  "oil_absorbent": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "oil absorbent granules",
+    "product": "oil_absorbent",
+    "label_text": "Oil Absorbent Granules. Spread over oil/antifreeze, wait 15 min, sweep up, bag, dispose as hazardous waste.",
+    "amount_ml": 4000.0,
+    "mass_kg": 2.2,
+    "size_m": [
+     0.2,
+     0.12,
+     0.3
+    ],
+    "absorbent": true,
+    "+tags": [
+     "chem:absorbent"
+    ]
+   },
+   "doc": "Oil Absorbent Granules. Spread over oil/antifreeze, wait 15 min, sweep up, bag, dispose as hazardous waste."
+  },
+  "distilled_water": {
+   "is_a": "cleaning_product",
+   "props": {
+    "label": "distilled water",
+    "product": "distilled_water",
+    "label_text": "Distilled water.",
+    "amount_ml": 1900.0,
+    "mass_kg": 2.0,
+    "size_m": [
+     0.12,
+     0.08,
+     0.3
+    ],
+    "+tags": []
+   },
+   "doc": "Distilled water.",
+   "perception": {
+    "looks_like": "plastic_jug"
+   }
+  },
+  "waste_container": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "wastebasket",
+    "category": "waste_container",
+    "waste_stream": "trash",
+    "accepts_any_waste": true,
+    "nominal_capacity_l": 8.0,
+    "capacity_l": 10.4,
+    "inner_size_m": [
+     0.25,
+     0.25,
+     0.3
+    ],
+    "size_m": [
+     0.27,
+     0.27,
+     0.32
+    ],
+    "mass_kg": 0.6,
+    "fill_level": 0.0,
+    "odor": {},
+    "stream_errors": [],
+    "stream_label": "TRASH",
+    "label_text": "TRASH",
+    "cl_zone": "waste",
+    "affordances": [
+     "empty_into"
+    ]
+   },
+   "doc": "Base waste container: waste_stream, accepts any item physically (deposits are judged by stream rules), fill_level, liner slot.",
+   "perception": {
+    "read": [
+     "stream_label",
+     "waste_stream"
+    ],
+    "glance": [
+     "lid_blocked",
+     "fruit_flies",
+     "scattered"
+    ],
+    "hidden": [
+     "tags",
+     "affordances",
+     "stream_errors",
+     "contaminated",
+     "accepts_any_waste",
+     "cl_zone",
+     "relined_dirty",
+     "has_food_waste",
+     "has_meat_waste",
+     "sharp_hazard",
+     "odor"
+    ]
+   }
+  },
+  "wastebasket": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "wastebasket",
+    "slots": {
+     "liner": {
+      "accepts": [
+       "trash_liner"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    }
+   },
+   "doc": "Small open 8 l wastebasket (bedroom)."
+  },
+  "bathroom_wastebasket": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "bathroom wastebasket",
+    "nominal_capacity_l": 15.0,
+    "capacity_l": 19.5,
+    "openable": true,
+    "open": false,
+    "lid_kind": "swing",
+    "inner_size_m": [
+     0.25,
+     0.2,
+     0.35
+    ],
+    "size_m": [
+     0.28,
+     0.22,
+     0.38
+    ],
+    "private_contents": true,
+    "hands_free_operable": true,
+    "push_operable": true,
+    "slots": {
+     "liner": {
+      "accepts": [
+       "trash_liner"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    }
+   },
+   "doc": "Bathroom 15 l swing-lid wastebasket (4 gal liner)."
+  },
+  "kitchen_trash_can": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "kitchen trash can",
+    "nominal_capacity_l": 50.0,
+    "capacity_l": 65.0,
+    "openable": true,
+    "open": false,
+    "lid_kind": "pedal",
+    "hands_free_operable": true,
+    "inner_size_m": [
+     0.36,
+     0.27,
+     0.6
+    ],
+    "size_m": [
+     0.4,
+     0.3,
+     0.65
+    ],
+    "mass_kg": 3.5,
+    "two_handed": true,
+    "slots": {
+     "liner": {
+      "accepts": [
+       "trash_liner"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    }
+   },
+   "doc": "Kitchen 50 l (13 gal) pedal step can with lid."
+  },
+  "office_paper_bin": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "paper recycling basket",
+    "waste_stream": "recycling",
+    "accepts_materials": [
+     "paper"
+    ],
+    "stream_label": "PAPER RECYCLING",
+    "label_text": "PAPER ONLY",
+    "nominal_capacity_l": 15.0,
+    "capacity_l": 19.5
+   },
+   "doc": "Office paper recycling basket."
+  },
+  "recycling_bin": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "recycling bin",
+    "waste_stream": "recycling",
+    "stream_label": "RECYCLING",
+    "label_text": "RECYCLING - loose, empty, clean",
+    "nominal_capacity_l": 40.0,
+    "capacity_l": 52.0,
+    "inner_size_m": [
+     0.35,
+     0.3,
+     0.45
+    ],
+    "size_m": [
+     0.38,
+     0.32,
+     0.5
+    ],
+    "mass_kg": 1.5,
+    "color": "blue"
+   },
+   "doc": "Indoor 40 l recycling bin (loose recyclables)."
+  },
+  "compost_caddy": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "compost caddy",
+    "waste_stream": "compost",
+    "stream_label": "COMPOST",
+    "label_text": "FOOD SCRAPS",
+    "nominal_capacity_l": 5.0,
+    "capacity_l": 6.5,
+    "openable": true,
+    "open": false,
+    "inner_size_m": [
+     0.2,
+     0.15,
+     0.22
+    ],
+    "size_m": [
+     0.22,
+     0.17,
+     0.25
+    ],
+    "mass_kg": 0.8,
+    "material": "stainless",
+    "color": "green",
+    "slots": {
+     "liner": {
+      "accepts": [
+       "compostable_liner"
+      ],
+      "item": null,
+      "access": "open"
+     },
+     "filter": {
+      "accepts": [
+       "charcoal_filter"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    }
+   },
+   "doc": "Countertop compost caddy (5 l) with lid and a charcoal odor filter in the lid."
+  },
+  "waste_cart": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "trash cart",
+    "portable": false,
+    "blocks_path": true,
+    "nominal_capacity_l": 360.0,
+    "capacity_l": 470.0,
+    "openable": true,
+    "open": false,
+    "lid_kind": "hinged",
+    "lockable": true,
+    "locked": false,
+    "lock_kind": "thumb_turn",
+    "animal_latch": true,
+    "inner_size_m": [
+     0.6,
+     0.6,
+     0.95
+    ],
+    "size_m": [
+     0.6,
+     0.75,
+     1.07
+    ],
+    "mass_kg": 14.0,
+    "material": "hdpe",
+    "color": "black",
+    "movable": true,
+    "wheeled": true
+   },
+   "doc": "Outdoor wheeled cart (96 gal, 360 l) with hinged lid; animal-proof latch via lock/unlock."
+  },
+  "trash_cart": {
+   "is_a": "waste_cart",
+   "props": {
+    "label": "trash cart",
+    "slots": {
+     "liner": {
+      "accepts": [
+       "trash_liner"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    }
+   },
+   "doc": "Landfill trash cart."
+  },
+  "recycling_cart": {
+   "is_a": "waste_cart",
+   "props": {
+    "label": "recycling cart",
+    "waste_stream": "recycling",
+    "stream_label": "RECYCLING",
+    "label_text": "RECYCLING ONLY - loose, no bags",
+    "color": "blue"
+   },
+   "doc": "Curbside recycling cart."
+  },
+  "yard_waste_cart": {
+   "is_a": "waste_cart",
+   "props": {
+    "label": "yard waste cart",
+    "waste_stream": "yard_waste",
+    "stream_label": "YARD WASTE",
+    "label_text": "YARD WASTE - no bags, rocks or pet waste",
+    "color": "brown"
+   },
+   "doc": "Yard waste cart."
+  },
+  "organics_cart": {
+   "is_a": "waste_cart",
+   "props": {
+    "label": "organics cart",
+    "waste_stream": "compost",
+    "stream_label": "ORGANICS",
+    "label_text": "FOOD & YARD SCRAPS",
+    "color": "green"
+   },
+   "doc": "Municipal organics (green) cart."
+  },
+  "backyard_compost_bin": {
+   "is_a": "waste_container",
+   "props": {
+    "label": "compost bin",
+    "waste_stream": "compost",
+    "stream_label": "COMPOST",
+    "label_text": "Fruit/veg scraps, coffee, eggshells, leaves. NO meat, dairy, oil, pet waste.",
+    "portable": false,
+    "blocks_path": true,
+    "nominal_capacity_l": 300.0,
+    "capacity_l": 390.0,
+    "openable": true,
+    "open": false,
+    "inner_size_m": [
+     0.7,
+     0.7,
+     0.8
+    ],
+    "size_m": [
+     0.8,
+     0.8,
+     0.9
+    ],
+    "mass_kg": 12.0,
+    "material": "plastic",
+    "color": "black"
+   },
+   "doc": "Backyard compost bin (300 l) with lid: plant scraps and browns only."
+  },
+  "trash_liner": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "trash bag",
+    "liner": true,
+    "tags": [
+     "trash_liner"
+    ],
+    "part_type": "trash_liner",
+    "liner_l": 50.0,
+    "max_load_kg": 10.0,
+    "opened": false,
+    "folded": true,
+    "material": "ldpe",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.15,
+     0.1,
+     0.02
+    ],
+    "volume_l": 0.05,
+    "waste_kind": "bag",
+    "category": "liner"
+   },
+   "doc": "Trash liner. part_type trash_liner (tag); shake_out opens a new folded liner; install fits it (size must suit the can).",
+   "perception": {
+    "hidden": [
+     "tags",
+     "affordances",
+     "max_load_kg"
+    ],
+    "glance": [
+     "torn",
+     "leaking"
+    ]
+   }
+  },
+  "trash_liner_4gal": {
+   "is_a": "trash_liner",
+   "props": {
+    "label": "small trash bag (4 gal)",
+    "liner_l": 15.0,
+    "max_load_kg": 4.0
+   },
+   "doc": "4 gal (15 l) bathroom liner."
+  },
+  "trash_liner_8gal": {
+   "is_a": "trash_liner",
+   "props": {
+    "label": "trash bag (8 gal)",
+    "liner_l": 30.0,
+    "max_load_kg": 6.0
+   },
+   "doc": "8 gal (30 l) liner."
+  },
+  "trash_liner_13gal": {
+   "is_a": "trash_liner",
+   "props": {
+    "label": "kitchen trash bag (13 gal)",
+    "liner_l": 50.0,
+    "max_load_kg": 10.0
+   },
+   "doc": "13 gal (50 l) drawstring kitchen liner."
+  },
+  "contractor_bag": {
+   "is_a": "trash_liner",
+   "props": {
+    "label": "contractor bag",
+    "liner_l": 160.0,
+    "max_load_kg": 25.0
+   },
+   "doc": "42 gal contractor bag (3 mil) for debris."
+  },
+  "cart_liner": {
+   "is_a": "trash_liner",
+   "props": {
+    "label": "cart liner",
+    "liner_l": 360.0,
+    "max_load_kg": 30.0
+   },
+   "doc": "96 gal cart liner."
+  },
+  "compostable_liner": {
+   "is_a": "trash_liner",
+   "props": {
+    "label": "compostable caddy liner",
+    "tags": [
+     "trash_liner",
+     "compostable_liner"
+    ],
+    "part_type": "compostable_liner",
+    "liner_l": 6.0,
+    "max_load_kg": 3.0,
+    "compostable": true,
+    "waste_kind": "plastic",
+    "form": "pla"
+   },
+   "doc": "Compostable caddy liner (accepted by municipal organics only)."
+  },
+  "liner_box": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "box of trash bags",
+    "capacity_l": 3.0,
+    "inner_size_m": [
+     0.25,
+     0.12,
+     0.12
+    ],
+    "size_m": [
+     0.26,
+     0.13,
+     0.13
+    ],
+    "mass_kg": 0.3,
+    "material": "cardboard",
+    "stock_item": true
+   },
+   "doc": "Box of trash liners."
+  },
+  "charcoal_filter": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "charcoal filter",
+    "part_type": "charcoal_filter",
+    "washable": false,
+    "filter_kind": "charcoal",
+    "mass_kg": 0.01,
+    "size_m": [
+     0.12,
+     0.12,
+     0.01
+    ]
+   },
+   "doc": "Compost caddy charcoal filter (replace, do not wash)."
+  },
+  "recycling_guide": {
+   "is_a": "fixture",
+   "props": {
+    "label": "recycling guide",
+    "category": "sign",
+    "mount_height_m": 1.3,
+    "size_m": [
+     0.2,
+     0.01,
+     0.28
+    ],
+    "blocks_path": false,
+    "mounted": true,
+    "text": "",
+    "inspect_from_afar": true
+   },
+   "doc": "Posted local recycling guide (read it).",
+   "perception": {
+    "read": [
+     "text"
+    ]
+   }
+  },
+  "cleaning_tool_holder": {
+   "is_a": "fixture",
+   "props": {
+    "label": "broom and mop holder",
+    "category": "hooks",
+    "accepts_items": true,
+    "hang_slots": 5,
+    "hang_height_m": 0.0,
+    "mount_height_m": 1.2,
+    "size_m": [
+     0.6,
+     0.06,
+     0.08
+    ],
+    "mass_kg": 0.4,
+    "material": "plastic",
+    "blocks_path": false,
+    "mounted": true,
+    "tags": [
+     "tool_storage"
+    ]
+   },
+   "doc": "Wall-mounted spring-grip rail (5 grips) for long-handled tools: brooms, mops, dusters, a dustpan or a stick vacuum hang off the floor."
+  },
+  "waste_item": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "item",
+    "category": "waste",
+    "waste_kind": "general",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.08,
+     0.06,
+     0.02
+    ],
+    "volume_l": 0.1,
+    "residue": 0.0,
+    "material": "mixed"
+   },
+   "doc": "Something that may be waste. waste_kind/material/resin_code/residue/liquid decide the right stream under local rules; _disposition (hidden) overrides (keep, trash, ...).",
+   "perception": {
+    "glance": [
+     "form",
+     "flattened"
+    ],
+    "hidden": [
+     "tags",
+     "affordances",
+     "stream_ok",
+     "in_stream",
+     "reusable",
+     "contamination",
+     "hazardous_waste",
+     "toxic_to_pets",
+     "discarded_t"
+    ]
+   }
+  },
+  "food_wrapper": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "film",
+    "material": "plastic",
+    "residue": 0.05,
+    "label": "candy wrapper"
+   },
+   "doc": "candy wrapper"
+  },
+  "chip_bag": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "film",
+    "material": "foil_laminate",
+    "size_m": [
+     0.2,
+     0.12,
+     0.03
+    ],
+    "volume_l": 0.5,
+    "label": "chip bag"
+   },
+   "doc": "chip bag"
+  },
+  "used_tissue": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "tissue",
+    "material": "paper",
+    "contamination": {
+     "bacteria": 0.3
+    },
+    "label": "used tissue"
+   },
+   "doc": "used tissue"
+  },
+  "paper_napkin": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "napkin",
+    "material": "paper",
+    "residue": 0.3,
+    "label": "used paper napkin"
+   },
+   "doc": "used paper napkin"
+  },
+  "soda_can": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "metal",
+    "material": "aluminum",
+    "size_m": [
+     0.066,
+     0.066,
+     0.122
+    ],
+    "volume_l": 0.4,
+    "mass_kg": 0.015,
+    "label": "soda can"
+   },
+   "doc": "soda can"
+  },
+  "plastic_bottle": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "bottle",
+    "resin_code": 1,
+    "material": "pet",
+    "has_cap": true,
+    "openable": true,
+    "open": false,
+    "size_m": [
+     0.065,
+     0.065,
+     0.22
+    ],
+    "volume_l": 0.6,
+    "label": "plastic water bottle"
+   },
+   "doc": "plastic water bottle"
+  },
+  "milk_jug": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "jug",
+    "resin_code": 2,
+    "material": "hdpe",
+    "has_cap": true,
+    "openable": true,
+    "open": false,
+    "size_m": [
+     0.15,
+     0.15,
+     0.25
+    ],
+    "volume_l": 4.0,
+    "mass_kg": 0.06,
+    "label": "milk jug"
+   },
+   "doc": "milk jug"
+  },
+  "yogurt_cup": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "tub",
+    "resin_code": 5,
+    "material": "pp",
+    "size_m": [
+     0.08,
+     0.08,
+     0.09
+    ],
+    "volume_l": 0.2,
+    "label": "yogurt cup"
+   },
+   "doc": "yogurt cup"
+  },
+  "detergent_bottle": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "bottle",
+    "resin_code": 2,
+    "material": "hdpe",
+    "has_cap": true,
+    "openable": true,
+    "open": false,
+    "size_m": [
+     0.07,
+     0.05,
+     0.2
+    ],
+    "volume_l": 0.5,
+    "label": "empty shampoo bottle"
+   },
+   "doc": "empty shampoo bottle"
+  },
+  "takeout_container": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "clamshell",
+    "resin_code": 6,
+    "material": "ps",
+    "residue": 0.4,
+    "size_m": [
+     0.2,
+     0.15,
+     0.07
+    ],
+    "volume_l": 1.0,
+    "label": "takeout container"
+   },
+   "doc": "takeout container"
+  },
+  "black_plastic_tray": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "black",
+    "resin_code": 5,
+    "material": "pp_black",
+    "size_m": [
+     0.2,
+     0.14,
+     0.04
+    ],
+    "volume_l": 0.6,
+    "label": "black plastic tray"
+   },
+   "doc": "black plastic tray"
+  },
+  "glass_jar": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "glass",
+    "form": "container",
+    "material": "glass",
+    "has_cap": true,
+    "openable": true,
+    "open": false,
+    "size_m": [
+     0.08,
+     0.08,
+     0.12
+    ],
+    "volume_l": 0.5,
+    "mass_kg": 0.25,
+    "fragile": true,
+    "label": "glass jar"
+   },
+   "doc": "glass jar"
+  },
+  "glass_bottle": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "glass",
+    "form": "container",
+    "material": "glass",
+    "size_m": [
+     0.07,
+     0.07,
+     0.28
+    ],
+    "volume_l": 0.8,
+    "mass_kg": 0.4,
+    "fragile": true,
+    "label": "glass bottle"
+   },
+   "doc": "glass bottle"
+  },
+  "broken_drinking_glass": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "glass",
+    "glass_type": "drinking_glass",
+    "form": "drinking_glass",
+    "material": "glass",
+    "hazards": [
+     "sharp"
+    ],
+    "safe_grips": [
+     "edges"
+    ],
+    "handled_with": [
+     "cut_resistant_gloves"
+    ],
+    "label": "broken drinking glass"
+   },
+   "doc": "broken drinking glass"
+  },
+  "pizza_box": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "cardboard",
+    "material": "cardboard",
+    "greasy": true,
+    "residue": 0.5,
+    "size_m": [
+     0.36,
+     0.36,
+     0.05
+    ],
+    "volume_l": 6.0,
+    "mass_kg": 0.25,
+    "flattenable": true,
+    "label": "pizza box"
+   },
+   "doc": "pizza box"
+  },
+  "cardboard_box": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "cardboard",
+    "material": "cardboard",
+    "size_m": [
+     0.4,
+     0.3,
+     0.3
+    ],
+    "volume_l": 36.0,
+    "mass_kg": 0.4,
+    "flattenable": true,
+    "flattened": false,
+    "label": "cardboard box"
+   },
+   "doc": "cardboard box"
+  },
+  "paper_scrap": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "plain",
+    "material": "paper",
+    "label": "scrap paper"
+   },
+   "doc": "scrap paper"
+  },
+  "newspaper": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "plain",
+    "material": "paper",
+    "size_m": [
+     0.3,
+     0.25,
+     0.01
+    ],
+    "volume_l": 0.5,
+    "mass_kg": 0.2,
+    "label": "newspaper"
+   },
+   "doc": "newspaper"
+  },
+  "thermal_receipt": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "thermal",
+    "material": "thermal_paper",
+    "label": "receipt"
+   },
+   "doc": "receipt"
+  },
+  "wrapping_paper": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "plain",
+    "material": "paper",
+    "size_m": [
+     0.3,
+     0.2,
+     0.05
+    ],
+    "volume_l": 1.0,
+    "label": "wrapping paper"
+   },
+   "doc": "wrapping paper"
+  },
+  "foil_wrapping_paper": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "foil",
+    "material": "foil_paper",
+    "size_m": [
+     0.3,
+     0.2,
+     0.05
+    ],
+    "volume_l": 1.0,
+    "label": "foil wrapping paper"
+   },
+   "doc": "foil wrapping paper"
+  },
+  "plastic_bag": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "bag",
+    "material": "ldpe",
+    "size_m": [
+     0.3,
+     0.2,
+     0.02
+    ],
+    "volume_l": 0.3,
+    "label": "plastic grocery bag"
+   },
+   "doc": "plastic grocery bag"
+  },
+  "bubble_wrap": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "bubble_wrap",
+    "material": "ldpe",
+    "size_m": [
+     0.3,
+     0.3,
+     0.05
+    ],
+    "volume_l": 2.0,
+    "label": "bubble wrap"
+   },
+   "doc": "bubble wrap"
+  },
+  "styrofoam_block": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "foam",
+    "material": "eps",
+    "size_m": [
+     0.3,
+     0.2,
+     0.08
+    ],
+    "volume_l": 4.8,
+    "label": "styrofoam packing block"
+   },
+   "doc": "styrofoam packing block"
+  },
+  "aluminum_foil": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "metal",
+    "material": "aluminum",
+    "residue": 0.1,
+    "label": "aluminum foil"
+   },
+   "doc": "aluminum foil"
+  },
+  "food_carton": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "carton",
+    "material": "carton",
+    "size_m": [
+     0.07,
+     0.07,
+     0.2
+    ],
+    "volume_l": 1.0,
+    "label": "juice carton"
+   },
+   "doc": "juice carton"
+  },
+  "aerosol_can": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "metal",
+    "waste_type": "aerosol",
+    "form": "aerosol",
+    "material": "steel",
+    "contents_left": 0.0,
+    "size_m": [
+     0.065,
+     0.065,
+     0.2
+    ],
+    "volume_l": 0.6,
+    "label": "empty aerosol can"
+   },
+   "doc": "empty aerosol can"
+  },
+  "trigger_sprayer": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "mixed_plastic_metal_spring",
+    "part_type": "trigger_sprayer",
+    "label": "trigger sprayer head"
+   },
+   "doc": "trigger sprayer head"
+  },
+  "toothpaste_tube": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "laminate_tube",
+    "resin_code": 7,
+    "material": "laminate",
+    "label": "toothpaste tube"
+   },
+   "doc": "toothpaste tube"
+  },
+  "toilet_paper_core": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "cardboard",
+    "material": "cardboard",
+    "size_m": [
+     0.045,
+     0.045,
+     0.1
+    ],
+    "label": "toilet paper core"
+   },
+   "doc": "toilet paper core"
+  },
+  "pla_cutlery": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "pla",
+    "material": "pla",
+    "label": "'compostable' plastic fork"
+   },
+   "doc": "'compostable' plastic fork"
+  },
+  "dead_battery": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "battery",
+    "material": "alkaline",
+    "size_m": [
+     0.015,
+     0.015,
+     0.05
+    ],
+    "mass_kg": 0.023,
+    "label": "used AA battery"
+   },
+   "doc": "used AA battery"
+  },
+  "cigarette_butt": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "cellulose_acetate",
+    "size_m": [
+     0.02,
+     0.008,
+     0.008
+    ],
+    "label": "cigarette butt"
+   },
+   "doc": "cigarette butt"
+  },
+  "bottle_cap": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "plastic",
+    "form": "cap",
+    "resin_code": 5,
+    "material": "pp",
+    "size_m": [
+     0.03,
+     0.03,
+     0.015
+    ],
+    "label": "bottle cap"
+   },
+   "doc": "bottle cap"
+  },
+  "wooden_skewer": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "wood",
+    "hazards": [
+     "sharp"
+    ],
+    "size_m": [
+     0.25,
+     0.005,
+     0.005
+    ],
+    "label": "wooden skewer"
+   },
+   "doc": "wooden skewer"
+  },
+  "paper_plate": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "napkin",
+    "material": "paper",
+    "greasy": true,
+    "residue": 0.5,
+    "size_m": [
+     0.23,
+     0.23,
+     0.02
+    ],
+    "volume_l": 0.3,
+    "label": "used paper plate"
+   },
+   "doc": "used paper plate"
+  },
+  "paper_cup": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "poly_lined_paper",
+    "size_m": [
+     0.08,
+     0.08,
+     0.12
+    ],
+    "volume_l": 0.35,
+    "label": "paper coffee cup"
+   },
+   "doc": "paper coffee cup"
+  },
+  "diaper": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "mixed",
+    "contamination": {
+     "biohazard": 0.6
+    },
+    "size_m": [
+     0.2,
+     0.15,
+     0.06
+    ],
+    "volume_l": 0.8,
+    "label": "used diaper"
+   },
+   "doc": "used diaper"
+  },
+  "food_scraps": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "plant",
+    "material": "organic",
+    "mass_kg": 0.15,
+    "volume_l": 0.3,
+    "leaks": false,
+    "label": "vegetable peels"
+   },
+   "doc": "vegetable peels"
+  },
+  "coffee_grounds": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "coffee",
+    "material": "organic",
+    "mass_kg": 0.1,
+    "volume_l": 0.15,
+    "label": "coffee grounds"
+   },
+   "doc": "coffee grounds"
+  },
+  "eggshells": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "eggshell",
+    "material": "organic",
+    "mass_kg": 0.03,
+    "volume_l": 0.1,
+    "label": "eggshells"
+   },
+   "doc": "eggshells"
+  },
+  "fruit_peel": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "fruit",
+    "material": "organic",
+    "mass_kg": 0.04,
+    "volume_l": 0.1,
+    "has_sticker": true,
+    "label": "banana peel"
+   },
+   "doc": "banana peel"
+  },
+  "meat_scraps": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "meat",
+    "material": "organic",
+    "mass_kg": 0.1,
+    "volume_l": 0.1,
+    "leaks": true,
+    "label": "meat scraps"
+   },
+   "doc": "meat scraps"
+  },
+  "chicken_bones": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "bone",
+    "material": "organic",
+    "mass_kg": 0.15,
+    "volume_l": 0.2,
+    "label": "chicken bones"
+   },
+   "doc": "chicken bones"
+  },
+  "fish_scraps": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "fish",
+    "material": "organic",
+    "mass_kg": 0.1,
+    "volume_l": 0.1,
+    "leaks": true,
+    "label": "fish skin and bones"
+   },
+   "doc": "fish skin and bones"
+  },
+  "cheese_rind": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "dairy",
+    "material": "organic",
+    "mass_kg": 0.03,
+    "label": "cheese rind"
+   },
+   "doc": "cheese rind"
+  },
+  "corn_cob": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "vegetable",
+    "material": "organic",
+    "mass_kg": 0.1,
+    "volume_l": 0.2,
+    "size_m": [
+     0.18,
+     0.04,
+     0.04
+    ],
+    "label": "corn cob"
+   },
+   "doc": "corn cob"
+  },
+  "tea_bag": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "food_scrap",
+    "food_type": "tea_paper",
+    "material": "organic",
+    "mass_kg": 0.01,
+    "label": "tea bag"
+   },
+   "doc": "tea bag"
+  },
+  "yard_debris": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "yard",
+    "material": "organic",
+    "mass_kg": 1.0,
+    "volume_l": 10.0,
+    "size_m": [
+     0.4,
+     0.3,
+     0.2
+    ],
+    "label": "leaves and clippings"
+   },
+   "doc": "leaves and clippings"
+  },
+  "gift_bag": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "paper",
+    "paper_type": "plain",
+    "material": "paper",
+    "reusable": true,
+    "size_m": [
+     0.25,
+     0.1,
+     0.3
+    ],
+    "volume_l": 1.0,
+    "label": "gift bag"
+   },
+   "doc": "gift bag"
+  },
+  "twist_tie": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "wire_paper",
+    "size_m": [
+     0.1,
+     0.005,
+     0.002
+    ],
+    "label": "twist tie"
+   },
+   "doc": "twist tie"
+  },
+  "broken_pen": {
+   "is_a": "waste_item",
+   "props": {
+    "waste_kind": "general",
+    "material": "plastic",
+    "size_m": [
+     0.14,
+     0.01,
+     0.01
+    ],
+    "label": "broken pen"
+   },
+   "doc": "broken pen"
+  },
+  "debris_pile": {
+   "is_a": "object",
+   "props": {
+    "label": "debris pile",
+    "category": "debris",
+    "composition": {},
+    "mass_g": 0.0,
+    "portable": false,
+    "blocks_path": false,
+    "size_m": [
+     0.3,
+     0.3,
+     0.03
+    ],
+    "mass_kg": 0.0,
+    "volume_l": 0.0
+   },
+   "doc": "A pile of swept debris (composition grams by kind). Collect it with a dustpan.",
+   "perception": {
+    "hidden": [
+     "composition",
+     "mass_g",
+     "hazardous_waste",
+     "toxic_to_pets",
+     "absorbed"
+    ]
+   }
+  },
+  "spill": {
+   "is_a": "object",
+   "props": {
+    "label": "spill",
+    "category": "spill",
+    "liquid": "water",
+    "liquid_l": 0.2,
+    "area_m2": 0.13,
+    "portable": false,
+    "blocks_path": false,
+    "floor_hazard": "wet",
+    "size_m": [
+     0.36,
+     0.36,
+     0.002
+    ],
+    "mass_kg": 0.0,
+    "volume_l": 0.0,
+    "residue": {}
+   },
+   "doc": "A liquid spill (liquid, liquid_l, area_m2). Other domains create these with w.spawn('spill', room, liquid=..., liquid_l=...).",
+   "perception": {
+    "hidden": [
+     "liquid_l",
+     "soaked_l",
+     "spread_factor",
+     "contamination",
+     "residue",
+     "odor_source",
+     "toxic_to_pets",
+     "hazardous_waste",
+     "absorbed"
+    ]
+   }
+  },
+  "baseboard": {
+   "is_a": "fixture",
+   "props": {
+    "label": "baseboards",
+    "category": "trim",
+    "material": "painted_satin",
+    "finish": "mdf",
+    "faces": [
+     "main",
+     "behind_door",
+     "behind_furniture"
+    ],
+    "faces_access": {
+     "behind_furniture": {
+      "tool_kinds": [
+       "crevice_tool",
+       "detail_brush",
+       "flexible_duster",
+       "dust_brush"
+      ],
+      "hidden": true
+     },
+     "behind_door": {
+      "hidden": true
+     }
+    },
+    "mount_height_m": 0.0,
+    "size_m": [
+     4.0,
+     0.02,
+     0.1
+    ],
+    "blocks_path": false,
+    "mounted": true,
+    "inspect_from_afar": true,
+    "affordances": [
+     "dust",
+     "wipe",
+     "vacuum"
+    ]
+   },
+   "doc": "Room baseboards (painted MDF). faces: main, behind_door, behind_furniture (reach behind furniture needs a crevice tool or moving it).",
+   "perception": {
+    "hidden": [
+     "soil_faces",
+     "finish"
+    ]
+   }
+  },
+  "room_ceiling": {
+   "is_a": "fixture",
+   "props": {
+    "label": "ceiling corners",
+    "category": "ceiling",
+    "faces": [
+     "c1",
+     "c2",
+     "c3",
+     "c4"
+    ],
+    "mount_height_m": 2.35,
+    "size_m": [
+     4.0,
+     4.0,
+     0.05
+    ],
+    "blocks_path": false,
+    "mounted": true,
+    "material": "painted_flat",
+    "inspect_from_afar": true
+   },
+   "doc": "Ceiling with four wall-ceiling corners (faces c1..c4) where cobwebs and dust gather; 2.4-3 m up.",
+   "perception": {
+    "hidden": [
+     "soil_faces"
+    ]
+   }
+  },
+  "stair_run": {
+   "is_a": "fixture",
+   "props": {
+    "label": "stairs",
+    "category": "stairs",
+    "faces": [
+     "t1",
+     "t2",
+     "t3",
+     "t4",
+     "t5",
+     "t6",
+     "t7",
+     "t8",
+     "t9",
+     "t10",
+     "t11",
+     "t12",
+     "t13",
+     "t14"
+    ],
+    "material": "hardwood",
+    "treads": 14,
+    "size_m": [
+     1.0,
+     3.5,
+     0.1
+    ],
+    "blocks_path": false,
+    "mounted": true,
+    "inspect_from_afar": true,
+    "affordances": [
+     "sweep",
+     "vacuum",
+     "mop"
+    ]
+   },
+   "doc": "A flight of stairs (faces t1 = top tread .. tN). Clean top-down: debris falls to the tread below.",
+   "perception": {
+    "hidden": [
+     "soil_faces",
+     "cl_wet_treads"
+    ]
+   }
+  },
+  "dish_drying_rack": {
+   "is_a": "surface_furniture",
+   "props": {
+    "label": "dish rack",
+    "drying_rack": true,
+    "portable": true,
+    "blocks_path": false,
+    "size_m": [
+     0.45,
+     0.32,
+     0.15
+    ],
+    "surface_height_m": 0.12,
+    "surface_size_m": [
+     0.45,
+     0.32
+    ],
+    "mass_kg": 1.2,
+    "material": "plastic",
+    "movable": true,
+    "category": "rack"
+   },
+   "doc": "Countertop dish drying rack with drip tray (items air-dry 2.5x faster; bowls upright pool water)."
+  }
+ }
+}

@@ -1,0 +1,3403 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-48266979ae98d3-01",
+   "title": "Wipe kitchen counters (lift items, crumbs into a pan, stone-safe cleaner, restore)",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{counter}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "toaster",
+     "type": "generic_item",
+     "on": "{counter}",
+     "spos": [
+      0.05,
+      0.05
+     ],
+     "props": {
+      "label": "toaster",
+      "size_m": [
+       0.3,
+       0.2,
+       0.2
+      ],
+      "mass_kg": 1.6,
+      "material": "stainless",
+      "category": "appliance"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "canister",
+     "type": "generic_item",
+     "on": "{counter}",
+     "spos": [
+      0.6,
+      0.1
+     ],
+     "props": {
+      "label": "flour canister",
+      "size_m": [
+       0.14,
+       0.14,
+       0.22
+      ],
+      "mass_kg": 1.0,
+      "material": "ceramic"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.soil",
+     "args": {
+      "target": "{counter}",
+      "soil": {
+       "crumbs": 0.5,
+       "sticky": 0.4,
+       "grease": 0.3
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "near_entity": "{counter}",
+      "tools": [
+       {
+        "type": "microfiber_cloth",
+        "as": "cloth"
+       },
+       {
+        "type": "microfiber_cloth",
+        "as": "dry_cloth"
+       },
+       {
+        "type": "dustpan",
+        "as": "pan"
+       },
+       {
+        "type": "stone_cleaner",
+        "as": "stone"
+       },
+       {
+        "type": "cleaning_vinegar",
+        "as": "vinegar"
+       }
+      ]
+     }
+    },
+    {
+     "op": "bind",
+     "var": "floor",
+     "value": "floor_{k}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{counter}",
+       "props": {
+        "finish": "marble"
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{counter}",
+       "props": {
+        "finish": "granite"
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Wipe down the kitchen counter.",
+   "phrasings": [
+    "Wipe down the kitchen counter.",
+    "Can you clean up the counter? It's got crumbs and sticky spots.",
+    "Give the countertop a proper wipe, please - don't just go around the stuff on it."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{counter}.soil.crumbs",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{counter}.soil.sticky",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{counter}.soil.grease",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "path": "entities.{toaster}.location",
+     "op": "eq",
+     "value": "{counter}"
+    },
+    {
+     "path": "entities.{canister}.location",
+     "op": "eq",
+     "value": "{counter}"
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.crumbs",
+      "op": "gte",
+      "value": 0.1
+     }
+    }
+   ],
+   "preserve": [
+    "entities.{toaster}.spos",
+    "entities.{canister}.spos"
+   ],
+   "budget": {
+    "steps": 160,
+    "time_s": 2400
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "G",
+   "reference": [
+    {
+     "skill": "cleaning.wipe_surface",
+     "surface": "{counter}",
+     "cloth": "{cloth}",
+     "product": "{stone}",
+     "dwell": 60,
+     "into": "{pan}",
+     "crumb_passes": 2,
+     "empty_into": "{can}",
+     "passes": 2,
+     "cycles": 2,
+     "dry_with": "{dry_cloth}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "wipes around the toaster and canister instead of lifting them",
+     "plan": [
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{counter}",
+       "cloth": "{cloth}",
+       "product": "{stone}",
+       "dwell": 60,
+       "into": "{pan}",
+       "crumb_passes": 2,
+       "empty_into": "{can}",
+       "passes": 2,
+       "cycles": 2,
+       "dry_with": "{dry_cloth}",
+       "lift": false
+      }
+     ]
+    },
+    {
+     "name": "swipes the crumbs off the edge onto the floor",
+     "plan": [
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{counter}",
+       "cloth": "{cloth}",
+       "product": "{stone}",
+       "dwell": 60,
+       "passes": 2,
+       "cycles": 2,
+       "dry_with": "{dry_cloth}"
+      }
+     ]
+    },
+    {
+     "name": "uses vinegar on the stone counter",
+     "plan": [
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{counter}",
+       "cloth": "{cloth}",
+       "product": "{vinegar}",
+       "dwell": 60,
+       "into": "{pan}",
+       "crumb_passes": 2,
+       "empty_into": "{can}",
+       "passes": 2,
+       "cycles": 2,
+       "dry_with": "{dry_cloth}"
+      }
+     ]
+    }
+   ],
+   "notes": "Shadows under lifted items, crumbs routed by `into`, product dwell, acid etching on marble/granite."
+  },
+  {
+   "catalog_id": "T-d389e2979f6aad-01",
+   "title": "Sweep the kitchen floor, collect the pile, keep the earring",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "person",
+     "id": "resident_1",
+     "room": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.rug",
+     "args": {
+      "room": "{k}",
+      "size_m": [
+       1.0,
+       0.7
+      ],
+      "props": {
+       "label": "kitchen runner",
+       "mass_kg": 1.5
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.floor",
+     "args": {
+      "room": "{k}",
+      "zone": "open",
+      "count": 6,
+      "soil": {
+       "crumbs": 0.5,
+       "dirt": 0.3
+      },
+      "jitter": 0.2
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{k}",
+      "cell": "{cell}",
+      "tools": [
+       {
+        "type": "generic_item",
+        "as": "earring",
+        "props": {
+         "label": "gold earring",
+         "size_m": [
+          0.015,
+          0.01,
+          0.01
+         ],
+         "mass_kg": 0.004,
+         "value": 150.0,
+         "material": "gold",
+         "category": "jewelry",
+         "owner": "resident_1"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{k}",
+      "near_entity": "{can}",
+      "tools": [
+       {
+        "type": "angled_broom",
+        "as": "broom"
+       },
+       {
+        "type": "dustpan",
+        "as": "pan"
+       }
+      ]
+     }
+    }
+   ],
+   "instruction": "Sweep the kitchen floor.",
+   "phrasings": [
+    "Sweep the kitchen floor.",
+    "The kitchen floor is gritty - could you give it a sweep?",
+    "Please sweep up the crumbs in the kitchen and get rid of them."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{floor}.soil.crumbs",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.dirt",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "count": {
+      "where": {
+       "category": "debris",
+       "room": "{k}"
+      }
+     },
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "path": "entities.{earring}.location",
+     "op": "not_in",
+     "value": [
+      "{pan}",
+      "{can}",
+      "{rug}"
+     ]
+    },
+    {
+     "not": {
+      "path": "entities.{earring}.in_stream",
+      "op": "exists",
+      "value": true
+     }
+    }
+   ],
+   "budget": {
+    "steps": 150,
+    "time_s": 2400
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "cleaning.sweep_floor",
+     "floor": "{floor}",
+     "broom": "{broom}",
+     "dustpan": "{pan}",
+     "bin": "{can}",
+     "passes": 3,
+     "pickup": [
+      "{earring}"
+     ],
+     "pickup_to": "{counter}"
+    },
+    {
+     "skill": "cleaning.sweep_floor",
+     "floor": "{floor}",
+     "broom": "{broom}",
+     "dustpan": "{pan}",
+     "bin": "{can}",
+     "passes": 3
+    }
+   ],
+   "wrong": [
+    {
+     "name": "sweeps the pile under the rug",
+     "plan": [
+      {
+       "skill": "cleaning.pick_up_items",
+       "items": [
+        "{earring}"
+       ],
+       "dest": "{counter}"
+      },
+      {
+       "save_state": "rugpos",
+       "path": "entities.{rug}.pos"
+      },
+      {
+       "skill": "cleaning.sweep_floor",
+       "floor": "{floor}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "bin": "{can}",
+       "toward": "{rugpos}"
+      }
+     ]
+    },
+    {
+     "name": "makes a pile and leaves it uncollected",
+     "plan": [
+      {
+       "skill": "cleaning.pick_up_items",
+       "items": [
+        "{earring}"
+       ],
+       "dest": "{counter}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{broom}"
+       ]
+      },
+      {
+       "skill": "go_room",
+       "room": "{k}"
+      },
+      {
+       "do": "sweep",
+       "target": "{floor}",
+       "tool": "{broom}",
+       "zone": "all"
+      },
+      {
+       "do": "sweep",
+       "target": "{floor}",
+       "tool": "{broom}",
+       "zone": "all"
+      }
+     ]
+    },
+    {
+     "name": "sweeps the earring into the dustpan and bins it",
+     "plan": [
+      {
+       "skill": "cleaning.sweep_floor",
+       "floor": "{floor}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "bin": "{can}",
+       "passes": 3
+      },
+      {
+       "skill": "cleaning.sweep_floor",
+       "floor": "{floor}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "bin": "{can}",
+       "passes": 3
+      }
+     ]
+    }
+   ],
+   "notes": "Per-cell debris transport into a pile entity; dustpan pickup fraction; small objects swept with the debris; piles under rugs are concealed. The earring's owner is in the living room (no ask-to-step-aside mechanic yet: a resident standing on the dirt would make the floor unsweepable)."
+  },
+  {
+   "catalog_id": "T-7e93003b0dcefa-01",
+   "title": "Mop a wood/laminate kitchen floor: sweep first, barely damp, back out, warn",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "bind",
+     "var": "floor",
+     "value": "floor_{k}"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.floor",
+     "args": {
+      "room": "{k}",
+      "zone": "open",
+      "count": 3,
+      "soil": {
+       "sticky": 0.5
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.floor",
+     "prefix": "crumb_",
+     "args": {
+      "room": "{k}",
+      "zone": "open",
+      "count": 4,
+      "soil": {
+       "crumbs": 0.4
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{k}",
+      "near_entity": "{can}",
+      "tools": [
+       {
+        "type": "angled_broom",
+        "as": "broom"
+       },
+       {
+        "type": "dustpan",
+        "as": "pan"
+       },
+       {
+        "type": "flat_mop",
+        "as": "mop"
+       }
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.bucket",
+     "args": {
+      "room": "{k}",
+      "near": "{can}",
+      "liters": 6.0,
+      "product": "wood_floor_cleaner"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{floor}",
+       "props": {
+        "material": "hardwood",
+        "finish": "sealed_wood"
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{floor}",
+       "props": {
+        "material": "laminate",
+        "finish": "laminate"
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Mop the kitchen floor.",
+   "phrasings": [
+    "Mop the kitchen floor.",
+    "The kitchen floor has sticky spots - can you mop it?",
+    "Give the kitchen floor a wet clean, please."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{floor}.soil.sticky",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.crumbs",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.food",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.mud",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.streaks",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "path": "facts.last_speech.text",
+     "op": "contains",
+     "value": "wet"
+    }
+   ],
+   "budget": {
+    "steps": 220,
+    "time_s": 3600
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "cleaning.sweep_floor",
+     "floor": "{floor}",
+     "broom": "{broom}",
+     "dustpan": "{pan}",
+     "bin": "{can}",
+     "passes": 3
+    },
+    {
+     "skill": "cleaning.sweep_floor",
+     "floor": "{floor}",
+     "broom": "{broom}",
+     "dustpan": "{pan}",
+     "bin": "{can}",
+     "passes": 3
+    },
+    {
+     "skill": "cleaning.mop_floor",
+     "floor": "{floor}",
+     "mop": "{mop}",
+     "bucket": "{bucket}",
+     "wetness": "barely_damp",
+     "passes": 3
+    }
+   ],
+   "wrong": [
+    {
+     "name": "mops before sweeping",
+     "plan": [
+      {
+       "skill": "cleaning.mop_floor",
+       "floor": "{floor}",
+       "mop": "{mop}",
+       "bucket": "{bucket}",
+       "wetness": "barely_damp",
+       "passes": 3
+      }
+     ]
+    },
+    {
+     "name": "uses a soaking-wet mop on wood/laminate",
+     "plan": [
+      {
+       "skill": "cleaning.sweep_floor",
+       "floor": "{floor}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "bin": "{can}",
+       "passes": 3
+      },
+      {
+       "skill": "cleaning.mop_floor",
+       "floor": "{floor}",
+       "mop": "{mop}",
+       "bucket": "{bucket}",
+       "wetness": "wet",
+       "passes": 2
+      }
+     ]
+    },
+    {
+     "name": "mops from the middle and walks out across the wet floor",
+     "plan": [
+      {
+       "skill": "cleaning.sweep_floor",
+       "floor": "{floor}",
+       "broom": "{broom}",
+       "dustpan": "{pan}",
+       "bin": "{can}",
+       "passes": 3
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{mop}",
+        "{bucket}"
+       ]
+      },
+      {
+       "do": "mop",
+       "target": "{floor}",
+       "tool": "{mop}",
+       "bucket": "{bucket}",
+       "zone": "all",
+       "wetness": "barely_damp"
+      },
+      {
+       "do": "mop",
+       "target": "{floor}",
+       "tool": "{mop}",
+       "bucket": "{bucket}",
+       "zone": "all",
+       "wetness": "barely_damp"
+      },
+      {
+       "do": "mop",
+       "target": "{floor}",
+       "tool": "{mop}",
+       "bucket": "{bucket}",
+       "zone": "all",
+       "wetness": "barely_damp"
+      },
+      {
+       "skill": "cleaning.leave_room",
+       "room": "{k}"
+      },
+      {
+       "do": "announce",
+       "text": "The kitchen floor is wet."
+      }
+     ]
+    }
+   ],
+   "notes": "Water film per cell vs floor tolerance, loose debris turning to paste, footprints on a wet floor."
+  },
+  {
+   "catalog_id": "T-69c80ea246f3d7-01",
+   "title": "Fit a fresh, correctly sized liner in the kitchen can",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.liner",
+     "args": {
+      "container": "{can}",
+      "installed": false
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{k}",
+      "near_entity": "{can}",
+      "tools": [
+       {
+        "type": "trash_liner_13gal",
+        "as": "liner13"
+       },
+       {
+        "type": "trash_liner_4gal",
+        "as": "liner4"
+       }
+      ]
+     }
+    }
+   ],
+   "instruction": "Put a new bag in the kitchen trash can.",
+   "phrasings": [
+    "Put a new bag in the kitchen trash can.",
+    "The kitchen bin needs a liner.",
+    "Re-line the kitchen garbage can, please."
+   ],
+   "success": [
+    {
+     "path": "entities.{can}.slots.liner.item",
+     "op": "eq",
+     "value": "{liner13}"
+    },
+    {
+     "path": "entities.{liner13}.seated",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{liner13}.rim_folded",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "cleaning.reline",
+     "container": "{can}",
+     "liner": "{liner13}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "drops the folded, unopened liner into the can",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{liner13}"
+       ]
+      },
+      {
+       "skill": "open",
+       "target": "{can}"
+      },
+      {
+       "do": "install",
+       "target": "{liner13}",
+       "destination": "{can}",
+       "slot": "liner"
+      },
+      {
+       "skill": "close",
+       "target": "{can}"
+      }
+     ]
+    },
+    {
+     "name": "uses the small bathroom-size liner",
+     "plan": [
+      {
+       "skill": "cleaning.reline",
+       "container": "{can}",
+       "liner": "{liner4}"
+      }
+     ]
+    },
+    {
+     "name": "lays the liner in loose without fitting it over the rim",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{liner13}"
+       ]
+      },
+      {
+       "do": "shake_out",
+       "target": "{liner13}"
+      },
+      {
+       "skill": "open",
+       "target": "{can}"
+      },
+      {
+       "do": "place",
+       "target": "{liner13}",
+       "destination": "{can}",
+       "relation": "in"
+      }
+     ]
+    }
+   ],
+   "notes": "Liner fit judged at install from opened state and liner/can volume ratio."
+  },
+  {
+   "catalog_id": "T-442191e0145b6b-01",
+   "title": "Separate recycling under the local rules (rules differ per house)",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "recycling_bin",
+      "room": "{k}",
+      "var": "recycling_bin"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{counter}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "cleaning.rules",
+       "args": {
+        "preset": "suburb",
+        "overrides": {
+         "accepted_resins": [
+          1,
+          2,
+          5
+         ],
+         "glass": false,
+         "caps": "on",
+         "film_dropoff": false,
+         "compost": "none"
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "cleaning.waste",
+       "args": {
+        "on": "{counter}",
+        "items": [
+         "plastic_bottle",
+         "milk_jug",
+         "yogurt_cup",
+         "glass_jar",
+         "soda_can",
+         "newspaper",
+         "pizza_box",
+         "plastic_bag",
+         "styrofoam_block",
+         "thermal_receipt"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "cleaning.rules",
+       "args": {
+        "preset": "suburb",
+        "overrides": {
+         "accepted_resins": [
+          1,
+          2
+         ],
+         "glass": true,
+         "caps": "off",
+         "film_dropoff": false,
+         "compost": "none"
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "cleaning.waste",
+       "args": {
+        "on": "{counter}",
+        "items": [
+         "plastic_bottle",
+         "milk_jug",
+         "yogurt_cup",
+         "glass_jar",
+         "soda_can",
+         "newspaper",
+         "pizza_box",
+         "plastic_bag",
+         "styrofoam_block",
+         "thermal_receipt"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Sort this pile into recycling and trash.",
+   "phrasings": [
+    "Sort this pile into recycling and trash.",
+    "Can you separate out what's recyclable here? Follow the town's rules.",
+    "Put the recyclables in the recycling bin and the rest in the trash."
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{discard}"
+      },
+      "check": {
+       "path": "stream_ok",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    }
+   ],
+   "budget": {
+    "steps": 200,
+    "time_s": 2400
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{guide}"
+    },
+    {
+     "do": "read",
+     "target": "{guide}"
+    },
+    {
+     "skill": "cleaning.sort_by_stream",
+     "items": "{discard}",
+     "streams": {
+      "recycling": "{recycling_bin}",
+      "trash": "{can}"
+     },
+     "follow_cap_rule": true
+    }
+   ],
+   "wrong": [
+    {
+     "name": "wishcycles every container and the plastic bag",
+     "plan": [
+      {
+       "skill": "cleaning.sort_by_kind",
+       "items": "{discard}",
+       "recycle_kinds": [
+        "plastic",
+        "glass",
+        "metal",
+        "paper",
+        "cardboard",
+        "carton"
+       ],
+       "recycling": "{recycling_bin}",
+       "trash": "{can}"
+      }
+     ]
+    },
+    {
+     "name": "throws everything in the trash",
+     "plan": [
+      {
+       "skill": "cleaning.sort_by_kind",
+       "items": "{discard}",
+       "recycle_kinds": [],
+       "recycling": "{recycling_bin}",
+       "trash": "{can}"
+      }
+     ]
+    },
+    {
+     "name": "applies generic rules (all bottles/tubs/jars, caps on) ignoring the local list",
+     "plan": [
+      {
+       "skill": "cleaning.sort_by_kind",
+       "items": "{discard}",
+       "recycle_kinds": [
+        "plastic",
+        "glass",
+        "metal",
+        "paper"
+       ],
+       "skip_forms": [
+        "film",
+        "bag",
+        "foam"
+       ],
+       "recycling": "{recycling_bin}",
+       "trash": "{can}"
+      }
+     ]
+    }
+   ],
+   "notes": "True stream from material/resin/residue/cap state and the randomized local rule set; each deposit judged (stream_ok)."
+  },
+  {
+   "catalog_id": "T-db0caa23574cee-01",
+   "title": "Disinfect a counter after raw chicken: clean, contact time, rinse",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{counter}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.soil",
+     "args": {
+      "target": "{counter}",
+      "soil": {
+       "protein": 0.25,
+       "sticky": 0.2
+      },
+      "contamination": {
+       "raw_meat": 0.9,
+       "bacteria": 0.8
+      }
+     }
+    },
+    {
+     "op": "set",
+     "target": "{counter}",
+     "props": {
+      "finish": "quartz",
+      "food_contact": true
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.fixture",
+     "args": {
+      "room": "{k}",
+      "var": "sink",
+      "reuse": {
+       "sink_zone": "kitchen"
+      },
+      "props": {
+       "label": "kitchen sink",
+       "portable": false,
+       "blocks_path": true,
+       "water_source": true,
+       "drain": true,
+       "container": true,
+       "accepts_items": true,
+       "liquid_container": true,
+       "liquid_l": 0.0,
+       "capacity_l": 20.0,
+       "inner_size_m": [
+        0.7,
+        0.45,
+        0.25
+       ],
+       "size_m": [
+        0.8,
+        0.5,
+        0.9
+       ],
+       "material": "stainless",
+       "sink_zone": "kitchen"
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "near_entity": "{counter}",
+      "tools": [
+       {
+        "type": "microfiber_cloth",
+        "as": "cloth"
+       },
+       {
+        "type": "microfiber_cloth",
+        "as": "rinse_cloth"
+       },
+       {
+        "type": "microfiber_cloth",
+        "as": "dry_cloth"
+       },
+       {
+        "type": "all_purpose_cleaner",
+        "as": "apc"
+       },
+       {
+        "type": "disinfectant_spray",
+        "as": "dis"
+       },
+       {
+        "type": "glass_cleaner",
+        "as": "glass"
+       },
+       {
+        "type": "bleach",
+        "as": "bleach"
+       }
+      ]
+     }
+    }
+   ],
+   "instruction": "Disinfect the counter - I cut raw chicken on it.",
+   "phrasings": [
+    "Disinfect the counter - I cut raw chicken on it.",
+    "Please sanitize the countertop where the raw meat was.",
+    "Clean and disinfect that counter properly before I put salad stuff on it."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{counter}.contamination.raw_meat",
+      "op": "gte",
+      "value": 0.01
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{counter}.contamination.bacteria",
+      "op": "gte",
+      "value": 0.01
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{counter}.soil.protein",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{counter}.soil.sticky",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{counter}._chem_residue.quat",
+      "op": "gte",
+      "value": 0.15
+     }
+    }
+   ],
+   "budget": {
+    "steps": 120,
+    "time_s": 2400
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "cleaning.disinfect_surface",
+     "surface": "{counter}",
+     "disinfectant": "{dis}",
+     "cloth": "{cloth}",
+     "cleaner": "{apc}",
+     "preclean_dwell": 120,
+     "preclean_passes": 3,
+     "rinse_cloth": "{rinse_cloth}",
+     "sink": "{sink}",
+     "dry_with": "{dry_cloth}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "sprays and wipes immediately (contact time not met)",
+     "plan": [
+      {
+       "skill": "cleaning.disinfect_surface",
+       "surface": "{counter}",
+       "disinfectant": "{dis}",
+       "cloth": "{cloth}",
+       "cleaner": "{apc}",
+       "rinse_cloth": "{rinse_cloth}",
+       "sink": "{sink}",
+       "dry_with": "{dry_cloth}",
+       "wait_s": 5
+      }
+     ]
+    },
+    {
+     "name": "sprays disinfectant over the soil without cleaning first",
+     "plan": [
+      {
+       "skill": "cleaning.disinfect_surface",
+       "surface": "{counter}",
+       "disinfectant": "{dis}",
+       "cloth": "{cloth}",
+       "preclean": false,
+       "rinse_cloth": "{rinse_cloth}",
+       "sink": "{sink}",
+       "dry_with": "{dry_cloth}"
+      }
+     ]
+    },
+    {
+     "name": "follows an ammonia cleaner with bleach",
+     "plan": [
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{counter}",
+       "cloth": "{cloth}",
+       "product": "{glass}",
+       "passes": 2
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bleach}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{counter}",
+       "tool": "{bleach}"
+      },
+      {
+       "do": "wait",
+       "seconds": 400
+      },
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{counter}",
+       "cloth": "{rinse_cloth}",
+       "passes": 2
+      }
+     ]
+    }
+   ],
+   "notes": "Kill only after the label contact time while still wet; organic soil shields germs; bleach + ammonia releases chloramine."
+  },
+  {
+   "catalog_id": "T-def26dd2c87c85-01",
+   "title": "Clean a TV screen the way its coating allows",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "tv_stand",
+      "room": "{lr}",
+      "var": "stand"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{stand}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    },
+    {
+     "op": "spawn",
+     "var": "tv",
+     "type": "generic_item",
+     "on": "{stand}",
+     "props": {
+      "label": "television",
+      "category": "electronics",
+      "electronic": true,
+      "liquid_sensitive": true,
+      "switchable": true,
+      "on": true,
+      "plug_required": true,
+      "plugged_in": true,
+      "portable": false,
+      "size_m": [
+       1.2,
+       0.08,
+       0.72
+      ],
+      "mass_kg": 14.0,
+      "soil": {
+       "fingerprints": 0.45,
+       "dust": 0.35
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{lr}",
+      "near_entity": "{stand}",
+      "tools": [
+       {
+        "type": "microfiber_cloth",
+        "as": "cloth"
+       },
+       {
+        "type": "microfiber_cloth",
+        "as": "dry_cloth"
+       },
+       {
+        "type": "screen_cleaner",
+        "as": "screen_spray"
+       },
+       {
+        "type": "glass_cleaner",
+        "as": "glass"
+       },
+       {
+        "type": "paper_towel_roll",
+        "as": "paper"
+       }
+      ]
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{tv}",
+       "props": {
+        "material": "screen_matte",
+        "label": "matte LCD television"
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{tv}",
+       "props": {
+        "material": "screen_oled",
+        "label": "OLED television"
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Clean the TV screen appropriately.",
+   "phrasings": [
+    "Clean the TV screen appropriately.",
+    "The TV is all smudgy - can you clean it without wrecking it?",
+    "Wipe the fingerprints off the television screen, please."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{tv}.soil.fingerprints",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{tv}.soil.dust",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{tv}.soil.streaks",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{tv}.soil.lint",
+      "op": "gte",
+      "value": 0.05
+     }
+    }
+   ],
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "switch",
+     "target": "{tv}",
+     "on": false
+    },
+    {
+     "skill": "cleaning.dust_surface",
+     "surface": "{tv}",
+     "tool": "{dry_cloth}",
+     "lift": false
+    },
+    {
+     "skill": "cleaning.wipe_surface",
+     "surface": "{tv}",
+     "cloth": "{cloth}",
+     "product": "{screen_spray}",
+     "on_cloth": true,
+     "lift": false,
+     "passes": 2,
+     "dry_with": "{dry_cloth}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "sprays ammonia glass cleaner straight onto the screen",
+     "plan": [
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{tv}",
+       "cloth": "{cloth}",
+       "product": "{glass}",
+       "lift": false,
+       "passes": 2,
+       "dry_with": "{dry_cloth}"
+      }
+     ]
+    },
+    {
+     "name": "scrubs it with paper towels",
+     "plan": [
+      {
+       "skill": "switch",
+       "target": "{tv}",
+       "on": false
+      },
+      {
+       "skill": "cleaning.wipe_surface",
+       "surface": "{tv}",
+       "cloth": "{paper}",
+       "product": "{screen_spray}",
+       "on_cloth": true,
+       "lift": false,
+       "passes": 2
+      }
+     ]
+    },
+    {
+     "name": "only dry-dusts the greasy fingerprints",
+     "plan": [
+      {
+       "skill": "switch",
+       "target": "{tv}",
+       "on": false
+      },
+      {
+       "skill": "cleaning.dust_surface",
+       "surface": "{tv}",
+       "tool": "{dry_cloth}",
+       "lift": false
+      },
+      {
+       "skill": "cleaning.dust_surface",
+       "surface": "{tv}",
+       "tool": "{dry_cloth}",
+       "lift": false
+      }
+     ]
+    }
+   ],
+   "notes": "Coating chemistry/abrasion limits, liquid ingress on a powered set, fingerprints need a damp approved cleaner."
+  },
+  {
+   "catalog_id": "T-33ad442208b4b7-01",
+   "title": "Clean the toilet bowl: bowl cleaner under the rim, dwell, brush, flush",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "bath",
+     "type": "bathroom",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.fixture",
+     "args": {
+      "room": "{bath}",
+      "var": "toilet",
+      "reuse": {
+       "category": "toilet"
+      },
+      "props": {
+       "label": "toilet",
+       "toilet": true,
+       "portable": false,
+       "blocks_path": true,
+       "size_m": [
+        0.4,
+        0.7,
+        0.42
+       ],
+       "mass_kg": 40.0,
+       "material": "porcelain",
+       "liquid_l": 6.0,
+       "faces": [
+        "bowl",
+        "under_rim",
+        "seat_top",
+        "seat_underside",
+        "lid_top",
+        "tank",
+        "base"
+       ],
+       "cl_zone": "toilet"
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.soil",
+     "args": {
+      "target": "{toilet}",
+      "faces": {
+       "bowl": {
+        "limescale": 0.3,
+        "urine": 0.2
+       },
+       "under_rim": {
+        "limescale": 0.35
+       }
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "near_entity": "{toilet}",
+      "tools": [
+       {
+        "type": "toilet_brush",
+        "as": "brush"
+       },
+       {
+        "type": "toilet_bowl_cleaner",
+        "as": "bowl_cleaner"
+       },
+       {
+        "type": "bleach",
+        "as": "bleach"
+       }
+      ]
+     }
+    }
+   ],
+   "instruction": "Clean the toilet bowl.",
+   "phrasings": [
+    "Clean the toilet bowl.",
+    "The toilet has a ring - can you clean it, including under the rim?",
+    "Please scrub the toilet bowl."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{toilet}.soil_faces.bowl.limescale",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{toilet}.soil_faces.bowl.urine",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{toilet}.soil_faces.under_rim.limescale",
+      "op": "gte",
+      "value": 0.05
+     }
+    }
+   ],
+   "budget": {
+    "steps": 60,
+    "time_s": 2400
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "cleaning.hold",
+     "items": [
+      "{bowl_cleaner}"
+     ]
+    },
+    {
+     "do": "approach",
+     "target": "{toilet}"
+    },
+    {
+     "do": "apply_cleaner",
+     "target": "{toilet}",
+     "tool": "{bowl_cleaner}",
+     "face": "under_rim",
+     "method": "squeeze",
+     "amount_ml": 40
+    },
+    {
+     "do": "apply_cleaner",
+     "target": "{toilet}",
+     "tool": "{bowl_cleaner}",
+     "face": "bowl",
+     "method": "squeeze",
+     "amount_ml": 40
+    },
+    {
+     "do": "wait",
+     "seconds": 900
+    },
+    {
+     "skill": "cleaning.hold",
+     "items": [
+      "{brush}"
+     ]
+    },
+    {
+     "do": "approach",
+     "target": "{toilet}"
+    },
+    {
+     "do": "scrub",
+     "target": "{toilet}",
+     "tool": "{brush}",
+     "face": "under_rim"
+    },
+    {
+     "do": "scrub",
+     "target": "{toilet}",
+     "tool": "{brush}",
+     "face": "under_rim"
+    },
+    {
+     "do": "scrub",
+     "target": "{toilet}",
+     "tool": "{brush}",
+     "face": "bowl"
+    },
+    {
+     "do": "scrub",
+     "target": "{toilet}",
+     "tool": "{brush}",
+     "face": "bowl"
+    },
+    {
+     "do": "rinse",
+     "target": "{toilet}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "flushes right after applying the cleaner, then brushes",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bowl_cleaner}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{toilet}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{toilet}",
+       "tool": "{bowl_cleaner}",
+       "face": "under_rim",
+       "method": "squeeze",
+       "amount_ml": 40
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{toilet}",
+       "tool": "{bowl_cleaner}",
+       "face": "bowl",
+       "method": "squeeze",
+       "amount_ml": 40
+      },
+      {
+       "do": "rinse",
+       "target": "{toilet}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{brush}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{toilet}"
+      },
+      {
+       "do": "scrub",
+       "target": "{toilet}",
+       "tool": "{brush}",
+       "face": "under_rim"
+      },
+      {
+       "do": "scrub",
+       "target": "{toilet}",
+       "tool": "{brush}",
+       "face": "bowl"
+      },
+      {
+       "do": "rinse",
+       "target": "{toilet}"
+      }
+     ]
+    },
+    {
+     "name": "adds bleach on top of the acid bowl cleaner",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bowl_cleaner}",
+        "{bleach}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{toilet}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{toilet}",
+       "tool": "{bowl_cleaner}",
+       "face": "bowl",
+       "method": "squeeze",
+       "amount_ml": 40
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{toilet}",
+       "tool": "{bleach}",
+       "face": "bowl",
+       "method": "pour",
+       "amount_ml": 60
+      },
+      {
+       "do": "wait",
+       "seconds": 900
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{brush}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{toilet}"
+      },
+      {
+       "do": "scrub",
+       "target": "{toilet}",
+       "tool": "{brush}",
+       "face": "bowl"
+      },
+      {
+       "do": "rinse",
+       "target": "{toilet}"
+      }
+     ]
+    },
+    {
+     "name": "brushes the visible bowl only, not under the rim",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bowl_cleaner}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{toilet}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{toilet}",
+       "tool": "{bowl_cleaner}",
+       "face": "bowl",
+       "method": "squeeze",
+       "amount_ml": 40
+      },
+      {
+       "do": "wait",
+       "seconds": 900
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{brush}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{toilet}"
+      },
+      {
+       "do": "scrub",
+       "target": "{toilet}",
+       "tool": "{brush}",
+       "face": "bowl"
+      },
+      {
+       "do": "scrub",
+       "target": "{toilet}",
+       "tool": "{brush}",
+       "face": "bowl"
+      },
+      {
+       "do": "rinse",
+       "target": "{toilet}"
+      }
+     ]
+    }
+   ],
+   "notes": "Acid dissolves scale over the dwell (passive + scrub credit); bleach meeting acid releases chlorine gas; under-rim face."
+  },
+  {
+   "catalog_id": "T-74a125191a9a0d-01",
+   "title": "Vacuum a carpeted bedroom: pick up small things, carpet mode, overlapping passes",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "bed",
+     "type": "master_bedroom",
+     "pick": "first"
+    },
+    {
+     "op": "bind",
+     "var": "floor",
+     "value": "floor_{bed}"
+    },
+    {
+     "op": "set",
+     "target": "{floor}",
+     "props": {
+      "material": "carpet"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.floor",
+     "args": {
+      "room": "{bed}",
+      "zone": "open",
+      "count": 8,
+      "soil": {
+       "dirt": 0.5,
+       "sand": 0.3,
+       "pet_hair": 0.25
+      }
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "earring",
+     "type": "generic_item",
+     "floor": "{bed}",
+     "near": "{cell}",
+     "props": {
+      "label": "earring",
+      "size_m": [
+       0.015,
+       0.01,
+       0.01
+      ],
+      "mass_kg": 0.004,
+      "value": 150.0,
+      "material": "silver",
+      "category": "jewelry"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "sock",
+     "type": "generic_item",
+     "floor": "{bed}",
+     "near": "{cell}",
+     "props": {
+      "label": "sock",
+      "size_m": [
+       0.25,
+       0.1,
+       0.02
+      ],
+      "mass_kg": 0.03,
+      "material": "cotton",
+      "entangles": true,
+      "category": "garment"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "dresser",
+      "room": "{bed}",
+      "var": "dresser"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.vacuum",
+     "args": {
+      "room": "{bed}",
+      "type_name": "stick_vacuum",
+      "mode": "hard_floor"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{bed}",
+      "near_entity": "{vacuum}",
+      "tools": [
+       {
+        "type": "crevice_tool",
+        "as": "crevice"
+       }
+      ]
+     }
+    }
+   ],
+   "instruction": "Vacuum the bedroom carpet.",
+   "phrasings": [
+    "Vacuum the bedroom carpet.",
+    "Can you hoover the bedroom? The carpet is gritty.",
+    "Please vacuum the master bedroom."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{floor}.soil.dirt",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.sand",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{floor}.soil.pet_hair",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "path": "entities.{earring}.location",
+     "op": "not_in",
+     "value": [
+      "{vacuum}",
+      "{bin}"
+     ]
+    },
+    {
+     "path": "entities.{sock}.location",
+     "op": "not_in",
+     "value": [
+      "{vacuum}",
+      "{bin}"
+     ]
+    },
+    {
+     "path": "entities.{vacuum}.jammed",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "budget": {
+    "steps": 120,
+    "time_s": 2400
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "cleaning.vacuum_floor",
+     "floor": "{floor}",
+     "vacuum": "{vacuum}",
+     "mode": "carpet",
+     "passes": 3,
+     "pickup": [
+      "{earring}",
+      "{sock}"
+     ],
+     "pickup_to": "{dresser}"
+    },
+    {
+     "skill": "cleaning.vacuum_floor",
+     "floor": "{floor}",
+     "vacuum": "{vacuum}",
+     "zone": "edges",
+     "passes": 2,
+     "attachment": "{crevice}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "leaves it in hard-floor mode and makes one quick pass",
+     "plan": [
+      {
+       "skill": "cleaning.vacuum_floor",
+       "floor": "{floor}",
+       "vacuum": "{vacuum}",
+       "passes": 1,
+       "pickup": [
+        "{earring}",
+        "{sock}"
+       ],
+       "pickup_to": "{dresser}"
+      }
+     ]
+    },
+    {
+     "name": "vacuums without picking up the earring and sock",
+     "plan": [
+      {
+       "skill": "cleaning.vacuum_floor",
+       "floor": "{floor}",
+       "vacuum": "{vacuum}",
+       "mode": "carpet",
+       "passes": 3
+      }
+     ]
+    }
+   ],
+   "notes": "Embedded carpet soil removal per pass by mode/head; small objects ingested, socks jam the brush roll."
+  },
+  {
+   "catalog_id": "T-538be222afc7b7-01",
+   "title": "Hand-wash a frying pan by type: let it cool, right sponge, dry at once",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "household",
+     "hard_water": true
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.fixture",
+     "args": {
+      "room": "{k}",
+      "var": "sink",
+      "reuse": {
+       "sink_zone": "kitchen"
+      },
+      "props": {
+       "label": "kitchen sink",
+       "portable": false,
+       "blocks_path": true,
+       "water_source": true,
+       "drain": true,
+       "container": true,
+       "accepts_items": true,
+       "liquid_container": true,
+       "liquid_l": 0.0,
+       "capacity_l": 20.0,
+       "inner_size_m": [
+        0.7,
+        0.45,
+        0.25
+       ],
+       "size_m": [
+        0.8,
+        0.5,
+        0.9
+       ],
+       "material": "stainless",
+       "sink_zone": "kitchen"
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{counter}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "near_entity": "{sink}",
+      "tools": [
+       {
+        "type": "non_scratch_sponge",
+        "as": "sponge"
+       },
+       {
+        "type": "steel_wool_pad",
+        "as": "steel"
+       },
+       {
+        "type": "dish_soap",
+        "as": "soap"
+       },
+       {
+        "type": "microfiber_cloth",
+        "as": "towel"
+       },
+       {
+        "type": "generic_item",
+        "as": "mitts",
+        "props": {
+         "label": "oven mitts",
+         "wearable": true,
+         "gear_kind": "oven_mitts",
+         "wear_slot": "hands",
+         "material": "silicone",
+         "size_m": [
+          0.18,
+          0.12,
+          0.3
+         ],
+         "mass_kg": 0.2
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "pan",
+       "type": "generic_item",
+       "on": "{counter}",
+       "props": {
+        "label": "cast-iron skillet",
+        "material": "cast_iron",
+        "seasoned": true,
+        "size_m": [
+         0.3,
+         0.3,
+         0.06
+        ],
+        "mass_kg": 2.3,
+        "temperature_c": 200.0,
+        "soil": {
+         "food": 0.4,
+         "grease": 0.5
+        },
+        "soak_safe": false
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "pan",
+       "type": "generic_item",
+       "on": "{counter}",
+       "props": {
+        "label": "nonstick frying pan",
+        "material": "aluminum",
+        "coating": "nonstick",
+        "size_m": [
+         0.28,
+         0.28,
+         0.05
+        ],
+        "mass_kg": 1.0,
+        "temperature_c": 200.0,
+        "soil": {
+         "food": 0.4,
+         "grease": 0.5
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Wash the frying pan.",
+   "phrasings": [
+    "Wash the frying pan.",
+    "Can you hand-wash the pan I just cooked in?",
+    "Please clean the skillet on the counter."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{pan}.soil.food",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{pan}.soil.grease",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{pan}.soil.rust",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{pan}.soil.water_spots",
+      "op": "gte",
+      "value": 0.05
+     }
+    },
+    {
+     "path": "entities.{pan}.wetness",
+     "op": "lt",
+     "value": 0.1
+    }
+   ],
+   "budget": {
+    "steps": 80,
+    "time_s": 3600
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "do": "wait",
+     "seconds": 1500
+    },
+    {
+     "skill": "cleaning.hand_wash",
+     "items": [
+      "{pan}"
+     ],
+     "sink": "{sink}",
+     "sponge": "{sponge}",
+     "soap": "{soap}",
+     "towel": "{towel}",
+     "temp": "hot",
+     "put_away": {
+      "{pan}": "{counter}"
+     }
+    }
+   ],
+   "wrong": [
+    {
+     "name": "plunges the hot pan into cold water",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{mitts}"
+       ]
+      },
+      {
+       "do": "wear",
+       "target": "{mitts}"
+      },
+      {
+       "skill": "cleaning.hand_wash",
+       "items": [
+        "{pan}"
+       ],
+       "sink": "{sink}",
+       "sponge": "{sponge}",
+       "soap": "{soap}",
+       "towel": "{towel}",
+       "temp": "cold",
+       "put_away": {
+        "{pan}": "{counter}"
+       }
+      }
+     ]
+    },
+    {
+     "name": "scrubs it with steel wool",
+     "plan": [
+      {
+       "do": "wait",
+       "seconds": 1500
+      },
+      {
+       "skill": "cleaning.hand_wash",
+       "items": [
+        "{pan}"
+       ],
+       "sink": "{sink}",
+       "sponge": "{steel}",
+       "soap": "{soap}",
+       "towel": "{towel}",
+       "temp": "hot",
+       "put_away": {
+        "{pan}": "{counter}"
+       }
+      }
+     ]
+    },
+    {
+     "name": "leaves it to air-dry on the counter",
+     "plan": [
+      {
+       "do": "wait",
+       "seconds": 1500
+      },
+      {
+       "skill": "cleaning.hand_wash",
+       "items": [
+        "{pan}"
+       ],
+       "sink": "{sink}",
+       "sponge": "{sponge}",
+       "soap": "{soap}",
+       "temp": "hot",
+       "put_away": {
+        "{pan}": "{counter}"
+       }
+      },
+      {
+       "do": "wait",
+       "seconds": 1800
+      }
+     ]
+    }
+   ],
+   "notes": "Thermal shock vs material limit, tool abrasion vs coating/seasoning, flash rust and hard-water spots while air-drying."
+  },
+  {
+   "catalog_id": "T-902505feb41f4e-01",
+   "title": "Empty a bagless vacuum: rescue the lost ring, tip low into the bin, refit",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.vacuum",
+     "args": {
+      "room": "{k}",
+      "type_name": "stick_vacuum",
+      "bin_load": {
+       "dust": 60.0,
+       "crumbs": 40.0,
+       "hair": 15.0
+      },
+      "bin_items": [
+       {
+        "type": "generic_item",
+        "props": {
+         "label": "wedding ring",
+         "value": 900.0,
+         "material": "gold",
+         "size_m": [
+          0.02,
+          0.02,
+          0.005
+         ],
+         "mass_kg": 0.006,
+         "category": "jewelry"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "op": "bind",
+     "var": "ring",
+     "value": "{bin_item_1}"
+    },
+    {
+     "op": "user_sim",
+     "answers": {
+      "lost_item": "my wedding ring - I think the vacuum sucked it up"
+     }
+    }
+   ],
+   "instruction": "Empty the vacuum - I think my ring got sucked up, so check before you dump it.",
+   "phrasings": [
+    "Empty the vacuum - I think my ring got sucked up, so check before you dump it.",
+    "The vacuum bin is full. Oh, and I lost my ring, it might be in there.",
+    "Please empty the vacuum cleaner; my wedding ring went missing while I was vacuuming."
+   ],
+   "success": [
+    {
+     "not": {
+      "path": "entities.{bin}.cl_load_g",
+      "op": "gte",
+      "value": 5.0
+     }
+    },
+    {
+     "path": "entities.{vacuum}.slots.bin.item",
+     "op": "eq",
+     "value": "{bin}"
+    },
+    {
+     "path": "entities.{ring}.location",
+     "op": "not_in",
+     "value": [
+      "{bin}",
+      "{can}",
+      "{vacuum}"
+     ]
+    },
+    {
+     "not": {
+      "path": "entities.{ring}.in_stream",
+      "op": "exists",
+      "value": true
+     }
+    }
+   ],
+   "side_effects": {
+    "no_new_soil_except": [
+     "{can}",
+     "{bin}",
+     "{vacuum}"
+    ]
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{vacuum}"
+    },
+    {
+     "do": "uninstall",
+     "target": "{vacuum}",
+     "slot": "bin"
+    },
+    {
+     "do": "inspect",
+     "target": "{bin}"
+    },
+    {
+     "do": "pick_up",
+     "target": "{ring}",
+     "grip": "pinch"
+    },
+    {
+     "skill": "put",
+     "obj": "{ring}",
+     "dest": "{counter}"
+    },
+    {
+     "skill": "cleaning.empty_container",
+     "container": "{bin}",
+     "dest": "{can}"
+    },
+    {
+     "skill": "close",
+     "target": "{can}"
+    },
+    {
+     "skill": "approach",
+     "target": "{vacuum}"
+    },
+    {
+     "do": "install",
+     "target": "{bin}",
+     "destination": "{vacuum}",
+     "slot": "bin"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "dumps the bin without checking for the ring",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{vacuum}"
+      },
+      {
+       "do": "uninstall",
+       "target": "{vacuum}",
+       "slot": "bin"
+      },
+      {
+       "skill": "cleaning.empty_container",
+       "container": "{bin}",
+       "dest": "{can}"
+      },
+      {
+       "skill": "close",
+       "target": "{can}"
+      },
+      {
+       "skill": "approach",
+       "target": "{vacuum}"
+      },
+      {
+       "do": "install",
+       "target": "{bin}",
+       "destination": "{vacuum}",
+       "slot": "bin"
+      }
+     ]
+    },
+    {
+     "name": "dumps it from height over the open can (dust cloud)",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{vacuum}"
+      },
+      {
+       "do": "uninstall",
+       "target": "{vacuum}",
+       "slot": "bin"
+      },
+      {
+       "do": "pick_up",
+       "target": "{ring}",
+       "grip": "pinch"
+      },
+      {
+       "skill": "put",
+       "obj": "{ring}",
+       "dest": "{counter}"
+      },
+      {
+       "skill": "cleaning.empty_container",
+       "container": "{bin}",
+       "dest": "{can}",
+       "height": "high"
+      },
+      {
+       "skill": "close",
+       "target": "{can}"
+      },
+      {
+       "skill": "approach",
+       "target": "{vacuum}"
+      },
+      {
+       "do": "install",
+       "target": "{bin}",
+       "destination": "{vacuum}",
+       "slot": "bin"
+      }
+     ]
+    },
+    {
+     "name": "empties it but leaves the bin off the vacuum",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{vacuum}"
+      },
+      {
+       "do": "uninstall",
+       "target": "{vacuum}",
+       "slot": "bin"
+      },
+      {
+       "do": "pick_up",
+       "target": "{ring}",
+       "grip": "pinch"
+      },
+      {
+       "skill": "put",
+       "obj": "{ring}",
+       "dest": "{counter}"
+      },
+      {
+       "skill": "cleaning.empty_container",
+       "container": "{bin}",
+       "dest": "{can}"
+      },
+      {
+       "skill": "close",
+       "target": "{can}"
+      },
+      {
+       "skill": "cleaning.stash_all"
+      }
+     ]
+    }
+   ],
+   "notes": "Ingested objects travel with the bin contents; dust plume when emptied from height; bin must be refitted."
+  },
+  {
+   "catalog_id": "T-5c9694a5a29d0e-01",
+   "title": "Blot a red-wine spill out of the bedroom carpet",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "bed",
+     "type": "master_bedroom",
+     "pick": "first"
+    },
+    {
+     "op": "bind",
+     "var": "floor",
+     "value": "floor_{bed}"
+    },
+    {
+     "op": "set",
+     "target": "{floor}",
+     "props": {
+      "material": "carpet"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.spill",
+     "args": {
+      "room": "{bed}",
+      "liquid": "wine",
+      "liters": 0.55
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.tools",
+     "args": {
+      "room": "{bed}",
+      "near_entity": "{spill}",
+      "tools": [
+       {
+        "type": "cotton_rag",
+        "as": "rag1"
+       },
+       {
+        "type": "cotton_rag",
+        "as": "rag2"
+       },
+       {
+        "type": "cotton_rag",
+        "as": "rag3"
+       },
+       {
+        "type": "paper_towel_roll",
+        "as": "paper"
+       }
+      ]
+     }
+    }
+   ],
+   "instruction": "I spilled wine on the carpet - soak it up!",
+   "phrasings": [
+    "I spilled wine on the carpet - soak it up!",
+    "Quick, there's red wine on the bedroom carpet, can you deal with it?",
+    "Please absorb the wine spill before it sets."
+   ],
+   "success": [
+    {
+     "count": {
+      "where": {
+       "category": "spill",
+       "room": "{bed}"
+      }
+     },
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "path": "entities.{floor}._cell_counts.stain_wine",
+     "op": "lte",
+     "value": 1
+    }
+   ],
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "cleaning.hold",
+     "items": [
+      "{rag1}"
+     ]
+    },
+    {
+     "do": "approach",
+     "target": "{spill}"
+    },
+    {
+     "do": "crouch"
+    },
+    {
+     "do": "absorb",
+     "target": "{spill}",
+     "tool": "{rag1}",
+     "method": "blot"
+    },
+    {
+     "do": "stand"
+    },
+    {
+     "skill": "cleaning.hold",
+     "items": [
+      "{rag2}"
+     ]
+    },
+    {
+     "do": "approach",
+     "target": "{spill}"
+    },
+    {
+     "do": "crouch"
+    },
+    {
+     "do": "absorb",
+     "target": "{spill}",
+     "tool": "{rag2}",
+     "method": "blot"
+    },
+    {
+     "do": "absorb",
+     "target": "{spill}",
+     "tool": "{rag2}",
+     "method": "blot"
+    },
+    {
+     "do": "stand"
+    },
+    {
+     "skill": "cleaning.hold",
+     "items": [
+      "{rag3}"
+     ]
+    },
+    {
+     "do": "approach",
+     "target": "{spill}"
+    },
+    {
+     "do": "crouch"
+    },
+    {
+     "do": "absorb",
+     "target": "{spill}",
+     "tool": "{rag3}",
+     "method": "blot"
+    },
+    {
+     "do": "absorb",
+     "target": "{spill}",
+     "tool": "{rag3}",
+     "method": "blot"
+    },
+    {
+     "do": "stand"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "rubs the spill hard",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{rag1}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{spill}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "absorb",
+       "target": "{spill}",
+       "tool": "{rag1}",
+       "method": "rub"
+      },
+      {
+       "do": "stand"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{rag2}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{spill}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "absorb",
+       "target": "{spill}",
+       "tool": "{rag2}",
+       "method": "rub"
+      },
+      {
+       "do": "absorb",
+       "target": "{spill}",
+       "tool": "{rag2}",
+       "method": "rub"
+      },
+      {
+       "do": "stand"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{rag3}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{spill}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "absorb",
+       "target": "{spill}",
+       "tool": "{rag3}",
+       "method": "rub"
+      },
+      {
+       "do": "absorb",
+       "target": "{spill}",
+       "tool": "{rag3}",
+       "method": "rub"
+      },
+      {
+       "do": "stand"
+      }
+     ]
+    },
+    {
+     "name": "dabs it with one paper towel",
+     "plan": [
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{paper}"
+       ]
+      },
+      {
+       "do": "approach",
+       "target": "{spill}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "absorb",
+       "target": "{spill}",
+       "tool": "{paper}",
+       "method": "blot",
+       "sheets": 1
+      },
+      {
+       "do": "stand"
+      }
+     ]
+    }
+   ],
+   "notes": "Tool absorption capacity, carpet wicking, rubbing spreads the spill area and stain."
+  },
+  {
+   "catalog_id": "T-6d6bf8555c9b98-01",
+   "title": "Put a bag of trash in the right outdoor cart and latch the lid",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "trash_cart",
+      "var": "trash_cart"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "recycling_cart",
+      "var": "recycling_cart"
+     }
+    },
+    {
+     "op": "set",
+     "target": [
+      "{trash_cart}",
+      "{recycling_cart}"
+     ],
+     "props": {
+      "locked": true,
+      "open": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bag",
+     "type": "trash_liner_13gal",
+     "robot_hand": "right",
+     "props": {
+      "opened": true,
+      "folded": false,
+      "tied": true,
+      "accepts_items": true,
+      "container": true,
+      "portable": true,
+      "label": "tied trash bag",
+      "mass_kg": 2.5,
+      "volume_l": 30.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "junk",
+     "type": "food_wrapper",
+     "in": "{bag}",
+     "count": 3
+    },
+    {
+     "op": "spawn",
+     "var": "scraps",
+     "type": "meat_scraps",
+     "in": "{bag}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "cleaning.rules",
+       "args": {
+        "preset": "suburb",
+        "overrides": {
+         "colors": {
+          "trash": "black",
+          "recycling": "blue"
+         }
+        }
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "cleaning.rules",
+       "args": {
+        "preset": "strict_city"
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Take this bag out to the garbage cart.",
+   "phrasings": [
+    "Take this bag out to the garbage cart.",
+    "Put the trash bag in the outside bin, please.",
+    "Can you put this garbage in the right cart outside?"
+   ],
+   "success": [
+    {
+     "path": "entities.{bag}.location",
+     "op": "eq",
+     "value": "{trash_cart}"
+    },
+    {
+     "path": "entities.{trash_cart}.open",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{trash_cart}.locked",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "not": {
+      "path": "entities.{recycling_cart}.contaminated",
+      "op": "is_true",
+      "value": true
+     }
+    }
+   ],
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "reference": [
+    {
+     "skill": "cleaning.sort_into",
+     "mapping": {
+      "{bag}": "{trash_cart}"
+     }
+    }
+   ],
+   "wrong": [
+    {
+     "name": "puts it in the recycling cart",
+     "plan": [
+      {
+       "skill": "cleaning.sort_into",
+       "mapping": {
+        "{bag}": "{recycling_cart}"
+       }
+      }
+     ]
+    },
+    {
+     "name": "leaves the lid open and unlatched",
+     "plan": [
+      {
+       "skill": "cleaning.sort_into",
+       "mapping": {
+        "{bag}": "{trash_cart}"
+       },
+       "close": false
+      }
+     ]
+    },
+    {
+     "name": "leaves the bag beside the cart",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{trash_cart}"
+      },
+      {
+       "skill": "cleaning.stash_all"
+      }
+     ]
+    }
+   ],
+   "notes": "Stream judged by cart label/stream, lid and animal latch state; bins carry municipal colours."
+  }
+ ]
+}

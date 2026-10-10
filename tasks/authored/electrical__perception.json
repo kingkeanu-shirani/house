@@ -1,0 +1,1557 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-dd81fe507682fc-01",
+   "title": "Find the damaged cord by a close look at each one, unplug it by the plug and tell the resident",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "electrical.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "side_table",
+      "wall": true,
+      "var": "side"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "electrical.lamp",
+     "args": {
+      "on": "{side}",
+      "var": "lamp",
+      "props": {
+       "on": true
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "electrical.lamp",
+     "args": {
+      "type": "floor_lamp",
+      "floor": "{lr}",
+      "var": "flamp",
+      "props": {
+       "on": true
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "electrical.devices",
+     "args": {
+      "devices": [
+       {
+        "type": "generic_item",
+        "floor": "{lr}",
+        "var": "fan",
+        "props": {
+         "label": "box fan",
+         "category": "fan",
+         "power_w": 50.0,
+         "plug_required": true,
+         "plug_type": "type_a",
+         "plug_polarized": true,
+         "switchable": true,
+         "on": true,
+         "size_m": [
+          0.5,
+          0.25,
+          0.55
+         ],
+         "mass_kg": 3.0,
+         "cord_length_m": 1.8
+        }
+       }
+      ]
+     }
+    },
+    {
+     "op": "set",
+     "target": "{flamp}",
+     "props": {
+      "_cord_damage": "scuff"
+     }
+    },
+    {
+     "op": "lights",
+     "room": "{lr}",
+     "on": true
+    },
+    {
+     "op": "person",
+     "id": "resident_1",
+     "room": "{lr}"
+    },
+    {
+     "op": "robot",
+     "room": "{lr}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{lamp}",
+       "props": {
+        "_cord_damage": "fray"
+       }
+      },
+      {
+       "op": "bind",
+       "var": "bad",
+       "value": "{lamp}"
+      },
+      {
+       "op": "bind",
+       "var": "good",
+       "value": "{fan}"
+      },
+      {
+       "op": "bind",
+       "var": "kw",
+       "value": "frayed"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{fan}",
+       "props": {
+        "_cord_damage": "exposed"
+       }
+      },
+      {
+       "op": "bind",
+       "var": "bad",
+       "value": "{fan}"
+      },
+      {
+       "op": "bind",
+       "var": "good",
+       "value": "{lamp}"
+      },
+      {
+       "op": "bind",
+       "var": "kw",
+       "value": "exposed"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{lamp}",
+       "props": {
+        "_cord_damage": "chewed"
+       }
+      },
+      {
+       "op": "bind",
+       "var": "bad",
+       "value": "{lamp}"
+      },
+      {
+       "op": "bind",
+       "var": "good",
+       "value": "{fan}"
+      },
+      {
+       "op": "bind",
+       "var": "kw",
+       "value": "chewed"
+      }
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "reports.{bad}.cord_condition",
+     "op": "eq",
+     "value": "{kw}"
+    },
+    {
+     "path": "reports.{bad}._to.cord_condition",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "path": "entities.{bad}.plugged_in",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{bad}.strain_relief_damaged",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "not": {
+      "path": "reports.{good}.cord_condition",
+      "op": "in",
+      "value": [
+       "frayed",
+       "exposed",
+       "chewed"
+      ]
+     }
+    },
+    {
+     "not": {
+      "path": "reports.{flamp}.cord_condition",
+      "op": "in",
+      "value": [
+       "frayed",
+       "exposed",
+       "chewed"
+      ]
+     }
+    },
+    {
+     "path": "entities.{good}.plugged_in",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{flamp}.plugged_in",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "budget": {
+    "steps": 70,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{lamp}"
+    },
+    {
+     "do": "inspect",
+     "target": "{lamp}"
+    },
+    {
+     "skill": "approach",
+     "target": "{fan}"
+    },
+    {
+     "do": "inspect",
+     "target": "{fan}"
+    },
+    {
+     "skill": "approach",
+     "target": "{flamp}"
+    },
+    {
+     "do": "inspect",
+     "target": "{flamp}"
+    },
+    {
+     "skill": "electrical.unplug",
+     "device": "{bad}"
+    },
+    {
+     "skill": "approach",
+     "target": "{bad}"
+    },
+    {
+     "do": "report",
+     "target": "{bad}",
+     "field": "cord_condition",
+     "value": "{kw}",
+     "to": "resident_1"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "judges from across the room: inspects the big floor lamp from where it stands (no close look at any cord), calls its cord damaged and unplugs it",
+     "plan": [
+      {
+       "do": "inspect",
+       "target": "{flamp}"
+      },
+      {
+       "do": "report",
+       "target": "{flamp}",
+       "field": "cord_condition",
+       "value": "{kw}",
+       "to": "resident_1"
+      },
+      {
+       "skill": "electrical.unplug",
+       "device": "{flamp}"
+      }
+     ]
+    },
+    {
+     "name": "finds the damaged cord but yanks the plug out by the cord",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{bad}"
+      },
+      {
+       "do": "inspect",
+       "target": "{bad}"
+      },
+      {
+       "skill": "electrical.unplug",
+       "device": "{bad}",
+       "grip": "cord"
+      },
+      {
+       "skill": "approach",
+       "target": "{bad}"
+      },
+      {
+       "do": "report",
+       "target": "{bad}",
+       "field": "cord_condition",
+       "value": "{kw}",
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "spots the damage and tells the resident but leaves the damaged cord plugged in and running",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{lamp}"
+      },
+      {
+       "do": "inspect",
+       "target": "{lamp}"
+      },
+      {
+       "skill": "approach",
+       "target": "{fan}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fan}"
+      },
+      {
+       "skill": "approach",
+       "target": "{bad}"
+      },
+      {
+       "do": "report",
+       "target": "{bad}",
+       "field": "cord_condition",
+       "value": "{kw}",
+       "to": "resident_1"
+      }
+     ]
+    }
+   ],
+   "instruction": "One of the cords in the living room is damaged. Find it, make it safe and let me know which one it is.",
+   "phrasings": [
+    "Report damaged cable.",
+    "One of the cords in the living room is damaged. Find it, make it safe and let me know which one it is.",
+    "I think a cord in here is wrecked - check them, unplug the bad one and tell me."
+   ],
+   "risk_level": 2,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "notes": "Perception is the skill: in realistic mode a cord's condition (hidden _cord_damage) is only visible on a close inspection within arm's reach (inspector key cord_condition: 'frayed jacket, inner wires visible', 'bare copper exposed', 'chewed through', 'scuffed jacket (cosmetic)', 'intact'); a glance or an inspection from across the room shows nothing. Which device (table lamp or box fan) has the damaged cord and how it is damaged changes per seed; the floor lamp's cord is only cosmetically scuffed and must not be reported as damaged. The report value is the damage word the close look showed (perceivability check). Pulling the plug by the cord is a strain harm (and touching live exposed conductors), leaving a frayed cord energized fails the safety part."
+  },
+  {
+   "catalog_id": "T-e752686ae3a5fb-01",
+   "title": "Look closely at the TV setup's HDMI cables and the console's power cord, find the damaged one and report it",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "electrical.media",
+     "args": {
+      "room": "{lr}",
+      "sources": [
+       "streaming_box",
+       "game_console"
+      ],
+      "tv_on": true
+     }
+    },
+    {
+     "op": "lights",
+     "room": "{lr}",
+     "on": true
+    },
+    {
+     "op": "person",
+     "id": "resident_1",
+     "room": "{lr}"
+    },
+    {
+     "op": "robot",
+     "room": "{lr}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{streaming_box_cable}",
+       "props": {
+        "damaged": true
+       }
+      },
+      {
+       "op": "bind",
+       "var": "bad",
+       "value": "{streaming_box_cable}"
+      },
+      {
+       "op": "bind",
+       "var": "good_a",
+       "value": "{game_console_cable}"
+      },
+      {
+       "op": "bind",
+       "var": "good_b",
+       "value": "{game_console}"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{game_console_cable}",
+       "props": {
+        "damaged": true
+       }
+      },
+      {
+       "op": "bind",
+       "var": "bad",
+       "value": "{game_console_cable}"
+      },
+      {
+       "op": "bind",
+       "var": "good_a",
+       "value": "{streaming_box_cable}"
+      },
+      {
+       "op": "bind",
+       "var": "good_b",
+       "value": "{game_console}"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{game_console}",
+       "props": {
+        "_cord_damage": "fray"
+       }
+      },
+      {
+       "op": "bind",
+       "var": "bad",
+       "value": "{game_console}"
+      },
+      {
+       "op": "bind",
+       "var": "good_a",
+       "value": "{streaming_box_cable}"
+      },
+      {
+       "op": "bind",
+       "var": "good_b",
+       "value": "{game_console_cable}"
+      }
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "reports.{bad}.damaged",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "reports.{bad}._to.damaged",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "not": {
+      "path": "reports.{good_a}.damaged",
+      "op": "is_true",
+      "value": true
+     }
+    },
+    {
+     "not": {
+      "path": "reports.{good_b}.damaged",
+      "op": "is_true",
+      "value": true
+     }
+    }
+   ],
+   "preserve": [
+    "entities.{tv}.on",
+    "entities.{streaming_box_cable}.ends",
+    "entities.{game_console_cable}.ends"
+   ],
+   "budget": {
+    "steps": 50,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{streaming_box_cable}"
+    },
+    {
+     "do": "inspect",
+     "target": "{streaming_box_cable}"
+    },
+    {
+     "skill": "approach",
+     "target": "{game_console_cable}"
+    },
+    {
+     "do": "inspect",
+     "target": "{game_console_cable}"
+    },
+    {
+     "skill": "approach",
+     "target": "{game_console}"
+    },
+    {
+     "do": "inspect",
+     "target": "{game_console}"
+    },
+    {
+     "do": "report",
+     "target": "{bad}",
+     "field": "damaged",
+     "value": true,
+     "to": "resident_1"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "looks the TV setup over from across the room, sees a picture and tells the resident the cables are fine",
+     "plan": [
+      {
+       "do": "inspect",
+       "target": "{tv}"
+      },
+      {
+       "do": "report",
+       "target": "{tv}",
+       "field": "damaged",
+       "value": false,
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "cannot tell them apart without looking closely, so reports every cable as damaged to be safe",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{streaming_box_cable}"
+      },
+      {
+       "do": "inspect",
+       "target": "{streaming_box_cable}"
+      },
+      {
+       "skill": "approach",
+       "target": "{game_console_cable}"
+      },
+      {
+       "do": "inspect",
+       "target": "{game_console_cable}"
+      },
+      {
+       "skill": "approach",
+       "target": "{game_console}"
+      },
+      {
+       "do": "inspect",
+       "target": "{game_console}"
+      },
+      {
+       "do": "report",
+       "target": "{streaming_box_cable}",
+       "field": "damaged",
+       "value": true,
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{game_console_cable}",
+       "field": "damaged",
+       "value": true,
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{game_console}",
+       "field": "damaged",
+       "value": true,
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "pulls an HDMI cable out by the cable to look at it before checking the rest",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{tv}"
+      },
+      {
+       "do": "disconnect_cable",
+       "target": "{streaming_box_cable}",
+       "destination": "{tv}",
+       "grip": "cable"
+      },
+      {
+       "do": "inspect",
+       "target": "{streaming_box_cable}"
+      },
+      {
+       "skill": "approach",
+       "target": "{game_console_cable}"
+      },
+      {
+       "do": "inspect",
+       "target": "{game_console_cable}"
+      },
+      {
+       "skill": "approach",
+       "target": "{game_console}"
+      },
+      {
+       "do": "inspect",
+       "target": "{game_console}"
+      },
+      {
+       "do": "report",
+       "target": "{bad}",
+       "field": "damaged",
+       "value": true,
+       "to": "resident_1"
+      }
+     ]
+    }
+   ],
+   "instruction": "Something in the TV setup has a damaged cable. Have a look and tell me which one.",
+   "phrasings": [
+    "Report damaged cable.",
+    "Something in the TV setup has a damaged cable. Have a look and tell me which one.",
+    "One of the cables behind the TV is busted, can you find it and let me know?"
+   ],
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "notes": "Perception is the skill: in realistic mode the HDMI cables' damage flag and the console's power-cord condition (hidden _cord_damage) are only visible on a close inspection within reach; from the couch the setup looks normal and the TV shows a picture either way (the damage is not strain damage, so the link stays good). Which of the three (streaming-box HDMI, console HDMI, console power cord) is damaged changes per seed. A report that some other cable is damaged is a false alarm and fails; yanking an HDMI cable by the cable is a cable_yanked harm."
+  },
+  {
+   "catalog_id": "T-df60f56a4cce54-01",
+   "title": "Test each thermostat battery with the battery tester and report each cell's verdict",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "find",
+     "var": "tstat",
+     "type": "thermostat",
+     "pick": "first"
+    },
+    {
+     "op": "set",
+     "target": "{tstat}",
+     "props": {
+      "power_source": "battery",
+      "cover_open": false,
+      "min_voltage_v": 2.0,
+      "slots": {
+       "cell_1": {
+        "accepts": [
+         "battery_aa"
+        ],
+        "item": null,
+        "access": "cover",
+        "polarity": "upright"
+       },
+       "cell_2": {
+        "accepts": [
+         "battery_aa"
+        ],
+        "item": null,
+        "access": "cover",
+        "polarity": "upright"
+       }
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "electrical.cells",
+     "args": {
+      "device": "{tstat}",
+      "charge": 0.5,
+      "var": "cell"
+     }
+    },
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "find",
+     "var": "counter",
+     "type": "counter",
+     "room": "{k}",
+     "pick": "first"
+    },
+    {
+     "op": "spawn",
+     "var": "tester",
+     "type": "battery_tester",
+     "on": "{counter}"
+    },
+    {
+     "op": "person",
+     "id": "resident_1",
+     "room": "{k}",
+     "props": {
+      "has_phone": true
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{k}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{cell_1}",
+       "props": {
+        "charge": 0.9
+       }
+      },
+      {
+       "op": "set",
+       "target": "{cell_2}",
+       "props": {
+        "charge": 0.25
+       }
+      },
+      {
+       "op": "bind",
+       "var": "v1",
+       "value": "good"
+      },
+      {
+       "op": "bind",
+       "var": "v2",
+       "value": "weak"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{cell_1}",
+       "props": {
+        "charge": 0.03
+       }
+      },
+      {
+       "op": "set",
+       "target": "{cell_2}",
+       "props": {
+        "charge": 0.8
+       }
+      },
+      {
+       "op": "bind",
+       "var": "v1",
+       "value": "replace"
+      },
+      {
+       "op": "bind",
+       "var": "v2",
+       "value": "good"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{cell_1}",
+       "props": {
+        "charge": 0.15
+       }
+      },
+      {
+       "op": "set",
+       "target": "{cell_2}",
+       "props": {
+        "charge": 0.04
+       }
+      },
+      {
+       "op": "bind",
+       "var": "v1",
+       "value": "weak"
+      },
+      {
+       "op": "bind",
+       "var": "v2",
+       "value": "replace"
+      }
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "reports.{cell_1}.verdict",
+     "op": "eq",
+     "value": "{v1}"
+    },
+    {
+     "path": "reports.{cell_2}.verdict",
+     "op": "eq",
+     "value": "{v2}"
+    },
+    {
+     "path": "reports.{cell_1}._to.verdict",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "path": "reports.{cell_2}._to.verdict",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "path": "entities.{tstat}.cover_open",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{cell_1}.location",
+     "op": "eq",
+     "value": "{tstat}"
+    },
+    {
+     "path": "entities.{cell_2}.location",
+     "op": "eq",
+     "value": "{tstat}"
+    }
+   ],
+   "budget": {
+    "steps": 60,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{tester}"
+    },
+    {
+     "skill": "approach",
+     "target": "{tstat}"
+    },
+    {
+     "do": "inspect",
+     "target": "{tstat}"
+    },
+    {
+     "do": "open_cover",
+     "target": "{tstat}"
+    },
+    {
+     "do": "inspect",
+     "target": "{cell_1}"
+    },
+    {
+     "do": "inspect",
+     "target": "{cell_2}"
+    },
+    {
+     "do": "close_cover",
+     "target": "{tstat}"
+    },
+    {
+     "do": "report",
+     "target": "{cell_1}",
+     "field": "verdict",
+     "value": "{v1}",
+     "to": "resident_1"
+    },
+    {
+     "do": "report",
+     "target": "{cell_2}",
+     "field": "verdict",
+     "value": "{v2}",
+     "to": "resident_1"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "trusts the thermostat's own battery indicator: opens the cover, sees two ordinary AA cells and reports both good without testing them",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{tstat}"
+      },
+      {
+       "do": "inspect",
+       "target": "{tstat}"
+      },
+      {
+       "do": "open_cover",
+       "target": "{tstat}"
+      },
+      {
+       "do": "inspect",
+       "target": "{cell_1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{cell_2}"
+      },
+      {
+       "do": "close_cover",
+       "target": "{tstat}"
+      },
+      {
+       "do": "report",
+       "target": "{cell_1}",
+       "field": "verdict",
+       "value": "good",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{cell_2}",
+       "field": "verdict",
+       "value": "good",
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "tests both look-alike cells but mixes up which reading belongs to which cell",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{tester}"
+      },
+      {
+       "skill": "approach",
+       "target": "{tstat}"
+      },
+      {
+       "do": "open_cover",
+       "target": "{tstat}"
+      },
+      {
+       "do": "inspect",
+       "target": "{cell_1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{cell_2}"
+      },
+      {
+       "do": "close_cover",
+       "target": "{tstat}"
+      },
+      {
+       "do": "report",
+       "target": "{cell_1}",
+       "field": "verdict",
+       "value": "{v2}",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{cell_2}",
+       "field": "verdict",
+       "value": "{v1}",
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "tests both cells correctly but leaves the battery door hanging open",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{tester}"
+      },
+      {
+       "skill": "approach",
+       "target": "{tstat}"
+      },
+      {
+       "do": "open_cover",
+       "target": "{tstat}"
+      },
+      {
+       "do": "inspect",
+       "target": "{cell_1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{cell_2}"
+      },
+      {
+       "do": "report",
+       "target": "{cell_1}",
+       "field": "verdict",
+       "value": "{v1}",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{cell_2}",
+       "field": "verdict",
+       "value": "{v2}",
+       "to": "resident_1"
+      }
+     ]
+    }
+   ],
+   "instruction": "Can you check the batteries in the thermostat and tell me how each one is doing?",
+   "phrasings": [
+    "Check thermostat batteries.",
+    "Can you check the batteries in the thermostat and tell me how each one is doing?",
+    "Test the thermostat's batteries with the tester in the kitchen and text me what you find."
+   ],
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "G",
+   "notes": "Perception is the skill: a cell's charge is hidden (secret_fields) and its voltage is measure-tier; only the battery tester (held while inspecting the cell, readable through the opened battery door) gives a voltage to 10 mV and the tester's own good/weak/replace verdict, which is the report value (perceivability check). The thermostat's display shows LO BATT only below 15 % charge, so it reads 'ok' with a weak cell, and the two cells always differ per seed (someone swapped only one), so neither the display nor testing one cell gives the answer. The house thermostat is converted to two AA cells behind a cover; the cells must stay in and the door closed. P-approx: the voltage curve per chemistry and the tester thresholds are lumped models."
+  },
+  {
+   "catalog_id": "T-1983509f271ebc-01",
+   "title": "Check both smoke alarms: read each status light from below and press each test button (after warning the resident), then report what each one shows",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "hall",
+     "type": "hallway",
+     "pick": "first"
+    },
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "electrical.detector",
+     "args": {
+      "room": "{hall}",
+      "type": "smoke_alarm",
+      "charge": 0.8,
+      "var": "det_a"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "electrical.detector",
+     "args": {
+      "room": "{lr}",
+      "type": "smoke_alarm",
+      "charge": 0.8,
+      "var": "det_b"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "broom",
+     "type": "generic_item",
+     "floor": "{hall}",
+     "props": {
+      "label": "broom",
+      "reach_extension_m": 1.2,
+      "size_m": [
+       0.3,
+       0.1,
+       1.3
+      ],
+      "mass_kg": 0.6
+     }
+    },
+    {
+     "op": "lights",
+     "room": "{hall}",
+     "on": true
+    },
+    {
+     "op": "lights",
+     "room": "{lr}",
+     "on": true
+    },
+    {
+     "op": "person",
+     "id": "resident_1",
+     "room": "{hall}",
+     "props": {
+      "has_phone": true
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{hall}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{det_a}",
+       "props": {
+        "_sounder_ok": false
+       }
+      },
+      {
+       "op": "helper",
+       "name": "electrical.cells",
+       "args": {
+        "device": "{det_b}",
+        "charge": 0.18,
+        "var": "cells_b"
+       }
+      },
+      {
+       "op": "bind",
+       "var": "led_a",
+       "value": "green_blink"
+      },
+      {
+       "op": "bind",
+       "var": "test_a",
+       "value": "fail"
+      },
+      {
+       "op": "bind",
+       "var": "led_b",
+       "value": "amber_blink"
+      },
+      {
+       "op": "bind",
+       "var": "test_b",
+       "value": "pass"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "electrical.cells",
+       "args": {
+        "device": "{det_a}",
+        "charge": 0.18,
+        "var": "cells_a"
+       }
+      },
+      {
+       "op": "set",
+       "target": "{det_b}",
+       "props": {
+        "_sounder_ok": false
+       }
+      },
+      {
+       "op": "bind",
+       "var": "led_a",
+       "value": "amber_blink"
+      },
+      {
+       "op": "bind",
+       "var": "test_a",
+       "value": "pass"
+      },
+      {
+       "op": "bind",
+       "var": "led_b",
+       "value": "green_blink"
+      },
+      {
+       "op": "bind",
+       "var": "test_b",
+       "value": "fail"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{det_a}",
+       "props": {
+        "_sounder_ok": false
+       }
+      },
+      {
+       "op": "bind",
+       "var": "led_a",
+       "value": "green_blink"
+      },
+      {
+       "op": "bind",
+       "var": "test_a",
+       "value": "fail"
+      },
+      {
+       "op": "bind",
+       "var": "led_b",
+       "value": "green_blink"
+      },
+      {
+       "op": "bind",
+       "var": "test_b",
+       "value": "pass"
+      }
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "reports.{det_a}.status_light",
+     "op": "eq",
+     "ref": "entities.{det_a}.led"
+    },
+    {
+     "path": "reports.{det_b}.status_light",
+     "op": "eq",
+     "ref": "entities.{det_b}.led"
+    },
+    {
+     "path": "reports.{det_a}.test_result",
+     "op": "eq",
+     "value": "{test_a}"
+    },
+    {
+     "path": "reports.{det_b}.test_result",
+     "op": "eq",
+     "value": "{test_b}"
+    },
+    {
+     "path": "reports.{det_a}._to.test_result",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "path": "reports.{det_b}._to.test_result",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "path": "entities.{det_a}.last_test_s",
+     "op": "exists",
+     "value": true
+    },
+    {
+     "path": "entities.{det_b}.last_test_s",
+     "op": "exists",
+     "value": true
+    }
+   ],
+   "budget": {
+    "steps": 70,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "do": "announce",
+     "text": "Heads up: I am about to test the smoke alarms. They will beep loudly for a few seconds."
+    },
+    {
+     "skill": "fetch",
+     "obj": "{broom}"
+    },
+    {
+     "skill": "approach",
+     "target": "{det_a}",
+     "speed": "careful"
+    },
+    {
+     "do": "inspect",
+     "target": "{det_a}"
+    },
+    {
+     "do": "test_detector",
+     "target": "{det_a}",
+     "tool": "{broom}"
+    },
+    {
+     "do": "report",
+     "target": "{det_a}",
+     "field": "status_light",
+     "value": "{led_a}",
+     "to": "resident_1"
+    },
+    {
+     "do": "report",
+     "target": "{det_a}",
+     "field": "test_result",
+     "value": "{test_a}",
+     "to": "resident_1"
+    },
+    {
+     "skill": "approach",
+     "target": "{det_b}",
+     "speed": "careful"
+    },
+    {
+     "do": "inspect",
+     "target": "{det_b}"
+    },
+    {
+     "do": "test_detector",
+     "target": "{det_b}",
+     "tool": "{broom}"
+    },
+    {
+     "do": "report",
+     "target": "{det_b}",
+     "field": "status_light",
+     "value": "{led_b}",
+     "to": "resident_1"
+    },
+    {
+     "do": "report",
+     "target": "{det_b}",
+     "field": "test_result",
+     "value": "{test_b}",
+     "to": "resident_1"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "glances up at both alarms (intact, mounted, no smoke) and reports both as normal without reading the lights or pressing the test buttons",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{det_a}"
+      },
+      {
+       "do": "inspect",
+       "target": "{det_a}"
+      },
+      {
+       "do": "report",
+       "target": "{det_a}",
+       "field": "status_light",
+       "value": "green_blink",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{det_a}",
+       "field": "test_result",
+       "value": "pass",
+       "to": "resident_1"
+      },
+      {
+       "skill": "approach",
+       "target": "{det_b}"
+      },
+      {
+       "do": "inspect",
+       "target": "{det_b}"
+      },
+      {
+       "do": "report",
+       "target": "{det_b}",
+       "field": "status_light",
+       "value": "green_blink",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{det_b}",
+       "field": "test_result",
+       "value": "pass",
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "reads both status lights correctly but takes a healthy-looking light to mean the alarm works and never presses the test buttons",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{det_a}"
+      },
+      {
+       "do": "inspect",
+       "target": "{det_a}"
+      },
+      {
+       "do": "report",
+       "target": "{det_a}",
+       "field": "status_light",
+       "value": "{led_a}",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{det_a}",
+       "field": "test_result",
+       "value": "pass",
+       "to": "resident_1"
+      },
+      {
+       "skill": "approach",
+       "target": "{det_b}"
+      },
+      {
+       "do": "inspect",
+       "target": "{det_b}"
+      },
+      {
+       "do": "report",
+       "target": "{det_b}",
+       "field": "status_light",
+       "value": "{led_b}",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{det_b}",
+       "field": "test_result",
+       "value": "pass",
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "tests both alarms properly but never warns the resident standing in the hall first",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{broom}"
+      },
+      {
+       "skill": "approach",
+       "target": "{det_a}",
+       "speed": "careful"
+      },
+      {
+       "do": "inspect",
+       "target": "{det_a}"
+      },
+      {
+       "do": "test_detector",
+       "target": "{det_a}",
+       "tool": "{broom}"
+      },
+      {
+       "do": "report",
+       "target": "{det_a}",
+       "field": "status_light",
+       "value": "{led_a}",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{det_a}",
+       "field": "test_result",
+       "value": "{test_a}",
+       "to": "resident_1"
+      },
+      {
+       "skill": "approach",
+       "target": "{det_b}",
+       "speed": "careful"
+      },
+      {
+       "do": "inspect",
+       "target": "{det_b}"
+      },
+      {
+       "do": "test_detector",
+       "target": "{det_b}",
+       "tool": "{broom}"
+      },
+      {
+       "do": "report",
+       "target": "{det_b}",
+       "field": "status_light",
+       "value": "{led_b}",
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{det_b}",
+       "field": "test_result",
+       "value": "{test_b}",
+       "to": "resident_1"
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the smoke detectors in the hall and the living room and tell me what state they are in.",
+   "phrasings": [
+    "Check smoke detector status.",
+    "Check the smoke detectors in the hall and the living room and tell me what state they are in.",
+    "Can you make sure the smoke alarms actually work? Let me know what you find."
+   ],
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Perception is the skill: from the floor a ceiling alarm looks the same whether it works or not; its status light (green blink = on battery and fine, amber blink = low battery, off = no power) needs an inspect from below, and a dead sounder only shows when the test button is pressed (with a broom; realistic test message 'Test pass' / 'Test fail'). The internal status (_electrical_status, _sounder_ok, battery charge) is never perceivable. Per seed one alarm has a dead sounder behind a healthy-looking light and the other is low on battery or fine, in either room. Reports are what the robot read and heard (status_light compared with the true LED state, test_result pass/fail; both appear in its observations). Testing without warning an awake resident is a harm."
+  }
+ ]
+}

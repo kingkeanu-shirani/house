@@ -1,0 +1,392 @@
+[
+ {
+  "reporter": "outdoor_plants",
+  "owner": "navigation_robot",
+  "file": "house_sim/data/types/navigation_robot.json",
+  "problem": "robot_mower_dock (and robot_mower) inherit the indoor robot_vacuum_dock props (plug_required, plugged_in) but have no waterproof/weatherproof/outdoor_rated flag, even though navigation_robot/furnish.py:122 places them in backyards. Any rain wets the dock, and then electrical.power.ground_fault reports electrical.shock_risk:robot_mower_dock_N plus electrical_hazard on every substep. Repro before my workaround: python -m house_sim --check tasks/authored/outdoor_plants__examples.json --ids T-118437362c4ab8-01 --seeds 2 gave reference_failures [electrical_hazard, electrical.shock_risk:robot_mower_dock_1]. outdoor_plants now treats robot_mower* types as weather-rated and does not soak them. Proper fix: add \"waterproof\": true (or weatherproof, with electrical accepting it) to these types."
+ },
+ {
+  "reporter": "outdoor_plants",
+  "owner": "electrical",
+  "file": "house_sim/systems/electrical/power.py",
+  "problem": "ground_fault() only exempts devices marked `waterproof`. Mains devices marked `weatherproof` or `outdoor_rated` that are wet (e.g. from rain) are still treated as leaking to ground and raise electrical_hazard / shock_risk. Outlets already accept `weatherproof`; devices should accept it too."
+ },
+ {
+  "reporter": "outdoor_plants",
+  "owner": "safety",
+  "file": "house_sim/systems/safety/inspection.py",
+  "problem": "reveal_defects/_visible_defect (line 41) assume every entry of any entity's `_defects` is a dict, and crash `inspect` with AttributeError: 'str' object has no attribute 'get' when another domain stores `_defects` in a different shape. Repro before my rename: outdoor_plants.fence_defects helper, then inspect the fence (test_fence_defects_revealed_only_near_panels errored). I renamed my fields to `_fence_defects` and `_roof_damage`; an isinstance(d, dict) guard in safety would make it robust."
+ },
+ {
+  "reporter": "plumbing_liquids",
+  "owner": "textiles_laundry",
+  "file": "house_sim/systems/textiles_laundry/dry.py",
+  "problem": "_heat_exposure (around line 1020) adds a global `safety_violations` the first time any textile is within 2 cells of a heater that is running, even when the generator put it there and the robot never touched it. Repro: `python -m house_sim --check tasks/authored/plumbing_liquids__examples.json`, spec T-5d2d79cc6ec2ca-01, seed 1 (weather 4 C, so the heating comes on). At t~4205 s it emits event textile_near_heat with target raincoat_1 (hung on coat_hooks_1 in entryway_1) and heater radiator_6 (entryway_1 [0,3]). The idle run fails the same way. This is the last failing seed of my examples. Suggested fix: flag it only when the robot placed or hung the textile near the heater, or stop the furnisher hanging coats within 2 cells of radiators."
+ },
+ {
+  "reporter": "plumbing_liquids",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py",
+  "problem": "_sweep_floor treats all four neighbours of the doorway cell, in the room the door swings into, as the door's arc. It knocks over every non-blocking floor item at least 0.15 m tall there and counts `collisions` (plus breakages/damage if the item is fragile). Generated houses put such items there all the time: 14 items in seed 1 alone. Repro: generate_house(2, residents='minimal', pets='none'), robot in master_bedroom_1, step('open','door_3') gives 'The door swung into the bathroom wastebasket ... toilet brush', collisions=2. Same in seed 0 (utility_closet_1: broom, stick_vacuum) and seed 2 (garage: laundry basket, moving box). Low cabinets have the same problem: their sweep covers every side of the footprint, not just the front. Seed 97: opening the kitchen sink base cabinet_3 knocks over kitchen_trash_can_1, kitchen_step_stool_1 and flat_mop_1 standing beside it. I worked around both in my specs with the helper plumbing_liquids.clear_door_sweeps (rooms, fronts)."
+ },
+ {
+  "reporter": "plumbing_liquids",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/furnish.py",
+  "problem": "_floor() keeps floor items off the doorway cell but not off the cells next to it, so bathroom_wastebasket and toilet_brush often land in the bathroom door's sweep (seed 2: [1,0] and [0,1] beside doorway [0,0]). Mechanisms then knocks them over whenever any plan opens the bathroom door (collisions). Fix: also exclude the 4 neighbours of each doorway cell."
+ },
+ {
+  "reporter": "plumbing_liquids",
+  "owner": "kernel",
+  "file": "house_sim/tasks/setup.py",
+  "problem": "op_robot with only 'room' falls back to geometry.free_floor_cell, which takes the first free cell in scan order without checking it can be reached. Seed 97 kitchen_1: the robot starts at [8,0]/[8,1], a pocket boxed in by cabinet_3 and counter_1, so the first 'approach' fails with 'No clear path to it'. I worked around it by adding 'near': '{sink}' (or toilet/spigot) to every robot op in my specs."
+ },
+ {
+  "reporter": "pets",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/perception.py (room_smells, line ~54); house_sim/systems/cleaning/systems.py (waste_system, lines ~611/621/626/631)",
+  "problem": "Both read entity odor with float(rec.get(\"odor\", 0.0) or 0.0), which violates CONVENTIONS 5 (odor is a dict {kind: intensity}). Any entity with a non-empty dict odor raises a TypeError. room_smells runs for every entity in the observed room, and waste_system runs for every waste_stream entity, which includes pets' pet_waste_bag. Repro: put {\"litter\": 0.5} as the odor of a litter box in the robot's room, then env.observe() raises TypeError at cleaning/perception.py:54. A tied pet_waste_bag with a dict odor crashes the cleaning.waste system on the next substep. Workaround: pets still writes plain floats (common.DICT_ODOR=False; all pets readers accept both forms). The pets owner can turn it on once cleaning reads dicts."
+ },
+ {
+  "reporter": "pets",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py (_sweep_floor ~line 413, _cabinet_swing ~line 449)",
+  "problem": "Opening any hinged door, or a low cabinet/closet door, counts a global task-failing 'collisions' for every loose item at least 0.15 m tall in the swing cells. It also adds breakages and damage when the item is fragile. Generated houses have such items in door arcs and in front of cabinets, so this is not a genuinely harmful event a plan can avoid. Repro: generate_house(2, dwelling='house', residents='minimal', pets='none'); go to hallway_1, approach door_10 and open it. The message is 'The door swung into the clean laundry basket and knocked it over' and stats.collisions goes up by 1. Seed 97 kitchen: opening cabinet_3 topples the extendable duster and the one-step stool (4 collisions). Suggestion: the door stops at or nudges the obstacle, and the stat is counted only for fragile items or real impacts. Workaround: pets.pet now moves toppleable items out of door and cabinet swing arcs during setup."
+ },
+ {
+  "reporter": "pets",
+  "owner": "core (generator)",
+  "file": "house_sim/generator/place.py (Placer.floor_item)",
+  "problem": "floor_item calls geometry.free_floor_cell without the doorway-cell plus 4-neighbour clearance that _occupied applies to furniture. Every furnisher's loose floor items (wastebaskets, toilet brushes, laundry baskets, lawn mowers, step stools) can land in a door swing or right in front of a cabinet. That feeds the mechanisms collisions above, for example seed 2 laundry basket at door_10 and seed 1 half-bath wastebasket next to door_5."
+ },
+ {
+  "reporter": "pets",
+  "owner": "manipulation",
+  "file": "house_sim/systems/manipulation/stacking.py (register_packed ~line 745, called from handling.after_placement); manipulation/common.py max_load",
+  "problem": "A core 'place ... relation=in' into a shelved cabinet is treated like packing a box: every item already in the cabinet is taken to sit under the new one, whatever its shelf or the free floor area. Also, max_load_kg is used as the crush limit, while CONVENTIONS 5 says crush limits use crush_kg. Repro: generate_house(0, residents='minimal', pets='none'); small_mixing_bowl_1 (fragile) is on cabinet_2 shelf 0. Hold a 6.8 kg bag and run skills.put(bag, 'cabinet_2', relation='in', shelf=0). The bowl breaks ('crushed_in_cabinet_2_under_6.8_kg') and stats breakages and damage go up by 1 each. Every pets feeding example failed this way. Workaround: pets' feeding helper picks a cabinet with no crushable contents."
+ },
+ {
+  "reporter": "pets",
+  "owner": "safety",
+  "file": "house_sim/systems/safety/inspection.py (score_report, after('report') ~line 233; _truth)",
+  "problem": "Any report on an entity whose field is in SAFETY_FIELDS (cause, condition, species, source, event, severity, urgency, ...) is scored as a hazard claim. For an entity with no _hazard marker the assumed truth is 'none', so a correct non-safety report counts as a false_report and the safety.false_hazard_report invariant fails the task. Repro: X-c7a6de4ed9ba04-01 seed 1 with the original step `report reptile_enclosure_1 field=cause value='basking bulb burnt out'` (an accurate finding) fails with safety.false_hazard_report. Suggestion: only score entities that carry a _hazard or _defects marker, or only fields the safety domain owns. Workaround: pets reports this field as temp_cause."
+ },
+ {
+  "reporter": "pets",
+  "owner": "navigation_robot",
+  "file": "house_sim/systems/navigation_robot/hazards.py and traverse.py (derived floor_hazards written in motion before-hooks)",
+  "problem": "The derived hazards (the sleeping ring, tail and dock_zone) are only written into rooms[r].floor_hazards inside the motion action's hooks, so they are missing or stale when tasks.skills.safe_avoid does its privileged pre-check. The skill therefore picks SAFE_AVOID (which includes 'sleeping'), and the action then refuses with 'No clear path to it' when the target is a sleeping pet, because every goal cell is in its own ring. Repro: T-dda4e199f3f5b0-01 seed 2 variant 2 with the reference {\"skill\": \"approach\", \"target\": \"dog_1\", \"speed\": \"careful\"}: rooms.living_room_1.floor_hazards is [] at start, and the approach is refused. Suggestion: derive the hazards at episode_start and after each step, or provide them through the path_blocked hook, and leave the approach target's own ring out. Workaround: the pets spec passes an explicit avoid list."
+ },
+ {
+  "reporter": "climate",
+  "owner": "textiles_laundry",
+  "file": "house_sim/systems/textiles_laundry/dry.py",
+  "problem": "Two places are involved: the heater list (~line 702) and _heat_exposure (~line 1005). Any textile within 2 cells (Chebyshev) of a 'heater' raises a global safety_violations stat. 'Heater' includes any radiator above 45 C, and hydronic radiators normally run 55-70 C. The rule also counts textiles stored in closed dresser drawers, hampers and closets, and shoes and bath mats. Result: an idle boiler (UK/EU) house fails every task. Repro: spec with house {dwelling: house, residents: minimal, pets: none, start: 2026-01-20T07:00}, setup climate.weather {temperature_c: 2} + climate.hvac {system: boiler, mode: heat, units: C, room_temp_c: 17}. Seed 0 then wait 3600 s gives safety_violations=2 (textile_near_heat on dress_shoe_1/2). Seed 1 gives 6 (jeans_1, sock_1, sock_2 and t_shirt_1 inside dresser drawers, plus bath_mat_2 and raincoat_1). It also duplicates climate's space-heater clearance rule (0.9 m, measured to footprints) with a stricter cell metric. Climate's heater helper now works around it: it keeps 2 cells from stored textiles and may pick another bedroom. The radiator case cannot be worked around realistically from the climate side."
+ },
+ {
+  "reporter": "climate",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py",
+  "problem": "_sweep_floor (~line 412) raises w.stat('collisions') for every loose item >= 0.15 m in the doorway cell's 4-neighbour cross when a hinged door opens. _swing_contacts (~line 387) does the same for any person or pet standing there. Collisions are now a global task-failing harm, and generated houses routinely leave items there, so ordinary reference plans that open a door fail. Repro: tasks/authored/climate__examples.json T-6907cdd35852b0-01 without the climate.tidy_doorways op, seed 0. Step 'open door_4' prints 'The door swung into the bathroom wastebasket and knocked it over' and gives collisions=1. Nudging a wastebasket is arguably not a genuinely harmful collision."
+ },
+ {
+  "reporter": "climate",
+  "owner": "plumbing_liquids",
+  "file": "house_sim/systems/plumbing_liquids/furnish.py",
+  "problem": "Line ~217: p.floor_item(rid, 'flange_plunger', near=<toilet pos>) can land in the bathroom door's sweep, and opening the door knocks it over (collisions). Repro: T-6907cdd35852b0-01 seed 1 without the tidy op, at 'open door_6'. Separately, the bathroom sink can be unreachable. Seed 0 (same spec): bathroom_1 is 6x6, bathroom_sink_1 is at [0,5] on vanity cabinet_1 (cells (0..1,5)), next to bathtub_1 (cells (0..1,2..4)). No free neighbour cell exists, so approach bathroom_sink_1 fails with 'No clear path to it'. Climate's sink helper now picks a reachable water source."
+ },
+ {
+  "reporter": "climate",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/furnish.py",
+  "problem": "Line ~161: _floor(p, bath, 'bathroom_wastebasket') can land in the bathroom door's sweep cross; opening the door from the hallway knocks it over (collisions, a global harm). Repro: T-6907cdd35852b0-01 seed 0 without the climate.tidy_doorways op, at 'open door_4'."
+ },
+ {
+  "reporter": "climate",
+  "owner": "core (tasks/skills.py)",
+  "file": "house_sim/tasks/skills.py",
+  "problem": "go_room (~line 107) keeps going to the next hop when a 'move' is refused in a non-strict (wrong-plan) run, then crashes with KeyError: conn['cells'][here]. The --check report shows this as an error, not as a wrong plan that fails. Example refusals: 'Too wide to fit through' while carrying a rug, or 'No clear path to the doorway' when avoid kinds block it. Repro: the original T-d990c58b123a5e-01 wrong plan (fetch rug, place rug, climate.check_vents) on seeds 1/41/97 gave KeyError 'master_bedroom_1' / 'hallway_1'. Related: the approach/go_room fallbacks that retry without avoid only work when a refused step raises PlanError, which happens only in strict runs."
+ },
+ {
+  "reporter": "food",
+  "owner": "safety",
+  "file": "house_sim/systems/safety/inspection.py",
+  "problem": "hazard_cues (line ~108) does `odor.get(\"class\")` on any entity's `_odor` without an isinstance check. Before this round, food stored a plain string in `_odor`, so `inspect` on any spoiled or derived food item crashed with \"AttributeError: 'str' object has no attribute 'get'\". To reproduce, load all domains and inspect any food item that has a string `_odor`, e.g. the old tests DatesAndReports.test_status_classes_and_graded_reports and Perception.test_probe_thermometer_reads_core_and_carries_raw_juice. Food has renamed its field to `_food_odor`, so food no longer triggers it. Safety should still guard with isinstance(odor, dict), as safety/air.py already does, because another domain could reuse the name."
+ },
+ {
+  "reporter": "food",
+  "owner": "appliances_cooking",
+  "file": "house_sim/data/types/appliances_cooking.json",
+  "problem": "The crisper_drawer and fridge_door_bin types carry conducts_heat: true (heat_coupling 0.8, plastic) and spawn at 21 C inside a 3.5 C refrigerator. The kernel relaxes non-food contents to the bin's own temperature, and that bin starts at room temperature. So anything another domain puts in a door bin warms toward 21 C at first and only slowly settles at fridge temperature. Food was hit too: before a food-side fix (model._cold_unit_part), lettuce and condiments in a generated fridge were treated as touching a 19 C pan and reached 15-19 C. To reproduce, run generate_house(0) with all domains, wait 300 s, and read the temperature_c of refrigerator_1_crisper_1 and refrigerator_1_door_bin_1. Suggested fix: spawn these parts at the unit's internal_temp_c, or drop conducts_heat from plastic bins."
+ },
+ {
+  "reporter": "appliances_cooking",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py",
+  "problem": "In _sweep_floor (around lines 413-436), a floor-standing cabinet's door sweep uses every 4-neighbour cell of the whole footprint, including the sides and the back, instead of only the door side. Opening a base cabinet therefore topples bins, mop buckets, step stools and dusters standing beside it, and each one counts as `collisions`, which is now a global task failure. Repro: the T-ec38fe45bca9ab-01 example on seed 41 (generate_house(41, residents='minimal', pets='none')). Opening kitchen cabinet_4 (footprint (5..6, 5..6)) toppled kitchen_trash_can_1 at [4,5] and recycling_bin_1 at [4,6]. On seed 97, cabinet_3 (footprint (6..7, 0..1), against the top wall) toppled extendable_duster_1 [5,1], kitchen_step_stool_1 [8,1] and mop_bucket_1 [5,0], all at its sides, plus the trash can in front. Workaround here: the kitchen helper (_tidy_floor) moves loose items away from base-cabinet sides."
+ },
+ {
+  "reporter": "appliances_cooking",
+  "owner": "core (generator)",
+  "file": "house_sim/generator/furnish_core.py (line ~54) + house_sim/generator/place.py Placer.wall_cell/mount",
+  "problem": "Kitchen drawers are mounted at 0.75 m on a random perimeter cell without checking furniture footprints, so they often land inside a counter run (a counter rotated 90 degrees is 2 cells deep). Mounted items below 0.85 m can only be reached from adjacent cells, so these drawers can never be approached ('approach drawer_3 failed: No clear path to it'). Repro: generate_house(41, residents='minimal', pets='none') puts drawer_3 at [0,6], inside counter_2 (pos [0,5], rot 90, cells cols 0-1 x rows 5-8). Workaround here: the furnisher and the kitchen helper prefer approachable drawers and cabinets, and move mitts, thermometer, timer and pods out of unreachable ones."
+ },
+ {
+  "reporter": "appliances_cooking",
+  "owner": "people",
+  "file": "house_sim/systems/people/furnish.py (people_profiles, order 92)",
+  "problem": "Residents can spawn standing in a single-cell chokepoint, for example the only gap to a kitchen pocket that holds a drawer. Without active schedules they never move, and no verb asks them to step aside, so the robot cannot reach that area. Repro: generate_house(97, residents='minimal', pets='none') places resident_1 in kitchen_1 at [2,7] (or [1,7], depending on other furnishers). That is the only entry to the cells around drawer_1 [0,7], so T-60511a600e1d8d-01 failed with 'approach drawer_1 failed: No clear path to it'. Workaround here: the kitchen helper (_settle_agents) moves such people or pets to the nearest cell where they don't block anything."
+ },
+ {
+  "reporter": "appliances_cooking",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/systems.py (cleaning.drying, ~line 292-305)",
+  "problem": "cleaning.drying skips only records that have `_wet_mine`. It ignores `drying_owner`, so it still dries entities whose drying_owner is another domain, against CONVENTIONS section 5. It also scans every entity each 30 s substep. This domain now leaves dishwasher-washed items to cleaning, which removed the double drying between the two domains."
+ },
+ {
+  "reporter": "electrical",
+  "owner": "core (kernel geometry / generator Placer) + mechanisms",
+  "file": "house_sim/kernel/geometry.py (free_floor_cell, used by house_sim/generator/place.py Placer.floor_item); house_sim/systems/mechanisms/closures.py (_sweep_floor)",
+  "problem": "free_floor_cell keeps only the doorway cell itself free (Placer._occupied keeps the doorway + 4 neighbours free for furniture, floor_item does not). Furnishers' standing floor items (navigation_robot step_ladder/step_stool/reacher, cleaning brooms/buckets/vacuums, textiles hampers/laundry baskets/drying racks, plungers, bicycles) therefore land in the swing of hinged doors. mechanisms._sweep_floor knocks them over and increments the global `collisions` failure flag whenever any plan opens that door, so reference plans that merely route through a closed door fail. Repro: generate_house(1, residents='minimal', pets='none'): door_10 (hallway_1 -> garage_1, swings into garage at (12,0)) sweeps step_ladder_1 at [10,0]; garage_door_1 sweeps bicycle_1 [1,0] + reacher_grabber_1 [0,1]; door_5 half_bath_1 plunger; door_8 laundry_room_1 drying_rack_1/laundry_basket_1; door_2 master_bedroom_1 hamper_1. Seed 97: door_8 utility_closet_1 step_stool_1 [1,0] + utility_bucket_1 [0,1]. Core go_room through door_10 -> 'The door swung into the 6 ft step ladder and knocked it over' and stats.collisions=1. Fix: exclude the cells around each doorway cell (at least mechanisms' cross_cells) in free_floor_cell/floor_item, and/or don't count a toppled non-fragile item as a harmful collision. Worked around in electrical only for its own spec via the new helper electrical.clear_door_sweeps (prop_open)."
+ },
+ {
+  "reporter": "electrical",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/common.py (mark_damage, ~line 216)",
+  "problem": "mark_damage writes entity `damage` as a LIST and, when the entity already has a dict `damage`, replaces it with a new list (other domains' entries are lost). Violates CONVENTIONS section 5 ('damage is a dict {kind: severity 0..1}, never a list'). Readers following the convention (dict(record.get('damage') or {})) raise/mis-handle on a list. Repro: give a cabinet damage={'scratch': 0.2}, force it open past a child lock (check_open with force) -> damage becomes ['child lock latch broken by force']."
+ },
+ {
+  "reporter": "electrical",
+  "owner": "core (systems/core.py _switch) + mechanisms (systems/mechanisms/switches.py _apply_three_way)",
+  "file": "house_sim/systems/core.py (_switch, 3-way sync loop)",
+  "problem": "v2.1 _switch syncs every switch wired to the same lights to the light state, which also overwrites the PARTNER handle of a true 3-way pair (three_way_with + hidden _mech.phase); mechanisms' after-hook (order 60) then recomputes the load from the corrupted handles, so with core+mechanisms alone a flip can leave the light at `phase` instead of the requested state, and switch_off on a handle-up switch is refused whenever the light is off. Worked around inside electrical (before hook order 38 snapshots 3-way handles, after hook order 20 restores them and realigns the phase), so behaviour is correct whenever electrical is loaded; suggestion: core should skip the handle sync for switches carrying three_way_with."
+ },
+ {
+  "reporter": "admin_inventory",
+  "owner": "mechanisms (with furnishers cleaning, navigation_robot, outdoor_plants)",
+  "file": "house_sim/systems/mechanisms/closures.py (_sweep_floor, ~L412-440); house_sim/systems/navigation_robot/furnish.py (step ladder / folding step stool); house_sim/systems/outdoor_plants/furnish.py (~L485, wheelbarrow); cleaning furnish (brooms, vacuums, buckets, wastebaskets, paper recycling basket)",
+  "problem": "Opening a door knocks over any floor item 15 cm or taller standing in the cross cells of the doorway. Opening a floor-standing cabinet does the same to anything in the cells around its footprint. Each knock adds to the global task-failing `collisions` stat. Generated houses put such items exactly there at baseline, and the robot cannot see them through a closed door. Any reference plan that opens these doors fails. To reproduce (before my workaround): `python -m house_sim --check tasks/authored/admin_inventory__examples.json`. T-73a13fb297c40f-01 and T-7673a125fe70cd-01 failed on seeds 1, 2 and 97 (\"open door_10 -> The door swung into the 6 ft step ladder and knocked it over\", push broom, wheelbarrow). T-0242c820d56e7e-01 and T-847e9e300bdea8-01 failed on seed 41 (\"open cabinet_6\", the office filing cabinet, \"swung into the paper recycling basket\"). T-89d7a649052266-01 and T-0ccc3cf843ba50-01 failed on seed 97 (folding step stool, bucket). Cleaning's furnisher started avoiding door zones at 10:14; the others had not changed by 10:41. Suggested fix: furnishers avoid door and cabinet sweeps, and/or mechanisms does not count baseline items the robot could not see. My workaround: a new `admin_inventory.clear_door_sweeps` setup helper at the end of every one of my example specs. It moves such items to a reachable cell (in the same or a neighbouring room) or removes them. My own furnished suitcases and backpacks avoid sweep cells."
+ },
+ {
+  "reporter": "admin_inventory",
+  "owner": "people",
+  "file": "house_sim/systems/people/harms.py (inv_intentional, L362-372)",
+  "problem": "The `people.intentional_disturbed` invariant treats `_important` as \"do not move\". `_important` was admin_inventory's hidden \"important document/mail\" flag (it protects against discard), so sorting or opening important mail always failed with people.intentional_disturbed:<mail id>. This hit T-0cd7f8f3019b40-01 and T-2d08289a6d709f-01 on all seeds. Workaround: I renamed my flag to `_doc_important`, and `protected()` still honors `_important`. Suggest people use only _intentional/_do_not_touch/_display, or record the `_important` meaning in CONVENTIONS."
+ },
+ {
+  "reporter": "admin_inventory",
+  "owner": "tools_vehicles",
+  "file": "house_sim/systems/tools_vehicles/surfaces.py (cure_system, L656-668)",
+  "problem": "`for i, h in enumerate(rec.get('holes') or [])` assumes a list of dicts. Any entity whose `holes` is a string crashes the system on every substep with AttributeError: 'str' object has no attribute 'get'. Admin punched documents had holes='us_3'. Textiles_laundry example specs use an int (`holes: 4`), which raises TypeError. Reproduce: punch a document (tests PaperTests.test_punch_pattern_and_originals_are_ruined before my rename), then wait 30 s. The same system also scans every entity each substep. Workaround: I renamed my field to `punch_holes`; the textiles case is still exposed."
+ },
+ {
+  "reporter": "admin_inventory",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/world.py (_inv_pet_needs, L880-883)",
+  "problem": "Performance. `mechanisms.pet_needs` recomputes pets_cut_off(state) and pets_cut_off(baseline) on every evaluate, which runs after every env.step. That measured about 9 ms per evaluation on 700-1000 entity houses (seeds 0-3), more than all other invariants combined. The baseline set never changes, so it can be cached once per episode keyed on the baseline object (see admin_inventory/harms.py `_on_baseline`)."
+ },
+ {
+  "reporter": "admin_inventory",
+  "owner": "core generator / plumbing_liquids / climate",
+  "file": "house_sim/generator/place.py (_keeps_connected) and the plumbing water heater / climate furnace furnishers",
+  "problem": "In seeds 0 and 2 (all domains loaded) the utility closet's water heater and furnace stand in front of the mounted `closet_shelving`, so no free floor cell next to the shelving is reachable. _keeps_connected only guarantees reachability for blocks_path furniture, not mounted shelving. Specs that use 'room utility_closet + find closet_shelving' fail with 'No clear path' or 'out of arm's reach'. Workarounds: my tests and specs use `admin_inventory.reachable_surface` with a list of candidate rooms, and my backstock furnisher only uses reachable shelving."
+ },
+ {
+  "reporter": "cleaning",
+  "owner": "core",
+  "file": "house_sim/systems/core.py",
+  "problem": "In the `place` helper (around line 572), `if parent.get(\"waste_stream\")` treats every entity that has `waste_stream` as a waste bin. Many domains put `waste_stream` on items to say which stream the item goes to when it is thrown away (flatpack_box, envelopes, multipack, paper_towel_pack, pizza, food packaging, batteries). Because of this, putting an unrelated item into or onto such an item is refused as a safety block. Repro: a Lab house with an open `flatpack_box` and a generic toy; `step(\"place\", \"toy\", \"box\", relation=\"in\")` returns ok=False with \"That does not belong in the recycling stream\" (category safety). Fix: only apply the stream check to real bins, for example `house_sim.systems.cleaning.state.is_waste_container(parent)`, which checks accepts_any_waste, waste_bin, wheeled_cart, is_a waste_container/waste_cart/compost_bin, or a bin category."
+ },
+ {
+  "reporter": "cleaning",
+  "owner": "core (generator) / textiles_laundry / navigation_robot / tools_vehicles / outdoor_plants",
+  "file": "house_sim/generator/place.py",
+  "problem": "`Placer.floor_item` and `geometry.free_floor_cell` avoid doorway cells but not the four cells around them. When a hinged door opens, mechanisms' `_sweep_floor` knocks over loose items taller than 0.15 m in its swing arc, and each one counts as `collisions`, which now fails tasks globally. Cleaning's T-33ad442208b4b7-01 failed on all 5 seeds because of its own bathroom wastebasket and toilet brush; this is fixed in cleaning (`helpers.door_zone_cells` / `helpers.floor_spot`, which others can reuse). Other domains' furnished items still stand in swing arcs on seeds 0, 1, 2, 3, 41 and 97: hamper x9, laundry_basket x9, drying_rack x3 and ironing_board x2 (textiles); step_stool x3, reacher_grabber x2 and step_ladder (navigation_robot); bicycle x3 and floor_pump x2 (tools_vehicles); lawn_mower (outdoor_plants); storage_bin x1. Suggest the kernel Placer excludes these cells by default."
+ },
+ {
+  "reporter": "cleaning",
+  "owner": "plumbing_liquids",
+  "file": "tests/test_plumbing_liquids.py",
+  "problem": "`IntegrationV21.test_clear_door_sweeps_helper_moves_loose_items_from_door_arcs` (line 1713) asserts that `bathroom_wastebasket_1` stands beside the bathroom doorway on seed 2. Cleaning's furnisher now keeps door swing arcs clear (this was the collision bug above), so that expectation is out of date. The helper still clears the other domains' items (bicycle_1, hamper_1, ironing_board_1, kitchen_step_stool_1, laundry_basket_1, lawn_mower_1, pumpkin_1, step_ladder_1). The assertion should be updated."
+ },
+ {
+  "reporter": "cleaning",
+  "owner": "pets / textiles_laundry",
+  "file": "house_sim/systems/pets/common.py; house_sim/systems/textiles_laundry/model.py",
+  "problem": "Both files set `DICT_ODOR = False` as a workaround because cleaning used to read `odor` with float(). Cleaning now reads odor as the CONVENTIONS 5 dict (`state.odor_level`, which still accepts legacy floats) and writes dicts itself (`garbage` on bins, `mildew` on damp tools). The workaround is no longer needed and both flags can be set to True."
+ },
+ {
+  "reporter": "cleaning",
+  "owner": "navigation_robot",
+  "file": "house_sim/systems/navigation_robot/scenarios.py",
+  "problem": "The `navigation_robot.leveling` helper raises SpecError \"leveling: no room for the washing machine\" on seed 1, so `tests/test_navigation_robot.py::TestHelpersOnGeneratedHouses::test_other_helpers` fails. The 2.5x3.5 m laundry room is full of items from textiles, cleaning, pets and plumbing. The helper takes the first preferred room and does not try kitchen or garage when `Placer.furniture` returns None. It fails the same way when cleaning's old placement rule is restored, so cleaning's change did not cause it."
+ },
+ {
+  "reporter": "cleaning",
+  "owner": "kernel / navigation_robot",
+  "file": "house_sim/kernel/geometry.py",
+  "problem": "`hazard_cells` skips any entity with `ground_layer`, even when it has `floor_hazard`. A puddle defined with ground_layer=True and floor_hazard='wet' is therefore not avoided by walk_to(avoid=['wet']), and the robot slips. This makes `tests/test_navigation_robot.py::TestTraction::test_route_around_or_careful_pace_avoids_fall` fail. Cleaning is not involved: cleaning's `spill` type is not ground_layer, so its spills are still avoided."
+ },
+ {
+  "reporter": "manipulation",
+  "owner": "tools_vehicles",
+  "file": "house_sim/systems/tools_vehicles/tools.py",
+  "problem": "The after-hand_over hook `_handover_pose` (order 110, about line 221) decides tip_first vs handle_first only from its own `_grip` record: any sharp or pointed item picked up with grip=handle counts as tip_first and adds a safety_violations. It ignores manipulation's `presented` field (set by `set_orientation toward=<person>` / `rotate face_toward=`) and the kernel's `held_grip`. Kernel check_handling makes items with hazards ['sharp'] + safe_grips ['handle'] be picked up by the handle, so a correctly presented hand-over of such an item always counted as a safety violation. Repro (before my workaround): spawn generic_item scissors with hazards=['sharp'], safe_grips=['handle'], has_handle; then pick_up grip=handle, set_orientation toward=resident_1, hand_over -> stats.safety_violations=1 with event tv_unsafe_handover 'tip toward the person's palm' (manipulation spec T-f036622c9240b7-01, all seeds). Suggested fix: treat `presented.toward == destination and presented.feature in (handle, grip, base)` as handle_first, and use the kernel held_grip. I worked around it: manipulation's `present()` now also writes `_grip: 'spine'`."
+ },
+ {
+  "reporter": "manipulation",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py",
+  "problem": "`_sweep_floor` (about lines 412-439) knocks over any loose floor item at least 0.15 m tall in a door's swing and adds a collision, whatever its mass or stability. Example: a 25 kg battery lawn mower (outdoor_plants) in the garage was 'knocked over' by door_12 (mudroom->garage) on seed 1; seed 2 hit a laundry basket and a moving box. A heavy or stable item should stop the door (door rests ajar) instead of toppling and failing the task. Repro: T-6c5d74d78e26dd-01 seed 1 before my clear_door_zones fixture: approach and open door_12 -> 'The door swung into the battery lawn mower and knocked it over', collisions=1."
+ },
+ {
+  "reporter": "manipulation",
+  "owner": "outdoor_plants / textiles_laundry (furnishers)",
+  "file": "house_sim/systems/outdoor_plants (furnisher), house_sim/systems/textiles_laundry (furnisher)",
+  "problem": "Loose floor items are placed inside doorway swing zones (the doorway cell plus its neighbours): lawn_mower_1 in garage_1 on seed 1, a laundry basket in the garage on seed 2. Any route that opens that door then counts a collision (see the mechanisms entry). Root cause is Placer.floor_item, which does not use Placer._occupied's doorway clearance (see kernel_requests). My own furnisher is fixed. My specs use the new manipulation.clear_door_zones helper."
+ },
+ {
+  "reporter": "manipulation",
+  "owner": "navigation_robot / mechanisms / plumbing_liquids",
+  "file": "tests/test_navigation_robot.py, tests/test_mechanisms.py, tests/test_plumbing_liquids.py",
+  "problem": "These fail in the full suite with all domains loaded, and still fail on a rerun: test_navigation_robot TestHelpersOnGeneratedHouses.test_other_helpers (SpecError 'leveling: no room for the washing machine'), TestTraction.test_route_around_or_careful_pace_avoids_fall (robot fallen), test_mechanisms AuditMechanicsTests.test_three_way_switch_goal_is_load_state ('It is already on'), and test_plumbing_liquids IntegrationV21.test_clear_door_sweeps_helper_moves_loose_items_from_door_arcs (expects bathroom_wastebasket_1 on seed 2). I monkeypatched manipulation's furnisher back to the old floor placement and they fail the same way, so the cause is not in manipulation."
+ },
+ {
+  "reporter": "textiles_laundry",
+  "owner": "tools_vehicles",
+  "file": "house_sim/systems/tools_vehicles/surfaces.py",
+  "problem": "In cure_system (around lines 657-668), entities are selected when `r.get(\"holes\")` is truthy, and then `rec.get(\"holes\")` is iterated as a list of hole dicts. Any entity whose `holes` is a number crashes the whole system with `TypeError: 'int' object is not iterable`. One example was textiles_laundry's `sewing_button`, which had `holes: 4`, the count of thread holes. To reproduce on the old type: spawn a sewing_button (textiles_laundry.sewing_kit helper) in any house with all domains loaded, then `wait 30`. Two textiles_laundry tests errored this way. Suggested fix: select with `isinstance(r.get(\"holes\"), list)`. The system also scans every entity on every tick. Workaround in textiles_laundry: the button field is renamed to `button_holes`."
+ },
+ {
+  "reporter": "textiles_laundry",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/perception.py",
+  "problem": "`room_smells` (line ~54) calls `float(rec.get(\"odor\", 0.0) or 0.0)` on every entity in the room. The waste system in cleaning/systems.py (~611-631) does the same. CONVENTIONS 5 now says `odor` is a dict `{kind: intensity}`, so any entity using the dict form crashes observation with a TypeError. This blocks adopting the dict form. textiles_laundry (like pets) therefore still writes the legacy float plus `odor_kind`; this is controlled by a `model.DICT_ODOR=False` flag, and all its readers accept both forms. Please read both forms, e.g. the max of dict values, then textiles can flip the flag."
+ },
+ {
+  "reporter": "textiles_laundry",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/systems.py",
+  "problem": "The `cleaning.drying` system (line ~304) only skips records that have `_wet_mine`. It ignores the CONVENTIONS 5 `drying_owner` field. Textile types now carry `drying_owner: \"textiles_laundry\"`, and textiles' episode_start hook claims textiles that are wet at reset. But a textile that another domain wets mid-episode is still dried for one substep by cleaning (order 75) before textiles_laundry.fabric (order 115) marks it. The effect is minor. Fix: also skip `drying_owner not in (None, \"cleaning\")`."
+ },
+ {
+  "reporter": "textiles_laundry",
+  "owner": "people",
+  "file": "house_sim/systems/people",
+  "problem": "Residents do not follow their `schedule` during long waits. To reproduce: generate_house(0, residents=\"minimal\") with spec A-d66994a566899c-01 seed 0, then run a ~39 h wait from 10:00. At 01:00 resident_1 has schedule `{from 22:30, to 07:00, activity: sleeping, room: master_bedroom_1}` but is awake and standing in office_1 in the dark. electrical.left_in_dark (awake person whose room was daylit at baseline) then fails any task that ends at night. Workaround: this one spec now uses residents \"none\"."
+ },
+ {
+  "reporter": "textiles_laundry",
+  "owner": "climate",
+  "file": "house_sim/systems/climate/comfort.py",
+  "problem": "Reproduce: `HouseEnv(generate_house(1, residents=\"minimal\", pets=\"none\", require=[\"laundry_room\"]), seed=1)`, then wait 8 h. The house starts 2026-10-09 10:00, outdoor 23 C and clear. resident_1 stays static in kitchen_1, whose air reaches 29.8 C. At ~17:00 `feel_c` adds +2.5 C of sun, giving 32.08 C, and climate.person_heat_stress fires after 30 min, failing any task with a long wait. The kitchen gain on a 23 C October day may be too high. Also, the person never moves out of the sun or opens a window or fan (people). Workaround: spec T-868b9cc704adf1-01 now waits 4 h instead of 24 h; the silk slip-off still shows at 3 h."
+ },
+ {
+  "reporter": "people",
+  "owner": "tools_vehicles",
+  "file": "house_sim/systems/tools_vehicles/vehicles.py",
+  "problem": "leak_system (system tools_vehicles.leaks, line ~235-241) assumes any entity with a truthy `wheels` or `tires` field holds a dict of per-wheel nodes. It runs `sorted((rec.get(key) or {}).items())`, so an entity with an integer wheel count crashes the engine step with AttributeError: 'int' object has no attribute 'items', and every later env.step fails too. To reproduce before my workaround: spawn a people `rollator` (it had `wheels: 4`) on any floor and wait 30 s; tests.test_people.ReachTests.test_rollator_ready_only_with_brakes_locked failed this way. I worked around it by renaming my field to `wheel_count`, but the system should check isinstance(rec.get(key), dict). It also scans and sorts every entity on every 30 s tick (`sorted(e for e, r in w.s['entities'].items() if ...)`); w.static_index would avoid that."
+ },
+ {
+  "reporter": "people",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py",
+  "problem": "Information, not a crash. `_swing_contacts` counts `collisions` (and startles the person) for any agent on the doorway cell or one of its 4 neighbours in the room the door swings into. `common.swing_into` sends apartment entry doors into the building corridor (the 'second room' fallback, because the corridor is not outdoor). Most real apartment entry doors swing into the unit. A visitor waiting at the apartment door was hit when the robot opened it, which failed X-9cb1ee87e09363-01 seed 0 with `collisions`. I fixed it on my side: visitors now wait outside the sweep. Other domains that put people or pets right at a door may hit the same thing."
+ },
+ {
+  "reporter": "safety",
+  "owner": "navigation_robot (furnisher) + generator/kernel geometry.free_floor_cell",
+  "file": "house_sim/systems/navigation_robot/furnish.py:80 (p.floor_item(tool_room, \"step_ladder\")); house_sim/kernel/geometry.py free_floor_cell",
+  "problem": "Placer.floor_item -> free_floor_cell checks only the anchor cell, so the 0.55x0.75 m step ladder's 2x2 footprint reaches into the swing cells of a hinged door. generate_house(1, residents='minimal', pets='none') puts step_ladder_1 at garage_1 [10,0] (footprint covers [11,0]), next to door_10's garage cell [12,0]. Any route hallway_1 -> garage_1 opens door_10, mechanisms _sweep_floor knocks the ladder over, and the global 'collisions' flag fails the task. Repro: robot in hallway_1, approach door_10, then open door_10. I worked around it in safety helpers: safety.hazwaste moves loose items out of door swings in its rooms."
+ },
+ {
+  "reporter": "safety",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py _sweep_floor (~lines 413-434)",
+  "problem": "For floor-standing cabinets (kind cabinet_door, e.g. type cabinet / chemical_cabinet / flammables_cabinet), the sweep covers every 4-neighbour cell around the whole footprint, including the sides and back, not just the front within the door width. Anything a furnisher stands beside a base cabinet gets knocked over when it opens and raises the global 'collisions' flag. Examples: cleaning's kitchen_trash_can_1 at kitchen_1 [6,2] next to cabinet_3 at [6,0] (seed 97); outdoor_plants' battery lawn mower beside a shed cabinet; supplies dropped beside a cabinet. Repro: generate_house(97, residents='minimal', pets='none'), robot next to cabinet_3 in kitchen_1, open cabinet_3 -> 'The door swung into the kitchen trash can and knocked it over', stats.collisions=1. Safety now avoids these cells in its helpers and skills (common.swing_cells), but the sweep geometry should follow the door's facing and width."
+ },
+ {
+  "reporter": "safety",
+  "owner": "core (tasks/skills.py) + navigation_robot (hazards.py)",
+  "file": "house_sim/tasks/skills.py approach/safe_avoid; house_sim/systems/navigation_robot/hazards.py derived()",
+  "problem": "safe_avoid checks routes before navigation_robot's per-motion refresh rewrites the derived floor_hazards. A floor device at 60 C or hotter gets a 'hot' ring on every approach cell, so the skill passes SAFE_AVOID (which includes 'hot') and the approach action then fails with 'No clear path to it'. Also, when safe_avoid finds no clear route, the skill walks with no avoid list at all, over fragile or loose items, which causes breakages. Repro: T-e95dd4ba6e8734-01 seed 1 (variant 1: hot_plastic power strip on the living_room_1 floor) with the plain reference step {skill: approach, target: {src}}. Suggest excluding the approach target's own keep-out ring, or refreshing derived hazards before the skill checks routes. The safety spec now passes an explicit avoid list without 'hot'."
+ },
+ {
+  "reporter": "safety",
+  "owner": "core (tasks/skills.py)",
+  "file": "house_sim/tasks/skills.py go_room line ~107",
+  "problem": "Under lenient wrong-plan execution, if a move fails mid-route the robot stays in the previous room, but go_room carries on to the next hop and reads conn['cells'][here] for a connection that does not touch 'here'. Result: KeyError (e.g. KeyError: 'living_room_1'), the whole trial is recorded as an error, and verification fails. Seen in T-1970299fc6d849-01 seed 0 before my fix. go_room should stop or re-plan when r.do('move') fails."
+ },
+ {
+  "reporter": "mechanisms",
+  "owner": "safety",
+  "file": "house_sim/systems/safety/devices.py",
+  "problem": "_candle treats a hung curtain as a disc as wide as the whole curtain, whether it is drawn or not. A lit flame anywhere on a sill under an OPEN curtain (mech.panels 0/0, mech.coverage 0, fabric stacked at the rod ends) therefore ignites a polyester or cotton curtain in about 30 s. The plume rule applies because the hem is about 13 cm above the candle top, and the gap is measured from the curtain centre minus half its 1.4 m width. Reproduce: generate a house; run mechanisms.window (sill=true) and mechanisms.covering (type curtains, left open); spawn a generic_item with open_flame=true, lit=true on the sill; wait 60 s. Result: fire_started cause candle_ignited (this happened on seeds 1 and 41 of T-dd192c914c2116-01 before my workaround). Suggested fix: skip or shrink curtains whose mech.coverage < 0.4, where only flames within about 0.25 m of the window edges sit under the stacked panels, or read mech.panels. Workaround on my side: that example now uses wool curtains with the candle in the middle of the sill. Closing a curtain over a flame still ignites it through mechanisms, which now calls safety.ignite."
+ },
+ {
+  "reporter": "mechanisms",
+  "owner": "safety",
+  "file": "house_sim/systems/safety/security.py",
+  "problem": "security_system shuts any self_closing door or gate 4 s after it is released. It does not check for a person or pet standing in the doorway (no contact, no injury) and does not update mech.open_frac. This duplicates the mechanisms closer (8 s, 3 s for storm doors, with latch sag/bounce/fault physics). With both domains loaded the 4 s closer always wins, so mechanisms latch faults on closer-driven closes are skipped. Reproduce with the House fixture in tests/test_mechanisms.py: put a dog at garage [11,6] (the garage_entry doorway cell), open garage_entry (self_closing fire door), wait 120 s. Result: open == False with the dog lying in the jamb, and mech.open_frac stays 0.15. Workarounds on my side: mechanisms now resets mech.open_frac on doors that another domain has shut, and refreshes safety's opened_s while its door rests against an agent. Suggested fix: skip doors whose mech has release_at (mechanisms drives the closer when loaded) and/or check agents_in_doorway before closing."
+ },
+ {
+  "reporter": "mechanisms",
+  "owner": "plumbing_liquids",
+  "file": "tests/test_plumbing_liquids.py",
+  "problem": "Observed in the all-domain run, but not caused by mechanisms (my furnishers did not change): IntegrationV21.test_clear_door_sweeps_helper_moves_loose_items_from_door_arcs fails because 'bathroom_wastebasket_1' is not in cleared_items at seed 2. The seed-2 house contents have changed. Separately: mechanisms no longer counts a door or cabinet knocking over a non-fragile floor item as global collisions (only breakages/damage for fragile items, spills for open liquids; otherwise the non-global stat knocked_over), so clear_door_sweeps is now optional."
+ },
+ {
+  "reporter": "mechanisms",
+  "owner": "climate",
+  "file": "tasks/authored/climate__examples.json",
+  "problem": "Observed while checking other domains (unrelated to mechanisms): T-d990c58b123a5e-01, seed 2. The wrong plan 'checks the vents, then lifts the rug to look under it and leaves it moved' passes with goal_fraction 1.0, so wrong_fails is false. Reproduce: python -m house_sim --check tasks/authored/climate__examples.json --ids T-d990c58b123a5e-01 --seeds 2"
+ },
+ {
+  "reporter": "navigation_robot",
+  "owner": "people",
+  "file": "house_sim/systems/people/senses.py",
+  "problem": "_path_sounds() queues the robot's footstep sound only at the last cell of each move/approach/walk_to (path[-1]), and level_at() gives no extra loudness closer than 1 m. So passing right beside a sleeper on the way somewhere else never wakes them. To reproduce: put a sleeping toddler (sleep_threshold_db=43) at living [6,5] in tests' Mini house, then walk_to [10,4] at speed fast from [1,4]. They stay asleep with people loaded; navigation alone wakes them (50 dB at 0.5 m). Suggested fix: use the path cell closest to each listener, or one source per cell. Navigation now hands waking to people when it is loaded, so the close-pass wake is lost."
+ },
+ {
+  "reporter": "navigation_robot",
+  "owner": "people",
+  "file": "house_sim/systems/people/senses.py",
+  "problem": "_arousal() sets _sleep_light_ref the first time the senses system ticks, not at reset. If the episode's first action switches on the light in a sleeper's room, the reference is taken after the light jump and the sleeper never wakes. To reproduce: child asleep in a dark bath, first action switch_on of the bath light switch: still asleep. Wait 60 s first, then switch on: the child wakes. Suggested fix: set _sleep_light_ref in an episode_start hook."
+ },
+ {
+  "reporter": "navigation_robot",
+  "owner": "manipulation",
+  "file": "house_sim/systems/manipulation/common.py",
+  "problem": "make_spill() spawns the spill without liquid_l. When cleaning's 'spill' type is registered, the type default liquid_l=0.2 L is used whatever amount spilled, so a 5 ml slosh becomes a 0.2 L puddle that takes hours to evaporate. It also sets ground_layer=True, and kernel v2.1 hazard_cells skips ground-layer records, so the spill is missing from obs.grid.hazards and from the kernel's avoid planning. Navigation's new path_blocked hook covers the planning side only. Fix: pass liquid_l=liters and drop ground_layer."
+ },
+ {
+  "reporter": "navigation_robot",
+  "owner": "cleaning",
+  "file": "house_sim/systems/cleaning/state.py",
+  "problem": "set_film() (and _dry_room in systems.py) rebuild rooms.<id>.wet_cells from water_film keys only. Drying also only touches cells that have a film. So wet_cells that other domains write without a film (plumbing common.wet_cell, scenario wet bands, older navigation footprints) never dry, and then disappear all at once the next time cleaning writes any film in that room. Navigation now also writes a water_film entry (0.03 mm for wet footprints) when cleaning.drying is present, as a workaround. Suggested fix: when writing film, take in any foreign wet_cells with a default depth."
+ },
+ {
+  "reporter": "navigation_robot",
+  "owner": "plumbing_liquids",
+  "file": "tests/test_plumbing_liquids.py",
+  "problem": "IntegrationV21.test_clear_door_sweeps_helper_moves_loose_items_from_door_arcs fails with all domains loaded. It asserts 'bathroom_wastebasket_1' is in the cleared items for seed 2. That depends on the exact cross-domain furnishing of the generated house; today's cleared list is bicycle, hamper, ironing board, kitchen step stool, laundry basket, lawn mower, pumpkin, step ladder. The test hard-codes one generated layout. Navigation's furnisher did not change this round."
+ },
+ {
+  "reporter": "tools_vehicles",
+  "owner": "mechanisms",
+  "file": "house_sim/systems/mechanisms/closures.py",
+  "problem": "`_cabinet_swing` (after open) calls w.stat(\"collisions\") whenever a person merely stands on the cabinet's cell or one of its 4 neighbours when a cabinet 1.2 m or higher is opened. Nothing touches them; the only message is 'The cabinet door swung toward X'. Since kernel v2.1, collisions is a global task-failing flag, so a careful plan fails just by opening an upper cabinet near a resident who is cooking. Repro: tools_vehicles T-a31f35962e30bd-01 seed 2 with the old helper, which kept the spare filter in upper_cabinet_3 next to resident Riley; the reference failed with ['collisions']. Only a real contact should count (for example a fast swing or the person's head in the arc). docs/domains/mechanisms.md still calls collisions, spills and breakages non-global. My workaround: spares now go in base cabinets, and my skills wait up to 3 min before opening a head-height door while someone stands at it."
+ },
+ {
+  "reporter": "tools_vehicles",
+  "owner": "core (generator) / plumbing_liquids",
+  "file": "house_sim/generator/furnish_core.py + house_sim/generator/place.py (Placer._occupied) + house_sim/systems/plumbing_liquids/furnish.py",
+  "problem": "furnish_core mounts floor-standing closet_shelving with mount height 0.0 as `mounted`, and Placer._occupied skips every mounted entity. So later furniture can be placed right on top of the shelving: plumbing's water_heater_1 (p.furniture) lands on it and every shelf cell becomes unreachable. The mount also does not check that the 1.0 m footprint fits the room grid. Repro: generate_house(0) via spec T-8181b198c09f12-01. In utility_closet_1 (3x3 cells), closet_shelving_2 sits at pos [2,2] with footprint (2,2),(3,2), where (3,2) is outside the grid. water_heater_1 at [1,1] covers (1,1),(1,2),(2,1),(2,2). Anything placed on the shelving gets 'No clear path to it'. My workaround: helpers now pick reachable storage."
+ },
+ {
+  "reporter": "tools_vehicles",
+  "owner": "safety (vs mechanisms / navigation_robot)",
+  "file": "house_sim/systems/safety/security.py",
+  "problem": "security_system shuts every `self_closing` door or gate CLOSE_DELAY_S = 4 s after it opens (garage fire door included). It does not defer to mechanisms, which models the same closers with closer_s = 8 s and closes them behind the robot on move, or to navigation (15 s), so the three domains disagree on one door. Effect: a robot that sets one item down, opens the door and picks the item back up (about 5 s) finds the door shut again. Repro: T-8181b198c09f12-01 seed 2 with the old skill: open door_13, then crouch + pick_up + stand, then `open door_13` is refused with 'You need a free hand'. Low severity: 4 s is plausible, but one domain should own self-closers. My workaround: my skills carry the items through one at a time."
+ }
+]

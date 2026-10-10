@@ -6,3 +6,24 @@ dist/
 .venv/
 state.json
 replay.json
+
+# private evaluation material (never commit or package; docs/SPLITS.md)
+.house_ai/
+split_key
+test_manifest.json
+test_phrasings.json
+verifier_key
+results/
+# test-split replays, transcripts and private viewer pages (normally in ~/.house_ai/private_results/)
+private_results/
+# private viewer pages and other private exports (viewer.py names them <name>__PRIVATE.html)
+*__PRIVATE.html
+*__PRIVATE.*
+*__PRIVATE/
+
+# stale generated files moved aside (contain local paths; regenerate instead)
+archive/stale_*/
+# earlier git history, imported into this repository instead
+history.bundle
+# local snapshot archives (kept on disk, not in git)
+archive/*.zip

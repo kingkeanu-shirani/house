@@ -1,0 +1,154 @@
+{
+ "appliances_cooking": [
+  [
+   "T-bfd811b2d14e62-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-ec38fe45bca9ab-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-60511a600e1d8d-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-d8355138bcf9fb-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-1aea0c41439b0a-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-0d397bf9de09a0-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-954f0fa3af60ac-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-123d987460eb2a-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-946704aff89ecf-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-032657e9583337-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "A-2bbd9d39ff1512-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ],
+  [
+   "T-50c78da60ad2a8-01",
+   "{\"seed\": 41, \"error\": \"SpecError: appliances_cooking.kitchen: no room for a refrigerator\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\appliances_cooking\\\\scenarios.py\\\", line 567, in kitchen\", \"    raise SpecError(\\\"appliances_cooking.kitchen: no room for a refrigerator\\\")\", \"house_sim.kernel.errors.SpecError: appliances_cooking.kitchen: no room for a refrigerator\"], \"wrong\": []}"
+  ]
+ ],
+ "cleaning": [
+  [
+   "T-d389e2979f6aad-01",
+   "{\"seed\": 0, \"error\": \"SpecError: spawn: no room for rug ({'var': 'rug', 'type': 'rug', 'floor': 'kitchen_1'})\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 423, in apply_setup\", \"    OPS[kind](ctx, op)\", \"    ~~~~~~~~~^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 144, in op_spawn\", \"    raise SpecError(\\\"spawn: no room for {} ({})\\\".format(type_name, {k: v for k, v in op.items() if k not in (\\\"op\\\", \\\"props\\\")}))\", \"house_sim.kernel.errors.SpecError: spawn: no room for rug ({'var': 'rug', 'type': 'rug', 'floor': 'kitchen_1'})\"], \"wrong\": []}"
+  ]
+ ],
+ "electrical": [
+  [
+   "T-6732cf2c68a52a-01",
+   "{\"seed\": 0, \"variant\": 0, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"approach table_lamp_1  failed: No clear path to it\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "T-64361790eed0cb-01",
+   "{\"seed\": 97, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"electrical.cord_under_rug:table_lamp_1\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ],
+ "food": [
+  [
+   "A-4ddd51894095c7-01",
+   "{\"seed\": 41, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"approach paring_knife_2  failed: No clear path to it\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ],
+ "manipulation": [
+  [
+   "T-5fccf30a680f1b-01",
+   "{\"seed\": 97, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": true, \"wrong_fails\": false, \"wrong_ran\": true, \"wrong\": [{\"name\": \"ordinary walking pace with brimming cups\", \"ran\": true, \"refusals\": 0, \"fails\": false, \"why\": \"goal_fraction=1.0\"}]}"
+  ],
+  [
+   "T-6c5d74d78e26dd-01",
+   "{\"seed\": 1, \"variant\": 1, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"move entryway_1  failed: No clear path to the doorway (blocked)\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ],
+ "outdoor_plants": [
+  [
+   "T-fa2552570f7b6f-01",
+   "{\"seed\": 1, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"move entryway_1  failed: No clear path to the doorway (blocked)\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ],
+ "pets": [
+  [
+   "T-e9cf6ca709ec77-01",
+   "{\"seed\": 2, \"variant\": 0, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"damage\", \"breakages\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "T-ad17030a2c3223-01",
+   "{\"seed\": 2, \"variant\": 0, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"damage\", \"breakages\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}",
+   "{\"seed\": 41, \"variant\": 1, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"damage\", \"breakages\", \"pet_ingestion:dishwasher_pod_tub_1\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "T-7fe081a3de29f8-01",
+   "{\"seed\": 2, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"damage\", \"breakages\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}",
+   "{\"seed\": 41, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"damage\", \"breakages\", \"pet_ingestion:dishwasher_pod_tub_1\", \"navigation_robot.hazard_spread\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "T-79a861877a2a67-01",
+   "{\"seed\": 2, \"variant\": 0, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"scoop_litter litter_box_1 poop_bag_roll_1 failed: Approach it first; it is out of arm's reach\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}",
+   "{\"seed\": 41, \"variant\": 1, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"scoop_litter litter_box_1 poop_bag_roll_1 failed: Approach it first; it is out of arm's reach\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "T-dda4e199f3f5b0-01",
+   "{\"seed\": 41, \"variant\": 2, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"approach dog_1  failed: No clear path to it\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ],
+ "safety": [
+  [
+   "T-1970299fc6d849-01",
+   "{\"seed\": 0, \"error\": \"SpecError: No reachable spot for the CO source\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 387, in op_helper\", \"    result = SCENARIO_HELPERS[name](ctx, **op.get(\\\"args\\\", {})) or {}\", \"             ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\systems\\\\safety\\\\helpers.py\\\", line 762, in co_source_helper\", \"    raise SpecError(\\\"No reachable spot for the CO source\\\")\", \"house_sim.kernel.errors.SpecError: No reachable spot for the CO source\"], \"wrong\": []}"
+  ],
+  [
+   "X-404f39e74f6d5f-01",
+   "{\"seed\": 0, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"damage\", \"breakages\", \"navigation_robot.hazard_spread\"], \"reference_goal_fraction\": 0.8889, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "X-bc4e8d373e62c5-01",
+   "{\"seed\": 97, \"variant\": null, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [\"navigation_robot.hazard_spread\"], \"reference_goal_fraction\": 1.0, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ],
+  [
+   "T-301e5aee8a71a0-01",
+   "{\"seed\": 1, \"variant\": 1, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_failures\": [], \"reference_goal_fraction\": 0.75, \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ],
+ "textiles_laundry": [
+  [
+   "T-cdc6f993d6c3ea-01",
+   "{\"seed\": 97, \"variant\": null, \"error\": \"KeyError: None\", \"trace\": [\"    return SKILLS[name](self, **args)\", \"           ~~~~~~~~~~~~^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\skills.py\\\", line 233, in put\", \"    record = state[\\\"entities\\\"][dest]\", \"             ~~~~~~~~~~~~~~~~~^^^^^^\", \"KeyError: None\"], \"initial_fails\": true, \"idle_fails\": true, \"wrong\": []}"
+  ],
+  [
+   "T-af96a334296669-01",
+   "{\"seed\": 97, \"error\": \"SpecError: set: unknown target None\", \"trace\": [\"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 423, in apply_setup\", \"    OPS[kind](ctx, op)\", \"    ~~~~~~~~~^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\setup.py\\\", line 169, in op_set\", \"    raise SpecError(\\\"set: unknown target \\\" + str(target))\", \"house_sim.kernel.errors.SpecError: set: unknown target None\"], \"wrong\": []}"
+  ],
+  [
+   "A-d66994a566899c-01",
+   "{\"seed\": 97, \"variant\": 1, \"error\": \"KeyError: None\", \"trace\": [\"    return SKILLS[name](self, **args)\", \"           ~~~~~~~~~~~~^^^^^^^^^^^^^^\", \"  File \\\"<home>\\\\OneDrive\\\\Desktop\\\\house_ai\\\\house_sim\\\\tasks\\\\skills.py\\\", line 233, in put\", \"    record = state[\\\"entities\\\"][dest]\", \"             ~~~~~~~~~~~~~~~~~^^^^^^\", \"KeyError: None\"], \"initial_fails\": true, \"idle_fails\": true, \"wrong\": []}"
+  ]
+ ],
+ "tools_vehicles": [
+  [
+   "T-2b7563797edbfd-01",
+   "{\"seed\": 0, \"variant\": 0, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"close drawer_2  failed: Something sticks up above the rim; the lid will not close\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}",
+   "{\"seed\": 2, \"variant\": 0, \"initial_fails\": true, \"idle_fails\": true, \"reference_passes\": false, \"reference_error\": \"close drawer_2  failed: Something sticks up above the rim; the lid will not close\", \"wrong_fails\": true, \"wrong_ran\": true, \"wrong\": []}"
+  ]
+ ]
+}

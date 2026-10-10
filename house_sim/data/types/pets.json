@@ -1,0 +1,748 @@
+{
+  "domain": "pets",
+  "looks_like": {
+    "dog_food_bag": {"descriptor": "bag of dry dog food", "resolve": "read", "kind": "dog food bag",
+                     "candidates": ["adult dog kibble", "prescription diet kibble"], "members": ["dog_kibble_bag", "rx_kibble_bag"]},
+    "litter_bag": {"descriptor": "bag of cat litter", "resolve": "read", "kind": "litter bag",
+                   "candidates": ["unscented clumping litter", "scented clumping litter", "other cat litter"], "members": ["cat_litter_bag"]},
+    "small_animal_bedding": {"descriptor": "bag of small-animal bedding", "resolve": "read", "kind": "small-animal bedding",
+                             "candidates": ["paper bedding", "aspen shavings", "pine shavings", "cedar shavings"], "members": ["bedding_bag"]},
+    "fish_food_tub": {"descriptor": "small tub of aquarium food", "resolve": "read", "kind": "aquarium food",
+                      "candidates": ["floating flake food", "bottom-feeder wafer food"], "members": ["fish_food", "sinking_pellets"]},
+    "cage_liner_sheet": {"descriptor": "paper sheet for a cage tray", "resolve": "inspect", "kind": "tray sheet",
+                         "candidates": ["plain paper sheet", "perfumed paper sheet"], "members": ["cage_liner", "scented_cage_liner"]}
+  },
+  "field_tiers": {
+    "doc": "Fields the pets domain writes onto any entity: other domains' things a pet chewed, licked or stashed, bins it bags waste into, bowls it doses, generic items it creates (accidents, spilled food, chewed wrappers, spat-out tablets) and scenario props (hazard items, children's toys). An accident or a litter dust cloud is seen at a glance; what a chewed wrapper held shows on a close look; the mass of bagged waste needs a scale. Never seen (asked or inferred): an item's toxin and how appealing or chewable it is to a pet, which pet made a mess, licked, stashed or owns something, medication mixed into food or water, and waste bookkeeping.",
+    "glance": ["pet_accident", "dust_cloud"],
+    "inspect": ["evidence_of"],
+    "measure": {"waste_g": "scale"},
+    "hidden": ["toxin", "toxin_evidence", "licked_by", "source_pet", "pet_appeal", "chewable", "swallowable", "toy_owner", "toy_for",
+               "pet_toy_of", "taken_by", "medicated", "med_in_food", "pet_waste", "source_med", "stash_lost", "aromatic_bedding",
+               "laid_s"],
+    "room": {"glance": ["muddy"], "hidden": ["wet_cells", "fence_gap_cm", "shade_cells"]}
+  },
+  "types": {
+    "pet_bowl": {
+      "is_a": "portable_object",
+      "perception": {"measure": {"food_g": "scale", "liquid_temp_c": "thermometer"},
+                     "hidden": ["food_meta", "hull_g", "home_pos", "last_served", "med_in_food", "has_food_waste", "raided_g", "biofilm",
+                                "debris", "droppings", "water_level", "medicated", "contaminated", "refilled_s", "emptied_s", "washed_s",
+                                "washed_with", "licked_by", "slosh_frac", "fill_line_frac", "last_check", "overflowed_l", "freshness"]},
+      "doc": "Base pet bowl. owner = pet id; home = room id or entity where it belongs (home_pos cell when on the floor).",
+      "props": {"label": "pet bowl", "category": "pet_bowl", "pet_item": true, "material": "stainless_steel", "mass_kg": 0.3,
+                "size_m": [0.18, 0.18, 0.06], "volume_l": 1.5, "bowl_capacity_l": 0.9, "bowl_kind": "food", "food_g": {},
+                "food_meta": {}, "water_safe": true, "stackable": false, "tags": ["pet_bowl"], "affordances": ["feed", "wash"]}
+    },
+    "pet_food_bowl": {
+      "is_a": "pet_bowl",
+      "props": {"label": "pet food bowl", "bowl_kind": "food"}
+    },
+    "dog_food_bowl": {
+      "is_a": "pet_food_bowl",
+      "doc": "1.4 l stainless dog bowl: holds ~600 g of kibble (bulk density ~0.43 g/ml).",
+      "props": {"label": "dog food bowl", "size_m": [0.22, 0.22, 0.07], "bowl_capacity_l": 1.4, "mass_kg": 0.35, "for_species": "dog"}
+    },
+    "cat_food_bowl": {
+      "is_a": "pet_food_bowl",
+      "doc": "Shallow 0.25 l ceramic cat dish (whisker-friendly).",
+      "props": {"label": "cat food dish", "size_m": [0.14, 0.14, 0.04], "bowl_capacity_l": 0.25, "material": "ceramic",
+                "fragile": true, "mass_kg": 0.25, "for_species": "cat"}
+    },
+    "pet_water_bowl": {
+      "is_a": "pet_bowl",
+      "doc": "Water bowl (liquid container). Hidden _water_age_s; biofilm (slime on the walls, 0..1) and debris (hair/food floating, 0..1). Fill line at 80 %.",
+      "props": {"label": "pet water bowl", "bowl_kind": "water", "liquid_container": true, "liquid": "water", "liquid_l": 0.0,
+                "capacity_l": 1.9, "bowl_capacity_l": 1.9, "fill_line_frac": 0.8, "biofilm": 0.0, "debris": 0.0,
+                "_water_age_s": 0.0, "liquid_temp_c": 20.0, "slosh_frac": 0.85, "secret_fields": ["_water_age_s"]}
+    },
+    "dog_water_bowl": {
+      "is_a": "pet_water_bowl",
+      "props": {"label": "dog water bowl", "size_m": [0.24, 0.24, 0.08], "capacity_l": 1.9, "bowl_capacity_l": 1.9, "mass_kg": 0.4, "for_species": "dog"}
+    },
+    "cat_water_bowl": {
+      "is_a": "pet_water_bowl",
+      "props": {"label": "cat water bowl", "size_m": [0.16, 0.16, 0.05], "capacity_l": 0.5, "bowl_capacity_l": 0.5, "material": "ceramic",
+                "fragile": true, "mass_kg": 0.3, "for_species": "cat"}
+    },
+    "outdoor_water_bowl": {
+      "is_a": "pet_water_bowl",
+      "doc": "3.8 l (1 gal) outdoor bowl; in full sun the water warms toward air + solar gain.",
+      "props": {"label": "outdoor water bowl", "size_m": [0.3, 0.3, 0.1], "capacity_l": 3.8, "bowl_capacity_l": 3.8, "mass_kg": 0.7,
+                "weatherproof": true, "for_species": "dog"}
+    },
+    "pet_water_fountain": {
+      "is_a": "portable_object",
+      "perception": {"measure": {"liquid_temp_c": "thermometer"},
+                     "hidden": ["biofilm", "debris", "droppings", "water_level", "medicated", "contaminated", "refilled_s", "emptied_s",
+                                "washed_s", "washed_with", "licked_by", "slosh_frac", "fill_line_frac", "last_check", "overflowed_l",
+                                "pump_ok", "pump_damaged", "filter_due", "home_pos", "freshness"]},
+      "doc": "Recirculating fountain: 2.0 l reservoir with MIN 0.6 l / MAX 1.8 l lines, 2 W pump (switch = pump), replaceable carbon filter (2-4 weeks). Pump runs dry below MIN (damage after ~5 min); hot water (>35 C) warps the pump.",
+      "props": {"label": "pet water fountain", "category": "pet_water_source", "pet_item": true, "material": "plastic",
+                "size_m": [0.25, 0.25, 0.17], "mass_kg": 1.0, "volume_l": 6.0, "liquid_container": true, "liquid": "water",
+                "liquid_l": 1.4, "capacity_l": 2.0, "min_l": 0.6, "max_l": 1.8, "biofilm": 0.0, "debris": 0.0, "_water_age_s": 0.0,
+                "liquid_temp_c": 20.0, "switchable": true, "on": true, "plug_required": true, "plugged_in": true, "power_w": 2.0,
+                "openable": true, "open": false, "pump_ok": true, "_dry_run_s": 0.0, "flowing": true,
+                "slots": {"filter": {"accepts": ["fountain_filter"], "item": null, "access": "open"}},
+                "secret_fields": ["_water_age_s", "_dry_run_s"], "tags": ["pet_bowl"], "affordances": ["switch_on", "switch_off", "open", "close"]}
+    },
+    "fountain_filter": {
+      "is_a": "portable_object",
+      "perception": {"read": ["service_life_days"], "hidden": ["installed_s", "dirtiness", "fresh_part", "freshness"]},
+      "doc": "Carbon/foam fountain filter cartridge; service_life_days 28. installed_s is the sim time it was installed (negative = before the episode).",
+      "props": {"label": "fountain filter", "category": "filter", "part_type": "fountain_filter", "mass_kg": 0.02, "size_m": [0.08, 0.05, 0.02],
+                "volume_l": 0.1, "service_life_days": 28, "installed_s": null, "dirtiness": 0.0, "label_text": "Replace every 2-4 weeks"}
+    },
+    "feeding_mat": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Silicone feeding mat that marks a bowl's home spot.",
+      "props": {"label": "feeding mat", "category": "feeding_mat", "pet_item": true, "material": "silicone", "mass_kg": 0.3,
+                "size_m": [0.6, 0.38, 0.01], "accepts_items": true, "surface": true, "container": false, "ground_layer": true,
+                "surface_size_m": [0.6, 0.38], "surface_height_m": 0.01}
+    },
+    "pet_food_bag": {
+      "is_a": "portable_object",
+      "perception": {"read": ["pet_food", "lot"], "measure": {"remaining_g": "scale"}, "hidden": ["raided_g", "freshness"]},
+      "doc": "Dry pet food bag. pet_food: kind, species, wet, kcal_per_g, density_g_per_ml. remaining_g decreases as food is scooped. label_text carries the bag's generic feeding guide (often higher than a vet ration).",
+      "props": {"label": "bag of dry pet food", "category": "pet_food", "pet_item": true, "material": "paper", "mass_kg": 6.9,
+                "size_m": [0.32, 0.12, 0.5], "volume_l": 16.0, "openable": true, "open": false, "remaining_g": 6800.0,
+                "pet_food": {"kind": "dog_kibble", "species": "dog", "wet": false, "kcal_per_g": 3.6, "density_g_per_ml": 0.43},
+                "lot": "L2026-0412", "tags": ["pet_food"]}
+    },
+    "dog_kibble_bag": {
+      "is_a": "pet_food_bag",
+      "perception": {"looks_like": "dog_food_bag"},
+      "props": {"label": "bag of adult dog kibble", "pet_food": {"kind": "dog_kibble", "species": "dog", "wet": false, "kcal_per_g": 3.6, "density_g_per_ml": 0.43},
+                "label_text": "Adult dog food. Daily feeding guide: 10 kg: 160 g; 20 kg: 270 g; 30 kg: 370 g. Lot L2026-0412."}
+    },
+    "cat_kibble_bag": {
+      "is_a": "pet_food_bag",
+      "props": {"label": "bag of adult cat kibble", "mass_kg": 3.3, "size_m": [0.25, 0.1, 0.38], "volume_l": 8.0, "remaining_g": 3200.0, "lot": "C2026-0907",
+                "pet_food": {"kind": "cat_kibble", "species": "cat", "wet": false, "kcal_per_g": 4.0, "density_g_per_ml": 0.45},
+                "label_text": "Adult cat food. Daily feeding guide: 3 kg: 45 g; 4.5 kg: 60 g; 6 kg: 75 g. Lot C2026-0907."}
+    },
+    "rx_kibble_bag": {
+      "is_a": "pet_food_bag",
+      "perception": {"looks_like": "dog_food_bag"},
+      "doc": "Veterinary prescription diet (renal / weight); kind rx_*.",
+      "props": {"label": "bag of prescription diet kibble", "mass_kg": 3.9, "size_m": [0.26, 0.1, 0.4], "volume_l": 9.0, "remaining_g": 3800.0, "lot": "R2026-0222",
+                "pet_food": {"kind": "rx_renal_kibble", "species": "dog", "wet": false, "kcal_per_g": 3.5, "density_g_per_ml": 0.42, "prescription": true},
+                "label_text": "VETERINARY DIET - renal support. Feed only under veterinary supervision. Lot R2026-0222."}
+    },
+    "pet_food_bin": {
+      "is_a": "carry_container",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Airtight pet-proof food bin (sealing latch lid). Keep the original bag inside for the lot number.",
+      "props": {"label": "airtight pet food bin", "category": "pet_food_storage", "pet_item": true, "material": "plastic", "mass_kg": 1.6,
+                "size_m": [0.36, 0.3, 0.55], "inner_size_m": [0.33, 0.27, 0.5], "capacity_l": 30.0, "volume_l": 50.0, "openable": true,
+                "open": false, "airtight": true, "pet_proof": true, "two_handed": true}
+    },
+    "wet_food_can": {
+      "is_a": "portable_object",
+      "perception": {"read": ["pet_food", "net_g", "storage", "perishable"], "measure": {"remaining_g": "scale"},
+                     "hidden": ["opened_s", "raided_g", "freshness"]},
+      "doc": "Pull-tab can of wet pet food; once opened it must be covered and refrigerated (spoils after ~4 h at room temperature, 3 days in the fridge).",
+      "props": {"label": "can of wet pet food", "category": "pet_food", "pet_item": true, "material": "aluminum", "mass_kg": 0.1,
+                "size_m": [0.08, 0.08, 0.04], "volume_l": 0.12, "openable": true, "open": false, "opened": false, "opened_s": null,
+                "covered": false, "remaining_g": 85.0, "storage": "pantry", "perishable": false,
+                "pet_food": {"kind": "cat_wet", "species": "cat", "wet": true, "kcal_per_g": 0.95, "density_g_per_ml": 1.0}, "tags": ["pet_food"]}
+    },
+    "cat_wet_food_can": {
+      "is_a": "wet_food_can",
+      "props": {"label": "can of wet cat food", "remaining_g": 85.0, "label_text": "Salmon pate for cats, 85 g. Refrigerate after opening."}
+    },
+    "dog_wet_food_can": {
+      "is_a": "wet_food_can",
+      "props": {"label": "can of wet dog food", "size_m": [0.1, 0.1, 0.11], "volume_l": 0.4, "mass_kg": 0.4, "remaining_g": 370.0,
+                "pet_food": {"kind": "dog_wet", "species": "dog", "wet": true, "kcal_per_g": 1.05, "density_g_per_ml": 1.0},
+                "label_text": "Beef stew for dogs, 370 g. Refrigerate after opening."}
+    },
+    "pet_food_can_lid": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Silicone lid that covers an opened pet food can.",
+      "props": {"label": "pet food can lid", "category": "lid", "pet_item": true, "material": "silicone", "mass_kg": 0.02,
+                "size_m": [0.09, 0.09, 0.01], "volume_l": 0.05, "can_cover": true}
+    },
+    "pet_treat_jar": {
+      "is_a": "carry_container",
+      "perception": {"read": ["pet_food", "treat_kind", "treat_species", "g_per_treat", "kcal_per_treat", "pill_carrier"],
+                     "hidden": ["freshness"]},
+      "doc": "Treat jar: count treats of treat_kind; g_per_treat and kcal_per_treat.",
+      "props": {"label": "dog treat jar", "category": "pet_treats", "pet_item": true, "material": "plastic", "mass_kg": 0.5,
+                "size_m": [0.12, 0.12, 0.16], "volume_l": 1.8, "inner_size_m": [0.1, 0.1, 0.14], "capacity_l": 1.2, "openable": true,
+                "open": false, "count": 40, "treat_kind": "dog_biscuit", "treat_species": "dog", "g_per_treat": 4.0, "kcal_per_treat": 15.0,
+                "pet_food": {"kind": "dog_biscuit", "species": "dog", "wet": false, "kcal_per_g": 3.7, "treat": true}}
+    },
+    "cat_treat_pouch": {
+      "is_a": "pet_treat_jar",
+      "props": {"label": "cat treat pouch", "material": "foil", "mass_kg": 0.1, "size_m": [0.12, 0.04, 0.17], "volume_l": 0.6,
+                "count": 60, "treat_kind": "cat_treat", "treat_species": "cat", "g_per_treat": 0.6, "kcal_per_treat": 1.5,
+                "pet_food": {"kind": "cat_treat", "species": "cat", "wet": false, "kcal_per_g": 2.6, "treat": true}}
+    },
+    "pill_pocket_pack": {
+      "is_a": "pet_treat_jar",
+      "doc": "Moldable pill-pocket treats made to hide a tablet (safe carrier).",
+      "props": {"label": "pill pocket treats", "material": "foil", "mass_kg": 0.2, "size_m": [0.13, 0.05, 0.18], "count": 30,
+                "treat_kind": "pill_pocket", "treat_species": "any", "g_per_treat": 5.0, "kcal_per_treat": 12.0, "pill_carrier": true,
+                "pet_food": {"kind": "pill_pocket", "species": "any", "wet": false, "kcal_per_g": 2.4, "treat": true}}
+    },
+    "pet_food_scoop": {
+      "is_a": "portable_object",
+      "perception": {"read": ["scoop_ml"], "hidden": ["freshness"]},
+      "doc": "1-cup (237 ml) pet food scoop. A level scoop of kibble is scoop_ml x density; a heaped scoop is ~30 % more.",
+      "props": {"label": "pet food scoop (1 cup)", "category": "tool", "tool_kind": "pet_food_scoop", "material": "plastic", "mass_kg": 0.05,
+                "size_m": [0.1, 0.08, 0.08], "volume_l": 0.3, "scoop_ml": 237.0, "affordances": ["measure", "scoop"]}
+    },
+    "pet_care_log": {
+      "is_a": "portable_object",
+      "perception": {"read": ["entries", "logged"], "hidden": ["freshness"]},
+      "doc": "Household pet-care log (feeding, treats, medication, walks). entries are dicts; logged holds 'pet:slot' keys; text mirrors the entries for read.",
+      "props": {"label": "pet feeding log", "category": "log", "log_kind": "pet_care", "material": "paper", "mass_kg": 0.1,
+                "size_m": [0.22, 0.3, 0.01], "volume_l": 0.3, "entries": [], "logged": [], "text": "Pet feeding log: (no entries yet)"}
+    },
+    "pet_care_note": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Printed vet / owner instruction card (text is readable).",
+      "props": {"label": "pet care instructions", "category": "note", "material": "paper", "mass_kg": 0.01, "size_m": [0.15, 0.1, 0.001],
+                "volume_l": 0.01, "text": ""}
+    },
+    "automatic_pet_feeder": {
+      "is_a": "portable_object",
+      "perception": {"read": ["settings"], "measure": {"food_g": "scale", "hopper_g": "scale"},
+                     "hidden": ["food_meta", "last_served", "home_pos", "freshness"]},
+      "doc": "Timed gravity/auger feeder: hopper_g kibble, dispenses portion_g at each schedule time into its tray (food_g).",
+      "props": {"label": "automatic pet feeder", "category": "pet_bowl", "pet_item": true, "material": "plastic", "mass_kg": 1.8,
+                "size_m": [0.22, 0.3, 0.35], "volume_l": 12.0, "bowl_kind": "food", "food_g": {}, "food_meta": {}, "bowl_capacity_l": 0.4,
+                "hopper_g": 800.0, "hopper_kind": "cat_kibble", "plug_required": true, "plugged_in": true, "switchable": true, "on": true,
+                "settings": {"times": ["07:00", "18:00"], "portion_g": 30}, "tags": ["pet_bowl"], "display": "", "remote_status": true}
+    },
+    "litter_box": {
+      "is_a": "portable_object",
+      "perception": {"measure": {"litter_kg": "scale", "depth_cm": "tape_measure", "area_m2": "tape_measure"},
+                     "hidden": ["odor", "wet", "residue", "litter_mix", "home_pos", "litter_density_kg_l", "kicked_out_kg", "clumped_kg",
+                                "wet_clumped", "last_scooped_s", "last_check", "freshness", "litter_kind", "observed_abnormal"]},
+      "doc": "Litter box (inner area area_m2). litter_kg of litter_kind -> depth_cm = litter_kg / (density_kg_l * area_m2 * 10). clumps/feces are scoopable waste; _buried clumps need a thorough sift. residue lists cleaner residues. home = room, home_pos = cell where the cat expects it.",
+      "props": {"label": "litter box", "category": "litter_box", "pet_item": true, "material": "plastic", "mass_kg": 1.3,
+                "size_m": [0.5, 0.4, 0.15], "volume_l": 30.0, "area_m2": 0.171, "litter_kind": "clumping_clay_unscented",
+                "litter_kg": 10.0, "litter_density_kg_l": 1.05, "clumps": 0, "feces": 0, "_buried": 0, "odor": {}, "wet": 0.0,
+                "residue": {}, "_abnormal": {}, "secret_fields": ["_abnormal", "_buried"], "two_handed": true, "home": null,
+                "home_pos": null, "affordances": ["scoop_litter", "refill_litter", "change_litter"]}
+    },
+    "litter_scoop": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "litter scoop", "category": "tool", "tool_kind": "litter_scoop", "material": "plastic", "mass_kg": 0.1,
+                "size_m": [0.12, 0.3, 0.04], "volume_l": 0.3, "affordances": ["scoop_litter"]}
+    },
+    "cat_litter_bag": {
+      "is_a": "portable_object",
+      "perception": {"read": ["litter_kind"], "measure": {"remaining_kg": "scale"}, "looks_like": "litter_bag", "hidden": ["freshness"]},
+      "doc": "Bag/jug of cat litter (remaining_kg).",
+      "props": {"label": "bag of unscented clumping litter", "label_text": "Unscented clumping clay cat litter, 9 kg.",
+                "category": "litter", "pet_item": true, "material": "plastic", "mass_kg": 9.1,
+                "size_m": [0.35, 0.15, 0.5], "volume_l": 12.0, "two_handed": true, "litter_kind": "clumping_clay_unscented",
+                "remaining_kg": 9.0, "openable": true, "open": false}
+    },
+    "litter_mat": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "litter mat", "category": "mat", "pet_item": true, "material": "rubber", "mass_kg": 0.6, "size_m": [0.6, 0.45, 0.01],
+                "ground_layer": true, "volume_l": 1.0}
+    },
+    "poop_bag_roll": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Roll of pet waste bags (count). bag_waste with destination=roll tears off a bag.",
+      "props": {"label": "roll of poop bags", "category": "waste_bags", "pet_item": true, "material": "ldpe", "mass_kg": 0.05,
+                "size_m": [0.04, 0.04, 0.06], "volume_l": 0.1, "count": 15}
+    },
+    "pet_waste_bag": {
+      "is_a": "portable_object",
+      "perception": {"measure": {"waste_g": "scale"},
+                     "hidden": ["contents", "odor", "waste_stream", "waste_kind", "food_waste", "freshness"]},
+      "doc": "A filled pet-waste bag (created by bag_waste). tied=true seals odor and leaks. waste_stream trash.",
+      "props": {"label": "bag of pet waste", "category": "pet_waste", "pet_item": true, "material": "ldpe", "mass_kg": 0.05,
+                "size_m": [0.15, 0.1, 0.12], "volume_l": 0.8, "tied": false, "contents": {}, "waste_g": 0.0, "waste_stream": "trash",
+                "waste_kind": "pet_waste", "hazards": [], "safe_grips": ["handle", "pinch"]}
+    },
+    "dog_waste": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["waste_stream", "waste_kind", "concealed", "revealed", "laid_s", "freshness"]},
+      "doc": "A pile of dog feces on the ground (biohazard floor hazard 'waste'). concealed=true in tall grass until the robot looks closely nearby.",
+      "props": {"label": "dog poop", "category": "pet_waste", "material": "organic", "mass_kg": 0.15, "size_m": [0.08, 0.06, 0.04],
+                "volume_l": 0.15, "floor_hazard": "waste", "hazards": ["biohazard"], "safe_grips": ["scoop"], "waste_stream": "trash",
+                "waste_kind": "pet_waste", "concealed": false, "soft": false}
+    },
+    "pooper_scooper": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "pooper scooper", "category": "tool", "tool_kind": "pooper_scooper", "material": "metal", "mass_kg": 0.6,
+                "size_m": [0.2, 0.15, 0.9], "volume_l": 2.0, "affordances": ["bag_waste"]}
+    },
+    "dog_collar": {
+      "is_a": "portable_object",
+      "perception": {"read": ["setting_options"], "measure": {"settings": "tape_measure"}, "hidden": ["freshness"]},
+      "doc": "Flat buckle collar. settings.length_cm (adjustable); rings: d_ring is load-rated, tag_ring (ID split ring) is not. Worn = located at the pet with relation 'worn'. Two-finger fit = 1.5-4 cm slack.",
+      "props": {"label": "dog collar", "category": "pet_gear", "pet_gear": "collar", "pet_item": true, "material": "nylon", "mass_kg": 0.06,
+                "size_m": [0.45, 0.025, 0.01], "volume_l": 0.1, "buckled": true, "settings": {"length_cm": 42},
+                "setting_options": {"length_cm": {"min": 20, "max": 60}}, "rings": {"d_ring": true, "tag_ring": false}, "species_fit": ["dog"]}
+    },
+    "dog_harness": {
+      "is_a": "portable_object",
+      "perception": {"read": ["setting_options"], "measure": {"settings": "tape_measure"}, "hidden": ["freshness"]},
+      "doc": "Y-front harness: settings.girth_cm, buckles_closed; back_ring and front_ring load-rated.",
+      "props": {"label": "dog harness", "category": "pet_gear", "pet_gear": "harness", "pet_item": true, "material": "nylon", "mass_kg": 0.25,
+                "size_m": [0.4, 0.3, 0.05], "volume_l": 0.6, "buckles_closed": true, "settings": {"girth_cm": 70},
+                "setting_options": {"girth_cm": {"min": 30, "max": 100}}, "rings": {"back_ring": true, "front_ring": true}, "species_fit": ["dog"]}
+    },
+    "cat_harness": {
+      "is_a": "dog_harness",
+      "props": {"label": "cat harness", "mass_kg": 0.08, "size_m": [0.25, 0.18, 0.03], "settings": {"girth_cm": 34},
+                "setting_options": {"girth_cm": {"min": 25, "max": 45}}, "species_fit": ["cat"]}
+    },
+    "leash": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "1.8 m nylon leash with a trigger clip. attached_to = pet id, ring = 'gear_id:ring'.",
+      "props": {"label": "leash", "category": "pet_gear", "pet_gear": "leash", "pet_item": true, "material": "nylon", "mass_kg": 0.2,
+                "size_m": [0.2, 0.1, 0.05], "volume_l": 0.4, "length_m": 1.8, "attached_to": null, "ring": null}
+    },
+    "dog_travel_bottle": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Dog travel water bottle with a flip-out trough (0.5 l).",
+      "props": {"label": "dog travel water bottle", "category": "walk_gear", "pet_item": true, "material": "plastic", "mass_kg": 0.6,
+                "size_m": [0.07, 0.07, 0.25], "volume_l": 0.7, "liquid_container": true, "liquid": "water", "liquid_l": 0.5, "capacity_l": 0.5,
+                "walk_item": "water"}
+    },
+    "collapsible_bowl": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "collapsible travel bowl", "category": "walk_gear", "pet_item": true, "material": "silicone", "mass_kg": 0.08,
+                "size_m": [0.13, 0.13, 0.02], "volume_l": 0.1, "walk_item": "bowl"}
+    },
+    "pet_reflective_vest": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "reflective dog vest", "category": "walk_gear", "pet_item": true, "material": "polyester", "mass_kg": 0.1,
+                "size_m": [0.3, 0.25, 0.02], "volume_l": 0.3, "walk_item": "reflective", "species_fit": ["dog"]}
+    },
+    "clip_on_light": {
+      "is_a": "portable_object",
+      "perception": {"measure": {"battery_level": "battery_tester"}, "hidden": ["freshness"]},
+      "props": {"label": "clip-on collar light", "category": "walk_gear", "pet_item": true, "material": "plastic", "mass_kg": 0.02,
+                "size_m": [0.04, 0.02, 0.02], "volume_l": 0.02, "walk_item": "light", "battery_powered": true, "battery_level": 0.9}
+    },
+    "dog_coat": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "dog winter coat", "category": "walk_gear", "pet_item": true, "material": "polyester", "mass_kg": 0.3,
+                "size_m": [0.45, 0.35, 0.04], "volume_l": 1.0, "walk_item": "coat", "species_fit": ["dog"]}
+    },
+    "dog_booties": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "dog booties (set of 4)", "category": "walk_gear", "pet_item": true, "material": "rubber", "mass_kg": 0.2,
+                "size_m": [0.15, 0.1, 0.08], "volume_l": 0.5, "walk_item": "booties", "species_fit": ["dog"]}
+    },
+    "walk_bag": {
+      "is_a": "carry_container",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Small walk bag / treat pouch kept by the door (clips to the robot's belt with wear); the walk kit is what it contains.",
+      "props": {"label": "dog walk bag", "category": "walk_gear", "pet_item": true, "material": "nylon", "mass_kg": 0.2,
+                "wearable": true, "gear_kind": "walk_pouch", "wear_slot": "belt",
+                "size_m": [0.25, 0.12, 0.25], "volume_l": 6.0, "inner_size_m": [0.5, 0.25, 0.22], "capacity_l": 6.0, "soft_sided": true}
+    },
+    "pressure_wrap": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Snug anxiety wrap (owner-approved calming aid) worn by the pet.",
+      "props": {"label": "anxiety pressure wrap", "category": "pet_gear", "pet_gear": "wrap", "pet_item": true, "material": "cotton",
+                "mass_kg": 0.15, "size_m": [0.4, 0.3, 0.02], "volume_l": 0.4, "species_fit": ["dog"]}
+    },
+    "pet_crate": {
+      "is_a": "furniture",
+      "perception": {"hidden": ["crated_s", "freshness"]},
+      "doc": "Wire dog crate with a latching door (open = door open). occupant = pet id; crate_size small|medium|large.",
+      "props": {"label": "dog crate", "category": "pet_crate", "pet_item": true, "material": "steel", "mass_kg": 13.0,
+                "size_m": [0.92, 0.6, 0.66], "openable": true, "open": true, "latched": false, "occupant": null, "crate_size": "large",
+                "accepts_items": true, "container": true, "transparent": true, "capacity_l": 300.0, "inner_size_m": [0.88, 0.56, 0.62],
+                "blocks_path": true, "movable": true, "floor_scratch_risk": false}
+    },
+    "pet_carrier": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["crated_s", "freshness"]},
+      "doc": "Hard-sided pet carrier for cats, small dogs and small animals.",
+      "props": {"label": "pet carrier", "category": "pet_crate", "pet_item": true, "material": "plastic", "mass_kg": 2.0,
+                "size_m": [0.48, 0.32, 0.3], "volume_l": 45.0, "openable": true, "open": true, "latched": false, "occupant": null,
+                "crate_size": "small", "accepts_items": true, "container": true, "transparent": true, "capacity_l": 35.0,
+                "inner_size_m": [0.45, 0.3, 0.28], "two_handed": true}
+    },
+    "pet_bed": {
+      "is_a": "surface_furniture",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Bolster pet bed on the floor (not an obstacle). owner = pet id; den=true when it is a sheltered spot.",
+      "props": {"label": "pet bed", "category": "pet_bed", "pet_item": true, "material": "fabric", "mass_kg": 1.5, "size_m": [0.9, 0.7, 0.2],
+                "surface_height_m": 0.1, "blocks_path": false, "movable": true, "portable": true, "volume_l": 60.0, "two_handed": true,
+                "floor_scratch_risk": false, "soil": {}}
+    },
+    "pet_blanket": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "pet blanket", "category": "pet_bedding", "pet_item": true, "material": "fleece", "mass_kg": 0.5,
+                "size_m": [0.4, 0.3, 0.05], "volume_l": 3.0, "washable": true, "soil": {}}
+    },
+    "pet_toy": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["toy_owner", "toy_for", "taken_by", "licked_by", "pet_toy_of", "freshness"]},
+      "doc": "Pet toy. toy_owner 'pet' (vs children's toys 'child'), toy_for species, damage (exposed_squeaker, frayed_rope, torn_plush) makes it a choking hazard.",
+      "props": {"label": "pet toy", "category": "pet_toy", "pet_item": true, "toy_owner": "pet", "toy_for": "dog", "material": "rubber",
+                "mass_kg": 0.1, "size_m": [0.1, 0.06, 0.06], "volume_l": 0.3, "damaged": false, "damage": {}, "tags": ["pet_toy"]}
+    },
+    "fetch_ball": {
+      "is_a": "pet_toy",
+      "props": {"label": "tennis ball (dog toy)", "material": "felt_rubber", "mass_kg": 0.058, "size_m": [0.067, 0.067, 0.067], "volume_l": 0.16, "fetchable": true}
+    },
+    "rope_toy": {
+      "is_a": "pet_toy",
+      "props": {"label": "rope tug toy", "material": "cotton", "mass_kg": 0.15, "size_m": [0.3, 0.05, 0.05], "volume_l": 0.5, "fetchable": true}
+    },
+    "squeaky_toy": {
+      "is_a": "pet_toy",
+      "props": {"label": "squeaky toy", "material": "vinyl", "mass_kg": 0.08, "size_m": [0.12, 0.07, 0.07], "volume_l": 0.4}
+    },
+    "plush_dog_toy": {
+      "is_a": "pet_toy",
+      "props": {"label": "plush dog toy", "material": "polyester", "mass_kg": 0.1, "size_m": [0.2, 0.1, 0.08], "volume_l": 0.8}
+    },
+    "cat_wand_toy": {
+      "is_a": "pet_toy",
+      "doc": "Feather wand with a string: linear foreign-body risk if a cat plays with it unsupervised.",
+      "props": {"label": "cat wand toy", "toy_for": "cat", "material": "plastic", "mass_kg": 0.04, "size_m": [0.6, 0.03, 0.03], "volume_l": 0.2,
+                "string_toy": true}
+    },
+    "catnip_mouse": {
+      "is_a": "pet_toy",
+      "props": {"label": "catnip mouse", "toy_for": "cat", "material": "felt", "mass_kg": 0.01, "size_m": [0.06, 0.03, 0.03], "volume_l": 0.05}
+    },
+    "chew_toy": {
+      "is_a": "pet_toy",
+      "props": {"label": "rubber chew toy", "material": "rubber", "mass_kg": 0.2, "size_m": [0.12, 0.07, 0.07], "volume_l": 0.3}
+    },
+    "pet_toy_basket": {
+      "is_a": "carry_container",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "pet toy basket", "category": "pet_toy_storage", "pet_item": true, "material": "felt", "mass_kg": 0.4,
+                "size_m": [0.4, 0.3, 0.25], "inner_size_m": [0.38, 0.28, 0.23], "capacity_l": 25.0, "designated_for": "pet_toys"}
+    },
+    "pet_brush": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Grooming brush. brush_kind slicker (long/double coats; scratches short coats under firm pressure), bristle (short coats), deshedding (double coats), rubber_curry (short coats). hair_g collected.",
+      "props": {"label": "pet brush", "category": "tool", "tool_kind": "pet_brush", "brush_kind": "bristle", "pet_item": true,
+                "material": "plastic", "mass_kg": 0.1, "size_m": [0.2, 0.07, 0.05], "volume_l": 0.3, "hair_g": 0.0, "affordances": ["brush_pet"]}
+    },
+    "slicker_brush": {"is_a": "pet_brush", "props": {"label": "slicker brush", "brush_kind": "slicker"}},
+    "bristle_brush": {"is_a": "pet_brush", "props": {"label": "bristle brush", "brush_kind": "bristle"}},
+    "deshedding_tool": {"is_a": "pet_brush", "props": {"label": "deshedding tool", "brush_kind": "deshedding", "mass_kg": 0.15}},
+    "rubber_curry_brush": {"is_a": "pet_brush", "props": {"label": "rubber curry brush", "brush_kind": "rubber_curry", "material": "rubber"}},
+    "flea_comb": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "flea comb", "category": "tool", "tool_kind": "flea_comb", "pet_item": true, "material": "steel", "mass_kg": 0.03,
+                "size_m": [0.12, 0.04, 0.01], "volume_l": 0.05}
+    },
+    "tick_remover": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "tick removal tool", "category": "tool", "tool_kind": "tick_remover", "pet_item": true, "material": "plastic",
+                "mass_kg": 0.01, "size_m": [0.07, 0.02, 0.01], "volume_l": 0.01}
+    },
+    "pet_wipes": {
+      "is_a": "portable_object",
+      "perception": {"read": ["pet_safe"], "hidden": ["freshness"]},
+      "doc": "Pre-moistened, pet-safe paw/grooming wipes (count).",
+      "props": {"label": "pet grooming wipes", "category": "wipes", "tool_kind": "pet_wipe", "pet_item": true, "pet_safe": true,
+                "moist": true, "material": "plastic", "mass_kg": 0.35, "size_m": [0.2, 0.12, 0.05], "volume_l": 0.8, "count": 80}
+    },
+    "paw_towel": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Microfibre paw towel kept by the door (wetness 0 dry .. 1 soaked; damp ~0.3 cleans best).",
+      "props": {"label": "paw towel", "category": "towel", "tool_kind": "paw_towel", "pet_item": true, "pet_safe": true, "material": "microfiber",
+                "mass_kg": 0.12, "size_m": [0.35, 0.25, 0.02], "volume_l": 0.4, "soil": {}}
+    },
+    "pet_shampoo": {
+      "is_a": "portable_object",
+      "perception": {"read": ["shampoo_kind", "pet_safe"], "measure": {"remaining_ml": "measuring_cup"}, "hidden": ["freshness"]},
+      "props": {"label": "dog shampoo", "category": "pet_grooming", "pet_item": true, "shampoo_kind": "dog", "pet_safe": true,
+                "material": "plastic", "mass_kg": 0.5, "size_m": [0.07, 0.05, 0.2], "volume_l": 0.5, "remaining_ml": 450.0}
+    },
+    "pet_dryer": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["noise_db", "freshness"]},
+      "doc": "Pet blow dryer: settings heat cool|low|high (high ~ 60 C at 10 cm: burns), 80 dB.",
+      "props": {"label": "pet hair dryer", "category": "pet_grooming", "pet_item": true, "material": "plastic", "mass_kg": 0.8,
+                "size_m": [0.25, 0.1, 0.25], "volume_l": 2.0, "plug_required": true, "plugged_in": true, "switchable": true, "on": false,
+                "settings": {"heat": "low"}, "setting_options": {"heat": ["cool", "low", "high"]}, "noise_db": 80}
+    },
+    "pet_medication": {
+      "is_a": "portable_object",
+      "perception": {"read": ["prescribed_for", "drug", "schedule", "dose_units", "water_ok"],
+                     "hidden": ["toxin", "missed", "source_med", "freshness"], "looks_like": "pill_bottle"},
+      "doc": "Owner/vet-directed pet medicine. prescribed_for = pet id; schedule slots; label_text is readable. Dosing is give_pet_medication (approval give_pet_medication:<pet>).",
+      "props": {"label": "pet medication", "category": "pet_medication", "pet_medication": true, "pet_item": true, "material": "plastic",
+                "mass_kg": 0.06, "size_m": [0.04, 0.04, 0.08], "volume_l": 0.1, "form": "tablet", "count": 30, "dose_units": 1,
+                "prescribed_for": null, "drug": "carprofen 75 mg", "schedule": ["08:00"], "water_ok": false, "hazards": ["toxic"],
+                "safe_grips": ["normal", "pinch"], "toxin": "nsaid_vet"}
+    },
+    "ir_thermometer": {
+      "is_a": "portable_object",
+      "perception": {"measure": {"battery_level": "battery_tester"}, "hidden": ["freshness"]},
+      "doc": "Infrared thermometer gun: reads SURFACE temperature at the aimed spot (not air).",
+      "props": {"label": "infrared thermometer", "category": "tool", "tool_kind": "ir_thermometer", "material": "plastic", "mass_kg": 0.15,
+                "size_m": [0.1, 0.04, 0.15], "volume_l": 0.3, "battery_powered": true, "battery_level": 0.9}
+    },
+    "aquarium": {
+      "is_a": "fixture",
+      "perception": {"hidden": ["water", "stock", "uneaten_g", "detritus", "algae", "fed_slots", "fed_g_total", "light_s_today", "water_l",
+                                "conditioned_l", "conditioner_credit_l", "fish_deaths", "last_check", "freshness", "feeding_times",
+                                "last_fed_s", "fed_by_others", "missed", "double_fed"]},
+      "doc": "Glass aquarium on a stand. water: temp_c, ammonia_ppm, nitrite_ppm, chlorine_ppm, clarity. stock: fish groups {species, count, level surface|mid|bottom, food flakes|sinking, ration_g}. _bacteria = nitrifying colony health in the tank (the filter media hold most of it).",
+      "props": {"label": "aquarium", "category": "aquarium", "pet_item": true, "material": "glass", "mass_kg": 15.0, "size_m": [0.76, 0.31, 0.46],
+                "mount_height_m": 0.75, "volume_l": 75.0, "water_l": 72.0, "accepts_items": true, "container": true, "transparent": true,
+                "capacity_l": 75.0, "openable": true, "open": false, "fragile": true,
+                "water": {"temp_c": 25.0, "ammonia_ppm": 0.0, "nitrite_ppm": 0.0, "chlorine_ppm": 0.0, "clarity": 1.0},
+                "stock": [], "uneaten_g": 0.0, "detritus": 0.1, "algae": 0.1, "_bacteria": 0.15, "light_s_today": 0.0,
+                "secret_fields": ["_bacteria"], "inspect_from_afar": true}
+    },
+    "aquarium_heater": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "100 W submersible heater with thermostat dial setting temp_c.",
+      "props": {"label": "aquarium heater", "category": "aquarium_device", "pet_item": true, "material": "glass", "mass_kg": 0.2,
+                "size_m": [0.03, 0.03, 0.25], "volume_l": 0.2, "switchable": true, "on": true, "plug_required": true, "plugged_in": true,
+                "power_w": 100.0, "settings": {"temp_c": 25}, "setting_options": {"temp_c": {"min": 18, "max": 32}}, "aquarium_device": "heater"}
+    },
+    "aquarium_filter": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["primed", "flow", "pump_ok", "pump_damaged", "clog_kind", "freshness"]},
+      "doc": "Hang-on-back filter (380 l/h). Media slots hold sponge, bio_media and cartridge parts, each carrying part of the nitrifying colony (bacteria 0..1) and clog 0..1. Switching it off loses its prime; restart without priming = no flow and the impeller runs dry.",
+      "props": {"label": "hang-on-back aquarium filter", "category": "aquarium_device", "pet_item": true, "material": "plastic", "mass_kg": 0.9,
+                "size_m": [0.2, 0.12, 0.2], "volume_l": 3.0, "switchable": true, "on": true, "plug_required": true, "plugged_in": true,
+                "power_w": 5.0, "live_when_plugged": false, "primed": true, "flow": 1.0, "filter_kind": "hang_on_back", "openable": true, "open": false, "pump_ok": true,
+                "_dry_run_s": 0.0, "aquarium_device": "filter",
+                "slots": {"sponge": {"accepts": ["filter_sponge"], "item": null, "access": "open", "power_off_first": true},
+                          "bio_media": {"accepts": ["bio_media"], "item": null, "access": "open", "power_off_first": true},
+                          "cartridge": {"accepts": ["filter_cartridge"], "item": null, "access": "open", "power_off_first": true}},
+                "secret_fields": ["_dry_run_s"]}
+    },
+    "filter_sponge": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["bacteria", "clog", "freshness"]},
+      "props": {"label": "filter sponge", "category": "filter_media", "part_type": "filter_sponge", "material": "foam", "mass_kg": 0.03,
+                "size_m": [0.12, 0.08, 0.03], "volume_l": 0.3, "bacteria": 0.35, "clog": 0.3}
+    },
+    "bio_media": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["bacteria", "clog", "freshness"]},
+      "props": {"label": "ceramic bio-media bag", "category": "filter_media", "part_type": "bio_media", "material": "ceramic", "mass_kg": 0.15,
+                "size_m": [0.1, 0.06, 0.04], "volume_l": 0.25, "bacteria": 0.4, "clog": 0.1}
+    },
+    "filter_cartridge": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["bacteria", "clog", "freshness"]},
+      "doc": "Disposable floss/carbon cartridge (replace monthly; holds little of the colony).",
+      "props": {"label": "filter cartridge", "category": "filter_media", "part_type": "filter_cartridge", "material": "floss", "mass_kg": 0.04,
+                "size_m": [0.13, 0.1, 0.02], "volume_l": 0.25, "bacteria": 0.1, "clog": 0.5}
+    },
+    "fish_food": {
+      "is_a": "portable_object",
+      "perception": {"read": ["fish_food_kind"], "measure": {"remaining_g": "scale"}, "hidden": ["g_per_pinch", "freshness"],
+                     "looks_like": "fish_food_tub"},
+      "doc": "Fish food container. fish_food_kind flakes (float, surface/mid feeders) or sinking (pellets for bottom feeders). g_per_pinch.",
+      "props": {"label": "tropical fish flakes", "label_text": "Tropical fish flakes - floating food for surface and mid-water fish. Feed a pinch once or twice a day.",
+                "category": "fish_food", "pet_item": true, "material": "plastic", "mass_kg": 0.06,
+                "size_m": [0.05, 0.05, 0.1], "volume_l": 0.15, "fish_food_kind": "flakes", "g_per_pinch": 0.04, "remaining_g": 28.0,
+                "openable": true, "open": false}
+    },
+    "sinking_pellets": {
+      "is_a": "fish_food",
+      "props": {"label": "sinking wafers", "label_text": "Sinking algae wafers for bottom feeders (corydoras, plecos). Drop in near the bottom.",
+                "fish_food_kind": "sinking", "g_per_pinch": 0.06, "remaining_g": 40.0}
+    },
+    "water_conditioner": {
+      "is_a": "portable_object",
+      "perception": {"read": ["dose_ml_per_10l"], "measure": {"remaining_ml": "measuring_cup"}, "hidden": ["freshness"]},
+      "doc": "Dechlorinator: dose_ml_per_10l (5 ml per 75 l = 0.67 ml per 10 l) neutralises chlorine/chloramine in new tap water.",
+      "props": {"label": "aquarium water conditioner", "category": "aquarium_supply", "pet_item": true, "material": "plastic", "mass_kg": 0.3,
+                "size_m": [0.06, 0.04, 0.15], "volume_l": 0.3, "remaining_ml": 250.0, "dose_ml_per_10l": 0.67,
+                "label_text": "Tap water conditioner: 5 ml per 75 l (20 gal) of new water. Removes chlorine and chloramine."}
+    },
+    "gravel_siphon": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "gravel siphon", "category": "tool", "tool_kind": "siphon", "pet_item": true, "material": "plastic", "mass_kg": 0.3,
+                "size_m": [0.06, 0.06, 0.6], "volume_l": 1.0}
+    },
+    "fish_net": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "aquarium net", "category": "tool", "tool_kind": "fish_net", "pet_item": true, "material": "nylon", "mass_kg": 0.03,
+                "size_m": [0.1, 0.02, 0.3], "volume_l": 0.1}
+    },
+    "aquarium_test_strips": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "aquarium test strips", "category": "aquarium_supply", "tool_kind": "water_test", "pet_item": true, "material": "plastic",
+                "mass_kg": 0.05, "size_m": [0.05, 0.03, 0.1], "volume_l": 0.1, "uses": 25}
+    },
+    "reptile_enclosure": {
+      "is_a": "fixture",
+      "perception": {"hidden": ["zones", "species_ranges", "approved_setpoints", "out_of_range", "readings", "last_check", "freshness"]},
+      "doc": "Front-opening glass terrarium (120x60x60 cm). zones basking/warm/cool hold surface_c and air_c (computed each tick from the basking lamp, the ceramic heat emitter and room temperature). The lid/doors latch on close.",
+      "props": {"label": "reptile enclosure", "category": "reptile_enclosure", "pet_item": true, "material": "glass", "mass_kg": 40.0,
+                "size_m": [1.2, 0.6, 0.6], "mount_height_m": 0.75, "accepts_items": true, "container": true, "transparent": true,
+                "capacity_l": 400.0, "openable": true, "open": false, "latched": true, "occupant": null,
+                "zones": {"basking": {"surface_c": 41.0, "air_c": 34.0}, "warm": {"surface_c": 33.0, "air_c": 31.0}, "cool": {"surface_c": 25.0, "air_c": 26.0}},
+                "species_ranges": {"basking_surface": [38, 43], "warm_air": [29, 35], "cool_air": [24, 29]}, "approved_setpoints": [31, 32],
+                "inspect_from_afar": true}
+    },
+    "basking_lamp": {
+      "is_a": "portable_object",
+      "perception": {"read": ["watts"], "hidden": ["freshness"]},
+      "doc": "100 W basking bulb in a dome over the basking spot (part of the enclosure). burnt_out -> basking surface only ~room + 4 C.",
+      "props": {"label": "basking lamp", "category": "enclosure_device", "pet_item": true, "material": "glass", "mass_kg": 0.1,
+                "size_m": [0.12, 0.12, 0.14], "volume_l": 0.5, "switchable": true, "on": true, "watts": 100.0, "burnt_out": false,
+                "plug_required": true, "plugged_in": true, "part_type": "basking_bulb", "enclosure_device": "basking_lamp"}
+    },
+    "ceramic_heat_emitter": {
+      "is_a": "portable_object",
+      "perception": {"read": ["watts"], "hidden": ["freshness"]},
+      "doc": "Ceramic heat emitter on a thermostat (settings.setpoint_c = warm-side air setpoint).",
+      "props": {"label": "ceramic heat emitter", "category": "enclosure_device", "pet_item": true, "material": "ceramic", "mass_kg": 0.15,
+                "size_m": [0.1, 0.1, 0.1], "volume_l": 0.5, "switchable": true, "on": true, "watts": 75.0, "plug_required": true, "plugged_in": true,
+                "settings": {"setpoint_c": 31}, "setting_options": {"setpoint_c": {"min": 20, "max": 40}}, "enclosure_device": "heat_emitter"}
+    },
+    "terrarium_thermometer": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Digital dual-probe thermometer: display shows warm-side and cool-side AIR temperatures.",
+      "props": {"label": "terrarium thermometer", "category": "enclosure_device", "pet_item": true, "material": "plastic", "mass_kg": 0.05,
+                "size_m": [0.08, 0.02, 0.05], "volume_l": 0.05, "display": "", "enclosure_device": "thermometer"}
+    },
+    "bird_cage": {
+      "is_a": "furniture",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Bird cage on a stand (open = cage door open; closing re-latches). Dishes sit inside; the slide-out tray holds the liner. occupant = bird pet id.",
+      "props": {"label": "bird cage", "category": "bird_cage", "pet_item": true, "material": "steel", "mass_kg": 9.0, "size_m": [0.6, 0.5, 1.5],
+                "accepts_items": true, "container": true, "transparent": true, "capacity_l": 200.0, "inner_size_m": [0.55, 0.45, 0.7],
+                "openable": true, "open": false, "latched": true, "occupant": null, "blocks_path": true, "inner_floor_m": 0.9}
+    },
+    "cage_tray": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["freshness"]},
+      "doc": "Slide-out droppings tray (open = slid out). Fully closed = seated; open = an escape gap. Liner slot.",
+      "props": {"label": "cage tray", "category": "cage_tray", "pet_item": true, "material": "plastic", "mass_kg": 0.6,
+                "size_m": [0.55, 0.45, 0.04], "volume_l": 2.0, "openable": true, "open": false, "portable": false,
+                "slots": {"liner": {"accepts": ["cage_liner"], "item": null, "access": "open"}}, "soil": {}}
+    },
+    "cage_liner": {
+      "is_a": "portable_object",
+      "perception": {"looks_like": "cage_liner_sheet", "hidden": ["freshness"]},
+      "doc": "Plain paper tray liner (part). liner_kind plain|newspaper|scented|cedar; soil holds droppings/husks.",
+      "props": {"label": "paper cage liner", "category": "cage_liner", "part_type": "cage_liner", "liner_kind": "plain", "pet_item": true,
+                "material": "paper", "mass_kg": 0.02, "size_m": [0.55, 0.45, 0.001], "volume_l": 0.05, "soil": {}}
+    },
+    "scented_cage_liner": {
+      "is_a": "cage_liner",
+      "props": {"label": "scented cage liner", "liner_kind": "scented", "aromatic": true}
+    },
+    "bird_seed_dish": {
+      "is_a": "pet_food_bowl",
+      "doc": "Cage seed cup (30 ml). food_g holds edible seed; hull_g the empty husks left on top (they look like food from a distance).",
+      "props": {"label": "seed cup", "size_m": [0.08, 0.06, 0.05], "bowl_capacity_l": 0.06, "material": "plastic", "mass_kg": 0.03,
+                "hull_g": 0.0, "for_species": "bird"}
+    },
+    "bird_water_dish": {
+      "is_a": "pet_water_bowl",
+      "props": {"label": "bird water cup", "size_m": [0.08, 0.06, 0.05], "capacity_l": 0.06, "bowl_capacity_l": 0.06, "material": "plastic",
+                "mass_kg": 0.03, "for_species": "bird", "droppings": 0.0}
+    },
+    "cage_water_bottle": {
+      "is_a": "pet_water_bowl",
+      "doc": "Gravity water bottle with a ball-valve nozzle; _nozzle_stuck = 'light' (freed by tapping) | 'corroded' (replace).",
+      "props": {"label": "cage water bottle", "size_m": [0.07, 0.05, 0.22], "capacity_l": 0.35, "bowl_capacity_l": 0.35, "material": "plastic",
+                "mass_kg": 0.08, "_nozzle_stuck": null, "secret_fields": ["_water_age_s", "_nozzle_stuck"], "for_species": "small_animal"}
+    },
+    "bird_seed": {
+      "is_a": "pet_food_bag",
+      "props": {"label": "bag of cockatiel seed mix", "mass_kg": 1.0, "size_m": [0.18, 0.08, 0.25], "volume_l": 2.0, "remaining_g": 900.0,
+                "pet_food": {"kind": "bird_seed", "species": "bird", "wet": false, "kcal_per_g": 3.9, "density_g_per_ml": 0.6, "hull_frac": 0.28},
+                "label_text": "Cockatiel seed mix. Refresh the seed cup daily; blow off empty hulls."}
+    },
+    "small_animal_cage": {
+      "is_a": "furniture",
+      "perception": {"hidden": ["substrate", "stash_lost", "nest_destroyed", "aromatic_bedding", "last_check", "freshness"]},
+      "doc": "Bin cage for a hamster/guinea pig/rabbit. substrate: kind (paper|aspen|cedar|pine), depth_cm, soiled 0..1, nest_g (familiar nest material), _stash_g (hidden food stash in the nest).",
+      "props": {"label": "small animal cage", "category": "small_animal_cage", "pet_item": true, "material": "plastic", "mass_kg": 6.0,
+                "size_m": [0.8, 0.5, 0.4], "accepts_items": true, "container": true, "transparent": true, "capacity_l": 150.0,
+                "inner_size_m": [0.76, 0.46, 0.36], "openable": true, "open": false, "latched": true, "occupant": null, "blocks_path": true,
+                "inner_floor_m": 0.05, "substrate": {"kind": "paper", "depth_cm": 15.0, "soiled": 0.2, "nest_g": 40.0},
+                "_stash_g": 0.0, "secret_fields": ["_stash_g"], "area_m2": 0.35}
+    },
+    "bedding_bag": {
+      "is_a": "portable_object",
+      "perception": {"read": ["bedding_kind"], "measure": {"remaining_l": "measuring_cup"}, "looks_like": "small_animal_bedding",
+                     "hidden": ["freshness"]},
+      "doc": "Small-animal bedding (expanded litres). bedding_kind paper|aspen are safe; cedar|pine release aromatic phenols.",
+      "props": {"label": "paper bedding (56 l expanded)", "label_text": "Paper bedding - dust-free, unscented. 56 l expanded. Safe for hamsters, guinea pigs and rabbits.",
+                "category": "pet_bedding_supply", "pet_item": true, "material": "plastic",
+                "mass_kg": 2.0, "size_m": [0.35, 0.18, 0.45], "volume_l": 20.0, "bedding_kind": "paper", "remaining_l": 56.0,
+                "openable": true, "open": false}
+    },
+    "chicken_coop": {
+      "is_a": "furniture",
+      "perception": {"hidden": ["hens", "flock_inside", "hens_lost", "egg_count", "last_check", "freshness"]},
+      "doc": "Backyard coop: open = pop door open. hens; flock_inside = hens inside; predator-proof only when closed at night. Nest box and waterer are child entities.",
+      "props": {"label": "chicken coop", "category": "chicken_coop", "pet_item": true, "material": "wood", "mass_kg": 60.0,
+                "size_m": [1.5, 1.0, 1.2], "accepts_items": true, "container": true, "capacity_l": 500.0, "inner_size_m": [1.4, 0.9, 1.0],
+                "openable": true, "open": true, "hens": 4, "flock_inside": 0, "hens_lost": 0, "weatherproof": true, "_predator_s": null,
+                "secret_fields": ["_predator_s"], "blocks_path": true}
+    },
+    "nest_box": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["last_check", "freshness"]},
+      "doc": "Coop nest box (eggs are laid into it).",
+      "props": {"label": "nest box", "category": "nest_box", "pet_item": true, "material": "wood", "mass_kg": 3.0, "size_m": [0.35, 0.35, 0.35],
+                "accepts_items": true, "container": true, "capacity_l": 30.0, "inner_size_m": [0.32, 0.32, 0.25], "portable": false,
+                "broody": false}
+    },
+    "coop_waterer": {
+      "is_a": "pet_water_bowl",
+      "props": {"label": "chicken waterer", "size_m": [0.25, 0.25, 0.35], "capacity_l": 4.0, "bowl_capacity_l": 4.0, "mass_kg": 1.0,
+                "for_species": "chicken", "weatherproof": true}
+    },
+    "chicken_feed_bag": {
+      "is_a": "pet_food_bag",
+      "props": {"label": "bag of layer pellets", "mass_kg": 11.5, "size_m": [0.4, 0.15, 0.6], "volume_l": 20.0, "remaining_g": 11000.0,
+                "pet_food": {"kind": "layer_pellets", "species": "chicken", "wet": false, "kcal_per_g": 2.8, "density_g_per_ml": 0.65}}
+    },
+    "egg_basket": {
+      "is_a": "carry_container",
+      "perception": {"hidden": ["freshness"]},
+      "props": {"label": "egg basket", "category": "basket", "material": "wire", "mass_kg": 0.4, "size_m": [0.3, 0.25, 0.2],
+                "inner_size_m": [0.28, 0.23, 0.15], "capacity_l": 8.0, "padded": true}
+    },
+    "coop_egg": {
+      "is_a": "portable_object",
+      "perception": {"hidden": ["laid_s", "food", "freshness"]},
+      "doc": "A freshly laid egg in the nest box (fragile). When the food domain is loaded scenario helpers spawn its hen_egg type instead.",
+      "props": {"label": "egg", "category": "egg", "material": "eggshell", "mass_kg": 0.057, "size_m": [0.06, 0.045, 0.045], "volume_l": 0.06,
+                "fragile": true, "dirty": false, "cracked": false, "laid_s": 0.0, "food": {"kind": "egg", "state": "raw", "quantity": 1, "unit": "count"}}
+    }
+  }
+}

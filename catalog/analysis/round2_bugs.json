@@ -1,0 +1,322 @@
+{
+ "appliances_cooking": [
+  {
+   "owner": "appliances_cooking",
+   "problem": "Information: people now step out of doorways, chokepoints and sole access cells at episode start (episode_start orders 20 and 150), so the kitchen helper's _settle_agents workaround is no longer needed for people. It is still needed for pets.",
+   "reported_by": "people"
+  },
+  {
+   "owner": "appliances_cooking",
+   "problem": "appliances_cooking.kitchen (order 45) boxes in kitchen wall items that were reachable. Repro: generate_house(1, dwelling='apartment') kitchen_1: radiator_7 and wall_outlet_7. generate_house(1, dwelling='house'): cellular_shade_1 and window_9. generate_house(27, dwelling='apartment'): venetian_blind_3.",
+   "reported_by": "plumbing_liquids"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "mechanisms": [
+  {
+   "owner": "mechanisms",
+   "problem": "FYI, not a bug: safety's candle model now honours mech.panels, so an open curtain over a lit flame on the sill no longer ignites, and safety's 4 s closer stands down while mech.release_at is set and never closes on agents in the doorway. The wool-curtain workaround in T-dd192c914c2116-01 and the opened_s/open_frac refresh workarounds can be dropped if wanted.",
+   "reported_by": "safety"
+  }
+ ],
+ "cleaning": [
+  {
+   "owner": "textiles_laundry / cleaning (furnishers)",
+   "problem": "Laundry rooms get carpeted with loose items. generate_house(0) laundry_room_1: every cell between the doorway (0,0) and the washer is covered by laundry_basket_1/_3, ironing_board_1, utility_bucket_1, wastebasket_3 and similar, so no route to front_load_washer_1 avoids floor items, and some free cells are isolated pockets. Reference plans to the washer have to walk over laundry baskets. Suggest capping loose items per small room and keeping a 1-cell walkway from each doorway to each appliance front.",
+   "reported_by": "navigation_robot"
+  },
+  {
+   "owner": "cleaning (furnisher _floor)",
+   "problem": "Same choke-point issue: kitchen_trash_can (10 cases in 66 houses, e.g. house 5 kitchen_1 [5,2]), recycling_bin (8, e.g. house 7 kitchen_1 [0,2]), wastebasket (house 5 master_bedroom_1 [2,0]), push_broom (house 6 garage_1 [0,2]), flat_mop (townhouse 41 kitchen_1 [1,1]) sit on the only hazard-free passage between doorways. Robots must step over them (trip/floor_item hazard).",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "safety": [],
+ "pets": [
+  {
+   "owner": "pets",
+   "problem": "pets/scenarios.py swing_room() and _sweep_cells() copy mechanisms' old rules. Mechanisms now swings apartment entry doors into the unit (not the building corridor) and sweeps only the front strip of low cabinets. The copies are now a harmless superset, but they are stale: pets' setup moves items off the wrong side of apartment entry doors. Workarounds that clear door and cabinet arcs (pets, plumbing_liquids clear_door_sweeps, electrical, admin_inventory, climate tidy_doorways) are no longer needed for mechanisms' sake and can be dropped or simplified.",
+   "reported_by": "mechanisms"
+  },
+  {
+   "owner": "pets",
+   "problem": "FYI, not a bug: report fields such as `cause` on entities without safety truth are no longer scored by safety, so the temp_cause workaround in X-c7a6de4ed9ba04-01 is no longer needed.",
+   "reported_by": "safety"
+  },
+  {
+   "owner": "pets",
+   "problem": "Pets are still placed by the generator's agent_cell, which can fall back to [0,0] (often a doorway cell). They can also sit in a chokepoint or the only access cell of a drawer. Pets could mirror people.model.standing_cells / settle_spot at episode start for awake pets.",
+   "reported_by": "people"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "people": [
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  },
+  {
+   "owner": "people",
+   "problem": "The episode-start _settle/settle_spot can move a resident onto a chokepoint (tier 1) when their own cell is tier 3 or 2, splitting the room. Seed 66, spec A-4ddd51894095c7-01, before food's fix: resident_1 settled from (0,7) to (1,6) and finally (2,3), toddler_1 to (2,2), sealing kitchen_1's counter side off from its only doorway. The robot's approach to the counter then failed. Suggest never settling onto an articulation cell of the walkable floor (prefer staying put), or checking that the robot's entry doorway still reaches every piece of furniture.",
+   "reported_by": "food"
+  }
+ ],
+ "plumbing_liquids": [
+  {
+   "owner": "plumbing_liquids",
+   "problem": "house_sim/systems/plumbing_liquids/furnish.py ~line 557-570: the kitchen loop adds a 'dishwasher supply stop' shutoff_valve (shelf 0 of the sink-base cabinet) plus an appliance_supply_hose for EVERY entity whose type or category contains 'dishwasher'. That includes dishwasher_1_basket, _filter, _rack_bottom, _rack_top, _sump, dishwasher_pod_1..7 and dishwasher_pod_tub_1. It also adds an ice-maker valve for fridge parts such as refrigerator_1_door_bin_2. Repro: generate_house(2, residents='minimal', pets='none') puts 17 shutoff valves in cabinet_4 (shutoff_valve_12..26 feed dishwasher parts and pods). The sink-base shelf fills with fake valves, which feeds admin_inventory's shelf-load collapse. Fix: match the appliance itself (e.g. type == 'dishwasher' or is_a, not parts, consumables or substrings).",
+   "reported_by": "pets"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "house_sim/systems/plumbing_liquids/transfer.py `_water_near_power` (after pick_up, ~L948): every cell in `rooms.<id>.wet_cells` counts as standing water, so picking up an item from a cell with a thin drip or mop film (0.01-0.03 mm in water_film) next to a plugged-in device raises the global `electrical_hazard`. Repro, before cleaning's skill fix: cleaning spec T-db0caa23574cee-01 seed 7. The rinse cloth dripped 0.02 mm on kitchen_1 [2,7] and [3,7]; `pick_up microfiber_cloth_6` at [2,7] returned 'reached into water next to a live electrical device'. Suggested fix: require real standing water, e.g. `rooms.<id>.water_film[cell]` >= ~0.5 mm, a spill entity on the cell, or a cell listed in wet_cells without a film (cleaning adopts those at 1.5 mm).",
+   "reported_by": "cleaning"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "tests/test_plumbing_liquids.py IntegrationV21.test_clear_door_sweeps_helper_moves_loose_items_from_door_arcs (~L1713) asserts that bathroom_wastebasket_1 is cleared from a door arc on seed 2. Cleaning (like the other furnishers now) never furnishes loose items in arcs, so `cleared` is [] and the test fails. Update the expectation, e.g. assert that no loose item remains in an arc after the helper runs.",
+   "reported_by": "cleaning"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "link_appliances (house_sim/systems/plumbing_liquids/furnish.py around lines 363-374) matches the substring 'dishwasher' in type+category for every entity whose root room is the kitchen, including nested parts and supplies. It therefore adds a 0.4 kg appliance_supply_hose 'behind' each dishwasher rack, basket, filter and sump, behind every dishwasher_pod (10 pods give 10 hoses) and behind the pod tub. It also adds one shutoff_valve per match into the sink-base cabinet (shutoff_valve_9..24). 'fridge' in t likewise matches fridge_door_bin parts. Repro: generate_house(5, residents='minimal', pets='none'); dishwasher_pod_1..10 each have an appliance_supply_hose child, and cabinet_3 shelf 0 carries the extra kg. Fix: match ac_kind == 'dishwasher' (type dishwasher/dishwasher_drawer) and ac_kind == 'fridge' only. Also: garbage_disposal_1 (5.5 kg) is stored 'in' the sink-base cabinet on shelf 0, where it counts toward admin_inventory's 30 kg shelf rating, although a disposal hangs from the sink drain. It should hang from the sink (relation attached/under) or be exempt from shelf load. Separately, water_heater_1 (furniture_keeping_reach, around line 465) is placed over wall drawers mounted at 0.75 m, making them unreachable (generate_house(91, dwelling='house') drawer_3 [6,3]; apartment seeds 47/52/63/66). Treat low wall-mounted storage cells as occupied.",
+   "reported_by": "appliances_cooking"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "Shutoff valves are duplicated under the kitchen sink. generate_house(22, residents='minimal', pets='none', dwelling='townhouse') puts 16 'dishwasher supply stop' valves plus 2 'refrigerator ice-maker line valve' entities inside cabinet_2 (shutoff_valve_9..26). The generate_house(41) house via the pets spec setup has 20 valves in cabinet_3. Each fixture should get one supply stop; the extras crowd shelf 0 and add load.",
+   "reported_by": "food"
+  }
+ ],
+ "tools_vehicles": [
+  {
+   "owner": "tools_vehicles",
+   "problem": "house_sim/systems/tools_vehicles/perception.py inspect_defects (~line 84: `vis = d.get(\"visible\", \"closely\")`) crashes with AttributeError: 'str' object has no attribute 'get' when an entity's `_defects` list holds a non-dict entry. This is the same class of bug outdoor_plants reported against safety. Repro with all domains loaded: spawn generic_item with _defects=[\"crack\"], approach, inspect -> crash. Fix: skip non-dict entries (isinstance(d, dict)).",
+   "reported_by": "safety"
+  },
+  {
+   "owner": "tools_vehicles",
+   "problem": "tools_vehicles.vehicles (order 32) boxes in garage wall items: water_heater_inlet_valve (seed 1 default and townhouse; my reach pass rescues it) and light_switch_8 (seed 27 townhouse). It also boxes in outdoor_light_2 on the driveway (seed 7).",
+   "reported_by": "plumbing_liquids"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "climate": [
+  {
+   "owner": "climate",
+   "problem": "house_sim/systems/climate/model.py ~line 1052: the pet_at_open_window_s:<pid> timer runs for every cat, dog, bird or rabbit in the room. That includes a pet enclosed in a closed cage, crate or carrier, so climate.pets fails tasks where no pet can reach the window. Repro: spec {house: {dwelling: house, residents: minimal, pets: none}, setup: [{op: helper, name: pets.bird, args: {window_open: true}}]}, seed 0. bird_cage_1 is open=False, latched=True, and bird_1.enclosure = bird_cage_1. After env.step('wait', seconds=60), evaluate() fails with climate.pet_at_open_unscreened_window. Suggest skipping pets with enclosure/crated/inside set while that enclosure is closed.",
+   "reported_by": "pets"
+  },
+  {
+   "owner": "climate",
+   "problem": "Furnaces and heat-pump air handlers are mounted (mount_height 0.0) on the same cells as core's floor-standing closet_shelving. Repro: generate_house(0) utility_closet_1: heat_pump_air_handler_1 [0,2] and closet_shelving_2 [0,2]. generate_house(2): furnace_1 [1,2] and closet_shelving_3 [1,2]. generate_house(10): furnace_1 [0,2] overlaps closet_shelving_3 [1,2]. Two objects cannot share those cells; admin_inventory reported the furnace in front of the shelving.",
+   "reported_by": "plumbing_liquids"
+  },
+  {
+   "owner": "core (house_sim/tasks/skills.go_room) / navigation_robot / climate",
+   "problem": "navigation_robot traverse._passage (~L1083) counts `damage` ('door_slammed_into_wall') when the robot moves at a speed other than careful through a door whose open_angle_deg is below 75. A door stays at 45 deg when something stands in its swing arc (paths.py ~L320, 'door_blocked_partly_open'). Core base.go_room opens the door and then moves at default speed without checking the angle, so any core-skill route through such a door fails the task with `damage`. Repro: generate_house(5, residents='minimal', pets='none'): climate's heat_pump_air_handler_1 sits in hallway_1 at [0,9], outside kernel door clearance but inside navigation's swing arc of door_4 (hallway_1 [2,8] to bathroom_1). Core skill {'skill': 'approach', 'target': <something in bathroom_1>} gives: open door_4 -> open_angle_deg 45 -> move bathroom_1 -> stats.damage=1. Hit tools_vehicles X-1c71303328a5b8-01 variant 1 seed 5 and T-ad1c4e6f5b6b40-01 seed 5. Suggested fixes: base.go_room passes speed='careful' when open_angle_deg < 75; furnishers keep navigation's swing arc clear; navigation decides whether a partly open door passed at walking speed is really damage. Workaround: tools_vehicles skills open doors themselves and pass partly open ones carefully.",
+   "reported_by": "tools_vehicles"
+  },
+  {
+   "owner": "climate (furnisher)",
+   "problem": "Low severity. The heat_pump_air_handler (2x2 cells, furnished before order 45) can take the only washer spot in small laundry rooms. Repro: generate_house(97, require=['laundry_room'], residents='minimal', pets='none'): laundry_room_1 (2.5 x 3.5 m) gets heat_pump_air_handler_1 at [0,2] next to the water heater, utility sink and shelf, so no washer fits. Textiles now falls back to an in-unit station in bathroom_1, but a laundry room with no washer is odd. Suggest preferring utility closets, basements or garages for the air handler, or leaving a 1.2 x 0.6 m wall spot in laundry rooms. Separately: climate/scenarios.py _heater_spot's workaround for the textiles 2-cell rule is no longer needed (textiles leaves climate's heaters to climate and never charges scene-placed or enclosed textiles).",
+   "reported_by": "textiles_laundry"
+  },
+  {
+   "owner": "navigation_robot (paths.swing_cells/_door_swing, traverse._passage) + core generator (geometry.door_clearance / Placer._occupied) + climate furnisher",
+   "problem": "The door-leaf model sweeps the inward cell plus the hinge-side diagonal, but the generator keeps only the doorway cell and its 4 neighbours clear. Fixed furniture or appliances can therefore sit on the diagonal. Repro: generate_house(5, residents='minimal', pets='none'): door_4 (hallway_1 <-> bathroom_1, cell hallway [2,8]) has swing cells [(1,8),(1,9)], and heat_pump_air_handler_1 at hallway [0,9] (2x2) covers (1,9). Opening it emits nav.door_blocked_partly_open (open_angle 45), and core go_room then moves through at normal speed. traverse._passage charges global 'damage' (nav.door_slammed_into_wall), so every plan into that bathroom fails. Also, navigation uses door.swing_into or door.location (hallway), while mechanisms.swing_into derives the bathroom side: one door, two swing rooms. Suggested fix: door_clearance should cover the 3x3 block (and the second inward cell for wide leaves), use one shared swing-room rule, and have go_room open the door fully or move carefully when it is partly open. My workaround: clear_door_sweeps re-hangs such doors.",
+   "reported_by": "admin_inventory"
+  }
+ ],
+ "manipulation": [
+  {
+   "owner": "manipulation",
+   "problem": "Still open from the integration round: stacking.register_packed (house_sim/systems/manipulation/stacking.py ~746-778) treats every item already in a shelved cabinet as lying under a newly placed one, whatever shelf it is on. Repro, before my pets workaround: T-e9cf6ca709ec77-01 seed 2. place dog_kibble_bag_1 (6.9 kg) into cabinet_4 with relation=in, shelf=0 crushed small_mixing_bowl_1, which sits on shelf 1 (breakages +1, damage +2). Pets now keeps crushables out of its food cupboard, but every other domain's 'put X in cabinet' can still crush dishes on other shelves.",
+   "reported_by": "pets"
+  },
+  {
+   "owner": "navigation_robot / manipulation",
+   "problem": "Stepping on a plush toy breaks it and counts global 'damage'. navigation_robot/traverse.py ~294 breaks anything with crush_force_n < 600, and manipulation's stuffed_animal type has crush_force_n 200 with soft: true. outdoor_plants examples T-e262f715d0bd60-01, T-b0ab19967436e0-01, T-0caf47d0f789f5-01 and T-3c0e5bb4fb4063-01 fail on seed 97 because 'move entryway_1' from living_room_1 steps on stuffed_animal_4 at [2,0] (events nav.floor_contact, then nav.broke 'stepped on'). Not pets-related. A plush toy should be kicked or trodden on, not broken; core move also routes over floor items when no avoid list is given.",
+   "reported_by": "pets"
+  },
+  {
+   "owner": "manipulation (stuffed_animal furnishing) / core free_floor_cell",
+   "problem": "Loose floor items are placed in one-cell chokepoints. Repro: T-c072906a11f55c-01 seed 37 (bedrooms 3, residents Jordan/Max/Leo): stuffed_animal_4 at living_room_1 [0,3] is the only route from the robot to the entryway doorway, and navigation logs nav.broke 'stepped on' even at careful pace. Suggest free_floor_cell skip cut cells of the walkable area (people.model.articulation_cells shows a cheap iterative Tarjan).",
+   "reported_by": "people"
+  },
+  {
+   "owner": "manipulation",
+   "problem": "stacking.overfill (house_sim/systems/manipulation/stacking.py ~L734-742, used by the before-close hook in handling.py) treats every item with no `pack_orientation` as standing on its size_m[2]. Placer.inside accepts any orientation that fits (geometry.fits_inside), so a generated closed junk drawer (inner_size_m [0.45, 0.45, 0.12]) holding navigation_robot's flashlight (size_m [0.04, 0.04, 0.2]) can never be closed again once opened: 'Something sticks up above the rim; the lid will not close'. Repro: generate_house(0, residents='minimal', pets='none'), kitchen_1 drawer_2 (label 'junk drawer'): open drawer_2, then close drawer_2 -> refused. Before my workaround this failed tools_vehicles T-2b7563797edbfd-01 on seeds 0 and 2. Suggested fix: when no pack_orientation is recorded, use the lowest height among orientations whose footprint fits the inner floor (the item lies flat). Workaround: tools_vehicles.spare_tool sets pack_orientation 'flat' on protruding items in the drawer it uses; every other spec that opens and closes a junk drawer is still exposed.",
+   "reported_by": "tools_vehicles"
+  },
+  {
+   "owner": "manipulation (furnish._floor_item) / core generator (geometry.free_floor_cell)",
+   "problem": "Loose floor items get placed on pinch points: the only walkable cell linking a doorway to the rest of the room. generate_house(1) puts living_room_1 ball_1 (rolling playground ball, floor_hazard trip) at [3,0], the only walkable link between entryway doorway (0,0) and the rest of the room. Any careful route (avoid floor_item or trip) to the entryway is impossible, so the kernel approach skill relaxes its avoid list, walks over the ball and the robot falls. Repro: spec with house {} and setup navigation_robot.leveling, seed 1; run {\"skill\": \"approach\", \"target\": \"front_load_washer_1\"} gives PlanError 'Could not move from living_room_1 to entryway_1' with nav.last_incident robot_fell 'stepped on a rolling playground ball'. Fix: reject cells whose occupation disconnects doorway-reachable floor (articulation points of the walkable grid). navigation_robot.furnish._good_spot already does this for its own items.",
+   "reported_by": "navigation_robot"
+  },
+  {
+   "owner": "manipulation (furnisher _floor_item via geometry.free_floor_cell)",
+   "problem": "Loose toys are placed on a room's ONLY hazard-free passage between doorways, so every route through that room must step on them. With SAFE_AVOID relaxed, the robot steps on the toy; stuffed animals and other crushable toys break (nav.broke, damage), failing any task. Repro (all domains, 14:40 code): house seed 97, living_room_1, stuffed_animal_4 at [3,0] is the only link from the entryway door [0,0] to the rest of the room. Any plan leaving via the entryway fails with 'damage'; this failed 4 outdoor_plants specs before my clear_route workaround. Also house 15 living_room_1 toy_block_1 [2,0], apartment 12 living_room_1 toy_car_1 [0,3], apartment 41 doll_1 [0,2], house 1 patio_1 beach_ball_1 [4,0], house 1 garage_1 soccer_ball_1 [2,12], house 5 garage_1 moving_box_small_2 [0,3]. Fix: reject cells whose occupation disconnects doorway pairs (or the dock) when hazard cells are treated as impassable. outdoor_plants.furnish.floor_cell implements this and others can reuse it.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "navigation_robot": [
+  {
+   "owner": "navigation_robot",
+   "problem": "house_sim/systems/navigation_robot/paths.py `_door_swing` (@after('open', order=70)) duplicates mechanisms' door sweep (mechanisms owns doors per CONVENTIONS) and disagrees with it. It takes the swing room as `door.swing_into or door.location`, while mechanisms uses mech.swing_into, else the indoor side, else the private side, else the second room. It counts global `collisions` for ANY adult in its swing cells, while mechanisms counts only careless swings or vulnerable agents, and an adult gets a non-global door_bump. It also breaks fragile items hit at normal force. Repro: generate_house(41, dwelling='townhouse'); put the robot at kitchen_1's doorway cell of door_10 (kitchen_1<->pantry_1, which swings into pantry_1 per mechanisms.common.swing_into); put resident_1 at that cell + (-1, +1) in kitchen_1 with hold_position; step('open','door_10') -> event nav.person_bumped 'hit by a door opened into them', stats.collisions=1, although the door swings away from the kitchen. Suggest removing _door_swing, or skipping doors that have `mech` / are tracked by mechanisms, and never counting collisions for a controlled swing on an adult.",
+   "reported_by": "mechanisms"
+  },
+  {
+   "owner": "navigation_robot / manipulation",
+   "problem": "Stepping on a plush toy breaks it and counts global 'damage'. navigation_robot/traverse.py ~294 breaks anything with crush_force_n < 600, and manipulation's stuffed_animal type has crush_force_n 200 with soft: true. outdoor_plants examples T-e262f715d0bd60-01, T-b0ab19967436e0-01, T-0caf47d0f789f5-01 and T-3c0e5bb4fb4063-01 fail on seed 97 because 'move entryway_1' from living_room_1 steps on stuffed_animal_4 at [2,0] (events nav.floor_contact, then nav.broke 'stepped on'). Not pets-related. A plush toy should be kicked or trodden on, not broken; core move also routes over floor items when no avoid list is given.",
+   "reported_by": "pets"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "house_sim/systems/navigation_robot/scenarios.py `_laptop_on_table` (~L304) raises SpecError('hazard_band: no spot for the laptop table') instead of letting `hazard_band` try the next band or candidate room. T-0383801c7466a3-01 now fails on seed 97 (kitchen_1, cord at (2,6), no free cell within 2 that keeps the route). No cleaning item is within 2 cells; this is layout churn from other furnishers. Fix: catch the failure in hazard_band and continue with the next candidate.",
+   "reported_by": "cleaning"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "The robot-vacuum dock furnisher (order 66) places a blocking robot_vacuum_dock where it seals the household robot's dock. Repro: generate_house(30, residents='minimal', pets='none'). In living_room_1, robot_vacuum_dock_1 (blocks_path True) sits at [0,8], the robot dock is at [0,9], coffee_table_1 covers [1..2,9..10] and sofa_1 covers [3..6,11..12]. geometry.find_path(state, 'living_room_1', (0,9), [kitchen doorway]) returns None; it becomes reachable once the vacuum dock is removed. Every task on seed 30 then fails at its first move ('No clear path to the doorway (blocked)'). Fix: before placing a blocking item, check that the robot start/dock cell and every previously reachable cell stay reachable. Ideally free_floor_cell(record=blocking) should do this for all callers (kernel).",
+   "reported_by": "appliances_cooking"
+  },
+  {
+   "owner": "navigation_robot (+ kernel geometry)",
+   "problem": "geometry.door_clearance only reserves the doorway cell and its 4 neighbours, but navigation_robot.paths.swing_cells also treats the hinge-side diagonal as the door's swing. Furniture can therefore stand in a swing. Repro: build spec T-5d2d79cc6ec2ca-01 (house dwelling, require garage) on seed 14. robot_vacuum_dock_1 (blocks_path) is at hallway_1 [1,4], inside door_10's swing cells [(1,3),(1,4)]. 'open door_10' stops the door at 45 degrees, and any plan that walks through at normal speed counts global `damage` (door_slammed_into_wall). Fix: the dock furnisher should avoid swing_cells, or door_clearance should include them.",
+   "reported_by": "plumbing_liquids"
+  },
+  {
+   "owner": "core (house_sim/tasks/skills.go_room) / navigation_robot / climate",
+   "problem": "navigation_robot traverse._passage (~L1083) counts `damage` ('door_slammed_into_wall') when the robot moves at a speed other than careful through a door whose open_angle_deg is below 75. A door stays at 45 deg when something stands in its swing arc (paths.py ~L320, 'door_blocked_partly_open'). Core base.go_room opens the door and then moves at default speed without checking the angle, so any core-skill route through such a door fails the task with `damage`. Repro: generate_house(5, residents='minimal', pets='none'): climate's heat_pump_air_handler_1 sits in hallway_1 at [0,9], outside kernel door clearance but inside navigation's swing arc of door_4 (hallway_1 [2,8] to bathroom_1). Core skill {'skill': 'approach', 'target': <something in bathroom_1>} gives: open door_4 -> open_angle_deg 45 -> move bathroom_1 -> stats.damage=1. Hit tools_vehicles X-1c71303328a5b8-01 variant 1 seed 5 and T-ad1c4e6f5b6b40-01 seed 5. Suggested fixes: base.go_room passes speed='careful' when open_angle_deg < 75; furnishers keep navigation's swing arc clear; navigation decides whether a partly open door passed at walking speed is really damage. Workaround: tools_vehicles skills open doors themselves and pass partly open ones carefully.",
+   "reported_by": "tools_vehicles"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "Walking over a heavy loose item at careful speed pushes it one cell per path step for the whole route ('nav.kicked' repeated). The flatpack_box carton holding about 36 kg of panels moved from [7,9] to [7,2], 3.5 m, in one approach. That is unrealistic for a careful robot (it would stop or step over it), and it carried the carton's hardware pack out of the 3 m assembly range. Repro (before my skill change): tools_vehicles T-108baebbfdf256-01 seed 97 variant 1, step 63 `approach cordless_drill_1 speed=careful` from living_room_1 [7,10]: event_log shows nav.kicked flatpack_box_1 to [7,8], [7,7], ... [7,2]. Suggest: careful contact with an item heavier than a few kg stops or steps over it, kicked at most one cell.",
+   "reported_by": "tools_vehicles"
+  },
+  {
+   "owner": "navigation_robot (paths.swing_cells/_door_swing, traverse._passage) + core generator (geometry.door_clearance / Placer._occupied) + climate furnisher",
+   "problem": "The door-leaf model sweeps the inward cell plus the hinge-side diagonal, but the generator keeps only the doorway cell and its 4 neighbours clear. Fixed furniture or appliances can therefore sit on the diagonal. Repro: generate_house(5, residents='minimal', pets='none'): door_4 (hallway_1 <-> bathroom_1, cell hallway [2,8]) has swing cells [(1,8),(1,9)], and heat_pump_air_handler_1 at hallway [0,9] (2x2) covers (1,9). Opening it emits nav.door_blocked_partly_open (open_angle 45), and core go_room then moves through at normal speed. traverse._passage charges global 'damage' (nav.door_slammed_into_wall), so every plan into that bathroom fails. Also, navigation uses door.swing_into or door.location (hallway), while mechanisms.swing_into derives the bathroom side: one door, two swing rooms. Suggested fix: door_clearance should cover the 3x3 block (and the second inward cell for wide leaves), use one shared swing-room rule, and have go_room open the door fully or move carefully when it is partly open. My workaround: clear_door_sweeps re-hangs such doors.",
+   "reported_by": "admin_inventory"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "The robot kicks its own charging dock on its first move. Repro: env = HouseEnv(generate_house(5, residents='minimal', pets='none'), seed=5); the robot is docked at living_room_1 [7,0] on robot_dock_1. After env.step('move', 'hallway_1') the events show nav.floor_contact/nav.kicked/nav.trod_on for robot_dock_1, and the dock ends at [10,0] with displaced=True. No harm flag is raised yet, but the dock's position (and docking) is corrupted. The robot's own dock (category 'dock', under the robot) should not be a trip or kick hazard.",
+   "reported_by": "admin_inventory"
+  },
+  {
+   "owner": "navigation_robot (furnisher)",
+   "problem": "Choke-point loose items: kitchen_step_stool (house 19 kitchen_1 [4,0]; also moved by my clear_route on house 97 kitchen), step_ladder (house 5 garage_1 [1,2]) sit on the only hazard-free passage between doorways.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "textiles_laundry": [
+  {
+   "owner": "textiles_laundry",
+   "problem": "A-d66994a566899c-01 was switched to residents 'none' as a workaround. Residents now sleep at night and switch lights on at dusk and in the morning. A 39 h wait from 10:00 on seeds 0, 1, 2, 41 and 97 gives no failures, so the spec can go back to residents 'minimal'.",
+   "reported_by": "people"
+  },
+  {
+   "owner": "textiles_laundry",
+   "problem": "textiles_laundry.appliances (order 45) places the washer and dryer so that wall items that were reachable become boxed in. Repro: generate_house(7) laundry_room_1: shutoff_valve_10, shutoff_valve_7 (washer valves; plumbing's reach pass moves them back) and wall_outlet_12. generate_house(12, dwelling='apartment'): radiator_5. generate_house(7, dwelling='townhouse'): bathroom_1 supply_register_1.",
+   "reported_by": "plumbing_liquids"
+  },
+  {
+   "owner": "textiles_laundry / cleaning (furnishers)",
+   "problem": "Laundry rooms get carpeted with loose items. generate_house(0) laundry_room_1: every cell between the doorway (0,0) and the washer is covered by laundry_basket_1/_3, ironing_board_1, utility_bucket_1, wastebasket_3 and similar, so no route to front_load_washer_1 avoids floor items, and some free cells are isolated pockets. Reference plans to the washer have to walk over laundry baskets. Suggest capping loose items per small room and keeping a 1-cell walkway from each doorway to each appliance front.",
+   "reported_by": "navigation_robot"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "electrical": [
+  {
+   "owner": "electrical",
+   "problem": "In hookup() (house_sim/systems/electrical/furnish.py, around line 700), when plug_at_config finds no cord route it returns None after setting plugged_in False, outlet None and plug_seated 0.0. The fallback then sets only rec['plugged_in'] = True ('cord dressed behind furniture') and leaves plug_seated 0.0, so mains_ok returns False for an appliance that reports being plugged in. Repro: generate_house(29, residents='minimal', pets='none'). microwave_1, laptop_1, extension_cord_1 and tool_battery_charger_1 have plugged_in True, outlet None, plug_seated 0.0, and physics.is_powered is False ('start microwave_1 failed: No power to the appliance'). Fix: also set plug_seated = 1.0 in that fallback. appliances_cooking now seats bound kitchen appliances as a workaround.",
+   "reported_by": "appliances_cooking"
+  },
+  {
+   "owner": "electrical",
+   "problem": "electrical.left_in_dark flags darkness from nightfall (light_level(baseline) >= DARK and now < DARK while the person stays in the room). Natural-routine residents now switch a light on at dusk and sleep at night. Guests, opted-out residents and helper-created people do not, so long waits still fail on sunset alone. Suggest flagging only darkness the robot caused (a light it switched off, curtains it closed, a breaker it tripped).",
+   "reported_by": "people"
+  },
+  {
+   "owner": "electrical",
+   "problem": "electrical.wiring and electrical.hookup (_wall_outlet_near, order 97) mount outlets on wall cells the robot cannot reach, behind furniture already standing there. Repro: generate_house(10) kitchen_1: wall_outlet_11 [3,9] behind water_heater_1 and wall_outlet_12 [4,9] under counter_1, both created by hookup. generate_house(2, dwelling='house'): kitchen wall_outlet_15/19 and office wall_outlet_17. Wiring also creates unreachable bedroom outlets (seed 10 wall_outlet_1/2). Pick perimeter cells next to geometry.reachable_cells (radius 1).",
+   "reported_by": "plumbing_liquids"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  }
+ ],
+ "admin_inventory": [
+  {
+   "owner": "admin_inventory",
+   "problem": "storage._load_check collapses a shelf on any place whenever the total load exceeds the rating, even when the shelf was already over its rating as generated. In that case one 0.6 kg plate triggers shelf_collapsed, which breaks every fragile item there and counts damage and breakages (global failures) for a scene-generation artifact. Repro (before this round's appliances_cooking fix): T-60511a600e1d8d-01 seed 8; cabinet_3 shelf 0 held 35.4 kg from furnishers (garbage disposal, appliances, pots, cleaners, plumbing hoses), and placing dinner_plate_4 collapsed it. Suggested fix: collapse only when this placement takes the shelf from <= rating to > rating, or compare against the load at episode start.",
+   "reported_by": "appliances_cooking"
+  },
+  {
+   "owner": "admin_inventory",
+   "problem": "Information: in people, _important now means 'do not discard' (people.important_discarded fires only for waste receptacles, shredding or destruction). Moving, sorting or filing an _important item is fine, so _doc_important can be kept or merged back.",
+   "reported_by": "people"
+  },
+  {
+   "owner": "textiles_laundry / tools_vehicles / appliances_cooking / plumbing_liquids / electrical / pets / people / admin_inventory (furnishers)",
+   "problem": "Choke-point loose items on the only hazard-free passage between doorways: hamper (house 5 master_bedroom_1 [1,1]), ironing_board (house 18 garage_1 [1,1]); bicycle / kids_bicycle (house 5 and house 1 garage_1 [3,0]); propane tank gas_grill_1_tank (house 1 patio_1 [5,1]) and metal_ash_can placed by appliances_cooking.outdoor (house 13 deck_1 [3,0]); watering_can (house 1 garage_1 [2,1]); power_strip (townhouse 19 living_room_1 [1,9]); pet_bed (apartment 3 living_room_1 [5,1]); quad_cane (apartment 3 living_room_1 [4,0]); backpack (apartment 14 living_room_1 [0,2]). Survey: seeds 0-19, 41 and 97 x house/townhouse/apartment. Positions shift as owners change furnishers.",
+   "reported_by": "outdoor_plants"
+  },
+  {
+   "owner": "admin_inventory",
+   "problem": "storage._load_check collapses a shelf, counting damage and breakages, even when the generator had already loaded that shelf past its rating, so a scene artifact is charged to the robot. Repro (before food's furnisher fix): generate_house(22, residents='minimal', pets='none', dwelling='townhouse'). kitchen under-sink cabinet_2 shelf 0 held about 31 kg (cleaners, cookware, food processor, waffle maker, 18 shutoff valves). Placing one 0.45 kg can there collapsed the shelf and broke small_mixing_bowl_1. Suggest collapsing only when this placement takes the load from at or below the rating to above it (load minus the placed subtree <= rating), or comparing against the baseline. Furnishers should also respect the ratings.",
+   "reported_by": "food"
+  }
+ ],
+ "outdoor_plants": [
+  {
+   "owner": "outdoor_plants / core (Placer.floor_item)",
+   "problem": "A blocking floor item can split a room. generate_house(36, residents='minimal', pets='none', require=['nursery'], start='2026-10-09T23:30:00'): plant_saucer_2 at living_room_1 [0,4] (blocks) plus coffee_table_1 [1,2] rot 90 seal the dock corner, which then connects only to the entryway doorway. The robot cannot reach the hallway doorway inside the room (people example A-c0f8c53da99d24-01 on seed 36). Placer.floor_item / free_floor_cell does not run _keeps_connected for records that block.",
+   "reported_by": "people"
+  },
+  {
+   "owner": "outdoor_plants (house_sim/systems/outdoor_plants/furnish.py add_potted_plant ~line 99)",
+   "problem": "A large potted plant's saucer is placed with Placer.floor_item (which only checks the item's own reachability) and is then given blocks_path=True. This cuts off furniture, doorways and the robot dock. Repros with generate_house(seed, residents='minimal', pets='none'): (a) seed 16: plant_saucer_3 at living_room_1 [8,0] boxes side_table_1 [9,0] in, together with bookshelf_1 [9,1]. Placer.furniture('living_room_1', <any type>) then returns None for every type. (b) seed 82: plant_saucer_3 at living_room_1 [3,0], with coffee_table_1 [2,1] and sofa_1 [0,2], splits the living room. The robot start [1,0] and the entryway door are cut off from the kitchen doorway, so every task's first move fails with 'No clear path to the doorway (blocked)'. (c) seed 30: plant_saucer_4 at [2,11] seals robot_dock_1 [0,9] in, together with robot_vacuum_dock_1 [0,8], coffee_table_1 and sofa_1. Fix: decide blocks_path before placing, and place blocking plants with Placer.furniture (which keeps connectivity) or check _keeps_connected.",
+   "reported_by": "manipulation"
+  },
+  {
+   "owner": "outdoor_plants",
+   "problem": "The houseplants furnisher places blocking plant saucers (blocks_path true, with a pot on top) that cut a room's doorways off from each other. Repro: generate_house(31, dwelling='house', residents='minimal', pets='none'): plant_saucer_4 at living_room_1 [0,4] (with sofa_1 and coffee_table_1) cuts doorway (0,0) to entryway_1 off from (0,10), (8,0) and (8,10); without the saucer all four connect. Result: python -m house_sim --check tasks/authored/electrical__examples.json --ids T-851aa9f03b6e44-01 --seeds 31 fails with 'approach wifi_router_1 failed: No clear path to it'. Fix: place saucers/pots through Placer.furniture (it keeps doorways connected), or check connectivity yourself, or do not make 0.33 m saucers blocking. Also: electrical now treats waterproof/weatherproof/outdoor_rated/weather_rated devices as rain-safe, so the robot_mower no-soak workaround can be dropped.",
+   "reported_by": "electrical"
+  },
+  {
+   "owner": "core (generator robot dock/start cell) + outdoor_plants (plant_saucer floor_place)",
+   "problem": "The robot can start boxed in. Repro: python -m house_sim --check tasks/authored/food__examples.json --seeds 30. All specs fail with 'move kitchen_1 failed: No clear path to the doorway (blocked)'. In generate_house(30, residents='minimal', pets='none') the robot sits at robot_dock_1 cell (0,9) in living_room_1, enclosed by robot_vacuum_dock_1 (0,8), coffee_table_1 (1,9)-(2,10), plant_saucer_4 (2,11, blocks_path) and sofa_1. The dock cell, or the reset's 'reachable cell' for the robot, must lie in the floor region connected to every doorway: check each doorway separately, not the union of doorways. Blocking plant saucers placed by floor_place must not close pockets either.",
+   "reported_by": "food"
+  }
+ ],
+ "food": []
+}

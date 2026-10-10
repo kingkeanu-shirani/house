@@ -1,8 +1,8 @@
 {
-  "source_sha256": "73437773d40255207d83e6c8e85044f1e37390c0901a68e768df246ef127a107",
-  "source_bytes": 95274,
-  "nonblank_lines": 2756,
-  "entries": 2719,
+  "source_sha256": "57dfb1b5c0c7936fa78b86955e6eeb28fb4a0fa7159b8afa1fbe95b83c6d366b",
+  "source_bytes": 95314,
+  "nonblank_lines": 2757,
+  "entries": 2720,
   "headings": [
     {
       "source_line": 1,
@@ -179,52 +179,52 @@
       "byte_end": 91359
     },
     {
-      "source_line": 2804,
+      "source_line": 2805,
       "original_text": "Feedback and recovery (must-have)",
-      "byte_start": 91908,
-      "byte_end": 91943
+      "byte_start": 91948,
+      "byte_end": 91983
     },
     {
-      "source_line": 2809,
+      "source_line": 2810,
       "original_text": "Standing orders and watching",
-      "byte_start": 92455,
-      "byte_end": 92485
+      "byte_start": 92495,
+      "byte_end": 92525
     },
     {
-      "source_line": 2814,
+      "source_line": 2815,
       "original_text": "Is it okay? (judging state)",
-      "byte_start": 92973,
-      "byte_end": 93002
+      "byte_start": 93013,
+      "byte_end": 93042
     },
     {
-      "source_line": 2819,
+      "source_line": 2820,
       "original_text": "Improvising physical fixes",
-      "byte_start": 93472,
-      "byte_end": 93500
+      "byte_start": 93512,
+      "byte_end": 93540
     },
     {
-      "source_line": 2823,
+      "source_line": 2824,
       "original_text": "New devices and new homes",
-      "byte_start": 93825,
-      "byte_end": 93852
+      "byte_start": 93865,
+      "byte_end": 93892
     },
     {
-      "source_line": 2826,
+      "source_line": 2827,
       "original_text": "Reading the room",
-      "byte_start": 94122,
-      "byte_end": 94140
+      "byte_start": 94162,
+      "byte_end": 94180
     },
     {
-      "source_line": 2831,
+      "source_line": 2832,
       "original_text": "Constraints beyond time",
-      "byte_start": 94706,
-      "byte_end": 94731
+      "byte_start": 94746,
+      "byte_end": 94771
     },
     {
-      "source_line": 2835,
+      "source_line": 2836,
       "original_text": "Pets",
-      "byte_start": 95055,
-      "byte_end": 95061
+      "byte_start": 95095,
+      "byte_end": 95101
     }
   ],
   "counts_by_kind": {
@@ -232,7 +232,7 @@
     "primitive": 108,
     "variation": 74,
     "appendix": 45,
-    "adaptability": 252
+    "adaptability": 253
   },
   "sections": [
     "Accessibility assistance",

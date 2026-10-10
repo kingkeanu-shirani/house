@@ -1,0 +1,3714 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-ce25a2474ffb3d-01",
+   "title": "Pick up a fragile object",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{k}",
+      "type": "side_table",
+      "var": "src",
+      "props": {
+       "label": "kitchen side table"
+      },
+      "use_existing": [
+       "side_table",
+       "table",
+       "counter"
+      ],
+      "free_m": [
+       0.3,
+       0.3
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "side_table",
+      "var": "dst",
+      "props": {
+       "label": "marble side table",
+       "material": "marble"
+      }
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "generic_item",
+       "on": "{src}",
+       "props": {
+        "label": "wine glass",
+        "category": "glassware",
+        "material": "glass",
+        "fragile": true,
+        "hollow": true,
+        "crush_force_n": 25.0,
+        "drop_tolerance_m": 0.1,
+        "mass_kg": 0.18,
+        "size_m": [
+         0.08,
+         0.08,
+         0.21
+        ],
+        "volume_l": 0.5
+       }
+      }
+     ],
+     "instruction": "Move the wine glass from the {src_label} to the marble side table in the living room.",
+     "phrasings": [
+      "Move the wine glass from the {src_label} to the marble side table in the living room.",
+      "Could you bring that wine glass over to the marble table in the living room? Careful, it's delicate.",
+      "Take the stemmed glass off the {src_label} and set it on the marble table next door."
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "generic_item",
+       "on": "{src}",
+       "props": {
+        "label": "porcelain teacup",
+        "category": "cup",
+        "material": "porcelain",
+        "fragile": true,
+        "hollow": true,
+        "crush_force_n": 40.0,
+        "drop_tolerance_m": 0.12,
+        "mass_kg": 0.16,
+        "size_m": [
+         0.11,
+         0.09,
+         0.07
+        ],
+        "volume_l": 0.4,
+        "has_handle": true,
+        "features": {
+         "handle": 0
+        }
+       }
+      }
+     ],
+     "instruction": "Move the porcelain teacup from the {src_label} to the marble side table in the living room.",
+     "phrasings": [
+      "Move the porcelain teacup from the {src_label} to the marble side table in the living room.",
+      "Bring my good teacup to the marble table in the living room, gently.",
+      "Carry the delicate porcelain cup from the {src_label} over to the marble table."
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "glass_ornament",
+       "on": "{src}",
+       "props": {
+        "label": "blown-glass ornament"
+       }
+      }
+     ],
+     "instruction": "Move the blown-glass ornament from the {src_label} to the marble side table in the living room.",
+     "phrasings": [
+      "Move the blown-glass ornament from the {src_label} to the marble side table in the living room.",
+      "Pick up that glass ornament and put it on the marble table in the living room.",
+      "The fragile glass bauble on the {src_label} goes on the marble table, please."
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "entities.{item}.location",
+     "op": "eq",
+     "value": "{dst}"
+    },
+    {
+     "path": "entities.{item}.broken",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{item}.chipped",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{item}",
+     "grip": "gentle"
+    },
+    {
+     "skill": "put",
+     "obj": "{item}",
+     "dest": "{dst}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "power grasp cracks it",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{item}",
+       "grip": "firm"
+      },
+      {
+       "skill": "put",
+       "obj": "{item}",
+       "dest": "{dst}"
+      }
+     ]
+    },
+    {
+     "name": "rushes and sets it down hard on marble",
+     "plan": [
+      {
+       "do": "set_speed",
+       "target": "fast"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{item}"
+      },
+      {
+       "skill": "put",
+       "obj": "{item}",
+       "dest": "{dst}"
+      }
+     ]
+    }
+   ],
+   "notes": "Grip physics: firm is a fixed 90 N power grasp above the crush threshold; fast set-downs chip fragile ware on marble."
+  },
+  {
+   "catalog_id": "T-f14db0adf450bb-01",
+   "title": "Stack objects",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{k}",
+      "type": "table",
+      "var": "tbl",
+      "props": {
+       "label": "work table",
+       "material": "wood",
+       "size_m": [
+        1.0,
+        0.6,
+        0.75
+       ]
+      },
+      "fallback_types": [
+       "dining_room",
+       "living_room",
+       "office",
+       "craft_room"
+      ],
+      "room_var": "work_room"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "big1",
+       "type": "generic_item",
+       "on": "{tbl}",
+       "props": {
+        "label": "dinner plate",
+        "material": "ceramic",
+        "fragile": true,
+        "stackable": true,
+        "accepts_items": true,
+        "size_m": [
+         0.27,
+         0.27,
+         0.025
+        ],
+        "mass_kg": 0.55,
+        "volume_l": 0.6
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "small1",
+       "type": "generic_item",
+       "on": "{tbl}",
+       "props": {
+        "label": "salad plate",
+        "material": "ceramic",
+        "fragile": true,
+        "stackable": true,
+        "accepts_items": true,
+        "size_m": [
+         0.2,
+         0.2,
+         0.022
+        ],
+        "mass_kg": 0.35,
+        "volume_l": 0.3
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "big2",
+       "type": "generic_item",
+       "on": "{tbl}",
+       "props": {
+        "label": "dinner plate",
+        "material": "ceramic",
+        "fragile": true,
+        "stackable": true,
+        "accepts_items": true,
+        "size_m": [
+         0.27,
+         0.27,
+         0.025
+        ],
+        "mass_kg": 0.55,
+        "volume_l": 0.6
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "small2",
+       "type": "generic_item",
+       "on": "{tbl}",
+       "props": {
+        "label": "salad plate",
+        "material": "ceramic",
+        "fragile": true,
+        "stackable": true,
+        "accepts_items": true,
+        "size_m": [
+         0.2,
+         0.2,
+         0.022
+        ],
+        "mass_kg": 0.35,
+        "volume_l": 0.3
+       }
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.goal",
+       "args": {
+        "name": "stack",
+        "kind": "stack_rules",
+        "items": [
+         "{big1}",
+         "{big2}",
+         "{small1}",
+         "{small2}"
+        ],
+        "base_location": "{tbl}",
+        "larger_below": true
+       }
+      }
+     ],
+     "instruction": "Stack these plates on the work table.",
+     "phrasings": [
+      "Stack these plates on the work table.",
+      "Make a neat stack of the dinner and salad plates on the table.",
+      "Can you stack up the plates on the work table so they're ready to put away?"
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "big1",
+       "type": "book",
+       "on": "{tbl}",
+       "props": {
+        "label": "world atlas",
+        "size_m": [
+         0.32,
+         0.42,
+         0.04
+        ],
+        "mass_kg": 2.2,
+        "accepts_items": true,
+        "stackable": true
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "small1",
+       "type": "book",
+       "on": "{tbl}",
+       "props": {
+        "label": "paperback novel",
+        "size_m": [
+         0.11,
+         0.18,
+         0.03
+        ],
+        "mass_kg": 0.3,
+        "accepts_items": true,
+        "stackable": true
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "big2",
+       "type": "book",
+       "on": "{tbl}",
+       "props": {
+        "label": "cookbook",
+        "size_m": [
+         0.21,
+         0.28,
+         0.03
+        ],
+        "mass_kg": 1.1,
+        "accepts_items": true,
+        "stackable": true
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "small2",
+       "type": "book",
+       "on": "{tbl}",
+       "props": {
+        "label": "pocket dictionary",
+        "size_m": [
+         0.1,
+         0.15,
+         0.04
+        ],
+        "mass_kg": 0.35,
+        "accepts_items": true,
+        "stackable": true
+       }
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.goal",
+       "args": {
+        "name": "stack",
+        "kind": "stack_rules",
+        "items": [
+         "{big1}",
+         "{big2}",
+         "{small1}",
+         "{small2}"
+        ],
+        "base_location": "{tbl}",
+        "larger_below": true
+       }
+      }
+     ],
+     "instruction": "Stack these books on the work table.",
+     "phrasings": [
+      "Stack these books on the work table.",
+      "Pile the books up neatly on the table.",
+      "Could you make one stack out of these books?"
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "manipulation.results.stack.ok",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "skill": "manipulation.stack_onto",
+     "items": [
+      "{big2}",
+      "{small1}",
+      "{small2}"
+     ],
+     "base": "{big1}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "small items under large ones",
+     "plan": [
+      {
+       "skill": "manipulation.stack_onto",
+       "items": [
+        "{big1}",
+        "{small2}",
+        "{big2}"
+       ],
+       "base": "{small1}"
+      }
+     ]
+    },
+    {
+     "name": "two separate piles",
+     "plan": [
+      {
+       "skill": "manipulation.stack_onto",
+       "items": [
+        "{small1}"
+       ],
+       "base": "{big1}"
+      },
+      {
+       "skill": "manipulation.stack_onto",
+       "items": [
+        "{small2}"
+       ],
+       "base": "{big2}"
+      }
+     ]
+    }
+   ],
+   "notes": "stack_rules goal: one stack, each piece no larger than the one below; a piece >25% wider than its support rocks and topples (plates break)."
+  },
+  {
+   "catalog_id": "T-5fccf30a680f1b-01",
+   "title": "Carry a tray",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{k}",
+      "type": "side_table",
+      "var": "src",
+      "props": {
+       "label": "kitchen side table"
+      },
+      "use_existing": [
+       "side_table",
+       "table",
+       "counter"
+      ],
+      "free_m": [
+       0.5,
+       0.35
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "side_table",
+      "var": "dst",
+      "props": {
+       "label": "living-room side table"
+      },
+      "use_existing": [
+       "side_table"
+      ],
+      "free_m": [
+       0.5,
+       0.35
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "tray",
+     "type": "tray",
+     "on": "{src}",
+     "props": {
+      "label": "serving tray"
+     }
+    },
+    {
+     "op": "uniform",
+     "var": "fill1",
+     "min": 0.18,
+     "max": 0.19,
+     "round": 3
+    },
+    {
+     "op": "uniform",
+     "var": "fill2",
+     "min": 0.18,
+     "max": 0.19,
+     "round": 3
+    },
+    {
+     "op": "spawn",
+     "var": "cup1",
+     "type": "generic_item",
+     "on": "{tray}",
+     "props": {
+      "label": "cup of tea",
+      "category": "cup",
+      "material": "porcelain",
+      "liquid_container": true,
+      "liquid": "tea",
+      "liquid_l": "{fill1}",
+      "capacity_l": 0.22,
+      "size_m": [
+       0.09,
+       0.09,
+       0.07
+      ],
+      "mass_kg": 0.18,
+      "has_handle": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cup2",
+     "type": "generic_item",
+     "on": "{tray}",
+     "props": {
+      "label": "cup of tea",
+      "category": "cup",
+      "material": "porcelain",
+      "liquid_container": true,
+      "liquid": "tea",
+      "liquid_l": "{fill2}",
+      "capacity_l": 0.22,
+      "size_m": [
+       0.09,
+       0.09,
+       0.07
+      ],
+      "mass_kg": 0.18,
+      "has_handle": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "pot",
+     "type": "generic_item",
+     "on": "{tray}",
+     "props": {
+      "label": "teapot",
+      "category": "teapot",
+      "material": "porcelain",
+      "liquid_container": true,
+      "liquid": "tea",
+      "liquid_l": 0.6,
+      "capacity_l": 0.9,
+      "lid_on": true,
+      "size_m": [
+       0.15,
+       0.13,
+       0.15
+      ],
+      "mass_kg": 0.6
+     }
+    }
+   ],
+   "instruction": "Bring the tea tray to the side table in the living room.",
+   "phrasings": [
+    "Bring the tea tray to the side table in the living room.",
+    "Could you carry the tray with the tea into the living room without spilling it?",
+    "Take the tea things through to the living-room side table, please."
+   ],
+   "success": [
+    {
+     "path": "entities.{tray}.location",
+     "op": "eq",
+     "value": "{dst}"
+    },
+    {
+     "path": "entities.{cup1}.location",
+     "op": "eq",
+     "value": "{tray}"
+    },
+    {
+     "path": "entities.{cup2}.location",
+     "op": "eq",
+     "value": "{tray}"
+    },
+    {
+     "path": "entities.{pot}.location",
+     "op": "eq",
+     "value": "{tray}"
+    },
+    {
+     "path": "entities.{cup1}.liquid_l",
+     "op": "eq",
+     "value": "{fill1}"
+    },
+    {
+     "path": "entities.{cup2}.liquid_l",
+     "op": "eq",
+     "value": "{fill2}"
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "do": "set_speed",
+     "target": "careful"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{tray}"
+    },
+    {
+     "skill": "put",
+     "obj": "{tray}",
+     "dest": "{dst}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "hurries with the tray",
+     "plan": [
+      {
+       "do": "set_speed",
+       "target": "fast"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tray}"
+      },
+      {
+       "skill": "put",
+       "obj": "{tray}",
+       "dest": "{dst}"
+      }
+     ]
+    },
+    {
+     "name": "ordinary walking pace with brimming cups",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{tray}"
+      },
+      {
+       "skill": "put",
+       "obj": "{tray}",
+       "dest": "{dst}"
+      }
+     ]
+    }
+   ],
+   "notes": "Slosh model: amplitude 1 cm x motion factor x sqrt(d/8 cm) x1.2 on a tray vs 0.9-1.1 cm headroom in an 82-86% full cup: walking pace (motion 1.0, x1.15 through a door) spills, careful pace (0.5) does not, even through doors."
+  },
+  {
+   "catalog_id": "A-05a6ff57e7f3fd-01",
+   "title": "Move this without scratching the floor",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "set",
+     "target": "floor_{lr}",
+     "props": {
+      "material": "hardwood"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "manipulation.furniture",
+       "args": {
+        "room": "{lr}",
+        "type": "chair",
+        "var": "item",
+        "props": {
+         "label": "oak dining chair",
+         "material": "wood",
+         "mass_kg": 6.5
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.clear_target",
+       "args": {
+        "item": "{item}",
+        "var": "target",
+        "min_m": 1.0,
+        "max_m": 2.5
+       }
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.goal",
+       "args": {
+        "name": "moved",
+        "kind": "poses",
+        "items": {
+         "{item}": {
+          "location": "{lr}",
+          "cell": "{target}"
+         }
+        },
+        "pos_tol_m": 0.1
+       }
+      }
+     ],
+     "instruction": "Move the oak chair {target_distance_m} m {target_direction} without scratching the hardwood.",
+     "phrasings": [
+      "Move the oak chair {target_distance_m} m {target_direction} without scratching the hardwood.",
+      "Shift that wooden chair over to the {target_direction} by about {target_distance_m} m, and mind the floor.",
+      "Can you move the dining chair {target_distance_m} m toward the {target_direction}? Don't scratch the floor."
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{item}"
+      },
+      {
+       "do": "push",
+       "target": "{item}",
+       "to_cell": "{target}",
+       "lift": true
+      }
+     ],
+     "wrong": [
+      {
+       "name": "shoves it across the hardwood",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{item}"
+        },
+        {
+         "do": "push",
+         "target": "{item}",
+         "to_cell": "{target}"
+        }
+       ]
+      },
+      {
+       "name": "drags it",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{item}"
+        },
+        {
+         "do": "drag",
+         "target": "{item}",
+         "to_cell": "{target}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "manipulation.furniture",
+       "args": {
+        "room": "{lr}",
+        "type": "armchair",
+        "var": "item",
+        "props": {
+         "label": "leather armchair",
+         "material": "leather",
+         "mass_kg": 27.0
+        }
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "sliders",
+       "type": "furniture_slider_set",
+       "floor": "{lr}"
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.clear_target",
+       "args": {
+        "item": "{item}",
+        "var": "target",
+        "min_m": 1.0,
+        "max_m": 2.5
+       }
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.goal",
+       "args": {
+        "name": "moved",
+        "kind": "poses",
+        "items": {
+         "{item}": {
+          "location": "{lr}",
+          "cell": "{target}"
+         }
+        },
+        "pos_tol_m": 0.1
+       }
+      }
+     ],
+     "instruction": "Move the leather armchair {target_distance_m} m {target_direction} without scratching the hardwood.",
+     "phrasings": [
+      "Move the leather armchair {target_distance_m} m {target_direction} without scratching the hardwood.",
+      "Slide the big armchair about {target_distance_m} m {target_direction}; the floor is easily scratched.",
+      "Could you shift the armchair {target_distance_m} m toward the {target_direction}? Protect the hardwood."
+     ],
+     "reference": [
+      {
+       "skill": "fetch",
+       "obj": "{sliders}"
+      },
+      {
+       "skill": "approach",
+       "target": "{item}"
+      },
+      {
+       "do": "tilt",
+       "target": "{item}",
+       "angle_deg": 12
+      },
+      {
+       "do": "attach",
+       "target": "{sliders}",
+       "destination": "{item}"
+      },
+      {
+       "do": "tilt",
+       "target": "{item}",
+       "angle_deg": 0
+      },
+      {
+       "do": "push",
+       "target": "{item}",
+       "to_cell": "{target}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "shoves it across the hardwood",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{item}"
+        },
+        {
+         "do": "push",
+         "target": "{item}",
+         "to_cell": "{target}"
+        }
+       ]
+      },
+      {
+       "name": "tries to lift a 27 kg chair alone",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{item}"
+        },
+        {
+         "do": "push",
+         "target": "{item}",
+         "to_cell": "{target}",
+         "lift": true
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "manipulation.results.moved.ok",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "notes": "Floor abrasion: risk = floor (hardwood 1.0) x feet (wood 0.8) x min(1, m/4 kg) >= 0.3 scratches; lifting or sliders avoid contact; 27 kg exceeds the 20 kg lift limit."
+  },
+  {
+   "catalog_id": "T-0d99b00f1f2278-01",
+   "title": "Tie a trash bag",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.free_cell",
+     "args": {
+      "room": "{k}",
+      "var": "can_cell",
+      "size_m": [
+       0.4,
+       0.35
+      ],
+      "height_m": 0.65
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "can",
+     "type": "storage_bin",
+     "floor": "{k}",
+     "props": {
+      "label": "kitchen trash can",
+      "open": true,
+      "openable": true,
+      "capacity_l": 50.0,
+      "inner_size_m": [
+       0.38,
+       0.33,
+       0.62
+      ],
+      "size_m": [
+       0.4,
+       0.35,
+       0.65
+      ],
+      "mass_kg": 1.5,
+      "stackable": false
+     },
+     "cell": "{can_cell}"
+    },
+    {
+     "op": "spawn",
+     "var": "liner",
+     "type": "bag",
+     "in": "{can}",
+     "props": {
+      "label": "trash bag",
+      "material": "plastic",
+      "capacity_l": 50.0,
+      "inner_size_m": [
+       0.36,
+       0.3,
+       0.6
+      ],
+      "size_m": [
+       0.36,
+       0.3,
+       0.6
+      ],
+      "volume_l": 1.0,
+      "mass_kg": 0.03,
+      "tie_kind": "flaps",
+      "over_rim": true,
+      "soft_sided": true
+     }
+    },
+    {
+     "op": "uniform",
+     "var": "tvol",
+     "min": 22.0,
+     "max": 38.0,
+     "round": 1
+    },
+    {
+     "op": "uniform",
+     "var": "tmass",
+     "min": 2.5,
+     "max": 5.0,
+     "round": 2
+    },
+    {
+     "op": "spawn",
+     "var": "trash",
+     "type": "generic_item",
+     "in": "{liner}",
+     "props": {
+      "label": "kitchen trash",
+      "category": "trash",
+      "tags": [
+       "trash"
+      ],
+      "volume_l": "{tvol}",
+      "mass_kg": "{tmass}",
+      "size_m": [
+       0.3,
+       0.25,
+       0.3
+      ]
+     }
+    }
+   ],
+   "instruction": "Tie up the kitchen trash bag and lift it out of the can.",
+   "phrasings": [
+    "Tie up the kitchen trash bag and lift it out of the can.",
+    "The kitchen garbage is full - close the bag properly and take it out of the bin.",
+    "Can you knot the trash bag shut and pull it out of the can for me?"
+   ],
+   "success": [
+    {
+     "path": "entities.{liner}.location",
+     "op": "ne",
+     "value": "{can}"
+    },
+    {
+     "path": "entities.{liner}.closure.holds",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{trash}.location",
+     "op": "eq",
+     "value": "{liner}"
+    },
+    {
+     "path": "entities.{liner}.torn",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 40,
+    "time_s": 600
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{can}"
+    },
+    {
+     "do": "detach",
+     "target": "{liner}"
+    },
+    {
+     "do": "tie",
+     "target": "{liner}",
+     "knot": "double"
+    },
+    {
+     "do": "crouch"
+    },
+    {
+     "do": "pick_up",
+     "target": "{liner}"
+    },
+    {
+     "do": "stand"
+    },
+    {
+     "do": "place",
+     "target": "{liner}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "twists the neck without a knot",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "do": "detach",
+       "target": "{liner}"
+      },
+      {
+       "do": "tie",
+       "target": "{liner}",
+       "knot": "twist"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "pick_up",
+       "target": "{liner}"
+      },
+      {
+       "do": "stand"
+      },
+      {
+       "do": "place",
+       "target": "{liner}"
+      }
+     ]
+    },
+    {
+     "name": "ties the bag around the can rim",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "do": "tie",
+       "target": "{liner}",
+       "knot": "double"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "pick_up",
+       "target": "{liner}"
+      },
+      {
+       "do": "stand"
+      },
+      {
+       "do": "place",
+       "target": "{liner}"
+      }
+     ]
+    }
+   ],
+   "notes": "Knot holding loads: twist 0.3 kg, double 20 kg; a liner still folded over the rim gets tied to it and tears when lifted."
+  },
+  {
+   "catalog_id": "A-b6bf8052cc5211-01",
+   "title": "Pack the fragile stuff carefully",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "table",
+      "var": "tbl",
+      "props": {
+       "label": "packing table",
+       "size_m": [
+        1.2,
+        0.8,
+        0.75
+       ]
+      }
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "box",
+     "type": "moving_box_medium",
+     "floor": "{lr}",
+     "props": {
+      "open": true,
+      "seams": {
+       "top": {
+        "taped": "none"
+       },
+       "bottom": {
+        "taped": "H"
+       }
+      }
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "glass1",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "wine glass",
+      "category": "glassware",
+      "material": "glass",
+      "fragile": true,
+      "hollow": true,
+      "mass_kg": 0.2,
+      "size_m": [
+       0.08,
+       0.08,
+       0.21
+      ],
+      "volume_l": 1.2,
+      "drop_tolerance_m": 0.1,
+      "max_load_kg": 2.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "glass2",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "wine glass",
+      "category": "glassware",
+      "material": "glass",
+      "fragile": true,
+      "hollow": true,
+      "mass_kg": 0.2,
+      "size_m": [
+       0.08,
+       0.08,
+       0.21
+      ],
+      "volume_l": 1.2,
+      "drop_tolerance_m": 0.1,
+      "max_load_kg": 2.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "frame",
+     "type": "picture_frame",
+     "on": "{tbl}",
+     "props": {
+      "label": "framed photo"
+     }
+    },
+    {
+     "op": "uniform",
+     "var": "bookmass",
+     "min": 5.0,
+     "max": 8.0,
+     "round": 1
+    },
+    {
+     "op": "spawn",
+     "var": "books",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "stack of hardback books",
+      "material": "paper",
+      "mass_kg": "{bookmass}",
+      "size_m": [
+       0.3,
+       0.23,
+       0.2
+      ],
+      "volume_l": 14.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bubble",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "bubble wrap roll",
+      "category": "wrap",
+      "material": "plastic",
+      "wrap_material": "bubble_wrap",
+      "length_m": 10.0,
+      "width_m": 0.6,
+      "mass_kg": 0.5,
+      "size_m": [
+       0.6,
+       0.12,
+       0.12
+      ],
+      "volume_l": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "paper",
+     "type": "generic_item",
+     "floor": "{lr}",
+     "props": {
+      "label": "bundle of crumpled packing paper",
+      "category": "void_fill",
+      "material": "paper",
+      "void_fill": true,
+      "volume_l": 50.0,
+      "mass_kg": 0.6,
+      "size_m": [
+       0.4,
+       0.4,
+       0.3
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "tape",
+     "type": "packing_tape",
+     "on": "{tbl}"
+    },
+    {
+     "op": "spawn",
+     "var": "labels",
+     "type": "label_sheet",
+     "on": "{tbl}"
+    },
+    {
+     "op": "event",
+     "when": {
+      "path": "entities.{box}.sealed",
+      "op": "is_true",
+      "value": true
+     },
+     "effect": "manipulation.transport_test",
+     "args": {
+      "container": "{box}",
+      "drop_m": 0.3
+     }
+    }
+   ],
+   "instruction": "Pack the fragile stuff on the packing table into the moving box carefully, then seal and label it.",
+   "phrasings": [
+    "Pack the fragile stuff on the packing table into the moving box carefully, then seal and label it.",
+    "Box up the glasses and the photo frame (and the books) for the move - they need to survive the trip. Seal and mark it.",
+    "Could you pack everything on that table into the moving box so nothing breaks, tape it shut and label it fragile?"
+   ],
+   "success": [
+    {
+     "path": "entities.{glass1}.location",
+     "op": "eq",
+     "value": "{box}"
+    },
+    {
+     "path": "entities.{glass2}.location",
+     "op": "eq",
+     "value": "{box}"
+    },
+    {
+     "path": "entities.{frame}.location",
+     "op": "eq",
+     "value": "{box}"
+    },
+    {
+     "path": "entities.{books}.location",
+     "op": "eq",
+     "value": "{box}"
+    },
+    {
+     "path": "entities.{box}.transport_tested",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{box}.transport_breakages",
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "path": "entities.{box}.label_text",
+     "op": "contains",
+     "value": "FRAGILE"
+    },
+    {
+     "path": "entities.{glass1}.broken",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{glass2}.broken",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{frame}.broken",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 90,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{bubble}"
+    },
+    {
+     "do": "wrap",
+     "target": "{glass1}",
+     "tool": "{bubble}",
+     "layers": 2,
+     "stuff_hollows": true
+    },
+    {
+     "do": "wrap",
+     "target": "{glass2}",
+     "tool": "{bubble}",
+     "layers": 2,
+     "stuff_hollows": true
+    },
+    {
+     "do": "wrap",
+     "target": "{frame}",
+     "tool": "{bubble}",
+     "layers": 2
+    },
+    {
+     "do": "place",
+     "target": "{bubble}",
+     "destination": "{tbl}"
+    },
+    {
+     "skill": "manipulation.pack_items",
+     "container": "{box}",
+     "items": [
+      {
+       "item": "{books}",
+       "orientation": "flat"
+      },
+      {
+       "item": "{frame}",
+       "orientation": "upright"
+      },
+      "{glass1}",
+      "{glass2}",
+      "{paper}"
+     ]
+    },
+    {
+     "do": "close",
+     "target": "{box}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{tape}"
+    },
+    {
+     "skill": "approach",
+     "target": "{box}"
+    },
+    {
+     "do": "tape",
+     "target": "{box}",
+     "tool": "{tape}",
+     "where": "top_seam",
+     "pattern": "h"
+    },
+    {
+     "skill": "put",
+     "obj": "{tape}",
+     "dest": "{tbl}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{labels}"
+    },
+    {
+     "skill": "approach",
+     "target": "{box}"
+    },
+    {
+     "do": "apply_label",
+     "target": "{box}",
+     "text": "FRAGILE - glassware - this side up",
+     "face": "side",
+     "tool": "{labels}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "packs the glasses unwrapped",
+     "plan": [
+      {
+       "skill": "manipulation.pack_items",
+       "container": "{box}",
+       "items": [
+        "{books}",
+        "{frame}",
+        "{glass1}",
+        "{glass2}",
+        "{paper}"
+       ]
+      },
+      {
+       "do": "close",
+       "target": "{box}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tape}"
+      },
+      {
+       "skill": "approach",
+       "target": "{box}"
+      },
+      {
+       "do": "tape",
+       "target": "{box}",
+       "tool": "{tape}",
+       "where": "top_seam",
+       "pattern": "h"
+      },
+      {
+       "skill": "put",
+       "obj": "{tape}",
+       "dest": "{tbl}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{labels}"
+      },
+      {
+       "skill": "approach",
+       "target": "{box}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{box}",
+       "text": "FRAGILE",
+       "face": "side",
+       "tool": "{labels}"
+      }
+     ]
+    },
+    {
+     "name": "heavy books on top of the glasses",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{bubble}"
+      },
+      {
+       "do": "wrap",
+       "target": "{glass1}",
+       "tool": "{bubble}",
+       "layers": 2,
+       "stuff_hollows": true
+      },
+      {
+       "do": "wrap",
+       "target": "{glass2}",
+       "tool": "{bubble}",
+       "layers": 2,
+       "stuff_hollows": true
+      },
+      {
+       "do": "wrap",
+       "target": "{frame}",
+       "tool": "{bubble}",
+       "layers": 2
+      },
+      {
+       "do": "place",
+       "target": "{bubble}",
+       "destination": "{tbl}"
+      },
+      {
+       "skill": "manipulation.pack_items",
+       "container": "{box}",
+       "items": [
+        "{glass1}",
+        "{glass2}",
+        "{frame}",
+        "{books}",
+        "{paper}"
+       ]
+      },
+      {
+       "do": "close",
+       "target": "{box}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tape}"
+      },
+      {
+       "skill": "approach",
+       "target": "{box}"
+      },
+      {
+       "do": "tape",
+       "target": "{box}",
+       "tool": "{tape}",
+       "where": "top_seam",
+       "pattern": "h"
+      },
+      {
+       "skill": "put",
+       "obj": "{tape}",
+       "dest": "{tbl}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{labels}"
+      },
+      {
+       "skill": "approach",
+       "target": "{box}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{box}",
+       "text": "FRAGILE",
+       "face": "side",
+       "tool": "{labels}"
+      }
+     ]
+    },
+    {
+     "name": "no void fill, contents slide around",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{bubble}"
+      },
+      {
+       "do": "wrap",
+       "target": "{glass1}",
+       "tool": "{bubble}",
+       "layers": 2,
+       "stuff_hollows": true
+      },
+      {
+       "do": "wrap",
+       "target": "{glass2}",
+       "tool": "{bubble}",
+       "layers": 2,
+       "stuff_hollows": true
+      },
+      {
+       "do": "wrap",
+       "target": "{frame}",
+       "tool": "{bubble}",
+       "layers": 2
+      },
+      {
+       "do": "place",
+       "target": "{bubble}",
+       "destination": "{tbl}"
+      },
+      {
+       "skill": "manipulation.pack_items",
+       "container": "{box}",
+       "items": [
+        "{books}",
+        "{frame}",
+        "{glass1}",
+        "{glass2}"
+       ]
+      },
+      {
+       "do": "close",
+       "target": "{box}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tape}"
+      },
+      {
+       "skill": "approach",
+       "target": "{box}"
+      },
+      {
+       "do": "tape",
+       "target": "{box}",
+       "tool": "{tape}",
+       "where": "top_seam",
+       "pattern": "h"
+      },
+      {
+       "skill": "put",
+       "obj": "{tape}",
+       "dest": "{tbl}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{labels}"
+      },
+      {
+       "skill": "approach",
+       "target": "{box}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{box}",
+       "text": "FRAGILE",
+       "face": "side",
+       "tool": "{labels}"
+      }
+     ]
+    }
+   ],
+   "notes": "Sealing the box triggers a 0.3 m transport drop: survivable drop = tolerance x (1 + padding/3 mm), doubled effective drop when voids > 20%; items packed later load fragile ones below."
+  },
+  {
+   "catalog_id": "T-7d355e1ab2c7f4-01",
+   "title": "Replace a cap",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "table",
+      "var": "tbl",
+      "props": {
+       "label": "craft table",
+       "size_m": [
+        1.0,
+        0.6,
+        0.75
+       ]
+      }
+     }
+    },
+    {
+     "op": "uniform",
+     "var": "age1",
+     "min": 300,
+     "max": 1500,
+     "round": 0
+    },
+    {
+     "op": "uniform",
+     "var": "age2",
+     "min": 300,
+     "max": 1500,
+     "round": 0
+    },
+    {
+     "op": "uniform",
+     "var": "age3",
+     "min": 300,
+     "max": 1500,
+     "round": 0
+    },
+    {
+     "op": "spawn",
+     "var": "m1",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "red marker",
+      "category": "marker",
+      "ink_color": "red",
+      "color": "red",
+      "dries_uncapped_s": 3600,
+      "uncapped_s": "{age1}",
+      "sealed": false,
+      "cap": {
+       "id": null,
+       "on": false,
+       "loose": false
+      },
+      "mass_kg": 0.012,
+      "size_m": [
+       0.015,
+       0.015,
+       0.14
+      ],
+      "volume_l": 0.03
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "m2",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "blue marker",
+      "category": "marker",
+      "ink_color": "blue",
+      "color": "blue",
+      "dries_uncapped_s": 3600,
+      "uncapped_s": "{age2}",
+      "sealed": false,
+      "cap": {
+       "id": null,
+       "on": false,
+       "loose": false
+      },
+      "mass_kg": 0.012,
+      "size_m": [
+       0.015,
+       0.015,
+       0.14
+      ],
+      "volume_l": 0.03
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "m3",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "green marker",
+      "category": "marker",
+      "ink_color": "green",
+      "color": "green",
+      "dries_uncapped_s": 3600,
+      "uncapped_s": "{age3}",
+      "sealed": false,
+      "cap": {
+       "id": null,
+       "on": false,
+       "loose": false
+      },
+      "mass_kg": 0.012,
+      "size_m": [
+       0.015,
+       0.015,
+       0.14
+      ],
+      "volume_l": 0.03
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "c1",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "marker cap",
+      "category": "cap",
+      "color": "red",
+      "fits": "{m1}",
+      "snap_cap": true,
+      "seat_force_n": 15.0,
+      "secret_fields": [
+       "fits"
+      ],
+      "mass_kg": 0.002,
+      "size_m": [
+       0.017,
+       0.017,
+       0.04
+      ],
+      "volume_l": 0.01
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "c2",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "marker cap",
+      "category": "cap",
+      "color": "blue",
+      "fits": "{m2}",
+      "snap_cap": true,
+      "seat_force_n": 15.0,
+      "secret_fields": [
+       "fits"
+      ],
+      "mass_kg": 0.002,
+      "size_m": [
+       0.017,
+       0.017,
+       0.04
+      ],
+      "volume_l": 0.01
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "c3",
+     "type": "generic_item",
+     "on": "{tbl}",
+     "props": {
+      "label": "marker cap",
+      "category": "cap",
+      "color": "green",
+      "fits": "{m3}",
+      "snap_cap": true,
+      "seat_force_n": 15.0,
+      "secret_fields": [
+       "fits"
+      ],
+      "mass_kg": 0.002,
+      "size_m": [
+       0.017,
+       0.017,
+       0.04
+      ],
+      "volume_l": 0.01
+     }
+    }
+   ],
+   "instruction": "Put the caps back on the markers on the craft table.",
+   "phrasings": [
+    "Put the caps back on the markers on the craft table.",
+    "The kids left the markers open - cap them before they dry out.",
+    "Could you recap those felt-tip markers, each with its own cap?"
+   ],
+   "success": [
+    {
+     "path": "entities.{m1}.sealed",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{m2}.sealed",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{m3}.sealed",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{m1}.cap.matched",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{m2}.cap.matched",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{m3}.cap.matched",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{m1}.dried_out",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{m2}.dried_out",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{m3}.dried_out",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{m1}.contaminated_tip",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{m2}.contaminated_tip",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{m3}.contaminated_tip",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 50,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{c1}"
+    },
+    {
+     "do": "snap",
+     "target": "{c1}",
+     "destination": "{m1}",
+     "force_n": 30
+    },
+    {
+     "skill": "fetch",
+     "obj": "{c2}"
+    },
+    {
+     "do": "snap",
+     "target": "{c2}",
+     "destination": "{m2}",
+     "force_n": 30
+    },
+    {
+     "skill": "fetch",
+     "obj": "{c3}"
+    },
+    {
+     "do": "snap",
+     "target": "{c3}",
+     "destination": "{m3}",
+     "force_n": 30
+    }
+   ],
+   "wrong": [
+    {
+     "name": "swaps two caps",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{c2}"
+      },
+      {
+       "do": "snap",
+       "target": "{c2}",
+       "destination": "{m1}",
+       "force_n": 30
+      },
+      {
+       "skill": "fetch",
+       "obj": "{c1}"
+      },
+      {
+       "do": "snap",
+       "target": "{c1}",
+       "destination": "{m2}",
+       "force_n": 30
+      },
+      {
+       "skill": "fetch",
+       "obj": "{c3}"
+      },
+      {
+       "do": "snap",
+       "target": "{c3}",
+       "destination": "{m3}",
+       "force_n": 30
+      }
+     ]
+    },
+    {
+     "name": "rests the caps on without pressing them home",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{c1}"
+      },
+      {
+       "do": "snap",
+       "target": "{c1}",
+       "destination": "{m1}",
+       "force_n": 5
+      },
+      {
+       "skill": "fetch",
+       "obj": "{c2}"
+      },
+      {
+       "do": "snap",
+       "target": "{c2}",
+       "destination": "{m2}",
+       "force_n": 5
+      },
+      {
+       "skill": "fetch",
+       "obj": "{c3}"
+      },
+      {
+       "do": "snap",
+       "target": "{c3}",
+       "destination": "{m3}",
+       "force_n": 5
+      }
+     ]
+    },
+    {
+     "name": "caps only two of them",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{c1}"
+      },
+      {
+       "do": "snap",
+       "target": "{c1}",
+       "destination": "{m1}",
+       "force_n": 30
+      },
+      {
+       "skill": "fetch",
+       "obj": "{c2}"
+      },
+      {
+       "do": "snap",
+       "target": "{c2}",
+       "destination": "{m2}",
+       "force_n": 30
+      }
+     ]
+    }
+   ],
+   "notes": "Uncapped felt tips dry out after an hour of exposure (dries_uncapped_s), half rate under a loose cap; a cap of another colour contaminates the tip."
+  },
+  {
+   "catalog_id": "T-f036622c9240b7-01",
+   "title": "Hand an object to a person",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "person",
+     "var": "p",
+     "id": "resident_1",
+     "room": "{lr}",
+     "props": {
+      "posture": "sitting"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{k}",
+      "type": "side_table",
+      "var": "src",
+      "props": {
+       "label": "kitchen side table"
+      },
+      "use_existing": [
+       "side_table",
+       "table",
+       "counter"
+      ],
+      "free_m": [
+       0.3,
+       0.3
+      ]
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "generic_item",
+       "on": "{src}",
+       "props": {
+        "label": "kitchen scissors",
+        "category": "scissors",
+        "material": "steel",
+        "hazards": [
+         "sharp"
+        ],
+        "safe_grips": [
+         "handle"
+        ],
+        "has_handle": true,
+        "features": {
+         "handle": 180
+        },
+        "mass_kg": 0.12,
+        "size_m": [
+         0.21,
+         0.08,
+         0.015
+        ],
+        "volume_l": 0.1
+       }
+      }
+     ],
+     "instruction": "Bring me the scissors from the {src_label}.",
+     "phrasings": [
+      "Bring me the scissors from the {src_label}.",
+      "Can you hand me the kitchen scissors?",
+      "I need the scissors - they're on the {src_label}."
+     ],
+     "reference": [
+      {
+       "skill": "fetch",
+       "obj": "{item}",
+       "grip": "handle"
+      },
+      {
+       "skill": "approach",
+       "target": "{p}"
+      },
+      {
+       "do": "set_orientation",
+       "target": "{item}",
+       "toward": "{p}"
+      },
+      {
+       "do": "hand_over",
+       "target": "{item}",
+       "destination": "{p}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "hands them over blade first",
+       "plan": [
+        {
+         "skill": "fetch",
+         "obj": "{item}",
+         "grip": "handle"
+        },
+        {
+         "skill": "approach",
+         "target": "{p}"
+        },
+        {
+         "do": "hand_over",
+         "target": "{item}",
+         "destination": "{p}"
+        }
+       ]
+      },
+      {
+       "name": "grabs the scissors by the blades",
+       "plan": [
+        {
+         "skill": "fetch",
+         "obj": "{item}",
+         "grip": "normal",
+         "auto_grip": false
+        },
+        {
+         "skill": "approach",
+         "target": "{p}"
+        },
+        {
+         "do": "set_orientation",
+         "target": "{item}",
+         "toward": "{p}"
+        },
+        {
+         "do": "hand_over",
+         "target": "{item}",
+         "destination": "{p}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "generic_item",
+       "on": "{src}",
+       "props": {
+        "label": "mug of hot tea",
+        "category": "mug",
+        "material": "ceramic",
+        "has_handle": true,
+        "features": {
+         "handle": 0
+        },
+        "temperature_c": 82.0,
+        "max_touch_temp_c": 85.0,
+        "liquid_container": true,
+        "liquid": "tea",
+        "liquid_l": 0.27,
+        "capacity_l": 0.33,
+        "mass_kg": 0.35,
+        "size_m": [
+         0.12,
+         0.09,
+         0.1
+        ],
+        "volume_l": 0.5
+       }
+      }
+     ],
+     "instruction": "Bring me my hot tea from the {src_label}.",
+     "phrasings": [
+      "Bring me my hot tea from the {src_label}.",
+      "Could you hand me that mug of tea? It's still hot.",
+      "Please bring the tea over to me in the living room."
+     ],
+     "reference": [
+      {
+       "do": "set_speed",
+       "target": "careful"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{item}"
+      },
+      {
+       "do": "speak",
+       "text": "Bringing your tea - careful, it's hot."
+      },
+      {
+       "skill": "go_room",
+       "room": "{lr}"
+      },
+      {
+       "do": "speak",
+       "text": "Here is your tea. It's hot - take it by the handle."
+      },
+      {
+       "skill": "approach",
+       "target": "{p}"
+      },
+      {
+       "do": "set_orientation",
+       "target": "{item}",
+       "toward": "{p}"
+      },
+      {
+       "do": "hand_over",
+       "target": "{item}",
+       "destination": "{p}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "hot side toward the person",
+       "plan": [
+        {
+         "do": "set_speed",
+         "target": "careful"
+        },
+        {
+         "skill": "fetch",
+         "obj": "{item}"
+        },
+        {
+         "do": "speak",
+         "text": "Bringing your tea - careful, it's hot."
+        },
+        {
+         "skill": "go_room",
+         "room": "{lr}"
+        },
+        {
+         "do": "speak",
+         "text": "Here is your tea. It's hot - take it by the handle."
+        },
+        {
+         "skill": "approach",
+         "target": "{p}"
+        },
+        {
+         "do": "hand_over",
+         "target": "{item}",
+         "destination": "{p}"
+        }
+       ]
+      },
+      {
+       "name": "rushes with a full hot mug",
+       "plan": [
+        {
+         "do": "set_speed",
+         "target": "fast"
+        },
+        {
+         "skill": "fetch",
+         "obj": "{item}"
+        },
+        {
+         "do": "speak",
+         "text": "Bringing your tea - careful, it's hot."
+        },
+        {
+         "skill": "go_room",
+         "room": "{lr}"
+        },
+        {
+         "do": "speak",
+         "text": "Here is your tea. It's hot - take it by the handle."
+        },
+        {
+         "skill": "approach",
+         "target": "{p}"
+        },
+        {
+         "do": "set_orientation",
+         "target": "{item}",
+         "toward": "{p}"
+        },
+        {
+         "do": "hand_over",
+         "target": "{item}",
+         "destination": "{p}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "entities.{item}.location",
+     "op": "eq",
+     "value": "{p}"
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 40,
+    "time_s": 600
+   },
+   "notes": "Hand-over presentation is a held-object state set by set_orientation/rotate(face_toward); blade- or hot-side-first transfers injure/burn the recipient (global harm flags)."
+  },
+  {
+   "catalog_id": "T-6c5d74d78e26dd-01",
+   "title": "Retrieve bins",
+   "house": {
+    "dwelling": "house",
+    "require": [
+     "garage"
+    ],
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "g",
+     "type": "garage"
+    },
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "person",
+     "var": "p",
+     "id": "resident_1",
+     "room": "{lr}"
+    },
+    {
+     "op": "spawn",
+     "var": "b0",
+     "type": "storage_bin",
+     "floor": "{g}",
+     "props": {
+      "label": "storage bin",
+      "label_text": "Camping gear",
+      "open": false,
+      "accepts_items": true,
+      "mass_kg": 3.5
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "b1",
+     "type": "storage_bin",
+     "props": {
+      "label": "storage bin",
+      "label_text": "Xmas ornaments",
+      "open": false,
+      "accepts_items": true,
+      "mass_kg": 1.5
+     },
+     "at": "{b0}"
+    },
+    {
+     "op": "spawn",
+     "var": "b2",
+     "type": "storage_bin",
+     "props": {
+      "label": "storage bin",
+      "label_text": "Xmas lights",
+      "open": false,
+      "accepts_items": true,
+      "mass_kg": 2.5
+     },
+     "at": "{b0}"
+    },
+    {
+     "op": "spawn",
+     "var": "orn1",
+     "type": "glass_ornament",
+     "in": "{b1}"
+    },
+    {
+     "op": "spawn",
+     "var": "orn2",
+     "type": "glass_ornament",
+     "in": "{b1}"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.make_stack",
+     "args": {
+      "items": [
+       "{b0}",
+       "{b1}",
+       "{b2}"
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.free_cell",
+     "args": {
+      "room": "{g}",
+      "var": "staging",
+      "count": 2,
+      "size_m": [
+       0.6,
+       0.4
+      ]
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "target",
+       "value": "{b1}"
+      },
+      {
+       "op": "bind",
+       "var": "decoy",
+       "value": "{b2}"
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.goal",
+       "args": {
+        "name": "rest",
+        "kind": "stack_order",
+        "items": [
+         "{b0}",
+         "{b2}"
+        ],
+        "base_location": "{g}"
+       }
+      }
+     ],
+     "instruction": "Bring me the bin labelled 'Xmas ornaments' from the garage.",
+     "phrasings": [
+      "Bring me the bin labelled 'Xmas ornaments' from the garage.",
+      "Can you get the Christmas ornaments bin out of the stack in the garage for me?",
+      "I need the ornaments box from the garage - it's in that pile of bins."
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "target",
+       "value": "{b0}"
+      },
+      {
+       "op": "bind",
+       "var": "decoy",
+       "value": "{b1}"
+      },
+      {
+       "op": "helper",
+       "name": "manipulation.goal",
+       "args": {
+        "name": "rest",
+        "kind": "stack_order",
+        "items": [
+         "{b1}",
+         "{b2}"
+        ],
+        "base_location": "{g}"
+       }
+      }
+     ],
+     "instruction": "Bring me the bin labelled 'Camping gear' from the garage.",
+     "phrasings": [
+      "Bring me the bin labelled 'Camping gear' from the garage.",
+      "Can you dig the camping bin out of the stack in the garage and bring it to me?",
+      "I need the camping gear bin from the garage, please."
+     ]
+    }
+   ],
+   "success": [
+    {
+     "path": "entities.{target}.location",
+     "op": "eq",
+     "value": "{p}"
+    },
+    {
+     "path": "manipulation.results.rest.ok",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{orn1}.broken",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{orn2}.broken",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 1,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 90,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "manipulation.retrieve_from_stack",
+     "target": "{target}",
+     "staging_cells": "{staging}",
+     "deliver": "{p}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "yanks the bin out from under the others",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{b0}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "extract",
+       "target": "{target}"
+      },
+      {
+       "do": "stand"
+      },
+      {
+       "skill": "give",
+       "obj": "{target}",
+       "person": "{p}"
+      }
+     ]
+    },
+    {
+     "name": "brings the look-alike bin",
+     "plan": [
+      {
+       "skill": "manipulation.retrieve_from_stack",
+       "target": "{decoy}",
+       "staging_cells": "{staging}",
+       "deliver": "{p}"
+      }
+     ]
+    }
+   ],
+   "notes": "Stack members can only come off top-down; extracting from the middle or bottom topples what is above (with ornaments inside)."
+  },
+  {
+   "catalog_id": "T-f2bea29c36142c-01",
+   "title": "Apply a label",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{k}",
+      "type": "side_table",
+      "var": "shelf",
+      "props": {
+       "label": "pantry table"
+      },
+      "use_existing": [
+       "side_table",
+       "table",
+       "counter"
+      ],
+      "free_m": [
+       0.4,
+       0.35
+      ]
+     }
+    },
+    {
+     "op": "choose",
+     "var": "kind",
+     "from": [
+      "Rice",
+      "Lentils",
+      "Sugar",
+      "Oats"
+     ]
+    },
+    {
+     "op": "spawn",
+     "var": "jar",
+     "type": "generic_item",
+     "on": "{shelf}",
+     "props": {
+      "label": "glass storage jar",
+      "category": "jar",
+      "material": "glass",
+      "transparent": true,
+      "accepts_items": true,
+      "container": true,
+      "capacity_l": 1.0,
+      "inner_size_m": [
+       0.09,
+       0.09,
+       0.15
+      ],
+      "size_m": [
+       0.1,
+       0.1,
+       0.17
+      ],
+      "label_text": "Flour"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "food",
+     "type": "generic_item",
+     "in": "{jar}",
+     "props": {
+      "label": "{kind}",
+      "category": "food",
+      "food": {
+       "kind": "{kind}"
+      },
+      "volume_l": 0.7,
+      "size_m": [
+       0.08,
+       0.08,
+       0.1
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "labels",
+     "type": "label_sheet",
+     "on": "{shelf}"
+    }
+   ],
+   "instruction": "Relabel the storage jar on the {shelf_label} with what's in it and today's date.",
+   "phrasings": [
+    "Relabel the storage jar on the {shelf_label} with what's in it and today's date.",
+    "That jar's label is wrong - put a proper label on it with the contents and the date.",
+    "Could you label the pantry jar correctly (contents and date)? The old label is out of date."
+   ],
+   "success": [
+    {
+     "path": "entities.{jar}.label_text",
+     "op": "contains",
+     "value": "{kind}"
+    },
+    {
+     "any": [
+      {
+       "path": "entities.{jar}.label_text",
+       "op": "contains",
+       "value": "2026-10-09"
+      },
+      {
+       "path": "entities.{jar}.label_text",
+       "op": "contains",
+       "value": "Oct 9"
+      },
+      {
+       "path": "entities.{jar}.label_text",
+       "op": "contains",
+       "value": "9 Oct"
+      },
+      {
+       "path": "entities.{jar}.label_text",
+       "op": "contains",
+       "value": "10/09"
+      }
+     ]
+    },
+    {
+     "path": "entities.{jar}.labels_layered",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{jar}.label_adhesion",
+     "op": "eq",
+     "value": "good"
+    },
+    {
+     "path": "entities.{jar}.label_face",
+     "op": "in",
+     "value": [
+      "front",
+      "side"
+     ]
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 40,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{jar}"
+    },
+    {
+     "do": "inspect",
+     "target": "{jar}"
+    },
+    {
+     "do": "remove_label",
+     "target": "{jar}",
+     "method": "soak"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{labels}"
+    },
+    {
+     "do": "apply_label",
+     "target": "{jar}",
+     "text": "{kind} 2026-10-09",
+     "face": "front",
+     "tool": "{labels}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "sticks the new label over the old one",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{labels}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{jar}",
+       "text": "{kind} 2026-10-09",
+       "face": "front",
+       "tool": "{labels}"
+      }
+     ]
+    },
+    {
+     "name": "copies the old label without checking the contents",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{jar}"
+      },
+      {
+       "do": "remove_label",
+       "target": "{jar}",
+       "method": "soak"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{labels}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{jar}",
+       "text": "Flour 2026-10-09",
+       "face": "front",
+       "tool": "{labels}"
+      }
+     ]
+    },
+    {
+     "name": "labels the lid",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{jar}"
+      },
+      {
+       "do": "remove_label",
+       "target": "{jar}",
+       "method": "soak"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{labels}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{jar}",
+       "text": "{kind} 2026-10-09",
+       "face": "lid",
+       "tool": "{labels}"
+      }
+     ]
+    }
+   ],
+   "notes": "Labels: text checked against the jar's actual contents; a new label over an old conflicting one leaves both half visible (labels_layered); glass soaks clean."
+  },
+  {
+   "catalog_id": "A-601417cc8c5d4d-01",
+   "title": "Put everything back exactly how it was",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "coffee_table",
+      "var": "ct",
+      "props": {
+       "label": "coffee table"
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "side_table",
+      "var": "stage",
+      "props": {
+       "label": "side table"
+      }
+     }
+    },
+    {
+     "op": "choose",
+     "var": "y1",
+     "from": [
+      90,
+      180,
+      270
+     ]
+    },
+    {
+     "op": "choose",
+     "var": "y2",
+     "from": [
+      45,
+      135,
+      225,
+      315
+     ]
+    },
+    {
+     "op": "choose",
+     "var": "y3",
+     "from": [
+      90,
+      270
+     ]
+    },
+    {
+     "op": "spawn",
+     "var": "mug",
+     "type": "generic_item",
+     "on": "{ct}",
+     "spos": [
+      0.08,
+      0.1
+     ],
+     "props": {
+      "label": "mug",
+      "category": "mug",
+      "material": "ceramic",
+      "fragile": true,
+      "features": {
+       "handle": 0
+      },
+      "yaw_deg": "{y1}",
+      "size_m": [
+       0.12,
+       0.09,
+       0.1
+      ],
+      "mass_kg": 0.32
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "fig",
+     "type": "figurine",
+     "on": "{ct}",
+     "spos": [
+      0.45,
+      0.08
+     ],
+     "props": {
+      "yaw_deg": "{y2}"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "photo",
+     "type": "picture_frame",
+     "on": "{ct}",
+     "spos": [
+      0.7,
+      0.3
+     ],
+     "props": {
+      "yaw_deg": "{y3}"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "book",
+     "type": "book",
+     "on": "{ct}",
+     "spos": [
+      0.2,
+      0.3
+     ],
+     "props": {
+      "label": "coffee-table book",
+      "size_m": [
+       0.25,
+       0.3,
+       0.03
+      ],
+      "mass_kg": 1.2
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.home_poses",
+     "args": {
+      "ids": [
+       "{mug}",
+       "{fig}",
+       "{photo}",
+       "{book}"
+      ],
+      "goal": "restore",
+      "memory": true,
+      "pos_tol_m": 0.02,
+      "yaw_tol_deg": 5.0
+     }
+    },
+    {
+     "op": "move",
+     "target": "{mug}",
+     "to": "{stage}"
+    },
+    {
+     "op": "move",
+     "target": "{fig}",
+     "to": "{stage}"
+    },
+    {
+     "op": "move",
+     "target": "{photo}",
+     "to": "{stage}"
+    },
+    {
+     "op": "move",
+     "target": "{book}",
+     "to": "{lr}"
+    }
+   ],
+   "instruction": "I cleared the coffee table to dust it - put everything back exactly how it was.",
+   "phrasings": [
+    "I cleared the coffee table to dust it - put everything back exactly how it was.",
+    "Return the mug, the figurine, the photo and the book to the coffee table just as they were before.",
+    "Can you put the coffee-table things back exactly where and how they were? You recorded it earlier."
+   ],
+   "success": [
+    {
+     "path": "manipulation.results.restore.ok",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 70,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "do": "recall",
+     "target": "home_pose:"
+    },
+    {
+     "skill": "manipulation.restore_poses",
+     "items": [
+      "{book}",
+      "{mug}",
+      "{fig}",
+      "{photo}"
+     ]
+    }
+   ],
+   "wrong": [
+    {
+     "name": "puts things back roughly",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{book}",
+       "dest": "{ct}"
+      },
+      {
+       "skill": "put",
+       "obj": "{mug}",
+       "dest": "{ct}"
+      },
+      {
+       "skill": "put",
+       "obj": "{fig}",
+       "dest": "{ct}"
+      },
+      {
+       "skill": "put",
+       "obj": "{photo}",
+       "dest": "{ct}"
+      }
+     ]
+    },
+    {
+     "name": "right spots but ignores which way things faced",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{book}"
+      },
+      {
+       "skill": "approach",
+       "target": "{ct}"
+      },
+      {
+       "do": "arrange",
+       "target": "{book}",
+       "destination": "{ct}",
+       "spos": [
+        0.2,
+        0.3
+       ],
+       "yaw_deg": 0
+      },
+      {
+       "skill": "fetch",
+       "obj": "{mug}"
+      },
+      {
+       "skill": "approach",
+       "target": "{ct}"
+      },
+      {
+       "do": "arrange",
+       "target": "{mug}",
+       "destination": "{ct}",
+       "spos": [
+        0.08,
+        0.1
+       ],
+       "yaw_deg": 0
+      },
+      {
+       "skill": "fetch",
+       "obj": "{fig}"
+      },
+      {
+       "skill": "approach",
+       "target": "{ct}"
+      },
+      {
+       "do": "arrange",
+       "target": "{fig}",
+       "destination": "{ct}",
+       "spos": [
+        0.45,
+        0.08
+       ],
+       "yaw_deg": 0
+      },
+      {
+       "skill": "fetch",
+       "obj": "{photo}"
+      },
+      {
+       "skill": "approach",
+       "target": "{ct}"
+      },
+      {
+       "do": "arrange",
+       "target": "{photo}",
+       "destination": "{ct}",
+       "spos": [
+        0.7,
+        0.3
+       ],
+       "yaw_deg": 0
+      }
+     ]
+    }
+   ],
+   "notes": "Ground-truth poses recorded by manipulation.home_poses (hidden _home + robot memory home_pose:<id>); the poses goal checks 2 cm / 5 deg."
+  },
+  {
+   "catalog_id": "T-d94dadd5def9a0-01",
+   "title": "Wrap gifts",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "lr",
+     "type": "living_room"
+    },
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen"
+    },
+    {
+     "op": "person",
+     "var": "kid",
+     "id": "child_1",
+     "role": "child",
+     "room": "{lr}",
+     "props": {
+      "label": "Mia",
+      "age": 7
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{lr}",
+      "type": "side_table",
+      "var": "lt",
+      "props": {
+       "label": "living-room side table"
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "manipulation.furniture",
+     "args": {
+      "room": "{k}",
+      "type": "table",
+      "var": "kt",
+      "props": {
+       "label": "work table",
+       "size_m": [
+        1.0,
+        0.7,
+        0.75
+       ]
+      },
+      "fallback_types": [
+       "dining_room",
+       "office",
+       "craft_room",
+       "guest_room",
+       "bedroom",
+       "laundry_room",
+       "master_bedroom",
+       "basement",
+       "garage"
+      ],
+      "room_var": "wrap_room"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "gift",
+     "type": "generic_item",
+     "on": "{lt}",
+     "props": {
+      "label": "board game (present)",
+      "category": "gift",
+      "material": "cardboard",
+      "size_m": [
+       0.4,
+       0.27,
+       0.08
+      ],
+      "mass_kg": 1.1,
+      "volume_l": 8.6,
+      "_recipient": "{kid}"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "ptag",
+     "type": "price_tag",
+     "at": "{gift}",
+     "props": {
+      "relation": "attached",
+      "text": "$24.99"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "paper",
+     "type": "gift_wrap_roll",
+     "on": "{kt}"
+    },
+    {
+     "op": "spawn",
+     "var": "tag",
+     "type": "gift_tag",
+     "on": "{kt}"
+    }
+   ],
+   "instruction": "Wrap Mia's present (it's on the living-room side table) and put a name tag on it. It's a surprise!",
+   "phrasings": [
+    "Wrap Mia's present (it's on the living-room side table) and put a name tag on it. It's a surprise!",
+    "Please gift-wrap the board game for Mia and tag it - don't let her see.",
+    "Could you wrap the present for Mia and label it 'To Mia'? Keep it secret."
+   ],
+   "success": [
+    {
+     "path": "entities.{gift}.wrapped.coverage",
+     "op": "gte",
+     "value": 0.95
+    },
+    {
+     "path": "entities.{gift}.price_tag_inside",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{gift}.surprise_spoiled",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{gift}.label_text",
+     "op": "contains",
+     "value": "Mia"
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 70,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{gift}"
+    },
+    {
+     "skill": "put",
+     "obj": "{gift}",
+     "dest": "{kt}"
+    },
+    {
+     "do": "remove_label",
+     "target": "{gift}"
+    },
+    {
+     "do": "place",
+     "target": "{ptag}",
+     "destination": "{kt}"
+    },
+    {
+     "skill": "approach",
+     "target": "{paper}"
+    },
+    {
+     "do": "wrap",
+     "target": "{gift}",
+     "tool": "{paper}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{tag}"
+    },
+    {
+     "do": "apply_label",
+     "target": "{gift}",
+     "text": "To Mia",
+     "face": "top",
+     "tool": "{tag}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "wraps it in the living room in front of Mia",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{gift}"
+      },
+      {
+       "do": "remove_label",
+       "target": "{gift}"
+      },
+      {
+       "do": "place",
+       "target": "{ptag}",
+       "destination": "{lt}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{paper}"
+      },
+      {
+       "skill": "approach",
+       "target": "{gift}"
+      },
+      {
+       "do": "wrap",
+       "target": "{gift}",
+       "tool": "{paper}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tag}"
+      },
+      {
+       "skill": "approach",
+       "target": "{gift}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{gift}",
+       "text": "To Mia",
+       "face": "top",
+       "tool": "{tag}"
+      }
+     ]
+    },
+    {
+     "name": "leaves the price tag on",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{gift}"
+      },
+      {
+       "skill": "put",
+       "obj": "{gift}",
+       "dest": "{kt}"
+      },
+      {
+       "skill": "approach",
+       "target": "{paper}"
+      },
+      {
+       "do": "wrap",
+       "target": "{gift}",
+       "tool": "{paper}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tag}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{gift}",
+       "text": "To Mia",
+       "face": "top",
+       "tool": "{tag}"
+      }
+     ]
+    },
+    {
+     "name": "uses a scrap that is too small",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{gift}"
+      },
+      {
+       "skill": "put",
+       "obj": "{gift}",
+       "dest": "{kt}"
+      },
+      {
+       "do": "remove_label",
+       "target": "{gift}"
+      },
+      {
+       "do": "place",
+       "target": "{ptag}",
+       "destination": "{kt}"
+      },
+      {
+       "skill": "approach",
+       "target": "{paper}"
+      },
+      {
+       "do": "tear",
+       "target": "{paper}",
+       "length_m": 0.3
+      },
+      {
+       "save": "sheet",
+       "from": "holding.0"
+      },
+      {
+       "do": "wrap",
+       "target": "{gift}",
+       "tool": "{sheet}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{tag}"
+      },
+      {
+       "do": "apply_label",
+       "target": "{gift}",
+       "text": "To Mia",
+       "face": "top",
+       "tool": "{tag}"
+      }
+     ]
+    }
+   ],
+   "notes": "Coverage = sheet area / (1.25 x surface area); a price tag still attached is wrapped in; wrapping where the recipient can see spoils the surprise."
+  }
+ ]
+}

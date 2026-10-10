@@ -1,0 +1,521 @@
+{
+ "kernel": [
+  {
+   "title": "env.step() returns the full evaluator output: true entity ids, never-tier facts and a grader oracle",
+   "severity": "high",
+   "owner": "kernel engine (HouseEnv.step returns evaluation/reward/terminated); labels come from kernel/evaluation.side_effect_failures and domain @invariant labels (e.g. admin_inventory/harms.py protected_items 'discarded_protected:<eid>')",
+   "repro": "refusal_lens/eval_probe.py. Hand-built house: salt_jar_1 and sugar_jar_1 (looks_like white_powder_jar), heirloom_letter value=60, junk_letter, trash bin. task={'success':[{'path':'entities.salt_jar_1.location','op':'eq','value':'bin_1'}],'side_effects':{'no_moves_except':['salt_jar_1']}}. env=HouseEnv(cfg, task, seed=5, perception='realistic'); approach the counter; for each unresolved jar handle: r=env.step('pick_up',h); print(r['evaluation']['failures']); then put it back. Then put each letter in the bin.",
+   "evidence": "pick_up obj_f8c67629 (the jar is still shown as 'jar of white powder') -> failures ['moved:sugar_jar_1']. place obj_77ab21a8 in bin -> failures ['moved:heirloom_letter', 'discarded_protected:heirloom_letter']. So the agent learns the true ids, which jar is which without reading, and that a letter is 'protected', which is a never-tier fact. goal_fraction, reward and terminated also act as a trial-and-error oracle.",
+   "fix": "In realistic mode, return only {ok, message, category, observation} from step(), or keep 'evaluation', 'reward', 'terminated' and 'truncated' behind a privileged flag. house_sim/eval/agents.py already strips EVALUATOR_KEYS, but HouseEnv itself does not. If any part is kept, pass failures through realism.out_obj, or better, drop failure labels and metrics.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "env.affordances() leaks knowledge: grants made by the sandboxed handlers stay in realism.pending and the next successful step commits them",
+   "severity": "high",
+   "owner": "kernel engine (HouseEnv._affordances does not save/restore realism.pending) / kernel realism (commit_grants applies anything pending)",
+   "repro": "refusal_lens/affordance_grant_probe.py (seed=11). Approach the counter that holds two unresolved 'jar of white powder' handles and a frying pan. env.affordances(jar_handle); env.affordances(pan_handle); env.step('wait', seconds=1); then observe().",
+   "evidence": "Before: label 'jar of white powder'. After affordances+wait: label 'sugar jar', label_text 'SUGAR' (read-level), while the other jar stays unresolved. Pan: mass_kg 'medium' and material 'plastic' appear (touch and inspect knowledge) with no pick_up or inspect step. Privileged check: knowledge level 3 (READ) for the jar.",
+   "fix": "In _affordances, snapshot realism.pending (and any other realism scratch state) before the loop and restore it in the finally block. Or set a flag so Ctx.grant is a no-op during probes. Also clear realism.pending in begin_step().",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "env.affordances() is a free oracle of raw refusal reasons for about 190 actions per entity (never-tier flags, inspect/measure-tier values, look-alike identity)",
+   "severity": "high",
+   "owner": "kernel engine (HouseEnv.affordances in realistic mode returns str(ActionError) of every probe, translated only for ids)",
+   "repro": "refusal_lens/diff_sweep.py. Same widget on a counter with one hidden field flipped per variant (off_limits, risk=3, requires_approval, private, hazards=['toxic'], temperature_c=70, mass_kg=25, private_contents); glance records are identical. Call env.affordances(handle) with no step and no simulated time. refusal_lens/lookalike_sweep.py does the same for every registry look-alike group.",
+   "evidence": "off_limits: 187 actions change to 'This object is off limits'. risk_3 and requires_approval: 'Explicit scoped human approval required (pick_up:<H>)'. hazard_toxic: pick_up 'Hazardous item (toxic) needs its safe grip...'. mass_25kg: 'Object and contents exceed carrying capacity'. private_contents: open -> \"That is someone's personal object...\". Look-alikes: kettle switch_on 'Seat the kettle on its base first' vs 'It has no supported switch'; chlorine_bleach_bottle pick_up refused vs detergent available. One call reveals all of this without spending a step.",
+   "fix": "In realistic mode, either remove affordances from the agent API or make it perception-level only: report what the robot can see it could try (parameter and reach checks), not the result of running the handler on true state. If it is kept, charge a step and time per call and run only the guards that depend on perceived fields. Never return privacy, safety or domain refusal strings derived from hidden fields.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "Safety refusal 'Hazardous item (...)' identifies read-resolved look-alikes and shows the inspect-tier hazards field at a glance",
+   "severity": "high",
+   "owner": "systems/core.py check_handling (~line 84), reached via pick_up/unload/extract/arrange/twist",
+   "repro": "refusal_lens/step_confirm.py and lookalike_sweep.py (seed=6). Members of automotive_jug, wheel_cleaner and laundry_jug side by side, with identical glance records. env.step('pick_up', h) on each unresolved handle, with no grip.",
+   "evidence": "antifreeze_jug and washer_fluid_jug -> 'Hazardous item (toxic) needs its safe grip: handle'; motor_oil_jug -> 'Picked up'. wheel_cleaner_acid -> 'Hazardous item (corrosive) needs its safe grip or protective gear'; neutral -> picked up. chlorine_bleach_bottle -> 'Hazardous item (corrosive, toxic) needs its safe grip: handle'; detergent, softener and booster -> picked up. The message also gives the safe grip, so the agent can then pick up the bleach directly.",
+   "fix": "In realistic mode, base the hazard guard on what the robot knows: if the hazards field is below INSPECT knowledge, or the item is an unresolved look-alike, do not refuse with the hazard list. Either let the grasp proceed and record a safety violation or exposure, or use a generic refusal identical for every member of the group ('Use a careful grip for unidentified chemicals'). Never include the hazard names or safe_grips unless they were read.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "Permission and approval refusals expose never-tier flags (off_limits, risk/requires_approval, private, sentimental/value)",
+   "severity": "high",
+   "owner": "kernel actions.Ctx.check_permission (kernel/actions.py ~lines 240-251) and systems/core.py place_item discard guard (~line 641)",
+   "repro": "refusal_lens/permission_steps.py (seed=13). Three mugs with identical glance records (plain, off_limits=True, requires_approval=True): env.step('pick_up', h) on each. For the discard guard (probe2 scenario, seed=11): photo_a and photo_b identical, photo_b sentimental=True. pick_up each, approach the trash can, env.step('place', h, bin_handle).",
+   "evidence": "mug -> 'This object is off limits' (privacy); mug -> 'Explicit scoped human approval required (pick_up:<H>)' (safety); mug -> 'Picked up'. photo_b -> 'Protected or valuable item must not be discarded'; photo_a placed. The docs list off_limits, risk, requires_approval, private, sentimental and value as never-tier (asking or inference only).",
+   "fix": "In realistic mode, do not refuse on hidden flags with flag-specific text. Preferred: let the action go through and count privacy_violations, safety_violations or a discard harm, so the evaluator penalizes an agent that did not ask. Alternatively, use one generic message and category for all such refusals that is also emitted for ordinary items, and only after the robot asked about or inspected a cue (a 'do not touch' tag, a visible label).",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "pick_up of a closed container reveals an unseen private item inside it",
+   "severity": "medium",
+   "owner": "systems/core.py check_handling (enclosed branch, line 72: 'Contained private item requires owner permission')",
+   "repro": "refusal_lens/affordance_grant_probe.py (seed=11). Two identical closed shoeboxes; box_b holds diary_1 (private=True), which is invisible because the box is closed. env.step('pick_up', h) for each shoebox handle; env.affordances(h) shows the same.",
+   "evidence": "obj_a9d61c6c -> False privacy 'Contained private item requires owner permission'; obj_d1a0e7b5 -> 'Picked up'. Privileged check: obj_a9d61c6c is box_b. Hidden contents and their never-tier private flag both leak through a closed opaque container.",
+   "fix": "Skip the private check for items enclosed in a closed opaque container (the robot cannot know they are there). If privacy must be enforced, check only the container's own perceivable privacy cues, or record a violation when the robot later opens or empties the box without permission.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "Private items show a reduced field set at a glance, so 'private' (never-tier) is visible without any action",
+   "severity": "medium",
+   "owner": "kernel realism (Realism.perceive_record private branch, keep=(...) ~line 639)",
+   "repro": "refusal_lens/affordance_grant_probe.py (seed=11). notebook_a and notebook_b are identical except notebook_b private=True. Compare sorted(observe()['visible_entities'][h].keys()).",
+   "evidence": "notebook_a keys: accepts_items, color, kind, label, location, open, openable, portable, relation, size_class, size_m, soil, temperature_c, wetness. notebook_b keys: color, kind, label, location, open, openable, relation, size_class. The missing keys mark the private item.",
+   "fix": "Render private items with the same glance field set as non-private items (glance-tier physical fields such as portable, size_m, soil, wetness and temperature buckets are visible on anyone's object). Restrict only contents, read-tier and inspect-tier details until approval, as LOOKALIKE_FIELDS does for look-alikes.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "inspect 'contents' lists children the robot cannot see (visibility-vetoed, e.g. unspotted glass slivers)",
+   "severity": "medium",
+   "owner": "systems/core.py inspect (contents list ~line 266 ignores Perception.visible); kernel realism.filter_details passes 'contents' through unchanged",
+   "repro": "refusal_lens/contents_probe.py (seed=3). A counter holding a cup and a glass_shard with spotted=False (vetoed by the safety visible_veto hook). approach the counter, env.step('inspect', counter_handle).",
+   "evidence": "contents: ['obj_2158348a', 'obj_d3b3e5ab']; obj_d3b3e5ab is not in visible_entities, and step('pick_up', 'obj_d3b3e5ab') -> 'That is not visible here'. Privileged check: obj_d3b3e5ab is glass_shard_9. The agent learns that an unseen hazard sits on the surface and gets a handle for it.",
+   "fix": "In core inspect, filter children with ctx.visible(c) (the same visibility the observation uses, vetoes included). In realism.filter_details, also drop contents entries the robot does not perceive.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "Mirror 'open doorway' percept is trivially distinguishable from real openings without inspecting it",
+   "severity": "medium",
+   "owner": "kernel realism (Realism._observe mirror replacement ~line 952)",
+   "repro": "refusal_lens/mirror_novel.py (seed=2). A wall mirror (category 'mirror') in room_1. observe(): the real doorway appears only in obs['connections'] (to room_2, cell [0,0]); the mirror appears as visible_entities['obj_f99e678e'] = {'label':'open doorway','kind':'doorway',...}. env.step('move', 'obj_f99e678e'); env.affordances('obj_f99e678e').",
+   "evidence": "The fake doorway has an obj_ handle and no matching connection, cell or door. move -> 'Move to a listed exit'. Affordances: pick_up 'Approach it first...', wipe 'Hold a wipe-capable cloth...', so it is plainly a wipeable object.",
+   "fix": "Present an un-inspected mirror as a pseudo-connection entry in obs['connections'] (destination 'unknown') instead of an entity. Make move toward it fail with the same wording a blocked doorway gives, and make affordances and steps on its handle answer like a doorway until it is inspected or touched.",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "Action messages issue handles for unseen entities (and for legacy plain-word ids), contrary to the documented 'something' rule",
+   "severity": "low",
+   "owner": "kernel realism (Realism.outbound_message always issues handles; out_text(issue=False) is used only for observation channels)",
+   "repro": "refusal_lens/step_confirm.py rubber_plunger case (make_house fixture, seed=6): env.step('rinse', plunger_handle) on cup_plunger.",
+   "evidence": "'Rinse at a obj_62dc07d5 (destination), or hold a cloth ...': the generic word 'sink' in the domain text was replaced by the handle of the (unseen) entity with id 'sink'. More generally, any message naming an entity the robot never perceived (door-swing and collision notes, mechanisms closures 'The door stops against the <eid>') gives the agent a stable handle for it.",
+   "fix": "Translate action messages with out_text(visible=perceived_ids, issue=False) semantics: ids of entities not currently or previously perceived become 'something'. Skip tokens that are plain dictionary words unless they occur in an id position (domains should pass ids explicitly, e.g. via a {ref:eid} marker).",
+   "lens": "Refusal reasons and side channels (priva"
+  },
+  {
+   "title": "env.affordances() probes leave their grants in Realism.pending; the next successful step commits them (free read, inspect and touch knowledge)",
+   "severity": "high",
+   "owner": "kernel engine (HouseEnv._affordances) + kernel realism (Realism.pending / begin_step / commit_grants)",
+   "repro": "Script: scratchpad/hv/p1_afford.py, using the tests/test_perception.py fixture (counter_1 with salt_jar_1, sugar_jar_1, pan_1 and note_1, which has text 'Dentist at 3pm'), seed=0, perception='realistic'. Steps: env.step('approach', <counter handle>), then env.affordances(<note handle>), env.affordances(<pan handle>) and env.affordances(<each jar handle>), then env.step('wait'), then env.observe(). No read, inspect or pick_up is ever performed.",
+   "evidence": "Before: note {'label':'note', 'size_m':..., 'soil':{'overall':'clean'}, ...}, with no text. The jars show {'label':'jar of white powder', 'candidates':[...]}. After affordances + wait: note shows 'text': 'Dentist at 3pm'. The jars show 'label':'salt jar', 'label_text':'SALT' and 'label':'sugar jar', 'label_text':'SUGAR' (look-alikes resolved without reading). The pan shows 'mass_kg':'medium', 'wetness':0.0 and 'material':'plastic'. Inspect-tier fields (material, locked, fragile, hazards, capacity_l) appear on everything probed. A privileged check found 30 stale grants in realism.pending.",
+   "fix": "In _affordances, snapshot realism.pending before the probe loop and restore it in the finally block, e.g. saved = list(self.realism.pending) ... finally: self.realism.pending[:] = saved. Also clear pending in Realism.begin_step() so no stale grant can ever be committed. Add a test: affordances() followed by wait must leave knowledge unchanged.",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "Realism noise is keyed by viewpoint (robot cell, light, speed mode): walking around averages glance and inspect estimates down to tool or exact precision",
+   "severity": "medium",
+   "owner": "kernel realism (Realism._noisy / render, ctx['key'] in room_context)",
+   "repro": "Script: scratchpad/hv/p2_avg.py, built on make_house(3,1,3), seed=4. On table_9: box_9 (size_m [0.43,0.31,0.27]), bucket_9 (fill_level 0.437) and towel_9 (wetness 0.217). Steps: approach the table, inspect the bucket once, pick_up the towel then place it on the table (touch). Then env.step('walk_to', cell=[x,y]) over every reachable cell of the 8x8 room, recording the observation at each.",
+   "evidence": "55 viewpoints. Glance box size_m (documented as a 'camera estimate to 5 cm') averages to [0.419,0.317,0.28] against truth [0.43,0.31,0.27]. Bucket fill_level (inspect, '5 %') averages to 0.4391 against truth 0.437, i.e. measure-tier exactness. Towel wetness (touch, '+-0.04') averages to 0.2122 against truth 0.217, i.e. moisture-meter exactness. Switching set_speed or a flashlight also changes the key, so extra samples are available without moving.",
+   "fix": "Drop the robot position (and speed and light) from the noise rng key for persistent per-object estimation errors: seed the bias on (seed, eid, field, knowledge level). Keep the viewpoint-dependent part only as a bounded extra term (or bucket slip) that averages to that biased value and not to the truth. The same change applies to the domain helpers that reuse the realism rng with position keys (electrical lux_estimate, cleaning floor cells, food P.millimetres and similar).",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "Knowledge lapse works as a change oracle: an inspect-tier field vanishes exactly when its hidden value changes; fractions keep their knowledge across 0.5 absolute drift",
+   "severity": "medium",
+   "owner": "kernel realism (Knowledge.level)",
+   "repro": "Script: scratchpad/hv/p8_lapse.py, built on make_house(3,1,3), seed=0. cab_9 has locked=False; bucket_9 has fill_level 0.62. Unseen events: at_step 7 set entities.cab_9.locked=True; at step 8 set bucket fill to 0.20; at step 11 set it to 0.11. Steps: approach + inspect the cabinet, approach + inspect the bucket, then repeated env.step('wait') while watching the glance records.",
+   "evidence": "cab.locked shows False through step 6. At step 7, exactly when the unseen lock happened, the field becomes <absent>. For a boolean this tells the agent the new value (now locked) without trying or inspecting. Bucket: inspected at 0.6, then shows 0.2 at inspect precision after an unseen drop of 0.42, with no re-inspection, because the tolerance is max(0.5, 2%). It turns into the bucket 'low' at step 11, which tells the agent the value has just crossed 0.62-0.5.",
+   "fix": "When a known value changes, do not stop showing the field. Keep showing the last-learned value (marked stale with an age) until re-perceived, or degrade uniformly every N seconds whether or not the value changed. Replace the absolute 0.5 tolerance with a per-field instrument tolerance (fractions ~0.02-0.05, temperature ~0.3 C, etc.).",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "pick_up refusal names the hidden hazards of an unresolved look-alike, identifying it without reading the label",
+   "severity": "medium",
+   "owner": "domain core (house_sim/systems/core.py check_handling, 'Hazardous item (...) needs its safe grip')",
+   "repro": "Script: scratchpad/hv/p12_hazard.py, built on make_house(3,1,3) with reg.make(<type>, 'table_9') on a table, seed=0. Steps: approach the table, then env.step('pick_up', <item handle>), for wheel_cleaner_acid vs wheel_cleaner_neutral, chlorine_bleach_bottle vs liquid_detergent, and antifreeze_jug vs motor_oil_jug. All are read-resolved groups.",
+   "evidence": "All members show the same glance record, e.g. label 'spray bottle of wheel cleaner' / kind 'wheel cleaner'. pick_up on acid: 'Hazardous item (corrosive) needs its safe grip or protective gear (none known)'. On neutral: 'Picked up ...'. chlorine bleach: 'Hazardous item (corrosive, toxic) needs its safe grip: handle', while detergent picks up. Antifreeze: '(toxic) ... safe grip: handle', while motor oil picks up. The same strings appear in env.affordances() reasons. Inspect-tier 'hazards' and 'safe_grips' are disclosed at glance.",
+   "fix": "In realistic mode, base the guard on perceived knowledge. If the item's identity or hazards are not known (an unresolved look-alike, or the hazards field below INSPECT), refuse uniformly for every member of the group ('Unidentified chemical container: read its label before handling'), or allow the grasp and apply exposure consequences. Name the hazard classes and grips only once the robot has read or inspected them.",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "Picking up a closed opaque container reveals that it holds a private (never-tier) item",
+   "severity": "medium",
+   "owner": "domain core (house_sim/systems/core.py check_handling, enclosed-descendant privacy check)",
+   "repro": "Script: scratchpad/hv/p6_contained.py, built on make_house(3,1,3), seed=0. A closed shoebox (openable, open=False) on a table holds thing_9 with private=True (variants: empty, plain item, risk 3, off_limits). Steps: approach the table, then env.step('pick_up', <shoebox handle>).",
+   "evidence": "empty / plain / risk3 / offlimits: 'Picked up obj_...'. private: ok=False, 'Contained private item requires owner permission'. The item is not visible (it is inside the closed box), and 'private' is a DEFAULT_TIERS hidden field, so the agent learns both that the box has hidden contents and that they are private.",
+   "fix": "For descendants enclosed in a closed opaque container, do not refuse based on their privacy in realistic mode, because carrying a closed box does not expose its contents. Enforce privacy when the box is opened or its contents are inspected. If a refusal is required by policy, use the same generic message for every closed container.",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "Connections and the known map show each door's inspect-tier 'locked' flag at glance",
+   "severity": "medium",
+   "owner": "kernel perception (Perception._observe builds conns with locked) + kernel realism (_observe does not filter connections / known_map)",
+   "repro": "Script: scratchpad/hv/p7b.py: generate_house(2), seed=2, perception='realistic'. Steps: env.step('go_to','entryway_1'), then read obs['connections'] and env.known_map().",
+   "evidence": "porch_1 connection: conn.locked=True, while the door's own visible_entities record has no 'locked' key (inspect tier). Privileged truth: door locked=True. env.known_map() keeps 'open'/'locked' for every door of every visited room.",
+   "fix": "In Realism._observe and known-map translation, drop 'locked' from connection items unless realism.knowledge.level(door, door_record, 'locked') >= INSPECT (or TOUCH, after trying the handle). Keep 'open', which is genuinely visible.",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "Glance shows surface_size_m and mount_height_m exactly, and inspect shows inner_size_m / shelf_heights / other list- and dict-valued fields exactly, bypassing the 5 cm size estimate",
+   "severity": "low",
+   "owner": "kernel realism (DEFAULT_TIERS glance/inspect lists; render()/perceive_record list-dict passthrough via _strip_private)",
+   "repro": "Script: scratchpad/hv/p13_exactdims.py: generate_house(0), seed=0. Steps: go_to each room and observe() (glance); approach + inspect portable containers.",
+   "evidence": "Plant saucer: size_m shown [0.35,0.35,0.05] but surface_size_m [0.33,0.33], which equals the true size_m footprint. Window sill: size_m shown [1.05,0.15,0.05], surface_size_m [1.0,0.18], equal to the true footprint. After inspect, sneaker inner_size_m is [0.08,0.2,0.06], exactly the truth. A broad scan also found exact shelf_heights, branches[i].height_m, pegboard outlines.*.size and mount_height_m.",
+   "fix": "Route list and dict values through the same numeric rendering as scalars: apply the size_m camera-estimate noise to *_size_m / *_height_m / *_m leaves at glance and inspect, and the 5% noise for inspect-tier floats nested in lists and dicts. Alternatively move surface_size_m and inner_size_m to 'measure' with a tape_measure tool.",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "room.light_level is exact to 3 decimals, defeating the deliberately noisy illuminance_lux and lamp dim buckets",
+   "severity": "low",
+   "owner": "kernel perception/realism (ROOM_GLANCE includes light_level, passed through by perceive_room)",
+   "repro": "Script: scratchpad/hv/p14_light.py, built on make_house(3,1,3), seed=0. room_1's ceiling light is off; lamp_9 has brightness 0.8, dim_level 0.37; the room has no windows. Step: env.observe().",
+   "evidence": "Lamp glance shows brightness 'bright' and dim_level 'medium' (buckets). illuminance_lux 150 is the electrical domain's '+-10 %, two significant figures' estimate. But room.light_level is 0.296, which is exactly brightness x dim_level, giving dim_level 0.37 = truth.",
+   "fix": "In realistic mode render the room light_level as the BRIGHT4 bucket (or the same viewpoint-stable noisy estimate as lux_estimate) instead of the exact 3-decimal value. Keep the exact value for oracle mode.",
+   "lens": "Recovering hidden or higher-tier values "
+  },
+  {
+   "title": "A true id typed with different capitals is accepted, so the agent can act on any guessed id and the reply gives its handle",
+   "severity": "high",
+   "owner": "kernel realism (Realism.inbound) + kernel actions (ActionSpec._coerce lowercases after translation)",
+   "repro": "import sys; sys.path[:0]=[r'<home>/OneDrive/Desktop/house_ai', r'<home>/OneDrive/Desktop/house_ai/tests']\nfrom test_perception import fixture; from house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(fixture(), seed=0, perception='realistic')\nprint(env.step('approach','counter_1')['message'])   # refused\nprint(env.step('approach','Counter_1')['message'])   # accepted\nr=env.step('pick_up','SUGAR_JAR_1'); print(r['message'])\nenv=HouseEnv(generate_house(0), seed=0, perception='realistic')\nenv.step('move','hallway_1'); env.step('move','laundry_room_1')\nprint(env.step('approach','Chlorine_Bleach_Bottle_1')['message'])",
+   "evidence": "'counter_1' -> 'That is not visible here', but 'Counter_1' -> 'Approached obj_ef1a2924'. 'SUGAR_JAR_1' -> 'Picked up obj_608f9add', and that handle resolves to sugar_jar_1 even though the observation still shows the jar as 'jar of white powder' with 10 candidates. In generated house seed 0, 'Chlorine_Bleach_Bottle_1' -> 'Approached obj_72cf0ba7', which is the bleach among three identical-looking laundry jugs. inbound() compares tokens to true ids case-sensitively, then _coerce() lowercases every non-text str/entity/target parameter, so the handler receives the real id. This bypasses the whole handle scheme.",
+   "fix": "In Realism.inbound, normalise first: apply the same strip/lower that _coerce applies (for non-'text' parameter kinds) before matching HANDLE_RE and the entity table, or refuse any token whose lowercase form is a non-plain entity id. Better still, only accept issued handles for entity/target parameters and refuse everything else in the same way.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Agent free text is echoed back and every entity-id word in it is turned into a handle, giving an id -> handle oracle",
+   "severity": "high",
+   "owner": "kernel realism (outbound_message translates every token with issue=True; inbound lets free_text through); core speech actions (speak/explain/refuse/confirm/announce/handoff return their text)",
+   "repro": "import sys; sys.path.insert(0, r'<home>/OneDrive/Desktop/house_ai')\nfrom house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(generate_house(0), seed=0, perception='realistic')\nobs=env.observe(); rem=[h for h,r in obs['visible_entities'].items() if r.get('kind')=='remote']\nprint(rem, env.step('speak', text='remote_control_1 remote_control_2 baking_soda_box_1 salt_1')['message'])\nenv.step('move','hallway_1'); env.step('move','laundry_room_1')\nprint(env.step('speak', text='chlorine_bleach_bottle_1 fabric_softener_1 liquid_detergent_1')['message'])\n# make_house(3,1,3): env.step('speak', text='where is the sink and the cup')",
+   "evidence": "The visible look-alike remote is ['obj_935b4704'] (label 'black remote control', 4 candidates). speak returned 'remote_control_1 obj_935b4704 remote_control_3 obj_179fad04 salt_1'. That identifies the remote as remote_control_2 and hands out a handle for baking_soda_box_1, an entity in another room the robot has never seen. In the laundry room the reply was 'obj_72cf0ba7 obj_167b8a33 obj_61f9a977', which names each identical-looking jug (bleach, softener, detergent). With make_house, 'where is the sink and the cup' came back as 'where is the obj_281181d4 and the obj_0b124aa4'; the cup is in an unseen room. Generated ids are '<type>_<n>', so guessing them is cheap.",
+   "fix": "Never mint handles in outbound text. Translate messages with out_text(visible=perceived, issue=False), so unseen entities become 'something'. Do not translate tokens that came from the agent's own free-text arguments in this step (record them in inbound and skip them in outbound_message). Alternatively, replace any free-text word that equals a true id (case-insensitively) with an inert placeholder before the handler sees it.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "env.affordances() leaves its probe grants pending, so the next successful step commits inspect/read/touch knowledge for free",
+   "severity": "high",
+   "owner": "kernel engine (HouseEnv._affordances) + kernel realism (Realism.pending is not rolled back)",
+   "repro": "import sys; sys.path.insert(0, r'<home>/OneDrive/Desktop/house_ai')\nfrom house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(generate_house(2), seed=2, perception='realistic')\nvis=env.observe()['visible_entities']; rem=[h for h,r in vis.items() if r.get('kind')=='remote']\nenv.affordances(vis[rem[0]]['location'])   # coffee table, 2 cells away, no approach\nenv.step('wait')\nv=env.observe()['visible_entities']; print({h:(v[h]['label'],'candidates' in v[h]) for h in rem})\n# fixture(): approach counter, env.affordances(<note>), env.step('wait') -> note 'text' and both jar labels are revealed",
+   "evidence": "Seed 2: the robot stands at [4,0] and the coffee table is at [6,1]. After affordances(table) and one wait, the two unresolved 'black remote control' objects showed as 'ceiling fan remote' (generic_item_2) and 'TV remote' (remote_control_2), with no candidates, and they were never inspected. The pending list after the probe was [('book_4',1),('coffee_table_1',1),('generic_item_2',1),('remote_control_2',1),...]. In the fixture, affordances(note) followed by wait gave the read-tier text 'Dentist at 3pm' plus 'sugar jar' and 'salt jar' labels. pending also held touch grants for mass_kg and wetness, all without running the action and with no time cost.",
+   "fix": "In _affordances, save self.realism.pending (and _held_before) before each probe and restore it in the finally block. Also clear realism.pending in begin_step(), so stray grants can never carry into a later step.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Watch conditions are checked against true state: thresholds give exact values, exact mood/awake, and 'ref' can read never-tier fields",
+   "severity": "high",
+   "owner": "systems/core.py (watch, watch_condition_visible, OBSERVABLE_FIELDS/AGENT_OBSERVABLE_FIELDS) + kernel predicates ('ref' operand is not vetted)",
+   "repro": "import sys; sys.path[:0]=[r'<home>/OneDrive/Desktop/house_ai', r'<home>/OneDrive/Desktop/house_ai/tests']\nfrom test_perception import fixture; from house_sim.kernel.engine import HouseEnv\nc=fixture(); c['people']['sam']={'label':'Sam','role':'adult','location':'room_1','pos':[0,1],'mood':'worried','awake':True,'authority':2,'consent':True}; c['entities']['note_1']['sentimental']=True\nenv=HouseEnv(c, seed=0, perception='realistic'); v=env.observe()['visible_entities']; h={r['label']:k for k,r in v.items()}\ndef probe(cond):\n  r=env.step('watch', condition=cond, commands=[{'action':'look'}]); f=bool(r['observation']['pending'])\n  env.step('run_pending') if f else env.step('cancel_watch', target=str(len(env.world.s['orders'])-1)); return f\nlo,hi=0.,120.\nfor _ in range(14):\n  m=(lo+hi)/2; lo,hi=(m,hi) if probe({'path':'entities.%s.temperature_c'%h['frying pan'],'op':'gt','value':m}) else (lo,m)\nprint(lo,hi, probe({'path':'people.sam.mood','op':'eq','value':'worried'}), probe({'path':'entities.%s.open'%h['note'],'op':'ne','ref':'entities.%s.sentimental'%h['note']}))",
+   "evidence": "The glance shows the pan as 'hot'. 14 one-step watches bisected its temperature to (44.9927, 45.0000]; the true value is 45.0 and no thermometer was used. people.sam.mood == 'worried' fired, even though the observation shows no mood and no cue (worried has no MOOD_CUES entry). people.sam.awake is also watchable. 'ref' is never vetted, so {'path':'entities.<note>.open','op':'ne','ref':'entities.<note>.sentimental'} fired: never-tier sentimental=True. Using path 'time_s' with op 'lt' and ref 'entities.<jar>.value' separated the jar with value 250 from the one with value 3. The condition fires within the watch step itself, and the observation's 'pending' list shows it, so each probe costs one step.",
+   "fix": "In realistic mode, evaluate standing-order conditions on what the robot perceives (realism.render at its current knowledge level), not on world state. Run 'ref' paths through the same watch_condition_visible check, or reject 'ref' in watch. Refuse numeric comparisons (gt/lt/between/approx/eq on floats) on measure- or inspect-tier fields unless knowledge is at MEASURE or INSPECT. In realistic mode remove 'mood' and 'awake' from AGENT_OBSERVABLE_FIELDS, or compare against the cue or 'lying still' instead.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "step() returns the evaluator's verdict untranslated: failure labels contain true ids, plus reward and goal_fraction",
+   "severity": "medium",
+   "owner": "kernel engine (HouseEnv.step builds result['evaluation'] / reward from evaluation.evaluate)",
+   "repro": "import sys; sys.path[:0]=[r'<home>/OneDrive/Desktop/house_ai', r'<home>/OneDrive/Desktop/house_ai/tests']\nfrom test_perception import fixture; from house_sim.kernel.engine import HouseEnv\ntask={'instruction':'Bring me the salt','perception':'realistic','success':[{'path':'entities.salt_jar_1.location','op':'eq','value':'robot'}],'side_effects':{'no_moves_except':['salt_jar_1']}}\nenv=HouseEnv(fixture(), task=task, seed=0); v=env.observe()['visible_entities']\nenv.step('approach',[k for k,r in v.items() if r['label']=='counter'][0]); v=env.observe()['visible_entities']\nj=[k for k,r in v.items() if r.get('kind')=='white powder jar'][0]; r=env.step('pick_up', j)\nprint(r['message'], r['evaluation']['failures'], r['evaluation']['goal_fraction'], r['reward'])",
+   "evidence": "Output: 'Picked up obj_608f9add' ['moved:sugar_jar_1'] 0.0 0.0. The raw true id appears in the step result and links the unresolved look-alike handle to sugar_jar_1. goal_fraction and reward also act as a 'right object?' oracle, and metrics show hidden counters. eval/agents.py strips these keys for harness agents, but HouseEnv.step itself (the documented ACTION_API, house_env.py, custom loops) returns them in realistic mode.",
+   "fix": "When realism is active, leave 'evaluation' and 'reward' out of the step result (keep env.evaluate() for evaluators), or return them only when an explicit privileged flag is set, like raw_results. At minimum, pass failure labels through out_text(issue=False).",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Existence oracle for true ids: real ids are refused, made-up ids are accepted",
+   "severity": "medium",
+   "owner": "kernel realism (Realism.inbound refuses only words that are true entity ids in non-free-text params)",
+   "repro": "import sys; sys.path.insert(0, r'<home>/OneDrive/Desktop/house_ai')\nfrom house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(generate_house(0), seed=0, perception='realistic')\nfor g in ['baking_soda_box_1','baking_soda_box_9']:\n  print(g, env.step('speak', target=g)['message'], '|', env.step('remember', target='k', value=g)['message'])",
+   "evidence": "baking_soda_box_1 -> 'That is not visible here' | 'That is not visible here'. baking_soda_box_9 -> 'baking_soda_box_9' | 'Remembered k'. Because generated ids are '<type>_<n>', one step per guess lists the house's hidden inventory (unseen rooms and closed containers included). The same works with ask topics and watch commands. The docs promise that true ids are refused 'exactly like an invisible object', but made-up ids are not refused, so the two cases can be told apart.",
+   "fix": "Give real and made-up ids the same behaviour. For entity, target and person parameters, accept only issued handles and refuse every other string with the same message. For non-entity str/any/list parameters, do not refuse true-id words. Instead neutralise them (for example keep the literal, but route all entity lookups in topics, scopes and paths through a resolver that accepts handles only).",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Lists of ids in results are sorted by true id (inspect contents/under/behind, count ids/levels), which reveals look-alike identity",
+   "severity": "medium",
+   "owner": "systems/core.py inspect (contents from World.children, which sorts by true id) + kernel realism.filter_details (passes 'contents'/'under'/'behind' through unchanged) + admin_inventory count (ids order; json sort_keys applied before translation)",
+   "repro": "import sys, json; sys.path.insert(0, r'<home>/OneDrive/Desktop/house_ai')\nfrom house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(generate_house(0), seed=0, perception='realistic')\nenv.step('move','hallway_1'); env.step('move','laundry_room_1')\nv=env.observe()['visible_entities']; jugs=[h for h,r in v.items() if r.get('kind')=='laundry jug']; shelf=v[jugs[0]]['location']\nenv.step('approach', shelf)\nprint([h for h in json.loads(env.step('inspect', shelf)['message'])['contents'] if h in jugs])\nprint([h for h in json.loads(env.step('count', shelf)['message'])['ids'] if h in jugs])",
+   "evidence": "Both calls list the jugs as ['obj_72cf0ba7','obj_167b8a33','obj_61f9a977'], which is alphabetical true-id order (chlorine_bleach_bottle_1 < fabric_softener_1 < liquid_detergent_1), not handle order. The labels stay 'plastic jug of laundry liquid', so this is a read-resolved group that has not been read. With the visible candidate list (bleach, detergent, softener...) the agent can map order to identity. On the fixture counter, the first jar in contents was salt_jar_1 in 4 of 4 seeds.",
+   "fix": "In realistic mode, re-sort every list of entity ids in action results by handle: in filter_details for contents/under/behind, in count's ids, and in any domain list. Translate ids before json.dumps(sort_keys=True), or re-sort dict keys after translation, so key order follows handles.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Safety refusals name hazards (corrosive, toxic) of unread look-alikes, and affordances() returns them without spending a step",
+   "severity": "medium",
+   "owner": "systems/core.py check_handling (hazard text in the refusal) surfaced via step and kernel engine.affordances",
+   "repro": "import sys; sys.path.insert(0, r'<home>/OneDrive/Desktop/house_ai')\nfrom house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(generate_house(0), seed=0, perception='realistic')\nenv.step('move','hallway_1'); env.step('move','laundry_room_1')\nv=env.observe()['visible_entities']; jugs=[h for h,r in v.items() if r.get('kind')=='laundry jug']; env.step('approach', v[jugs[0]]['location'])\nfor j in jugs: print(j, [(a['action'],a['reason']) for a in env.affordances(j) if a['action']=='pick_up'])",
+   "evidence": "obj_72cf0ba7 -> ('pick_up', 'Hazardous item (corrosive, toxic) needs its safe grip: handle'), while the two other identical jugs return ''. That handle is chlorine_bleach_bottle_1, so the agent learns which jug is bleach without reading any label. check_handling also discloses never-tier or hidden facts about items sealed inside closed containers ('Contained private item requires owner permission', 'Contained item requires scoped approval').",
+   "fix": "In realistic mode, when the item's identity is unresolved (realism.identity returns candidates) or its hazards field is below INSPECT/READ knowledge, refuse with a generic message such as 'It may be hazardous; read its label or use a safe grip', without listing the hazards. Do the same for the 'Contained ...' messages on closed containers.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Door 'locked' state (inspect tier) shows at a glance in connections and the known map",
+   "severity": "low",
+   "owner": "kernel perception (_observe adds open/locked to connection items) + kernel realism (_observe does not filter connections or known_map)",
+   "repro": "import sys; sys.path.insert(0, r'<home>/OneDrive/Desktop/house_ai')\nfrom house_sim.generator import generate_house; from house_sim.kernel.engine import HouseEnv\nenv=HouseEnv(generate_house(0), seed=0, perception='realistic'); env.step('move','entryway_1')\no=env.observe(); print(o['connections'][0], 'locked' in o['visible_entities'][o['connections'][0]['door']], env.known_map()['entryway_1']['connections'][0]['locked'])",
+   "evidence": "The connection reads {'door': 'obj_f46154c5', 'open': False, 'locked': True}, while the door's own glance record has no 'locked' field (False), and known_map keeps locked=True. A closed locked door looks the same as a closed unlocked one, and DEFAULT_TIERS puts 'locked' in the inspect tier.",
+   "fix": "In Realism._observe, drop 'locked' from connection items and from the known-map copy unless the robot's knowledge level for the door entity is at least INSPECT (or it has tried to open the door).",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Sleeping can be told from resting at a glance (hazard kind 'sleeping', and 'lying still' appears only for sleepers)",
+   "severity": "low",
+   "owner": "kernel geometry.hazard_cells (emits 'sleeping') + kernel realism._observe (keeps person/pet hazards; maps only sleeping to 'lying still')",
+   "repro": "import sys; sys.path[:0]=[r'<home>/OneDrive/Desktop/house_ai', r'<home>/OneDrive/Desktop/house_ai/tests']\nfrom test_perception import fixture; from house_sim.kernel.engine import HouseEnv\nfor p,a in (('sleeping',False),('lying',True)):\n  c=fixture(); c['people']['sam']={'label':'Sam','role':'adult','location':'room_1','pos':[0,1],'posture':p,'awake':a,'authority':2,'consent':True}\n  o=HouseEnv(c, seed=0, perception='realistic').observe(); print(o['people']['sam']['posture'], {h['kind'] for h in o['grid']['hazards'] if h['source']=='sam'})",
+   "evidence": "Sleeping prints 'lying still' {'sleeping'}; awake and lying prints 'lying' {'person_down'}. Pets behave the same way. The docs say sleeping should look like 'lying still' until inspected, but both the hazard kind and the posture word tell sleep apart without inspecting.",
+   "fix": "In Realism._observe, rewrite person and pet hazard kinds 'sleeping' and 'person_down' to one neutral kind (for example 'someone lying down') unless the agent has been inspected. Map every lying posture (resting or sleeping) to 'lying still' until inspected.",
+   "lens": "Recover true entity ids or identities (a"
+  },
+  {
+   "title": "Affordance probes leave their knowledge grants pending, so look-alikes resolve without any read",
+   "severity": "high",
+   "owner": "kernel: engine.py HouseEnv.affordances/_affordances + realism.py Realism.grant/commit_grants (self.pending is not restored when a probe is rolled back)",
+   "repro": "scratchpad/lk/lk_aff_grant.py. Build fixture(): make_house(3,1,3), a counter at [2,2], and salt_jar_1/sugar_jar_1 (looks_like white_powder_jar, label_text SALT/SUGAR) on it. env=HouseEnv(cfg, seed=0, perception='realistic'); counter=<handle labelled 'counter'>; env.step('approach', counter); jars=[h for h,r in env.observe()['visible_entities'].items() if r['label']=='jar of white powder']; for h in jars: env.affordances(h); env.step('wait'); print labels.",
+   "evidence": "Before the wait both jars show 'jar of white powder'. After the wait: [('obj_150bef19','sugar jar','jar'), ('obj_aea1461c','salt jar','jar')]. Truth: obj_aea1461c=salt_jar_1, obj_150bef19=sugar_jar_1. The agent never ran read, and affordances used no step or simulated time. The probed read/inspect handlers call ctx.grant, and the next successful step commits those grants.",
+   "fix": "In _affordances, save len(realism.pending) before each probe and truncate back to it in the finally block (or pass a probe flag so Ctx.grant does nothing). Add a test that affordances() changes neither realism.pending nor realism.knowledge.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "Standing orders evaluate the true mood and sleep state of people and pets",
+   "severity": "high",
+   "owner": "systems/core.py watch_condition_visible + AGENT_OBSERVABLE_FIELDS (watch/_fire_orders check predicates against true state)",
+   "repro": "scratchpad/lk/lk_people.py. Add people sam {awake:False, posture:'sleeping', activity:'sleeping', mood:'grumpy'} and ann {awake:True, posture:'lying', activity:'resting', mood:'neutral'}, plus pets rex (awake False) and tom (awake True), to fixture(). Fresh env each time, seed=0: env.step('watch', condition={'path':'people.sam.mood','op':'eq','value':'grumpy'}, commands=[{'action':'look'}]); then read env.observe()['pending'].",
+   "evidence": "The people view removes mood and awake (sam shows posture 'lying still' and gets no cue, because 'grumpy' is not in MOOD_CUES). Yet watch people.sam.mood==grumpy gives pending [{'action':'look'}] and people.ann.mood==grumpy gives []. people.sam.awake==False fires, people.ann does not. pets.rex.awake==False fires, pets.tom does not. With op 'in' and value lists, any mood can be found by binary search in log2(n) steps.",
+   "fix": "When env.realism is set, evaluate people/pets watch paths against the perceived view (cues, posture word), or remove mood, awake and activity from AGENT_OBSERVABLE_FIELDS in realistic mode.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "The watch 'ref' operand is never visibility-checked, so it tests any hidden field (pill-bottle identity, a visitor's _identity)",
+   "severity": "high",
+   "owner": "systems/core.py watch_condition_visible (checks only rule['path']) + kernel/predicates.py check() ref branch",
+   "repro": "scratchpad/lk/lk_watch_ref.py. Put typed prescription_bottle, pet_medication and expired_medication on a counter, seed=3, approach. For each bottle handle h, in a fresh env: env.step('watch', condition={'path':'time_s','op':'exists','ref':'entities.%s.toxin'%h}, commands=[{'action':'look'}]); check whether observe()['pending'] is non-empty. Also scratchpad/lk/lk_visitor_ref.py: the people.visitor spec at seed 1, wait 40 s, ref 'people.visitor_1._identity.appointment'.",
+   "evidence": "All three bottles show 'amber pill bottle' with candidates. The refs toxin, pet_medication and drug fire only for obj_0d580966 (pet_medication). 'sealed' fires only for obj_1619eca9 (prescription_bottle), which tells the active prescription from the expired one without reading. _identity.appointment fires only for the genuine contractor, not for the impostor, solicitor or guest.",
+   "fix": "Refuse 'ref' in watch conditions, or run watch_condition_visible on rule['ref'] too and reject underscore or never-tier path segments. Only allow exists/is_true on perceivable fields.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "The masked sleep posture can still be told apart from awake lying (people 'lying still' vs 'lying'; pets 'lying still' vs 'resting')",
+   "severity": "medium",
+   "owner": "kernel realism._observe (rewrites only posture=='sleeping') + people/senses.wake_person and navigation_robot/common.wake_agent (set awake people to 'lying') + pets/perception.py pets_cues (rewrites activity only when asleep)",
+   "repro": "scratchpad/lk/lk_people.py: env.observe()['people'] and ['pets'].",
+   "evidence": "Asleep sam: posture 'lying still', activity 'resting'. Awake lying ann: posture 'lying', activity 'resting'. Asleep dog rex (posture lying, activity resting): activity 'lying still'. Awake cat tom with identical true posture and activity: activity 'resting'.",
+   "fix": "Map every lying or sleeping posture to one percept ('lying') and every resting, sleeping or napping activity to one word, regardless of awake state, for both people and pets.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "The pick_up refusal names the hidden hazard class of an unresolved look-alike (bleach, acid cleaner, antifreeze, pet medicine)",
+   "severity": "high",
+   "owner": "systems/core.py touch/carry checks (~line 84: 'Hazardous item ({}) needs its safe grip...'), which read record['hazards'] (inspect tier, filtered out of unresolved look-alikes)",
+   "repro": "scratchpad/lk/lk_hazard.py, seed=11. Put typed liquid_detergent, chlorine_bleach_bottle, fabric_softener, wheel_cleaner_acid, wheel_cleaner_neutral, prescription_bottle, expired_medication and pet_medication on a counter. Approach the counter, then env.step('pick_up', h) for each.",
+   "evidence": "All three jugs show 'plastic jug of laundry liquid' with candidates. pick_up obj_97263381 returns 'Hazardous item (corrosive, toxic) needs its safe grip: handle' (truth: chlorine_bleach_bottle); the other jugs return 'Picked up'. The acid wheel cleaner returns '(corrosive) ... protective gear', the neutral one is picked up. pet_medication returns '(toxic) needs its safe grip: normal/pinch'. The same strings appear for free in env.affordances reasons. antifreeze_jug and washer_fluid_jug vs motor_oil_jug differ the same way.",
+   "fix": "If the target or a contained item is an unresolved look-alike or a novel object, refuse with a generic message such as 'Handle this with care: choose a grip or wear protection' that names neither the hazard nor the grip. Alternatively give all members of a group a shared grip requirement.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "Glance fields that differ by type inside look-alike groups (pet medicine shows a pill count and no amber colour; glass cleaner is blue)",
+   "severity": "medium",
+   "owner": "kernel realism.perceive_record (LOOKALIKE_FIELDS passes per-type props through) + data/types/pets.json pet_medication (count 30, no colour, looks_like pill_bottle), cleaning.json glass_cleaner (colour blue), mechanisms.json trigger_bottle (liquid_l), climate.json purifier_prefilter (openable false)",
+   "repro": "scratchpad/lk/lk_fields.py: typed members of each group on one counter, seed=4, approach, observe. Inspect extras: scratchpad/lk/lk_inspect_extras.py.",
+   "evidence": "Under the 'amber pill bottle' descriptor, prescription and expired bottles show {'color':'amber'} while pet_medication shows {'color':null,'count':'many'}. Spray bottles: glass_cleaner shows color 'blue' (all others null); trigger_bottle shows liquid_l 'half' (the others have no liquid_l). Air filters: prefilter shows openable false, the others true. After inspect, only pet_medication has count 32, only smart_bulb has a 'led' key, only trash_cart has 'liner'.",
+   "fix": "Render an unresolved look-alike's glance fields from a group template: the descriptor's colour, and each field either present for all effective members or for none. Drop count, liquid_l and openable unless every member defines them. Never show the count inside a closed opaque container. Add a registry lint that group members share these props.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "Overlapping group definitions across domains: 'bottle of clear liquid' only ever means isopropyl alcohol",
+   "severity": "medium",
+   "owner": "kernel realism.groups()/group_of (DEFAULT_LOOKS_LIKE wins on first match; explicit type looks_like) vs data/types/cleaning.json 'cleaning_bottle' (37 members) and plumbing_liquids.json water_bottle (looks_like reusable_bottle)",
+   "repro": "scratchpad/lk/lk_groups.py: 13 typed cleaning products plus a water_bottle on a counter, seed=3, approach, observe labels.",
+   "evidence": "'bottle of clear liquid' lists 5 candidates (water bottle, vinegar, white vinegar, rubbing alcohol, isopropyl alcohol), but the only registry type rendered with that descriptor is isopropyl_alcohol. water_bottle shows 'reusable drink bottle' (1 candidate) and the vinegar/distilled-water types show 'white plastic jug of liquid'. 19 of cleaning_bottle's listed members are captured by spray_bottle, plastic_jug, white_powder_jar or clear_liquid_bottle, so its 37-item candidate list does not match what it is really shown for.",
+   "fix": "Assign each type to exactly one group at registry load and raise an error on conflicts. Build candidate lists from the effective member set. Remove stale default members, or merge clear_liquid_bottle into the domain groups.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "People and pets are fully perceived in pitch darkness: identity, activity, facing and visual mood cues",
+   "severity": "medium",
+   "owner": "kernel perception.Perception._observe (builds the people/pets dicts without a light check) + realism._observe + people/pets observers",
+   "repro": "scratchpad/lk/lk_dark_people.py. fixture() with sam {mood:'sad', posture:'sitting', activity:'reading', affect:'crying', facing_deg:95} and dog rex {mood:'guarding', anxiety:0.8}. Switch light_1..3 off, set time_s=7200 (02:00), sensors=['symbolic','language','audio'] (no thermal). env.observe().",
+   "evidence": "dark True, light_level 0.0, and the only visible entity is one 'dark shape'. Yet people: sam {'label':'Sam','posture':'sitting','activity':'reading','facing_deg':90,'cues':['tearful']}, and pets: rex {'activity':'begging','body_language':'stiff, staring, low growl','stress_signs':['whining','trembling','hiding']}.",
+   "fix": "When dark and there is no flashlight, reduce people and pets to a shape plus position, and keep only audible signs (crying, whining, raised voice). Drop identity unless voice is recognized, and drop activity, facing and visual cues. With thermal, allow posture only.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "Inspecting a novel object exposes a type-named appliance view ('kettle_state') with exact readings",
+   "severity": "medium",
+   "owner": "kernel realism.filter_details (now keeps any inspector key not in the record, even for novel or unresolved targets) + appliances_cooking/status.py SEEN_KEYS",
+   "repro": "scratchpad/lk/lk_novel.py: inspect the novel electric_kettle after approaching (seed=1).",
+   "evidence": "INSPECT gives kind 'unknown', label 'unfamiliar medium object', but also 'kettle_state': {'max_l':1.7, 'min_l':0.5, 'on':false, 'on_base':false, 'water_l':0.0}.",
+   "fix": "For novel or unresolved targets, pass through only keys a domain explicitly marks as group-safe, under a neutral name (for example 'appliance_view'), and never a key named after the type.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "A mirror's 'open doorway' percept is easy to see through",
+   "severity": "low",
+   "owner": "kernel realism._observe (mirror/reflective branch)",
+   "repro": "scratchpad/lk/lk_mirror.py: fixture() plus mirror_1 (category mirror, mounted, pos [4,0]), seed=2, observe, known_map(), step('move', h).",
+   "evidence": "An 'open doorway' with handle obj_92a71d52 appears in visible_entities with only label/kind/location/pos/size_class (every real record carries color, soil, wetness and temperature). It is missing from connections and from known_map exits, which list only conn_room_1__room_2. move gives 'Move to a listed exit'. So the agent knows it is a mirror without inspecting it.",
+   "fix": "Either list the illusory opening as a perceived exit in connections/known_map with a full-looking record, or drop the illusion.",
+   "lens": "Look-alikes, novel objects, detection an"
+  },
+  {
+   "title": "A small container the detector missed is revealed by its child's location handle",
+   "severity": "low",
+   "owner": "kernel realism._observe (out_obj issue=True on 'location' values of perceived records)",
+   "repro": "scratchpad/lk/lk_missed_parent.py: room area 40, counter at [6,4], six 0.12 m dishes each holding a 0.14 m coin, seed=21. Scan robot positions (0..6, 0..5) and observe at each.",
+   "evidence": "At (0,0) the robot sees coin obj_06c22173 located in obj_a171283c, which is not in visible_entities (dish_1 was missed). This happened at 59 viewpoints. The leaked handle is then accepted by step and affordances, which use oracle visibility.",
+   "fix": "If a perceived record's location is a missed entity, either un-miss the parent (seeing the child means seeing what holds it) or rewrite the location to the nearest perceived ancestor.",
+   "lens": "Look-alikes, novel objects, detection an"
+  }
+ ],
+ "domain": {
+  "plumbing_liquids": [
+   {
+    "title": "pour message names the true liquid of an unresolved look-alike container",
+    "severity": "high",
+    "owner": "domain plumbing_liquids (systems/plumbing_liquids/transfer.py do_pour, realistic return ~line 439: name = srec.get('liquid') / L.parcel_name(parcel))",
+    "repro": "refusal_lens/pour_probe.py (seed=4). Four laundry_jug members on a counter (liquid_detergent, fabric_softener, chlorine_bleach_bottle, oxygen_laundry_booster), all shown as 'plastic jug of laundry liquid' with candidates. For each handle: env.step('pick_up', h, grip='handle'); env.step('pour', h, bucket_handle, amount_l=0.05).",
+    "evidence": "'Poured a splash of chlorine_bleach into <bucket>', 'Poured a splash of fabric_softener into <bucket>', 'Poured a splash of laundry_detergent_he ...', 'Poured a splash of oxygen_bleach_solution ...'. The jug is still unresolved in observe(), yet the message identifies it.",
+    "fix": "In realistic mode, name the poured liquid with the perceived identity: if the source is an unresolved look-alike or novel object, use the group descriptor ('some liquid' / 'the clear liquid') or a visual description (colour, viscosity bucket). Route the name through a realism helper (e.g. ctx.perceived identity) instead of the raw liquid field. Apply the same rule to every 'Poured/Emptied/Drained ... of X' message.",
+    "lens": "Refusal reasons and side channels (priva"
+   },
+   {
+    "title": "Domain precondition refusals resolve look-alike groups by acting (kettle, pill bottle, paper, plunger)",
+    "severity": "medium",
+    "owner": "appliances_cooking/countertop.py:455 ('Seat the kettle on its base first') vs core.py:944 ('It has no supported switch'); manipulation/fasteners.py:1173 ('It is not sealed'); manipulation/wrapping.py:822 ('It does not tear by hand'); plumbing_liquids/toilets.py:162 ('That is not something you flush')",
+    "repro": "refusal_lens/step_confirm.py (seed=6). Members of each group side by side; every handle is unresolved with glance records identical to the others. Actions: kettle_lookalike switch_on; pill_bottle unseal; slip_of_paper tear; gift_wrap tear; rubber_plunger rinse.",
+    "evidence": "electric_kettle 'Seat the kettle on its base first' vs stovetop_kettle 'It has no supported switch'. prescription_bottle 'Opened <H>' vs expired_medication 'It is not sealed'. thermal_receipt 'It does not tear by hand' vs paper_scrap 'Tore <H>'. foil_wrapping_paper refused vs wrapping_paper torn. flange_plunger 'That is not something you flush' (argument) vs cup_plunger a capability message. Each probe fully resolves the group.",
+    "fix": "Add a kernel helper (e.g. ctx.refuse_unresolved(eid)): when the target is an unresolved look-alike or novel object, domain type-specific guards emit the same group-level refusal for every member, or perform the attempt and describe the physical outcome in group terms. Run lookalike_sweep.py in CI: every member pair must yield identical affordance and step messages while unresolved.",
+    "lens": "Refusal reasons and side channels (priva"
+   },
+   {
+    "title": "Action duration (observation time_s) reveals exact liquid volume and the liquid's viscosity (identity)",
+    "severity": "medium",
+    "owner": "domain plumbing_liquids (transfer.py do_pour: seconds = 2.0 + liters/flow, ~line 432; open_drain_spigot seconds = 10 + have/0.25); kernel engine exposes exact time_s",
+    "repro": "refusal_lens/duration_probe.py (seed=8): a pitcher holding 0.737 L of water (glance shows 'half'). pick_up, then env.step('pour', pitcher, pot) with no amount; liters = (dt - 2) * 0.2. refusal_lens/pour_probe.py: pour amount_l=0.05 from unresolved laundry jugs and compare dt.",
+    "evidence": "Message 'Poured about 0.75 L of water', observed pot liquid_l 0.7, but dt=5.685 s gives 0.7370 L, the exact true value (second run: 0.4120 vs true 0.412). Unresolved jugs: fabric_softener dt=2.964 vs 2.268 for the others (flow 0.25 vs 1.0), so viscosity identifies the member.",
+    "fix": "In realistic mode, compute action durations from perceived or estimated quantities (the same seeded estimate used for the message), or add seeded jitter and quantize to whole seconds. Do not use exact hidden quantities or per-identity coefficients for look-alikes the robot has not resolved.",
+    "lens": "Refusal reasons and side channels (priva"
+   },
+   {
+    "title": "Pour duration reveals the exact volume poured even though the message rounds it",
+    "severity": "low",
+    "owner": "plumbing_liquids (transfer.py: seconds = 2.0 + liters/flow; drain: 10 + have/0.25)",
+    "repro": "import sys; sys.path[:0]=[r'<home>/OneDrive/Desktop/house_ai', r'<home>/OneDrive/Desktop/house_ai/tests']\nfrom test_perception import fixture; from house_sim.world import object_record; from house_sim.kernel.engine import HouseEnv\nc=fixture(); c['entities']['pitcher_1']=object_record('pitcher','counter_1',portable=True,liquid_l=0.837,liquid='water',capacity_l=1.5,size_m=[0.15,0.15,0.25],relation='on'); c['entities']['bowl_1']=object_record('mixing bowl','counter_1',portable=True,capacity_l=3.0,size_m=[0.3,0.3,0.15],relation='on')\n[c['entities'][e].pop('pos',None) for e in ('pitcher_1','bowl_1')]\nenv=HouseEnv(c, seed=0, perception='realistic'); h=lambda: {r['label']:k for k,r in env.observe()['visible_entities'].items()}\nenv.step('approach',h()['counter']); H=h(); t0=env.step('pick_up',H['pitcher'])['observation']['time_s']; r=env.step('pour',H['pitcher'],H['mixing bowl'])\nprint(r['message'], (r['observation']['time_s']-t0-2.0)*0.2)",
+    "evidence": "The message says 'Poured about 0.85 L', but the time_s delta of 6.185 s gives (6.185-2)*0.2 = 0.837 L, which is the exact true liquid_l. With 0.6123 L true, the delta of 5.061 s gives 0.6122 L. Exact volume is measure tier (measuring_cup).",
+    "fix": "In realistic mode, compute the duration from the perceived (rounded) amount, or round durations to whole seconds and add seeded jitter. Apply the same to drain, fill and other durations computed from hidden quantities.",
+    "lens": "Recover true entity ids or identities (a"
+   }
+  ],
+  "admin_inventory": [
+   {
+    "title": "hand_over refusal names the true label of an unresolved look-alike document (and that it is sensitive)",
+    "severity": "medium",
+    "owner": "domain admin_inventory (systems/admin_inventory/paper.py ~line 205)",
+    "repro": "refusal_lens/carts_docs.py part B (seed=9). Two 'printout' records on a counter (label 'tax return' with sensitive=True, and 'pizza menu'), both shown as 'printed document' with candidates ['packing slip','printout']; a guest is present. pick_up each, approach guest_1, env.step('hand_over', h, 'guest_1').",
+    "evidence": "hand_over obj_4967284e -> False privacy 'tax return is a sensitive document; only its owner or an authorized adult may receive it'; the other document is handed over. The refusal gives the true label and the sensitive flag of an item the robot has not resolved.",
+    "fix": "In realistic mode, use a handle or a generic noun ('That document ...'), not rec['label']. Better: let the hand-over proceed and record a privacy violation for unresolved items, since the robot could not know the paper is sensitive without reading it.",
+    "lens": "Refusal reasons and side channels (priva"
+   },
+   {
+    "title": "Ownership-specific refusals reveal never-tier owner and private_contents",
+    "severity": "low",
+    "owner": "electrical/charging.py:409 ('That car belongs to a guest; ask the owner...'); admin_inventory/office.py:194 ('{file} is {owner}'s private file'); admin_inventory/mail.py:91 realistic branch (\"That is someone's personal {category}\")",
+    "repro": "diff_sweep.py variant private_contents: env.affordances(h) or env.step('open', h) on a container with private_contents=True, owner different from the requester. For charging: step('charge'/plug EV) on a car whose owner is a guest.",
+    "evidence": "open -> \"That is someone's personal object; do not open it without their permission\" (privacy), while the identical non-private container gives 'It does not open' or opens. The charging and print refusals state the owner or owner role directly in the message.",
+    "fix": "Same policy as check_permission: in realistic mode, record a violation instead of refusing with owner-specific text, or use a generic message emitted only after the robot has perceived a cue (a name tag, a guest's car seen arriving) or asked.",
+    "lens": "Refusal reasons and side channels (priva"
+   }
+  ],
+  "appliances_cooking": [
+   {
+    "title": "Domain precondition refusals resolve look-alike groups by acting (kettle, pill bottle, paper, plunger)",
+    "severity": "medium",
+    "owner": "appliances_cooking/countertop.py:455 ('Seat the kettle on its base first') vs core.py:944 ('It has no supported switch'); manipulation/fasteners.py:1173 ('It is not sealed'); manipulation/wrapping.py:822 ('It does not tear by hand'); plumbing_liquids/toilets.py:162 ('That is not something you flush')",
+    "repro": "refusal_lens/step_confirm.py (seed=6). Members of each group side by side; every handle is unresolved with glance records identical to the others. Actions: kettle_lookalike switch_on; pill_bottle unseal; slip_of_paper tear; gift_wrap tear; rubber_plunger rinse.",
+    "evidence": "electric_kettle 'Seat the kettle on its base first' vs stovetop_kettle 'It has no supported switch'. prescription_bottle 'Opened <H>' vs expired_medication 'It is not sealed'. thermal_receipt 'It does not tear by hand' vs paper_scrap 'Tore <H>'. foil_wrapping_paper refused vs wrapping_paper torn. flange_plunger 'That is not something you flush' (argument) vs cup_plunger a capability message. Each probe fully resolves the group.",
+    "fix": "Add a kernel helper (e.g. ctx.refuse_unresolved(eid)): when the target is an unresolved look-alike or novel object, domain type-specific guards emit the same group-level refusal for every member, or perform the attempt and describe the physical outcome in group terms. Run lookalike_sweep.py in CI: every member pair must yield identical affordance and step messages while unresolved.",
+    "lens": "Refusal reasons and side channels (priva"
+   },
+   {
+    "title": "Type-specific refusal messages name novel objects and split look-alike groups",
+    "severity": "medium",
+    "owner": "appliances_cooking/countertop.py:455 ('Seat the kettle on its base first'); people/care.py:140 medication open guard vs core.py:888 'It does not open'; rice-cooker 'Put the inner pot in first' (appliances_cooking)",
+    "repro": "scratchpad/lk/lk_novel.py: a novel=True electric_kettle labelled 'Zorblax 3000 kettle' on the counter, seed=1, approach, then env.affordances(h). scratchpad/lk/lk_hazard.py: env.step('open', h) on the three pill bottles. scratchpad/lk/lk_aff_pairs.py diffs reasons between group members in identical contexts.",
+    "evidence": "The novel object shows 'unfamiliar medium object', kind 'unknown', but switch_on's reason is 'Seat the kettle on its base first'. Pill bottles: pet_medication returns 'It does not open'; prescription and expired return 'The robot never opens medicine containers or handles doses'. kettle_lookalike: the electric kettle gives 'Seat the kettle...', the stovetop kettle gives 'It has no supported switch'. countertop_cooker: 'Put the inner pot in first' vs 'Close the door/lid first'.",
+    "fix": "When the target's identity is unresolved or novel, rewrite domain ActionError messages in the realism outbound path to a generic 'That does not work on it'. Make the medication open guard cover every member of the pill_bottle group and run before the openable check.",
+    "lens": "Look-alikes, novel objects, detection an"
+   }
+  ],
+  "manipulation": [
+   {
+    "title": "Domain precondition refusals resolve look-alike groups by acting (kettle, pill bottle, paper, plunger)",
+    "severity": "medium",
+    "owner": "appliances_cooking/countertop.py:455 ('Seat the kettle on its base first') vs core.py:944 ('It has no supported switch'); manipulation/fasteners.py:1173 ('It is not sealed'); manipulation/wrapping.py:822 ('It does not tear by hand'); plumbing_liquids/toilets.py:162 ('That is not something you flush')",
+    "repro": "refusal_lens/step_confirm.py (seed=6). Members of each group side by side; every handle is unresolved with glance records identical to the others. Actions: kettle_lookalike switch_on; pill_bottle unseal; slip_of_paper tear; gift_wrap tear; rubber_plunger rinse.",
+    "evidence": "electric_kettle 'Seat the kettle on its base first' vs stovetop_kettle 'It has no supported switch'. prescription_bottle 'Opened <H>' vs expired_medication 'It is not sealed'. thermal_receipt 'It does not tear by hand' vs paper_scrap 'Tore <H>'. foil_wrapping_paper refused vs wrapping_paper torn. flange_plunger 'That is not something you flush' (argument) vs cup_plunger a capability message. Each probe fully resolves the group.",
+    "fix": "Add a kernel helper (e.g. ctx.refuse_unresolved(eid)): when the target is an unresolved look-alike or novel object, domain type-specific guards emit the same group-level refusal for every member, or perform the attempt and describe the physical outcome in group terms. Run lookalike_sweep.py in CI: every member pair must yield identical affordance and step messages while unresolved.",
+    "lens": "Refusal reasons and side channels (priva"
+   }
+  ],
+  "electrical": [
+   {
+    "title": "Ownership-specific refusals reveal never-tier owner and private_contents",
+    "severity": "low",
+    "owner": "electrical/charging.py:409 ('That car belongs to a guest; ask the owner...'); admin_inventory/office.py:194 ('{file} is {owner}'s private file'); admin_inventory/mail.py:91 realistic branch (\"That is someone's personal {category}\")",
+    "repro": "diff_sweep.py variant private_contents: env.affordances(h) or env.step('open', h) on a container with private_contents=True, owner different from the requester. For charging: step('charge'/plug EV) on a car whose owner is a guest.",
+    "evidence": "open -> \"That is someone's personal object; do not open it without their permission\" (privacy), while the identical non-private container gives 'It does not open' or opens. The charging and print refusals state the owner or owner role directly in the message.",
+    "fix": "Same policy as check_permission: in realistic mode, record a violation instead of refusing with owner-specific text, or use a generic message emitted only after the robot has perceived a cue (a name tag, a guest's car seen arriving) or asked.",
+    "lens": "Refusal reasons and side channels (priva"
+   }
+  ],
+  "navigation_robot": [
+   {
+    "title": "No-tool 'measure method=estimate' and 'check_level' eyeball redraw their error every step; averaging recovers hidden tool-only geometry to tape and level precision",
+    "severity": "medium",
+    "owner": "domain navigation_robot (house_sim/systems/navigation_robot/measure.py: reading(), check_level())",
+    "repro": "Script: scratchpad/hv/p9_estimates.py, built on make_house(3,1,3), seed=3. sofa_9 has size_m [2.0,0.9,0.8] and hidden _extents_mm [2043,917,846]. shelf_9 has hidden _tilt_deg [0.37,-0.22]. Steps: env.step('approach', sofa), then 40 x env.step('measure', sofa, dimension='dims', method='estimate'). Then env.step('approach', shelf), then 60 x env.step('check_level', shelf) holding no level.",
+    "evidence": "Single estimates scatter about +-8% (e.g. [1950,980,790] and [2130,870,890]). The error magnitude is drawn from U(3%,8%) with a random sign, so readings are never within 3% of the truth. Estimating T = (min(high)/1.03 + max(low)/0.97)/2 gives 2044.9 / 919.9 / 845.0 against hidden 2043 / 917 / 846. Inverting E[round(t+U(-0.8,0.8))] over the integer eyeball readings gives tilt 0.37 / -0.20 against hidden 0.37 / -0.22, which beats the spirit level's 0.1-degree resolution. Cause: the rng is ctx.rng = Random(seed:step:action), so it changes every step.",
+    "fix": "Key the no-tool errors on (seed, target, dimension, robot cell) and not on the step, so repeating from the same spot gives the same reading (the kernel's 'no free averaging' rule). Use a continuous zero-centred error (e.g. gauss) without the +-3% dead zone that brackets the truth. Optionally cap repeats from distinct viewpoints, or quantize estimates to 5 cm before adding noise.",
+    "lens": "Recovering hidden or higher-tier values "
+   },
+   {
+    "title": "Sleep state is visible at a glance through grid hazards of kind 'sleeping'",
+    "severity": "high",
+    "owner": "navigation_robot/hazards.py derived() (adds a 'sleeping' ring sourced by the person or pet); kernel realism._observe hidden_kinds only covers damp/film/black_ice/residue/invisible",
+    "repro": "scratchpad/lk/lk_people.py (same config as the watch repro): env.observe()['grid']['hazards'].",
+    "evidence": "[{'cell':[0,1],'kind':'sleeping','source':'sam'}, ..., {'cell':[0,0],'kind':'sleeping','source':'rex'}, ...]. Awake lying ann and tom get 'person_down' instead. The people view masks sam as 'lying still', but the hazard list says he is asleep.",
+    "fix": "In realistic mode give every lying person or pet the same neutral ring kind ('person_lying'), whether asleep or not, or add 'sleeping' to the realism hidden kinds and build the ring from the perceived posture.",
+    "lens": "Look-alikes, novel objects, detection an"
+   }
+  ],
+  "textiles_laundry": [
+   {
+    "title": "Musty-laundry smell intensity is an exact multiple of 0.2 per musty textile in realistic mode (count leak)",
+    "severity": "low",
+    "owner": "domain textiles_laundry (house_sim/systems/textiles_laundry/senses.py laundry_observer)",
+    "repro": "Code inspection plus channel survey: laundry_observer appends {'kind':'musty_laundry','intensity': round(min(1.0, 0.2*musty), 2)} without the realistic word conversion that the cleaning, food and electrical smell observers apply. Put 1, 2 or 3 textiles with musty=True in a room and observe obs['smells'].",
+    "evidence": "In realistic mode the intensity stays numeric (0.2, 0.4, 0.6, ...) where other domains report 'faint/noticeable/strong'. Dividing by 0.2 gives the exact number of hidden-musty textiles in the room, and it works through closed hampers because the loop does not check visibility.",
+    "fix": "When env.realism is set, convert the intensity to the shared faint/noticeable/strong words like the other observers, and count only exposed or visible textiles.",
+    "lens": "Recovering hidden or higher-tier values "
+   }
+  ],
+  "people": [
+   {
+    "title": "Type-specific refusal messages name novel objects and split look-alike groups",
+    "severity": "medium",
+    "owner": "appliances_cooking/countertop.py:455 ('Seat the kettle on its base first'); people/care.py:140 medication open guard vs core.py:888 'It does not open'; rice-cooker 'Put the inner pot in first' (appliances_cooking)",
+    "repro": "scratchpad/lk/lk_novel.py: a novel=True electric_kettle labelled 'Zorblax 3000 kettle' on the counter, seed=1, approach, then env.affordances(h). scratchpad/lk/lk_hazard.py: env.step('open', h) on the three pill bottles. scratchpad/lk/lk_aff_pairs.py diffs reasons between group members in identical contexts.",
+    "evidence": "The novel object shows 'unfamiliar medium object', kind 'unknown', but switch_on's reason is 'Seat the kettle on its base first'. Pill bottles: pet_medication returns 'It does not open'; prescription and expired return 'The robot never opens medicine containers or handles doses'. kettle_lookalike: the electric kettle gives 'Seat the kettle...', the stovetop kettle gives 'It has no supported switch'. countertop_cooker: 'Put the inner pot in first' vs 'Close the door/lid first'.",
+    "fix": "When the target's identity is unresolved or novel, rewrite domain ActionError messages in the realism outbound path to a generic 'That does not work on it'. Make the medication open guard cover every member of the pill_bottle group and run before the openable check.",
+    "lens": "Look-alikes, novel objects, detection an"
+   }
+  ],
+  "safety": [
+   {
+    "title": "Visitor name and kind leak through the window view and the doorbell camera, while the people view says 'unfamiliar person'",
+    "severity": "high",
+    "owner": "safety/security.py _visitor_view (used by the outside_view observer and the doorbell_camera inspector) emits p['label']",
+    "repro": "scratchpad/lk/lk_visitor.py. Build the people__examples 'Answer the door' spec with runner.build(sp, seed=1), setting people.visitor kind to contractor, solicitor, impostor or expected_guest. env=make_env(cfg, task, 1, perception='realistic'); env.step('wait', seconds=40); robot into entryway_1 (an indoor room with a window); env.observe()['outside_view'].",
+    "evidence": "outside_view: [{'who':'plumber', 'appearance':{'uniform':'Lee Plumbing',...}}], [{'who':'salesperson'}], [{'who':'man in a vest'}], [{'who':'Dana'}]. The same visitor in its own room appears as ('unfamiliar person', role None), and the people domain says name and kind come only from answers, badges or recognition.",
+    "fix": "In realistic mode, _visitor_view should take its name from people.door._perceived_name / mask_identity ('unfamiliar person' unless recognized) and show only appearance. Apply the same to camera_view.",
+    "lens": "Look-alikes, novel objects, detection an"
+   }
+  ],
+  "food": [
+   {
+    "title": "Food poured out of an unresolved look-alike bag is shown at a glance under its true label",
+    "severity": "medium",
+    "owner": "food domain transfer/portion spawning (sets no derived_from and copies no group for by-type members) + the food inspector's food_contents; the kernel identity() derived_from path is never set by any domain",
+    "repro": "scratchpad/lk/lk_transfer.py, seed=5. Put all_purpose_flour and sugar_bag (both shown as 'paper bag of white powder') and two mixing_bowls on a counter. Approach, then env.step('open', bag); env.step('transfer', bag, bowl, amount_g=100); observe and inspect the bowl.",
+    "evidence": "The bag stays 'paper bag of white powder' with candidates, but the new entity in the bowl appears as ('obj_54e688be','sugar','food') or ('obj_00d1a3ee','all purpose flour','food'). Inspecting the bowl gives food_contents kind 'sugar' / 'all_purpose_flour'. The bag was never inspected or read. Control: with an explicit looks_like on the record, the portion inherits it and stays masked.",
+    "fix": "Have the food domain set derived_from=<source> on every portion it spawns (or copy the source's group into looks_like), and render food_contents kind through realism.identity.",
+    "lens": "Look-alikes, novel objects, detection an"
+   }
+  ]
+ }
+}

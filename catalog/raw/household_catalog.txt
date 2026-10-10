@@ -2801,6 +2801,7 @@ Emergencies (must-have)
 “Grandma’s on the floor.” Requires not moving her unsafely, summoning help, relaying details, and keeping others calm.
 “The toilet’s overflowing — do something!” Requires improvising a response (shutoff valve, float, towels) with no named procedure.
 “The power just went out.” Requires working out what matters right now: light, fridge, medical devices, kids, phones.
+“Find me my prescribed medicines.”
 Feedback and recovery (must-have)
 “Stop.” / “Not like that.” / “Undo that.” Requires halting safely, working out what to revert, and restoring the prior state.
 “Why did you put it there?” Requires explaining its reasoning in a way the person can correct.

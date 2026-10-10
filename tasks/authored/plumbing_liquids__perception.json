@@ -1,0 +1,1527 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-3b1a4024d46110-01",
+   "title": "Check under every sink for leaks: find the dripping joint (a drain joint only leaks while water runs) among look-alike stops and an old dry crust",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.bathroom",
+     "args": {
+      "worn": false
+     }
+    },
+    {
+     "op": "find",
+     "var": "bath_trap",
+     "type": "drain_trap",
+     "within": "{vanity}",
+     "pick": "first"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.hidden_leak",
+       "args": {
+        "source": "kitchen_supply",
+        "witness": false
+       }
+      },
+      {
+       "op": "set",
+       "target": "{hot_stop}",
+       "props": {
+        "_leak": {
+         "component": "packing_nut",
+         "when": "never",
+         "evidence": "an old, dry white mineral crust below the packing nut"
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "decoy_part",
+       "value": "{hot_stop}"
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{kitchen}"
+      }
+     ],
+     "+success": [
+      {
+       "not": {
+        "path": "reports.{trap}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_hot}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_cold}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_trap}.leak",
+        "op": "exists",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "open",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "inspect",
+       "target": "{hot_stop}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{cold_stop}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{sink}",
+       "temp": "cold",
+       "flow": 0.6
+      },
+      {
+       "do": "inspect",
+       "target": "{trap}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{sink}"
+      },
+      {
+       "do": "close",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{vanity}"
+      },
+      {
+       "do": "open",
+       "target": "{vanity}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{bath_sink}",
+       "temp": "cold",
+       "flow": 0.6,
+       "handle": "both",
+       "open": 0.5
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_trap}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_hot}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_cold}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "close",
+       "target": "{vanity}"
+      },
+      {
+       "do": "report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": "cold_supply_compression_fitting",
+       "to": "{adult}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "takes the old dry mineral crust for the leak and reports that joint",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "open",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "inspect",
+         "target": "{hot_stop}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{hot_stop}",
+         "field": "leak",
+         "value": "packing_nut",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.hidden_leak",
+       "args": {
+        "source": "bath_trap",
+        "preleak_l": 0.0,
+        "witness": false
+       }
+      },
+      {
+       "op": "set",
+       "target": "{bath_cold}",
+       "props": {
+        "_leak": {
+         "component": "packing_nut",
+         "when": "never",
+         "evidence": "an old, dry white mineral crust below the packing nut"
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "decoy_part",
+       "value": "{bath_cold}"
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{kitchen}"
+      }
+     ],
+     "+success": [
+      {
+       "not": {
+        "path": "reports.{hot_stop}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{cold_stop}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{trap}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_hot}.leak",
+        "op": "exists",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "open",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "inspect",
+       "target": "{hot_stop}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{cold_stop}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{sink}",
+       "temp": "cold",
+       "flow": 0.6
+      },
+      {
+       "do": "inspect",
+       "target": "{trap}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{sink}"
+      },
+      {
+       "do": "close",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{vanity}"
+      },
+      {
+       "do": "open",
+       "target": "{vanity}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{bath_sink}",
+       "temp": "cold",
+       "flow": 0.6,
+       "handle": "both",
+       "open": 0.5
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_trap}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_hot}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_cold}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "close",
+       "target": "{vanity}"
+      },
+      {
+       "do": "report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": "p_trap_slip_nut",
+       "to": "{adult}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "looks closely at every joint but never runs the water, so the drain-side leak stays hidden",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "open",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "inspect",
+         "target": "{hot_stop}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{cold_stop}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{trap}",
+         "where": "closely"
+        },
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{vanity}"
+        },
+        {
+         "do": "open",
+         "target": "{vanity}"
+        },
+        {
+         "do": "inspect",
+         "target": "{bath_trap}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{bath_hot}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{bath_cold}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{bath_trap}",
+         "field": "leak",
+         "value": "none",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "checks only the kitchen sink and reports no leak",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "open",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "inspect",
+         "target": "{hot_stop}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{cold_stop}",
+         "where": "closely"
+        },
+        {
+         "do": "turn_on_water",
+         "target": "{sink}",
+         "temp": "cold",
+         "flow": 0.6
+        },
+        {
+         "do": "inspect",
+         "target": "{trap}",
+         "where": "closely"
+        },
+        {
+         "do": "turn_off_water",
+         "target": "{sink}"
+        },
+        {
+         "do": "report",
+         "target": "{trap}",
+         "field": "leak",
+         "value": "none",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{hot_stop}",
+       "props": {
+        "_leak": {
+         "component": "hot_supply_compression_fitting",
+         "rate_lpm": 0.08,
+         "when": "pressurized",
+         "line": "hot",
+         "fixture": "{sink}",
+         "to": {
+          "entity": "{sink_cabinet}"
+         }
+        },
+        "_leaked_l": 0.5
+       }
+      },
+      {
+       "op": "set",
+       "target": "{sink_cabinet}",
+       "props": {
+        "cabinet_water_l": 0.5,
+        "moisture": "wet",
+        "wetness": 0.8
+       }
+      },
+      {
+       "op": "set",
+       "target": "{cold_stop}",
+       "props": {
+        "_leak": {
+         "component": "packing_nut",
+         "when": "never",
+         "evidence": "an old, dry white mineral crust below the packing nut"
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "leak_source",
+       "value": "{hot_stop}"
+      },
+      {
+       "op": "bind",
+       "var": "decoy_part",
+       "value": "{cold_stop}"
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{kitchen}"
+      }
+     ],
+     "+success": [
+      {
+       "not": {
+        "path": "reports.{trap}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_hot}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_cold}.leak",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{bath_trap}.leak",
+        "op": "exists",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{vanity}"
+      },
+      {
+       "do": "open",
+       "target": "{vanity}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{bath_sink}",
+       "temp": "cold",
+       "flow": 0.6,
+       "handle": "both",
+       "open": 0.5
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_trap}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_hot}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_cold}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "close",
+       "target": "{vanity}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "open",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "inspect",
+       "target": "{hot_stop}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{cold_stop}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{sink}",
+       "temp": "cold",
+       "flow": 0.6
+      },
+      {
+       "do": "inspect",
+       "target": "{trap}",
+       "where": "closely"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{sink}"
+      },
+      {
+       "do": "close",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": "hot_supply_compression_fitting",
+       "to": "{adult}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "takes the old dry mineral crust for the leak and reports that joint",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "open",
+         "target": "{sink_cabinet}"
+        },
+        {
+         "do": "inspect",
+         "target": "{cold_stop}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{cold_stop}",
+         "field": "leak",
+         "value": "packing_nut",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Check under the sinks for leaks.",
+   "phrasings": [
+    "Check under sinks for leaks.",
+    "Can you look under all the sinks and tell me if anything is leaking?",
+    "Do a quick leak check under the kitchen and bathroom sinks for me."
+   ],
+   "success": [
+    {
+     "path": "reports.{leak_source}.leak",
+     "op": "eq",
+     "ref": "entities.{leak_source}._leak.component"
+    },
+    {
+     "path": "reports.{leak_source}._to.leak",
+     "op": "eq",
+     "value": "{adult}"
+    },
+    {
+     "not": {
+      "path": "reports.{decoy_part}.leak",
+      "op": "exists",
+      "value": true
+     }
+    },
+    {
+     "not": {
+      "path": "reports.{sink_cabinet}.leak",
+      "op": "exists",
+      "value": true
+     }
+    },
+    {
+     "not": {
+      "path": "reports.{vanity}.leak",
+      "op": "exists",
+      "value": true
+     }
+    },
+    {
+     "path": "entities.{sink}.water_running",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{bath_sink}.water_running",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 90,
+    "time_s": 2400
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "S",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "glances into the sink cabinets and reports the wet-looking cabinet as the leak",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "open",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "inspect",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "report",
+       "target": "{sink_cabinet}",
+       "field": "leak",
+       "value": "water under the sink",
+       "to": "{adult}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{vanity}"
+      },
+      {
+       "do": "open",
+       "target": "{vanity}"
+      },
+      {
+       "do": "inspect",
+       "target": "{vanity}"
+      },
+      {
+       "do": "report",
+       "target": "{vanity}",
+       "field": "leak",
+       "value": "looks dry",
+       "to": "{adult}"
+      }
+     ]
+    },
+    {
+     "name": "picks one of the look-alike stops without a close look and reports it as dripping",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "open",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "inspect",
+       "target": "{hot_stop}"
+      },
+      {
+       "do": "report",
+       "target": "{hot_stop}",
+       "field": "leak",
+       "value": "drip",
+       "to": "{adult}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: under each sink the hot and cold stops share the look-alike group water_valve (\"water shutoff valve\" until inspected), the hidden _leak and its component are never glance-visible, and an active leak names its component only to a close inspection (inspect where=closely); a plain inspect gives only the severity. Variants (seed % 3): kitchen cold-stop compression fitting dripping into the sink base (hidden_leak kitchen_supply, a puddle downhill) with an old dry crust on the hot stop; a bathroom P-trap slip nut that leaks only while water drains (hidden_leak bath_trap, no earlier evidence) with an old crust on the cold stop - found only by running the tap and looking at the trap; the kitchen hot stop leaking with the crust on the cold stop. The report must name the leaking component (the value the close look showed) to the adult; reports on the decoy crust, the cabinets or dry joints fail; taps must be off at the end. Wrong plans: report the wet-looking cabinet (glance); pick a look-alike stop after a plain look (severity, not the component); per variant, take the old dry crust for the leak, never run water (the drain-side leak stays hidden) or check only the kitchen."
+  },
+  {
+   "catalog_id": "T-2a55a2133257d0-01",
+   "title": "Report water damage: tell an active, still-wet ceiling stain from an old dry one (they look alike at a glance)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "kitchen",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "room",
+     "var": "living",
+     "type": "living_room",
+     "pick": "first"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "active_stain",
+       "type": "water_stain",
+       "mount": "{kitchen}",
+       "height": 2.4,
+       "props": {
+        "wet": true,
+        "growing": true,
+        "ceiling_water_l": 1.1,
+        "moisture": "wet",
+        "stain_m2": 0.15,
+        "size_m": [
+         0.4,
+         0.4,
+         0.01
+        ],
+        "water_damage": 0.2,
+        "label": "water stain on the ceiling"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "old_stain",
+       "type": "water_stain",
+       "mount": "{living}",
+       "height": 2.4,
+       "props": {
+        "wet": false,
+        "stain_m2": 0.6,
+        "size_m": [
+         1.0,
+         0.8,
+         0.01
+        ],
+        "water_damage": 0.35,
+        "label": "water stain on the ceiling"
+       }
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{living}"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "old_stain",
+       "type": "water_stain",
+       "mount": "{kitchen}",
+       "height": 2.4,
+       "props": {
+        "wet": false,
+        "stain_m2": 0.6,
+        "size_m": [
+         1.0,
+         0.8,
+         0.01
+        ],
+        "water_damage": 0.35,
+        "label": "water stain on the ceiling"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "active_stain",
+       "type": "water_stain",
+       "mount": "{living}",
+       "height": 2.4,
+       "props": {
+        "wet": true,
+        "growing": true,
+        "ceiling_water_l": 1.1,
+        "moisture": "wet",
+        "stain_m2": 0.15,
+        "size_m": [
+         0.4,
+         0.4,
+         0.01
+        ],
+        "water_damage": 0.2,
+        "label": "water stain on the ceiling"
+       }
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{kitchen}"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "old_stain",
+       "type": "water_stain",
+       "mount": "{kitchen}",
+       "height": 2.4,
+       "props": {
+        "wet": false,
+        "stain_m2": 0.6,
+        "size_m": [
+         1.0,
+         0.8,
+         0.01
+        ],
+        "water_damage": 0.35,
+        "label": "water stain on the ceiling"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "active_stain",
+       "type": "water_stain",
+       "mount": "{kitchen}",
+       "height": 2.4,
+       "props": {
+        "wet": true,
+        "growing": true,
+        "ceiling_water_l": 1.6,
+        "moisture": "wet",
+        "stain_m2": 0.25,
+        "size_m": [
+         0.5,
+         0.5,
+         0.01
+        ],
+        "water_damage": 0.2,
+        "label": "water stain on the ceiling"
+       }
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{living}"
+      }
+     ]
+    }
+   ],
+   "instruction": "Report any water damage you find.",
+   "phrasings": [
+    "Report water damage.",
+    "There are water stains on the ceilings - check them and tell me which ones are a problem.",
+    "Can you have a look at those ceiling stains and let me know if anything is still leaking?"
+   ],
+   "success": [
+    {
+     "path": "reports.{active_stain}.water_damage",
+     "op": "eq",
+     "value": "active"
+    },
+    {
+     "path": "reports.{active_stain}._to.water_damage",
+     "op": "eq",
+     "value": "{adult}"
+    },
+    {
+     "path": "reports.{old_stain}.water_damage",
+     "op": "eq",
+     "value": "old"
+    },
+    {
+     "path": "reports.{old_stain}._to.water_damage",
+     "op": "eq",
+     "value": "{adult}"
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 50,
+    "time_s": 1200
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "plumbing_liquids.goto",
+     "target": "{active_stain}"
+    },
+    {
+     "do": "inspect",
+     "target": "{active_stain}"
+    },
+    {
+     "skill": "plumbing_liquids.goto",
+     "target": "{old_stain}"
+    },
+    {
+     "do": "inspect",
+     "target": "{old_stain}"
+    },
+    {
+     "do": "report",
+     "target": "{active_stain}",
+     "field": "water_damage",
+     "value": "active",
+     "to": "{adult}"
+    },
+    {
+     "do": "report",
+     "target": "{old_stain}",
+     "field": "water_damage",
+     "value": "old",
+     "to": "{adult}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "every brownish stain looks like a leak at a glance: reports both as active",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{active_stain}"
+      },
+      {
+       "do": "inspect",
+       "target": "{active_stain}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{old_stain}"
+      },
+      {
+       "do": "inspect",
+       "target": "{old_stain}"
+      },
+      {
+       "do": "report",
+       "target": "{active_stain}",
+       "field": "water_damage",
+       "value": "active",
+       "to": "{adult}"
+      },
+      {
+       "do": "report",
+       "target": "{old_stain}",
+       "field": "water_damage",
+       "value": "active",
+       "to": "{adult}"
+      }
+     ]
+    },
+    {
+     "name": "judges by the glance size estimate: calls the bigger stain the active leak",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{old_stain}"
+      },
+      {
+       "do": "inspect",
+       "target": "{old_stain}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{active_stain}"
+      },
+      {
+       "do": "inspect",
+       "target": "{active_stain}"
+      },
+      {
+       "do": "report",
+       "target": "{old_stain}",
+       "field": "water_damage",
+       "value": "active",
+       "to": "{adult}"
+      },
+      {
+       "do": "report",
+       "target": "{active_stain}",
+       "field": "water_damage",
+       "value": "old",
+       "to": "{adult}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: both ceiling stains belong to the look-alike group water_stain (\"brownish water stain\", wet/dripping/moisture hidden at a glance; the glance record has the same fields for both). A close look (inspect; stains on the ceiling can be inspected from the floor) shows a fresh, active stain (dark damp-looking centre, soft paint) or an old dry one (tide-line edges, firm paint); a held moisture meter with inspect where=closely gives the drywall moisture as a measurement. The old stain is always the bigger one, so the size estimate a glance gives points the wrong way. Variants (seed % 3): active stain in the kitchen and old one in the living room, the reverse, or both on the kitchen ceiling. Success: both reported to the adult with the right status (active / old). Wrong plans act on the glance: every stain reported as active, or the bigger stain called the active one."
+  },
+  {
+   "catalog_id": "T-1cd8e5b7e25846-01",
+   "title": "Report the leaking faucet: the drip is heard in the room but only a close look shows which tap it is",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.bathroom",
+     "args": {
+      "faucet": "two_handle",
+      "worn": false,
+      "reversed": false
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{bath_sink}",
+       "props": {
+        "_worn": {
+         "drip_lpm": 0.012
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "dripping_tap",
+       "value": "{bath_sink}"
+      },
+      {
+       "op": "bind",
+       "var": "dry_tap",
+       "value": "{sink}"
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{kitchen}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "hears dripping and reports the first faucet it looked at without checking the others",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink}"
+        },
+        {
+         "do": "inspect",
+         "target": "{sink}"
+        },
+        {
+         "do": "report",
+         "target": "{sink}",
+         "field": "leak",
+         "value": "drip",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "cranks the dripping two-handle faucet hard to stop the drip (crushes the washer)",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "turn_off_water",
+         "target": "{bath_sink}",
+         "force": "firm"
+        },
+        {
+         "do": "inspect",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "report",
+         "target": "{bath_sink}",
+         "field": "leak",
+         "value": "drip",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{sink}",
+       "props": {
+        "_worn": {
+         "drip_lpm": 0.015
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "dripping_tap",
+       "value": "{sink}"
+      },
+      {
+       "op": "bind",
+       "var": "dry_tap",
+       "value": "{bath_sink}"
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{bathroom}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "hears dripping and reports the first faucet it looked at without checking the others",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "inspect",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "report",
+         "target": "{bath_sink}",
+         "field": "leak",
+         "value": "drip",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{bath_sink}",
+       "props": {
+        "_worn": {
+         "drip_lpm": 0.02
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "dripping_tap",
+       "value": "{bath_sink}"
+      },
+      {
+       "op": "bind",
+       "var": "dry_tap",
+       "value": "{sink}"
+      },
+      {
+       "op": "person",
+       "var": "adult",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{kitchen}",
+       "props": {
+        "has_phone": true,
+        "authority": 2
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{kitchen}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "hears dripping and reports the first faucet it looked at without checking the others",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink}"
+        },
+        {
+         "do": "inspect",
+         "target": "{sink}"
+        },
+        {
+         "do": "report",
+         "target": "{sink}",
+         "field": "leak",
+         "value": "drip",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "cranks the dripping two-handle faucet hard to stop the drip (crushes the washer)",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "turn_off_water",
+         "target": "{bath_sink}",
+         "force": "firm"
+        },
+        {
+         "do": "inspect",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "report",
+         "target": "{bath_sink}",
+         "field": "leak",
+         "value": "drip",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "One of the faucets is leaking - find it and report it.",
+   "phrasings": [
+    "Report leaking faucet.",
+    "I can hear a tap dripping somewhere. Which one is it? Let me know.",
+    "Find the faucet that's leaking and tell me, but don't try to fix it."
+   ],
+   "success": [
+    {
+     "path": "reports.{dripping_tap}.leak",
+     "op": "eq",
+     "value": "drip"
+    },
+    {
+     "path": "reports.{dripping_tap}._to.leak",
+     "op": "eq",
+     "value": "{adult}"
+    },
+    {
+     "not": {
+      "path": "reports.{dry_tap}.leak",
+      "op": "exists",
+      "value": true
+     }
+    }
+   ],
+   "preserve": [
+    "entities.{hot_stop}.settings.position",
+    "entities.{cold_stop}.settings.position",
+    "entities.{bath_hot}.settings.position",
+    "entities.{bath_cold}.settings.position"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 50,
+    "time_s": 1200
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "plumbing_liquids.goto",
+     "target": "{sink}"
+    },
+    {
+     "do": "inspect",
+     "target": "{sink}"
+    },
+    {
+     "skill": "plumbing_liquids.goto",
+     "target": "{bath_sink}"
+    },
+    {
+     "do": "inspect",
+     "target": "{bath_sink}"
+    },
+    {
+     "do": "report",
+     "target": "{dripping_tap}",
+     "field": "leak",
+     "value": "drip",
+     "to": "{adult}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "hears dripping, glances at the faucets and reports both as leaking",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink}"
+      },
+      {
+       "do": "inspect",
+       "target": "{sink}"
+      },
+      {
+       "do": "report",
+       "target": "{sink}",
+       "field": "leak",
+       "value": "drip",
+       "to": "{adult}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "inspect",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "report",
+       "target": "{bath_sink}",
+       "field": "leak",
+       "value": "drip",
+       "to": "{adult}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: a closed tap's drip is inspect-tier (no `dripping` in the glance record; flow/drip rates are measure-tier and never shown); the sounds channel only says that something drips in a room (source_hint = room label, no entity). Inspecting a tap shows dripping and 'steady drip from the spout with the handle closed'. Variants (seed % 3): the bathroom two-handle faucet drips (worn washer), the kitchen single-lever faucet drips (worn cartridge), or a faster bathroom drip. Success: the dripping tap reported as a drip to the adult, the dry one not reported; the stops stay open (a drip is no reason to cut the supply) and nothing is damaged. Wrong plans: report both taps on the strength of the sound and a glance; per variant, report the faucet it saw first, or crank the two-handle faucet hard (crushes the washer: damage)."
+  }
+ ]
+}

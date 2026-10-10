@@ -1,0 +1,591 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-f7f4105ce49060-01",
+   "title": "Sort look-alike screws into the labeled organizer drawers",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "tools_vehicles.hardware_sort",
+     "args": {}
+    },
+    {
+     "op": "lights",
+     "room": "{sort_room}",
+     "on": true
+    }
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{lots}"
+      },
+      "check": {
+       "path": "sorted_ok",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    }
+   ],
+   "preserve": [
+    "entities.{lot_wood}.count",
+    "entities.{lot_drywall}.count",
+    "entities.{lot_machine}.count",
+    "entities.{lot_sheet_metal}.count"
+   ],
+   "side_effects": {
+    "no_moves_except": "{lots}",
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 140,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{organizer}"
+    },
+    {
+     "foreach": "{compartments}",
+     "as": "c",
+     "steps": [
+      {
+       "do": "read",
+       "target": "{c}"
+      }
+     ]
+    },
+    {
+     "foreach": "{lots}",
+     "as": "lot",
+     "steps": [
+      {
+       "skill": "approach",
+       "target": "{lot}"
+      },
+      {
+       "do": "inspect",
+       "target": "{lot}",
+       "where": "closely"
+      }
+     ]
+    },
+    {
+     "skill": "put",
+     "obj": "{lot_wood}",
+     "dest": "{comp_wood}"
+    },
+    {
+     "skill": "put",
+     "obj": "{lot_drywall}",
+     "dest": "{comp_drywall}"
+    },
+    {
+     "skill": "put",
+     "obj": "{lot_machine}",
+     "dest": "{comp_machine}"
+    },
+    {
+     "skill": "put",
+     "obj": "{lot_sheet_metal}",
+     "dest": "{comp_sheet_metal}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "goes by the look of the piles: the zinc wood screws and the drywall screws look alike at a glance, so it swaps them",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{lot_wood}",
+       "dest": "{comp_drywall}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_drywall}",
+       "dest": "{comp_wood}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_machine}",
+       "dest": "{comp_machine}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_sheet_metal}",
+       "dest": "{comp_sheet_metal}"
+      }
+     ]
+    },
+    {
+     "name": "sorts by length only without a close look at the thread: the machine screws go in with the sheet-metal screws and vice versa",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{organizer}"
+      },
+      {
+       "foreach": "{compartments}",
+       "as": "c",
+       "steps": [
+        {
+         "do": "read",
+         "target": "{c}"
+        }
+       ]
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_wood}",
+       "dest": "{comp_wood}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_drywall}",
+       "dest": "{comp_drywall}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_machine}",
+       "dest": "{comp_sheet_metal}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_sheet_metal}",
+       "dest": "{comp_machine}"
+      }
+     ]
+    },
+    {
+     "name": "identifies every pile but tips one onto the floor instead of into its drawer",
+     "plan": [
+      {
+       "foreach": "{lots}",
+       "as": "lot",
+       "steps": [
+        {
+         "skill": "approach",
+         "target": "{lot}"
+        },
+        {
+         "do": "inspect",
+         "target": "{lot}",
+         "where": "closely"
+        }
+       ]
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_wood}",
+       "dest": "{comp_wood}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_drywall}",
+       "dest": "{comp_drywall}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_machine}",
+       "dest": "{comp_machine}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_sheet_metal}",
+       "dest": "{sort_room}"
+      }
+     ]
+    }
+   ],
+   "instruction": "Sort these loose screws into the right drawers of the hardware organizer.",
+   "phrasings": [
+    "Sort screws and hardware.",
+    "Sort these loose screws into the right drawers of the hardware organizer.",
+    "Can you put all those screws away in the organizer? Each kind has its own labeled drawer."
+   ],
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "notes": "Perception is the skill. Realistic mode: every pile is a 'handful of small fasteners' (look-alike group loose_fasteners, resolved by inspect: thread, head, length and finish; inspect closely adds the gauge) and every organizer drawer a 'small organizer drawer' (group organizer_drawer, resolved only by reading its label). Drawer order and pile order are shuffled per seed. Truth: fastener_lot._kind (hidden) vs organizer_compartment.holds_kind (read tier); the place hook sets sorted_ok (hidden). Wrong plans act on glance-level belief (wood vs drywall screws, machine vs sheet-metal screws) or lose a pile."
+  },
+  {
+   "catalog_id": "T-5a9598c809336a-01",
+   "title": "Find the damaged tools by a close look, bin them and tell the owner",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "tools_vehicles.tool_inspection",
+     "args": {
+      "damaged": 2
+     }
+    },
+    {
+     "op": "person",
+     "var": "owner",
+     "id": "resident_1",
+     "room": "{inspect_room}"
+    },
+    {
+     "op": "lights",
+     "room": "{inspect_room}",
+     "on": true
+    }
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{damaged}"
+      },
+      "check": {
+       "path": "_report_ok.condition",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    },
+    {
+     "forall": {
+      "where": {
+       "ids": "{damaged}"
+      },
+      "check": {
+       "path": "location",
+       "op": "eq",
+       "value": "{quarantine_bin}"
+      }
+     }
+    },
+    {
+     "path": "reports.{damaged_1}._to.condition",
+     "op": "eq",
+     "value": "resident_1"
+    },
+    {
+     "path": "reports.{damaged_2}._to.condition",
+     "op": "eq",
+     "value": "resident_1"
+    }
+   ],
+   "failure": [
+    {
+     "exists": {
+      "where": {
+       "ids": "{tools}"
+      },
+      "check": {
+       "path": "_report_ok.condition",
+       "op": "eq",
+       "value": false
+      }
+     }
+    },
+    {
+     "exists": {
+      "where": {
+       "ids": "{intact}"
+      },
+      "check": {
+       "path": "location",
+       "op": "eq",
+       "value": "{quarantine_bin}"
+      }
+     }
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": "{damaged}",
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 140,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "foreach": "{tools}",
+     "as": "t",
+     "steps": [
+      {
+       "skill": "approach",
+       "target": "{t}"
+      },
+      {
+       "do": "inspect",
+       "target": "{t}",
+       "where": "closely"
+      }
+     ]
+    },
+    {
+     "foreach": "{damaged}",
+     "as": "d",
+     "steps": [
+      {
+       "do": "report",
+       "target": "{d}",
+       "field": "condition",
+       "value": "damaged - tagged do not use",
+       "to": "resident_1"
+      },
+      {
+       "skill": "put",
+       "obj": "{d}",
+       "dest": "{quarantine_bin}"
+      }
+     ]
+    }
+   ],
+   "wrong": [
+    {
+     "name": "only looks the tools over (no close look) and reports them all fine: a loose hammer head or a hairline crack looks fine at rest",
+     "plan": [
+      {
+       "foreach": "{tools}",
+       "as": "t",
+       "steps": [
+        {
+         "skill": "approach",
+         "target": "{t}"
+        },
+        {
+         "do": "inspect",
+         "target": "{t}"
+        },
+        {
+         "do": "report",
+         "target": "{t}",
+         "field": "condition",
+         "value": "ok",
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "name": "takes the greasy but intact tool for a damaged one and bins it too",
+     "plan": [
+      {
+       "foreach": "{tools}",
+       "as": "t",
+       "steps": [
+        {
+         "skill": "approach",
+         "target": "{t}"
+        },
+        {
+         "do": "inspect",
+         "target": "{t}",
+         "where": "closely"
+        }
+       ]
+      },
+      {
+       "foreach": "{damaged}",
+       "as": "d",
+       "steps": [
+        {
+         "do": "report",
+         "target": "{d}",
+         "field": "condition",
+         "value": "damaged - tagged do not use",
+         "to": "resident_1"
+        },
+        {
+         "skill": "put",
+         "obj": "{d}",
+         "dest": "{quarantine_bin}"
+        }
+       ]
+      },
+      {
+       "do": "report",
+       "target": "{dirty_tool}",
+       "field": "condition",
+       "value": "damaged - covered in grease",
+       "to": "resident_1"
+      },
+      {
+       "skill": "put",
+       "obj": "{dirty_tool}",
+       "dest": "{quarantine_bin}"
+      }
+     ]
+    },
+    {
+     "name": "finds and reports the damage but leaves the damaged tools in with the good ones",
+     "plan": [
+      {
+       "foreach": "{tools}",
+       "as": "t",
+       "steps": [
+        {
+         "skill": "approach",
+         "target": "{t}"
+        },
+        {
+         "do": "inspect",
+         "target": "{t}",
+         "where": "closely"
+        }
+       ]
+      },
+      {
+       "foreach": "{damaged}",
+       "as": "d",
+       "steps": [
+        {
+         "do": "report",
+         "target": "{d}",
+         "field": "condition",
+         "value": "damaged - tagged do not use",
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the tools on the bench and set aside any damaged ones - let me know which.",
+   "phrasings": [
+    "Identify damaged tools.",
+    "Check the tools on the bench and set aside any damaged ones - let me know which.",
+    "Go over those tools, put the broken ones in the do-not-use bin and tell me what's wrong with them."
+   ],
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Perception is the skill. Two of six bench tools (which ones follows the seed) carry damage that only a close, hands-on look shows (_damage visible closely: loose hammer head, cracked handle, chipped blade, worn jaws, bent tip); one intact tool is merely greasy (soil is visible at a glance but is not damage). In realistic mode a plain inspect shows soil but no condition; inspect where=closely reveals 'condition'. The report judge (_report_ok.condition) compares each condition report with the truth; a false flag or a missed tool reported fine fails. Damaged tools go in the do-not-use bin (nothing is thrown away) and the owner is told."
+  },
+  {
+   "catalog_id": "T-b0d2729457cd9e-01",
+   "title": "Paper-pull test every exterior door seal before the heating season",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "tools_vehicles.door_seals",
+     "args": {
+      "failing": 2,
+      "include_windows": false
+     }
+    }
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{seal_targets}"
+      },
+      "check": {
+       "path": "_report_ok.seal_failures",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    }
+   ],
+   "failure": [
+    {
+     "exists": {
+      "where": {
+       "ids": "{seal_targets}"
+      },
+      "check": {
+       "path": "open",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    },
+    {
+     "exists": {
+      "where": {
+       "ids": "{seal_targets}",
+       "lockable": true
+      },
+      "check": {
+       "path": "locked",
+       "op": "is_false",
+       "value": true
+      }
+     }
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 300,
+    "time_s": 5400
+   },
+   "reference": [
+    {
+     "skill": "tools_vehicles.inspect_seals",
+     "targets": "{seal_targets}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "judges the seals by eye (no paper-pull test): a compressed strip looks intact and is missed",
+     "plan": [
+      {
+       "skill": "tools_vehicles.inspect_seals",
+       "targets": "{seal_targets}",
+       "closely": false
+      }
+     ]
+    },
+    {
+     "name": "tests and reports every door but leaves the first one unlocked and open afterwards",
+     "plan": [
+      {
+       "skill": "tools_vehicles.inspect_seals",
+       "targets": "{seal_targets}"
+      },
+      {
+       "skill": "approach",
+       "target": "{first_target}"
+      },
+      {
+       "do": "unlock",
+       "target": "{first_target}"
+      },
+      {
+       "do": "open",
+       "target": "{first_target}"
+      }
+     ]
+    }
+   ],
+   "instruction": "Before it gets cold, check the seals on all the exterior doors and tell me which weatherstripping is failing.",
+   "phrasings": [
+    "Inspect door seals.",
+    "Before it gets cold, check the seals on all the exterior doors and tell me which weatherstripping is failing.",
+    "Go round the outside doors and find the draughty bits of weatherstrip."
+   ],
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "notes": "Perception is the skill: in realistic mode a look (plain inspect) shows torn, missing, peeling or gapped strips (seal_visual) but a compressed strip looks intact; only the closed-door paper-pull test (inspect where=closely) shows 'paper slides out (not sealing)'. Every seed has at least one compressed segment, so judging by eye fails. Each door's report is judged against its true failing set (_report_ok.seal_failures); doors must be left closed and locked as found."
+  }
+ ]
+}

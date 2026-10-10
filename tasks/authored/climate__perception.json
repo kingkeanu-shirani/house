@@ -1,0 +1,251 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-a31398ab2abf54-01",
+   "title": "Humidify the bedroom only when the hygrometer reads dry and the resident wants it (read the instrument, look at the water)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none",
+    "start": "2026-01-15T11:00:00"
+   },
+   "setup": [
+    {"op": "helper", "name": "climate.weather", "args": {"temperature_c": 4.0, "humidity": 0.7, "condition": "clear"}},
+    {"op": "room", "var": "br", "type": "master_bedroom"},
+    {"op": "helper", "name": "climate.humidifier", "args": {"room": "{br}", "htype": "ultrasonic_humidifier", "on": false, "target_rh": 45,
+                                                          "tank_l": 0.6, "water": "water", "water_age_h": 96, "bacteria": 0.45, "jug": true, "mat": true}},
+    {"op": "spawn", "var": "hygro", "type": "hygrometer", "on": "{surface}"}
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {"op": "helper", "name": "climate.occupant", "args": {"id": "resident_1", "room": "{br}", "role": "adult", "awake": true, "posture": "sitting",
+                                                           "hidden": {"humidify": "Yes please - my throat is so dry at night."}}},
+      {"op": "helper", "name": "climate.rooms", "args": {"rh": {"all": 0.30}}}
+     ],
+     "success": [
+      {"path": "reports.{hygro}.humidity_pct", "op": "between", "value": [26, 34]},
+      {"path": "rooms.{br}.humidity", "op": "between", "value": [0.39, 0.55]},
+      {"path": "entities.{humidifier}.on", "op": "is_true", "value": true},
+      {"path": "entities.{humidifier}.slots.tank.item", "op": "eq", "value": "{tank}"},
+      {"path": "entities.{tank}.open", "op": "is_false", "value": true},
+      {"path": "entities.{tank}.contamination.bacteria", "op": "lt", "value": 0.3},
+      {"path": "entities.{tank}.liquid", "op": "eq", "value": "distilled_water"}
+     ],
+     "questions": {"min_necessary": 1},
+     "reference": [
+      {"skill": "approach", "target": "{hygro}"},
+      {"do": "read", "target": "{hygro}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 30, "to": "resident_1"},
+      {"do": "ask", "target": "resident_1", "topic": "climate.humidify"},
+      {"skill": "approach", "target": "{humidifier}"},
+      {"do": "inspect", "target": "{humidifier}"},
+      {"do": "read", "target": "{humidifier}"},
+      {"skill": "approach", "target": "{jug}"},
+      {"do": "read", "target": "{jug}"},
+      {"skill": "climate.refill_humidifier", "humidifier": "{humidifier}", "source": "{jug}", "sink": "{sink}"},
+      {"skill": "approach", "target": "{humidifier}"},
+      {"do": "switch_on", "target": "{humidifier}"},
+      {"skill": "climate.close_doors", "room": "{br}"},
+      {"do": "wait", "seconds": 4500}
+     ],
+     "+wrong": [
+      {
+       "name": "reads the hygrometer and asks, but tops up the week-old water without looking at it (stale, slimy water stays in)",
+       "plan": [
+        {"skill": "approach", "target": "{hygro}"},
+        {"do": "read", "target": "{hygro}"},
+        {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 30, "to": "resident_1"},
+        {"do": "ask", "target": "resident_1", "topic": "climate.humidify"},
+        {"skill": "climate.refill_humidifier", "humidifier": "{humidifier}", "source": "{jug}", "sink": "{sink}", "dump": false},
+        {"skill": "approach", "target": "{humidifier}"},
+        {"do": "switch_on", "target": "{humidifier}"},
+        {"do": "wait", "seconds": 3600}
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {"op": "helper", "name": "climate.occupant", "args": {"id": "resident_1", "room": "{br}", "role": "adult", "awake": true, "posture": "sitting",
+                                                           "hidden": {"humidify": "Sure, if the air is dry."}}},
+      {"op": "helper", "name": "climate.rooms", "args": {"rh": {"all": 0.53}}}
+     ],
+     "success": [
+      {"path": "reports.{hygro}.humidity_pct", "op": "between", "value": [49, 57]},
+      {"path": "entities.{humidifier}.on", "op": "is_false", "value": true},
+      {"path": "rooms.{br}.humidity", "op": "lt", "value": 0.56}
+     ],
+     "reference": [
+      {"skill": "approach", "target": "{hygro}"},
+      {"do": "read", "target": "{hygro}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 53, "to": "resident_1"},
+      {"do": "wait", "seconds": 600}
+     ]
+    },
+    {
+     "+setup": [
+      {"op": "helper", "name": "climate.occupant", "args": {"id": "resident_1", "room": "{br}", "role": "adult", "awake": true, "posture": "sitting",
+                                                           "hidden": {"humidify": "No thanks, leave it off - it makes the windows drip."}}},
+      {"op": "helper", "name": "climate.rooms", "args": {"rh": {"all": 0.33}}}
+     ],
+     "success": [
+      {"path": "reports.{hygro}.humidity_pct", "op": "between", "value": [29, 37]},
+      {"path": "entities.{humidifier}.on", "op": "is_false", "value": true}
+     ],
+     "questions": {"min_necessary": 1},
+     "reference": [
+      {"skill": "approach", "target": "{hygro}"},
+      {"do": "read", "target": "{hygro}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 33, "to": "resident_1"},
+      {"do": "ask", "target": "resident_1", "topic": "climate.humidify"},
+      {"do": "wait", "seconds": 600}
+     ]
+    }
+   ],
+   "instruction": "Could you humidify our bedroom if it needs it? Tell me what the humidity is.",
+   "phrasings": [
+    "Humidify room if desired.",
+    "Could you humidify our bedroom if it needs it? Tell me what the humidity is.",
+    "Is the bedroom air dry? Run the humidifier if it makes sense - and let me know the reading.",
+    "Check the humidity in here and sort out the humidifier if we need it."
+   ],
+   "failure": [
+    {"path": "stats.spills", "op": "gt", "value": 0}
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {"steps": 160, "time_s": 7200},
+   "reference": [],
+   "wrong": [
+    {
+     "name": "judges the air by feel (it does not feel dry), tells the resident it is normal and leaves the humidifier alone",
+     "plan": [
+      {"skill": "approach", "target": "{hygro}"},
+      {"do": "inspect", "target": "{hygro}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "normal", "to": "resident_1"},
+      {"do": "wait", "seconds": 600}
+     ]
+    },
+    {
+     "name": "assumes winter air is dry: skips the hygrometer and the question, refills with distilled water and runs the humidifier",
+     "plan": [
+      {"skill": "climate.refill_humidifier", "humidifier": "{humidifier}", "source": "{jug}", "sink": "{sink}"},
+      {"skill": "approach", "target": "{humidifier}"},
+      {"do": "switch_on", "target": "{humidifier}"},
+      {"do": "wait", "seconds": 3600}
+     ]
+    }
+   ],
+   "notes": "Realistic perception: the room's humidity is not visible (obs.room has no humidity; the air only 'feels dry' below 30 % and 'humid' above 62 %), so the 30 / 33 / 53 % variants look the same at a glance - only reading the hygrometer (read-tier rh_pct, 1 % resolution) tells them apart, and the reported reading is checked against what the reference saw. The stale tank water is visible on inspect ('cloudy, slimy film, smells musty'; its age is not); tap vs distilled water is not visible at all (tank liquid is hidden), the jug's label says what it holds. The preference is hidden in the user simulator (climate.humidify): asking is necessary when the air is dry."
+  },
+  {
+   "catalog_id": "T-94bc2f055e3996-01",
+   "title": "Replace the tower purifier's carbon and HEPA panels - the new panels and another model's panel look alike until their labels are read",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none",
+    "start": "2026-10-09T11:00:00"
+   },
+   "setup": [
+    {"op": "helper", "name": "climate.purifier", "args": {"room": "master_bedroom", "model": "layered", "dirt": 0.9, "indicator": "replace", "on": true, "mode": "auto"}},
+    {"op": "helper", "name": "climate.rooms", "args": {"pm25": {"master_bedroom": 25.0}}}
+   ],
+   "instruction": "The bedroom air purifier says its filters need replacing - the new ones are in the room. Please swap them.",
+   "phrasings": [
+    "Replace air purifier filter.",
+    "The bedroom air purifier says its filters need replacing - the new ones are in the room. Please swap them.",
+    "Put the new filters in the tower purifier; keep the washable pre-filter.",
+    "Can you change the purifier filters? The replacements came today."
+   ],
+   "success": [
+    {"path": "entities.{purifier}.slots.layer_1.item", "op": "eq", "value": "{old_prefilter}"},
+    {"path": "entities.{purifier}.slots.layer_2.item", "op": "eq", "value": "{new_carbon}"},
+    {"path": "entities.{purifier}.slots.layer_3.item", "op": "eq", "value": "{new_hepa}"},
+    {"path": "entities.{purifier}.layer_order_ok", "op": "is_true", "value": true},
+    {"path": "entities.{new_carbon}.shrink_wrapped", "op": "is_false", "value": true},
+    {"path": "entities.{new_hepa}.shrink_wrapped", "op": "is_false", "value": true},
+    {"path": "entities.{new_carbon}.reversed", "op": "is_false", "value": true},
+    {"path": "entities.{new_hepa}.reversed", "op": "is_false", "value": true},
+    {"path": "entities.{purifier}.cover_open", "op": "is_false", "value": true},
+    {"path": "entities.{purifier}.settings.filter_indicator", "op": "eq", "value": "ok"},
+    {"path": "entities.{purifier}.running", "op": "is_true", "value": true},
+    {"path": "entities.{purifier}.settings.mode", "op": "eq", "value": "auto"},
+    {"path": "entities.{old_carbon}.location", "op": "eq", "value": "{trash}"},
+    {"path": "entities.{old_hepa}.location", "op": "eq", "value": "{trash}"}
+   ],
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {"steps": 120, "time_s": 1800},
+   "reference": [
+    {"skill": "approach", "target": "{new_carbon}"},
+    {"do": "read", "target": "{new_carbon}"},
+    {"skill": "approach", "target": "{new_hepa}"},
+    {"do": "read", "target": "{new_hepa}"},
+    {"skill": "approach", "target": "{wrong_filter}"},
+    {"do": "read", "target": "{wrong_filter}"},
+    {"skill": "approach", "target": "{purifier}"},
+    {"do": "read", "target": "{purifier}"},
+    {"skill": "climate.replace_purifier_filters", "purifier": "{purifier}", "new_filters": ["{new_carbon}", "{new_hepa}"], "trash": "{trash}"},
+    {"do": "wait", "seconds": 60}
+   ],
+   "wrong": [
+    {
+     "name": "takes the look-alike panel (another model's HEPA) for the HEPA without reading the bags",
+     "plan": [
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "switch_off", "target": "{purifier}"},
+      {"do": "open_cover", "target": "{purifier}"},
+      {"do": "uninstall", "target": "{purifier}", "slot": "layer_2"},
+      {"skill": "put", "obj": "{old_carbon}", "dest": "{trash}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "uninstall", "target": "{purifier}", "slot": "layer_3"},
+      {"skill": "put", "obj": "{old_hepa}", "dest": "{trash}"},
+      {"skill": "fetch", "obj": "{new_carbon}"},
+      {"do": "open", "target": "{new_carbon}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "install", "target": "{new_carbon}", "destination": "{purifier}", "slot": "layer_2"},
+      {"skill": "fetch", "obj": "{wrong_filter}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "install", "target": "{wrong_filter}", "destination": "{purifier}", "slot": "layer_3"},
+      {"do": "close_cover", "target": "{purifier}"},
+      {"do": "set", "target": "{purifier}", "setting": "filter_indicator", "value": "ok"},
+      {"do": "switch_on", "target": "{purifier}"},
+      {"do": "wait", "seconds": 60}
+     ]
+    },
+    {
+     "name": "installs the two new look-alike panels in the order it picked them up, without reading them (HEPA ahead of the carbon)",
+     "plan": [
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "switch_off", "target": "{purifier}"},
+      {"do": "open_cover", "target": "{purifier}"},
+      {"do": "uninstall", "target": "{purifier}", "slot": "layer_2"},
+      {"skill": "put", "obj": "{old_carbon}", "dest": "{trash}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "uninstall", "target": "{purifier}", "slot": "layer_3"},
+      {"skill": "put", "obj": "{old_hepa}", "dest": "{trash}"},
+      {"skill": "fetch", "obj": "{new_hepa}"},
+      {"do": "open", "target": "{new_hepa}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "install", "target": "{new_hepa}", "destination": "{purifier}", "slot": "layer_2"},
+      {"skill": "fetch", "obj": "{new_carbon}"},
+      {"do": "open", "target": "{new_carbon}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "install", "target": "{new_carbon}", "destination": "{purifier}", "slot": "layer_3"},
+      {"do": "close_cover", "target": "{purifier}"},
+      {"do": "set", "target": "{purifier}", "setting": "filter_indicator", "value": "ok"},
+      {"do": "switch_on", "target": "{purifier}"},
+      {"do": "wait", "seconds": 60}
+     ]
+    }
+   ],
+   "notes": "Realistic perception: the new AP-500 carbon and HEPA panels and the AP-200 panel are members of the purifier_panel look-alike group (flat air-filter panels in printed bags): at a glance and on inspect they show the same descriptor, kind and field set; reading each bag's label resolves it (an unread one stays a 'flat air-filter panel'). The reference reads all three and the purifier's AP-500 label (install order) before swapping; wrong plans act on the glance (the other model's look-alike panel goes in - it even fits, with a bypass gap - or the two panels go in swapped and layer_order_ok fails). The washable pre-filter stays (protected item)."
+  }
+ ]
+}

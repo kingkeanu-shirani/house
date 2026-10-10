@@ -6,3 +6,7 @@ recursive-include demos *.json *.jsonl
 recursive-include docs *.md
 recursive-include tests *.py
 include coverage.csv README.md PLAN.md PROGRESS.md DECISIONS.md house_env.py setup_project.py
+global-exclude split_key verifier_key test_manifest.json test_phrasings.json *__PRIVATE.* *__PRIVATE
+prune results
+prune **/private_results
+prune **/.house_ai

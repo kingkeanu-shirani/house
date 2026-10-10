@@ -1,0 +1,2526 @@
+{
+  "specs": [
+    {
+      "catalog_id": "T-0e1edbe2e88e09-01",
+      "title": "Switch cooling on (compressor actually running, windows closed)",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-07-15T14:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 33.0,
+            "humidity": 0.45,
+            "condition": "clear",
+            "wind_mps": 2.0
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.hvac",
+          "args": {
+            "system": "furnace_ac",
+            "mode": "off",
+            "units": "C",
+            "cool_c": 24.5,
+            "room_temp_c": 28.0
+          }
+        },
+        {
+          "op": "room",
+          "var": "lr",
+          "type": "living_room"
+        },
+        {
+          "op": "helper",
+          "name": "climate.windows",
+          "args": {
+            "room": "{lr}",
+            "count": 1,
+            "open": true
+          },
+          "prefix": "lr_"
+        }
+      ],
+      "instruction": "It's sweltering in here - switch the air conditioning on.",
+      "phrasings": [
+        "It's sweltering in here - switch the air conditioning on.",
+        "Can you turn the AC on? The house is way too hot.",
+        "Put the cooling on, please - it's 28 degrees inside."
+      ],
+      "success": [
+        {
+          "path": "entities.{thermostat}.settings.mode",
+          "op": "eq",
+          "value": "cool"
+        },
+        {
+          "path": "climate.trackers.cool_run_s:{hvac}",
+          "op": "gte",
+          "value": 900
+        },
+        {
+          "path": "rooms.{thermo_room}.temperature_c",
+          "op": "lt",
+          "value": 27.3
+        },
+        {
+          "forall": {
+            "where": {
+              "category": "window"
+            },
+            "check": {
+              "path": "open",
+              "op": "is_false",
+              "value": true
+            }
+          }
+        },
+        {
+          "any": [
+            {
+              "path": "climate.trackers.hvac_with_open_windows_s",
+              "op": "exists",
+              "value": false
+            },
+            {
+              "path": "climate.trackers.hvac_with_open_windows_s",
+              "op": "lte",
+              "value": 300
+            }
+          ]
+        }
+      ],
+      "risk_level": 0,
+      "fidelity": "P-approx",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 150,
+        "time_s": 3600
+      },
+      "reference": [
+        {
+          "skill": "climate.close_windows",
+          "windows": "{lr_windows}"
+        },
+        {
+          "skill": "climate.set_thermostat",
+          "thermostat": "{thermostat}",
+          "mode": "cool",
+          "cool": 24.0
+        },
+        {
+          "do": "wait",
+          "seconds": 2400
+        }
+      ],
+      "wrong": [
+        {
+          "name": "selects fan-only circulation: air moves, nothing is cooled",
+          "plan": [
+            {
+              "skill": "climate.close_windows",
+              "windows": "{lr_windows}"
+            },
+            {
+              "skill": "climate.set_thermostat",
+              "thermostat": "{thermostat}",
+              "fan": "on"
+            },
+            {
+              "do": "wait",
+              "seconds": 2400
+            }
+          ]
+        },
+        {
+          "name": "turns cooling on but leaves the living-room window open",
+          "plan": [
+            {
+              "skill": "climate.set_thermostat",
+              "thermostat": "{thermostat}",
+              "mode": "cool",
+              "cool": 24.0
+            },
+            {
+              "do": "wait",
+              "seconds": 2400
+            }
+          ]
+        },
+        {
+          "name": "cool mode with the setpoint above the room temperature (never calls for cooling)",
+          "plan": [
+            {
+              "skill": "climate.close_windows",
+              "windows": "{lr_windows}"
+            },
+            {
+              "skill": "climate.set_thermostat",
+              "thermostat": "{thermostat}",
+              "mode": "cool",
+              "cool": 30.0
+            },
+            {
+              "do": "wait",
+              "seconds": 2400
+            }
+          ]
+        }
+      ],
+      "notes": "Thermostat call logic (setpoint vs room temperature with hysteresis), compressor/blower state machine, ducted delivery and the lumped room thermal model decide success; open windows in the zone while cooling are tracked."
+    },
+    {
+      "catalog_id": "T-75280b9ab6a431-01",
+      "title": "Change the weekday wake period of the thermostat schedule only",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-10-09T10:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 8.0,
+            "humidity": 0.7,
+            "condition": "cloudy"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.hvac",
+          "args": {
+            "system": "furnace_ac",
+            "mode": "heat",
+            "units": "C",
+            "heat_c": 20.0,
+            "cool_c": 25.0,
+            "schedule": {
+              "weekday_wake": {
+                "time": "06:30",
+                "heat": 20.0,
+                "cool": 25.0
+              },
+              "weekday_leave": {
+                "time": "08:30",
+                "heat": 17.0,
+                "cool": 28.0
+              },
+              "weekday_return": {
+                "time": "17:30",
+                "heat": 20.0,
+                "cool": 25.0
+              },
+              "weekday_sleep": {
+                "time": "22:30",
+                "heat": 18.0,
+                "cool": 26.0
+              },
+              "weekend_wake": {
+                "time": "08:00",
+                "heat": 20.0,
+                "cool": 25.0
+              },
+              "weekend_leave": {
+                "time": "12:00",
+                "heat": 20.0,
+                "cool": 25.0
+              },
+              "weekend_return": {
+                "time": "17:00",
+                "heat": 20.0,
+                "cool": 25.0
+              },
+              "weekend_sleep": {
+                "time": "23:00",
+                "heat": 18.0,
+                "cool": 26.0
+              }
+            }
+          }
+        }
+      ],
+      "instruction": "On weekdays, have the heat come on at 6:00 in the morning at 21.5 degrees - leave the weekends alone.",
+      "phrasings": [
+        "On weekdays, have the heat come on at 6:00 in the morning at 21.5 degrees - leave the weekends alone.",
+        "Change the thermostat program so weekday mornings start at 6 o'clock and 21.5 C. Weekends stay as they are.",
+        "Reprogram the weekday wake-up period: 06:00, 21.5 degrees. Don't touch anything else in the schedule."
+      ],
+      "success": [
+        {
+          "path": "entities.{thermostat}.settings.weekday_wake.time",
+          "op": "eq",
+          "value": "06:00"
+        },
+        {
+          "path": "entities.{thermostat}.settings.weekday_wake.heat",
+          "op": "approx",
+          "value": [
+            21.5,
+            0.01
+          ]
+        },
+        {
+          "path": "entities.{thermostat}.settings.hold",
+          "op": "eq",
+          "value": "none"
+        }
+      ],
+      "preserve": [
+        "entities.{thermostat}.settings.weekday_wake.cool",
+        "entities.{thermostat}.settings.weekday_leave",
+        "entities.{thermostat}.settings.weekday_return",
+        "entities.{thermostat}.settings.weekday_sleep",
+        "entities.{thermostat}.settings.weekend_wake",
+        "entities.{thermostat}.settings.weekend_leave",
+        "entities.{thermostat}.settings.weekend_return",
+        "entities.{thermostat}.settings.weekend_sleep",
+        "entities.{thermostat}.settings.mode"
+      ],
+      "risk_level": 0,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 60,
+        "time_s": 900
+      },
+      "reference": [
+        {
+          "skill": "climate.set_schedule",
+          "thermostat": "{thermostat}",
+          "periods": {
+            "weekday_wake": {
+              "time": "06:00",
+              "heat": 21.5,
+              "cool": 25.0
+            }
+          }
+        }
+      ],
+      "wrong": [
+        {
+          "name": "changes every day's wake period (weekends too)",
+          "plan": [
+            {
+              "skill": "climate.set_schedule",
+              "thermostat": "{thermostat}",
+              "periods": {
+                "weekday_wake": {
+                  "time": "06:00",
+                  "heat": 21.5,
+                  "cool": 25.0
+                },
+                "weekend_wake": {
+                  "time": "06:00",
+                  "heat": 21.5,
+                  "cool": 25.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "overwrites the night setback period instead of the wake period",
+          "plan": [
+            {
+              "skill": "climate.set_schedule",
+              "thermostat": "{thermostat}",
+              "periods": {
+                "weekday_sleep": {
+                  "time": "06:00",
+                  "heat": 21.5,
+                  "cool": 25.0
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "just raises the setpoint now (a temporary hold) instead of reprogramming",
+          "plan": [
+            {
+              "skill": "climate.set_thermostat",
+              "thermostat": "{thermostat}",
+              "heat": 21.5
+            }
+          ]
+        }
+      ],
+      "notes": "5-2 schedule periods are thermostat settings validated on edit (HH:MM, setpoint limits, no duplicate start); every other period must stay byte-identical; a setpoint change while following the schedule becomes a temporary hold."
+    },
+    {
+      "catalog_id": "T-9dd952bc6f470e-01",
+      "title": "Shade only the window whose sun beam hits the TV",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-10-09T15:30:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 18.0,
+            "humidity": 0.5,
+            "condition": "clear",
+            "wind_mps": 2.0
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.glare_scene",
+          "args": {
+            "room": "living_room"
+          }
+        }
+      ],
+      "instruction": "There's sun glare all over the TV - can you fix it without making the room dark?",
+      "phrasings": [
+        "There's sun glare all over the TV - can you fix it without making the room dark?",
+        "I can't see the TV for the sun. Sort out the blinds, but keep it bright in here.",
+        "The afternoon sun is washing out the screen - lower whatever blind needs lowering."
+      ],
+      "success": [
+        {
+          "path": "entities.{tv}.screen_glare",
+          "op": "lt",
+          "value": 0.15
+        },
+        {
+          "path": "rooms.{glare_room}.light_level",
+          "op": "gte",
+          "value": 0.3
+        },
+        {
+          "path": "entities.{other_shade}.settings.lowered",
+          "op": "lte",
+          "value": 0.2
+        }
+      ],
+      "risk_level": 0,
+      "fidelity": "G",
+      "target_fidelity": "G",
+      "budget": {
+        "steps": 60,
+        "time_s": 1200
+      },
+      "reference": [
+        {
+          "skill": "climate.shade",
+          "shades": [
+            "{glare_shade}"
+          ],
+          "lowered": 1.0
+        },
+        {
+          "do": "wait",
+          "seconds": 60
+        }
+      ],
+      "wrong": [
+        {
+          "name": "closes every blind in the room (dark room)",
+          "plan": [
+            {
+              "skill": "climate.shade",
+              "shades": "{shades}",
+              "lowered": 1.0
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        },
+        {
+          "name": "lowers the blind on the window with no sun",
+          "plan": [
+            {
+              "skill": "climate.shade",
+              "shades": [
+                "{other_shade}"
+              ],
+              "lowered": 1.0
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        },
+        {
+          "name": "half-lowers the sunny blind (beam still reaches the screen)",
+          "plan": [
+            {
+              "skill": "climate.shade",
+              "shades": [
+                "{glare_shade}"
+              ],
+              "lowered": 0.4
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        }
+      ],
+      "notes": "Sun position from the simulated clock; the direct beam is ray-traced from the screen point back through each window aperture (wall, width, sill/head) and attenuated by the window's covered value; room light level is the kernel daylight model."
+    },
+    {
+      "catalog_id": "T-6d58f62bb5256f-01",
+      "title": "Set the ceiling fan direction for the season (remote)",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none"
+      },
+      "setup": [
+        {
+          "op": "room",
+          "var": "lr",
+          "type": "living_room"
+        }
+      ],
+      "variants": [
+        {
+          "house": {
+            "start": "2026-01-15T14:00:00"
+          },
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.weather",
+              "args": {
+                "temperature_c": -2.0,
+                "humidity": 0.7,
+                "condition": "clear"
+              }
+            },
+            {
+              "op": "helper",
+              "name": "climate.hvac",
+              "args": {
+                "system": "furnace_ac",
+                "mode": "heat",
+                "units": "C"
+              }
+            },
+            {
+              "op": "helper",
+              "name": "climate.ceiling_fan",
+              "args": {
+                "room": "{lr}",
+                "control": "remote",
+                "speed": "medium",
+                "direction": "ccw",
+                "light": "off"
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "entities.{fan}.settings.direction",
+              "op": "eq",
+              "value": "cw"
+            },
+            {
+              "path": "entities.{fan}.settings.speed",
+              "op": "eq",
+              "value": "low"
+            },
+            {
+              "path": "entities.{fan}.spinning",
+              "op": "is_true",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "climate.ceiling_fan",
+              "fan": "{fan}",
+              "direction": "cw",
+              "speed": "low"
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        },
+        {
+          "house": {
+            "start": "2026-07-15T15:00:00"
+          },
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.weather",
+              "args": {
+                "temperature_c": 31.0,
+                "humidity": 0.5,
+                "condition": "clear"
+              }
+            },
+            {
+              "op": "helper",
+              "name": "climate.hvac",
+              "args": {
+                "system": "furnace_ac",
+                "mode": "cool",
+                "units": "C"
+              }
+            },
+            {
+              "op": "helper",
+              "name": "climate.ceiling_fan",
+              "args": {
+                "room": "{lr}",
+                "control": "remote",
+                "speed": "low",
+                "direction": "cw",
+                "light": "off"
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "entities.{fan}.settings.direction",
+              "op": "eq",
+              "value": "ccw"
+            },
+            {
+              "path": "entities.{fan}.settings.speed",
+              "op": "ne",
+              "value": "off"
+            },
+            {
+              "path": "entities.{fan}.spinning",
+              "op": "is_true",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "climate.ceiling_fan",
+              "fan": "{fan}",
+              "direction": "ccw"
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        }
+      ],
+      "instruction": "Set the living-room ceiling fan the right way round for this time of year.",
+      "phrasings": [
+        "Set the living-room ceiling fan the right way round for this time of year.",
+        "Is the ceiling fan spinning the right direction for the season? Fix it if not.",
+        "Reverse the living room fan if it needs it for the season."
+      ],
+      "success": [],
+      "risk_level": 0,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 40,
+        "time_s": 900
+      },
+      "reference": [],
+      "wrong": [
+        {
+          "name": "switches the fan off instead",
+          "plan": [
+            {
+              "skill": "fetch",
+              "obj": "{remote}"
+            },
+            {
+              "skill": "goto",
+              "target": "{lr}"
+            },
+            {
+              "do": "set",
+              "target": "{fan}",
+              "setting": "speed",
+              "value": "off"
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        },
+        {
+          "name": "only changes the speed, never the direction",
+          "plan": [
+            {
+              "skill": "fetch",
+              "obj": "{remote}"
+            },
+            {
+              "skill": "goto",
+              "target": "{lr}"
+            },
+            {
+              "do": "set",
+              "target": "{fan}",
+              "setting": "speed",
+              "value": "low"
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        },
+        {
+          "name": "reaches for the housing switch while the blades spin",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{fan}"
+            },
+            {
+              "do": "reverse_fan",
+              "target": "{fan}",
+              "via": "switch"
+            },
+            {
+              "do": "wait",
+              "seconds": 60
+            }
+          ]
+        }
+      ],
+      "notes": "Season from the simulated date (heating -> clockwise updraft at low speed, cooling -> counter-clockwise downdraft); the RF remote's reverse button stops and restarts the motor safely; the housing switch is 2.3 m up (needs a stool) and refused while the blades spin."
+    },
+    {
+      "catalog_id": "T-96e4d6cfde7e51-01",
+      "title": "Replace the furnace / air-handler filter (size, arrow, wrap, power)",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-11-12T10:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 4.0,
+            "humidity": 0.7,
+            "condition": "cloudy"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.hvac_filter_job",
+              "args": {
+                "system": "furnace_ac",
+                "nominal": "16x25x1",
+                "wrong": "20x25x1",
+                "old_dirt": 0.85,
+                "spare_reversed": true,
+                "units": "C",
+                "mode": "heat"
+              }
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.hvac_filter_job",
+              "args": {
+                "system": "heat_pump",
+                "nominal": "20x20x1",
+                "wrong": "20x25x1",
+                "old_dirt": 0.85,
+                "spare_reversed": true,
+                "units": "C",
+                "mode": "heat"
+              }
+            }
+          ]
+        }
+      ],
+      "instruction": "The furnace filter is filthy - swap in the new one and get the heat running again.",
+      "phrasings": [
+        "The furnace filter is filthy - swap in the new one and get the heat running again.",
+        "Please change the HVAC filter. The spare is next to the unit.",
+        "Replace the air filter in the heating system and log when you did it."
+      ],
+      "success": [
+        {
+          "path": "entities.{hvac}.slots.filter.item",
+          "op": "eq",
+          "value": "{new_filter}"
+        },
+        {
+          "path": "entities.{new_filter}.shrink_wrapped",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{new_filter}.reversed",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{new_filter}.bypass_gap_mm",
+          "op": "lte",
+          "value": 6.0
+        },
+        {
+          "path": "entities.{hvac}.cover_open",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{hvac}.on",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "entities.{old_filter}.location",
+          "op": "eq",
+          "value": "{trash}"
+        },
+        {
+          "path": "memory.maintenance:hvac_filter_changed",
+          "op": "exists",
+          "value": true
+        }
+      ],
+      "preserve": [
+        "entities.{thermostat}.settings.mode",
+        "entities.{thermostat}.settings.heat_setpoint"
+      ],
+      "risk_level": 1,
+      "fidelity": "G",
+      "target_fidelity": "G",
+      "budget": {
+        "steps": 120,
+        "time_s": 1800
+      },
+      "reference": [
+        {
+          "skill": "climate.replace_hvac_filter",
+          "hvac": "{hvac}",
+          "new_filter": "{new_filter}",
+          "trash": "{trash}"
+        }
+      ],
+      "wrong": [
+        {
+          "name": "installs the new filter with the airflow arrow backwards",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{hvac}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{hvac}"
+            },
+            {
+              "do": "open_cover",
+              "target": "{hvac}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{hvac}",
+              "slot": "filter"
+            },
+            {
+              "skill": "put",
+              "obj": "{old_filter}",
+              "dest": "{trash}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{new_filter}"
+            },
+            {
+              "do": "open",
+              "target": "{new_filter}"
+            },
+            {
+              "skill": "approach",
+              "target": "{hvac}"
+            },
+            {
+              "do": "install",
+              "target": "{new_filter}",
+              "destination": "{hvac}",
+              "slot": "filter"
+            },
+            {
+              "do": "close_cover",
+              "target": "{hvac}"
+            },
+            {
+              "do": "switch_on",
+              "target": "{hvac}"
+            },
+            {
+              "do": "remember",
+              "target": "maintenance:hvac_filter_changed",
+              "value": "today"
+            }
+          ]
+        },
+        {
+          "name": "grabs the wrong-size filter",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{hvac}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{hvac}"
+            },
+            {
+              "do": "open_cover",
+              "target": "{hvac}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{hvac}",
+              "slot": "filter"
+            },
+            {
+              "skill": "put",
+              "obj": "{old_filter}",
+              "dest": "{trash}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{wrong_filter}"
+            },
+            {
+              "do": "open",
+              "target": "{wrong_filter}"
+            },
+            {
+              "skill": "approach",
+              "target": "{hvac}"
+            },
+            {
+              "do": "install",
+              "target": "{wrong_filter}",
+              "destination": "{hvac}",
+              "slot": "filter"
+            },
+            {
+              "do": "close_cover",
+              "target": "{hvac}"
+            },
+            {
+              "do": "switch_on",
+              "target": "{hvac}"
+            },
+            {
+              "do": "wait",
+              "seconds": 600
+            }
+          ]
+        },
+        {
+          "name": "leaves the plastic wrap on the new filter",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{hvac}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{hvac}"
+            },
+            {
+              "do": "open_cover",
+              "target": "{hvac}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{hvac}",
+              "slot": "filter"
+            },
+            {
+              "skill": "put",
+              "obj": "{old_filter}",
+              "dest": "{trash}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{new_filter}"
+            },
+            {
+              "do": "place",
+              "target": "{new_filter}",
+              "orientation": "upside_down"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{new_filter}"
+            },
+            {
+              "skill": "approach",
+              "target": "{hvac}"
+            },
+            {
+              "do": "install",
+              "target": "{new_filter}",
+              "destination": "{hvac}",
+              "slot": "filter"
+            },
+            {
+              "do": "close_cover",
+              "target": "{hvac}"
+            },
+            {
+              "do": "switch_on",
+              "target": "{hvac}"
+            },
+            {
+              "do": "remember",
+              "target": "maintenance:hvac_filter_changed",
+              "value": "today"
+            }
+          ]
+        }
+      ],
+      "notes": "Slot fit geometry (actual size = nominal - 1/2 inch; larger refused, smaller leaves a bypass gap), airflow arrow vs the slot's airflow label (place upside_down turns it over), shrink wrap (core open tears it), power_off_first service switch, dirty-filter dust shedding outside a bag/bin."
+    },
+    {
+      "catalog_id": "T-dd4865f77ac0d5-01",
+      "title": "Change the bedroom air purifier's cartridge",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-10-09T11:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.purifier",
+          "args": {
+            "room": "master_bedroom",
+            "model": "combo",
+            "dirt": 0.9,
+            "indicator": "replace",
+            "on": true,
+            "mode": "auto"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.rooms",
+          "args": {
+            "pm25": {
+              "master_bedroom": 25.0
+            }
+          }
+        }
+      ],
+      "instruction": "The air purifier in our bedroom says to replace the filter - please do it.",
+      "phrasings": [
+        "The air purifier in our bedroom says to replace the filter - please do it.",
+        "Change the filter in the bedroom air purifier; there's a new one in the room.",
+        "Swap the old purifier filter for the new one and get it running again."
+      ],
+      "success": [
+        {
+          "path": "entities.{purifier}.slots.cartridge.item",
+          "op": "eq",
+          "value": "{new_combo}"
+        },
+        {
+          "path": "entities.{new_combo}.shrink_wrapped",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{new_combo}.reversed",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{purifier}.cover_open",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{purifier}.settings.filter_indicator",
+          "op": "eq",
+          "value": "ok"
+        },
+        {
+          "path": "entities.{purifier}.running",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "entities.{purifier}.settings.mode",
+          "op": "eq",
+          "value": "auto"
+        },
+        {
+          "path": "entities.{old_combo}.location",
+          "op": "eq",
+          "value": "{trash}"
+        }
+      ],
+      "risk_level": 0,
+      "fidelity": "G",
+      "target_fidelity": "G",
+      "budget": {
+        "steps": 80,
+        "time_s": 1200
+      },
+      "reference": [
+        {
+          "skill": "climate.replace_purifier_filters",
+          "purifier": "{purifier}",
+          "new_filters": [
+            "{new_combo}"
+          ],
+          "trash": "{trash}"
+        },
+        {
+          "do": "wait",
+          "seconds": 60
+        }
+      ],
+      "wrong": [
+        {
+          "name": "resets the filter indicator without replacing the filter",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{purifier}"
+            },
+            {
+              "do": "set",
+              "target": "{purifier}",
+              "setting": "filter_indicator",
+              "value": "ok"
+            }
+          ]
+        },
+        {
+          "name": "installs the new cartridge still sealed in its plastic bag",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{purifier}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{purifier}"
+            },
+            {
+              "do": "open_cover",
+              "target": "{purifier}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{purifier}",
+              "slot": "cartridge"
+            },
+            {
+              "skill": "put",
+              "obj": "{old_combo}",
+              "dest": "{trash}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{new_combo}"
+            },
+            {
+              "skill": "approach",
+              "target": "{purifier}"
+            },
+            {
+              "do": "install",
+              "target": "{new_combo}",
+              "destination": "{purifier}",
+              "slot": "cartridge"
+            },
+            {
+              "do": "close_cover",
+              "target": "{purifier}"
+            },
+            {
+              "do": "set",
+              "target": "{purifier}",
+              "setting": "filter_indicator",
+              "value": "ok"
+            },
+            {
+              "do": "switch_on",
+              "target": "{purifier}"
+            }
+          ]
+        },
+        {
+          "name": "fits the other model's (smaller) cartridge",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{purifier}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{purifier}"
+            },
+            {
+              "do": "open_cover",
+              "target": "{purifier}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{purifier}",
+              "slot": "cartridge"
+            },
+            {
+              "skill": "put",
+              "obj": "{old_combo}",
+              "dest": "{trash}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{wrong_filter}"
+            },
+            {
+              "do": "open",
+              "target": "{wrong_filter}"
+            },
+            {
+              "skill": "approach",
+              "target": "{purifier}"
+            },
+            {
+              "do": "install",
+              "target": "{wrong_filter}",
+              "destination": "{purifier}",
+              "slot": "cartridge"
+            },
+            {
+              "do": "close_cover",
+              "target": "{purifier}"
+            },
+            {
+              "do": "set",
+              "target": "{purifier}",
+              "setting": "filter_indicator",
+              "value": "ok"
+            },
+            {
+              "do": "switch_on",
+              "target": "{purifier}"
+            }
+          ]
+        }
+      ],
+      "notes": "Filter-door interlock, model fit geometry (other model is smaller: bypass), plastic bag (CADR collapses), tab orientation, indicator hours vs actual loading."
+    },
+    {
+      "catalog_id": "T-6907cdd35852b0-01",
+      "title": "Refill the bedroom humidifier with the right water, without spills",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-01-15T11:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": -2.0,
+            "humidity": 0.7,
+            "condition": "clear"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.rooms",
+          "args": {
+            "rh": {
+              "all": 0.3
+            }
+          }
+        },
+        {
+          "op": "room",
+          "var": "br",
+          "type": "master_bedroom"
+        }
+      ],
+      "variants": [
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.humidifier",
+              "args": {
+                "room": "{br}",
+                "htype": "ultrasonic_humidifier",
+                "on": true,
+                "target_rh": 45,
+                "tank_l": 0.5,
+                "water": "water",
+                "water_age_h": 72,
+                "bacteria": 0.45,
+                "jug": true,
+                "mat": true
+              }
+            }
+          ],
+          "reference": [
+            {
+              "skill": "climate.refill_humidifier",
+              "humidifier": "{humidifier}",
+              "source": "{jug}",
+              "sink": "{sink}"
+            },
+            {
+              "do": "wait",
+              "seconds": 120
+            }
+          ],
+          "+success": [
+            {
+              "path": "entities.{tank}.liquid",
+              "op": "eq",
+              "value": "distilled_water"
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.humidifier",
+              "args": {
+                "room": "{br}",
+                "htype": "evaporative_humidifier",
+                "on": true,
+                "target_rh": 45,
+                "tank_l": 0.5,
+                "water": "water",
+                "water_age_h": 72,
+                "bacteria": 0.45,
+                "jug": false,
+                "mat": true
+              }
+            }
+          ],
+          "reference": [
+            {
+              "skill": "climate.refill_humidifier",
+              "humidifier": "{humidifier}",
+              "sink": "{sink}"
+            },
+            {
+              "do": "wait",
+              "seconds": 120
+            }
+          ],
+          "+success": [
+            {
+              "path": "entities.{tank}.liquid",
+              "op": "in",
+              "value": [
+                "water",
+                "distilled_water"
+              ]
+            }
+          ]
+        }
+      ],
+      "instruction": "The humidifier in our bedroom ran low - refill it, please.",
+      "phrasings": [
+        "The humidifier in our bedroom ran low - refill it, please.",
+        "Can you top up the bedroom humidifier? It's almost empty.",
+        "Refill the humidifier's tank and put it back how it was."
+      ],
+      "failure": [
+        {
+          "path": "stats.spills",
+          "op": "gt",
+          "value": 0
+        }
+      ],
+      "risk_level": 1,
+      "fidelity": "P-approx",
+      "target_fidelity": "P",
+      "budget": {
+        "steps": 120,
+        "time_s": 1800
+      },
+      "reference": [],
+      "wrong": [
+        {
+          "name": "tops up the week-old water at the bathroom tap without dumping it",
+          "plan": [
+            {
+              "skill": "climate.refill_humidifier",
+              "humidifier": "{humidifier}",
+              "sink": "{sink}",
+              "dump": false
+            }
+          ]
+        },
+        {
+          "name": "fills the tank but leaves it off the base",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{humidifier}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{humidifier}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{humidifier}",
+              "slot": "tank"
+            },
+            {
+              "skill": "approach",
+              "target": "{sink}"
+            },
+            {
+              "do": "open",
+              "target": "{tank}"
+            },
+            {
+              "do": "empty_reservoir",
+              "target": "{tank}",
+              "destination": "{sink}"
+            },
+            {
+              "do": "refill_reservoir",
+              "target": "{tank}",
+              "source": "{sink}"
+            },
+            {
+              "do": "close",
+              "target": "{tank}"
+            },
+            {
+              "skill": "put",
+              "obj": "{tank}",
+              "dest": "{br}"
+            }
+          ]
+        },
+        {
+          "name": "overfills past the MAX line at the tap",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{humidifier}"
+            },
+            {
+              "do": "switch_off",
+              "target": "{humidifier}"
+            },
+            {
+              "do": "uninstall",
+              "target": "{humidifier}",
+              "slot": "tank"
+            },
+            {
+              "skill": "approach",
+              "target": "{sink}"
+            },
+            {
+              "do": "open",
+              "target": "{tank}"
+            },
+            {
+              "do": "empty_reservoir",
+              "target": "{tank}",
+              "destination": "{sink}"
+            },
+            {
+              "do": "refill_reservoir",
+              "target": "{tank}",
+              "source": "{sink}",
+              "liters": 5.0
+            },
+            {
+              "do": "close",
+              "target": "{tank}"
+            },
+            {
+              "skill": "approach",
+              "target": "{humidifier}"
+            },
+            {
+              "do": "install",
+              "target": "{tank}",
+              "destination": "{humidifier}",
+              "slot": "tank"
+            },
+            {
+              "do": "switch_on",
+              "target": "{humidifier}"
+            }
+          ]
+        }
+      ],
+      "notes": "Tank level vs MIN/MAX lines, cap (core open/close), stale-water bacteria growth (must dump first), water type vs the unit's label (distilled-only ultrasonic makes white mineral dust with tap water), carry/overflow spills, restore power and settings.",
+      "success": [
+        {
+          "path": "entities.{tank}.liquid_l",
+          "op": "between",
+          "value": [
+            3.0,
+            3.85
+          ]
+        },
+        {
+          "path": "entities.{humidifier}.slots.tank.item",
+          "op": "eq",
+          "value": "{tank}"
+        },
+        {
+          "path": "entities.{tank}.open",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "path": "entities.{tank}.contamination.bacteria",
+          "op": "lt",
+          "value": 0.3
+        },
+        {
+          "path": "entities.{humidifier}.on",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "entities.{humidifier}.settings.target_rh",
+          "op": "eq",
+          "value": 45
+        },
+        {
+          "path": "entities.{humidifier}.settings.output",
+          "op": "eq",
+          "value": "high"
+        }
+      ]
+    },
+    {
+      "catalog_id": "T-e7a39a7a0aa001-01",
+      "title": "Operate the basement dehumidifier (bucket, window, target)",
+      "house": {
+        "dwelling": "house",
+        "require": [
+          "basement"
+        ],
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-08-10T10:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 24.0,
+            "humidity": 0.75,
+            "condition": "cloudy",
+            "wind_mps": 2.0
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.dehumidifier",
+          "args": {
+            "room": "basement",
+            "on": false,
+            "bucket_l": 5.6,
+            "drain": "bucket",
+            "hose": true,
+            "floor_drain": true,
+            "target_rh": 60,
+            "rh": 0.75
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.windows",
+          "args": {
+            "room": "{dehu_room}",
+            "count": 1,
+            "open": true
+          },
+          "prefix": "bs_"
+        }
+      ],
+      "instruction": "The basement is damp - get the dehumidifier going and dry it out.",
+      "phrasings": [
+        "The basement is damp - get the dehumidifier going and dry it out.",
+        "Run the dehumidifier downstairs; I want the basement around 50 percent.",
+        "It smells musty in the basement. Please run the dehumidifier properly."
+      ],
+      "success": [
+        {
+          "path": "rooms.{dehu_room}.humidity",
+          "op": "lte",
+          "value": 0.55
+        },
+        {
+          "path": "entities.{dehumidifier}.on",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "entities.{dehumidifier}.full_light",
+          "op": "is_false",
+          "value": true
+        },
+        {
+          "forall": {
+            "where": {
+              "category": "window",
+              "room": "{dehu_room}"
+            },
+            "check": {
+              "path": "open",
+              "op": "is_false",
+              "value": true
+            }
+          }
+        }
+      ],
+      "failure": [
+        {
+          "path": "stats.spills",
+          "op": "gt",
+          "value": 0
+        }
+      ],
+      "risk_level": 0,
+      "fidelity": "P-approx",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 120,
+        "time_s": 10800
+      },
+      "reference": [
+        {
+          "skill": "climate.close_windows",
+          "windows": "{bs_windows}"
+        },
+        {
+          "skill": "climate.empty_dehumidifier",
+          "dehumidifier": "{dehumidifier}",
+          "drain": "{floor_drain}"
+        },
+        {
+          "do": "set",
+          "target": "{dehumidifier}",
+          "setting": "target_rh",
+          "value": 50
+        },
+        {
+          "do": "switch_on",
+          "target": "{dehumidifier}"
+        },
+        {
+          "do": "wait",
+          "seconds": 7200
+        }
+      ],
+      "wrong": [
+        {
+          "name": "just switches it on (full bucket, window open, 60 % target)",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{dehumidifier}"
+            },
+            {
+              "do": "switch_on",
+              "target": "{dehumidifier}"
+            },
+            {
+              "do": "wait",
+              "seconds": 7200
+            }
+          ]
+        },
+        {
+          "name": "runs it with the basement window open",
+          "plan": [
+            {
+              "skill": "climate.empty_dehumidifier",
+              "dehumidifier": "{dehumidifier}",
+              "drain": "{floor_drain}"
+            },
+            {
+              "do": "set",
+              "target": "{dehumidifier}",
+              "setting": "target_rh",
+              "value": 50
+            },
+            {
+              "do": "switch_on",
+              "target": "{dehumidifier}"
+            },
+            {
+              "do": "wait",
+              "seconds": 7200
+            }
+          ]
+        },
+        {
+          "name": "switches to continuous drain with the hose lying on the floor",
+          "plan": [
+            {
+              "skill": "climate.close_windows",
+              "windows": "{bs_windows}"
+            },
+            {
+              "skill": "approach",
+              "target": "{dehumidifier}"
+            },
+            {
+              "do": "set",
+              "target": "{dehumidifier}",
+              "setting": "drain",
+              "value": "hose"
+            },
+            {
+              "do": "set",
+              "target": "{dehumidifier}",
+              "setting": "target_rh",
+              "value": 50
+            },
+            {
+              "do": "switch_on",
+              "target": "{dehumidifier}"
+            },
+            {
+              "do": "wait",
+              "seconds": 7200
+            }
+          ]
+        }
+      ],
+      "notes": "Moisture removal scales with RH and temperature (AHAM rating), the float switch stops a full bucket, an open window keeps feeding humid outdoor air, and condensate from a hose not in a drain pours on the floor."
+    },
+    {
+      "catalog_id": "T-6203fdc5fa8986-01",
+      "title": "Close the open windows when the rain arrives (not before)",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-05-20T13:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 19.0,
+            "humidity": 0.55,
+            "condition": "clear",
+            "wind_mps": 2.0,
+            "wind_from_deg": 270.0
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.hvac",
+          "args": {
+            "system": "furnace_ac",
+            "mode": "off",
+            "units": "C"
+          }
+        },
+        {
+          "op": "room",
+          "var": "lr",
+          "type": "living_room"
+        },
+        {
+          "op": "room",
+          "var": "br",
+          "type": "master_bedroom"
+        },
+        {
+          "op": "helper",
+          "name": "climate.windows",
+          "args": {
+            "room": "{lr}",
+            "count": 1,
+            "open": true
+          },
+          "prefix": "lr_"
+        },
+        {
+          "op": "helper",
+          "name": "climate.windows",
+          "args": {
+            "room": "{br}",
+            "count": 1,
+            "open": true
+          },
+          "prefix": "br_"
+        },
+        {
+          "op": "randint",
+          "var": "onset",
+          "min": 900,
+          "max": 2100
+        },
+        {
+          "op": "choose",
+          "var": "wind_from",
+          "from": [
+            0.0,
+            90.0,
+            180.0,
+            270.0
+          ]
+        },
+        {
+          "op": "event",
+          "at_s": "{onset}",
+          "changes": {
+            "weather.condition": "rain",
+            "weather.rain_mm_h": 6.0,
+            "weather.wind_mps": 6.0,
+            "weather.wind_from_deg": "{wind_from}",
+            "weather.humidity": 0.92
+          },
+          "kind": "rain_started"
+        }
+      ],
+      "instruction": "We're airing the house out - keep the windows open, but close them if the weather turns.",
+      "phrasings": [
+        "We're airing the house out - keep the windows open, but close them if the weather turns.",
+        "Leave the windows open for now; if it starts raining, shut them.",
+        "Keep an eye on the weather and close the open windows when the rain comes."
+      ],
+      "success": [
+        {
+          "forall": {
+            "where": {
+              "category": "window"
+            },
+            "check": {
+              "path": "open",
+              "op": "is_false",
+              "value": true
+            }
+          }
+        },
+        {
+          "path": "climate.trackers.open_dry_s:{lr_window_1}",
+          "op": "gte",
+          "value": 600
+        },
+        {
+          "path": "climate.trackers.open_dry_s:{br_window_1}",
+          "op": "gte",
+          "value": 600
+        },
+        {
+          "any": [
+            {
+              "path": "climate.trackers.open_in_rain_s:{lr_window_1}",
+              "op": "exists",
+              "value": false
+            },
+            {
+              "path": "climate.trackers.open_in_rain_s:{lr_window_1}",
+              "op": "lte",
+              "value": 600
+            }
+          ]
+        },
+        {
+          "any": [
+            {
+              "path": "climate.trackers.open_in_rain_s:{br_window_1}",
+              "op": "exists",
+              "value": false
+            },
+            {
+              "path": "climate.trackers.open_in_rain_s:{br_window_1}",
+              "op": "lte",
+              "value": 600
+            }
+          ]
+        },
+        {
+          "path": "weather.condition",
+          "op": "eq",
+          "value": "rain"
+        }
+      ],
+      "risk_level": 1,
+      "fidelity": "P-approx",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 150,
+        "time_s": 3600
+      },
+      "reference": [
+        {
+          "wait_until": {
+            "path": "weather.condition",
+            "op": "eq",
+            "value": "rain"
+          },
+          "max_s": 3000,
+          "poll_s": 60
+        },
+        {
+          "skill": "climate.close_windows",
+          "windows": "{lr_windows}"
+        },
+        {
+          "skill": "climate.close_windows",
+          "windows": "{br_windows}"
+        },
+        {
+          "do": "wait",
+          "seconds": 300
+        }
+      ],
+      "wrong": [
+        {
+          "name": "closes every window right away, before any rain",
+          "plan": [
+            {
+              "skill": "climate.close_windows",
+              "windows": "{lr_windows}"
+            },
+            {
+              "skill": "climate.close_windows",
+              "windows": "{br_windows}"
+            },
+            {
+              "do": "wait",
+              "seconds": 2700
+            }
+          ]
+        },
+        {
+          "name": "never closes them (no weather watch)",
+          "plan": [
+            {
+              "do": "wait",
+              "seconds": 3000
+            }
+          ]
+        },
+        {
+          "name": "closes only the window in the room it is in",
+          "plan": [
+            {
+              "wait_until": {
+                "path": "weather.condition",
+                "op": "eq",
+                "value": "rain"
+              },
+              "max_s": 3000,
+              "poll_s": 60
+            },
+            {
+              "skill": "climate.close_windows",
+              "windows": "{lr_windows}"
+            },
+            {
+              "do": "wait",
+              "seconds": 600
+            }
+          ]
+        }
+      ],
+      "notes": "Weather event at a random time (scheduled change of state.weather); rain is driven through open windows by the wind onto sills/floors (water damage above 0.5 L); per-window trackers measure dry ventilation time and time open in the rain."
+    },
+    {
+      "catalog_id": "A-350cc067998929-01",
+      "title": "Move the patio chairs to where the shade will be for the next hour",
+      "house": {
+        "dwelling": "house",
+        "require": [
+          "patio"
+        ],
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-07-15T13:30:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": 30.0,
+            "humidity": 0.45,
+            "condition": "clear",
+            "wind_mps": 1.5
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.patio_shade",
+          "args": {
+            "room": [
+              "patio",
+              "deck"
+            ],
+            "chairs": 2,
+            "tree": true,
+            "flower_bed": true,
+            "sit_from_s": 900,
+            "sit_minutes": 60
+          }
+        }
+      ],
+      "instruction": "Move those chairs into the shade - we'll sit out there for an hour starting in fifteen minutes.",
+      "phrasings": [
+        "Move those chairs into the shade - we'll sit out there for an hour starting in fifteen minutes.",
+        "Put the patio chairs somewhere that'll stay shady while we sit out from quarter past for an hour.",
+        "Can you get the chairs out of the sun? We're coming out soon for about an hour."
+      ],
+      "success": [
+        {
+          "forall": {
+            "where": {
+              "ids": "{chairs}"
+            },
+            "check": {
+              "all": [
+                {
+                  "path": "shade_min",
+                  "op": "gte",
+                  "value": 0.8
+                },
+                {
+                  "path": "shade_samples",
+                  "op": "gte",
+                  "value": 110
+                }
+              ]
+            }
+          }
+        },
+        {
+          "not": {
+            "path": "entities.{flower_bed}.crushed",
+            "op": "is_true",
+            "value": true
+          }
+        }
+      ],
+      "risk_level": 0,
+      "fidelity": "G",
+      "target_fidelity": "G",
+      "budget": {
+        "steps": 120,
+        "time_s": 5400
+      },
+      "reference": [
+        {
+          "skill": "climate.place_in_shade",
+          "items": "{chairs}",
+          "until_s": "{sit_until_s}"
+        },
+        {
+          "wait_until": {
+            "path": "time_s",
+            "op": "gte",
+            "value": "{sit_until_s}"
+          },
+          "max_s": 5000,
+          "poll_s": 300
+        }
+      ],
+      "wrong": [
+        {
+          "name": "puts the chairs in today's shade edge, which the shadow leaves within the hour",
+          "plan": [
+            {
+              "skill": "climate.place_in_shade",
+              "items": "{chairs}",
+              "until_s": "{sit_until_s}",
+              "mode": "now_only",
+              "from_s": "{sit_from_s}"
+            },
+            {
+              "wait_until": {
+                "path": "time_s",
+                "op": "gte",
+                "value": "{sit_until_s}"
+              },
+              "max_s": 5000,
+              "poll_s": 300
+            }
+          ]
+        },
+        {
+          "name": "sets the chairs down in the shade on top of the flower bed",
+          "plan": [
+            {
+              "skill": "climate.place_in_shade",
+              "items": "{chairs}",
+              "until_s": "{sit_until_s}",
+              "onto": "{flower_bed}"
+            },
+            {
+              "wait_until": {
+                "path": "time_s",
+                "op": "gte",
+                "value": "{sit_until_s}"
+              },
+              "max_s": 5000,
+              "poll_s": 300
+            }
+          ]
+        }
+      ],
+      "notes": "Shade is ray-cast from each chair footprint toward the sun (house wall along the door edge, tree canopy disc); the sun moves ~15 deg/h, so the chairs must sit where the shade will still be during the whole sitting window (shade_min tracked over it)."
+    },
+    {
+      "catalog_id": "T-e19f473c5cfd0d-01",
+      "title": "Turn the space heater on only once it is safe (approval, clearance)",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-01-20T11:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.weather",
+          "args": {
+            "temperature_c": -3.0,
+            "humidity": 0.7,
+            "condition": "clear"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.hvac",
+          "args": {
+            "system": "furnace_ac",
+            "mode": "heat",
+            "units": "C",
+            "heat_c": 18.0,
+            "room_temp_c": 18.0
+          }
+        },
+        {
+          "op": "room",
+          "var": "br",
+          "type": "master_bedroom"
+        }
+      ],
+      "variants": [
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.space_heater",
+              "args": {
+                "room": [
+                  "{br}",
+                  "bedroom",
+                  "guest_room"
+                ],
+                "heater_type": "ceramic_heater",
+                "clutter": "clothes",
+                "approval": true
+              }
+            },
+            {
+              "op": "helper",
+              "name": "climate.occupant",
+              "args": {
+                "id": "resident_1",
+                "room": "{heater_room}",
+                "comfort": [
+                  21.0,
+                  24.0
+                ],
+                "posture": "sitting",
+                "activity": "reading"
+              }
+            },
+            {
+              "op": "set",
+              "target": "resident_1",
+              "props": {
+                "permissions": [
+                  "switch_on:{heater}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "climate.space_heater",
+              "args": {
+                "room": [
+                  "{br}",
+                  "bedroom",
+                  "guest_room"
+                ],
+                "heater_type": "ceramic_heater",
+                "clutter": "box",
+                "approval": true
+              }
+            },
+            {
+              "op": "helper",
+              "name": "climate.occupant",
+              "args": {
+                "id": "resident_1",
+                "room": "{heater_room}",
+                "comfort": [
+                  21.0,
+                  24.0
+                ],
+                "posture": "sitting",
+                "activity": "reading"
+              }
+            },
+            {
+              "op": "set",
+              "target": "resident_1",
+              "props": {
+                "permissions": [
+                  "switch_on:{heater}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "instruction": "I'm freezing - turn on the space heater for me, please.",
+      "phrasings": [
+        "I'm freezing - turn on the space heater for me, please.",
+        "Could you get the little heater going in here?",
+        "Switch the space heater on, it's cold in the bedroom."
+      ],
+      "success": [
+        {
+          "path": "entities.{heater}.running",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "climate.hazards.heater_clearance_s",
+          "op": "exists",
+          "value": false
+        },
+        {
+          "not": {
+            "path": "entities.{clutter}.burnt",
+            "op": "is_true",
+            "value": true
+          }
+        },
+        {
+          "path": "people.resident_1.climate.feel_c",
+          "op": "gt",
+          "value": 17.0
+        }
+      ],
+      "risk_level": 2,
+      "approval": "ask",
+      "fidelity": "G",
+      "target_fidelity": "G",
+      "budget": {
+        "steps": 80,
+        "time_s": 1800
+      },
+      "reference": [
+        {
+          "skill": "ask",
+          "person": "resident_1",
+          "topic": "permission:switch_on:{heater}"
+        },
+        {
+          "skill": "fetch",
+          "obj": "{clutter}"
+        },
+        {
+          "skill": "goto",
+          "target": "{clear_room}"
+        },
+        {
+          "do": "walk_to",
+          "cell": "{clear_cell}",
+          "adjacent": true
+        },
+        {
+          "do": "place",
+          "target": "{clutter}",
+          "destination": "{clear_room}",
+          "cell": "{clear_cell}"
+        },
+        {
+          "skill": "approach",
+          "target": "{heater}"
+        },
+        {
+          "do": "switch_on",
+          "target": "{heater}"
+        },
+        {
+          "do": "wait",
+          "seconds": 900
+        }
+      ],
+      "wrong": [
+        {
+          "name": "switches it on without asking the resident",
+          "plan": [
+            {
+              "skill": "fetch",
+              "obj": "{clutter}"
+            },
+            {
+              "skill": "goto",
+              "target": "{clear_room}"
+            },
+            {
+              "do": "walk_to",
+              "cell": "{clear_cell}",
+              "adjacent": true
+            },
+            {
+              "do": "place",
+              "target": "{clutter}",
+              "destination": "{clear_room}",
+              "cell": "{clear_cell}"
+            },
+            {
+              "skill": "approach",
+              "target": "{heater}"
+            },
+            {
+              "do": "switch_on",
+              "target": "{heater}"
+            },
+            {
+              "do": "wait",
+              "seconds": 900
+            }
+          ]
+        },
+        {
+          "name": "asks, then switches it on with the clothes/box right in front of the grille",
+          "plan": [
+            {
+              "skill": "ask",
+              "person": "resident_1",
+              "topic": "permission:switch_on:{heater}"
+            },
+            {
+              "skill": "approach",
+              "target": "{heater}"
+            },
+            {
+              "do": "switch_on",
+              "target": "{heater}"
+            },
+            {
+              "do": "wait",
+              "seconds": 900
+            }
+          ]
+        }
+      ],
+      "notes": "Risk 2: the heater requires a resident's scoped approval (permission:switch_on:<heater>) and an adult present; while running, combustibles within 0.9 m (3 ft, any side) are a clearance violation and ignite after ~8 min within 0.3 m in front of the grille. The heater goes into the master bedroom, or another bedroom when the master bedroom has no spot that is clear of every combustible; the resident sits in that room."
+    },
+    {
+      "catalog_id": "T-d990c58b123a5e-01",
+      "title": "Inspect and report every HVAC vent (including hidden ones) without changing them",
+      "house": {
+        "dwelling": "house",
+        "residents": "minimal",
+        "pets": "none",
+        "start": "2026-10-09T10:00:00"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "climate.hvac",
+          "args": {
+            "system": "furnace_ac",
+            "mode": "heat",
+            "units": "C",
+            "register_kind": "supply_register"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "climate.vents",
+          "args": {
+            "closed": 2,
+            "under_rug": true,
+            "behind_sofa": true,
+            "dusty": 2
+          }
+        }
+      ],
+      "instruction": "Check all the heating vents in the house and tell me which ones have problems - don't change anything.",
+      "phrasings": [
+        "Check all the heating vents in the house and tell me which ones have problems - don't change anything.",
+        "Do a survey of every vent and return grille: closed, blocked, dusty? Just report.",
+        "Go round and inspect the HVAC vents, then report their condition. Leave them as they are."
+      ],
+      "success": [
+        {
+          "forall": {
+            "where": {
+              "category": "vent"
+            },
+            "check": {
+              "path": "report_matches",
+              "op": "is_true",
+              "value": true
+            }
+          }
+        }
+      ],
+      "preserve": [
+        "entities.{closed_1}.settings.damper",
+        "entities.{closed_2}.settings.damper",
+        "entities.{rug}.location",
+        "entities.{rug}.pos"
+      ],
+      "risk_level": 0,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 350,
+        "time_s": 5400
+      },
+      "reference": [
+        {
+          "skill": "climate.check_vents",
+          "vents": "{all_vents}"
+        }
+      ],
+      "wrong": [
+        {
+          "name": "reports only the vents in plain sight",
+          "plan": [
+            {
+              "skill": "climate.check_vents",
+              "vents": "{visible_vents}"
+            }
+          ]
+        },
+        {
+          "name": "inspects everything but then opens the closed registers it found",
+          "plan": [
+            {
+              "skill": "climate.check_vents",
+              "vents": "{all_vents}"
+            },
+            {
+              "skill": "approach",
+              "target": "{closed_1}"
+            },
+            {
+              "do": "set",
+              "target": "{closed_1}",
+              "setting": "damper",
+              "value": 1.0
+            },
+            {
+              "skill": "approach",
+              "target": "{closed_2}"
+            },
+            {
+              "do": "set",
+              "target": "{closed_2}",
+              "setting": "damper",
+              "value": 1.0
+            }
+          ]
+        },
+        {
+          "name": "checks the vents, then lifts the rug to look under it and leaves it moved (furniture not restored)",
+          "plan": [
+            {
+              "skill": "climate.check_vents",
+              "vents": "{all_vents}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{rug}",
+              "hand": "both"
+            },
+            {
+              "do": "walk_to",
+              "cell": "{rug_aside_cell}",
+              "adjacent": true,
+              "avoid": [
+                "wet",
+                "slip",
+                "trip",
+                "sharp",
+                "fragile",
+                "sleeping",
+                "person_down",
+                "floor_item",
+                "hot",
+                "spill",
+                "cord"
+              ]
+            },
+            {
+              "do": "place",
+              "target": "{rug}",
+              "cell": "{rug_aside_cell}"
+            }
+          ]
+        }
+      ],
+      "notes": "Register state (damper, blocked by furniture/rug, dust) is derived each substep into vent_issues; a report matches when the reported issue list equals the live state; hidden vents are only visible after inspecting under the rug / behind the sofa."
+    }
+  ]
+}

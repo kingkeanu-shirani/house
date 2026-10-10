@@ -9,7 +9,7 @@ class CatalogTests(unittest.TestCase):
     def test_every_nonblank_source_line_is_accounted_and_verbatim(self):
         path=ROOT/'catalog/raw/household_catalog.txt';raw=path.read_bytes()
         entries,manifest=parse_catalog(path)
-        self.assertEqual(len(entries),2719)
+        self.assertEqual(len(entries),2720)
         self.assertEqual(len({e['id'] for e in entries}),len(entries))
         self.assertEqual(len(entries)+len(manifest['headings']),sum(bool(l.strip()) for l in raw.splitlines()))
         for entry in entries+manifest['headings']:

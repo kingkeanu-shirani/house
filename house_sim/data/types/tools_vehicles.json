@@ -1,0 +1,6506 @@
+{
+ "domain": "tools_vehicles",
+ "field_tiers": {
+  "measure": {
+   "gouge_depth_mm": "tape_measure",
+   "cabin_temp_c": "thermometer",
+   "bypass_gap_mm": "tape_measure"
+  },
+  "hidden": [
+   "sorted_ok",
+   "outline_ok",
+   "handover_ok",
+   "bond_ok",
+   "lubed_with",
+   "lubed_at",
+   "bled_at",
+   "snaked_at",
+   "freed_at",
+   "hung_at",
+   "soap_age_s",
+   "wet_age_s",
+   "paint_wet_until",
+   "touch_up_color_ok",
+   "paint_color_ok",
+   "wasted_l",
+   "ran_filterless_s",
+   "bypass_s",
+   "anchor_offset_m",
+   "anchor_height_m",
+   "anchor_into_stud",
+   "paint_age_days",
+   "wall_axis",
+   "wall_behind",
+   "caulk_joint.residue",
+   "caulk_joint.over_old",
+   "caulk_joint.applied_at",
+   "caulk_joint.bond_ok",
+   "caulk_joint.continuity",
+   "grout.skim",
+   "grout.filled_at",
+   "seal.quality",
+   "seal.applied_at",
+   "seal.rain_risk_at_apply",
+   "inflation.pressure_bar",
+   "mount.bond",
+   "mount.decay",
+   "mount.approved",
+   "mount.premature",
+   "mount.mounted_at",
+   "mount.loaded_at",
+   "chain.lube",
+   "chain.grime",
+   "chain.rust",
+   "brakes.contamination",
+   "bearings.water_ingress",
+   "leaked_l",
+   "flushed_l",
+   "humming_s",
+   "tripped_at",
+   "ran_ok",
+   "heat_output_frac",
+   "stop_ok",
+   "stops_door",
+   "handover_pose",
+   "handle_hits",
+   "lubricants_used",
+   "shavings_ml",
+   "paint_coats",
+   "touch_up_coats",
+   "paint_last_coat_at",
+   "inflated_at",
+   "washed_at",
+   "wet_at",
+   "soaped_at",
+   "charge_site",
+   "mount.rated_kg",
+   "mount.overload_since",
+   "mount.point"
+  ]
+ },
+ "looks_like": {
+  "cross_tip_screwdriver": {
+   "descriptor": "cross-tip screwdriver",
+   "resolve": "inspect",
+   "members": [
+    "screwdriver_phillips_1",
+    "screwdriver_phillips_2",
+    "screwdriver_pozidriv_2"
+   ],
+   "kind": "screwdriver",
+   "candidates": [
+    "Phillips #1 screwdriver",
+    "Phillips #2 screwdriver",
+    "Pozidriv PZ2 screwdriver"
+   ]
+  },
+  "flat_blade_screwdriver": {
+   "descriptor": "flat-blade screwdriver",
+   "resolve": "inspect",
+   "members": [
+    "screwdriver_flat_small",
+    "screwdriver_flat_large"
+   ],
+   "kind": "screwdriver",
+   "candidates": [
+    "3/16 in flathead screwdriver",
+    "1/4 in flathead screwdriver"
+   ]
+  },
+  "star_tip_screwdriver": {
+   "descriptor": "star-tip screwdriver",
+   "resolve": "inspect",
+   "members": [
+    "screwdriver_torx_t20",
+    "screwdriver_torx_t25"
+   ],
+   "kind": "screwdriver",
+   "candidates": [
+    "Torx T20 screwdriver",
+    "Torx T25 screwdriver"
+   ]
+  },
+  "hex_key": {
+   "descriptor": "L-shaped hex key",
+   "resolve": "inspect",
+   "members": [
+    "allen_key_3mm",
+    "allen_key_4mm",
+    "allen_key_5mm",
+    "allen_key_6mm",
+    "allen_key_5_32in",
+    "allen_key_3_16in",
+    "allen_key_quarter_in"
+   ],
+   "kind": "hex key",
+   "candidates": [
+    "3 mm Allen key",
+    "4 mm Allen key",
+    "5 mm Allen key",
+    "6 mm Allen key",
+    "5/32 in Allen key",
+    "3/16 in Allen key",
+    "1/4 in hex key (disposal wrench)"
+   ]
+  },
+  "combination_wrench": {
+   "descriptor": "combination wrench",
+   "resolve": "inspect",
+   "members": [
+    "combination_wrench_10mm",
+    "combination_wrench_13mm",
+    "combination_wrench_7_16in",
+    "combination_wrench_1_2in",
+    "combination_wrench_9_16in"
+   ],
+   "kind": "wrench",
+   "candidates": [
+    "10 mm combination wrench",
+    "13 mm combination wrench",
+    "7/16 in combination wrench",
+    "1/2 in combination wrench",
+    "9/16 in combination wrench"
+   ]
+  },
+  "chrome_socket": {
+   "descriptor": "chrome socket",
+   "resolve": "inspect",
+   "members": [
+    "socket_8mm",
+    "socket_10mm",
+    "socket_13mm",
+    "socket_3_8in",
+    "socket_7_16in",
+    "socket_1_2in"
+   ],
+   "kind": "socket",
+   "candidates": [
+    "8mm socket",
+    "10mm socket",
+    "13mm socket",
+    "3/8in socket",
+    "7/16in socket",
+    "1/2in socket"
+   ]
+  },
+  "driver_bit": {
+   "descriptor": "hex-shank driver bit",
+   "resolve": "inspect",
+   "members": [
+    "driver_bit_ph2",
+    "driver_bit_ph1",
+    "driver_bit_pz2",
+    "driver_bit_t25"
+   ],
+   "kind": "driver bit",
+   "candidates": [
+    "PH2 driver bit",
+    "PH1 driver bit",
+    "PZ2 driver bit",
+    "T25 driver bit"
+   ]
+  },
+  "drill_bit": {
+   "descriptor": "drill bit",
+   "resolve": "inspect",
+   "members": [
+    "drill_bit_wood_3mm",
+    "drill_bit_wood_6mm",
+    "drill_bit_masonry_6mm"
+   ],
+   "kind": "drill bit",
+   "candidates": [
+    "3 mm wood drill bit",
+    "6 mm brad-point drill bit",
+    "6 mm masonry drill bit"
+   ]
+  },
+  "adhesive_hook": {
+   "descriptor": "white plastic adhesive hook",
+   "resolve": "inspect",
+   "members": [
+    "adhesive_hook_small",
+    "adhesive_hook_medium",
+    "adhesive_hook_large",
+    "adhesive_hook_bath"
+   ],
+   "kind": "adhesive hook",
+   "candidates": [
+    "small removable adhesive hook (0.5 lb)",
+    "medium removable adhesive hook (3 lb)",
+    "large removable adhesive hook (5 lb)",
+    "water-resistant adhesive hook (3 lb)"
+   ]
+  },
+  "felt_pad": {
+   "descriptor": "round felt pad",
+   "resolve": "inspect",
+   "members": [
+    "felt_pad_19mm",
+    "felt_pad_25mm",
+    "felt_pad_38mm",
+    "felt_pad_51mm"
+   ],
+   "kind": "felt pad",
+   "candidates": [
+    "19 mm felt pad",
+    "25 mm felt pad",
+    "38 mm felt pad",
+    "51 mm felt pad"
+   ]
+  },
+  "foam_weatherstrip": {
+   "descriptor": "roll of foam weatherstrip tape",
+   "resolve": "inspect",
+   "members": [
+    "foam_tape_quarter_in",
+    "foam_tape_3_8in"
+   ],
+   "kind": "weatherstrip",
+   "candidates": [
+    "1/4 in foam weatherstrip tape",
+    "3/8 in foam weatherstrip tape"
+   ]
+  },
+  "aerosol_lubricant": {
+   "descriptor": "aerosol can of lubricant",
+   "resolve": "read",
+   "members": [
+    "silicone_spray",
+    "white_lithium_grease",
+    "penetrating_oil"
+   ],
+   "kind": "lubricant",
+   "candidates": [
+    "silicone lubricant",
+    "lithium grease spray",
+    "water-displacing penetrant"
+   ]
+  },
+  "drip_oil_bottle": {
+   "descriptor": "small squeeze bottle of oil",
+   "resolve": "read",
+   "members": [
+    "light_machine_oil",
+    "bike_chain_lube"
+   ],
+   "kind": "oil",
+   "candidates": [
+    "multi-purpose oil",
+    "dry chain lubricant"
+   ]
+  },
+  "wheel_cleaner": {
+   "descriptor": "spray bottle of wheel cleaner",
+   "resolve": "read",
+   "members": [
+    "wheel_cleaner_acid",
+    "wheel_cleaner_neutral"
+   ],
+   "kind": "wheel cleaner",
+   "candidates": [
+    "acid-based cleaner for bare wheels",
+    "neutral-pH cleaner safe on all finishes"
+   ]
+  },
+  "automotive_jug": {
+   "descriptor": "plastic jug of automotive fluid",
+   "resolve": "read",
+   "members": [
+    "motor_oil_jug",
+    "antifreeze_jug",
+    "washer_fluid_jug"
+   ],
+   "kind": "automotive fluid",
+   "candidates": [
+    "engine oil",
+    "engine coolant",
+    "windshield washer fluid"
+   ]
+  },
+  "quart_paint_can": {
+   "descriptor": "quart-size paint tin",
+   "resolve": "read",
+   "members": [
+    "paint_can",
+    "primer_can"
+   ],
+   "kind": "paint",
+   "candidates": [
+    "latex wall paint",
+    "paint primer"
+   ]
+  },
+  "fridge_water_filter": {
+   "descriptor": "fridge filter cartridge",
+   "resolve": "read",
+   "members": [
+    "water_filter_cartridge",
+    "water_filter_cartridge_alt"
+   ],
+   "kind": "fridge filter",
+   "candidates": [
+    "fridge filter, model EDR1RXD1",
+    "fridge filter, model RPWFE"
+   ]
+  },
+  "undersink_cartridge": {
+   "descriptor": "10 in filter cartridge",
+   "resolve": "read",
+   "members": [
+    "undersink_filter_cartridge"
+   ],
+   "kind": "under-sink cartridge",
+   "candidates": [
+    "10 in under-sink cartridge"
+   ]
+  },
+  "loose_fasteners": {
+   "descriptor": "handful of small fasteners",
+   "resolve": "inspect",
+   "members": [
+    "fastener_lot"
+   ],
+   "kind": "fasteners",
+   "candidates": [
+    "wood screws",
+    "drywall screws",
+    "machine screws",
+    "sheet-metal screws",
+    "finishing nails",
+    "plastic wall anchors",
+    "flat washers",
+    "hex nuts",
+    "hex bolts"
+   ]
+  },
+  "organizer_drawer": {
+   "descriptor": "small organizer drawer",
+   "resolve": "read",
+   "members": [
+    "organizer_compartment"
+   ],
+   "kind": "organizer drawer",
+   "candidates": [
+    "wood screw drawer",
+    "drywall screw drawer",
+    "machine screw drawer",
+    "sheet-metal screw drawer",
+    "nail drawer",
+    "anchor drawer"
+   ],
+   "label_fields": [
+    "label_text"
+   ]
+  },
+  "car_floor_mat": {
+   "descriptor": "rubber car floor mat",
+   "resolve": "inspect",
+   "members": [
+    "car_floor_mat"
+   ],
+   "kind": "floor mat",
+   "candidates": [
+    "driver's floor mat",
+    "front passenger floor mat",
+    "rear floor mat"
+   ]
+  },
+  "wash_bucket": {
+   "descriptor": "5-gallon bucket",
+   "resolve": "inspect",
+   "members": [
+    "car_wash_bucket"
+   ],
+   "kind": "bucket",
+   "candidates": [
+    "wash bucket",
+    "rinse bucket"
+   ]
+  },
+  "key_fob": {
+   "descriptor": "car key fob",
+   "resolve": "inspect",
+   "members": [
+    "car_key_fob"
+   ],
+   "kind": "key fob",
+   "candidates": [
+    "car key fob"
+   ]
+  }
+ },
+ "types": {
+  "hand_tool": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "hand tool",
+    "category": "tool",
+    "material": "steel",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.25,
+     0.04,
+     0.04
+    ],
+    "volume_l": 0.2,
+    "tool_category": "hand_tool",
+    "oil_film": 0.0,
+    "pointed": false,
+    "value": 15.0,
+    "tags": [
+     "tool"
+    ],
+    "home": null
+   },
+   "doc": "Base hand tool (steel unless noted). tool_kind/tool_category drive matching; oil_film protects bare steel.",
+   "perception": {
+    "glance": [
+     "tool_kind",
+     "tool_category"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "screwdriver": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "screwdriver",
+    "tool_kind": "screwdriver",
+    "tool_category": "screwdriver",
+    "pointed": true,
+    "capabilities": [
+     "drive_screw"
+    ],
+    "tip": {
+     "drive": "phillips",
+     "size": "2"
+    },
+    "max_torque_nm": 4.0,
+    "handle_material": "plastic",
+    "safe_grips": [
+     "handle"
+    ],
+    "size_m": [
+     0.24,
+     0.035,
+     0.035
+    ],
+    "mass_kg": 0.12,
+    "volume_l": 0.15
+   },
+   "doc": "Screwdriver. tip {drive,size} must match the screw head; max_torque_nm is what a robot hand can apply through the handle."
+  },
+  "screwdriver_phillips_1": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "Phillips #1 screwdriver",
+    "tip": {
+     "drive": "phillips",
+     "size": "1"
+    },
+    "mass_kg": 0.08,
+    "size_m": [
+     0.2,
+     0.03,
+     0.03
+    ],
+    "max_torque_nm": 3.0
+   },
+   "doc": "Phillips #1 screwdriver"
+  },
+  "screwdriver_phillips_2": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "Phillips #2 screwdriver",
+    "tip": {
+     "drive": "phillips",
+     "size": "2"
+    },
+    "mass_kg": 0.12,
+    "size_m": [
+     0.24,
+     0.035,
+     0.035
+    ],
+    "max_torque_nm": 4.0
+   },
+   "doc": "Phillips #2 screwdriver"
+  },
+  "screwdriver_flat_small": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "3/16 in flathead screwdriver",
+    "tip": {
+     "drive": "slotted",
+     "size": "4.8mm"
+    },
+    "mass_kg": 0.09,
+    "size_m": [
+     0.21,
+     0.03,
+     0.03
+    ],
+    "max_torque_nm": 3.0
+   },
+   "doc": "3/16 in flathead screwdriver"
+  },
+  "screwdriver_flat_large": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "1/4 in flathead screwdriver",
+    "tip": {
+     "drive": "slotted",
+     "size": "6.4mm"
+    },
+    "mass_kg": 0.14,
+    "size_m": [
+     0.26,
+     0.035,
+     0.035
+    ],
+    "max_torque_nm": 4.5
+   },
+   "doc": "1/4 in flathead screwdriver"
+  },
+  "screwdriver_torx_t20": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "Torx T20 screwdriver",
+    "tip": {
+     "drive": "torx",
+     "size": "t20"
+    },
+    "mass_kg": 0.1,
+    "size_m": [
+     0.22,
+     0.03,
+     0.03
+    ],
+    "max_torque_nm": 4.0
+   },
+   "doc": "Torx T20 screwdriver"
+  },
+  "screwdriver_torx_t25": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "Torx T25 screwdriver",
+    "tip": {
+     "drive": "torx",
+     "size": "t25"
+    },
+    "mass_kg": 0.11,
+    "size_m": [
+     0.23,
+     0.03,
+     0.03
+    ],
+    "max_torque_nm": 5.0
+   },
+   "doc": "Torx T25 screwdriver"
+  },
+  "screwdriver_pozidriv_2": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "Pozidriv PZ2 screwdriver",
+    "tip": {
+     "drive": "pozidriv",
+     "size": "2"
+    },
+    "mass_kg": 0.12,
+    "size_m": [
+     0.24,
+     0.035,
+     0.035
+    ],
+    "max_torque_nm": 4.5
+   },
+   "doc": "Pozidriv PZ2 screwdriver"
+  },
+  "precision_screwdriver_ph0": {
+   "is_a": "screwdriver",
+   "props": {
+    "label": "precision Phillips #0 screwdriver",
+    "tip": {
+     "drive": "phillips",
+     "size": "0"
+    },
+    "mass_kg": 0.02,
+    "size_m": [
+     0.14,
+     0.012,
+     0.012
+    ],
+    "max_torque_nm": 0.4
+   },
+   "doc": "precision Phillips #0 screwdriver"
+  },
+  "allen_key": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "Allen key",
+    "tool_kind": "allen_key",
+    "tool_category": "hex_key",
+    "tip": {
+     "drive": "hex",
+     "size": "4mm"
+    },
+    "max_torque_nm": 5.0,
+    "mass_kg": 0.02,
+    "size_m": [
+     0.08,
+     0.02,
+     0.005
+    ],
+    "volume_l": 0.01
+   },
+   "doc": "L-shaped hex key. Metric and imperial sizes look alike: 5/32 in (3.97 mm) in a 4 mm socket rounds it."
+  },
+  "allen_key_3mm": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "3 mm Allen key",
+    "tip": {
+     "drive": "hex",
+     "size": "3mm"
+    },
+    "max_torque_nm": 3.0
+   },
+   "doc": "3 mm Allen key"
+  },
+  "allen_key_4mm": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "4 mm Allen key",
+    "tip": {
+     "drive": "hex",
+     "size": "4mm"
+    },
+    "max_torque_nm": 5.0
+   },
+   "doc": "4 mm Allen key"
+  },
+  "allen_key_5mm": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "5 mm Allen key",
+    "tip": {
+     "drive": "hex",
+     "size": "5mm"
+    },
+    "max_torque_nm": 8.0
+   },
+   "doc": "5 mm Allen key"
+  },
+  "allen_key_6mm": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "6 mm Allen key",
+    "tip": {
+     "drive": "hex",
+     "size": "6mm"
+    },
+    "max_torque_nm": 12.0
+   },
+   "doc": "6 mm Allen key"
+  },
+  "allen_key_5_32in": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "5/32 in Allen key",
+    "tip": {
+     "drive": "hex",
+     "size": "5/32in"
+    },
+    "max_torque_nm": 5.0
+   },
+   "doc": "5/32 in Allen key"
+  },
+  "allen_key_3_16in": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "3/16 in Allen key",
+    "tip": {
+     "drive": "hex",
+     "size": "3/16in"
+    },
+    "max_torque_nm": 8.0
+   },
+   "doc": "3/16 in Allen key"
+  },
+  "allen_key_quarter_in": {
+   "is_a": "allen_key",
+   "props": {
+    "label": "1/4 in hex key (disposal wrench)",
+    "tip": {
+     "drive": "hex",
+     "size": "1/4in"
+    },
+    "max_torque_nm": 15.0
+   },
+   "doc": "1/4 in hex key (disposal wrench)"
+  },
+  "wrench": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "wrench",
+    "tool_kind": "wrench",
+    "tool_category": "wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "13mm"
+    },
+    "max_torque_nm": 35.0,
+    "mass_kg": 0.12,
+    "size_m": [
+     0.18,
+     0.03,
+     0.008
+    ],
+    "volume_l": 0.05
+   },
+   "doc": "Open/box-end wrench. tip drive hex_nut: fits nuts and bolt heads across the flats."
+  },
+  "combination_wrench_10mm": {
+   "is_a": "wrench",
+   "props": {
+    "label": "10 mm combination wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "10mm"
+    },
+    "mass_kg": 0.07,
+    "size_m": [
+     0.15,
+     0.03,
+     0.008
+    ],
+    "size_system": "metric"
+   },
+   "doc": "10 mm combination wrench"
+  },
+  "combination_wrench_13mm": {
+   "is_a": "wrench",
+   "props": {
+    "label": "13 mm combination wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "13mm"
+    },
+    "mass_kg": 0.12,
+    "size_m": [
+     0.18,
+     0.03,
+     0.008
+    ],
+    "size_system": "metric"
+   },
+   "doc": "13 mm combination wrench"
+  },
+  "combination_wrench_7_16in": {
+   "is_a": "wrench",
+   "props": {
+    "label": "7/16 in combination wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "7/16in"
+    },
+    "mass_kg": 0.09,
+    "size_m": [
+     0.16,
+     0.03,
+     0.008
+    ],
+    "size_system": "sae"
+   },
+   "doc": "7/16 in combination wrench"
+  },
+  "combination_wrench_1_2in": {
+   "is_a": "wrench",
+   "props": {
+    "label": "1/2 in combination wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "1/2in"
+    },
+    "mass_kg": 0.12,
+    "size_m": [
+     0.18,
+     0.03,
+     0.008
+    ],
+    "size_system": "sae"
+   },
+   "doc": "1/2 in combination wrench"
+  },
+  "combination_wrench_9_16in": {
+   "is_a": "wrench",
+   "props": {
+    "label": "9/16 in combination wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "9/16in"
+    },
+    "mass_kg": 0.15,
+    "size_m": [
+     0.2,
+     0.03,
+     0.008
+    ],
+    "size_system": "sae"
+   },
+   "doc": "9/16 in combination wrench"
+  },
+  "adjustable_wrench": {
+   "is_a": "wrench",
+   "props": {
+    "label": "8 in adjustable wrench",
+    "tool_kind": "adjustable_wrench",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "adjustable"
+    },
+    "jaw_max_mm": 24.0,
+    "settings": {
+     "jaw_mm": 20.0
+    },
+    "setting_options": {
+     "jaw_mm": {
+      "min": 0.0,
+      "max": 24.0
+     }
+    },
+    "mass_kg": 0.25,
+    "size_m": [
+     0.2,
+     0.06,
+     0.015
+    ],
+    "max_torque_nm": 35.0
+   },
+   "doc": "8 in adjustable (crescent) wrench. settings.jaw_mm must be set snug on the flats; a loose jaw rounds the nut.",
+   "perception": {
+    "read": [
+     "jaw_max_mm"
+    ]
+   }
+  },
+  "ratchet": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "3/8 in ratchet",
+    "tool_kind": "ratchet",
+    "tool_category": "wrench",
+    "max_torque_nm": 60.0,
+    "mass_kg": 0.3,
+    "size_m": [
+     0.2,
+     0.035,
+     0.03
+    ],
+    "slots": {
+     "socket": {
+      "accepts": [
+       "socket_3_8"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "tip": null
+   },
+   "doc": "3/8 in drive ratchet; install a socket in its socket slot."
+  },
+  "socket": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "socket",
+    "category": "tool",
+    "tool_category": "socket",
+    "material": "steel",
+    "tags": [
+     "tool",
+     "socket_3_8"
+    ],
+    "part_type": "socket_13mm",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "13mm"
+    },
+    "mass_kg": 0.03,
+    "size_m": [
+     0.022,
+     0.022,
+     0.028
+    ],
+    "volume_l": 0.01,
+    "home": null,
+    "oil_film": 0.0
+   },
+   "doc": "3/8 in drive socket (part of a socket set). part_type is its size.",
+   "perception": {
+    "glance": [
+     "tool_kind",
+     "tool_category"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "socket_8mm": {
+   "is_a": "socket",
+   "props": {
+    "label": "8mm socket",
+    "part_type": "socket_8mm",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "8mm"
+    },
+    "size_system": "metric"
+   },
+   "doc": "8mm socket"
+  },
+  "socket_10mm": {
+   "is_a": "socket",
+   "props": {
+    "label": "10mm socket",
+    "part_type": "socket_10mm",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "10mm"
+    },
+    "size_system": "metric"
+   },
+   "doc": "10mm socket"
+  },
+  "socket_13mm": {
+   "is_a": "socket",
+   "props": {
+    "label": "13mm socket",
+    "part_type": "socket_13mm",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "13mm"
+    },
+    "size_system": "metric"
+   },
+   "doc": "13mm socket"
+  },
+  "socket_3_8in": {
+   "is_a": "socket",
+   "props": {
+    "label": "3/8in socket",
+    "part_type": "socket_3_8in",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "3/8in"
+    },
+    "size_system": "sae"
+   },
+   "doc": "3/8in socket"
+  },
+  "socket_7_16in": {
+   "is_a": "socket",
+   "props": {
+    "label": "7/16in socket",
+    "part_type": "socket_7_16in",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "7/16in"
+    },
+    "size_system": "sae"
+   },
+   "doc": "7/16in socket"
+  },
+  "socket_1_2in": {
+   "is_a": "socket",
+   "props": {
+    "label": "1/2in socket",
+    "part_type": "socket_1_2in",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "1/2in"
+    },
+    "size_system": "sae"
+   },
+   "doc": "1/2in socket"
+  },
+  "socket_case": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "socket set case",
+    "material": "plastic",
+    "openable": true,
+    "open": false,
+    "capacity_l": 1.5,
+    "inner_size_m": [
+     0.3,
+     0.15,
+     0.05
+    ],
+    "size_m": [
+     0.32,
+     0.17,
+     0.06
+    ],
+    "mass_kg": 0.5,
+    "tool_storage": true,
+    "slots": {
+     "8mm": {
+      "accepts": [
+       "socket_8mm"
+      ],
+      "item": null,
+      "access": "open"
+     },
+     "10mm": {
+      "accepts": [
+       "socket_10mm"
+      ],
+      "item": null,
+      "access": "open"
+     },
+     "13mm": {
+      "accepts": [
+       "socket_13mm"
+      ],
+      "item": null,
+      "access": "open"
+     },
+     "3/8in": {
+      "accepts": [
+       "socket_3_8in"
+      ],
+      "item": null,
+      "access": "open"
+     },
+     "7/16in": {
+      "accepts": [
+       "socket_7_16in"
+      ],
+      "item": null,
+      "access": "open"
+     },
+     "1/2in": {
+      "accepts": [
+       "socket_1_2in"
+      ],
+      "item": null,
+      "access": "open"
+     }
+    },
+    "volume_l": 3.3
+   },
+   "doc": "Socket set case: one molded slot per socket size (install each socket in its slot).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "pliers": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "pliers",
+    "tool_kind": "pliers",
+    "tool_category": "pliers",
+    "capabilities": [
+     "grip",
+     "bend"
+    ],
+    "settings": {
+     "jaws": "closed"
+    },
+    "setting_options": {
+     "jaws": [
+      "open",
+      "closed"
+     ]
+    },
+    "max_torque_nm": 12.0,
+    "tip": {
+     "drive": "grip",
+     "size": "any"
+    }
+   },
+   "doc": "Pliers. jaws open/closed via settings; grip, bend, pull. On hex nuts they slip and round the corners; bare jaws mar chrome."
+  },
+  "pliers_slip_joint": {
+   "is_a": "pliers",
+   "props": {
+    "label": "slip-joint pliers",
+    "pliers_kind": "slip_joint",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.2,
+     0.05,
+     0.02
+    ],
+    "pointed": false,
+    "capabilities": [
+     "grip",
+     "bend",
+     "pull_staple"
+    ],
+    "tool_category": "pliers"
+   },
+   "doc": "slip-joint pliers"
+  },
+  "pliers_needle_nose": {
+   "is_a": "pliers",
+   "props": {
+    "label": "needle-nose pliers",
+    "pliers_kind": "needle_nose",
+    "mass_kg": 0.15,
+    "size_m": [
+     0.2,
+     0.04,
+     0.015
+    ],
+    "pointed": true,
+    "capabilities": [
+     "grip",
+     "bend",
+     "pull_staple"
+    ],
+    "tool_category": "pliers"
+   },
+   "doc": "needle-nose pliers"
+  },
+  "pliers_locking": {
+   "is_a": "pliers",
+   "props": {
+    "label": "locking pliers (vise-grip)",
+    "pliers_kind": "locking",
+    "mass_kg": 0.3,
+    "size_m": [
+     0.25,
+     0.07,
+     0.02
+    ],
+    "pointed": false,
+    "capabilities": [
+     "grip",
+     "bend",
+     "pull_staple"
+    ],
+    "tool_category": "pliers"
+   },
+   "doc": "locking pliers (vise-grip)"
+  },
+  "diagonal_cutters": {
+   "is_a": "pliers",
+   "props": {
+    "label": "diagonal wire cutters",
+    "pliers_kind": "diagonal_cutter",
+    "mass_kg": 0.14,
+    "size_m": [
+     0.16,
+     0.05,
+     0.015
+    ],
+    "pointed": false,
+    "capabilities": [
+     "cut_wire"
+    ],
+    "tool_category": "cutters"
+   },
+   "doc": "diagonal wire cutters"
+  },
+  "claw_hammer": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "claw hammer",
+    "tool_kind": "claw_hammer",
+    "tool_category": "hammer",
+    "capabilities": [
+     "drive_nail",
+     "pull_nail"
+    ],
+    "mass_kg": 0.62,
+    "size_m": [
+     0.33,
+     0.13,
+     0.03
+    ],
+    "volume_l": 0.35,
+    "head_kg": 0.45,
+    "handle_material": "fiberglass",
+    "marks_finish": true
+   },
+   "doc": "16 oz claw hammer (0.45 kg head). Drives and pulls nails; marks finished panels. Hidden damage loose_head flies off when swung."
+  },
+  "rubber_mallet": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "rubber mallet",
+    "tool_kind": "rubber_mallet",
+    "tool_category": "hammer",
+    "capabilities": [
+     "tap"
+    ],
+    "mass_kg": 0.5,
+    "size_m": [
+     0.3,
+     0.1,
+     0.06
+    ],
+    "volume_l": 0.6,
+    "head_kg": 0.4,
+    "handle_material": "wood",
+    "marks_finish": false
+   },
+   "doc": "Rubber mallet for dowels, cam parts and flat-pack panels (no marks)."
+  },
+  "putty_knife": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "putty knife",
+    "tool_kind": "putty_knife",
+    "tool_category": "scraper",
+    "capabilities": [
+     "spread_spackle",
+     "scrape",
+     "pry_soft"
+    ],
+    "mass_kg": 0.08,
+    "size_m": [
+     0.2,
+     0.04,
+     0.01
+    ]
+   },
+   "doc": "1.5 in flexible putty knife: spackle, scraping felt pads off without gouging."
+  },
+  "utility_knife": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "utility knife",
+    "tool_kind": "utility_knife",
+    "tool_category": "cutting",
+    "capabilities": [
+     "cut"
+    ],
+    "mass_kg": 0.15,
+    "size_m": [
+     0.16,
+     0.03,
+     0.02
+    ],
+    "settings": {
+     "blade": "retracted"
+    },
+    "setting_options": {
+     "blade": [
+      "retracted",
+      "extended"
+     ]
+    },
+    "safe_grips": [
+     "handle"
+    ],
+    "blade_tool": true
+   },
+   "doc": "Retractable utility knife. settings.blade retracted/extended; extended it is sharp (handle grip only)."
+  },
+  "tool_scissors": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "scissors",
+    "tool_kind": "scissors",
+    "tool_category": "cutting",
+    "capabilities": [
+     "cut"
+    ],
+    "pointed": true,
+    "mass_kg": 0.09,
+    "size_m": [
+     0.21,
+     0.07,
+     0.01
+    ],
+    "safe_grips": [
+     "handle"
+    ],
+    "settings": {
+     "jaws": "closed"
+    },
+    "setting_options": {
+     "jaws": [
+      "open",
+      "closed"
+     ]
+    },
+    "blade_tool": true
+   },
+   "doc": "General-purpose shop scissors (pointed)."
+  },
+  "staple_gun": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "staple gun",
+    "tool_kind": "staple_gun",
+    "tool_category": "fastening",
+    "capabilities": [
+     "staple"
+    ],
+    "mass_kg": 0.7,
+    "size_m": [
+     0.2,
+     0.05,
+     0.13
+    ],
+    "settings": {
+     "safety": "locked"
+    },
+    "setting_options": {
+     "safety": [
+      "locked",
+      "unlocked"
+     ]
+    },
+    "staples": 40,
+    "jammed": false
+   },
+   "doc": "Manual staple gun. settings.safety locked/unlocked; clear jams only when locked; fires 1/4-9/16 in staples."
+  },
+  "caulk_gun": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "caulk gun",
+    "tool_kind": "caulk_gun",
+    "tool_category": "applicator",
+    "capabilities": [
+     "apply_caulk"
+    ],
+    "mass_kg": 0.45,
+    "size_m": [
+     0.33,
+     0.06,
+     0.15
+    ],
+    "slots": {
+     "tube": {
+      "accepts": [
+       "caulk_tube"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Dripless caulk gun; install a caulk tube in its tube slot."
+  },
+  "drain_snake": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "drain snake (barbed strip)",
+    "tool_kind": "drain_snake",
+    "tool_category": "plumbing",
+    "material": "plastic",
+    "capabilities": [
+     "snake_drain"
+    ],
+    "reach_m": 0.5,
+    "mass_kg": 0.03,
+    "size_m": [
+     0.5,
+     0.01,
+     0.002
+    ],
+    "volume_l": 0.02
+   },
+   "doc": "Plastic barbed drain cleaning strip (50 cm): hair clogs in sink and shower drains.",
+   "perception": {
+    "read": [
+     "reach_m"
+    ]
+   }
+  },
+  "hand_auger": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "drum hand auger",
+    "tool_kind": "hand_auger",
+    "tool_category": "plumbing",
+    "capabilities": [
+     "snake_drain"
+    ],
+    "reach_m": 7.6,
+    "mass_kg": 1.2,
+    "size_m": [
+     0.2,
+     0.2,
+     0.3
+    ],
+    "volume_l": 4.0
+   },
+   "doc": "25 ft (7.6 m) drum hand auger for deeper clogs.",
+   "perception": {
+    "read": [
+     "reach_m"
+    ]
+   }
+  },
+  "radiator_bleed_key": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "radiator bleed key",
+    "tool_kind": "bleed_key",
+    "tool_category": "plumbing",
+    "capabilities": [
+     "bleed"
+    ],
+    "material": "brass",
+    "mass_kg": 0.01,
+    "size_m": [
+     0.05,
+     0.03,
+     0.005
+    ],
+    "volume_l": 0.005
+   },
+   "doc": "Square radiator bleed key."
+  },
+  "plastic_scraper_tv": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "plastic scraper",
+    "tool_kind": "plastic_scraper",
+    "tool_category": "scraper",
+    "material": "plastic",
+    "capabilities": [
+     "scrape",
+     "scrape_ice"
+    ],
+    "mass_kg": 0.05,
+    "size_m": [
+     0.12,
+     0.1,
+     0.01
+    ]
+   },
+   "doc": "Plastic ice/pad scraper (non-marring)."
+  },
+  "ice_scraper": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "ice scraper",
+    "tool_kind": "ice_scraper",
+    "tool_category": "vehicle",
+    "material": "plastic",
+    "capabilities": [
+     "scrape_ice"
+    ],
+    "mass_kg": 0.3,
+    "size_m": [
+     0.6,
+     0.12,
+     0.08
+    ],
+    "volume_l": 1.0
+   },
+   "doc": "Car ice scraper with snow brush."
+  },
+  "sanding_block": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "sanding block",
+    "tool_kind": "sanding_block",
+    "tool_category": "abrasive",
+    "material": "foam",
+    "capabilities": [
+     "sand"
+    ],
+    "grit": 120,
+    "mass_kg": 0.06,
+    "size_m": [
+     0.1,
+     0.07,
+     0.025
+    ],
+    "volume_l": 0.18
+   },
+   "doc": "Foam sanding block; grit 120 (shaping) or 220 (finish).",
+   "perception": {
+    "read": [
+     "grit"
+    ]
+   }
+  },
+  "grout_saw": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "grout saw",
+    "tool_kind": "grout_saw",
+    "tool_category": "tile",
+    "capabilities": [
+     "rake_grout"
+    ],
+    "mass_kg": 0.1,
+    "size_m": [
+     0.2,
+     0.04,
+     0.02
+    ]
+   },
+   "doc": "Carbide grout saw for raking out cracked grout."
+  },
+  "grout_float": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "grout float",
+    "tool_kind": "grout_float",
+    "tool_category": "tile",
+    "material": "rubber",
+    "capabilities": [
+     "float_grout"
+    ],
+    "mass_kg": 0.25,
+    "size_m": [
+     0.24,
+     0.1,
+     0.06
+    ],
+    "volume_l": 1.0
+   },
+   "doc": "Rubber grout float."
+  },
+  "paint_brush_angled": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "2 in angled paint brush",
+    "tool_kind": "paint_brush",
+    "tool_category": "painting",
+    "material": "wood",
+    "capabilities": [
+     "paint"
+    ],
+    "mass_kg": 0.06,
+    "size_m": [
+     0.24,
+     0.05,
+     0.02
+    ],
+    "paint_loaded": null
+   },
+   "doc": "2 in angled sash brush for cutting in and touch-ups."
+  },
+  "paint_roller": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "paint roller",
+    "tool_kind": "paint_roller",
+    "tool_category": "painting",
+    "capabilities": [
+     "paint"
+    ],
+    "mass_kg": 0.25,
+    "size_m": [
+     0.3,
+     0.23,
+     0.06
+    ],
+    "volume_l": 2.0,
+    "paint_loaded": null
+   },
+   "doc": "9 in paint roller (3/8 in nap) for walls."
+  },
+  "whetstone": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "1000/6000 whetstone",
+    "tool_kind": "whetstone",
+    "tool_category": "sharpening",
+    "material": "ceramic",
+    "capabilities": [
+     "sharpen_knife"
+    ],
+    "grit": 1000,
+    "mass_kg": 0.6,
+    "size_m": [
+     0.18,
+     0.06,
+     0.03
+    ],
+    "volume_l": 0.35,
+    "fragile": true
+   },
+   "doc": "Combination water stone 1000/6000 grit. Soak 10 min (wetness) before use; dry stones load and glaze.",
+   "perception": {
+    "read": [
+     "grit"
+    ]
+   }
+  },
+  "pull_through_sharpener": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "pull-through knife sharpener",
+    "tool_kind": "pull_through_sharpener",
+    "tool_category": "sharpening",
+    "material": "plastic",
+    "capabilities": [
+     "sharpen_knife"
+    ],
+    "v_angle_deg": 20.0,
+    "mass_kg": 0.15,
+    "size_m": [
+     0.2,
+     0.05,
+     0.08
+    ]
+   },
+   "doc": "Two-stage V pull-through sharpener (carbide coarse, ceramic fine) for double-bevel steel knives only.",
+   "perception": {
+    "read": [
+     "v_angle_deg"
+    ]
+   }
+  },
+  "tire_gauge": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "tire pressure gauge",
+    "tool_kind": "tire_gauge",
+    "tool_category": "vehicle",
+    "capabilities": [
+     "measure_pressure"
+    ],
+    "mass_kg": 0.1,
+    "size_m": [
+     0.13,
+     0.05,
+     0.03
+    ],
+    "accuracy_bar": 0.05
+   },
+   "doc": "Dial tire pressure gauge (Schrader; Presta with adapter), 0-160 psi.",
+   "perception": {
+    "read": [
+     "accuracy_bar"
+    ]
+   }
+  },
+  "lug_wrench": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "lug wrench",
+    "tool_kind": "lug_wrench",
+    "tool_category": "vehicle",
+    "tip": {
+     "drive": "hex_nut",
+     "size": "19mm"
+    },
+    "max_torque_nm": 150.0,
+    "mass_kg": 1.4,
+    "size_m": [
+     0.5,
+     0.5,
+     0.04
+    ],
+    "volume_l": 1.5
+   },
+   "doc": "Cross lug wrench (17/19/21 mm, 13/16 in)."
+  },
+  "bike_tire_levers": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "tire levers",
+    "tool_kind": "tire_levers",
+    "tool_category": "bike",
+    "material": "plastic",
+    "mass_kg": 0.02,
+    "size_m": [
+     0.11,
+     0.02,
+     0.01
+    ]
+   },
+   "doc": "Pair of plastic tire levers."
+  },
+  "bar_clamp": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "bar clamp",
+    "tool_kind": "bar_clamp",
+    "tool_category": "clamp",
+    "mass_kg": 0.6,
+    "size_m": [
+     0.45,
+     0.12,
+     0.03
+    ],
+    "volume_l": 0.4,
+    "settings": {
+     "clamp": "released"
+    },
+    "setting_options": {
+     "clamp": [
+      "released",
+      "clamped"
+     ]
+    }
+   },
+   "doc": "12 in quick-release bar clamp. settings.clamp released/clamped."
+  },
+  "power_tool": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "power tool",
+    "tool_category": "power_tool",
+    "power_tool": true,
+    "electronic": true,
+    "water_safe": false,
+    "mass_kg": 1.5,
+    "size_m": [
+     0.25,
+     0.08,
+     0.22
+    ],
+    "volume_l": 2.5,
+    "value": 120.0,
+    "slots": {
+     "battery": {
+      "accepts": [
+       "tool_pack_brand_a_18v"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Cordless power tool: battery slot (tool_pack_brand_a_18v), adult presence or approval to operate, never wet."
+  },
+  "cordless_drill": {
+   "is_a": "power_tool",
+   "props": {
+    "label": "cordless drill/driver",
+    "tool_kind": "drill",
+    "capabilities": [
+     "drill",
+     "drive_screw"
+    ],
+    "mass_kg": 1.4,
+    "size_m": [
+     0.2,
+     0.08,
+     0.22
+    ],
+    "settings": {
+     "clutch": 5,
+     "direction": "forward",
+     "speed": "low"
+    },
+    "setting_options": {
+     "clutch": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      "drill"
+     ],
+     "direction": [
+      "forward",
+      "reverse"
+     ],
+     "speed": [
+      "low",
+      "high"
+     ]
+    },
+    "slots": {
+     "battery": {
+      "accepts": [
+       "tool_pack_brand_a_18v"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "bit": {
+      "accepts": [
+       "hex_bit"
+      ],
+      "item": null,
+      "access": "none",
+      "power_off_first": false
+     }
+    }
+   },
+   "doc": "18 V drill/driver: clutch 1-20 (about 0.6-9.6 N m) or drill mode (40 N m), forward/reverse, hex bit slot."
+  },
+  "cordless_jigsaw": {
+   "is_a": "power_tool",
+   "props": {
+    "label": "cordless jigsaw",
+    "tool_kind": "jigsaw",
+    "capabilities": [
+     "saw"
+    ],
+    "mass_kg": 2.2,
+    "size_m": [
+     0.25,
+     0.08,
+     0.2
+    ],
+    "guard": "down",
+    "slots": {
+     "battery": {
+      "accepts": [
+       "tool_pack_brand_a_18v"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "blade": {
+      "accepts": [
+       "jigsaw_blade"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "floor_hazard": "trip"
+   },
+   "doc": "18 V jigsaw. Remove the battery before changing the blade; clamp the workpiece; guard down."
+  },
+  "circular_saw": {
+   "is_a": "power_tool",
+   "props": {
+    "label": "cordless circular saw",
+    "tool_kind": "circular_saw",
+    "capabilities": [
+     "saw"
+    ],
+    "mass_kg": 3.2,
+    "size_m": [
+     0.32,
+     0.25,
+     0.25
+    ],
+    "guard": "down",
+    "volume_l": 8.0,
+    "slots": {
+     "battery": {
+      "accepts": [
+       "tool_pack_brand_a_18v"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "blade": {
+      "accepts": [
+       "circular_blade"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "18 V 6.5 in circular saw with spring blade guard."
+  },
+  "stud_finder": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "stud finder",
+    "tool_kind": "stud_finder",
+    "tool_category": "measuring",
+    "material": "plastic",
+    "switchable": true,
+    "on": false,
+    "battery_powered": true,
+    "battery_level": 1.0,
+    "mass_kg": 0.2,
+    "size_m": [
+     0.15,
+     0.07,
+     0.04
+    ],
+    "electronic": true,
+    "calibrated": null
+   },
+   "doc": "Electronic stud finder. Switch it on over a hollow spot to calibrate; held while inspecting a wall it reports stud centers.",
+   "perception": {
+    "measure": {
+     "battery_level": "battery_tester"
+    },
+    "hidden": [
+     "calibrated"
+    ]
+   }
+  },
+  "pressure_washer": {
+   "is_a": "object",
+   "props": {
+    "label": "electric pressure washer",
+    "category": "tool",
+    "tool_kind": "pressure_washer",
+    "tool_category": "power_tool",
+    "power_tool": true,
+    "portable": true,
+    "mass_kg": 11.0,
+    "size_m": [
+     0.35,
+     0.3,
+     0.6
+    ],
+    "volume_l": 40.0,
+    "psi": 1900.0,
+    "flow_lpm": 4.5,
+    "plug_required": true,
+    "plugged_in": false,
+    "two_handed": true,
+    "water_safe": true,
+    "settings": {
+     "nozzle": "40"
+    },
+    "setting_options": {
+     "nozzle": [
+      "0",
+      "15",
+      "25",
+      "40",
+      "soap"
+     ]
+    },
+    "value": 180.0,
+    "tags": [
+     "tool"
+    ],
+    "oil_film": 0.0
+   },
+   "doc": "Electric pressure washer 1900 psi (131 bar), 1.2 gpm, nozzles 0/15/25/40 deg and soap. Never at people, pets, glass or outlets.",
+   "perception": {
+    "glance": [
+     "tool_kind",
+     "tool_category"
+    ],
+    "read": [
+     "psi",
+     "flow_lpm"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "hex_bit": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "driver bit",
+    "category": "tool",
+    "tool_category": "bit",
+    "material": "steel",
+    "part_type": "hex_bit",
+    "tags": [
+     "tool",
+     "hex_bit"
+    ],
+    "tip": {
+     "drive": "phillips",
+     "size": "2"
+    },
+    "mass_kg": 0.01,
+    "size_m": [
+     0.05,
+     0.007,
+     0.007
+    ],
+    "volume_l": 0.005,
+    "home": null,
+    "oil_film": 0.0
+   },
+   "doc": "1/4 in hex-shank driver/drill bit (installs in a drill or multi-bit driver).",
+   "perception": {
+    "glance": [
+     "tool_kind",
+     "tool_category"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "driver_bit_ph2": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "PH2 driver bit",
+    "tip": {
+     "drive": "phillips",
+     "size": "2"
+    }
+   },
+   "doc": "PH2 driver bit"
+  },
+  "driver_bit_ph1": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "PH1 driver bit",
+    "tip": {
+     "drive": "phillips",
+     "size": "1"
+    }
+   },
+   "doc": "PH1 driver bit"
+  },
+  "driver_bit_pz2": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "PZ2 driver bit",
+    "tip": {
+     "drive": "pozidriv",
+     "size": "2"
+    }
+   },
+   "doc": "PZ2 driver bit"
+  },
+  "driver_bit_t25": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "T25 driver bit",
+    "tip": {
+     "drive": "torx",
+     "size": "t25"
+    }
+   },
+   "doc": "T25 driver bit"
+  },
+  "drill_bit_wood_3mm": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "3 mm wood drill bit",
+    "tip": {
+     "drive": "drill",
+     "size": "3mm",
+     "material": "wood"
+    }
+   },
+   "doc": "3 mm wood drill bit"
+  },
+  "drill_bit_masonry_6mm": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "6 mm masonry drill bit",
+    "tip": {
+     "drive": "drill",
+     "size": "6mm",
+     "material": "masonry"
+    }
+   },
+   "doc": "6 mm masonry drill bit"
+  },
+  "drill_bit_wood_6mm": {
+   "is_a": "hex_bit",
+   "props": {
+    "label": "6 mm brad-point drill bit",
+    "tip": {
+     "drive": "drill",
+     "size": "6mm",
+     "material": "wood"
+    }
+   },
+   "doc": "6 mm brad-point drill bit"
+  },
+  "jigsaw_blade": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "jigsaw blade",
+    "category": "tool",
+    "material": "steel",
+    "part_type": "jigsaw_blade",
+    "blade": true,
+    "mass_kg": 0.01,
+    "size_m": [
+     0.1,
+     0.008,
+     0.001
+    ],
+    "volume_l": 0.002
+   },
+   "doc": "T-shank jigsaw blade (handled by the shank).",
+   "perception": {
+    "glance": [
+     "tool_kind",
+     "tool_category"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "toolbox": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "toolbox",
+    "category": "toolbox",
+    "material": "steel",
+    "openable": true,
+    "open": false,
+    "capacity_l": 22.0,
+    "inner_size_m": [
+     0.46,
+     0.2,
+     0.18
+    ],
+    "size_m": [
+     0.5,
+     0.22,
+     0.24
+    ],
+    "mass_kg": 3.0,
+    "latched": true,
+    "tool_storage": true,
+    "stackable": true,
+    "max_stack_load_kg": 20.0
+   },
+   "doc": "Steel toolbox with lift-out tray and latching lid.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "pegboard": {
+   "is_a": "fixture",
+   "props": {
+    "label": "pegboard",
+    "category": "pegboard",
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     1.2,
+     0.6
+    ],
+    "size_m": [
+     1.2,
+     0.03,
+     0.6
+    ],
+    "surface_height_m": 0.0,
+    "mount_height_m": 1.0,
+    "material": "hardboard",
+    "mass_kg": 5.0,
+    "outlines": {},
+    "tool_storage": true,
+    "blocks_path": false,
+    "vertical_board": true
+   },
+   "doc": "Wall pegboard with painted tool outlines. Hang tools 'on' it at an outline position (spos); outline_fit is judged.",
+   "perception": {
+    "glance": [
+     "outlines"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "tool_bin": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "tool bin",
+    "material": "plastic",
+    "capacity_l": 12.0,
+    "inner_size_m": [
+     0.38,
+     0.25,
+     0.14
+    ],
+    "size_m": [
+     0.4,
+     0.27,
+     0.15
+    ],
+    "mass_kg": 0.5,
+    "holds_category": null,
+    "tool_storage": true,
+    "stackable": true
+   },
+   "doc": "Labeled plastic bin for sorting tools by category (holds_category).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "hardware_organizer": {
+   "is_a": "storage_furniture",
+   "props": {
+    "label": "hardware organizer",
+    "material": "plastic",
+    "portable": true,
+    "blocks_path": false,
+    "size_m": [
+     0.38,
+     0.16,
+     0.3
+    ],
+    "mass_kg": 1.5,
+    "capacity_l": 6.0,
+    "inner_size_m": [
+     0.36,
+     0.15,
+     0.28
+    ],
+    "surface_height_m": 0.3
+   },
+   "doc": "Small-parts organizer cabinet; compartments are child entities (organizer_compartment) labeled by fastener kind.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "organizer_compartment": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "organizer compartment",
+    "material": "plastic",
+    "capacity_l": 0.25,
+    "inner_size_m": [
+     0.1,
+     0.13,
+     0.04
+    ],
+    "size_m": [
+     0.11,
+     0.14,
+     0.045
+    ],
+    "mass_kg": 0.03,
+    "holds_kind": null,
+    "label_text": "",
+    "volume_l": 0.7
+   },
+   "doc": "One drawer/compartment of a hardware organizer; holds_kind is the fastener kind it is labeled for.",
+   "perception": {
+    "read": [
+     "holds_kind"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "parts_tray": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "magnetic parts tray",
+    "material": "steel",
+    "capacity_l": 0.3,
+    "inner_size_m": [
+     0.14,
+     0.14,
+     0.03
+    ],
+    "size_m": [
+     0.15,
+     0.15,
+     0.035
+    ],
+    "mass_kg": 0.2,
+    "hardware_counts": {},
+    "magnetic": true,
+    "volume_l": 0.8
+   },
+   "doc": "Magnetic parts tray for screws during disassembly.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "hardware_bag_tv": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "zip bag for hardware",
+    "material": "plastic",
+    "capacity_l": 0.5,
+    "inner_size_m": [
+     0.15,
+     0.1,
+     0.03
+    ],
+    "size_m": [
+     0.16,
+     0.11,
+     0.02
+    ],
+    "mass_kg": 0.005,
+    "soft_sided": true,
+    "hardware_counts": {},
+    "label_text": "",
+    "volume_l": 0.35
+   },
+   "doc": "Resealable bag for disassembled hardware; hardware_counts tracks what went in.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "fastener_lot": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "loose screws",
+    "category": "hardware",
+    "material": "steel",
+    "mass_kg": 0.03,
+    "size_m": [
+     0.05,
+     0.04,
+     0.02
+    ],
+    "volume_l": 0.02,
+    "count": 10,
+    "appearance": "screws",
+    "_kind": "wood_screw_8x1.25in",
+    "secret_fields": [],
+    "choking_hazard": true
+   },
+   "doc": "A handful of identical small fasteners (counted). True kind is hidden (_kind); inspect closely to gauge thread, head and length.",
+   "perception": {
+    "glance": [
+     "appearance"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "hanging_hardware": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "hanging hardware",
+    "category": "hardware",
+    "material": "plastic",
+    "mass_kg": 0.01,
+    "size_m": [
+     0.03,
+     0.02,
+     0.04
+    ],
+    "volume_l": 0.01,
+    "hardware_kind": "adhesive_hook",
+    "rated_kg": 0.45,
+    "removable": true,
+    "adhesive": null,
+    "waterproof": false,
+    "max_service_temp_c": 40.0,
+    "cure_s": 3600.0,
+    "mounted": false,
+    "hang_slots": 0
+   },
+   "doc": "Base for wall-hanging hardware.",
+   "perception": {
+    "read": [
+     "rated_kg",
+     "max_service_temp_c",
+     "cure_s",
+     "waterproof",
+     "removable"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "mount"
+    ]
+   }
+  },
+  "adhesive_hook_small": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "small removable adhesive hook (0.5 lb)",
+    "hardware_kind": "adhesive_hook",
+    "rated_kg": 0.23,
+    "adhesive": "stretch_release",
+    "waterproof": false,
+    "hang_slots": 1,
+    "mass_kg": 0.005,
+    "accepts_items": true
+   },
+   "doc": "small removable adhesive hook (0.5 lb)"
+  },
+  "adhesive_hook_medium": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "medium removable adhesive hook (3 lb)",
+    "hardware_kind": "adhesive_hook",
+    "rated_kg": 1.36,
+    "adhesive": "stretch_release",
+    "waterproof": false,
+    "hang_slots": 1,
+    "mass_kg": 0.01,
+    "accepts_items": true
+   },
+   "doc": "medium removable adhesive hook (3 lb)"
+  },
+  "adhesive_hook_large": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "large removable adhesive hook (5 lb)",
+    "hardware_kind": "adhesive_hook",
+    "rated_kg": 2.27,
+    "adhesive": "stretch_release",
+    "waterproof": false,
+    "hang_slots": 1,
+    "mass_kg": 0.02,
+    "accepts_items": true
+   },
+   "doc": "large removable adhesive hook (5 lb)"
+  },
+  "adhesive_hook_bath": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "water-resistant adhesive hook (3 lb)",
+    "hardware_kind": "adhesive_hook",
+    "rated_kg": 1.36,
+    "adhesive": "stretch_release",
+    "waterproof": true,
+    "hang_slots": 1,
+    "mass_kg": 0.012,
+    "accepts_items": true
+   },
+   "doc": "water-resistant adhesive hook (3 lb)"
+  },
+  "picture_hanging_strips": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "picture-hanging strips, 4 pairs (16 lb)",
+    "hardware_kind": "adhesive_strip",
+    "rated_kg": 7.26,
+    "adhesive": "stretch_release",
+    "waterproof": false,
+    "hang_slots": 1,
+    "mass_kg": 0.01,
+    "accepts_items": true
+   },
+   "doc": "picture-hanging strips, 4 pairs (16 lb)"
+  },
+  "adhesive_cable_clip": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "adhesive cord clip",
+    "hardware_kind": "cable_clip",
+    "rated_kg": 0.1,
+    "adhesive": "foam",
+    "waterproof": false,
+    "hang_slots": 0,
+    "mass_kg": 0.002,
+    "accepts_items": false
+   },
+   "doc": "adhesive cord clip"
+  },
+  "adhesive_towel_hook": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "adhesive towel hook (accessory)",
+    "hardware_kind": "adhesive_hook",
+    "rated_kg": 1.36,
+    "adhesive": "stretch_release",
+    "waterproof": false,
+    "hang_slots": 1,
+    "mass_kg": 0.015,
+    "accepts_items": true
+   },
+   "doc": "adhesive towel hook (accessory)"
+  },
+  "adhesive_led_light": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "adhesive under-cabinet LED light",
+    "hardware_kind": "accessory",
+    "rated_kg": 0.2,
+    "adhesive": "foam",
+    "waterproof": false,
+    "hang_slots": 0,
+    "mass_kg": 0.12,
+    "accepts_items": false
+   },
+   "doc": "adhesive under-cabinet LED light"
+  },
+  "picture_hook_nail": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "nail-in picture hook (30 lb)",
+    "hardware_kind": "nail_hook",
+    "rated_kg": 13.6,
+    "adhesive": null,
+    "removable": false,
+    "hang_slots": 1,
+    "accepts_items": true,
+    "needs_hammer": true,
+    "makes_hole_mm": 2.0,
+    "material": "steel"
+   },
+   "doc": "Nail-in picture hook rated 30 lb; leaves a nail hole."
+  },
+  "finishing_nail": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "finishing nail",
+    "hardware_kind": "nail",
+    "rated_kg": 4.5,
+    "adhesive": null,
+    "removable": false,
+    "hang_slots": 1,
+    "accepts_items": true,
+    "needs_hammer": true,
+    "makes_hole_mm": 1.5,
+    "material": "steel"
+   },
+   "doc": "1.5 in finishing nail."
+  },
+  "door_bumper": {
+   "is_a": "hanging_hardware",
+   "props": {
+    "label": "adhesive door bumper",
+    "hardware_kind": "bumper",
+    "rated_kg": 0.0,
+    "adhesive": "pressure_sensitive",
+    "removable": true,
+    "hang_slots": 0,
+    "material": "polyurethane",
+    "cure_s": 1800.0,
+    "diameter_mm": 20.0
+   },
+   "doc": "Clear self-adhesive wall bumper (0.8 in) to stop a door handle hitting the wall."
+  },
+  "wall_anchor": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "wall anchor",
+    "category": "hardware",
+    "material": "plastic",
+    "mass_kg": 0.003,
+    "size_m": [
+     0.03,
+     0.008,
+     0.008
+    ],
+    "volume_l": 0.002,
+    "anchor_kind": "ribbed_plastic",
+    "hardware_kind": "anchor",
+    "rated_kg": {
+     "drywall": 4.5,
+     "plaster": 6.8,
+     "masonry": 0.0
+    },
+    "needs_hole_mm": 6.0
+   },
+   "doc": "Drywall anchor; rating depends on wall material.",
+   "perception": {
+    "read": [
+     "rated_kg",
+     "needs_hole_mm"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "mount"
+    ]
+   }
+  },
+  "wall_anchor_toggle": {
+   "is_a": "wall_anchor",
+   "props": {
+    "label": "snap toggle anchor",
+    "anchor_kind": "toggle",
+    "rated_kg": {
+     "drywall": 36.0,
+     "plaster": 36.0,
+     "masonry": 0.0
+    },
+    "needs_hole_mm": 12.7,
+    "material": "steel"
+   },
+   "doc": "Snap toggle anchor for 1/2 in drywall."
+  },
+  "wall_anchor_masonry": {
+   "is_a": "wall_anchor",
+   "props": {
+    "label": "masonry anchor",
+    "anchor_kind": "masonry",
+    "rated_kg": {
+     "drywall": 0.0,
+     "plaster": 0.0,
+     "masonry": 45.0
+    },
+    "needs_hole_mm": 6.0
+   },
+   "doc": "Masonry sleeve anchor."
+  },
+  "felt_pad": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "felt pad",
+    "category": "hardware",
+    "material": "felt",
+    "part_type": "felt_pad",
+    "tags": [
+     "leg_pad",
+     "felt_pad"
+    ],
+    "diameter_mm": 25.0,
+    "thickness_mm": 4.0,
+    "mass_kg": 0.001,
+    "size_m": [
+     0.025,
+     0.025,
+     0.004
+    ],
+    "volume_l": 0.002,
+    "worn": false,
+    "grit": 0.0
+   },
+   "doc": "Self-adhesive felt furniture pad (installs in a leg pad slot).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "mount"
+    ]
+   }
+  },
+  "felt_pad_19mm": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "19 mm felt pad",
+    "diameter_mm": 19.0,
+    "size_m": [
+     0.019,
+     0.019,
+     0.004
+    ]
+   },
+   "doc": "19 mm felt pad"
+  },
+  "felt_pad_25mm": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "25 mm felt pad",
+    "diameter_mm": 25.0,
+    "size_m": [
+     0.025,
+     0.025,
+     0.004
+    ]
+   },
+   "doc": "25 mm felt pad"
+  },
+  "felt_pad_38mm": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "38 mm felt pad",
+    "diameter_mm": 38.0,
+    "size_m": [
+     0.038,
+     0.038,
+     0.004
+    ]
+   },
+   "doc": "38 mm felt pad"
+  },
+  "felt_pad_51mm": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "51 mm felt pad",
+    "diameter_mm": 51.0,
+    "size_m": [
+     0.051,
+     0.051,
+     0.004
+    ]
+   },
+   "doc": "51 mm felt pad"
+  },
+  "furniture_cup": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "furniture cup",
+    "material": "rubber",
+    "tags": [
+     "leg_pad",
+     "furniture_cup"
+    ],
+    "diameter_mm": 45.0,
+    "thickness_mm": 6.0,
+    "size_m": [
+     0.045,
+     0.045,
+     0.006
+    ]
+   },
+   "doc": "Rubber furniture cup for carpet or to stop sliding."
+  },
+  "adjustable_glide": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "adjustable leveling glide",
+    "material": "nylon",
+    "tags": [
+     "leg_pad",
+     "glide"
+    ],
+    "diameter_mm": 25.0,
+    "thickness_mm": 6.0,
+    "adjustable": true,
+    "size_m": [
+     0.025,
+     0.025,
+     0.012
+    ]
+   },
+   "doc": "Screw-in adjustable leveling glide (up to 12 mm)."
+  },
+  "paper_shim": {
+   "is_a": "felt_pad",
+   "props": {
+    "label": "folded paper shim",
+    "material": "paper",
+    "tags": [
+     "leg_pad",
+     "shim"
+    ],
+    "diameter_mm": 40.0,
+    "thickness_mm": 2.0,
+    "temporary": true,
+    "size_m": [
+     0.04,
+     0.04,
+     0.002
+    ]
+   },
+   "doc": "Folded paper shim (temporary)."
+  },
+  "weatherstrip": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "weather stripping",
+    "category": "hardware",
+    "material": "foam",
+    "part_type": "weatherstrip",
+    "tags": [
+     "weatherstrip"
+    ],
+    "thickness_mm": 6.0,
+    "compression": 0.6,
+    "adhesive": true,
+    "length_m": 5.0,
+    "mass_kg": 0.05,
+    "size_m": [
+     0.1,
+     0.1,
+     0.03
+    ],
+    "volume_l": 0.3,
+    "seal_kind": "foam_tape"
+   },
+   "doc": "Weather stripping (installs in a door/window seal slot). compressed_mm = thickness x (1 - compression).",
+   "perception": {
+    "read": [
+     "thickness_mm",
+     "compression"
+    ],
+    "measure": {
+     "length_m": "tape_measure"
+    },
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "foam_tape_quarter_in": {
+   "is_a": "weatherstrip",
+   "props": {
+    "label": "1/4 in foam weatherstrip tape",
+    "thickness_mm": 6.4,
+    "compression": 0.6,
+    "seal_kind": "foam_tape",
+    "tags": [
+     "weatherstrip"
+    ],
+    "adhesive": true
+   },
+   "doc": "1/4 in foam weatherstrip tape"
+  },
+  "foam_tape_3_8in": {
+   "is_a": "weatherstrip",
+   "props": {
+    "label": "3/8 in foam weatherstrip tape",
+    "thickness_mm": 9.5,
+    "compression": 0.55,
+    "seal_kind": "foam_tape",
+    "tags": [
+     "weatherstrip"
+    ],
+    "adhesive": true
+   },
+   "doc": "3/8 in foam weatherstrip tape"
+  },
+  "kerf_weatherstrip": {
+   "is_a": "weatherstrip",
+   "props": {
+    "label": "kerf-in door weatherstrip",
+    "thickness_mm": 7.0,
+    "compression": 0.65,
+    "seal_kind": "kerf",
+    "tags": [
+     "weatherstrip"
+    ],
+    "adhesive": false
+   },
+   "doc": "kerf-in door weatherstrip"
+  },
+  "v_strip": {
+   "is_a": "weatherstrip",
+   "props": {
+    "label": "V-strip weatherstrip",
+    "thickness_mm": 4.0,
+    "compression": 0.7,
+    "seal_kind": "v_strip",
+    "tags": [
+     "weatherstrip"
+    ],
+    "adhesive": true
+   },
+   "doc": "V-strip weatherstrip"
+  },
+  "door_sweep": {
+   "is_a": "weatherstrip",
+   "props": {
+    "label": "door sweep",
+    "part_type": "door_sweep",
+    "tags": [
+     "door_sweep"
+    ],
+    "seal_kind": "sweep",
+    "thickness_mm": 10.0,
+    "compression": 0.5,
+    "adhesive": false,
+    "size_m": [
+     0.9,
+     0.04,
+     0.03
+    ],
+    "material": "vinyl"
+   },
+   "doc": "Slide-on door sweep."
+  },
+  "shop_product": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "product",
+    "category": "product",
+    "material": "plastic",
+    "mass_kg": 0.4,
+    "size_m": [
+     0.07,
+     0.07,
+     0.2
+    ],
+    "volume_l": 0.6,
+    "amount": 1.0,
+    "chemical": true,
+    "orientation": "upright",
+    "openable": true,
+    "open": false,
+    "tags": [
+     "shop_product"
+    ]
+   },
+   "doc": "Base for shop and garage products (lubricants, paint, caulk...).",
+   "perception": {
+    "glance": [
+     "dispense"
+    ],
+    "read": [
+     "product",
+     "cure_s",
+     "recoat_s",
+     "coverage_m2_per_l",
+     "min_c",
+     "max_c",
+     "toxic_to_pets",
+     "paint_color",
+     "sheen",
+     "primer",
+     "wax_safe",
+     "wheel_acid"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "lubricant": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "lubricant",
+    "lubricant": true,
+    "product": "silicone",
+    "dispense": "aerosol",
+    "mass_kg": 0.35,
+    "size_m": [
+     0.065,
+     0.065,
+     0.2
+    ],
+    "openable": true,
+    "open": false
+   },
+   "doc": "Lubricant. product names the chemistry; household rules decide which products are approved for hinges."
+  },
+  "silicone_spray": {
+   "is_a": "lubricant",
+   "props": {
+    "label": "silicone spray lubricant",
+    "product": "silicone",
+    "hazards": [
+     "flammable"
+    ],
+    "dispense": "aerosol",
+    "label_text": "SILICONE SPRAY LUBRICANT"
+   },
+   "doc": "silicone spray lubricant"
+  },
+  "white_lithium_grease": {
+   "is_a": "lubricant",
+   "props": {
+    "label": "white lithium grease (spray)",
+    "product": "lithium_grease",
+    "hazards": [
+     "flammable"
+    ],
+    "dispense": "aerosol",
+    "label_text": "WHITE LITHIUM GREASE (SPRAY)"
+   },
+   "doc": "white lithium grease (spray)"
+  },
+  "light_machine_oil": {
+   "is_a": "lubricant",
+   "props": {
+    "label": "3-in-1 light machine oil",
+    "product": "machine_oil",
+    "hazards": [],
+    "dispense": "drip",
+    "label_text": "3-IN-1 LIGHT MACHINE OIL"
+   },
+   "doc": "3-in-1 light machine oil"
+  },
+  "penetrating_oil": {
+   "is_a": "lubricant",
+   "props": {
+    "label": "penetrating oil / water displacer",
+    "product": "penetrant",
+    "hazards": [
+     "flammable"
+    ],
+    "dispense": "aerosol",
+    "label_text": "PENETRATING OIL / WATER DISPLACER"
+   },
+   "doc": "penetrating oil / water displacer"
+  },
+  "graphite_powder": {
+   "is_a": "lubricant",
+   "props": {
+    "label": "graphite powder lubricant",
+    "product": "graphite",
+    "hazards": [],
+    "dispense": "puffer",
+    "label_text": "GRAPHITE POWDER LUBRICANT"
+   },
+   "doc": "graphite powder lubricant"
+  },
+  "bike_chain_lube": {
+   "is_a": "lubricant",
+   "props": {
+    "label": "bicycle chain lube (dry)",
+    "product": "chain_lube",
+    "hazards": [],
+    "dispense": "drip",
+    "label_text": "BICYCLE CHAIN LUBE (DRY)"
+   },
+   "doc": "bicycle chain lube (dry)"
+  },
+  "paint_can": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "quart of paint",
+    "product": "latex_paint",
+    "paint": true,
+    "paint_color": "swiss_coffee",
+    "sheen": "eggshell",
+    "primer": false,
+    "amount_l": 0.95,
+    "mass_kg": 1.4,
+    "size_m": [
+     0.11,
+     0.11,
+     0.12
+    ],
+    "volume_l": 1.1,
+    "open": false,
+    "openable": true,
+    "label_text": "Interior latex, eggshell. Recoat 2 h."
+   },
+   "doc": "1 quart (0.95 l) can of latex paint; color/sheen must match the wall."
+  },
+  "primer_can": {
+   "is_a": "paint_can",
+   "props": {
+    "label": "quart of primer",
+    "product": "primer",
+    "primer": true,
+    "paint_color": "white_primer",
+    "sheen": "flat",
+    "label_text": "Primer. Recoat 1 h."
+   },
+   "doc": "Quart of stain-blocking primer."
+  },
+  "spackle_tub": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "lightweight spackle",
+    "product": "spackle",
+    "amount_l": 0.24,
+    "mass_kg": 0.15,
+    "size_m": [
+     0.09,
+     0.09,
+     0.07
+    ],
+    "volume_l": 0.3,
+    "label_text": "Lightweight spackling. Fill holes up to 1 in (2 in with mesh). Dry 30-60 min; sand with 220 grit."
+   },
+   "doc": "Lightweight spackling (8 oz). Dry 30 min per 1/8 in; shrinks in holes over 1/2 in."
+  },
+  "caulk_tube": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "tube of silicone caulk",
+    "product": "silicone_caulk",
+    "part_type": "caulk_tube",
+    "nozzle_cut": false,
+    "amount_l": 0.3,
+    "mass_kg": 0.35,
+    "size_m": [
+     0.05,
+     0.05,
+     0.23
+    ],
+    "volume_l": 0.35,
+    "cure_s": 86400.0,
+    "label_text": "100% silicone. Shower ready in 24 h. Apply to clean, dry surfaces."
+   },
+   "doc": "10 oz silicone kitchen and bath caulk. Cut the nozzle; 30 min tack-free, 24 h before water."
+  },
+  "grout_bag": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "bag of sanded grout",
+    "product": "grout",
+    "amount": 1.0,
+    "mass_kg": 4.5,
+    "size_m": [
+     0.2,
+     0.1,
+     0.3
+    ],
+    "volume_l": 4.0,
+    "cure_s": 259200.0,
+    "label_text": "Sanded grout. Damp cure 72 h before water exposure."
+   },
+   "doc": "Sanded grout (bag). Cure 72 h before water."
+  },
+  "deck_sealer": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "gallon of deck sealer",
+    "product": "deck_sealer",
+    "amount_l": 3.78,
+    "coverage_m2_per_l": 6.6,
+    "mass_kg": 4.0,
+    "size_m": [
+     0.17,
+     0.17,
+     0.19
+    ],
+    "volume_l": 4.5,
+    "open": false,
+    "openable": true,
+    "cure_s": 86400.0,
+    "min_c": 10.0,
+    "max_c": 32.0,
+    "hazards": [
+     "flammable"
+    ],
+    "label_text": "Apply only when air and surface are 50-90 F with no rain for 24 h. Surface must be clean and dry (48 h after washing).",
+    "floor_hazard": "trip"
+   },
+   "doc": "1 gal semi-transparent deck sealer: ~25 m2/gal; apply 10-32 C, 24 h dry with no rain; wood must be dry."
+  },
+  "car_shampoo": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "car wash soap",
+    "product": "car_shampoo",
+    "wax_safe": true,
+    "label_text": "Car wash. Two-bucket method. Wash in shade; do not let dry on paint."
+   },
+   "doc": "pH-neutral car wash soap (wax-safe)."
+  },
+  "wheel_cleaner_acid": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "acid wheel cleaner",
+    "product": "wheel_cleaner_acid",
+    "wheel_acid": true,
+    "hazards": [
+     "corrosive"
+    ],
+    "label_text": "Acid-based wheel cleaner. Not for polished, anodized, painted or clear-coated wheels. Use on cool wheels only."
+   },
+   "doc": "Acid wheel cleaner (bare/chromed steel only; etches polished or coated alloys)."
+  },
+  "wheel_cleaner_neutral": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "pH-neutral wheel cleaner",
+    "product": "wheel_cleaner_neutral",
+    "wheel_acid": false,
+    "label_text": "pH-neutral wheel cleaner. Safe for all wheel finishes. Spray on cool wheels."
+   },
+   "doc": "pH-neutral wheel cleaner, safe on all finishes when cool."
+  },
+  "bike_degreaser": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "chain degreaser",
+    "product": "bike_degreaser",
+    "label_text": "Chain degreaser. Rinse. Keep away from disc brakes."
+   },
+   "doc": "Citrus chain degreaser. Keep off disc brake rotors and pads."
+  },
+  "motor_oil_jug": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "motor oil (5 qt)",
+    "product": "motor_oil",
+    "automotive": true,
+    "amount_l": 4.7,
+    "mass_kg": 4.4,
+    "size_m": [
+     0.22,
+     0.11,
+     0.28
+    ],
+    "volume_l": 5.2,
+    "hazards": [],
+    "label_text": "5W-30 motor oil. Keep closed. Dispose of used oil at a collection site."
+   },
+   "doc": "5 qt jug of 5W-30 motor oil."
+  },
+  "antifreeze_jug": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "antifreeze (1 gal)",
+    "product": "antifreeze",
+    "automotive": true,
+    "amount_l": 3.78,
+    "mass_kg": 4.2,
+    "size_m": [
+     0.18,
+     0.11,
+     0.28
+    ],
+    "volume_l": 4.5,
+    "hazards": [
+     "toxic"
+    ],
+    "toxic_to_pets": true,
+    "safe_grips": [
+     "handle"
+    ],
+    "label_text": "Ethylene glycol antifreeze. HARMFUL OR FATAL IF SWALLOWED. Keep away from children and pets."
+   },
+   "doc": "1 gal ethylene-glycol antifreeze: sweet-tasting and lethal to pets and children."
+  },
+  "washer_fluid_jug": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "washer fluid (1 gal)",
+    "product": "washer_fluid",
+    "automotive": true,
+    "amount_l": 3.78,
+    "mass_kg": 3.8,
+    "size_m": [
+     0.18,
+     0.11,
+     0.28
+    ],
+    "volume_l": 4.5,
+    "hazards": [
+     "toxic",
+     "flammable"
+    ],
+    "safe_grips": [
+     "handle"
+    ],
+    "label_text": "Windshield washer fluid. Contains methanol. Do not swallow."
+   },
+   "doc": "1 gal windshield washer fluid (methanol)."
+  },
+  "used_motor_oil_container": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "used motor oil container",
+    "product": "used_motor_oil",
+    "automotive": true,
+    "amount_l": 4.5,
+    "mass_kg": 4.6,
+    "size_m": [
+     0.3,
+     0.2,
+     0.15
+    ],
+    "volume_l": 8.0,
+    "hazards": [
+     "toxic"
+    ],
+    "safe_grips": [
+     "handle"
+    ],
+    "waste_stream": "hazardous",
+    "haz_stream": "used_motor_oil",
+    "label_text": "",
+    "floor_hazard": "trip"
+   },
+   "doc": "Drain-and-carry container holding used motor oil for recycling."
+  },
+  "car_wax": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "car wax",
+    "product": "car_wax",
+    "automotive": true,
+    "mass_kg": 0.3,
+    "size_m": [
+     0.09,
+     0.09,
+     0.05
+    ],
+    "volume_l": 0.35
+   },
+   "doc": "Carnauba car wax paste."
+  },
+  "gas_can": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "gas can",
+    "product": "gasoline",
+    "automotive": true,
+    "amount_l": 8.0,
+    "mass_kg": 6.5,
+    "size_m": [
+     0.35,
+     0.2,
+     0.33
+    ],
+    "volume_l": 21.0,
+    "hazards": [
+     "flammable",
+     "toxic"
+    ],
+    "safe_grips": [
+     "handle"
+    ]
+   },
+   "doc": "5 gal gasoline can (flammable vapor)."
+  },
+  "water_filter_cartridge": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "refrigerator water filter",
+    "category": "filter",
+    "material": "plastic",
+    "part_type": "fridge_filter_edr1",
+    "filter_model": "EDR1RXD1",
+    "tags": [
+     "water_filter"
+    ],
+    "flush_l": 15.0,
+    "capacity_l_rated": 757.0,
+    "used_l": 0.0,
+    "mass_kg": 0.35,
+    "size_m": [
+     0.07,
+     0.07,
+     0.25
+    ],
+    "volume_l": 0.9,
+    "label_text": "Model EDR1RXD1. Replace every 6 months. Flush 4 gal (15 l) after installation."
+   },
+   "doc": "Twist-lock refrigerator water filter cartridge. model must match the housing; flush the stated volume.",
+   "perception": {
+    "read": [
+     "filter_model",
+     "flush_l",
+     "capacity_l_rated"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "water_filter_cartridge_alt": {
+   "is_a": "water_filter_cartridge",
+   "props": {
+    "label": "refrigerator water filter (other model)",
+    "part_type": "fridge_filter_rpwfe",
+    "filter_model": "RPWFE",
+    "label_text": "Model RPWFE. Not compatible with other housings."
+   },
+   "doc": "Look-alike filter for a different refrigerator line."
+  },
+  "undersink_filter_cartridge": {
+   "is_a": "water_filter_cartridge",
+   "props": {
+    "label": "under-sink filter cartridge",
+    "part_type": "undersink_10in",
+    "filter_model": "CB-10",
+    "flush_l": 12.0,
+    "size_m": [
+     0.07,
+     0.07,
+     0.25
+    ],
+    "label_text": "10 in carbon block. Shut off water and relieve pressure before opening the housing. Flush 5 minutes."
+   },
+   "doc": "10 in under-sink carbon block cartridge (sump housing).",
+   "perception": {
+    "looks_like": "undersink_cartridge"
+   }
+  },
+  "toilet_flapper": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "2 in toilet flapper",
+    "category": "part",
+    "material": "rubber",
+    "part_type": "flapper_2in",
+    "seal": 1.0,
+    "mass_kg": 0.06,
+    "size_m": [
+     0.08,
+     0.08,
+     0.04
+    ],
+    "volume_l": 0.1
+   },
+   "doc": "Universal 2 in toilet flapper.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "seal"
+    ]
+   }
+  },
+  "flatpack_box": {
+   "is_a": "box",
+   "props": {
+    "label": "flat-pack carton",
+    "material": "cardboard",
+    "capacity_l": 140.0,
+    "inner_size_m": [
+     1.85,
+     0.4,
+     0.12
+    ],
+    "size_m": [
+     1.9,
+     0.42,
+     0.14
+    ],
+    "mass_kg": 1.5,
+    "two_handed": true,
+    "waste_stream": "recycling",
+    "packaging": true,
+    "open": true
+   },
+   "doc": "Flat-pack furniture carton holding panels, a hardware bag and the manual.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "flatpack_panel": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "panel",
+    "category": "part",
+    "material": "particleboard",
+    "part_type": "panel",
+    "finished_face": "one_side",
+    "mass_kg": 4.0,
+    "size_m": [
+     0.8,
+     0.3,
+     0.016
+    ],
+    "volume_l": 4.0,
+    "two_handed": true,
+    "damaged": false,
+    "floor_hazard": "trip"
+   },
+   "doc": "Flat-pack panel (particleboard). part_type names its role; finished_face must face out.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "flatpack_hardware_pack": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "hardware pack",
+    "material": "plastic",
+    "capacity_l": 0.5,
+    "inner_size_m": [
+     0.2,
+     0.12,
+     0.03
+    ],
+    "size_m": [
+     0.2,
+     0.12,
+     0.03
+    ],
+    "mass_kg": 0.4,
+    "hardware_counts": {},
+    "soft_sided": true,
+    "keep_with_item": true,
+    "volume_l": 0.7
+   },
+   "doc": "Hardware pack of a flat-pack kit; hardware_counts by kind.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "flatpack_assembly": {
+   "is_a": "furniture",
+   "props": {
+    "label": "furniture under assembly",
+    "category": "furniture",
+    "portable": false,
+    "blocks_path": true,
+    "accepts_items": false,
+    "material": "particleboard",
+    "mass_kg": 0.0,
+    "size_m": [
+     0.8,
+     0.3,
+     0.1
+    ],
+    "assembly": {}
+   },
+   "doc": "Furniture being built from a flat-pack kit (or taken apart). See docs/domains/tools_vehicles.md (assembly).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "assembly"
+    ]
+   }
+  },
+  "assembly_manual": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "assembly instructions",
+    "category": "document",
+    "material": "paper",
+    "mass_kg": 0.1,
+    "size_m": [
+     0.21,
+     0.297,
+     0.004
+    ],
+    "volume_l": 0.25,
+    "text": "",
+    "steps": []
+   },
+   "doc": "Assembly instructions booklet.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "floor_pump": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "floor pump",
+    "tool_kind": "floor_pump",
+    "tool_category": "pump",
+    "material": "steel",
+    "capabilities": [
+     "inflate"
+    ],
+    "stroke_l": 0.45,
+    "max_bar": 11.0,
+    "gauge": true,
+    "settings": {
+     "head": "schrader"
+    },
+    "setting_options": {
+     "head": [
+      "presta",
+      "schrader"
+     ]
+    },
+    "mass_kg": 1.6,
+    "size_m": [
+     0.25,
+     0.2,
+     0.65
+    ],
+    "volume_l": 6.0
+   },
+   "doc": "Track (floor) pump with gauge, 160 psi. settings.head presta/schrader (dual head flips).",
+   "perception": {
+    "read": [
+     "max_bar",
+     "stroke_l"
+    ]
+   }
+  },
+  "air_compressor": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "portable air compressor",
+    "tool_kind": "compressor",
+    "tool_category": "pump",
+    "capabilities": [
+     "inflate"
+    ],
+    "flow_lps": 0.6,
+    "max_bar": 10.3,
+    "gauge": true,
+    "plug_required": true,
+    "plugged_in": true,
+    "settings": {
+     "head": "schrader",
+     "auto_stop_bar": null
+    },
+    "setting_options": {
+     "head": [
+      "schrader",
+      "presta"
+     ],
+     "auto_stop_bar": {
+      "min": 0.2,
+      "max": 10.0
+     }
+    },
+    "mass_kg": 2.0,
+    "size_m": [
+     0.25,
+     0.15,
+     0.2
+    ],
+    "volume_l": 6.0,
+    "power_tool": false,
+    "floor_hazard": "trip"
+   },
+   "doc": "Portable 12 V/120 V tire inflator compressor (fast; overshoots without stopping).",
+   "perception": {
+    "read": [
+     "max_bar",
+     "flow_lps"
+    ]
+   }
+  },
+  "ball_pump": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "ball pump with needle",
+    "tool_kind": "ball_pump",
+    "tool_category": "pump",
+    "material": "plastic",
+    "capabilities": [
+     "inflate"
+    ],
+    "stroke_l": 0.12,
+    "max_bar": 3.0,
+    "gauge": true,
+    "mass_kg": 0.2,
+    "size_m": [
+     0.3,
+     0.05,
+     0.05
+    ],
+    "volume_l": 0.5,
+    "slots": {
+     "needle": {
+      "accepts": [
+       "inflation_needle"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "settings": {
+     "head": "needle"
+    },
+    "setting_options": {
+     "head": [
+      "needle",
+      "nozzle"
+     ]
+    }
+   },
+   "doc": "Hand ball pump with inflation needle (slot) and gauge.",
+   "perception": {
+    "read": [
+     "max_bar"
+    ]
+   }
+  },
+  "inflation_needle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "inflation needle",
+    "category": "tool",
+    "material": "steel",
+    "part_type": "inflation_needle",
+    "mass_kg": 0.002,
+    "size_m": [
+     0.035,
+     0.003,
+     0.003
+    ],
+    "volume_l": 0.001,
+    "pointed": true,
+    "moistened": false
+   },
+   "doc": "Ball inflation needle. Moisten it (lubricate) before inserting.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "bicycle": {
+   "is_a": "object",
+   "props": {
+    "label": "bicycle",
+    "category": "vehicle",
+    "vehicle_kind": "bicycle",
+    "portable": true,
+    "two_handed": true,
+    "mass_kg": 12.0,
+    "size_m": [
+     1.75,
+     0.6,
+     1.05
+    ],
+    "volume_l": 200.0,
+    "material": "aluminum",
+    "blocks_path": true,
+    "value": 600.0,
+    "wheels": {},
+    "chain": {
+     "lube": 0.6,
+     "grime": 0.1,
+     "rust": 0.0
+    },
+    "brakes": {
+     "kind": "rim",
+     "contamination": 0.0
+    },
+    "bearings": {
+     "water_ingress": 0.0
+    },
+    "tags": [
+     "vehicle"
+    ]
+   },
+   "doc": "Bicycle (a path-blocking obstacle on the floor: nobody walks through a 1 m tall bike). wheels {front,rear} with tire inflation state; chain {lube, grime}; brakes; hidden punctures.",
+   "perception": {
+    "glance": [
+     "vehicle_kind"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "wheels",
+     "tires",
+     "inflation",
+     "chain",
+     "brakes",
+     "bearings"
+    ]
+   }
+  },
+  "kids_bicycle": {
+   "is_a": "bicycle",
+   "props": {
+    "label": "kid's bicycle",
+    "mass_kg": 8.5,
+    "size_m": [
+     1.35,
+     0.5,
+     0.8
+    ],
+    "volume_l": 120.0,
+    "value": 180.0
+   },
+   "doc": "20 in kids' bike (low-volume high-sensitivity tires)."
+  },
+  "ebike": {
+   "is_a": "bicycle",
+   "props": {
+    "label": "e-bike",
+    "vehicle_kind": "ebike",
+    "mass_kg": 24.0,
+    "value": 2200.0,
+    "electronic": true,
+    "slots": {
+     "battery": {
+      "accepts": [
+       "ebike_battery_500wh"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "E-bike with removable 500 Wh battery; charge on a hard non-flammable surface, attended, 80-100 %."
+  },
+  "ebike_battery": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "e-bike battery",
+    "category": "battery",
+    "material": "aluminum",
+    "part_type": "ebike_battery_500wh",
+    "charge": 0.3,
+    "battery_swollen": false,
+    "mass_kg": 2.9,
+    "size_m": [
+     0.37,
+     0.09,
+     0.08
+    ],
+    "volume_l": 2.6,
+    "waste_stream": "battery_recycling",
+    "rechargeable": true,
+    "capacity_wh": 500.0,
+    "secret_fields": [],
+    "floor_hazard": "trip"
+   },
+   "doc": "36 V 500 Wh e-bike battery pack.",
+   "perception": {
+    "read": [
+     "capacity_wh"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "ebike_charger": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "e-bike charger",
+    "category": "charger",
+    "material": "plastic",
+    "plug_required": true,
+    "plugged_in": false,
+    "charge_a": 4.0,
+    "mass_kg": 0.8,
+    "size_m": [
+     0.18,
+     0.08,
+     0.05
+    ],
+    "volume_l": 0.7,
+    "electronic": true,
+    "connected_to": null,
+    "tags": [
+     "charger"
+    ]
+   },
+   "doc": "4 A e-bike charger (brick + lead).",
+   "perception": {
+    "read": [
+     "charge_a"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "spare_tube": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "spare inner tube",
+    "category": "part",
+    "material": "rubber",
+    "part_type": "tube_700x25",
+    "mass_kg": 0.1,
+    "size_m": [
+     0.12,
+     0.08,
+     0.04
+    ],
+    "volume_l": 0.3
+   },
+   "doc": "Spare inner tube (700x25c, Presta).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "inflation"
+    ]
+   }
+  },
+  "patch_kit": {
+   "is_a": "shop_product",
+   "props": {
+    "label": "tube patch kit",
+    "product": "patch_kit",
+    "patches": 6,
+    "mass_kg": 0.05,
+    "size_m": [
+     0.08,
+     0.05,
+     0.02
+    ],
+    "volume_l": 0.08,
+    "chemical": false
+   },
+   "doc": "Bike tube patch kit (patches, vulcanizing glue, sandpaper)."
+  },
+  "car": {
+   "is_a": "object",
+   "props": {
+    "label": "car",
+    "category": "vehicle",
+    "vehicle_kind": "car",
+    "portable": false,
+    "blocks_path": true,
+    "accepts_items": false,
+    "container": false,
+    "surface": false,
+    "openable": true,
+    "open": false,
+    "transparent": true,
+    "lockable": true,
+    "locked": true,
+    "lock_kind": "key",
+    "key": null,
+    "mass_kg": 1450.0,
+    "size_m": [
+     1.85,
+     4.7,
+     1.45
+    ],
+    "material": "steel",
+    "value": 24000.0,
+    "engine": "off",
+    "park_brake": true,
+    "gear": "park",
+    "tags": [
+     "vehicle"
+    ],
+    "tires": {},
+    "battery": {
+     "voltage": 12.6,
+     "cranks": true
+    },
+    "washer_fluid": {
+     "level_l": 2.0,
+     "capacity_l": 4.5
+    },
+    "paint": {
+     "swirls": 0,
+     "finish": "clear_coat",
+     "wax": 0.8
+    },
+    "wheel_finish": "painted_alloy",
+    "windows_closed": true,
+    "exterior_wet": 0.0,
+    "soap_film": 0.0,
+    "water_spots": 0.0,
+    "sun_exposed": false,
+    "cabin_temp_c": 21.0,
+    "fixed_temperature": true,
+    "plate": "",
+    "jack_points": [
+     "front_left",
+     "front_right",
+     "rear_left",
+     "rear_right"
+    ],
+    "inspect_from_afar": true
+   },
+   "doc": "Passenger car. Child entities: trunk, footwells, car seats. Fields: tires, battery, washer fluid, wipers, paint, wax, wash state.",
+   "perception": {
+    "glance": [
+     "vehicle_kind"
+    ],
+    "read": [
+     "soc",
+     "soc_target",
+     "plate"
+    ],
+    "measure": {
+     "cabin_temp_c": "thermometer",
+     "battery": "multimeter"
+    },
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "tires",
+     "wheels",
+     "glass_ice_mm",
+     "washer_fluid",
+     "paint",
+     "key",
+     "fixed_temperature",
+     "cabin_temp_fixed"
+    ]
+   }
+  },
+  "suv": {
+   "is_a": "car",
+   "props": {
+    "label": "SUV",
+    "mass_kg": 1650.0,
+    "size_m": [
+     1.9,
+     4.6,
+     1.7
+    ],
+    "value": 32000.0
+   },
+   "doc": "Compact SUV with cargo area (rear window sightline at 0.45 m above the load floor)."
+  },
+  "car_trunk": {
+   "is_a": "fixture",
+   "props": {
+    "label": "trunk",
+    "category": "trunk",
+    "accepts_items": true,
+    "container": true,
+    "openable": true,
+    "open": false,
+    "portable": false,
+    "capacity_l": 420.0,
+    "inner_size_m": [
+     1.0,
+     0.95,
+     0.5
+    ],
+    "z_m": 0.72,
+    "material": "carpet",
+    "floor_area_m2": 0.95,
+    "sightline_h_m": null,
+    "lid_clearance_m": 0.5,
+    "size_m": [
+     1.0,
+     0.95,
+     0.5
+    ],
+    "mass_kg": 0.0,
+    "blocks_path": false,
+    "layers": {}
+   },
+   "doc": "Trunk/cargo area of a car (part). Packing layers, lid clearance and rear sightline are judged.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "car_footwell": {
+   "is_a": "fixture",
+   "props": {
+    "label": "footwell",
+    "category": "footwell",
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "portable": false,
+    "position": "driver",
+    "surface_size_m": [
+     0.8,
+     0.65
+    ],
+    "size_m": [
+     0.8,
+     0.65,
+     0.05
+    ],
+    "z_m": 0.3,
+    "mass_kg": 0.0,
+    "blocks_path": false,
+    "retention": "posts",
+    "slots": {
+     "mat": {
+      "accepts": [
+       "floor_mat"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Footwell of a car seat position (part). Mat slot with retention posts; mats placed 'on' it stack.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "car_floor_mat": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "floor mat",
+    "category": "car_mat",
+    "material": "rubber",
+    "part_type": "floor_mat",
+    "tags": [
+     "floor_mat"
+    ],
+    "position": "driver",
+    "mass_kg": 1.4,
+    "size_m": [
+     0.7,
+     0.55,
+     0.01
+    ],
+    "volume_l": 4.0,
+    "soil": {}
+   },
+   "doc": "Car floor mat (part_type floor_mat). position must match the footwell for the retention posts to engage.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "child_car_seat": {
+   "is_a": "fixture",
+   "props": {
+    "label": "child car seat",
+    "category": "car_seat",
+    "accepts_items": false,
+    "portable": false,
+    "z_m": 0.45,
+    "size_m": [
+     0.45,
+     0.6,
+     0.65
+    ],
+    "mass_kg": 0.0,
+    "occupant": null,
+    "blocks_path": false,
+    "_install": {
+     "latch_attached": true,
+     "movement_in_mm": 15.0,
+     "harness_snug": true,
+     "recline_ok": true
+    }
+   },
+   "doc": "Rear-facing child car seat (part). Hidden installation state; inspect closely to check it.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "car_key_fob": {
+   "is_a": "key",
+   "props": {
+    "label": "car key fob",
+    "material": "plastic",
+    "mass_kg": 0.04,
+    "size_m": [
+     0.07,
+     0.035,
+     0.015
+    ]
+   },
+   "doc": "Car key fob (lock/unlock, trunk).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ],
+    "looks_like": "key_fob"
+   }
+  },
+  "jumper_cables": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "jumper cables",
+    "tool_kind": "jumper_cables",
+    "tool_category": "vehicle",
+    "material": "copper",
+    "mass_kg": 1.8,
+    "size_m": [
+     0.3,
+     0.25,
+     0.08
+    ],
+    "volume_l": 3.0,
+    "clamps": {}
+   },
+   "doc": "16 ft 6-gauge jumper cables (red/black clamps)."
+  },
+  "scissor_jack": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "scissor jack",
+    "tool_kind": "jack",
+    "tool_category": "vehicle",
+    "mass_kg": 3.5,
+    "size_m": [
+     0.4,
+     0.1,
+     0.1
+    ],
+    "volume_l": 4.0,
+    "floor_hazard": "trip"
+   },
+   "doc": "Car scissor jack (use only at the pinch-weld jack points, on level ground, wheels chocked)."
+  },
+  "wheel_chocks": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "wheel chocks",
+    "tool_kind": "wheel_chocks",
+    "tool_category": "vehicle",
+    "material": "rubber",
+    "mass_kg": 1.2,
+    "size_m": [
+     0.2,
+     0.12,
+     0.1
+    ],
+    "volume_l": 2.4
+   },
+   "doc": "Pair of rubber wheel chocks."
+  },
+  "spare_tire": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "compact spare tire",
+    "category": "part",
+    "material": "rubber",
+    "part_type": "wheel_compact",
+    "mass_kg": 12.0,
+    "size_m": [
+     0.63,
+     0.63,
+     0.13
+    ],
+    "volume_l": 40.0,
+    "two_handed": true,
+    "inflation": {
+     "kind": "tire",
+     "pressure_bar": 4.1,
+     "range_bar": [
+      4.0,
+      4.3
+     ],
+     "burst_bar": 12.0,
+     "volume_l": 20.0,
+     "valve": "schrader"
+    },
+    "floor_hazard": "trip"
+   },
+   "doc": "Compact spare (T125/70R16): inflate to 60 psi (4.1 bar).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "inflation"
+    ]
+   }
+  },
+  "car_emergency_kit": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "car emergency kit",
+    "category": "emergency_kit",
+    "material": "nylon",
+    "openable": true,
+    "open": false,
+    "capacity_l": 18.0,
+    "inner_size_m": [
+     0.42,
+     0.25,
+     0.2
+    ],
+    "size_m": [
+     0.45,
+     0.27,
+     0.22
+    ],
+    "mass_kg": 1.0,
+    "value": 60.0,
+    "kit_checklist": [],
+    "label_text": "ROADSIDE KIT: jumper cables, flashlight, reflective triangle, first-aid kit, emergency blanket, water (2), gloves"
+   },
+   "doc": "Roadside emergency bag: checklist in label_text; contents are child entities.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "reflective_triangle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "reflective triangle",
+    "category": "kit_item",
+    "material": "plastic",
+    "mass_kg": 0.6,
+    "size_m": [
+     0.3,
+     0.05,
+     0.05
+    ],
+    "volume_l": 0.3,
+    "kit_item": "reflective triangle"
+   },
+   "doc": "Folding reflective warning triangle.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "emergency_blanket": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "emergency blanket",
+    "category": "kit_item",
+    "material": "mylar",
+    "mass_kg": 0.06,
+    "size_m": [
+     0.1,
+     0.06,
+     0.02
+    ],
+    "volume_l": 0.1,
+    "kit_item": "emergency blanket"
+   },
+   "doc": "Mylar emergency blanket.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "kit_water_bottle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "emergency water bottle",
+    "category": "kit_item",
+    "material": "plastic",
+    "mass_kg": 0.52,
+    "size_m": [
+     0.07,
+     0.07,
+     0.2
+    ],
+    "volume_l": 0.6,
+    "kit_item": "water",
+    "expiration": "2027-06-01"
+   },
+   "doc": "Emergency drinking water pouch/bottle (expires).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "work_gloves": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "work gloves",
+    "category": "kit_item",
+    "material": "leather",
+    "mass_kg": 0.15,
+    "size_m": [
+     0.25,
+     0.12,
+     0.03
+    ],
+    "volume_l": 0.4,
+    "kit_item": "gloves",
+    "wearable": true,
+    "gear_kind": "work_gloves",
+    "wear_slot": "hands"
+   },
+   "doc": "Pair of work gloves.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "car_wash_bucket": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "car wash bucket",
+    "category": "bucket",
+    "material": "plastic",
+    "capacity_l": 19.0,
+    "inner_size_m": [
+     0.28,
+     0.28,
+     0.35
+    ],
+    "size_m": [
+     0.3,
+     0.3,
+     0.37
+    ],
+    "mass_kg": 0.9,
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "grit_guard": true,
+    "role": "wash",
+    "grit": 0.0,
+    "soap": false
+   },
+   "doc": "5 gal wash bucket with grit guard; role wash (soap) or rinse (clean water).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "wash_mitt": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "wash mitt (microfiber cloth)",
+    "tool_kind": "wash_mitt",
+    "tool_category": "car_care",
+    "material": "microfiber",
+    "mass_kg": 0.12,
+    "size_m": [
+     0.25,
+     0.18,
+     0.05
+    ],
+    "volume_l": 0.8,
+    "grit": 0.0,
+    "loaded": null
+   },
+   "doc": "Microfiber chenille wash mitt. grit 0..1 (scratch threshold 0.3)."
+  },
+  "wheel_brush": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "wheel brush",
+    "tool_kind": "wheel_brush",
+    "tool_category": "car_care",
+    "material": "plastic",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.35,
+     0.1,
+     0.08
+    ],
+    "volume_l": 0.6,
+    "grit": 0.6
+   },
+   "doc": "Wheel brush (picks up metallic brake dust: never on paint)."
+  },
+  "drying_towel": {
+   "is_a": "hand_tool",
+   "props": {
+    "label": "microfiber drying towel",
+    "tool_kind": "drying_towel",
+    "tool_category": "car_care",
+    "material": "microfiber",
+    "mass_kg": 0.25,
+    "size_m": [
+     0.3,
+     0.25,
+     0.04
+    ],
+    "volume_l": 1.0,
+    "grit": 0.0,
+    "wetness": 0.0,
+    "absorbent": true
+   },
+   "doc": "Waffle-weave microfiber drying towel."
+  },
+  "ev_charger": {
+   "is_a": "fixture",
+   "props": {
+    "label": "EV wall charger",
+    "category": "ev_charger",
+    "accepts_items": true,
+    "container": false,
+    "power_kw": 7.7,
+    "cable_length_m": 7.6,
+    "mount_height_m": 1.2,
+    "size_m": [
+     0.3,
+     0.12,
+     0.35
+    ],
+    "material": "plastic",
+    "outdoor_rated": true,
+    "connector": null,
+    "status": "idle",
+    "blocks_path": false,
+    "cord_damage": null
+   },
+   "doc": "Level 2 EVSE (32 A, 7.7 kW) with a 25 ft tethered J1772 cable; connector stored in its holster.",
+   "perception": {
+    "read": [
+     "power_kw"
+    ],
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "ev_connector": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "charging connector",
+    "category": "ev_connector",
+    "material": "plastic",
+    "part_type": "j1772",
+    "tags": [
+     "ev_connector"
+    ],
+    "mass_kg": 1.1,
+    "size_m": [
+     0.25,
+     0.08,
+     0.12
+    ],
+    "volume_l": 1.2,
+    "tethered_to": null,
+    "latched": false
+   },
+   "doc": "J1772 charging connector on a tethered cable (cannot leave the cable's reach).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens"
+    ]
+   }
+  },
+  "electric_car": {
+   "is_a": "car",
+   "props": {
+    "label": "electric car",
+    "vehicle_kind": "ev",
+    "ev": true,
+    "soc": 0.35,
+    "soc_target": 0.8,
+    "battery_kwh": 60.0,
+    "charge_port_open": false,
+    "charging": false,
+    "slots": {
+     "charge_port": {
+      "accepts": [
+       "j1772"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Battery-electric car with a J1772 charge port (soc 0..1, charge target)."
+  },
+  "repair_wall": {
+   "is_a": "wall_surface",
+   "props": {
+    "label": "wall",
+    "category": "wall",
+    "mount_surface": true,
+    "holes": [],
+    "finish": "painted",
+    "wall_material": "drywall"
+   },
+   "doc": "A wall face the repair and hanging helpers stage (holes, paint, studs). Its hole records carry repair truth (shrinkage, cure times, colour match), so realistic perception hides the raw list: inspect gives the holes_seen view.",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "holes",
+     "paint_age_days"
+    ]
+   }
+  },
+  "inflatable_ball": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "ball",
+    "category": "toy",
+    "material": "rubber",
+    "size_m": [
+     0.22,
+     0.22,
+     0.22
+    ],
+    "mass_kg": 0.43,
+    "volume_l": 5.6,
+    "inflation": {}
+   },
+   "doc": "An inflatable sports or beach ball (inflation {pressure_bar, range_bar, burst_bar, volume_l, valve}). Pressure needs a gauge: realistic perception hides the raw inflation record (inspect gives a squeeze-test view, check_tire a gauge reading).",
+   "perception": {
+    "hidden": [
+     "sorted_ok",
+     "outline_ok",
+     "handover_ok",
+     "bond_ok",
+     "lubed_with",
+     "lubed_at",
+     "installed_at",
+     "hung_at",
+     "home_pos",
+     "home_room",
+     "lost",
+     "inflated_at",
+     "washed_at",
+     "soaped_at",
+     "wet_at",
+     "soap_age_s",
+     "wet_age_s",
+     "bled_at",
+     "snaked_at",
+     "freed_at",
+     "tripped_at",
+     "paint_last_coat_at",
+     "paint_wet_until",
+     "charge_site",
+     "wall_behind",
+     "wall_axis",
+     "anchor_offset_m",
+     "anchor_height_m",
+     "anchor_into_stud",
+     "anchor_hole",
+     "touch_up_color_ok",
+     "paint_color_ok",
+     "flushed_l",
+     "used_l",
+     "wasted_l",
+     "ran_filterless_s",
+     "bypass_s",
+     "duct_dust",
+     "crush_kg",
+     "drop_tolerance_m",
+     "opens",
+     "inflation"
+    ]
+   }
+  }
+ }
+}

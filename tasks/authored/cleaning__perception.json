@@ -1,0 +1,1082 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-3fb8a84f20876c-01",
+   "title": "Pick out the glass cleaner among look-alike spray bottles (read the labels; the blank one stays unknown)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{counter}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    },
+    {
+     "op": "spawn",
+     "var": "apc",
+     "type": "all_purpose_cleaner",
+     "on": "{counter}",
+     "spos": [
+      0.08,
+      0.1
+     ],
+     "props": {
+      "color": "blue"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "disinfectant",
+     "type": "disinfectant_spray",
+     "on": "{counter}",
+     "spos": [
+      0.3,
+      0.1
+     ],
+     "props": {
+      "color": "blue"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "refill",
+     "type": "spray_bottle",
+     "on": "{counter}",
+     "spos": [
+      0.52,
+      0.1
+     ],
+     "props": {
+      "color": "blue",
+      "liquid": "cleaning_solution",
+      "liquid_l": 0.5,
+      "cl_chem": {
+       "bleach": 10.0
+      },
+      "_known_contents": "bleach solution",
+      "_decanted_by": "resident_1"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "glass",
+     "type": "glass_cleaner",
+     "on": "{counter}",
+     "spos": [
+      0.74,
+      0.1
+     ],
+     "props": {
+      "color": "blue"
+     }
+    }
+   ],
+   "instruction": "One of the blue spray bottles on the kitchen counter is glass cleaner - pick that one up for me.",
+   "phrasings": [
+    "One of the blue spray bottles on the kitchen counter is glass cleaner - pick that one up for me.",
+    "Grab the glass cleaner from the spray bottles on the counter, please.",
+    "Which of those spray bottles on the counter is the glass cleaner? Take it."
+   ],
+   "success": [
+    {
+     "path": "entities.{glass}.location",
+     "op": "eq",
+     "value": "robot"
+    },
+    {
+     "path": "entities.{apc}.location",
+     "op": "ne",
+     "value": "robot"
+    },
+    {
+     "path": "entities.{disinfectant}.location",
+     "op": "ne",
+     "value": "robot"
+    },
+    {
+     "path": "entities.{refill}.location",
+     "op": "ne",
+     "value": "robot"
+    }
+   ],
+   "budget": {
+    "steps": 40,
+    "time_s": 600
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{counter}"
+    },
+    {
+     "do": "read",
+     "target": "{apc}"
+    },
+    {
+     "do": "read",
+     "target": "{disinfectant}"
+    },
+    {
+     "do": "read",
+     "target": "{refill}",
+     "note": "blank label: stays unidentified"
+    },
+    {
+     "do": "read",
+     "target": "{glass}"
+    },
+    {
+     "skill": "cleaning.hold",
+     "items": [
+      "{glass}"
+     ]
+    }
+   ],
+   "wrong": [
+    {
+     "name": "grabs the first blue spray bottle without reading a label",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{apc}"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "reads the labelled bottles, finds no glass cleaner it trusts and takes the unlabeled one",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "read",
+       "target": "{apc}"
+      },
+      {
+       "do": "read",
+       "target": "{disinfectant}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{refill}"
+       ]
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: glass_cleaner, all_purpose_cleaner, disinfectant_spray and spray_bottle share the look-alike group spray_bottle (resolve: read), all blue, so a glance shows four 'spray bottle of liquid' with the same candidate list; reading resolves the labelled ones and the blank refill bottle stays 'unidentified'. Glance-level wrong plans pick a look-alike."
+  },
+  {
+   "catalog_id": "T-edec597b980b74-01",
+   "title": "Dose a mop bucket by the label of a concentrate standing among look-alike bottles",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "counter",
+      "room": "{k}",
+      "var": "counter"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{counter}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "liters",
+       "value": 4
+      },
+      {
+       "op": "helper",
+       "name": "cleaning.bucket",
+       "args": {
+        "room": "{k}",
+        "near": "{counter}",
+        "liters": 4,
+        "product": "water"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "bottle",
+       "type": "ammonia_cleaner",
+       "on": "{counter}",
+       "spos": [
+        0.4,
+        0.1
+       ]
+      },
+      {
+       "op": "spawn",
+       "var": "decoy1",
+       "type": "bleach",
+       "on": "{counter}",
+       "spos": [
+        0.08,
+        0.1
+       ]
+      },
+      {
+       "op": "spawn",
+       "var": "decoy2",
+       "type": "cleaning_vinegar",
+       "on": "{counter}",
+       "spos": [
+        0.72,
+        0.1
+       ]
+      }
+     ],
+     "instruction": "Make up the mop bucket with the household ammonia - it has 4 litres of water in it; use the dilution on the label.",
+     "phrasings": [
+      "Make up the mop bucket with the household ammonia - it has 4 litres of water in it; use the dilution on the label.",
+      "Add the household ammonia to the 4 litres of water in the mop bucket, at the strength its label says.",
+      "Mix the household ammonia into the mop bucket (4 l of water) following the label."
+     ],
+     "success": [
+      {
+       "path": "entities.{bucket}.cl_strength.ammonia",
+       "op": "between",
+       "value": [
+        0.6,
+        1.6
+       ]
+      },
+      {
+       "path": "entities.{bucket}.cl_chem",
+       "op": "len_eq",
+       "value": 1
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "read",
+       "target": "{decoy1}"
+      },
+      {
+       "do": "read",
+       "target": "{decoy2}"
+      },
+      {
+       "do": "read",
+       "target": "{bottle}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bottle}"
+       ]
+      },
+      {
+       "skill": "approach",
+       "target": "{bucket}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{bucket}",
+       "tool": "{bottle}",
+       "amount_ml": 120,
+       "method": "pour"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "pours from the look-alike bottle without reading it",
+       "plan": [
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{decoy1}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{decoy1}",
+         "amount_ml": 120,
+         "method": "pour"
+        }
+       ]
+      },
+      {
+       "name": "takes the right bottle but skips the label and glugs in a cupful",
+       "plan": [
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{bottle}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{bottle}",
+         "amount_ml": 250,
+         "method": "pour"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "liters",
+       "value": 4
+      },
+      {
+       "op": "helper",
+       "name": "cleaning.bucket",
+       "args": {
+        "room": "{k}",
+        "near": "{counter}",
+        "liters": 4,
+        "product": "water"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "bottle",
+       "type": "floor_cleaner",
+       "on": "{counter}",
+       "spos": [
+        0.4,
+        0.1
+       ]
+      },
+      {
+       "op": "spawn",
+       "var": "decoy1",
+       "type": "wood_floor_cleaner",
+       "on": "{counter}",
+       "spos": [
+        0.08,
+        0.1
+       ]
+      },
+      {
+       "op": "spawn",
+       "var": "decoy2",
+       "type": "stone_cleaner",
+       "on": "{counter}",
+       "spos": [
+        0.72,
+        0.1
+       ]
+      }
+     ],
+     "instruction": "Make up the mop bucket with the floor cleaner concentrate - it has 4 litres of water in it; use the dilution on the label.",
+     "phrasings": [
+      "Make up the mop bucket with the floor cleaner concentrate - it has 4 litres of water in it; use the dilution on the label.",
+      "Add the floor cleaner concentrate to the 4 litres of water in the mop bucket, at the strength its label says.",
+      "Mix the floor cleaner concentrate into the mop bucket (4 l of water) following the label."
+     ],
+     "success": [
+      {
+       "path": "entities.{bucket}.cl_strength.floor_cleaner",
+       "op": "between",
+       "value": [
+        0.6,
+        1.6
+       ]
+      },
+      {
+       "path": "entities.{bucket}.cl_chem",
+       "op": "len_eq",
+       "value": 1
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "read",
+       "target": "{decoy1}"
+      },
+      {
+       "do": "read",
+       "target": "{decoy2}"
+      },
+      {
+       "do": "read",
+       "target": "{bottle}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bottle}"
+       ]
+      },
+      {
+       "skill": "approach",
+       "target": "{bucket}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{bucket}",
+       "tool": "{bottle}",
+       "amount_ml": 30,
+       "method": "pour"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "pours from the look-alike bottle without reading it",
+       "plan": [
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{decoy1}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{decoy1}",
+         "amount_ml": 30,
+         "method": "pour"
+        }
+       ]
+      },
+      {
+       "name": "takes the right bottle but skips the label and glugs in a cupful",
+       "plan": [
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{bottle}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{bottle}",
+         "amount_ml": 250,
+         "method": "pour"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "liters",
+       "value": 5
+      },
+      {
+       "op": "helper",
+       "name": "cleaning.bucket",
+       "args": {
+        "room": "{k}",
+        "near": "{counter}",
+        "liters": 5,
+        "product": "water"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "bottle",
+       "type": "bleach",
+       "on": "{counter}",
+       "spos": [
+        0.4,
+        0.1
+       ]
+      },
+      {
+       "op": "spawn",
+       "var": "decoy1",
+       "type": "cleaning_vinegar",
+       "on": "{counter}",
+       "spos": [
+        0.08,
+        0.1
+       ]
+      },
+      {
+       "op": "spawn",
+       "var": "decoy2",
+       "type": "ammonia_cleaner",
+       "on": "{counter}",
+       "spos": [
+        0.72,
+        0.1
+       ]
+      }
+     ],
+     "instruction": "Make up the mop bucket with the bleach - it has 5 litres of water in it; use the dilution on the label.",
+     "phrasings": [
+      "Make up the mop bucket with the bleach - it has 5 litres of water in it; use the dilution on the label.",
+      "Add the bleach to the 5 litres of water in the mop bucket, at the strength its label says.",
+      "Mix the bleach into the mop bucket (5 l of water) following the label."
+     ],
+     "success": [
+      {
+       "path": "entities.{bucket}.cl_strength.bleach",
+       "op": "between",
+       "value": [
+        0.6,
+        1.6
+       ]
+      },
+      {
+       "path": "entities.{bucket}.cl_chem",
+       "op": "len_eq",
+       "value": 1
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "read",
+       "target": "{decoy1}"
+      },
+      {
+       "do": "read",
+       "target": "{decoy2}"
+      },
+      {
+       "do": "read",
+       "target": "{bottle}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{bottle}"
+       ]
+      },
+      {
+       "skill": "approach",
+       "target": "{bucket}"
+      },
+      {
+       "do": "apply_cleaner",
+       "target": "{bucket}",
+       "tool": "{bottle}",
+       "amount_ml": 100,
+       "method": "pour"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "pours from the look-alike bottle without reading it",
+       "plan": [
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{decoy2}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{decoy2}",
+         "amount_ml": 100,
+         "method": "pour"
+        }
+       ]
+      },
+      {
+       "name": "takes the right bottle but skips the label and glugs in a cupful",
+       "plan": [
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{bottle}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{bottle}",
+         "amount_ml": 250,
+         "method": "pour"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "budget": {
+    "steps": 50,
+    "time_s": 900
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "notes": "Realistic perception: the target stands between two look-alikes (white jugs bleach / vinegar / ammonia share group plastic_jug; floor cleaners share cleaning_bottle; both resolve by read), and the dose is only on the label (label_text is read-tier; the product key too). Strength = (ml/l) / label ml-per-l (state.strength_of); 0.6-1.6 accepted, nothing else in the bucket. Wrong plans: the look-alike bottle (no target chemistry; bleach and ammonia would gas), or no label (a 250 ml glug is 2-8x)."
+  },
+  {
+   "catalog_id": "T-c49fadcea69182-01",
+   "title": "Check how full the kitchen can and the recycling bin are and report each level",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "kitchen_trash_can",
+      "room": "{k}",
+      "var": "can"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "cleaning.reachable",
+     "args": {
+      "type": "recycling_bin",
+      "room": "{k}",
+      "var": "rbin"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "fill_can",
+       "value": 0.66
+      },
+      {
+       "op": "bind",
+       "var": "fill_bin",
+       "value": 0.34
+      },
+      {
+       "op": "spawn",
+       "var": "can_trash",
+       "type": "waste_item",
+       "in": "{can}",
+       "props": {
+        "label": "loose kitchen trash",
+        "waste_kind": "general",
+        "size_m": [
+         0.3,
+         0.24,
+         0.3
+        ],
+        "volume_l": 33.0,
+        "mass_kg": 2.64
+       }
+      },
+      {
+       "op": "set",
+       "target": "{can}",
+       "props": {
+        "fill_level": 0.66
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "bin_items",
+       "type": "waste_item",
+       "in": "{rbin}",
+       "props": {
+        "label": "loose recycling",
+        "waste_kind": "paper",
+        "size_m": [
+         0.3,
+         0.25,
+         0.3
+        ],
+        "volume_l": 13.6,
+        "mass_kg": 0.68
+       }
+      },
+      {
+       "op": "set",
+       "target": "{rbin}",
+       "props": {
+        "fill_level": 0.34
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "fill_can",
+       "value": 0.33
+      },
+      {
+       "op": "bind",
+       "var": "fill_bin",
+       "value": 0.67
+      },
+      {
+       "op": "spawn",
+       "var": "can_trash",
+       "type": "waste_item",
+       "in": "{can}",
+       "props": {
+        "label": "loose kitchen trash",
+        "waste_kind": "general",
+        "size_m": [
+         0.3,
+         0.24,
+         0.3
+        ],
+        "volume_l": 16.5,
+        "mass_kg": 1.32
+       }
+      },
+      {
+       "op": "set",
+       "target": "{can}",
+       "props": {
+        "fill_level": 0.33
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "bin_items",
+       "type": "waste_item",
+       "in": "{rbin}",
+       "props": {
+        "label": "loose recycling",
+        "waste_kind": "paper",
+        "size_m": [
+         0.3,
+         0.25,
+         0.3
+        ],
+        "volume_l": 26.8,
+        "mass_kg": 1.34
+       }
+      },
+      {
+       "op": "set",
+       "target": "{rbin}",
+       "props": {
+        "fill_level": 0.67
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "fill_can",
+       "value": 0.36
+      },
+      {
+       "op": "bind",
+       "var": "fill_bin",
+       "value": 0.64
+      },
+      {
+       "op": "spawn",
+       "var": "can_trash",
+       "type": "waste_item",
+       "in": "{can}",
+       "props": {
+        "label": "loose kitchen trash",
+        "waste_kind": "general",
+        "size_m": [
+         0.3,
+         0.24,
+         0.3
+        ],
+        "volume_l": 18.0,
+        "mass_kg": 1.44
+       }
+      },
+      {
+       "op": "set",
+       "target": "{can}",
+       "props": {
+        "fill_level": 0.36
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "bin_items",
+       "type": "waste_item",
+       "in": "{rbin}",
+       "props": {
+        "label": "loose recycling",
+        "waste_kind": "paper",
+        "size_m": [
+         0.3,
+         0.25,
+         0.3
+        ],
+        "volume_l": 25.6,
+        "mass_kg": 1.28
+       }
+      },
+      {
+       "op": "set",
+       "target": "{rbin}",
+       "props": {
+        "fill_level": 0.64
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the trash levels: how full are the kitchen trash can and the recycling bin? Tell me each as a fraction of full.",
+   "phrasings": [
+    "Check the trash levels: how full are the kitchen trash can and the recycling bin? Tell me each as a fraction of full.",
+    "How full are the kitchen bin and the recycling bin? Give me a fraction for each.",
+    "Do a trash check - report how full the kitchen can and the recycling are."
+   ],
+   "success": [
+    {
+     "path": "reports.{can}.fill_level",
+     "op": "approx",
+     "value": [
+      "{fill_can}",
+      0.12
+     ]
+    },
+    {
+     "path": "reports.{rbin}.fill_level",
+     "op": "approx",
+     "value": [
+      "{fill_bin}",
+      0.12
+     ]
+    }
+   ],
+   "budget": {
+    "steps": 40,
+    "time_s": 600
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{can}"
+    },
+    {
+     "skill": "open",
+     "target": "{can}"
+    },
+    {
+     "do": "inspect",
+     "target": "{can}"
+    },
+    {
+     "save": "can_seen",
+     "from": "visible_entities.{can}.fill_level"
+    },
+    {
+     "do": "report",
+     "target": "{can}",
+     "field": "fill_level",
+     "value": "{can_seen}"
+    },
+    {
+     "skill": "close",
+     "target": "{can}"
+    },
+    {
+     "skill": "approach",
+     "target": "{rbin}"
+    },
+    {
+     "do": "inspect",
+     "target": "{rbin}"
+    },
+    {
+     "save": "bin_seen",
+     "from": "visible_entities.{rbin}.fill_level"
+    },
+    {
+     "do": "report",
+     "target": "{rbin}",
+     "field": "fill_level",
+     "value": "{bin_seen}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "reports the glance buckets it saw before looking in",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "save": "can_glance",
+       "from": "visible_entities.{can}.fill_level"
+      },
+      {
+       "do": "inspect",
+       "target": "{can}"
+      },
+      {
+       "do": "report",
+       "target": "{can}",
+       "field": "fill_level",
+       "value": "{can_glance}"
+      },
+      {
+       "skill": "approach",
+       "target": "{rbin}"
+      },
+      {
+       "save": "bin_glance",
+       "from": "visible_entities.{rbin}.fill_level"
+      },
+      {
+       "do": "inspect",
+       "target": "{rbin}"
+      },
+      {
+       "do": "report",
+       "target": "{rbin}",
+       "field": "fill_level",
+       "value": "{bin_glance}"
+      }
+     ]
+    },
+    {
+     "name": "turns the 'half' bucket into its middle (0.5) instead of looking",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "do": "inspect",
+       "target": "{can}"
+      },
+      {
+       "do": "report",
+       "target": "{can}",
+       "field": "fill_level",
+       "value": 0.5
+      },
+      {
+       "skill": "approach",
+       "target": "{rbin}"
+      },
+      {
+       "do": "inspect",
+       "target": "{rbin}"
+      },
+      {
+       "do": "report",
+       "target": "{rbin}",
+       "field": "fill_level",
+       "value": 0.5
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: fill_level is rendered as a glance bucket (FILL5) until the bin is inspected, then to 5 % with viewpoint noise; the reference reports what it observed after opening and inspecting (the perceivability check sees the reported numbers in its observations). Levels sit near the edges of the 'half' bucket, so neither the bucket word nor its middle is within 0.12."
+  }
+ ]
+}

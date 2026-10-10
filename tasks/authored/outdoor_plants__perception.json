@@ -1,0 +1,2832 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-7b4f140db3b230-01",
+   "title": "Check each houseplant's soil moisture below the surface and say which need water (realistic perception)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "weather",
+     "condition": "clear",
+     "temperature_c": 20.0,
+     "wind_mps": 1.0,
+     "gust_mps": 2.0,
+     "rain_mm_h": 0.0
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "boston_fern",
+          "rwc": 0.3,
+          "on": "table"
+         },
+         {
+          "species": "snake_plant",
+          "rwc": 0.12,
+          "on": "table"
+         },
+         {
+          "species": "pothos",
+          "rwc": 0.95,
+          "on": "table"
+         }
+        ]
+       }
+      },
+      {
+       "op": "set",
+       "target": "{pot1}",
+       "props": {
+        "medium": {
+         "moisture_top": 0.4
+        }
+       }
+      },
+      {
+       "op": "set",
+       "target": "{pot3}",
+       "props": {
+        "medium": {
+         "moisture_top": 0.15
+        }
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.moisture",
+       "op": "in",
+       "value": [
+        "barely damp",
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p1}.needs_water",
+       "op": "eq",
+       "value": true
+      },
+      {
+       "path": "reports.{p2}.moisture",
+       "op": "in",
+       "value": [
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p2}.needs_water",
+       "op": "eq",
+       "value": false
+      },
+      {
+       "path": "reports.{p3}.moisture",
+       "op": "in",
+       "value": [
+        "wet",
+        "soggy"
+       ]
+      },
+      {
+       "path": "reports.{p3}.needs_water",
+       "op": "eq",
+       "value": false
+      }
+     ],
+     "failure": [
+      {
+       "path": "entities.{p1}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p2}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p3}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "stats.overwatered",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.watered_artificial",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.plant_harm",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.spills",
+       "op": "gt",
+       "value": 0
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p1}"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "moisture",
+       "value": "barely damp"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "needs_water",
+       "value": true
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p2}"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "moisture",
+       "value": "dry"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "needs_water",
+       "value": false
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p3}"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "moisture",
+       "value": "wet"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "needs_water",
+       "value": false
+      }
+     ],
+     "wrong": [
+      {
+       "name": "judges each pot by how its soil surface looks (dry-looking crust over a soaked root ball, damp-looking top over a dry one)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "moisture",
+         "value": "moist"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "needs_water",
+         "value": false
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "needs_water",
+         "value": true
+        }
+       ]
+      },
+      {
+       "name": "feels the soil but applies one rule to every plant (dry or barely damp = needs water), ignoring the succulent's and the fake plant's needs",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "moisture",
+         "value": "barely damp"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p2}"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p3}"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "moisture",
+         "value": "wet"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "needs_water",
+         "value": false
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "jade_plant",
+          "rwc": 0.12,
+          "on": "table"
+         },
+         {
+          "species": "african_violet",
+          "rwc": 0.3,
+          "on": "table"
+         },
+         {
+          "species": "artificial",
+          "on": "table"
+         },
+         {
+          "species": "monstera",
+          "rwc": 0.95,
+          "on": "table"
+         }
+        ]
+       }
+      },
+      {
+       "op": "set",
+       "target": "{pot2}",
+       "props": {
+        "medium": {
+         "moisture_top": 0.4
+        }
+       }
+      },
+      {
+       "op": "set",
+       "target": "{pot4}",
+       "props": {
+        "medium": {
+         "moisture_top": 0.15
+        }
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.moisture",
+       "op": "in",
+       "value": [
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p1}.needs_water",
+       "op": "eq",
+       "value": false
+      },
+      {
+       "path": "reports.{p2}.moisture",
+       "op": "in",
+       "value": [
+        "barely damp",
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p2}.needs_water",
+       "op": "eq",
+       "value": true
+      },
+      {
+       "path": "reports.{p3}.moisture",
+       "op": "in",
+       "value": [
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p3}.needs_water",
+       "op": "eq",
+       "value": false
+      },
+      {
+       "path": "reports.{p4}.moisture",
+       "op": "in",
+       "value": [
+        "wet",
+        "soggy"
+       ]
+      },
+      {
+       "path": "reports.{p4}.needs_water",
+       "op": "eq",
+       "value": false
+      }
+     ],
+     "failure": [
+      {
+       "path": "entities.{p1}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p2}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p3}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p4}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "stats.overwatered",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.watered_artificial",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.plant_harm",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.spills",
+       "op": "gt",
+       "value": 0
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p1}"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "moisture",
+       "value": "dry"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "needs_water",
+       "value": false
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p2}"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "moisture",
+       "value": "barely damp"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "needs_water",
+       "value": true
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p3}"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "moisture",
+       "value": "dry"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "needs_water",
+       "value": false
+      },
+      {
+       "skill": "approach",
+       "target": "{p4}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p4}"
+      },
+      {
+       "do": "report",
+       "target": "{p4}",
+       "field": "moisture",
+       "value": "wet"
+      },
+      {
+       "do": "report",
+       "target": "{p4}",
+       "field": "needs_water",
+       "value": false
+      }
+     ],
+     "wrong": [
+      {
+       "name": "judges each pot by how its soil surface looks (dry-looking crust over a soaked root ball, damp-looking top over a dry one)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "moisture",
+         "value": "moist"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "needs_water",
+         "value": false
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "needs_water",
+         "value": true
+        }
+       ]
+      },
+      {
+       "name": "feels the soil but applies one rule to every plant (dry or barely damp = needs water), ignoring the succulent's and the fake plant's needs",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p2}"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "moisture",
+         "value": "barely damp"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p3}"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p4}"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "moisture",
+         "value": "wet"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "needs_water",
+         "value": false
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "spider_plant",
+          "rwc": 0.95,
+          "on": "table"
+         },
+         {
+          "species": "zz_plant",
+          "rwc": 0.12,
+          "on": "table"
+         },
+         {
+          "species": "boston_fern",
+          "rwc": 0.35,
+          "on": "table"
+         }
+        ]
+       }
+      },
+      {
+       "op": "set",
+       "target": "{pot1}",
+       "props": {
+        "medium": {
+         "moisture_top": 0.15
+        }
+       }
+      },
+      {
+       "op": "set",
+       "target": "{pot3}",
+       "props": {
+        "medium": {
+         "moisture_top": 0.4
+        }
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.moisture",
+       "op": "in",
+       "value": [
+        "wet",
+        "soggy"
+       ]
+      },
+      {
+       "path": "reports.{p1}.needs_water",
+       "op": "eq",
+       "value": false
+      },
+      {
+       "path": "reports.{p2}.moisture",
+       "op": "in",
+       "value": [
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p2}.needs_water",
+       "op": "eq",
+       "value": false
+      },
+      {
+       "path": "reports.{p3}.moisture",
+       "op": "in",
+       "value": [
+        "barely damp",
+        "dry"
+       ]
+      },
+      {
+       "path": "reports.{p3}.needs_water",
+       "op": "eq",
+       "value": true
+      }
+     ],
+     "failure": [
+      {
+       "path": "entities.{p1}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p2}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "entities.{p3}.last_watered_s",
+       "op": "exists",
+       "value": true
+      },
+      {
+       "path": "stats.overwatered",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.watered_artificial",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.plant_harm",
+       "op": "gt",
+       "value": 0
+      },
+      {
+       "path": "stats.spills",
+       "op": "gt",
+       "value": 0
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p1}"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "moisture",
+       "value": "wet"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "needs_water",
+       "value": false
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p2}"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "moisture",
+       "value": "dry"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "needs_water",
+       "value": false
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "check_moisture",
+       "target": "{p3}"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "moisture",
+       "value": "barely damp"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "needs_water",
+       "value": true
+      }
+     ],
+     "wrong": [
+      {
+       "name": "judges each pot by how its soil surface looks (dry-looking crust over a soaked root ball, damp-looking top over a dry one)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "moisture",
+         "value": "moist"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "needs_water",
+         "value": false
+        }
+       ]
+      },
+      {
+       "name": "feels the soil but applies one rule to every plant (dry or barely damp = needs water), ignoring the succulent's and the fake plant's needs",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "moisture",
+         "value": "wet"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "needs_water",
+         "value": false
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p2}"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "moisture",
+         "value": "dry"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "needs_water",
+         "value": true
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "check_moisture",
+         "target": "{p3}"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "moisture",
+         "value": "barely damp"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "needs_water",
+         "value": true
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the soil moisture of the plants in the living room and tell me which ones need water. Don't water anything yet.",
+   "phrasings": [
+    "Check soil moisture.",
+    "Check the soil moisture of the plants in the living room and tell me which ones need water. Don't water anything yet.",
+    "Can you feel the soil in the living-room pots and let me know which plants are actually dry?",
+    "Quick moisture check on the houseplants, please - just report, no watering."
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "S",
+   "notes": "Realistic perception: a pot's root-zone water (`medium`) is hidden; inspect shows only the surface look (soil_surface), check_moisture with a finger gives the feel at 4 cm (a held meter adds its 1-10 dial). Each variant has a dry-looking crust over a soaked root ball and a damp-looking top (recently misted) over a root zone that is too dry for that species, so judging by the surface fails; the succulent (and, in variant 1, the artificial plant) feels dry but does not need water, so one moisture rule for all fails. Species come from inspect where=closely (species_seen) and check_moisture's advice. Reports: moisture (feel word) and needs_water per plant."
+  },
+  {
+   "catalog_id": "T-f7913405ff4906-01",
+   "title": "Identify the houseplants: close looks, the look-alike lily resolved, the fake recognized (realistic perception)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "weather",
+     "condition": "clear",
+     "temperature_c": 20.0,
+     "wind_mps": 1.0,
+     "gust_mps": 2.0,
+     "rain_mm_h": 0.0
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "peace_lily",
+          "on": "table",
+          "flowers": {
+           "open": 1
+          }
+         },
+         {
+          "species": "pothos",
+          "on": "table"
+         },
+         {
+          "species": "artificial",
+          "on": "table"
+         }
+        ]
+       }
+      },
+      {
+       "op": "set",
+       "target": "{p3}",
+       "props": {
+        "_looks_like": "fiddle_leaf_fig"
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{room}",
+       "props": {
+        "awake": true,
+        "posture": "sitting",
+        "activity": "reading"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.species",
+       "op": "in",
+       "value": [
+        "peace_lily",
+        "peace lily",
+        "unsure"
+       ]
+      },
+      {
+       "path": "reports.{p2}.species",
+       "op": "in",
+       "value": [
+        "pothos",
+        "pothos"
+       ]
+      },
+      {
+       "path": "reports.{p3}.species",
+       "op": "eq",
+       "value": "artificial"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "ask",
+       "target": "resident_1",
+       "topic": "plants:care: {p1}"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "species",
+       "value": "peace_lily"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "species",
+       "value": "pothos"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "species",
+       "value": "artificial"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "picks one of the two look-alike lilies with confidence instead of resolving it (or saying unsure)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "calla_lily"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "pothos"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "artificial"
+        }
+       ]
+      },
+      {
+       "name": "identifies plants from the ordinary look and registers the artificial plant as the living species it imitates",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}"
+        },
+        {
+         "do": "ask",
+         "target": "resident_1",
+         "topic": "plants:care: {p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "peace_lily"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "pothos"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "fiddle_leaf_fig"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "calla_lily",
+          "on": "table",
+          "flowers": {
+           "open": 1
+          }
+         },
+         {
+          "species": "snake_plant",
+          "on": "table"
+         },
+         {
+          "species": "artificial",
+          "on": "table"
+         }
+        ]
+       }
+      },
+      {
+       "op": "set",
+       "target": "{p3}",
+       "props": {
+        "_looks_like": "boston_fern"
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{room}",
+       "props": {
+        "awake": true,
+        "posture": "sitting",
+        "activity": "reading"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.species",
+       "op": "in",
+       "value": [
+        "calla_lily",
+        "calla lily",
+        "unsure"
+       ]
+      },
+      {
+       "path": "reports.{p2}.species",
+       "op": "in",
+       "value": [
+        "snake_plant",
+        "snake plant"
+       ]
+      },
+      {
+       "path": "reports.{p3}.species",
+       "op": "eq",
+       "value": "artificial"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "ask",
+       "target": "resident_1",
+       "topic": "plants:care: {p1}"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "species",
+       "value": "calla_lily"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "species",
+       "value": "snake_plant"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "species",
+       "value": "artificial"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "picks one of the two look-alike lilies with confidence instead of resolving it (or saying unsure)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "peace_lily"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "snake_plant"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "artificial"
+        }
+       ]
+      },
+      {
+       "name": "identifies plants from the ordinary look and registers the artificial plant as the living species it imitates",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}"
+        },
+        {
+         "do": "ask",
+         "target": "resident_1",
+         "topic": "plants:care: {p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "calla_lily"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "snake_plant"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "boston_fern"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "peace_lily",
+          "on": "table",
+          "flowers": {
+           "open": 1
+          }
+         },
+         {
+          "species": "monstera",
+          "on": "table"
+         },
+         {
+          "species": "artificial",
+          "on": "table"
+         }
+        ]
+       }
+      },
+      {
+       "op": "set",
+       "target": "{p3}",
+       "props": {
+        "_looks_like": "pothos"
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{room}",
+       "props": {
+        "awake": true,
+        "posture": "sitting",
+        "activity": "reading"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.species",
+       "op": "in",
+       "value": [
+        "peace_lily",
+        "peace lily",
+        "unsure"
+       ]
+      },
+      {
+       "path": "reports.{p2}.species",
+       "op": "in",
+       "value": [
+        "monstera",
+        "monstera"
+       ]
+      },
+      {
+       "path": "reports.{p3}.species",
+       "op": "eq",
+       "value": "artificial"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "ask",
+       "target": "resident_1",
+       "topic": "plants:care: {p1}"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "species",
+       "value": "peace_lily"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "species",
+       "value": "monstera"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "species",
+       "value": "artificial"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "picks one of the two look-alike lilies with confidence instead of resolving it (or saying unsure)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "calla_lily"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "monstera"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "artificial"
+        }
+       ]
+      },
+      {
+       "name": "identifies plants from the ordinary look and registers the artificial plant as the living species it imitates",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}"
+        },
+        {
+         "do": "ask",
+         "target": "resident_1",
+         "topic": "plants:care: {p1}"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "peace_lily"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "monstera"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "pothos"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Identify the houseplants in the living room and report what each one is.",
+   "phrasings": [
+    "Identify houseplants.",
+    "Identify the houseplants in the living room and report what each one is.",
+    "What are the plants in the living room? Tell me the species of each - say if one is fake.",
+    "Can you figure out which plants we have in the living room?"
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "budget": {
+    "steps": 50,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Realistic perception: all three look like 'potted plant' at a glance; a plain inspect gives the leaf appearance (the fake looks like the species it imitates, the peace lily and calla lily share one look); inspect where=closely reports species_seen, artificial_seen, or species_candidates for the look-alike lily. The reference resolves the lily by asking the resident (plants:care:<plant>) - 'unsure' is also accepted - and reports the fake as artificial. Wrong plans: confident wrong lily; plain-look identification that registers the fake as living."
+  },
+  {
+   "catalog_id": "T-e662e1ab5384e8-01",
+   "title": "Inspect the houseplants for visible pests, including leaf undersides (realistic perception)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "weather",
+     "condition": "clear",
+     "temperature_c": 20.0,
+     "wind_mps": 1.0,
+     "gust_mps": 2.0,
+     "rain_mm_h": 0.0
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "rubber_plant",
+          "on": "table",
+          "pests": {
+           "kind": "aphids",
+           "severity": 0.4,
+           "where": "leaf_underside"
+          }
+         },
+         {
+          "species": "monstera",
+          "on": "table",
+          "dust": 0.6
+         },
+         {
+          "species": "jade_plant",
+          "on": "table",
+          "pests": {
+           "kind": "mealybugs",
+           "severity": 0.3,
+           "where": "stem"
+          }
+         },
+         {
+          "species": "pothos",
+          "on": "table"
+         }
+        ]
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.pests",
+       "op": "eq",
+       "value": "aphids"
+      },
+      {
+       "path": "reports.{p2}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      },
+      {
+       "path": "reports.{p3}.pests",
+       "op": "eq",
+       "value": "mealybugs"
+      },
+      {
+       "path": "reports.{p4}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "pests",
+       "value": "aphids"
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "pests",
+       "value": "none"
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "pests",
+       "value": "mealybugs"
+      },
+      {
+       "skill": "approach",
+       "target": "{p4}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p4}",
+       "field": "pests",
+       "value": "none"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "checks only the leaf tops and stems (never looks under the leaves)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "pests",
+         "value": "mealybugs"
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "pests",
+         "value": "none"
+        }
+       ]
+      },
+      {
+       "name": "reports the dusty plant's grey film as spider mites",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "pests",
+         "value": "aphids"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "pests",
+         "value": "spider_mites"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "pests",
+         "value": "mealybugs"
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "pests",
+         "value": "none"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "pothos",
+          "on": "table",
+          "dust": 0.6
+         },
+         {
+          "species": "spider_plant",
+          "on": "table"
+         },
+         {
+          "species": "monstera",
+          "on": "table",
+          "pests": {
+           "kind": "whitefly",
+           "severity": 0.35,
+           "where": "leaf_underside"
+          }
+         },
+         {
+          "species": "zz_plant",
+          "on": "table"
+         }
+        ]
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      },
+      {
+       "path": "reports.{p2}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      },
+      {
+       "path": "reports.{p3}.pests",
+       "op": "eq",
+       "value": "whitefly"
+      },
+      {
+       "path": "reports.{p4}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "pests",
+       "value": "none"
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "pests",
+       "value": "none"
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "pests",
+       "value": "whitefly"
+      },
+      {
+       "skill": "approach",
+       "target": "{p4}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p4}",
+       "field": "pests",
+       "value": "none"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "checks only the leaf tops and stems (never looks under the leaves)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "pests",
+         "value": "none"
+        }
+       ]
+      },
+      {
+       "name": "reports the dusty plant's grey film as spider mites",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "pests",
+         "value": "spider_mites"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "pests",
+         "value": "whitefly"
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "pests",
+         "value": "none"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "outdoor_plants.houseplants",
+       "args": {
+        "room": "living_room",
+        "plants": [
+         {
+          "species": "peace_lily",
+          "on": "table"
+         },
+         {
+          "species": "fiddle_leaf_fig",
+          "on": "table",
+          "pests": {
+           "kind": "scale",
+           "severity": 0.3,
+           "where": "stem"
+          }
+         },
+         {
+          "species": "rubber_plant",
+          "on": "table",
+          "dust": 0.6
+         },
+         {
+          "species": "spider_plant",
+          "on": "table",
+          "pests": {
+           "kind": "aphids",
+           "severity": 0.45,
+           "where": "leaf_underside"
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{p1}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      },
+      {
+       "path": "reports.{p2}.pests",
+       "op": "eq",
+       "value": "scale"
+      },
+      {
+       "path": "reports.{p3}.pests",
+       "op": "not_in",
+       "value": [
+        "aphids",
+        "mealybugs",
+        "spider_mites",
+        "scale",
+        "whitefly",
+        "fungus_gnats",
+        "thrips"
+       ]
+      },
+      {
+       "path": "reports.{p4}.pests",
+       "op": "eq",
+       "value": "aphids"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{p1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p1}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p1}",
+       "field": "pests",
+       "value": "none"
+      },
+      {
+       "skill": "approach",
+       "target": "{p2}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p2}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p2}",
+       "field": "pests",
+       "value": "scale"
+      },
+      {
+       "skill": "approach",
+       "target": "{p3}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p3}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p3}",
+       "field": "pests",
+       "value": "none"
+      },
+      {
+       "skill": "approach",
+       "target": "{p4}"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{p4}",
+       "where": "under"
+      },
+      {
+       "do": "report",
+       "target": "{p4}",
+       "field": "pests",
+       "value": "aphids"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "checks only the leaf tops and stems (never looks under the leaves)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "pests",
+         "value": "scale"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "pests",
+         "value": "none"
+        }
+       ]
+      },
+      {
+       "name": "reports the dusty plant's grey film as spider mites",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{p1}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p1}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "pests",
+         "value": "none"
+        },
+        {
+         "skill": "approach",
+         "target": "{p2}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p2}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "pests",
+         "value": "scale"
+        },
+        {
+         "skill": "approach",
+         "target": "{p3}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p3}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "pests",
+         "value": "spider_mites"
+        },
+        {
+         "skill": "approach",
+         "target": "{p4}"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
+         "do": "inspect",
+         "target": "{p4}",
+         "where": "under"
+        },
+        {
+         "do": "report",
+         "target": "{p4}",
+         "field": "pests",
+         "value": "aphids"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Inspect the living-room plants for visible pests and report what you find on each one. Don't treat anything.",
+   "phrasings": [
+    "Inspect plants for visible pests.",
+    "Inspect the living-room plants for visible pests and report what you find on each one. Don't treat anything.",
+    "Can you check the houseplants for bugs - under the leaves too - and tell me which ones have them?",
+    "Look the plants over for pests and let me know, no spraying."
+   ],
+   "failure": [
+    {
+     "path": "stats.chemical_misuse",
+     "op": "gt",
+     "value": 0
+    },
+    {
+     "path": "stats.plant_harm",
+     "op": "gt",
+     "value": 0
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Realistic perception: pests are a secret field. inspect where=closely shows pests on stems/leaf tops (pests_seen) and webbing cues; only where=under shows leaf-underside colonies (aphids, whitefly). A dusty plant shows a dirty soil bucket at a glance but has no pests. Clean plants must be reported with a non-pest value (e.g. 'none'). Wrong plans: leaf tops only (misses the underside colony); dust reported as spider mites."
+  }
+ ]
+}

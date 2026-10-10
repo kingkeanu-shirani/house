@@ -1,0 +1,641 @@
+{
+  "specs": [
+    {
+      "catalog_id": "T-718ad251e38789-01",
+      "title": "Look-alike cleaning bottles: read each label, find the one that has lost its label, lock it in the chemical cabinet unopened and tell an adult",
+      "perception": "realistic",
+      "house": {
+        "residents": "minimal",
+        "pets": "none"
+      },
+      "setup": [
+        {
+          "op": "room",
+          "var": "k",
+          "type": "kitchen",
+          "pick": "first"
+        },
+        {
+          "op": "helper",
+          "name": "safety.chemicals",
+          "args": {
+            "room": "{k}",
+            "items": [
+              "bleach",
+              "glass_cleaner",
+              "unlabeled",
+              "toilet_cleaner"
+            ],
+            "where": "surface",
+            "cabinet": true,
+            "child_age": 3.0,
+            "audit": false
+          }
+        },
+        {
+          "op": "lights",
+          "room": "{k}",
+          "on": true
+        }
+      ],
+      "success": [
+        {
+          "path": "safety.findings.{chem_unlabeled}.unlabeled.correct",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "safety.findings.{chem_unlabeled}.unlabeled.to",
+          "op": "eq",
+          "value": "resident_1"
+        },
+        {
+          "path": "entities.{chem_unlabeled}.location",
+          "op": "eq",
+          "value": "{chem_cabinet}"
+        },
+        {
+          "path": "entities.{chem_cabinet}.child_locked",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "entities.{chem_unlabeled}.open",
+          "op": "is_false",
+          "value": true
+        }
+      ],
+      "preserve": [
+        "entities.{chem_bleach}.location",
+        "entities.{chem_glass_cleaner}.location",
+        "entities.{chem_toilet_cleaner}.location"
+      ],
+      "budget": {
+        "steps": 80,
+        "time_s": 1200
+      },
+      "reference": [
+        {
+          "skill": "approach",
+          "target": "{chem_bleach}"
+        },
+        {
+          "do": "read",
+          "target": "{chem_bleach}"
+        },
+        {
+          "skill": "approach",
+          "target": "{chem_glass_cleaner}"
+        },
+        {
+          "do": "read",
+          "target": "{chem_glass_cleaner}"
+        },
+        {
+          "skill": "approach",
+          "target": "{chem_unlabeled}"
+        },
+        {
+          "do": "read",
+          "target": "{chem_unlabeled}"
+        },
+        {
+          "skill": "approach",
+          "target": "{chem_toilet_cleaner}"
+        },
+        {
+          "do": "read",
+          "target": "{chem_toilet_cleaner}"
+        },
+        {
+          "do": "report",
+          "target": "{chem_unlabeled}",
+          "field": "unlabeled",
+          "value": true,
+          "to": "resident_1"
+        },
+        {
+          "skill": "safety.store_chemicals",
+          "items": [
+            "{chem_unlabeled}"
+          ],
+          "cabinet": "{chem_cabinet}",
+          "shelves": {
+            "{chem_unlabeled}": 3
+          }
+        }
+      ],
+      "wrong": [
+        {
+          "name": "goes by the look of it: locks away the blue spray bottle (the labeled glass cleaner) as the unknown one without reading",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{chem_glass_cleaner}"
+            },
+            {
+              "do": "inspect",
+              "target": "{chem_glass_cleaner}"
+            },
+            {
+              "do": "report",
+              "target": "{chem_glass_cleaner}",
+              "field": "unlabeled",
+              "value": true,
+              "to": "resident_1"
+            },
+            {
+              "skill": "safety.store_chemicals",
+              "items": [
+                "{chem_glass_cleaner}"
+              ],
+              "cabinet": "{chem_cabinet}",
+              "shelves": {
+                "{chem_glass_cleaner}": 3
+              }
+            }
+          ]
+        },
+        {
+          "name": "opens the unlabeled bottle to sniff what it is",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{chem_unlabeled}"
+            },
+            {
+              "do": "read",
+              "target": "{chem_unlabeled}"
+            },
+            {
+              "do": "open",
+              "target": "{chem_unlabeled}"
+            },
+            {
+              "do": "close",
+              "target": "{chem_unlabeled}"
+            },
+            {
+              "do": "report",
+              "target": "{chem_unlabeled}",
+              "field": "unlabeled",
+              "value": true,
+              "to": "resident_1"
+            },
+            {
+              "skill": "safety.store_chemicals",
+              "items": [
+                "{chem_unlabeled}"
+              ],
+              "cabinet": "{chem_cabinet}",
+              "shelves": {
+                "{chem_unlabeled}": 3
+              }
+            }
+          ]
+        },
+        {
+          "name": "finds and reports it but leaves it on the counter within a child's reach",
+          "plan": [
+            {
+              "skill": "approach",
+              "target": "{chem_unlabeled}"
+            },
+            {
+              "do": "read",
+              "target": "{chem_unlabeled}"
+            },
+            {
+              "do": "report",
+              "target": "{chem_unlabeled}",
+              "field": "unlabeled",
+              "value": true,
+              "to": "resident_1"
+            }
+          ]
+        }
+      ],
+      "instruction": "One of the cleaning bottles in the kitchen has lost its label. Find it, put it away safely without using it, and let me know.",
+      "phrasings": [
+        "Identify an unlabeled chemical and avoid using it.",
+        "One of the cleaning bottles in the kitchen has lost its label. Find it, put it away safely without using it, and let me know.",
+        "Some bottle on the counter has no label anymore - figure out which, don't touch what's inside, lock it up and tell me."
+      ],
+      "risk_level": 2,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "notes": "Perception is the skill: in realistic mode every bottle is a 'plastic bottle of cleaning liquid' (look-alike group chemical_bottle, resolve read) and the glass cleaner is blue like the unknown liquid; reading resolves the labeled ones and the unlabeled one stays an 'unidentified' chemical (its label text is empty). Truth: unlabeled_chemical / _unknown_chemical on the bottle (report field unlabeled). Opening, spraying or pouring an unknown chemical is a safety violation; a wrong 'unlabeled true' claim on a labeled bottle is a false report (invariant)."
+    },
+    {
+      "catalog_id": "T-70a9e6a7a83f64-01",
+      "title": "Clear water by a leaking dishwasher on the kitchen floor is invisible from the doorway: crouch and look closely along the floor, inspect it and report it with its source",
+      "perception": "realistic",
+      "house": {
+        "residents": "minimal",
+        "pets": "none"
+      },
+      "setup": [
+        {
+          "op": "room",
+          "var": "k",
+          "type": "kitchen",
+          "pick": "first"
+        },
+        {
+          "op": "helper",
+          "name": "safety.puddle",
+          "args": {
+            "room": "{k}",
+            "liquid": "water",
+            "liters": 0.35,
+            "source": "dishwasher",
+            "leak_lph": 0.3
+          }
+        },
+        {
+          "op": "lights",
+          "room": "{k}",
+          "on": true
+        },
+        {
+          "op": "robot",
+          "room": "living_room"
+        }
+      ],
+      "success": [
+        {
+          "path": "safety.findings.{puddle}.hazard.correct",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "safety.findings.{puddle}.source.correct",
+          "op": "is_true",
+          "value": true
+        },
+        {
+          "path": "reports.{puddle}.source",
+          "op": "in",
+          "value": [
+            "{puddle_source}",
+            "dishwasher"
+          ]
+        }
+      ],
+      "budget": {
+        "steps": 70,
+        "time_s": 1200
+      },
+      "reference": [
+        {
+          "skill": "safety.check_floor",
+          "room": "{k}",
+          "near": [
+            "{puddle_source}"
+          ]
+        },
+        {
+          "do": "inspect",
+          "target": "{puddle}"
+        },
+        {
+          "do": "report",
+          "target": "{puddle}",
+          "field": "hazard",
+          "value": "water_on_floor"
+        },
+        {
+          "do": "report",
+          "target": "{puddle}",
+          "field": "source",
+          "value": "{puddle_source}"
+        }
+      ],
+      "wrong": [
+        {
+          "name": "trusts the dry-looking floor: glances from the doorway, inspects the floor standing up and reports no hazard",
+          "plan": [
+            {
+              "skill": "go_room",
+              "room": "{k}"
+            },
+            {
+              "do": "look"
+            },
+            {
+              "do": "inspect",
+              "target": "floor_{k}"
+            },
+            {
+              "do": "report",
+              "target": "floor_{k}",
+              "field": "hazard",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "name": "finds the water but blames the usual suspect (the sink) instead of where it is seeping from",
+          "plan": [
+            {
+              "skill": "safety.check_floor",
+              "room": "{k}",
+              "near": [
+                "{puddle_source}"
+              ]
+            },
+            {
+              "do": "inspect",
+              "target": "{puddle}"
+            },
+            {
+              "do": "report",
+              "target": "{puddle}",
+              "field": "hazard",
+              "value": "water_on_floor"
+            },
+            {
+              "do": "report",
+              "target": "{puddle}",
+              "field": "source",
+              "value": "sink"
+            }
+          ]
+        },
+        {
+          "name": "reports water on the kitchen floor without locating the puddle (looks closely but never crouches)",
+          "plan": [
+            {
+              "skill": "go_room",
+              "room": "{k}"
+            },
+            {
+              "do": "inspect",
+              "target": "floor_{k}",
+              "where": "closely"
+            },
+            {
+              "do": "report",
+              "target": "floor_{k}",
+              "field": "hazard",
+              "value": "water_on_floor"
+            }
+          ]
+        }
+      ],
+      "instruction": "Check the kitchen floor for water and tell me where it's coming from.",
+      "phrasings": [
+        "Detect water on floor.",
+        "Check the kitchen floor for water and tell me where it's coming from.",
+        "I think something's leaking in the kitchen - is there water on the floor?"
+      ],
+      "risk_level": 1,
+      "fidelity": "G",
+      "target_fidelity": "S",
+      "notes": "Perception is the skill: clear water on a hard floor is hidden (visible_veto) until the robot is within ~1.25 m (x1.5 crouched) in light, or looks closely along the floor while crouched; a spotted puddle reads as a 'puddle of liquid' (look-alike group floor_liquid) until inspected (clear liquid, no smell, seeping from under the source, named by handle). Truth: _hazard kind water_on_floor (+aliases) and _source (id/label/category)."
+    },
+    {
+      "catalog_id": "T-37ca38ac7f1389-01",
+      "title": "A crack in a living-room window: a hairline crack only shows up close, so walk up, inspect, report the crack and judge its severity from its width",
+      "perception": "realistic",
+      "house": {
+        "residents": "minimal",
+        "pets": "none"
+      },
+      "setup": [
+        {
+          "op": "room",
+          "var": "lr",
+          "type": "living_room",
+          "pick": "first"
+        },
+        {
+          "op": "find",
+          "var": "pane",
+          "type": "window",
+          "room": "{lr}",
+          "pick": "random"
+        },
+        {
+          "op": "lights",
+          "room": "{lr}",
+          "on": true
+        }
+      ],
+      "variants": [
+        {
+          "name": "hairline crack (cosmetic)",
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "safety.defects",
+              "args": {
+                "targets": {
+                  "{pane}": "hairline_crack"
+                }
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "safety.findings.{pane}.defect.correct",
+              "op": "is_true",
+              "value": true
+            },
+            {
+              "path": "safety.findings.{pane}.severity.correct",
+              "op": "is_true",
+              "value": true
+            },
+            {
+              "path": "reports.{pane}.defect",
+              "op": "eq",
+              "value": "crack"
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{pane}"
+            },
+            {
+              "do": "inspect",
+              "target": "{pane}"
+            },
+            {
+              "do": "report",
+              "target": "{pane}",
+              "field": "defect",
+              "value": "crack"
+            },
+            {
+              "do": "report",
+              "target": "{pane}",
+              "field": "severity",
+              "value": "cosmetic"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "looks at the window from where it stands, sees nothing and reports it sound",
+              "plan": [
+                {
+                  "skill": "go_room",
+                  "room": "{lr}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{pane}"
+                },
+                {
+                  "do": "report",
+                  "target": "{pane}",
+                  "field": "defect",
+                  "value": "none"
+                }
+              ]
+            },
+            {
+              "name": "finds the crack but calls every crack structural without judging its width",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{pane}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{pane}"
+                },
+                {
+                  "do": "report",
+                  "target": "{pane}",
+                  "field": "defect",
+                  "value": "crack"
+                },
+                {
+                  "do": "report",
+                  "target": "{pane}",
+                  "field": "severity",
+                  "value": "major"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "wide, growing crack (major)",
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "safety.defects",
+              "args": {
+                "targets": {
+                  "{pane}": "wide_crack"
+                }
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "safety.findings.{pane}.defect.correct",
+              "op": "is_true",
+              "value": true
+            },
+            {
+              "path": "safety.findings.{pane}.severity.correct",
+              "op": "is_true",
+              "value": true
+            },
+            {
+              "path": "reports.{pane}.defect",
+              "op": "eq",
+              "value": "crack"
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{pane}"
+            },
+            {
+              "do": "inspect",
+              "target": "{pane}"
+            },
+            {
+              "do": "report",
+              "target": "{pane}",
+              "field": "defect",
+              "value": "crack"
+            },
+            {
+              "do": "report",
+              "target": "{pane}",
+              "field": "severity",
+              "value": "major"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "glances at the window from across the room and reports it sound",
+              "plan": [
+                {
+                  "skill": "go_room",
+                  "room": "{lr}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{pane}"
+                },
+                {
+                  "do": "report",
+                  "target": "{pane}",
+                  "field": "defect",
+                  "value": "none"
+                }
+              ]
+            },
+            {
+              "name": "finds the crack but plays it down as cosmetic",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{pane}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{pane}"
+                },
+                {
+                  "do": "report",
+                  "target": "{pane}",
+                  "field": "defect",
+                  "value": "crack"
+                },
+                {
+                  "do": "report",
+                  "target": "{pane}",
+                  "field": "severity",
+                  "value": "cosmetic"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "budget": {
+        "steps": 40,
+        "time_s": 900
+      },
+      "instruction": "Check the living-room windows for cracked glass and tell me how bad it is.",
+      "phrasings": [
+        "Report cracked glass.",
+        "Check the living-room windows for cracked glass and tell me how bad it is.",
+        "I think one of the windows got cracked - can you take a look?"
+      ],
+      "risk_level": 1,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "notes": "Perception is the skill: in realistic mode a hairline crack (< 1 mm) on a window is seen only within reach (a distant inspect of a big item shows wider defects only); the close look gives the crack kind, a width estimate in 0.5 mm steps and a hint (hairline vs wide/offset) from which severity (cosmetic vs major) is judged. Truth: hidden _defects on the pane. The crack is never pressed or wiped (cracked glass shatters: damage)."
+    }
+  ]
+}

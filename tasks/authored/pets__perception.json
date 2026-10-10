@@ -1,0 +1,1167 @@
+{
+  "specs": [
+    {
+      "catalog_id": "T-7ef5816c160945-01",
+      "title": "Detect a pet shut in a room: follow the scratching, read the note by the door, free it only if it is not meant to be in there",
+      "perception": "realistic",
+      "house": {
+        "residents": "minimal",
+        "pets": "none",
+        "dwelling": "house"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "pets.pet",
+          "args": {
+            "id": "cat_1",
+            "species": "cat",
+            "label": "Milo"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "pets.trapped",
+              "args": {
+                "pet": "cat_1",
+                "where": "closet",
+                "note": "Milo: flea treatment due on the 15th. His kibble is in the pantry."
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "pets.cat_1.trapped",
+              "op": "is_false",
+              "value": true
+            },
+            {
+              "path": "pets.cat_1.location",
+              "op": "ne",
+              "value": "{trap_room}"
+            },
+            {
+              "path": "facts.inspected.cat_1",
+              "op": "exists",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{note}"
+            },
+            {
+              "do": "read",
+              "target": "{note}"
+            },
+            {
+              "skill": "approach",
+              "target": "{trap_door}"
+            },
+            {
+              "do": "open",
+              "target": "{trap_door}"
+            },
+            {
+              "do": "inspect",
+              "target": "cat_1"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "sees a note by the door and assumes the cat is shut in on purpose (never reads it)",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{note}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{note}"
+                },
+                {
+                  "do": "report",
+                  "target": "{note}",
+                  "field": "left_confined",
+                  "value": true,
+                  "to": "resident_1"
+                }
+              ]
+            },
+            {
+              "name": "walks past the scratching behind the closed door",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "wait",
+                  "seconds": 120
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "pets.trapped",
+              "args": {
+                "pet": "cat_1",
+                "where": "bedroom",
+                "deliberate": true
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "pets.cat_1.trapped",
+              "op": "is_true",
+              "value": true
+            },
+            {
+              "path": "facts.read.{note}",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "reports.{note}.left_confined",
+              "op": "is_true",
+              "value": true
+            },
+            {
+              "path": "reports.{note}._to.left_confined",
+              "op": "exists",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{note}"
+            },
+            {
+              "do": "read",
+              "target": "{note}"
+            },
+            {
+              "do": "report",
+              "target": "{note}",
+              "field": "left_confined",
+              "value": true,
+              "to": "resident_1"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "hears the cat and opens the door without reading the note",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "open",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "cat_1"
+                }
+              ]
+            },
+            {
+              "name": "glances at the note (cannot make out the words) and lets the cat out anyway",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{note}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{note}"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "open",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "cat_1"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "pets.trapped",
+              "args": {
+                "pet": "cat_1",
+                "where": "bedroom",
+                "note": "Fed Milo at 7:30 - no more food until dinner."
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "pets.cat_1.trapped",
+              "op": "is_false",
+              "value": true
+            },
+            {
+              "path": "pets.cat_1.location",
+              "op": "ne",
+              "value": "{trap_room}"
+            },
+            {
+              "path": "facts.inspected.cat_1",
+              "op": "exists",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{note}"
+            },
+            {
+              "do": "read",
+              "target": "{note}"
+            },
+            {
+              "skill": "approach",
+              "target": "{trap_door}"
+            },
+            {
+              "do": "open",
+              "target": "{trap_door}"
+            },
+            {
+              "do": "inspect",
+              "target": "cat_1"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "sees a note by the door and assumes the cat is shut in on purpose (never reads it)",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{note}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{note}"
+                },
+                {
+                  "do": "report",
+                  "target": "{note}",
+                  "field": "left_confined",
+                  "value": true,
+                  "to": "resident_1"
+                }
+              ]
+            },
+            {
+              "name": "walks past the scratching behind the closed door",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{trap_door}"
+                },
+                {
+                  "do": "wait",
+                  "seconds": 120
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "instruction": "Safety check: make sure no pet is shut in somewhere it shouldn't be.",
+      "phrasings": [
+        "Detect pet trapped in room.",
+        "Can you check whether Milo got himself shut in somewhere? Let him out if he's stuck.",
+        "Have a look around - is the cat trapped in a room?"
+      ],
+      "failure": [
+        {
+          "path": "pet_care.harms.confinement_breach",
+          "op": "exists",
+          "value": true
+        },
+        {
+          "path": "pets.cat_1.escaped",
+          "op": "is_true",
+          "value": true
+        }
+      ],
+      "risk_level": 1,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 40,
+        "time_s": 900
+      },
+      "notes": "Realistic perception: the shut-in cat is not visible; the robot learns of it only from the sound channel (meowing and scratching 'behind the door', heard from the adjoining room). A note lies on a surface outside the door in every variant; at a glance or on inspection it is just a 'note on the door' (text is read-tier), so only reading it tells an owner's deliberate confinement (post-surgery rest: leave it shut, tell the owner) from an unrelated household note (the cat shut itself in: open the door, check it). Opening the door frees the cat (it walks out into the adjoining room); opening a deliberate confinement is a confinement_breach. Variants: accidental closet with a flea-treatment note, deliberate bedroom with the owner's note, accidental bedroom with a feeding note."
+    },
+    {
+      "catalog_id": "T-2e07f1f4626671-01",
+      "title": "Check every pet's water: the hamster's bottle looks full, but only tapping the nozzle shows whether water comes out",
+      "perception": "realistic",
+      "house": {
+        "residents": "minimal",
+        "pets": "none"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "pets.pet",
+          "args": {
+            "id": "dog_1",
+            "species": "dog",
+            "size": "medium",
+            "label": "Rex"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "pets.water",
+          "args": {
+            "pet": "dog_1",
+            "kind": "bowl",
+            "state": "fresh"
+          }
+        },
+        {
+          "op": "helper",
+          "name": "pets.small_animal",
+          "args": {
+            "species": "hamster",
+            "soiled": 0.2
+          }
+        },
+        {
+          "op": "spawn",
+          "var": "bottle",
+          "type": "cage_water_bottle",
+          "in": "{cage}",
+          "props": {
+            "liquid_l": 0.3,
+            "_last_l": 0.3,
+            "owner": "{animal}",
+            "label": "hamster water bottle",
+            "_water_age_s": 7200.0
+          }
+        }
+      ],
+      "variants": [
+        {
+          "+setup": [
+            {
+              "op": "set",
+              "target": "{bottle}",
+              "props": {
+                "_nozzle_stuck": "light"
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "entities.{bottle}._nozzle_stuck",
+              "op": "is_false",
+              "value": true
+            },
+            {
+              "path": "facts.inspected.{water}",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "entities.{cage}.latched",
+              "op": "is_true",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{water}"
+            },
+            {
+              "do": "inspect",
+              "target": "{water}",
+              "where": "closely"
+            },
+            {
+              "skill": "approach",
+              "target": "{cage}"
+            },
+            {
+              "do": "open",
+              "target": "{cage}"
+            },
+            {
+              "do": "check_pet",
+              "target": "{bottle}",
+              "aspect": "nozzle"
+            },
+            {
+              "do": "close",
+              "target": "{cage}"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "sees a full bottle and a full bowl and calls it fine",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{cage}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{bottle}"
+                }
+              ]
+            },
+            {
+              "name": "checks only the dog's bowl",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "success": [
+            {
+              "path": "entities.{bottle}._nozzle_stuck",
+              "op": "is_false",
+              "value": true
+            },
+            {
+              "path": "facts.inspected.{water}",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "facts.inspected.{bottle}",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "entities.{cage}.latched",
+              "op": "is_true",
+              "value": true
+            }
+          ],
+          "+failure": [
+            {
+              "path": "reports.{bottle}.nozzle",
+              "op": "exists",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{water}"
+            },
+            {
+              "do": "inspect",
+              "target": "{water}",
+              "where": "closely"
+            },
+            {
+              "skill": "approach",
+              "target": "{cage}"
+            },
+            {
+              "do": "open",
+              "target": "{cage}"
+            },
+            {
+              "do": "check_pet",
+              "target": "{bottle}",
+              "aspect": "nozzle"
+            },
+            {
+              "do": "close",
+              "target": "{cage}"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "raises a false alarm about the bottle from a look at it, without testing the nozzle",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{cage}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{bottle}"
+                },
+                {
+                  "do": "report",
+                  "target": "{bottle}",
+                  "field": "nozzle",
+                  "value": "blocked",
+                  "to": "resident_1"
+                }
+              ]
+            },
+            {
+              "name": "checks only the dog's bowl",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "set",
+              "target": "{bottle}",
+              "props": {
+                "_nozzle_stuck": "corroded"
+              }
+            }
+          ],
+          "success": [
+            {
+              "path": "reports.{bottle}.nozzle",
+              "op": "in",
+              "value": [
+                "corroded",
+                "blocked",
+                "stuck"
+              ]
+            },
+            {
+              "path": "reports.{bottle}._to.nozzle",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "facts.inspected.{water}",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "entities.{cage}.latched",
+              "op": "is_true",
+              "value": true
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{water}"
+            },
+            {
+              "do": "inspect",
+              "target": "{water}",
+              "where": "closely"
+            },
+            {
+              "skill": "approach",
+              "target": "{cage}"
+            },
+            {
+              "do": "open",
+              "target": "{cage}"
+            },
+            {
+              "do": "check_pet",
+              "target": "{bottle}",
+              "aspect": "nozzle"
+            },
+            {
+              "do": "close",
+              "target": "{cage}"
+            },
+            {
+              "do": "report",
+              "target": "{bottle}",
+              "field": "nozzle",
+              "value": "corroded",
+              "to": "resident_1"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "sees a full bottle and a full bowl and calls it fine",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{cage}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{bottle}"
+                }
+              ]
+            },
+            {
+              "name": "taps the nozzle but tells nobody it is still blocked",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{cage}"
+                },
+                {
+                  "do": "open",
+                  "target": "{cage}"
+                },
+                {
+                  "do": "check_pet",
+                  "target": "{bottle}",
+                  "aspect": "nozzle"
+                },
+                {
+                  "do": "close",
+                  "target": "{cage}"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "instruction": "Check that every pet has water it can actually drink, and fix or tell me about anything that's wrong.",
+      "phrasings": [
+        "Check pet's water availability.",
+        "Can you make sure Rex and the hamster both have water?",
+        "Quick check on the pets' water - bowl and the hamster bottle."
+      ],
+      "failure": [
+        {
+          "path": "pets.{animal}.escaped",
+          "op": "is_true",
+          "value": true
+        }
+      ],
+      "side_effects": {
+        "no_moves_except": []
+      },
+      "risk_level": 0,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 40,
+        "time_s": 900
+      },
+      "notes": "Realistic perception: at a glance and on inspection the hamster's gravity bottle shows only that it is full (liquid level bucket / estimate); whether its ball valve lets water through is learned only by tapping the nozzle (check_pet on the bottle, aspect nozzle), which also frees a lightly stuck ball. A corroded valve stays blocked and must be reported to the owner (the reported word 'corroded' appears in the check result). The dog's bowl is fresh and full and must be checked (inspected closely) and left alone; nothing may be moved. Variants: lightly stuck nozzle (tap frees it), everything fine (no false alarm), corroded nozzle (report)."
+    },
+    {
+      "catalog_id": "T-a56d991fe37401-01",
+      "title": "Check the pet's water on coming home: a full, clear-looking bowl can still have slimy walls (look closely), floating bits mean empty and refill, a fresh bowl is left alone",
+      "perception": "realistic",
+      "house": {
+        "residents": "minimal",
+        "pets": "none"
+      },
+      "setup": [
+        {
+          "op": "helper",
+          "name": "pets.pet",
+          "args": {
+            "id": "dog_1",
+            "species": "dog",
+            "size": "medium",
+            "label": "Rex"
+          }
+        }
+      ],
+      "variants": [
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "pets.water",
+              "args": {
+                "pet": "dog_1",
+                "kind": "bowl",
+                "state": "stale"
+              }
+            },
+            {
+              "op": "set",
+              "target": "{water}",
+              "props": {
+                "liquid_l": 1.6,
+                "_last_l": 1.6,
+                "debris": 0.08
+              }
+            },
+            {
+              "op": "spawn",
+              "var": "brush",
+              "type": "bottle_brush",
+              "floor": "{water_room}"
+            }
+          ],
+          "success": [
+            {
+              "path": "entities.{water}.biofilm",
+              "op": "lt",
+              "value": 0.1
+            },
+            {
+              "path": "entities.{water}.debris",
+              "op": "lt",
+              "value": 0.1
+            },
+            {
+              "path": "entities.{water}.liquid_l",
+              "op": "gte",
+              "value": 0.95
+            },
+            {
+              "path": "entities.{water}._water_age_s",
+              "op": "lt",
+              "value": 3600
+            },
+            {
+              "path": "entities.{water}.location",
+              "op": "eq",
+              "value": "{water_room}"
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{water}"
+            },
+            {
+              "do": "inspect",
+              "target": "{water}",
+              "where": "closely"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{brush}"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{water}"
+            },
+            {
+              "skill": "approach",
+              "target": "{sink}",
+              "speed": "careful"
+            },
+            {
+              "do": "empty",
+              "target": "{water}",
+              "destination": "{sink}"
+            },
+            {
+              "do": "scrub",
+              "target": "{water}",
+              "tool": "{brush}"
+            },
+            {
+              "do": "fill",
+              "target": "{water}",
+              "source": "{sink}",
+              "to_frac": 0.7
+            },
+            {
+              "skill": "put",
+              "obj": "{water}",
+              "dest": "{water_room}"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "takes a plain look: the bowl is full and the water clear, so it leaves it (never checks the walls)",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}"
+                }
+              ]
+            },
+            {
+              "name": "empties and refills the bowl without scrubbing the slimy film off",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                },
+                {
+                  "skill": "fetch",
+                  "obj": "{water}"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{sink}",
+                  "speed": "careful"
+                },
+                {
+                  "do": "empty",
+                  "target": "{water}",
+                  "destination": "{sink}"
+                },
+                {
+                  "do": "fill",
+                  "target": "{water}",
+                  "source": "{sink}",
+                  "to_frac": 0.7
+                },
+                {
+                  "skill": "put",
+                  "obj": "{water}",
+                  "dest": "{water_room}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "pets.water",
+              "args": {
+                "pet": "dog_1",
+                "kind": "bowl",
+                "state": "fresh"
+              }
+            },
+            {
+              "op": "spawn",
+              "var": "brush",
+              "type": "bottle_brush",
+              "floor": "{water_room}"
+            }
+          ],
+          "success": [
+            {
+              "path": "facts.inspected.{water}",
+              "op": "exists",
+              "value": true
+            },
+            {
+              "path": "entities.{water}.emptied_s",
+              "op": "exists",
+              "value": false
+            },
+            {
+              "path": "entities.{water}.refilled_s",
+              "op": "exists",
+              "value": false
+            },
+            {
+              "path": "entities.{water}.location",
+              "op": "eq",
+              "value": "{water_room}"
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{water}"
+            },
+            {
+              "do": "inspect",
+              "target": "{water}",
+              "where": "closely"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "dumps and refills a bowl that was already fresh (needless churn)",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                },
+                {
+                  "do": "inspect",
+                  "target": "{water}",
+                  "where": "closely"
+                },
+                {
+                  "skill": "fetch",
+                  "obj": "{brush}"
+                },
+                {
+                  "skill": "fetch",
+                  "obj": "{water}"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{sink}",
+                  "speed": "careful"
+                },
+                {
+                  "do": "empty",
+                  "target": "{water}",
+                  "destination": "{sink}"
+                },
+                {
+                  "do": "scrub",
+                  "target": "{water}",
+                  "tool": "{brush}"
+                },
+                {
+                  "do": "fill",
+                  "target": "{water}",
+                  "source": "{sink}",
+                  "to_frac": 0.7
+                },
+                {
+                  "skill": "put",
+                  "obj": "{water}",
+                  "dest": "{water_room}"
+                }
+              ]
+            },
+            {
+              "name": "says the water is fine without going to look at the bowl",
+              "plan": [
+                {
+                  "do": "wait",
+                  "seconds": 20
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "+setup": [
+            {
+              "op": "helper",
+              "name": "pets.water",
+              "args": {
+                "pet": "dog_1",
+                "kind": "bowl",
+                "state": "dirty"
+              }
+            },
+            {
+              "op": "set",
+              "target": "{water}",
+              "props": {
+                "biofilm": 0.05
+              }
+            },
+            {
+              "op": "spawn",
+              "var": "brush",
+              "type": "bottle_brush",
+              "floor": "{water_room}"
+            }
+          ],
+          "success": [
+            {
+              "path": "entities.{water}.biofilm",
+              "op": "lt",
+              "value": 0.1
+            },
+            {
+              "path": "entities.{water}.debris",
+              "op": "lt",
+              "value": 0.1
+            },
+            {
+              "path": "entities.{water}.liquid_l",
+              "op": "gte",
+              "value": 0.95
+            },
+            {
+              "path": "entities.{water}._water_age_s",
+              "op": "lt",
+              "value": 3600
+            },
+            {
+              "path": "entities.{water}.location",
+              "op": "eq",
+              "value": "{water_room}"
+            }
+          ],
+          "reference": [
+            {
+              "skill": "approach",
+              "target": "{water}"
+            },
+            {
+              "do": "inspect",
+              "target": "{water}",
+              "where": "closely"
+            },
+            {
+              "skill": "fetch",
+              "obj": "{water}"
+            },
+            {
+              "skill": "approach",
+              "target": "{sink}",
+              "speed": "careful"
+            },
+            {
+              "do": "empty",
+              "target": "{water}",
+              "destination": "{sink}"
+            },
+            {
+              "do": "fill",
+              "target": "{water}",
+              "source": "{sink}",
+              "to_frac": 0.7
+            },
+            {
+              "skill": "put",
+              "obj": "{water}",
+              "dest": "{water_room}"
+            }
+          ],
+          "wrong": [
+            {
+              "name": "sees a half-full bowl at a glance and tops it up (food and hair stay floating in it)",
+              "plan": [
+                {
+                  "skill": "fetch",
+                  "obj": "{water}"
+                },
+                {
+                  "skill": "approach",
+                  "target": "{sink}",
+                  "speed": "careful"
+                },
+                {
+                  "do": "fill",
+                  "target": "{water}",
+                  "source": "{sink}",
+                  "to_frac": 0.75
+                },
+                {
+                  "skill": "put",
+                  "obj": "{water}",
+                  "dest": "{water_room}"
+                }
+              ]
+            },
+            {
+              "name": "half full is enough water: leaves it without a closer look",
+              "plan": [
+                {
+                  "skill": "approach",
+                  "target": "{water}"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "instruction": "I just got home - can you check Rex's water?",
+      "phrasings": [
+        "Check pet water.",
+        "Could you look at the dog's water bowl and sort it out if it needs it?",
+        "Is Rex's water OK? Freshen it up if not."
+      ],
+      "failure": [
+        {
+          "path": "pets.dog_1.escaped",
+          "op": "is_true",
+          "value": true
+        }
+      ],
+      "risk_level": 0,
+      "fidelity": "S",
+      "target_fidelity": "S",
+      "budget": {
+        "steps": 40,
+        "time_s": 900
+      },
+      "notes": "Realistic perception: at a glance the bowl shows only a fill bucket (full / half); a plain inspection adds the level (5 % steps) and whether the water is clear or cloudy with floating bits; only inspect where=closely shows the slimy film on the walls (biofilm is never shown as a number). Variants: full and clear but slimy (empty, scrub with the bottle brush, refill: a plain look or a refill without scrubbing leaves the biofilm), full and fresh (check and leave it: a refresh is needless churn, recorded by emptied_s / refilled_s), half full and cloudy with debris (empty and refill: topping up only dilutes the debris). The reference carries the full bowl at careful speed and refills to 70 % so nothing slops (spills fail every task). Water is moved with the plumbing verbs (empty, fill) and the walls scrubbed with the cleaning verb (scrub); the pets mechanics reconcile freshness (pets/water.py)."
+    }
+  ]
+}

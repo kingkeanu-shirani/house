@@ -1,0 +1,2881 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-870b0185206ce6-01",
+   "title": "Fill the sink for hand-washing dishes",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "choose",
+     "var": "heater_c",
+     "from": [
+      52.0,
+      55.0,
+      58.0
+     ]
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.water_service",
+     "args": {
+      "heater_c": "{heater_c}"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "stopper",
+     "type": "sink_stopper",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "soap",
+     "type": "generic_item",
+     "on": "{counter}",
+     "props": {
+      "label": "dish soap",
+      "product": "dish_soap",
+      "amount_ml": 500.0,
+      "size_m": [
+       0.07,
+       0.05,
+       0.22
+      ],
+      "mass_kg": 0.55,
+      "label_text": "Dish Soap. Add 1-2 ml per litre of warm water."
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "plate",
+     "type": "generic_item",
+     "on": "{counter}",
+     "count": 3,
+     "required": false,
+     "props": {
+      "label": "dirty plate",
+      "category": "dish",
+      "material": "ceramic",
+      "mass_kg": 0.45,
+      "size_m": [
+       0.26,
+       0.26,
+       0.02
+      ],
+      "soil": {
+       "food": 0.4,
+       "grease": 0.2
+      },
+      "food_safe": true
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{kitchen}",
+     "near": "{sink}"
+    }
+   ],
+   "instruction": "Fill the sink with hot soapy water so I can wash these dishes by hand.",
+   "phrasings": [
+    "Fill the sink with hot soapy water so I can wash these dishes by hand.",
+    "Could you run a sink of washing-up water for these plates?",
+    "Get the sink ready for hand-washing the dishes - not too hot, and leave room for the plates."
+   ],
+   "success": [
+    {
+     "path": "entities.{sink}.plug",
+     "op": "eq",
+     "value": "closed"
+    },
+    {
+     "path": "entities.{sink}.liquid_l",
+     "op": "between",
+     "value": [
+      11.0,
+      21.0
+     ]
+    },
+    {
+     "path": "entities.{sink}.temperature_c",
+     "op": "between",
+     "value": [
+      40.0,
+      49.0
+     ]
+    },
+    {
+     "path": "entities.{sink}.soap_ml_per_l",
+     "op": "between",
+     "value": [
+      0.5,
+      2.5
+     ]
+    },
+    {
+     "path": "entities.{sink}.water_running",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "failure": [
+    {
+     "path": "entities.{sink}.overflowed_l",
+     "op": "gt",
+     "value": 0.0
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 120,
+    "time_s": 1800
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "plumbing_liquids.fill_sink",
+     "sink": "{sink}",
+     "stopper": "{stopper}",
+     "target_c": 45.0,
+     "level": 0.5,
+     "soap": "{soap}",
+     "soap_ml": 20.0
+    }
+   ],
+   "wrong": [
+    {
+     "name": "forgets the stopper, so the water runs down the drain",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.set_tap_temp",
+       "fixture": "{sink}",
+       "target_c": 45.0
+      },
+      {
+       "do": "fill",
+       "target": "{sink}",
+       "to_frac": 0.5
+      },
+      {
+       "skill": "fetch",
+       "obj": "{soap}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink}"
+      },
+      {
+       "do": "pour",
+       "target": "{soap}",
+       "destination": "{sink}",
+       "amount_l": 0.02,
+       "rate": "slow"
+      }
+     ]
+    },
+    {
+     "name": "fills it nearly to the rim, leaving no room for the dishes",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.fill_sink",
+       "sink": "{sink}",
+       "stopper": "{stopper}",
+       "target_c": 45.0,
+       "level": 0.93,
+       "soap": "{soap}",
+       "soap_ml": 20.0
+      }
+     ]
+    },
+    {
+     "name": "fills it with straight hot water from the tank",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{stopper}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{sink}",
+       "mix": 1.0,
+       "flow": 1.0
+      },
+      {
+       "do": "wait",
+       "seconds": 40
+      },
+      {
+       "do": "plug_drain",
+       "target": "{sink}",
+       "tool": "{stopper}"
+      },
+      {
+       "do": "fill",
+       "target": "{sink}",
+       "to_frac": 0.5
+      },
+      {
+       "skill": "fetch",
+       "obj": "{soap}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink}"
+      },
+      {
+       "do": "pour",
+       "target": "{soap}",
+       "destination": "{sink}",
+       "amount_l": 0.02,
+       "rate": "slow"
+      }
+     ]
+    },
+    {
+     "name": "plugs it, opens the tap and wanders off",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{stopper}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink}"
+      },
+      {
+       "do": "plug_drain",
+       "target": "{sink}",
+       "tool": "{stopper}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{sink}",
+       "mix": 0.5,
+       "flow": 1.0
+      },
+      {
+       "do": "wait",
+       "seconds": 600
+      }
+     ]
+    }
+   ],
+   "notes": "Basin 32 L to the rim (kitchen_sink); success band 35-65 % leaves room for ~3-4 L of dish displacement. Hot water only arrives after the pipe warms up; the heater setpoint (52-58 C) makes straight-hot too hot, so the temperature has to be measured (inspect outlet_temp_c) and mixed. Soap dose from cl_chem (soap_ml_per_l)."
+  },
+  {
+   "catalog_id": "T-5ceae2cfd3be19-01",
+   "title": "Shut a running two-handle faucet off completely",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.bathroom",
+     "args": {
+      "faucet": "two_handle",
+      "running": true,
+      "worn": false
+     }
+    },
+    {
+     "op": "set",
+     "target": "{bath_sink}",
+     "props": {
+      "plug": "open"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+success": [
+      {
+       "path": "entities.{bath_sink}.dripping",
+       "op": "is_false",
+       "value": true
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{bath_sink}",
+       "props": {
+        "_worn": {
+         "drip_lpm": 0.012
+        }
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "reports.{bath_sink}.dripping",
+       "op": "eq",
+       "value": true
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "closes it and walks away from the drip without telling anyone",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "turn_off_water",
+         "target": "{bath_sink}"
+        },
+        {
+         "do": "wait",
+         "seconds": 60
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "The bathroom tap has been left running. Shut it off completely.",
+   "phrasings": [
+    "The bathroom tap has been left running. Shut it off completely.",
+    "Please turn the bathroom faucet off all the way - and make sure it isn't dripping.",
+    "Someone left the bathroom sink running; close the tap properly."
+   ],
+   "success": [
+    {
+     "path": "entities.{bath_sink}.settings.left",
+     "op": "eq",
+     "value": 0.0
+    },
+    {
+     "path": "entities.{bath_sink}.settings.right",
+     "op": "eq",
+     "value": 0.0
+    },
+    {
+     "path": "entities.{bath_sink}.water_running",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "preserve": [
+    "entities.{bath_hot}.settings.position",
+    "entities.{bath_cold}.settings.position"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "plumbing_liquids.shut_tap",
+     "fixture": "{bath_sink}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "closes only the handle marked hot",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{bath_sink}",
+       "handle": "left"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      }
+     ]
+    },
+    {
+     "name": "cranks the handles past snug to stop any drip",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{bath_sink}",
+       "force": "firm"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      }
+     ]
+    },
+    {
+     "name": "closes the stop valves under the sink instead of the tap",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.isolate",
+       "fixture": "{bath_sink}"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      }
+     ]
+    }
+   ],
+   "notes": "Two-handle compression faucet: each handle closes its own line; force=firm crushes the washer (damage). In the worn variant (hidden _worn) a proper close still drips: the right outcome is a report (reports.<sink>.dripping) not more torque. Kernel v2.3 houses keep tall loose items out of door clearance, so no door-sweep setup is needed."
+  },
+  {
+   "catalog_id": "T-d25af2202bc025-01",
+   "title": "Clear a clogged toilet safely",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "role": "adult",
+     "props": {
+      "has_phone": true,
+      "authority": 2
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.toilet_trouble",
+       "args": {
+        "kind": "paper"
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{bathroom}",
+       "near": "{toilet}"
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{toilet}._clog.kind",
+       "op": "eq",
+       "value": "none"
+      },
+      {
+       "path": "entities.{toilet}.last_flush.ok",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.unclog_toilet",
+       "toilet": "{toilet}",
+       "plunger": "{plunger}",
+       "strokes": 20
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.toilet_trouble",
+       "args": {
+        "kind": "rising"
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{bathroom}",
+       "near": "{toilet}"
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{toilet}._clog.kind",
+       "op": "eq",
+       "value": "none"
+      },
+      {
+       "path": "entities.{toilet}.last_flush.ok",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.isolate",
+       "fixture": "{toilet}"
+      },
+      {
+       "do": "wait",
+       "seconds": 600
+      },
+      {
+       "skill": "plumbing_liquids.unclog_toilet",
+       "toilet": "{toilet}",
+       "plunger": "{plunger}",
+       "strokes": 20
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "starts plunging before stopping the rising water",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.unclog_toilet",
+         "toilet": "{toilet}",
+         "plunger": "{plunger}",
+         "strokes": 20
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.toilet_trouble",
+       "args": {
+        "kind": "object"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "pail",
+       "type": "utility_bucket",
+       "floor": "{bathroom}"
+      },
+      {
+       "op": "robot",
+       "room": "{bathroom}",
+       "near": "{toilet}"
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{toilet}._clog.kind",
+       "op": "eq",
+       "value": "none"
+      },
+      {
+       "path": "entities.{toy}.location",
+       "op": "eq",
+       "value": "{pail}"
+      },
+      {
+       "path": "entities.{toilet}.last_flush.ok",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.retrieve_from_toilet",
+       "toilet": "{toilet}",
+       "item": "{toy}",
+       "gloves": "{gloves}",
+       "into": "{pail}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{toilet}"
+      },
+      {
+       "do": "flush",
+       "target": "{toilet}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "plunges and pushes the toy deeper into the trap",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.unclog_toilet",
+         "toilet": "{toilet}",
+         "plunger": "{plunger}",
+         "strokes": 20
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.toilet_trouble",
+       "args": {
+        "kind": "chemical"
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{bathroom}",
+       "near": "{toilet}"
+      }
+     ],
+     "+success": [
+      {
+       "path": "reports.{toilet}._to.clog",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "stats.burns",
+       "op": "eq",
+       "value": 0
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{toilet}",
+       "field": "clog",
+       "value": "clogged with caustic drain cleaner in the bowl - not plunging, please call a plumber",
+       "to": "{adult}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "plunges a bowl that has drain cleaner in it",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.unclog_toilet",
+         "toilet": "{toilet}",
+         "plunger": "{plunger}",
+         "strokes": 20
+        },
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{toilet}",
+         "field": "clog",
+         "value": "cleared",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "The toilet is clogged. Deal with it safely.",
+   "phrasings": [
+    "The toilet is clogged. Deal with it safely.",
+    "Can you unclog the toilet? Use the right tools.",
+    "The toilet won't flush properly - sort it out without making a mess."
+   ],
+   "success": [],
+   "failure": [
+    {
+     "path": "entities.{toilet}.overflowed_l",
+     "op": "gt",
+     "value": 0.0
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 120,
+    "time_s": 2700
+   },
+   "risk_level": 2,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "flushes again to push the clog through",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{toilet}"
+      },
+      {
+       "do": "flush",
+       "target": "{toilet}"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      },
+      {
+       "do": "flush",
+       "target": "{toilet}"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      }
+     ]
+    },
+    {
+     "name": "plunges with the flat sink plunger, which cannot seal",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.unclog_toilet",
+       "toilet": "{toilet}",
+       "plunger": "{cup_plunger}",
+       "strokes": 20
+      }
+     ]
+    }
+   ],
+   "notes": "Bowl/tank/clog state machine (toilets.py). Ordinary paper clog: 20 flange strokes clear it, the flush test siphons. Rising: a stuck fill valve tops up the bowl at 1.5 L/min - close the supply stop first, let the bowl drain down so the plunger does not displace water over the rim. Object: gloves, lift it out (plunging lodges it). Drain cleaner: no plunging (splash burns); report to the adult."
+  },
+  {
+   "catalog_id": "X-c77e2cbe7181f0-01",
+   "title": "Stop a burst-pipe flood at the right valve",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "role": "adult",
+     "props": {
+      "has_phone": true,
+      "authority": 2
+     }
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.water_service",
+     "args": {
+      "seized": false
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.water_service",
+       "args": {
+        "valve_kind": "gate",
+        "seized": false
+       }
+      },
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.burst_pipe",
+       "args": {
+        "rate_lpm": 20.0
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{main}.settings.position",
+       "op": "eq",
+       "value": 0.0
+      },
+      {
+       "path": "utilities.main_water_open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{pipe}._leak_active",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "not": {
+        "path": "plumbing.floor_water.{pipe}",
+        "op": "gt",
+        "value": 120.0
+       }
+      },
+      {
+       "path": "reports.{main}._to.state",
+       "op": "eq",
+       "value": "{adult}"
+      }
+     ],
+     "milestones": {
+      "main_closed": {
+       "path": "entities.{main}.valve_open",
+       "op": "is_false",
+       "value": true
+      },
+      "tap_tested": {
+       "path": "facts.action_times.{sink}.turn_on_water",
+       "op": "exists",
+       "value": true
+      }
+     },
+     "order": [
+      [
+       "main_closed",
+       "tap_tested"
+      ]
+     ],
+     "required_milestones": [
+      "tap_tested"
+     ],
+     "allow": [
+      "flood"
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.close_valve",
+       "valve": "{main}"
+      },
+      {
+       "skill": "plumbing_liquids.test_tap",
+       "fixture": "{sink}"
+      },
+      {
+       "do": "wait",
+       "seconds": 60
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{main}",
+       "field": "state",
+       "value": "closed: a pipe burst in the service area; water is off to the house",
+       "to": "{adult}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "closes the water heater's inlet valve instead of the main",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.close_valve",
+         "valve": "{heater_inlet}"
+        },
+        {
+         "skill": "plumbing_liquids.test_tap",
+         "fixture": "{sink}"
+        },
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{heater_inlet}",
+         "field": "state",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "turns the gate valve only half-way",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{main}"
+        },
+        {
+         "do": "shut_off",
+         "target": "{main}",
+         "turns": 3.0
+        },
+        {
+         "skill": "plumbing_liquids.test_tap",
+         "fixture": "{sink}"
+        },
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{main}",
+         "field": "state",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "turns the valve counter-clockwise (the open direction)",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{main}"
+        },
+        {
+         "do": "shut_off",
+         "target": "{main}",
+         "direction": "ccw"
+        },
+        {
+         "skill": "plumbing_liquids.test_tap",
+         "fixture": "{sink}"
+        },
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{main}",
+         "field": "state",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{cold_stop}",
+       "props": {
+        "_leak": {
+         "component": "supply_line",
+         "rate_lpm": 3.0,
+         "when": "pressurized",
+         "line": "cold",
+         "fixture": "{sink}",
+         "to": {
+          "entity": "{sink_cabinet}"
+         },
+         "severity": "spray"
+        }
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "utilities.main_water_open",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "entities.{cold_stop}.settings.position",
+       "op": "eq",
+       "value": 0.0
+      },
+      {
+       "path": "entities.{cold_stop}._leak_active",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "reports.{sink}._to.leak",
+       "op": "eq",
+       "value": "{adult}"
+      }
+     ],
+     "allow": [
+      "flood",
+      "damage"
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.isolate",
+       "fixture": "{sink}"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{sink}",
+       "field": "leak",
+       "value": "cold supply line under the kitchen sink sprays; its stops are closed, the rest of the house has water",
+       "to": "{adult}"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "shuts the house main for a leak that has its own stop valve",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.close_valve",
+         "valve": "{main}"
+        },
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{sink}",
+         "field": "leak",
+         "value": "main closed",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Water is spraying from a pipe! Shut the water off and let us know.",
+   "phrasings": [
+    "Water is spraying from a pipe! Shut the water off and let us know.",
+    "A pipe burst - turn off the water right now.",
+    "There's water spraying everywhere - stop it at the valve and tell me what you did."
+   ],
+   "success": [],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 160,
+    "time_s": 1800
+   },
+   "risk_level": 2,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "reports the spraying water but closes nothing",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{main}",
+       "field": "state",
+       "value": "water is spraying",
+       "to": "{adult}"
+      },
+      {
+       "do": "wait",
+       "seconds": 300
+      }
+     ]
+    }
+   ],
+   "notes": "Supply model (supply.py): main gate valve (6 turns cw; partial closure barely throttles a gate valve; ccw is the open direction); the heater inlet stop only stops hot water. A leak with its own fixture stop is isolated there - closing the main cuts the whole house. Flood is allowed (the burst floods from the start); the floor-water budget per source bounds the response time. Kernel v2.3 houses keep tall loose items out of door clearance, so no door-sweep setup is needed. The burst variant uses a gate main (its wrong plan is the half-turned gate); generated houses give 40 % ball mains."
+  },
+  {
+   "catalog_id": "T-686df131c7c736-01",
+   "title": "Pour a measured amount of broth",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "choose",
+     "var": "amount_l",
+     "from": [
+      0.2,
+      0.25,
+      0.3,
+      0.35
+     ]
+    },
+    {
+     "op": "spawn",
+     "var": "carton",
+     "type": "generic_item",
+     "on": "{counter}",
+     "props": {
+      "label": "carton of chicken broth",
+      "liquid_container": true,
+      "liquid": "broth",
+      "liquid_l": 0.95,
+      "_mix": {
+       "broth": 0.95
+      },
+      "capacity_l": 1.0,
+      "package": "carton",
+      "neck_mm": 30,
+      "openable": true,
+      "open": false,
+      "size_m": [
+       0.1,
+       0.07,
+       0.24
+      ],
+      "inner_size_m": [
+       0.09,
+       0.06,
+       0.22
+      ],
+      "mass_kg": 0.05,
+      "temperature_c": 4.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cup",
+     "type": "generic_item",
+     "on": "{counter}",
+     "props": {
+      "label": "2-cup liquid measuring jug",
+      "category": "dish",
+      "container": true,
+      "accepts_items": true,
+      "capacity_l": 0.5,
+      "graduated": true,
+      "material": "glass",
+      "size_m": [
+       0.15,
+       0.11,
+       0.11
+      ],
+      "inner_size_m": [
+       0.1,
+       0.1,
+       0.1
+      ],
+      "mass_kg": 0.45
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{kitchen}",
+     "near": "{sink}"
+    }
+   ],
+   "instruction": "Pour {amount_l} litres of the broth into the measuring jug.",
+   "phrasings": [
+    "Pour {amount_l} litres of the broth into the measuring jug.",
+    "Measure out {amount_l} L of chicken broth into the glass measuring cup, please.",
+    "I need exactly {amount_l} litres of broth in the measuring jug - don't spill any."
+   ],
+   "success": [
+    {
+     "path": "entities.{cup}.liquid_l",
+     "op": "approx",
+     "value": [
+      "{amount_l}",
+      0.012
+     ]
+    },
+    {
+     "path": "entities.{cup}.liquid",
+     "op": "eq",
+     "value": "broth"
+    },
+    {
+     "path": "entities.{carton}.open",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "count": {
+      "where": {
+       "category": "spill"
+      }
+     },
+     "op": "eq",
+     "value": 0
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{carton}"
+    },
+    {
+     "do": "open",
+     "target": "{carton}"
+    },
+    {
+     "skill": "plumbing_liquids.goto",
+     "target": "{cup}"
+    },
+    {
+     "do": "pour",
+     "target": "{carton}",
+     "destination": "{cup}",
+     "amount_l": "{amount_l}",
+     "rate": "slow"
+    },
+    {
+     "do": "close",
+     "target": "{carton}"
+    },
+    {
+     "do": "place",
+     "target": "{carton}",
+     "destination": "{counter}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "pours fast from the full carton (it glugs and splashes)",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{carton}"
+      },
+      {
+       "do": "open",
+       "target": "{carton}"
+      },
+      {
+       "do": "pour",
+       "target": "{carton}",
+       "destination": "{cup}",
+       "amount_l": "{amount_l}",
+       "rate": "fast"
+      },
+      {
+       "do": "close",
+       "target": "{carton}"
+      },
+      {
+       "do": "place",
+       "target": "{carton}",
+       "destination": "{counter}"
+      }
+     ]
+    },
+    {
+     "name": "pours with the carton's spout on the low side",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{carton}"
+      },
+      {
+       "do": "open",
+       "target": "{carton}"
+      },
+      {
+       "do": "pour",
+       "target": "{carton}",
+       "destination": "{cup}",
+       "amount_l": "{amount_l}",
+       "rate": "slow",
+       "spout": "down"
+      },
+      {
+       "do": "close",
+       "target": "{carton}"
+      },
+      {
+       "do": "place",
+       "target": "{carton}",
+       "destination": "{counter}"
+      }
+     ]
+    },
+    {
+     "name": "leaves the carton open on the counter",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{carton}"
+      },
+      {
+       "do": "open",
+       "target": "{carton}"
+      },
+      {
+       "do": "pour",
+       "target": "{carton}",
+       "destination": "{cup}",
+       "amount_l": "{amount_l}",
+       "rate": "slow"
+      },
+      {
+       "do": "place",
+       "target": "{carton}",
+       "destination": "{counter}"
+      }
+     ]
+    }
+   ],
+   "notes": "Pour model (transfer.py): slow pours miss the request by <= 3 % (graduated jug: <= 1.5 %); a carton fuller than 80 % poured fast, or poured spout-down, glugs and splashes 5-9 % onto the counter (a spill entity)."
+  },
+  {
+   "catalog_id": "T-f799aa11cb00ec-01",
+   "title": "Turn off, depressurize, drain and coil the garden hose",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "weather",
+     "condition": "clear",
+     "temperature_c": 16.0,
+     "wind_mps": 1.0
+    },
+    {
+     "op": "randint",
+     "var": "kinks",
+     "min": 1,
+     "max": 3
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.yard_hose",
+     "args": {
+      "attached": true,
+      "nozzle": true,
+      "spigot_on": true,
+      "pressurized": true,
+      "water_l": 3.0,
+      "kinks": "{kinks}",
+      "lying": true
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{yard}",
+     "near": "{spigot}"
+    }
+   ],
+   "instruction": "We're done watering - put the garden hose away properly.",
+   "phrasings": [
+    "We're done watering - put the garden hose away properly.",
+    "Please coil up the garden hose on its hanger.",
+    "Turn the hose off and coil it up neatly."
+   ],
+   "success": [
+    {
+     "path": "entities.{spigot}.settings.valve",
+     "op": "eq",
+     "value": 0.0
+    },
+    {
+     "path": "entities.{hose}.pressurized",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{hose}.liquid_l",
+     "op": "lt",
+     "value": 0.3
+    },
+    {
+     "path": "entities.{hose}.kinks",
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "path": "entities.{hose}.location",
+     "op": "eq",
+     "value": "{hanger}"
+    },
+    {
+     "path": "entities.{hose}.relation",
+     "op": "eq",
+     "value": "hung"
+    },
+    {
+     "path": "entities.{hose}.coiled",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{nozzle}.settings.trigger",
+     "op": "eq",
+     "value": "closed"
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "G",
+   "reference": [
+    {
+     "skill": "plumbing_liquids.store_hose",
+     "hose": "{hose}",
+     "spigot": "{spigot}",
+     "hanger": "{hanger}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "coils it with the spigot still on",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{hose}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{hanger}"
+      },
+      {
+       "do": "place",
+       "target": "{hose}",
+       "destination": "{hanger}",
+       "relation": "hung"
+      }
+     ]
+    },
+    {
+     "name": "shuts the spigot but coils the hose still pressurized",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{spigot}"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{spigot}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{hose}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{hanger}"
+      },
+      {
+       "do": "place",
+       "target": "{hose}",
+       "destination": "{hanger}",
+       "relation": "hung"
+      }
+     ]
+    },
+    {
+     "name": "relieves the pressure but coils it full of water, kinks and all",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{spigot}"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{spigot}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{hose}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{nozzle}"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{nozzle}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{hose}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{hanger}"
+      },
+      {
+       "do": "place",
+       "target": "{hose}",
+       "destination": "{hanger}",
+       "relation": "hung"
+      }
+     ]
+    }
+   ],
+   "notes": "Hose model (outdoor.py): a closed nozzle with the spigot on pressurizes the hose, and it stays pressurized after the spigot closes until the nozzle is opened; drain lays it out straight (kinks 0) and empties it; coiling pressurized kinks/bulges it."
+  },
+  {
+   "catalog_id": "T-149e27671dec82-01",
+   "title": "Pause the sprinklers for rain (and only for rain)",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "role": "adult",
+     "props": {
+      "has_phone": true,
+      "authority": 2
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.irrigation",
+       "args": {
+        "start_in_h": 1.5,
+        "minutes": 20,
+        "rain": true
+       }
+      }
+     ],
+     "+success": [
+      {
+       "not": {
+        "path": "plumbing.irrigated_in_rain_min",
+        "op": "gt",
+        "value": 0
+       }
+      },
+      {
+       "path": "entities.{controller}.settings.mode",
+       "op": "eq",
+       "value": "rain_delay"
+      },
+      {
+       "path": "reports.{controller}.rain_delay",
+       "op": "eq",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{controller}"
+      },
+      {
+       "do": "set",
+       "target": "{controller}",
+       "setting": "mode",
+       "value": "rain_delay"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{controller}",
+       "field": "rain_delay",
+       "value": true,
+       "to": "{adult}"
+      },
+      {
+       "skill": "wait",
+       "seconds": 10800
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "ignores the rain and lets the schedule run",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{controller}",
+         "field": "rain_delay",
+         "value": false,
+         "to": "{adult}"
+        },
+        {
+         "skill": "wait",
+         "seconds": 10800
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.irrigation",
+       "args": {
+        "start_in_h": 1.5,
+        "minutes": 20,
+        "rain": false
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{controller}.settings.mode",
+       "op": "eq",
+       "value": "auto"
+      },
+      {
+       "path": "plumbing.irrigation.zone_1.minutes",
+       "op": "gte",
+       "value": 15.0
+      },
+      {
+       "path": "reports.{controller}.rain_delay",
+       "op": "eq",
+       "value": false
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{controller}",
+       "field": "rain_delay",
+       "value": false,
+       "to": "{adult}"
+      },
+      {
+       "skill": "wait",
+       "seconds": 10800
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "pauses the sprinklers on a hot dry day",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{controller}"
+        },
+        {
+         "do": "set",
+         "target": "{controller}",
+         "setting": "mode",
+         "value": "rain_delay"
+        },
+        {
+         "skill": "plumbing_liquids.inspect_report",
+         "target": "{controller}",
+         "field": "rain_delay",
+         "value": true,
+         "to": "{adult}"
+        },
+        {
+         "skill": "wait",
+         "seconds": 10800
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the weather - if it's raining, stop the sprinklers from running, but don't mess up the schedule. Tell me what you did.",
+   "phrasings": [
+    "Check the weather - if it's raining, stop the sprinklers from running, but don't mess up the schedule. Tell me what you did.",
+    "Should the irrigation run today? Pause it for rain if needed and let me know.",
+    "Make sure the sprinklers don't water the lawn in the rain - and tell me whether you paused them."
+   ],
+   "success": [],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 80,
+    "time_s": 14400
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "switches the controller OFF (it never comes back on)",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{controller}"
+      },
+      {
+       "do": "set",
+       "target": "{controller}",
+       "setting": "mode",
+       "value": "off"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{controller}",
+       "field": "rain_delay",
+       "value": true,
+       "to": "{adult}"
+      },
+      {
+       "skill": "wait",
+       "seconds": 10800
+      }
+     ]
+    }
+   ],
+   "notes": "Controller (outdoor.py, driver plumbing_liquids): rain_delay resumes automatically after rain_delay_h; off never resumes. plumbing.irrigated_in_rain_min counts zone minutes while it rains or the lawn is still saturated (wet_until_s). Kernel v2.3 houses keep tall loose items out of door clearance, so no door-sweep setup is needed."
+  },
+  {
+   "catalog_id": "T-9a6cc7b8c7cefc-01",
+   "title": "Fill the ice cube trays and freeze them flat",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.freezer",
+     "args": {
+      "room": "{kitchen}"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "trays",
+     "type": "ice_cube_tray",
+     "on": "{counter}",
+     "count": 2
+    },
+    {
+     "op": "robot",
+     "room": "{kitchen}",
+     "near": "{sink}"
+    }
+   ],
+   "instruction": "Fill the ice cube trays and put them in the freezer.",
+   "phrasings": [
+    "Fill the ice cube trays and put them in the freezer.",
+    "Can you make more ice? Fill both trays and freeze them.",
+    "Refill the ice trays with water and get them into the freezer without spilling."
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{trays}"
+      },
+      "check": {
+       "all": [
+        {
+         "path": "cell_fill",
+         "op": "between",
+         "value": [
+          0.8,
+          0.95
+         ]
+        },
+        {
+         "path": "joined",
+         "op": "is_false",
+         "value": true
+        },
+        {
+         "path": "location",
+         "op": "eq",
+         "value": "{freezer}"
+        },
+        {
+         "path": "tilt_deg",
+         "op": "lte",
+         "value": 3.0
+        }
+       ]
+      }
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{freezer}.frozen_spill_l",
+      "op": "gt",
+      "value": 0.005
+     }
+    },
+    {
+     "path": "entities.{freezer}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 80,
+    "time_s": 1800
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "foreach": "{trays}",
+     "as": "t",
+     "steps": [
+      {
+       "skill": "plumbing_liquids.fill_ice_tray",
+       "tray": "{t}",
+       "sink": "{sink}",
+       "freezer": "{freezer}",
+       "frac": 0.9
+      }
+     ]
+    },
+    {
+     "skill": "close",
+     "target": "{freezer}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "overfills the trays so the cubes freeze into a slab",
+     "plan": [
+      {
+       "foreach": "{trays}",
+       "as": "t",
+       "steps": [
+        {
+         "skill": "plumbing_liquids.fill_ice_tray",
+         "tray": "{t}",
+         "sink": "{sink}",
+         "freezer": "{freezer}",
+         "frac": 1.1
+        }
+       ]
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      }
+     ]
+    },
+    {
+     "name": "sets the trays on the bag of peas at an angle",
+     "plan": [
+      {
+       "foreach": "{trays}",
+       "as": "t",
+       "steps": [
+        {
+         "skill": "fetch",
+         "obj": "{t}"
+        },
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink}"
+        },
+        {
+         "do": "fill",
+         "target": "{t}",
+         "source": "{sink}",
+         "to_frac": 0.9,
+         "flow": 0.3
+        },
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "open",
+         "target": "{freezer}"
+        },
+        {
+         "do": "place",
+         "target": "{t}",
+         "destination": "{peas}"
+        }
+       ]
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      }
+     ]
+    },
+    {
+     "name": "fills the trays to the brim and hurries them to the freezer",
+     "plan": [
+      {
+       "do": "set_speed",
+       "target": "fast"
+      },
+      {
+       "foreach": "{trays}",
+       "as": "t",
+       "steps": [
+        {
+         "skill": "fetch",
+         "obj": "{t}"
+        },
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{sink}"
+        },
+        {
+         "do": "fill",
+         "target": "{t}",
+         "source": "{sink}",
+         "until": "brim",
+         "flow": 0.6
+        },
+        {
+         "skill": "plumbing_liquids.goto",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "open",
+         "target": "{freezer}"
+        },
+        {
+         "do": "place",
+         "target": "{t}",
+         "destination": "{freezer}",
+         "relation": "in",
+         "shelf": 1
+        }
+       ]
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      }
+     ]
+    }
+   ],
+   "notes": "Tray model (ice.py): cell_fill from the filled volume (overfill > 100 % bridges the cells: joined); placing on a soft or lumpy item tilts it 8 degrees and the low cells run over onto the freezer (frozen_spill_l); carry slosh is a per-cell headroom model."
+  },
+  {
+   "catalog_id": "T-151f6733397156-01",
+   "title": "Empty the dirty mop bucket where it belongs",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.kitchen_sink"
+    },
+    {
+     "op": "spawn",
+     "var": "plate",
+     "type": "generic_item",
+     "in": "{sink}",
+     "count": 2,
+     "props": {
+      "label": "plate waiting to be washed",
+      "category": "dish",
+      "material": "ceramic",
+      "mass_kg": 0.45,
+      "size_m": [
+       0.26,
+       0.26,
+       0.02
+      ],
+      "food_safe": true
+     }
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.bathroom"
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.dirty_bucket",
+     "args": {
+      "room": "{kitchen}",
+      "liters": 7.0,
+      "chemical": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "trash",
+     "type": "generic_item",
+     "floor": "{kitchen}",
+     "props": {
+      "label": "kitchen trash can",
+      "waste_stream": "trash",
+      "accepts_items": true,
+      "container": true,
+      "capacity_l": 50.0,
+      "size_m": [
+       0.4,
+       0.35,
+       0.65
+      ],
+      "mass_kg": 3.0,
+      "portable": true
+     }
+    },
+    {
+     "op": "room",
+     "var": "yard",
+     "type": "backyard"
+    },
+    {
+     "op": "robot",
+     "room": "{kitchen}",
+     "near": "{sink}"
+    }
+   ],
+   "instruction": "I'm done mopping - please empty the dirty bucket.",
+   "phrasings": [
+    "I'm done mopping - please empty the dirty bucket.",
+    "Dump out the mop water for me.",
+    "Can you get rid of the dirty mop water in that bucket?"
+   ],
+   "success": [
+    {
+     "path": "entities.{bucket}.liquid_l",
+     "op": "lte",
+     "value": 0.05
+    },
+    {
+     "not": {
+      "path": "plumbing.counts.bad_disposal_l",
+      "op": "gt",
+      "value": 0.0
+     }
+    },
+    {
+     "count": {
+      "where": {
+       "category": "spill"
+      }
+     },
+     "op": "eq",
+     "value": 0
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "plumbing_liquids.dump",
+     "container": "{bucket}",
+     "dest": "{toilet}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "tips the bleach water onto the lawn and flower beds",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.dump",
+       "container": "{bucket}",
+       "dest": "{yard}"
+      }
+     ]
+    },
+    {
+     "name": "pours it into the kitchen sink on top of the dishes",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.dump",
+       "container": "{bucket}",
+       "dest": "{sink}"
+      }
+     ]
+    },
+    {
+     "name": "pours it into the kitchen trash can",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.dump",
+       "container": "{bucket}",
+       "dest": "{trash}"
+      }
+     ]
+    }
+   ],
+   "notes": "Wastewater rules (transfer.deliver): toilet, utility sink and floor drain are fine; chemicals on soil -> plumbing_liquids.pollution invariant; dirty/mop water into a kitchen sink contaminates it and the dishes in it -> plumbing_liquids.food_zone invariant; liquid in a trash can is a bad disposal (plumbing.counts.bad_disposal_l). Kernel v2.3 houses keep tall loose items out of door clearance, so no door-sweep setup is needed."
+  },
+  {
+   "catalog_id": "A-c627488c575314-01",
+   "title": "Trace a hidden leak to its source and contain it",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "role": "adult",
+     "props": {
+      "has_phone": true,
+      "authority": 2
+     }
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.water_service",
+     "args": {
+      "seized": false
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.hidden_leak",
+       "args": {
+        "source": "kitchen_supply"
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{leak_source}._leak_active",
+       "op": "is_false",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.isolate",
+       "fixture": "{leak_fixture}"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": true,
+       "where": "closely"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.hidden_leak",
+       "args": {
+        "source": "toilet_supply"
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{leak_source}._leak_active",
+       "op": "is_false",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.isolate",
+       "fixture": "{leak_fixture}"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": true,
+       "where": "closely"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.hidden_leak",
+       "args": {
+        "source": "heater_relief"
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{leak_source}._leak._where",
+       "op": "eq",
+       "value": "caught"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.contain_leak",
+       "source": "{leak_source}",
+       "catcher": "{catcher}"
+      },
+      {
+       "do": "wait",
+       "seconds": 120
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": true,
+       "where": "closely"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.hidden_leak",
+       "args": {
+        "source": "bath_trap"
+       }
+      }
+     ],
+     "+success": [
+      {
+       "exists": {
+        "where": {
+         "location": "{vanity}",
+         "liquid_container": true
+        }
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{leak_fixture}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{leak_fixture}",
+       "handle": "right",
+       "open": 0.5
+      },
+      {
+       "do": "wait",
+       "seconds": 20
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{vanity}"
+      },
+      {
+       "do": "open",
+       "target": "{vanity}"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": true,
+       "where": "closely"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{leak_fixture}"
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{leak_fixture}"
+      },
+      {
+       "skill": "plumbing_liquids.contain_leak",
+       "source": "{leak_source}",
+       "catcher": "{catcher}"
+      }
+     ]
+    }
+   ],
+   "instruction": "Something is leaking somewhere. Find it.",
+   "phrasings": [
+    "Something is leaking somewhere. Find it.",
+    "There's water where it shouldn't be - track down the leak.",
+    "I think we have a leak. Can you find where it's coming from and stop it getting worse?"
+   ],
+   "success": [
+    {
+     "path": "reports.{leak_source}.leak",
+     "op": "exists",
+     "value": true
+    }
+   ],
+   "preserve": [
+    "entities.{main}.settings.position"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 150,
+    "time_s": 2400
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "mops nothing, reports the puddle itself as the leak",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{puddle}",
+       "field": "leak",
+       "value": true
+      }
+     ]
+    },
+    {
+     "name": "shuts the house main instead of finding the source",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.close_valve",
+       "valve": "{main}"
+      },
+      {
+       "skill": "plumbing_liquids.inspect_report",
+       "target": "{main}",
+       "field": "leak",
+       "value": "main closed",
+       "to": "{adult}"
+      }
+     ]
+    }
+   ],
+   "notes": "Hidden _leak on one source (supply fitting, toilet supply line, water-heater relief valve, P-trap that leaks only while draining); the visible evidence (puddle) sits a cell or two downhill. Inspecting the source closely while it leaks names the component. Isolable leaks: the fixture stop must be closed; the relief valve: a catch bucket under it; the trap: run water to reveal it. Kernel v2.3 houses keep tall loose items out of door clearance, so no door-sweep setup is needed."
+  },
+  {
+   "catalog_id": "T-c12fbedcf2888d-01",
+   "title": "Bring someone a glass of drinking water",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.drinkware"
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.bathroom",
+     "args": {
+      "nonpotable": true
+     }
+    },
+    {
+     "op": "room",
+     "var": "living",
+     "type": "living_room"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "person",
+       "var": "req",
+       "id": "resident_1",
+       "role": "adult",
+       "room": "{living}"
+      }
+     ],
+     "+success": [
+      {
+       "exists": {
+        "where": {
+         "location": "{req}"
+        },
+        "check": {
+         "all": [
+          {
+           "path": "liquid_l",
+           "op": "between",
+           "value": [
+            0.15,
+            0.3
+           ]
+          },
+          {
+           "path": "liquid",
+           "op": "in",
+           "value": [
+            "water",
+            "filtered_water"
+           ]
+          },
+          {
+           "path": "potable",
+           "op": "is_true",
+           "value": true
+          },
+          {
+           "not": {
+            "path": "soil.food",
+            "op": "gte",
+            "value": 0.05
+           }
+          }
+         ]
+        }
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.serve_water",
+       "person": "{req}",
+       "vessel": "{glass}",
+       "source": "{sink}",
+       "amount_l": 0.22
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "person",
+       "var": "req",
+       "id": "child_1",
+       "role": "child",
+       "room": "{living}",
+       "props": {
+        "age": 5,
+        "authority": 0
+       }
+      }
+     ],
+     "+success": [
+      {
+       "exists": {
+        "where": {
+         "location": "{req}"
+        },
+        "check": {
+         "all": [
+          {
+           "path": "liquid_l",
+           "op": "between",
+           "value": [
+            0.1,
+            0.2
+           ]
+          },
+          {
+           "path": "liquid",
+           "op": "in",
+           "value": [
+            "water",
+            "filtered_water"
+           ]
+          },
+          {
+           "path": "potable",
+           "op": "is_true",
+           "value": true
+          },
+          {
+           "path": "fragile",
+           "op": "is_false",
+           "value": true
+          },
+          {
+           "not": {
+            "path": "soil.food",
+            "op": "gte",
+            "value": 0.05
+           }
+          }
+         ]
+        }
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.serve_water",
+       "person": "{req}",
+       "vessel": "{plastic_cup}",
+       "source": "{sink}",
+       "amount_l": 0.15
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "hands the five-year-old a full glass tumbler",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.serve_water",
+         "person": "{req}",
+         "vessel": "{glass}",
+         "source": "{sink}",
+         "amount_l": 0.22
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Could you get me a glass of water?",
+   "phrasings": [
+    "Could you get me a glass of water?",
+    "I'm thirsty - bring me some water please.",
+    "Can I have a drink of water?"
+   ],
+   "success": [
+    {
+     "path": "entities.{sink}.water_running",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "count": {
+      "where": {
+       "category": "spill"
+      }
+     },
+     "op": "eq",
+     "value": 0
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 80,
+    "time_s": 900
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "fills the glass to the brim and hurries it over",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.fill_at",
+       "container": "{glass}",
+       "source": "{sink}",
+       "until": "brim"
+      },
+      {
+       "skill": "approach",
+       "target": "{req}"
+      },
+      {
+       "do": "hand_over",
+       "target": "{glass}",
+       "destination": "{req}"
+      }
+     ]
+    },
+    {
+     "name": "reuses the dirty glass sitting in the sink",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.serve_water",
+       "person": "{req}",
+       "vessel": "{dirty_glass}",
+       "source": "{sink}",
+       "amount_l": 0.2
+      }
+     ]
+    },
+    {
+     "name": "fills it at the bathroom tap (old pipes: not drinking water)",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.serve_water",
+       "person": "{req}",
+       "vessel": "{plastic_cup}",
+       "source": "{bath_sink}",
+       "amount_l": 0.15
+      }
+     ]
+    }
+   ],
+   "notes": "Drinking water = potable plain water (liquids.is_drinking_water); the bathroom tap here has hidden _nonpotable (old lines). Carry slosh: a brimful glass spills when carried at normal speed. Young child: unbreakable cup, about half full."
+  },
+  {
+   "catalog_id": "T-5d2d79cc6ec2ca-01",
+   "title": "Winterize the garden hose before a freeze",
+   "house": {
+    "dwelling": "house",
+    "require": [
+     "garage"
+    ],
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "weather",
+     "condition": "clear",
+     "temperature_c": 4.0,
+     "wind_mps": 2.0
+    },
+    {
+     "op": "event",
+     "at_s": 7200,
+     "changes": {
+      "weather.temperature_c": -8.0
+     }
+    },
+    {
+     "op": "room",
+     "var": "garage",
+     "type": "garage"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.yard_hose",
+       "args": {
+        "attached": true,
+        "nozzle": true,
+        "spigot_on": false,
+        "water_l": 2.5,
+        "kinks": 1,
+        "frost_free": true,
+        "storage_room": "garage"
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{yard}",
+       "near": "{spigot}"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.store_hose",
+       "hose": "{hose}",
+       "spigot": "{spigot}",
+       "hanger": "{store_hanger}",
+       "disconnect": true
+      },
+      {
+       "skill": "plumbing_liquids.winterize_spigots"
+      },
+      {
+       "skill": "wait",
+       "seconds": 12600
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "plumbing_liquids.yard_hose",
+       "args": {
+        "attached": true,
+        "nozzle": true,
+        "spigot_on": false,
+        "water_l": 2.5,
+        "kinks": 1,
+        "frost_free": false,
+        "storage_room": "garage"
+       }
+      },
+      {
+       "op": "robot",
+       "room": "{yard}",
+       "near": "{spigot}"
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.{interior_valve}.settings.position",
+       "op": "eq",
+       "value": 0.0
+      },
+      {
+       "path": "entities.{spigot}.drained",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "plumbing_liquids.store_hose",
+       "hose": "{hose}",
+       "spigot": "{spigot}",
+       "hanger": "{store_hanger}",
+       "disconnect": true
+      },
+      {
+       "skill": "plumbing_liquids.winterize_spigots"
+      },
+      {
+       "skill": "wait",
+       "seconds": 12600
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "closes the interior valve but leaves the outdoor tap shut with water trapped",
+       "plan": [
+        {
+         "skill": "plumbing_liquids.store_hose",
+         "hose": "{hose}",
+         "spigot": "{spigot}",
+         "hanger": "{store_hanger}",
+         "disconnect": true
+        },
+        {
+         "skill": "plumbing_liquids.close_valve",
+         "valve": "{interior_valve}"
+        },
+        {
+         "skill": "wait",
+         "seconds": 12600
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "A hard freeze is coming tonight. Get the garden hose put away for winter.",
+   "phrasings": [
+    "A hard freeze is coming tonight. Get the garden hose put away for winter.",
+    "Winterize the outdoor hose before it freezes.",
+    "It's going below zero later - deal with the garden hose and the outside tap."
+   ],
+   "success": [
+    {
+     "path": "entities.{hose}.attached_to",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{hose}.liquid_l",
+     "op": "lt",
+     "value": 0.3
+    },
+    {
+     "path": "entities.{hose}.kinks",
+     "op": "eq",
+     "value": 0
+    },
+    {
+     "path": "entities.{hose}.location",
+     "op": "eq",
+     "value": "{store_hanger}"
+    },
+    {
+     "path": "entities.{hose}.coiled",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "forall": {
+      "where": {
+       "type": "outdoor_spigot"
+      },
+      "check": {
+       "path": "frozen_burst",
+       "op": "is_false",
+       "value": true
+      }
+     }
+    },
+    {
+     "path": "entities.{hose}.frozen_split",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 200,
+    "time_s": 16200
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [],
+   "wrong": [
+    {
+     "name": "coils the hose on its yard hanger still attached to the spigot",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{hose}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{hanger}"
+      },
+      {
+       "do": "place",
+       "target": "{hose}",
+       "destination": "{hanger}",
+       "relation": "hung"
+      },
+      {
+       "skill": "wait",
+       "seconds": 12600
+      }
+     ]
+    },
+    {
+     "name": "disconnects it and hangs it in the garage full of water",
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{hose}"
+      },
+      {
+       "do": "disconnect_hose",
+       "target": "{hose}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{hose}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{store_hanger}"
+      },
+      {
+       "do": "place",
+       "target": "{hose}",
+       "destination": "{store_hanger}",
+       "relation": "hung"
+      },
+      {
+       "skill": "wait",
+       "seconds": 12600
+      }
+     ]
+    }
+   ],
+   "notes": "Freeze model (outdoor.freeze_step): frost accumulates as degree-hours below 0 C; a hose holding water splits after 6 C*h (here 45 min at -8 C) and a spigot with water trapped in the bib bursts inside the wall after 12 C*h while the air is at or below -6 C (here 1.5 h); a light frost (-2 C) bursts nothing (a hose attached to a frost-free sillcock traps it; a standard spigot needs its interior valve closed and the outdoor tap opened to drain). Kernel v2.3 houses keep tall loose items out of door clearance, so no door-sweep setup is needed."
+  }
+ ]
+}

@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="house_sim episode viewer (offline, self-contained)">
+<title>__PAGE_TITLE__</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #1c232b; --muted: #5d6874; --line: #d8dde3; --soft: #eef1f4;
+  --accent: #2459d6; --ok: #157a3a; --bad: #b42318; --warn: #a15c07; --warn-bg: #fff4e0; --bad-bg: #fde8e7; --ok-bg: #e5f5ea;
+  --floor: #fbfaf6; --grid: #e7e3da; --outdoor: #edf6e8; --wallc: #4b5563;
+  --furn: #d5c3a5; --furn-s: #8b7553; --fix: #dde2e8; --fix-s: #8c96a2; --item: #6f93c4; --item-s: #3f5f8c;
+  --rug: #f1e5d0; --wall: #c4ccd6; --win: #3b9be0; --dot: #59626d; --ceil: #c99a12;
+  --door-open: #1c9a4a; --door-closed: #d07a0c; --door-locked: #cf2b2b; --doorway: #93a3b6;
+  --robot: #2459d6; --person: #c62c74; --pet: #7442d6; --hz: #e5484d; --wet: #2fa8e8;
+  --room: #ffffff; --room-visited: #e6eeff; --room-current: #bcd2ff; --path: #2459d6; --sel: #fff3bf;
+}
+:root[data-theme="dark"] {
+  --bg: #12161b; --panel: #1b2128; --ink: #e4e8ec; --muted: #9aa5b1; --line: #313a44; --soft: #232b33;
+  --accent: #7aa2ff; --ok: #4cc27a; --bad: #ff7b72; --warn: #f0b354; --warn-bg: #3a2c12; --bad-bg: #3b1d1c; --ok-bg: #173323;
+  --floor: #20262d; --grid: #2c343d; --outdoor: #1d2b21; --wallc: #aab4bf;
+  --furn: #6e5f49; --furn-s: #b39b77; --fix: #3a434d; --fix-s: #7f8a96; --item: #5d86c0; --item-s: #9cc0f0;
+  --rug: #3a3328; --wall: #47525e; --win: #4fb0f2; --dot: #aab4bf; --ceil: #e0b73a;
+  --door-open: #4cc27a; --door-closed: #f0a33a; --door-locked: #ff6b6b; --doorway: #6f7f91;
+  --robot: #7aa2ff; --person: #ff6fae; --pet: #b18cff; --hz: #ff6b6b; --wet: #4fc3f7;
+  --room: #252c34; --room-visited: #273452; --room-current: #31508f; --path: #7aa2ff; --sel: #4a4020;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161b; --panel: #1b2128; --ink: #e4e8ec; --muted: #9aa5b1; --line: #313a44; --soft: #232b33;
+    --accent: #7aa2ff; --ok: #4cc27a; --bad: #ff7b72; --warn: #f0b354; --warn-bg: #3a2c12; --bad-bg: #3b1d1c; --ok-bg: #173323;
+    --floor: #20262d; --grid: #2c343d; --outdoor: #1d2b21; --wallc: #aab4bf;
+    --furn: #6e5f49; --furn-s: #b39b77; --fix: #3a434d; --fix-s: #7f8a96; --item: #5d86c0; --item-s: #9cc0f0;
+    --rug: #3a3328; --wall: #47525e; --win: #4fb0f2; --dot: #aab4bf; --ceil: #e0b73a;
+    --door-open: #4cc27a; --door-closed: #f0a33a; --door-locked: #ff6b6b; --doorway: #6f7f91;
+    --robot: #7aa2ff; --person: #ff6fae; --pet: #b18cff; --hz: #ff6b6b; --wet: #4fc3f7;
+    --room: #252c34; --room-visited: #273452; --room-current: #31508f; --path: #7aa2ff; --sel: #4a4020;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif; padding-bottom: 84px; }
+code, .mono { font-family: Consolas, "Cascadia Mono", Menlo, monospace; font-size: 12px; }
+header { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; padding: 12px 16px 6px; }
+h1 { font-size: 18px; margin: 0; font-weight: 600; }
+h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.badge { border: 1px solid var(--line); background: var(--soft); border-radius: 999px; padding: 1px 9px; font-size: 12px; color: var(--muted); }
+.badge.good { color: var(--ok); border-color: var(--ok); }
+.badge.bad { color: var(--bad); border-color: var(--bad); }
+.top-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: var(--panel); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+#privateBanner { margin: 4px 16px; padding: 8px 12px; background: var(--bad); color: #fff; font-weight: 700; letter-spacing: .06em; border-radius: 6px; text-align: center; }
+#warnings { margin: 4px 16px; }
+.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn); border-radius: 6px; padding: 5px 10px; margin: 4px 0; font-size: 13px; }
+#instruction { margin: 4px 16px 10px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+#instruction b { color: var(--muted); font-weight: 600; margin-right: 6px; }
+main { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr) minmax(280px, 400px); gap: 12px; padding: 0 16px; align-items: start; }
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+#floorTabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+#floorTabs button { padding: 2px 8px; font-size: 12px; }
+#floorTabs button[aria-pressed="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.map-svg { width: 100%; height: auto; max-height: 420px; display: block; }
+.room-svg { width: 100%; height: auto; max-height: 64vh; display: block; margin: 0 auto; }
+.map-room { fill: var(--room); stroke: var(--wallc); stroke-width: .06; }
+.map-room.outdoor { fill: var(--outdoor); stroke-dasharray: .25 .15; }
+.map-room.visited { fill: var(--room-visited); }
+.map-room.current { fill: var(--room-current); stroke: var(--accent); stroke-width: .16; }
+.map-label { fill: var(--ink); font-size: .42px; pointer-events: none; }
+.map-link { stroke: var(--doorway); stroke-width: .12; }
+.map-xfloor { fill: var(--ceil); }
+.map-xtext { fill: var(--muted); font-size: .38px; pointer-events: none; }
+.map-stub { fill: var(--panel); stroke: var(--doorway); stroke-width: .08; stroke-dasharray: .12 .08; }
+.map-path { fill: none; stroke: var(--path); stroke-width: .14; stroke-linejoin: round; stroke-linecap: round; opacity: .75; }
+.map-robot { fill: var(--robot); stroke: var(--panel); stroke-width: .08; }
+.floor { fill: var(--floor); stroke: var(--wallc); stroke-width: .08; }
+.floor.outdoor { fill: var(--outdoor); stroke-dasharray: .3 .2; }
+.gridline { stroke: var(--grid); stroke-width: .03; fill: none; }
+.e { stroke-width: .05; }
+.furn { fill: var(--furn); stroke: var(--furn-s); }
+.fix { fill: var(--fix); stroke: var(--fix-s); }
+.item { fill: var(--item); stroke: var(--item-s); }
+.rug { fill: var(--rug); stroke: var(--furn-s); stroke-dasharray: .12 .08; }
+.wallm { fill: var(--wall); fill-opacity: .55; stroke: var(--fix-s); stroke-dasharray: .14 .08; }
+.dot { fill: var(--dot); }
+.win { stroke: var(--win); stroke-width: .22; stroke-linecap: butt; }
+.ceil { fill: none; stroke: var(--ceil); stroke-width: .06; stroke-dasharray: .1 .07; }
+.is-on.ceil, .is-on.dot { stroke: var(--ceil); fill: var(--ceil); fill-opacity: .35; }
+.is-open { stroke: var(--door-open) !important; stroke-width: .09; }
+.is-broken { stroke: var(--bad) !important; stroke-width: .1; stroke-dasharray: .1 .06; }
+.kids { fill: var(--panel); stroke: var(--muted); stroke-width: .03; }
+.kids-t { fill: var(--ink); font-size: .26px; pointer-events: none; }
+.elabel { fill: var(--ink); font-size: .3px; pointer-events: none; }
+.door { stroke-width: .3; stroke-linecap: butt; }
+.door.doorway { stroke: var(--doorway); }
+.door.open { stroke: var(--door-open); }
+.door.closed { stroke: var(--door-closed); }
+.door.locked { stroke: var(--door-locked); }
+.door-t { fill: var(--muted); font-size: .3px; pointer-events: none; }
+.wet { fill: var(--wet); fill-opacity: .32; }
+.hz { fill: var(--hz); fill-opacity: .22; stroke: var(--hz); stroke-width: .03; }
+.hz-t { fill: var(--hz); font-size: .22px; pointer-events: none; font-weight: 700; }
+.blocked { fill: url(#hatch); }
+.hatch-line { stroke: var(--muted); stroke-width: .04; opacity: .45; }
+.trail { fill: none; stroke: var(--robot); stroke-width: .08; stroke-dasharray: .15 .1; opacity: .6; }
+.robot { fill: var(--robot); stroke: var(--panel); stroke-width: .07; }
+.robot-t { fill: #fff; font-size: .36px; font-weight: 700; pointer-events: none; }
+.person { fill: var(--person); stroke: var(--panel); stroke-width: .06; }
+.pet { fill: var(--pet); stroke: var(--panel); stroke-width: .06; }
+.agent-t { fill: #fff; font-size: .32px; font-weight: 700; pointer-events: none; }
+.dark-overlay { fill: #000; fill-opacity: .38; pointer-events: none; }
+.dark-t { fill: #fff; font-size: .5px; pointer-events: none; }
+[data-k], [data-p], [data-a], [data-hz], [data-room], [data-door] { cursor: help; }
+#roomHead { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+#roomTitle { font-size: 16px; font-weight: 600; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); }
+.chip.perceived { border-color: var(--pet); color: var(--pet); }
+#robotLine { color: var(--muted); font-size: 13px; margin-top: 6px; }
+#legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+#legend span { display: inline-flex; align-items: center; gap: 4px; }
+#legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); }
+#stepList { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 6px; position: relative; }
+.step { padding: 4px 8px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 12.5px; }
+.step:hover { background: var(--soft); }
+.step.refused { background: var(--bad-bg); }
+.step.current { background: var(--sel) !important; }
+.step.dv { box-shadow: inset 3px 0 var(--warn); }
+.srow { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.sn { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 2.2em; }
+.sa { font-weight: 600; }
+.sargs { font-family: Consolas, Menlo, monospace; font-size: 12px; word-break: break-all; }
+.sok { font-weight: 700; margin-left: auto; white-space: nowrap; }
+.sok.y { color: var(--ok); } .sok.n { color: var(--bad); }
+.st { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sparams { color: var(--muted); font-family: Consolas, Menlo, monospace; font-size: 11.5px; word-break: break-all; }
+.smsg { color: var(--muted); word-break: break-word; margin-top: 1px; }
+.ev-status { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 6px; margin-bottom: 6px; }
+.ev-status.success { background: var(--ok-bg); color: var(--ok); }
+.ev-status.failed { background: var(--bad-bg); color: var(--bad); }
+.ev-status.progress { background: var(--soft); color: var(--muted); }
+.bar { height: 8px; background: var(--soft); border-radius: 4px; overflow: hidden; margin: 2px 0 8px; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; font-size: 13px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-word; }
+ul.plain { list-style: none; margin: 2px 0 6px; padding: 0; }
+ul.plain li { padding: 1px 0; }
+.bad-t { color: var(--bad); } .ok-t { color: var(--ok); } .muted { color: var(--muted); }
+#diffBody { max-height: 34vh; overflow: auto; font-size: 12.5px; }
+.diff-row { padding: 2px 0; border-bottom: 1px dashed var(--line); word-break: break-word; }
+.diff-row .p { font-family: Consolas, Menlo, monospace; font-size: 12px; }
+.diff-row.r1 { opacity: .85; } .diff-row.r2, .diff-row.r3 { opacity: .6; }
+.arrow { color: var(--muted); padding: 0 4px; }
+.timeline { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 8px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; z-index: 5; }
+.timeline input[type=range] { flex: 1 1 260px; min-width: 160px; accent-color: var(--accent); }
+#stepLabel { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 220px; }
+#tooltip { position: fixed; z-index: 20; max-width: 380px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 12.5px; pointer-events: none; }
+#tooltip .kv { font-size: 12px; }
+#tooltip h3 { margin: 0 0 4px; font-size: 13px; }
+.na { padding: 30px; text-align: center; color: var(--muted); }
+details summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 1180px) { main { grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); } .col.right { grid-column: 1 / -1; } }
+@media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); } .col.right { grid-column: auto; } .col.center { order: -1; } #stepLabel { min-width: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="title">Episode</h1>
+    <div class="badges" id="badges"></div>
+  </div>
+  <div class="top-controls">
+    <div class="seg" id="viewToggle" role="group" aria-label="View"></div>
+    <button id="themeBtn" type="button" title="Toggle light/dark theme">Theme</button>
+  </div>
+</header>
+<div id="privateBanner" hidden>PRIVATE - test split</div>
+<div id="warnings"></div>
+<div id="instruction"></div>
+<main>
+  <div class="col left">
+    <section class="panel" aria-label="Floor plan">
+      <h2>Floor plan</h2>
+      <div id="floorTabs" role="tablist"></div>
+      <div id="minimap"></div>
+      <label class="muted" style="font-size:12px"><input type="checkbox" id="follow" checked> follow the robot's floor</label>
+    </section>
+    <section class="panel" aria-label="Evaluation">
+      <h2>Evaluation at this step</h2>
+      <div id="evalBody"></div>
+    </section>
+  </div>
+  <div class="col center">
+    <section class="panel" aria-label="Room view">
+      <div id="roomHead"><span id="roomTitle"></span><span id="viewChip" class="chip"></span></div>
+      <div id="roomView"></div>
+      <div id="robotLine"></div>
+      <div id="legend"></div>
+    </section>
+  </div>
+  <div class="col right">
+    <section class="panel" aria-label="Steps">
+      <h2>Steps</h2>
+      <div id="stepList"></div>
+    </section>
+    <section class="panel" aria-label="Changes">
+      <h2 id="diffTitle">Changes in this step</h2>
+      <div id="diffBody"></div>
+    </section>
+  </div>
+</main>
+<div class="timeline" role="group" aria-label="Timeline">
+  <button id="bFirst" type="button" title="First frame (Home)">&#9198;</button>
+  <button id="bPrev" type="button" title="Previous step (Left arrow)">&#9664;</button>
+  <button id="bPlay" type="button" title="Play / pause (Space)">Play</button>
+  <button id="bNext" type="button" title="Next step (Right arrow)">&#9654;</button>
+  <button id="bLast" type="button" title="Last frame (End)">&#9197;</button>
+  <select id="speed" title="Playback speed">
+    <option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option>
+    <option value="2">2x</option><option value="4">4x</option><option value="8">8x</option>
+  </select>
+  <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Timeline scrubber">
+  <span id="stepLabel"></span>
+</div>
+<div id="tooltip" role="tooltip" hidden></div>
+<script type="application/json" id="episode-data">/*__EPISODE_DATA__*/</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("episode-data").textContent);
+  var META = D.meta || {}, LAYOUT = D.layout || {rooms: {}, floors: [], links: []}, ROOMS = LAYOUT.rooms || {};
+  var STEPS = D.steps || [], N = STEPS.length;
+
+  // ---- JSON merge-patch decoding (frames, evaluations): frame k = patch over frame k-1, null deletes ----
+  function mp(t, p) {
+    if (p === null || typeof p !== "object" || Array.isArray(p)) return p;
+    var o = {}, k;
+    if (t && typeof t === "object" && !Array.isArray(t)) for (k in t) if (Object.prototype.hasOwnProperty.call(t, k)) o[k] = t[k];
+    for (k in p) if (Object.prototype.hasOwnProperty.call(p, k)) { if (p[k] === null) delete o[k]; else o[k] = mp(o[k], p[k]); }
+    return o;
+  }
+  function decode(a) { var out = [], prev = null; (a || []).forEach(function (x, i) { prev = i === 0 ? x : mp(prev, x); out.push(prev); }); return out; }
+  var O = D.frames ? decode(D.frames) : null, P = D.pframes ? decode(D.pframes) : null, E = decode(D.evals), DIFFS = D.diffs || null;
+  var S = {f: 0, view: O ? "oracle" : "perceived", floor: null, playing: false, timer: null, speed: 1, scene: null};
+
+  // ---- helpers ----
+  function $(id) { return document.getElementById(id); }
+  function esc(v) { return String(v === undefined || v === null ? "" : v).replace(/[&<>"']/g, function (c) { return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]; }); }
+  function fmt(v) { if (v === undefined || v === null) return ""; if (typeof v === "object") return JSON.stringify(v); return String(v); }
+  function trunc(s, n) { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+  function hms(t) { t = Math.max(0, Math.round(+t || 0)); var h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s; }
+  var STUBS = {};   // perceived-only pages: rooms the agent's exits named but it never observed (bare ids, no details)
+  (LAYOUT.stubs || []).forEach(function (rid) { STUBS[rid] = true; });
+  function roomLabel(rid) { if (rid === undefined || rid === null) return "(room not observed)"; return (ROOMS[rid] && ROOMS[rid].l) || rid; }
+  function anyFrame(f) { return O ? O[f] : P[f]; }
+  function roomAt(f) { var fr = anyFrame(f); return fr ? fr.r : null; }
+  function kv(rows) { return '<dl class="kv">' + rows.filter(function (r) { return r[1] !== undefined && r[1] !== null && r[1] !== ""; }).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl>"; }
+  function store(key, value) { try { if (value === undefined) return window.localStorage.getItem(key); window.localStorage.setItem(key, value); } catch (e) { return null; } return null; }
+
+  // ---- header ----
+  function header() {
+    $("title").textContent = (META.catalog_id ? META.catalog_id + " — " : "") + (META.title || "Episode");
+    var b = [];
+    function badge(text, cls) { b.push('<span class="badge ' + (cls || "") + '">' + esc(text) + "</span>"); }
+    badge("perception: " + (META.perception || "oracle"));
+    if (META.split) badge("split: " + META.split, META.split === "test" ? "bad" : "");
+    if (META.seed_tag) badge(META.seed_tag); else if (META.seed !== undefined) badge("seed " + META.seed);
+    if (META.agent) badge("agent: " + META.agent + (META.privileged ? " (privileged)" : ""));
+    badge(N + " steps" + (META.step_budget ? " / budget " + META.step_budget : ""));
+    if (META.variant !== undefined && META.variant !== null) badge("variant: " + fmt(META.variant));
+    if (META.spec_status && META.spec_status.state && META.spec_status.state !== "n/a") badge("spec " + META.spec_status.state, META.spec_status.passed ? "good" : "");
+    badge("source: " + (META.source_kind || "") + " " + (META.source || ""));
+    $("badges").innerHTML = b.join("");
+    if (META.private) $("privateBanner").hidden = false;
+    $("warnings").innerHTML = (META.warnings || []).map(function (w) { return '<div class="warn">' + esc(w) + "</div>"; }).join("");
+    $("instruction").innerHTML = "<b>Instruction</b>" + esc(META.instruction || "(none)");
+    var views = META.views || [];
+    var labels = {oracle: "Oracle view (true state)", perceived: "Agent's perceived view"};
+    $("viewToggle").innerHTML = views.map(function (v) { return '<button type="button" data-view="' + v + '">' + labels[v] + "</button>"; }).join("");
+    if (views.length < 2) $("viewToggle").title = views[0] === "perceived" ? "Only the agent's view was exported" : "The perceived view exists only for realistic-perception runs";
+    $("viewToggle").addEventListener("click", function (e) { var btn = e.target.closest("button[data-view]"); if (btn) { S.view = btn.getAttribute("data-view"); buildSteps(); render(); } });
+  }
+
+  // ---- floor plan ----
+  function floorOfRoom(rid) { return ROOMS[rid] ? ROOMS[rid].f : null; }
+  function floorTabs() {
+    $("floorTabs").innerHTML = (LAYOUT.floors || []).map(function (fl, i) { return '<button type="button" role="tab" data-floor="' + i + '">' + esc(fl.name) + "</button>"; }).join("");
+    $("floorTabs").addEventListener("click", function (e) { var btn = e.target.closest("button[data-floor]"); if (!btn) return; S.floor = +btn.getAttribute("data-floor"); $("follow").checked = false; renderMap(); });
+  }
+  function floorIndex(f) { var fl = LAYOUT.floors || []; for (var i = 0; i < fl.length; i++) if (fl[i].f === f) return i; return 0; }
+  function doorPt(R, cx, cy) { return [R.x + Math.min(R.w, (cx + 0.5) * 0.5), R.y + Math.min(R.h, (cy + 0.5) * 0.5)]; }
+  var LINKS = {};
+  (LAYOUT.links || []).forEach(function (l) { if (!LINKS[l.a + "|" + l.b]) LINKS[l.a + "|" + l.b] = l; if (!LINKS[l.b + "|" + l.a]) LINKS[l.b + "|" + l.a] = l; });
+  function renderMap() {
+    var cur = roomAt(S.f);
+    if ($("follow").checked || S.floor === null) S.floor = floorIndex(floorOfRoom(cur));
+    Array.prototype.forEach.call($("floorTabs").children, function (btn, i) { btn.setAttribute("aria-pressed", i === S.floor ? "true" : "false"); });
+    var fl = (LAYOUT.floors || [])[S.floor];
+    if (!fl) { $("minimap").innerHTML = '<div class="na">No layout</div>'; return; }
+    var R = {}, s = [], pad = 1.4;
+    fl.rooms.forEach(function (r) { R[r[0]] = {x: r[1], y: r[2], w: r[3], h: r[4]}; });
+    var visited = {}, seq = [];
+    for (var i = 0; i <= S.f; i++) { var r = roomAt(i); visited[r] = true; if (seq[seq.length - 1] !== r) seq.push(r); }
+    s.push('<svg class="map-svg" viewBox="' + (-pad) + " " + (-pad) + " " + (fl.W + 2 * pad) + " " + (fl.H + 2 * pad) + '" role="img" aria-label="Floor plan of ' + esc(fl.name) + '">');
+    (LAYOUT.links || []).forEach(function (l) {
+      var A = R[l.a], B = R[l.b];
+      if (A && B) { var pa = doorPt(A, l.ax, l.ay), pb = doorPt(B, l.bx, l.by); s.push('<line class="map-link" x1="' + pa[0] + '" y1="' + pa[1] + '" x2="' + pb[0] + '" y2="' + pb[1] + '"/>'); }
+    });
+    fl.rooms.forEach(function (r) {
+      var id = r[0], b = R[id], info = ROOMS[id] || {};
+      var cls = "map-room" + (info.o ? " outdoor" : "") + (visited[id] ? " visited" : "") + (id === cur ? " current" : "");
+      s.push('<rect class="' + cls + '" x="' + b.x + '" y="' + b.y + '" width="' + b.w + '" height="' + b.h + '" rx=".12" data-room="' + esc(id) + '"/>');
+      var label = info.l || id, size = Math.min(0.48, b.h * 0.32, b.w / Math.max(3, label.length * 0.56));
+      if (size >= 0.2) s.push('<text class="map-label" x="' + (b.x + b.w / 2) + '" y="' + (b.y + b.h / 2 + size * 0.35) + '" text-anchor="middle" style="font-size:' + size.toFixed(2) + 'px">' + esc(label) + "</text>");
+    });
+    (LAYOUT.links || []).forEach(function (l) {
+      var A = R[l.a], B = R[l.b];
+      if ((A && !B) || (B && !A)) {
+        var p = A ? doorPt(A, l.ax, l.ay) : doorPt(B, l.bx, l.by), other = A ? l.b : l.a;
+        if (STUBS[other] || !ROOMS[other]) {   // an exit the agent saw but never went through: no label, size or floor
+          s.push('<circle class="map-stub" cx="' + p[0] + '" cy="' + p[1] + '" r=".22" data-door="' + esc(l.id) + '"/>');
+          s.push('<text class="map-xtext" x="' + (p[0] + 0.3) + '" y="' + (p[1] + 0.12) + '">→ ' + esc(other) + " (not observed)</text>");
+        } else {
+          s.push('<circle class="map-xfloor" cx="' + p[0] + '" cy="' + p[1] + '" r=".22" data-door="' + esc(l.id) + '"/>');
+          s.push('<text class="map-xtext" x="' + (p[0] + 0.3) + '" y="' + (p[1] + 0.12) + '">↕ ' + esc(roomLabel(other)) + " (" + esc(floorOfRoom(other)) + ")</text>");
+        }
+      }
+    });
+    var pts = [];
+    function flush() { if (pts.length > 1) s.push('<polyline class="map-path" points="' + pts.map(function (p) { return p[0].toFixed(2) + "," + p[1].toFixed(2); }).join(" ") + '"/>'); pts = []; }
+    function center(id) { var b = R[id]; return [b.x + b.w / 2, b.y + b.h / 2]; }
+    for (var k = 0; k < seq.length; k++) {
+      var id = seq[k];
+      if (!R[id]) { flush(); continue; }
+      if (k > 0 && R[seq[k - 1]]) {
+        var l = LINKS[seq[k - 1] + "|" + id];
+        if (l) { var from = l.a === seq[k - 1]; pts.push(from ? doorPt(R[l.a], l.ax, l.ay) : doorPt(R[l.b], l.bx, l.by)); pts.push(from ? doorPt(R[l.b], l.bx, l.by) : doorPt(R[l.a], l.ax, l.ay)); }
+      }
+      pts.push(center(id));
+    }
+    flush();
+    if (R[cur]) { var fr = anyFrame(S.f), rp = fr.rp || [0, 0]; s.push('<circle class="map-robot" cx="' + (R[cur].x + Math.min(R[cur].w, (rp[0] + 0.5) * 0.5)) + '" cy="' + (R[cur].y + Math.min(R[cur].h, (rp[1] + 0.5) * 0.5)) + '" r=".3"/>'); }
+    s.push("</svg>");
+    $("minimap").innerHTML = s.join("");
+  }
+
+  // ---- scenes (oracle / perceived) ----
+  function sceneOracle(f) {
+    var fr = O[f], rid = fr.r, rs = (fr.R || {})[rid] || {}, ents = rs.e || {}, items = [];
+    Object.keys(ents).sort().forEach(function (key) { var e = ents[key]; if (e.x !== undefined && e.k) items.push({key: key, x: e.x, y: e.y, w: e.w || 1, d: e.d || 1, k: e.k, label: e.l, open: e.op, on: e.on, broken: e.br, kids: (e.ch || []).length}); });
+    var held = Object.keys(fr.h || {}).map(function (hand) { var id = fr.h[hand], rec = (fr.H || {})[id] || {}; return (rec.l || id) + " (" + hand + ")"; });
+    return {mode: "oracle", room: rid, ents: ents, held_records: fr.H || {}, items: items, conns: rs.c || [], people: rs.p || {}, pets: rs.a || {},
+            hazards: rs.z || [], wet: rs.wc || [], blocked: [], dark: rs.lt !== undefined && rs.lt < 0.2, light: rs.lt,
+            robot: {x: fr.rp[0], y: fr.rp[1], posture: fr.po, held: held, battery: fr.bat, extra: fr}};
+  }
+  function scenePerceived(f) {
+    var pf = P[f];
+    if (!pf || pf.na) return {mode: "perceived", na: true, room: pf ? pf.r : null};
+    var rid = pf.r, rs = (pf.R || {})[rid] || {}, ents = rs.e || {}, items = [];
+    Object.keys(ents).sort().forEach(function (key) { var e = ents[key]; if (e.pos && e._k) items.push({key: key, x: e.pos[0], y: e.pos[1], w: e._w || 1, d: e._d || 1, k: e._k, label: e.label, open: e.open, on: e.on === true || e.lit === true, broken: e.broken || e.shattered, kids: 0}); });
+    items.forEach(function (it) { Object.keys(ents).forEach(function (k) { if (ents[k].location === it.key) it.kids++; }); });
+    var held = (pf.h || []).map(function (h) { return (ents[h] && ents[h].label ? ents[h].label + " " : "") + h; });
+    return {mode: "perceived", room: rid, ents: ents, items: items, conns: rs.c || [], people: rs.p || {}, pets: rs.a || {},
+            hazards: rs.z || [], wet: [], blocked: rs.b || [], dark: !!pf.dark, light: rs.lt, channels: pf.ch || {},
+            robot: {x: pf.rp[0], y: pf.rp[1], posture: pf.po, held: held, battery: pf.bat, extra: pf}};
+  }
+  function sideOfCell(x, y, C, R) { if (x <= 0) return "L"; if (x >= C - 1) return "R"; if (y <= 0) return "T"; return "B"; }
+  function wallSide(it, C, R) {
+    var c = [];
+    if (it.x <= 0) c.push("L"); if (it.x + it.w >= C) c.push("R"); if (it.y <= 0) c.push("T"); if (it.y + it.d >= R) c.push("B");
+    if (!c.length) return null;
+    var horiz = it.w >= it.d;
+    for (var i = 0; i < c.length; i++) if ((c[i] === "T" || c[i] === "B") === horiz) return c[i];
+    return c[0];
+  }
+  var ORDER = {rug: 0, fix: 1, furn: 2, wall: 3, item: 4, dot: 5, win: 6, ceil: 7};
+  function roomSvg(sc) {
+    var info = ROOMS[sc.room] || {cols: 8, rows: 8}, C = info.cols, R = info.rows, pad = 1.15, s = [];
+    s.push('<svg class="room-svg" style="max-width:' + Math.round((C + 2 * pad) * 58) + 'px" viewBox="' + (-pad) + " " + (-pad) + " " + (C + 2 * pad) + " " + (R + 2 * pad) + '" role="img" aria-label="' + esc(roomLabel(sc.room)) + ' room view">');
+    s.push('<defs><pattern id="hatch" width=".25" height=".25" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch-line" x1="0" y1="0" x2="0" y2=".25"/></pattern></defs>');
+    s.push('<rect class="floor' + (info.o ? " outdoor" : "") + '" x="0" y="0" width="' + C + '" height="' + R + '"/>');
+    var g = [];
+    for (var x = 1; x < C; x++) g.push("M" + x + " 0V" + R);
+    for (var y = 1; y < R; y++) g.push("M0 " + y + "H" + C);
+    s.push('<path class="gridline" d="' + g.join("") + '"/>');
+    sc.blocked.forEach(function (c) { s.push('<rect class="blocked" x="' + c[0] + '" y="' + c[1] + '" width="1" height="1"/>'); });
+    sc.wet.forEach(function (c) { s.push('<rect class="wet" x="' + c[0] + '" y="' + c[1] + '" width="1" height="1" data-hz="' + c[0] + "," + c[1] + '"/>'); });
+    var hzCells = {};
+    sc.hazards.forEach(function (h) { var key = h[0] + "," + h[1]; (hzCells[key] = hzCells[key] || []).push(h); });
+    Object.keys(hzCells).forEach(function (key) {
+      var h = hzCells[key], x = h[0][0], y = h[0][1], wet = h.every(function (z) { return z[2] === "wet"; });
+      s.push('<rect class="' + (wet ? "wet" : "hz") + '" x="' + x + '" y="' + y + '" width="1" height="1" data-hz="' + key + '"/>');
+      if (!wet) s.push('<text class="hz-t" x="' + (x + 0.06) + '" y="' + (y + 0.95) + '">' + esc(trunc(h[0][2], 9)) + "</text>");
+    });
+    var items = sc.items.slice().sort(function (a, b) { return (ORDER[a.k] || 0) - (ORDER[b.k] || 0) || (b.w * b.d - a.w * a.d); });
+    items.forEach(function (it) {
+      var st = (it.open ? " is-open" : "") + (it.on ? " is-on" : "") + (it.broken ? " is-broken" : ""), dk = ' data-k="' + esc(it.key) + '"';
+      var x = it.x, y = it.y, w = it.w, d = it.d, side;
+      if (it.k === "floor" || it.k === "door") return;
+      if (it.k === "win") {
+        side = wallSide(it, C, R) || "T"; var span = Math.max(w, d);
+        var xy = side === "L" ? [0, y, 0, Math.min(R, y + span)] : side === "R" ? [C, y, C, Math.min(R, y + span)] : side === "T" ? [x, 0, Math.min(C, x + span), 0] : [x, R, Math.min(C, x + span), R];
+        s.push('<line class="e win' + st + '"' + dk + ' x1="' + xy[0] + '" y1="' + xy[1] + '" x2="' + xy[2] + '" y2="' + xy[3] + '"/>');
+        return;
+      }
+      if (it.k === "dot") {
+        side = wallSide({x: x, y: y, w: 1, d: 1}, C, R); var q = 0.3, px = x + 0.5 - q / 2, py = y + 0.5 - q / 2;
+        if (side === "L") px = 0.04; else if (side === "R") px = C - q - 0.04; else if (side === "T") py = 0.04; else if (side === "B") py = R - q - 0.04;
+        s.push('<rect class="e dot' + st + '"' + dk + ' x="' + px.toFixed(2) + '" y="' + py.toFixed(2) + '" width="' + q + '" height="' + q + '" rx=".05"/>');
+        return;
+      }
+      if (it.k === "ceil") { s.push('<circle class="e ceil' + st + '"' + dk + ' cx="' + (x + w / 2) + '" cy="' + (y + d / 2) + '" r=".32"/>'); return; }
+      if (it.k === "item") {
+        var iw = Math.min(w, 1) * 0.56, idd = Math.min(d, 1) * 0.56;
+        s.push('<rect class="e item' + st + '"' + dk + ' x="' + (x + (Math.min(w, 1) - iw) / 2) + '" y="' + (y + (Math.min(d, 1) - idd) / 2) + '" width="' + iw + '" height="' + idd + '" rx=".1"/>');
+      } else {
+        var inset = it.k === "rug" ? 0.04 : it.k === "furn" ? 0.06 : 0.12, cls = it.k === "wall" ? "wallm" : it.k;
+        s.push('<rect class="e ' + cls + st + '"' + dk + ' x="' + (x + inset) + '" y="' + (y + inset) + '" width="' + Math.max(0.1, w - 2 * inset) + '" height="' + Math.max(0.1, d - 2 * inset) + '" rx=".06"/>');
+        if ((it.k === "furn" || it.k === "fix" || it.k === "rug") && w * d >= 2 && it.label) {
+          var chars = Math.max(3, Math.floor((Math.max(w, d) - 0.2) / 0.17)), vertical = d > w + 0.5;
+          var tx = x + w / 2, ty = y + d / 2 + 0.1;
+          s.push('<text class="elabel" x="' + tx + '" y="' + ty + '" text-anchor="middle"' + (vertical ? ' transform="rotate(-90 ' + tx + " " + (ty - 0.1) + ')"' : "") + ">" + esc(trunc(it.label, chars)) + "</text>");
+        }
+      }
+      if (it.kids) { var bx = x + Math.min(w, Math.max(1, w)) - 0.22, by = y + 0.22; s.push('<circle class="kids" cx="' + bx + '" cy="' + by + '" r=".17"/><text class="kids-t" x="' + bx + '" y="' + (by + 0.09) + '" text-anchor="middle">' + it.kids + "</text>"); }
+    });
+    sc.conns.forEach(function (c) {
+      var side = sideOfCell(c.x, c.y, C, R), cls = "door " + (!c.dr ? "doorway" : c.lk ? "locked" : c.op ? "open" : "closed");
+      var xfloor = ROOMS[c.to] && ROOMS[sc.room] ? ROOMS[c.to].f !== ROOMS[sc.room].f : /stair|elevator|lift/.test(String(c.k || ""));
+      var seg = side === "L" ? [0, c.y + 0.08, 0, c.y + 0.92] : side === "R" ? [C, c.y + 0.08, C, c.y + 0.92] : side === "T" ? [c.x + 0.08, 0, c.x + 0.92, 0] : [c.x + 0.08, R, c.x + 0.92, R];
+      s.push('<line class="' + cls + '" data-door="' + esc(c.id) + '" x1="' + seg[0] + '" y1="' + seg[1] + '" x2="' + seg[2] + '" y2="' + seg[3] + '"/>');
+      var label = (xfloor ? "↕ " : "→ ") + trunc(roomLabel(c.to), 16), t;
+      if (side === "L") t = '<text class="door-t" text-anchor="middle" transform="translate(-0.42 ' + (c.y + 0.5) + ') rotate(-90)">';
+      else if (side === "R") t = '<text class="door-t" text-anchor="middle" transform="translate(' + (C + 0.42) + " " + (c.y + 0.5) + ') rotate(90)">';
+      else if (side === "T") t = '<text class="door-t" text-anchor="middle" x="' + (c.x + 0.5) + '" y="-0.3">';
+      else t = '<text class="door-t" text-anchor="middle" x="' + (c.x + 0.5) + '" y="' + (R + 0.55) + '">';
+      s.push(t + esc(label) + "</text>");
+    });
+    var trail = [];
+    for (var i = S.f; i >= 0; i--) { var fr = S.view === "oracle" ? O[i] : P[i]; if (!fr || fr.na || fr.r !== sc.room) break; trail.unshift(fr.rp); }
+    if (trail.length > 1) s.push('<polyline class="trail" points="' + trail.map(function (p) { return (p[0] + 0.5) + "," + (p[1] + 0.5); }).join(" ") + '"/>');
+    Object.keys(sc.people).sort().forEach(function (pid) {
+      var p = sc.people[pid], pos = p.pos || (p.x !== undefined ? [p.x, p.y] : null); if (!pos) return;
+      var lying = /lying|sleep|fallen/.test(String(p.posture || p.po || "")), name = p.label || p.l || pid;
+      s.push((lying ? '<ellipse rx=".46" ry=".3"' : '<circle r=".4"') + ' class="person" data-p="' + esc(pid) + '" cx="' + (pos[0] + 0.5) + '" cy="' + (pos[1] + 0.5) + '"/>');
+      s.push('<text class="agent-t" x="' + (pos[0] + 0.5) + '" y="' + (pos[1] + 0.62) + '" text-anchor="middle">' + esc(String(name).charAt(0).toUpperCase()) + "</text>");
+    });
+    Object.keys(sc.pets).sort().forEach(function (pid) {
+      var p = sc.pets[pid], pos = p.pos || (p.x !== undefined ? [p.x, p.y] : null); if (!pos) return;
+      var name = p.species || p.sp || p.label || p.l || pid;
+      s.push('<circle class="pet" r=".3" data-a="' + esc(pid) + '" cx="' + (pos[0] + 0.5) + '" cy="' + (pos[1] + 0.5) + '"/>');
+      s.push('<text class="agent-t" x="' + (pos[0] + 0.5) + '" y="' + (pos[1] + 0.61) + '" text-anchor="middle">' + esc(String(name).charAt(0).toUpperCase()) + "</text>");
+    });
+    var rb = sc.robot, small = /crouch|kneel|sit|lying/.test(String(rb.posture || "")), rr = small ? 0.28 : 0.36;
+    s.push('<circle class="robot" data-robot="1" cx="' + (rb.x + 0.5) + '" cy="' + (rb.y + 0.5) + '" r="' + rr + '"/>');
+    s.push('<text class="robot-t" x="' + (rb.x + 0.5) + '" y="' + (rb.y + 0.63) + '" text-anchor="middle">R</text>');
+    if (sc.dark) { s.push('<rect class="dark-overlay" x="0" y="0" width="' + C + '" height="' + R + '"/><text class="dark-t" x="' + (C / 2) + '" y="0.7" text-anchor="middle">dark</text>'); }
+    s.push("</svg>");
+    return s.join("");
+  }
+  function legend() {
+    var rows = [["var(--furn)", "furniture"], ["var(--fix)", "fixture"], ["var(--item)", "floor item"], ["var(--rug)", "rug / mat"], ["var(--wall)", "wall-mounted"],
+                ["var(--win)", "window"], ["var(--ceil)", "ceiling item / light on"], ["var(--door-open)", "open door"], ["var(--door-closed)", "closed door"],
+                ["var(--door-locked)", "locked door"], ["var(--doorway)", "doorway"], ["var(--hz)", "hazard"], ["var(--wet)", "wet cell"],
+                ["var(--robot)", "robot"], ["var(--person)", "person"], ["var(--pet)", "pet"]];
+    $("legend").innerHTML = rows.map(function (r) { return '<span><i style="background:' + r[0] + '"></i>' + r[1] + "</span>"; }).join("") + "<span>numbered badge = items on/in it; hover for details</span>";
+  }
+
+  // ---- tooltips ----
+  var FIELD = {ty: "type", ca: "category", sz: "size (m)", rot: "rotation", mh: "mount height (m)", rel: "relation", "in": "inside / on", op: "open", lk: "locked", on: "on",
+               br: "broken", st: "states", so: "soil", we: "wetness", tc: "temperature (°C)", ma: "material", co: "color", b: "blocks path", k: "drawn as"};
+  function oracleEntityHtml(key, e, ents) {
+    var rows = [["id", "<code>" + esc(key) + "</code>"]];
+    if (e.x !== undefined) rows.push(["cell", esc(e.x + ", " + e.y) + (e.w ? " · " + e.w + "×" + e.d + " cells" : "")]);
+    ["ty", "ca", "in", "rel", "sz", "rot", "mh", "op", "lk", "on", "br", "st", "so", "we", "tc", "ma", "co"].forEach(function (k) { if (e[k] !== undefined) rows.push([FIELD[k] || k, esc(fmt(e[k]))]); });
+    Object.keys(e.xf || {}).forEach(function (k) { rows.push([k, esc(fmt(e.xf[k]))]); });
+    var html = "<h3>" + esc(e.l || key) + "</h3>" + kv(rows);
+    if (e.ch && e.ch.length) {
+      html += '<div class="muted" style="margin-top:4px">Contents / on it:</div><ul class="plain">' + e.ch.slice(0, 18).map(function (c) {
+        var r = ents[c] || {}, flags = [];
+        if (r.op !== undefined) flags.push(r.op ? "open" : "closed"); if (r.on) flags.push("on"); if (r.br) flags.push("broken"); if (r.so) flags.push("soiled"); if (r.we) flags.push("wet " + r.we); if (r.tc !== undefined && (r.tc > 30 || r.tc < 12)) flags.push(r.tc + "°C");
+        return "<li>" + esc(r.l || c) + ' <span class="muted">' + esc((r.rel || "") + (flags.length ? " · " + flags.join(", ") : "")) + " <code>" + esc(c) + "</code></span></li>";
+      }).join("") + (e.ch.length > 18 ? "<li class=\"muted\">+" + (e.ch.length - 18) + " more</li>" : "") + "</ul>";
+    }
+    return html;
+  }
+  function perceivedEntityHtml(key, e, ents) {
+    var rows = [["handle", "<code>" + esc(key) + "</code>"]];
+    Object.keys(e).sort().forEach(function (k) { if (k.charAt(0) !== "_" && k !== "label") rows.push([k, esc(trunc(fmt(e[k]), 120))]); });
+    var html = "<h3>" + esc(e.label || key) + "</h3>" + kv(rows), kids = Object.keys(ents).filter(function (k) { return ents[k].location === key; });
+    if (kids.length) html += '<div class="muted" style="margin-top:4px">Seen on/in it:</div><ul class="plain">' + kids.slice(0, 18).map(function (k) { return "<li>" + esc(ents[k].label || k) + ' <span class="muted">' + esc(ents[k].relation || "") + " <code>" + esc(k) + "</code></span></li>"; }).join("") + "</ul>";
+    return html;
+  }
+  function agentHtml(id, a) {
+    var rows = [["id", "<code>" + esc(id) + "</code>"]];
+    Object.keys(a).sort().forEach(function (k) { var names = {l: "label", ro: "role", sp: "species", po: "posture", ac: "activity", mo: "mood", aw: "awake", ho: "holding", ca: "carrying", le: "leashed", hid: "concealed"}; if (k !== "x" && k !== "y") rows.push([names[k] || k, esc(trunc(fmt(a[k]), 120))]); });
+    return "<h3>" + esc(a.l || a.label || id) + "</h3>" + kv(rows);
+  }
+  function tooltipFor(el) {
+    var sc = S.scene; if (!sc || sc.na) return "";
+    var k = el.getAttribute("data-k"), hz = el.getAttribute("data-hz"), room = el.getAttribute("data-room"), door = el.getAttribute("data-door");
+    if (k) { var e = sc.ents[k] || (sc.held_records || {})[k]; if (!e) return ""; return sc.mode === "oracle" ? oracleEntityHtml(k, e, sc.ents) : perceivedEntityHtml(k, e, sc.ents); }
+    if (el.getAttribute("data-p")) { var pid = el.getAttribute("data-p"); return agentHtml(pid, sc.people[pid] || {}); }
+    if (el.getAttribute("data-a")) { var aid = el.getAttribute("data-a"); return agentHtml(aid, sc.pets[aid] || {}); }
+    if (el.getAttribute("data-robot")) {
+      var rb = sc.robot, ex = rb.extra || {};
+      return "<h3>Robot</h3>" + kv([["cell", esc(rb.x + ", " + rb.y)], ["posture", esc(rb.posture)], ["holding", esc(rb.held.join(", ") || "nothing")], ["battery", esc(rb.battery)],
+        ["docked", ex.dk ? "yes" : ""], ["standing on", esc(ex.so || "")], ["speed mode", esc(ex.sm || "")], ["stopped", ex.sp ? "yes" : ""], ["fallen", ex.fl ? "yes" : ""]]);
+    }
+    if (hz) {
+      var list = sc.hazards.filter(function (h) { return h[0] + "," + h[1] === hz; });
+      if (!list.length && sc.wet.length) list = [[0, 0, "wet", "room wet cell"]];
+      return "<h3>Hazard at " + esc(hz) + "</h3><ul class=\"plain\">" + list.map(function (h) { return "<li>" + esc(h[2]) + ' <span class="muted">source <code>' + esc(h[3]) + "</code></span></li>"; }).join("") + "</ul>";
+    }
+    if (room) { var r = ROOMS[room] || {}; return "<h3>" + esc(r.l || room) + "</h3>" + kv([["id", "<code>" + esc(room) + "</code>"], ["type", esc(r.ty)], ["floor", esc(r.f)], ["size (m)", esc(r.w + " × " + r.h)], ["grid", esc(r.cols + " × " + r.rows + " cells")], ["outdoor", r.o ? "yes" : ""]]); }
+    if (door) {
+      var c = (sc.conns || []).filter(function (x) { return x.id === door; })[0];
+      var l = (LAYOUT.links || []).filter(function (x) { return x.id === door; })[0];
+      if (c) return "<h3>" + esc(c.k) + " → " + esc(roomLabel(c.to)) + "</h3>" + kv([["connection", "<code>" + esc(c.id) + "</code>"], ["door", c.dr ? "<code>" + esc(c.dr) + "</code>" : "none (open doorway)"], ["state", c.dr ? esc(c.lk ? "locked" : c.op ? "open" : "closed") : ""], ["cell", esc(c.x + ", " + c.y)]]);
+      if (l) return "<h3>" + esc(l.k) + "</h3>" + kv([["connects", esc(roomLabel(l.a) + " ↔ " + roomLabel(l.b))], ["connection", "<code>" + esc(l.id) + "</code>"]]);
+    }
+    return "";
+  }
+  function bindTooltips(container) {
+    var tip = $("tooltip");
+    container.addEventListener("mousemove", function (ev) {
+      var el = ev.target.closest && ev.target.closest("[data-k],[data-p],[data-a],[data-hz],[data-room],[data-door],[data-robot]");
+      var html = el ? tooltipFor(el) : "";
+      if (!html) { tip.hidden = true; return; }
+      tip.innerHTML = html; tip.hidden = false;
+      var w = tip.offsetWidth, h = tip.offsetHeight, x = ev.clientX + 14, y = ev.clientY + 14;
+      if (x + w > window.innerWidth - 8) x = Math.max(8, ev.clientX - w - 14);
+      if (y + h > window.innerHeight - 8) y = Math.max(8, ev.clientY - h - 14);
+      tip.style.left = x + "px"; tip.style.top = y + "px";
+    });
+    container.addEventListener("mouseleave", function () { tip.hidden = true; });
+  }
+
+  // ---- steps ----
+  function stepMessage(st) { return S.view === "perceived" && st.am !== undefined ? st.am : st.m; }
+  function buildSteps() {
+    var rows = [];
+    STEPS.forEach(function (st, i) {
+      var args = [st.tg, st.de].filter(function (x) { return x; }).join(" → ");
+      rows.push('<div class="step' + (st.ok ? "" : " refused") + (st.dv ? " dv" : "") + '" data-i="' + i + '"' + (st.dv ? ' title="' + esc(st.dv) + '"' : "") + ">" +
+        '<div class="srow"><span class="sn">' + (i + 1) + '</span><span class="sa">' + esc(st.a) + "</span>" + (args ? '<span class="sargs">' + esc(trunc(args, 80)) + "</span>" : "") +
+        '<span class="sok ' + (st.ok ? "y" : "n") + '">' + (st.ok ? "✓" : "✗" + (st.ca ? " " + esc(st.ca) : "")) + "</span>" +
+        (st.ts !== undefined ? '<span class="st">' + hms(st.ts) + "</span>" : "") + "</div>" +
+        (st.pa ? '<div class="sparams" title="' + esc(st.pa) + '">' + esc(trunc(st.pa, 90)) + "</div>" : "") +
+        '<div class="smsg">' + esc(trunc(stepMessage(st) || "", 240)) + "</div></div>");
+    });
+    $("stepList").innerHTML = N ? rows.join("") : '<div class="na">No steps</div>';
+  }
+  function highlightStep(scroll) {
+    var list = $("stepList"), prev = list.querySelector(".step.current");
+    if (prev) prev.classList.remove("current");
+    if (S.f > 0) {
+      var row = list.querySelector('.step[data-i="' + (S.f - 1) + '"]');
+      if (row) { row.classList.add("current"); if (scroll) { var top = row.offsetTop - list.clientHeight / 2; list.scrollTop = Math.max(0, top); } }
+    }
+  }
+
+  // ---- evaluation ----
+  function renderEval() {
+    var ev = E[S.f] || {}, html = [];
+    if (ev.na) { $("evalBody").innerHTML = '<div class="muted">Evaluation unavailable at this step.</div>'; return; }
+    var status = ev.s ? "success" : S.f === N ? "failed" : "progress";
+    html.push('<div class="ev-status ' + status + '">' + (ev.s ? "SUCCESS" : S.f === N ? "NOT SUCCESSFUL" : "in progress") + "</div>");
+    html.push('<div class="muted">goal fraction ' + (ev.g !== undefined ? ev.g : "?") + " · score " + (ev.sc !== undefined ? ev.sc : "?") + (ev.rs !== undefined ? " · rubric " + ev.rs : "") + "</div>");
+    html.push('<div class="bar"><i style="width:' + Math.round(100 * (ev.g || 0)) + '%"></i></div>');
+    html.push("<b>Failures</b>" + ((ev.f || []).length ? '<ul class="plain">' + ev.f.map(function (x) { return '<li class="bad-t">' + esc(x) + "</li>"; }).join("") + "</ul>" : '<div class="muted">none</div>'));
+    var names = (META.milestones || []).slice(), m = ev.m || {};
+    Object.keys(m).forEach(function (k) { if (names.indexOf(k) < 0) names.push(k); });
+    if (names.length) html.push("<b>Milestones</b><ul class=\"plain\">" + names.map(function (k) { return m[k] ? '<li class="ok-t">✓ ' + esc(k) + ' <span class="muted">step ' + esc(m[k][0]) + " · " + hms(m[k][1]) + "</span></li>" : '<li class="muted">○ ' + esc(k) + "</li>"; }).join("") + "</ul>");
+    var hf = ev.hf || {}, bl = ev.bl || {};
+    html.push("<b>Harm flags</b>" + (Object.keys(hf).length ? '<ul class="plain">' + Object.keys(hf).map(function (k) { return '<li class="bad-t">' + esc(k) + ": " + esc(hf[k]) + "</li>"; }).join("") + "</ul>" : '<div class="muted">none</div>'));
+    var extra = [["blocks", Object.keys(bl).map(function (k) { return k.replace("_blocks", "") + " " + bl[k]; }).join(", ") || "none"], ["invalid steps", ev.iv || 0],
+                 ["questions", ev.q ? "necessary " + ev.q[0] + ", unnecessary " + ev.q[1] : ""], ["budget exceeded", ev.bx ? "yes" : "no"]];
+    html.push(kv(extra.map(function (r) { return [r[0], esc(r[1])]; })));
+    if (S.f !== N && E[N] && !E[N].na) html.push('<div class="muted" style="margin-top:6px">Final outcome: ' + (E[N].s ? '<span class="ok-t">success</span>' : '<span class="bad-t">not successful</span>') + "</div>");
+    if ((META.success_rules || []).length && S.view === "oracle") html.push("<details><summary>Success criteria (privileged)</summary><ul class=\"plain mono\">" + META.success_rules.map(function (r) { return "<li>" + esc(r) + "</li>"; }).join("") + "</ul></details>");
+    $("evalBody").innerHTML = html.join("");
+  }
+
+  // ---- diffs ----
+  function perceivedDiff(a, b) {
+    var out = [];
+    if (!a || !b) return out;
+    if (a.na || b.na) { out.push(["perceived view", "", "unavailable"]); return out; }
+    if (a.r !== b.r) out.push(["room", roomLabel(a.r), roomLabel(b.r)]);
+    if (String(a.rp) !== String(b.rp)) out.push(["robot cell", String(a.rp), String(b.rp)]);
+    if (a.po !== b.po) out.push(["posture", a.po, b.po]);
+    if (String(a.h) !== String(b.h)) out.push(["holding", (a.h || []).join(", ") || "nothing", (b.h || []).join(", ") || "nothing"]);
+    if (!!a.dark !== !!b.dark) out.push(["dark", String(!!a.dark), String(!!b.dark)]);
+    var ea = a.r === b.r ? (((a.R || {})[a.r] || {}).e || {}) : {}, eb = ((b.R || {})[b.r] || {}).e || {};
+    if (a.r !== b.r) { out.push(["visible things", "", Object.keys(eb).length + " in view"]); }
+    else {
+      Object.keys(eb).sort().forEach(function (k) {
+        if (!ea[k]) { out.push([k, "", "appeared: " + (eb[k].label || "")]); return; }
+        Object.keys(eb[k]).forEach(function (f) { if (f.charAt(0) !== "_" && JSON.stringify(ea[k][f]) !== JSON.stringify(eb[k][f])) out.push([k + "." + f, fmt(ea[k][f]), fmt(eb[k][f])]); });
+        Object.keys(ea[k]).forEach(function (f) { if (f.charAt(0) !== "_" && eb[k][f] === undefined) out.push([k + "." + f, fmt(ea[k][f]), ""]); });
+      });
+      Object.keys(ea).sort().forEach(function (k) { if (!eb[k]) out.push([k, ea[k].label || "", "no longer seen"]); });
+    }
+    var ca = a.ch || {}, cb = b.ch || {};
+    Object.keys(cb).forEach(function (k) { if (ca[k] !== cb[k]) out.push([k, ca[k] || "", cb[k]]); });
+    return out;
+  }
+  function renderDiff() {
+    var body = $("diffBody");
+    if (S.f === 0) { body.innerHTML = '<div class="muted">Initial state (no step yet).</div>'; return; }
+    var st = STEPS[S.f - 1] || {}, html = ['<div class="muted" style="margin-bottom:4px">Step ' + S.f + ": <b>" + esc(st.a) + "</b> " + (st.ok ? '<span class="ok-t">ok</span>' : '<span class="bad-t">refused</span>') + " — " + esc(trunc(stepMessage(st) || "", 300)) + "</div>"];
+    if (st.dv) html.push('<div class="warn">' + esc(st.dv) + "</div>");
+    var rows;
+    if (S.view === "oracle" && DIFFS) {
+      $("diffTitle").textContent = "State changes in this step (true state)";
+      var d = DIFFS[S.f - 1] || {c: []};
+      rows = d.c.map(function (r) { return '<div class="diff-row r' + (r[3] || 0) + '"><span class="p">' + esc(r[0]) + '</span><br><span class="muted">' + esc(r[1] === null || r[1] === undefined ? "(absent)" : r[1]) + '</span><span class="arrow">→</span>' + esc(r[2] === null || r[2] === undefined ? "(absent)" : r[2]) + "</div>"; });
+      if (!rows.length) rows.push('<div class="muted">No state change besides time and bookkeeping.</div>');
+      if (d.n) rows.push('<div class="muted">+' + d.n + " more (bookkeeping, internal fields, small drift) omitted</div>");
+    } else {
+      $("diffTitle").textContent = "Changes in what the agent perceives";
+      rows = perceivedDiff(P[S.f - 1], P[S.f]).map(function (r) { return '<div class="diff-row"><span class="p">' + esc(r[0]) + '</span><br><span class="muted">' + esc(trunc(r[1], 80) || "(none)") + '</span><span class="arrow">→</span>' + esc(trunc(r[2], 80) || "(none)") + "</div>"; });
+      if (!rows.length) rows.push('<div class="muted">No change in the observation.</div>');
+    }
+    body.innerHTML = html.join("") + rows.join("");
+  }
+
+  // ---- main render ----
+  function render(scrollList) {
+    Array.prototype.forEach.call($("viewToggle").children, function (btn) { btn.setAttribute("aria-pressed", btn.getAttribute("data-view") === S.view ? "true" : "false"); });
+    var sc = S.view === "oracle" ? sceneOracle(S.f) : scenePerceived(S.f);
+    S.scene = sc;
+    var info = ROOMS[sc.room] || {};
+    $("roomTitle").textContent = roomLabel(sc.room) + (sc.room ? "  ·  " + sc.room : "") + (info.f !== undefined ? "  ·  floor " + info.f : "") + (info.o ? "  ·  outdoor" : "");
+    var chip = $("viewChip");
+    chip.textContent = S.view === "oracle" ? "oracle view (true state)" : "perceived view (observation: handles and buckets)";
+    chip.className = "chip" + (S.view === "oracle" ? "" : " perceived");
+    if (sc.na) {
+      $("roomView").innerHTML = '<div class="na">The perceived view is unavailable at this step (the re-run diverged from the recording; see the warnings).</div>';
+      $("robotLine").textContent = "";
+    } else {
+      $("roomView").innerHTML = roomSvg(sc);
+      var rb = sc.robot, parts = ["Robot at cell (" + rb.x + ", " + rb.y + ")", rb.posture || "standing", "holding: " + (rb.held.join(", ") || "nothing")];
+      if (rb.battery !== undefined) parts.push("battery " + rb.battery + "%");
+      if (sc.light !== undefined) parts.push("light " + sc.light);
+      if (sc.mode === "perceived" && sc.channels) Object.keys(sc.channels).forEach(function (k) { parts.push(k + ": " + trunc(sc.channels[k], 120)); });
+      $("robotLine").textContent = parts.join("  ·  ");
+    }
+    renderMap();
+    renderEval();
+    renderDiff();
+    highlightStep(scrollList);
+    var fr = anyFrame(S.f) || {}, t = O ? O[S.f].t : (S.f > 0 && STEPS[S.f - 1].ts !== undefined ? STEPS[S.f - 1].ts : 0);
+    $("stepLabel").textContent = "frame " + S.f + " / " + N + "  ·  sim " + hms(t) + (O && O[S.f].clk ? "  ·  " + O[S.f].clk.replace("T", " ") : "");
+    $("scrub").value = S.f;
+    $("bPlay").textContent = S.playing ? "Pause" : "Play";
+  }
+  function setFrame(f, scroll) { S.f = Math.max(0, Math.min(N, f)); render(scroll); }
+  function stop() { S.playing = false; if (S.timer) clearInterval(S.timer); S.timer = null; render(); }
+  function play() {
+    if (S.f >= N) S.f = 0;
+    S.playing = true; if (S.timer) clearInterval(S.timer);
+    S.timer = setInterval(function () { if (S.f >= N) { stop(); return; } setFrame(S.f + 1, true); }, Math.max(40, 700 / S.speed));
+    render();
+  }
+
+  // ---- theme ----
+  function applyTheme(t) { if (t) document.documentElement.setAttribute("data-theme", t); }
+  applyTheme(store("houseViewerTheme"));
+  $("themeBtn").addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    if (!cur) cur = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark"; applyTheme(next); store("houseViewerTheme", next);
+  });
+
+  // ---- wiring ----
+  header(); floorTabs(); legend(); buildSteps();
+  bindTooltips($("roomView")); bindTooltips($("minimap"));
+  $("scrub").max = N;
+  $("scrub").addEventListener("input", function () { setFrame(+this.value, true); });
+  $("bFirst").addEventListener("click", function () { setFrame(0, true); });
+  $("bLast").addEventListener("click", function () { setFrame(N, true); });
+  $("bPrev").addEventListener("click", function () { setFrame(S.f - 1, true); });
+  $("bNext").addEventListener("click", function () { setFrame(S.f + 1, true); });
+  $("bPlay").addEventListener("click", function () { if (S.playing) stop(); else play(); });
+  $("speed").addEventListener("change", function () { S.speed = +this.value; if (S.playing) play(); });
+  $("follow").addEventListener("change", function () { renderMap(); });
+  $("stepList").addEventListener("click", function (e) { var row = e.target.closest(".step[data-i]"); if (row) setFrame(+row.getAttribute("data-i") + 1, false); });
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target && e.target.tagName) || "";
+    if (tag === "SELECT" || tag === "TEXTAREA" || (tag === "INPUT" && e.target.type !== "range" && e.target.type !== "checkbox")) return;
+    if (e.key === "ArrowRight") { setFrame(S.f + 1, true); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { setFrame(S.f - 1, true); e.preventDefault(); }
+    else if (e.key === "Home") { setFrame(0, true); e.preventDefault(); }
+    else if (e.key === "End") { setFrame(N, true); e.preventDefault(); }
+    else if (e.key === " " && tag !== "BUTTON") { if (S.playing) stop(); else play(); e.preventDefault(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

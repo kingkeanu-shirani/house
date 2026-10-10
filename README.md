@@ -88,6 +88,46 @@ invalidates old verification hashes; rerun `--verify` to restore verified status
 `tasks/specs.jsonl` keeps conservative registration statuses from compilation;
 the coverage report upgrades a candidate only when current evidence passes.
 
+## Evaluate an agent
+
+The evaluation tools (`house_sim/eval/`) run agents on catalog tasks in **realistic perception** (opaque handles,
+inspect/read/measure; `docs/PERCEPTION.md`), score them, rank them and export data. Everything below is offline.
+
+```console
+py -m house_sim --run-agent oracle --split dev --ids T-089c40fb507289-01 T-6af2ea41755bbe-01 --verify-on-the-fly
+py -m house_sim --run-agent random --split dev --ids T-089c40fb507289-01 T-6af2ea41755bbe-01 --verify-on-the-fly --agent-opt seed=7
+py -m house_sim --leaderboard results\<oracle_run_id> results\<random_run_id>
+py -m house_sim --verify-submission results\<random_run_id>
+py -m house_sim --viewer results\<random_run_id>\episodes.jsonl#0
+```
+
+* **Agents**: `random`, `search` (toy fetch baseline), `oracle` (privileged: replays the spec's reference plan;
+  labelled in every result), `mock` (canned LLM responses, for tests), `llm:anthropic:<model>` and
+  `llm:openai-compatible:<model>@<base_url>`. Your own agent subclasses `house_sim.eval.agents.Agent`
+  (`reset(instruction, observation, action_catalog)`, `act(observation, last_result)`; see `docs/EVAL_HARNESS.md`).
+* **`--verify-on-the-fly`** checks the selected task specs on the dev seeds before running them. Without it only
+  specs with current evidence in `reports/verification.jsonl` run, and that evidence goes stale whenever simulator
+  code changes. `--allow-unverified` runs specs unverified (labelled as such).
+* **Results** go to `results/<run_id>/`: `run.json`, `episodes.jsonl`, `logs/` (enough to re-score by replay),
+  `replays/` (1-3 MB per episode; add `--no-replays` for large runs). `--leaderboard` writes `reports/leaderboard.md/.csv/.json/.html` with 95% bootstrap intervals and a
+  failure taxonomy; `--verify-submission` replays every logged command and rejects any score that does not match.
+* **Splits**: `train` (unlimited public seeds), `dev` (seeds 0, 1, 2, 41, 97) and a hidden `test` split:
+  `py -m house_sim --init-split-key`, then `py -m house_sim --build-test-manifest --verify` (verifies the hidden
+  seeds; writes the private manifest under `%USERPROFILE%\.house_ai` and the public `reports/test_commitment.json`),
+  `py -m house_sim --verify-commitment`, then `--run-agent ... --split test`. Test results never contain raw seeds.
+* **Viewer**: `--viewer` writes one self-contained offline HTML page per episode (floor plan, room view, timeline,
+  oracle and perceived views).
+* **Dataset**: `py -m house_sim --export-dataset OUT_DIR --verify-now --seeds-per-entry 1` exports SFT
+  trajectories, preference pairs and critiques from verified specs (train seeds only, test seeds refused);
+  `py -m house_sim --validate-dataset datasets\sample` checks one (schema, leaks, duplicates).
+* **LLM agents** cost money and are never called unless you pass `--allow-network` with the provider's key in the
+  environment. Estimate first; this makes no calls:
+  `py -m house_sim --run-agent llm:anthropic:claude-opus-5-5 --split dev --dry-run --verify-on-the-fly`.
+  The prices in `house_sim/eval/prices.json` must be checked against the provider's current price list.
+
+Details: `docs/EVAL_HARNESS.md`, `docs/SPLITS.md`, `docs/DATASET.md`, `docs/VIEWER.md` and the interfaces in
+`docs/EVAL_CONTRACTS.md`.
+
 ## Code and data
 
 | Location | Purpose |

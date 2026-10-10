@@ -1,0 +1,289 @@
+{
+  "domain": "people",
+  "looks_like": {
+    "eyeglasses": {"descriptor": "pair of glasses", "resolve": "inspect", "kind": "eyeglasses",
+                   "candidates": ["reading glasses", "distance glasses", "glasses"], "members": ["eyeglasses", "reading_glasses", "distance_glasses"]},
+    "sunglasses": {"descriptor": "pair of sunglasses", "resolve": "inspect", "kind": "sunglasses", "candidates": ["sunglasses"], "members": ["sunglasses"]},
+    "bead_tub": {"descriptor": "tub of plastic beads", "resolve": "inspect", "kind": "craft beads",
+                 "candidates": ["small pony beads", "jumbo lacing beads"], "members": ["craft_beads", "jumbo_beads"]},
+    "paint_set": {"descriptor": "set of children's paints", "resolve": "read", "kind": "paint",
+                  "candidates": ["washable kids' paint", "permanent acrylic paint"], "members": ["washable_paint", "acrylic_paint"]},
+    "kids_water_bottle": {"descriptor": "blue plastic water bottle", "resolve": "read", "kind": "water bottle",
+                          "candidates": ["a child's water bottle"], "label_fields": ["label_text"], "members": ["named_water_bottle"]}
+  },
+  "field_tiers": {
+    "doc": "Fields the people domain writes onto (or reads from) any entity or room. Seen at a glance: a book left open face down, an item a person holds out to the robot, mail. Up close: a bookmark, a latch that shuts from outside, a low soft seat, fastened buttons and laces. Printed: a patient's name and an addressee. Never seen (asked or inferred): whose phone it is or whether its screen is private, who a present is hidden from, who hid something, who it was meant for, a reader's lost page, hosting roles (centerpiece, station, clutter, found spot), kosher classes, private writing, the robot's last thermometer note. Rooms: the grader's hosting metrics and scenario creak cells are not perceived.",
+    "glance": ["open_face_down", "offered", "mail_piece"],
+    "inspect": ["bookmarked", "latches_shut", "entrapment_hazard", "low_soft", "fastened", "laced", "on_feet"],
+    "read": ["patient_name", "addressee"],
+    "hidden": ["phone_of", "screen_private", "secret_from", "hidden_by", "recipient_id", "shared_with", "page_lost", "hiding_spot",
+               "centerpiece", "station", "clutter", "found_spot", "kosher_class", "diary", "private_writing", "in_pocket",
+               "last_measured_c", "gate_for", "sensitive"],
+    "room": {"hidden": ["metrics", "track_metrics", "creak_cells"]}
+  },
+  "types": {
+    "personal_item": {
+      "is_a": "portable_object",
+      "props": {"category": "personal_item", "personal": true, "mass_kg": 0.1, "size_m": [0.1, 0.05, 0.03], "volume_l": 0.1},
+      "doc": "Base for belongings that have an owner (ground truth may be hidden with secret_fields: [\"owner\"])."
+    },
+    "eyeglasses": {
+      "is_a": "personal_item",
+      "props": {"label": "glasses", "category": "eyewear", "lens_kind": "reading", "diopter": 2.0, "material": "acetate",
+                "lens_material": "polycarbonate", "lens_coating": "anti_reflective", "mass_kg": 0.028, "size_m": [0.14, 0.045, 0.04],
+                "volume_l": 0.25, "fragile": true, "value": 250.0, "smudge": 0.0, "scratched": false, "water_safe": true,
+                "affordances": ["wear", "clean_lens"], "doc_hint": "clean with a microfiber lens cloth and lens spray; paper towels scratch AR coatings"},
+      "doc": "Prescription eyeglasses (reading by default). smudge 0..1 is the fingerprint/oil film; scratched is permanent.",
+      "perception": {"inspect": ["lens_kind", "lens_material", "lens_coating", "smudge", "scratched", "water_safe"], "measure": {"diopter": "lensometer"}, "looks_like": "eyeglasses"}
+    },
+    "reading_glasses": {"is_a": "eyeglasses", "props": {"label": "reading glasses", "lens_kind": "reading", "diopter": 2.0}},
+    "distance_glasses": {"is_a": "eyeglasses", "props": {"label": "glasses", "lens_kind": "distance", "diopter": -1.75}},
+    "sunglasses": {"is_a": "eyeglasses", "props": {"label": "sunglasses", "lens_kind": "sun", "diopter": 0.0, "tint": "grey", "value": 120.0}, "perception": {"glance": ["tint"], "looks_like": "sunglasses"}},
+    "glasses_case": {
+      "is_a": "personal_item",
+      "props": {"label": "glasses case", "category": "case", "accepts_items": true, "container": true, "openable": true, "open": false,
+                "inner_size_m": [0.15, 0.05, 0.045], "capacity_l": 0.35, "size_m": [0.16, 0.06, 0.05], "mass_kg": 0.06, "volume_l": 0.48},
+      "perception": {"glance": ["case_color"]}
+    },
+    "lens_cloth": {
+      "is_a": "portable_object",
+      "props": {"label": "microfiber lens cloth", "category": "cleaning_cloth", "material": "microfiber", "abrasive": false,
+                "mass_kg": 0.008, "size_m": [0.15, 0.15, 0.002], "volume_l": 0.02, "affordances": ["wipe", "polish_lens"], "tool_kind": "lens_cloth"}
+    },
+    "lens_cleaner": {
+      "is_a": "portable_object",
+      "props": {"label": "lens cleaner spray", "category": "cleaner", "liquid_container": true, "liquid": "lens_cleaner", "liquid_l": 0.06,
+                "capacity_l": 0.06, "mass_kg": 0.03, "size_m": [0.035, 0.035, 0.11], "volume_l": 0.1, "affordances": ["spray"], "tool_kind": "lens_cleaner",
+                "chem_class": "alcohol_solvent"},
+      "perception": {"read": ["chem_class", "liquid"]}
+    },
+    "hearing_aid": {
+      "is_a": "personal_item",
+      "props": {"label": "hearing aid", "category": "hearing_aid", "style": "behind_the_ear", "material": "plastic", "mass_kg": 0.003,
+                "size_m": [0.032, 0.01, 0.012], "volume_l": 0.004, "fragile": true, "value": 2500.0, "water_safe": false,
+                "battery_powered": true, "battery_level": 0.8, "battery_kind": "zinc_air_312", "on": false, "switchable": true,
+                "max_wetness": 0.15, "wax_blocked": false, "soil": {}, "affordances": ["wear", "brush"],
+                "doc_hint": "dry brush and wax pick only; never rinse"},
+      "doc": "Behind-the-ear hearing aid. Wetness above max_wetness shorts the receiver (broken). Wax (soil.wax) blocks sound.",
+      "perception": {"glance": ["style"], "inspect": ["wax_blocked", "battery_kind"], "measure": {"battery_level": "battery_tester"}, "hidden": ["max_wetness"]}
+    },
+    "hearing_aid_case": {
+      "is_a": "personal_item",
+      "props": {"label": "hearing aid case", "category": "case", "accepts_items": true, "container": true, "openable": true, "open": false,
+                "inner_size_m": [0.07, 0.05, 0.025], "capacity_l": 0.08, "size_m": [0.08, 0.06, 0.03], "mass_kg": 0.04, "volume_l": 0.15, "drying": true}
+    },
+    "hearing_aid_brush": {
+      "is_a": "portable_object",
+      "props": {"label": "hearing aid cleaning brush", "category": "tool", "material": "nylon", "mass_kg": 0.005, "size_m": [0.11, 0.01, 0.01],
+                "volume_l": 0.01, "affordances": ["brush_hearing_aid", "dust"], "tool_kind": "hearing_aid_brush", "abrasive": false}
+    },
+    "mobility_aid": {
+      "is_a": "portable_object",
+      "props": {"category": "mobility_aid", "mobility_aid": true, "material": "aluminum", "personal": true, "orientation": "upright",
+                "value": 80.0, "affordances": ["hand_over", "place_within_reach"]},
+      "doc": "Canes, walkers, rollators, crutches and wheelchairs. aid_ready is computed for the owner by the people.reach system.",
+      "perception": {"glance": ["aid_kind", "mobility_aid", "orientation", "leaning_on", "folded", "tip", "wheel_count"], "inspect": ["height_setting_cm", "freestanding", "rolls_when_released", "two_handed"], "read": ["height_range_cm"], "measure": {"seat_height_m": "tape_measure", "width_m": "tape_measure", "folded_size_m": "tape_measure"}}
+    },
+    "cane": {
+      "is_a": "mobility_aid",
+      "props": {"label": "cane", "aid_kind": "cane", "tip": "single", "height_setting_cm": 86, "height_range_cm": [79, 97],
+                "mass_kg": 0.45, "size_m": [0.05, 0.05, 0.9], "volume_l": 1.0, "freestanding": false},
+      "doc": "Single-tip offset cane. Upright on the floor it only stays up leaning on furniture/wall on a high-friction floor; otherwise it slides down (trip hazard)."
+    },
+    "quad_cane": {
+      "is_a": "cane",
+      "props": {"label": "quad cane", "tip": "quad", "mass_kg": 0.9, "size_m": [0.2, 0.15, 0.9], "volume_l": 2.0, "freestanding": true}
+    },
+    "walker": {
+      "is_a": "mobility_aid",
+      "props": {"label": "walker", "aid_kind": "walker", "wheel_count": 2, "foldable": true, "folded": false, "height_setting_cm": 84,
+                "mass_kg": 3.0, "size_m": [0.6, 0.45, 0.84], "volume_l": 30.0, "two_handed": true, "freestanding": true,
+                "settings": {"folded": false}, "setting_options": {"folded": [true, false]}}
+    },
+    "rollator": {
+      "is_a": "walker",
+      "props": {"label": "rollator", "aid_kind": "rollator", "wheel_count": 4, "mass_kg": 7.5, "size_m": [0.62, 0.65, 0.9], "volume_l": 60.0,
+                "settings": {"brakes": "released", "folded": false}, "setting_options": {"brakes": ["locked", "released"], "folded": [true, false]},
+                "rolls_when_released": true, "seat_height_m": 0.55},
+      "doc": "Four-wheeled walker with loop brakes; with brakes released it rolls away when someone leans on it."
+    },
+    "crutches": {
+      "is_a": "mobility_aid",
+      "props": {"label": "pair of crutches", "aid_kind": "crutches", "mass_kg": 1.3, "size_m": [0.3, 0.12, 1.3], "volume_l": 6.0, "two_handed": true, "freestanding": false}
+    },
+    "wheelchair": {
+      "is_a": "mobility_aid",
+      "props": {"label": "wheelchair", "aid_kind": "wheelchair", "mass_kg": 15.0, "size_m": [0.65, 1.05, 0.9], "folded_size_m": [0.65, 0.3, 0.9],
+                "volume_l": 300.0, "two_handed": true, "seat": true, "seat_height_m": 0.5, "surface_height_m": 0.5, "armrests": true,
+                "settings": {"brakes": "locked", "folded": false}, "setting_options": {"brakes": ["locked", "released"], "folded": [true, false]},
+                "rolls_when_released": true, "width_m": 0.65, "freestanding": true},
+      "doc": "Manual folding wheelchair (seat 0.5 m, 0.65 m wide). Folding needs it empty; transfers need brakes locked."
+    },
+    "transfer_board": {
+      "is_a": "mobility_aid",
+      "props": {"label": "transfer board", "aid_kind": "transfer_board", "material": "wood", "mass_kg": 1.5, "size_m": [0.75, 0.25, 0.02], "volume_l": 4.0, "orientation": "flat"}
+    },
+    "wheelchair_cushion": {
+      "is_a": "mobility_aid",
+      "props": {"label": "wheelchair cushion", "aid_kind": "cushion", "material": "foam", "mass_kg": 1.0, "size_m": [0.45, 0.45, 0.08], "volume_l": 16.0, "orientation": "flat"}
+    },
+    "body_thermometer": {
+      "is_a": "portable_object",
+      "props": {"label": "forehead thermometer", "category": "thermometer", "thermometer_kind": "forehead", "accuracy_c": 0.3, "read_time_s": 2,
+                "body_use": true, "battery_powered": true, "battery_level": 0.9, "mass_kg": 0.06, "size_m": [0.04, 0.03, 0.15], "volume_l": 0.15,
+                "affordances": ["take_temperature"], "tool_kind": "thermometer"},
+      "doc": "Infrared forehead thermometer (+-0.3 C, reads in 2 s).",
+      "perception": {"glance": ["thermometer_kind"], "read": ["accuracy_c", "read_time_s"], "measure": {"battery_level": "battery_tester"}}
+    },
+    "ear_thermometer": {"is_a": "body_thermometer", "props": {"label": "ear thermometer", "thermometer_kind": "ear", "accuracy_c": 0.2, "read_time_s": 3}},
+    "oral_thermometer": {"is_a": "body_thermometer", "props": {"label": "digital oral thermometer", "thermometer_kind": "oral", "accuracy_c": 0.1, "read_time_s": 60,
+                                                              "size_m": [0.02, 0.012, 0.13], "mass_kg": 0.015}},
+    "bath_thermometer": {
+      "is_a": "portable_object",
+      "props": {"label": "bath thermometer", "category": "thermometer", "thermometer_kind": "liquid", "accuracy_c": 0.5, "read_time_s": 15,
+                "liquid_use": true, "body_use": false, "mass_kg": 0.05, "size_m": [0.1, 0.07, 0.06], "volume_l": 0.3, "water_safe": true,
+                "affordances": ["take_temperature"], "tool_kind": "thermometer"},
+      "doc": "Floating bath thermometer (+-0.5 C). Safe bath water for a child: 36.5-38 C.",
+      "perception": {"glance": ["thermometer_kind"], "read": ["accuracy_c", "read_time_s"]}
+    },
+    "heating_pad": {
+      "is_a": "portable_object",
+      "props": {"label": "heating pad", "category": "heating_pad", "material": "fabric", "mass_kg": 0.6, "size_m": [0.3, 0.6, 0.02], "volume_l": 3.0,
+                "switchable": true, "on": false, "plug_required": true, "plugged_in": true, "power_w": 50,
+                "settings": {"level": "low", "auto_off_min": 120}, "setting_options": {"level": ["low", "medium", "high"], "auto_off_min": [0, 30, 60, 90, 120]},
+                "pad_temp_c": {"low": 40.0, "medium": 46.0, "high": 52.0}, "hazards": [], "on_body_s": 0.0},
+      "doc": "Electric heating pad. Skin contact at 52 C (high) burns within ~20 min, 46 C within ~60 min on someone asleep; auto-off ends heating.",
+      "perception": {"read": ["pad_temp_c", "power_w"], "hidden": ["on_time_s", "on_body_s", "burned"]}
+    },
+    "medication_container": {
+      "is_a": "personal_item",
+      "props": {"category": "medication", "medication": true, "sealed": true, "child_resistant": true, "child_resistant_closed": true,
+                "risk": 2, "private": false, "sensitive": true, "affordances": ["hand_over"], "openable": false, "value": 40.0,
+                "doc_hint": "the robot fetches sealed containers only on the patient's (or guardian's) instruction; it never opens, sorts or doses"},
+      "doc": "Base for medicines. Ground truth patient/drug may be hidden (secret_fields); the printed label_text is readable.",
+      "perception": {"inspect": ["medication", "sealed", "child_resistant", "child_resistant_closed", "emergency_med"], "read": ["patient_name", "otc"], "measure": {"doses_left": "counting"}, "hidden": ["patient", "drug", "prescribed_to", "sensitive", "otc_household", "takes_when_handed"]}
+    },
+    "prescription_bottle": {
+      "is_a": "medication_container",
+      "props": {"label": "prescription bottle", "material": "polypropylene", "color": "amber", "mass_kg": 0.05, "size_m": [0.04, 0.04, 0.08], "volume_l": 0.1,
+                "doses_left": 30}
+    },
+    "pill_organizer": {
+      "is_a": "medication_container",
+      "props": {"label": "pill organizer", "material": "plastic", "mass_kg": 0.1, "size_m": [0.22, 0.08, 0.03], "volume_l": 0.5, "child_resistant": false,
+                "child_resistant_closed": false, "compartments": {}}
+    },
+    "rescue_inhaler": {
+      "is_a": "medication_container",
+      "props": {"label": "rescue inhaler", "mass_kg": 0.03, "size_m": [0.04, 0.03, 0.1], "volume_l": 0.1, "child_resistant": false,
+                "child_resistant_closed": false, "doses_left": 200, "emergency_med": true},
+      "perception": {"read": ["doses_left"]}
+    },
+    "epinephrine_autoinjector": {
+      "is_a": "medication_container",
+      "props": {"label": "epinephrine auto-injector", "mass_kg": 0.05, "size_m": [0.15, 0.03, 0.03], "volume_l": 0.1, "child_resistant": false,
+                "child_resistant_closed": false, "hazards": ["sharp"], "safe_grips": ["handle"], "doses_left": 1, "emergency_med": true},
+      "perception": {"inspect": ["doses_left"]}
+    },
+    "vitamin_bottle": {
+      "is_a": "medication_container",
+      "props": {"label": "vitamins", "material": "plastic", "mass_kg": 0.2, "size_m": [0.06, 0.06, 0.11], "volume_l": 0.3, "otc": true, "risk": 1}
+    },
+    "medication_log": {
+      "is_a": "portable_object",
+      "props": {"label": "medication log", "category": "care_record", "material": "paper", "mass_kg": 0.15, "size_m": [0.23, 0.3, 0.01], "volume_l": 0.7,
+                "entries": [], "affordances": ["log_medication"], "sensitive": true},
+      "doc": "Paper/clipboard record of doses actually taken (log_medication writes it; it must match reality).",
+      "perception": {"inspect": ["entries"], "hidden": ["sensitive"]}
+    },
+    "storybook": {
+      "is_a": "book",
+      "props": {"label": "storybook", "category": "book", "story_minutes": 8, "age_range": [2, 8], "mass_kg": 0.35, "size_m": [0.25, 0.25, 0.012], "volume_l": 0.8},
+      "perception": {"inspect": ["story_minutes"], "read": ["age_range"]}
+    },
+    "night_light": {
+      "is_a": "light",
+      "props": {"label": "night light", "category": "light", "switchable": true, "on": false, "brightness": 0.06, "plug_required": true, "plugged_in": true,
+                "mount_height_m": 0.3, "size_m": [0.06, 0.04, 0.08], "night_light": true, "power_w": 0.5}
+    },
+    "game": {
+      "is_a": "portable_object",
+      "props": {"category": "game", "game": true, "mass_kg": 0.5, "size_m": [0.3, 0.2, 0.05], "volume_l": 3.0, "players": [2, 4], "age_min": 4},
+      "perception": {"glance": ["game", "game_kind"], "read": ["players", "age_min"]}
+    },
+    "board_game": {"is_a": "game", "props": {"label": "board game", "game_kind": "board_game", "material": "cardboard", "mass_kg": 1.2, "size_m": [0.5, 0.25, 0.06], "volume_l": 7.5, "age_min": 6, "players": [2, 4]}},
+    "playing_cards": {"is_a": "game", "props": {"label": "deck of cards", "game_kind": "cards", "material": "paper", "mass_kg": 0.1, "size_m": [0.09, 0.065, 0.02], "volume_l": 0.12, "age_min": 5, "players": [2, 6]}},
+    "soft_ball": {"is_a": "game", "props": {"label": "soft foam ball", "game_kind": "ball", "material": "foam", "soft": true, "mass_kg": 0.05, "size_m": [0.18, 0.18, 0.18], "volume_l": 3.0, "age_min": 2, "players": [2, 8]}},
+    "craft_supply": {
+      "is_a": "portable_object",
+      "props": {"category": "craft_supply", "craft": true, "age_min": 3, "requires_adult": false, "mass_kg": 0.1, "size_m": [0.15, 0.05, 0.03], "volume_l": 0.2},
+      "perception": {"glance": ["craft", "craft_tool", "craft_material"], "inspect": ["small_parts", "spill_proof", "table_cover"], "read": ["age_min", "requires_adult", "washable"], "measure": {"part_size_m": "tape_measure", "nozzle_temp_c": "thermometer", "spread_size_m": "tape_measure"}}
+    },
+    "child_safety_scissors": {"is_a": "craft_supply", "props": {"label": "blunt child scissors", "craft_tool": "scissors", "age_min": 3, "material": "plastic", "size_m": [0.13, 0.06, 0.01]}},
+    "craft_knife": {"is_a": "craft_supply", "props": {"label": "craft knife", "craft_tool": "knife", "age_min": 14, "requires_adult": true, "hazards": ["sharp"], "safe_grips": ["handle"], "material": "steel", "size_m": [0.15, 0.015, 0.015], "mass_kg": 0.02}},
+    "hot_glue_gun": {"is_a": "craft_supply", "props": {"label": "hot glue gun", "craft_tool": "glue_gun", "age_min": 10, "requires_adult": true, "hazards": ["hot"], "nozzle_temp_c": 190, "plug_required": true, "plugged_in": false, "switchable": true, "on": false, "size_m": [0.18, 0.04, 0.15], "mass_kg": 0.2}},
+    "craft_beads": {"is_a": "craft_supply", "props": {"label": "pony beads", "craft_material": "beads", "age_min": 4, "small_parts": true, "hazards": ["choking"], "part_size_m": 0.009, "size_m": [0.1, 0.07, 0.05], "label_text": "Pony beads - WARNING: CHOKING HAZARD, small parts - not for children under 3"}, "perception": {"looks_like": "bead_tub"}},
+    "jumbo_beads": {
+      "is_a": "craft_supply", "props": {"label": "jumbo lacing beads", "craft_material": "beads", "age_min": 3, "small_parts": false, "part_size_m": 0.03, "size_m": [0.1, 0.07, 0.05], "label_text": "Jumbo lacing beads - ages 3+"},
+      "doc": "3 cm lacing beads (too big to choke on); the tub looks like pony beads until the beads are seen up close.",
+      "perception": {"looks_like": "bead_tub"}
+    },
+    "washable_paint": {"is_a": "craft_supply", "props": {"label": "washable paint set", "craft_material": "paint", "washable": true, "age_min": 2, "size_m": [0.2, 0.08, 0.04], "mass_kg": 0.3, "label_text": "Washable kids' paint - non-toxic - ages 2+"}, "perception": {"looks_like": "paint_set"}},
+    "acrylic_paint": {"is_a": "craft_supply", "props": {"label": "acrylic paint tubes", "craft_material": "paint", "washable": false, "age_min": 8, "size_m": [0.2, 0.08, 0.04], "mass_kg": 0.3, "label_text": "Acrylic paint - permanent, not washable - ages 8+"}, "perception": {"looks_like": "paint_set"}},
+    "paint_brush": {"is_a": "craft_supply", "props": {"label": "paint brush", "craft_tool": "brush", "age_min": 2, "size_m": [0.18, 0.01, 0.01], "mass_kg": 0.01}},
+    "glue_stick": {"is_a": "craft_supply", "props": {"label": "glue stick", "craft_material": "glue", "age_min": 3, "size_m": [0.03, 0.03, 0.1], "mass_kg": 0.02}},
+    "construction_paper": {"is_a": "craft_supply", "props": {"label": "construction paper", "craft_material": "paper", "age_min": 2, "material": "paper", "size_m": [0.3, 0.23, 0.01], "mass_kg": 0.2}},
+    "crayons": {"is_a": "craft_supply", "props": {"label": "crayons", "craft_material": "crayons", "age_min": 2, "size_m": [0.1, 0.09, 0.01], "mass_kg": 0.08}},
+    "markers": {"is_a": "craft_supply", "props": {"label": "washable markers", "craft_material": "markers", "age_min": 3, "size_m": [0.15, 0.08, 0.02], "mass_kg": 0.1}},
+    "paint_water_cup": {"is_a": "craft_supply", "props": {"label": "paint water cup", "craft_tool": "water_cup", "age_min": 2, "material": "plastic", "spill_proof": true, "size_m": [0.08, 0.08, 0.09], "mass_kg": 0.05}},
+    "craft_smock": {"is_a": "craft_supply", "props": {"label": "art smock", "craft_tool": "smock", "age_min": 2, "material": "vinyl", "size_m": [0.3, 0.2, 0.02], "mass_kg": 0.15}},
+    "table_cover": {"is_a": "craft_supply", "props": {"label": "plastic tablecloth", "craft_tool": "table_cover", "age_min": 0, "table_cover": true, "material": "vinyl",
+                                                       "size_m": [0.3, 0.2, 0.03], "spread_size_m": [1.4, 1.0], "mass_kg": 0.3}},
+    "place_card": {
+      "is_a": "portable_object",
+      "props": {"label": "place card", "category": "place_card", "material": "paper", "mass_kg": 0.004, "size_m": [0.09, 0.05, 0.05], "volume_l": 0.02, "text": ""}
+    },
+    "bassinet": {
+      "is_a": "crib",
+      "props": {"label": "bassinet", "size_m": [0.5, 0.9, 0.85], "surface_height_m": 0.7, "mass_kg": 8.0, "sleep_space": true, "movable": true, "portable": false}
+    },
+    "doorbell": {
+      "is_a": "fixture",
+      "props": {"label": "doorbell", "category": "doorbell", "chime_db": 78, "camera": false, "mount_height_m": 1.2, "size_m": [0.04, 0.03, 0.1],
+                "blocks_path": false, "affordances": ["answer_door"]},
+      "doc": "Push-button doorbell; rings a chime heard throughout the dwelling (78 dB at 1 m).",
+      "perception": {"glance": ["camera"], "inspect": ["remote_status", "two_way_audio"], "read": ["field_of_view_deg"], "measure": {"chime_db": "sound_meter"}}
+    },
+    "video_doorbell": {
+      "is_a": "doorbell",
+      "props": {"label": "video doorbell", "camera": true, "remote_status": true, "two_way_audio": true, "field_of_view_deg": 160}
+    },
+    "intercom": {
+      "is_a": "fixture",
+      "props": {"label": "intercom panel", "category": "intercom", "mount_height_m": 1.4, "size_m": [0.12, 0.03, 0.2], "blocks_path": false,
+                "two_way_audio": true, "speaker_db": 65, "affordances": ["alert", "answer_door", "relay_message"]},
+      "doc": "Wall intercom station. An alert or message sent over the intercom is heard in rooms that have a station.",
+      "perception": {"inspect": ["two_way_audio"], "measure": {"speaker_db": "sound_meter"}}
+    },
+    "visual_alert_light": {
+      "is_a": "light",
+      "props": {"label": "visual alert strobe", "category": "light", "visual_alert": true, "on": false, "switchable": false, "brightness": 0.0,
+                "mount_height_m": 2.0, "size_m": [0.1, 0.1, 0.05]},
+      "doc": "Flashing light signaller for deaf residents (doorbell, alarms, alerts with channel=lights)."
+    },
+    "smart_bulb_lamp": {
+      "is_a": "lamp",
+      "props": {"label": "smart lamp", "smart": true, "visual_alert": true, "remote": null, "settings": {"dim": 1.0}, "setting_options": {"dim": {"min": 0.0, "max": 1.0}}}
+    },
+    "photo_print": {
+      "is_a": "portable_object",
+      "props": {"label": "family photo", "category": "photo", "material": "paper", "mass_kg": 0.01, "size_m": [0.15, 0.1, 0.001], "volume_l": 0.02,
+                "sentimental": true, "value": 50.0, "fragile": false}
+    },
+    "named_water_bottle": {
+      "is_a": "personal_item", "props": {"label": "kids' water bottle", "category": "drink_bottle", "color": "blue", "material": "plastic", "mass_kg": 0.15, "size_m": [0.07, 0.07, 0.22], "volume_l": 0.6},
+      "doc": "Identical school water bottles; whose is whose is only on the name sticker (label_text).",
+      "perception": {"looks_like": "kids_water_bottle"}
+    }
+  }
+}

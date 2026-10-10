@@ -1,0 +1,3688 @@
+[
+{
+"seed": 1,
+"opts": {},
+"problem": "mount overlap half_bath_1: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind step_ladder_1",
+"owner": "cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 3,
+"opts": {},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [2, 3] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 4 targets only reachable over hazards from ['laundry_basket_2']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "hidden mount master_bedroom_1: blackout_curtains_5 behind wardrobe_3",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 5,
+"opts": {},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "hidden mount basement_1: handrail_1 behind heat_pump_air_handler_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "hidden mount master_bedroom_1: blackout_curtains_3 behind wardrobe_2",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "hidden mount shed_1: cleaning_tool_holder_2 behind lawn_mower_1",
+"owner": "cleaning_supplies,outdoor_plants.outdoor_items"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 8,
+"opts": {},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind water_heater_1",
+"owner": "cleaning_supplies,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "hidden mount living_room_1: curtains_7 behind bookshelf_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 11,
+"opts": {},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 12,
+"opts": {},
+"problem": "hidden mount shed_1: cleaning_tool_holder_2 behind step_ladder_1",
+"owner": "cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 12,
+"opts": {},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 13,
+"opts": {},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (5, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {},
+"problem": "overlap bedroom_2: dresser_2 and generic_item_2 at (0, 2)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind car_1",
+"owner": "cleaning_supplies,tools_vehicles.vehicles"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap bedroom_1: dresser_1 and generic_item_1 at (4, 6)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap bedroom_2: dresser_2 and generic_item_2 at (6, 3)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap bedroom_3: chair_2 and generic_item_3 at (7, 5)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "unreachable dining_room_1: generic_item_4 sealed by ['dining_table_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap dining_room_1: dining_table_1 and generic_item_4 at (5, 8)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap master_bedroom_1: dresser_4 and generic_item_6 at (0, 7)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "hidden mount office_1: venetian_blind_10 behind generic_item_7",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 15,
+"opts": {},
+"problem": "hidden mount basement_1: handrail_1 behind furnace_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 15,
+"opts": {},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind step_ladder_1",
+"owner": "cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 15,
+"opts": {},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind top_freezer_refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {},
+"problem": "unreachable kitchen_1: drawer_2 sealed by ['chair_3', 'chair_6', 'refrigerator_1', 'table_1']",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [2, 4] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 5 targets only reachable over hazards from ['laundry_basket_1', 'laundry_basket_2']",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 19,
+"opts": {},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_2",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 20,
+"opts": {},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_3",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 20,
+"opts": {},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [1, 1] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 10 targets only reachable over hazards from ['laundry_basket_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "door clearance laundry_room_1: laundry_basket_1 at [(1, 1)]",
+"owner": "core_furniture"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 22,
+"opts": {},
+"problem": "hidden mount shed_1: cleaning_tool_holder_2 behind lawn_mower_1",
+"owner": "cleaning_supplies,outdoor_plants.outdoor_items"
+},
+{
+"seed": 23,
+"opts": {},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (7, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "overlap bedroom_2: generic_item_2 and nightstand_2 at (0, 2)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "unreachable bedroom_3: generic_item_3 sealed by ['bed_3', 'toy_box_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "overlap bedroom_3: generic_item_3 and toy_box_1 at (6, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "hidden mount bedroom_3: curtains_4 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "hidden mount bedroom_3: window_sill_3 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "unreachable master_bedroom_1: generic_item_5 sealed by ['bed_4']",
+"owner": "core_furniture"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "overlap master_bedroom_1: bed_4 and generic_item_5 at (8, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1', 'dresser_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (6, 7)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "overlap dining_room_1: dining_table_1 and generic_item_3 at (1, 7)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "hidden mount dining_room_1: curtains_5 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 27,
+"opts": {},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 27,
+"opts": {},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 29,
+"opts": {},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap kitchen_1: kitchen_sink_1 and window_sill_3",
+"owner": "mechanisms.coverings,plumbing_liquids.fixtures"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_2",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (5, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount bedroom_1: blackout_curtains_1 behind generic_item_1",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable living_room_1: generic_item_2 sealed by ['sofa_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: generic_item_2 and sofa_1 at (2, 10)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount living_room_1: tieback_curtains_1 behind generic_item_2",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount bedroom_1: blackout_curtains_1 behind wardrobe_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount living_room_1: curtains_6 behind bookshelf_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap bathroom_1: clothes_dryer_1 and upper_cabinet_1",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_3",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable bedroom_2: generic_item_2 sealed by ['bed_2']",
+"owner": "core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap bedroom_2: bed_2 and generic_item_2 at (6, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount bedroom_2: curtains_3 behind generic_item_2",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: generic_item_3 and sofa_1 at (0, 3)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount master_bedroom_1: curtains_5 behind generic_item_4",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount master_bedroom_1: window_sill_5 behind generic_item_4",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_4",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: generic_item_3 and robot_dock_1 at (9, 4)",
+"owner": "climate.hvac,core/structure"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap master_bedroom_1: generic_item_4 and nightstand_3 at (0, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind shelf_unit_1",
+"owner": "core_furniture,navigation_robot.features"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind car_1",
+"owner": "cleaning_supplies,tools_vehicles.vehicles"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bedroom_1: ceiling_fan_1_light_chain behind closet_1",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bedroom_1: ceiling_fan_1_speed_chain behind closet_1",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: pegboard_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items,tools_vehicles.tools"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind heat_pump_air_handler_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind car_1",
+"owner": "cleaning_supplies,tools_vehicles.vehicles"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap dining_room_1: dining_table_1 and generic_item_3 at (0, 5)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: sprinkler_controller behind step_ladder_1",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap master_bedroom_1: dresser_3 and generic_item_5 at (0, 8)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap bedroom_1: desk_1 and generic_item_1 at (6, 3)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: generic_item_3 and robot_dock_1 at (4, 11)",
+"owner": "climate.hvac,core/structure"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap office_1: chair_8 and generic_item_5 at (3, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind lawn_mower_1",
+"owner": "cleaning_supplies,outdoor_plants.outdoor_items"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap kitchen_1: kitchen_sink_1 and window_sill_3",
+"owner": "mechanisms.coverings,plumbing_liquids.fixtures"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount backyard_1: hose_hanger_1 behind wheelbarrow_1",
+"owner": "outdoor_plants.outdoor_items,plumbing_liquids.fixtures"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_2",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: sprinkler_controller behind step_ladder_1",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap kitchen_1: kitchen_sink_1 and window_sill_5",
+"owner": "mechanisms.coverings,plumbing_liquids.fixtures"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind shelf_unit_2",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: coffee_table_1 and generic_item_4 at (2, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap bedroom_1: dresser_1 and generic_item_1 at (6, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap bedroom_2: dresser_2 and generic_item_2 at (0, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_light_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_speed_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: clothes_dryer_1 and upper_cabinet_1",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_speed_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind shelf_unit_2",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_4",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: shelf_unit_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,textiles_laundry.appliances"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_light_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_speed_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount front_yard_1: curbside_mailbox_1 behind shrub_1",
+"owner": "admin_inventory.household_admin,outdoor_plants.yard"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind water_heater_1",
+"owner": "cleaning_supplies,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount living_room_1: curtains_7 behind bookshelf_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_4",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable bedroom_2: generic_item_2 sealed by ['desk_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_2: desk_1 and generic_item_2 at (6, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable master_bedroom_1: generic_item_5 sealed by ['bed_3']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap master_bedroom_1: bed_3 and generic_item_5 at (0, 5)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1', 'nightstand_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (1, 8)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable bedroom_2: generic_item_2 sealed by ['bed_2', 'nightstand_2']",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_2: bed_2 and generic_item_2 at (5, 1)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount dining_room_1: curtains_3 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: clothes_dryer_1 and upper_cabinet_1",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: clothes_dryer_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind car_1",
+"owner": "cleaning_supplies,tools_vehicles.vehicles"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: garden_tool_rack_1 behind shelf_unit_2",
+"owner": "core_furniture,outdoor_plants.outdoor_items"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: clothes_dryer_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,textiles_laundry.appliances"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_3",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_2: dresser_2 and generic_item_2 at (5, 2)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount living_room_1: curtains_5 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_1: desk_1 and generic_item_1 at (7, 1)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount living_room_1: venetian_blind_3 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount living_room_1: window_sill_4 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount master_bedroom_1: cellular_shade_3 behind generic_item_4",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: drawer_1 sealed by ['front_load_washer_1', 'top_freezer_refrigerator_1']",
+"owner": "appliances_cooking.kitchen,textiles_laundry.appliances"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: drawer_3 sealed by ['front_load_washer_1', 'top_freezer_refrigerator_1']",
+"owner": "appliances_cooking.kitchen,textiles_laundry.appliances"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount bedroom_2: curtains_2 behind wardrobe_2",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind shelf_unit_1",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hidden mount living_room_1: curtains_6 behind bookshelf_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 0,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_2",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 1,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [1, 4] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 5 targets only reachable over hazards from ['laundry_basket_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 3,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 3,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount living_room_1: curtains_4 behind bookshelf_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [2, 3] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 4 targets only reachable over hazards from ['laundry_basket_2']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 7,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount basement_1: handrail_1 behind heat_pump_air_handler_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 8,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind water_heater_1",
+"owner": "cleaning_supplies,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 10,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount shed_1: cleaning_tool_holder_2 behind step_ladder_1",
+"owner": "cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 12,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 12,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind stick_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (5, 0)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_2: dresser_2 and generic_item_2 at (0, 2)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable dining_room_1: generic_item_3 sealed by ['chair_3', 'dining_table_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap dining_room_1: dining_table_1 and generic_item_3 at (0, 5)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind car_1",
+"owner": "cleaning_supplies,tools_vehicles.vehicles"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable master_bedroom_1: generic_item_5 sealed by ['bed_3']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap master_bedroom_1: bed_3 and generic_item_5 at (6, 8)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_1: dresser_1 and generic_item_1 at (4, 6)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_3: dresser_3 and generic_item_3 at (7, 3)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount master_bedroom_1: curtains_7 behind generic_item_6",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount office_1: venetian_blind_10 behind generic_item_7",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 15,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 15,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount basement_1: handrail_1 behind furnace_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 15,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind lawn_mower_1",
+"owner": "cleaning_supplies,outdoor_plants.outdoor_items"
+},
+{
+"seed": 15,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 7 targets only reachable over hazards from ['laundry_basket_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 16,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: drawer_2 sealed by ['chair_3', 'chair_6', 'refrigerator_1', 'table_1']",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [2, 4] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 5 targets only reachable over hazards from ['laundry_basket_1', 'laundry_basket_2']",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 19,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_2",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 20,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap kitchen_1: kitchen_sink_1 and window_sill_3",
+"owner": "mechanisms.coverings,plumbing_liquids.fixtures"
+},
+{
+"seed": 20,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap utility_closet_1: boiler_1 and breaker_panel_1",
+"owner": "climate.hvac,electrical.wiring"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [1, 1] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 10 targets only reachable over hazards from ['laundry_basket_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance laundry_room_1: laundry_basket_1 at [(1, 1)]",
+"owner": "core_furniture"
+},
+{
+"seed": 22,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount shed_1: cleaning_tool_holder_2 behind lawn_mower_1",
+"owner": "cleaning_supplies,outdoor_plants.outdoor_items"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (7, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_3: dresser_3 and generic_item_3 at (0, 6)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount living_room_1: venetian_blind_3 behind generic_item_4",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount living_room_1: window_sill_5 behind generic_item_4",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 25,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1', 'dresser_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (6, 7)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount dining_room_1: curtains_5 behind generic_item_3",
+"owner": "climate.hvac,mechanisms.coverings"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_4",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 27,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 27,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: boiler_1 behind upright_vacuum_1",
+"owner": "cleaning_supplies,climate.hvac"
+},
+{
+"seed": 27,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 29,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 29,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind shelf_unit_1",
+"owner": "core_furniture,navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind shelf_unit_1",
+"owner": "core_furniture,navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind car_1",
+"owner": "cleaning_supplies,tools_vehicles.vehicles"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind shelf_unit_2",
+"owner": "core_furniture,navigation_robot.features"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [2, 1] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind shelf_unit_1",
+"owner": "core_furniture,navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_4",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access laundry_room_1: 8 targets only reachable over hazards from ['laundry_basket_1', 'laundry_basket_2']",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount garage_1: garden_tool_rack_1 behind step_ladder_1",
+"owner": "navigation_robot.features,outdoor_plants.outdoor_items"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bedroom_3: ceiling_fan_1_light_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bedroom_3: ceiling_fan_1_speed_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap half_bath_1: bathroom_sink_3 and wall_shelf_3",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_4",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind heat_pump_air_handler_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_3",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [2, 0] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['laundry_basket_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount shed_1: cleaning_tool_holder_2 behind lawn_mower_1",
+"owner": "cleaning_supplies,outdoor_plants.outdoor_items"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind bicycle_1",
+"owner": "navigation_robot.features,tools_vehicles.vehicles"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable bedroom_2: generic_item_2 sealed by ['bed_2']",
+"owner": "core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_2: bed_2 and generic_item_2 at (6, 3)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable dining_room_1: generic_item_3 sealed by ['chair_3', 'dining_table_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [2, 1] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable bedroom_1: generic_item_1 sealed by ['bed_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_1: bed_1 and generic_item_1 at (5, 7)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind shelf_unit_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access laundry_room_1: 8 targets only reachable over hazards from ['laundry_basket_1']",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: generic_item_3 and tv_stand_1 at (0, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind step_ladder_1",
+"owner": "cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount living_room_1: tieback_curtains_1 behind bookshelf_1",
+"owner": "core_furniture,mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind bicycle_1",
+"owner": "navigation_robot.features,tools_vehicles.vehicles"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap kitchen_1: range_hood_1 and upper_cabinet_3",
+"owner": "appliances_cooking.kitchen,core_furniture"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount garage_1: sprinkler_controller behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind upright_freezer_1",
+"owner": "appliances_cooking.storage,navigation_robot.features"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_light_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bedroom_2: ceiling_fan_1_speed_chain behind closet_2",
+"owner": "climate.fans,core_furniture"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount garage_1: cleaning_tool_holder_2 behind step_ladder_1",
+"owner": "cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount shed_1: light_switch_1 behind lawn_mower_1",
+"owner": "core/structure,outdoor_plants.outdoor_items"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind furnace_1",
+"owner": "climate.hvac,navigation_robot.features"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_2: desk_1 and generic_item_2 at (4, 8)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap dining_room_1: chair_2 and generic_item_3 at (0, 3)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind water_heater_1",
+"owner": "navigation_robot.features,plumbing_liquids.fixtures"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_1: wall_shelf_1 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_2: bathroom_sink_2 and wall_shelf_2",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount basement_1: handrail_1 behind top_load_washer_1",
+"owner": "navigation_robot.features,textiles_laundry.appliances"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_1: desk_1 and generic_item_1 at (2, 6)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable bedroom_3: generic_item_3 sealed by ['bed_3', 'desk_2']",
+"owner": "core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_3: desk_2 and generic_item_3 at (7, 4)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount kitchen_1: recycling_guide_1 behind top_freezer_refrigerator_1",
+"owner": "appliances_cooking.kitchen,cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap master_bedroom_1: dresser_4 and generic_item_5 at (2, 10)",
+"owner": "climate.hvac,core_furniture"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount bathroom_2: wall_shelf_2 behind shower_stall_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap bathroom_1: bathroom_sink_1 and wall_shelf_1",
+"owner": "admin_inventory.household_admin,plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount shed_1: garden_tool_rack_1 behind lawn_mower_1",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_3",
+"owner": "cleaning_supplies,core_furniture"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "mount overlap kitchen_1: kitchen_sink_1 and window_sill_4",
+"owner": "mechanisms.coverings,plumbing_liquids.fixtures"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hidden mount utility_closet_1: cleaning_tool_holder_1 behind closet_shelving_4",
+"owner": "cleaning_supplies,core_furniture"
+}
+]

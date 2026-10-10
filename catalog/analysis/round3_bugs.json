@@ -1,0 +1,163 @@
+{
+ "climate": [
+  {
+   "owner": "climate",
+   "problem": "climate.fans.refresh_cord (run after switch_on/switch_off and place on portable fans, heaters, humidifiers and purifiers) rewrites the device's cord trip cells in room floor_hazards with its own straight line to the outlet. This ignores electrical's routed run (cord_cells/cord_route), which follows the v2.3 rule (no route cut, no door clearance). Repro: generate_house(3, dwelling='apartment'): box_fan_1 has no trip cells after generation; calling climate.fans.refresh_cord(w, 'box_fan_1') writes a trip at (6,0). generate_house(16, dwelling='apartment') tower_fan_1 and generate_house(4) tower_fan_1 also change. Fix: reuse rec['cord_cells'] (electrical.cords.route_cells / CordCheck) and only recompute when the device actually moved.",
+   "reporter": "electrical"
+  },
+  {
+   "owner": "plumbing_liquids / climate (furnishers at orders 25 and 32)",
+   "problem": "Small in-unit laundry rooms are filled with utility equipment before the washer (order 45) can go in, so the dwelling has no washer of its own. Repro: _generate(0, require=['laundry_room'], residents='minimal', pets='none'). laundry_room_1 (2.5 x 3.5 m, 5x7 cells) gets water_heater_1 and utility_sink_1 (plumbing_liquids.fixtures), heat_pump_air_handler_1 (climate.hvac) and shelf_unit_1 (core). The only free 2x2 wall run, (0,5)-(1,6), sits in front of shutoff_valve_7 at 0.5 m (a BASIC_MOUNT), so Placer.furniture refuses it. bathroom_1 and kitchen_1 are full too, leaving only the building's shared laundry. Suggestion: put the water heater or air handler in the utility closet, basement or garage when the laundry room is small, or leave a 2-cell wall run free with its supply valves at ~1.1 m so they stay reachable over a washer.",
+   "reporter": "textiles_laundry"
+  },
+  {
+   "owner": "climate",
+   "problem": "climate.access (order 99) changes a radiator's rot long after it was mounted at order 32, so its 1 m footprint moves onto cells later furnishers already used. Repro (seen before this round's appliance placement changes): generate_house(1, dwelling='apartment') kitchen_1: radiator_7 was mounted at [6,7] with rot None at order 32 (its 2-cell run fell off-grid at (7,7)); range_induction_1 was then placed at [5,8]; climate.access set rot=90, so the radiator covered (6,7),(6,8) and (6,8) sat under the range. Fix: set the radiator's along-wall rot when it is mounted at order 32, or have climate.access pick a pos whose whole run avoids floor-standing footprints (e.g. [6,6]).",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "climate",
+   "problem": "(1) climate.access (order 99) moves supply_register_8 to laundry_room_1 [0,2], where utility_bucket_1 (plumbing, order 75) already stands: generate_house(2, dwelling='apartment'). (2) climate.hvac (order 32) hangs boiler_1 at 1.0-1.7 m on the same wall cell [2,1] as the wall-hung tankless water_heater_1 (1.2-1.9 m): generate_house(66, dwelling='apartment') utility_closet_1. Plumbing's reach pass now moves the heater, but climate should avoid wall spots already taken at overlapping heights. (3) climate.air dehumidifier_1 stands in front of water_meter_1 (0.3 m): generate_house(11, dwelling='house', require=['laundry_room','basement','nursery']) basement_1.",
+   "reporter": "plumbing_liquids"
+  }
+ ],
+ "navigation_robot": [
+  {
+   "owner": "navigation_robot",
+   "problem": "Robot-vacuum dock keep-clear zones (dock_zone derived hazards) wrap wall outlets and other mounted targets, so they are reachable only over hazards. These are the 67 'hazard-only access ... from robot_vacuum_dock_1' lines in the full layout audit (30 seeds). Repro: generate_house(2, dwelling='townhouse') living_room_1: wall_outlet_8 at [0,8], into which hookup plugged robot_vacuum_dock_1; every access cell (0..2, 6..8) is a dock_zone cell. Place the dock so its zone leaves the outlet and other targets a hazard-free access cell.",
+   "reporter": "electrical"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "Found in the full layout_audit (30 seeds x 6 configs), not attributed to admin_inventory: seed 25 {\"dwelling\": \"apartment\"} reports 'hazard-only access living_room_1: 1 targets only reachable over hazards from [robot_vacuum_dock_1]'. Created by the navigation_robot.features furnisher. Its dock keep-clear zone is the only access to some target.",
+   "reporter": "admin_inventory"
+  }
+ ],
+ "mechanisms": [
+  {
+   "owner": "mechanisms",
+   "problem": "mechanisms.common.sweep_zone/swing_into do not use the v2.3 shared door model. swing_into duplicates geometry.swing_room. sweep_zone sweeps the doorway cell's cross neighbours in the swing room (including the two lateral wall cells) instead of geometry.door_swing's inward cell plus hinge-side diagonal (plus a second inward cell for leaves > 0.95 m). Mechanisms and the kernel therefore sweep different cells for the same door. Repro: in any generated house, compare mechanisms.common.sweep_zone(state, door) with geometry.door_swing(state, door) for a hinged door (e.g. tests' Mini: door_bath, kernel ('bath', [(1,1),(1,2)])). Also, 'items lower than 15 cm pass under the leaf' is far above a real door undercut (about 1-2 cm): shoes and toy bins are pushed. navigation_robot nudges items under 15 cm aside so nothing goes unhandled, but the rule should live in one place.",
+   "reporter": "navigation_robot"
+  }
+ ],
+ "electrical": [
+  {
+   "owner": "electrical",
+   "problem": "electrical.hookup can route a portable device's cord across a walkway so its trip cells cut access to things. When the adjacent outlet's receptacles are already taken (e.g. by power_strip_1 plugged in at order 75), _wall_outlet_near mounts a new outlet at the nearest free perimeter cell and the routed cord crosses the room. Repro, before my workaround: generate_house(11, dwelling='house', require=['garage','patio']), living_room_1: robot_vacuum_dock_1 at [3,0] beside wall_outlet_14 [2,0]; power_strip_1 took wall_outlet_14; hookup mounted wall_outlet_28 at [0,2] and laid trip cells (2,1),(1,1), giving 'hazard-only access living_room_1: 2 targets only reachable over hazards from robot_vacuum_dock_1 (cord)'. The same class still shows as power_strip_1 (cord) audit lines. Suggest picking a route/new outlet cell whose trip cells cut no hazard-free route (geometry.access_report / not_worse), else dress the cord behind furniture. Workaround here: navigation docks are pre-plugged at furnish time (plugged_in, outlet, plug_seated, cord_cells, and electrical's internal _socket = first free receptacle), which hookup already skips. A shared plug-in helper would avoid writing _socket from outside electrical.",
+   "reporter": "navigation_robot"
+  },
+  {
+   "owner": "core (data/types/core.json outdoor_light) + electrical (security_camera, photocell_light)",
+   "problem": "Outdoor light and security camera types declare no weather-rating flag (waterproof/weatherproof/outdoor_rated/weather_rated). outdoor_plants still has to recognise them by type/category name hints (C.WEATHER_RATED_HINTS) so rain does not soak and 'ruin' them when they stand outdoors. Add weatherproof: true to these types; outdoor_plants will then drop the remaining hints.",
+   "reporter": "outdoor_plants"
+  },
+  {
+   "owner": "electrical",
+   "problem": "electrical.hookup (order 97) mounts wall outlets at 0.30-0.42 m on the same wall cell and height as plumbing's main_water_valve / water_meter (0.30-0.45 m). Those controls were placed at order 25 and kept clear by plumbing's reach pass at 91, so the outlet is mounted onto an occupied wall spot. Repro: generate_house(2) utility_closet_1 water_meter_1 vs wall_outlet_16; generate_house(5) utility_closet_1 main_water_valve vs wall_outlet_13; generate_house(5, dwelling='apartment') main_water_valve vs wall_outlet_15; generate_house(0, dwelling='townhouse') water_meter_1 vs wall_outlet_16. Fix: skip wall cells holding a mount whose height range overlaps the outlet's.",
+   "reporter": "plumbing_liquids"
+  }
+ ],
+ "plumbing_liquids": [
+  {
+   "owner": "plumbing_liquids / climate (furnishers at orders 25 and 32)",
+   "problem": "Small in-unit laundry rooms are filled with utility equipment before the washer (order 45) can go in, so the dwelling has no washer of its own. Repro: _generate(0, require=['laundry_room'], residents='minimal', pets='none'). laundry_room_1 (2.5 x 3.5 m, 5x7 cells) gets water_heater_1 and utility_sink_1 (plumbing_liquids.fixtures), heat_pump_air_handler_1 (climate.hvac) and shelf_unit_1 (core). The only free 2x2 wall run, (0,5)-(1,6), sits in front of shutoff_valve_7 at 0.5 m (a BASIC_MOUNT), so Placer.furniture refuses it. bathroom_1 and kitchen_1 are full too, leaving only the building's shared laundry. Suggestion: put the water heater or air handler in the utility closet, basement or garage when the laundry room is small, or leave a 2-cell wall run free with its supply valves at ~1.1 m so they stay reachable over a washer.",
+   "reporter": "textiles_laundry"
+  },
+  {
+   "owner": "cleaning_supplies / safety_equipment / plumbing_liquids",
+   "problem": "Wall mounts placed after the kitchen furnisher end up hidden behind the 1.78 m refrigerator (mount height lower than the fridge top on a fridge cell). Seeds 0-29: cleaning_supplies recycling_guide_1 at 1.3 m behind refrigerator_1 / top_freezer_refrigerator_1 (seed 1 {} at [5,9]; seed 9 house+garage+patio at [6,2]; seed 16 house+laundry+basement+nursery at [0,2]; 9 cases in all). safety_equipment fire_blanket_1 behind top_freezer_refrigerator_1 (seed 8 {} at [7,3]). plumbing_liquids water_heater_inlet_valve at 1.6 m behind refrigerator_1 (seed 23 {} at [7,5]). Fix: these mounts should avoid cells under floor-standing pieces taller than their mount height (or the kernel should do it, see kernel_requests).",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "plumbing_liquids (irrigation_controller, outdoor_spigot types)",
+   "problem": "irrigation_controller (an outdoor mains device) carries no weather-rating flag, and outdoor_spigot doesn't either, so outdoor_plants keeps the name hints 'irrigation' and 'spigot' in C.WEATHER_RATED_HINTS. Please add weatherproof: true (or outdoor_rated) to both types.",
+   "reporter": "outdoor_plants"
+  }
+ ],
+ "cleaning": [
+  {
+   "owner": "cleaning_supplies / safety_equipment / plumbing_liquids",
+   "problem": "Wall mounts placed after the kitchen furnisher end up hidden behind the 1.78 m refrigerator (mount height lower than the fridge top on a fridge cell). Seeds 0-29: cleaning_supplies recycling_guide_1 at 1.3 m behind refrigerator_1 / top_freezer_refrigerator_1 (seed 1 {} at [5,9]; seed 9 house+garage+patio at [6,2]; seed 16 house+laundry+basement+nursery at [0,2]; 9 cases in all). safety_equipment fire_blanket_1 behind top_freezer_refrigerator_1 (seed 8 {} at [7,3]). plumbing_liquids water_heater_inlet_valve at 1.6 m behind refrigerator_1 (seed 23 {} at [7,5]). Fix: these mounts should avoid cells under floor-standing pieces taller than their mount height (or the kernel should do it, see kernel_requests).",
+   "reporter": "appliances_cooking"
+  }
+ ],
+ "safety": [
+  {
+   "owner": "cleaning_supplies / safety_equipment / plumbing_liquids",
+   "problem": "Wall mounts placed after the kitchen furnisher end up hidden behind the 1.78 m refrigerator (mount height lower than the fridge top on a fridge cell). Seeds 0-29: cleaning_supplies recycling_guide_1 at 1.3 m behind refrigerator_1 / top_freezer_refrigerator_1 (seed 1 {} at [5,9]; seed 9 house+garage+patio at [6,2]; seed 16 house+laundry+basement+nursery at [0,2]; 9 cases in all). safety_equipment fire_blanket_1 behind top_freezer_refrigerator_1 (seed 8 {} at [7,3]). plumbing_liquids water_heater_inlet_valve at 1.6 m behind refrigerator_1 (seed 23 {} at [7,5]). Fix: these mounts should avoid cells under floor-standing pieces taller than their mount height (or the kernel should do it, see kernel_requests).",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "people / safety",
+   "problem": "tests/test_safety.py CrossDomainRound.test_safety_closer_waits_while_someone_stands_in_the_gateway fails with all domains loaded. people.model._settle (episode_start order 20) moves the child 'kid', placed deliberately on the gate's doorway cell hall [0,11], to [1,10] before the first step, so the self-closing pool gate closes. Repro: the test's own Lab setup; reading world.s['people']['kid']['pos'] right after the env is built gives [1, 10]. Either safety's Lab should mark the person `_placed: True` / `hold_position: True`, or the kernel should mark explicit-cell placements (see kernel_requests).",
+   "reporter": "pets"
+  },
+  {
+   "owner": "safety",
+   "problem": "FYI for standing down. When mechanisms is loaded it now claims every open self-closing door: at episode_start and on its first tick after anyone else opens one, it sets mech.release_at. This includes installed safety gates (category 'safety_gate' with self_closing and connects). It honours propped, _closer_ok, _latch_ok, wedges located at the door and settings.hold_open. Doors held open still get release_at, with mech.closer_held=True. safety.security_system can therefore skip every self_closing entity when mechanisms is loaded and drop its _mech_closer / opened_s bookkeeping. Safety's own closer tests pass under mechanisms' driver (CrossDomainRound, Security, ChildSafety, IntegrationRound).",
+   "reporter": "mechanisms"
+  }
+ ],
+ "food": [
+  {
+   "owner": "food (FYI, not caused here)",
+   "problem": "tests.test_food FoodTypesAndFurnishing.test_generated_kitchens_are_stocked_without_errors fails for seed 0: no all_purpose_flour. core_furniture now places only one base cabinet (cabinet_2, the sink base) in kitchen_1, and the kitchen furnisher removes none (checked by tracing cabinets after core_furniture, appliances_cooking.kitchen and food.kitchen).",
+   "reporter": "appliances_cooking"
+  }
+ ],
+ "people": [
+  {
+   "owner": "people",
+   "problem": "people/model.py _settle_people (settle_spot via standing_cells) moves residents at episode start that the v2.3 generator already placed on non-cutting cells (repair._place_agents / Placer.agent_cell keep_access). standing_cells counts any articulation cell of the free floor as a chokepoint, even when only empty floor lies beyond it. Repro: generate_house(97, residents='minimal', pets='none'), then the T-d389e2979f6aad-01 setup without its new person op. resident_1 starts in kitchen_1 at [7,0] (the pocket behind it, [8,0], holds nothing) and steps to [5,2] at episode start, onto a cell the scenario had just soiled; the floor can then never be fully swept. Fix: settle with geometry.access_report/not_worse (the generator's rule), and give the robot a way to ask a standing person to step aside (e.g. speak 'excuse me' or ask topic 'step_aside' moves can_step_aside persons to a settle spot off the requested cells).",
+   "reporter": "cleaning"
+  },
+  {
+   "owner": "people / safety",
+   "problem": "tests/test_safety.py CrossDomainRound.test_safety_closer_waits_while_someone_stands_in_the_gateway fails with all domains loaded. people.model._settle (episode_start order 20) moves the child 'kid', placed deliberately on the gate's doorway cell hall [0,11], to [1,10] before the first step, so the self-closing pool gate closes. Repro: the test's own Lab setup; reading world.s['people']['kid']['pos'] right after the env is built gives [1, 10]. Either safety's Lab should mark the person `_placed: True` / `hold_position: True`, or the kernel should mark explicit-cell placements (see kernel_requests).",
+   "reporter": "pets"
+  }
+ ],
+ "textiles_laundry": [
+  {
+   "owner": "textiles_laundry",
+   "problem": "textiles_laundry/dry.py _drip (about line 1061) decides floor damage from rooms[rid]['floor_material'] rather than the floor entity floor_<rid> (material/finish), which is what scenes edit. Separately, it treats launderable cleaning tools (cotton_rag, microfiber_cloth in LAUNDERABLE_TOOLS) lying under furniture as dripping laundry and adds water_damage 0.1 'laundry dripped onto the floor'. Repro, before cleaning's set-down fix: cleaning__examples T-5c9694a5a29d0e-01 seed 23. A wine-soaked cotton_rag_1 kicked under bed_2 gave floor_master_bedroom_1 water_damage (event textile_damage). Suggest reading the floor entity's material.",
+   "reporter": "cleaning"
+  },
+  {
+   "owner": "textiles_laundry",
+   "problem": "appliances furnisher (order 45): generate_house(44, dwelling='apartment') laundry_room_1 puts front_load_washer_1 with clothes_dryer_1 stacked on the same cells at [2,1]. The stack stands over breaker_panel_1's wall cell [3,2] and half of radiator_4. Before plumbing moved its heater out of small laundry rooms, the audit reported 'radiator_4 sealed by front_load_washer_1, water_heater_1'. Also shelf_unit_1 (mounted at 0.95 m) is placed inside shower_stall_1's cells: generate_house(3, dwelling='townhouse') bathroom_1.",
+   "reporter": "plumbing_liquids"
+  }
+ ],
+ "admin_inventory": [
+  {
+   "owner": "admin_inventory",
+   "problem": "admin_inventory/helpers.py rehang_blocked_doors keeps a private door model. It reads the swing room as door.swing_into or door.location, which ignores mech.swing_into and the kernel's rule (indoor side of an exterior door, dwelling side of a corridor door). It also builds its own _leaf_cells. It should use geometry.swing_room and geometry.door_swing. In the full run, tests/test_admin_inventory.py::CrossDomainRoundTests::test_clear_door_sweeps_rehangs_a_door_that_would_stop_on_an_appliance fails: seed 5 door_4 is no longer re-hung because the v2.3 generator already keeps its leaf clear. The test encodes the old layout.",
+   "reporter": "mechanisms"
+  },
+  {
+   "owner": "admin_inventory",
+   "problem": "household_admin (order 72) mounts the bathroom 'wall_shelf' at 1.0 m: (a) over the vanity basin (bathroom sink mounted at 0.85 m), e.g. generate_house(9) bathroom_2 wall_shelf_2 over bathroom_sink_2, and generate_house(3, dwelling='apartment') bathroom_1; (b) on cells of 2.0 m shower stalls, e.g. generate_house(0, dwelling='apartment') bathroom_2 wall_shelf_2 inside shower_stall_1, and generate_house(1, dwelling='house', require=['garage','patio']) bathroom_2 wall_shelf_2 inside shower_stall_2. Fix: mount it at 1.2 m or higher and off cells of floor-standing pieces taller than the shelf. Separately, spec T-92f2736b7f949c-01 seed 1 fails with 'spawn: no room for foaming_dispenser on counter_1': counter_1 is full of other domains' items (microwave, drying rack, knife block...); no plumbing item is on it.",
+   "reporter": "plumbing_liquids"
+  }
+ ],
+ "appliances_cooking": [
+  {
+   "owner": "outdoor_plants / core_furniture / appliances_cooking (caused by the kernel gap in kernel_requests: lights are not access targets)",
+   "problem": "Serviceable lights are sealed by furniture placed after them; nothing checks this, including the audit. Repro with _generate(seed, **opts): seed 11 {} (also townhouse and minimal): backyard_1 outdoor_light_1 (2.2 m) sealed by raised_bed_1 (outdoor_plants.yard). Seed 12 {}: deck_1 outdoor_light_2 sealed by deck_box_1 (outdoor_plants.outdoor_items) + outdoor_table_1 (core_furniture). Seed 14 {dwelling: house, require: [laundry_room, basement, nursery]}: poolside_1 outdoor_light_4 sealed by pool_1 (outdoor_plants.yard). Seed 21 townhouse: patio_1 outdoor_light_3 sealed by outdoor_table_1 (core_furniture). Seed 11 {residents: minimal, pets: none}: patio_1 outdoor_light_3 sealed by gas_grill_1 (appliances_cooking.outdoor) + outdoor_chair_3 / outdoor_table_1 (core_furniture). Seed 23 {dwelling: house, require: [garage, patio]}: bedroom_2 night_light_1 (0.3 m) sealed by desk_2 + wardrobe_2 (core_furniture). 'Sealed' means no cell within the light's access radius (2 for mounts >= 0.85 m) is in the plain walkable component joined to the doorways. Earlier in this round cleaning_supplies' wheelie carts sealed driveway lights on seeds 7 {} and 16 townhouse; those were gone in the final run. tools_vehicles guards its own car and bikes with a domain-side light guard.",
+   "reporter": "tools_vehicles"
+  },
+  {
+   "owner": "appliances_cooking",
+   "problem": "switch_on on a range_hood sets on=True but leaves exhaust_m3s at 0.0 because settings.fan stays 'off', so the hood does not ventilate. Only `set fan <speed>` (stove.py _burner_setting) sets exhaust. Repro: generate_house seed 0 (default options), kitchen_1 has range_hood_1. Approach it, env.step('switch_on', 'range_hood_1') gives ok, on=True, exhaust_m3s=0.0, settings.fan='off'. Expected: switch_on runs the fan at a default or last-used speed (exhaust from hood.flows_m3s, e.g. medium 0.12 m3/s), and switch_off sets fan to off and exhaust to 0.",
+   "reporter": "safety"
+  }
+ ],
+ "outdoor_plants": [
+  {
+   "owner": "outdoor_plants / core_furniture / appliances_cooking (caused by the kernel gap in kernel_requests: lights are not access targets)",
+   "problem": "Serviceable lights are sealed by furniture placed after them; nothing checks this, including the audit. Repro with _generate(seed, **opts): seed 11 {} (also townhouse and minimal): backyard_1 outdoor_light_1 (2.2 m) sealed by raised_bed_1 (outdoor_plants.yard). Seed 12 {}: deck_1 outdoor_light_2 sealed by deck_box_1 (outdoor_plants.outdoor_items) + outdoor_table_1 (core_furniture). Seed 14 {dwelling: house, require: [laundry_room, basement, nursery]}: poolside_1 outdoor_light_4 sealed by pool_1 (outdoor_plants.yard). Seed 21 townhouse: patio_1 outdoor_light_3 sealed by outdoor_table_1 (core_furniture). Seed 11 {residents: minimal, pets: none}: patio_1 outdoor_light_3 sealed by gas_grill_1 (appliances_cooking.outdoor) + outdoor_chair_3 / outdoor_table_1 (core_furniture). Seed 23 {dwelling: house, require: [garage, patio]}: bedroom_2 night_light_1 (0.3 m) sealed by desk_2 + wardrobe_2 (core_furniture). 'Sealed' means no cell within the light's access radius (2 for mounts >= 0.85 m) is in the plain walkable component joined to the doorways. Earlier in this round cleaning_supplies' wheelie carts sealed driveway lights on seeds 7 {} and 16 townhouse; those were gone in the final run. tools_vehicles guards its own car and bikes with a domain-side light guard.",
+   "reporter": "tools_vehicles"
+  }
+ ]
+}

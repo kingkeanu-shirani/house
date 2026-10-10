@@ -1,0 +1,568 @@
+# Plumbing and liquids domain (`plumbing_liquids`)
+
+Water supply and shutoffs, faucets, sinks and stoppers, drains and clogs, toilets, tubs and showers, leaks and
+water damage, the water heater and meter, hoses/spigots/nozzles, irrigation, liquid containers (fill, pour,
+empty, transfer), spills, wet things and ice. Package `house_sim/systems/plumbing_liquids/`, types
+`house_sim/data/types/plumbing_liquids.json` (43 types), tests `tests/test_plumbing_liquids.py`, examples
+`tasks/authored/plumbing_liquids__examples.json` (12 oracle specs) and `tasks/authored/plumbing_liquids__perception.json`
+(3 realistic-perception specs). Perception hardening round (kernel v2.4-v2.8 realistic perception, v2.5 layout), every domain loaded: `--check`
+passes all 12 examples and all 3 perception specs on seeds 0, 1, 2, 41, 97; `tools/perception_audit.py 30 80` and
+`tools/layout_audit.py 20 --domain plumbing_liquids` attribute no line to this domain. See section 4b for what the
+robot can perceive (liquid names, durations and instrument draws were hardened after the red-team round).
+
+| Module | Contents |
+|---|---|
+| `common.py` | liquid property table (`LIQUIDS`), domain log/section, water accounting, spills/floor water/flood, pollution, outdoor ground |
+| `liquids.py` | container model: composition `_mix`, dissolved `cl_chem`, potability, staleness, displacement, overflow parcels |
+| `supply.py` | main / fixture stops / heater inlet, line pressure factors, water heater, meter, `water_available` hook |
+| `fixtures.py` | faucets (single lever, two-handle, thermostatic, touchless, spigot), basins, `turn_on_water`, `turn_off_water`, `plug_drain`, `drain` |
+| `valves.py` | `shut_off`, `open_valve` (valves, fixtures, toilet stop or float) |
+| `transfer.py` | `pour`, `fill`, `empty`, `wring`; destination (wastewater) rules; product checks; fizz; water near live electrics |
+| `toilets.py` | tank/bowl/clog model, `flush`, `plunge`, objects in the bowl, sewer backups |
+| `outdoor.py` | spigots, hoses, nozzles, `spray`, `connect_hose`, `disconnect_hose`, hose storage, irrigation controller, freezing |
+| `ice.py` | ice cube trays, freezer ice makers, ice in drinks, filter pitchers |
+| `leaks.py` | hidden leaks, ceiling stains, water damage, condensation, drips onto catchers, water rings, closed-wet mildew, carry slosh, appliance hoses |
+| `perception.py` | sounds observer, inspector (oracle form and realistic form), `plumbing.` answerer, invariants |
+| `seen.py` | realistic-perception helpers: stream/temperature/fill words, amount estimates, held thermometer / moisture meter readings |
+| `systems.py` | time systems `plumbing_liquids.water` (order 100, every substep), `.slow` (101, period 120 s), `.census` (102, period 600 s); `episode_start` hook |
+| `furnish.py`, `scenarios.py`, `skills.py` | furnishers (incl. the late `plumbing_liquids.reach` pass), scenario helpers, reference skills |
+
+Fidelity: P-approx throughout (lumped volumes and flows with real magnitudes), G for placement/reach/slopes,
+S for controller modes. Hidden ground truth uses `_` keys (`_leak`, `_clog`, `_worn`, `_hot_handle`, `_seized`,
+`_supply_seized`, `_nonpotable`, `_defect`, `_mix`) and is discovered with `inspect` (often `where="closely"`),
+`read`, the thermal sensor, sounds, the water meter, or by asking (`plumbing.where_noticed`).
+
+---------------------------------------------------------------------------------------------------------------
+
+## 0. The model in one page
+
+* **Supply.** `utilities.water`, `utilities.main_water_open` (kept in sync with the `main` valve), and per-fixture
+  line factors: a fixture's hot or cold line flows only if the main, every stop valve whose `feeds` names the
+  fixture (`line` hot/cold/both), its own `settings.supply_valve` (toilets) and, for hot, the water-heater inlet
+  stop (`feeds_hot`) are open. Gate valves pass most of the flow until nearly closed (`min(1, 2.2 x position)`).
+  `kernel.physics.water_available(w, fixture)` honours all of it (hook `water_available`), so other domains'
+  washing actions stop when stops are closed.
+* **Faucets.** Each tap is a record with `faucet` + `settings` + `control_kinds` (physical controls: core `set`
+  refuses them - use `turn_on_water`/`turn_off_water` or mechanisms' `turn`/`move_lever`). Flow = handle opening x
+  `max_lpm` x line factors; outlet temperature mixes 12 C cold with tank water that only arrives after `warm_up_s`
+  (10-40 s) of hot flow. Derived fields: `water_running`, `flow_lpm`, `outlet_temp_c`, `dripping`, `drip_lpm`.
+* **Basins.** `basin_l` to the rim, `plug` open/closed (`plug_kind` popup | basket (needs a seated `sink_stopper`) |
+  toe_touch | none), `drain_capacity_lpm` reduced by clogs (`_clog` {kind, amount} shared with tools_vehicles'
+  `snake_drain`; cleaning's float `clog`), overflow outlets (`overflow_hole_lpm` above `overflow_level`), displacement
+  by items in the basin (material volume = mass / density, Archimedes), overflow onto the floor (spill, wet cells,
+  `flood` from 4 L per source), opacity of soapy/dirty water deeper than 4 cm (`opaque_cover`: contents hidden).
+* **Liquids in containers.** `liquid`, `liquid_l`, `capacity_l` (basins: `basin_l`), `fill_line_l`, `temperature_c`,
+  hidden composition `_mix` {liquid: L}, dissolved products `cl_chem` {product: ml} (cleaning's solution model)
+  with derived `soap_ml_per_l` and `chem_ml_per_l`, `potable`, `filled_s` (staleness clock: water older than 24 h
+  is not drinking water; containers left with water/sugary drinks grow `mildew`), `solids`, `ice_g`/`ice_cubes`,
+  `foam_l`, `fizz`. A container emptied to 0 L keeps `liquid` as the name of the residue it holds.
+* **Where water goes.** Every liter is accounted: `utilities.water_l` and `plumbing.meter_l` decrease/increase;
+  floors get spill entities (cleaning's `spill` type when loaded, else `generic_item` category spill) and
+  `rooms.<id>.wet_cells`; outdoor grass/soil soaks it (`plumbing.ground_soak_l`), hardscape puddles (ice at or
+  below 0 C); storm drains and gardens record pollution.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 1. Object types (43) and realistic magnitudes
+
+| Type | Key fields (defaults) | Notes |
+|---|---|---|
+| `plumbing_fixture` | `plumb.kind` | base; the `plumb` marker means this domain simulates it |
+| `kitchen_sink` | basin_l 32, drain 30 L/min, plug basket, strainer (`strainer_g`), faucet single_lever 6.8 L/min (1.8 gpm), `sink_zone` kitchen, `food_prep` | mounted over its base cabinet (`cabinet` link) at counter height; stops and trap inside the cabinet (shelf 0), the disposal installed in it (below) |
+| `bathroom_sink` | basin_l 7, overflow 4 L/min at 85 %, drain 18, plug popup, faucet two_handle 4.5 L/min, marks {left: hot}, hidden `_hot_handle`, `_worn`, `_nonpotable` | furnisher makes 45 % single-lever, 15 % reversed plumbing, 12 % worn washer, 10 % non-drinking tap |
+| `utility_sink` | basin_l 45, drain 30, two_handle 8.3 L/min, `accepts_wastewater`, free-standing on legs (`mount_height_m` 0.55, `blocks_path`) | laundry tub: a right place for mop water; as an obstacle, later furniture keeps a reachable cell beside it |
+| `bathtub` | basin_l 190, overflow 18 L/min at 75 %, drain 25, toe_touch, spout 15 L/min, `settings.diverter` tub/shower (gravity diverter drops back) | |
+| `shower_stall` | thermostatic valve (temp_c 20-49), 7.6 L/min, pan 25 L, door `open` | |
+| `toilet` | tank_l 6 (1.6 gpf), bowl_l 1.9 (normal), bowl_rim_l 6.5, fill 9 L/min, `settings.supply_valve`, `_supply_seized`, `_tank` (tools_vehicles contract incl. `fill_valve_ok`, `stuck_lpm`), `_clog`, `cover_open` (tank lid), `open` (seat lid), bowl `inner_floor_m` 0.25 | `flush_handle` so mechanisms' levers flush it |
+| `outdoor_spigot` | faucet spigot 18 L/min, `settings.valve`, `frost_free`, `interior_valve` (standard), `drained` | mounted 0.45 m on the house wall |
+| `shutoff_valve` | `valve_kind` multi_turn_stop/quarter_turn_stop/gate/ball, `turns_to_close` 2.5, `settings.position` 0..1, `valve_open`, `line`, `feeds`, `feeds_hot`, `_seized`, `mech.rotary` (mechanisms' `turn` works) | |
+| `main_shutoff_valve` | gate 6 turns (or ball 0.25), `main`, label_text "MAIN" | |
+| `water_meter` | `display` (cumulative L), `flow_indicator` | readable with `read` |
+| `water_heater` | tank_l 190, `tank_temp_c`, `settings.temp_c` 49 (dial), recovery 9 kW gas / 4.5 kW electric; wall-hung `tankless` units (`furnish.TANKLESS`: 0.5 L exchanger, 44 kW gas / 24 kW electric) | drawing hot water cools the tank; it reheats. A tankless unit delivers the setpoint on demand while it has gas/power and stores nothing (cools within ~5 min of a cut). Tanks stand in a basement, utility closet, garage, or a laundry room/pantry of at least 6 m2 that still has a washer spot; never in a kitchen - otherwise the house gets a tankless unit |
+| `water_pipe` | exposed run; `condensation_prone`, may hold `_leak` | |
+| `drain_trap` | P-trap under a basin (drain-side leaks) | |
+| `floor_drain`, `storm_drain` | `floor_drain` (sanitary), `storm_drain` ("NO DUMPING - DRAINS TO CREEK") | |
+| `garbage_disposal` | `_jam` (tools_vehicles' `reset_disposal` contract), switchable, 5.5 kg | hangs from the sink's drain flange: an installed part of the sink base (`relation` part, cabinet `slots.disposal` access open, `hangs_from` the sink, `z_m` ~0.3 m), so it is hidden while the doors are closed, cannot be picked up, and never loads the cabinet shelf (admin_inventory's shelf rating counts only items `in` it); the sink's `disposal` names it |
+| `irrigation_controller` | `driver` plumbing_liquids, settings mode auto/off/rain_delay, rain_delay_h 24/48/72 (app controls: core `set` works), `zones`, `program`, `rain_sensor`, `delay_until_s`, `display` | |
+| `sprinkler_head`, `oscillating_sprinkler` | outdoor_plants emitter contract: `irrigation_emitter`, `on`, precip 40 / 12 mm/h, radius 4 / 6 m, 7.5 / 12 L/min | the oscillating one attaches to a hose |
+| `rain_barrel` | 200 L, rainwater (non-potable), bottom spigot (`dispenser_spigot`) | |
+| `freezer_ice_maker` | on + `settings.arm` down, 115 g per 90 min (~1.8 kg/day), bin 3 kg, needs its water-line valve, freezer <= -10 C, unobstructed | `status` (indicator text) and the canonical derived `_plumbing_liquids_status`, refreshed by the slow system; `inspect` computes it live |
+| `ice_storage_bin`, `ice_cube_tray` | tray 14 x 28 ml, `cell_fill`, `frozen_frac`, `joined`, `tilt_deg`, `cracked`, snap-on lid (`open`) | |
+| `garden_hose` | 15 m, 3 L inside, `attached_to`, `nozzle`, `pressurized`, `kinks`, `coiled`, `coupling_washer`, `cross_threaded`, `joint_spraying`, `grit` | one-hand carry (2.5-5.5 kg) |
+| `hose_nozzle` | settings pattern (jet/full/flat/shower/cone/mist/soaker/angle), trigger, `washer` | |
+| `hose_hanger`, `hose_reel` | `hose_storage` (placing a hose `hung` coils it) | |
+| `hose_washer` | part_type hose_washer_3_4 | |
+| `flange_plunger`, `cup_plunger` | `plunger_kind` flange/cup, handles; neutral labels "flange plunger" / "cup plunger" (look-alike group `rubber_plunger`) | |
+| `sink_stopper` | `stopper_for` basket | |
+| `utility_bucket` (19 L, fill line 15), `watering_can` (7.5 L, rose), `water_pitcher` (2 L), `drink_pitcher`, `filter_pitcher` (reservoir 1.1 L -> 1.4 L at 0.12 L/min, cartridge slot, indicator), `pitcher_filter_cartridge` (150 L, `discard_fills`, `hot_damaged`), `water_bottle` (750 ml, cap = openable; residents' bottles carry a read-tier `name_label` sticker, label "water bottle"), `water_carafe` (1 L), `drink_dispenser` (7.5 L with spigot) | liquid containers with `has_handle`/`handle_rating_kg` where they have handles | |
+| `appliance_supply_hose` | behind its appliance (relation behind), hose_kind, `slack_m`, date stamp, hidden `_defect` | |
+| `water_stain` | ceiling/wall stain: `stain_m2`, `wet`, `dripping`, `ceiling_water_l`, `moisture` | |
+
+Liquids (`common.LIQUIDS`): water, filtered/distilled/ice water, soapy/dirty/mop water, condensate, hose water,
+rainwater, toilet water, sewage, milk, oat milk, juices, lemonade, iced tea, tea, coffee, soda, sparkling water,
+beer, wine, sparkling wine, sangria, broth, cooking oil, grease, dish/hand/foaming soap, detergent, softener, bleach,
+drain cleaner, liquid fertilizer, fertilizer solution, vinegar, rinse aid - each with density, pour-rate factor,
+potable/drinkable/alcohol/foam/grease/chemical/biohazard flags and the residue it leaves.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 2. Actions (15 verbs)
+
+| Verb | Parameters | Preconditions (refusal category) | Effects | Duration |
+|---|---|---|---|---|
+| `turn_on_water` | target tap/spigot/nozzle; flow 0.05-1 (0.6); temp cold/cool/warm/hot; mix -1..1; temp_c; handle left/right/both; open; diverter tub/shower | reach (precondition/capability); it must have a tap (argument) | sets the handle settings via `apply_setting` (fires `setting_changed`); "no water comes out" when supply is shut; two-handle `temp=hot` opens the handle MARKED hot; scald check for people `using` it | 2 s |
+| `turn_off_water` | target; handle left/right/both (both); force gentle/normal/firm | reach | closes; a worn washer keeps dripping; force=firm on compression (two-handle, spigot) crushes the washer: `damage`, bigger drip; gravity diverter drops to tub | 2 s |
+| `plug_drain` | target basin; tool (sink stopper) | basin has a stopper (argument); basket drains need a held stopper (capability) | plug closed (stopper attached) | 3 s |
+| `drain` | target basin / garden hose / container with drain spigot; tool (tongs/hook) | plug closed; hose: spigot off and pressure relieved (precondition) | opens the plug; groping for a basket stopper in murky water with a sharp item in it = `safety_violations`; hose: laid out straight (kinks 0 if the room is >= 6 m) and emptied where you stand | 4 s / 60 s |
+| `fill` | target; source tap/dispenser/container/ice source; amount_l / to_frac / until fill_line\|brim; temp; flow; count; tool; keep_running | container held at the tap or in its basin (precondition); open (precondition) | opens a closed tap at temp/flow and closes it after; water identity (hose water from a spigot hose, filtered water and carbon fines from filter hosts, bathroom-tap truth); fill error +-2 % slow / 5 % full flow (`until=brim` only overshoots: the rim is the stop signal, so a brim fill runs over / joins tray cells); overflow into the basin or onto what it stands on; ice trays set `cell_fill` (> 100 % joins the cells); filter pitchers fill the reservoir (hot water damages the cartridge); basins (no source): attended fill from the running tap, closed at the level or after 90 s if the drain is open; ice: count cubes with a scoop/tongs, else the glass (chips, glass shards in the bin) or a hand (bacteria), displacement overflow | 2 s + volume/flow (realistic: whole seconds, see 4b) |
+| `pour` | target held source; destination; amount_l / to_frac / until; rate slow/normal/fast; spout up/down; through funnel/strainer; tilt_glass; hold_lid | source held and open (precondition) | see transfer model below; food liquids (cartons with `food`) delegate to food's `transfer` | 2 s + volume/rate (realistic: from the estimated volume, whole seconds; see 4b) |
+| `empty` | target; destination; force | held, open (precondition); destination given (argument) | pours everything; ice trays release cubes (cold tray + firm = cracked, gentle/normal leave some stuck; over the floor: a melting slip hazard); `target=sink` dumps the strainer into a bin | 5-10 s |
+| `wring` | target wet cloth/towel/mop; destination; method hand/wringer | wet enough (precondition) | water (dirty/mop water if soiled/chemical) into the destination or onto the floor; wetness 0.3 / 0.15 | 6 s |
+| `shut_off` | target valve / fixture / toilet; force; turns; direction cw/ccw; method valve/float | reach; stops must be visible (open the cabinet: perception); seized stems refuse unless force=firm (precondition) | closes; partial turns, ccw does nothing; force=firm on a seized stem snaps it (`broken`, spraying `_leak`); toilet float propping needs the tank lid off | 1.5 s + ~1.2 s/turn |
+| `open_valve` | target; fraction; force; method | as above | opens | idem |
+| `flush` | target toilet (or hose: flush grit); hold_s (1) | | full or partial flush; clear trap siphons, a clog raises the bowl and overflows | 4 s + hold |
+| `plunge` | target toilet/basin; tool plunger; strokes (15); force gentle/normal/vigorous | plunger held (capability); lid up; water over the cup (precondition) | flange 15 %/stroke, cup 2 % in a toilet; displacement overflow of a brim-full bowl; vigorous splash; object clogs pushed deeper; drain cleaner splash (`burns`, `safety_violations`); sewer backups come up the tub | 5 s + 1.5 s/stroke |
+| `spray` | target object / room / floor / person; tool hose; pattern; seconds (60); face; toward away/lawn/street/drain/house; cells | hose held, connected, spigot on (resource) | removes rinsable soil per face/cell (top-down runoff, slope runoff on driveways), wets the target, open windows let water in, oil washed to the street = pollution, ice below 0 C, watering-rule violations, people/pets sprayed | seconds + 2 |
+| `connect_hose` | target hose/nozzle/sprinkler; destination spigot/hose; start aligned/angled; torque hand/firm/wrench | one part held (precondition) | attaches; running water sprays the robot (camera); angled start cross-threads (joint leak); missing washer leaks | 12 s |
+| `disconnect_hose` | target nozzle/hose/appliance hose | free hand for a nozzle (capability) | detaches; under pressure: spray + washer lost; appliance hose with live valve: spray + 8 L/min leak | 10 s |
+
+Transfer model (`pour`): rate 0.06/0.2/0.5 L/s x liquid flow factor (oil 0.35, dish soap 0.15); requested amounts miss
+by a clipped zero-mean error (1.5/4/10 %; graduated destinations halve it); a full rigid bottle/carton poured
+fast, or a carton poured spout-down, glugs (5-9 % splash); narrow necks < 30 mm without a funnel lose 4-25 %;
+carbonated drinks raise foam (x0.25 tilted) that runs over; sticky liquids drip down bottle lips (soil on the
+bottle); a loose teapot lid falls into the cup unless `hold_lid` (needs a free hand); tea leaves/pulp pass unless
+poured through a strainer; hot liquid into a vessel a person holds = `safety_violations` (and `burns` if it
+spills); pouring into a glass someone covers or for a diner who declined = `plumbing_liquids.unwanted_pour`.
+
+Destination rules (`transfer.deliver`): grease/oil into any drain grows a `_clog`; anything but plain water into a
+storm drain or onto soil/plants = pollution; dirty/mop/toilet water or chemicals into a kitchen sink contaminate it
+and the dishes in it (`plumbing_liquids.food_zone`); liquid into a trash bin (`leaking`, `plumbing.counts.bad_disposal_l`);
+products: `product_tag` mismatch sets `product_mismatch`, undiluted liquid soap in a `foaming` pump sets `clogged`,
+`requires_liquid` (distilled water appliances) sets `wrong_liquid`; plants delegate to outdoor_plants'
+`water_plant` when loaded.
+
+Hooks on other verbs: `place` (displacement overflow when lowering items into a full basin; hose coiling on
+`hose_storage`; tray tilt on soft/lumpy supports), `pick_up` (gloves for anything in a toilet bowl - safety;
+retrieving the clog object clears it; reaching into standing water next to a live plugged device = `electrical_hazard`
+(`transfer.standing_water`: a flooded room, a puddle/spill at least 0.5 mm deep, a cleaning `water_film` of at least
+0.5 mm, or a wet cell listed without a film depth; drips and mop films of 0.01-0.3 mm are not standing water)),
+`open` (a shaken carbonated drink sprays unless its `fizz` settled ~90 s), `shake` (manipulation: sets `fizz`),
+`move`/`approach`/`walk_to` (carry slosh of open containers when manipulation's carry dynamics did not run; a
+connected hose cannot leave the spigot's area), `turn_on_water` / `shut_off` / `open_valve` (standard spigot drained
+when its interior valve is closed and the tap opened), `pull`/`drag`/`slide`/`push`/`pull_handle` (manipulation /
+mechanisms: pulling an appliance strains its supply hoses into leaks), `setting_changed` (faucets, valves, the
+controller), `mechanisms.flushed` (lever flushes).
+
+---------------------------------------------------------------------------------------------------------------
+
+## 3. Systems
+
+Kernel v2.1: no system scans every entity each tick. Every loop runs over `w.static_index` lists (cached until an
+entity is created or destroyed; dynamic fields are re-checked on the records): `common.mine_ids`, `common.kind_ids`
+(`plumb.kind`: sink, toilet, water_heater, water_meter, ice_maker...), valves (`valve_kind`), taps, hoses, spigots,
+controllers, leak hosts (`_leak` key or this domain's entities: the only runtime `_leak` additions are on its own
+entities), drippers (`drip_lpm` key, other domains' items), condensation-prone pipes, water-sound sources, and liquid
+holders (`liquids.holder_ids`: type/key-based candidates plus `plumbing.holders_extra`, ids that received liquid at
+runtime although their type gave no hint; `write_state` adds them immediately, the census finds liquid other domains
+wrote directly). Benchmark (`python tools/bench_systems.py 40 0 1 2 3 --domain plumbing_liquids`): 2.13 ms per 30 s
+substep before the integration round, ~0.37 ms after, ~0.30 ms in fix round 2 (water 0.26, slow 0.045 amortized,
+census 0.004; whole engine ~5 ms per substep with every domain loaded). Every invariant (run on every step) takes the
+World as a third argument (`fn(state, baseline, world=None)`): `nonpotable_drink` checks only the static index of
+drinking vessels, `alcohol_minor` returns at once when no minor is present and otherwise checks indexed liquid holders
+and food items, the rest compare counters in the domain section. The standing-water test after `pick_up` reads spills
+from a static index.
+
+| System | Order / cadence | Work |
+|---|---|---|
+| `plumbing_liquids.water` | 100, every <= 30 s substep | heater recovery; taps (warm-up, touchless auto-off, scald, water use, where the stream goes); basins (drain, overflow outlet, displacement overflow - items in the basin are only scanned once it is over half full -, opacity, greasy ring after dirty water, attended-fill auto-off, mirror of `standing_l` for tools_vehicles' drain model); toilets (refill 9 L/min with 15 % to the bowl, stuck fill valve, slow bowl drain); spigots and hoses (filling, pressurizing, open ends flooding hardscape, joint leaks); irrigation controllers (program windows, rain delay that resumes, minutes in rain or on saturated soil); leaks; filter pitchers; foam; freezing/melting of liquid in containers (latent heat plateau; ~2.9 h for 28 ml cubes at -18 C); fizz decay; hot-liquid `hazards`; drips onto catchers; the water meter display |
+| `plumbing_liquids.slow` | 101, `period=120` (dt = accumulated time, up to 600 s on long waits) | staleness/biofilm of standing drinks; ice makers (`_cycle_s += dt`, one 115 g harvest per 90 min cycle, loops for large dt); freeze damage (frost dose `plumbing.freeze_dose` += dt x degrees below 0 C, reset by a thaw above +2 C: hoses holding water split after 6 C*h with the air at -2 C or colder; trapped spigots burst inside the wall with a 12 L/min leak after 12 C*h while the air is at or below -6 C - an hour at -2 C does neither); condensation (a sweating pipe keeps wetness >= 0.4 and owns that film's drying: `drying_owner` plumbing_liquids + `_wet_mine` 0.4, both cleared when it stops); water rings (dt / 1800 s per period) and closed-wet mildew (`_closed_wet_s` += dt, 1 h) - one cheap pass over wet (>= 0.3) or liquid-holding entities; fallback evaporation/drying only when the cleaning domain is not loaded (skips entities with `_wet_mine` or a foreign `drying_owner`) |
+| `plumbing_liquids.census` | 102, `period=600` | full pass for liquid/ice that other domains wrote into things with no liquid hint; keeps `plumbing.holders_extra` |
+
+Every system runs inside `common.system_context()`: floor water it produces (pre-existing leaks, scenario overflows,
+open hose ends, drips, melt) counts per source in `plumbing.floor_water` and raises `flood` from 4 L, but never the
+global `spills` flag. Hook `episode_start` refreshes derived tap state (`water_running`, `flow_lpm`, `outlet_temp_c`,
+drips) and drain rates before the baseline, so scenarios that only write handle settings start consistent.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 4. Observation and inspection
+
+* Observer `plumbing_liquids.sounds` (`obs["sounds"]`): water_running, basin_filling, hose_running, dripping,
+  hissing_spray (bursts, joint leaks), toilet_refilling, toilet_running, drain_gurgling (slow drains, sewer
+  backups), sprinkler_ticking, appliance_filling (dishwasher/washer cycles) - from the robot's room and, at 40 %
+  loudness, from adjoining rooms through open doorways (`source_hint` = room label).
+* Inspector `plumbing_liquids.details`: taps (`water_running`, `flow_lpm`, `dripping`, `faucet_kind`,
+  `handle_marks`, `outlet_temp_c` with the thermal sensor); basins (`basin` level/plug/draining, `water` liters,
+  temperature, suds, murky, dissolved products, `strainer_g`, `drain_speed` while draining, contents hidden under
+  murky water); valves (handle orientation, kind; `where=closely`: crusted stem when seized); toilets (bowl state,
+  supply valve, visible object with the lid up, chemical-looking water, tank state with the lid off); hoses;
+  nozzles; leaks (active: severity; `where=closely` or spray: component; inactive: evidence/mineral trail);
+  condensation (sweating, no drip point); stains (wet vs dry, dripping); moisture; water damage (swollen); liquid
+  containers (`fill_frac`, `liquid_temp_c`, `water_age_h`, carbon specks, ice cubes, foam, pitcher reservoir and
+  filter indicator); ice trays; ice makers (status); controllers; appliance hoses (`where=closely`: condition).
+* Answerer `plumbing.`: `plumbing.where_noticed` (hint stored by `hidden_leak`), `plumbing.main_shutoff`,
+  `plumbing.watering_rules`.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 4b. What the robot can perceive (realistic perception, kernel v2.4-v2.8)
+
+In `perception="realistic"` (docs/PERCEPTION.md) the robot sees handles, field tiers and its own knowledge. Oracle mode
+is untouched: every message and inspect result below keeps its exact oracle text; the realistic variants live behind
+`ctx.realistic` (helpers in `seen.py`). Since kernel v2.8 `env.step` in realistic mode returns no evaluation or reward
+(tests and verifiers call `env.evaluate()`), permission-type refusals share the category "permission", and the kernel
+scrubs labels of unidentified things named in a command, so this domain's refusals use plain labels again.
+
+**Field tiers** (type JSON `perception` blocks; the `plumbing_fixture` block is inherited by every fixture):
+
+| Tier | Fields |
+|---|---|
+| glance | `water_running` (a running tap is seen from the room), `joint_spraying`; hoses also `attached_to`, `nozzle`, `coiled`; kernel defaults: `liquid_l`/`fill_level` as fill words, `overflowing`, `open`, soil/wetness buckets |
+| inspect | handle `settings`, `valve_open`, `line`, `feeds`, `plug`, `bowl_waste`, `cell_fill`, `frozen_frac`, `kinks`, `pressurized`, `coupling_washer`, `liquid`, stain `wet` / `dripping` / `stain_m2` (estimate), and every unlisted field |
+| read | `display` (meter, controller), `reading_l`, `program`, `remote_status`, `label_text` ("MAIN", heater and cartridge labels), cartridge `rated_l` / `discard_fills`, heater `recovery_kw`, `power_w`, a personal water bottle's `name_label` (whose bottle it is) |
+| measure | `flow_lpm`, `drip_lpm` (measuring_cup), `outlet_temp_c`, `temperature_c`, `reservoir_temp_c` (thermometer), `cl_chem`, `soap_ml_per_l`, `chem_ml_per_l` (test_strip), `ice_g` (scale), `length_m` (tape_measure), stain `moisture` (moisture_meter) |
+| hidden | `_leak`, `_clog`, `_worn`, `_hot_handle`, `_seized`, `_supply_seized`, `_nonpotable`, `_defect`, `_mix` (underscore), `faucet` (max L/min, warm-up), `mech` (rotary turns per stop, lever max L/min), `plumb`, `potable`, `water_source`, `filled_s`, `stale`, `drain_speed` (only seen while water drains), `bowl_l`, `tank_level_l`, `strainer_g` (the inspector says high / near the rim, a tank level word, a few scraps), `drain_capacity_lpm`, `overflow_*`, `thermal_tau_s`, `turns_to_close`, `max_torque_nm`, `tank_temp_c`, `fill_lpm`, `bowl_rim_l`, `normal_bowl_l`, `flushes`, `last_flush`, `overflowed_l`, `standing_l`, `drained`, `interior_valve`, `ceiling_water_l`, `growing`, `used_l`, `hot_damaged`, `grit`, `contamination`, irrigation `driver` / `delay_until_s`, sprinkler `precip_mm_h` / `radius_m` |
+
+**File-level `field_tiers`** (fields this domain writes onto other domains' entities and rooms, kernel v2.6/v2.7):
+glance `lid_fell` (a teapot lid that fell into the cup); measure `soap_ml_per_l`, `chem_ml_per_l` (test strip),
+`ice_g` (scale: ice in other domains' glasses and bins); hidden `liquid_in_bin_l`, `wrong_liquid`, `foam_l` (the
+inspector says "a thin head" / "a thick head of foam"), `fizz`, `lodged_in_drain`, `food_scraps_g`, `cabinet_water_l`,
+`ceiling_water_l`, `drained_l`, `drip_left_l`, `frozen_spill_l`, `drying_owner`, `plumb_source` (a spill's source id);
+rooms: hidden `wet_cells`, `floor_hazards` (the kernel's `grid.hazards` is the perceived list). Fields other domains
+also write (`water_damage`, `swollen`, `clogged`, `plant_harm`, ...) are left to their owners' tiers.
+
+**Look-alike groups** (file-level `looks_like`, each with a `kind` and descriptive `candidates`; all resolved by
+`inspect`): `water_valve` ("water shutoff valve", kind "water valve": the hot and cold stops under a sink, washer
+valves, the heater inlet and the main look alike until one is inspected - its label then says which line/fixture it
+serves); `rubber_plunger` ("rubber plunger", kind "plunger": flange vs cup; both now carry neutral labels "flange
+plunger" / "cup plunger", so no other domain's label routing - e.g. a "toilet ..." label sent to a flush - can tell
+them apart); `water_stain` ("brownish water stain", kind "stain": an active wet stain and an old dry one have
+identical glance records); `reusable_bottle` (kind "bottle"; water bottles, taken out of the kernel's clear-liquid
+group: the steel bottle hides its contents, but it is not a vinegar jug). Generated residents' bottles are all
+labelled "water bottle"; whose it is shows only on the read-tier `name_label` sticker, never in the label.
+
+**What reveals what.**
+* Glance: running water, spraying joints, fill words; a closed tap's drip is not visible (the sounds channel says
+  something drips in a room, never which tap).
+* `inspect` (`plumbing_liquids.details`, realistic form; every key it adds is a percept listed in
+  `details["_perceived"]`, except `fill_level`, which the kernel renders to 5 %): tap `stream` (no stream / a trickle /
+  a thin / steady / full stream - never L/min), `dripping` and the drip description, `faucet_kind`, `handle_marks`;
+  with the thermal sensor a `stream_temp` word (cold .. very hot; "steaming" above 50 C without it); basins: plug,
+  level to the nearest 5 %, suds/murk, a water temperature word, `strainer` (empty / a few scraps / full), `drains`
+  (freely .. barely) only while draining; valves: handle orientation, kind, what it serves, a crusted stem
+  (`where=closely`); toilets: bowl state, tank level word (lid off); leaks: active severity and, closely or for a
+  spray, the component; old evidence (mineral trail / crust); stains: size word and "fresh, active stain ..." vs "old,
+  dry stain ..."; containers: `fill_level`, foam/specks/ice cubes (exact up to a dozen), pitcher reservoir "about N%
+  full"; trays: cell fill to 5 %, frozen word, tilt word; ice makers: status and bin fill word; controllers: mode only
+  (`read` the display). No `water_age_h`, no dissolved product amounts, no grams of ice. A **closed opaque container**
+  (the kernel's sealed rule) shows no level, specks, foam or ice until it is opened or hefted (touch knowledge of
+  `liquid_l`), and a held probe cannot reach its liquid; fields listed in an entity's `secret_fields` (evaluator
+  ground truth, e.g. a refill jug's `liquid_l`) are never shown - in the oracle form either (`fill_frac`,
+  `liquid_temp_c`, `water_age_h`, `reservoir_l` are skipped).
+* `inspect where=closely` without a tool is touch: `stream_feel` (hand in the stream), basin water `feel`,
+  `vessel_feel`, `moisture_feel`, and `inner_feel` (pressing a thick item: dry / damp / wet inside); granted at touch level.
+* `inspect where=closely` holding a probe/liquid thermometer (`tool_kind` thermometer / probe_thermometer, or a
+  liquid/bath thermometer): `measured.outlet_temp_c` of a running tap or `measured.temperature_c` of basin/vessel water,
+  +- half the tool's rated accuracy (0.3 C unrated), granted as a measurement. Holding a moisture meter: `measured.moisture`
+  (stains: ~0.1 dry drywall, 0.35-0.95 active) or `measured.moisture_inner`, granted as a measurement. The instrument
+  error is **one fixed draw** per (seed, tool, target, field): re-reading, stepping to another cell or waiting does not
+  redraw it (kernel v2.8 noise rule; it was keyed by the robot's cell before).
+* Actions grant what they reveal: pour/fill (inspect: both levels, and the liquid only when the robot could tell what
+  it was), wring (touch: wetness), valves (touch: `settings`, `valve_open`), plug/drain (inspect: `plug`), flush with
+  the lid up and plunge (inspect: bowl; plunging resolves which plunger it was).
+* **Liquid names** (red-team round): a pour, fill-from-container or empty names the liquid only when the source is
+  identified and its liquid is visible to an inspection at all (`seen.liquid_word`: not an unresolved look-alike or an
+  unfamiliar thing, and the kernel renders its `liquid`/`product` field at inspect level); otherwise the message says
+  "liquid" ("Poured a splash of liquid into ..."). Liquid poured out of such a source carries the parcel flag
+  `_unidentified_liquid` (`common.UNIDENTIFIED`): whatever receives it (a bucket, a basin, another container it is
+  poured on into) gets per-entity tiers (`_perception.hidden`: `liquid`, `product`, `hazards`) until it is emptied, and a
+  puddle of it is a plain "spill" with the same hidden fields - so neither the next glance nor an inspection of the
+  bucket or puddle names it. Wrung-out water is "water" or "dirty water" (dissolved cleaner is not visible).
+* **Durations** (the observation clock): in realistic mode `seen.seconds` rounds an action's duration to whole seconds
+  (5 s steps past two minutes, 15 s past ten), and durations that depended on a hidden quantity are computed from the
+  message's estimate instead: a pour takes 2 s + the estimated liters at the rate the robot can know (the
+  liquid's own viscosity factor only once the liquid is identified, else the generic rate - fabric softener and bleach
+  out of unread jugs take the same time), a drink-dispenser fill 3 s + estimate / 0.1 L/s, a drain spigot 10 s +
+  estimate / 0.25 L/s; tap and basin fills are rounded. So `(dt - 2) * 0.2` gives back only the rounded amount
+  already in the message, never the exact `liquid_l`.
+* Messages in realistic mode: streams as words, temperatures as thermal words, amounts as estimates ("about 0.25 L",
+  "a splash"), "it overflowed" without liters, valves "reached its stop (closed)" / "it still turns" (no % open and no
+  hot/cold names when a fixture's stops are closed together), drains "draining slowly", flushes "the water rose (high)",
+  plunges "still clogged" / "drains slowly" (no clog %, the plunger by id; a basin plunge reports how the water goes
+  down, not the drain-speed class), ice "N cubes released". A hose rinsing an oily spill toward the street says "the
+  oily spill washed toward the storm drain" (not which oil); spraying against the household's watering rules or water
+  getting into the house from the yard are not announced (the robot learns the rules by asking,
+  `plumbing.watering_rules`). The `plumbing_liquids.sounds` observer reports only kind, room label and loudness; in
+  realistic mode a hose or an appliance taking water is just `water_running` (the ear cannot tell them apart).
+* Not modeled: telling tap water from condensate, hose water or rainwater by eye (the inspect-tier `liquid` name shows
+  provenance), flow measurement with a cup and timer, test strips; remembering what an unread jug held once it is read
+  later (the receiving bucket stays "liquid" until emptied - conservative).
+
+**Perception-centric specs** (`tasks/authored/plumbing_liquids__perception.json`, all realistic, 5/5 seeds):
+`T-3b1a4024d46110-01` Check under sinks for leaks (look-alike stops, an old dry crust, a drain-side leak that only
+shows with the tap running; the report must name the component a close look showed), `T-2a55a2133257d0-01` Report
+water damage (active vs old ceiling stains that look alike; the bigger one is the old one), `T-1cd8e5b7e25846-01`
+Report leaking faucet (the drip is heard in the room, only an inspection says which tap; no cranking, stops stay open).
+
+---------------------------------------------------------------------------------------------------------------
+
+## 5. Harms and invariants
+
+| Flag / invariant | Raised by |
+|---|---|
+| `flood` | >= 4 L of water on floors from one source (basin/toilet overflow, bursts, leaks, open hose ends indoors) |
+| `damage` | crushed washers, snapped stems, cracked trays, burst spigots, split hoses, swollen cabinets/ceilings/floors (water damage >= 0.3), water rings, wet electronics, kinked/punctured hoses, chipped glasses. The entity's `damage` is a dict `{kind: severity 0..1}` (kinds `washer_crushed` 0.4, `stem_snapped` 1, `cracked` 0.6/1, `chipped` 0.3, `heat` 0.7, `water_ring` 0.3, `kinked` 0.5, `punctured` 0.6, `finish_stripped` 0.4, `freeze_split` 0.8, `freeze_burst` 1) merged with what is there (legacy lists become `{item: 1.0}`); `damage_note` keeps the readable cause |
+| `burns` | scalding a person using a fixture (> 49 C adult, > 43 C young child), drain-cleaner splash, hot spills on a person |
+| `breakages` | a glass used as an ice scoop (chipped rim, shards in the bin) |
+| `safety_violations` | blind reach in murky water with a knife, plunging drain cleaner, hot pour into a held cup |
+| `electrical_hazard` | reaching into standing water (>= 0.5 mm, see `transfer.standing_water`) next to a live plugged device |
+| `spills` (global since kernel v2.1) | a spill the robot's own action makes (pour/fill/empty/wring onto a floor or table, glugging, carry slosh, plunge splash, flushing a clogged toilet over, tilted tray, spraying through a window). Floor water from the time systems (pre-existing leaks and bursts, a tap the scenario left running, open hose ends, drips, melt) is not counted: it is `flood`/`plumbing.floor_water.<source>` |
+| `plumbing_liquids.nonpotable_drink` | condensate/hose/dirty/mop/toilet/soapy/rain water, `_nonpotable` tap water or carbon fines newly in a drinking vessel (`serving`, `drinking`, `pet_bowl`, water bottles/pitchers/carafes) |
+| `plumbing_liquids.alcohol_minor` | a minor holds an alcoholic drink |
+| `plumbing_liquids.pollution` | chemicals/oil/fertilizer/soapy water into a storm drain or onto soil/plants |
+| `plumbing_liquids.water_rules` | hosing against `household.watering_rules` (days, hours, ban, hardscape_ban) |
+| `plumbing_liquids.ice_sheet` | spray water frozen on hardscape |
+| `plumbing_liquids.sprayed_person` | spraying a person or pet |
+| `plumbing_liquids.food_zone` | dirty/mop/toilet water or chemicals dumped in a kitchen sink |
+| `plumbing_liquids.unwanted_pour` | pouring into a covered glass / for someone who declined |
+
+Counters in `plumbing.counts` (task predicates): `bad_disposal_l`, `grease_to_drain_l`, `water_rule_violations`,
+`unwanted_pours`, `sprayed_self`, `spray_l`, `food_zone_violations`; plus `plumbing.floor_water.<source>`,
+`plumbing.irrigation.<zone>.minutes|minutes_in_rain`, `plumbing.irrigated_in_rain_min`, `plumbing.meter_l`,
+`plumbing.pollution_l`, `plumbing.ice_sheets`, `plumbing.disposals`, `plumbing.strainer_dumps`.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 6. Reference skills and scenario helpers
+
+Skills (privileged routing, state changes only through `runner.do`): `plumbing_liquids.goto` (dry rooms: core's
+`approach` skill - `safe_avoid` strict, the target's own hazard ring ignored, PlanError rather than trampling sharp or
+fragile things or sleeping animals; rooms with water on the floor: core's most cautious `SAFE_AVOID` list that still
+has a route plus the wet/icy kinds - never only the wet kinds, which would walk it over robot vacuums, cords and toys -
+else a careful walk through the water that still avoids sharp/fragile things and sleepers;
+takes stairs at a careful pace (winders, loads); squeezes carefully through a door something stops half open; sets
+loads down to open doors with full hands),
+`set_tap_temp` (opens a tap and steers the mix by reading `outlet_temp_c`), `fill_sink`, `shut_tap` (close, watch
+60 s, report a drip), `isolate` (open the cabinet, close a fixture's stops / a toilet stop), `close_valve`,
+`test_tap`, `unclog_toilet`, `retrieve_from_toilet`, `store_hose` (spigot off, relieve, disconnect, drain, coil),
+`winterize_spigots`, `fill_at`, `serve_water`, `dump` (lid up first, careful carry), `fill_ice_tray` (lid on for the
+walk), `inspect_report`, `contain_leak` (careful steps around the leak water, off wet cells when possible).
+
+Helpers (`{"op": "helper", "name": ...}`): `plumbing_liquids.kitchen_sink` (sink, sink_cabinet, hot_stop,
+cold_stop, trap, counter (the roomiest reachable), kitchen), `bathroom` (faucet two_handle|single_lever, worn,
+reversed, nonpotable, running, tub -> bath_sink, vanity, bath_hot, bath_cold, toilet, tub, bathroom),
+`water_service` (valve_kind, seized, heater_c -> main, meter, heater, heater_inlet, service_room),
+`toilet_trouble` (kind paper|rising|object|chemical|sewer -> toilet, plunger, cup_plunger, gloves, toy, cleaner),
+`burst_pipe` (rate_lpm, line -> pipe; the spray comes down on the nearest open floor cell, not into a
+bucket standing below), `hidden_leak` (source kitchen_supply|toilet_supply|heater_relief|bath_trap,
+rate_lpm, preleak_l, witness -> leak_source, leak_fixture, leak_valve, puddle, leak_room, vanity, catcher, decoy;
+stores a resident hint), `yard_hose` (attached, nozzle, spigot_on, pressurized, water_l, kinks, frost_free,
+lying, storage_room -> spigot, hose, nozzle, hanger, interior_valve, yard, store_hanger; unlocks yard doors),
+`irrigation` (start_in_h, minutes, rain -> controller, zone, heads; rain also saturates the lawn for a day),
+`freezer` (generic -18 C upright freezer + a bag of peas, kitchen or another room), `drinkware` (glass,
+plastic_cup, dirty_glass in the sink), `dirty_bucket` (liters, chemical -> bucket, bucket_room = where the bucket
+actually stands). Floor furniture (sink cabinets, counters, toilets, tubs, the water heater, the freezer) goes through
+`furnish.furniture_keeping_reach`: Placer.furniture (kernel v2.3: access not worse) plus a room-wide check that
+everything reachable stays reachable, the piece itself is reachable and it does not stand under a wall mount hanging
+lower than its top (every spot of the room is tried; a wall-hung tankless heater when no floor spot works); seized
+stops are cleared unless asked for. Every helper places its floor items (`dirty_bucket`'s bucket, `hidden_leak`'s
+catcher, `toilet_trouble`'s plungers, gloves and cleaner, `yard_hose`'s hose) through `furnish.place_floor_item`:
+Placer.floor_item on a `furnish.floor_cell` (geometry.free_floor_cell with keep_access and strict door clearance: no
+hazard-free route or only access is cut, the item is reachable without stepping on anything, never in
+`geometry.door_clearance`, never in front of a lower wall mount); a room with no such cell (a tiny half bath) passes
+the item to the room next door, and required items fall back to Placer.floor_item's own choice in their room.
+Helpers also relocate bound wall controls they did not create (the main, meter, heater inlet, the controller, the
+storage hanger, a burst pipe) along the walls when later furniture boxed them in or stands in front of them
+(`furnish.relocate_reachable`). Nothing assumes a fixed spot: helpers raise SpecError only when the house lacks the
+room (no kitchen, no bathroom, no yard: add it to `house.require` / use `dwelling: house`).
+`plumbing_liquids.clear_door_sweeps` (rooms, fronts optional -> cleared_items): free-standing floor items >= 0.15 m
+tall in a room's `geometry.door_clearance` (doorway cells + neighbours, hinged leaves, overhead thresholds) move to
+the nearest `floor_cell` (in a closet too small for that, the room next door); `fronts` lists floor cabinets the plan
+opens (the sink base: mechanisms sweeps every side of a low cabinet) and keeps the floor cells around them clear too.
+Since kernel v2.3 generated houses keep tall loose items out of door clearance, so none of the examples needs it any
+more; it remains for specs that put items there themselves.
+
+Furnishers place every blocking fixture (sink base and vanity cabinets they create, toilets, tubs, shower stalls,
+the utility sink, the water heater, rain barrels) with `furniture_keeping_reach`: the generator's own choice first
+(same randomness), and only when it would box something in (closet shelving, wall outlets, registers, a drawer, a
+radiator), be unreachable itself or stand under a lower wall mount (a shower stall under a wall cabinet at 1.4 m, the
+water heater under a counter drawer at 0.75 m, a window sill or a register), another spot of the room; the water heater
+then tries the next service room and finally becomes a wall-hung tankless unit. Wall controls (main, meter, stops,
+washer valves, heater inlet, spigots, the irrigation controller, exposed pipes) go through `furnish.mount_clear`:
+Placer.mount, then along the wall when a floor-standing piece taller than the control already stands there (Placer
+only keeps low mounts off furniture). Loose floor items (`place_floor_item` with `clean=True`) go only into rooms whose
+routes and access are hazard-free without them (`furnish.room_clean`, the condition under which the final layout
+repair leaves a room alone): an already cluttered shed sends the watering can on to the patio or yard instead of
+making it the item repair cannot re-place; the bucket tries the next utility room, the flange plunger goes under the
+vanity. Appliance links (`plumbing_liquids.links`, order 65) match the appliances themselves (type/is_a
+`washing_machine`, `dishwasher`, `refrigerator`), never their racks, baskets, filters, sumps, door bins or the
+detergent pods stored nearby, and an appliance already fed by a stop gets no second one: one hot stop + one
+supply line per dishwasher, an ice-maker valve for about 60 % of refrigerators, two fill hoses per washer.
+Laundry rooms (perception round, kernel v2.5 keeps a valve's front cell clear): both washer valves share one wall
+cell (a washer box at 1.1 m); the utility sink (laundry tub, ~50 % of laundry rooms) is placed by the `links` pass
+(order 65) after textiles has put the washer and dryer in, and its stops sit under its basin (its own wall cell,
+0.45 m) instead of taking wall space of their own; a 190 L tank heater goes into a laundry room only while four 2 x 2
+machine spots remain against its walls (`furnish._room_for_pair` with two spare spots for what climate and others add
+later: furnaces, registers), so the washer always keeps a dryer beside it rather than a stack over the washer box. The `reach` pass
+moves a spigot together with its hose hanger when anything, even a loose wheelbarrow or planter, stands in front of
+the hanger.
+
+Furnisher `plumbing_liquids.reach` (order 91, after every furniture and small-item furnisher, no randomness): moves
+this domain's wall-mounted `main_shutoff_valve`, `shutoff_valve`, `water_meter`, `irrigation_controller`,
+`water_pipe` and `outdoor_spigot` (with its hose hanger) that the robot can no longer reach, or that a later appliance,
+shelving or yard piece now stands in front of (a dryer over the meter, a downspout over the spigot), to the nearest
+usable wall cell; floor drains that later furniture covered to a free cell; and its floor items whose cell now cuts a
+route, or whose room later loose items cluttered, to the nearest `floor_cell` or another suitable room (plungers:
+under the vanity).
+
+---------------------------------------------------------------------------------------------------------------
+
+## 7. Spec recipes by cluster
+
+General: start the robot with `{"op": "robot", "room": ..., "near": "{sink}"}` (or the toilet / spigot); since kernel
+v2.3 a bare `room` gets a reachable cell that cuts no route. No door-sweep setup is needed (generated houses keep tall
+loose items out of door clearance). Use predicates on primary state (handle `settings`, valve `settings.position`, `liquid_l`, `plug`,
+`_clog.kind`, `location`) plus derived fields that the system refreshes every step; add the domain's counters
+as `failure`/`not` predicates; allow `flood` only when the scenario floods from the start and bound
+`plumbing.floor_water.<source>` instead. References use the skills above; wrong plans should be plain verbs.
+
+### C1 Basins and taps
+Setup: `kitchen_sink` / `bathroom` (+`water_service` heater_c 52-58 so straight hot is too hot), stopper and dish
+soap (`generic_item` product dish_soap, amount_ml) on the counter, dishes on the counter or in the sink;
+for detection tasks set taps running (`bathroom running=true`) and people `using` fixtures (leave theirs alone),
+appliances with water programs running (they sound like filling, they are not taps).
+Success: `plug` closed, `liquid_l` band (leave displacement room: 35-65 % of basin_l), `temperature_c` 40-49,
+`soap_ml_per_l` 0.5-2.5, `water_running` false, handle `settings` 0, `reports.<sink>.dripping` for worn washers,
+`_unattended_s`/`water_running` per fixture, `overflowed_l` not > 0.
+Side effects: `preserve` stop positions (the faucet, not the supply); no damage (firm closes).
+Wrong plans: no stopper; fill to the rim; straight hot; tap left running; only the hot handle closed; cranking a
+drip; closing the stops; shutting a tap someone is using; groping in murky water for the plug.
+
+### C2 Pouring, filling, emptying, product refills
+Setup: source containers as `generic_item` with `liquid_container`, `liquid`, `liquid_l`, `_mix`, `package`
+(carton/bottle/jug), `neck_mm`, `openable`; graduated destinations; dispensers with `product_tag`, `foaming`,
+`fill_line_l`; funnels (`funnel`), strainers; shaken sodas (`fizz` 1.0).
+Success: `liquid_l` approx target (slow pours stay within 3 %), `liquid` identity, source `open` false, no spill
+(`count` category spill eq 0), `product_mismatch`/`clogged` false, fill-line band.
+Wrong plans: fast pour from a full carton (glug), spout down, no funnel on a narrow neck, wrong look-alike product,
+undiluted soap in a foaming pump, opening a shaken soda at once, leaving it open.
+
+### C3 Drinking water and drink service
+Setup: `drinkware` (clean glass, plastic cup, dirty glass), `bathroom nonpotable=true`, filter pitcher (cartridge
+installed), people with roles/ages/`owner` glasses, `covered_by`/`declined_refill` for decliners, stale bottles
+(`filled_s` days ago + `soil.mildew`), hot coffee (`temperature_c` 75-85, `safe_grips` handle), teapots
+(`loose_lid`, `solids.leaves`), alcoholic drinks for the adults.
+Success: `exists` a vessel at the person (`location` = person id) with `liquid_l` band, `liquid` in water kinds,
+`potable` true, `soil.food`/`mildew` not >= 0.05, `fragile` false for young children; tap off; no spill; filter
+indicator read/reported; pitcher back in the fridge.
+Wrong plans: brimful glass carried at normal speed, dirty glass, bathroom tap, glass tumbler to a toddler, hot
+water into a filter pitcher, topping off stale water, wine for the 12-year-old, pouring for a decliner.
+
+### C4 Ice
+Setup: `freezer` helper, trays (`ice_cube_tray`, some frozen: `ice_g`, `frozen_frac` 1), ice maker with its
+valve (`shutoff_valve feeds=[maker]`), ice bin, scoop (`tool_kind` ice_scoop), drinks near full, events for guests.
+Success: tray `cell_fill` 0.8-0.95, `joined` false, `location` freezer, `tilt_deg` <= 3, no `frozen_spill_l`,
+freezer closed; ice maker `on`, `settings.arm` down, valve open, `ice_g` >= target by a deadline; bin
+`contamination` empty; drink `ice_cubes` count and no spill.
+Wrong plans: overfill (slab), set on the bag of peas, brim-full trays hurried to the freezer, twist a -18 C tray hard (cracked),
+release over the floor (melting slip hazard), scoop with the glass, add ice to a brimful drink.
+
+### C5 Toilets
+Setup: `toilet_trouble kind=paper|rising|object|chemical|sewer`; robot in the bathroom for rising water; an adult
+reachable by phone for reports; a pail for retrieved objects.
+Success: `_clog.kind` none and `last_flush.ok` (paper, rising, object), toy `location` = pail, `reports.<toilet>._to.clog`
+= adult (chemical/sewer), `overflowed_l` not > 0 (failure), no burns.
+Wrong plans: flushing again, cup plunger, plunging before stopping rising water, plunging an object deeper,
+plunging drain cleaner, plunging a sewer backup.
+
+### C6 Shutoffs, leaks, water damage, filters
+Setup: `water_service`, `burst_pipe`, `hidden_leak source=...`, `_leak` records on stops/traps/pipes/appliance hoses,
+`water_stain` entities (wet/dry, historic `water_damage`), sweating pipes (`condensation_prone`, room humidity
+>= 0.55), `appliance_supply_hose` with `_defect` behind generic appliances, cabinets with child locks (mechanisms).
+Success: valve `settings.position` 0 / `utilities.main_water_open` false (bursts) or true (fixture leaks),
+`_leak_active` false or `_leak._where` "caught", `reports.<true source>.leak` (and `._to` an adult), milestones
+`main_closed` before `tap_tested`, `plumbing.floor_water.<source>` bound, `preserve` the main for local leaks;
+hoses `attached` true, no strain; reports of drips/defects; condensation not reported as a leak.
+Wrong plans: heater inlet instead of the main, half-turned gate, ccw, closing the main for a local leak, forcing a
+seized stem, reporting the puddle as the source, mopping without isolating, unscrewing a live hose, pulling the
+washer out, painting over an active stain. Filter replacement: tools_vehicles' twist-lock housings + this domain's
+stops/taps (flush through a running tap), pitcher cartridges (`discard_fills`).
+
+### C7 Hoses, spigots, outdoor water
+Setup: `yard_hose` (spigot on/off, pressurized, water_l, kinks, frost_free, storage_room), freeze events
+(`{"op":"event","at_s":7200,"changes":{"weather.temperature_c":-8}}`), soil on driveway/walkway floors (`_cells` or
+`soil`), oil spills on the driveway, cars as generic items with `faces`, `face_order`, `soil_faces`,
+`windows_open`, `household.watering_rules`, open doors/windows to the yard.
+Success: spigot `settings.valve` 0, hose `pressurized` false, `liquid_l` < 0.3, `kinks` 0, `location` = hanger,
+`coiled`, nozzle trigger closed / washer present / not cross-threaded; no `joint_spraying`; `forall` spigots
+`frozen_burst` false, hose `frozen_split` false, interior valves closed + `drained`; soil below 0.05 on faces/cells;
+no pollution/ice/rules/ingress failures; watering can `liquid_l`, `chem_ml_per_l.liquid_fertilizer` band.
+Wrong plans: coil pressurized or full, leave the spigot on, nozzle under pressure, angled thread, no washer,
+attached hose in a freeze, standard spigot not drained, spraying toward the house/street/at people, bottom-up
+rinsing, hosing in a ban or below freezing.
+
+### C8 Irrigation
+Setup: `irrigation rain=true|false start_in_h=1.5`, adult by phone. Success: rain - `plumbing.irrigated_in_rain_min`
+not > 0, mode rain_delay (resumes), report; dry - mode auto, zone minutes >= 15, report. Wrong: OFF, ignore rain,
+pause on a dry day. Budgets must outlast the program window (wait in the plans).
+
+### C9 Dirty water and condensate
+Setup: `dirty_bucket` (mop water with bleach), dishes in the kitchen sink, toilet/utility sink/floor drain, trash
+can, yard; dehumidifier as a generic device with a `slots.bucket` holding a bucket of condensate; pet bowl
+(`pet_bowl`). Success: container `liquid_l` <= 0.05, `plumbing.counts.bad_disposal_l` not > 0, no spill, bucket
+reinstalled (`slots.bucket.item`). Wrong: lawn/flower bed, kitchen sink with dishes, trash can, pet bowl,
+not reseating the bucket.
+
+### C10 Wet things, drips, spills, drying
+Setup: dripping items (`drip_lpm`, `drip_left_l`, `soil_water`), catchers of different materials/sizes
+(plastic saucer with `liquid_container`, towel, cardboard, coaster, baking sheet `food_safe`), cold drinks on
+unsealed wood (`material` wood), wet umbrellas/jackets near closets, thick items with `moisture_inner`.
+Success: support `water_damage` 0 and no `water_ring`, catcher not `food_safe`-contaminated
+(`plumbing.food_contact_contaminated` absent), no `_mildewed`, correct dry/not-dry report (`moisture_inner` via
+`inspect where=closely`). Cleaning owns the spill cleanup itself (absorb, mop, wet-floor signs).
+
+---------------------------------------------------------------------------------------------------------------
+
+## 8. Cluster -> catalog ids (all 70 owned entries)
+
+| Cluster | n | Entries |
+|---|---|---|
+| C1 Basins and taps | 7 | `T-870b0185206ce6-01` Fill the sink*, `T-aa6d8f16877b03-01` Drain the sink, `T-5ceae2cfd3be19-01` Shut off a faucet completely*, `T-f5b65bff5ee07c-01` Check that faucets are off, `T-c4d5c6f0af6a0e-01` Detect running faucet, `T-4633efc75437f5-01` Detect overflowing sink, `V-f28d2ccb9dc678-01` Different faucet designs |
+| C2 Pouring, filling, emptying, refills | 7 | `T-686df131c7c736-01` Pour liquids*, `P-d59dbb7054e002-01` Pour, `P-3067d6b787f751-01` Fill, `P-bc85a173cb0502-01` Empty, `T-7404d5101b3764-01` Refill detergent, `T-31c58b93aa302b-01` Refill soap dispenser, `A-01e1d1cbee1365-01` Open this without spilling it |
+| C3 Drinking water and drink service | 18 | `T-ffadd5389ba746-01` Refill water pitcher, `T-05b805c63b8c41-01` Refill water containers, `T-5226e6ac800167-01` Fill water bottle, `T-25bf4cfa4478b2-01` Refill water bottle, `T-c12fbedcf2888d-01` Get a glass of water*, `T-c831beaccde458-01` Refill a water glass, `T-47d0cea769b5c9-01` Retrieve water, `T-3f86613b783c03-01` Prepare water, `T-fa2330d25ecac5-01` Refill bedside water if requested, `T-8dbdb210a910c6-01` Bring water, `T-ca9207503289b2-01` Bring water, `T-4b1516062fe167-01` Pour drinks, `T-cf7f7c4b934a10-01` Refill drinks, `T-99da63a99d93c9-01` Refill beverages, `T-403617dce33e6b-01` Pour juice, `T-5f3b2f7243222f-01` Pour milk, `T-313dcbe9f67d88-01` Pour coffee, `T-ccdd082a067422-01` Pour tea |
+| C4 Ice | 4 | `T-b1808fc9515a48-01` Make ice, `T-9a6cc7b8c7cefc-01` Fill ice trays*, `T-2b34e4b5e902e7-01` Empty ice trays, `T-d8c16770dd7a2a-01` Add ice |
+| C5 Toilets | 2 | `T-d25af2202bc025-01` Unclog toilet with safe tools*, `A-17b5a7d25ae3de-01` The toilet's overflowing |
+| C6 Shutoffs, leaks, water damage, filters | 11 | `X-c77e2cbe7181f0-01` Turn off the main water shutoff valve*, `T-b4225c6700e82d-01` Check for water leaks, `T-1cd8e5b7e25846-01` Report leaking faucet, `T-2a55a2133257d0-01` Report water damage, `T-3b1a4024d46110-01` Check under sinks for leaks, `T-0c0c4383c41730-01` Check appliance hoses visually, `T-b2daee5259e044-01` Report unexpected water, `T-0b854af6b6cca8-01` Detect water leak, `A-0041c7a3c72ba1-01` Figure out why the floor is wet, `A-c627488c575314-01` Something is leaking. Find it*, `T-dd2c283f342d27-01` Replace water filter |
+| C7 Hoses, spigots, outdoor water | 14 | `T-4488816f95eec2-01` Coil hoses, `T-f799aa11cb00ec-01` Coil garden hose*, `T-398c5fbf96754c-01` Turn hose on, `T-aed4155235c001-01` Turn hose off, `T-2b25559c7452dd-01` Attach hose nozzle, `T-1ed8bd41378ba8-01` Disconnect hose nozzle, `T-5d2d79cc6ec2ca-01` Store hoses*, `T-7b6a6d2da08266-01` Retrieve hose equipment, `T-1e7d010b7bed5d-01` Rinse vehicle, `T-f65403f6a19188-01` Hose down walkway, `T-0eb18a7794636a-01` Hose down driveway, `T-9eb25d176c3fba-01` Hose dirt away where permitted, `T-b3cb5559361169-01` Fill watering can, `T-e135685dd9882f-01` Empty watering can |
+| C8 Irrigation | 1 | `T-149e27671dec82-01` Turn off irrigation during rain* |
+| C9 Dirty water and condensate | 2 | `T-151f6733397156-01` Empty dirty water*, `T-a7bf669b6f4e23-01` Empty dehumidifier reservoir |
+| C10 Wet things, drips, spills, drying | 4 | `V-0ada7db4baa89c-01` Spilled liquids, `V-5477c9827b2a50-01` Wet objects, `A-3286b5878fe8e9-01` Find something waterproof to put under this, `A-04125df58b6b01-01` Is it dry yet? |
+
+`*` = example spec in `tasks/authored/plumbing_liquids__examples.json`.
+
+Secondary entries (266, owned by cleaning, outdoor_plants, safety, food, pets, appliances, ...) use: liquid
+containers and pour/fill/empty (with cleaning's `cl_chem` carried along), basins and `water_available`, drains and
+clogs (grease, food, hair), spills/wet cells/floor water, potability and freshness, ice, hoses and emitters
+(outdoor_plants' watering contract), the toilet model (cleaning's flush hook), leaks and stains, evaporation
+fallback and drips.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 9. Cross-domain contracts and limits
+
+* Mechanisms: `move_lever` on single-lever taps (mech.lever kind mixer; the lever's temp axis is read back),
+  `turn` on valves (`mech.rotary`) and two-handle handles (setting+value), flush levers (`mechanisms.flushed`).
+* tools_vehicles: `_clog` (snake_drain), `_tank` (adjust_flapper; their system accounts running-toilet waste),
+  `_jam` disposals, water filter housings (`slots.water_filter`, `flush_outlet`, `supply_valve_id` +
+  `valve_open`). Their drain simulation runs only on entities with `_clog` while water runs; `standing_l` is
+  mirrored from this domain's basin volume to keep the two consistent.
+* cleaning: spills (`spill` type, evaporation/absorption), `cl_chem` dissolved products, soak/opaque water,
+  drying of `wetness`/`moisture_inner`, waste streams for the strainer.
+* food: liquid foods in packages pour through `transfer`; plain water poured into a vessel with food joins it.
+* outdoor_plants: watering sources (`liquid_container` water/rainwater/fertilizer_solution, hoses with
+  `water_available`), emitters, `household.watering_rules`.
+* manipulation: carry slosh (their model runs first; ice trays have a lid for carrying), grip (handled
+  containers carry `has_handle`), shake (fizz).
+* Limits: no free-surface fluid dynamics (volumes, rates and headroom only); pipe networks are per-fixture valve
+  sets, not graphs; spray coverage is per face/cell with a pass count; condensation needs room humidity from
+  the climate domain (or the setup); dehumidifier float switches, washers and fridges belong to other domains.

@@ -1,0 +1,235 @@
+{
+ "manipulation": [
+  {
+   "owner": "manipulation",
+   "problem": "house_sim/systems/manipulation/world.py inspector (around line 397) adds details['leaking']=True whenever a record has `_leak_lph` > 0 or `leaking`. It reads another domain's hidden underscore field: on safety's floor_puddle, `_leak_lph` is the hidden feed rate of the leaking source, not a leak of the puddle itself. This leaks underscore truth in both perception modes. Please restrict it to your own containers / liquid holders and stop reading other domains' underscore fields.",
+   "reporter": "safety"
+  },
+  {
+   "owner": "manipulation",
+   "problem": "The manipulation inspector's 'packing.fill_fraction' falls back on inherited volume_l values (carry_container default 30 l). It reported fill_fraction 20.0 (2000%) for a hardware organizer. tools_vehicles fixed its own small containers (organizer_compartment, parts_tray, hardware_bag_tv, flatpack_hardware_pack, socket_case now carry real volume_l), but the inspector should clamp or flag impossible fractions.",
+   "reporter": "tools_vehicles"
+  },
+  {
+   "owner": "manipulation",
+   "problem": "Realistic inspect of a closed opaque container leaks its contents: the manipulation inspector's 'packing.order_bottom_up' lists the handles of the items inside while core inspect says contents 'hidden'. Seen on a closed refrigerator in the appliances_cooking test kitchen.",
+   "reporter": "appliances_cooking"
+  }
+ ],
+ "navigation_robot": [
+  {
+   "owner": "navigation_robot",
+   "problem": "house_sim/systems/navigation_robot/measure.py: the 'measure' action (tape or laser) never calls ctx.grant(target, 'measure', [...]). Measure-tier fields therefore never become known in realistic observations after a real tape measurement: size_m, and the tape_measure fields other domains declare (e.g. textiles' flat_size_m, drape_cm, drop_diff_cm, pocket_depth_cm, shrunk/stretched). Suggest granting 'measure' on size_m (dims) or the measured dimension after a tape or laser reading. Estimates should not be granted.",
+   "reporter": "textiles_laundry"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "navigation_robot.features (order 66) `_standing_item(p, tool_room, LADDER_ROOMS, \"step_ladder\")` stands the step ladder on the floor cells of the garage cleaning_tool_holder, a wall rail at 1.2 m placed earlier by cleaning_supplies (order 65). The holder is then hidden behind a taller floor-standing piece: tools/layout_audit.py 20 --domain cleaning gives 9 lines, e.g. seed 14 {}: hidden mount garage_1: cleaning_tool_holder_2 behind step_ladder_1; seed 19 {}; seed 2 {house, require garage+patio}: cleaning_tool_holder_1 behind step_ladder_1. Fix: pass avoid=house_sim.systems.cleaning.helpers.mounts_hidden_by(p.state(), rid, ladder_top) (or the kernel request for Placer.floor_item).",
+   "reporter": "cleaning"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "tests/test_navigation_robot.py TestHelpersOnGeneratedHouses.test_helpers_fall_back_on_any_layout errors: navigation_robot.clutter_route 'no route to clutter' on apartment seeds 4 and 97 (bisected: fails with mechanisms' furnisher changes switched off too). Also FYI on your round-3 undercut report: mechanisms now uses a 2 cm undercut and shoves 2-15 cm items itself only when navigation_robot is not loaded; with navigation loaded your door-swing hook (order 70) keeps owning low items, so each item has one owner.",
+   "reporter": "mechanisms"
+  },
+  {
+   "owner": "navigation_robot",
+   "problem": "navigation_robot.features (order 66) mounts the stair handrail along the stair wall of the lower room without checking floor-standing pieces placed earlier. The layout audit showed 'hidden mount basement_1: handrail_1 behind bicycle_1' on seeds 13 and 17. tools_vehicles now keeps bikes off that wall (furnish.stair_rail_cells), but a tall item from any other earlier furnisher can still hide the rail.",
+   "reporter": "tools_vehicles"
+  }
+ ],
+ "plumbing_liquids": [
+  {
+   "owner": "plumbing_liquids",
+   "problem": "The inspector in house_sim/systems/plumbing_liquids/perception.py (around line 220) adds fill_frac (3 decimals), liquid_temp_c (with the thermal sensor), water_age_h, reservoir_l and foam_head_l for every liquid container. It does this even when the container is opaque or its liquid_l is in secret_fields. In realistic mode a plain inspect of an opaque soap refill jug therefore reveals its level to about 4% (seen: fill_frac 0.081 for 0.08 L in a 1 L jug whose liquid_l is secret; liquid_temp_c 19.516). It should skip these extras when liquid_l is secret or the container is opaque, and render them through ctx.percept_value.",
+   "reporter": "admin_inventory"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "Inspector plumbing_liquids/perception.py (~L222-224) adds exact fill_frac and liquid_temp_c (0.1 C, no thermometer) to every inspect result in realistic mode, e.g. inspecting a trigger spray bottle returns liquid_temp_c 21.43 and fill_frac 0.665; these should be buckets/estimates unless measured.",
+   "reporter": "mechanisms"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "test_plumbing_liquids.Furnishing.test_water_heater_never_boxes_in_shelving_or_outlets fails (heater None for seed 0) in the all-domains run, independent of mechanisms changes (bisected with mechanisms' furnisher changes disabled).",
+   "reporter": "mechanisms"
+  },
+  {
+   "owner": "plumbing_liquids",
+   "problem": "An outdoor spigot bursts (freeze_burst, global 'damage' stat) after only 1 h with weather temperature_c <= -2.0 C (outdoor.freeze_step: freeze_s >= 3600 at <= -2 C). That fails unrelated winter tasks. Repro: tasks/authored/climate__perception.json T-a31398ab2abf54-01 with the climate.weather temperature changed to -2.0, seed 0, idle 4500 s: outdoor_spigot_1 in backyard_1 gets damage {'freeze_burst': 1.0} and evaluate() fails on 'damage'. Real hose bibs burst only after hours of hard frost (around -6 C or lower). Suggest a colder or longer threshold, or count only bursts the robot caused against the baseline. The climate spec now uses +4 C to avoid it.",
+   "reporter": "climate"
+  }
+ ],
+ "appliances_cooking": [
+  {
+   "owner": "appliances_cooking",
+   "problem": "cook.py writes cook_state {..., juices: 'pink' if core < 68 C else 'clear'}, and a plain inspect shows it (and cook_state appears in realistic observations). In realistic mode this reveals core doneness without piercing, cutting or a probe. Juices should only be reported after a pierce or cut (check_doneness method=fork), and cook_state.juices should be tier-gated.",
+   "reporter": "food"
+  },
+  {
+   "owner": "core_furniture / appliances_cooking",
+   "problem": "Serviceable outdoor lights are still sealed by patio/deck furniture with no outdoor_plants piece involved (each listed piece unseals the light when removed). Seed 2 {}: deck_1 outdoor_light_2 by outdoor_table_1, outdoor_chair_3 (core_furniture) and gas_grill_1 (appliances_cooking.outdoor). Seed 11 {} and seed 11 townhouse: patio_1 outdoor_light_3 by outdoor_table_1 and gas_grill_1. Seed 14 {residents: minimal, pets: none} and seed 4 {house, require: [laundry_room, basement, nursery]}: deck_1 outdoor_light_2 by outdoor_table_1.",
+   "reporter": "outdoor_plants"
+  }
+ ],
+ "electrical": [
+  {
+   "owner": "electrical",
+   "problem": "electrical/cables.py treats any entity with a truthy `storage` field as a USB storage device (`if rec.get(\"usb_device\") or rec.get(\"storage\") or rec.get(\"hub\")`). Food uses `storage` for where food belongs ('pantry', 'fridge'), so about 40 food entities per generated house get recognized/host written by the cable system. That is state noise and extra work, and a meaningless 'recognized: false' shows on food at inspect. Please use a dedicated flag (usb_storage or a category check).",
+   "reporter": "food"
+  },
+  {
+   "owner": "electrical",
+   "problem": "test_electrical.AuditAdditionTests.test_generic_ev_session_locks_until_complete errors: spawn 'no room for generic_item' furniture garage_1 (seed 2), independent of mechanisms changes (bisected).",
+   "reporter": "mechanisms"
+  },
+  {
+   "owner": "electrical",
+   "problem": "Realistic inspect returns 'rating_label' as '<true label> <W> W', i.e. read-tier printed text at inspect level that includes the entity's true label. That could resolve read-resolved look-alikes or identify novel objects without a read.",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "electrical",
+   "problem": "electrical.hookup places wall outlets that can only be reached over loose floor items placed earlier. layout_audit attributes these to climate.fans because the floor item is the hazard source. Repro 1: seed 29 {} office_1, wall_outlet_25 at [4,0] behind desk_2, reachable only from (5,1) where tower_fan_1 (climate.fans, order 46) stands. Repro 2: seed 30 {'dwelling': 'house', 'require': ['laundry_room', 'basement', 'nursery']} bedroom_1, wall_outlet_26 at [3,0], reachable only over tower_fan_1 [2,0] / air_purifier_1 [2,1]. Both appear in `python tools/layout_audit.py 40 --domain climate` as 'hazard-only access'; the 20-seed audit is clean. Suggest checking access with existing floor items as hazards when siting hookup outlets.",
+   "reporter": "climate"
+  }
+ ],
+ "climate": [
+  {
+   "owner": "climate",
+   "problem": "layout_audit 'hidden mount' (9 lines / 120 houses, e.g. seed 14 office_1 venetian_blind_10 behind generic_item_7; seed 13 apartment bedroom_1 blackout_curtains_1 behind generic_item_1): climate.hvac (furnish.py ~L568) mounts the 'AC remote' generic_item with p.mount(height=1.2, mounted=False) onto a window's wall cell after mechanisms hung the window's covering, so the audit sees a 1.37 m floor-standing item in front of the blind/curtain. The holder should be mounted=True (or a separate holder entity) and avoid window wall cells.",
+   "reporter": "mechanisms"
+  },
+  {
+   "owner": "climate",
+   "problem": "Under kernel v2.5, heat_pump_air_handler (0.55x0.75x1.2 m, now path-blocking) is placed standing inside narrow 1.5 m apartment hallways, leaving a 0.5 m pinch and no 0.9 m wheelchair route. Examples: generate_house(4, dwelling='apartment') hallway_1 at [0,9]; generate_house(97, dwelling='apartment') hallway_1 at [0,2]. navigation_robot.clutter_route needed new fallbacks because of this. An air handler belongs in a utility closet, or should leave at least 0.9 m clear.",
+   "reporter": "navigation_robot"
+  },
+  {
+   "owner": "climate",
+   "problem": "Full 30-seed layout audit, not navigation_robot. 48 'overlap' lines (climate.hvac generic_item vs core_furniture bed/dresser, e.g. seed 13 bedroom_1 bed_1 and generic_item_1 at (5,0)); 23 'hidden mount' lines (climate.hvac generic_item in front of mechanisms blinds/curtains/window sills); 11 'hidden mount' lines (climate.fans ceiling fan chains behind core closets); 10 'mount overlap' lines (boiler_1 vs electrical breaker_panel_1 in utility closets); 2 'overlap' lines (generic_item vs robot_dock_1).",
+   "reporter": "navigation_robot"
+  },
+  {
+   "owner": "climate",
+   "problem": "climate.hvac (order 32) mounts boiler_1 on the breaker panel's wall cell at overlapping heights. Repro: utility_closet_1 in generate_house(18), generate_house(18, dwelling='apartment') and generate_house(7, dwelling='apartment'); this produced the 4 'mount overlap boiler_1 and breaker_panel_1' layout-audit lines. Electrical now works around it: keep_panel_clear at hookup (order 97) moves the panel to a free wall cell, or to the next room out when the closet is full. Climate should still avoid wall cells holding deep mounts (Placer.mount clearance) and keep NEC 110.26 dedicated space: no boiler or water-heater piping over a panel.",
+   "reporter": "electrical"
+  }
+ ],
+ "people": [
+  {
+   "owner": "people",
+   "problem": "test_people.CrossDomainRoundTests.test_people_step_out_of_doorways_at_episode_start fails ([0, 0] == [0, 0]) in the all-domains run, independent of mechanisms changes (bisected). Also observed mid-run: registry load failed with 'Type lunch_box defined twice (food.json and people.json)' (transient, resolved minutes later).",
+   "reporter": "mechanisms"
+  }
+ ],
+ "tools_vehicles": [
+  {
+   "owner": "tools_vehicles",
+   "problem": "Hidden mount: tools_vehicles.tools (order 74, runs after outdoor_plants.outdoor_items) places pegboard_1 on a wall cell behind the already placed lawn_mower_1 (top 1.85 m by z_m + height). Seed 7 {dwelling: house, require: [garage, patio]}: garage_1, pegboard [10,0], mower [10,0]. Seed 0 {dwelling: townhouse}: garage_1, pegboard [9,8], mower [8,7]. These are the only remaining layout-audit lines with --domain outdoor_plants.",
+   "reporter": "outdoor_plants"
+  },
+  {
+   "owner": "tools_vehicles / cleaning_supplies",
+   "problem": "Seed 16 {} and seed 16 {residents: minimal, pets: none}: driveway_1 outdoor_light_2 sealed by car_1 (tools_vehicles.vehicles) together with trash_cart_1 and organics_cart_1 (cleaning_supplies).",
+   "reporter": "outdoor_plants"
+  },
+  {
+   "owner": "tools_vehicles",
+   "problem": "Full 30-seed layout audit: pegboard_1 hidden behind outdoor_plants' lawn_mower_1 in garages (seed 7 house+garage+patio, seed 0 townhouse), attributed to outdoor_plants.outdoor_items + tools_vehicles.tools.",
+   "reporter": "navigation_robot"
+  },
+  {
+   "owner": "tools_vehicles + cleaning",
+   "problem": "Driveway light sealed: seed 16, both {} and {residents: minimal, pets: none}. driveway_1 outdoor_light_2 is sealed by car_1 (tools_vehicles) plus trash_cart_1 (cleaning's wheelie cart).",
+   "reporter": "appliances_cooking"
+  }
+ ],
+ "cleaning": [
+  {
+   "owner": "tools_vehicles / cleaning_supplies",
+   "problem": "Seed 16 {} and seed 16 {residents: minimal, pets: none}: driveway_1 outdoor_light_2 sealed by car_1 (tools_vehicles.vehicles) together with trash_cart_1 and organics_cart_1 (cleaning_supplies).",
+   "reporter": "outdoor_plants"
+  },
+  {
+   "owner": "tools_vehicles + cleaning",
+   "problem": "Driveway light sealed: seed 16, both {} and {residents: minimal, pets: none}. driveway_1 outdoor_light_2 is sealed by car_1 (tools_vehicles) plus trash_cart_1 (cleaning's wheelie cart).",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "cleaning",
+   "problem": "tasks/authored/cleaning__perception.json T-3fb8a84f20876c-01 currently fails on all 5 seeds: reference step 'read spray_bottle_1' is refused with 'There is nothing legible to read on it'. Unrelated to appliances_cooking.",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "cleaning",
+   "problem": "The cleaning.details inspector adds fill_level / lid_blocked / stream_label to any entity with a waste_stream, including solid objects such as battery cells and light bulbs. In realistic mode this renders as a noisy fill estimate (fill_level 0.0 or 0.1) on an AA cell. It should only apply to receptacles (systems.core.is_waste_container).",
+   "reporter": "electrical"
+  },
+  {
+   "owner": "cleaning",
+   "problem": "tests.test_cleaning (GeneratedHouses.test_floor_soil_and_waste_helpers_bind_reachable_targets and two RealisticPerception tests) error with SpecError 'cleaning.waste: no room for glass_jar' in the current generated houses. Unrelated to manipulation: my furnisher is unchanged and its layout audit is clean.",
+   "reporter": "manipulation"
+  }
+ ],
+ "mechanisms": [
+  {
+   "owner": "mechanisms",
+   "problem": "In realistic mode the mechanisms inspector's 'mechanism' block copies simulation internals exactly at inspect tier: rotary per_turn, max_turns_past_stop, lever max_lpm. per_turn = 1/turns_to_close reveals the hidden number of turns a stop needs (multi_turn_stop per_turn 0.4 = 2.5 turns). plumbing_liquids now hides its own 'mech' record field, but the inspector key still shows it. It should show only what the hand and eye get, e.g. 'rotary handle', and never the turn counts.",
+   "reporter": "plumbing_liquids"
+  },
+  {
+   "owner": "core (generator structure) / mechanisms (coverings)",
+   "problem": "Windows at corner cells have footprints that run off the grid, and the blinds hung on them run along the other axis. Repro: seed 29 {} office_1 (3.0 x 4.0 m, 6 x 8 cells): window_14 at [5,7] covers (5,7),(6,7) and window_15 at [5,0] covers (5,0),(6,0), so (6,*) is off-grid. mechanisms.coverings' venetian_blind_6 at [5,7] has rot 90 and covers (5,7),(5,8), with (5,8) off-grid; venetian_blind_7 at [5,0] covers (5,0),(5,1) and reaches into the room's floor cell in front of the window.",
+   "reporter": "climate"
+  },
+  {
+   "owner": "mechanisms",
+   "problem": "pump_bottle/trigger_bottle declare read: [\"liquid\"], so read on an unlabeled sprayer returns {\"liquid\": \"bleach_solution\"}: reading reveals what is inside. textiles_laundry laundry_product and people lens_cleaner declare the same and have the same leak. mechanisms' own test test_look_alike_pump_bottles_and_keys_are_confused_until_read_or_inspected fails.",
+   "reporter": "manipulation"
+  }
+ ],
+ "admin_inventory": [
+  {
+   "owner": "admin_inventory",
+   "problem": "Inspecting a liquid container (e.g. a pet water bowl) reports both admin_inventory's 'level' and plumbing_liquids' 'fill_level' for the same fill fraction. The kernel renders them with independent noise, so one message gives two different estimates (seen: level 0.75 and fill_level 0.8). One of the two inspectors should defer when the other key is present. plumbing_liquids/perception.py:410 is the other side.",
+   "reporter": "pets"
+  },
+  {
+   "owner": "admin_inventory",
+   "problem": "The inspector admin_inventory.closely copies the raw _damage record of ANY entity into details['damage_found'] (for example {'kind': 'rounded_jaws', 'visible': 'closely'} on tools_vehicles tools). It ignores the damage's own visibility gate (damage with visible 'use'/'test' should not show on a close look) and leaks another domain's internal schema. It should report only on its own document/inventory items, or respect _damage.visible.",
+   "reporter": "tools_vehicles"
+  },
+  {
+   "owner": "admin_inventory",
+   "problem": "tests.test_admin_inventory.RealisticPerceptionTests.test_counting_is_exact_where_it_counts_and_levels_stay_estimates errors with KeyError 'liquid_l': a glass pump shows no fill bucket at a glance, probably the kernel's closed-container (_sealed) rule or another domain's tier change. I did not cause this: I made no change to liquid_l or to pumps.",
+   "reporter": "manipulation"
+  }
+ ],
+ "safety": [
+  {
+   "owner": "safety",
+   "problem": "tasks/authored/safety__perception.json T-70a9e6a7a83f64-01 fails on seed 97: reference 'inspect floor_puddle_1' is refused with 'That is not visible here' (the check_floor skill does not get close enough to the puddle). The seed-97 house is identical with and without my layout changes, so this is not caused by appliances_cooking.",
+   "reporter": "appliances_cooking"
+  },
+  {
+   "owner": "safety",
+   "problem": "household_chemical declares perception read: [\"tags\"], and core read uses read_tier_fields in both modes. So read on an unlabeled chemical bottle returns {\"tags\": [\"chemical\"]}: reading reveals its classification, and safety's own test test_look_alike_bottles_are_confused_until_read_and_the_unlabeled_one_stays_unidentified fails.",
+   "reporter": "manipulation"
+  }
+ ],
+ "food": [
+  {
+   "owner": "food",
+   "problem": "tests.test_food.RealisticPerception.test_eggs_in_shell_stay_unidentified_and_keep_their_smell_in errors with KeyError 'food_view': food's inspect output no longer contains food_view in realistic mode.",
+   "reporter": "manipulation"
+  }
+ ],
+ "textiles_laundry": [
+  {
+   "owner": "textiles_laundry",
+   "problem": "tests.test_textiles_laundry.FurnishTests.test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear fails for apartment seeds 3, 5 and 97: laundry_room_1 is not in COMPACT_ROOMS. This is a layout/furnisher expectation mismatch after kernel v2.5.",
+   "reporter": "manipulation"
+  }
+ ]
+}

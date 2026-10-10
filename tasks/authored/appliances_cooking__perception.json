@@ -1,0 +1,1591 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-fa29fd5df0e544-01",
+   "title": "Detect a refrigerator door left open: a door held ajar looks shut at a glance - inspect the seal, report what you found and fix it",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none",
+    "start": "2026-10-10T07:40:00"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "appliances_cooking.kitchen",
+     "args": {
+      "stove": "electric_coil",
+      "fridge": true
+     }
+    },
+    {
+     "op": "room",
+     "var": "lounge",
+     "type": "living_room"
+    },
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "room": "{lounge}",
+     "props": {
+      "activity": "reading",
+      "awake": true
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "appliances_cooking.fridge_problem",
+       "args": {
+        "fridge": "{fridge}",
+        "kind": "protruding",
+        "item_label": "tall jar of pickles",
+        "warm_c": 6.5
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{fridge}.door",
+       "op": "eq",
+       "value": "ajar"
+      },
+      {
+       "path": "reports.{fridge}._to.door",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{fridge}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{fridge}.sealed",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "entities.{culprit}.broken",
+       "op": "is_false",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "appliances_cooking.shut_fridge",
+       "fridge": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{fridge}",
+       "field": "door",
+       "value": "ajar",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "the door looks shut from across the kitchen: reports it closed and does nothing",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "door",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "pushes the door again and reports it fixed (the jar still holds it ajar)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "do": "close",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "door",
+         "value": "ajar",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "opens and shuts it without looking at what sticks out",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "do": "open",
+         "target": "{fridge}"
+        },
+        {
+         "do": "close",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "door",
+         "value": "ajar",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "success": [
+      {
+       "path": "reports.{fridge}.door",
+       "op": "eq",
+       "value": "closed"
+      },
+      {
+       "path": "reports.{fridge}._to.door",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{fridge}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{fridge}.sealed",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{fridge}",
+       "field": "door",
+       "value": "closed",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "assumes the worst without checking the seal: reports the door ajar",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "door",
+         "value": "ajar",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "looks at the fridge but never tells anyone",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "appliances_cooking.fridge_problem",
+       "args": {
+        "fridge": "{fridge}",
+        "kind": "gasket",
+        "warm_c": 6.0
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{fridge}.door",
+       "op": "eq",
+       "value": "ajar"
+      },
+      {
+       "path": "reports.{fridge}._to.door",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{fridge}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{fridge}.sealed",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "appliances_cooking.shut_fridge",
+       "fridge": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{fridge}",
+       "field": "door",
+       "value": "ajar",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "the door looks shut at a glance: reports it closed",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "door",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "opens and shuts the door without reseating the folded gasket",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "do": "open",
+         "target": "{fridge}"
+        },
+        {
+         "do": "close",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "door",
+         "value": "ajar",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Safety check before we leave: is the fridge door properly shut? Tell me what you find.",
+   "phrasings": [
+    "Detect refrigerator door left open.",
+    "Can you check whether the fridge door was left open and let me know?",
+    "Quick look at the fridge - is the door actually shut? Tell me."
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "notes": "Realistic perception: at a glance a refrigerator shows only open/closed; a door 'closed' over a protruding jar or a folded gasket is ajar (the light switch is pressed, the open-door alarm stays silent) and only an inspection shows it ('ajar', the inspector's 'not sealed - a gap at the edge'). Variants: a jar holds the door ajar; nothing is wrong; a folded gasket. The resident must hear what was found (report door=ajar/closed to them) and an ajar door must end sealed. Graded on reports.{fridge}.door, reports._to and the door's open/sealed state."
+  },
+  {
+   "catalog_id": "T-8b457901ef8a04-01",
+   "title": "Detect a freezer door left open: the freezer drawer propped by a bag looks shut, a wide-open drawer does not - inspect, report, close it properly",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none",
+    "start": "2026-10-10T19:10:00"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "appliances_cooking.kitchen",
+     "args": {
+      "stove": "radiant",
+      "fridge": true
+     }
+    },
+    {
+     "op": "room",
+     "var": "lounge",
+     "type": "living_room"
+    },
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "room": "{lounge}",
+     "props": {
+      "activity": "watching tv",
+      "awake": true
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "appliances_cooking.fridge_problem",
+       "args": {
+        "fridge": "{fridge}",
+        "kind": "freezer_ajar"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{freezer}.door",
+       "op": "eq",
+       "value": "ajar"
+      },
+      {
+       "path": "reports.{freezer}._to.door",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{freezer}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{freezer}.sealed",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{freezer}"
+      },
+      {
+       "do": "inspect",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "appliances_cooking.shut_fridge",
+       "fridge": "{freezer}"
+      },
+      {
+       "do": "inspect",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{freezer}",
+       "field": "door",
+       "value": "ajar",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "the drawer looks shut at a glance: reports the freezer closed",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{freezer}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{freezer}",
+         "field": "door",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "checks only the refrigerator door and calls the freezer fine",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{freezer}",
+         "field": "door",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "shoves the drawer shut over the bag and reports it",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{freezer}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        },
+        {
+         "do": "open",
+         "target": "{freezer}"
+        },
+        {
+         "do": "close",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{freezer}",
+         "field": "door",
+         "value": "ajar",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "success": [
+      {
+       "path": "reports.{freezer}.door",
+       "op": "eq",
+       "value": "closed"
+      },
+      {
+       "path": "reports.{freezer}._to.door",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{freezer}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{freezer}.sealed",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{freezer}"
+      },
+      {
+       "do": "inspect",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{freezer}",
+       "field": "door",
+       "value": "closed",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "reports the freezer ajar without checking the seal",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{freezer}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{freezer}",
+         "field": "door",
+         "value": "ajar",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "looks at the freezer but never tells anyone",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{freezer}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "appliances_cooking.fridge_problem",
+       "args": {
+        "fridge": "{freezer}",
+        "kind": "open"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{freezer}.door",
+       "op": "eq",
+       "value": "open"
+      },
+      {
+       "path": "reports.{freezer}._to.door",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{freezer}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{freezer}.sealed",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{freezer}"
+      },
+      {
+       "do": "inspect",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "appliances_cooking.shut_fridge",
+       "fridge": "{freezer}"
+      },
+      {
+       "do": "inspect",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{freezer}",
+       "field": "door",
+       "value": "open",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "reports it open but leaves it open",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{freezer}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{freezer}",
+         "field": "door",
+         "value": "open",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "shuts it and reports the state after its own fix (closed), so nobody learns it was open",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{freezer}"
+        },
+        {
+         "do": "close",
+         "target": "{freezer}"
+        },
+        {
+         "do": "inspect",
+         "target": "{freezer}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{freezer}",
+         "field": "door",
+         "value": "closed",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Is the freezer door shut? Go and check, then tell me what you found.",
+   "phrasings": [
+    "Detect freezer door left open.",
+    "Could you see whether the freezer was left open and let me know?",
+    "Check the freezer drawer's really closed, would you? Tell me."
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "notes": "Realistic perception: the refrigerator's freezer compartment is its own door. A bag of peas sticking out of the drawer keeps it ajar while it looks shut from the room (open=false at a glance, no alarm); only an inspection shows 'ajar' / 'not sealed - a gap at the edge'. A wide-open drawer is visible at a glance (and its alarm beeps). Variants: propped ajar, fine, wide open. Graded on reports.{freezer}.door (what was found: ajar / closed / open) to the resident and the drawer ending shut and sealed."
+  },
+  {
+   "catalog_id": "T-47d0adb37bc85e-01",
+   "title": "Detect the unusual appliance noise: hear an odd sound in the kitchen, listen up close to each running appliance, report the one making it",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none",
+    "start": "2026-10-10T20:30:00"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "appliances_cooking.kitchen",
+     "args": {
+      "stove": "electric_coil",
+      "fridge": true,
+      "dishwasher": true
+     }
+    },
+    {
+     "op": "room",
+     "var": "lounge",
+     "type": "living_room"
+    },
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "room": "{lounge}",
+     "props": {
+      "activity": "reading",
+      "awake": true
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "appliances_cooking.fault",
+       "args": {
+        "appliance": "{dishwasher}",
+        "running": true
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{dishwasher}.unusual_noise",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "reports.{dishwasher}._to.unusual_noise",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "not": {
+        "path": "reports.{fridge}.unusual_noise",
+        "op": "exists",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{dishwasher}"
+      },
+      {
+       "do": "inspect",
+       "target": "{dishwasher}",
+       "where": "closely"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{dishwasher}",
+       "field": "unusual_noise",
+       "value": true,
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "blames the fridge, whose hum is always there, without listening up close",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "unusual_noise",
+         "value": true,
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "reports both appliances to be safe",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{fridge}"
+        },
+        {
+         "do": "inspect",
+         "target": "{fridge}"
+        },
+        {
+         "skill": "approach",
+         "target": "{dishwasher}"
+        },
+        {
+         "do": "inspect",
+         "target": "{dishwasher}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{fridge}",
+         "field": "unusual_noise",
+         "value": true,
+         "to": "{adult}"
+        },
+        {
+         "do": "report",
+         "target": "{dishwasher}",
+         "field": "unusual_noise",
+         "value": true,
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "appliances_cooking.left_on",
+       "args": {
+        "forgotten": [],
+        "intended": [
+         "dishwasher"
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "appliances_cooking.fault",
+       "args": {
+        "appliance": "{fridge}",
+        "running": false
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{fridge}.unusual_noise",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "reports.{fridge}._to.unusual_noise",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "not": {
+        "path": "reports.{dishwasher}.unusual_noise",
+        "op": "exists",
+        "value": true
+       }
+      },
+      {
+       "path": "entities.{dishwasher}.appliance.state",
+       "op": "eq",
+       "value": "running"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{dishwasher}"
+      },
+      {
+       "do": "inspect",
+       "target": "{dishwasher}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{fridge}"
+      },
+      {
+       "do": "inspect",
+       "target": "{fridge}",
+       "where": "closely"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{fridge}",
+       "field": "unusual_noise",
+       "value": true,
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "sees the dishwasher running and blames it without listening up close",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{dishwasher}"
+        },
+        {
+         "do": "inspect",
+         "target": "{dishwasher}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{dishwasher}",
+         "field": "unusual_noise",
+         "value": true,
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "stops the running dishwasher to make the noise go away",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{dishwasher}"
+        },
+        {
+         "do": "cancel",
+         "target": "{dishwasher}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "speak",
+         "text": "I stopped the dishwasher, the noise should be gone.",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Something in the kitchen is making a strange noise. Find out which appliance it is and tell me.",
+   "phrasings": [
+    "Detect unusual appliance noise.",
+    "There's a weird sound coming from the kitchen - which machine is it?",
+    "Can you figure out what's making that odd noise in the kitchen and let me know?"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "P-approx",
+   "budget": {
+    "steps": 80,
+    "time_s": 1500
+   },
+   "notes": "Realistic perception: sounds carry what is heard (water swishing, a steady hum, a grinding rattle, a loud click every few minutes) with the room they come from - never a 'normal' verdict or a diagnosis - and are pinned on one appliance only from within two cells; inspect where=closely on a running appliance (a fridge always runs) gives the noise signature. Variants: the running dishwasher's drain pump grinds while the fridge hums normally; the fridge's compressor clicks while the dishwasher (a resident started it) washes normally. Graded on reports.{appliance}.unusual_noise for the right appliance (to the resident), no report on the healthy one, and the intended dishwasher still running."
+  },
+  {
+   "catalog_id": "T-22bc2280c7e6be-01",
+   "title": "Check that the oven is off: a just-used oven is still hot and a lit clock is not a lit oven - read the panel and knobs, report, switch off a forgotten oven",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none",
+    "start": "2026-10-10T21:45:00"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "appliances_cooking.kitchen",
+     "args": {
+      "stove": "electric_coil",
+      "unit": "F"
+     }
+    },
+    {
+     "op": "room",
+     "var": "lounge",
+     "type": "living_room"
+    },
+    {
+     "op": "person",
+     "var": "adult",
+     "id": "resident_1",
+     "room": "{lounge}",
+     "props": {
+      "activity": "reading",
+      "awake": true
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{oven}",
+       "props": {
+        "settings": {
+         "mode": "bake",
+         "temp": 350
+        },
+        "appliance": {
+         "state": "running",
+         "program": "bake",
+         "remaining_s": 40000.0,
+         "elapsed_s": 3200.0,
+         "duration_s": 43200.0,
+         "delay_s": 0.0
+        },
+        "internal_temp_c": 176.0,
+        "preheated": true,
+        "display": "BAKE 350F",
+        "_intended": false,
+        "_intent_note": "I forgot it after dinner."
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{oven}.state",
+       "op": "eq",
+       "value": "on"
+      },
+      {
+       "path": "reports.{oven}._to.state",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{oven}.settings.mode",
+       "op": "eq",
+       "value": "off"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{oven}"
+      },
+      {
+       "do": "inspect",
+       "target": "{oven}"
+      },
+      {
+       "do": "set",
+       "target": "{oven}",
+       "setting": "mode",
+       "value": "off"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{oven}",
+       "field": "state",
+       "value": "on",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "the door is shut and nothing roars: reports the oven off",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{oven}"
+        },
+        {
+         "do": "inspect",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "off",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "notices it is on and tells the resident, but leaves it baking",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{oven}"
+        },
+        {
+         "do": "inspect",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "on",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{oven}",
+       "props": {
+        "internal_temp_c": 150.0,
+        "hot_light": true
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{oven}.state",
+       "op": "eq",
+       "value": "off"
+      },
+      {
+       "path": "reports.{oven}._to.state",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{oven}.settings.mode",
+       "op": "eq",
+       "value": "off"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{oven}"
+      },
+      {
+       "do": "inspect",
+       "target": "{oven}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{oven}",
+       "field": "state",
+       "value": "off",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "the oven is still very hot from dinner, so it must be on: reports it on",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{oven}"
+        },
+        {
+         "do": "inspect",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "on",
+         "to": "{adult}"
+        }
+       ]
+      },
+      {
+       "name": "checks it but never tells anyone",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{oven}"
+        },
+        {
+         "do": "inspect",
+         "target": "{oven}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "success": [
+      {
+       "path": "reports.{oven}.state",
+       "op": "eq",
+       "value": "off"
+      },
+      {
+       "path": "reports.{oven}._to.state",
+       "op": "eq",
+       "value": "{adult}"
+      },
+      {
+       "path": "entities.{oven}.settings.mode",
+       "op": "eq",
+       "value": "off"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{oven}"
+      },
+      {
+       "do": "inspect",
+       "target": "{oven}"
+      },
+      {
+       "skill": "go_room",
+       "room": "{lounge}"
+      },
+      {
+       "do": "report",
+       "target": "{oven}",
+       "field": "state",
+       "value": "off",
+       "to": "{adult}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "the display is lit (it shows the clock): reports the oven on",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{oven}"
+        },
+        {
+         "do": "inspect",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "on",
+         "to": "{adult}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Before bed: is the oven off? Check it and tell me.",
+   "phrasings": [
+    "Check that oven is off.",
+    "Can you make sure the oven's off and let me know?",
+    "Did we leave the oven on? Go look and tell me."
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "notes": "Realistic perception: from the room an oven at 150-180 C looks 'very hot' whether it is baking or just switched off (thermal glance); its mode, knob setting and display (BAKE 350F vs the clock), and the HOT light of a switched-off oven, show only on a close look (inspect; the display when the kitchen is lit). Variants: forgotten on at 350 F (switch it off), off but still hot after dinner, off and cold with the clock lit. Graded on reports.{oven}.state = what was found, reported to the resident, and the oven ending off."
+  },
+  {
+   "catalog_id": "T-b1456a2d293d2f-01",
+   "title": "Use the electric kettle: a cordless kettle on its base and a stovetop kettle look alike from across the kitchen - look closely, then boil the cordless one on its powered base (never on the hob)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "appliances_cooking.kitchen",
+     "args": {
+      "stove": "gas",
+      "kettle": true
+     }
+    },
+    {
+     "op": "set",
+     "target": "{kettle}",
+     "props": {
+      "liquid_l": 1.0
+     }
+    },
+    {
+     "op": "helper",
+     "name": "appliances_cooking.place_item",
+     "args": {
+      "on": "{counter2}",
+      "type": "stovetop_kettle",
+      "props": {
+       "liquid_l": 1.0
+      },
+      "var": "stove_kettle"
+     }
+    }
+   ],
+   "success": [
+    {
+     "path": "entities.{kettle}._kettle.reached_c",
+     "op": "gte",
+     "value": 95.0
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{kettle}"
+    },
+    {
+     "do": "inspect",
+     "target": "{kettle}"
+    },
+    {
+     "do": "switch_on",
+     "target": "{kettle}"
+    },
+    {
+     "do": "wait",
+     "seconds": 420
+    }
+   ],
+   "wrong": [
+    {
+     "name": "takes the first kettle it sees for the electric one and presses where its switch should be, without a closer look",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{stove_kettle}"
+      },
+      {
+       "do": "switch_on",
+       "target": "{stove_kettle}"
+      },
+      {
+       "do": "wait",
+       "seconds": 420
+      }
+     ]
+    },
+    {
+     "name": "a kettle goes on the stove: lifts the cordless kettle off its base onto a gas burner and lights it",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{kettle}"
+      },
+      {
+       "do": "pick_up",
+       "target": "{kettle}"
+      },
+      {
+       "skill": "approach",
+       "target": "{burner_lf}"
+      },
+      {
+       "do": "load",
+       "target": "{kettle}",
+       "destination": "{burner_lf}"
+      },
+      {
+       "do": "ignite",
+       "target": "{burner_lf}",
+       "level": "high"
+      },
+      {
+       "do": "wait",
+       "seconds": 420
+      }
+     ]
+    }
+   ],
+   "instruction": "Use the electric kettle to boil some water for tea.",
+   "phrasings": [
+    "Use an electric kettle.",
+    "Boil water in the electric kettle, please.",
+    "Put the electric kettle on for tea."
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 40,
+    "time_s": 900
+   },
+   "notes": "Realistic perception: the cordless electric kettle and the stovetop kettle are the kettle_lookalike group ('kettle', candidates cordless electric kettle / stovetop kettle) until inspected; operating an unresolved member is refused with one group-level reason (inspect first), so neither the switch nor 'seat it on its base' can identify it. Truth: the electric kettle's _kettle.reached_c is set by its auto-off at the boil on a powered base; on a burner it never is (and the plastic body is damaged)."
+  }
+ ]
+}

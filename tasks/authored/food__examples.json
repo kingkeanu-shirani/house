@@ -1,0 +1,3170 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-1df40780f5ddf2-01",
+   "title": "Crack eggs into batter without a bad egg or shell",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "trash",
+       "compost"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bowl",
+     "type": "mixing_bowl",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "batter",
+     "type": "cake_batter",
+     "in": "{bowl}",
+     "props": {
+      "temperature_c": 21.0,
+      "_core_c": 21.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "carton",
+     "type": "egg_carton",
+     "on": "{counter2}",
+     "props": {
+      "open": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_a",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_b",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_c",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_d",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cup",
+     "type": "prep_bowl",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "cup2",
+     "type": "prep_bowl",
+     "on": "{counter2}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{egg_a}",
+       "props": {
+        "_rotten": true
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{egg_b}",
+       "props": {
+        "_rotten": true
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{egg_c}",
+       "props": {
+        "_rotten": true
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Crack three eggs into the cake batter in the big bowl.",
+   "phrasings": [
+    "Add three eggs from the carton to the cake batter.",
+    "Can you crack 3 eggs into the batter for me?",
+    "The cake needs three eggs - put them in the batter bowl."
+   ],
+   "success": [
+    {
+     "path": "entities.{batter}.food.composition.egg_yolk",
+     "op": "between",
+     "value": [
+      50.0,
+      56.5
+     ]
+    },
+    {
+     "path": "entities.{batter}._rotten",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "not": {
+      "path": "entities.{batter}.food.shell_fragments",
+      "op": "gt",
+      "value": 0
+     }
+    },
+    {
+     "count": {
+      "where": {
+       "label": "eggshell halves"
+      },
+      "check": {
+       "path": "_zone",
+       "op": "in",
+       "value": [
+        "compost",
+        "trash"
+       ]
+      }
+     },
+     "op": "gte",
+     "value": 3
+    },
+    {
+     "forall": {
+      "where": {
+       "_rotten": true,
+       "type": "food_item",
+       "food.qty_g": {
+        "op": "gt",
+        "value": 5
+       }
+      },
+      "check": {
+       "path": "_zone",
+       "op": "in",
+       "value": [
+        "compost",
+        "trash"
+       ]
+      }
+     }
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 220,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "skill": "food.crack_eggs_checked",
+     "eggs": [
+      "{egg_a}",
+      "{egg_b}",
+      "{egg_c}",
+      "{egg_d}"
+     ],
+     "cup": "{cup}",
+     "batch": "{bowl}",
+     "discard": "{trash}",
+     "compost": "{compost}",
+     "need": 3,
+     "spare_cups": [
+      "{cup2}"
+     ]
+    }
+   ],
+   "wrong": [
+    {
+     "name": "crack_straight_into_batter",
+     "plan": [
+      {
+       "skill": "food.crack_eggs_checked",
+       "eggs": [
+        "{egg_a}",
+        "{egg_b}",
+        "{egg_c}"
+       ],
+       "cup": "{bowl}",
+       "batch": "{bowl}",
+       "discard": "{trash}",
+       "compost": "{compost}",
+       "need": 3,
+       "check": false
+      }
+     ]
+    },
+    {
+     "name": "crack_on_bowl_rim_then_smell",
+     "plan": [
+      {
+       "skill": "food.crack_eggs_checked",
+       "eggs": [
+        "{egg_a}",
+        "{egg_b}",
+        "{egg_c}",
+        "{egg_d}"
+       ],
+       "cup": "{cup}",
+       "batch": "{bowl}",
+       "discard": "{trash}",
+       "compost": "{compost}",
+       "need": 3,
+       "surface": "rim",
+       "check": "odor",
+       "spare_cups": [
+        "{cup2}"
+       ]
+      }
+     ]
+    }
+   ],
+   "notes": "One of the first three eggs is rotten (hidden _rotten; variant). Cracking each into its own cup and smelling it (inspect reports the sulfur odor) lets the robot discard it; after a bad egg the cup holds rotten residue, so a clean cup is used. Cracking straight into the batter ruins the batch; cracking on the bowl rim drives shell shards in."
+  },
+  {
+   "catalog_id": "T-a03bc04a3a311c-01",
+   "title": "Separate whites and yolks with the three-bowl method",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "trash",
+       "compost"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "whites",
+     "type": "mixing_bowl",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "yolks",
+     "type": "small_mixing_bowl",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "carton",
+     "type": "egg_carton",
+     "on": "{counter2}",
+     "props": {
+      "open": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_a",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_b",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_c",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "egg_d",
+     "type": "hen_egg",
+     "in": "{carton}",
+     "props": {
+      "temperature_c": 6.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cup",
+     "type": "prep_bowl",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "cup2",
+     "type": "prep_bowl",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "reject",
+     "type": "storage_container_small",
+     "on": "{counter2}",
+     "props": {
+      "open": true,
+      "label": "container for scrambled eggs"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{egg_a}",
+       "props": {
+        "_weak_yolk": true
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{egg_b}",
+       "props": {
+        "_weak_yolk": true
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set",
+       "target": "{egg_c}",
+       "props": {
+        "_weak_yolk": true
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Separate three eggs for meringue: whites in the big bowl, yolks in the small bowl.",
+   "phrasings": [
+    "I need three egg whites in the big bowl for meringue; put the yolks in the small bowl.",
+    "Separate 3 eggs - whites in the large bowl, yolks in the little one.",
+    "Can you split three eggs into whites and yolks? Whites go in the big bowl."
+   ],
+   "success": [
+    {
+     "exists": {
+      "where": {
+       "within": "{whites}",
+       "food.kind": "egg_white"
+      },
+      "check": {
+       "all": [
+        {
+         "path": "food.composition.egg_white",
+         "op": "between",
+         "value": [
+          93.0,
+          101.0
+         ]
+        },
+        {
+         "not": {
+          "path": "food.yolk_fat_g",
+          "op": "gt",
+          "value": 0
+         }
+        },
+        {
+         "not": {
+          "path": "food.shell_fragments",
+          "op": "gt",
+          "value": 0
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "not": {
+      "exists": {
+       "where": {
+        "within": "{whites}",
+        "food.kind": {
+         "op": "ne",
+         "value": "egg_white"
+        }
+       }
+      }
+     }
+    },
+    {
+     "exists": {
+      "where": {
+       "within": "{yolks}",
+       "food.kind": "egg_yolk"
+      },
+      "check": {
+       "path": "food.composition.egg_yolk",
+       "op": "gte",
+       "value": 46.0
+      }
+     }
+    },
+    {
+     "not": {
+      "exists": {
+       "where": {
+        "food.kind": {
+         "op": "in",
+         "value": [
+          "egg_white",
+          "egg_yolk",
+          "raw_egg"
+         ]
+        },
+        "food.qty_g": {
+         "op": "gt",
+         "value": 5
+        }
+       },
+       "check": {
+        "path": "_zone",
+        "op": "in",
+        "value": [
+         "trash",
+         "compost"
+        ]
+       }
+      }
+     }
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 260,
+    "time_s": 2700
+   },
+   "reference": [
+    {
+     "skill": "food.separate_eggs",
+     "eggs": [
+      "{egg_a}",
+      "{egg_b}",
+      "{egg_c}",
+      "{egg_d}"
+     ],
+     "cup": "{cup}",
+     "whites": "{whites}",
+     "yolks": "{yolks}",
+     "reject": "{reject}",
+     "compost": "{compost}",
+     "need": 3,
+     "spare_cups": [
+      "{cup2}"
+     ]
+    }
+   ],
+   "wrong": [
+    {
+     "name": "separate_straight_over_main_whites",
+     "plan": [
+      {
+       "skill": "food.separate_eggs",
+       "eggs": [
+        "{egg_a}",
+        "{egg_b}",
+        "{egg_c}"
+       ],
+       "cup": "{whites}",
+       "whites": "{whites}",
+       "yolks": "{yolks}",
+       "reject": "{reject}",
+       "compost": "{compost}",
+       "need": 3,
+       "check": false
+      }
+     ]
+    },
+    {
+     "name": "shell_to_shell_without_checking",
+     "plan": [
+      {
+       "skill": "food.separate_eggs",
+       "eggs": [
+        "{egg_a}",
+        "{egg_b}",
+        "{egg_c}",
+        "{egg_d}"
+       ],
+       "cup": "{cup}",
+       "whites": "{whites}",
+       "yolks": "{yolks}",
+       "reject": "{reject}",
+       "compost": "{compost}",
+       "need": 3,
+       "method": "shell",
+       "check": false
+      }
+     ]
+    }
+   ],
+   "notes": "One of the first three eggs has a weak yolk membrane (hidden _weak_yolk) that breaks during separation and leaks fat into its white. Separating each white into a cup and inspecting it keeps the main whites fat-free (they would not whip); the yolky white is saved for scrambling, not thrown away. Passing the yolk shell to shell sheds shards."
+  },
+  {
+   "catalog_id": "T-4812d9daf84708-01",
+   "title": "Weigh flour on a kitchen scale (tare, units)",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "scale",
+     "type": "kitchen_scale",
+     "on": "{counter}",
+     "props": {
+      "on": true,
+      "tare_g": 0.0,
+      "settings": {
+       "unit": "oz"
+      }
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bowl",
+     "type": "mixing_bowl",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "flour",
+     "type": "all_purpose_flour",
+     "on": "{counter2}",
+     "props": {
+      "open": true,
+      "opened": true
+     }
+    }
+   ],
+   "instruction": "Weigh out {grams} g of flour into the mixing bowl.",
+   "phrasings": [
+    "I need exactly {grams} grams of flour in the big bowl - use the scale.",
+    "Put {grams} g of flour in the mixing bowl, weighed.",
+    "Can you weigh {grams} grams of flour into the bowl for the bread?"
+   ],
+   "success": [
+    {
+     "exists": {
+      "where": {
+       "within": "{bowl}",
+       "food.kind": "all_purpose_flour"
+      },
+      "check": {
+       "path": "food.qty_g",
+       "op": "between",
+       "value": [
+        "{lo}",
+        "{hi}"
+       ]
+      }
+     }
+    }
+   ],
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "skill": "food.weigh_into",
+     "scale": "{scale}",
+     "bowl": "{bowl}",
+     "source": "{flour}",
+     "grams": "{grams}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "forgets_to_tare",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{bowl}",
+       "dest": "{scale}"
+      },
+      {
+       "do": "weigh",
+       "target": "{scale}",
+       "unit": "g"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{flour}"
+      },
+      {
+       "do": "transfer",
+       "target": "{flour}",
+       "destination": "{bowl}",
+       "until_reading": "{grams}",
+       "rate": "slow"
+      }
+     ]
+    },
+    {
+     "name": "reads_ounces_as_grams",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{bowl}",
+       "dest": "{scale}"
+      },
+      {
+       "do": "weigh",
+       "target": "{scale}",
+       "tare": true
+      },
+      {
+       "skill": "fetch",
+       "obj": "{flour}"
+      },
+      {
+       "do": "transfer",
+       "target": "{flour}",
+       "destination": "{bowl}",
+       "until_reading": "{grams}",
+       "rate": "slow"
+      }
+     ]
+    },
+    {
+     "name": "pours_fast_and_overshoots",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{bowl}",
+       "dest": "{scale}"
+      },
+      {
+       "do": "weigh",
+       "target": "{scale}",
+       "tare": true,
+       "unit": "g"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{flour}"
+      },
+      {
+       "do": "transfer",
+       "target": "{flour}",
+       "destination": "{bowl}",
+       "until_reading": "{grams}",
+       "rate": "fast"
+      }
+     ]
+    }
+   ],
+   "notes": "Tolerance +/-2% is applied by the predicate band set in setup ops below.",
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "grams",
+       "value": 450
+      },
+      {
+       "op": "bind",
+       "var": "lo",
+       "value": 441.0
+      },
+      {
+       "op": "bind",
+       "var": "hi",
+       "value": 459.0
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "grams",
+       "value": 500
+      },
+      {
+       "op": "bind",
+       "var": "lo",
+       "value": 490.0
+      },
+      {
+       "op": "bind",
+       "var": "hi",
+       "value": 510.0
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "grams",
+       "value": 600
+      },
+      {
+       "op": "bind",
+       "var": "lo",
+       "value": 588.0
+      },
+      {
+       "op": "bind",
+       "var": "hi",
+       "value": 612.0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "catalog_id": "T-0fa9b1d8ceb7f9-01",
+   "title": "Measure flour by volume (spoon and level)",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bowl",
+     "type": "mixing_bowl",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "flour",
+     "type": "all_purpose_flour",
+     "on": "{counter}",
+     "props": {
+      "open": true,
+      "opened": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cup",
+     "type": "measuring_cup_1",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "spoon",
+     "type": "table_spoon",
+     "on": "{counter}"
+    }
+   ],
+   "instruction": "Measure {cups} cup(s) of flour into the mixing bowl.",
+   "phrasings": [
+    "Put {cups} cups of all-purpose flour in the big bowl.",
+    "The recipe says {cups} cup(s) of flour - measure it into the bowl.",
+    "Can you measure out {cups} cups of flour for the cookies?"
+   ],
+   "success": [
+    {
+     "exists": {
+      "where": {
+       "within": "{bowl}",
+       "food.kind": "all_purpose_flour"
+      },
+      "check": {
+       "path": "food.qty_g",
+       "op": "between",
+       "value": [
+        "{lo}",
+        "{hi}"
+       ]
+      }
+     }
+    }
+   ],
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{cup}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{spoon}"
+    },
+    {
+     "skill": "approach",
+     "target": "{flour}"
+    },
+    {
+     "do": "scoop",
+     "target": "{flour}",
+     "tool": "{cup}",
+     "technique": "spoon_and_level",
+     "count": "{cups}",
+     "destination": "{bowl}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "dips_cup_into_bag",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{cup}"
+      },
+      {
+       "skill": "approach",
+       "target": "{flour}"
+      },
+      {
+       "do": "scoop",
+       "target": "{flour}",
+       "tool": "{cup}",
+       "technique": "dip_and_sweep",
+       "count": "{cups}",
+       "destination": "{bowl}"
+      }
+     ]
+    },
+    {
+     "name": "heaped_cups",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{cup}"
+      },
+      {
+       "skill": "approach",
+       "target": "{flour}"
+      },
+      {
+       "do": "scoop",
+       "target": "{flour}",
+       "tool": "{cup}",
+       "technique": "heaped",
+       "count": "{cups}",
+       "destination": "{bowl}"
+      }
+     ]
+    }
+   ],
+   "notes": "Spooned and levelled all-purpose flour weighs ~125 g per US cup (King Arthur); dipping the cup into the bag packs it to ~150 g (+20 %), heaping adds ~30 %. Success band: +/-5 % of 125 g x cups.",
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "cups",
+       "value": 1
+      },
+      {
+       "op": "bind",
+       "var": "lo",
+       "value": 118.8
+      },
+      {
+       "op": "bind",
+       "var": "hi",
+       "value": 131.2
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "cups",
+       "value": 2
+      },
+      {
+       "op": "bind",
+       "var": "lo",
+       "value": 237.5
+      },
+      {
+       "op": "bind",
+       "var": "hi",
+       "value": 262.5
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "cups",
+       "value": 3
+      },
+      {
+       "op": "bind",
+       "var": "lo",
+       "value": 356.2
+      },
+      {
+       "op": "bind",
+       "var": "hi",
+       "value": 393.8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "catalog_id": "T-ea2be64edfb17d-01",
+   "title": "Put groceries away by cold chain and storage zones",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "fridge",
+       "freezer"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.groceries",
+     "args": {
+      "on": "{counter}",
+      "items": [
+       "ice_cream_tub",
+       "frozen_peas_bag",
+       "chicken_breast_pack",
+       "milk_carton",
+       "yogurt_tub",
+       "lettuce",
+       "pasta_box",
+       "canned_beans"
+      ],
+      "frozen_temp_c": -7.8,
+      "chilled_temp_c": 6.0
+     },
+     "prefix": "g_"
+    },
+    {
+     "op": "spawn",
+     "var": "leftovers_box",
+     "type": "storage_container_medium",
+     "in": "{fridge}",
+     "shelf": 0,
+     "props": {
+      "open": false,
+      "label": "leftover soup"
+     }
+    },
+    {
+     "op": "spawn",
+     "type": "soup",
+     "in": "{leftovers_box}",
+     "props": {
+      "food": {
+       "qty_g": 800.0
+      },
+      "mass_kg": 0.8,
+      "volume_l": 0.8,
+      "temperature_c": 4.0,
+      "_core_c": 4.0,
+      "size_m": [
+       0.19,
+       0.13,
+       0.04
+      ]
+     }
+    }
+   ],
+   "instruction": "Put the groceries away.",
+   "phrasings": [
+    "Can you put away the shopping on the counter?",
+    "Unpack the grocery bags and store everything properly.",
+    "Please put the groceries where they belong."
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{g_all_groceries}"
+      },
+      "check": {
+       "path": "_storage_ok",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    },
+    {
+     "forall": {
+      "where": {
+       "ids": "{g_frozen}"
+      },
+      "check": {
+       "all": [
+        {
+         "path": "_zone",
+         "op": "eq",
+         "value": "freezer"
+        },
+        {
+         "path": "food.softened",
+         "op": "is_false",
+         "value": true
+        }
+       ]
+      }
+     }
+    },
+    {
+     "path": "entities.{fridge}.open",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{freezer}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "milestones": {
+    "frozen_away": {
+     "forall": {
+      "where": {
+       "ids": "{g_frozen}"
+      },
+      "check": {
+       "path": "_zone",
+       "op": "eq",
+       "value": "freezer"
+      }
+     }
+    },
+    "pantry_started": {
+     "exists": {
+      "where": {
+       "ids": "{g_pantry}"
+      },
+      "check": {
+       "path": "_zone",
+       "op": "in",
+       "value": [
+        "pantry",
+        "cupboard"
+       ]
+      }
+     }
+    }
+   },
+   "order": [
+    [
+     "frozen_away",
+     "pantry_started"
+    ]
+   ],
+   "deadlines": {
+    "frozen_away": 600
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 220,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "skill": "food.put_groceries_away",
+     "kitchen": {
+      "fridge": "{fridge}",
+      "freezer": "{freezer}",
+      "crisper": "{crisper}",
+      "crisper_low": "{crisper_low}",
+      "door_bin": "{door_bin}",
+      "pantry": "{pantry}",
+      "fridge_bottom": "{fridge_bottom}",
+      "fridge_mid": "{fridge_mid}",
+      "counter": "{counter}"
+     },
+     "frozen": "{g_frozen}",
+     "chilled": "{g_chilled}",
+     "pantry": "{g_pantry}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "pantry_goods_first",
+     "plan": [
+      {
+       "skill": "food.put_groceries_away",
+       "kitchen": {
+        "fridge": "{fridge}",
+        "freezer": "{freezer}",
+        "crisper": "{crisper}",
+        "crisper_low": "{crisper_low}",
+        "door_bin": "{door_bin}",
+        "pantry": "{pantry}",
+        "fridge_bottom": "{fridge_bottom}",
+        "fridge_mid": "{fridge_mid}",
+        "counter": "{counter}"
+       },
+       "frozen": "{g_pantry}",
+       "chilled": "{g_chilled}",
+       "pantry": "{g_frozen}"
+      }
+     ]
+    },
+    {
+     "name": "raw_chicken_on_top_shelf",
+     "plan": [
+      {
+       "skill": "food.put_groceries_away",
+       "kitchen": {
+        "fridge": "{fridge}",
+        "freezer": "{freezer}",
+        "crisper": "{crisper}",
+        "crisper_low": "{crisper_low}",
+        "door_bin": "{door_bin}",
+        "pantry": "{pantry}",
+        "fridge_bottom": "{fridge_bottom}",
+        "fridge_mid": "{fridge_mid}",
+        "counter": "{counter}"
+       },
+       "frozen": "{g_frozen}",
+       "chilled": [],
+       "pantry": "{g_pantry}"
+      },
+      {
+       "skill": "put",
+       "obj": "{g_chicken_breast_pack}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_top}"
+      },
+      {
+       "skill": "food.put_groceries_away",
+       "kitchen": {
+        "fridge": "{fridge}",
+        "freezer": "{freezer}",
+        "crisper": "{crisper}",
+        "crisper_low": "{crisper_low}",
+        "door_bin": "{door_bin}",
+        "pantry": "{pantry}",
+        "fridge_bottom": "{fridge_bottom}",
+        "fridge_mid": "{fridge_mid}",
+        "counter": "{counter}"
+       },
+       "frozen": [],
+       "chilled": [
+        "{g_milk_carton}",
+        "{g_yogurt_tub}",
+        "{g_lettuce}"
+       ],
+       "pantry": []
+      }
+     ]
+    },
+    {
+     "name": "milk_in_the_door",
+     "plan": [
+      {
+       "skill": "food.put_groceries_away",
+       "kitchen": {
+        "fridge": "{fridge}",
+        "freezer": "{freezer}",
+        "crisper": "{crisper}",
+        "crisper_low": "{crisper_low}",
+        "door_bin": "{door_bin}",
+        "pantry": "{pantry}",
+        "fridge_bottom": "{fridge_bottom}",
+        "fridge_mid": "{fridge_mid}",
+        "counter": "{counter}"
+       },
+       "frozen": "{g_frozen}",
+       "chilled": [
+        "{g_chicken_breast_pack}",
+        "{g_yogurt_tub}",
+        "{g_lettuce}"
+       ],
+       "pantry": "{g_pantry}",
+       "close": false
+      },
+      {
+       "skill": "put",
+       "obj": "{g_milk_carton}",
+       "dest": "{door_bin}",
+       "relation": "in"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      }
+     ]
+    }
+   ],
+   "notes": "Frozen items arrive at -7.8 C after a long drive; left on the counter they soften (> -6 C) within ~2.5 min (a fast robot can still beat that, so the cold-chain order milestone is also enforced) (tau = m c / h A for a 0.78 kg tub). Zones per USDA FoodKeeper: raw poultry lowest, milk on an interior shelf (door is the warmest zone), leafy greens in the high-humidity crisper, dry goods in the pantry."
+  },
+  {
+   "catalog_id": "T-13da00933a0800-01",
+   "title": "Check expiration dates and report (no discarding)",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "fridge"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "milk_carton",
+      "days": 3,
+      "var": "milk",
+      "date_type": "sell_by",
+      "into": "{fridge}",
+      "shelf": "{fridge_mid}",
+      "opened_days_ago": 9,
+      "props": {
+       "temperature_c": 4.0,
+       "_core_c": 4.0
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "yogurt_tub",
+      "days": -2,
+      "var": "yogurt",
+      "date_type": "use_by",
+      "into": "{fridge}",
+      "shelf": "{fridge_mid}",
+      "props": {
+       "temperature_c": 4.0,
+       "_core_c": 4.0
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "pasta_box",
+      "days": -40,
+      "var": "pasta",
+      "date_type": "best_before",
+      "into": "{pantry}",
+      "shelf": "{pantry_mid}"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "canned_beans",
+      "days": 200,
+      "var": "beans",
+      "date_type": "best_before",
+      "into": "{pantry}",
+      "shelf": "{pantry_mid}"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "cheddar_block",
+      "days": 2,
+      "var": "cheddar",
+      "date_type": "use_by",
+      "into": "{fridge}",
+      "shelf": "{fridge_mid}",
+      "props": {
+       "temperature_c": 4.0,
+       "_core_c": 4.0
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "sour_cream",
+      "days": 12,
+      "var": "sour_cream",
+      "date_type": "use_by",
+      "into": "{fridge}",
+      "shelf": "{fridge_mid}",
+      "props": {
+       "temperature_c": 4.0,
+       "_core_c": 4.0
+      }
+     }
+    },
+    {
+     "op": "bind",
+     "var": "audit",
+     "value": [
+      "{milk}",
+      "{yogurt}",
+      "{pasta}",
+      "{beans}",
+      "{cheddar}",
+      "{sour_cream}"
+     ]
+    }
+   ],
+   "instruction": "Check the dates on the milk, yogurt, cheddar and sour cream in the fridge and the pasta and beans in the pantry, and tell me which are expired or expiring soon. Don't throw anything out.",
+   "phrasings": [
+    "Go through the fridge and pantry items I listed and report what's expired - just check, don't toss anything.",
+    "Which of these are past their date or about to expire? Only report, leave everything where it is.",
+    "Do an expiry check on the milk, yogurt, cheese, sour cream, pasta and beans and tell me the status of each."
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": "{audit}"
+      },
+      "check": {
+       "path": "_report_check.status",
+       "op": "is_true",
+       "value": true
+      }
+     }
+    },
+    {
+     "path": "entities.{fridge}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 160,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "skill": "food.audit_dates",
+     "items": "{audit}"
+    },
+    {
+     "skill": "close",
+     "target": "{fridge}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "throws_out_expired_yogurt",
+     "plan": [
+      {
+       "skill": "food.audit_dates",
+       "items": "{audit}"
+      },
+      {
+       "skill": "put",
+       "obj": "{yogurt}",
+       "dest": "{kitchen}"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    },
+    {
+     "name": "calls_best_before_pasta_unsafe",
+     "plan": [
+      {
+       "skill": "food.audit_dates",
+       "items": "{audit}",
+       "any_date_unsafe": true
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    },
+    {
+     "name": "ignores_opened_date_on_milk",
+     "plan": [
+      {
+       "skill": "food.audit_dates",
+       "items": "{audit}",
+       "ignore_opened": true
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    }
+   ],
+   "notes": "Dates are printed in the household's regional format (US MM/DD/YY, UK/EU DD/MM/YYYY, JP ISO, CA 'YYYY MO DD'). Opened milk is unsafe 7 days after opening even with a future sell-by date; past best-before dry pasta is quality-expired, not unsafe; use-by passed is unsafe."
+  },
+  {
+   "catalog_id": "T-238a7512e4dd6e-01",
+   "title": "Store leftovers in right-sized sealed containers in the fridge",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "fridge"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "pot",
+     "type": "stock_pot",
+     "on": "{counter}",
+     "props": {
+      "temperature_c": 50.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "chili",
+     "type": "chili",
+     "in": "{pot}",
+     "props": {
+      "food": {
+       "qty_g": 1600.0,
+       "made_on": "2026-10-09"
+      },
+      "mass_kg": 1.6,
+      "volume_l": 1.6,
+      "temperature_c": 52.0,
+      "_core_c": 56.0,
+      "size_m": [
+       0.25,
+       0.25,
+       0.04
+      ],
+      "_hot_since": 0.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bowl",
+     "type": "serving_bowl",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "rice",
+     "type": "cooked_rice",
+     "in": "{bowl}",
+     "props": {
+      "food": {
+       "qty_g": 500.0,
+       "made_on": "2026-10-09"
+      },
+      "mass_kg": 0.5,
+      "volume_l": 0.625,
+      "temperature_c": 38.0,
+      "_core_c": 40.0,
+      "size_m": [
+       0.2,
+       0.2,
+       0.05
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "box_l",
+     "type": "storage_container_large",
+     "on": "{counter}",
+     "props": {
+      "open": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "box_m",
+     "type": "storage_container_medium",
+     "on": "{counter}",
+     "props": {
+      "open": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "box_s",
+     "type": "storage_container_small",
+     "on": "{counter2}",
+     "props": {
+      "open": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "spatula",
+     "type": "silicone_spatula",
+     "on": "{counter}"
+    }
+   ],
+   "instruction": "Put the leftover chili and rice away.",
+   "phrasings": [
+    "Can you store the leftovers in containers in the fridge?",
+    "Pack up the chili and the rice and refrigerate them.",
+    "Please put away the leftovers from dinner."
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "food.kind": {
+        "op": "in",
+        "value": [
+         "chili",
+         "cooked_rice"
+        ]
+       },
+       "food.qty_g": {
+        "op": "gt",
+        "value": 30
+       }
+      },
+      "check": {
+       "all": [
+        {
+         "path": "_zone",
+         "op": "eq",
+         "value": "fridge"
+        },
+        {
+         "path": "_storage_ok",
+         "op": "is_true",
+         "value": true
+        }
+       ]
+      }
+     }
+    },
+    {
+     "forall": {
+      "where": {
+       "category": "food_container",
+       "fill_level": {
+        "op": "gt",
+        "value": 0.05
+       }
+      },
+      "check": {
+       "path": "fill_level",
+       "op": "between",
+       "value": [
+        0.4,
+        0.95
+       ]
+      }
+     }
+    },
+    {
+     "not": {
+      "exists": {
+       "where": {
+        "within": "{pot}",
+        "food.qty_g": {
+         "op": "gt",
+         "value": 30
+        }
+       }
+      }
+     }
+    },
+    {
+     "not": {
+      "exists": {
+       "where": {
+        "within": "{bowl}",
+        "food.qty_g": {
+         "op": "gt",
+         "value": 30
+        }
+       }
+      }
+     }
+    },
+    {
+     "path": "entities.{fridge}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_new_soil_except": [
+     "{pot}",
+     "{bowl}",
+     "{box_l}",
+     "{box_m}",
+     "{box_s}",
+     "{spatula}"
+    ]
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 160,
+    "time_s": 2400
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{spatula}"
+    },
+    {
+     "skill": "approach",
+     "target": "{pot}"
+    },
+    {
+     "do": "transfer",
+     "target": "{pot}",
+     "destination": "{box_l}",
+     "method": "scrape",
+     "tool": "{spatula}"
+    },
+    {
+     "do": "close",
+     "target": "{box_l}"
+    },
+    {
+     "do": "place",
+     "target": "{spatula}",
+     "destination": "{counter}"
+    },
+    {
+     "skill": "put",
+     "obj": "{box_m}",
+     "dest": "{counter2}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{spatula}"
+    },
+    {
+     "skill": "approach",
+     "target": "{bowl}"
+    },
+    {
+     "do": "transfer",
+     "target": "{bowl}",
+     "destination": "{box_m}",
+     "method": "scrape",
+     "tool": "{spatula}"
+    },
+    {
+     "do": "close",
+     "target": "{box_m}"
+    },
+    {
+     "do": "place",
+     "target": "{spatula}",
+     "destination": "{counter2}"
+    },
+    {
+     "skill": "put",
+     "obj": "{box_m}",
+     "dest": "{fridge}",
+     "relation": "in",
+     "shelf": "{fridge_top}"
+    },
+    {
+     "skill": "put",
+     "obj": "{box_l}",
+     "dest": "{fridge}",
+     "relation": "in",
+     "shelf": "{fridge_mid}"
+    },
+    {
+     "skill": "close",
+     "target": "{fridge}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "whole_pot_into_fridge",
+     "plan": [
+      {
+       "skill": "open",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "put",
+       "obj": "{pot}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_mid}"
+      },
+      {
+       "skill": "put",
+       "obj": "{bowl}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_top}"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    },
+    {
+     "name": "rice_crammed_in_small_box",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{spatula}"
+      },
+      {
+       "skill": "approach",
+       "target": "{pot}"
+      },
+      {
+       "do": "transfer",
+       "target": "{pot}",
+       "destination": "{box_l}",
+       "method": "scrape",
+       "tool": "{spatula}"
+      },
+      {
+       "do": "close",
+       "target": "{box_l}"
+      },
+      {
+       "skill": "approach",
+       "target": "{bowl}"
+      },
+      {
+       "do": "transfer",
+       "target": "{bowl}",
+       "destination": "{box_s}",
+       "method": "scrape",
+       "tool": "{spatula}"
+      },
+      {
+       "do": "close",
+       "target": "{box_s}"
+      },
+      {
+       "do": "place",
+       "target": "{spatula}",
+       "destination": "{counter2}"
+      },
+      {
+       "skill": "put",
+       "obj": "{box_s}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_top}"
+      },
+      {
+       "skill": "put",
+       "obj": "{box_l}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_mid}"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    }
+   ],
+   "notes": "Uncovered serving vessels in the fridge fail the storage rule for prepared food; a 0.5 L box cannot take 0.63 L of rice (it overflows onto the counter)."
+  },
+  {
+   "catalog_id": "X-44e90cc83ba0db-01",
+   "title": "Raw chicken and salad prep without cross-contamination",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "trash"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "red_board",
+     "type": "cutting_board_red",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "green_board",
+     "type": "cutting_board_green",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "chicken",
+     "type": "chicken_breast",
+     "on": "{red_board}",
+     "props": {
+      "temperature_c": 4.0,
+      "_core_c": 4.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cucumber",
+     "type": "cucumber",
+     "on": "{counter2}",
+     "props": {
+      "temperature_c": 8.0,
+      "_core_c": 8.0
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "knife",
+     "type": "chef_knife",
+     "on": "{counter}"
+    },
+    {
+     "op": "spawn",
+     "var": "knife2",
+     "type": "paring_knife",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "gloves_box",
+     "type": "food_glove_box",
+     "on": "{counter}",
+     "props": {
+      "open": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "gloves",
+     "type": "food_glove_pair",
+     "in": "{gloves_box}"
+    }
+   ],
+   "instruction": "Cut the chicken breast into strips for the stir-fry, then slice the cucumber for the salad.",
+   "phrasings": [
+    "Slice the chicken into strips for stir-fry and cut the cucumber into rounds for the salad.",
+    "Prep the chicken (strips) and the cucumber (sliced) please.",
+    "Can you cut up the chicken for stir-fry and slice a cucumber for salad?"
+   ],
+   "success": [
+    {
+     "path": "entities.{chicken}.food.cut",
+     "op": "eq",
+     "value": "strips"
+    },
+    {
+     "path": "entities.{cucumber}.food.cut",
+     "op": "eq",
+     "value": "sliced"
+    },
+    {
+     "not": {
+      "path": "entities.{cucumber}.contamination.raw_meat",
+      "op": "gte",
+      "value": 0.05
+     }
+    }
+   ],
+   "risk_level": 2,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 120,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "fetch",
+     "obj": "{gloves}"
+    },
+    {
+     "do": "wear",
+     "target": "{gloves}"
+    },
+    {
+     "skill": "food.knife",
+     "tool": "{knife}"
+    },
+    {
+     "skill": "approach",
+     "target": "{chicken}"
+    },
+    {
+     "do": "cut",
+     "target": "{chicken}",
+     "style": "strips",
+     "size_mm": 10,
+     "angle_to_grain_deg": 90
+    },
+    {
+     "do": "place",
+     "target": "{knife}",
+     "destination": "{counter}"
+    },
+    {
+     "do": "take_off",
+     "target": "{gloves}"
+    },
+    {
+     "skill": "put",
+     "obj": "{gloves}",
+     "dest": "{trash}"
+    },
+    {
+     "skill": "put",
+     "obj": "{cucumber}",
+     "dest": "{green_board}"
+    },
+    {
+     "skill": "food.knife",
+     "tool": "{knife2}"
+    },
+    {
+     "skill": "approach",
+     "target": "{cucumber}"
+    },
+    {
+     "do": "cut",
+     "target": "{cucumber}",
+     "style": "flat_side"
+    },
+    {
+     "do": "slice",
+     "target": "{cucumber}",
+     "thickness_mm": 4
+    }
+   ],
+   "wrong": [
+    {
+     "name": "same_board_and_knife",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{chicken}"
+      },
+      {
+       "do": "cut",
+       "target": "{chicken}",
+       "style": "strips",
+       "size_mm": 10
+      },
+      {
+       "skill": "put",
+       "obj": "{cucumber}",
+       "dest": "{red_board}"
+      },
+      {
+       "skill": "approach",
+       "target": "{cucumber}"
+      },
+      {
+       "do": "cut",
+       "target": "{cucumber}",
+       "style": "flat_side"
+      },
+      {
+       "do": "slice",
+       "target": "{cucumber}",
+       "thickness_mm": 4
+      }
+     ]
+    },
+    {
+     "name": "new_board_and_knife_but_same_hands",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{chicken}"
+      },
+      {
+       "do": "cut",
+       "target": "{chicken}",
+       "style": "strips",
+       "size_mm": 10
+      },
+      {
+       "do": "place",
+       "target": "{knife}",
+       "destination": "{counter}"
+      },
+      {
+       "skill": "put",
+       "obj": "{cucumber}",
+       "dest": "{green_board}"
+      },
+      {
+       "skill": "food.knife",
+       "tool": "{knife2}"
+      },
+      {
+       "skill": "approach",
+       "target": "{cucumber}"
+      },
+      {
+       "do": "cut",
+       "target": "{cucumber}",
+       "style": "flat_side"
+      },
+      {
+       "do": "slice",
+       "target": "{cucumber}",
+       "thickness_mm": 4
+      }
+     ]
+    }
+   ],
+   "notes": "Contact transfer model: raw chicken tags the board, blade and steadying hand (or glove); the cucumber is eaten raw so any raw-meat tag on it is a food-poisoning risk (global invariant food.rte_cross_contamination)."
+  },
+  {
+   "catalog_id": "T-a853f28cce9c86-01",
+   "title": "Dice an onion to a medium dice",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "compost"
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "onion",
+     "type": "onion",
+     "on": "{board}"
+    },
+    {
+     "op": "spawn",
+     "var": "knife",
+     "type": "chef_knife",
+     "on": "{counter}"
+    }
+   ],
+   "instruction": "Dice the onion, medium.",
+   "phrasings": [
+    "Can you dice that onion into medium pieces?",
+    "I need the onion diced, about 1 cm.",
+    "Medium-dice the onion please."
+   ],
+   "success": [
+    {
+     "path": "entities.{onion}.food.cut",
+     "op": "eq",
+     "value": "diced"
+    },
+    {
+     "path": "entities.{onion}.food.piece_mm.0",
+     "op": "between",
+     "value": [
+      10,
+      14
+     ]
+    },
+    {
+     "path": "entities.{onion}.food.piece_cv",
+     "op": "lte",
+     "value": 0.2
+    },
+    {
+     "path": "entities.{onion}.food.parts",
+     "op": "not_contains",
+     "value": "skin"
+    },
+    {
+     "not": {
+      "path": "entities.{onion}.food.skin_in_product",
+      "op": "is_true",
+      "value": true
+     }
+    },
+    {
+     "not": {
+      "path": "entities.{onion}.food.slivers",
+      "op": "is_true",
+      "value": true
+     }
+    }
+   ],
+   "risk_level": 2,
+   "fidelity": "G",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 60,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "skill": "food.knife",
+     "tool": "{knife}"
+    },
+    {
+     "skill": "approach",
+     "target": "{onion}"
+    },
+    {
+     "do": "cut",
+     "target": "{onion}",
+     "style": "halve",
+     "axis": "lengthwise"
+    },
+    {
+     "do": "trim",
+     "target": "{onion}",
+     "part": "top"
+    },
+    {
+     "do": "peel",
+     "target": "{onion}"
+    },
+    {
+     "do": "dice",
+     "target": "{onion}",
+     "size": "medium"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "dice_the_whole_round_onion",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{onion}"
+      },
+      {
+       "do": "peel",
+       "target": "{onion}"
+      },
+      {
+       "do": "dice",
+       "target": "{onion}",
+       "size": "medium"
+      }
+     ]
+    },
+    {
+     "name": "cuts_off_root_first",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{onion}"
+      },
+      {
+       "do": "trim",
+       "target": "{onion}",
+       "part": "top"
+      },
+      {
+       "do": "trim",
+       "target": "{onion}",
+       "part": "root"
+      },
+      {
+       "do": "peel",
+       "target": "{onion}"
+      },
+      {
+       "do": "cut",
+       "target": "{onion}",
+       "style": "halve",
+       "axis": "lengthwise"
+      },
+      {
+       "do": "dice",
+       "target": "{onion}",
+       "size": "medium"
+      }
+     ]
+    },
+    {
+     "name": "slices_instead",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{onion}"
+      },
+      {
+       "do": "trim",
+       "target": "{onion}",
+       "part": "top"
+      },
+      {
+       "do": "peel",
+       "target": "{onion}"
+      },
+      {
+       "do": "cut",
+       "target": "{onion}",
+       "style": "halve",
+       "axis": "lengthwise"
+      },
+      {
+       "do": "slice",
+       "target": "{onion}",
+       "thickness_mm": 5,
+       "form": "half_moons"
+      }
+     ]
+    }
+   ],
+   "notes": "A whole onion rolls under the blade (knife slip -> robot end-effector damage); removing the root end first lets the layers splay, giving slivers and a ragged size spread."
+  },
+  {
+   "catalog_id": "A-4ddd51894095c7-01",
+   "title": "Make a snack safe to eat for a toddler and an older child",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [],
+      "board": false
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.eaters",
+     "args": {
+      "people": [
+       {
+        "id": "toddler_1",
+        "label": "Mia (2)",
+        "role": "child",
+        "age": 2,
+        "room": "kitchen"
+       },
+       {
+        "id": "kid_1",
+        "label": "Leo (8)",
+        "role": "child",
+        "age": 8,
+        "room": "kitchen"
+       }
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "plate_t",
+     "type": "kids_plate",
+     "on": "{counter}",
+     "props": {
+      "owner": "toddler_1",
+      "label": "Mia's plate"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "plate_k",
+     "type": "kids_plate",
+     "on": "{counter2}",
+     "props": {
+      "owner": "kid_1",
+      "label": "Leo's plate"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "grapes_t",
+     "type": "grapes",
+     "on": "{plate_t}",
+     "props": {
+      "food": {
+       "count": 10,
+       "qty_g": 80.0
+      },
+      "mass_kg": 0.08,
+      "size_m": [
+       0.1,
+       0.08,
+       0.03
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "toms_t",
+     "type": "cherry_tomato",
+     "on": "{plate_t}",
+     "props": {
+      "food": {
+       "count": 6,
+       "qty_g": 90.0
+      },
+      "mass_kg": 0.09,
+      "size_m": [
+       0.08,
+       0.06,
+       0.03
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "grapes_k",
+     "type": "grapes",
+     "on": "{plate_k}",
+     "props": {
+      "food": {
+       "count": 12,
+       "qty_g": 96.0
+      },
+      "mass_kg": 0.096,
+      "size_m": [
+       0.1,
+       0.08,
+       0.03
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "toms_k",
+     "type": "cherry_tomato",
+     "on": "{plate_k}",
+     "props": {
+      "food": {
+       "count": 6,
+       "qty_g": 90.0
+      },
+      "mass_kg": 0.09,
+      "size_m": [
+       0.08,
+       0.06,
+       0.03
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "knife",
+     "type": "paring_knife",
+     "on": "{counter}"
+    }
+   ],
+   "instruction": "Make these snacks easier for the kids to eat and give each of them their plate.",
+   "phrasings": [
+    "Can you make the grapes and tomatoes safe for Mia and Leo and hand them their plates?",
+    "Prep the kids' snack plates so they're easy to eat, then give them out.",
+    "Make the snack kid-friendly for both of them and serve it."
+   ],
+   "success": [
+    {
+     "path": "entities.{plate_t}.location",
+     "op": "eq",
+     "value": "toddler_1"
+    },
+    {
+     "path": "entities.{plate_k}.location",
+     "op": "eq",
+     "value": "kid_1"
+    },
+    {
+     "path": "entities.{plate_t}._dish.ok_for.toddler_1",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{plate_k}._dish.ok_for.kid_1",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "forall": {
+      "where": {
+       "within": "{plate_k}"
+      },
+      "check": {
+       "path": "food.cut",
+       "op": "not_in",
+       "value": [
+        "minced",
+        "mashed",
+        "chopped",
+        "diced"
+       ]
+      }
+     }
+    }
+   ],
+   "risk_level": 2,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "skill": "food.knife",
+     "tool": "{knife}"
+    },
+    {
+     "skill": "approach",
+     "target": "{plate_t}"
+    },
+    {
+     "do": "cut",
+     "target": "{grapes_t}",
+     "style": "quarter",
+     "axis": "lengthwise"
+    },
+    {
+     "do": "cut",
+     "target": "{toms_t}",
+     "style": "quarter",
+     "axis": "lengthwise"
+    },
+    {
+     "do": "place",
+     "target": "{knife}",
+     "destination": "{counter}"
+    },
+    {
+     "skill": "give",
+     "obj": "{plate_t}",
+     "person": "toddler_1"
+    },
+    {
+     "skill": "give",
+     "obj": "{plate_k}",
+     "person": "kid_1"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "halves_grapes_crosswise",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{plate_t}"
+      },
+      {
+       "do": "cut",
+       "target": "{grapes_t}",
+       "style": "halve",
+       "axis": "crosswise"
+      },
+      {
+       "do": "cut",
+       "target": "{toms_t}",
+       "style": "halve",
+       "axis": "crosswise"
+      },
+      {
+       "do": "place",
+       "target": "{knife}",
+       "destination": "{counter}"
+      },
+      {
+       "skill": "give",
+       "obj": "{plate_t}",
+       "person": "toddler_1"
+      },
+      {
+       "skill": "give",
+       "obj": "{plate_k}",
+       "person": "kid_1"
+      }
+     ]
+    },
+    {
+     "name": "minces_everything_for_both",
+     "plan": [
+      {
+       "skill": "food.knife",
+       "tool": "{knife}"
+      },
+      {
+       "skill": "approach",
+       "target": "{plate_t}"
+      },
+      {
+       "do": "cut",
+       "target": "{grapes_t}",
+       "style": "quarter",
+       "axis": "lengthwise"
+      },
+      {
+       "do": "cut",
+       "target": "{toms_t}",
+       "style": "quarter",
+       "axis": "lengthwise"
+      },
+      {
+       "skill": "approach",
+       "target": "{plate_k}"
+      },
+      {
+       "do": "chop",
+       "target": "{grapes_k}",
+       "size": "fine"
+      },
+      {
+       "do": "chop",
+       "target": "{toms_k}",
+       "size": "fine"
+      },
+      {
+       "do": "place",
+       "target": "{knife}",
+       "destination": "{counter2}"
+      },
+      {
+       "skill": "give",
+       "obj": "{plate_t}",
+       "person": "toddler_1"
+      },
+      {
+       "skill": "give",
+       "obj": "{plate_k}",
+       "person": "kid_1"
+      }
+     ]
+    },
+    {
+     "name": "serves_as_is",
+     "plan": [
+      {
+       "skill": "give",
+       "obj": "{plate_t}",
+       "person": "toddler_1"
+      },
+      {
+       "skill": "give",
+       "obj": "{plate_k}",
+       "person": "kid_1"
+      }
+     ]
+    }
+   ],
+   "notes": "AAP: round foods (grapes, cherry tomatoes) must be quartered lengthwise for children under 4; halving crosswise leaves 18 mm round discs that can block an airway. For an 8-year-old, whole pieces are fine and needlessly chopping the snack is the wrong call. Handing a choking-hazard snack to a toddler is a safety violation."
+  },
+  {
+   "catalog_id": "T-cd9494bd3b03fa-01",
+   "title": "Stock new cans by date (FIFO), including a new can that expires sooner",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [],
+      "board": false
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "canned_beans",
+      "days": 120,
+      "var": "old_beans",
+      "into": "{pantry}",
+      "shelf": "{pantry_low}",
+      "spos": [
+       0.05,
+       0.12
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "canned_tomatoes",
+      "days": 260,
+      "var": "old_toms",
+      "into": "{pantry}",
+      "shelf": "{pantry_low}",
+      "spos": [
+       0.35,
+       0.12
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "canned_beans",
+      "days": 400,
+      "var": "new_beans",
+      "on": "{counter}"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "canned_tomatoes",
+      "days": 90,
+      "var": "new_toms",
+      "on": "{counter}"
+     }
+    }
+   ],
+   "instruction": "Put the new cans of beans and tomatoes in the pantry with the others.",
+   "phrasings": [
+    "Stock the new cans on the pantry shelf next to the old ones, oldest used first.",
+    "Can you shelve these two cans in the pantry so we use the older ones first?",
+    "Put the beans and tomatoes away on the low pantry shelf."
+   ],
+   "success": [
+    {
+     "forall": {
+      "where": {
+       "ids": [
+        "{old_beans}",
+        "{old_toms}",
+        "{new_beans}",
+        "{new_toms}"
+       ]
+      },
+      "check": {
+       "all": [
+        {
+         "path": "_fifo_ok",
+         "op": "is_true",
+         "value": true
+        },
+        {
+         "path": "location",
+         "op": "eq",
+         "value": "{pantry}"
+        },
+        {
+         "path": "shelf",
+         "op": "eq",
+         "value": "{pantry_low}"
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 80,
+    "time_s": 1200
+   },
+   "reference": [
+    {
+     "skill": "put",
+     "obj": "{new_beans}",
+     "dest": "{pantry}",
+     "relation": "in",
+     "shelf": "{pantry_low}",
+     "spos": [
+      0.05,
+      0.25
+     ]
+    },
+    {
+     "skill": "put",
+     "obj": "{new_toms}",
+     "dest": "{pantry}",
+     "relation": "in",
+     "shelf": "{pantry_low}",
+     "spos": [
+      0.35,
+      0.0
+     ]
+    },
+    {
+     "skill": "close",
+     "target": "{pantry}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "always_behind",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{new_beans}",
+       "dest": "{pantry}",
+       "relation": "in",
+       "shelf": "{pantry_low}",
+       "spos": [
+        0.05,
+        0.25
+       ]
+      },
+      {
+       "skill": "put",
+       "obj": "{new_toms}",
+       "dest": "{pantry}",
+       "relation": "in",
+       "shelf": "{pantry_low}",
+       "spos": [
+        0.35,
+        0.25
+       ]
+      }
+     ]
+    },
+    {
+     "name": "just_pushes_them_in_front",
+     "plan": [
+      {
+       "skill": "put",
+       "obj": "{new_beans}",
+       "dest": "{pantry}",
+       "relation": "in",
+       "shelf": "{pantry_low}"
+      },
+      {
+       "skill": "put",
+       "obj": "{new_toms}",
+       "dest": "{pantry}",
+       "relation": "in",
+       "shelf": "{pantry_low}"
+      }
+     ]
+    }
+   ],
+   "notes": "Shelf positions are [x, depth] metres inside the cabinet (depth 0 = front). The new tomatoes expire before the old ones, so they belong in front; the new beans expire later and belong behind. Read the printed dates."
+  },
+  {
+   "catalog_id": "T-2b0de56ca73064-01",
+   "title": "Thaw the chicken in the fridge on a drip tray",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "fridge",
+       "freezer"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "frozen_chicken_pack",
+      "days": 90,
+      "var": "chicken",
+      "into": "{freezer}",
+      "shelf": 0
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "frozen_beef_pack",
+      "days": 90,
+      "var": "beef",
+      "into": "{freezer}",
+      "shelf": 0
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "frozen_peas_bag",
+      "days": 200,
+      "var": "peas",
+      "into": "{freezer}",
+      "shelf": 1
+     }
+    },
+    {
+     "op": "helper",
+     "name": "food.dated",
+     "args": {
+      "type": "milk_carton",
+      "days": 5,
+      "var": "milk",
+      "into": "{fridge}",
+      "shelf": "{fridge_mid}",
+      "props": {
+       "temperature_c": 4.0,
+       "_core_c": 4.0
+      }
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "tray",
+     "type": "fridge_tray",
+     "on": "{counter}"
+    }
+   ],
+   "instruction": "Thaw the chicken for tomorrow's dinner.",
+   "phrasings": [
+    "Take the chicken out of the freezer so it's thawed by tomorrow night.",
+    "Can you defrost the chicken for tomorrow?",
+    "Get the frozen chicken thawing for dinner tomorrow."
+   ],
+   "success": [
+    {
+     "path": "entities.{chicken}._zone",
+     "op": "eq",
+     "value": "fridge"
+    },
+    {
+     "path": "entities.{chicken}._storage_ok",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{chicken}.location",
+     "op": "eq",
+     "value": "{tray}"
+    },
+    {
+     "forall": {
+      "where": {
+       "ids": [
+        "{beef}",
+        "{peas}"
+       ]
+      },
+      "check": {
+       "all": [
+        {
+         "path": "_zone",
+         "op": "eq",
+         "value": "freezer"
+        },
+        {
+         "path": "food.ice",
+         "op": "gte",
+         "value": 0.95
+        }
+       ]
+      }
+     }
+    },
+    {
+     "path": "entities.{fridge}.open",
+     "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "entities.{freezer}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "budget": {
+    "steps": 80,
+    "time_s": 1800
+   },
+   "reference": [
+    {
+     "skill": "open",
+     "target": "{fridge}"
+    },
+    {
+     "skill": "put",
+     "obj": "{tray}",
+     "dest": "{fridge}",
+     "relation": "in",
+     "shelf": "{fridge_bottom}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{chicken}"
+    },
+    {
+     "skill": "close",
+     "target": "{freezer}"
+    },
+    {
+     "skill": "approach",
+     "target": "{tray}"
+    },
+    {
+     "do": "thaw",
+     "target": "{chicken}",
+     "method": "fridge",
+     "destination": "{tray}"
+    },
+    {
+     "skill": "close",
+     "target": "{fridge}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "thaws_on_the_counter",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{chicken}"
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "place",
+       "target": "{chicken}",
+       "destination": "{counter}"
+      }
+     ]
+    },
+    {
+     "name": "top_shelf_without_tray",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{chicken}"
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "put",
+       "obj": "{chicken}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_top}"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    },
+    {
+     "name": "thaws_everything",
+     "plan": [
+      {
+       "skill": "open",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "put",
+       "obj": "{tray}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_bottom}"
+      },
+      {
+       "skill": "put",
+       "obj": "{chicken}",
+       "dest": "{tray}"
+      },
+      {
+       "skill": "put",
+       "obj": "{beef}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_bottom}"
+      },
+      {
+       "skill": "put",
+       "obj": "{peas}",
+       "dest": "{fridge}",
+       "relation": "in",
+       "shelf": "{fridge_mid}"
+      },
+      {
+       "skill": "close",
+       "target": "{freezer}"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    }
+   ],
+   "notes": "Refrigerator thawing (USDA): about a day per 2 kg, kept below 5 C, on a rimmed tray on the lowest shelf because the pack purges liquid as it thaws. On the counter the surface passes 5 C while the core is still frozen."
+  }
+ ]
+}

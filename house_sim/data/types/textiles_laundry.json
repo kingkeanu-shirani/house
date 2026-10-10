@@ -1,0 +1,5341 @@
+{
+ "domain": "textiles_laundry",
+ "field_tiers": {
+  "doc": "Fields this domain writes onto other domains' entities (cleaning cloths, mop pads, rugs, bags it launders; beds it dresses; items found in pockets or buried in bedding) and onto rooms: laundry bookkeeping and model numbers are hidden, a bed's made state is visible at a glance, the bed summary's exact wrinkle and offset numbers are hidden (the inspector shows them as a look), sizes after shrink/stretch need a tape measure.",
+  "glance": [
+   "made",
+   "drying_mode",
+   "on_hanger",
+   "soaking",
+   "laid_flat",
+   "spread_on"
+  ],
+  "inspect": [
+   "bed_state"
+  ],
+  "measure": {
+   "shrunk": "tape_measure",
+   "stretched": "tape_measure",
+   "drape_cm": "tape_measure",
+   "drop_diff_cm": "tape_measure"
+  },
+  "hidden": [
+   "drying_owner",
+   "set_stains",
+   "softener_residue",
+   "blown_down",
+   "floor_contact",
+   "rained_on",
+   "last_washed_s",
+   "wash_count",
+   "stored_months",
+   "elastic_stretch",
+   "slipped_off",
+   "folded_damp",
+   "folded_inside",
+   "pretreat",
+   "soak_agents",
+   "bleed",
+   "colorfast",
+   "in_laundry",
+   "buried_in_bed",
+   "made_at",
+   "fitted_damp",
+   "lost_on_floor",
+   "fold_quality.align_cm",
+   "bed_state.wrinkle",
+   "bed_state.duvet_offset_cm",
+   "bed_state.flat_offset_cm"
+  ],
+  "room": {
+   "hidden": [
+    "wet_cells"
+   ]
+  }
+ },
+ "types": {
+  "textile": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "textile",
+    "category": "textile",
+    "textile": true,
+    "drying_owner": "textiles_laundry",
+    "material": "fabric",
+    "fabric": "cotton",
+    "color": "white",
+    "color_class": "white",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "medium"
+    },
+    "care_label": null,
+    "has_care_label": true,
+    "wrinkled": 0.1,
+    "folded": false,
+    "worn": false,
+    "wetness": 0.0,
+    "inside_out": false,
+    "set_stains": [],
+    "damage": {},
+    "shrunk": 0.0,
+    "dye_damage": 0.0,
+    "stretched": 0.0,
+    "faded": 0.0,
+    "pilling": 0.0,
+    "pretreat": {},
+    "flat_size_m": [
+     0.5,
+     0.5
+    ],
+    "layer_thickness_m": 0.003,
+    "loose_size_m": [
+     0.3,
+     0.25,
+     0.1
+    ],
+    "loose_volume_l": 4.0,
+    "size_m": [
+     0.3,
+     0.25,
+     0.1
+    ],
+    "volume_l": 4.0,
+    "mass_kg": 0.2,
+    "dry_time_h": 3.0,
+    "thick": false,
+    "max_touch_temp_c": 65.0,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "stackable": true,
+    "colorfast": true,
+    "bleed": 0.0,
+    "secret_fields": [
+     "care",
+     "care_label",
+     "wetness",
+     "worn",
+     "pair_id",
+     "bleed",
+     "colorfast",
+     "fiber_content",
+     "brand",
+     "size_label"
+    ],
+    "affordances": [
+     "fold",
+     "unfold",
+     "hang_dry",
+     "iron",
+     "steam",
+     "treat_stain",
+     "soak",
+     "lint_roll"
+    ],
+    "tags": [
+     "textile"
+    ]
+   },
+   "doc": "Anything made of fabric that can be laundered, folded, hung or dried.",
+   "perception": {
+    "glance": [
+     "folded",
+     "drying_mode",
+     "on_hanger",
+     "soaking",
+     "garment_kind",
+     "towel_class",
+     "laid_flat",
+     "curled",
+     "spread_on",
+     "hang_method",
+     "secured",
+     "caught_in_door",
+     "hem_on_floor",
+     "tangled"
+    ],
+    "read": [
+     "size",
+     "bed_size",
+     "pillow_size",
+     "label_text"
+    ],
+    "measure": {
+     "flat_size_m": "tape_measure",
+     "fold_base_m": "tape_measure",
+     "loose_size_m": "tape_measure",
+     "layer_thickness_m": "tape_measure",
+     "loose_volume_l": "tape_measure",
+     "single_size_m": "tape_measure",
+     "single_volume_l": "tape_measure",
+     "hang_length_m": "tape_measure",
+     "pocket_depth_cm": "tape_measure",
+     "drop_m": "tape_measure",
+     "drape_cm": "tape_measure",
+     "drop_diff_cm": "tape_measure",
+     "insert_dims_m": "tape_measure",
+     "cover_dims_m": "tape_measure",
+     "length_cm": "tape_measure",
+     "hem_height_m": "tape_measure",
+     "split_cm": "tape_measure",
+     "shrunk": "tape_measure",
+     "stretched": "tape_measure",
+     "offset_cm": "tape_measure"
+    },
+    "hidden": [
+     "dry_time_h",
+     "max_touch_temp_c",
+     "wrinkle_propensity",
+     "drying_owner",
+     "set_stains",
+     "absorbency",
+     "softener_residue",
+     "blown_down",
+     "floor_contact",
+     "rained_on",
+     "last_washed_s",
+     "stored_months",
+     "stretch_per_day",
+     "wash_count",
+     "elastic_stretch",
+     "made_at",
+     "slipped_off",
+     "odor",
+     "odor_kind",
+     "pretreat",
+     "buttons",
+     "seams",
+     "fold_quality.align_cm",
+     "secured.rating_n",
+     "folded_damp",
+     "folded_inside",
+     "in_laundry",
+     "lost_on_floor",
+     "fitted_damp"
+    ]
+   }
+  },
+  "garment": {
+   "is_a": "textile",
+   "props": {
+    "category": "garment",
+    "garment_kind": null,
+    "owner": null,
+    "size": "M",
+    "season": "all",
+    "weather_class": null,
+    "needs_hanger": false,
+    "has_sleeves": false,
+    "has_legs": false,
+    "narrow_neck": false,
+    "has_buttons": false,
+    "has_zipper": false,
+    "sleeves_rolled": false,
+    "cuffed": false,
+    "color_class": "light",
+    "color": "grey"
+   },
+   "doc": "Clothing worn by a person (owner, size, season, care label)."
+  },
+  "t_shirt": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "t_shirt",
+    "knit": true,
+    "has_sleeves": true,
+    "narrow_neck": true,
+    "flat_size_m": [
+     0.8,
+     0.72
+    ],
+    "fold_base_m": [
+     0.52,
+     0.72
+    ],
+    "layer_thickness_m": 0.004,
+    "loose_size_m": [
+     0.32,
+     0.26,
+     0.1
+    ],
+    "loose_volume_l": 5.0,
+    "size_m": [
+     0.32,
+     0.26,
+     0.1
+    ],
+    "volume_l": 5.0,
+    "mass_kg": 0.17,
+    "dry_time_h": 3.0,
+    "color": "navy",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "medium",
+     "like_colors": true
+    },
+    "label": "t-shirt"
+   },
+   "doc": "Cotton jersey T-shirt (adult M ~170 g)."
+  },
+  "long_sleeve_shirt": {
+   "is_a": "t_shirt",
+   "props": {
+    "garment_kind": "long_sleeve_shirt",
+    "mass_kg": 0.22,
+    "flat_size_m": [
+     1.4,
+     0.72
+    ],
+    "label": "long-sleeve shirt"
+   },
+   "doc": "Long-sleeved cotton jersey top."
+  },
+  "tank_top": {
+   "is_a": "t_shirt",
+   "props": {
+    "garment_kind": "tank_top",
+    "has_sleeves": false,
+    "mass_kg": 0.1,
+    "flat_size_m": [
+     0.45,
+     0.68
+    ],
+    "fold_base_m": [
+     0.45,
+     0.68
+    ],
+    "label": "tank top"
+   },
+   "doc": "Sleeveless cotton top."
+  },
+  "polo_shirt": {
+   "is_a": "t_shirt",
+   "props": {
+    "garment_kind": "polo_shirt",
+    "mass_kg": 0.24,
+    "has_buttons": true,
+    "narrow_neck": false,
+    "fasteners": {
+     "buttons": {
+      "count": 3,
+      "engaged": false
+     }
+    },
+    "label": "polo shirt"
+   },
+   "doc": "Cotton pique polo shirt."
+  },
+  "athletic_shirt": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "athletic_shirt",
+    "fabric": "polyester",
+    "athletic": true,
+    "no_softener": true,
+    "knit": true,
+    "has_sleeves": true,
+    "flat_size_m": [
+     0.8,
+     0.72
+    ],
+    "fold_base_m": [
+     0.52,
+     0.72
+    ],
+    "layer_thickness_m": 0.003,
+    "mass_kg": 0.13,
+    "dry_time_h": 1.5,
+    "color": "black",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "low",
+     "fabric_softener": false,
+     "notes": [
+      "DO NOT USE FABRIC SOFTENER"
+     ]
+    },
+    "label": "athletic shirt"
+   },
+   "doc": "Polyester moisture-wicking sports top (no softener)."
+  },
+  "dress_shirt": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "dress_shirt",
+    "has_sleeves": true,
+    "has_buttons": true,
+    "needs_hanger": true,
+    "hang_length_m": 0.8,
+    "flat_size_m": [
+     0.9,
+     0.8
+    ],
+    "fold_base_m": [
+     0.55,
+     0.78
+    ],
+    "layer_thickness_m": 0.003,
+    "loose_size_m": [
+     0.35,
+     0.3,
+     0.12
+    ],
+    "loose_volume_l": 6.0,
+    "size_m": [
+     0.35,
+     0.3,
+     0.12
+    ],
+    "volume_l": 6.0,
+    "mass_kg": 0.25,
+    "dry_time_h": 3.0,
+    "color": "white",
+    "color_class": "white",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "high"
+    },
+    "fasteners": {
+     "buttons": {
+      "count": 8,
+      "engaged": false
+     }
+    },
+    "label": "dress shirt"
+   },
+   "doc": "Woven cotton button-down shirt (hang-preferred, wrinkles easily)."
+  },
+  "blouse": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "blouse",
+    "fabric": "silk",
+    "delicate": true,
+    "has_sleeves": true,
+    "has_buttons": true,
+    "needs_hanger": true,
+    "hang_length_m": 0.7,
+    "flat_size_m": [
+     0.85,
+     0.7
+    ],
+    "fold_base_m": [
+     0.5,
+     0.65
+    ],
+    "layer_thickness_m": 0.002,
+    "mass_kg": 0.12,
+    "dry_time_h": 2.0,
+    "color": "ivory",
+    "color_class": "light",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "low",
+     "shade": true
+    },
+    "fasteners": {
+     "buttons": {
+      "count": 7,
+      "engaged": false
+     }
+    },
+    "label": "blouse"
+   },
+   "doc": "Silk blouse: hand wash cold, line dry, cool iron, slippery on wire hangers."
+  },
+  "sweater": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "sweater",
+    "fabric": "wool",
+    "knit": true,
+    "knit_grade": "medium",
+    "thick": true,
+    "has_sleeves": true,
+    "narrow_neck": true,
+    "flat_size_m": [
+     1.2,
+     0.68
+    ],
+    "fold_base_m": [
+     0.55,
+     0.65
+    ],
+    "layer_thickness_m": 0.008,
+    "loose_size_m": [
+     0.35,
+     0.3,
+     0.15
+    ],
+    "loose_volume_l": 8.0,
+    "size_m": [
+     0.35,
+     0.3,
+     0.15
+    ],
+    "volume_l": 8.0,
+    "mass_kg": 0.55,
+    "dry_time_h": 20.0,
+    "color": "charcoal",
+    "color_class": "dark",
+    "season": "winter",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "medium"
+    },
+    "label": "sweater"
+   },
+   "doc": "Wool knit sweater: hand wash cold, dry flat, never tumble (felts and shrinks), hang stretches it."
+  },
+  "cashmere_sweater": {
+   "is_a": "sweater",
+   "props": {
+    "fabric": "cashmere",
+    "knit_grade": "fine",
+    "mass_kg": 0.3,
+    "value": 180.0,
+    "label": "cashmere sweater"
+   },
+   "doc": "Fine cashmere knit (very delicate; comb pills, never shave)."
+  },
+  "cardigan": {
+   "is_a": "sweater",
+   "props": {
+    "garment_kind": "cardigan",
+    "has_buttons": true,
+    "fabric": "acrylic",
+    "mass_kg": 0.45,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "flat",
+     "iron": "low"
+    },
+    "fasteners": {
+     "buttons": {
+      "count": 5,
+      "engaged": false
+     }
+    },
+    "label": "cardigan"
+   },
+   "doc": "Knit cardigan with buttons."
+  },
+  "hoodie": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "hoodie",
+    "fabric": "flannel",
+    "thick": true,
+    "knit": true,
+    "has_sleeves": true,
+    "flat_size_m": [
+     1.3,
+     0.75
+    ],
+    "fold_base_m": [
+     0.55,
+     0.7
+    ],
+    "layer_thickness_m": 0.007,
+    "loose_size_m": [
+     0.38,
+     0.32,
+     0.15
+    ],
+    "loose_volume_l": 9.0,
+    "size_m": [
+     0.38,
+     0.32,
+     0.15
+    ],
+    "volume_l": 9.0,
+    "mass_kg": 0.6,
+    "dry_time_h": 8.0,
+    "color": "grey",
+    "color_class": "light",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "medium"
+    },
+    "label": "hoodie"
+   },
+   "doc": "Cotton fleece hoodie with a kangaroo pocket (thick seams dry slowly)."
+  },
+  "sweatshirt": {
+   "is_a": "hoodie",
+   "props": {
+    "garment_kind": "sweatshirt",
+    "mass_kg": 0.5,
+    "label": "sweatshirt"
+   },
+   "doc": "Crew-neck fleece sweatshirt."
+  },
+  "jeans": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "jeans",
+    "fabric": "denim",
+    "thick": true,
+    "has_legs": true,
+    "has_zipper": true,
+    "hang_length_m": 1.05,
+    "flat_size_m": [
+     0.5,
+     1.05
+    ],
+    "fold_base_m": [
+     0.32,
+     1.05
+    ],
+    "layer_thickness_m": 0.005,
+    "loose_size_m": [
+     0.38,
+     0.32,
+     0.12
+    ],
+    "loose_volume_l": 8.0,
+    "size_m": [
+     0.38,
+     0.32,
+     0.12
+    ],
+    "volume_l": 8.0,
+    "mass_kg": 0.65,
+    "dry_time_h": 8.0,
+    "color": "indigo",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "high",
+     "inside_out": true,
+     "like_colors": true
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "jeans"
+   },
+   "doc": "Dark denim jeans (wash inside out cold, thick seams dry last)."
+  },
+  "dress_pants": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "dress_pants",
+    "fabric": "polyester",
+    "crease": "pressed",
+    "has_legs": true,
+    "has_zipper": true,
+    "needs_hanger": true,
+    "hang_length_m": 1.05,
+    "flat_size_m": [
+     0.5,
+     1.05
+    ],
+    "fold_base_m": [
+     0.28,
+     1.05
+    ],
+    "layer_thickness_m": 0.003,
+    "mass_kg": 0.4,
+    "dry_time_h": 3.0,
+    "color": "black",
+    "color_class": "dark",
+    "wrinkle_propensity": 0.4,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "medium"
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "dress pants"
+   },
+   "doc": "Pressed dress trousers (polyester-wool; keep the crease, hang by the cuffs or fold on the crease)."
+  },
+  "chinos": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "chinos",
+    "has_legs": true,
+    "has_zipper": true,
+    "flat_size_m": [
+     0.5,
+     1.05
+    ],
+    "fold_base_m": [
+     0.3,
+     1.05
+    ],
+    "layer_thickness_m": 0.004,
+    "mass_kg": 0.45,
+    "dry_time_h": 5.0,
+    "color": "khaki",
+    "color_class": "light",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "high"
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "chinos"
+   },
+   "doc": "Cotton twill chinos."
+  },
+  "shorts": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "shorts",
+    "has_legs": true,
+    "flat_size_m": [
+     0.55,
+     0.5
+    ],
+    "fold_base_m": [
+     0.3,
+     0.5
+    ],
+    "layer_thickness_m": 0.004,
+    "mass_kg": 0.2,
+    "dry_time_h": 3.0,
+    "season": "summer",
+    "color": "blue",
+    "color_class": "color",
+    "label": "shorts"
+   },
+   "doc": "Cotton shorts."
+  },
+  "skirt": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "skirt",
+    "fabric": "polyester",
+    "needs_hanger": true,
+    "hang_length_m": 0.6,
+    "flat_size_m": [
+     0.6,
+     0.6
+    ],
+    "fold_base_m": [
+     0.4,
+     0.6
+    ],
+    "mass_kg": 0.2,
+    "dry_time_h": 2.0,
+    "color": "black",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "medium"
+    },
+    "label": "skirt"
+   },
+   "doc": "Polyester skirt (clip hanger)."
+  },
+  "leggings": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "leggings",
+    "fabric": "spandex_blend",
+    "athletic": true,
+    "has_legs": true,
+    "knit": true,
+    "flat_size_m": [
+     0.35,
+     0.95
+    ],
+    "fold_base_m": [
+     0.2,
+     0.95
+    ],
+    "layer_thickness_m": 0.002,
+    "mass_kg": 0.2,
+    "dry_time_h": 2.0,
+    "color": "black",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "leggings"
+   },
+   "doc": "Spandex-blend leggings (no softener, low heat)."
+  },
+  "sweatpants": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "sweatpants",
+    "fabric": "flannel",
+    "thick": true,
+    "has_legs": true,
+    "knit": true,
+    "flat_size_m": [
+     0.6,
+     1.05
+    ],
+    "fold_base_m": [
+     0.35,
+     1.05
+    ],
+    "layer_thickness_m": 0.007,
+    "mass_kg": 0.5,
+    "dry_time_h": 7.0,
+    "color": "grey",
+    "color_class": "light",
+    "label": "sweatpants"
+   },
+   "doc": "Cotton fleece sweatpants."
+  },
+  "dress": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "dress",
+    "fabric": "rayon",
+    "needs_hanger": true,
+    "hang_length_m": 1.1,
+    "flat_size_m": [
+     0.9,
+     1.1
+    ],
+    "fold_base_m": [
+     0.5,
+     1.1
+    ],
+    "layer_thickness_m": 0.002,
+    "mass_kg": 0.3,
+    "dry_time_h": 3.0,
+    "color": "green",
+    "color_class": "color",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "medium"
+    },
+    "label": "dress"
+   },
+   "doc": "Rayon day dress (hand wash cold, hang to dry, hang in the long section)."
+  },
+  "evening_gown": {
+   "is_a": "dress",
+   "props": {
+    "garment_kind": "gown",
+    "fabric": "satin",
+    "hang_length_m": 1.5,
+    "strapless": false,
+    "value": 250.0,
+    "care": {
+     "wash": "dry_clean",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "low"
+    },
+    "label": "evening gown"
+   },
+   "doc": "Long gown (hem needs the long-hang section)."
+  },
+  "suit_jacket": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "suit_jacket",
+    "fabric": "wool",
+    "structured": true,
+    "has_sleeves": true,
+    "has_buttons": true,
+    "thick": true,
+    "needs_hanger": true,
+    "hang_length_m": 0.75,
+    "flat_size_m": [
+     1.2,
+     0.75
+    ],
+    "fold_base_m": [
+     0.55,
+     0.75
+    ],
+    "layer_thickness_m": 0.008,
+    "mass_kg": 0.9,
+    "dry_time_h": 12.0,
+    "color": "navy",
+    "color_class": "dark",
+    "value": 200.0,
+    "care": {
+     "wash": "dry_clean",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "medium"
+    },
+    "fasteners": {
+     "buttons": {
+      "count": 2,
+      "engaged": false
+     }
+    },
+    "label": "suit jacket"
+   },
+   "doc": "Structured wool suit jacket (dry clean; wide-shoulder hanger)."
+  },
+  "coat": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "coat",
+    "fabric": "wool",
+    "structured": true,
+    "thick": true,
+    "has_sleeves": true,
+    "has_buttons": true,
+    "needs_hanger": false,
+    "hang_loop": true,
+    "hang_length_m": 1.0,
+    "flat_size_m": [
+     1.4,
+     1.0
+    ],
+    "fold_base_m": [
+     0.6,
+     1.0
+    ],
+    "layer_thickness_m": 0.012,
+    "loose_size_m": [
+     0.5,
+     0.4,
+     0.25
+    ],
+    "loose_volume_l": 30.0,
+    "size_m": [
+     0.5,
+     0.4,
+     0.25
+    ],
+    "volume_l": 30.0,
+    "mass_kg": 1.8,
+    "dry_time_h": 14.0,
+    "season": "winter",
+    "weather_class": "cold",
+    "color": "charcoal",
+    "color_class": "dark",
+    "value": 180.0,
+    "care": {
+     "wash": "dry_clean",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "low"
+    },
+    "fasteners": {
+     "buttons": {
+      "count": 4,
+      "engaged": false
+     }
+    },
+    "label": "coat"
+   },
+   "doc": "Heavy wool winter coat (1.8 kg; dry clean; sturdy wide hanger)."
+  },
+  "raincoat": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "raincoat",
+    "fabric": "nylon",
+    "coated": true,
+    "has_sleeves": true,
+    "has_zipper": true,
+    "needs_hanger": false,
+    "hang_loop": true,
+    "hang_length_m": 0.95,
+    "flat_size_m": [
+     1.3,
+     0.95
+    ],
+    "fold_base_m": [
+     0.55,
+     0.9
+    ],
+    "mass_kg": 0.6,
+    "dry_time_h": 2.0,
+    "season": "transitional",
+    "weather_class": "rain",
+    "color": "yellow",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "drip",
+     "iron": "none",
+     "steam_ok": false
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "raincoat"
+   },
+   "doc": "Coated nylon raincoat."
+  },
+  "light_jacket": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "light_jacket",
+    "fabric": "polyester",
+    "has_sleeves": true,
+    "has_zipper": true,
+    "needs_hanger": false,
+    "hang_loop": true,
+    "hang_length_m": 0.7,
+    "flat_size_m": [
+     1.2,
+     0.7
+    ],
+    "fold_base_m": [
+     0.55,
+     0.7
+    ],
+    "mass_kg": 0.45,
+    "dry_time_h": 3.0,
+    "season": "transitional",
+    "weather_class": "mild",
+    "color": "olive",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "low"
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "light jacket"
+   },
+   "doc": "Light polyester jacket for mild days."
+  },
+  "puffer_jacket": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "puffer_jacket",
+    "fabric": "nylon",
+    "fill": "down",
+    "thick": true,
+    "has_sleeves": true,
+    "has_zipper": true,
+    "needs_hanger": false,
+    "hang_loop": true,
+    "hang_length_m": 0.75,
+    "mass_kg": 0.8,
+    "dry_time_h": 16.0,
+    "season": "winter",
+    "weather_class": "cold",
+    "color": "black",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "puffer jacket"
+   },
+   "doc": "Down-filled puffer jacket."
+  },
+  "underwear": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "underwear",
+    "fold_class": "underwear",
+    "intimate": true,
+    "flat_size_m": [
+     0.35,
+     0.3
+    ],
+    "fold_base_m": [
+     0.3,
+     0.3
+    ],
+    "layer_thickness_m": 0.003,
+    "loose_size_m": [
+     0.15,
+     0.12,
+     0.05
+    ],
+    "loose_volume_l": 0.8,
+    "size_m": [
+     0.15,
+     0.12,
+     0.05
+    ],
+    "volume_l": 0.8,
+    "mass_kg": 0.06,
+    "dry_time_h": 2.5,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 60,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "underwear"
+   },
+   "doc": "Cotton briefs/boxers (intimate: handle minimally, owner's pile only)."
+  },
+  "bra": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "bra",
+    "fabric": "lace",
+    "fold_class": "bra",
+    "intimate": true,
+    "molded_cups": true,
+    "crushable": true,
+    "hooks": true,
+    "delicate": true,
+    "flat_size_m": [
+     0.35,
+     0.2
+    ],
+    "fold_base_m": [
+     0.3,
+     0.18
+    ],
+    "layer_thickness_m": 0.03,
+    "loose_size_m": [
+     0.25,
+     0.15,
+     0.1
+    ],
+    "loose_volume_l": 1.5,
+    "size_m": [
+     0.25,
+     0.15,
+     0.1
+    ],
+    "volume_l": 1.5,
+    "mass_kg": 0.08,
+    "dry_time_h": 4.0,
+    "color": "nude",
+    "color_class": "light",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none",
+     "notes": [
+      "USE A MESH BAG"
+     ]
+    },
+    "fasteners": {
+     "hooks": {
+      "count": 1,
+      "engaged": true,
+      "click_force_n": 5.0
+     }
+    },
+    "label": "bra"
+   },
+   "doc": "Molded-cup bra with hook-and-eye closure (mesh bag, hand/delicate wash, never tumble, nest - never fold)."
+  },
+  "sock": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "sock",
+    "fold_class": "sock",
+    "pairable": true,
+    "pair_kind": "sock",
+    "length": "crew",
+    "invertible": true,
+    "flat_size_m": [
+     0.1,
+     0.42
+    ],
+    "fold_base_m": [
+     0.1,
+     0.42
+    ],
+    "layer_thickness_m": 0.004,
+    "loose_size_m": [
+     0.1,
+     0.25,
+     0.02
+    ],
+    "loose_volume_l": 0.3,
+    "size_m": [
+     0.1,
+     0.25,
+     0.02
+    ],
+    "volume_l": 0.3,
+    "mass_kg": 0.04,
+    "dry_time_h": 3.0,
+    "color": "black",
+    "color_class": "dark",
+    "season": "all",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "sock"
+   },
+   "doc": "Single sock; pairs share a secret pair_id (length, size and brand mark distinguish look-alikes)."
+  },
+  "tights": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "tights",
+    "fabric": "nylon",
+    "delicate": true,
+    "fold_class": "sock",
+    "flat_size_m": [
+     0.25,
+     0.9
+    ],
+    "fold_base_m": [
+     0.15,
+     0.9
+    ],
+    "layer_thickness_m": 0.001,
+    "mass_kg": 0.03,
+    "dry_time_h": 1.0,
+    "color_class": "dark",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "tights"
+   },
+   "doc": "Nylon tights (mesh bag)."
+  },
+  "pajamas": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "pajamas",
+    "fold_class": "sleepwear",
+    "fabric": "flannel",
+    "has_sleeves": true,
+    "has_legs": true,
+    "flat_size_m": [
+     1.3,
+     1.0
+    ],
+    "fold_base_m": [
+     0.5,
+     0.7
+    ],
+    "layer_thickness_m": 0.005,
+    "mass_kg": 0.45,
+    "dry_time_h": 5.0,
+    "color": "blue",
+    "color_class": "color",
+    "label": "pajamas"
+   },
+   "doc": "Flannel pajama set."
+  },
+  "child_sleepwear": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "child_sleepwear",
+    "fold_class": "sleepwear",
+    "fabric": "polyester",
+    "flame_resistant": true,
+    "no_softener": true,
+    "has_sleeves": true,
+    "flat_size_m": [
+     0.8,
+     0.7
+    ],
+    "fold_base_m": [
+     0.35,
+     0.5
+    ],
+    "mass_kg": 0.2,
+    "dry_time_h": 2.0,
+    "size": "6",
+    "color": "pink",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none",
+     "notes": [
+      "FLAME RESISTANT - NO FABRIC SOFTENER"
+     ]
+    },
+    "label": "child's sleepwear"
+   },
+   "doc": "Children's flame-resistant polyester sleepwear (no softener or dryer sheets)."
+  },
+  "swimsuit": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "swimsuit",
+    "fabric": "spandex_blend",
+    "fold_class": "underwear",
+    "flat_size_m": [
+     0.35,
+     0.6
+    ],
+    "fold_base_m": [
+     0.25,
+     0.4
+    ],
+    "mass_kg": 0.12,
+    "dry_time_h": 3.0,
+    "season": "summer",
+    "color": "teal",
+    "color_class": "color",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "swimsuit"
+   },
+   "doc": "Spandex swimsuit (rinse chlorine, hand wash cold, never tumble)."
+  },
+  "onesie": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "onesie",
+    "fold_class": "top",
+    "knit": true,
+    "has_snaps": true,
+    "flat_size_m": [
+     0.45,
+     0.45
+    ],
+    "fold_base_m": [
+     0.28,
+     0.45
+    ],
+    "layer_thickness_m": 0.003,
+    "mass_kg": 0.06,
+    "dry_time_h": 2.0,
+    "size": "6-12m",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "onesie"
+   },
+   "doc": "Cotton baby onesie with snaps."
+  },
+  "scarf": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "scarf",
+    "fold_class": "accessory",
+    "fabric": "wool",
+    "flat_size_m": [
+     0.3,
+     1.8
+    ],
+    "fold_base_m": [
+     0.3,
+     1.8
+    ],
+    "layer_thickness_m": 0.004,
+    "mass_kg": 0.15,
+    "dry_time_h": 10.0,
+    "season": "winter",
+    "color_class": "color",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "medium"
+    },
+    "label": "scarf"
+   },
+   "doc": "Wool scarf."
+  },
+  "beanie": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "beanie",
+    "fold_class": "accessory",
+    "fabric": "acrylic",
+    "knit": true,
+    "flat_size_m": [
+     0.22,
+     0.25
+    ],
+    "fold_base_m": [
+     0.22,
+     0.25
+    ],
+    "mass_kg": 0.07,
+    "dry_time_h": 5.0,
+    "season": "winter",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "beanie"
+   },
+   "doc": "Acrylic knit beanie."
+  },
+  "brimmed_hat": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "brimmed_hat",
+    "fold_class": "hat",
+    "foldable": false,
+    "structured": true,
+    "crushable": true,
+    "fabric": "wool",
+    "size_m": [
+     0.36,
+     0.36,
+     0.14
+    ],
+    "loose_size_m": [
+     0.36,
+     0.36,
+     0.14
+    ],
+    "volume_l": 12.0,
+    "loose_volume_l": 12.0,
+    "mass_kg": 0.15,
+    "dry_time_h": 10.0,
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "brimmed hat"
+   },
+   "doc": "Structured felt hat with a brim (crushes under weight; spot clean only)."
+  },
+  "baseball_cap": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "cap",
+    "fold_class": "hat",
+    "foldable": false,
+    "crushable": true,
+    "size_m": [
+     0.2,
+     0.28,
+     0.12
+    ],
+    "loose_size_m": [
+     0.2,
+     0.28,
+     0.12
+    ],
+    "volume_l": 4.0,
+    "loose_volume_l": 4.0,
+    "mass_kg": 0.09,
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "baseball cap"
+   },
+   "doc": "Cotton cap with a stiff brim."
+  },
+  "glove": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "glove",
+    "fold_class": "accessory",
+    "foldable": false,
+    "pairable": true,
+    "pair_kind": "glove",
+    "side": "left",
+    "fabric": "leather",
+    "flat_size_m": [
+     0.12,
+     0.26
+    ],
+    "size_m": [
+     0.12,
+     0.26,
+     0.03
+    ],
+    "loose_size_m": [
+     0.12,
+     0.26,
+     0.03
+    ],
+    "volume_l": 0.6,
+    "loose_volume_l": 0.6,
+    "mass_kg": 0.07,
+    "dry_time_h": 10.0,
+    "season": "winter",
+    "color": "brown",
+    "color_class": "dark",
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    },
+    "label": "glove"
+   },
+   "doc": "One glove (left or right); pairs share a secret pair_id."
+  },
+  "mitten": {
+   "is_a": "glove",
+   "props": {
+    "garment_kind": "mitten",
+    "fabric": "acrylic",
+    "knit": true,
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    },
+    "color": "red",
+    "color_class": "color",
+    "label": "mitten"
+   },
+   "doc": "Knit mitten."
+  },
+  "belt": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "belt",
+    "fold_class": "accessory",
+    "fabric": "leather",
+    "flat_size_m": [
+     0.04,
+     1.1
+    ],
+    "fold_base_m": [
+     0.04,
+     1.1
+    ],
+    "layer_thickness_m": 0.004,
+    "mass_kg": 0.2,
+    "color": "brown",
+    "color_class": "dark",
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "belt"
+   },
+   "doc": "Leather belt (roll or hang; not laundered)."
+  },
+  "necktie": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "necktie",
+    "fold_class": "accessory",
+    "fabric": "silk",
+    "flat_size_m": [
+     0.09,
+     1.45
+    ],
+    "fold_base_m": [
+     0.09,
+     1.45
+    ],
+    "layer_thickness_m": 0.004,
+    "mass_kg": 0.06,
+    "color": "red",
+    "color_class": "color",
+    "care": {
+     "wash": "dry_clean",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "low"
+    },
+    "label": "necktie"
+   },
+   "doc": "Silk necktie (dry clean; roll or hang)."
+  },
+  "towel": {
+   "is_a": "textile",
+   "props": {
+    "category": "towel",
+    "fabric": "terry",
+    "towel_class": "bath",
+    "fold_class": "towel",
+    "thick": true,
+    "absorbency": 1.0,
+    "color": "white",
+    "color_class": "white",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 60,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "high",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "towel"
+   },
+   "doc": "Cotton terry towel (lint shedder; hot wash; softener cuts absorbency)."
+  },
+  "bath_towel": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "bath",
+    "flat_size_m": [
+     0.7,
+     1.4
+    ],
+    "layer_thickness_m": 0.006,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "loose_volume_l": 10.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "volume_l": 10.0,
+    "mass_kg": 0.55,
+    "dry_time_h": 6.0,
+    "label": "bath towel"
+   },
+   "doc": "Bath towel 70 x 140 cm, ~550 g."
+  },
+  "bath_sheet": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "bath_sheet",
+    "flat_size_m": [
+     0.9,
+     1.7
+    ],
+    "layer_thickness_m": 0.006,
+    "loose_size_m": [
+     0.45,
+     0.4,
+     0.18
+    ],
+    "loose_volume_l": 14.0,
+    "size_m": [
+     0.45,
+     0.4,
+     0.18
+    ],
+    "volume_l": 14.0,
+    "mass_kg": 0.8,
+    "dry_time_h": 7.0,
+    "label": "bath sheet"
+   },
+   "doc": "Bath sheet 90 x 170 cm."
+  },
+  "hand_towel": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "hand",
+    "flat_size_m": [
+     0.5,
+     0.9
+    ],
+    "layer_thickness_m": 0.005,
+    "loose_size_m": [
+     0.3,
+     0.25,
+     0.1
+    ],
+    "loose_volume_l": 4.0,
+    "size_m": [
+     0.3,
+     0.25,
+     0.1
+    ],
+    "volume_l": 4.0,
+    "mass_kg": 0.2,
+    "dry_time_h": 4.0,
+    "label": "hand towel"
+   },
+   "doc": "Hand towel 50 x 90 cm."
+  },
+  "washcloth": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "washcloth",
+    "flat_size_m": [
+     0.33,
+     0.33
+    ],
+    "layer_thickness_m": 0.004,
+    "loose_size_m": [
+     0.15,
+     0.15,
+     0.05
+    ],
+    "loose_volume_l": 1.0,
+    "size_m": [
+     0.15,
+     0.15,
+     0.05
+    ],
+    "volume_l": 1.0,
+    "mass_kg": 0.06,
+    "dry_time_h": 2.0,
+    "label": "washcloth"
+   },
+   "doc": "Washcloth 33 x 33 cm."
+  },
+  "beach_towel": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "beach",
+    "flat_size_m": [
+     0.9,
+     1.8
+    ],
+    "layer_thickness_m": 0.005,
+    "loose_size_m": [
+     0.45,
+     0.4,
+     0.15
+    ],
+    "loose_volume_l": 12.0,
+    "size_m": [
+     0.45,
+     0.4,
+     0.15
+    ],
+    "volume_l": 12.0,
+    "mass_kg": 0.6,
+    "dry_time_h": 5.0,
+    "color": "striped",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "beach towel"
+   },
+   "doc": "Beach/pool towel 90 x 180 cm."
+  },
+  "kitchen_towel": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "kitchen",
+    "fabric": "cotton",
+    "thick": false,
+    "flat_size_m": [
+     0.5,
+     0.7
+    ],
+    "layer_thickness_m": 0.002,
+    "loose_size_m": [
+     0.2,
+     0.15,
+     0.05
+    ],
+    "loose_volume_l": 1.0,
+    "size_m": [
+     0.2,
+     0.15,
+     0.05
+    ],
+    "volume_l": 1.0,
+    "mass_kg": 0.08,
+    "dry_time_h": 2.0,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 60,
+     "gentle": 0,
+     "bleach": "any",
+     "tumble": "high",
+     "dry": "tumble",
+     "iron": "high"
+    },
+    "label": "kitchen towel"
+   },
+   "doc": "Flat-weave cotton dish towel (kitchen hygiene class)."
+  },
+  "workout_towel": {
+   "is_a": "towel",
+   "props": {
+    "towel_class": "gym",
+    "fabric": "microfiber",
+    "thick": false,
+    "flat_size_m": [
+     0.4,
+     0.8
+    ],
+    "layer_thickness_m": 0.002,
+    "mass_kg": 0.1,
+    "dry_time_h": 1.5,
+    "color": "grey",
+    "color_class": "light",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none",
+     "notes": [
+      "NO FABRIC SOFTENER"
+     ]
+    },
+    "label": "workout towel"
+   },
+   "doc": "Microfiber gym towel (no softener, low heat)."
+  },
+  "bath_mat": {
+   "is_a": "textile",
+   "props": {
+    "category": "mat",
+    "mat": true,
+    "floor_item": true,
+    "foldable": true,
+    "fabric": "rubber_backed",
+    "thick": true,
+    "flat_size_m": [
+     0.5,
+     0.8
+    ],
+    "fold_base_m": [
+     0.5,
+     0.8
+    ],
+    "layer_thickness_m": 0.012,
+    "loose_size_m": [
+     0.45,
+     0.3,
+     0.2
+    ],
+    "loose_volume_l": 12.0,
+    "size_m": [
+     0.5,
+     0.8,
+     0.012
+    ],
+    "volume_l": 12.0,
+    "mass_kg": 1.1,
+    "dry_time_h": 8.0,
+    "curled": false,
+    "laid_flat": true,
+    "ground_layer": true,
+    "color": "blue",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "bath mat"
+   },
+   "doc": "Cotton-top bath mat with rubber/latex backing (cold gentle wash, tumble low or line dry; hot dryer crumbles the backing)."
+  },
+  "memory_foam_bath_mat": {
+   "is_a": "bath_mat",
+   "props": {
+    "fabric": "memory_foam",
+    "mass_kg": 0.9,
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    },
+    "label": "memory foam bath mat"
+   },
+   "doc": "Memory-foam bath mat: hand wash only; machine washing destroys it."
+  },
+  "coir_doormat": {
+   "is_a": "bath_mat",
+   "props": {
+    "fabric": "coir",
+    "flat_size_m": [
+     0.45,
+     0.75
+    ],
+    "fold_base_m": [
+     0.45,
+     0.75
+    ],
+    "size_m": [
+     0.45,
+     0.75,
+     0.02
+    ],
+    "mass_kg": 1.5,
+    "foldable": false,
+    "rigid": true,
+    "color": "natural",
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "coir doormat"
+   },
+   "doc": "Coir doormat with PVC backing: shake/brush or light rinse, never machine-wash or soak."
+  },
+  "outdoor_mat": {
+   "is_a": "bath_mat",
+   "props": {
+    "fabric": "polypropylene",
+    "foldable": false,
+    "rigid": true,
+    "flat_size_m": [
+     0.6,
+     0.9
+    ],
+    "size_m": [
+     0.6,
+     0.9,
+     0.01
+    ],
+    "mass_kg": 1.2,
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "outdoor mat"
+   },
+   "doc": "Polypropylene outdoor mat: hose and scrub outside."
+  },
+  "bedding": {
+   "is_a": "textile",
+   "props": {
+    "category": "bedding",
+    "bed_size": "queen",
+    "fold_class": "linen",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 60,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "medium"
+    },
+    "label": "bedding"
+   },
+   "doc": "Bed linen (bed_size twin/full/queen/king/crib)."
+  },
+  "fitted_sheet": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "fitted",
+    "fitted": true,
+    "fold_class": "fitted",
+    "pocket_depth_cm": 35.0,
+    "flat_size_m": [
+     1.52,
+     2.03
+    ],
+    "fold_base_m": [
+     1.52,
+     2.03
+    ],
+    "layer_thickness_m": 0.002,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "loose_volume_l": 9.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "volume_l": 9.0,
+    "mass_kg": 0.7,
+    "dry_time_h": 3.0,
+    "label": "fitted sheet"
+   },
+   "doc": "Fitted sheet: elastic corner pockets (35 cm deep); seams face down; queen 152 x 203 cm."
+  },
+  "flat_sheet": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "flat",
+    "wide_hem": true,
+    "fold_class": "sheet",
+    "flat_size_m": [
+     2.29,
+     2.59
+    ],
+    "fold_base_m": [
+     2.29,
+     2.59
+    ],
+    "layer_thickness_m": 0.0015,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "loose_volume_l": 9.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "volume_l": 9.0,
+    "mass_kg": 0.75,
+    "dry_time_h": 2.5,
+    "label": "flat sheet"
+   },
+   "doc": "Flat (top) sheet with a wide hem at the head; print side goes down; queen 229 x 259 cm."
+  },
+  "crib_sheet": {
+   "is_a": "fitted_sheet",
+   "props": {
+    "bed_size": "crib",
+    "flat_size_m": [
+     0.71,
+     1.33
+    ],
+    "fold_base_m": [
+     0.71,
+     1.33
+    ],
+    "pocket_depth_cm": 15.0,
+    "mass_kg": 0.25,
+    "label": "crib sheet"
+   },
+   "doc": "Fitted crib sheet."
+  },
+  "pillowcase": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "pillowcase",
+    "cover_role": "pillowcase",
+    "pillow_size": "standard",
+    "container": true,
+    "surface": false,
+    "capacity_l": 15.0,
+    "inner_size_m": [
+     0.5,
+     0.45,
+     0.2
+    ],
+    "flat_size_m": [
+     0.51,
+     0.76
+    ],
+    "fold_base_m": [
+     0.51,
+     0.76
+    ],
+    "layer_thickness_m": 0.002,
+    "loose_size_m": [
+     0.25,
+     0.2,
+     0.05
+    ],
+    "loose_volume_l": 1.5,
+    "size_m": [
+     0.25,
+     0.2,
+     0.05
+    ],
+    "volume_l": 1.5,
+    "mass_kg": 0.12,
+    "dry_time_h": 2.0,
+    "label": "pillowcase"
+   },
+   "doc": "Standard pillowcase 51 x 76 cm (a folded sheet set can be stored inside one)."
+  },
+  "king_pillowcase": {
+   "is_a": "pillowcase",
+   "props": {
+    "pillow_size": "king",
+    "flat_size_m": [
+     0.51,
+     1.02
+    ],
+    "fold_base_m": [
+     0.51,
+     1.02
+    ],
+    "mass_kg": 0.15,
+    "label": "king pillowcase"
+   },
+   "doc": "King pillowcase 51 x 102 cm."
+  },
+  "pillow_sham": {
+   "is_a": "pillowcase",
+   "props": {
+    "bed_role": "sham",
+    "cover_role": "sham",
+    "fabric": "silk",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "low"
+    },
+    "label": "pillow sham"
+   },
+   "doc": "Decorative flanged sham (often delicate; follow its label)."
+  },
+  "pillow_protector": {
+   "is_a": "pillowcase",
+   "props": {
+    "bed_role": "pillow_protector",
+    "cover_role": "pillow_protector",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 60,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "pillow protector"
+   },
+   "doc": "Zippered pillow protector (goes under the pillowcase)."
+  },
+  "duvet_cover": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "duvet_cover",
+    "closure_open": false,
+    "container": true,
+    "surface": false,
+    "corner_ties": true,
+    "flat_size_m": [
+     2.29,
+     2.18
+    ],
+    "fold_base_m": [
+     2.29,
+     2.18
+    ],
+    "layer_thickness_m": 0.002,
+    "loose_size_m": [
+     0.42,
+     0.36,
+     0.18
+    ],
+    "loose_volume_l": 12.0,
+    "size_m": [
+     0.42,
+     0.36,
+     0.18
+    ],
+    "volume_l": 12.0,
+    "mass_kg": 1.2,
+    "cover_mass_kg": 1.2,
+    "dry_time_h": 3.5,
+    "label": "duvet cover"
+   },
+   "doc": "Duvet cover with button closure (closure_open) and corner ties; queen 229 x 218 cm."
+  },
+  "duvet_insert": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "duvet_insert",
+    "fabric": "down",
+    "fill": "down",
+    "thick": true,
+    "foldable": true,
+    "flat_size_m": [
+     2.29,
+     2.18
+    ],
+    "fold_base_m": [
+     2.29,
+     2.18
+    ],
+    "layer_thickness_m": 0.03,
+    "loose_size_m": [
+     0.5,
+     0.45,
+     0.35
+    ],
+    "loose_volume_l": 55.0,
+    "size_m": [
+     0.5,
+     0.45,
+     0.35
+    ],
+    "volume_l": 55.0,
+    "mass_kg": 2.2,
+    "dry_time_h": 24.0,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "loose_bedding": true,
+    "label": "duvet insert"
+   },
+   "doc": "Down duvet insert (machine bulky/gentle in a large drum, tumble low with dryer balls; dries slowly)."
+  },
+  "comforter": {
+   "is_a": "duvet_insert",
+   "props": {
+    "bed_role": "comforter",
+    "fabric": "polyester",
+    "fill": "synthetic",
+    "loose_volume_l": 70.0,
+    "volume_l": 70.0,
+    "mass_kg": 3.0,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "comforter"
+   },
+   "doc": "Polyester-fill comforter (bulky: ~70 L loose)."
+  },
+  "blanket": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "blanket",
+    "fold_class": "blanket",
+    "fabric": "wool",
+    "thick": true,
+    "flat_size_m": [
+     1.8,
+     2.3
+    ],
+    "fold_base_m": [
+     1.8,
+     2.3
+    ],
+    "layer_thickness_m": 0.006,
+    "loose_size_m": [
+     0.45,
+     0.4,
+     0.2
+    ],
+    "loose_volume_l": 18.0,
+    "size_m": [
+     0.45,
+     0.4,
+     0.2
+    ],
+    "volume_l": 18.0,
+    "mass_kg": 1.6,
+    "dry_time_h": 18.0,
+    "loose_bedding": true,
+    "color": "cream",
+    "color_class": "light",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    },
+    "label": "blanket"
+   },
+   "doc": "Wool blanket 180 x 230 cm."
+  },
+  "fleece_blanket": {
+   "is_a": "blanket",
+   "props": {
+    "fabric": "fleece",
+    "mass_kg": 1.0,
+    "dry_time_h": 3.0,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "color": "blue",
+    "color_class": "color",
+    "label": "fleece blanket"
+   },
+   "doc": "Polyester fleece blanket (machine wash cold, tumble low)."
+  },
+  "throw_blanket": {
+   "is_a": "blanket",
+   "props": {
+    "bed_role": "throw",
+    "fabric": "fleece",
+    "flat_size_m": [
+     1.27,
+     1.52
+    ],
+    "fold_base_m": [
+     1.27,
+     1.52
+    ],
+    "layer_thickness_m": 0.005,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "loose_volume_l": 10.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "volume_l": 10.0,
+    "mass_kg": 0.8,
+    "dry_time_h": 3.0,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "color": "grey",
+    "color_class": "light",
+    "label": "throw blanket"
+   },
+   "doc": "Fleece throw 127 x 152 cm (sofa/reading)."
+  },
+  "knit_throw": {
+   "is_a": "throw_blanket",
+   "props": {
+    "fabric": "acrylic",
+    "knit": true,
+    "knit_grade": "loose",
+    "mass_kg": 1.2,
+    "dry_time_h": 12.0,
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    },
+    "label": "knit throw"
+   },
+   "doc": "Chunky knit throw (stretches if hung by a corner)."
+  },
+  "quilt": {
+   "is_a": "blanket",
+   "props": {
+    "bed_role": "quilt",
+    "fabric": "cotton",
+    "flat_size_m": [
+     2.3,
+     2.4
+    ],
+    "fold_base_m": [
+     2.3,
+     2.4
+    ],
+    "mass_kg": 2.5,
+    "dry_time_h": 10.0,
+    "color": "multicolour",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "quilt"
+   },
+   "doc": "Cotton patchwork quilt (heirloom ones are sentimental)."
+  },
+  "mattress_protector": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "protector",
+    "fitted": true,
+    "fold_class": "fitted",
+    "fabric": "pu_membrane",
+    "pocket_depth_cm": 38.0,
+    "flat_size_m": [
+     1.52,
+     2.03
+    ],
+    "fold_base_m": [
+     1.52,
+     2.03
+    ],
+    "layer_thickness_m": 0.003,
+    "loose_size_m": [
+     0.42,
+     0.36,
+     0.16
+    ],
+    "loose_volume_l": 10.0,
+    "size_m": [
+     0.42,
+     0.36,
+     0.16
+    ],
+    "volume_l": 10.0,
+    "mass_kg": 0.9,
+    "dry_time_h": 4.0,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "mattress protector"
+   },
+   "doc": "Waterproof (polyurethane-membrane) mattress protector: quilted side up, warm wash, no bleach, tumble low."
+  },
+  "bed_pillow": {
+   "is_a": "bedding",
+   "props": {
+    "bed_role": "pillow",
+    "foldable": false,
+    "fluffable": true,
+    "pillow_size": "standard",
+    "insert_dims_m": [
+     0.51,
+     0.66
+    ],
+    "fill": "synthetic",
+    "fabric": "polyester",
+    "loft": 0.8,
+    "thick": true,
+    "flat_size_m": [
+     0.51,
+     0.66
+    ],
+    "size_m": [
+     0.51,
+     0.66,
+     0.15
+    ],
+    "loose_size_m": [
+     0.51,
+     0.66,
+     0.15
+    ],
+    "volume_l": 40.0,
+    "loose_volume_l": 40.0,
+    "mass_kg": 0.9,
+    "dry_time_h": 12.0,
+    "case": null,
+    "protector": null,
+    "loose_bedding": true,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "bed pillow"
+   },
+   "doc": "Sleeping pillow (standard 51 x 66 cm insert)."
+  },
+  "king_pillow": {
+   "is_a": "bed_pillow",
+   "props": {
+    "pillow_size": "king",
+    "insert_dims_m": [
+     0.51,
+     0.92
+    ],
+    "flat_size_m": [
+     0.51,
+     0.92
+    ],
+    "size_m": [
+     0.51,
+     0.92,
+     0.15
+    ],
+    "volume_l": 55.0,
+    "loose_volume_l": 55.0,
+    "mass_kg": 1.2,
+    "label": "king pillow"
+   },
+   "doc": "King pillow 51 x 92 cm."
+  },
+  "decorative_pillow": {
+   "is_a": "bed_pillow",
+   "props": {
+    "bed_role": "decor_pillow",
+    "pillow_size": "cushion",
+    "insert_dims_m": [
+     0.45,
+     0.45
+    ],
+    "flat_size_m": [
+     0.45,
+     0.45
+    ],
+    "size_m": [
+     0.45,
+     0.45,
+     0.15
+    ],
+    "volume_l": 25.0,
+    "loose_volume_l": 25.0,
+    "mass_kg": 0.5,
+    "zipper_hidden": false,
+    "color": "mustard",
+    "color_class": "color",
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "decorative pillow"
+   },
+   "doc": "Decorative throw pillow 45 x 45 cm with a zipper."
+  },
+  "euro_pillow": {
+   "is_a": "decorative_pillow",
+   "props": {
+    "bed_role": "euro_pillow",
+    "pillow_size": "euro",
+    "insert_dims_m": [
+     0.65,
+     0.65
+    ],
+    "flat_size_m": [
+     0.65,
+     0.65
+    ],
+    "size_m": [
+     0.65,
+     0.65,
+     0.18
+    ],
+    "volume_l": 60.0,
+    "loose_volume_l": 60.0,
+    "mass_kg": 0.9,
+    "label": "euro pillow"
+   },
+   "doc": "Euro square pillow 65 x 65 cm."
+  },
+  "cushion_insert": {
+   "is_a": "textile",
+   "props": {
+    "category": "cushion",
+    "cushion_insert": true,
+    "foldable": false,
+    "fluffable": true,
+    "fabric": "foam",
+    "thick": true,
+    "insert_dims_m": [
+     0.6,
+     0.6
+    ],
+    "flat_size_m": [
+     0.6,
+     0.6
+    ],
+    "size_m": [
+     0.6,
+     0.6,
+     0.12
+    ],
+    "loose_size_m": [
+     0.6,
+     0.6,
+     0.12
+    ],
+    "volume_l": 43.0,
+    "loose_volume_l": 43.0,
+    "mass_kg": 1.0,
+    "dry_time_h": 36.0,
+    "cushion_cover": null,
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    },
+    "label": "cushion insert"
+   },
+   "doc": "Foam seat-cushion insert (never machine wash)."
+  },
+  "cushion_cover": {
+   "is_a": "textile",
+   "props": {
+    "category": "cushion_cover",
+    "cover_role": "cushion_cover",
+    "fabric": "cotton",
+    "cover_dims_m": [
+     0.6,
+     0.6
+    ],
+    "fold_class": "linen",
+    "flat_size_m": [
+     0.62,
+     0.62
+    ],
+    "fold_base_m": [
+     0.62,
+     0.62
+    ],
+    "layer_thickness_m": 0.003,
+    "loose_size_m": [
+     0.3,
+     0.25,
+     0.08
+    ],
+    "loose_volume_l": 2.5,
+    "size_m": [
+     0.3,
+     0.25,
+     0.08
+    ],
+    "volume_l": 2.5,
+    "mass_kg": 0.35,
+    "dry_time_h": 4.0,
+    "color": "green",
+    "color_class": "color",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 1,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "medium",
+     "inside_out": true,
+     "notes": [
+      "WASH AS A SET"
+     ]
+    },
+    "zipper": {
+     "closed_frac": 1.0,
+     "meshed": true
+    },
+    "label": "cushion cover"
+   },
+   "doc": "Zippered cushion cover (wash the matching set together cold/gentle; dryer heat shrinks it)."
+  },
+  "tablecloth": {
+   "is_a": "textile",
+   "props": {
+    "category": "table_linen",
+    "fold_class": "tablecloth",
+    "fabric": "linen",
+    "shape": "rect",
+    "flat_size_m": [
+     1.5,
+     2.6
+    ],
+    "fold_base_m": [
+     1.5,
+     2.6
+    ],
+    "layer_thickness_m": 0.0015,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "loose_volume_l": 8.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.15
+    ],
+    "volume_l": 8.0,
+    "mass_kg": 0.8,
+    "dry_time_h": 2.5,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 1,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "high"
+    },
+    "label": "tablecloth"
+   },
+   "doc": "Linen tablecloth 150 x 260 cm (for a 6-seat table: ~30-40 cm drop)."
+  },
+  "round_tablecloth": {
+   "is_a": "tablecloth",
+   "props": {
+    "shape": "round",
+    "flat_size_m": [
+     1.8,
+     1.8
+    ],
+    "fold_base_m": [
+     1.8,
+     1.8
+    ],
+    "label": "round tablecloth"
+   },
+   "doc": "Round tablecloth 180 cm."
+  },
+  "vinyl_tablecloth": {
+   "is_a": "tablecloth",
+   "props": {
+    "fabric": "vinyl",
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "label": "vinyl tablecloth"
+   },
+   "doc": "Vinyl wipe-clean tablecloth (no machine wash, no heat)."
+  },
+  "napkin": {
+   "is_a": "textile",
+   "props": {
+    "category": "table_linen",
+    "fold_class": "napkin",
+    "flat_size_m": [
+     0.45,
+     0.45
+    ],
+    "fold_base_m": [
+     0.45,
+     0.45
+    ],
+    "layer_thickness_m": 0.002,
+    "loose_size_m": [
+     0.15,
+     0.15,
+     0.03
+    ],
+    "loose_volume_l": 0.4,
+    "size_m": [
+     0.15,
+     0.15,
+     0.03
+    ],
+    "volume_l": 0.4,
+    "mass_kg": 0.04,
+    "dry_time_h": 1.5,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 60,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "high"
+    },
+    "label": "napkin"
+   },
+   "doc": "Cloth napkin 45 x 45 cm."
+  },
+  "placemat_fabric": {
+   "is_a": "napkin",
+   "props": {
+    "fold_class": "linen",
+    "flat_size_m": [
+     0.33,
+     0.48
+    ],
+    "fold_base_m": [
+     0.33,
+     0.48
+    ],
+    "mass_kg": 0.08,
+    "label": "fabric placemat"
+   },
+   "doc": "Fabric placemat."
+  },
+  "table_runner": {
+   "is_a": "napkin",
+   "props": {
+    "fold_class": "linen",
+    "flat_size_m": [
+     0.33,
+     1.8
+    ],
+    "fold_base_m": [
+     0.33,
+     1.8
+    ],
+    "mass_kg": 0.15,
+    "label": "table runner"
+   },
+   "doc": "Table runner."
+  },
+  "shower_curtain": {
+   "is_a": "textile",
+   "props": {
+    "category": "bath_textile",
+    "shower_curtain": true,
+    "grommets": 12,
+    "rings_attached": 12,
+    "drop_m": 1.8,
+    "fabric": "polyester",
+    "flat_size_m": [
+     1.8,
+     1.8
+    ],
+    "fold_base_m": [
+     1.8,
+     1.8
+    ],
+    "layer_thickness_m": 0.001,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.12
+    ],
+    "loose_volume_l": 6.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.12
+    ],
+    "volume_l": 6.0,
+    "mass_kg": 0.6,
+    "dry_time_h": 2.0,
+    "liner": false,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 1,
+     "bleach": "non_chlorine",
+     "tumble": "none",
+     "dry": "drip",
+     "iron": "none"
+    },
+    "label": "shower curtain"
+   },
+   "doc": "Polyester fabric shower curtain with 12 grommets (rings stay on the rod)."
+  },
+  "shower_curtain_liner": {
+   "is_a": "shower_curtain",
+   "props": {
+    "fabric": "peva",
+    "liner": true,
+    "mass_kg": 0.4,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "drip",
+     "iron": "none"
+    },
+    "label": "shower curtain liner"
+   },
+   "doc": "PEVA shower liner (cold gentle wash, never in the dryer; hangs inside the tub)."
+  },
+  "press_cloth": {
+   "is_a": "textile",
+   "props": {
+    "category": "press_cloth",
+    "press_cloth": true,
+    "flat_size_m": [
+     0.6,
+     0.6
+    ],
+    "fold_base_m": [
+     0.6,
+     0.6
+    ],
+    "mass_kg": 0.08,
+    "label": "press cloth"
+   },
+   "doc": "Cotton press cloth for ironing darks, wool and synthetics."
+  },
+  "shoelace": {
+   "is_a": "textile",
+   "props": {
+    "category": "shoelace",
+    "shoelace": true,
+    "foldable": false,
+    "invertible": false,
+    "length_cm": 120.0,
+    "lace_type": "flat",
+    "aglets": 2,
+    "flat_size_m": [
+     0.01,
+     1.2
+    ],
+    "size_m": [
+     0.05,
+     0.05,
+     0.02
+    ],
+    "loose_size_m": [
+     0.05,
+     0.05,
+     0.02
+    ],
+    "volume_l": 0.05,
+    "loose_volume_l": 0.05,
+    "mass_kg": 0.01,
+    "dry_time_h": 1.0,
+    "color": "white",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "non_chlorine",
+     "tumble": "low",
+     "dry": "tumble",
+     "iron": "none"
+    },
+    "label": "shoelace"
+   },
+   "doc": "Shoelace (120 cm default; aglets on both ends)."
+  },
+  "shoe": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "footwear",
+    "textile": true,
+    "drying_owner": "textiles_laundry",
+    "foldable": false,
+    "invertible": false,
+    "pairable": true,
+    "pair_kind": "shoe",
+    "side": "left",
+    "material": "leather",
+    "fabric": "leather",
+    "color": "black",
+    "color_class": "dark",
+    "size": 9,
+    "owner": null,
+    "eyelets": 0,
+    "lacing": null,
+    "shine": 0.3,
+    "wetness": 0.0,
+    "dry_time_h": 12.0,
+    "thick": true,
+    "mass_kg": 0.4,
+    "size_m": [
+     0.11,
+     0.29,
+     0.12
+    ],
+    "volume_l": 3.5,
+    "loose_size_m": [
+     0.11,
+     0.29,
+     0.12
+    ],
+    "loose_volume_l": 3.5,
+    "soil": {},
+    "damage": {},
+    "set_stains": [],
+    "season": "all",
+    "weather_class": null,
+    "accepts_items": true,
+    "surface": false,
+    "container": true,
+    "capacity_l": 1.0,
+    "inner_size_m": [
+     0.08,
+     0.2,
+     0.06
+    ],
+    "max_touch_temp_c": 65.0,
+    "care": {
+     "wash": "none",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "secret_fields": [
+     "pair_id",
+     "brand",
+     "size_label",
+     "care",
+     "care_label"
+    ],
+    "has_care_label": false,
+    "tags": [
+     "footwear"
+    ]
+   },
+   "doc": "One shoe (left/right); pairs share a secret pair_id. Materials decide care.",
+   "perception": {
+    "glance": [
+     "side",
+     "pair_kind"
+    ],
+    "read": [
+     "size",
+     "label_text"
+    ],
+    "measure": {
+     "loose_size_m": "tape_measure",
+     "loose_volume_l": "tape_measure",
+     "single_size_m": "tape_measure",
+     "single_volume_l": "tape_measure"
+    },
+    "hidden": [
+     "dry_time_h",
+     "max_touch_temp_c",
+     "drying_owner",
+     "set_stains",
+     "blown_down",
+     "floor_contact",
+     "rained_on",
+     "odor",
+     "odor_kind",
+     "pretreat"
+    ]
+   }
+  },
+  "sneaker": {
+   "is_a": "shoe",
+   "props": {
+    "material": "canvas",
+    "fabric": "canvas",
+    "color": "white",
+    "color_class": "white",
+    "eyelets": 6,
+    "mass_kg": 0.35,
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    },
+    "has_care_label": true
+   },
+   "doc": "Canvas sneaker, 6 eyelet pairs, criss-cross laced (label may allow a cold gentle wash in a bag)."
+  },
+  "running_shoe": {
+   "is_a": "sneaker",
+   "props": {
+    "material": "mesh_synthetic",
+    "fabric": "mesh_synthetic",
+    "color": "grey",
+    "color_class": "light",
+    "care": {
+     "wash": "hand",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "line",
+     "iron": "none"
+    }
+   },
+   "doc": "Mesh running shoe with foam sole (hand clean, never tumble)."
+  },
+  "dress_shoe": {
+   "is_a": "shoe",
+   "props": {
+    "material": "leather",
+    "fabric": "leather",
+    "eyelets": 5,
+    "mass_kg": 0.45,
+    "color": "black",
+    "color_class": "dark"
+   },
+   "doc": "Smooth-leather oxford, 5 eyelet pairs bar-laced (polish and buff)."
+  },
+  "boot": {
+   "is_a": "shoe",
+   "props": {
+    "material": "leather",
+    "fabric": "leather",
+    "eyelets": 7,
+    "crushable": true,
+    "mass_kg": 0.7,
+    "size_m": [
+     0.12,
+     0.3,
+     0.2
+    ],
+    "volume_l": 6.0,
+    "loose_size_m": [
+     0.12,
+     0.3,
+     0.2
+    ],
+    "loose_volume_l": 6.0,
+    "color": "brown",
+    "season": "winter"
+   },
+   "doc": "Leather ankle boot (shaft crushes under weight)."
+  },
+  "suede_boot": {
+   "is_a": "boot",
+   "props": {
+    "material": "suede",
+    "fabric": "suede",
+    "eyelets": 0,
+    "color": "tan"
+   },
+   "doc": "Suede boot (brush/eraser only; water marks it, polish ruins the nap)."
+  },
+  "rain_boot": {
+   "is_a": "shoe",
+   "props": {
+    "material": "rubber",
+    "fabric": "rubber",
+    "eyelets": 0,
+    "weather_class": "rain",
+    "mass_kg": 0.9,
+    "size_m": [
+     0.13,
+     0.31,
+     0.35
+    ],
+    "volume_l": 9.0,
+    "loose_size_m": [
+     0.13,
+     0.31,
+     0.35
+    ],
+    "loose_volume_l": 9.0,
+    "color": "green",
+    "color_class": "color"
+   },
+   "doc": "Rubber rain boot."
+  },
+  "snow_boot": {
+   "is_a": "boot",
+   "props": {
+    "material": "rubber",
+    "fabric": "rubber",
+    "eyelets": 6,
+    "weather_class": "snow",
+    "season": "winter",
+    "mass_kg": 1.0
+   },
+   "doc": "Insulated snow boot."
+  },
+  "sandal": {
+   "is_a": "shoe",
+   "props": {
+    "material": "rubber",
+    "fabric": "rubber",
+    "season": "summer",
+    "mass_kg": 0.25,
+    "size_m": [
+     0.1,
+     0.27,
+     0.05
+    ],
+    "volume_l": 1.2,
+    "loose_size_m": [
+     0.1,
+     0.27,
+     0.05
+    ],
+    "loose_volume_l": 1.2,
+    "color": "brown"
+   },
+   "doc": "Summer sandal."
+  },
+  "slipper": {
+   "is_a": "shoe",
+   "props": {
+    "material": "fleece",
+    "fabric": "fleece",
+    "mass_kg": 0.2,
+    "color": "grey",
+    "color_class": "light"
+   },
+   "doc": "House slipper."
+  },
+  "patent_shoe": {
+   "is_a": "dress_shoe",
+   "props": {
+    "material": "patent_leather",
+    "fabric": "patent_leather"
+   },
+   "doc": "Patent-leather shoe (wipe only)."
+  },
+  "washing_machine": {
+   "is_a": "fixture",
+   "props": {
+    "label": "washing machine",
+    "category": "appliance",
+    "appliance_kind": "washer",
+    "blocks_path": true,
+    "size_m": [
+     0.6,
+     0.6,
+     0.85
+    ],
+    "mass_kg": 70.0,
+    "material": "steel",
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "container": true,
+    "surface": false,
+    "capacity_l": 65.0,
+    "inner_size_m": [
+     0.55,
+     0.55,
+     0.5
+    ],
+    "inner_floor_m": 0.4,
+    "drum_volume_l": 65.0,
+    "max_load_kg": 8.0,
+    "loader": "front",
+    "he": true,
+    "glass_door": true,
+    "agitator": false,
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": true,
+    "power_w": 2100,
+    "door_locked": false,
+    "water_level": "none",
+    "water_above_door": false,
+    "display": "OFF",
+    "error": null,
+    "dispenser": null,
+    "_tick": true,
+    "settings": {
+     "temp": 40,
+     "spin": "high",
+     "soil": "normal",
+     "extra_rinse": false,
+     "delay_h": 0
+    },
+    "setting_options": {
+     "temp": [
+      20,
+      30,
+      40,
+      60,
+      90
+     ],
+     "spin": [
+      "none",
+      "low",
+      "medium",
+      "high"
+     ],
+     "soil": [
+      "light",
+      "normal",
+      "heavy"
+     ],
+     "extra_rinse": [
+      false,
+      true
+     ],
+     "delay_h": {
+      "min": 0,
+      "max": 24
+     }
+    },
+    "appliance": {
+     "programs": {
+      "normal": {
+       "kind": "normal",
+       "duration_s": 3900,
+       "water_l": 50
+      },
+      "heavy_duty": {
+       "kind": "heavy",
+       "duration_s": 5700,
+       "water_l": 60
+      },
+      "perm_press": {
+       "kind": "perm_press",
+       "duration_s": 3300,
+       "water_l": 50
+      },
+      "delicate": {
+       "kind": "delicate",
+       "duration_s": 2700,
+       "water_l": 55
+      },
+      "hand_wash": {
+       "kind": "hand_wash",
+       "duration_s": 2400,
+       "water_l": 55
+      },
+      "wool": {
+       "kind": "wool",
+       "duration_s": 2400,
+       "water_l": 55
+      },
+      "bulky": {
+       "kind": "bulky",
+       "duration_s": 4800,
+       "water_l": 75
+      },
+      "quick": {
+       "kind": "quick",
+       "duration_s": 1800,
+       "water_l": 35
+      },
+      "sanitize": {
+       "kind": "sanitize",
+       "duration_s": 8100,
+       "water_l": 60
+      },
+      "rinse_spin": {
+       "kind": "rinse_spin",
+       "duration_s": 1500,
+       "water_l": 30
+      },
+      "drain_spin": {
+       "kind": "drain_spin",
+       "duration_s": 720
+      },
+      "tub_clean": {
+       "kind": "tub_clean",
+       "duration_s": 5400,
+       "water_l": 70
+      }
+     },
+     "program": "normal",
+     "state": "idle",
+     "remaining_s": 0.0,
+     "door_interlock": true
+    },
+    "slots": {
+     "drain_filter": {
+      "accepts": [
+       "washer_drain_filter"
+      ],
+      "item": null,
+      "access": "cover",
+      "tool": null
+     }
+    },
+    "cover_open": false,
+    "affordances": [
+     "load",
+     "start",
+     "pause",
+     "cancel"
+    ],
+    "noise_db": 55
+   },
+   "doc": "Clothes washer: drum (container) + programs; door locks while running; see systems/textiles_laundry/wash.py.",
+   "perception": {
+    "glance": [
+     "water_above_door"
+    ],
+    "read": [
+     "max_load_kg",
+     "drum_volume_l",
+     "power_w",
+     "noise_db",
+     "error"
+    ],
+    "hidden": [
+     "last_cycle",
+     "max_touch_temp_c",
+     "odor",
+     "odor_kind",
+     "liquid"
+    ]
+   }
+  },
+  "front_load_washer": {
+   "is_a": "washing_machine",
+   "props": {},
+   "doc": "Front-loading HE washer (8 kg, 65 L drum, 1400 rpm, glass door)."
+  },
+  "top_load_washer": {
+   "is_a": "washing_machine",
+   "props": {
+    "loader": "top",
+    "he": false,
+    "agitator": true,
+    "glass_door": false,
+    "capacity_l": 110.0,
+    "drum_volume_l": 110.0,
+    "max_load_kg": 9.0,
+    "inner_size_m": [
+     0.55,
+     0.55,
+     0.6
+    ],
+    "inner_floor_m": 0.45,
+    "size_m": [
+     0.68,
+     0.68,
+     1.05
+    ],
+    "slots": {},
+    "settings": {
+     "temp": "warm",
+     "spin": "high",
+     "soil": "normal",
+     "extra_rinse": false,
+     "delay_h": 0
+    },
+    "setting_options": {
+     "temp": [
+      "tap_cold",
+      "cold",
+      "warm",
+      "hot"
+     ],
+     "spin": [
+      "none",
+      "low",
+      "medium",
+      "high"
+     ],
+     "soil": [
+      "light",
+      "normal",
+      "heavy"
+     ],
+     "extra_rinse": [
+      false,
+      true
+     ],
+     "delay_h": {
+      "min": 0,
+      "max": 24
+     }
+    }
+   },
+   "doc": "Traditional top-loading washer with agitator (9 kg, 110 L tub, lid lock only during spin)."
+  },
+  "clothes_dryer": {
+   "is_a": "fixture",
+   "props": {
+    "label": "clothes dryer",
+    "category": "appliance",
+    "appliance_kind": "dryer",
+    "blocks_path": true,
+    "size_m": [
+     0.6,
+     0.65,
+     0.85
+    ],
+    "mass_kg": 50.0,
+    "material": "steel",
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "container": true,
+    "surface": false,
+    "capacity_l": 120.0,
+    "inner_size_m": [
+     0.55,
+     0.55,
+     0.5
+    ],
+    "inner_floor_m": 0.45,
+    "drum_volume_l": 120.0,
+    "max_load_kg": 9.0,
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": true,
+    "power_w": 5400,
+    "vented": true,
+    "vent_airflow": 1.0,
+    "heat_pump": false,
+    "display": "OFF",
+    "internal_temp_c": null,
+    "_tick": true,
+    "settings": {
+     "heat": "medium",
+     "dryness": "normal",
+     "minutes": 60,
+     "wrinkle_guard": false
+    },
+    "setting_options": {
+     "heat": [
+      "no_heat",
+      "low",
+      "medium",
+      "high"
+     ],
+     "dryness": [
+      "damp",
+      "normal",
+      "very_dry"
+     ],
+     "minutes": {
+      "min": 10,
+      "max": 120
+     },
+     "wrinkle_guard": [
+      false,
+      true
+     ]
+    },
+    "appliance": {
+     "programs": {
+      "sensor_normal": {
+       "kind": "sensor",
+       "duration_s": 7200,
+       "heat": "medium"
+      },
+      "heavy_duty": {
+       "kind": "sensor",
+       "duration_s": 7200,
+       "heat": "high"
+      },
+      "delicate": {
+       "kind": "sensor",
+       "duration_s": 7200,
+       "heat": "low"
+      },
+      "perm_press": {
+       "kind": "sensor",
+       "duration_s": 7200,
+       "heat": "medium"
+      },
+      "bulky": {
+       "kind": "sensor",
+       "duration_s": 9000,
+       "heat": "medium"
+      },
+      "timed_dry": {
+       "kind": "timed",
+       "duration_s": 3600
+      },
+      "air_fluff": {
+       "kind": "timed",
+       "duration_s": 1800,
+       "heat": "no_heat"
+      },
+      "wrinkle_release": {
+       "kind": "timed",
+       "duration_s": 900,
+       "heat": "low",
+       "minutes": 15
+      }
+     },
+     "program": "sensor_normal",
+     "state": "idle",
+     "remaining_s": 0.0,
+     "door_interlock": false
+    },
+    "slots": {
+     "lint_screen": {
+      "accepts": [
+       "dryer_lint_screen"
+      ],
+      "item": null,
+      "access": "open",
+      "tool": null
+     }
+    },
+    "soil": {},
+    "affordances": [
+     "load",
+     "start",
+     "pause",
+     "cancel"
+    ]
+   },
+   "doc": "Vented tumble dryer (9 kg, 120 L drum); lint screen slot; door opens anytime (pauses).",
+   "perception": {
+    "read": [
+     "max_load_kg",
+     "drum_volume_l",
+     "power_w"
+    ],
+    "hidden": [
+     "last_cycle",
+     "vent_airflow",
+     "lint_chamber",
+     "max_touch_temp_c"
+    ]
+   }
+  },
+  "heat_pump_dryer": {
+   "is_a": "clothes_dryer",
+   "props": {
+    "heat_pump": true,
+    "vented": false,
+    "power_w": 900
+   },
+   "doc": "Heat-pump condenser dryer (gentler: 42-55 C)."
+  },
+  "washer_dispenser": {
+   "is_a": "fixture",
+   "props": {
+    "label": "detergent drawer",
+    "category": "dispenser",
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "container": true,
+    "surface": false,
+    "capacity_l": 0.6,
+    "inner_size_m": [
+     0.35,
+     0.1,
+     0.06
+    ],
+    "size_m": [
+     0.4,
+     0.12,
+     0.08
+    ],
+    "blocks_path": false,
+    "appliance_of": null,
+    "material": "plastic",
+    "mass_kg": 0.3
+   },
+   "doc": "Washer detergent drawer, a part of its washer (relation part; open it to reach the prewash/main/softener/bleach compartments)."
+  },
+  "dispenser_compartment": {
+   "is_a": "fixture",
+   "props": {
+    "label": "dispenser compartment",
+    "category": "dispenser_compartment",
+    "compartment": "main",
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 0.2,
+    "max_line_l": 0.2,
+    "accepts_items": true,
+    "container": true,
+    "surface": false,
+    "inner_size_m": [
+     0.08,
+     0.1,
+     0.05
+    ],
+    "size_m": [
+     0.09,
+     0.11,
+     0.05
+    ],
+    "volume_l": 0.0,
+    "blocks_path": false,
+    "material": "plastic",
+    "mass_kg": 0.05
+   },
+   "doc": "One dispenser compartment (liquid container; the softener one has a MAX line).",
+   "perception": {
+    "hidden": [
+     "liquid"
+    ]
+   }
+  },
+  "washer_drain_filter": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "drain pump filter",
+    "category": "appliance_part",
+    "part_type": "washer_drain_filter",
+    "clog": 0.0,
+    "trapped_water_l": 1.5,
+    "size_m": [
+     0.06,
+     0.06,
+     0.12
+    ],
+    "volume_l": 0.3,
+    "mass_kg": 0.1
+   },
+   "doc": "Front-loader drain-pump filter (behind the kick-plate cover; ~1-2 L of water comes out).",
+   "perception": {
+    "hidden": [
+     "trapped_water_l"
+    ]
+   }
+  },
+  "lint_screen": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "lint screen",
+    "category": "appliance_part",
+    "part_type": "dryer_lint_screen",
+    "lint_screen": true,
+    "film": 0.0,
+    "soil": {},
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "size_m": [
+     0.3,
+     0.02,
+     0.35
+    ],
+    "volume_l": 0.4,
+    "mass_kg": 0.15
+   },
+   "doc": "Dryer lint screen (pull out, peel lint off by hand; wash off softener film; refit dry).",
+   "perception": {
+    "hidden": [
+     "film"
+    ]
+   }
+  },
+  "laundry_product": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "laundry_product",
+    "remaining": 1.0,
+    "material": "plastic",
+    "stock_item": true,
+    "chemical_class": null
+   },
+   "doc": "Laundry chemical/consumable.",
+   "perception": {
+    "read": [
+     "liquid",
+     "he",
+     "stain_agent",
+     "dose_ml_eq",
+     "chemical_class",
+     "hazards",
+     "fabric_exclusions"
+    ]
+   }
+  },
+  "liquid_detergent": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "laundry detergent",
+    "liquid_container": true,
+    "liquid": "laundry_detergent_he",
+    "liquid_l": 2.5,
+    "capacity_l": 2.95,
+    "he": true,
+    "scented": true,
+    "stain_agent": [
+     "surfactant",
+     "enzyme"
+    ],
+    "ring_risk": false,
+    "size_m": [
+     0.15,
+     0.1,
+     0.28
+    ],
+    "volume_l": 3.0,
+    "mass_kg": 2.7,
+    "label_text": "HE liquid detergent. Normal load: fill cap to line 1 (30 mL); large/heavily soiled: line 3 (45 mL). Pour into the MAIN compartment."
+   },
+   "doc": "HE liquid laundry detergent, 2.5 L (~30 mL per normal load; cap has dose lines)."
+  },
+  "free_clear_detergent": {
+   "is_a": "liquid_detergent",
+   "props": {
+    "label": "free & clear detergent",
+    "liquid": "laundry_detergent_he_free",
+    "scented": false,
+    "label_text": "Free & Clear HE liquid detergent - no dyes or perfumes. Normal load: fill cap to line 1 (30 mL). Pour into the MAIN compartment."
+   },
+   "doc": "Fragrance-free HE detergent."
+  },
+  "regular_detergent": {
+   "is_a": "liquid_detergent",
+   "props": {
+    "label": "regular detergent",
+    "liquid": "laundry_detergent",
+    "he": false,
+    "label_text": "Regular (non-HE) detergent. 60 mL per load. Not for high-efficiency machines."
+   },
+   "doc": "Non-HE detergent (oversudses in HE washers)."
+  },
+  "detergent_pod": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "detergent pod",
+    "pod": true,
+    "dose_ml_eq": 30.0,
+    "he": true,
+    "scented": true,
+    "size_m": [
+     0.04,
+     0.04,
+     0.03
+    ],
+    "volume_l": 0.03,
+    "mass_kg": 0.025,
+    "child_hazard": "ingestion"
+   },
+   "doc": "Single-dose detergent pod (put in the drum before the clothes)."
+  },
+  "pod_tub": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "detergent pod tub",
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 2.0,
+    "inner_size_m": [
+     0.18,
+     0.18,
+     0.15
+    ],
+    "size_m": [
+     0.2,
+     0.2,
+     0.18
+    ],
+    "volume_l": 5.0,
+    "mass_kg": 0.4,
+    "child_resistant": true
+   },
+   "doc": "Child-resistant tub of detergent pods."
+  },
+  "fabric_softener": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "fabric softener",
+    "liquid_container": true,
+    "liquid": "fabric_softener",
+    "liquid_l": 1.5,
+    "capacity_l": 1.6,
+    "scented": true,
+    "size_m": [
+     0.12,
+     0.08,
+     0.25
+    ],
+    "volume_l": 1.8,
+    "mass_kg": 1.6,
+    "label_text": "Fabric softener. Pour to line 1 (30 mL) in the SOFTENER compartment, never directly on clothes. Not for microfiber, towels that must stay absorbent, athletic wear or children's sleepwear."
+   },
+   "doc": "Liquid fabric softener, 1.5 L (softener compartment up to MAX; not for towels/microfiber/athletic/FR wear)."
+  },
+  "chlorine_bleach_bottle": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "chlorine bleach",
+    "liquid_container": true,
+    "liquid": "chlorine_bleach",
+    "liquid_l": 2.8,
+    "capacity_l": 3.0,
+    "chemical_class": "chlorine",
+    "hazards": [
+     "toxic",
+     "corrosive"
+    ],
+    "safe_grips": [
+     "handle"
+    ],
+    "stain_agent": [
+     "chlorine"
+    ],
+    "size_m": [
+     0.15,
+     0.1,
+     0.3
+    ],
+    "volume_l": 3.2,
+    "mass_kg": 3.0,
+    "risk": 1,
+    "label_text": "Chlorine bleach (sodium hypochlorite). DANGER: corrosive. Never mix with vinegar, ammonia or other cleaners. Whites only: 1/3 cup (80 mL) in the BLEACH compartment."
+   },
+   "doc": "Chlorine laundry bleach, 2.8 L (bleach compartment only; never with ammonia/acids; keep out of children's reach)."
+  },
+  "oxygen_laundry_booster": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "oxygen laundry booster",
+    "stain_agent": [
+     "oxygen"
+    ],
+    "ring_risk": false,
+    "liquid_container": true,
+    "liquid": "oxygen_bleach_solution",
+    "liquid_l": 1.0,
+    "capacity_l": 1.2,
+    "size_m": [
+     0.15,
+     0.15,
+     0.2
+    ],
+    "volume_l": 2.5,
+    "mass_kg": 1.2,
+    "label_text": "Oxygen laundry booster (non-chlorine, colour-safe). Add 1 scoop (30 mL) to the drum or presoak in warm water."
+   },
+   "doc": "Oxygen (percarbonate) laundry booster (colour-safe; tannin stains; soaks)."
+  },
+  "stain_remover_spray": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "stain remover spray",
+    "stain_agent": [
+     "enzyme",
+     "surfactant"
+    ],
+    "ring_risk": true,
+    "fabric_exclusions": [
+     "silk",
+     "wool",
+     "cashmere",
+     "leather",
+     "suede",
+     "dry_clean"
+    ],
+    "size_m": [
+     0.08,
+     0.06,
+     0.25
+    ],
+    "volume_l": 0.7,
+    "mass_kg": 0.7,
+    "label_text": "Pretreat: spray both sides, work in gently, wait 5-10 minutes, wash. Do not let dry. Not for silk, wool, leather or dry-clean-only items."
+   },
+   "doc": "Enzyme stain-remover spray (not for silk, wool, leather or dry-clean-only; dwell 5-10 min, never let it dry)."
+  },
+  "stain_stick": {
+   "is_a": "stain_remover_spray",
+   "props": {
+    "label": "stain stick",
+    "size_m": [
+     0.04,
+     0.04,
+     0.15
+    ],
+    "volume_l": 0.1,
+    "mass_kg": 0.1
+   },
+   "doc": "Stain stick (enzyme gel)."
+  },
+  "enzyme_presoak": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "enzyme presoak",
+    "stain_agent": [
+     "enzyme"
+    ],
+    "ring_risk": false,
+    "liquid_container": true,
+    "liquid": "enzyme_presoak",
+    "liquid_l": 1.0,
+    "capacity_l": 1.1,
+    "size_m": [
+     0.1,
+     0.07,
+     0.22
+    ],
+    "volume_l": 1.2,
+    "mass_kg": 1.1,
+    "label_text": "Enzyme presoak for protein stains (blood, egg, milk, grass). Soak in COOL water 30 minutes to overnight. Not for wool or silk."
+   },
+   "doc": "Enzyme presoak liquid (protein/grass stains; cold water)."
+  },
+  "dryer_sheet": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "dryer sheet",
+    "dryer_sheet": true,
+    "scented": true,
+    "size_m": [
+     0.22,
+     0.11,
+     0.002
+    ],
+    "volume_l": 0.01,
+    "mass_kg": 0.003,
+    "stock_item": false
+   },
+   "doc": "One scented dryer sheet (in the drum on top of the load - never on the lint screen)."
+  },
+  "unscented_dryer_sheet": {
+   "is_a": "dryer_sheet",
+   "props": {
+    "scented": false,
+    "label": "unscented dryer sheet"
+   },
+   "doc": "Fragrance-free dryer sheet."
+  },
+  "dryer_sheet_box": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "dryer sheet box",
+    "openable": true,
+    "open": true,
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 1.5,
+    "inner_size_m": [
+     0.24,
+     0.12,
+     0.12
+    ],
+    "size_m": [
+     0.25,
+     0.13,
+     0.13
+    ],
+    "volume_l": 4.0,
+    "mass_kg": 0.3
+   },
+   "doc": "Box of dryer sheets."
+  },
+  "wool_dryer_ball": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "wool dryer ball",
+    "dryer_ball": true,
+    "size_m": [
+     0.07,
+     0.07,
+     0.07
+    ],
+    "volume_l": 0.2,
+    "mass_kg": 0.05
+   },
+   "doc": "Wool dryer ball (fragrance-free softening, ~10 % faster drying)."
+  },
+  "washer_cleaner_tablet": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "washer cleaner tablet",
+    "cleaner_tablet": true,
+    "size_m": [
+     0.04,
+     0.04,
+     0.02
+    ],
+    "volume_l": 0.02,
+    "mass_kg": 0.03
+   },
+   "doc": "Washer cleaner tablet (empty drum, tub-clean cycle)."
+  },
+  "color_catcher_sheet": {
+   "is_a": "laundry_product",
+   "props": {
+    "label": "color catcher sheet",
+    "color_catcher": true,
+    "size_m": [
+     0.2,
+     0.12,
+     0.001
+    ],
+    "volume_l": 0.01,
+    "mass_kg": 0.005
+   },
+   "doc": "Dye-trapping sheet (cuts dye transfer ~70 %)."
+  },
+  "lint_wad": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "lint",
+    "category": "lint",
+    "waste_stream": "trash",
+    "material": "fiber",
+    "size_m": [
+     0.08,
+     0.08,
+     0.02
+    ],
+    "volume_l": 0.1,
+    "mass_kg": 0.005,
+    "combustible": true
+   },
+   "doc": "A wad of dryer lint (trash)."
+  },
+  "clothes_hanger": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "hanger",
+    "hanger_kind": "plastic",
+    "hang_load_kg": 1.5,
+    "non_slip": false,
+    "wide_shoulder": false,
+    "clips": false,
+    "notches": true,
+    "holding_garment": null,
+    "size_m": [
+     0.42,
+     0.01,
+     0.2
+    ],
+    "volume_l": 0.2,
+    "mass_kg": 0.05,
+    "stackable": true,
+    "material": "plastic"
+   },
+   "doc": "Clothes hanger (hanger_kind, hang_load_kg, non_slip, wide_shoulder, clips, notches).",
+   "perception": {
+    "glance": [
+     "hanger_kind"
+    ],
+    "hidden": [
+     "hang_load_kg"
+    ]
+   }
+  },
+  "wire_hanger": {
+   "is_a": "clothes_hanger",
+   "props": {
+    "hanger_kind": "wire",
+    "hang_load_kg": 0.9,
+    "notches": false,
+    "mass_kg": 0.04,
+    "material": "steel"
+   },
+   "doc": "Thin wire hanger (bends under heavy coats; silk slides off)."
+  },
+  "plastic_hanger": {
+   "is_a": "clothes_hanger",
+   "props": {
+    "hanger_kind": "plastic"
+   },
+   "doc": "Tubular plastic hanger."
+  },
+  "wooden_hanger": {
+   "is_a": "clothes_hanger",
+   "props": {
+    "hanger_kind": "wooden",
+    "hang_load_kg": 4.0,
+    "wide_shoulder": true,
+    "mass_kg": 0.35,
+    "size_m": [
+     0.45,
+     0.05,
+     0.22
+    ],
+    "material": "wood"
+   },
+   "doc": "Contoured wooden suit/coat hanger (wide shoulders, 4 kg)."
+  },
+  "velvet_hanger": {
+   "is_a": "clothes_hanger",
+   "props": {
+    "hanger_kind": "velvet",
+    "hang_load_kg": 2.0,
+    "non_slip": true,
+    "mass_kg": 0.06
+   },
+   "doc": "Slim flocked non-slip hanger."
+  },
+  "padded_hanger": {
+   "is_a": "clothes_hanger",
+   "props": {
+    "hanger_kind": "padded",
+    "hang_load_kg": 1.5,
+    "non_slip": true,
+    "mass_kg": 0.08
+   },
+   "doc": "Padded satin hanger for delicates."
+  },
+  "clip_hanger": {
+   "is_a": "clothes_hanger",
+   "props": {
+    "hanger_kind": "clip",
+    "hang_load_kg": 2.0,
+    "clips": true,
+    "non_slip": true,
+    "mass_kg": 0.08,
+    "size_m": [
+     0.35,
+     0.02,
+     0.12
+    ]
+   },
+   "doc": "Skirt/trouser hanger with clips."
+  },
+  "drying_rack": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "drying rack",
+    "category": "drying_rack",
+    "drying_rack": true,
+    "dry_fixture": true,
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "container": false,
+    "surface": false,
+    "hang_slots": 10,
+    "flat_slots": 2,
+    "hang_height_m": 0.0,
+    "max_load_kg": 15.0,
+    "tip_margin_kg": 3.0,
+    "folded_size_m": [
+     0.5,
+     0.08,
+     1.1
+    ],
+    "open_size_m": [
+     1.0,
+     0.5,
+     1.0
+    ],
+    "size_m": [
+     0.5,
+     0.08,
+     1.1
+    ],
+    "volume_l": 8.0,
+    "mass_kg": 3.5,
+    "blocks_path": false,
+    "blocks_egress": false,
+    "material": "steel",
+    "two_handed": true,
+    "drip_tray": false,
+    "folding_stand": true
+   },
+   "doc": "Folding accordion drying rack: open = unfolded and locked (1.0 x 0.5 m, 10 rails, flat mesh top, 15 kg wet load).",
+   "perception": {
+    "measure": {
+     "open_size_m": "tape_measure",
+     "folded_size_m": "tape_measure",
+     "hang_height_m": "tape_measure"
+    },
+    "hidden": [
+     "max_load_kg",
+     "tip_margin_kg"
+    ],
+    "glance": [
+     "tipped"
+    ]
+   }
+  },
+  "towel_bar": {
+   "is_a": "fixture",
+   "props": {
+    "label": "towel bar",
+    "category": "hooks",
+    "bar": true,
+    "dry_fixture": true,
+    "accepts_items": true,
+    "container": false,
+    "surface": false,
+    "hang_slots": 2,
+    "hang_height_m": 0.0,
+    "mount_height_m": 1.2,
+    "size_m": [
+     0.6,
+     0.08,
+     0.05
+    ],
+    "blocks_path": false,
+    "mounted": true,
+    "material": "steel",
+    "max_load_kg": 8.0
+   },
+   "doc": "Wall towel bar 60 cm (spreads a towel to dry, unlike a single hook).",
+   "perception": {
+    "hidden": [
+     "max_load_kg"
+    ]
+   }
+  },
+  "clothesline": {
+   "is_a": "fixture",
+   "props": {
+    "label": "clothesline",
+    "category": "clothesline",
+    "clothesline": true,
+    "dry_fixture": true,
+    "accepts_items": true,
+    "container": false,
+    "surface": false,
+    "hang_slots": 16,
+    "hang_height_m": 0.0,
+    "mount_height_m": 1.8,
+    "size_m": [
+     3.0,
+     0.05,
+     0.05
+    ],
+    "blocks_path": false,
+    "mounted": true,
+    "pins_on_line": 0,
+    "material": "nylon"
+   },
+   "doc": "Outdoor clothesline 6 m between posts at 1.8 m (needs pins against wind).",
+   "perception": {
+    "measure": {
+     "length_m": "tape_measure",
+     "hang_height_m": "tape_measure"
+    }
+   }
+  },
+  "clothespin_bag": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "clothespin bag",
+    "category": "clothespins",
+    "clothespins": true,
+    "count": 30,
+    "size_m": [
+     0.25,
+     0.1,
+     0.3
+    ],
+    "volume_l": 3.0,
+    "mass_kg": 0.35,
+    "material": "canvas"
+   },
+   "doc": "Bag of 30 wooden clothespins."
+  },
+  "ironing_board": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "ironing board",
+    "category": "ironing_board",
+    "ironing_surface": true,
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     1.2,
+     0.38
+    ],
+    "surface_height_m": 0.9,
+    "size_m": [
+     0.38,
+     0.1,
+     1.37
+    ],
+    "volume_l": 10.0,
+    "mass_kg": 6.0,
+    "two_handed": true,
+    "material": "steel",
+    "soil": {},
+    "folded_size_m": [
+     0.38,
+     0.1,
+     1.37
+    ],
+    "open_size_m": [
+     1.2,
+     0.38,
+     0.9
+    ],
+    "folding_stand": true,
+    "blocks_path": false
+   },
+   "doc": "Folding ironing board: stored folded (0.38 x 0.1 m, 1.37 m long) hung on wall hooks, stood upright or in a closet; open = set up on its legs at 0.9 m (1.2 x 0.38 m surface, an obstacle on the floor). Nothing can be laid on it folded; it is folded only when empty.",
+   "perception": {
+    "measure": {
+     "open_size_m": "tape_measure",
+     "folded_size_m": "tape_measure",
+     "surface_height_m": "tape_measure"
+    }
+   }
+  },
+  "clothes_iron": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "steam iron",
+    "category": "iron",
+    "tool_kind": "iron",
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": false,
+    "power_w": 2400,
+    "fixed_temperature": true,
+    "temperature_c": 21.0,
+    "max_touch_temp_c": 260.0,
+    "orientation": "upright",
+    "auto_off": true,
+    "liquid_container": true,
+    "liquid": "water",
+    "liquid_l": 0.0,
+    "capacity_l": 0.3,
+    "settings": {
+     "temp": "medium",
+     "steam": false
+    },
+    "setting_options": {
+     "temp": [
+      "low",
+      "medium",
+      "high",
+      "max"
+     ],
+     "steam": [
+      false,
+      true
+     ]
+    },
+    "size_m": [
+     0.28,
+     0.12,
+     0.15
+    ],
+    "volume_l": 2.0,
+    "mass_kg": 1.3,
+    "_tick": true,
+    "material": "steel"
+   },
+   "doc": "Steam iron (dial low 110 / medium 150 / high 200 / max 220 C; 0.3 L tank; auto-off 30 s face-down, 8 min on heel).",
+   "perception": {
+    "read": [
+     "power_w"
+    ],
+    "hidden": [
+     "max_touch_temp_c"
+    ]
+   }
+  },
+  "garment_steamer": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "garment steamer",
+    "category": "garment_steamer",
+    "tool_kind": "garment_steamer",
+    "switchable": true,
+    "on": false,
+    "plug_required": true,
+    "plugged_in": false,
+    "power_w": 1500,
+    "fixed_temperature": true,
+    "temperature_c": 21.0,
+    "max_touch_temp_c": 150.0,
+    "ready": false,
+    "liquid_container": true,
+    "liquid": "water",
+    "liquid_l": 0.0,
+    "capacity_l": 0.26,
+    "max_fill_l": 0.25,
+    "size_m": [
+     0.12,
+     0.15,
+     0.28
+    ],
+    "volume_l": 1.5,
+    "mass_kg": 1.0,
+    "_tick": true
+   },
+   "doc": "Handheld garment steamer (0.26 L tank, MAX 0.25 L; ~45 s to heat).",
+   "perception": {
+    "read": [
+     "power_w"
+    ],
+    "hidden": [
+     "max_touch_temp_c"
+    ]
+   }
+  },
+  "lint_roller": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "lint roller",
+    "tool_kind": "lint_roller",
+    "affordances": [
+     "lint_roll"
+    ],
+    "sheets": 60,
+    "sheet_load": 0.0,
+    "size_m": [
+     0.1,
+     0.05,
+     0.25
+    ],
+    "volume_l": 0.4,
+    "mass_kg": 0.15
+   },
+   "doc": "Adhesive lint roller (60 sheets; peel a sheet when saturated)."
+  },
+  "clothes_brush": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "clothes brush",
+    "tool_kind": "clothes_brush",
+    "size_m": [
+     0.05,
+     0.15,
+     0.04
+    ],
+    "volume_l": 0.3,
+    "mass_kg": 0.1
+   },
+   "doc": "Natural-bristle clothes brush (brush with the nap)."
+  },
+  "fabric_shaver": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "fabric shaver",
+    "tool_kind": "fabric_shaver",
+    "battery_powered": true,
+    "battery_level": 1.0,
+    "lint_chamber": 0.0,
+    "size_m": [
+     0.07,
+     0.07,
+     0.15
+    ],
+    "volume_l": 0.5,
+    "mass_kg": 0.2
+   },
+   "doc": "Battery fabric shaver (sturdy knits only; lint chamber fills)."
+  },
+  "sweater_comb": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "sweater comb",
+    "tool_kind": "sweater_comb",
+    "size_m": [
+     0.04,
+     0.12,
+     0.02
+    ],
+    "volume_l": 0.1,
+    "mass_kg": 0.05
+   },
+   "doc": "Sweater comb for fine knits."
+  },
+  "sweater_stone": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "sweater stone",
+    "tool_kind": "pumice_stone",
+    "size_m": [
+     0.05,
+     0.1,
+     0.03
+    ],
+    "volume_l": 0.15,
+    "mass_kg": 0.08
+   },
+   "doc": "Pumice sweater stone."
+  },
+  "hamper": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "laundry hamper",
+    "category": "hamper",
+    "hamper": true,
+    "openable": true,
+    "open": true,
+    "capacity_l": 70.0,
+    "inner_size_m": [
+     0.4,
+     0.35,
+     0.55
+    ],
+    "size_m": [
+     0.45,
+     0.4,
+     0.62
+    ],
+    "mass_kg": 1.5,
+    "two_handed": true,
+    "material": "wicker",
+    "owner": null
+   },
+   "doc": "Lidded laundry hamper (70 L; owner's dirty clothes).",
+   "perception": {
+    "hidden": [
+     "designated"
+    ]
+   }
+  },
+  "sorter_hamper": {
+   "is_a": "furniture",
+   "props": {
+    "label": "sorter hamper",
+    "category": "hamper",
+    "accepts_items": true,
+    "container": false,
+    "surface": false,
+    "size_m": [
+     0.75,
+     0.38,
+     0.8
+    ],
+    "mass_kg": 3.0,
+    "blocks_path": true,
+    "material": "steel"
+   },
+   "doc": "Three-bag sorter hamper (lights / darks / colors sections)."
+  },
+  "hamper_section": {
+   "is_a": "fixture",
+   "props": {
+    "label": "hamper section",
+    "category": "hamper_section",
+    "hamper": true,
+    "section": "lights",
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 40.0,
+    "inner_size_m": [
+     0.24,
+     0.35,
+     0.6
+    ],
+    "size_m": [
+     0.25,
+     0.36,
+     0.62
+    ],
+    "blocks_path": false
+   },
+   "doc": "One bag of a sorter hamper."
+  },
+  "mesh_laundry_bag": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "mesh laundry bag",
+    "mesh_bag": true,
+    "soft_sided": true,
+    "capacity_l": 10.0,
+    "inner_size_m": [
+     0.4,
+     0.3,
+     0.12
+    ],
+    "size_m": [
+     0.4,
+     0.3,
+     0.12
+    ],
+    "volume_l": 0.5,
+    "mass_kg": 0.05,
+    "material": "polyester"
+   },
+   "doc": "Zippered mesh laundry bag (protects delicates, halves agitation)."
+  },
+  "laundry_bag": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "laundry bag",
+    "soft_sided": true,
+    "capacity_l": 40.0,
+    "inner_size_m": [
+     0.45,
+     0.35,
+     0.6
+    ],
+    "size_m": [
+     0.45,
+     0.35,
+     0.6
+    ],
+    "volume_l": 1.0,
+    "mass_kg": 0.2,
+    "material": "cotton"
+   },
+   "doc": "Drawstring laundry bag."
+  },
+  "garment_bag": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "garment bag",
+    "soft_sided": true,
+    "breathable": true,
+    "accepts_items": true,
+    "hang_slots": 1,
+    "capacity_l": 60.0,
+    "inner_size_m": [
+     0.6,
+     0.2,
+     1.2
+    ],
+    "size_m": [
+     0.6,
+     0.2,
+     1.2
+    ],
+    "volume_l": 1.0,
+    "mass_kg": 0.3
+   },
+   "doc": "Breathable garment bag for coats and formal wear."
+  },
+  "wash_basin": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "laundry basin",
+    "basin": true,
+    "liquid_container": true,
+    "liquid": null,
+    "liquid_l": 0.0,
+    "capacity_l": 15.0,
+    "inner_size_m": [
+     0.45,
+     0.35,
+     0.2
+    ],
+    "size_m": [
+     0.5,
+     0.4,
+     0.22
+    ],
+    "volume_l": 16.0,
+    "mass_kg": 0.8
+   },
+   "doc": "Plastic laundry basin for soaking (15 L)."
+  },
+  "boot_tray": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "boot tray",
+    "category": "boot_tray",
+    "drip_safe": true,
+    "drip_tray": true,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     0.75,
+     0.4
+    ],
+    "size_m": [
+     0.75,
+     0.4,
+     0.03
+    ],
+    "volume_l": 9.0,
+    "mass_kg": 1.0,
+    "floor_item": true,
+    "ground_layer": true,
+    "material": "rubber"
+   },
+   "doc": "Rubber boot tray (drip-safe; 75 x 40 cm)."
+  },
+  "umbrella_stand": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "umbrella stand",
+    "category": "umbrella_stand",
+    "drip_safe": true,
+    "accepts_items": true,
+    "container": true,
+    "capacity_l": 12.0,
+    "inner_size_m": [
+     0.22,
+     0.22,
+     0.5
+    ],
+    "size_m": [
+     0.25,
+     0.25,
+     0.55
+    ],
+    "volume_l": 20.0,
+    "mass_kg": 1.5
+   },
+   "doc": "Umbrella stand with a drip tray."
+  },
+  "moth_repellent": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "cedar block",
+    "moth_repellent": true,
+    "size_m": [
+     0.08,
+     0.04,
+     0.02
+    ],
+    "volume_l": 0.06,
+    "mass_kg": 0.03,
+    "material": "wood"
+   },
+   "doc": "Cedar block / lavender sachet for stored woollens."
+  },
+  "shoe_polish": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "shoe polish",
+    "shoe_polish": true,
+    "color": "black",
+    "remaining": 1.0,
+    "size_m": [
+     0.08,
+     0.08,
+     0.03
+    ],
+    "volume_l": 0.15,
+    "mass_kg": 0.07
+   },
+   "doc": "Tin of wax shoe polish (colour black/brown/neutral)."
+  },
+  "shoe_brush": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "shoe brush",
+    "tool_kind": "shoe_brush",
+    "size_m": [
+     0.06,
+     0.16,
+     0.05
+    ],
+    "volume_l": 0.4,
+    "mass_kg": 0.12
+   },
+   "doc": "Horsehair shoe brush (brush off dirt, buff polish)."
+  },
+  "suede_brush": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "suede brush",
+    "tool_kind": "suede_brush",
+    "size_m": [
+     0.05,
+     0.14,
+     0.04
+    ],
+    "volume_l": 0.25,
+    "mass_kg": 0.08
+   },
+   "doc": "Suede brush and eraser."
+  },
+  "buffing_cloth": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "buffing cloth",
+    "tool_kind": "buffing_cloth",
+    "size_m": [
+     0.2,
+     0.2,
+     0.005
+    ],
+    "volume_l": 0.05,
+    "mass_kg": 0.02
+   },
+   "doc": "Soft buffing cloth."
+  },
+  "shoe_care_mat": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "shoe-care mat",
+    "protective_sheet": true,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     0.6,
+     0.45
+    ],
+    "size_m": [
+     0.6,
+     0.45,
+     0.003
+    ],
+    "volume_l": 0.3,
+    "mass_kg": 0.1,
+    "ground_layer": true
+   },
+   "doc": "Protective sheet to polish shoes on."
+  },
+  "shoe_tree": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "shoe tree",
+    "shoe_tree": true,
+    "size_m": [
+     0.09,
+     0.26,
+     0.08
+    ],
+    "volume_l": 0.5,
+    "mass_kg": 0.25,
+    "material": "wood"
+   },
+   "doc": "Cedar shoe tree (keeps shape)."
+  },
+  "sewing_kit": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "sewing kit",
+    "sewing_kit": true,
+    "needle_storage": true,
+    "openable": true,
+    "open": false,
+    "capacity_l": 3.0,
+    "inner_size_m": [
+     0.25,
+     0.18,
+     0.08
+    ],
+    "size_m": [
+     0.27,
+     0.2,
+     0.1
+    ],
+    "volume_l": 5.0,
+    "mass_kg": 0.5
+   },
+   "doc": "Sewing kit box (needles, threads, buttons, snips)."
+  },
+  "pincushion": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "pincushion",
+    "needle_storage": true,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     0.08,
+     0.08
+    ],
+    "size_m": [
+     0.08,
+     0.08,
+     0.05
+    ],
+    "volume_l": 0.3,
+    "mass_kg": 0.05
+   },
+   "doc": "Pincushion (park needles here)."
+  },
+  "sewing_needle": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "sewing needle",
+    "category": "needle",
+    "needle": true,
+    "eye_mm": 0.8,
+    "threaded": null,
+    "sharp_point": true,
+    "safe_grips": [
+     "pinch"
+    ],
+    "size_m": [
+     0.002,
+     0.002,
+     0.05
+    ],
+    "volume_l": 0.001,
+    "mass_kg": 0.001,
+    "material": "steel"
+   },
+   "doc": "Hand-sewing needle (sharp; pinch grip; 0.8 mm eye).",
+   "perception": {
+    "hidden": [
+     "eye_mm"
+    ]
+   }
+  },
+  "fine_needle": {
+   "is_a": "sewing_needle",
+   "props": {
+    "label": "fine needle",
+    "eye_mm": 0.5
+   },
+   "doc": "Fine sharps needle (0.5 mm eye; frayed thread will not pass)."
+  },
+  "thread_spool": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "thread spool",
+    "thread_spool": true,
+    "color": "white",
+    "length_m": 100.0,
+    "frayed": true,
+    "size_m": [
+     0.03,
+     0.03,
+     0.05
+    ],
+    "volume_l": 0.04,
+    "mass_kg": 0.02
+   },
+   "doc": "Spool of all-purpose polyester thread (100 m).",
+   "perception": {
+    "glance": [
+     "color"
+    ],
+    "measure": {
+     "length_m": "tape_measure"
+    }
+   }
+  },
+  "needle_threader": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "needle threader",
+    "tool_kind": "needle_threader",
+    "size_m": [
+     0.02,
+     0.005,
+     0.05
+    ],
+    "volume_l": 0.005,
+    "mass_kg": 0.002
+   },
+   "doc": "Wire needle threader."
+  },
+  "thread_snips": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "thread snips",
+    "tool_kind": "snips",
+    "affordances": [
+     "cut_thread"
+    ],
+    "sharp_point": true,
+    "safe_grips": [
+     "handle"
+    ],
+    "size_m": [
+     0.03,
+     0.01,
+     0.11
+    ],
+    "volume_l": 0.02,
+    "mass_kg": 0.03,
+    "material": "steel"
+   },
+   "doc": "Small thread snips."
+  },
+  "sewing_button": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "spare button",
+    "sewing_button": true,
+    "button_holes": 4,
+    "size_mm": 11,
+    "color": "white",
+    "size_m": [
+     0.011,
+     0.011,
+     0.003
+    ],
+    "volume_l": 0.001,
+    "mass_kg": 0.001
+   },
+   "doc": "Spare 4-hole shirt button (11 mm).",
+   "perception": {
+    "measure": {
+     "size_mm": "tape_measure"
+    }
+   }
+  },
+  "garment_pocket": {
+   "is_a": "fixture",
+   "props": {
+    "label": "pocket",
+    "category": "pocket",
+    "pocket": true,
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "container": true,
+    "surface": false,
+    "capacity_l": 1.0,
+    "inner_size_m": [
+     0.15,
+     0.18,
+     0.03
+    ],
+    "size_m": [
+     0.15,
+     0.18,
+     0.01
+    ],
+    "volume_l": 0.0,
+    "mass_kg": 0.0,
+    "looks_empty": true,
+    "portable": false
+   },
+   "doc": "A pocket on a garment (open it to check; contents hide inside).",
+   "perception": {
+    "glance": [
+     "looks_empty"
+    ]
+   }
+  },
+  "laundry_wall_hooks": {
+   "is_a": "fixture",
+   "props": {
+    "label": "wall hooks for the ironing board and drying rack",
+    "category": "hooks",
+    "accepts_items": true,
+    "hang_slots": 2,
+    "hang_height_m": 0.0,
+    "mount_height_m": 1.45,
+    "size_m": [
+     0.45,
+     0.08,
+     0.1
+    ],
+    "max_load_kg": 15.0,
+    "blocks_path": false,
+    "material": "steel",
+    "mass_kg": 0.4,
+    "hangs_folded_stands": true
+   },
+   "doc": "Wall-mounted pair of padded hooks at 1.45 m: a folded ironing board and a folded drying rack hang flat against the wall below them (thin, so the floor in front stays walkable). Lift them off to set them up.",
+   "perception": {
+    "hidden": [
+     "max_load_kg"
+    ]
+   }
+  }
+ },
+ "looks_like": {
+  "laundry_jug": {
+   "descriptor": "plastic jug of laundry liquid",
+   "resolve": "read",
+   "members": [
+    "liquid_detergent",
+    "fabric_softener",
+    "chlorine_bleach_bottle",
+    "oxygen_laundry_booster",
+    "enzyme_presoak"
+   ],
+   "kind": "laundry liquid",
+   "label_fields": [
+    "label_text"
+   ],
+   "candidates": [
+    "laundry detergent",
+    "regular detergent",
+    "free & clear detergent",
+    "fabric softener",
+    "chlorine bleach",
+    "oxygen laundry booster",
+    "enzyme presoak"
+   ]
+  },
+  "dryer_sheet": {
+   "descriptor": "dryer sheet",
+   "resolve": "inspect",
+   "members": [
+    "dryer_sheet"
+   ],
+   "candidates": [
+    "dryer sheet",
+    "unscented dryer sheet"
+   ]
+  },
+  "bed_sheet": {
+   "descriptor": "bed sheet",
+   "resolve": "inspect",
+   "members": [
+    "fitted_sheet",
+    "flat_sheet"
+   ],
+   "candidates": [
+    "fitted sheet",
+    "flat sheet",
+    "crib sheet"
+   ]
+  },
+  "pillow_cover": {
+   "descriptor": "pillowcase",
+   "resolve": "inspect",
+   "members": [
+    "pillowcase"
+   ],
+   "kind": "pillow cover",
+   "candidates": [
+    "pillowcase",
+    "king pillowcase",
+    "pillow sham",
+    "pillow protector"
+   ]
+  }
+ }
+}

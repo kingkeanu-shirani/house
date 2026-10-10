@@ -1,0 +1,63 @@
+{
+ "batch": 46,
+ "kind": "adaptability",
+ "ids": [
+  "A-5ae091d96c888c-01",
+  "A-04125df58b6b01-01",
+  "A-fba40668056583-01",
+  "A-dd98761c9087df-01",
+  "A-c93f46cbfe9563-01",
+  "A-d4c6a3835838ff-01",
+  "A-f84387af1a5f39-01",
+  "A-2e242502dccd12-01",
+  "A-ea605735823af4-01",
+  "A-a660396463f891-01",
+  "A-385ad88f5d7d07-01",
+  "A-0c7cf910425070-01",
+  "A-3e71d42bf393b3-01",
+  "A-889c18ac8f40e2-01",
+  "A-c1f1be2d9edb87-01",
+  "A-c0129d165d57d4-01",
+  "A-4836a403296c01-01",
+  "A-80fb62c16ae8dd-01"
+ ],
+ "sections": [
+  "Is it okay? (judging state)",
+  "Improvising physical fixes",
+  "New devices and new homes",
+  "Reading the room",
+  "Constraints beyond time",
+  "Pets"
+ ],
+ "domains": {
+  "navigation_robot": 3,
+  "people": 3,
+  "safety": 2,
+  "pets": 2,
+  "food": 1,
+  "plumbing_liquids": 1,
+  "appliances_cooking": 1,
+  "manipulation": 1,
+  "mechanisms": 1,
+  "textiles_laundry": 1,
+  "cleaning": 1,
+  "admin_inventory": 1
+ },
+ "secondary_domains": {
+  "people": 6,
+  "food": 4,
+  "appliances_cooking": 4,
+  "electrical": 4,
+  "textiles_laundry": 3,
+  "manipulation": 3,
+  "safety": 3,
+  "admin_inventory": 3,
+  "climate": 3,
+  "cleaning": 2,
+  "tools_vehicles": 2,
+  "navigation_robot": 2,
+  "mechanisms": 2,
+  "plumbing_liquids": 2,
+  "outdoor_plants": 1
+ }
+}

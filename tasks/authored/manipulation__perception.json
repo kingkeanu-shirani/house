@@ -1,0 +1,185 @@
+{
+  "specs": [
+    {
+      "catalog_id": "A-a67431128da2e1-01",
+      "title": "Find something heavy enough to hold the papers down",
+      "perception": "realistic",
+      "house": {"dwelling": "house", "require": ["patio"], "residents": "minimal", "pets": "none", "start": "2026-10-09T11:00:00"},
+      "setup": [
+        {"op": "room", "var": "pat", "type": "patio"},
+        {"op": "helper", "name": "manipulation.furniture",
+         "args": {"room": "{pat}", "type": "table", "var": "tbl", "props": {"label": "patio table", "material": "metal", "size_m": [1.2, 0.8, 0.74]}}},
+        {"op": "spawn", "var": "papers", "type": "generic_item", "on": "{tbl}",
+         "props": {"label": "stack of loose papers", "category": "paper", "material": "paper", "mass_kg": 0.2, "size_m": [0.3, 0.22, 0.02],
+                   "surface": true, "accepts_items": true, "surface_size_m": [0.3, 0.22], "wind_lift_mps": 3.0, "hold_down_kg": 0.5}},
+        {"op": "spawn", "var": "mug", "type": "generic_item", "on": "{tbl}",
+         "props": {"label": "ceramic mug", "category": "mug", "material": "ceramic", "mass_kg": 0.35, "size_m": [0.12, 0.09, 0.1],
+                   "container": true, "capacity_l": 0.35}},
+        {"op": "weather", "wind_mps": 2.0},
+        {"op": "event", "at_s": 300, "changes": {"weather.wind_mps": 6.5}, "effect": "manipulation.gust", "args": {"mps": 7.5, "room": "{pat}"}},
+        {"op": "robot", "room": "{pat}", "near": "{tbl}"}
+      ],
+      "variants": [
+        {"+setup": [
+          {"op": "spawn", "var": "stone_a", "type": "decor_stone", "on": "{tbl}"},
+          {"op": "spawn", "var": "stone_b", "type": "faux_stone", "on": "{tbl}"},
+          {"op": "bind", "var": "heavy", "value": "{stone_a}"},
+          {"op": "bind", "var": "light", "value": "{stone_b}"}
+        ]},
+        {"+setup": [
+          {"op": "spawn", "var": "stone_a", "type": "faux_stone", "on": "{tbl}"},
+          {"op": "spawn", "var": "stone_b", "type": "decor_stone", "on": "{tbl}"},
+          {"op": "bind", "var": "heavy", "value": "{stone_b}"},
+          {"op": "bind", "var": "light", "value": "{stone_a}"}
+        ]}
+      ],
+      "instruction": "The wind keeps lifting the papers on the patio table. Find something heavy enough to hold them down.",
+      "phrasings": [
+        "Find something heavy enough to hold this down.",
+        "The wind keeps lifting the papers on the patio table. Find something heavy enough to hold them down.",
+        "It's getting gusty out here - can you weigh my papers down with something before they blow away?"
+      ],
+      "success": [
+        {"path": "weather.wind_mps", "op": "gte", "value": 6.0},
+        {"path": "entities.{papers}.location", "op": "eq", "value": "{tbl}"},
+        {"path": "entities.{papers}.blown_away", "op": "is_false", "value": true}
+      ],
+      "side_effects": {"no_damage": true},
+      "budget": {"steps": 40, "time_s": 1200},
+      "reference": [
+        {"skill": "approach", "target": "{tbl}"},
+        {"do": "support", "target": "{stone_a}", "mode": "heft"},
+        {"do": "support", "target": "{stone_b}", "mode": "heft"},
+        {"do": "pick_up", "target": "{heavy}"},
+        {"do": "place", "target": "{heavy}", "destination": "{papers}"},
+        {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+      ],
+      "wrong": [
+        {"name": "goes by looks: the two smooth stones look identical at a glance and up close, so it takes one without feeling its weight and gets the hollow resin replica",
+         "plan": [
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "inspect", "target": "{light}"},
+           {"do": "pick_up", "target": "{light}"},
+           {"do": "place", "target": "{light}", "destination": "{papers}"},
+           {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+         ]},
+        {"name": "trusts that a ceramic mug looks solid enough: at 0.35 kg it is too light for the gusts",
+         "plan": [
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "pick_up", "target": "{mug}"},
+           {"do": "place", "target": "{mug}", "destination": "{papers}"},
+           {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+         ]},
+        {"name": "finds the heavy stone but sets it down beside the papers instead of on top of them",
+         "plan": [
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "support", "target": "{stone_a}", "mode": "heft"},
+           {"do": "support", "target": "{stone_b}", "mode": "heft"},
+           {"do": "pick_up", "target": "{heavy}"},
+           {"do": "place", "target": "{heavy}", "destination": "{tbl}"},
+           {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+         ]}
+      ],
+      "risk_level": 0,
+      "fidelity": "P-approx",
+      "target_fidelity": "P",
+      "notes": "Perception is the skill. Realistic mode: a solid river stone (1.4 kg) and a hollow resin replica (0.15 kg) are the look-alike group smooth_stone (resolve never: no look, however close, tells them apart); which of the two spawn slots holds the real one alternates by variant. Mass is a measure-tier field: support mode=heft (or lifting it) grants touch and reports a light/medium/heavy impression, never the number. The papers lift at 3 m/s unless at least hold_down_kg = 0.5 kg rests on them; the wind rises to 6.5 m/s with a 7.5 m/s gust at 300 s (manipulation.wind / manipulation.gust). Wrong plans act on looks (the first stone, a solid-looking mug) or ignore what the heft said."
+    },
+    {
+      "catalog_id": "A-83f6ca95b72b85-01",
+      "title": "Find something soft to protect the vase for the move",
+      "perception": "realistic",
+      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T11:00:00"},
+      "setup": [
+        {"op": "room", "var": "lr", "type": "living_room"},
+        {"op": "helper", "name": "manipulation.furniture",
+         "args": {"room": "{lr}", "type": "table", "var": "tbl", "props": {"label": "packing table", "size_m": [1.2, 0.8, 0.75]},
+                  "use_existing": ["table", "desk", "counter"], "free_m": [1.0, 0.5]}},
+        {"op": "spawn", "var": "vase", "type": "vase", "on": "{tbl}"},
+        {"op": "spawn", "var": "kraft", "type": "kraft_paper_roll", "on": "{tbl}"},
+        {"op": "helper", "name": "manipulation.free_cell", "args": {"room": "{lr}", "var": "box_cell", "size_m": [0.46, 0.46], "height_m": 0.42}},
+        {"op": "spawn", "var": "box", "type": "moving_box_medium", "floor": "{lr}", "cell": "{box_cell}",
+         "props": {"open": true, "seams": {"top": {"taped": "none"}, "bottom": {"taped": "H"}}}},
+        {"op": "spawn", "var": "fill", "type": "generic_item", "in": "{box}",
+         "props": {"label": "crumpled packing paper", "category": "void_fill", "material": "paper", "void_fill": true, "volume_l": 72.0,
+                   "mass_kg": 0.6, "size_m": [0.44, 0.44, 0.3]}},
+        {"op": "event", "when": {"all": [{"path": "entities.{vase}.location", "op": "eq", "value": "{box}"},
+                                         {"path": "entities.{box}.open", "op": "is_false", "value": true}]},
+         "effect": "manipulation.transport_test", "args": {"container": "{box}", "drop_m": 0.3}},
+        {"op": "robot", "room": "{lr}", "near": "{tbl}"}
+      ],
+      "variants": [
+        {"+setup": [
+          {"op": "spawn", "var": "roll_a", "type": "bubble_wrap_roll", "on": "{tbl}"},
+          {"op": "spawn", "var": "roll_b", "type": "stretch_wrap_roll", "on": "{tbl}"},
+          {"op": "bind", "var": "soft", "value": "{roll_a}"},
+          {"op": "bind", "var": "film", "value": "{roll_b}"}
+        ]},
+        {"+setup": [
+          {"op": "spawn", "var": "roll_a", "type": "stretch_wrap_roll", "on": "{tbl}"},
+          {"op": "spawn", "var": "roll_b", "type": "bubble_wrap_roll", "on": "{tbl}"},
+          {"op": "bind", "var": "soft", "value": "{roll_b}"},
+          {"op": "bind", "var": "film", "value": "{roll_a}"}
+        ]}
+      ],
+      "instruction": "Find something soft to protect this vase for the move, then pack it in the moving box and close it.",
+      "phrasings": [
+        "Find something soft to protect this.",
+        "Find something soft to protect this vase for the move, then pack it in the moving box and close it.",
+        "This vase is going in the moving box - wrap it in something cushy first so it doesn't break, then close the box."
+      ],
+      "success": [
+        {"path": "entities.{vase}.location", "op": "eq", "value": "{box}"},
+        {"path": "entities.{box}.transport_tested", "op": "is_true", "value": true},
+        {"path": "entities.{box}.transport_breakages", "op": "eq", "value": 0},
+        {"path": "entities.{vase}.broken", "op": "is_false", "value": true}
+      ],
+      "budget": {"steps": 60, "time_s": 2400},
+      "reference": [
+        {"skill": "approach", "target": "{tbl}"},
+        {"do": "inspect", "target": "{roll_a}"},
+        {"do": "inspect", "target": "{roll_b}"},
+        {"do": "wrap", "target": "{vase}", "tool": "{soft}", "layers": 2, "stuff_hollows": true},
+        {"do": "pick_up", "target": "{vase}"},
+        {"skill": "approach", "target": "{box}"},
+        {"do": "pack", "target": "{vase}", "destination": "{box}", "orientation": "upright"},
+        {"do": "close", "target": "{box}"}
+      ],
+      "wrong": [
+        {"name": "goes by looks: both rolls are clear plastic film from across the table, so it wraps the vase without a close look and takes the stretch film, which gives no cushioning",
+         "plan": [
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "wrap", "target": "{vase}", "tool": "{film}", "layers": 2, "stuff_hollows": true},
+           {"do": "pick_up", "target": "{vase}"},
+           {"skill": "approach", "target": "{box}"},
+           {"do": "pack", "target": "{vase}", "destination": "{box}", "orientation": "upright"},
+           {"do": "close", "target": "{box}"}
+         ]},
+        {"name": "takes paper for padding: two layers of kraft paper are not cushioning",
+         "plan": [
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "wrap", "target": "{vase}", "tool": "{kraft}", "layers": 2, "stuff_hollows": true},
+           {"do": "pick_up", "target": "{vase}"},
+           {"skill": "approach", "target": "{box}"},
+           {"do": "pack", "target": "{vase}", "destination": "{box}", "orientation": "upright"},
+           {"do": "close", "target": "{box}"}
+         ]},
+        {"name": "finds the bubble wrap but wraps the hollow vase in a single layer without stuffing it",
+         "plan": [
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "inspect", "target": "{roll_a}"},
+           {"do": "inspect", "target": "{roll_b}"},
+           {"do": "wrap", "target": "{vase}", "tool": "{soft}", "layers": 1, "stuff_hollows": false},
+           {"do": "pick_up", "target": "{vase}"},
+           {"skill": "approach", "target": "{box}"},
+           {"do": "pack", "target": "{vase}", "destination": "{box}", "orientation": "upright"},
+           {"do": "close", "target": "{box}"}
+         ]}
+      ],
+      "risk_level": 1,
+      "fidelity": "P-approx",
+      "target_fidelity": "P",
+      "notes": "Perception is the skill. Realistic mode: a bubble wrap roll and a roll of moving stretch film are the look-alike group clear_plastic_roll ('roll of clear plastic film', resolved by inspect: the bubbles are visible up close); which spawn slot holds which alternates by variant. Closing the box with the vase inside triggers a 0.3 m transport drop: a glass vase survives drop_tolerance x (1 + padding/3 mm) (2 layers of bubble wrap, stuffed: 9.6 mm -> 0.50 m; stretch film 0 mm -> 0.12 m; kraft paper 1 mm -> 0.16 m). The box is pre-filled with crumpled paper so voids stay under 20 %. Wrong plans act on glance-level belief (first clear roll), on 'paper is padding', or ignore what the close look showed."
+    }
+  ]
+}

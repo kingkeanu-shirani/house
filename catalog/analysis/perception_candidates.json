@@ -1,0 +1,1400 @@
+{
+ "admin_inventory": [
+  {
+   "id": "T-dd962ab08d03f3-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by type."
+  },
+  {
+   "id": "T-d79384c64247c1-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by size."
+  },
+  {
+   "id": "T-c9df8ff5471337-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by color."
+  },
+  {
+   "id": "T-f6a052cde12e3f-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by destination."
+  },
+  {
+   "id": "T-2c7767b0ad921f-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by material."
+  },
+  {
+   "id": "T-106f9793b2c7f2-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects into containers."
+  },
+  {
+   "id": "T-dc47f983ed70fc-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Identify an object."
+  },
+  {
+   "id": "T-868cd66a42530b-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Identify where an object belongs."
+  },
+  {
+   "id": "T-5b94e671d4c8e2-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Detect an object that is out of place."
+  },
+  {
+   "id": "T-2aa7efc25a348c-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Detect clutter."
+  },
+  {
+   "id": "T-01bd9731e66b83-01",
+   "kind": "task",
+   "section": "Kitchen: storage and organization",
+   "text": "Sort pantry goods."
+  },
+  {
+   "id": "T-98b3b07b8f0520-01",
+   "kind": "task",
+   "section": "Bedrooms",
+   "text": "Sort toys."
+  },
+  {
+   "id": "T-b51b5e8f2f05c5-01",
+   "kind": "task",
+   "section": "Bathrooms",
+   "text": "Check expiration dates on toiletries."
+  },
+  {
+   "id": "T-dffe308419bcec-01",
+   "kind": "task",
+   "section": "Closets and storage",
+   "text": "Sort supplies."
+  },
+  {
+   "id": "T-3bc279d27bf593-01",
+   "kind": "task",
+   "section": "Closets and storage",
+   "text": "Sort seasonal items."
+  },
+  {
+   "id": "T-b58499f7f02ebe-01",
+   "kind": "task",
+   "section": "Closets and storage",
+   "text": "Identify duplicates."
+  },
+  {
+   "id": "T-b2c79f58bd712d-01",
+   "kind": "task",
+   "section": "Closets and storage",
+   "text": "Identify unused items."
+  },
+  {
+   "id": "T-6141c712e66d68-01",
+   "kind": "task",
+   "section": "Child-related household assistance",
+   "text": "Sort toys."
+  },
+  {
+   "id": "T-a2849bddcaaa72-01",
+   "kind": "task",
+   "section": "Home organization",
+   "text": "Sort keep/donate/discard items."
+  },
+  {
+   "id": "T-ab9a26cd6a795e-01",
+   "kind": "task",
+   "section": "Home organization",
+   "text": "Detect low supplies."
+  },
+  {
+   "id": "T-a6c4b0e32bddaf-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Identify depleted items."
+  },
+  {
+   "id": "T-d1bdd6349434d9-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Check pantry before shopping."
+  },
+  {
+   "id": "T-5ddfdb5795684e-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Check refrigerator before shopping."
+  },
+  {
+   "id": "T-35314a321f84c4-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Check freezer before shopping."
+  },
+  {
+   "id": "T-003145c53869b7-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Check bathroom supplies."
+  },
+  {
+   "id": "T-5cee72ac01cf61-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Check cleaning supplies."
+  },
+  {
+   "id": "T-a07dea8c5a41c5-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Check pet supplies."
+  },
+  {
+   "id": "T-e54aee68e3c2e0-01",
+   "kind": "task",
+   "section": "Package and delivery handling",
+   "text": "Detect delivery."
+  },
+  {
+   "id": "T-8fb945d433137c-01",
+   "kind": "task",
+   "section": "Package and delivery handling",
+   "text": "Verify package label."
+  },
+  {
+   "id": "T-7d7b41c89da2d5-01",
+   "kind": "task",
+   "section": "Package and delivery handling",
+   "text": "Sort package contents."
+  },
+  {
+   "id": "T-ca8d2b8f5a1836-01",
+   "kind": "task",
+   "section": "Holiday and event preparation",
+   "text": "Sort reusable decorations."
+  },
+  {
+   "id": "T-c4c8ec64fd466a-01",
+   "kind": "task",
+   "section": "Return-home routine",
+   "text": "Sort mail."
+  },
+  {
+   "id": "T-7554181264346d-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count food items."
+  },
+  {
+   "id": "T-b9c439922d25c8-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count beverages."
+  },
+  {
+   "id": "T-ed2086c601f3f0-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count cleaning supplies."
+  },
+  {
+   "id": "T-762fe45a3ad278-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count toiletries."
+  },
+  {
+   "id": "T-12ee334f5937cb-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count batteries."
+  },
+  {
+   "id": "T-5964bf8c96c404-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count light bulbs."
+  },
+  {
+   "id": "T-568f5cd4b4fd53-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count pet food."
+  },
+  {
+   "id": "T-c39183fe4e70ea-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count trash bags."
+  },
+  {
+   "id": "T-921f105d8a5c82-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Count laundry supplies."
+  },
+  {
+   "id": "T-244b83ce8b3e9e-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Identify low-stock items."
+  },
+  {
+   "id": "T-d43b3fe5dd6fdb-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Identify duplicate purchases."
+  },
+  {
+   "id": "T-8df5cadaeb8a4a-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Identify damaged items."
+  },
+  {
+   "id": "T-2b63f64461585c-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Identify missing common items."
+  },
+  {
+   "id": "T-1897d8b3dadf20-01",
+   "kind": "task",
+   "section": "Craft and hobby area",
+   "text": "Sort art supplies."
+  },
+  {
+   "id": "T-01d72c7a95c44a-01",
+   "kind": "task",
+   "section": "Craft and hobby area",
+   "text": "Sort building pieces."
+  },
+  {
+   "id": "T-c6328331febe52-01",
+   "kind": "task",
+   "section": "Craft and hobby area",
+   "text": "Sort game pieces."
+  },
+  {
+   "id": "T-5dbfd60c8492d7-01",
+   "kind": "task",
+   "section": "Moving / rearranging",
+   "text": "Sort boxes by room."
+  },
+  {
+   "id": "T-c35156368a8a4b-01",
+   "kind": "task",
+   "section": "Mail and household paperwork",
+   "text": "Sort mail by recipient."
+  },
+  {
+   "id": "T-1a797201ba6222-01",
+   "kind": "task",
+   "section": "Mail and household paperwork",
+   "text": "Identify junk mail."
+  },
+  {
+   "id": "P-f95682b2c56050-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Find."
+  },
+  {
+   "id": "P-ca33f215369434-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Identify."
+  },
+  {
+   "id": "P-e069c179612c5a-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Compare."
+  },
+  {
+   "id": "P-c1af4800698875-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Count."
+  },
+  {
+   "id": "P-fd41eaef588496-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Read."
+  },
+  {
+   "id": "P-ac0610c2464c52-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Sort."
+  },
+  {
+   "id": "A-7f23890d17d7fa-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Check whether I left anything out.” Requires understanding what the expected household state normally looks like."
+  },
+  {
+   "id": "A-0f18effc27f3fb-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Check whether anything changed since I left.” Requires storing and comparing previous environmental states."
+  },
+  {
+   "id": "A-e0bb9dfe9a1cfd-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find what’s missing.” Requires knowing the expected inventory."
+  },
+  {
+   "id": "A-a456d9775ec3ca-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find my keys.” Requires systematic search and understanding likely human placement habits."
+  },
+  {
+   "id": "A-2550e7c86a93b0-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find the remote; I think someone moved it.” Requires probabilistic search."
+  },
+  {
+   "id": "A-c676568badd510-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Sort this pile into what we keep, donate, and throw away.” Requires household preferences and sometimes asking for confirmation."
+  }
+ ],
+ "people": [
+  {
+   "id": "T-5d63abe55f7147-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by owner."
+  },
+  {
+   "id": "P-d19af9a09d10c5-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Recognize."
+  },
+  {
+   "id": "P-7c2000dc580676-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Report."
+  },
+  {
+   "id": "A-36099989b5fc95-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find the thing I was using earlier.” Requires tracking recent human-object interactions."
+  },
+  {
+   "id": "A-0e405864557c2d-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find something my kid hid.” Requires adversarial search through plausible hiding locations."
+  },
+  {
+   "id": "A-5abd7b4dae1b1e-01",
+   "kind": "adaptability",
+   "section": "Social, Contextual, and Aesthetic Intelligence",
+   "text": "“Read the room.” If humans are having a tense argument, or someone is crying, the robot must infer that it should cancel its noisy vacuuming task and leave quietly."
+  }
+ ],
+ "cleaning": [
+  {
+   "id": "T-a0e0d1fc8df2c2-01",
+   "kind": "task",
+   "section": "General object interaction and movement",
+   "text": "Sort objects by cleanliness."
+  },
+  {
+   "id": "T-2c1369aabece76-01",
+   "kind": "task",
+   "section": "General cleaning",
+   "text": "Identify trash versus reusable objects."
+  },
+  {
+   "id": "T-b891b07bb461e2-01",
+   "kind": "task",
+   "section": "Trash, recycling, and compost",
+   "text": "Identify garbage."
+  },
+  {
+   "id": "T-50bf61cb4d882a-01",
+   "kind": "task",
+   "section": "Trash, recycling, and compost",
+   "text": "Identify recycling."
+  },
+  {
+   "id": "T-e36627248d2254-01",
+   "kind": "task",
+   "section": "Trash, recycling, and compost",
+   "text": "Identify compost."
+  },
+  {
+   "id": "T-3fb8a84f20876c-01",
+   "kind": "task",
+   "section": "Cleaning supply management",
+   "text": "Identify cleaning product."
+  },
+  {
+   "id": "T-edec597b980b74-01",
+   "kind": "task",
+   "section": "Cleaning supply management",
+   "text": "Read label instructions."
+  },
+  {
+   "id": "T-228fe9f82af3a7-01",
+   "kind": "task",
+   "section": "Food waste reduction",
+   "text": "Clean containers after spoiled food."
+  },
+  {
+   "id": "T-f0547ff6438c32-01",
+   "kind": "task",
+   "section": "Recycling processing",
+   "text": "Identify recyclable material."
+  },
+  {
+   "id": "T-92514d949f3ee5-01",
+   "kind": "task",
+   "section": "Recycling processing",
+   "text": "Sort accepted materials."
+  },
+  {
+   "id": "T-c49fadcea69182-01",
+   "kind": "task",
+   "section": "Daily reset",
+   "text": "Check trash levels."
+  }
+ ],
+ "navigation_robot": [
+  {
+   "id": "T-56d1d7f6a17796-01",
+   "kind": "task",
+   "section": "Whole-house navigation",
+   "text": "Inspect rooms sequentially."
+  },
+  {
+   "id": "T-c39a630dc5c6f6-01",
+   "kind": "task",
+   "section": "Tool handling",
+   "text": "Measure distance."
+  },
+  {
+   "id": "T-c54fddb6a59de3-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Check that doors are unobstructed."
+  },
+  {
+   "id": "T-9615ae9f7570b4-01",
+   "kind": "task",
+   "section": "Moving / rearranging",
+   "text": "Measure available space."
+  },
+  {
+   "id": "T-ae6adfd34251ec-01",
+   "kind": "task",
+   "section": "Moving / rearranging",
+   "text": "Verify object fits."
+  },
+  {
+   "id": "T-9aaad85165c94e-01",
+   "kind": "task",
+   "section": "Renovation/project assistance",
+   "text": "Measure distance."
+  },
+  {
+   "id": "T-c7c2ad800886b3-01",
+   "kind": "task",
+   "section": "Accessibility assistance",
+   "text": "Report hazards in walking path."
+  },
+  {
+   "id": "T-82ec0b5187f9ff-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect blocked doorway."
+  },
+  {
+   "id": "P-cfe7e482c43cdd-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Measure."
+  },
+  {
+   "id": "A-926bc611ae9158-01",
+   "kind": "adaptability",
+   "section": "Physics and Reflexive Edge Cases",
+   "text": "Identify reflections vs. reality. A classic embodied AI vision challenge—the robot must navigate a room with floor-to-ceiling mirrors or glass doors without perceiving the reflection as a hallway."
+  }
+ ],
+ "food": [
+  {
+   "id": "T-aff728d90d9050-01",
+   "kind": "task",
+   "section": "Kitchen: food preparation",
+   "text": "Read a recipe."
+  },
+  {
+   "id": "T-3b0290e7f718c7-01",
+   "kind": "task",
+   "section": "Kitchen: food preparation",
+   "text": "Count ingredients."
+  },
+  {
+   "id": "T-d07790831be96a-01",
+   "kind": "task",
+   "section": "Kitchen: cooking",
+   "text": "Check food temperature."
+  },
+  {
+   "id": "T-25b6ab22b0cb0c-01",
+   "kind": "task",
+   "section": "Kitchen: storage and organization",
+   "text": "Dispose of expired food."
+  },
+  {
+   "id": "T-7e888e2b0e88ac-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Sort refrigerated groceries."
+  },
+  {
+   "id": "T-d837cd6b0d64e3-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Sort frozen groceries."
+  },
+  {
+   "id": "T-deae448faf1ffa-01",
+   "kind": "task",
+   "section": "Shopping and replenishment",
+   "text": "Sort pantry groceries."
+  },
+  {
+   "id": "T-ae4fd543d7c772-01",
+   "kind": "task",
+   "section": "Home inventory",
+   "text": "Identify expired food."
+  },
+  {
+   "id": "T-3924dc5116739e-01",
+   "kind": "task",
+   "section": "Food waste reduction",
+   "text": "Identify food nearing expiration."
+  },
+  {
+   "id": "T-4bb3bd1add4c3b-01",
+   "kind": "task",
+   "section": "Food waste reduction",
+   "text": "Dispose of spoiled food."
+  },
+  {
+   "id": "T-4bcbc8da32bd5b-01",
+   "kind": "task",
+   "section": "Daily reset",
+   "text": "Check kitchen counters."
+  },
+  {
+   "id": "T-6eab0bfa2f17a2-01",
+   "kind": "task",
+   "section": "Weekly reset",
+   "text": "Check refrigerator."
+  },
+  {
+   "id": "T-77e2aaa929efff-01",
+   "kind": "task",
+   "section": "Weekly reset",
+   "text": "Dispose of expired food."
+  },
+  {
+   "id": "T-1117aa08dafb3c-01",
+   "kind": "task",
+   "section": "Monthly / occasional reset",
+   "text": "Check stored food expiration."
+  },
+  {
+   "id": "P-386d0f28709b05-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Weigh."
+  },
+  {
+   "id": "A-5ae091d96c888c-01",
+   "kind": "adaptability",
+   "section": "Is it okay? (judging state)",
+   "text": "“Is this still good?” / “Is this ripe?” Requires smell, appearance, dates, and storage history, and comfort with uncertainty."
+  }
+ ],
+ "appliances_cooking": [
+  {
+   "id": "T-83936813e629a3-01",
+   "kind": "task",
+   "section": "Kitchen: cooking",
+   "text": "Check food while cooking."
+  },
+  {
+   "id": "T-e8da815d06f2c6-01",
+   "kind": "task",
+   "section": "Kitchen: cooking",
+   "text": "Check doneness."
+  },
+  {
+   "id": "T-5cc18cd26d89fb-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report unusual appliance noises."
+  },
+  {
+   "id": "T-319abf2b5f68dd-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Check that appliances are off when appropriate."
+  },
+  {
+   "id": "T-22bc2280c7e6be-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Check that oven is off."
+  },
+  {
+   "id": "T-fa29fd5df0e544-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect refrigerator door left open."
+  },
+  {
+   "id": "T-8b457901ef8a04-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect freezer door left open."
+  },
+  {
+   "id": "T-47d0adb37bc85e-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect unusual appliance noise."
+  }
+ ],
+ "textiles_laundry": [
+  {
+   "id": "T-e33be7f5f32230-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort whites."
+  },
+  {
+   "id": "T-9ac6c0d1468ae0-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort darks."
+  },
+  {
+   "id": "T-c32284261135cd-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort colors."
+  },
+  {
+   "id": "T-6e3fbf384a654f-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort delicates."
+  },
+  {
+   "id": "T-32483706f17670-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort towels."
+  },
+  {
+   "id": "T-5a06c8d10ad8dd-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort bedding."
+  },
+  {
+   "id": "T-084dc9f40872a2-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort by fabric type."
+  },
+  {
+   "id": "T-6eed74e7a248a5-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Check pockets."
+  },
+  {
+   "id": "T-ba18cc4b56e89d-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Check whether clothes are dry."
+  },
+  {
+   "id": "T-2105f441a1b598-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort clothing by owner."
+  },
+  {
+   "id": "T-5d96dfe5da006e-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort clothing by category."
+  },
+  {
+   "id": "T-5d2b884e69337d-01",
+   "kind": "task",
+   "section": "Laundry",
+   "text": "Sort clothing by season."
+  },
+  {
+   "id": "T-22b471895da33c-01",
+   "kind": "task",
+   "section": "Closets and storage",
+   "text": "Sort clothing."
+  },
+  {
+   "id": "A-1895a81a5051bd-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find the matching sock.” Requires visual similarity under deformation and partial occlusion."
+  },
+  {
+   "id": "A-d048c6c15f805e-01",
+   "kind": "adaptability",
+   "section": "Standing orders and watching",
+   "text": "“Tell me when the laundry’s done.” Requires monitoring cues (sound, status light) and choosing when and how to notify."
+  }
+ ],
+ "electrical": [
+  {
+   "id": "T-df60f56a4cce54-01",
+   "kind": "task",
+   "section": "Home climate and utilities",
+   "text": "Check thermostat batteries."
+  },
+  {
+   "id": "T-1983509f271ebc-01",
+   "kind": "task",
+   "section": "Home climate and utilities",
+   "text": "Check smoke detector status."
+  },
+  {
+   "id": "T-dd81fe507682fc-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report damaged cable."
+  },
+  {
+   "id": "T-e752686ae3a5fb-01",
+   "kind": "task",
+   "section": "Home electronics",
+   "text": "Report damaged cable."
+  },
+  {
+   "id": "A-e907eba9251565-01",
+   "kind": "adaptability",
+   "section": "Advanced Delicate Handling",
+   "text": "“Clean the inside of this computer.” The robot must distinguish between dust and delicate capacitors, knowing how much physical force (or air pressure) is safe to apply near a motherboard."
+  }
+ ],
+ "plumbing_liquids": [
+  {
+   "id": "T-b4225c6700e82d-01",
+   "kind": "task",
+   "section": "Home climate and utilities",
+   "text": "Check for water leaks."
+  },
+  {
+   "id": "T-1cd8e5b7e25846-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report leaking faucet."
+  },
+  {
+   "id": "T-2a55a2133257d0-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report water damage."
+  },
+  {
+   "id": "T-3b1a4024d46110-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Check under sinks for leaks."
+  },
+  {
+   "id": "T-0c0c4383c41730-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Check appliance hoses visually."
+  },
+  {
+   "id": "T-f5b65bff5ee07c-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Check that faucets are off."
+  },
+  {
+   "id": "T-b2daee5259e044-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Report unexpected water."
+  },
+  {
+   "id": "T-c4d5c6f0af6a0e-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect running faucet."
+  },
+  {
+   "id": "T-4633efc75437f5-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect overflowing sink."
+  },
+  {
+   "id": "T-0b854af6b6cca8-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect water leak."
+  },
+  {
+   "id": "A-3286b5878fe8e9-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find something waterproof to put under this.” Requires material-property reasoning."
+  },
+  {
+   "id": "A-04125df58b6b01-01",
+   "kind": "adaptability",
+   "section": "Is it okay? (judging state)",
+   "text": "“Is it dry yet?” (laundry, paint, a mopped floor) Requires judging state from sparse cues."
+  }
+ ],
+ "safety": [
+  {
+   "id": "T-dd0cda6a6ee668-01",
+   "kind": "task",
+   "section": "Home climate and utilities",
+   "text": "Report abnormal utility conditions."
+  },
+  {
+   "id": "T-c1c2e917556108-01",
+   "kind": "task",
+   "section": "Garage",
+   "text": "Report chemical leaks or hazardous spills."
+  },
+  {
+   "id": "T-9d261c131a73de-01",
+   "kind": "task",
+   "section": "Pool and spa area",
+   "text": "Report unsafe water conditions rather than attempting hazardous maintenance."
+  },
+  {
+   "id": "T-37ca38ac7f1389-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report cracked glass."
+  },
+  {
+   "id": "T-eb0b09888831d1-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report structural damage."
+  },
+  {
+   "id": "T-e8630648603669-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report unusual smells."
+  },
+  {
+   "id": "T-a87b8983335b5d-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Report mold-like growth."
+  },
+  {
+   "id": "T-9a78e040a3204d-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Report smoke detector alert."
+  },
+  {
+   "id": "T-718ad251e38789-01",
+   "kind": "task",
+   "section": "Cleaning supply management",
+   "text": "Identify an unlabeled chemical and avoid using it."
+  },
+  {
+   "id": "T-db74306e227f8d-01",
+   "kind": "task",
+   "section": "Cleaning supply management",
+   "text": "Report spilled chemicals."
+  },
+  {
+   "id": "T-d13636819c8244-01",
+   "kind": "task",
+   "section": "Home electronics",
+   "text": "Report overheating."
+  },
+  {
+   "id": "T-71cc976f3be6fd-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect smoke alarm sound."
+  },
+  {
+   "id": "T-e83f9c6b6622eb-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect carbon-monoxide alarm sound."
+  },
+  {
+   "id": "T-70a9e6a7a83f64-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect water on floor."
+  },
+  {
+   "id": "T-9de1e1dcc3e16b-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect broken glass."
+  },
+  {
+   "id": "T-1004025e052f7d-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect exposed cable."
+  },
+  {
+   "id": "T-2aa3e269c1fe65-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect fallen furniture."
+  },
+  {
+   "id": "T-292fbe9800c180-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect stove left on."
+  },
+  {
+   "id": "T-5ecf0d7cff1898-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect open exterior door."
+  },
+  {
+   "id": "T-5b89a11429fc7e-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect open gate."
+  },
+  {
+   "id": "T-bef4b096de0ca5-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect child-accessible hazard."
+  },
+  {
+   "id": "T-ef77497aad9991-01",
+   "kind": "task",
+   "section": "Weather-response chores",
+   "text": "Report flooding."
+  },
+  {
+   "id": "T-83b077d9525266-01",
+   "kind": "task",
+   "section": "Driveway and walkway",
+   "text": "Inspect for obvious hazards."
+  },
+  {
+   "id": "T-c770dbe7c06ce5-01",
+   "kind": "task",
+   "section": "Driveway and walkway",
+   "text": "Report cracks or major damage."
+  },
+  {
+   "id": "T-c5e105cc9f7047-01",
+   "kind": "task",
+   "section": "Fence and gate",
+   "text": "Report open gate."
+  },
+  {
+   "id": "P-dafc2923e7bb54-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Inspect."
+  },
+  {
+   "id": "P-b3efacfffb18eb-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Monitor."
+  },
+  {
+   "id": "P-394fee474f63d7-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Detect."
+  },
+  {
+   "id": "P-24004725be5196-01",
+   "kind": "primitive",
+   "section": "Human-assistance primitives a general-purpose robot needs",
+   "text": "Verify task completion."
+  },
+  {
+   "id": "X-9cf7a6b23ab6e0-01",
+   "kind": "appendix",
+   "section": "Emergency response (must-have). Detection and alerting are covered well, but active response is thin.",
+   "text": "Detect: a person who has fallen or is unresponsive, calls for help or choking sounds, glass-break or forced-entry sounds, gas smell, a car running in a closed garage, a child near stairs, a pool, or a stove."
+  },
+  {
+   "id": "A-5b2236e0a919ca-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Check the house before we leave.” It has to inspect locks, windows, appliances, pets, lights, faucets, garage doors, and other household-specific concerns."
+  },
+  {
+   "id": "A-32ecbe60bb97e9-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find where that smell is coming from.” Requires active investigation across rooms and possible causes."
+  },
+  {
+   "id": "A-dd98761c9087df-01",
+   "kind": "adaptability",
+   "section": "Is it okay? (judging state)",
+   "text": "“Is that pan still hot?” / “Is this safe to stand on?” Requires inferring temperature or stability before touching."
+  }
+ ],
+ "tools_vehicles": [
+  {
+   "id": "T-c435ef114f7ad6-01",
+   "kind": "task",
+   "section": "Furniture care",
+   "text": "Check furniture for damage."
+  },
+  {
+   "id": "T-10ea343ea94522-01",
+   "kind": "task",
+   "section": "Garage",
+   "text": "Sort tools."
+  },
+  {
+   "id": "T-083aea3089ab18-01",
+   "kind": "task",
+   "section": "Basic household maintenance",
+   "text": "Inspect for loose handles."
+  },
+  {
+   "id": "T-5a9598c809336a-01",
+   "kind": "task",
+   "section": "Tool handling",
+   "text": "Identify damaged tools."
+  },
+  {
+   "id": "T-b0d2729457cd9e-01",
+   "kind": "task",
+   "section": "Autumn tasks",
+   "text": "Inspect door seals."
+  },
+  {
+   "id": "T-a7a5450b368794-01",
+   "kind": "task",
+   "section": "Autumn tasks",
+   "text": "Inspect window seals."
+  },
+  {
+   "id": "T-93c213f319c651-01",
+   "kind": "task",
+   "section": "Winter tasks",
+   "text": "Check door seals."
+  },
+  {
+   "id": "T-f7f4105ce49060-01",
+   "kind": "task",
+   "section": "Renovation/project assistance",
+   "text": "Sort screws and hardware."
+  },
+  {
+   "id": "T-a6f6fe9dbe1229-01",
+   "kind": "task",
+   "section": "Renovation/project assistance",
+   "text": "Report damage."
+  },
+  {
+   "id": "T-8adcc7a83550d2-01",
+   "kind": "task",
+   "section": "Monthly / occasional reset",
+   "text": "Check filters."
+  }
+ ],
+ "pets": [
+  {
+   "id": "T-2a1648153e9781-01",
+   "kind": "task",
+   "section": "Pet care",
+   "text": "Monitor pet location."
+  },
+  {
+   "id": "T-2e07f1f4626671-01",
+   "kind": "task",
+   "section": "Pet care",
+   "text": "Check pet's water availability."
+  },
+  {
+   "id": "T-a56d991fe37401-01",
+   "kind": "task",
+   "section": "Return-home routine",
+   "text": "Check pet water."
+  },
+  {
+   "id": "T-41eb52d032cbaf-01",
+   "kind": "task",
+   "section": "Evening routine",
+   "text": "Check pet food/water."
+  },
+  {
+   "id": "T-7ef5816c160945-01",
+   "kind": "task",
+   "section": "Safety inspection",
+   "text": "Detect pet trapped in room."
+  },
+  {
+   "id": "T-ec328d95c7d65e-01",
+   "kind": "task",
+   "section": "Daily reset",
+   "text": "Check pet water."
+  },
+  {
+   "id": "A-06e0ae0c2af149-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find where the dog took my sock.” Requires reasoning about pet behavior."
+  }
+ ],
+ "outdoor_plants": [
+  {
+   "id": "T-f7913405ff4906-01",
+   "kind": "task",
+   "section": "Plant care",
+   "text": "Identify houseplants."
+  },
+  {
+   "id": "T-7b4f140db3b230-01",
+   "kind": "task",
+   "section": "Plant care",
+   "text": "Check soil moisture."
+  },
+  {
+   "id": "T-e662e1ab5384e8-01",
+   "kind": "task",
+   "section": "Plant care",
+   "text": "Inspect plants for visible pests."
+  },
+  {
+   "id": "T-c882d2aee6e754-01",
+   "kind": "task",
+   "section": "Front yard",
+   "text": "Inspect sprinkler operation."
+  },
+  {
+   "id": "T-c8c36db697f240-01",
+   "kind": "task",
+   "section": "Lawn and landscaping",
+   "text": "Inspect lawn."
+  },
+  {
+   "id": "T-c4417aa71a72da-01",
+   "kind": "task",
+   "section": "Seasonal spring tasks",
+   "text": "Inspect outdoor areas."
+  },
+  {
+   "id": "T-931792e500e040-01",
+   "kind": "task",
+   "section": "Morning routine support",
+   "text": "Check weather-appropriate household items if instructed."
+  },
+  {
+   "id": "T-d9ec72b4438ac0-01",
+   "kind": "task",
+   "section": "Weather-response chores",
+   "text": "Inspect property for visible storm damage."
+  },
+  {
+   "id": "T-6bfcd0386f887c-01",
+   "kind": "task",
+   "section": "Weather-response chores",
+   "text": "Report damaged roof material from ground-level observation."
+  },
+  {
+   "id": "T-18956e35b61b6b-01",
+   "kind": "task",
+   "section": "Weather-response chores",
+   "text": "Report fallen branches."
+  },
+  {
+   "id": "T-413229f46d8aca-01",
+   "kind": "task",
+   "section": "Fence and gate",
+   "text": "Inspect fence visually."
+  },
+  {
+   "id": "T-a915d935547199-01",
+   "kind": "task",
+   "section": "Fence and gate",
+   "text": "Report broken boards."
+  }
+ ],
+ "mechanisms": [
+  {
+   "id": "T-29a4e4fec0057c-01",
+   "kind": "task",
+   "section": "Garage",
+   "text": "Verify garage door closes."
+  },
+  {
+   "id": "T-7b0f894db10106-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Verify exterior doors are closed."
+  },
+  {
+   "id": "T-845d40a0582b66-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Verify exterior doors are locked."
+  },
+  {
+   "id": "T-337dadf5b65d0b-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Verify windows are closed."
+  },
+  {
+   "id": "T-db066c5ae6e250-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Verify windows are locked."
+  },
+  {
+   "id": "T-3fe7abc235175d-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Verify gates are closed."
+  },
+  {
+   "id": "T-1e3f1a4d26121e-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Report broken lock."
+  },
+  {
+   "id": "T-80337c701b793b-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Report open door."
+  },
+  {
+   "id": "T-53e78bd51c95de-01",
+   "kind": "task",
+   "section": "Home security routines",
+   "text": "Report open window."
+  },
+  {
+   "id": "T-8c33b10ae40dda-01",
+   "kind": "task",
+   "section": "Home departure routine",
+   "text": "Confirm house is secure."
+  },
+  {
+   "id": "T-913be9068a5385-01",
+   "kind": "task",
+   "section": "Evening routine",
+   "text": "Check windows."
+  },
+  {
+   "id": "T-c9e79621bdb71a-01",
+   "kind": "task",
+   "section": "Evening routine",
+   "text": "Check garage."
+  },
+  {
+   "id": "T-1096b71b415ccf-01",
+   "kind": "task",
+   "section": "Fence and gate",
+   "text": "Check that gate closes properly."
+  },
+  {
+   "id": "T-94a0a940224c22-01",
+   "kind": "task",
+   "section": "Fence and gate",
+   "text": "Report damaged latch."
+  },
+  {
+   "id": "A-565da7517f3394-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find why this drawer keeps sticking.” Requires mechanical diagnosis."
+  }
+ ],
+ "manipulation": [
+  {
+   "id": "A-8029bdfb84190a-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find something to prop this up.” Requires discovering an object based on physical affordances."
+  },
+  {
+   "id": "A-a67431128da2e1-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find something heavy enough to hold this down.” Requires approximate physics reasoning."
+  },
+  {
+   "id": "A-83f6ca95b72b85-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find something soft to protect this.” It must select padding from unrelated household items."
+  },
+  {
+   "id": "A-74bae9cbf4010f-01",
+   "kind": "adaptability",
+   "section": "General adaptability",
+   "text": "“Find something I can stand this on.” Requires assessing stability and load."
+  },
+  {
+   "id": "A-38f9a001185587-01",
+   "kind": "adaptability",
+   "section": "Physics and Reflexive Edge Cases",
+   "text": "“Catch this falling object.” Requires dynamic reflexive control, predicting the trajectory of an object in freefall, and deciding whether it is safe to catch (e.g., catching a falling cup vs. letting a falling knife hit the floor)."
+  }
+ ]
+}

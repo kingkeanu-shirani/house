@@ -1,0 +1,1130 @@
+{
+ "kernel_requests": [
+  "cleaning: realism.outbound_message: the label/type substitution for unresolved look-alikes runs re.sub over the whole message, including JSON inspect results. It rewrites the member's own name inside the 'candidates' list, so the one rewritten candidate identifies the item (verified with glass_cleaner in the kernel spray_bottle group; white_powder_jar and clear_liquid_bottle are exposed the same way). It also turns 'spray bottle of liquid' into 'spray bottle of liquid of liquid' for type spray_bottle, because the type name is inside the descriptor. Fix: parse JSON messages and leave DESCRIPTIVE_KEYS values (label, kind, candidates, descriptor) alone, or skip matches that fall inside the group descriptor or candidates.",
+  "cleaning: realism.render mass_kg/weight_kg at TOUCH (and MEASURE): add liquid_l * liquid_density, as systems/core.py carry-mass already does. A refill spray bottle holding 0.5 l feels 'light' (0.08 kg empty) while product sprays (0.85 kg incl. contents) feel 'medium', which tells look-alikes apart by heft.",
+  "cleaning: A hook for the perceivable value of a field, e.g. @hook('perceivable_value') fn(state, eid, record, field) -> value or None, consulted by perceive_record and filter_details before rendering. Cleaning would use it to render soil from visible parts only, excluding _shadows under standing items and floor _cells under rugs or low furniture. Today the glance bucket and the per-kind buckets after inspect include hidden soil, and observer edits to 'soil' are overwritten because the kernel renders the field itself.",
+  "cleaning: Render dict-valued numeric shared fields as buckets at inspect knowledge: damage {kind: severity} and odor {kind: intensity}, written by many domains. After any inspect, later observations show exact values (e.g. damage {'scratched': 0.33}, odor {'mildew': 0.44}). Cleaning words them only in its own inspector results and hides odor on its own types.",
+  "admin_inventory: Realism.outbound_message: an id of an entity destroyed during the step (e.g. a stack merged by collate, or an item consumed) is no longer in state['entities'], so tok() returns it untranslated and the true id reaches the agent. Fix: snapshot entity ids (or use self.involved / self.handles.by_id) at begin_step, and map such words to their handle (if issued or named in the command) or to 'something'. I worked around it in collate only.",
+  "admin_inventory: Realism.outbound_message (or the engine): domain JSON messages built with json.dumps(sort_keys=True) order id-keyed dicts and sorted id lists by true id before the token-wise handle translation, which ranks look-alikes by type (e.g. 'foaming_dispenser_1' < 'soap_dispenser_1'). Suggest re-serialising JSON messages after translation with keys that are handles in sorted order, or a documented ctx helper. This domain now orders by handle itself (perceive.dumps / order_ids).",
+  "admin_inventory: tools/perception_audit.py check_message: also flag tokens that were entity ids at the start of the step (destroyed during it) and id-keyed JSON dicts whose key order equals true-id order. Both leak classes escape the current checker.",
+  "admin_inventory: Optional consistency: kernel Ctx.check_permission still refuses on never-tier flags (private, off_limits, requires_approval), with generic wording, so the existence of the refusal remains an oracle. This domain now lets never-tier privacy rules go ahead as privacy_violations; the kernel may want the same policy, or a documented one.",
+  "plumbing_liquids: Observation clock: round each step's duration (or obs time_s) to whole seconds kernel-wide in realistic mode. Every domain computes durations from hidden quantities (liters, rates, identities) and exact time_s leaks them. plumbing_liquids now does this itself (seen.seconds), but the channel is generic.",
+  "plumbing_liquids: Public helpers: realism.sealed(record) (plumbing uses realism._sealed) and a ctx.identified(eid) / realism.unresolved(eid) predicate (plumbing calls realism.identity(eid, rec, knowledge.entity_level(...)) and checks for 'candidates' or novel).",
+  "plumbing_liquids: Content provenance: a kernel mechanism for contents of unknown identity, e.g. honour a contents_from=<source eid> marker that renders liquid/contents/product as unidentified until that source is identified. plumbing currently sets per-entity _perception.hidden [liquid, product, hazards] plus an _unidentified_liquid flag on whatever received the liquid; it never un-hides when the source is later read.",
+  "plumbing_liquids: outbound_message label scrub: avoid re-replacing a true label or type name that is a substring of the replacement descriptor. Food's test now shows 'egg in its shell in its shell'. The same pattern exists here: the shutoff_valve type label 'shutoff valve' sits inside the water_valve descriptor 'water shutoff valve'. A single-pass replace or placeholders would fix it.",
+  "appliances_cooking: Tag kernel access refusals: give ActionError an attribute (e.g. exc.kernel_access=True) when Ctx.obj / geometry.reach_problem / check_permission raises it. A domain could then make all of its own refusals generic for unidentified targets (red-team fix #2) by wrapping whole handlers, without swallowing 'That is not visible here' / 'Approach it first'. Today I have to re-run ctx.obj before a plain_refusals block in each verb.",
+  "appliances_cooking: Expose a public realism helper such as Realism.unidentified(eid) -> bool (unresolved look-alike or novel). Domains currently combine realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec)) and check 'candidates'; that depends on internals, and several domains (navigation_robot, pets, food, appliances_cooking) duplicate it.",
+  "appliances_cooking: Optional: let the kernel's cycle_check hook callers pass ctx (or a realistic flag) to cycle_check:<type> hooks, so a domain can make its appliance-start reasons generic for unidentified appliances.",
+  "safety: geometry.free_floor_cell / Placer.agent_cell ignore people and pets in their access checks, but core go_room/approach (safe_avoid strict, find_path) treat agents as impassable. A kernel-placed agent can therefore wall off a doorway pocket together with another agent. Repro: X-befab43585cde3-01 seed 97, resident_1 at kitchen_1 [2,0] plus dog_1 at [2,2] (a one-cell passage) cut off the doorway region (0,0)-(2,1), giving PlanError 'No route in kitchen_1 ...'. Request: count other agents' cells as blocked in agent_cell's keep_access check, or add an agents_block option. Safety works around it in helpers._agents_wall_off / _open_agent_cell.",
+  "safety: realism LOOKALIKE_FIELDS still passes each record's own color and size_m for unresolved look-alikes, so every domain has to align its group members by hand (safety now does for chemical_bottle). Request: render size_m for unresolved members only as size_class, or show the group's common value, and/or add a registry check that warns when members of one group declare different glance colours or sizes.",
+  "navigation_robot: kernel/realism.py Realism._observe: map grid-hazard kind 'person_down' to 'lying' when the agent's true posture is 'lying' (keep person_down only for 'fallen'). geometry.hazard_cells gives pets posture 'resting' no centre marker, while a sleeping pet gets 'sleeping'->'lying'. So asleep vs awake lying is still told apart in builds without navigation_robot, whose observer evens it out.",
+  "navigation_robot: kernel/geometry.find_path / hazard_cells: accept avoid kind 'lying' (the kind realistic observations show) as matching the agent markers 'sleeping' and 'person_down'. Then core move/walk_to/approach with avoid=['lying'] works without navigation_robot's path_blocked hook.",
+  "navigation_robot: kernel/perception.Perception.observe: skip agent-sourced grid hazards for people/pets that are concealed and not revealed. hazard_cells adds them for any person or pet in the room, so a hidden person who is lying or fallen shows up in grid.hazards.",
+  "navigation_robot: kernel/realism.Realism.perceive_record: decide each field's tier with self.tier(record, field), which honours per-entity _perception and secret_fields, instead of table.get(field, 'inspect'). Today per-entity glance tiers never show at a glance; per-entity hidden tiers work only because render() re-checks.",
+  "navigation_robot: kernel/actions.Ctx: add a step-independent rng, e.g. ctx.fixed_rng(*parts) = Random('seed|parts'). ctx.rng is Random(seed:step:action), so any domain instrument or estimate noise drawn from it redraws every step (the red-team averaging attack). navigation_robot now uses its own measure.fixed_rng.",
+  "navigation_robot: generator/repair._fix_loose_items: its last-resort placement of a tall loose item uses only prefer_not=_hidden_by, so it can stand the item in front of a wall mount. Try neighbour rooms before accepting a hiding cell. Seen: step_ladder_1 in front of breaker_panel_1 and shutoff valves, seed 14 townhouse laundry_room_1, before navigation_robot added its spare-spots rule.",
+  "navigation_robot: kernel/geometry.free_floor_cell(keep_access) and Placer.agent_cell treat people/pets as passable in access checks, but tasks.skills.safe_avoid(strict) treats them as obstacles. A pet placed on the only cell joining a doorway to the room (with loose items beside it) leaves the strict reference no way in (seen transiently in safety X-befab43585cde3-01, seed 97: dog_1 at kitchen_1 [1,0], snap_trap_2 at [1,1], gloves at [2,1]). Agent placement should treat its own cell as blocked when checking routes.",
+  "electrical: kernel/realism.py Realism.outbound_message: when the command names an unresolved look-alike (or unfamiliar thing), the substitution of its true label/type words by the descriptor runs over the whole message, including the JSON values of the inspect result's own descriptive keys ('candidates', 'label', 'kind'). The true member's own candidate gets rewritten, which identifies it in one inspect. Repro (realistic env, seed 2, kitchen counter, Runner.do('inspect', x)): raw candidates for smart_bulb [... 'smart bulb'] become [... 'white LED bulb'] in the agent message; laptop_charger '65 W USB-C laptop charger' becomes '65 W USB-C black power adapter brick'; lithium_aa_battery 'lithium AA' becomes 'AA battery'. A second symptom: tests/test_food.py RealisticPerception.test_eggs_in_shell_stay_unidentified_and_keep_their_smell_in fails with label 'egg in its shell in its shell' (the label word 'egg' is replaced by the descriptor 'egg in its shell' inside the descriptor itself). Suggested fix: skip substitution inside DESCRIPTIVE_KEYS values. For JSON messages, parse, substitute only in non-descriptive string values, and re-serialize; or never substitute inside a string that already equals the descriptor or a group candidate. Electrical works around it by keeping member label/type words out of its candidate strings.",
+  "climate: Core inspect on a person ignores darkness. Repro: tests/test_climate.py House(start='2026-10-09T23:30:00') with light_living on=False, HouseEnv(..., perception='realistic'), then step('approach','resident_1') and step('inspect','resident_1'). The result still has \"label\": \"Alex\", \"role\": \"adult\", \"awake\", \"activity\" and \"breathing\", although v2.8 says people in the dark are shapes. Climate now withholds its own thermal_cue in the dark (perception._dark_here), but the core person inspector, or realism.filter_details for people, should give shape-level detail only in the dark.",
+  "tools_vehicles: kernel/realism.py Realism.outbound_message (~lines 984-993): when the command names an unresolved look-alike, its true label and spaced type name are regex-replaced across the whole message, including the descriptor, kind and candidates that filter_details itself inserted. So in an `inspect` result the member's own candidate is rewritten to the descriptor, which identifies it. Default candidates are exactly the spaced member type names, so every read-resolved group using defaults leaks. Reproduced on DEFAULT groups: white_powder_jar (cleaning_baking_soda's candidate list shows 'jar of white powder' in place of 'cleaning baking soda'), spray_bottle (label 'spray bottle of liquid of liquid' for type spray_bottle), pill_bottle (prescription_bottle and expired_medication candidates differ). Fix: do not substitute inside values of DESCRIPTIVE keys (label/kind/candidates/descriptor) of JSON results, or apply the substitution only to domain-written text before identity is merged, or skip text equal to or containing the descriptor. Please also add a registry lint or test that inspecting every member of each read-resolved group gives an identical result.",
+  "tools_vehicles: systems/core.py check_handling (~lines 81-87), realistic mode: an unresolved look-alike (realism.identity(...) returns candidates), or an item whose hazards knowledge is below INSPECT, must not refuse only when its hidden hazards are toxic/corrosive. Repro: tools_vehicles automotive_jug: pick_up motor_oil_jug gives 'Picked up'; antifreeze_jug and washer_fluid_jug give 'Hazardous item: it needs its safe grip or protective gear'. wheel_cleaner_acid vs wheel_cleaner_neutral likewise. Either allow the grasp and apply exposure consequences, or refuse identically for every member of the group until its label is read.",
+  "mechanisms: realism.Realism.render, generic 'tier == measure' branch: when known >= MEASURE it returns copy.deepcopy(value) for dict fields without applying self.subfield_hidden(record, field). Dotted hidden sub-fields are therefore ignored once a dict field is measured: after a pump-gauge reading the whole 'inflatable' dict shows, including volume_l and max_kpa. Please return _strip_private(value, self.subfield_hidden(record, field)) for dicts in that branch, as the inspect/glance branches already do.",
+  "mechanisms: realism.Realism.identity: when a look-alike group has no explicit label_fields and the record has no label_text/text key, the implicit label fields include every read-tier field present, including content fields such as 'liquid' (core.CONTENT_FIELDS). An unlabelled trigger_bottle (kernel spray_bottle group) is then treated as labelled, and any READ-level grant would resolve it and expose its liquid. Today this is harmless only because core read refuses unlabelled items. Please exclude core.CONTENT_FIELDS (liquid, contents, product, chemical, ...) from the implicit label fields.",
+  "textiles_laundry: Poured liquids: `liquid` is inspect-tier for any open container. Pouring from an unread, read-resolved look-alike (laundry jug, clear liquid bottle) into a cup, basin or compartment shows the true liquid name at inspect. Request: have pour (core/plumbing) write a `liquid_from` source id (like derived_from), and have realism render the destination's `liquid` as the source group's descriptor until the source is identified.",
+  "textiles_laundry: Nested dict values: dotted hidden names ('mech.slams') only reach the first level of a dict. Per-key records such as {slot: {holds_n, position_error_mm}} or {kind: {eff, t}} render raw (exact floats) at inspect and in observations. Request: wildcard paths ('buttons.*.holds_n') and/or applying inspect-level noise to nested floats.",
+  "textiles_laundry: `odor` dicts ({kind: intensity}) are inspect-tier and render exact intensities on every domain's entities. Request: render `odor` as {kind: faint|noticeable|strong}. I currently hide odor/odor_kind on textile, shoe and washer types and pass a smell word through _perceived.",
+  "textiles_laundry: realism._fraction_field misses `remaining` (product amount, 0..1) and 0..1 condition fields (`shine`, `wrinkled`, `pilling`, `faded`, `dye_damage`), so noisy renderings go above 1.0 (seen: pod_tub and stain_remover_spray `remaining` 1.039). Request: add them to the [0,1] clamp, or clamp any float whose type default lies in [0,1].",
+  "people: realism._observe grid.hazards: geometry.hazard_cells emits 'sleeping' for posture 'sleeping' and 'person_down' for posture 'lying'/'fallen'; _observe rewrites only 'sleeping'->'lying', so a sleeper (people.sleeper / put_to_sleep set posture 'sleeping') is told from an awake person lying down by hazard kind. Map 'person_down' of an agent whose true posture is 'lying' (not 'fallen') to 'lying' too.",
+  "people: realism._observe people: `if true.posture in ('sleeping','lying') or person.activity in ('sleeping','resting','lying'): person['posture'] = 'lying'` turns a seated or standing person whose activity is 'resting' into posture 'lying'. Only rewrite posture when the true posture is lying/sleeping; for other postures map sleep/rest activities to no activity.",
+  "people: realism.render generic measure branch: measure-tier temperature fields other than temperature_c/internal_temp_c/core_temp_c (e.g. liquid_temp_c from appliances_cooking field_tiers, water_temp_c) render exactly (round(n,2)) after a thermometer grant. Give any '*_temp_c' field whose tool is 'thermometer' the same fixed-draw thermometer error (sigma 0.3) as temperature_c, so a reading and the observation agree and are not exact.",
+  "people: realism LOOKALIKE_FIELDS includes 'color' (and size_m): members of one group whose types carry different colors (pets' pet_medication color None vs prescription/expired 'amber') are split at a glance. Render color of unresolved members from a group template (e.g. optional group key 'color', default the most common member color) or drop color unless every member type shares it; similarly derive the size estimate's base from the group when member sizes differ by less than the camera resolution.",
+  "manipulation: house_sim/kernel/realism.py Realism.outbound_message: the label->descriptor substitution for unresolved look-alikes/novel things named in the command must not touch identity-rendered values. In inspect/read JSON results it currently rewrites the member's own label inside the 'candidates' list (repro: prescription_bottle and expired_medication alone on a table, realistic inspect: candidates become ['expired medication','medicine bottle','pill bottle','amber pill bottle'] vs ['amber pill bottle','medicine bottle','pill bottle','prescription bottle']), which identifies the member. Fix: when the message parses as JSON, apply the substitution only to string values outside DESCRIPTIVE_KEYS (candidates/label/kind/descriptor) and re-dump; or substitute before identity() fields are merged in filter_details.",
+  "manipulation: house_sim/systems/core.py check_handling and the pick_up/place hazard guard: in realistic mode, when the target is an unresolved look-alike (realism.identity returns candidates) the refusal must be uniform across the group (e.g. require the safe grip/protection for every member if any member type of the group carries hazards, or let the grasp proceed and record exposure). Today 'Hazardous item: it needs its safe grip or protective gear' (1 s) vs success (2 s) identifies antifreeze_jug/washer_fluid_jug vs motor_oil_jug, chlorine_bleach_bottle vs liquid_detergent, wheel_cleaner_acid vs wheel_cleaner_neutral; manipulation's stack/extract/twist/arrange inherit it through check_handling.",
+  "manipulation: tools/perception_audit.py check_obs 'tier' rule: it flags values that Realism._remembered shows by design after knowledge lapsed (knowledge.level is GLANCE once the placement signature changed, but the remembered inspect value is still rendered). Seen this round as types:manipulation toy_block_1.material/toy_category/floor_hazard (seed 10, after navigation_robot's walk displaced the block) and now as navigation_robot robot_headlamp_1.material (seed 25). Use realism.knowledge.stale(eid, field) level when the current level is below the field's tier before reporting a leak.",
+  "manipulation: Optional kernel improvement: knowledge of an item the robot itself displaced while walking (navigation_robot 'displaced') could survive like knowledge of carried items (begin_step/commit_grants already refresh the signature for held items), since the robot knows it bumped it.",
+  "food: Realism.outbound_message (kernel/realism.py ~974): label rewriting runs one re.sub per name, one after another, over the whole message, including JSON inspect/read payloads that already carry perceived identity. Later patterns re-scan descriptors inserted by earlier ones, and the entry in the candidate list equal to the member's own type name gets rewritten, so an unresolved member produces member-specific text. Repro: hen_egg spawned with props label 'egg' (as appliances_cooking does), inspected in realistic mode, gives label 'egg in its shell in its shell' and candidates ['boiled egg in its shell', 'uncooked egg in its shell'], while hard_boiled_egg gives ['boiled egg', 'uncooked egg']. With default candidates (member type names), 'sugar bag' becomes the descriptor and 'powdered sugar bag' becomes 'powdered paper bag of white powder'. Fix: compile one alternation regex and substitute in a single pass with a function (inserted descriptors are never re-scanned), and leave the values of identity keys (label, kind, candidates, descriptor) in JSON payloads untouched, or parse JSON payloads and rewrite only free-text values.",
+  "food: Realism.identity derived_from path (kernel/realism.py ~690), currently `level = min(level, entity_level(source)) if level < READ else level`. (a) Identifying the source (inspecting the flour bag) does not identify a portion poured from it unless the portion was also inspected; use the source's knowledge level (or max(portion, source)), since a portion has no identity of its own. (b) At level >= READ the clamp is skipped and the source's label fields count, so any read-level grant on a label-less portion resolves it (repro: knowledge.grant(portion, rec, 3) shows 'all-purpose flour'); clamp at every level or count only the portion's own label fields. (c) Add an optional group 'portion_descriptor' (a pile in a bowl now reads 'paper bag of white powder').",
+  "food: Realism.filter_details (kernel/realism.py ~965): for unresolved or novel entities, a domain extra is dropped if its key contains any word (longer than 2 characters) of the true type, category, label or is_a. A word that every member of the group shares ('food') does not tell members apart, yet it removed food_view from every unresolved food (the round-4 KeyError 'food_view'). Restrict the word list to words that differ between members of the entity's group. Food now marks its percepts with _perceived, so this is informational for food but affects other domains' extras.",
+  "outdoor_plants: realism.outbound_message / out_text: ids of entities destroyed during the step (pulled weeds, consumed items) are no longer in state['entities'], so tok() returns them unchanged and true ids leak (seen: weed result 'removed': ['garden_plant_10', ...]). Fix: in tok(), return self.handles.by_id[word] when it was already issued; replace other id tokens of entities that existed at begin_step (keep a snapshot of the ids) with 'something'. outdoor_plants works around this with C.gone_refs, which reads realism.handles.by_id.",
+  "outdoor_plants: Add a public Ctx helper such as ctx.unresolved(eid) / ctx.identified(eid): True for an unresolved look-alike (including derived_from portions) or a novel object, at the robot's current entity knowledge level. Domains currently have to call realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec)) themselves (see outdoor_plants common.unresolved). A shared ctx.refuse_unidentified(eid) with one standard message would make the 'same refusal for every group member' pattern uniform across domains.",
+  "outdoor_plants: Dict-valued fields render exactly at inspect (_strip_private) with no count/size/mass rendering for sub-fields (for example plant leaves {'healthy': 31}, the spreader hopper kg). Allow dotted per-type tiers with a rendering kind, e.g. perception {'count': ['leaves.healthy']} or {'measure': {'hopper.kg': 'scale'}}, so domains do not have to choose between exact and hidden.",
+  "pets: core.check_handling (house_sim/systems/core.py ~line 81): in realistic mode, when the pick_up target is an unresolved look-alike (realism.identity returns candidates) or its hazards field is below INSPECT knowledge, apply one rule to every group member: refuse all alike, or let the grasp proceed and record a safety violation. Repro: pet_medication (hazards ['toxic'], safe_grips normal/pinch) next to prescription_bottle / expired_medication (no hazards), all 'amber pill bottle'. pick_up without grip gives 'Hazardous item: it needs its safe grip or protective gear' (safety) for the pet medicine and 'Picked up' for the others. The v2.8 text scrub does not hide the outcome.",
+  "pets: realism.outbound_message (~line 984): the substitution of a named unresolved look-alike's true label/type name (\\b<name>\\b -> descriptor) also rewrites text inside that member's own identity values (descriptor, kind, candidates) in JSON results. Members become distinguishable: fish_food's type name 'fish food' inside the descriptor 'small tub of fish food' gave 'small tub of small tub of fish food' only for that member, and a candidate equal to another member's label ('sinking wafers') was rewritten. Please skip the label/kind/candidates keys, or skip names that occur inside the group's descriptor/kind/candidates. pets worked around it by choosing group words without member names.",
+  "pets: realism.identity derived_from path (~line 691): once the source is resolved, a portion returns the SOURCE's label and category (pets' spat-out tablet reads as its bottle's label 'gabapentin 50 mg for Tom'). An unresolved portion shows the package descriptor ('amber pill bottle' for a tablet; it would be 'bag of dry dog food' for a kibble pile). Suggest: resolved returns the portion's own label; unresolved uses an optional group 'portion_descriptor'.",
+  "pets: realism.subfield_hidden (~line 400) reads only type tables, so dotted names in a per-entity _perception (e.g. 'food.kind') are ignored. Please honour per-entity dotted hidden sub-fields. pets currently hides whole 'food'/'pet_food' fields on spilled food.",
+  "pets: realism.read_tier_fields deliberately ignores domain-wide field_tiers 'read' fields, so a domain cannot make text it writes onto another domain's entity legible by 'read' (it stays unreadable forever). Consider honouring per-entity _perception 'read' lists there. pets used 'inspect' for a chewed wrapper's evidence_of instead."
+ ],
+ "new_cross_domain_bugs": [
+  {
+   "reporter": "cleaning",
+   "owner": "textiles_laundry",
+   "problem": "tools/perception_audit.py 30 80 --verbose reports 40 tier leaks, all attributed to textiles_laundry types: inspect-tier fields shown at knowledge 0, e.g. seed 10 step 76 duvet_cover_1.bed_role='duvet_cover', color_class='white', duvet_style='spread'."
+  },
+  {
+   "reporter": "cleaning",
+   "owner": "navigation_robot",
+   "problem": "navigation_robot.json field_tiers.room.hidden lists water_film (plus wet_cells, floor_hazards). water_film is a cleaning-owned room field, and the hide dropped cleaning's rendered words (obs.room.water_film) mid-round. Cleaning now emits obs.room.wet_patches, so nothing breaks, but navigation should not declare tiers for other domains' room fields."
+  },
+  {
+   "reporter": "cleaning",
+   "owner": "textiles_laundry",
+   "problem": "test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear fails for apartment seeds 3, 5 and 97: laundry_room_1 (2.5 x 3.5 m) has front_load_washer_1 and no dryer, and laundry_room is not in COMPACT_ROOMS. It reproduces with the cleaning_supplies furnisher removed."
+  },
+  {
+   "reporter": "cleaning",
+   "owner": "safety",
+   "problem": "X-bc4e8d373e62c5-01 seed 0: the robot is placed near the cut gloves at kitchen_1 [0,1] and boxed in by safety.broken_glass shards at (0,0) (in the doorway clearance), (1,1) and (2,0). safety.clean_glass then fails with 'No route in kitchen_1 that avoids stepping on sharp or fragile things'."
+  },
+  {
+   "reporter": "cleaning",
+   "owner": "safety",
+   "problem": "T-70a9e6a7a83f64-01 seed 97 (realistic): safety.check_floor leaves the robot at kitchen_1 [1,0], about 4 cells from floor_puddle_1 at [5,2] (source at [3,2]), outside the puddle's visible_veto range. The reference 'inspect floor_puddle_1' is refused with 'That is not visible here'."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "textiles_laundry",
+   "problem": "tools/perception_audit.py 30 80 reports 40 tier leaks attributed to types:textiles_laundry. Example: seed 10 step 76, duvet_cover_1.bed_role / color_class / duvet_style shown with knowledge 0 although they are inspect tier (unknown fields default to inspect). Declare them glance in the type's perception block if they are visible, or keep them out of glance records."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "textiles_laundry",
+   "problem": "test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear fails for apartment seeds 3, 5 and 97: laundry_room_1 (a non-compact room) gets a front-load washer but no dryer. No admin_inventory entities are in that room; the washer is furnished at order 45, before admin's order 72."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "cleaning",
+   "problem": "test_floor_soil_and_waste_helpers_bind_reachable_targets raises SpecError 'cleaning.waste: no room for glass_jar' (seed 0, residents minimal, pets none). The kitchen floor holds no admin_inventory items, so the cleaning.waste floor placement (or its fallback near the counter) runs out of cells."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "cleaning",
+   "problem": "Spec T-7e93003b0dcefa-01, seed 97: the reference leaves floor_kitchen_1 with soil.sticky and soil.crumbs >= 0.05 (goal_fraction 0.667, no failures). No admin entities are on that kitchen floor; the sweep/mop reference probably cannot reach some soiled cells."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "safety",
+   "problem": "Spec X-bc4e8d373e62c5-01, seed 0: the reference fails with PlanError 'No route in kitchen_1 that avoids stepping on sharp or fragile things' because the spec's own glass shards cover the cells around [2..4, 0..2]. The navigation_robot.hazard_spread invariant also fires."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "safety",
+   "problem": "Spec T-70a9e6a7a83f64-01 (safety__perception.json), seed 97: the reference step 'inspect floor_puddle_1' fails with 'That is not visible here' in realistic mode."
+  },
+  {
+   "reporter": "admin_inventory",
+   "owner": "plumbing_liquids",
+   "problem": "The plumbing_liquids.details inspector (order 120) does details.pop('fill_level') whenever the level is hidden, deleting a fill_level another domain's inspector reported, e.g. a close-look reading. It should remove only what it added itself. admin_inventory now reports opaque close-look levels under 'level' to avoid the clash."
+  },
+  {
+   "reporter": "plumbing_liquids",
+   "owner": "cleaning",
+   "problem": "surfaces.py rinse (no destination) routes on the true label: `S.label_has(trec, 'toilet') ... -> flush_rinse`, which calls plumbing's flush. Look-alike members whose true labels differ (formerly 'toilet plunger (flange)' vs 'sink plunger (cup)') get different results and messages, which resolves the group. Route on the `toilet` flag or the perceived identity instead. plumbing renamed its plungers, but the routing pattern remains."
+  },
+  {
+   "reporter": "plumbing_liquids",
+   "owner": "cleaning",
+   "problem": "The spill type sits in look-alike group 'puddle' (resolve: inspect), and other domains spawn spills labelled '<liquid> spill'. A plain inspect of a puddle therefore names the liquid (bleach vs fabric softener) and shows its liquid field, which identifies what was spilled even when it came from an unread jug. plumbing now marks puddles from unidentified sources (label 'spill', liquid/product/hazards hidden), but spills from other domains still identify themselves on inspect."
+  },
+  {
+   "reporter": "plumbing_liquids",
+   "owner": "textiles_laundry",
+   "problem": "laundry_jug look-alike members have different glance size_m: liquid_detergent [0.15,0.1,0.28], fabric_softener [0.12,0.08,0.25], chlorine_bleach_bottle [0.15,0.1,0.3], oxygen_laundry_booster [0.15,0.15,0.2], enzyme_presoak [0.1,0.07,0.22]. size_m is a LOOKALIKE_FIELDS field rendered to about 5 cm, so the camera estimate can tell members apart. Give the group's members one shared jug size."
+  },
+  {
+   "reporter": "plumbing_liquids",
+   "owner": "textiles_laundry",
+   "problem": "perception_audit 30 80 (seed 10, opts {}): step 75 approach fitted_sheet_1, step 76 pick_up fitted_sheet_1 on a dressed bed. The next observation then shows duvet_cover_1's inspect-tier fields bed_role, color_class, duvet_style, fabric and face_up at knowledge 0 (40 'tier' lines attributed to types:textiles_laundry). This surfaced after this round's furnishing changes altered seed 10's walk."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "safety",
+   "problem": "safety/water.py _source() (about line 388) requires rec.get('pos'), so it never finds built-in dishwashers, which are parts of a counter run (location counter_N, relation 'part', no pos). safety.puddle(source='dishwasher') therefore always spawns a generic stand-in. In seed 97 the stand-in lands in mid-kitchen at (3,2)-(4,3) and T-70a9e6a7a83f64-01's reference fails ('inspect floor_puddle_1 failed: That is not visible here'). Fix: match by type/category on any entity whose root room is rid (geometry.anchor handles parts), not only those with pos."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "safety",
+   "problem": "X-bc4e8d373e62c5-01 seed 0: safety.broken_glass scatters shards over (1,1), (2,2), (2-4,0) and (3,1). In this 7x9-cell kitchen that is the only way from the doorway (0,0) into the room: fridge at (0,2)-(1,3), recycling bin at (3,2), and safety.supplies' trash_can generic_item_2 at (4,2). The robot gets PlanError 'No route in kitchen_1 that avoids stepping on sharp or fragile things'. The helper should keep a doorway route clear (shard-free corridor or supplies placed off the path)."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "cleaning",
+   "problem": "T-7e93003b0dcefa-01 seed 97 (variant 1): cleaning.floor puts soil at cell (3,3), where resident_1 stands; floor_kitchen_1._cells['3,3'] = {sticky 0.5, crumbs 0.4}. sweep and mop skip occupied cells, so floor.soil stays at sticky 0.5 / crumbs 0.4 and the reference fails (goal_fraction 0.667). cleaning.floor should avoid people's cells (or people should not stand on seeded soil)."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "cleaning",
+   "problem": "tests/test_cleaning.py test_floor_soil_and_waste_helpers_bind_reachable_targets (seed 0) fails with 'cleaning.waste: no room for glass_jar'. The 3.5x4.5 m kitchen has no route-safe free floor cell left for the 5th floor item. cleaning.waste needs a fallback (a counter/table, or the next room) when floor placement fails."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "textiles_laundry",
+   "problem": "tests/test_textiles_laundry.py test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear fails for apartment seeds 3, 5 and 97: laundry_room_1 is not in COMPACT_ROOMS ('bathroom', 'half_bath', 'kitchen', 'utility_closet')."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "textiles_laundry (or kernel realism)",
+   "problem": "Perception audit, run 1 of this round (30 houses, 80 steps): seed 10 {} step 76, right after pick_up of duvet_cover_1. Its inspect-tier fields bed_role, color_class and duvet_style show in the observation at knowledge 0, giving 40 'tier' lines attributed to types:textiles_laundry. It depends on the trajectory, so later runs with changed outcomes did not reach it."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "core_furniture",
+   "problem": "Serviceable outdoor lights sealed by others' furniture, checked with outdoor_plants' light_targets/accessible_lights criterion. deck_1 outdoor_light_2 is sealed by outdoor_table_1 (core_furniture) in seed 14 {residents: minimal, pets: none} and seed 4 {dwelling: house, require: [laundry_room, basement, nursery]}. The appliances_cooking gas grill is no longer a culprit in the reported seeds or in 90 houses."
+  },
+  {
+   "reporter": "appliances_cooking",
+   "owner": "tools_vehicles / cleaning",
+   "problem": "Seed 21 {dwelling: townhouse}: driveway_1 outdoor_light_2 is sealed by car_1 (tools_vehicles.vehicles) together with trash_cart_1 and recycling_cart_1 (cleaning_supplies). Removing any one of them unseals it."
+  },
+  {
+   "reporter": "safety",
+   "owner": "pets",
+   "problem": "behavior.settle_pets / common.settle_spot ignores people standing nearby. At episode start it moved dog_1 from a doorway-clearance cell (kitchen_1 [1,0]) onto a one-cell passage ([2,2]) beside resident_1 at [2,0], cutting the kitchen doorway pocket off from the rest of the room (X-befab43585cde3-01 seed 97). Safety now marks such helper-placed pets _placed, but settle_spot should count people and other pets as obstacles."
+  },
+  {
+   "reporter": "safety",
+   "owner": "manipulation",
+   "problem": "perception_audit 30 80 --verbose (latest run): toy_block_1 shows floor_hazard='trip', material='wood' and toy_category='blocks' (inspect tier) with knowledge 0 (seed 10, step 37), attributed to types:manipulation."
+  },
+  {
+   "reporter": "safety",
+   "owner": "navigation_robot",
+   "problem": "perception_audit 30 80 --verbose (latest run): robot_headlamp_1.material='plastic' (inspect tier) shown with knowledge 0 (seed 25, steps 63-65), attributed to types:navigation_robot."
+  },
+  {
+   "reporter": "navigation_robot",
+   "owner": "textiles_laundry",
+   "problem": "tests/test_textiles_laundry.py FurnishTests.test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear fails for house={'dwelling':'apartment'} seeds 5 and 97 (and one more subtest): laundry_room_1 has a washer but no dryer, and 'laundry_room' is not in COMPACT_ROOMS. Verified not caused by navigation_robot: it still fails with all navigation reach aids removed from furnishing."
+  },
+  {
+   "reporter": "navigation_robot",
+   "owner": "safety",
+   "problem": "safety helpers can make a kitchen unreachable for the strict safe route. In X-befab43585cde3-01 (seed 97, house minimal) one build placed dog_1 (safety.place_pet) on kitchen_1 [1,0], the only cell joining doorway [0,0] to the room, after safety.pests/supplies had put snap_trap_2 at [1,1] and gloves at [2,1]. The reference then failed with 'No route in kitchen_1 that avoids stepping on sharp or fragile things, sleeping animals or people'. It passes now (helpers.py changed meanwhile), but the placement does not guard against it: agents are passable in kernel access checks. X-bc4e8d373e62c5-01 (seed 0) showed the same error earlier with navigation_robot's furnisher and hazards disabled."
+  },
+  {
+   "reporter": "electrical",
+   "owner": "manipulation",
+   "problem": "perception_audit (python tools/perception_audit.py 30 80 --verbose): 9 'tier' leaks attributed to types:manipulation. Example: seed 10 step 37, toy_block_1.floor_hazard='trip', .material='wood' and .toy_category='blocks' (inspect tier) shown with knowledge 0."
+  },
+  {
+   "reporter": "electrical",
+   "owner": "navigation_robot",
+   "problem": "perception_audit (python tools/perception_audit.py 30 80 --verbose): 8 'tier' leaks attributed to types:navigation_robot. Example: seed 25 steps 63-65, robot_headlamp_1.material='plastic' (inspect tier) shown with knowledge 0."
+  },
+  {
+   "reporter": "electrical",
+   "owner": "climate",
+   "problem": "tests/test_climate.py HelperRobustnessTests.test_helpers_build_on_generated_houses errors on setup 1, seed 1 with 'climate.space_heater: no clear spot for the heater in master_bedroom_1'. A/B check: it fails the same way with electrical's old hookup outlet siting, so it is not caused by this round's electrical change."
+  },
+  {
+   "reporter": "climate",
+   "owner": "textiles_laundry",
+   "problem": "In laundry rooms a washer or dryer stands in front of the breaker panel, so electrical's keep_panel_clear (hookup, order 97) has to move the panel. It happens in 7 of 80 houses (seeds 0-39, house and apartment): generate_house(2/5/11/27/28/34, dwelling='apartment') and generate_house(11). Example: seed 11 house, laundry_room_1 panel at (0,5), unreachable because clothes_dryer_1 covers (1,4)-(2,5) and shelf_unit_1 covers (0,2)-(0,3). Seeds 5 and 11 apartment: front_load_washer_1 sits on the panel's cell. Appliances should avoid the panel's wall cell and its 0.9 m working space (NEC 110.26)."
+  },
+  {
+   "reporter": "climate",
+   "owner": "manipulation",
+   "problem": "perception_audit 30 80 --verbose: 9 tier leaks on types:manipulation, e.g. seed 10 step 37 toy_block_1.floor_hazard='trip', .material='wood', .toy_category='blocks' shown at inspect tier with knowledge 0."
+  },
+  {
+   "reporter": "climate",
+   "owner": "navigation_robot",
+   "problem": "perception_audit 30 80 --verbose: 8 tier leaks on types:navigation_robot, e.g. seed 25 steps 63-65 robot_headlamp_1.material='plastic' shown at inspect tier with knowledge 0."
+  },
+  {
+   "reporter": "tools_vehicles",
+   "owner": "cleaning",
+   "problem": "cleaning/perception.py (~line 385) adds fill_estimate to any record with `product` that is not open_top, computed from liquid_l only. tools_vehicles shop products keep amount_l/amount (paint_can 0.95 l, primer, motor_oil/antifreeze/washer_fluid jugs, spackle_tub, deck_sealer, grout_bag, lubricant cans), so a full can inspects as 'fill_estimate: empty'. It is consistent across look-alikes, so not a leak, but it is wrong. Use amount_l/amount when liquid_l is absent, or skip records that have no liquid_l."
+  },
+  {
+   "reporter": "tools_vehicles",
+   "owner": "mechanisms",
+   "problem": "Full layout audit (20 seeds) shows 2 'mount overlap' lines, both attributed to mechanisms.coverings: seed 19 {dwelling: house, require: [garage, patio]} dining_room_1 curtains_3 and curtains_4; seed 0 {dwelling: townhouse} master_bedroom_1 blackout_curtains_2 and blackout_curtains_4."
+  },
+  {
+   "reporter": "tools_vehicles",
+   "owner": "manipulation",
+   "problem": "perception_audit 30 80: 9 tier lines from types:manipulation. Seed 10 step 37: toy_block_1.floor_hazard='trip', .material='wood' and .toy_category='blocks' (inspect tier) are shown at knowledge 0."
+  },
+  {
+   "reporter": "tools_vehicles",
+   "owner": "navigation_robot",
+   "problem": "perception_audit 30 80: 8 tier lines from types:navigation_robot. Seed 25 steps 63-65: robot_headlamp_1.material='plastic' (inspect tier) is shown at knowledge 0."
+  },
+  {
+   "reporter": "mechanisms",
+   "owner": "core (generator/layout.py finish_structure / Builder._wall_cell)",
+   "problem": "Windows have no rot, so on west/east walls their 2-cell footprint runs perpendicular into the room. A window placed in the last column or row of a wall runs off the grid. Repro: generate_house(29) office_1 (6x8 cells): window_14 at [5,7] covers (5,7),(6,7) and window_15 at [5,0] covers (5,0),(6,0); x=6 is outside the grid. Suggest giving windows rot 90 on W/E walls and keeping their footprint inside the grid. mechanisms' coverings now follow the window's wall and stay on the grid where possible; 7 of 2228 still cannot because of this."
+  },
+  {
+   "reporter": "mechanisms",
+   "owner": "manipulation (types)",
+   "problem": "perception_audit 30 80: 9 'tier' lines. toy_block inspect-tier fields (floor_hazard 'trip', material 'wood', toy_category 'blocks') show at knowledge 0, e.g. seed 10 step37 toy_block_1."
+  },
+  {
+   "reporter": "mechanisms",
+   "owner": "navigation_robot (types)",
+   "problem": "perception_audit 30 80: 8 'tier' lines. robot_headlamp_1.material (inspect tier) shows at knowledge 0 (seed 25, steps 63-65)."
+  },
+  {
+   "reporter": "mechanisms",
+   "owner": "navigation_robot (inspector)",
+   "problem": "Inspecting an overhead garage door adds 'open_angle_deg' (90.0 in oracle, a noised 95.8 in realistic) and 'swing_blockers'. An overhead door has no swing angle. These keys probably belong only to doors that swing."
+  },
+  {
+   "reporter": "textiles_laundry",
+   "owner": "cleaning",
+   "problem": "cleaning.smells (perception.smell_sources) ignores containment. A musty towel sealed in a vacuum bag (parent sealed=True) still gives {'kind': 'mildew', 'intensity': 'strong'}, and textiles in closed hampers count at full strength. One soured towel (odor musty 0.6, the value textiles_laundry writes when an item sours) already reads 'strong' at the 0.6 edge, and it duplicates textiles_laundry's musty_laundry smell. Suggested fix: attenuate or skip entities inside closed or sealed containers, as textiles_laundry senses._smell_weight does, and leave textile mustiness to musty_laundry or treat 0.6 as 'noticeable'. Repro: generic_item container with sealed=True on a table, a hand_towel inside with musty=True and odor={'musty': 0.6}, realistic env.observe()['smells']."
+  },
+  {
+   "reporter": "textiles_laundry",
+   "owner": "navigation_robot",
+   "problem": "perception_audit 30 80 (final run): 5 tier lines on types:navigation_robot. robot_headlamp_1.material (inspect tier) shows at knowledge 0, seed 25, steps 76-78. The earlier toy_block_1 lines on types:manipulation were gone in the final run."
+  },
+  {
+   "reporter": "people",
+   "owner": "pets",
+   "problem": "pet_medication (house_sim/data/types/pets.json) is in the kernel pill_bottle look-alike group but has color None while prescription_bottle and expired_medication are 'amber': an unresolved pet medicine shows color None vs 'amber' at a glance (verified: three bottles on the seed-2 living-room coffee table, realistic mode). Add color 'amber' (and polypropylene) to its props; also add a file-level looks_like {\"pill_bottle\": {\"members\": [\"pet_medication\"]}} so the candidates list includes it (safety does this for expired_medication)."
+  },
+  {
+   "reporter": "people",
+   "owner": "pets",
+   "problem": "tests/test_pets.py RealisticPerceptionTests.test_observer_cues_and_smells_are_perceived_not_raw fails with all domains: expects ('lying still', 'lying still') but kernel v2.8 renders resting pets as posture 'resting' -- the test still encodes the pre-v2.8 percept."
+  },
+  {
+   "reporter": "people",
+   "owner": "navigation_robot",
+   "problem": "perception_audit 30 80: robot_headlamp_1.material (inspect tier, knowledge 0) = 'plastic' shown in observations (seed 25, steps 76-78) for the worn robot headlamp."
+  },
+  {
+   "reporter": "manipulation",
+   "owner": "cleaning",
+   "problem": "Look-alike group spray_bottle: the cleaning spray products (glass_cleaner, all_purpose_cleaner, disinfectant_spray, degreaser, mildew_remover, ...) carry no liquid amount (no liquid_l/fill_level) and no trigger mechanism, while trigger_bottle (mechanisms.json) in the same group carries liquid_l 0.5 and a trigger dict. Any contents sensing separates them while unresolved: shaking the trigger bottle reports 'liquid sloshes inside', the products report nothing; hefting differs too. Give the products a liquid_l/capacity_l (and a trigger dict, so manipulation treats the head as closed) consistent with the trigger bottle, or drop trigger_bottle from the group."
+  },
+  {
+   "reporter": "manipulation",
+   "owner": "plumbing_liquids",
+   "problem": "water_bottle is listed as a member of the kernel default group clear_liquid_bottle but resolves first to plumbing_liquids' reusable_bottle group (group_of returns the first match), so the clear_liquid_bottle group effectively contains only isopropyl_alcohol and never confuses it with water. Decide which group water_bottle belongs to (one group per type)."
+  },
+  {
+   "reporter": "food",
+   "owner": "appliances_cooking",
+   "problem": "house_sim/systems/appliances_cooking/scenarios.py line 83: the egg_in_shell preset spawns food's hen_egg with props label 'egg'. Through the kernel's outbound_message rewriting, an unresolved egg's realistic inspect message becomes 'egg in its shell in its shell' with member-specific candidates ['boiled egg in its shell', ...], which tells a raw egg from a hard-boiled one without cracking it. Drop the label override (food's hen_egg label is now 'raw egg'), or wait for the kernel rewriting fix."
+  },
+  {
+   "reporter": "outdoor_plants",
+   "owner": "navigation_robot",
+   "problem": "perception_audit 30 80: robot_headlamp_1.material ('plastic', inspect tier) is shown in observations at knowledge level 0. Seen at seed 25, steps 76-78; attributed to types:navigation_robot. These are the only leak lines in the audit."
+  },
+  {
+   "reporter": "pets",
+   "owner": "navigation_robot",
+   "problem": "tools/perception_audit.py 30 80 --verbose reports 5 tier leaks, all on navigation_robot types: seed 25, steps 76-78, robot_headlamp_1.material shown at inspect tier with knowledge 0 ('plastic'). These are the only lines left in the audit."
+  },
+  {
+   "reporter": "pets",
+   "owner": "food",
+   "problem": "house_sim/systems/food/systems.py ~line 908 clears derived_from whenever M.kind(source) != M.kind(portion). For a source without a 'food' record (pets' pet_food bags carry 'pet_food'; any non-food-model package), M.kind(source) is None, so every portion loses its look-alike link immediately. Suggest clearing only when the source has a food kind and it differs. pets no longer depends on this, but other domains' portions of non-food packages would be affected."
+  },
+  {
+   "reporter": "pets",
+   "owner": "main session (eval harness)",
+   "problem": "Full suite (2570 tests): the only failure is tests/test_eval_splits.py PackagingTests.test_gitignore_covers_private_artifacts: 'reports/leaderboard.html' is gitignored but the test expects it not to be. Unrelated to pets."
+  }
+ ],
+ "not_fixed": {
+  "cleaning": [
+   {
+    "item": "textiles test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear (apartment seeds 3, 5, 97)",
+    "why": "Not caused by cleaning. Apartment seed 3, laundry_room_1 has a washer but no dryer even with the cleaning_supplies furnisher removed from FURNISHERS (it runs at order 65, after textiles at 45). The COMPACT_ROOMS assertion is textiles' own."
+   },
+   {
+    "item": "safety X-bc4e8d373e62c5-01 seed 0",
+    "why": "Safety's own layout. The robot is placed near the cut gloves at kitchen_1 [0,1] and boxed into a 2-cell pocket: shards from safety.broken_glass at (0,0) (doorway clearance), (1,1) and (2,0), plus the fridge. go_room's strict safe_avoid finds no route. Cleaning's bins at (3,2)/(4,3) are not part of the pocket."
+   },
+   {
+    "item": "safety T-70a9e6a7a83f64-01 seed 97",
+    "why": "floor_puddle_1 is safety's own entity (category puddle) behind safety's visible_veto. safety.check_floor leaves the robot at [1,0], about 4 cells from the puddle at [5,2], so the reference inspect is refused as not visible. No cleaning code is involved."
+   },
+   {
+    "item": "Kernel-rendered leaks in cleaning-owned data (see kernel_requests)",
+    "why": "soil is rendered from the true aggregate (shadows under items, cells under rugs); damage and odor dicts render exactly after an inspection; outbound_message rewrites a look-alike's own label inside inspect JSON (a refill spray reads 'spray bottle of liquid of liquid'); touch mass ignores contained liquid. An observer cannot override a field the kernel renders itself, so these need kernel changes."
+   }
+  ],
+  "admin_inventory": [
+   {
+    "item": "Known failing test: cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets ('cleaning.waste: no room for glass_jar')",
+    "why": "Not admin_inventory: this domain furnishes nothing on that kitchen floor (seed 0, minimal residents). The failure is inside the cleaning.waste helper's floor placement. Reported under new_cross_domain_bugs."
+   },
+   {
+    "item": "Known failing test: textiles test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear (apartment seeds 3, 5, 97)",
+    "why": "Not admin_inventory: laundry_room_1 holds no admin entities. The washer is furnished at order 45 (textiles), before this furnisher (order 72), and gets no dryer in a non-compact room. Reported."
+   },
+   {
+    "item": "Known failing specs: cleaning T-7e93003b0dcefa-01 (seed 97), safety X-bc4e8d373e62c5-01 (seed 0), safety perception T-70a9e6a7a83f64-01 (seed 97)",
+    "why": "Not admin_inventory. In each case I dumped the room: no admin entities are on the kitchen floor, and the failures are kitchen floor soil left after the reference, a broken-glass route blocked by safety's shards, and 'inspect floor_puddle_1: not visible'. Reported."
+   },
+   {
+    "item": "Perception audit is not at 0 overall (40 tier leaks)",
+    "why": "None of the 40 is attributed to admin_inventory. All are types:textiles_laundry (duvet_cover bed_role / color_class / duvet_style shown at inspect tier with knowledge 0), which appeared after my baseline run (baseline: 0 leaks), so they are likely a concurrent textiles change. Reported."
+   }
+  ],
+  "plumbing_liquids": [
+   {
+    "item": "Remembering an unidentified liquid once its jug is read later",
+    "why": "A bucket that received liquid from an unread jug keeps the liquid name hidden until it is emptied, even if the robot later reads the jug. This is deliberately conservative; doing it properly needs kernel-side content provenance (see kernel_requests)."
+   },
+   {
+    "item": "Look-alike members routed to another domain's action",
+    "why": "Food-domain liquids (food dict, liquid_l 0) are passed to the food domain's transfer, whose messages differ from this domain's pour. A mixed look-alike group could be told apart this way; the transfer message is owned by the food domain."
+   },
+   {
+    "item": "Known failures listed in the task (cleaning test_floor_soil_and_waste_helpers..., cleaning T-7e93003b0dcefa-01 seed 97, safety X-bc4e8d373e62c5-01 seed 0, safety T-70a9e6a7a83f64-01 seed 97)",
+    "why": "Investigated: none were caused by plumbing_liquids (no plumbing floor items in those kitchens; the puddle visibility and broken-glass routing belong to safety and navigation). All four pass in the current tree, presumably fixed by their owners."
+   },
+   {
+    "item": "Full suite: 4 failing realistic tests in other domains (climate test_look_alike_purifier_panels..., food test_eggs_in_shell..., people test_a_sleeper_looks_like..., pets test_observer_cues...)",
+    "why": "These come from the kernel v2.8 changes (sleep masked as 'lying', type-named inspector extras, label scrubbing) or the owners' in-progress work, not from this domain. 2449 tests ran; all other failures are gone."
+   }
+  ],
+  "appliances_cooking": [
+   {
+    "item": "cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets ('cleaning.waste: no room for glass_jar')",
+    "why": "Not mine. In the seed-0 kitchen (3.5x4.5 m, 7x9 cells) cleaning.waste has to put 5 floor items next to the recycling bin, the kitchen trash can, 3 soil cells and the fridge/range/counter runs. It finds no free route-safe floor cell and has no fallback. That needs a fix in the cleaning helper; my appliances are placed by the kernel access rule and seal nothing."
+   },
+   {
+    "item": "textiles test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount... (apartment seeds 3, 5, 97)",
+    "why": "Not mine. The assertion fails because laundry_room_1 is not in COMPACT_ROOMS (washer/dryer placement in apartments). No kitchen or appliance of mine is involved."
+   },
+   {
+    "item": "cleaning spec T-7e93003b0dcefa-01 (seed 97, variant 1)",
+    "why": "Not mine. cleaning.floor puts sticky/crumb soil at cell (3,3), where resident_1 stands. sweep and mop skip occupied cells, so floor soil stays at 0.5/0.4. The fix belongs to cleaning (avoid people's cells) or people (placement)."
+   },
+   {
+    "item": "safety spec X-bc4e8d373e62c5-01 (seed 0)",
+    "why": "Not mine. The shard field covers (1,1) and (2,2), the only way from the doorway (0,0) in this narrow kitchen. The fridge is legitimately on the west wall at (0,2)-(1,3); the recycling bin is at (3,2) and safety's own trash can at (4,2). safety.broken_glass/supplies should keep a route from the doorway open."
+   },
+   {
+    "item": "safety perception spec T-70a9e6a7a83f64-01 (seed 97)",
+    "why": "Not mine to edit. safety/water.py _source only matches entities with a 'pos'. Built-in dishwashers are parts of their counter run (location counter_N, relation part, no pos), so safety never finds the real one and spawns a generic stand-in 'dishwasher' in mid-room at (3,2)-(4,3). The reference then cannot see the puddle. Reported to safety."
+   },
+   {
+    "item": "Cycle-check messages for unfamiliar (novel) appliances ('Put the inner pot in first', 'Enter a cook time first', 'Slide the basket in first')",
+    "why": "These hooks receive (w, eid) with no ctx, so they cannot tell realistic mode from oracle. The phrases are short and fairly appliance-neutral. Unresolved look-alike cookers never reach them because the group guard answers first."
+   }
+  ],
+  "safety": [
+   {
+    "item": "cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, textiles test_every_washer_gets_a_dryer..., cleaning spec T-7e93003b0dcefa-01 (seed 97)",
+    "why": "They belong to other domains (cleaning, textiles_laundry), and I may only edit safety files."
+   },
+   {
+    "item": "Urine puddles were not added to the floor_liquid look-alike group",
+    "why": "This was a choice, not a workaround. A urine spill is a biohazard record with visible soil and is never hidden the way clear water is, so it would not look the same as the other members. Documented in safety.md 4a."
+   },
+   {
+    "item": "Authority refusals for the gas-shutoff policy, drilling and bulky pickup still use the domain's own wording",
+    "why": "They reveal no hidden per-entity flag: the household rules are known to the robot, and drilling and bulky pickup always need approval. The kernel already reports them with category 'permission'."
+   }
+  ],
+  "navigation_robot": [
+   {
+    "item": "textiles_laundry test_every_washer_gets_a_dryer_unless_a_stack_would_hide_a_wall_mount_and_door_swings_stay_clear (apartment seeds 5, 97: laundry_room_1 washer without dryer)",
+    "why": "Not caused by navigation_robot: it still fails with all my reach aids removed from furnishing. The test asserts the room type is in COMPACT_ROOMS. Reported to textiles_laundry."
+   },
+   {
+    "item": "safety X-bc4e8d373e62c5-01 (seed 0) 'No route in kitchen_1 that avoids stepping on sharp or fragile things...'",
+    "why": "It failed with my furnisher and derived hazards disabled, so it is not mine. It passed in my later full run, so the safety owner apparently fixed it concurrently."
+   }
+  ],
+  "electrical": [
+   {
+    "item": "Power-brick look-alikes can still be told apart by acting: connect_cable of the USB-C laptop charger into a USB-C port works, while the barrel bricks get 'That plug does not fit the <port> port'.",
+    "why": "Left on purpose: it is a physical trial that costs a step, and the message names no identity or size. Removing it would need the group to stop modelling different connectors."
+   },
+   {
+    "item": "The root cause of the candidates/label rewriting in inspect results.",
+    "why": "It is in the kernel (Realism.outbound_message). I only made my group candidates immune; the kernel fix is in kernel_requests."
+   },
+   {
+    "item": "The electrical-only run (HOUSE_SIM_DOMAINS=electrical) was not re-run this round.",
+    "why": "The brief says not to set HOUSE_SIM_DOMAINS. The doc now says that run was last checked in the v2.6 round."
+   }
+  ],
+  "climate": [
+   {
+    "item": "Slot views (inspecting a purifier with its door open, or the furnace filter slot) still show the 'looks' of an installed filter even when that filter is unidentified (wrap or dust).",
+    "why": "Kept on purpose: it is plainly visible physical state, and a robot has to be able to notice a wrapped or clogged installed filter. Leak residue: in the purifier_panel group the washable pre-filter type is never shrink-wrapped, so 'still in its plastic wrap' rules out the pre-filter candidate before the label is read. That is also true in reality."
+   },
+   {
+    "item": "Breaker panels in laundry rooms obstructed by the washer/dryer (electrical still moves the panel in 7 of 80 houses).",
+    "why": "Not climate. textiles_laundry places those appliances; reported in new_cross_domain_bugs."
+   }
+  ],
+  "tools_vehicles": [
+   {
+    "item": "Picking up an unresolved automotive jug or wheel-cleaner bottle tells members apart: antifreeze, washer fluid and acid wheel cleaner refuse 'Hazardous item: it needs its safe grip or protective gear', while motor oil and neutral cleaner are picked up.",
+    "why": "The refusal comes from core check_handling (kernel-owned). My type data is truthful; giving harmless members fake hazards would falsify data and break other mechanics. Filed as a kernel request."
+   },
+   {
+    "item": "Root cause of the label-substitution leak in Realism.outbound_message.",
+    "why": "Kernel-owned. My groups are rephrased so the leak cannot fire on them, and a test checks this. Kernel default groups and other domains' groups still leak (see kernel_requests)."
+   },
+   {
+    "item": "Visible `fasteners` entries keep a spec'd length_mm; tire sidewall pressure ranges show on inspect rather than read.",
+    "why": "Left as design choices. The robot that removed a screw saw its length, and sidewall print is legible at inspect range. Hiding the length would need a schema change across manipulation's `fasteners` field."
+   },
+   {
+    "item": "Shared field names this domain writes on foreign entities (tilt_deg, holes, length_m, standing_l) keep kernel default tiers.",
+    "why": "Other domains use those names with other meanings, so a file-level field_tiers entry would wrongly re-tier their fields. Documented in section 10.6."
+   }
+  ],
+  "mechanisms": [
+   {
+    "item": "7 of 2228 generated coverings/sills (20 seeds x 6 option sets) still run past the grid edge",
+    "why": "Each sits at a window that itself runs off the grid (generator) with a second window a cell or two away on the same wall. Shifting it back would overlap the neighbour's curtain (layout-audit 'mount overlap'), so it stays at its window. The root cause is the generator's window placement (reported to core)."
+   },
+   {
+    "item": "Known failures listed in the brief: cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, textiles test_every_washer_gets_a_dryer..., cleaning T-7e93003b0dcefa-01 (seed 97), safety X-bc4e8d373e62c5-01 (seed 0), T-70a9e6a7a83f64-01 (seed 97)",
+    "why": "Nothing to fix here: all already passed before this round started and still pass after these changes (re-run individually and in the full sweep). None was caused by mechanisms."
+   },
+   {
+    "item": "perception_redteam.json has no domain.mechanisms entry",
+    "why": "There were no red-team findings for this domain. Leaks were found by scanning the code myself (listed under fixed)."
+   }
+  ],
+  "textiles_laundry": [
+   {
+    "item": "thread_needle 'Not enough thread left' refusal: repeated requests with different length_cm can binary-search a spool's length_m (measure-tier).",
+    "why": "Low severity, and running out of thread is what a real attempt shows. A clean fix needs refusals to cost time or a partial-thread outcome, which I left out of this round. The frayed-end/fine-eye refusal is kept for the same reason."
+   },
+   {
+    "item": "Poured liquid names in containers this domain does not own (cups, basins, sinks).",
+    "why": "Only kernel-level rendering can fix it (see kernel_requests). I hid `liquid` on my own dispenser_compartment and washing_machine types as a stopgap."
+   },
+   {
+    "item": "Known failures listed in the task: cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, cleaning spec T-7e93003b0dcefa-01 (seed 97), safety specs X-bc4e8d373e62c5-01 (seed 0) and T-70a9e6a7a83f64-01 (seed 97).",
+    "why": "All of them pass now with every domain loaded, and none traced back to my furnishers, so no change was needed."
+   }
+  ],
+  "people": [
+   {
+    "item": "guide refusal 'No clear path in <room> for the two of you' is computed on true layout of rooms along the route the robot has not yet seen",
+    "why": "guide is one compound multi-room action; honest fix needs step-by-step guiding (walk, look, re-plan). Minor: the robot would discover the blockage on arrival anyway"
+   },
+   {
+    "item": "Kernel grid.hazards still tells a sleeper (posture 'sleeping' -> hazard 'sleeping' -> 'lying') from an awake person lying down (posture 'lying' -> 'person_down')",
+    "why": "hazard kinds are generated in kernel geometry.hazard_cells and only 'sleeping' is rewritten in realism._observe; requested in kernel_requests (people cannot change posture semantics without breaking other domains' sleeping checks)"
+   },
+   {
+    "item": "pet_medication splits the pill_bottle look-alike group by color at a glance",
+    "why": "pets.json type (not people's); reported in new_cross_domain_bugs"
+   },
+   {
+    "item": "wake on an awake person still answers 'They are already awake'",
+    "why": "kept on purpose: it is the person's own reply, and the same probe on a sleeper wakes them (unwanted-wake harm), so it is not a free oracle"
+   }
+  ],
+  "manipulation": [
+   {
+    "item": "Core hazard refusal still separates members of look-alike groups (antifreeze/washer-fluid vs motor-oil jug, chlorine bleach vs detergent jug, acid vs neutral wheel cleaner) on pick_up/place and in core.check_handling, which my stack/extract/twist/arrange call via common.safe_handling",
+    "why": "The guard lives in house_sim/systems/core.py (kernel/core, not editable by this domain); filed as a kernel request."
+   },
+   {
+    "item": "Realism.outbound_message rewrites a commanded look-alike's own label/type name to the descriptor inside the JSON 'candidates' list of inspect/read results (e.g. prescription_bottle inspect -> candidates [..., 'amber pill bottle'] where 'prescription bottle' was; expired_medication -> 'amber pill bottle' where 'expired medication' was), an identity oracle for every group whose candidates are member names",
+    "why": "Kernel code; worked around only for this domain's smooth_stone group by choosing candidate names that are no member's label. Filed as a kernel request."
+   },
+   {
+    "item": "spray_bottle group: trigger_bottle (mechanisms) carries liquid_l and a trigger head while the cleaning spray products in the same group carry no liquid amount, so shaking or hefting separates them",
+    "why": "Type data of other domains; reported in new_cross_domain_bugs."
+   },
+   {
+    "item": "Known failures listed in the task (cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, textiles test_every_washer_gets_a_dryer..., specs cleaning T-7e93003b0dcefa-01 seed 97, safety X-bc4e8d373e62c5-01 seed 0 and T-70a9e6a7a83f64-01 seed 97)",
+    "why": "Nothing to fix here: all of them pass now (re-run in this session with my changes in place). None was caused by manipulation code."
+   }
+  ],
+  "food": [
+   {
+    "item": "A portion of an identified package resolves only when the portion itself has also been inspected; its descriptor is the package's ('paper bag of white powder' for a pile in a bowl).",
+    "why": "This is kernel Realism.identity behaviour (it uses the lower of the portion and source knowledge levels and has no portion descriptor). Filed as a kernel request."
+   },
+   {
+    "item": "hen_egg spawned by appliances_cooking with an explicit label 'egg' still gets member-specific inspect text in realistic mode.",
+    "why": "The root cause is the kernel's outbound_message rewriting, and the label override lives in appliances_cooking's scenarios.py. Filed as a kernel request and a cross-domain bug."
+   },
+   {
+    "item": "food__examples T-13da00933a0800-01 fails when forced to --perception realistic.",
+    "why": "It is an oracle-mode spec (food.audit_dates reference) and fails the same way with the pre-change food package, so this round did not cause it. It passes in its own (oracle) mode on all 5 seeds."
+   },
+   {
+    "item": "Physically legitimate identity cues remain: an open bag's fill volume, the amount per shake of different spices, the true mixture kind when an unidentified powder is mixed into water, and a jar running empty.",
+    "why": "These are things the robot actually sees as a consequence of acting, not oracles. They are documented as known limits."
+   }
+  ],
+  "outdoor_plants": [
+   {
+    "item": "Two of the examples specs fail when re-run with --perception realistic: T-8b4654687e040f-01 (report decision 'leave_open') and T-3c0e5bb4fb4063-01 (report ash_state 'cold'), on some seeds.",
+    "why": "They are oracle-mode specs and pass 5/5 in their own mode. The reported values are the agent's decisions or summary words, which never appear verbatim in observations, so the strict perceivability check flags them. Not required by the work list."
+   },
+   {
+    "item": "Members of a look-alike group keep their real bag sizes and weights. A size estimate or a lift can therefore narrow the candidates.",
+    "why": "Physically real (a 1.5 kg seed bag and an 11 kg salt bag differ) and the kernel's LOOKALIKE_FIELDS shows size by design. Making all members one size would change carry/physics behaviour for oracle specs. Recorded in the doc's known limits."
+   },
+   {
+    "item": "A product's read-tier `qty` is the remaining amount, so a label also works as a fill gauge.",
+    "why": "Changing what the label prints would touch every material-drawing mechanic and the specs that read labels. Recorded in the doc's known limits."
+   }
+  ],
+  "pets": [
+   {
+    "item": "Grip-less pick_up of an unread pet_medication is refused by core's hazard guard ('Hazardous item...'), while a person's prescription_bottle or expired_medication in the same pill_bottle group is picked up. The outcome identifies the bottle.",
+    "why": "The guard is in house_sim/systems/core.py check_handling (kernel/core, not editable by me). Removing hazards ['toxic'] from pet_medication would stop safety (child poison risk), admin_inventory harms and food contamination checks from treating pet medicine as toxic. Filed as a kernel request."
+   },
+   {
+    "item": "Inspecting a cage liner identifies plain vs scented.",
+    "why": "By design: the cage_liner_sheet group resolves on inspect (a sniff)."
+   },
+   {
+    "item": "Spilled pet food carries no derived_from.",
+    "why": "The kernel would show a kibble pile as its package ('bag of dry dog food'), and the food domain clears derived_from when the source has no food record. Handled instead with a look-based label and per-entity hidden food fields."
+   }
+  ]
+ },
+ "fixed": {
+  "cleaning": [
+   "round4 (electrical): the cleaning.details inspector gave fill_level, lid_blocked, stream_label and liner details to anything carrying waste_stream, AA cells included. Now only receptacles get them (state.is_waste_container). Test: test_items_tagged_with_a_waste_stream_are_not_bins",
+   "round4 (manipulation) and the listed known failure: test_floor_soil_and_waste_helpers_bind_reachable_targets raised 'cleaning.waste: no room for glass_jar'. A fragile jar's keep-out ring sealed the narrow kitchen aisle. The cleaning.waste helper now puts items no floor cell takes on a reachable counter or table in that room (helpers._reachable_surfaces)",
+   "round4 (appliances_cooking): T-3fb8a84f20876c-01 now passes on all 5 seeds. The kernel read fix covered it; the blank refill keeps label_text ''",
+   "round4 (outdoor_plants and appliances_cooking): the seed-16 driveway light sealed by the car plus carts no longer reproduces. _generate(16) reports nothing, and layout_audit 20 --domain cleaning shows 0 problems on 120 houses",
+   "Spec T-7e93003b0dcefa-01 seed 97: the people domain's episode-start settle put the resident on a sticky cell. The cleaning.sweep_floor, vacuum_floor and mop_floor skills now ask residents standing on soiled cells to step aside first (people's step_aside request, up to 3 asks; anyone who can't move is worked around). Test: test_a_resident_standing_on_a_soiled_cell_is_asked_to_step_aside_first",
+   "Self-scan, refusals that revealed what an unread bottle holds or what soaked into a cloth (realistic mode only; oracle refusals stay): degrease without degreasing chemistry is now a plain scrub; polish/condition with a cloth carrying no polish or conditioner rubs in whatever it carries and polishes or conditions nothing (surfaces._rub_without_product); rinse with a cloth that still holds cleaner smears it back on (residue, streaks)",
+   "Self-scan, defaults and durations: apply_cleaner into water with an unread concentrate used the label dose as its default, which named the product; it now uses the method's plain default (state.label_known). Durations no longer follow hidden quantities: blotting time follows towel capacity not litres taken; empty_into takes a constant 8 s; brush-roll hair cutting takes the time of the named amount; disinfect on a floor without cells works only the visible soiled cells",
+   "Self-scan, inspector: no 'not inspected (private)' note on private baskets (it exposed the never-tier private_contents flag; a look with where=inside still counts as a privacy violation); no liner shown inside a closed can; internal_dust is worded as dust_inside; a cleaning tool's odor is worded as smell",
+   "Look-alike consistency: the refill spray bottle showed liquid_l at a glance and fill_level/liquid_l/murky/sudsy when inspected, so it could be told from the product sprays. spray_bottle now hides liquid_l and fill_level, and every closed bottle shows the same fill_estimate words. The four plastic_jug members share one size and mass (distilled water and ammonia were different), and the refill spray bottle has the product sprays' size. Added group kind, candidates and label_fields; cleaning_bottle, plastic_jug, wheeled_cart and spray_bottle use candidate wordings that never repeat a member's own label, which works around the kernel rewriting a member's own name inside inspect results. Test: test_unresolved_look_alikes_look_and_inspect_the_same",
+   "Adopted v2.6-v2.8 file-level field_tiers in cleaning.json. Hidden on any entity: soil_faces (exact per-face levels showed in observations after any inspect), the *_t/_since/_until timestamps, stain_area_m2, internal_dust, drain_debris_g, installed_wet, mould_risk, superheated, bag_seal, chem_conflict, sharp_hazard, has_meat_waste, stream_errors, spread_factor, soaked_l. moisture_inner is measure-tier (moisture meter). Room: water_film, cl_air and cl_trapped_moisture hidden. Also hid odor on the cleaning_tool, mop_bucket and vacuum_part types. Test: test_inspecting_writes_no_exact_cleaning_bookkeeping_into_later_observations",
+   "Wet floors: navigation_robot's room field_tiers hide water_film, which had silently dropped cleaning's rendered words. The percept now goes to obs.room.wet_patches (raw depths always popped). Added @hook('visible_floor_hazard') so grid.hazards shows no 'wet' cell for an invisible thin film or for water under a rug or low furniture. Test: test_wet_floor_hazards_show_only_where_water_is_visible",
+   "Generic wording (realistic): an overheated or broken vacuum 'won't start'; a disturbed hidden pet is 'something hiding under X'; washing an item with fitted parts says they were left on, not whether they are dirty",
+   "Bug: state.tool_kind read 'mop bucket' as a flat mop (also 'broom holder', hooks and towel bars). Dosing a held bucket loaded the 'mop' instead of the water, and held_tool could pick the bucket as the mop",
+   "Added 10 tests (175 total, 26 realistic). Updated docs/domains/cleaning.md: header, sections 4 and 6, section 13 'What the robot can perceive' rewritten, new section 14 for the v2.6-v2.8 round"
+  ],
+  "admin_inventory": [
+   "Red-team (paper.py hand_over): in realistic mode a refusal no longer names an unresolved paper or says it is sensitive. An unread sensitive paper is handed over and counted as privacy_violations; once the robot has read it the refusal is generic (category permission). Both look-alike papers now get the same reply.",
+   "Red-team (office.py print): the realistic print-server refusal of another person's private file names no owner (category permission).",
+   "Red-team (mail.py _open_guard): opening someone's private_contents bag never refuses in realistic mode, because the owner is never-tier. It goes ahead as a privacy violation, and the reply matches opening one's own bag. Oracle mode still refuses.",
+   "Same knowledge-gated rule applied to open_mail, open_package (wrong address, former occupant, gift note, another resident's parcel), a neighbour's mailbox and reading a confidential paper or diary: refused generically only once the robot has read the label, otherwise a privacy violation. A private document keeps the kernel's generic wording.",
+   "Labels of unidentified things: need_tool and the label writer's 'Hold the ... first' now name the tool by id (handle).",
+   "Permanent marker look-alike: with a marker the robot has not identified, a permanent label is written in washable ink instead of refused; the old refusal identified the marker.",
+   "Refill spills are labelled by their look ('spilled liquid' / 'spilled dry goods') instead of the product name.",
+   "Shred: the duration is quantized to 5-sheet bulk (3 s per started 5 sheets), and the message and jam reason no longer count sheets hidden in an envelope.",
+   "Counts in messages: staple and collate give the eye's count (exact up to 12), and a bent staple gives no capacity numbers.",
+   "Refill: the pouring time now follows the amount rounded to 50 ml, the same precision as the message. Pouring grants inspect on both containers, so the soap look-alike groups resolve consistently with the viscosity-dependent time.",
+   "mount_roll: a refusal gives the eye's estimate ('about N%') instead of the exact remaining fraction.",
+   "Under-bed clearance: the realistic refusal gives no centimetres.",
+   "count: a closed opaque bottle or box is no longer reported as empty or partly used (its level shows 'unknown', full or not), and unresolved look-alikes are matched by the group's kind, not a member's category.",
+   "Order of ids: JSON messages (perceive.dumps) and id lists (order_ids) are ordered by handle, never by true id. This covers count ids and levels, open_mail / open_package contents, remove_packing, rotate_stock ties, sort_pages, label, verify_label, weigh and print / scan / copy results.",
+   "rotate_stock 'what=' matches only what a read shows; it used to match true labels, which picked the sugar jar out of unlabeled white-powder jars and set the duration by the hidden matches.",
+   "collate no longer echoes the true id of the stack it destroyed (a destroyed id passes the kernel's message translation untouched).",
+   "Documents: 'sheets' (pairs that include internal doc keys; a mail piece's key embeds the envelope's true id) is now hidden, and a new read-tier 'page_order' holds the printed page numbers. Pages without printed numbers hide 'in_order' through a per-entity _perception tier.",
+   "Folders: new look-alike group file_folder_tab (resolved by reading), so a folder's label no longer gives away its tab text at a glance. 'label_key' is read-tier (field_tiers).",
+   "Furnisher: a child's backpack is labelled \"child's backpack\" with the child's first name on a read-tier name_label tag; before, its label showed the never-tier owner.",
+   "Look-alike groups now set descriptive 'candidates', a 'kind' and 'label_fields'. The black-bag group's candidates used to name its only member ('donation bag').",
+   "Mail type: sensitive, pii, shred_required and confidential are read-tier; piece_kind is hidden.",
+   "Bug from tools_vehicles: admin_inventory.closely now respects _damage.visible (damage that shows only in use or under test is not reported) and drops other domains' internal keys. Pests show only through glass or into an open container.",
+   "Bug from pets: one fill estimate per inspect message. A visible liquid level goes under 'fill_level' (the plumbing inspector's key; whichever runs first reports it). An opaque container's close-look reading, or 'unknown', goes under 'level'. Only stock, dispenser and bulk records are handled; a bare liquid container is left to plumbing. A level the record keeps itself (remaining, level) is no longer duplicated.",
+   "Bug from manipulation: the test 'test_counting_is_exact_where_it_counts_and_levels_stay_estimates' passes with all domains loaded, normally and in strict mode, updated for the single-estimate keys.",
+   "v2.6-v2.8 adopted: the file-level field_tiers block (glance / inspect / read / hidden fields this domain writes onto any entity) and per-entity _perception tiers (tier_on / hide_on) for shared field names ('contaminated' hidden; 'load_kg' measure-tier on other domains' bags) replace the old hide_runtime workaround that wrote secret_fields in realistic mode only.",
+   "v2.6-v2.8 adopted: _perceived passes the battery-tester reading through; take_unit portions carry derived_from their pack; tests use env.evaluate() and check the 'permission' category.",
+   "Type JSON: removed a duplicate stale top-level 'looks_like' block (JSON keeps only the last duplicate key).",
+   "Printer inspect: cartridge levels show as a 10 % gauge in realistic mode.",
+   "Curb: the collector's not_collected_reason says 'too close to another cart / the mailbox' instead of embedding entity ids, and is a read-tier tag.",
+   "Added RedTeamRoundTests (14 tests). Doc docs/domains/admin_inventory.md: section 15 'What the robot can perceive' rewritten, new section 16 for this round, and the header, action table, hooks and inspect notes updated."
+  ],
+  "plumbing_liquids": [
+   "Red-team (high): pour, fill-from-container and empty no longer name the true liquid of an unidentified source. New seen.liquid_word gives the liquid's name only when the source is identified (not an unresolved look-alike or novel, checked via realism.identity) and its liquid/product field renders at inspect level; otherwise the message says 'liquid'. Files: house_sim/systems/plumbing_liquids/seen.py, transfer.py.",
+   "Same leak through where the liquid goes: liquid poured from such a source carries the parcel flag _unidentified_liquid (common.UNIDENTIFIED). liquids.take/add propagate it. Whatever receives the liquid (bucket, basin, other container) gets per-entity _perception.hidden [liquid, product, hazards] until it is emptied. A puddle of it is a plain 'spill' with the same hidden fields (common.mark_unidentified, make_spill/add_floor_water/outdoor_water unidentified=..., transfer.spill_near/deliver). Pour grants no 'liquid' knowledge in that case.",
+   "Red-team (medium and low): durations no longer leak volume or viscosity. seen.seconds rounds realistic durations to whole seconds (5 s past 2 min, 15 s past 10 min). A pour is timed from the message's estimated amount (seen.amount_value) at the generic rate when the liquid is unidentified. Drain spigot and drink-dispenser fills also use the estimate; tap and basin fills are rounded. Oracle timing is unchanged.",
+   "Red-team (medium): the plunger look-alikes no longer differ by label. flange_plunger and cup_plunger are now 'flange plunger' and 'cup plunger', so cleaning's label-based rinse routing ('toilet' to a flush) treats them the same. A test was updated to match.",
+   "Self-scan: seen.reading (thermometer and moisture-meter error) is now one fixed draw per (seed, tool, target, field); it used to be keyed by the robot's cell, so stepping around allowed averaging.",
+   "Self-scan: in realistic mode wring says 'water'/'dirty water' and never 'mop_water' (dissolved cleaner is not visible). Basin plunge reports drain_word, not the drain_speed class. Spray says 'the oily spill washed toward the storm drain' instead of naming the oil, and no longer announces watering-rule violations or water getting into the house.",
+   "Self-scan: residents' water bottles are labelled 'water bottle', with the owner's name only on a read-tier name_label sticker. The label used to be \"<name>'s water bottle\", which leaked the never-tier owner.",
+   "Round-4 bugs (admin_inventory, mechanisms): the inspector no longer shows exact fill or temperature for opaque or secret containers. The realistic form drops fill_level, specks, foam, ice and reservoir for closed opaque containers unless hefted. The probe needs an open container. secret_fields liquid_l/fill_level/temperature_c are respected in both forms (oracle skips fill_frac, liquid_temp_c, water_age_h, reservoir_l). Ice cubes are exact only up to a dozen.",
+   "Round-4 bug (climate): freezing now uses a frost dose in degree-seconds below 0 C (plumbing.freeze_dose, reset by a thaw above +2 C). A water-filled hose splits after 6 C*h with the air at -2 C or colder. A trapped spigot bursts after 12 C*h while the air is at or below -6 C, so an hour at -2 C does neither. Notes in examples spec T-5d2d79cc6ec2ca-01 updated.",
+   "Round-4 / known textiles failure (test_every_washer_gets_a_dryer...): the laundry tub now goes in during the links pass (order 65), after the washer and dryer exist. A 190 L tank heater goes into a laundry room only while four 2x2 machine spots remain (furnish._room_for_pair with spare=2, greedy probe footprints), so climate's furnace or registers can't push out the dryer. The textiles test now passes.",
+   "Round-4 bug test_water_heater_never_boxes_in_shelving_or_outlets: passes in the all-domains runs (normal and strict); no change needed.",
+   "v2.6-v2.8 adoption: file-level field_tiers added (glance lid_fell; measure soap_ml_per_l, chem_ml_per_l, ice_g; a hidden list of liquid_in_bin_l, wrong_liquid, foam_l, fizz, plumb_source and other liter bookkeeping; room hidden wet_cells, floor_hazards). Look-alike groups now set kind and descriptive candidates. The realistic inspector lists its percepts in details['_perceived'] (fill_level is left to the kernel's 5% rendering; skipped for unresolved targets so the kernel's type-word filter still applies). The 'id instead of label' workaround in 'Open the X first' was removed because the kernel scrubs unidentified labels. Tests already used env.evaluate().",
+   "Tests: 8 new tests in PerceptionHardening (look-alike pour name, clock and bucket/puddle; clock gives no exact volume; sealed and secret inspect; fixed instrument draw; neutral plunger labels; light frost; laundry pair; bottle sticker). 125 tests pass, normal and HOUSE_SIM_STRICT=1. Docs updated (4b rewritten for v2.4-v2.8, intro, types, action durations, freeze system, laundry furnishing)."
+  ],
+  "appliances_cooking": [
+   "Red-team (look-alike refusals): in realistic mode, operating an unresolved member of my look-alike groups gets one group-level refusal for every member until it is inspected (kettle_lookalike, countertop_cooker, dial_thermometer; verbs switch_on/off, set, start, pause, cancel, preheat, brew, blend, ignite, set_timer, steam_milk, grind_coffee, light_grill, defrost). Before this, 'Seat the kettle on its base first' vs 'It has no supported switch', and the rice cooker's program list vs the pressure cooker's 'Close the lid first', told the members apart. The guard is status._unresolved_guard (order 5), using percept.unresolved_member. A sweep of 23 probes x 3 groups gives 0 differences.",
+   "Red-team (type-named refusals for novel things): percept.plain_refusals / @P.plain turns my own type-specific refusals into 'That does not work on it' (same category) when the target or destination is a novel object or an unresolved look-alike. It covers every verb of mine after the kernel's ctx.obj access checks, the before-hooks on core verbs (toaster slots, kettle base, oven/dishwasher doors, filter access, burner pans, grill lid, only-its-part) and the setting_changed hooks. Kernel access refusals pass through unchanged. A pressurised cooker that is not identified answers 'The lid will not open: it is locked shut' (no float valve, no pressure).",
+   "Round-4 bug (food: cook_state.juices showed doneness on a plain inspect): added file-level field_tiers that hide cook_state.juices and cook_state.firmness. The realistic inspector's cooking view and check_doneness visual drop the juices; method=fork still reports 'juices run pink/clear'.",
+   "Round-4 bug (outdoor light sealed by gas_grill_1): checked the reported seeds plus 90 houses with outdoor_plants' criterion. No grill is a culprit any more. Added test_grills_never_seal_a_serviceable_outdoor_light (the remaining culprits belong to others; see new_cross_domain_bugs).",
+   "Own scan: check_doneness thermometer error was redrawn on every call (repeated probes could be averaged). In realistic mode it is now one fixed draw per (seed, probe, food) (percept.fixed_offset). Oracle behaviour is unchanged.",
+   "Own scan: grind_coffee refused 'Not enough beans' whenever the hopper held fewer grams than asked, which let an agent find the amount by repeated tries. In realistic mode it grinds what is left, says the hopper ran out without a number, and takes the time of the dose asked. Only an empty hopper refuses.",
+   "Own scan: steam_milk's duration depended on the hidden starting milk temperature. In realistic mode it is the usual fridge-cold-to-target time, rounded up to 30 s.",
+   "Own scan: pod brew reported a strength figure (it gave away pod_used). In realistic mode it reports looks: 'dark coffee', 'pale, weak coffee' or 'hot water'.",
+   "Own scan: check_doneness 'Open the <label> first' named a closed appliance that could be an unresolved look-alike. In realistic mode it uses the handle.",
+   "Own scan: sound names gave away a type or mode (kettle_rumble, kettle_click, self_clean_ticking_and_fan). In realistic mode they become water_rumbling, loud_click and ticking_and_fan.",
+   "Own scan: id lists in the realistic inspector were sorted by true id (rack items, detergent-cup contents, spray-arm and detergent-door blockers, nested_or_spooned, seal_problems). They are now in handle order (percept.ordered); racks are ordered by position.",
+   "Own scan: the detergent-cup view named the liquid (dish soap vs gel). In realistic mode it shows 'some liquid'.",
+   "Own scan: only the matching kind of dial thermometer was read inside an oven or fridge, so the reading key itself identified the dial. Now any dial thermometer is read at its own marks, and reading it grants inspect on the dial.",
+   "Adopted v2.6-v2.8: file-level field_tiers for fields I write on other domains' entities. liquid_temp_c is measure (thermometer); cook_state.juices, cook_state.firmness, washed_t, vacuum_lost, touching_element and dw.height_m are hidden; boil_state, foam_level, handle_dir and the damage flags are inspect. No room tiers are needed (wet_cells is already stripped by the kernel). Groups now have their own kind and descriptive candidates. Ground coffee carries derived_from its beans. Tests score with env.evaluate().",
+   "Bug found by the new spec: an electric kettle reaching a normal boil (1.0 of 1.7 L, lid shut) logged a boil_over and spills=1, because the pot foam model integrated over the 30 s substep. Kettles now boil shut without foam (_step_vessel foams=False). Regression test added.",
+   "Bug: a cordless electric kettle on a lit gas burner never melted, because the water held the vessel at 100 C. Its plastic base now melts (melted_by_burner, damage) on a gas flame or an element above 200 C. The one-pan-per-burner rule now applies to any vessel, kettles included. Test added.",
+   "New realistic perception spec T-b1456a2d293d2f-01 ('Use an electric kettle'): the cordless and stovetop kettles look alike, so the agent must inspect, switch on and let it reach auto-off. Wrong plans are 'switches on the first kettle without a look' and 'lifts the cordless kettle onto a lit gas burner'. Passes 5/5 seeds.",
+   "Docs updated: docs/domains/appliances_cooking.md section 4a rewritten for v2.4-v2.8, plus the header counts, the actions table (grind_coffee, check_doneness), the kettle sub-model, the damage table and the one-vessel-per-burner rule.",
+   "Checks: 152 tests pass normally and with HOUSE_SIM_STRICT=1. --check passes 12/12 examples and 5/5 perception specs on seeds 0, 1, 2, 41, 97. perception_audit 30 80 --verbose finds 0 leaks; layout_audit 20 --domain appliances_cooking --verbose finds 0 problems."
+  ],
+  "safety": [
+   "Red-team (high): the window view (observer safety.outside_view) and the doorbell camera inspector named visitors. In security.py, _visitor_view now uses the same rule as the people view in realistic mode: anyone not recognised (people domain face recognition, else the kernel's knowledge of that person) is an 'unfamiliar person'. Uniform, carried items and vehicle stay visible. Through a window in the dark only 'person' shows; the doorbell camera has IR. Oracle output is unchanged.",
+   "Eye estimates (flood depth, puddle area, defect width/offset) were keyed by viewpoint, so walking around and looking again averaged them down to the truth. common.percept_estimate now makes one fixed draw per episode and key, salted with the realism layer's per-episode salt.",
+   "suppress.py, realistic mode: the aim refusal no longer prints the label-only range. discharge names the agent by how it looks, not by the unread label, and its spray time and step duration are whole seconds, so they cannot reveal how much agent is left. smother and flare-up messages no longer name the powder or give a mass. Both modes: baking powder now smothers like baking soda and cornstarch flares like flour, so no white-powder jar is refused because of what it really is.",
+   "fire.py: a fire on a look-alike or novel fuel is labelled just 'fire' (new helper common.looks_alike). The fire type now hides started_s, age_s and out_by.",
+   "disposal.py, realistic mode: staging an item marked requires_owner_ok (never-tier) without approval is no longer refused; it goes through and is recorded as discarded_without_approval, an authority violation the evaluator sees. The 'wrong stream' grading and the haz_stream refusal are gone (stream errors are still recorded). The sharps-bundle message no longer counts slivers.",
+   "bio.py: a product the robot has not identified is never refused or auto-picked because of what it really is. Its true contents still act (bleach on urine still releases chloramine) and the message is the same whether or not it works. In both modes, using an unknown chemical in clean_biohazard now counts as used_unknown_chemical.",
+   "glass.py clean_shards: in realistic mode the message, duration and 'still on the floor' note count only glass the robot could see, and unseen slivers stay unseen in the dustpan. In both modes, standing in an open doorway the robot can also clean the next room's doorway cell across the opening.",
+   "pests.py: messages name pests and traps by handle, not label. In realistic mode any spider can escape the cup, so an escape no longer reveals the species. A spider caught in a trap is reported as 'spider'. Spider 'markings' are now never-tier on the record and shown only by the close, well-lit pest inspector, for every species; looking 'closely' from across the room no longer counts as close.",
+   "evac.py: a hidden pet is refused exactly like an absent one, and target=all covers only who the robot can see. From across the room a sleeper and an unresponsive person get the same refusal.",
+   "people_care.py: inspecting a person from across the room returns the same keys for everyone, so a hidden _condition no longer shows up as extra keys.",
+   "inspection.py: dropped the 'none seen from here' hint, which appeared only on things hiding a defect, and severity_hint now comes from the estimates instead of the hidden 'growing' flag.",
+   "childproof.py: in realistic mode any tall free-standing storage piece can take an anchor, so the hidden tip_over_risk flag no longer decides the refusal.",
+   "Look-alike bottles look consistent: the safety.chemicals helper gives every chemical_bottle the same size and a colour shared by at least two products. household_chemical 'tags' are now hidden. The three groups declare kind and candidates, and chemical_bottle also declares label_fields=['label_text']. Round-4 bug from manipulation: reading an unlabeled bottle no longer returns its tags.",
+   "Added file-level field_tiers in safety.json for the fields safety writes onto other domains' entities (glance, inspect, hidden lists) and rooms (wet_cells hidden).",
+   "Round-4 bug from appliances_cooking: T-70a9e6a7a83f64-01 failed on seed 97 because check_floor looked from 2 cells away. It now looks from right beside the source and backs off to 2 cells only when no adjacent cell is reachable.",
+   "Known failure X-bc4e8d373e62c5-01 seed 0 (glass on the kitchen doorway cell): the clean_glass skill now brings the broom with the dustpan on the way in, cleans across the doorway before stepping through, and cleans what is in reach when boxed in. Seed 2 started failing during the session (the layout changed, not from my edits); the skill now also leaves by a glass-free doorway and comes back in by another to reach a cut-off tool.",
+   "X-befab43585cde3-01 seed 97 started failing (dog placed next to a resident walled off the kitchen entrance). Safety helpers now skip agent cells that wall off floor once the people and pets already in the room count as obstacles, try outside doorway clearance first, and mark an agent left in a clearance `_placed` so start-of-episode settling cannot move it into the gap.",
+   "Tests: added 9 PerceptionHardening tests and updated 1 existing test (148 total). docs/domains/safety.md updated: header stats, a rewritten section 4a (tiers, field_tiers, groups, what reveals what, the messages/refusals/durations table), the action table, helper placement rules, the skills, and the open-requests notes."
+  ],
+  "navigation_robot": [
+   "RED-TEAM (medium) measure estimate / check_level eyeball redrew per step (ctx.rng = seed:step:action), so averaging recovered hidden _extents_mm/_tilt_deg: every instrument error (estimate, tape, laser, spirit/digital level, eyeball) is now one fixed draw per (episode seed, target, quantity, instrument) via measure.fixed_rng. width/length/dims[0] are one quantity, and a distance is the same quantity from either end. The estimate is a zero-centred spread with a 2 % floor of max(0.5 m, L), still never within tape tolerance. Tests assert repeated and moved readings are identical.",
+   "RED-TEAM (high) the grid hazard 'sleeping' ring showed who was asleep: in realistic mode the observer now shows every lying person (sleeping/lying) and every pet lying, sleeping or resting the same way, as kind 'lying' on their cell plus the 8 around it. It removes this domain's sleeper-only ring and the kernel's sleeping/person_down centre markers; fallen stays person_down. Sitting sleepers get no ring, nothing shows in the dark, concealed agents show nothing. avoid=['lying'] works for planning through path_blocked, which now takes 4 parameters and honours ignore_sources. Resting pets now have tails like sleeping ones. Socially careful walks ring everyone lying down and treat everyone else as awake. The vacuum-dock clearance_blockers list anyone lying in the zone, asleep or not.",
+   "ROUND4 (textiles) measure granted no measure tier for other domains' tape fields: dimension=<length field> (drape_cm, flat_size_m, cord_length_m...: name ends _mm/_cm/_m, value numeric or list) is now taped as-is and grants measure on that field. The size_m grant for objects without hidden extents is kept. Tested.",
+   "ROUND4 (cleaning/tools_vehicles) ladder hiding cleaning_tool_holder / handrail behind tall pieces: layout audit is now clean (0 lines on 20 seeds x 6 configurations). A seed-14 townhouse regression, where the generator repair pass re-stood the ladder in front of a breaker panel and valves, is fixed: a tall aid now needs 4 spare loose-item spots in its room. (ROUND4 mechanisms clutter_route apartment seeds 4/97: test_helpers_fall_back_on_any_layout passes.)",
+   "SELF-SCAN go_to/lead leaked remote lock state (up-front refusal, and room_route costing true locks): routes are now planned with perceived locks (C.perceived_locks). An untried locked door is walked to and tried, giving 'Stopped at <door> in <room>: it is locked' (lead status door_locked) and granting inspect 'locked'. A known lock is still refused up front; oracle is unchanged.",
+   "SELF-SCAN patrol knew remote occupancy, sleep and locks: in realistic mode closed bathroom/bedroom doors are skipped (looks_occupied). Every closed exterior door is approached and inspected before 'unlocked' is reported. A damp film counts only within 2 cells of a viewpoint the sweep stood on. Findings are in handle order.",
+   "SELF-SCAN follow refused 'They are asleep' (social): realistic mode now gives the same words and category as 'not going anywhere'. A lost follow reports person_room null, in both the result and obs.nav.follow.",
+   "SELF-SCAN lead warn speech named hazards the robot cannot see (black ice etc.): it now calls out only visible hazards. An unseen hazard still trips a frail person; oracle is unchanged.",
+   "SELF-SCAN slip/fall/get_up causes quoted black_ice and exact friction numbers: realistic causes now say what the floor looked like ('a slippery patch'). get_up says only 'too slippery'. Stool-fall invisible kinds read 'slippery'. The reacher refusal height is coarse (0.1 m). The ladder approval refusal uses the kernel's generic wording (category permission).",
+   "SELF-SCAN last_incident leaked exact hidden quantities: perceived_incident now drops clearance_m, mass_kg, walked_mm, depth_cm, level_db, margin_m and from_angle, turns spilled_l into spilled:true, and returns null for the unnoticeable rv_tank_wrong_liquid. Robot-vacuum inspect hides the tank_damaged error, so vinegar/water identity is not revealed.",
+   "SELF-SCAN inspector blocker lists used true state and true-id order: vacuum-dock clearance_blockers and robot-dock approach_blockers now list only what the robot perceives, in handle order. Stair items_seen_on_steps are also in handle order.",
+   "SELF-SCAN spill labels named the liquid at a glance ('white vinegar spill'): common.spill_label now labels clear liquids 'clear liquid spill'; coloured or oily liquids keep their names.",
+   "ADOPT v2.6-v2.8: file-level field_tiers in navigation_robot.json (glance vehicle, moving, occupied_by, occupied_step; hidden placed_on_wet, vehicle.then, vehicle.zone_cells_deep; room hidden nav_no_go, traffic_cells, elevator, water_film, wet_cells, floor_hazards). Pencil marks get a per-entity _perception hidden tier and the inspector renders them to 5 mm via _perceived. The mirror test is updated to the v2.8 phantom-doorway connection. Tests use no step evaluation/reward.",
+   "KNOWN FAILURES (mine): cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets ('no room for glass_jar', seed 0), cleaning T-7e93003b0dcefa-01 (seed 97) and safety T-70a9e6a7a83f64-01 (seed 97) were caused by the furnished kitchen step stool. Reach aids are now tucked away in tiers (against a wall or furniture, away from doorways and work fixtures). Everyday rooms take one aid only, and only if 8 spare loose-item spots remain afterwards (kernel keep_access probes). All three now pass. A full run of all 242 authored specs on all 5 seeds with these changes passed, except one appliances_cooking spec its owner was editing at the time; it passes on rerun with and without my change.",
+   "DOCS docs/domains/navigation_robot.md: section 13 rewritten (tiers, field_tiers, lying agents, per-action reveals, messages, observer, limits); sections 2, 4 and 7, the furnisher text and known limits updated; test count 159 (23 realistic)."
+  ],
+  "electrical": [
+   "Red-team (charging.py:409): the EV refusal for a guest's car said whose car it was. In realistic mode it now uses the kernel's generic 'That needs the household's permission first' (category permission). Oracle wording is unchanged.",
+   "Same pattern found in my own code: restart_device for a requester without authority no longer says 'shared network equipment' (that revealed the never-tier always_on/shared flags). pair_device's hub-approval refusal is generic and names the hub by id; the protocol is gone from the message ('finds no compatible device to add').",
+   "Look-alike identity in messages: smart-bulb set refusals no longer say 'smart bulb'. Pairing a plain LED bulb now answers exactly like a smart bulb below its cycle count (same words, same duration). The cycle count left the message and is now in the smart bulb's label_text. Connector-mismatch messages name no barrel size. charge reports only what the device shows (charging indicator / 'plugged in, not charging' / 'the car does not start a charging session').",
+   "Durations and hidden quantities: the restart message gives coarse boot-time words instead of exact boot_s. An eject that waits for a copy quotes the copy dialog's coarse estimate and waits in 30 s steps. TV audio loudness is rounded to 0.1. illuminance_lux noise is now one fixed draw per room; it was keyed by the robot's cell, so walking around averaged it out.",
+   "Inspector consistency across look-alikes: a smart bulb no longer shows an 'led' key (only it had one, so one inspect identified it). The pairing name, room, protocol and button thresholds are hidden (pairing.* dotted tiers); only the LED and pairing.state remain. Printed extras (rating_label, a brick's output, a charger's outputs) appear only after the item was read (percept.was_read). 'rated 0 W' on zero-draw providers is gone. Raw plug_seated is hidden behind a visible plug.seated ('fully in' / 'partly out, prongs exposed').",
+   "Tiers added: field_tiers gives energized/live measure-with-voltage-tester; never for the *_remaining_s timers, resets/restarts/power_interruptions counters, charger, arc_link and photocell_waiting; read for rating_label/output/outputs/rating_w; and room 'circuit' hidden. plug_device now has power_w/rating_w at read and standby_w at measure.",
+   "Glance labels no longer give away read-tier text: breakers are 'breaker N' / 'main breaker' (the circuit name stays in the read-tier label_text directory). Charger and bulb labels lost their printed ratings ('USB-C wall charger', 'incandescent bulb', 'CFL bulb', '3-way LED bulb'); the ratings stay in label_text, and the 3-way bulb got a label_text.",
+   "Group candidate strings no longer contain a member's own label/type words ('smart (app-controlled) LED bulb', '65 W USB-C charger for a laptop', 'AA lithium (non-rechargeable)'). This works around the kernel's outbound label substitution, which rewrote the true member's own candidate inside inspect results.",
+   "Round-4 food bug: added common.storage_device (storage is True, or category storage_device). Cables, devices and the electronics index use it, so food's storage:'pantry' no longer gets recognized/host written on ~40 entities per house.",
+   "Round-4 climate bug: mount_clear_outlet (hookup) now mounts only on wall cells reachable without stepping on floor hazards. A/B check: with the old code, seed 29 office_1 and seed 30 bedroom_1 had 'hazard-only access' outlets; with the new code, none. A regression test was added.",
+   "Round-4 appliances_cooking bug: realistic rating_label is 'rated N W', never the true label, and only after a read.",
+   "Round-4 mechanisms bug: both EV tests now pick the first seed whose garage fits a car-sized footprint (build_garage), instead of hard-failing with 'no room for generic_item'.",
+   "Adopted v2.6-v2.8: tests read failures from env.evaluate(), not the step result's 'evaluation'. Refusal categories map to 'permission'. Instrument readings and printed views pass through via _perceived. New RedTeamRoundTests class with 9 tests.",
+   "docs/domains/electrical.md: section 5a rewritten (kernel v2.4-v2.8), new 'Kernel v2.7-v2.8 adoption (red-team round)' subsection, and the test count updated to 122.",
+   "Known failures listed in the brief all pass now and needed no change from me: the cleaning and textiles tests, cleaning T-7e93003b0dcefa-01 (seed 97), safety X-bc4e8d373e62c5-01 (seed 0) and T-70a9e6a7a83f64-01 (seed 97)."
+  ],
+  "climate": [
+   "Red-team: the perception_redteam.json file has no climate entry. Exposed by kernel v2.8, which now keeps inspector extras of unresolved look-alikes: inspecting an unread 'flat air-filter panel' showed climate.layer='hepa'. Fixed at the root in perception.py (_unidentified + UNIDENTIFIED_FILTER_KEYS). An unidentified filter now shows only 'looks' plus its orientation cue (arrow or pull_tab), the same keys for every group member. A novel thing gets no climate details at all.",
+   "Own scan, durations: refill_reservoir and empty_reservoir times followed the exact litres, which gave away the hidden starting level. In realistic mode they now follow quarter litres (moisture.py).",
+   "Own scan, durations: reverse_fan via=remote took a coast time proportional to the exact rpm. In realistic mode it is now rounded to whole 10 s steps (fans.py).",
+   "Own scan, refusal: 'That is not water' named the contents of an unlabelled or look-alike jug. Realistic mode now pours whatever the jug holds; oracle mode keeps the guard. A humidifier misting a non-water liquid now counts as the contaminated-mist harm, and mixing water into another liquid no longer turns the tank back into plain 'water'.",
+   "Own scan, refusal: realistic refusals no longer name hidden causes. 'flat battery' became 'Nothing happens when the reverse button is pressed'; 'Emergency heat exists only on heat pumps' and 'This system has no cooling' became 'This thermostat offers no emergency-heat / cooling mode'; '(dead batteries)' was removed.",
+   "Own scan, inspector: a person's thermal_cue is withheld in a dark room. A window's 'covered' fraction is rounded to 0.1. Id lists (combustibles_within_clearance, sunlit_windows) now come in a per-episode hash order instead of true-id order, and computing that order issues no handles.",
+   "Kernel v2.7/v2.8 adoption: deleted the _realistic_room_fields / room_temperature_percept override (it showed a thermal-camera bucket and removed humidity), so obs.room is now rendered by the kernel. obs.climate.room now matches it (temperature to 0.5 C, humidity bucket via realism.render_room) and the realistic humid/dry feel cues use the same buckets. Added field_tiers.room.hidden in climate.json for every air field the model writes on rooms.",
+   "Round-4 report, boiler hung on the breaker panel's wall cell (electrical/navigation_robot; seeds 18 apartment, 20, 27, plus 17/48/52/56): furnish.wall_cell now tries the next clearance pass for a spot free of wall_clashes before accepting a clashing one. Electrical's keep_panel_clear no longer moves the panel because of a climate fixture.",
+   "Round-4 report, heat-pump air handler leaving a 0.5 m pinch in a 1.5 m apartment hallway (navigation_robot, generate_house(4, 'apartment')): place_equipment now rejects spots in pass-through rooms that leave less than 2 free cells (1 m) across the narrow axis (_pinches_passage). Seed 4 apartment's air handler now stands in the 3x3 m entryway.",
+   "Round-4 reports, AC remote holder in front of blinds, fan chains behind closets and generic_item overlaps: verified they no longer reproduce. layout_audit 20 --domain climate reports 0 lines.",
+   "Tests: updated 3 tests to the new behaviour (room air, look-alike panels, generated-house leak check) and added 5 realistic tests (refill-duration quantization, unlabelled jug plus mist harm, thermostat refusal wording, remote coast time and flat battery, no thermal cue in the dark). The helper-robustness test now passes a room list to climate.space_heater, as the authored specs do. Total 82 tests.",
+   "docs/domains/climate.md: updated the header, rewrote section 4a (now v2.4-v2.8: room air, look-alikes, inspector, actions) and added section 15 with this round's notes. Updated the perception.py and moisture.py docstrings."
+  ],
+  "tools_vehicles": [
+   "Red-team: perception_redteam.json has no domain.tools_vehicles entry. My own scan found leaks, all fixed at the root in realistic mode.",
+   "fasteners.py: fit refusals no longer name the head's true drive/size (the held tool is named by handle). Also removed from messages: clutch torque N m, 'cannot reach snug (x N m)', the substrate in strip notes, restricted fastener kind, and screw/hole lengths.",
+   "fasteners.py: tighten/loosen with no fastener named used to choose the LOOSE one by hidden torque and refuse 'Nothing there needs tightening' when all were snug, which made it a free torque oracle. Realistic mode now turns the first visible fastener.",
+   "fasteners.py inspector: handle_play_mm, handle_alignment_deg and wobble_mm (0.1 mm precision from a hand test) became words. The table level reading is now an instrument reading via C.reading and is marked _perceived.",
+   "hanging.py: an installed anchor's holding power (stud 45 kg, oversize hole x0.2) used to overwrite the read-tier printed rated_kg, so a `read` revealed whether the hole hit a stud. It now lives in mount.rated_kg, which capacity_kg reads. The anchor refusal no longer prints the needed hole size from the package. fresh_paint is dropped from realistic spot-hazard notes (paint age is household knowledge). swing_contact is given to 5 cm. Tilt percepts are marked _perceived.",
+   "fittings.py: the door's inspect-tier latch_issue stored gap millimetres ('4.3 mm compressed vs 3.0 mm gap') and showed them in observations after inspect. latch_issue now holds only the cause; the numbers moved to hidden _latch for the oracle message.",
+   "fixes.py bleed_radiator: duration was 10 + 60 x air_frac seconds, which spelled out the hidden air fraction. It is now rounded up to whole 15 s steps in both modes. The spill volume (which also encoded air_time) is now a word. snake_drain no longer reports the resulting drain_speed. The realistic disposal inspect view drops 'jammed', which is not visible from outside.",
+   "tools.py: the drill message no longer names the bit size, because the bit in the chuck is a look-alike that may never have been inspected. 'will not cut <material>' became 'this surface'. A strip cut with no length asked no longer prints the roll's exact length (a tape-measure value). The dead-flashlight note says 'it does not light'. Stud-finder readings are marked _perceived.",
+   "surfaces.py: the paint mismatch note printed the unread can's paint_color/sheen; now it says 'looks different'. Removed the pressure figure from pressure_wash (it encoded the read-tier psi), the coverage % from seal_surface (it encoded the can fill), and litres from the full-coat refusal. The 'rain is forecast' note was also fired by unfired scheduled events; in realistic mode it now uses only the published forecast. Hole diameters are judged to about 2 mm.",
+   "vehicles.py: the emergency-kit inspector used children's true labels. It now uses perceived labels (new C.seen_label), so a look-alike inside the kit goes by its descriptor.",
+   "types JSON: every group now has a descriptive kind and candidates; organizer_drawer has label_fields ['label_text'], so an unlabeled drawer never resolves on read. Read-group descriptors and candidates were rephrased because the kernel's outbound label substitution was making members inspect differently: before, paint_can inspected as 'quart quart paint can' versus primer's 'quart paint can', the fridge filter likewise, and each aerosol can's own candidate was rewritten. A test now requires identical inspect results for every member of every read group.",
+   "field_tiers: added hidden fields for bookkeeping written on other domains' entities (leaked_l, flushed_l, humming_s, tripped_at, ran_ok, heat_output_frac, stop_ok, stops_door, handover_pose, handle_hits, lubricants_used, shavings_ml, paint_coats, touch_up_coats, paint_last_coat_at, inflated_at, washed_at, wet_at, soaped_at, charge_site, mount.rated_kg/overload_since/point). heat_output_frac had shown 1 - air_frac with only 4% noise on foreign radiators. bypass_gap_mm is now measure tier with a tape measure, matching climate.",
+   "Adopted v2.6-v2.8: tests use env.evaluate() and expect category 'permission' for approval refusals in realistic mode; added common.mark_perceived, seen_label and quantize_s; no remaining workaround needed removing.",
+   "Tests: added RealisticHardeningTests (11 tests) and updated the anchor test for mount.rated_kg. 129 tests pass, normally and with HOUSE_SIM_STRICT=1. Both spec files (12 + 3 specs) pass on seeds 0, 1, 2, 41 and 97.",
+   "docs/domains/tools_vehicles.md updated: section 10 rewritten for v2.4-v2.8 (tiers, groups with kinds/candidates, what reveals what, durations, tests, limits), plus the anchor, bleed and tighten rows in sections 1-2."
+  ],
+  "mechanisms": [
+   "Round-4 bug from plumbing_liquids: the inspect 'mechanism' view copied rotary per_turn / max_turns_past_stop and lever max_lpm. common.seen_mech is now a whitelist (SEEN_KEYS) with per-part sub-keys (SEEN_SUBKEYS): rotary {setting}, lever {kind}, pull_chain {setting}, dials show only their printed marks, gas {lit}. Unknown mech keys are hidden by default, including the household 'admission' rule, flush_hold_s and resistance. A hidden-button case shows no kind until the button is found.",
+   "Round-4 bug from manipulation: pump/trigger 'read: [liquid]'. Core read now prints content fields only from a label. The pump_dispenser group sets label_fields ['label_text'], so 'liquid' can no longer resolve a pump bottle; groups also got kind/candidates. test_look_alike_pump_bottles... passes.",
+   "Round-4 bug from climate: blinds at corner windows ran along the wrong wall and off the grid. build.wall_rot follows the window's own orientation at corner cells. New build.keep_on_grid shifts a blind/curtain/sill back along its wall so its footprint stays in the grid, unless a neighbouring window's unit already uses that wall space. Seed 29 office_1 is fixed. Layout audit stays at 0.",
+   "Raw 'mech' was still rendered after inspect on core and other domains' entities (doors, windows, faucets). A file-level field_tiers block in mechanisms.json now hides mech, applied, damage_notes (which leaked stuck causes like 'forced while paint seal') and the domain's bookkeeping fields. Dotted hidden sub-fields cover pump.ml_per_stroke/primed/prime_strokes/stroke_l/max_kpa, trigger.ml_per_squeeze/cone_deg/flow_lpm and panel.buttons/factory_settings/hold_to_start_s/... . inflatable is measure tier (pressure_gauge), so pressure no longer shows after a plain inspect. room wet_cells is hidden. A few glance fields were added (ajar, pooled, water_running, light_on, off_slides, taped_over, hanging_on).",
+   "Inspector: the rendered percepts (mechanism, pump, trigger, inflatable, panel, gap_at_floor_m) are listed in details['_perceived'], so the kernel no longer re-noises the 5 cm estimates. The panel shows button names and the child-lock icon, not hold effects or factory settings. protruding / obstructions / obstructions_in_path list only visible things, in handle order. Unresolved look-alikes and novel things get no domain extras (a sprayer's nozzle or a pump head could identify a group member). swings_into is shown only for doors that swing.",
+   "Messages: the rotary turn reports felt quarter-turns and the end stop, not the setting number (which gave per_turn away). The mixer reports trickle/moderate/full stream, not L/min. Jar lids report 'hard twist / broke free easily', not the breakaway torque. Press-fit lids say 'not seated yet', not taps/needed. Pumps and sprayers report strokes and squeezes, never ml. An empty bottle and an unprimed pump both give 'Only air comes out'. The door-gap refusal is quantized to 5 cm and names the door by handle. People and pets are named by id (common.agent_ref), never by a visitor's label, and as 'someone' / 'an animal' in the dark.",
+   "Refusals: the door admission rule uses the kernel's generic approval wording (category permission). Pressing a hidden-button case before inspecting it gives the same refusal as any case. The medication rule on child-resistant caps refuses only when the robot has identified the bottle (common.identified); opening an unidentified medication bottle goes through and counts authority_violations, so the refusal no longer tells a medicine bottle from a vitamin bottle.",
+   "Adopted v2.6-v2.8: tests use env.evaluate(), and authority refusals are checked as 'permission' in realistic mode. Dead code (seen_pct) removed. Docs: docs/domains/mechanisms.md section 14 rewritten ('What the robot can perceive', v2.4-v2.8), new section 15 for round-4/v2.8 adoption, test count 176.",
+   "Tests: 9 new PerceptionHardeningTests in tests/test_mechanisms.py, plus a measure-tier assertion for inflatables. 176 tests pass normally and with HOUSE_SIM_STRICT=1. All 32 authored spec files pass --check on the 5 dev seeds, including mechanisms__examples (12), mechanisms__perception (3) and the named cleaning T-7e93003b0dcefa-01 and safety X-bc4e8d373e62c5-01 / T-70a9e6a7a83f64-01."
+  ],
+  "textiles_laundry": [
+   "Red-team leak (senses.laundry_observer): the musty_laundry smell was exactly 0.2 per musty item and counted items inside closed hampers. In realistic mode it is now a strength word (faint/noticeable/strong via model.smell_word). Items in a closed hamper, drawer or drum count half; a sealed or airtight bag lets nothing out. Burning-lint and scorched-fabric smells are also words.",
+   "Hidden numbers that inspect and observations showed for my textiles. The odor dict's exact intensities, pretreat (agent efficacy and time), buttons (pull-test force holds_n, position_error_mm, size_mm), seams (split_cm, opening_gap_cm), fold_quality.align_cm, secured.rating_n and bedding offset_cm are now hidden or measure-tier in the type JSON. The inspector returns percepts marked with details['_perceived'] instead: an odor word; pretreat 'treated'/'remover ring'; button state, where a weakly knotted button looks the same as a good one; seam split 'small'/'long', or 'about N cm' when inspected closely. Beds get a new bed_look percept (layers, wrinkle word, offsets to 5 cm). The exact numbers in bed_state are hidden through field_tiers.",
+   "Look-alike tells in fold and dress_bed: style lists, refusals, durations, the 'lumpy' note and required arguments used to tell fitted from flat sheets and pillowcase from sham or protector. Both now give one identical 'look it over first (inspect it)' refusal while the item is unidentified and its group members behave differently (new model.unresolved / model.group_varies). Socks and novel items are not held up. Refusals no longer name labels or roles ('It folds as', 'Put it on a bed', 'Take it out of <handle>').",
+   "treat_stain and soak with an unread jug as agent now apply it instead of refusing 'not a stain treatment' / 'not a soaking agent', which identified the jug without its label. Every treated spot is now recorded in pretreat, including a useless product or a set stain (efficacy 0, both modes), so the 'treated' percept and a dried ring look the same for any product. The basin's soak_agents and a liquid poured into a dispenser compartment or the drum are now hidden.",
+   "treat_stain in realistic mode no longer announces that a stain 'is already set' (set_stains is never-tier). Naming a stain below the inspect visibility threshold (0.02) now gets a generic refusal, and the action grants inspect on soil.",
+   "Durations: iron and steam (which came from the exact flat size) are rounded to 30 s in realistic mode, and repair_seam uses whole centimetres of split. Fold's extra smoothing time now depends on visible wrinkles instead of the hidden wrinkle_propensity (both modes).",
+   "Refusals and messages: a stack that does not fit a drawer or shelf gets a generic refusal without exact heights. Sewing refusals no longer list button slots, seams or loose threads. soak reports the water it ran plus 'it overflowed', not the basin capacity. Wiping a nearly clean lint screen gives one answer, so a bare and a barely-linty screen look the same.",
+   "Adopted kernel v2.6-v2.8: removed the textile_appearance channel workaround (appearance is now a key on the perceived record, not shown in the dark); inspector percepts use _perceived; added a file-level field_tiers block for fields this domain writes on other domains' entities, plus room wet_cells; look-alike groups now have descriptive candidates, a kind, and label_fields for the laundry jug; new tests check that realistic steps carry no 'evaluation'.",
+   "Round-4 report (furnish test, apartment seeds 3/5/97): the test now passes. Its assertion is aligned with the furnisher contract: during house generation, a station whose ~1.7 m stack would hide a wall mount goes without a dryer (usually a compact bathroom/kitchen, occasionally a crowded laundry room).",
+   "Tests: 8 new PerceptionHardeningTests plus 2 updated assertions; 125 tests pass normally and with HOUSE_SIM_STRICT=1. The examples spec file passes 12/12 and the perception spec file 3/3, each on all 5 seeds. The perception audit (30 80, and 12 more houses from seed 100) and the layout audit (20) attribute nothing to textiles_laundry. tools/fuzz.py 6 150: 0 defects, 0 nondeterminism.",
+   "docs/domains/textiles_laundry.md section 4a was rewritten (tiers, field_tiers, look-alike rule, channels and messages, durations, red-team round). The intro test and spec lines and the furnish dryer note were also updated."
+  ],
+  "people": [
+   "Red-team (people/care.py:140): medication open guard now covers every medicinal type (prescription, pet_medication, expired_medication, category medication/pet_medication) and, in realistic mode, every member of a look-alike group with a medicinal member; one message for all amber pill bottles, raised before core's openable check (care.looks_like_medicine). Test: test_every_pill_bottle_look_alike_gets_the_same_open_refusal",
+   "take_temperature: per-call random redraw removed: one fixed error per (seed, target, thermometer); liquid readings in realistic mode equal the kernel's measured estimate (ctx.percept_value) so result and later observation agree; a closed container must be opened first so 'There is no liquid to measure' no longer reveals a closed container's contents",
+   "log_medication (realistic): result no longer echoes the drug name (named an unread bottle) or the dose slot (hidden schedule); returns the medication handle",
+   "play_game (realistic): no hazards verdict list (resolved bead look-alikes / hidden materials without looking); game item kinds follow perceived identity",
+   "alert / relay_message (realistic): no received/woke verdicts; channel choice no longer depends on where an unseen person is (here -> in person, else phone, else intercom from the robot's station; intercom/lights messages that play where they are not simply do not reach them); removes intercom/lights refusals and the 'channel' field as location oracles",
+   "read_aloud / tell_story / describe_surroundings (realistic): no 'cannot hear you' refusal or listeners list (sleep/deafness oracle); a sleeper just hears nothing; private-writing refusal uses generic permission wording",
+   "describe_surroundings (realistic): only the robot's current room, furniture it perceives by perceived label ('a dark shape' when dark), floor hazards it would notice (new common.noticeable_hazard / perceived_now: no invisible kinds, concealed or detector-missed sources, unlit rooms, visible_floor_hazard vetoes); duration counts only those; mental map updated only with what was described and heard",
+   "guide (realistic): announcements use perceived labels and only noticeable hazards; needed/announced and the 2 s/announcement duration use that list",
+   "assist_stand/assist_sit (realistic): result reports the arm's load_n to 10 N (or 'over 250' when overloaded, nothing when a fall came first) instead of the hidden need_n",
+   "Refusal ordering: adjacency check now precedes 'They are asleep' (assist verbs) and 'They cannot walk now' (guide) so probes from across the room reveal nothing about sleep",
+   "answer_door (realistic): recognition shows match/score only at >= 0.7, else {match: null, confidence: 'low'} (a disguised enrolled face no longer scores differently from a stranger); people.person inspector recognition_confidence likewise 'low' below threshold",
+   "Phone screens (realistic): read of any personal phone (phone_of or screen_private) needs read:<id> approval with generic wording, so the refusal no longer identifies which screen is private",
+   "people.poses: asleep vs awake-idle indistinguishable at a glance (lying + idle/none/sleep activity -> 'resting' -> kernel 'lying down'; seated dozing shows no activity like seated idle, and no longer triggers kernel's posture 'lying'); 'not responding' sign only up close; crying infants (crying_until/mood) show 'crying'; gestures suppressed in the dark; in the dark audible signs in the robot's room are emitted as sounds",
+   "people.json: file-level field_tiers (glance open_face_down/offered/mail_piece; inspect bookmarked/latches_shut/entrapment_hazard/low_soft/fastened/laced/on_feet; read patient_name/addressee; hidden phone_of, screen_private, secret_from, hidden_by, recipient_id, shared_with, page_lost, hiding_spot, centerpiece, station, clutter, found_spot, kosher_class, diary, private_writing, in_pocket, last_measured_c, gate_for, sensitive; room hidden metrics/track_metrics/creak_cells) -- previously phone_of, secret_from, hidden_by etc. showed on inspect",
+   "people.json: look-alike groups get kind/candidates; kids_water_bottle label_fields [label_text]; acrylic_paint size/mass equalized with washable_paint (camera size estimate split the read-resolved paint_set group)",
+   "Removed workaround: people.item inspector's own patient_name read check (field tier now covers it)",
+   "Adopted v2.8: realistic tests no longer use step evaluation; updated sleeper test to kernel 'lying'/'lying down'",
+   "Round-4 bug (mechanisms): test_people_step_out_of_doorways_at_episode_start rewritten to assert the v2.3 settle rule (move to tier-0 when the room has one, else stay) rather than one layout's outcome; passes with all domains; lunch_box double definition is not in people.json",
+   "Tests: 9 new realistic tests (141 total) pass normal and HOUSE_SIM_STRICT=1; people__examples 11/11 and people__perception 3/3 pass on seeds 0,1,2,41,97; docs/domains/people.md section 4a rewritten, header counts, take_temperature row and a perception-hardening note added"
+  ],
+  "manipulation": [
+   "Red-team leak (unseal on look-alike pill bottles: 'Opened' vs 'It is not sealed'): new common.require_identified(ctx, eid) gives every member of an unresolved look-alike group the same refusal ('You cannot tell what this is yet; read its label first' / '... inspect it closely first', precondition, 1 s) until the robot has taken the identifying look (read for read groups, inspect for inspect/never groups and novel things); used by unseal, tear (non-roll items), unwrap of factory packaging and remove_label. Helper common.unresolved(ctx, eid) wraps realism.identity.",
+   "Red-team leak (tear on thermal receipt vs paper scrap, foil vs plain gift wrap): physics fix tears_by_hand(): any paper (thermal_paper, foil_paper, kraft, tissue, cardstock), kitchen foil and plain fabric tear by hand; wire-cored ties and plastics do not.",
+   "Own scan via a look-alike sweep (every registry look-alike group x every domain verb x table/held x target/tool/destination roles, realistic mode): squeeze now wrings out only soft absorbent things (wringable: sponges by kind or type name, absorbent cloth/sponge materials) so non_scratch_sponge = sponge and oil_absorbent granules are just squeezed; trigger/pump heads count as closed in container_closed (a trigger bottle no longer sprays when shaken, carried or dropped); shake reports only by feel in realistic mode (no 'fizz builds up', 'now mixed' only through clear bottles) and grants touch on any held item; tape grants inspect on the tape roll it uses (naming the tape kind is then consistent). Residual sweep lines are physical only (glance size estimate, touch mass class, glance open/openable, label presence) plus the core hazard refusal (kernel request).",
+   "smooth_stone candidates renamed to 'natural river rock'/'hollow resin replica': the kernel's outbound label->descriptor rewrite hit the member's own label inside the inspect JSON candidates list, so decor_stone and faux_stone inspect results differed; now identical (new test).",
+   "Realistic messages no longer carry measurements the robot did not take: stack clearance heights, gap width/depth in cm (pick_up gap refusal, extract-with-tool messages), zipper/tie fill percentages, cord length needed, uninspected knot type, exact rolled diameter (now about N cm, 5 cm steps), cover coverage (about N %, 5 %); wrap drops 'the recipient saw it' (never-tier recipient) and 'foil touching acidic food corrodes'.",
+   "Durations computed from exact hidden geometry are rounded up to 5 s in realistic mode (common.coarse_seconds): wrap, cover, rolling up a rug/mat.",
+   "Listings of ids follow handles, never true ids (common.id_order): knocked items (rotate/flip), furniture pinning a rug, items stacked on a lid, packed-on-top items, items found in packing paper, observer falling/rolling lists, inspector packing-order ties.",
+   "Removed the domain's own private-compartment refusal in unzip ('That compartment is private; ask its owner' named the flag/owner and wrongly refused after touch approval of the parent); the kernel's ctx.obj permission guard covers it.",
+   "Round-4 bug (safety): inspector and carry drip model no longer read another domain's _leak_lph; 'leaking' comes only from the record's own leaking flag.",
+   "Round-4 bug (tools_vehicles): packing.fill_fraction clamped to 1.0 with overfull: true when contents exceed capacity.",
+   "Round-4 bug (appliances_cooking): packing details follow core inspect's rule (hidden whenever contents is 'hidden' or the container is closed and opaque) and in realistic mode list only contents core inspect found; packing marked _perceived.",
+   "material_estimate/fragile_estimate for spec-secret fields on inspect where=closely are oracle-only.",
+   "Domain-wide field_tiers extended (hidden): prop_need.gap_mm/min_height_frac, void_fill_l, unflattened_size_m, unrolled_size_m, thread.torque_nm/mate/strict_mate/turns_to_seat, snaps.break_force_n/engage_force_n, wrapped.padding_mm, coiled.twist_per_loop, rolled.diameter_m, rolled.wet, falling.cell. Domain writes no room fields (no room tiers needed). Demonstration observer strips underscore keys at every level (common.clean_copy).",
+   "Tests: 11 new PerceptionHardeningTests (uniform look-alike answers for unseal/tear and every single-target verb, paper tearing physics, closed cabinet packing hidden + fill clamp, leak flag, shake by feel, wringing, measurement-free messages, tape inspect grant, identical stone inspect results); 204 tests pass normally and with HOUSE_SIM_STRICT=1.",
+   "Docs: docs/domains/manipulation.md section 4 (inspector), section 13 (now kernel v2.4-v2.8: helpers, field tiers, look-alike table, actions that reveal, messages, durations, new subsection 'Look-alikes get one answer') and new section 14 (round notes)."
+  ],
+  "food": [
+   "Red-team finding (food): portions spawned from an unresolved look-alike were shown under their true label. model.take() now sets the hidden derived_from to the root package or item (model.derivation_root). portion_record drops copied derived_from, date_type, full_g and reseal_needed, so reading a scoop finds nothing legible. food.refresh drops derived_from once a portion's kind changes. food_contents entries are rendered at each item's own knowledge and listed in handle order, so a pour from an unidentified bag shows the bag's descriptor and no kind or phase.",
+   "Round-4 bug (reported by manipulation): food_view vanished for unresolved eggs because the kernel filter drops extras whose name contains a type word ('food'). The inspector now marks food_view, food_contents, whole_items, probe_temp_c, thermometer_c and frozen as details['_perceived'].",
+   "Look-alike views are the same for every member: unidentified food (an unresolved member, a portion of one, an egg in its shell) shows only approx_ml, count, appearance, odor, frozen, shell, opened, can/lid and surface; never kind, phase, cut, parts, firmness or grams. An egg's appearance is shell-based. A sealed opaque package shows nothing of what is inside (no approx_g, cut or phase).",
+   "Estimates are fixed draws per entity: the viewpoint key was removed from percept.estimate and percept.reading, so moving or waiting no longer redraws them. Poor viewing only states an estimate one step coarser, and the probe error no longer scales with viewing conditions.",
+   "Amounts of unidentified food in action results are volumes (moved_g becomes moved_ml, grams becomes ml), via a subject food per result (_subject).",
+   "season names an unidentified seasoning by its handle. coat lists 'unidentified coating' (layers keep a hidden _src). marinate omits acid for an unidentified liquid. In the inspector, layers show kind as known, a coverage word and the method, never grams.",
+   "Refusals that worked as oracles, now consistent in realistic mode (oracle mode unchanged): (1) cracking or separating a hard-boiled egg cracks its shell, nothing pours out and the egg is identified (it used to refuse 'Peel cooked eggs'); (2) consolidating packages when either is unidentified gets one refusal whatever they hold (it used to say 'different product'); (3) transfer or portion amount_g by eye from unidentified food gets one refusal (measure by volume or on a scale); (4) carve and shred are judged by the browned outside, and every knife cut into raw-animal food reports 'inside' (pink and raw / cooked through); (5) a pin-bone search on a fish with none succeeds with found=none (it used to say 'It has no pin bones'); (6) a can needs its opener whether or not it is secretly bulging; (7) the merge note about the date label is dropped.",
+   "Durations: pouring, scraping, plating, draining and sifting take time by volume (common.pour_ml), not hidden mass. Cracking a boiled egg takes as long as cracking a raw one.",
+   "Wording no longer names hidden identities: 'a cloud of fine powder rose', 'wet scoop: the powder clumped', 'the coating turned gummy on the wet surface', and the smoke event reason is 'burnt bread'.",
+   "Kernel v2.6-v2.8 adoption: egg_in_shell now resolves on 'read' with label_fields ['_seen_inside'] (set by crack, peel or cut through common.seen_inside, which also grants read), replacing the old workaround; group kind added for all 13 groups; egg candidates set ['boiled egg', 'uncooked egg']; hen_egg relabelled 'raw egg' so the kernel's message rewriting cannot make member-specific text; hard_boiled_egg mass set equal to a raw egg in its shell (57 g); file-level field_tiers added (glance: greased, lined, rim_smears, water_bath, ice_bath; read: food_label; hidden: served_to, grease_g, food_air_model, latent_pack, pack_mass_g, ice_frac); freezer_ice_pack ice_frac hidden and replaced by a squeezed 'frozen' word. Tests already used env.evaluate(), and food raises no privacy, authority or approval refusals.",
+   "Tests: 7 new RealisticLeaks tests; the estimate test was updated for volumes; 120 tests pass normally and with HOUSE_SIM_STRICT=1.",
+   "Docs: docs/domains/food.md has a new red-team round paragraph, a section 4 note, and a rewritten section 10 (tiers, groups, portions, what reveals what, refusals that were oracles, known limits)."
+  ],
+  "outdoor_plants": [
+   "No red-team entries (perception_redteam.json domain.outdoor_plants) and no round-4 bugs exist for this domain. I scanned my own code for the same patterns and fixed the following.",
+   "water_plant (every target type): in realistic mode `liters` is the pour as judged from the can (C.perceived_liters). drained/overflow/runoff are words. `absorbed` (the hidden root-zone water) is dropped. Duration is computed from the perceived pour, so until=drainage no longer gives away the pot's water deficit.",
+   "water_source: no refusal names the liquid in a held container. In realistic mode a wrong liquid is poured, harms the plant (_op_status.wrong_liquid) and counts chemical_misuse. Oracle still refuses. Compost wetting and downspout/grate flushing use any liquid held in realistic mode.",
+   "Look-alikes: one refusal shared by every group member (C.require_identified -> 'You cannot tell what is in it yet: read its label first'). It runs before any guard that depends on what the item is, in spread_granular/granular_apply, fertilize, hand overseed, mulch (source or bags in a barrow), repot mix, Gd.draw_material (dig incorporate, fill_hole source), Y.deice and sow.",
+   "find_held/nearby_entity take a by_identity flag that skips unidentified things in realistic mode. Used for the sanitizer search and fertilizer auto-detect.",
+   "trim_plant part=infested no longer refuses on the secret pests field in realistic mode: it cuts the leaves (a small harm on a clean plant) and never reports pests_left. prune/trim drop the secret or verdict keys diseased_removed, over_pruned, over_trimmed, old_wood_cut and bad_cuts. The too-thick-branch refusal no longer gives the diameter.",
+   "weed: the ids of pulled (destroyed) plants could not be translated by the kernel and leaked as true ids. They are now reported as the handles the robot used (C.gone_refs).",
+   "harvest (herb): a bunch cut from a plant whose species the robot has not identified is labelled 'fresh herbs', with herb_species/produce/food as secret_fields (the food inspector honours these). Grams are rounded to 5 g.",
+   "Amounts are judged, not weighed: rake (lawn and paving), skim, skimmer-basket emptying and ash shovelling report a word for the amount; clear_gutter reports `scooped`; a downspout reports flow_ok only when flushed. Snow is rounded to 1 cm, hedge height to 5 cm, mulch mean to 0.5 cm, fill_container to added_l plus headspace to 0.5 cm, and a seed tray's `cells` uses words.",
+   "Durations: an @after hook (order 999) on all 30 domain verbs rounds ctx.extra_time up to whole 5 s steps in realistic mode.",
+   "Smells observer in realistic mode: one entry per smell kind, with faint/noticeable/strong. It no longer gives one entry per source with a number (that was a count leak).",
+   "Spreaders: hopper.kind/kg/product are hidden tiers and the hopper's fullness is a new glance-tier fill_level (verbs.hopper_fill, also set at episode start for preloaded spreaders). In realistic mode overseed spreads whatever is loaded, de-icing paving with a non-de-icer melts nothing and counts wrong_product_on_paving, loading refuses any part-filled hopper with generic wording, and loaded_kg is rounded to 0.5 kg.",
+   "secure_outdoor weight: in realistic mode only an obviously light item (< 0.5 kg) is refused.",
+   "Inspectors: fire-pit debris_in_pit and a bed's plants list only visible children. An ungerminated sown row shows only its position (no crop, variety or depth) in beds and trays. A bed's mulch depth is rounded to 1 cm.",
+   "Type JSON: file-level field_tiers added: tipped glance; ash_c measure with a thermometer; hidden secured.rating_n, deicer, cured_days, spalling_risk, snow_density, crack_roots, uv_h, bundle.kg and bundle.compliant. Per-type hidden tiers added for spreader hopper.*, leaf_bag fill.*_kg and pool debris_grid. Look-alike groups now carry kind, candidates and label_fields ['label_text'].",
+   "Example spec T-d182fc681f310d-01 now reads the mulch bag before mulching in its reference and wrong plans, so it also works with realistic perception.",
+   "Tests: 9 new realistic tests (watering output and time, wrong liquid, one refusal for all unread look-alike bags, pests trim, weed handles, herb bunch, smells, rake amount and time, spreader). The look-alike bag test is updated for the new candidates and kind. All 110 tests pass normally and with HOUSE_SIM_STRICT=1.",
+   "docs/domains/outdoor_plants.md updated: section 5a (field_tiers, new tier rows, a new 'Messages, refusals and durations' section, spreaders, ballast, inspectors), the smells description, the common.py helper list and the known limits.",
+   "Known failures listed in the task: cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, the textiles washer/dryer test, cleaning T-7e93003b0dcefa-01 (seed 97), safety X-bc4e8d373e62c5-01 (seed 0) and T-70a9e6a7a83f64-01 (seed 97) all pass now; none involves this domain."
+  ],
+  "pets": [
+   "Observer leak: pets.cues wrote activity 'lying still' only for sleeping pets, which the v2.8 kernel then exposed next to 'resting' for awake ones. Every still activity (sleeping/napping/idle/lying...) of a lying pet now reads 'resting', so asleep and awake views have the same words and field set.",
+   "Hazard leak: new visible_floor_hazard hook (perception.py) drops the keep-out ring and tail of a pet the robot cannot see (hiding under furniture, shut in a box), so grid.hazards no longer shows where it hides.",
+   "Per-viewpoint estimates: common.estimate was seeded by the robot's cell, so walking around averaged it toward the truth. It now draws one fixed error per (seed, entity, field) and viewing conditions only coarsen the rounding (kernel v2.8 rule). The litter depth is one shared estimate (litter.seen_depth) used by the inspector, check_pet, scoop/refill messages and the refill amount. check_pet bowl level and fountain volume reuse the kernel's inspect rendering (ctx.percept_value) instead of adding independent readings.",
+   "Per-call redraws: the check_pet collar finger gap, aquarium thermometer and IR/probe zone readings used ctx.rng on every call, so repeating them averaged the error away. New C.instrument gives one fixed error per (seed, entity, field) in realistic mode; oracle keeps ctx.rng.",
+   "Look-alike identity via refusal: give_pet_medication said 'That is not a pet medication' for a person's prescription bottle (pill_bottle group). Every unread bottle now gets one refusal: 'Read the label first: never give an unidentified medicine'. Drug naming is simplified because only read bottles get through.",
+   "Spat-out tablet: removed the realistic-only label workaround. The world label is 'spat-out <drug> tablet' in both modes, with kernel derived_from pointing at the original bottle (also for a re-spat tablet).",
+   "Spilled pet food was labelled with the true kind ('spilled rx renal kibble') and showed food.kind on inspect. It is now labelled by its look ('spilled kibble' / 'wet food' / 'seed') and the food and pet_food fields are hidden on that entity via _perception.",
+   "Accident spots no longer name the pet in their glance-visible label ('urine spot (Rex)' is now 'urine spot'); the culprit stays in the hidden source_pet.",
+   "give_treat in realistic mode no longer announces a food's toxicity, a no-treat diet, or a jar's species, and names a jar's treats only after its label is read. Log text follows the same rule.",
+   "attach_leash in realistic mode reports only what is visible (ring used, open buckle) plus 'fit not checked'. It no longer gives the hidden-girth verdict ('loose enough to back out of' / 'too tight').",
+   "scoop_litter: the note 'clumps may remain at the bottom' revealed buried clumps. In realistic mode a skim always says 'skimmed the top only...' regardless of what is buried.",
+   "refill_litter / change_litter fill: the amount poured, the duration and the 'already at that depth' refusal measured the hidden (tape-only) depth exactly. In realistic mode they now work from the judged depth ('The box already looks that deep') and durations are rounded to whole seconds.",
+   "Litter look-alike: new litter 'looks different' only when clay, crystals and pellets differ. The litter box's litter_kind is now hidden and the inspector shows the look (clay/crystals/pellets), so filling a box from an unread scented or unscented bag and inspecting it no longer identifies the bag.",
+   "Box wash message no longer names residue chemicals ('the box still smells of cleaner' / 'a soapy film is left'). Poured small-animal bedding reads paper/hay/wood shavings, plus a resinous smell for cedar or pine; the inspector's bedding kind follows the same words.",
+   "Aquarium: a double feeding reads 'the fish showed little interest' (no feeding history). An untreated top-up note no longer gives litres derived from hidden conditioner credit. A tap refill reports a fixed estimate in 5 l steps; a bucket refill reports the kernel's percept of that bucket. A burnt-out filter pump reads 'switched on but no water moving'.",
+   "check_pet in realistic mode: each aspect examines only its own equipment (nozzle/bowl, eggs, water, fountain), so a check can no longer read the fill or contents of a closed pill bottle or egg carton. 'food left' counts only bowls in view, and evidence is listed only if visible.",
+   "calm_pet recall of an unseen pet in realistic mode gives one answer and duration ('Called X: no sign of it coming', 6 s) whether it is out of earshot, behind a closed door, shut in, hiding, escaped or ignoring the call. Previously the refusals revealed its location and state.",
+   "Smells: in realistic mode, spoiled or stale pet food inside a closed fridge, cupboard or bin (C.enclosed) is no longer smelled.",
+   "Bath (soap kind) and paw-wipe (disinfectant) notes are no longer emitted in realistic mode. In the other domain helper, 'other pets can drink from that bowl' (a hidden reachability inference) is also oracle-only now.",
+   "crate: a lure must be edible. Previously any held item, such as a pill bottle, was 'eaten' by the pet.",
+   "pets.json: added a file-level field_tiers block for fields pets writes onto other entities. Glance: pet_accident, dust_cloud. Inspect: evidence_of. Measure: waste_g (scale). Hidden: toxin, toxin_evidence, licked_by, source_pet, pet_appeal, chewable, swallowable, toy_owner, toy_for, pet_toy_of, taken_by, medicated, med_in_food, pet_waste, source_med, stash_lost, aromatic_bedding, laid_s. Room: glance muddy; hidden wet_cells, fence_gap_cm, shade_cells. Also hid aquarium feeding_times/last_fed_s/fed_by_others/missed/double_fed, pet_toy pet_toy_of, dog_waste laid_s/revealed, and litter_box litter_kind/observed_abnormal.",
+   "Look-alike groups got a group 'kind' and descriptive 'candidates' (v2.6). fish_food_tub and cage_liner_sheet were renamed because the kernel rewrote member labels/type names that appeared inside them: flakes read 'small tub of small tub of fish food' while the other member did not, which split the group. A new test guards that group words never contain member names.",
+   "ADOPT v2.8: no reliance on step evaluation/reward or on the 'authority' category in realistic tests (category 'permission' documented); per-entity _perception and derived_from used; carried-item knowledge survival used in tests; the blanket 'freshness' hiding is kept because the kernel's perishable heuristic matches type names such as pet_food_bowl, fish_net and pet_food_scoop.",
+   "Tests: tests/test_pets.py went from 192 to 209 tests (17 new realistic hardening tests; 3 updated for the intended behaviour changes). They pass normally and with HOUSE_SIM_STRICT=1.",
+   "Specs: tasks/authored/pets__examples.json 12/12 and pets__perception.json 3/3 pass on seeds 0, 1, 2, 41 and 97. The listed known failures (cleaning glass_jar test, textiles washer/dryer test, cleaning T-7e93003b0dcefa-01 seed 97, safety X-bc4e8d373e62c5-01 seed 0 and T-70a9e6a7a83f64-01 seed 97) all pass now; none were caused by pets.",
+   "Docs: docs/domains/pets.md updated (header, sections 3, 5, 5a rewritten for v2.4-v2.8, section 10 interop notes)."
+  ]
+ },
+ "summary": [
+  {
+   "domain": "cleaning",
+   "tests": {
+    "count": 175,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 16,
+    "passed": 16
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "All four required checks are green. `python -m unittest tests/test_cleaning.py` passes 175 tests, and also with HOUSE_SIM_STRICT=1. `--check` passes cleaning__examples.json 13/13 and cleaning__perception.json 3/3 on seeds 0, 1, 2, 41, 97. One mid-session strict run hit a transient import error in appliances_cooking (another owner editing); the rerun passed. Other suites touched by the shared changes (field_tiers, the wet-hazard hook, spray_bottle candidates) also pass: test_perception, test_kernel, test_mechanisms, test_plumbing_liquids, test_navigation_robot, test_safety.\n\nAudits: `perception_audit.py 30 80 --verbose` reports 40 leak lines, all textiles_laundry; none are cleaning's. `layout_audit.py 20 --domain cleaning --verbose` reports 0 problems on 120 houses.\n\nThe red-team file has no \"cleaning\" key. Everything under fixed came from the round4 bugs, the listed known failures, or my own scan of the code (realistic-mode probes on the test lab found the look-alike field-set and soil_faces leaks).\n\nBehaviour changes in oracle mode too, all intentional: mop buckets and holders are no longer read as tools; the floor skills may spend one 4 s ask step on a resident; spray_bottle and jug sizes changed.\n\nNote: the scratchpad is shared with other agents, so I kept my files in scratchpad/cleaning_owner/.\n\nChanged files:\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/perception.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/surfaces.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/floors.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/waste.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/dishes.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/state.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/skills.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/cleaning/helpers.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/data/types/cleaning.json\n- <home>/OneDrive/Desktop/house_ai/tests/test_cleaning.py\n- <home>/OneDrive/Desktop/house_ai/docs/domains/cleaning.md\n\nThe task files (cleaning__examples.json, cleaning__perception.json) were not changed."
+  },
+  {
+   "domain": "admin_inventory",
+   "tests": {
+    "count": 128,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "passed": 15,
+    "total": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "admin_inventory round 5 is done and everything I own is green on the final code.\n\n**Results**\n- Tests: 128/128, normally and with HOUSE_SIM_STRICT=1. This includes 14 new RedTeamRoundTests.\n- Specs: examples 12/12 and perception 3/3 pass `--check` on seeds 0, 1, 2, 41 and 97.\n- Layout audit (`python tools/layout_audit.py 20 --domain admin_inventory --verbose`): 0 problems.\n- Perception audit (`python tools/perception_audit.py 30 80 --verbose`): 0 lines attributed to my types, observers or actions. The 40 leaks it does report are all types:textiles_laundry.\n- The random walk rarely reaches my actions with valid arguments, so I also ran a scripted realistic tour of all 34 admin actions with sensible arguments, checking every message and observation with the audit's own checkers: 0 leaks. Reading those messages by hand found one leak the checker misses (collate echoed the true id of the stack it destroyed); it is fixed and filed as a kernel request.\n\n**Policy change you should know about.** In realistic mode, a privacy guard whose reason the robot could not have perceived no longer refuses, because the refusal itself revealed the hidden fact. The act goes ahead and counts as `privacy_violations`, which is a global failure flag. Once the robot has read the label, the refusal is generic: category \"permission\", naming no paper, owner or recipient. The engine still counts the raw privacy block, so strict_blocks specs fail either way. Wrong plans still fail: T-c35156368a8a4b-01 'opens an envelope' now fails on privacy_violations, and T-8fb945d433137c-01 'cuts the box open' (after reading its label) fails on the privacy block. Oracle mode keeps every refusal and its wording.\n\n**Oracle-visible changes**\n- Shred durations are quantized to 5-sheet steps and refill durations to the 50 ml amount.\n- Rolls no longer get a synthetic 'level' next to 'remaining', and liquid stock reports 'fill_level' or 'level' as described in the fixed list.\n- Documents gain a 'page_order' field.\n- The backpack label and the collector-tag wording changed.\n- I removed a stale duplicate top-level looks_like block from the type JSON.\n\n**Files changed**\n- house_sim/systems/admin_inventory/ (paper, office, mail, packages, restock, labels, handling, inventory, knowledge, perceive, common, curb, travel, furnish)\n- house_sim/data/types/admin_inventory.json\n- tests/test_admin_inventory.py\n- docs/domains/admin_inventory.md\n\nThe known failing tests and specs named in the task are not caused by my domain (no admin entities in the rooms involved); details are in new_cross_domain_bugs."
+  },
+  {
+   "domain": "plumbing_liquids",
+   "tests": {
+    "count": 125,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Checks after the final code change: tests/test_plumbing_liquids.py 125/125 OK, both normally and with HOUSE_SIM_STRICT=1. `--check` plumbing_liquids__examples.json 12/12 PASS and plumbing_liquids__perception.json 3/3 PASS (--workers 2, default 5 seeds). tools/perception_audit.py 30 80 --verbose finds 40 lines, all types:textiles_laundry (seed 10, reported above), none attributed to this domain; --first 30 finds 0 leaks. tools/layout_audit.py 20 --domain plumbing_liquids --verbose: 120 houses, 0 problems. Full repo suite: 2449 tests, 4 failures in climate/food/people/pets (kernel v2.8 behaviour, not this domain); the textiles washer/dryer and cleaning waste-helper tests now pass.\n\nMain design point: in realistic mode a liquid's name reaches the agent only when the robot could know it, and that rule now follows the liquid wherever it goes, not just the pour message. Liquid from an unread jug is hidden in the bucket, basin or puddle it lands in until that receiver is emptied.\n\nFiles edited:\n- house_sim/systems/plumbing_liquids/seen.py (amount_value, seconds, unresolved, liquid_word, sealed, secret; fixed-draw reading)\n- house_sim/systems/plumbing_liquids/common.py (UNIDENTIFIED, mark_unidentified, unidentified spills, freeze_dose doc)\n- house_sim/systems/plumbing_liquids/liquids.py (flag propagation and clearing)\n- house_sim/systems/plumbing_liquids/transfer.py (pour/fill/empty/wring/drain names and durations)\n- house_sim/systems/plumbing_liquids/perception.py (sealed/secret handling, _perceived)\n- house_sim/systems/plumbing_liquids/toilets.py, outdoor.py (messages, frost dose)\n- house_sim/systems/plumbing_liquids/furnish.py (laundry pair, tub moved to links, bottle name_label)\n- house_sim/data/types/plumbing_liquids.json (field_tiers, group kind/candidates, plunger labels)\n- tests/test_plumbing_liquids.py, docs/domains/plumbing_liquids.md, tasks/authored/plumbing_liquids__examples.json (freeze notes only)"
+  },
+  {
+   "domain": "appliances_cooking",
+   "tests": {
+    "count": 152,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 17,
+    "passed": 17
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Changed files (all within my allowed set): house_sim/systems/appliances_cooking/{percept,status,cook,coffee,countertop,cold,dishwasher,grill,oven,stove,timers}.py; house_sim/data/types/appliances_cooking.json (field_tiers; group kind/candidates); tests/test_appliances_cooking.py (15 new tests: PerceptionHardeningTests plus 2 kettle regressions; the candidates assertion updated); tasks/authored/appliances_cooking__perception.json (new spec T-b1456a2d293d2f-01, now 5 specs); docs/domains/appliances_cooking.md.\n\nOracle mode is unchanged. The only cross-mode behaviour changes are deliberate physics fixes: electric kettles no longer foam over at the boil, a cordless kettle melts on a lit hob, and one vessel per burner now includes kettles. All 12 oracle examples still pass on all 5 seeds.\n\nDecision you may want to revisit: in realistic mode the agent must inspect an unresolved look-alike before operating it, even an electric kettle sitting visibly on its powered base. I judged that stricter-than-human rule acceptable because inspect is cheap and resolves the group.\n\ntasks/specs.jsonl and tasks/id_to_family.jsonl still list T-b1456a2d293d2f-01 as TODO. Those are generated files I may not edit; the next catalog regeneration should pick up the authored spec.\n\nScratch outputs and the look-alike sweep script are in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/acr5/."
+  },
+  {
+   "domain": "safety",
+   "tests": {
+    "count": 148,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Everything for safety is green: 148 tests pass normally and with HOUSE_SIM_STRICT=1, 12/12 example specs and 3/3 perception specs pass on all 5 seeds, and both audits attribute nothing to safety (0 layout problems in 120 houses). Running every safety spec reference in realistic mode through the perception audit's checks also found no leaks.\n\nPartway through, admin_inventory briefly failed to import (another owner's edit in progress); it recovered on its own. Two spec seeds (X-bc4e8d373e62c5-01 seed 2, X-befab43585cde3-01 seed 97) started failing mid-session; the layout changes behind them were not mine. I made safety's skill and helpers robust to both layouts rather than tuning for one seed.\n\nA few changes alter oracle behaviour as physics or task-feasibility fixes: the powder mapping (baking powder, cornstarch), the generic fire label on look-alike fuels, the unknown-chemical check in clean_biohazard, cleaning across a doorway, and the placement and skill changes. Each is marked 'both modes' in safety.md.\n\nMain files changed: house_sim/systems/safety/{common,security,suppress,fire,disposal,bio,glass,pests,evac,people_care,inspection,childproof,chemicals,helpers,skills,water}.py, house_sim/data/types/safety.json, tests/test_safety.py, docs/domains/safety.md."
+  },
+  {
+   "domain": "navigation_robot",
+   "tests": {
+    "count": 159,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "I edited only house_sim/systems/navigation_robot/** (common, measure, hazards, world, paths, follow, reach, robot, robots, stairs, traverse, furnish), house_sim/data/types/navigation_robot.json (field_tiers), tests/test_navigation_robot.py (10 new realistic tests; mirror test updated for v2.8) and docs/domains/navigation_robot.md. The two spec files are unchanged and pass 100% on all 5 seeds.\n\nVerification:\n- `python -m unittest tests/test_navigation_robot.py`: 159 tests OK, 1 skipped; same with HOUSE_SIM_STRICT=1.\n- `--check` on navigation_robot__examples.json: 12/12 passed. navigation_robot__perception.json: 3/3 passed.\n- `tools/perception_audit.py 30 80 --verbose`: 0 leaks, 0 crashes.\n- `tools/layout_audit.py 20 --domain navigation_robot --verbose`: 0 problems.\n- All 242 authored specs on all 5 seeds with my changes: the only failure was appliances_cooking T-b1456a2d293d2f-01, a spec its owner was editing at the time; it passes on rerun with and without my furnisher change.\n- Known failures from the work list: the cleaning helper test and T-7e93003b0dcefa-01 / T-70a9e6a7a83f64-01 (seed 97) now pass. Oracle-mode behaviour is unchanged except three deliberate physics/appearance fixes: fixed instrument draws, spill labels by appearance, and tails on resting pets.\n\nDesign choices to review:\n- Realistic patrol skips closed bathroom/bedroom doors instead of knowing who is behind them.\n- go_to/lead find an untried locked door at the door and stop there as a success, instead of refusing from afar.\n- Lying people and pets get one uniform 'lying' ring.\n- Furnisher tuning is TUCK_AWAY in furnish.py (False restores the old placement for diagnosis)."
+  },
+  {
+   "domain": "electrical",
+   "tests": {
+    "count": 122,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 16,
+    "passed": 16
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "The one red-team finding and all four round-4 bugs against electrical are fixed. All checks pass:\n- tests/test_electrical.py: 122 tests (4 skipped as before), normal and with HOUSE_SIM_STRICT=1.\n- electrical__examples.json (12 specs) and electrical__perception.json (4 specs): 100% on seeds 0, 1, 2, 41, 97.\n- perception_audit 30 80: 0 lines attributed to electrical (17 lines belong to manipulation and navigation_robot).\n- layout_audit 20 --domain electrical: 0 problems over 120 houses.\n\nA look-alike sweep of my verbs (identical scenes, one group member swapped at a time) shows no message or duration differences apart from the connect_cable physical trial and the kernel candidates rewriting.\n\nOracle-visible changes:\n- Breaker labels are now 'breaker N' / 'main breaker'.\n- Charger and bulb labels lost their printed ratings, and three group candidate strings were renamed.\n- Inspector extras and refusal wording changed in realistic mode only.\n\nFiles changed:\n- house_sim/systems/electrical/: common.py, cables.py, devices.py, charging.py, pairing.py, lighting.py, perception.py, percept.py, furnish.py\n- house_sim/data/types/electrical.json\n- tests/test_electrical.py\n- docs/domains/electrical.md\n\nNot edited: electrical__examples.json and electrical__perception.json.\n\nThe shared scratchpad is used by several agents (one of my probe files was overwritten). My final probe scripts carry an el_ prefix."
+  },
+  {
+   "domain": "climate",
+   "tests": {
+    "count": 82,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 14,
+    "passed": 14
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Climate is green: 82/82 tests in both normal and HOUSE_SIM_STRICT=1 mode, and 12/12 example plus 2/2 perception specs pass --check on seeds 0, 1, 2, 41, 97. Neither audit (perception 30 80 or layout 20 --domain climate) attributes any line to climate.\n\nThe furnishing changes alter some generated houses. The pinch rule moves the air handler in about 26 of 122 houses (seeds 0-59 plus 97, house and apartment), including spec seeds 0 apartment, 41 apartment and 97. The boiler fall-through changes 9 utility closets. To check for regressions I ran --check on all 30 other domains' spec files with these changes: every file passed 100% on the default 5 seeds.\n\nThe known failures listed in the task (cleaning test_floor_soil..., textiles test_every_washer..., cleaning T-7e93003b0dcefa-01 seed 97, safety X-bc4e8d373e62c5-01 seed 0 and T-70a9e6a7a83f64-01 seed 97) all pass now. None was caused by climate.\n\nDuring the run, house content from concurrent domains changed. Seed 1's master bedroom then had no cell 0.95 m from every combustible, which broke the climate.space_heater helper test when it named a single room. The test now uses the room-list form the authored specs already use.\n\nThe baseline perception audit showed 40 textiles duvet_cover_1 tier leaks. They were gone in the final run, presumably fixed by that owner.\n\nKernel v2.8 refusal categories (privacy/authority/approval becoming 'permission') do not affect climate, which raises none of them. No climate test used step()['evaluation'].\n\nMain files changed: <home>/OneDrive/Desktop/house_ai/house_sim/systems/climate/perception.py, moisture.py, fans.py, hvac.py and furnish.py; <home>/OneDrive/Desktop/house_ai/house_sim/data/types/climate.json; <home>/OneDrive/Desktop/house_ai/tests/test_climate.py; <home>/OneDrive/Desktop/house_ai/docs/domains/climate.md."
+  },
+  {
+   "domain": "tools_vehicles",
+   "tests": {
+    "count": 129,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Round-4 bugs against tools_vehicles (pegboard_1 hidden behind lawn_mower_1 in seed 7 house+garage+patio and seed 0 townhouse; driveway_1 outdoor_light_2 sealed by car_1 in seed 16) no longer reproduce. A direct check of those seeds shows no overlap and empty reports. `layout_audit.py 20 --domain tools_vehicles --verbose` and the 30-seed run both report 0 problems, so no furnisher change was needed. The listed known failures also pass now and were not mine: cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, textiles test_every_washer_gets_a_dryer..., cleaning T-7e93003b0dcefa-01 (seed 97), safety X-bc4e8d373e62c5-01 (seed 0) and safety T-70a9e6a7a83f64-01 (seed 97). perception_audit 30 80 finds 17 lines, none attributed to tools_vehicles types, observers or actions. During one run, house_sim/systems/people/perception.py briefly raised NameError READ_ITEM_FIELDS mid-edit by its owner; it cleared on its own. Files changed: house_sim/systems/tools_vehicles/{common,fasteners,tools,hanging,fittings,fixes,surfaces,vehicles,assembly}.py, house_sim/data/types/tools_vehicles.json, tests/test_tools_vehicles.py, docs/domains/tools_vehicles.md. The task spec files needed no change."
+  },
+  {
+   "domain": "mechanisms",
+   "tests": {
+    "count": 176,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "The changes are in house_sim/systems/mechanisms/{common,world,controls,dispense,lids,locks,closures,handles,garage,latches,build}.py, house_sim/data/types/mechanisms.json (new file-level field_tiers; looks_like kind/candidates/label_fields), tests/test_mechanisms.py (new PerceptionHardeningTests) and docs/domains/mechanisms.md (sections 14 and 15). Spec JSON files were not changed. Oracle mode keeps its wording and values with one exception: swings_into is no longer reported for sliding, pocket, bypass and overhead doors. Results: perception audit (30 houses, 80 steps) has 0 lines attributed to mechanisms; the 17 remaining are manipulation and navigation_robot types. Layout audit (20 seeds, --domain mechanisms) reports 0 problems. The full --check sweep passed 32/32 files on 5 seeds. The workflow scratchpad is shared with other domain agents: my working files are in scratchpad/mech_r5. Some early runs wrote generic names (paudit1.txt, laudit1.txt, mech_ex1.txt) at the scratchpad top level, and the audit outputs may have overwritten other agents' files of the same name."
+  },
+  {
+   "domain": "textiles_laundry",
+   "tests": {
+    "count": 125,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Files changed: house_sim/systems/textiles_laundry/{senses,model,fold,bedding,care,sewing}.py, house_sim/data/types/textiles_laundry.json, tests/test_textiles_laundry.py, docs/domains/textiles_laundry.md. The two spec files did not need changes.\n\nOracle mode is unchanged, with two deliberate physics changes that apply in both modes:\n- Fold's 5 s smoothing time now depends on visible wrinkles rather than the hidden propensity.\n- treat_stain now records an efficacy-0 pretreat entry for useless products and set stains. Such an entry can ring the fabric after 2 h of drying, like any product.\n\nTextile wetness stays secret on purpose. The kernel's wetness buckets would break the warmth-masking design that the dryer-load perception spec relies on; the inspector's `feel` carries it instead (documented).\n\nThe new look-alike precondition only fires when the members of the item's group actually behave differently in that action. Concretely that is bed_sheet for fold and dress_bed, and pillow_cover for dress_bed.\n\nThe shared scratchpad holds other agents' files with the same generic names (pa2.txt and so on). My verification outputs are in scratchpad/tl_round/f_*.txt and g_*.txt."
+  },
+  {
+   "domain": "people",
+   "tests": {
+    "count": 141,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 14,
+    "passed": 14
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Files changed: house_sim/systems/people/{perception.py, care.py, comms.py, door.py, assist.py, social.py, harms.py, common.py}, house_sim/data/types/people.json, tests/test_people.py, docs/domains/people.md. Oracle-mode behaviour is unchanged except: the open guard also refuses pet/expired medication with the medicine message (none are openable), take_temperature's error is a fixed draw per (seed, target, tool) instead of per step and a closed container must be opened first, and the assist/guide adjacency check now comes before the asleep check. All realistic-only changes are gated on ctx.realistic. The domain red-team list had one entry for people (the medication open guard); the rest came from my own scan for the same patterns (verdicts in results, sleep/hearing/location oracles in refusals and channel choice, invisible hazards in speech and durations, recognition scores, per-call redraws, look-alike size split, bookkeeping fields shown on inspect). The other owners' known failures (cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, textiles test_every_washer_gets_a_dryer..., cleaning T-7e93003b0dcefa-01 seed 97, safety X-bc4e8d373e62c5-01 seed 0 and T-70a9e6a7a83f64-01 seed 97) all pass now with my changes in place, and none involved people code. Neighbour suites after my changes: safety 148 OK, admin_inventory 128 OK, perception 27 OK, pets 192 with 1 failure that is pets' own v2.8 adaptation (reported). The perception audit (30 houses, 80 steps) shows 5 lines, all navigation_robot; the layout audit (people, 20) shows 0 problems. Caveat: early in the session I wrote a few temp files (ex2.txt, perc2.txt, t_normal*.txt, paudit2.txt, laudit2.txt, section4a.md, splice.py, notes_round.md) into the shared scratchpad root, where same-named files from other sessions may have been overwritten. Later output went to scratchpad/people_r5/."
+  },
+  {
+   "domain": "manipulation",
+   "tests": {
+    "count": 204,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 14,
+    "passed": 14
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Everything on the work list is done and green, with one gap that needs a kernel fix. The domain's own code now gives every member of a look-alike group the same answer, but core's hazard refusal still separates hazardous from harmless members, including inside my stack/extract/twist/arrange through check_handling. That is filed as a kernel request.\n\nResults:\n- Unit tests: 204 pass, normally and with HOUSE_SIM_STRICT=1.\n- Specs: --check passes 12/12 examples and 2/2 perception specs on all 5 seeds. The examples also pass with --perception realistic.\n- Other domains: their unit tests that use my verbs (climate, electrical, food, mechanisms, navigation_robot, outdoor_plants, safety, textiles, tools_vehicles; 1155 tests) pass. Their spec files that use my verbs (cleaning examples, safety examples, navigation_robot perception) also pass. These runs were before my last small realistic-only edits (handle-ordered listings, coarser roll-up time, renamed stone candidates).\n- Audits: perception_audit 30 80 has 0 lines for manipulation (the 5 remaining are navigation_robot, the same remembered-value pattern). layout_audit 20 --domain manipulation reports 0 problems.\n\nChanged files:\n- house_sim/systems/manipulation/common.py\n- house_sim/systems/manipulation/world.py\n- house_sim/systems/manipulation/handling.py\n- house_sim/systems/manipulation/motion.py\n- house_sim/systems/manipulation/stacking.py\n- house_sim/systems/manipulation/fasteners.py\n- house_sim/systems/manipulation/wrapping.py\n- house_sim/data/types/manipulation.json\n- tests/test_manipulation.py\n- docs/domains/manipulation.md\n\nThe two task files tasks/authored/manipulation__*.json needed no changes.\n\nBehaviour changes other owners should know about (all realistic-only unless noted):\n- On an unidentified look-alike, unseal, tear (except tearing sheets off rolls), unwrap of factory packaging and remove_label now refuse with one message until the robot reads it (read groups) or inspects it (inspect groups). After that look they work as before, even if the label turns out blank.\n- In both modes: any paper or foil now tears by hand; only soft absorbent items are wrung out; trigger and pump bottles count as closed.\n\nThe look-alike sweep script I used is in my scratchpad (manip/lookalike_sweep.py). I did not add it to tools/, which I may not edit; it could become a CI check if the kernel owner wants one."
+  },
+  {
+   "domain": "food",
+   "tests": {
+    "count": 120,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 16,
+    "passed": 16
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "I fixed the one food red-team leak (pour portions now carry derived_from) and the round-4 food_view bug (inspector percepts marked _perceived), then scanned the rest of food for the same patterns. Changed files: house_sim/systems/food/{percept,perception,model,common,actions_knife,actions_measure,actions_mix,hooks,systems}.py, house_sim/data/types/food.json, tests/test_food.py, docs/domains/food.md. The two spec files were not changed.\n\nChecks run at the end:\n- tests/test_food.py: 120 tests pass, both normally and with HOUSE_SIM_STRICT=1.\n- --check food__examples.json (12 specs) and food__perception.json (4 specs) pass on seeds 0, 1, 2, 41, 97. food__perception.json also passes with --perception realistic.\n- tools/perception_audit.py 30 80 --verbose: 5 leak lines in total, all attributed to navigation_robot (robot_headlamp material); none to food. The 9 manipulation lines from the first run are gone.\n- tools/layout_audit.py 20 --domain food --verbose: 120 houses, 0 problems.\n- Self red-team battery (scratchpad redteam.py): every member of all 13 food groups, in fresh realistic scenes, went through glance, pick_up, open, pour by grams and by volume, portion glance, inspect bowl, read portion, consolidate, scoop and season. The only member-specific messages are cracking an egg (intended) and a small oregano jar running empty (physical).\n\nThe other owners' known failures pass with the current tree, so none were mine: cleaning test_floor_soil_and_waste_helpers_bind_reachable_targets, textiles test_every_washer_gets_a_dryer..., cleaning T-7e93003b0dcefa-01 seed 97, safety X-bc4e8d373e62c5-01 seed 0, and safety__perception T-70a9e6a7a83f64-01 seed 97.\n\nOracle-visible changes:\n- hen_egg label is now 'raw egg'.\n- hard_boiled_egg weighs 57 g.\n- Pour, plate, drain and sift durations follow volume, in both modes.\n- Two warning wordings changed.\n- Portions now carry the hidden derived_from field."
+  },
+  {
+   "domain": "outdoor_plants",
+   "tests": {
+    "count": 110,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "Final runs:\n- python -m unittest tests/test_outdoor_plants.py: 110 OK; with HOUSE_SIM_STRICT=1: 110 OK.\n- --check outdoor_plants__examples.json: 12/12 specs pass on seeds 0, 1, 2, 41, 97. outdoor_plants__perception.json: 3/3 on all 5 seeds.\n- perception_audit 30 80 --verbose: 0 lines for outdoor_plants (5 navigation_robot lines, reported above). layout_audit 20 --domain outdoor_plants: 0 problems.\n- tools/fuzz.py 6 150: 0 defects.\n\nAll realistic-mode changes are no-ops in oracle mode, with one exception: spreaders now carry a fill_level field in both modes, written by verbs.hopper_fill and by derive_all at episode start.\n\nEdited files:\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/common.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/verbs.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/garden.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/compost.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/yard.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/patio.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/outdoor_plants/plants.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/data/types/outdoor_plants.json\n- <home>/OneDrive/Desktop/house_ai/tests/test_outdoor_plants.py\n- <home>/OneDrive/Desktop/house_ai/tasks/authored/outdoor_plants__examples.json\n- <home>/OneDrive/Desktop/house_ai/docs/domains/outdoor_plants.md\n\nverbs.py was rewritten with LF line endings by a patch script (it was likely CRLF before). Each file uses one line-ending style throughout.\n\nThe session scratchpad directory is shared with other agents. My temporary files there use op_/probe_ prefixes, but a few early outputs (ex2.txt, perc2.txt, exr.txt) used generic names."
+  },
+  {
+   "domain": "pets",
+   "tests": {
+    "count": 209,
+    "passed": true,
+    "strict_passed": true
+   },
+   "specs": {
+    "total": 15,
+    "passed": 15
+   },
+   "leak_audit_lines": 0,
+   "layout_audit_lines": 0,
+   "notes": "perception_redteam.json has no domain.'pets' entry and round4_bugs.json has no 'pets' entry. All fixes come from scanning my own code for the patterns the red team found elsewhere, plus a self red-team sweep: every pets verb run with each unresolved member of the 6 look-alike groups pets uses, in identical contexts, comparing ok/category/message/duration. Only the two known differences remain (core pick_up hazard guard; cage liner resolving on inspect by design).\n\nEvery realistic branch is guarded by C.realistic(ctx) / env.realism. Three world-state changes apply in both modes because they describe the world, not the camera: accident labels no longer name the pet, spilled food is labelled by its look, and a crate lure must be edible. Oracle check_pet slack and readings still use ctx.rng.\n\nChecks run:\n- tests/test_pets.py: 209/209 normal and HOUSE_SIM_STRICT=1.\n- pets__examples.json: 12/12 on all 5 seeds; pets__perception.json: 3/3 on all 5 seeds.\n- perception_audit 30 80: 0 lines attributed to pets (5 navigation_robot lines).\n- layout_audit 20 --domain pets: 0 problems.\n- Full suite: 2570 tests, 1 unrelated failure (eval packaging .gitignore).\n\nMain files changed:\n- <home>/OneDrive/Desktop/house_ai/house_sim/systems/pets/common.py (estimate, instrument, unresolved, enclosed)\n- perception.py (observer still-activity mapping, hidden-pet hazard veto, enclosed smells, litter/bedding inspector percepts)\n- feeding.py, health.py, grooming.py, litter.py, aquatic.py, handling.py, behavior.py\n- <home>/OneDrive/Desktop/house_ai/house_sim/data/types/pets.json (field_tiers, group kind/candidates, type hidden lists)\n- <home>/OneDrive/Desktop/house_ai/tests/test_pets.py\n- <home>/OneDrive/Desktop/house_ai/docs/domains/pets.md\n\nThe probe scripts are in the session scratchpad (probe_fields.py, probe_helpers.py, lookalike_sweep.py)."
+  }
+ ]
+}

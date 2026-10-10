@@ -1,0 +1,3714 @@
+{
+ "domain": "electrical",
+ "field_tiers": {
+  "hidden": [
+   "outlet",
+   "functional",
+   "low_battery",
+   "mixed_cells",
+   "reversed_cells",
+   "cells_installed",
+   "must_stay_powered",
+   "critical_kind",
+   "dedicated_circuit",
+   "circuit",
+   "in_use_by",
+   "watched_by",
+   "paused_by",
+   "transfer_remaining_s",
+   "boot_remaining_s",
+   "job_remaining_s",
+   "recording_remaining_s",
+   "power_interruptions",
+   "photocell_waiting",
+   "resets_after_trip",
+   "restarts",
+   "arc_link",
+   "charger",
+   "pairing.name",
+   "pairing.room",
+   "pairing.paired_to",
+   "pairing.configured",
+   "pairing.protocol",
+   "pairing.hold_min_s",
+   "pairing.hold_max_s",
+   "pairing.reset_hold_s",
+   "pairing.power_cycles",
+   "pairing.reset_cycles",
+   "plug_seated"
+  ],
+  "measure": {
+   "battery_level": "battery_tester",
+   "battery_voltage": "multimeter",
+   "load_a": "multimeter",
+   "charge_rate_w": "usb_power_meter",
+   "energized": "voltage_tester",
+   "live": "voltage_tester"
+  },
+  "read": [
+   "rating_label",
+   "output",
+   "outputs",
+   "rating_w"
+  ],
+  "glance": [
+   "flicker"
+  ],
+  "room": {
+   "hidden": [
+    "circuit"
+   ]
+  }
+ },
+ "looks_like": {
+  "remote": {
+   "members": [
+    "rf_remote"
+   ]
+  },
+  "aa_cell": {
+   "descriptor": "AA battery",
+   "resolve": "read",
+   "kind": "AA cell",
+   "candidates": [
+    "alkaline AA",
+    "AA lithium (non-rechargeable)",
+    "NiMH rechargeable AA"
+   ],
+   "members": [
+    "aa_battery",
+    "nimh_aa_battery",
+    "lithium_aa_battery"
+   ]
+  },
+  "aaa_cell": {
+   "descriptor": "AAA battery",
+   "resolve": "read",
+   "kind": "AAA cell",
+   "candidates": [
+    "alkaline AAA",
+    "NiMH rechargeable AAA"
+   ],
+   "members": [
+    "aaa_battery",
+    "nimh_aaa_battery"
+   ]
+  },
+  "a19_led_bulb": {
+   "descriptor": "white LED bulb",
+   "resolve": "read",
+   "kind": "LED bulb",
+   "candidates": [
+    "60 W-equivalent warm white",
+    "60 W-equivalent daylight",
+    "100 W-equivalent warm white",
+    "non-dimmable 60 W-equivalent",
+    "smart (app-controlled) LED bulb"
+   ],
+   "members": [
+    "led_bulb_e26",
+    "led_bulb_e26_daylight",
+    "led_bulb_e26_100w",
+    "led_bulb_e26_nondim",
+    "smart_bulb"
+   ]
+  },
+  "power_adapter": {
+   "descriptor": "black power adapter brick",
+   "resolve": "read",
+   "kind": "power adapter",
+   "candidates": [
+    "65 W USB-C charger for a laptop",
+    "19.5 V barrel laptop adapter",
+    "19 V barrel adapter",
+    "12 V barrel adapter"
+   ],
+   "members": [
+    "laptop_charger",
+    "laptop_charger_barrel",
+    "router_power_adapter_19v",
+    "router_power_adapter_12v"
+   ]
+  },
+  "usb_c_cable": {
+   "descriptor": "USB-C cable",
+   "resolve": "never",
+   "kind": "USB-C cable",
+   "candidates": [
+    "USB-C data and charge cable",
+    "USB-C charge-only cable"
+   ],
+   "members": [
+    "usb_c_cable",
+    "usb_c_charge_only_cable"
+   ]
+  },
+  "smartphone": {
+   "descriptor": "black smartphone",
+   "resolve": "inspect",
+   "kind": "phone",
+   "members": [
+    "smartphone",
+    "smartphone_lightning"
+   ]
+  },
+  "game_controller": {
+   "descriptor": "game controller",
+   "resolve": "inspect",
+   "kind": "controller",
+   "members": [
+    "game_controller"
+   ]
+  },
+  "wireless_earbud": {
+   "descriptor": "wireless earbud",
+   "resolve": "inspect",
+   "kind": "earbud",
+   "members": [
+    "wireless_earbud"
+   ]
+  }
+ },
+ "types": {
+  "electrical_fixture": {
+   "is_a": "fixture",
+   "props": {
+    "category": "electrical",
+    "material": "plastic",
+    "mass_kg": 0.2,
+    "size_m": [
+     0.1,
+     0.05,
+     0.1
+    ]
+   },
+   "doc": "Base for hardwired electrical fixtures (panels, outlets, detector bases).",
+   "perception": {
+    "hidden": [
+     "circuit",
+     "serves_rooms",
+     "trip_count",
+     "last_trip",
+     "gfci_protected_by",
+     "panel",
+     "main_breaker",
+     "dedicated_circuit"
+    ],
+    "measure": {
+     "live": "voltage_tester",
+     "energized": "voltage_tester",
+     "load_a": "multimeter"
+    },
+    "read": [
+     "directory"
+    ]
+   }
+  },
+  "breaker_panel": {
+   "is_a": "electrical_fixture",
+   "props": {
+    "label": "breaker panel",
+    "category": "breaker_panel",
+    "openable": true,
+    "open": false,
+    "accepts_items": true,
+    "material": "steel",
+    "mass_kg": 12.0,
+    "size_m": [
+     0.36,
+     0.1,
+     0.6
+    ],
+    "mount_height_m": 1.1,
+    "handle_kind": "latch",
+    "label_text": "Panel directory",
+    "affordances": [
+     "open",
+     "inspect"
+    ]
+   },
+   "doc": "Load center: door hides the breakers (children with relation 'part'); label_text is the handwritten panel directory."
+  },
+  "circuit_breaker": {
+   "is_a": "electrical_fixture",
+   "props": {
+    "label": "circuit breaker",
+    "category": "breaker",
+    "switchable": true,
+    "on": true,
+    "tripped": false,
+    "rating_a": 15,
+    "poles": 1,
+    "breaker_kind": "branch",
+    "material": "plastic",
+    "mass_kg": 0.15,
+    "size_m": [
+     0.025,
+     0.08,
+     0.09
+    ],
+    "risk": 3,
+    "requires_approval": true,
+    "afci": false,
+    "gfci_breaker": false,
+    "trip_count": 0,
+    "_heat": 0.0,
+    "affordances": [
+     "reset_breaker",
+     "switch_off",
+     "switch_on"
+    ]
+   },
+   "doc": "Thermal-magnetic branch breaker. Tripped handle rests mid-way; a reset needs full OFF then ON (reset_breaker). Panel work is risk 3."
+  },
+  "main_breaker": {
+   "is_a": "circuit_breaker",
+   "props": {
+    "label": "main breaker",
+    "breaker_kind": "main",
+    "rating_a": 200,
+    "poles": 2,
+    "size_m": [
+     0.05,
+     0.08,
+     0.1
+    ],
+    "label_text": "MAIN"
+   },
+   "doc": "Service disconnect: OFF de-energizes every branch circuit."
+  },
+  "wall_outlet": {
+   "is_a": "electrical_fixture",
+   "props": {
+    "label": "wall outlet",
+    "category": "outlet",
+    "outlet_kind": "wall",
+    "receptacles": 2,
+    "socket_type": "type_b",
+    "grounded": true,
+    "gfci": false,
+    "gfci_tripped": false,
+    "mount_height_m": 0.3,
+    "size_m": [
+     0.07,
+     0.03,
+     0.12
+    ],
+    "mass_kg": 0.1,
+    "wetness": 0.0,
+    "affordances": [
+     "plug_in"
+    ]
+   },
+   "doc": "Duplex receptacle on a branch circuit (circuit = breaker id). Hidden _fault: 'arcing' (buzzes, warms, scorches) or 'open' (dead)."
+  },
+  "gfci_outlet": {
+   "is_a": "wall_outlet",
+   "props": {
+    "label": "GFCI outlet",
+    "gfci": true,
+    "+affordances": [
+     "reset_breaker"
+    ]
+   },
+   "doc": "Ground-fault receptacle: trips on a ground fault (wet appliance, water); RESET via reset_breaker. Protects load-side outlets (gfci_protected_by)."
+  },
+  "outdoor_outlet": {
+   "is_a": "gfci_outlet",
+   "props": {
+    "label": "outdoor GFCI outlet",
+    "weatherproof": true,
+    "mount_height_m": 0.45
+   },
+   "doc": "Weatherproof in-use cover receptacle with GFCI."
+  },
+  "plug_device": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "electronics",
+    "plug_required": true,
+    "plugged_in": false,
+    "plug_type": "type_b",
+    "plug_polarized": true,
+    "plug_seated": 0.0,
+    "cord_length_m": 1.8,
+    "power_w": 10.0,
+    "standby_w": 0.5,
+    "_cord_damage": "none",
+    "affordances": [
+     "plug_in",
+     "unplug"
+    ]
+   },
+   "doc": "Anything with a mains plug and cord. outlet/socket name where it is plugged; cord_cells/cord_hazard are the routed cord.",
+   "perception": {
+    "hidden": [
+     "outlet",
+     "must_stay_powered",
+     "critical_kind",
+     "always_on",
+     "dedicated_circuit",
+     "circuit",
+     "in_use_by",
+     "paused_by",
+     "watched_by",
+     "requester"
+    ],
+    "measure": {
+     "live": "voltage_tester",
+     "load_a": "multimeter",
+     "energized": "voltage_tester",
+     "standby_w": "plug_power_meter"
+    },
+    "read": [
+     "rated_v",
+     "rating_w",
+     "power_w"
+    ]
+   }
+  },
+  "power_strip": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "power strip",
+    "category": "power_strip",
+    "outlet_kind": "strip",
+    "receptacles": 6,
+    "socket_type": "type_b",
+    "rating_w": 1875.0,
+    "has_breaker": true,
+    "tripped": false,
+    "switchable": true,
+    "on": true,
+    "surge_protector": true,
+    "cord_length_m": 1.8,
+    "size_m": [
+     0.3,
+     0.06,
+     0.04
+    ],
+    "mass_kg": 0.5,
+    "power_w": 0.0,
+    "standby_w": 0.3,
+    "fixed_temperature": true,
+    "affordances": [
+     "plug_in",
+     "unplug",
+     "switch_on",
+     "switch_off",
+     "reset_breaker"
+    ]
+   },
+   "doc": "Six-outlet surge strip, 15 A rated with a resettable breaker. Never daisy-chain; high-draw appliances belong on a wall outlet."
+  },
+  "extension_cord": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "extension cord",
+    "category": "extension_cord",
+    "outlet_kind": "extension",
+    "receptacles": 3,
+    "socket_type": "type_b",
+    "rating_w": 1625.0,
+    "gauge_awg": 16,
+    "cord_length_m": 7.6,
+    "outdoor_rated": false,
+    "coiled": "loose",
+    "has_breaker": false,
+    "switchable": false,
+    "size_m": [
+     0.2,
+     0.2,
+     0.06
+    ],
+    "mass_kg": 0.7,
+    "power_w": 0.0,
+    "standby_w": 0.0,
+    "fixed_temperature": true,
+    "plug_polarized": true
+   },
+   "doc": "25 ft 16 AWG indoor cord (13 A). Heats when loaded while coiled; no overcurrent protection of its own."
+  },
+  "outdoor_extension_cord": {
+   "is_a": "extension_cord",
+   "props": {
+    "label": "outdoor extension cord",
+    "outdoor_rated": true,
+    "gauge_awg": 14,
+    "rating_w": 1875.0,
+    "cord_length_m": 15.2,
+    "mass_kg": 1.6,
+    "color": "orange",
+    "receptacles": 1
+   }
+  },
+  "smart_plug": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "smart plug",
+    "category": "smart_plug",
+    "outlet_kind": "smart_plug",
+    "receptacles": 1,
+    "socket_type": "type_b",
+    "switchable": true,
+    "on": true,
+    "plug_in_place": "wall",
+    "rating_w": 1800.0,
+    "smart": true,
+    "power_w": 0.0,
+    "standby_w": 0.6,
+    "size_m": [
+     0.05,
+     0.04,
+     0.06
+    ],
+    "mass_kg": 0.08,
+    "cord_length_m": 0.0,
+    "pairing": {
+     "protocol": "wifi",
+     "hold_min_s": 5,
+     "hold_max_s": 8,
+     "reset_hold_s": 12,
+     "state": "unpaired",
+     "paired_to": null,
+     "name": null,
+     "room": null,
+     "configured": false
+    },
+    "settings": {
+     "relay": "on"
+    },
+    "setting_options": {
+     "relay": [
+      "on",
+      "off"
+     ]
+    },
+    "control_kinds": {
+     "relay": "app"
+    }
+   },
+   "doc": "Wi-Fi plug-in relay; the relay setting (app) switches the load."
+  },
+  "outlet_timer": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "lamp timer",
+    "category": "outlet_timer",
+    "outlet_kind": "timer",
+    "receptacles": 1,
+    "socket_type": "type_b",
+    "plug_in_place": "wall",
+    "rating_w": 1800.0,
+    "power_w": 0.0,
+    "standby_w": 0.5,
+    "size_m": [
+     0.06,
+     0.05,
+     0.09
+    ],
+    "mass_kg": 0.1,
+    "cord_length_m": 0.0,
+    "purpose": "security_timer",
+    "settings": {
+     "mode": "auto",
+     "on_time": "18:00",
+     "off_time": "23:00"
+    },
+    "setting_options": {
+     "mode": [
+      "auto",
+      "on",
+      "off"
+     ]
+    }
+   },
+   "doc": "Plug-in timer: passes power between on_time and off_time in auto mode (house looks occupied)."
+  },
+  "travel_adapter": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "travel plug adapter",
+    "category": "plug_adapter",
+    "outlet_kind": "adapter",
+    "receptacles": 1,
+    "socket_type": "type_b",
+    "plug_type": "type_g",
+    "plug_in_place": "wall",
+    "converts_voltage": false,
+    "power_w": 0.0,
+    "standby_w": 0.0,
+    "size_m": [
+     0.05,
+     0.05,
+     0.05
+    ],
+    "mass_kg": 0.06,
+    "cord_length_m": 0.0,
+    "rating_w": 2500.0
+   },
+   "doc": "Changes plug shape only (no voltage conversion)."
+  },
+  "voltage_converter": {
+   "is_a": "travel_adapter",
+   "props": {
+    "label": "voltage converter",
+    "converts_voltage": true,
+    "output_v": 120,
+    "rating_w": 2000.0,
+    "mass_kg": 0.6,
+    "size_m": [
+     0.12,
+     0.08,
+     0.07
+    ]
+   }
+  },
+  "electronic_device": {
+   "is_a": "plug_device",
+   "props": {
+    "category": "electronics",
+    "switchable": true,
+    "on": false,
+    "power_state": "off",
+    "has_buttons": true,
+    "fragile": true,
+    "plug_type": "type_a",
+    "water_safe": false
+   },
+   "perception": {
+    "hidden": [
+     "settings_profile",
+     "requires_owner_approval",
+     "paired",
+     "remote"
+    ],
+    "measure": {
+     "loudness_db": "sound_meter"
+    }
+   }
+  },
+  "television": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "TV",
+    "category": "tv",
+    "size_m": [
+     1.23,
+     0.08,
+     0.71
+    ],
+    "mass_kg": 15.0,
+    "power_w": 110.0,
+    "standby_w": 0.5,
+    "material": "glass",
+    "cord_length_m": 1.5,
+    "ir_receiver": true,
+    "display": "off",
+    "display_source": null,
+    "boot_s": 8,
+    "ports": {
+     "hdmi1": {
+      "connector": "hdmi",
+      "dir": "in",
+      "label": "HDMI 1",
+      "arc": false
+     },
+     "hdmi2": {
+      "connector": "hdmi",
+      "dir": "in",
+      "label": "HDMI 2 (ARC)",
+      "arc": true
+     },
+     "hdmi3": {
+      "connector": "hdmi",
+      "dir": "in",
+      "label": "HDMI 3",
+      "arc": false
+     },
+     "usb": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB",
+      "source_w": 2.5
+     }
+    },
+    "settings": {
+     "input": "hdmi1",
+     "volume": 18,
+     "picture_mode": "standard",
+     "mute": false,
+     "audio_out": "auto",
+     "language": "english",
+     "app": "home",
+     "channel": 4,
+     "playback": "stopped"
+    },
+    "setting_options": {
+     "input": [
+      "hdmi1",
+      "hdmi2",
+      "hdmi3",
+      "tuner"
+     ],
+     "volume": {
+      "min": 0,
+      "max": 100
+     },
+     "picture_mode": [
+      "standard",
+      "vivid",
+      "movie",
+      "game"
+     ],
+     "mute": [
+      true,
+      false
+     ],
+     "audio_out": [
+      "auto",
+      "tv_speakers",
+      "hdmi_arc"
+     ],
+     "language": [
+      "english",
+      "spanish",
+      "french",
+      "japanese"
+     ],
+     "app": [
+      "home",
+      "live_tv",
+      "streaming",
+      "kids",
+      "music",
+      "settings"
+     ],
+     "channel": {
+      "min": 1,
+      "max": 999
+     },
+     "playback": [
+      "playing",
+      "paused",
+      "stopped"
+     ]
+    },
+    "control_kinds": {
+     "input": "remote",
+     "volume": "remote",
+     "picture_mode": "remote",
+     "mute": "remote",
+     "audio_out": "remote",
+     "language": "remote",
+     "app": "remote",
+     "channel": "remote",
+     "playback": "remote"
+    }
+   },
+   "doc": "Smart TV with HDMI inputs (HDMI 2 = ARC). display shows the active source, 'no_signal', 'intermittent', 'standby' or 'off'.",
+   "perception": {
+    "read": [
+     "display_source"
+    ]
+   }
+  },
+  "soundbar": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "soundbar",
+    "category": "audio",
+    "size_m": [
+     0.9,
+     0.1,
+     0.07
+    ],
+    "mass_kg": 2.5,
+    "power_w": 30.0,
+    "standby_w": 0.5,
+    "ir_receiver": true,
+    "boot_s": 3,
+    "ports": {
+     "hdmi_arc": {
+      "connector": "hdmi",
+      "dir": "arc",
+      "label": "HDMI ARC",
+      "arc": true
+     }
+    },
+    "settings": {
+     "volume": 12,
+     "mute": false
+    },
+    "setting_options": {
+     "volume": {
+      "min": 0,
+      "max": 50
+     },
+     "mute": [
+      true,
+      false
+     ]
+    },
+    "control_kinds": {
+     "volume": "remote",
+     "mute": "remote"
+    }
+   }
+  },
+  "av_receiver": {
+   "is_a": "soundbar",
+   "props": {
+    "label": "AV receiver",
+    "size_m": [
+     0.43,
+     0.33,
+     0.16
+    ],
+    "mass_kg": 9.0,
+    "power_w": 120.0,
+    "settings": {
+     "volume": 30,
+     "mute": false
+    },
+    "setting_options": {
+     "volume": {
+      "min": 0,
+      "max": 80
+     },
+     "mute": [
+      true,
+      false
+     ]
+    }
+   }
+  },
+  "streaming_box": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "streaming box",
+    "category": "media_source",
+    "size_m": [
+     0.1,
+     0.1,
+     0.035
+    ],
+    "mass_kg": 0.27,
+    "power_w": 6.0,
+    "standby_w": 2.0,
+    "boot_s": 30,
+    "ir_receiver": true,
+    "plug_polarized": false,
+    "ports": {
+     "hdmi_out": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "HDMI"
+     }
+    }
+   }
+  },
+  "game_console": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "game console",
+    "category": "media_source",
+    "size_m": [
+     0.39,
+     0.26,
+     0.1
+    ],
+    "mass_kg": 4.5,
+    "power_w": 200.0,
+    "standby_w": 1.5,
+    "rest_w": 3.5,
+    "boot_s": 20,
+    "updating": false,
+    "usb_power_in_rest": true,
+    "plug_type": "type_a",
+    "plug_polarized": false,
+    "ports": {
+     "hdmi_out": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "HDMI OUT"
+     },
+     "usb_front": {
+      "connector": "usb_c",
+      "dir": "host",
+      "label": "front USB-C",
+      "source_w": 7.5
+     },
+     "usb_rear": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "rear USB",
+      "source_w": 4.5
+     },
+     "lan": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "LAN"
+     }
+    }
+   },
+   "doc": "power_state off/rest/on; rest mode can still power USB ports for controller charging. Cutting power mid-update corrupts it."
+  },
+  "cable_box": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "cable box DVR",
+    "category": "media_source",
+    "size_m": [
+     0.3,
+     0.2,
+     0.05
+    ],
+    "mass_kg": 1.5,
+    "power_w": 25.0,
+    "standby_w": 15.0,
+    "boot_s": 60,
+    "recording": false,
+    "always_on": true,
+    "ports": {
+     "hdmi_out": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "HDMI OUT"
+     }
+    }
+   }
+  },
+  "desktop_computer": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "desktop computer",
+    "category": "computer",
+    "size_m": [
+     0.45,
+     0.2,
+     0.45
+    ],
+    "mass_kg": 9.0,
+    "power_w": 250.0,
+    "standby_w": 2.0,
+    "boot_s": 60,
+    "unsaved_work": false,
+    "job": null,
+    "job_remaining_s": 0.0,
+    "plug_type": "type_b",
+    "is_host": true,
+    "esd_ground": true,
+    "discrete_gpu": true,
+    "ports": {
+     "gpu_hdmi": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "GPU HDMI",
+      "video": true
+     },
+     "gpu_dp": {
+      "connector": "displayport",
+      "dir": "out",
+      "label": "GPU DisplayPort",
+      "video": true
+     },
+     "mb_hdmi": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "motherboard HDMI",
+      "video": false
+     },
+     "usb1": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB 1",
+      "source_w": 4.5
+     },
+     "usb2": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB 2",
+      "source_w": 4.5
+     },
+     "usb3": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB 3",
+      "source_w": 4.5
+     },
+     "usb_c": {
+      "connector": "usb_c",
+      "dir": "host",
+      "label": "USB-C",
+      "source_w": 15.0
+     },
+     "lan": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "Ethernet"
+     }
+    },
+    "cover_open": false,
+    "cover_tool": "screwdriver",
+    "casing": true,
+    "soil": {
+     "dust": 0.4
+    }
+   },
+   "doc": "power_state off/sleep/on/booting. switch_off is an OS shutdown (blocked by unsaved work or updates); cutting power loses data.",
+   "perception": {
+    "hidden": [
+     "esd_ground"
+    ]
+   }
+  },
+  "laptop_computer": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "laptop",
+    "category": "computer",
+    "size_m": [
+     0.31,
+     0.22,
+     0.016
+    ],
+    "mass_kg": 1.4,
+    "power_w": 15.0,
+    "standby_w": 0.5,
+    "boot_s": 25,
+    "plug_required": false,
+    "battery_level": 0.5,
+    "battery_capacity_wh": 60.0,
+    "max_charge_w": 65.0,
+    "consumption_w": 12.0,
+    "charge_port": "usb_c",
+    "input_v": 20.0,
+    "unsaved_work": false,
+    "job": null,
+    "job_remaining_s": 0.0,
+    "is_host": true,
+    "rechargeable": true,
+    "charging": false,
+    "min_charge_w": 30.0
+   },
+   "doc": "Battery laptop: charges only through its charging port with an adequate charger; on battery it drains at consumption_w."
+  },
+  "laptop": {
+   "is_a": "laptop_computer",
+   "props": {
+    "ports": {
+     "usb_c1": {
+      "connector": "usb_c",
+      "dir": "host",
+      "label": "USB-C (charging, video)",
+      "charge_in": true,
+      "video": true,
+      "source_w": 15.0
+     },
+     "usb_c2": {
+      "connector": "usb_c",
+      "dir": "host",
+      "label": "USB-C (data)",
+      "charge_in": false,
+      "video": false,
+      "source_w": 4.5
+     },
+     "usb_a": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB-A",
+      "source_w": 4.5
+     },
+     "hdmi_out": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "HDMI",
+      "video": true
+     }
+    }
+   },
+   "doc": "USB-C laptop (charges through usb_c1 only)."
+  },
+  "laptop_barrel": {
+   "is_a": "laptop_computer",
+   "props": {
+    "label": "laptop (barrel charger)",
+    "charge_port": "barrel_4.5",
+    "input_v": 19.5,
+    "max_charge_w": 90.0,
+    "ports": {
+     "dc_in": {
+      "connector": "barrel_4.5",
+      "dir": "dc_in",
+      "label": "DC in 19.5 V",
+      "charge_in": true
+     },
+     "usb_a": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB-A",
+      "source_w": 4.5
+     },
+     "hdmi_out": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "HDMI",
+      "video": true
+     }
+    }
+   }
+  },
+  "computer_monitor": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "monitor",
+    "category": "monitor",
+    "size_m": [
+     0.61,
+     0.2,
+     0.45
+    ],
+    "mass_kg": 5.0,
+    "power_w": 30.0,
+    "standby_w": 0.3,
+    "boot_s": 3,
+    "display": "off",
+    "display_source": null,
+    "ports": {
+     "hdmi_in": {
+      "connector": "hdmi",
+      "dir": "in",
+      "label": "HDMI"
+     },
+     "dp_in": {
+      "connector": "displayport",
+      "dir": "in",
+      "label": "DisplayPort"
+     },
+     "usb_c_in": {
+      "connector": "usb_c",
+      "dir": "in",
+      "label": "USB-C (video)",
+      "video": true
+     }
+    },
+    "settings": {
+     "input": "hdmi_in",
+     "brightness": 70
+    },
+    "setting_options": {
+     "input": [
+      "hdmi_in",
+      "dp_in",
+      "usb_c_in"
+     ],
+     "brightness": {
+      "min": 0,
+      "max": 100
+     }
+    }
+   },
+   "perception": {
+    "read": [
+     "display_source"
+    ]
+   }
+  },
+  "usb_peripheral": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "peripheral",
+    "material": "plastic",
+    "usb_device": true,
+    "recognized": false,
+    "fragile": false,
+    "ports": {
+     "usb": {
+      "connector": "usb_a",
+      "dir": "device",
+      "label": "USB plug",
+      "captive": true
+     }
+    }
+   },
+   "doc": "Bus-powered USB device with a captive cable (connect_cable target=device)."
+  },
+  "keyboard": {
+   "is_a": "usb_peripheral",
+   "props": {
+    "label": "keyboard",
+    "size_m": [
+     0.44,
+     0.13,
+     0.03
+    ],
+    "mass_kg": 0.6
+   }
+  },
+  "computer_mouse": {
+   "is_a": "usb_peripheral",
+   "props": {
+    "label": "mouse",
+    "size_m": [
+     0.12,
+     0.065,
+     0.04
+    ],
+    "mass_kg": 0.09
+   }
+  },
+  "webcam": {
+   "is_a": "usb_peripheral",
+   "props": {
+    "label": "webcam",
+    "size_m": [
+     0.09,
+     0.03,
+     0.03
+    ],
+    "mass_kg": 0.08
+   }
+  },
+  "external_drive": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "external hard drive",
+    "category": "storage_device",
+    "usb_device": true,
+    "storage": true,
+    "size_m": [
+     0.11,
+     0.08,
+     0.02
+    ],
+    "mass_kg": 0.23,
+    "recognized": false,
+    "mounted": false,
+    "transfer_remaining_s": 0.0,
+    "corrupted": false,
+    "fragile": true,
+    "ports": {
+     "usb": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C"
+     }
+    }
+   },
+   "doc": "Storage: disconnect only after eject (disconnect_cable eject_first=true); pulling it mid-transfer corrupts it.",
+   "perception": {
+    "hidden": [
+     "corrupted"
+    ]
+   }
+  },
+  "usb_flash_drive": {
+   "is_a": "external_drive",
+   "props": {
+    "label": "USB flash drive",
+    "size_m": [
+     0.05,
+     0.02,
+     0.008
+    ],
+    "mass_kg": 0.01,
+    "ports": {
+     "usb": {
+      "connector": "usb_a",
+      "dir": "device",
+      "label": "USB-A plug",
+      "captive": true
+     }
+    }
+   }
+  },
+  "docking_station": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "docking station",
+    "category": "dock",
+    "size_m": [
+     0.2,
+     0.08,
+     0.03
+    ],
+    "mass_kg": 0.4,
+    "power_w": 10.0,
+    "on": true,
+    "power_state": "on",
+    "plug_polarized": false,
+    "ports": {
+     "host": {
+      "connector": "usb_c",
+      "dir": "upstream",
+      "label": "to computer (USB-C)",
+      "source_w": 65.0
+     },
+     "hdmi": {
+      "connector": "hdmi",
+      "dir": "out",
+      "label": "HDMI"
+     },
+     "usb1": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB",
+      "source_w": 4.5
+     },
+     "usb2": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "USB",
+      "source_w": 4.5
+     },
+     "lan": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "Ethernet"
+     }
+    }
+   }
+  },
+  "usb_hub": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "USB hub",
+    "category": "peripheral",
+    "size_m": [
+     0.1,
+     0.03,
+     0.015
+    ],
+    "mass_kg": 0.05,
+    "hub": true,
+    "self_powered": false,
+    "ports": {
+     "upstream": {
+      "connector": "usb_a",
+      "dir": "upstream",
+      "label": "to computer",
+      "captive": true
+     },
+     "p1": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "port 1",
+      "source_w": 2.5
+     },
+     "p2": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "port 2",
+      "source_w": 2.5
+     },
+     "p3": {
+      "connector": "usb_a",
+      "dir": "host",
+      "label": "port 3",
+      "source_w": 2.5
+     }
+    }
+   }
+  },
+  "wifi_router": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "Wi-Fi router",
+    "category": "network",
+    "size_m": [
+     0.25,
+     0.18,
+     0.05
+    ],
+    "mass_kg": 0.7,
+    "power_w": 12.0,
+    "on": true,
+    "power_state": "on",
+    "always_on": true,
+    "boot_s": 90,
+    "wan_ok": true,
+    "plug_polarized": false,
+    "input_v": 12.0,
+    "has_buttons": true,
+    "ports": {
+     "wan": {
+      "connector": "rj45",
+      "dir": "wan",
+      "label": "WAN/Internet"
+     },
+     "lan1": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "LAN 1"
+     },
+     "lan2": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "LAN 2"
+     },
+     "lan3": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "LAN 3"
+     }
+    },
+    "settings_profile": "configured"
+   },
+   "doc": "Needs its modem online when it finishes booting, else it shows no internet until restarted again.",
+   "perception": {
+    "hidden": [
+     "settings_profile"
+    ]
+   }
+  },
+  "cable_modem": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "cable modem",
+    "category": "network",
+    "size_m": [
+     0.15,
+     0.05,
+     0.2
+    ],
+    "mass_kg": 0.5,
+    "power_w": 10.0,
+    "on": true,
+    "power_state": "on",
+    "always_on": true,
+    "boot_s": 120,
+    "online": true,
+    "plug_polarized": false,
+    "ports": {
+     "ethernet": {
+      "connector": "rj45",
+      "dir": "lan",
+      "label": "Ethernet"
+     }
+    }
+   }
+  },
+  "smart_speaker": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "smart speaker",
+    "category": "audio",
+    "size_m": [
+     0.1,
+     0.1,
+     0.09
+    ],
+    "mass_kg": 0.34,
+    "power_w": 3.0,
+    "on": true,
+    "power_state": "on",
+    "clock": {
+     "offset_s": 0,
+     "format_24h": false,
+     "auto_sync": true,
+     "volatile": false
+    },
+    "plug_polarized": false
+   }
+  },
+  "bluetooth_speaker": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "Bluetooth speaker",
+    "category": "audio",
+    "size_m": [
+     0.18,
+     0.07,
+     0.07
+    ],
+    "mass_kg": 0.54,
+    "rechargeable": true,
+    "battery_level": 0.6,
+    "battery_capacity_wh": 15.0,
+    "max_charge_w": 10.0,
+    "charge_port": "usb_c",
+    "switchable": true,
+    "on": false,
+    "battery_powered": true,
+    "pairing": {
+     "protocol": "bluetooth",
+     "hold_min_s": 3,
+     "hold_max_s": 6,
+     "reset_hold_s": 10,
+     "state": "unpaired",
+     "paired_to": null,
+     "name": null,
+     "room": null,
+     "configured": false
+    },
+    "ports": {
+     "usb_c": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C charge",
+      "charge_in": true
+     }
+    }
+   },
+   "perception": {
+    "measure": {
+     "battery_level": "battery_tester"
+    }
+   }
+  },
+  "smart_hub": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "smart home hub",
+    "category": "hub",
+    "size_m": [
+     0.1,
+     0.1,
+     0.03
+    ],
+    "mass_kg": 0.15,
+    "power_w": 2.0,
+    "on": true,
+    "power_state": "on",
+    "always_on": true,
+    "protocols": [
+     "zigbee",
+     "wifi",
+     "matter",
+     "bluetooth"
+    ],
+    "paired": [],
+    "owner": "household",
+    "accepts_pairing": true,
+    "requires_owner_approval": true,
+    "plug_polarized": false
+   }
+  },
+  "rechargeable_device": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "electronics",
+    "rechargeable": true,
+    "battery_level": 0.5,
+    "battery_capacity_wh": 15.0,
+    "max_charge_w": 20.0,
+    "consumption_w": 0.3,
+    "charge_port": "usb_c",
+    "charging": false,
+    "charger": null,
+    "fragile": true,
+    "water_safe": false,
+    "battery_swollen": false
+   },
+   "doc": "Battery device: charging rises only through a compatible, powered charger; swollen batteries must never be charged.",
+   "perception": {
+    "hidden": [
+     "charger",
+     "qi_coil_offset_m",
+     "case_id"
+    ],
+    "measure": {
+     "battery_level": "battery_tester",
+     "charge_rate_w": "usb_power_meter"
+    }
+   }
+  },
+  "smartphone": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "phone",
+    "category": "phone",
+    "size_m": [
+     0.075,
+     0.155,
+     0.008
+    ],
+    "mass_kg": 0.19,
+    "battery_capacity_wh": 15.0,
+    "max_charge_w": 25.0,
+    "qi": true,
+    "qi_max_w": 15.0,
+    "locked": true,
+    "private": false,
+    "ports": {
+     "charge": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C",
+      "charge_in": true
+     }
+    }
+   },
+   "perception": {
+    "inspect": [
+     "battery_level"
+    ]
+   }
+  },
+  "smartphone_lightning": {
+   "is_a": "smartphone",
+   "props": {
+    "label": "phone",
+    "charge_port": "lightning",
+    "max_charge_w": 20.0,
+    "ports": {
+     "charge": {
+      "connector": "lightning",
+      "dir": "device",
+      "label": "Lightning",
+      "charge_in": true
+     }
+    }
+   }
+  },
+  "tablet": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "tablet",
+    "category": "tablet",
+    "size_m": [
+     0.25,
+     0.18,
+     0.007
+    ],
+    "mass_kg": 0.48,
+    "battery_capacity_wh": 28.0,
+    "max_charge_w": 20.0,
+    "qi": false,
+    "ports": {
+     "charge": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C",
+      "charge_in": true
+     }
+    }
+   },
+   "perception": {
+    "inspect": [
+     "battery_level"
+    ]
+   }
+  },
+  "smartwatch": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "smartwatch",
+    "category": "wearable",
+    "size_m": [
+     0.04,
+     0.045,
+     0.011
+    ],
+    "mass_kg": 0.04,
+    "battery_capacity_wh": 1.2,
+    "max_charge_w": 2.5,
+    "charge_port": "puck_magnetic",
+    "dock_kind": "watch_puck"
+   },
+   "perception": {
+    "inspect": [
+     "battery_level"
+    ]
+   }
+  },
+  "fitness_tracker": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "fitness tracker",
+    "category": "wearable",
+    "size_m": [
+     0.02,
+     0.04,
+     0.01
+    ],
+    "mass_kg": 0.025,
+    "battery_capacity_wh": 0.4,
+    "max_charge_w": 1.0,
+    "charge_port": "pogo_clip",
+    "dock_kind": "tracker_clip"
+   }
+  },
+  "earbuds_case": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "earbuds case",
+    "category": "audio",
+    "size_m": [
+     0.06,
+     0.045,
+     0.025
+    ],
+    "mass_kg": 0.04,
+    "battery_capacity_wh": 1.9,
+    "max_charge_w": 5.0,
+    "openable": true,
+    "open": false,
+    "qi": true,
+    "qi_max_w": 5.0,
+    "bud_slots": {
+     "left": null,
+     "right": null
+    },
+    "ports": {
+     "charge": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C",
+      "charge_in": true
+     }
+    }
+   },
+   "doc": "Charges buds seated in their own left/right slots (lid closed keeps them in)."
+  },
+  "wireless_earbud": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "earbud",
+    "category": "audio",
+    "size_m": [
+     0.02,
+     0.02,
+     0.03
+    ],
+    "mass_kg": 0.005,
+    "battery_capacity_wh": 0.2,
+    "max_charge_w": 0.5,
+    "charge_port": "case_contacts",
+    "side": "left",
+    "case_id": null
+   }
+  },
+  "over_ear_headphones": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "headphones",
+    "category": "audio",
+    "size_m": [
+     0.18,
+     0.08,
+     0.2
+    ],
+    "mass_kg": 0.25,
+    "battery_capacity_wh": 2.5,
+    "max_charge_w": 5.0,
+    "ports": {
+     "charge": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C",
+      "charge_in": true
+     }
+    }
+   }
+  },
+  "game_controller": {
+   "is_a": "rechargeable_device",
+   "props": {
+    "label": "game controller",
+    "category": "controller",
+    "size_m": [
+     0.16,
+     0.1,
+     0.065
+    ],
+    "mass_kg": 0.28,
+    "battery_capacity_wh": 4.0,
+    "max_charge_w": 5.0,
+    "dock_kind": "controller_dock",
+    "power_type": "built_in",
+    "ports": {
+     "charge": {
+      "connector": "usb_c",
+      "dir": "device",
+      "label": "USB-C",
+      "charge_in": true
+     }
+    }
+   }
+  },
+  "aa_game_controller": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "game controller (AA)",
+    "category": "controller",
+    "size_m": [
+     0.15,
+     0.1,
+     0.06
+    ],
+    "mass_kg": 0.25,
+    "power_type": "aa",
+    "battery_powered": true,
+    "battery_level": 0.0,
+    "min_voltage_v": 2.0,
+    "cover_open": false,
+    "slots": {
+     "cell_1": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     },
+     "cell_2": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upside_down"
+     }
+    }
+   },
+   "perception": {
+    "hidden": [
+     "functional",
+     "low_battery",
+     "mixed_cells",
+     "reversed_cells",
+     "cells_installed"
+    ],
+    "measure": {
+     "battery_level": "battery_tester",
+     "battery_voltage": "multimeter"
+    }
+   }
+  },
+  "heart_rate_strap": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "heart-rate strap",
+    "category": "wearable",
+    "size_m": [
+     0.06,
+     0.03,
+     0.012
+    ],
+    "mass_kg": 0.05,
+    "power_type": "coin_cell",
+    "battery_powered": true,
+    "battery_level": 0.0,
+    "min_voltage_v": 2.4,
+    "cover_open": false,
+    "cover_tool": "coin",
+    "slots": {
+     "cell": {
+      "accepts": [
+       "battery_cr2032"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     }
+    }
+   },
+   "perception": {
+    "hidden": [
+     "functional",
+     "low_battery",
+     "mixed_cells",
+     "reversed_cells",
+     "cells_installed"
+    ],
+    "measure": {
+     "battery_level": "battery_tester",
+     "battery_voltage": "multimeter"
+    }
+   }
+  },
+  "cpap_machine": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "CPAP machine",
+    "category": "medical_device",
+    "size_m": [
+     0.17,
+     0.16,
+     0.12
+    ],
+    "mass_kg": 1.3,
+    "power_w": 50.0,
+    "standby_w": 1.0,
+    "must_stay_powered": true,
+    "critical_kind": "medical",
+    "plug_polarized": false,
+    "risk": 2
+   },
+   "doc": "Powered medical device: never unplug or cut power without the user's or caregiver's explicit instruction."
+  },
+  "oxygen_concentrator": {
+   "is_a": "cpap_machine",
+   "props": {
+    "label": "oxygen concentrator",
+    "size_m": [
+     0.4,
+     0.3,
+     0.6
+    ],
+    "mass_kg": 14.0,
+    "power_w": 300.0,
+    "plug_type": "type_b",
+    "noise_db": 45
+   }
+  },
+  "baby_monitor": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "baby monitor",
+    "category": "monitor_safety",
+    "size_m": [
+     0.08,
+     0.06,
+     0.12
+    ],
+    "mass_kg": 0.2,
+    "power_w": 3.0,
+    "on": true,
+    "power_state": "on",
+    "always_on": true,
+    "plug_in_place": "wall",
+    "cord_length_m": 1.8,
+    "plug_polarized": false
+   }
+  },
+  "security_camera": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "security camera",
+    "category": "security",
+    "size_m": [
+     0.07,
+     0.07,
+     0.1
+    ],
+    "mass_kg": 0.2,
+    "power_w": 4.0,
+    "on": true,
+    "power_state": "on",
+    "always_on": true,
+    "plug_polarized": false,
+    "weatherproof": true
+   }
+  },
+  "charger": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "charger",
+    "category": "charger",
+    "power_w": 0.0,
+    "standby_w": 0.1,
+    "plug_polarized": false,
+    "plug_type": "type_a",
+    "plug_in_place": "wall",
+    "cord_length_m": 0.0,
+    "efficiency": 0.87,
+    "affordances": [
+     "plug_in",
+     "unplug",
+     "charge"
+    ]
+   },
+   "doc": "Mains-powered charger. Wall bricks attach to the outlet (plug_in_place wall) and expose a USB source port.",
+   "perception": {
+    "read": [
+     "output",
+     "outputs",
+     "output_v",
+     "source_w",
+     "rating_label"
+    ],
+    "hidden": [
+     "efficiency"
+    ]
+   }
+  },
+  "usb_wall_charger": {
+   "is_a": "charger",
+   "props": {
+    "label": "USB-C wall charger",
+    "size_m": [
+     0.04,
+     0.04,
+     0.03
+    ],
+    "mass_kg": 0.05,
+    "ports": {
+     "usb_c": {
+      "connector": "usb_c",
+      "dir": "source",
+      "label": "USB-C 20 W",
+      "source_w": 20.0,
+      "pd": true
+     }
+    },
+    "label_text": "USB-C PD charger - output 5V 3A / 9V 2.22A (20W max)"
+   }
+  },
+  "usb_a_wall_charger": {
+   "is_a": "charger",
+   "props": {
+    "label": "USB-A wall cube",
+    "size_m": [
+     0.03,
+     0.03,
+     0.03
+    ],
+    "mass_kg": 0.03,
+    "ports": {
+     "usb_a": {
+      "connector": "usb_a",
+      "dir": "source",
+      "label": "USB-A 5 W",
+      "source_w": 5.0
+     }
+    },
+    "label_text": "USB charger - output 5V 1A (5W)"
+   }
+  },
+  "laptop_charger": {
+   "is_a": "charger",
+   "props": {
+    "label": "laptop charger (65 W USB-C)",
+    "size_m": [
+     0.07,
+     0.07,
+     0.03
+    ],
+    "mass_kg": 0.25,
+    "plug_in_place": "floor",
+    "cord_length_m": 1.8,
+    "captive_connector": "usb_c",
+    "captive_length_m": 1.8,
+    "output_v": 20.0,
+    "source_w": 65.0,
+    "connected_to": null,
+    "label_text": "USB-C power adapter - output 20V 3.25A (65W)"
+   }
+  },
+  "laptop_charger_barrel": {
+   "is_a": "laptop_charger",
+   "props": {
+    "label": "laptop power adapter (19.5 V barrel)",
+    "captive_connector": "barrel_4.5",
+    "output_v": 19.5,
+    "source_w": 90.0,
+    "label_text": "AC adapter - output 19.5V 4.62A (90W)"
+   }
+  },
+  "router_power_adapter_19v": {
+   "is_a": "laptop_charger",
+   "props": {
+    "label": "power adapter (19 V barrel)",
+    "captive_connector": "barrel_5.5",
+    "output_v": 19.0,
+    "source_w": 40.0,
+    "mass_kg": 0.2,
+    "label_text": "AC adapter - output 19V 2.1A (40W)"
+   }
+  },
+  "router_power_adapter_12v": {
+   "is_a": "laptop_charger",
+   "props": {
+    "label": "power adapter (12 V barrel)",
+    "captive_connector": "barrel_5.5",
+    "output_v": 12.0,
+    "source_w": 24.0,
+    "mass_kg": 0.15,
+    "label_text": "AC adapter - output 12V 2A (24W)"
+   }
+  },
+  "wireless_charging_pad": {
+   "is_a": "charger",
+   "props": {
+    "label": "wireless charging pad",
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     0.16,
+     0.16
+    ],
+    "size_m": [
+     0.1,
+     0.1,
+     0.012
+    ],
+    "surface_height_m": 0.012,
+    "mass_kg": 0.1,
+    "plug_in_place": "floor",
+    "cord_length_m": 1.5,
+    "coil_center_m": [
+     0.08,
+     0.08
+    ],
+    "qi_tolerance_m": 0.012,
+    "source_w": 15.0,
+    "wireless": true,
+    "label_text": "Qi wireless charger - 15W max"
+   },
+   "doc": "Qi pad: a device charges only when its coil is within qi_tolerance_m of coil_center_m (place precisely with spos or use charge)."
+  },
+  "watch_charger_puck": {
+   "is_a": "charger",
+   "props": {
+    "label": "watch charging puck",
+    "size_m": [
+     0.03,
+     0.03,
+     0.008
+    ],
+    "mass_kg": 0.02,
+    "plug_in_place": "floor",
+    "cord_length_m": 1.0,
+    "dock_for": "watch_puck",
+    "source_w": 2.5,
+    "dock_device": null
+   }
+  },
+  "tracker_charging_clip": {
+   "is_a": "watch_charger_puck",
+   "props": {
+    "label": "tracker charging clip",
+    "dock_for": "tracker_clip",
+    "source_w": 1.0
+   }
+  },
+  "controller_charging_dock": {
+   "is_a": "charger",
+   "props": {
+    "label": "controller charging dock",
+    "size_m": [
+     0.2,
+     0.1,
+     0.06
+    ],
+    "mass_kg": 0.2,
+    "plug_in_place": "floor",
+    "cord_length_m": 1.5,
+    "dock_for": "controller_dock",
+    "dock_capacity": 2,
+    "source_w": 5.0,
+    "docked": []
+   }
+  },
+  "charging_station": {
+   "is_a": "charger",
+   "props": {
+    "label": "charging station",
+    "size_m": [
+     0.25,
+     0.15,
+     0.04
+    ],
+    "mass_kg": 0.4,
+    "plug_in_place": "floor",
+    "cord_length_m": 1.5,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     0.25,
+     0.15
+    ],
+    "surface_height_m": 0.04,
+    "ports": {
+     "usb_c1": {
+      "connector": "usb_c",
+      "dir": "source",
+      "label": "USB-C 1",
+      "source_w": 30.0,
+      "pd": true
+     },
+     "usb_c2": {
+      "connector": "usb_c",
+      "dir": "source",
+      "label": "USB-C 2",
+      "source_w": 30.0,
+      "pd": true
+     },
+     "usb_a1": {
+      "connector": "usb_a",
+      "dir": "source",
+      "label": "USB-A 1",
+      "source_w": 12.0
+     },
+     "usb_a2": {
+      "connector": "usb_a",
+      "dir": "source",
+      "label": "USB-A 2",
+      "source_w": 12.0
+     }
+    },
+    "label_text": "Charging station - USB-C 30W x2, USB-A 12W x2"
+   }
+  },
+  "nimh_battery_charger": {
+   "is_a": "charger",
+   "props": {
+    "label": "AA/AAA battery charger",
+    "size_m": [
+     0.1,
+     0.07,
+     0.03
+    ],
+    "mass_kg": 0.12,
+    "plug_in_place": "wall",
+    "charges_chemistry": [
+     "nimh"
+    ],
+    "source_w": 4.0,
+    "cover_open": true,
+    "slots": {
+     "bay_1": {
+      "accepts": [
+       "battery_aa",
+       "battery_aaa"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "bay_2": {
+      "accepts": [
+       "battery_aa",
+       "battery_aaa"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "bay_3": {
+      "accepts": [
+       "battery_aa",
+       "battery_aaa"
+      ],
+      "item": null,
+      "access": "none"
+     },
+     "bay_4": {
+      "accepts": [
+       "battery_aa",
+       "battery_aaa"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "label_text": "NiMH battery charger AA/AAA - do NOT charge alkaline or lithium batteries"
+   }
+  },
+  "tool_battery_charger": {
+   "is_a": "charger",
+   "props": {
+    "label": "18 V tool battery charger",
+    "size_m": [
+     0.15,
+     0.12,
+     0.08
+    ],
+    "mass_kg": 0.45,
+    "plug_in_place": "floor",
+    "cord_length_m": 1.8,
+    "platform": "brand_a_18v",
+    "source_w": 60.0,
+    "charge_temp_c": [
+     5,
+     40
+    ],
+    "slots": {
+     "bay": {
+      "accepts": [
+       "tool_pack_brand_a_18v"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    },
+    "label_text": "18V Li-ion battery charger - charge between 5 and 40 C"
+   },
+   "doc": "Platform charger: refuses packs outside 5-40 C; never charge a swollen pack."
+  },
+  "cable": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "cable",
+    "category": "cable",
+    "material": "pvc",
+    "mass_kg": 0.05,
+    "size_m": [
+     0.2,
+     0.05,
+     0.02
+    ],
+    "flexible": true,
+    "data_capable": true,
+    "max_w": 60.0,
+    "length_m": 1.0,
+    "damaged": false,
+    "ends": {
+     "a": {
+      "connector": "usb_c",
+      "at": null,
+      "port": null,
+      "seated": 0.0
+     },
+     "b": {
+      "connector": "usb_c",
+      "at": null,
+      "port": null,
+      "seated": 0.0
+     }
+    },
+    "secret_fields": [
+     "ends"
+    ]
+   },
+   "doc": "Two-ended cable; ends.<a|b>.at/port show where each end is plugged (connect_cable / disconnect_cable).",
+   "perception": {
+    "hidden": [
+     "data_capable",
+     "max_w"
+    ]
+   }
+  },
+  "hdmi_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "HDMI cable",
+    "length_m": 2.0,
+    "mass_kg": 0.12,
+    "max_w": 0.0,
+    "ends": {
+     "a": {
+      "connector": "hdmi"
+     },
+     "b": {
+      "connector": "hdmi"
+     }
+    }
+   }
+  },
+  "displayport_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "DisplayPort cable",
+    "length_m": 1.8,
+    "mass_kg": 0.1,
+    "max_w": 0.0,
+    "latching": true,
+    "ends": {
+     "a": {
+      "connector": "displayport"
+     },
+     "b": {
+      "connector": "displayport"
+     }
+    }
+   }
+  },
+  "usb_c_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "USB-C cable",
+    "length_m": 1.0,
+    "max_w": 60.0,
+    "ends": {
+     "a": {
+      "connector": "usb_c"
+     },
+     "b": {
+      "connector": "usb_c"
+     }
+    }
+   }
+  },
+  "usb_c_charge_only_cable": {
+   "is_a": "usb_c_cable",
+   "props": {
+    "label": "USB-C cable (charge only)",
+    "data_capable": false,
+    "max_w": 15.0
+   }
+  },
+  "usb_a_to_c_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "USB-A to USB-C cable",
+    "length_m": 1.0,
+    "max_w": 12.0,
+    "ends": {
+     "a": {
+      "connector": "usb_a"
+     },
+     "b": {
+      "connector": "usb_c"
+     }
+    }
+   }
+  },
+  "lightning_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "USB-C to Lightning cable",
+    "length_m": 1.0,
+    "max_w": 20.0,
+    "ends": {
+     "a": {
+      "connector": "usb_c"
+     },
+     "b": {
+      "connector": "lightning"
+     }
+    }
+   }
+  },
+  "micro_usb_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "USB-A to micro-USB cable",
+    "length_m": 1.0,
+    "max_w": 10.0,
+    "ends": {
+     "a": {
+      "connector": "usb_a"
+     },
+     "b": {
+      "connector": "micro_usb"
+     }
+    }
+   }
+  },
+  "ethernet_cable": {
+   "is_a": "cable",
+   "props": {
+    "label": "Ethernet cable",
+    "length_m": 3.0,
+    "max_w": 0.0,
+    "latching": true,
+    "ends": {
+     "a": {
+      "connector": "rj45",
+      "tab_ok": true
+     },
+     "b": {
+      "connector": "rj45",
+      "tab_ok": true
+     }
+    }
+   }
+  },
+  "battery_cell": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "battery",
+    "material": "steel",
+    "chemistry": "alkaline",
+    "nominal_v": 1.5,
+    "charge": 1.0,
+    "orientation": "upright",
+    "leaking": false,
+    "terminals_taped": false,
+    "rechargeable": false,
+    "waste_stream": "battery_recycling",
+    "condition": "new",
+    "secret_fields": [
+     "charge"
+    ],
+    "stackable": true
+   },
+   "doc": "Primary or rechargeable cell; charge is hidden until tested (battery tester) or read from sealed packaging (condition). orientation must match the slot's polarity mark.",
+   "perception": {
+    "read": [
+     "chemistry",
+     "nominal_v",
+     "rechargeable",
+     "capacity_wh"
+    ],
+    "hidden": [
+     "short_risk"
+    ]
+   }
+  },
+  "aa_battery": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "AA battery",
+    "part_type": "battery_aa",
+    "size_m": [
+     0.0145,
+     0.0145,
+     0.0505
+    ],
+    "mass_kg": 0.023,
+    "volume_l": 0.008,
+    "label_text": "AA 1.5V ALKALINE - do not recharge"
+   }
+  },
+  "aaa_battery": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "AAA battery",
+    "part_type": "battery_aaa",
+    "size_m": [
+     0.0105,
+     0.0105,
+     0.0445
+    ],
+    "mass_kg": 0.0115,
+    "volume_l": 0.004,
+    "label_text": "AAA 1.5V ALKALINE - do not recharge"
+   }
+  },
+  "c_battery": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "C battery",
+    "part_type": "battery_c",
+    "size_m": [
+     0.026,
+     0.026,
+     0.05
+    ],
+    "mass_kg": 0.066,
+    "volume_l": 0.027,
+    "label_text": "C 1.5V ALKALINE"
+   }
+  },
+  "d_battery": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "D battery",
+    "part_type": "battery_d",
+    "size_m": [
+     0.034,
+     0.034,
+     0.061
+    ],
+    "mass_kg": 0.14,
+    "volume_l": 0.055,
+    "label_text": "D 1.5V ALKALINE"
+   }
+  },
+  "nine_volt_battery": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "9V battery",
+    "part_type": "battery_9v",
+    "nominal_v": 9.0,
+    "size_m": [
+     0.0265,
+     0.0175,
+     0.0485
+    ],
+    "mass_kg": 0.045,
+    "volume_l": 0.022,
+    "short_risk": true,
+    "label_text": "9V ALKALINE"
+   }
+  },
+  "coin_cell_cr2032": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "CR2032 coin cell",
+    "part_type": "battery_cr2032",
+    "chemistry": "lithium",
+    "nominal_v": 3.0,
+    "size_m": [
+     0.02,
+     0.02,
+     0.0032
+    ],
+    "mass_kg": 0.003,
+    "volume_l": 0.001,
+    "hazards": [
+     "choking"
+    ],
+    "short_risk": true,
+    "ingestion_hazard": true,
+    "label_text": "CR2032 3V LITHIUM - keep away from children"
+   }
+  },
+  "nimh_aa_battery": {
+   "is_a": "aa_battery",
+   "props": {
+    "label": "rechargeable AA (NiMH)",
+    "chemistry": "nimh",
+    "nominal_v": 1.2,
+    "rechargeable": true,
+    "label_text": "AA 1.2V NiMH RECHARGEABLE 2000mAh"
+   }
+  },
+  "nimh_aaa_battery": {
+   "is_a": "aaa_battery",
+   "props": {
+    "label": "rechargeable AAA (NiMH)",
+    "chemistry": "nimh",
+    "nominal_v": 1.2,
+    "rechargeable": true,
+    "label_text": "AAA 1.2V NiMH RECHARGEABLE 800mAh"
+   }
+  },
+  "lithium_aa_battery": {
+   "is_a": "aa_battery",
+   "props": {
+    "label": "lithium AA",
+    "chemistry": "lithium",
+    "nominal_v": 1.5,
+    "label_text": "AA 1.5V LITHIUM - do not recharge"
+   }
+  },
+  "tool_battery_pack": {
+   "is_a": "battery_cell",
+   "props": {
+    "label": "18 V tool battery",
+    "part_type": "tool_pack_brand_a_18v",
+    "platform": "brand_a_18v",
+    "chemistry": "li_ion",
+    "nominal_v": 18.0,
+    "capacity_wh": 36.0,
+    "rechargeable": true,
+    "size_m": [
+     0.11,
+     0.075,
+     0.07
+    ],
+    "mass_kg": 0.6,
+    "volume_l": 0.6,
+    "terminal_cover": true,
+    "battery_swollen": false,
+    "secret_fields": [],
+    "short_risk": false,
+    "label_text": "18V Li-ion 2.0Ah (36Wh)"
+   }
+  },
+  "tool_battery_pack_12v": {
+   "is_a": "tool_battery_pack",
+   "props": {
+    "label": "12 V tool battery",
+    "part_type": "tool_pack_brand_a_12v",
+    "platform": "brand_a_12v",
+    "nominal_v": 12.0,
+    "capacity_wh": 24.0,
+    "size_m": [
+     0.09,
+     0.06,
+     0.08
+    ],
+    "mass_kg": 0.3,
+    "label_text": "12V Li-ion 2.0Ah (24Wh)"
+   }
+  },
+  "battery_tester": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "battery tester",
+    "category": "tool",
+    "tool_kind": "battery_tester",
+    "affordances": [
+     "test_battery"
+    ],
+    "size_m": [
+     0.1,
+     0.06,
+     0.03
+    ],
+    "mass_kg": 0.1
+   }
+  },
+  "battery_organizer": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "battery organizer case",
+    "material": "plastic",
+    "openable": true,
+    "open": false,
+    "capacity_l": 1.5,
+    "inner_size_m": [
+     0.25,
+     0.18,
+     0.05
+    ],
+    "size_m": [
+     0.27,
+     0.2,
+     0.06
+    ],
+    "mass_kg": 0.3,
+    "designated_for": "batteries"
+   },
+   "perception": {
+    "hidden": [
+     "designated_for"
+    ]
+   }
+  },
+  "light_bulb": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "light bulb",
+    "category": "light_bulb",
+    "part_type": "bulb_e26",
+    "base": "e26",
+    "technology": "led",
+    "wattage_w": 9.0,
+    "equiv_w": 60,
+    "lumens": 800,
+    "cct_k": 2700,
+    "dimmable": true,
+    "burnt_out": false,
+    "fragile": true,
+    "material": "glass",
+    "size_m": [
+     0.06,
+     0.06,
+     0.11
+    ],
+    "mass_kg": 0.05,
+    "volume_l": 0.25,
+    "op_temp_c": 55.0,
+    "waste_stream": "landfill",
+    "max_touch_temp_c": 50.0
+   },
+   "doc": "Screw/bayonet bulb part (slot accepts part_type). wattage_w is the real draw; fixtures have max_bulb_w.",
+   "perception": {
+    "read": [
+     "wattage_w",
+     "equiv_w",
+     "lumens",
+     "cct_k",
+     "dimmable",
+     "contains_mercury"
+    ],
+    "hidden": [
+     "op_temp_c",
+     "max_touch_temp_c",
+     "burnt_out"
+    ]
+   }
+  },
+  "led_bulb_e26": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "LED bulb (60 W equiv., 2700 K)",
+    "label_text": "LED 9W (60W equivalent) 800 lm 2700K soft white - dimmable"
+   }
+  },
+  "led_bulb_e26_daylight": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "LED bulb (60 W equiv., 5000 K)",
+    "cct_k": 5000,
+    "label_text": "LED 9W (60W equivalent) 800 lm 5000K daylight - dimmable"
+   }
+  },
+  "led_bulb_e26_100w": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "LED bulb (100 W equiv., 2700 K)",
+    "wattage_w": 14.0,
+    "equiv_w": 100,
+    "lumens": 1600,
+    "label_text": "LED 14W (100W equivalent) 1600 lm 2700K soft white - dimmable"
+   }
+  },
+  "led_bulb_e26_nondim": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "LED bulb (non-dimmable, 2700 K)",
+    "dimmable": false,
+    "label_text": "LED 9W (60W equivalent) 800 lm 2700K soft white - NOT for use with dimmers"
+   }
+  },
+  "incandescent_bulb_e26": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "incandescent bulb",
+    "technology": "incandescent",
+    "wattage_w": 60.0,
+    "equiv_w": 60,
+    "lumens": 800,
+    "cct_k": 2700,
+    "op_temp_c": 130.0,
+    "mass_kg": 0.03,
+    "label_text": "60W 120V incandescent"
+   },
+   "perception": {
+    "inspect": [
+     "burnt_out"
+    ]
+   }
+  },
+  "incandescent_bulb_e26_100w": {
+   "is_a": "incandescent_bulb_e26",
+   "props": {
+    "label": "incandescent bulb",
+    "wattage_w": 100.0,
+    "equiv_w": 100,
+    "lumens": 1600,
+    "op_temp_c": 170.0,
+    "label_text": "100W 120V incandescent"
+   }
+  },
+  "cfl_bulb_e26": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "CFL bulb",
+    "technology": "cfl",
+    "wattage_w": 13.0,
+    "equiv_w": 60,
+    "lumens": 800,
+    "cct_k": 2700,
+    "dimmable": false,
+    "op_temp_c": 80.0,
+    "hazards": [],
+    "contains_mercury": true,
+    "waste_stream": "hazardous",
+    "size_m": [
+     0.06,
+     0.06,
+     0.13
+    ],
+    "label_text": "CFL 13W (60W equivalent) 2700K - contains mercury (Hg), recycle"
+   }
+  },
+  "gu10_led_bulb": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "GU10 LED spot",
+    "part_type": "bulb_gu10",
+    "base": "gu10",
+    "wattage_w": 5.0,
+    "equiv_w": 50,
+    "lumens": 400,
+    "size_m": [
+     0.05,
+     0.05,
+     0.055
+    ]
+   }
+  },
+  "e12_candelabra_bulb": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "E12 candelabra LED",
+    "part_type": "bulb_e12",
+    "base": "e12",
+    "wattage_w": 4.0,
+    "equiv_w": 40,
+    "lumens": 450,
+    "size_m": [
+     0.035,
+     0.035,
+     0.1
+    ]
+   }
+  },
+  "three_way_bulb": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "3-way LED bulb",
+    "label_text": "3-way LED 50/100/150 W equivalent",
+    "three_way": true,
+    "wattage_w": 20.0,
+    "equiv_w": 150,
+    "lumens": 2600,
+    "tags": [
+     "three_way"
+    ]
+   }
+  },
+  "smart_bulb": {
+   "is_a": "light_bulb",
+   "props": {
+    "label": "smart LED bulb",
+    "smart": true,
+    "cct_k": 2700,
+    "wattage_w": 9.0,
+    "pairing": {
+     "protocol": "zigbee",
+     "hold_min_s": 0,
+     "hold_max_s": 0,
+     "power_cycles": 3,
+     "reset_cycles": 5,
+     "state": "unpaired",
+     "paired_to": null,
+     "name": null,
+     "room": null,
+     "configured": false
+    },
+    "settings": {
+     "brightness": 100,
+     "cct_k": 2700
+    },
+    "setting_options": {
+     "brightness": {
+      "min": 1,
+      "max": 100
+     },
+     "cct_k": {
+      "min": 2200,
+      "max": 6500
+     }
+    },
+    "control_kinds": {
+     "brightness": "app",
+     "cct_k": "app"
+    },
+    "label_text": "Smart LED 9W (60W equivalent) 2200-6500K - Zigbee - to pair, switch the light off and on 3 times"
+   }
+  },
+  "table_lamp": {
+   "is_a": "lamp",
+   "props": {
+    "label": "table lamp",
+    "lamp_switch": "rotary",
+    "max_bulb_w": 60.0,
+    "nominal_lumens": 800,
+    "cord_length_m": 1.8,
+    "plug_type": "type_a",
+    "plug_polarized": true,
+    "power_w": 9.0,
+    "standby_w": 0.0,
+    "brightness": 0.5,
+    "base_brightness": 0.5,
+    "mass_kg": 2.0,
+    "slots": {
+     "bulb": {
+      "accepts": [
+       "bulb_e26"
+      ],
+      "item": null,
+      "access": "none",
+      "power_off_first": true
+     }
+    }
+   },
+   "perception": {
+    "hidden": [
+     "nominal_lumens",
+     "base_brightness",
+     "bulb_type"
+    ],
+    "glance": [
+     "flicker"
+    ],
+    "read": [
+     "max_bulb_w"
+    ],
+    "measure": {
+     "powered": "voltage_tester"
+    }
+   }
+  },
+  "floor_lamp": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "floor lamp",
+    "size_m": [
+     0.4,
+     0.4,
+     1.6
+    ],
+    "mass_kg": 5.0,
+    "lamp_switch": "foot",
+    "brightness": 0.6,
+    "base_brightness": 0.6,
+    "blocks_path": false,
+    "lamp_head_height_m": 1.5
+   }
+  },
+  "bedside_lamp": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "bedside lamp",
+    "size_m": [
+     0.25,
+     0.25,
+     0.45
+    ],
+    "mass_kg": 1.5,
+    "lamp_switch": "pull_chain",
+    "brightness": 0.35,
+    "base_brightness": 0.35
+   }
+  },
+  "desk_lamp": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "desk lamp",
+    "size_m": [
+     0.2,
+     0.2,
+     0.45
+    ],
+    "mass_kg": 1.2,
+    "lamp_switch": "inline",
+    "brightness": 0.4,
+    "base_brightness": 0.4
+   }
+  },
+  "reading_lamp": {
+   "is_a": "floor_lamp",
+   "props": {
+    "label": "reading lamp",
+    "lamp_switch": "rotary",
+    "brightness": 0.45,
+    "base_brightness": 0.45
+   }
+  },
+  "touch_lamp": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "touch lamp",
+    "lamp_switch": "touch",
+    "settings": {
+     "level": "off"
+    },
+    "setting_options": {
+     "level": [
+      "off",
+      "low",
+      "medium",
+      "high"
+     ]
+    }
+   },
+   "doc": "Touch base cycles off/low/medium/high: switch_on is one tap (low); set level reaches a specific step."
+  },
+  "three_way_lamp": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "3-way lamp",
+    "lamp_switch": "three_way_socket",
+    "max_bulb_w": 150.0,
+    "nominal_lumens": 2600,
+    "settings": {
+     "level": "off"
+    },
+    "setting_options": {
+     "level": [
+      "off",
+      "low",
+      "medium",
+      "high"
+     ]
+    }
+   }
+  },
+  "grow_light": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "plant grow light",
+    "purpose": "plants",
+    "lamp_switch": "inline",
+    "brightness": 0.3,
+    "base_brightness": 0.3
+   }
+  },
+  "aquarium_light": {
+   "is_a": "table_lamp",
+   "props": {
+    "label": "aquarium light",
+    "purpose": "aquarium",
+    "lamp_switch": "inline",
+    "brightness": 0.15,
+    "base_brightness": 0.15,
+    "size_m": [
+     0.6,
+     0.1,
+     0.03
+    ]
+   }
+  },
+  "three_way_switch": {
+   "is_a": "light_switch",
+   "props": {
+    "label": "3-way light switch",
+    "switch_kind": "three_way"
+   },
+   "doc": "One of two switches on a 3-way circuit: the light is lit when the two handle positions disagree with the wiring parity, so 'up' does not mean on.",
+   "perception": {
+    "hidden": [
+     "controls",
+     "three_way_with"
+    ]
+   }
+  },
+  "dimmer_switch": {
+   "is_a": "light_switch",
+   "props": {
+    "label": "dimmer switch",
+    "switch_kind": "dimmer",
+    "settings": {
+     "level": 100
+    },
+    "setting_options": {
+     "level": {
+      "min": 5,
+      "max": 100
+     }
+    }
+   },
+   "doc": "level (5-100 %) sets dim_level of the controlled lights; non-dimmable bulbs flicker and fail when dimmed.",
+   "perception": {
+    "hidden": [
+     "controls",
+     "three_way_with"
+    ]
+   }
+  },
+  "load_switch": {
+   "is_a": "light_switch",
+   "props": {
+    "label": "wall switch",
+    "switch_kind": "rocker"
+   },
+   "doc": "A wall switch for a non-light load (garbage disposal, exhaust fan) that sits in a bank with light switches.",
+   "perception": {
+    "hidden": [
+     "controls",
+     "three_way_with"
+    ]
+   }
+  },
+  "alarm_unit": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "smoke alarm",
+    "category": "detector",
+    "detector_kind": "smoke",
+    "part_type": "smoke_alarm_unit",
+    "life_safety": true,
+    "size_m": [
+     0.13,
+     0.13,
+     0.04
+    ],
+    "mass_kg": 0.2,
+    "manufactured": "2021-05",
+    "sealed": false,
+    "hardwired": false,
+    "cover_open": false,
+    "alarm_state": "idle",
+    "led": "green_blink",
+    "chirping": false,
+    "hush_until_s": -1.0,
+    "_sounder_ok": true,
+    "_sensor_ok": true,
+    "affordances": [
+     "test_detector",
+     "inspect"
+    ],
+    "interconnect": null
+   },
+   "doc": "Base for smoke/CO alarm units (no battery slot).",
+   "perception": {
+    "hidden": [
+     "operational",
+     "end_of_life",
+     "low_battery",
+     "functional",
+     "power_source",
+     "mixed_cells",
+     "reversed_cells",
+     "cells_installed",
+     "interconnect",
+     "life_safety",
+     "hush_until_s",
+     "chirp_hush_until_s",
+     "test_until_s",
+     "last_test_s",
+     "last_test_result",
+     "sealed_charge",
+     "alarm_cause"
+    ],
+    "measure": {
+     "battery_level": "battery_tester",
+     "battery_voltage": "multimeter"
+    },
+    "read": [
+     "co_ppm",
+     "co_peak_ppm",
+     "peak_ppm",
+     "manufactured"
+    ]
+   }
+  },
+  "smoke_alarm": {
+   "is_a": "alarm_unit",
+   "props": {
+    "battery_type": "9V",
+    "min_voltage_v": 7.2,
+    "slots": {
+     "battery": {
+      "accepts": [
+       "battery_9v"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     }
+    }
+   },
+   "doc": "Twist-lock unit mounted in a detector_base slot. Low battery chirps every ~40 s; units older than 10 years chirp end-of-life."
+  },
+  "smoke_alarm_sealed": {
+   "is_a": "alarm_unit",
+   "props": {
+    "label": "smoke alarm (10-year sealed)",
+    "sealed": true,
+    "battery_type": "sealed lithium",
+    "sealed_charge": 1.0,
+    "min_voltage_v": 2.6
+   },
+   "doc": "Sealed 10-year lithium unit: no serviceable battery; replace the whole unit at end of life."
+  },
+  "smoke_alarm_hardwired": {
+   "is_a": "smoke_alarm",
+   "props": {
+    "label": "hardwired smoke alarm",
+    "hardwired": true,
+    "battery_type": "9V backup"
+   }
+  },
+  "co_alarm": {
+   "is_a": "alarm_unit",
+   "props": {
+    "label": "carbon monoxide alarm",
+    "detector_kind": "co",
+    "part_type": "co_alarm_unit",
+    "battery_type": "3x AA",
+    "min_voltage_v": 3.6,
+    "co_ppm": 0,
+    "co_peak_ppm": 0,
+    "_co_dose": 0.0,
+    "display": "0",
+    "slots": {
+     "cell_1": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     },
+     "cell_2": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upside_down"
+     },
+     "cell_3": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     }
+    }
+   },
+   "doc": "Electrochemical CO alarm with ppm display and peak memory; alarm follows a UL 2034-style dose curve."
+  },
+  "co_alarm_plugin": {
+   "is_a": "alarm_unit",
+   "props": {
+    "label": "plug-in CO alarm",
+    "plug_required": true,
+    "plugged_in": false,
+    "plug_type": "type_a",
+    "plug_polarized": true,
+    "plug_in_place": "wall",
+    "power_w": 1.0,
+    "standby_w": 1.0,
+    "battery_type": "9V backup",
+    "min_voltage_v": 7.2,
+    "part_type": "co_alarm_plugin_unit",
+    "slots": {
+     "battery": {
+      "accepts": [
+       "battery_9v"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     }
+    },
+    "detector_kind": "co",
+    "co_ppm": 0,
+    "co_peak_ppm": 0,
+    "_co_dose": 0.0,
+    "display": "0"
+   }
+  },
+  "combo_alarm": {
+   "is_a": "co_alarm",
+   "props": {
+    "label": "smoke and CO alarm",
+    "detector_kind": "combo",
+    "part_type": "smoke_alarm_unit"
+   }
+  },
+  "detector_base": {
+   "is_a": "electrical_fixture",
+   "props": {
+    "label": "alarm mounting base",
+    "category": "detector_base",
+    "size_m": [
+     0.13,
+     0.13,
+     0.015
+    ],
+    "mass_kg": 0.05,
+    "mount_height_m": 2.35,
+    "accepts_items": false,
+    "slots": {
+     "detector": {
+      "accepts": [
+       "smoke_alarm_unit",
+       "co_alarm_unit"
+      ],
+      "item": null,
+      "access": "none"
+     }
+    }
+   },
+   "doc": "Ceiling/wall mounting plate. install/uninstall the alarm into slot 'detector' (twist-lock)."
+  },
+  "alarm_clock": {
+   "is_a": "electronic_device",
+   "props": {
+    "label": "alarm clock",
+    "category": "clock",
+    "size_m": [
+     0.15,
+     0.08,
+     0.07
+    ],
+    "mass_kg": 0.3,
+    "power_w": 2.0,
+    "standby_w": 2.0,
+    "on": true,
+    "power_state": "on",
+    "plug_polarized": false,
+    "fragile": false,
+    "ui": "standard",
+    "ringing": false,
+    "clock": {
+     "offset_s": 0,
+     "format_24h": false,
+     "auto_sync": false,
+     "volatile": true,
+     "battery_backup": false,
+     "running": true,
+     "blinking": false
+    },
+    "alarms": {
+     "alarm_1": {
+      "time": "07:00",
+      "enabled": false,
+      "days": "daily",
+      "owner": null,
+      "sound": "beep",
+      "volume": 5
+     }
+    },
+    "settings": {
+     "brightness": "dim",
+     "snooze_min": 9,
+     "volume": 5
+    },
+    "setting_options": {
+     "brightness": [
+      "off",
+      "dim",
+      "medium",
+      "bright",
+      "auto"
+     ],
+     "snooze_min": [
+      5,
+      7,
+      9,
+      10,
+      15
+     ],
+     "volume": {
+      "min": 1,
+      "max": 10
+     }
+    },
+    "auto_on": true,
+    "boot_s": 1
+   },
+   "doc": "Mains alarm clock: set_time mode=clock|alarm. Volatile clocks reset to a blinking 12:00 after power loss.",
+   "perception": {
+    "hidden": [
+     "clock",
+     "alarms",
+     "rang"
+    ]
+   }
+  },
+  "wall_clock": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "wall clock",
+    "category": "clock",
+    "size_m": [
+     0.3,
+     0.05,
+     0.3
+    ],
+    "mass_kg": 0.6,
+    "fragile": true,
+    "material": "glass",
+    "battery_powered": true,
+    "battery_level": 0.0,
+    "min_voltage_v": 1.1,
+    "cover_open": true,
+    "analog": true,
+    "clock": {
+     "offset_s": 0,
+     "format_24h": false,
+     "auto_sync": false,
+     "volatile": false,
+     "battery_backup": true,
+     "running": true
+    },
+    "slots": {
+     "cell_1": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "none",
+      "polarity": "upright"
+     }
+    }
+   },
+   "perception": {
+    "hidden": [
+     "functional",
+     "low_battery",
+     "mixed_cells",
+     "reversed_cells",
+     "cells_installed",
+     "clock",
+     "rang"
+    ],
+    "measure": {
+     "battery_level": "battery_tester",
+     "battery_voltage": "multimeter"
+    }
+   }
+  },
+  "desk_clock": {
+   "is_a": "wall_clock",
+   "props": {
+    "label": "desk clock",
+    "size_m": [
+     0.15,
+     0.06,
+     0.12
+    ],
+    "mass_kg": 0.3
+   }
+  },
+  "remote_base": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "remote control",
+    "category": "remote",
+    "size_m": [
+     0.045,
+     0.2,
+     0.025
+    ],
+    "mass_kg": 0.12,
+    "battery_powered": true,
+    "battery_level": 0.0,
+    "min_voltage_v": 2.2,
+    "cover_open": false,
+    "remote_kind": "ir",
+    "controls_devices": [],
+    "functional": false
+   },
+   "doc": "Base for battery remotes.",
+   "perception": {
+    "hidden": [
+     "functional",
+     "low_battery",
+     "mixed_cells",
+     "reversed_cells",
+     "cells_installed",
+     "controls_devices"
+    ],
+    "measure": {
+     "battery_level": "battery_tester",
+     "battery_voltage": "multimeter"
+    }
+   }
+  },
+  "remote_control": {
+   "is_a": "remote_base",
+   "props": {
+    "slots": {
+     "cell_1": {
+      "accepts": [
+       "battery_aaa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     },
+     "cell_2": {
+      "accepts": [
+       "battery_aaa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upside_down"
+     }
+    }
+   },
+   "doc": "IR remote (line of sight to the device's receiver, same room) powered by two cells in series."
+  },
+  "remote_control_aa": {
+   "is_a": "remote_control",
+   "props": {
+    "size_m": [
+     0.05,
+     0.22,
+     0.03
+    ],
+    "mass_kg": 0.15,
+    "slots": {
+     "cell_1": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     },
+     "cell_2": {
+      "accepts": [
+       "battery_aa"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upside_down"
+     }
+    }
+   }
+  },
+  "rf_remote": {
+   "is_a": "remote_base",
+   "props": {
+    "label": "Bluetooth remote",
+    "remote_kind": "rf",
+    "min_voltage_v": 2.0,
+    "slots": {
+     "cell": {
+      "accepts": [
+       "battery_cr2032"
+      ],
+      "item": null,
+      "access": "cover",
+      "polarity": "upright"
+     }
+    }
+   }
+  },
+  "esd_component": {
+   "is_a": "portable_object",
+   "props": {
+    "category": "pc_component",
+    "esd_sensitive": true,
+    "safe_grips": [
+     "edges"
+    ],
+    "fragile": true,
+    "esd_damaged": false,
+    "pin_damage": false,
+    "functional": true,
+    "material": "pcb"
+   },
+   "perception": {
+    "hidden": [
+     "esd_damaged",
+     "functional"
+    ]
+   }
+  },
+  "motherboard": {
+   "is_a": "esd_component",
+   "props": {
+    "label": "motherboard",
+    "size_m": [
+     0.305,
+     0.244,
+     0.04
+    ],
+    "mass_kg": 1.0
+   }
+  },
+  "ram_module": {
+   "is_a": "esd_component",
+   "props": {
+    "label": "RAM module",
+    "size_m": [
+     0.133,
+     0.031,
+     0.004
+    ],
+    "mass_kg": 0.02
+   }
+  },
+  "graphics_card": {
+   "is_a": "esd_component",
+   "props": {
+    "label": "graphics card",
+    "size_m": [
+     0.27,
+     0.12,
+     0.04
+    ],
+    "mass_kg": 0.9
+   }
+  },
+  "anti_static_bag": {
+   "is_a": "carry_container",
+   "props": {
+    "label": "anti-static bag",
+    "material": "antistatic",
+    "antistatic": true,
+    "capacity_l": 2.0,
+    "inner_size_m": [
+     0.35,
+     0.3,
+     0.05
+    ],
+    "size_m": [
+     0.36,
+     0.31,
+     0.01
+    ],
+    "mass_kg": 0.02,
+    "soft_sided": true
+   }
+  },
+  "anti_static_mat": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "anti-static mat",
+    "material": "antistatic",
+    "antistatic": true,
+    "accepts_items": true,
+    "surface": true,
+    "container": false,
+    "surface_size_m": [
+     0.6,
+     0.5
+    ],
+    "size_m": [
+     0.6,
+     0.5,
+     0.003
+    ],
+    "surface_height_m": 0.003,
+    "mass_kg": 0.5
+   }
+  },
+  "esd_wrist_strap": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "ESD wrist strap",
+    "wearable": true,
+    "gear_kind": "esd_strap",
+    "wear_slot": "wrist",
+    "size_m": [
+     0.1,
+     0.06,
+     0.02
+    ],
+    "mass_kg": 0.03
+   }
+  },
+  "photocell_light": {
+   "is_a": "outdoor_light",
+   "props": {
+    "label": "photocell porch light",
+    "photocell": true,
+    "settings": {
+     "mode": "auto"
+    },
+    "setting_options": {
+     "mode": [
+      "auto",
+      "on",
+      "off"
+     ]
+    },
+    "weatherproof": true
+   },
+   "doc": "Dusk-to-dawn fixture: in mode auto it lights only when it is dark outside (and its switch is on)."
+  },
+  "switched_outlet": {
+   "is_a": "wall_outlet",
+   "props": {
+    "label": "switched outlet",
+    "switched": true,
+    "on": true
+   },
+   "doc": "Receptacle half controlled by a wall switch (listed in the switch's controls)."
+  },
+  "hair_dryer": {
+   "is_a": "plug_device",
+   "props": {
+    "label": "hair dryer",
+    "category": "appliance",
+    "power_w": 1800.0,
+    "rated_v": [
+     110,
+     125
+    ],
+    "switchable": true,
+    "on": false,
+    "size_m": [
+     0.25,
+     0.1,
+     0.25
+    ],
+    "mass_kg": 0.6,
+    "plug_type": "type_a",
+    "high_draw": true,
+    "water_safe": false
+   },
+   "doc": "Single-voltage 120 V dryer: on a 230 V supply (or a plug adapter that does not convert) it burns out."
+  },
+  "voltage_tester": {
+   "is_a": "portable_object",
+   "props": {
+    "label": "non-contact voltage tester",
+    "category": "tool",
+    "tool_kind": "voltage_tester",
+    "affordances": [
+     "test_voltage"
+    ],
+    "material": "plastic",
+    "size_m": [
+     0.15,
+     0.02,
+     0.02
+    ],
+    "mass_kg": 0.05
+   },
+   "doc": "Pen-style non-contact voltage tester: held while inspecting a receptacle, strip, cord or fixture it beeps and lights when voltage is present (the only way to know a dead outlet from a live one without plugging something in)."
+  }
+ }
+}

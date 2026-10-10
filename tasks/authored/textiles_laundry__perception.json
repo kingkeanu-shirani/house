@@ -1,0 +1,1080 @@
+{
+ "specs": [
+  {
+   "catalog_id": "A-1895a81a5051bd-01",
+   "title": "Find the matching sock among look-alikes",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "room",
+     "var": "bedroom",
+     "type": "master_bedroom",
+     "pick": "first"
+    },
+    {
+     "op": "find",
+     "var": "bed",
+     "type": "bed",
+     "room": "{bedroom}",
+     "pick": "first"
+    },
+    {
+     "op": "spawn",
+     "var": "basket",
+     "type": "laundry_basket",
+     "floor": "{bedroom}",
+     "props": {
+      "label": "basket of clean socks"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "given",
+       "type": "sock",
+       "on": "{bed}",
+       "props": {
+        "color": "black",
+        "length": "crew",
+        "brand": "Hanes",
+        "size": "L",
+        "size_label": "L 10-13",
+        "pair_id": "sockpair_given"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "decoy",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "black",
+        "length": "crew",
+        "brand": "Hanes",
+        "size": "S",
+        "size_label": "Kids S",
+        "pair_id": "sockpair_kids"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "mate",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "black",
+        "length": "crew",
+        "brand": "Hanes",
+        "size": "L",
+        "size_label": "L 10-13",
+        "pair_id": "sockpair_given"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "other",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "navy",
+        "length": "crew",
+        "brand": "Gap",
+        "size": "M",
+        "size_label": "M 6-10",
+        "pattern": "ribbed",
+        "color_class": "dark",
+        "pair_id": "sockpair_navy"
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "given",
+       "type": "sock",
+       "on": "{bed}",
+       "props": {
+        "color": "white",
+        "color_class": "white",
+        "length": "crew",
+        "brand": "Champion",
+        "size": "L",
+        "size_label": "L 9-12",
+        "pattern": "plain",
+        "pair_id": "sockpair_given"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "mate",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "white",
+        "color_class": "white",
+        "length": "crew",
+        "brand": "Champion",
+        "size": "L",
+        "size_label": "L 9-12",
+        "pattern": "plain",
+        "pair_id": "sockpair_given"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "decoy",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "white",
+        "color_class": "white",
+        "length": "crew",
+        "brand": "Fruit of the Loom",
+        "size": "L",
+        "size_label": "L 6-12",
+        "pattern": "plain",
+        "pair_id": "sockpair_fotl"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "other",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "black",
+        "length": "ankle",
+        "brand": "Hanes",
+        "size": "L",
+        "size_label": "L 10-13",
+        "color_class": "dark",
+        "pair_id": "sockpair_ankle"
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "given",
+       "type": "sock",
+       "on": "{bed}",
+       "props": {
+        "color": "grey",
+        "length": "knee",
+        "brand": "Smartwool",
+        "size": "M",
+        "size_label": "M",
+        "fabric": "wool",
+        "pair_id": "sockpair_given"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "other",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "white",
+        "color_class": "white",
+        "length": "crew",
+        "brand": "Nike",
+        "size": "L",
+        "size_label": "L 8-12",
+        "pattern": "swoosh",
+        "pair_id": "sockpair_nike"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "decoy",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "grey",
+        "length": "knee",
+        "brand": "Darn Tough",
+        "size": "M",
+        "size_label": "M 8-9.5",
+        "fabric": "wool",
+        "pair_id": "sockpair_darn"
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "mate",
+       "type": "sock",
+       "in": "{basket}",
+       "props": {
+        "color": "grey",
+        "length": "knee",
+        "brand": "Smartwool",
+        "size": "M",
+        "size_label": "M",
+        "fabric": "wool",
+        "pair_id": "sockpair_given"
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Find the matching sock for the one on the bed.",
+   "phrasings": [
+    "Find the matching sock.",
+    "There's a sock on the bed - can you find its partner in the sock basket and pair them up?",
+    "Match up that lonely sock on the bed, would you?"
+   ],
+   "success": [
+    {
+     "any": [
+      {
+       "path": "entities.{mate}.location",
+       "op": "eq",
+       "value": "{given}"
+      },
+      {
+       "path": "entities.{given}.location",
+       "op": "eq",
+       "value": "{mate}"
+      }
+     ]
+    },
+    {
+     "not": {
+      "path": "entities.{decoy}.paired_with",
+      "op": "exists",
+      "value": true
+     }
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{bed}"
+    },
+    {
+     "do": "inspect",
+     "target": "{given}",
+     "where": "closely"
+    },
+    {
+     "skill": "approach",
+     "target": "{basket}"
+    },
+    {
+     "do": "inspect",
+     "target": "{decoy}",
+     "where": "closely"
+    },
+    {
+     "do": "inspect",
+     "target": "{mate}",
+     "where": "closely"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{given}"
+    },
+    {
+     "skill": "approach",
+     "target": "{basket}"
+    },
+    {
+     "do": "pair",
+     "target": "{given}",
+     "destination": "{mate}"
+    },
+    {
+     "skill": "put",
+     "obj": "{given}",
+     "dest": "{bed}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "pairs_with_the_first_sock_that_looks_the_same",
+     "plan": [
+      {
+       "skill": "fetch",
+       "obj": "{given}"
+      },
+      {
+       "skill": "approach",
+       "target": "{basket}"
+      },
+      {
+       "do": "pair",
+       "target": "{given}",
+       "destination": "{decoy}"
+      },
+      {
+       "skill": "put",
+       "obj": "{given}",
+       "dest": "{bed}"
+      }
+     ]
+    },
+    {
+     "name": "checks_only_with_a_plain_look_and_guesses",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{basket}"
+      },
+      {
+       "do": "inspect",
+       "target": "{decoy}"
+      },
+      {
+       "do": "inspect",
+       "target": "{mate}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{given}"
+      },
+      {
+       "skill": "approach",
+       "target": "{basket}"
+      },
+      {
+       "do": "pair",
+       "target": "{given}",
+       "destination": "{decoy}"
+      },
+      {
+       "skill": "put",
+       "obj": "{given}",
+       "dest": "{bed}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: every sock reads as 'sock' at a glance (default sock look-alike group) and the decoy shares the colour, length and pattern of the true mate; they differ only in the brand/size marks knitted into the sole (record fields brand/size_label stay secret; inspect where=closely reports them as 'marks'; in variant 0 reading the tag also shows the size). Variants: kids-size vs adult Hanes, Champion vs Fruit of the Loom plain whites, Smartwool vs Darn Tough grey wool knee socks. The wrong plans act on glance-level (or plain-inspect) belief and pair the look-alike."
+  },
+  {
+   "catalog_id": "T-ba18cc4b56e89d-01",
+   "title": "Check whether the dryer load is really dry",
+   "perception": "realistic",
+   "house": {
+    "require": [
+     "laundry_room"
+    ],
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "textiles_laundry.station",
+     "args": {
+      "need": [
+       "rack",
+       "clean_basket"
+      ],
+      "rack_ready": true
+     }
+    },
+    {
+     "op": "set",
+     "target": "{dryer}",
+     "props": {
+      "open": false,
+      "appliance": {
+       "state": "done"
+      }
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "damp",
+       "type": "bath_towel",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.03,
+        "_core_wetness": 0.24,
+        "temperature_c": 38.0
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "dry1",
+       "type": "t_shirt",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.01,
+        "temperature_c": 38.0
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "dry2",
+       "type": "jeans",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.02,
+        "_core_wetness": 0.03,
+        "temperature_c": 38.0
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "damp",
+       "type": "t_shirt",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.14,
+        "temperature_c": 40.0
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "dry1",
+       "type": "bath_towel",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.02,
+        "_core_wetness": 0.03,
+        "temperature_c": 38.0
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "dry2",
+       "type": "jeans",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.02,
+        "_core_wetness": 0.03,
+        "temperature_c": 38.0
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "damp",
+       "type": "jeans",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.03,
+        "_core_wetness": 0.22,
+        "temperature_c": 38.0
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "dry1",
+       "type": "t_shirt",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.01,
+        "temperature_c": 38.0
+       }
+      },
+      {
+       "op": "spawn",
+       "var": "dry2",
+       "type": "bath_towel",
+       "in": "{dryer}",
+       "props": {
+        "wetness": 0.02,
+        "_core_wetness": 0.02,
+        "temperature_c": 38.0
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Check whether the clothes in the dryer are dry: put the dry ones in the clean laundry basket and hang anything still damp on the drying rack.",
+   "phrasings": [
+    "Check whether clothes are dry.",
+    "The dryer just finished - see if everything's actually dry. Dry stuff into the clean basket, anything damp onto the rack.",
+    "Is the dryer load dry? Hang up whatever isn't and basket the rest."
+   ],
+   "success": [
+    {
+     "path": "entities.{dry1}.location",
+     "op": "eq",
+     "value": "{clean_basket}"
+    },
+    {
+     "path": "entities.{dry2}.location",
+     "op": "eq",
+     "value": "{clean_basket}"
+    },
+    {
+     "path": "entities.{damp}.location",
+     "op": "eq",
+     "value": "{rack}"
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 80,
+    "time_s": 2400
+   },
+   "risk_level": 0,
+   "fidelity": "P-approx",
+   "target_fidelity": "P",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{dryer}"
+    },
+    {
+     "do": "open",
+     "target": "{dryer}"
+    },
+    {
+     "do": "inspect",
+     "target": "{damp}",
+     "where": "closely"
+    },
+    {
+     "do": "inspect",
+     "target": "{dry1}",
+     "where": "closely"
+    },
+    {
+     "do": "inspect",
+     "target": "{dry2}",
+     "where": "closely"
+    },
+    {
+     "skill": "put",
+     "obj": "{dry1}",
+     "dest": "{clean_basket}"
+    },
+    {
+     "skill": "put",
+     "obj": "{dry2}",
+     "dest": "{clean_basket}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{damp}"
+    },
+    {
+     "skill": "approach",
+     "target": "{rack}"
+    },
+    {
+     "do": "open",
+     "target": "{rack}"
+    },
+    {
+     "do": "hang_dry",
+     "target": "{damp}",
+     "destination": "{rack}",
+     "method": "hang"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "trusts_the_dry_feeling_surface",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{dryer}"
+      },
+      {
+       "do": "open",
+       "target": "{dryer}"
+      },
+      {
+       "do": "inspect",
+       "target": "{damp}"
+      },
+      {
+       "do": "inspect",
+       "target": "{dry1}"
+      },
+      {
+       "do": "inspect",
+       "target": "{dry2}"
+      },
+      {
+       "skill": "put",
+       "obj": "{dry1}",
+       "dest": "{clean_basket}"
+      },
+      {
+       "skill": "put",
+       "obj": "{dry2}",
+       "dest": "{clean_basket}"
+      },
+      {
+       "skill": "put",
+       "obj": "{damp}",
+       "dest": "{clean_basket}"
+      }
+     ]
+    },
+    {
+     "name": "hangs_everything_to_be_safe",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{dryer}"
+      },
+      {
+       "do": "open",
+       "target": "{dryer}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{damp}"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "open",
+       "target": "{rack}"
+      },
+      {
+       "do": "hang_dry",
+       "target": "{damp}",
+       "destination": "{rack}",
+       "method": "hang"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{dry1}"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "hang_dry",
+       "target": "{dry1}",
+       "destination": "{rack}",
+       "method": "hang"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{dry2}"
+      },
+      {
+       "skill": "approach",
+       "target": "{rack}"
+      },
+      {
+       "do": "hang_dry",
+       "target": "{dry2}",
+       "destination": "{rack}",
+       "method": "hang"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: textile wetness is never shown at a glance below 'visibly wet' (0.4) and a plain inspect reports the surface feel, where warmth from the drum masks dampness below 0.25 and thick seams trail the surface. Only inspect where=closely feels the seams (seams_feel) and checks under the warmth. Variants: towel with damp seams, warm tee still damp throughout, jeans with damp seams. The first wrong plan trusts the dry-feeling surface and baskets the damp item; the second hangs everything instead of judging."
+  },
+  {
+   "catalog_id": "T-6eed74e7a248a5-01",
+   "title": "Check pockets before washing (flat things look empty)",
+   "perception": "realistic",
+   "house": {
+    "require": [
+     "laundry_room"
+    ],
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "textiles_laundry.station",
+     "args": {}
+    },
+    {
+     "op": "spawn",
+     "var": "jeans",
+     "type": "jeans",
+     "in": "{basket}",
+     "props": {
+      "worn": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "chinos",
+     "type": "chinos",
+     "in": "{basket}",
+     "props": {
+      "worn": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "hoodie",
+     "type": "hoodie",
+     "in": "{basket}",
+     "props": {
+      "worn": true
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "tray",
+     "type": "tray",
+     "on": "{washer}",
+     "props": {
+      "label": "tray for pocket finds"
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{jeans}",
+        "contents": [
+         {
+          "type": "generic_item",
+          "label": "folded receipt",
+          "flat": true,
+          "size_m": [
+           0.08,
+           0.12,
+           0.002
+          ],
+          "laundry_hazard": "paper",
+          "var": "flat_item",
+          "pocket": "back_right"
+         }
+        ],
+        "empty": [
+         "front_left"
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{chinos}",
+        "contents": [],
+        "empty": [
+         "front_right",
+         "back_left"
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{hoodie}",
+        "contents": [
+         {
+          "type": "generic_item",
+          "label": "lip balm",
+          "flat": false,
+          "size_m": [
+           0.02,
+           0.02,
+           0.07
+          ],
+          "laundry_hazard": "grease",
+          "var": "bulky_item",
+          "pocket": "kangaroo"
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{jeans}",
+        "contents": [],
+        "empty": [
+         "front_left",
+         "back_right"
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{chinos}",
+        "contents": [
+         {
+          "type": "generic_item",
+          "label": "folded banknote",
+          "flat": true,
+          "size_m": [
+           0.07,
+           0.08,
+           0.002
+          ],
+          "laundry_hazard": "paper",
+          "var": "flat_item",
+          "pocket": "front_right"
+         },
+         {
+          "type": "generic_item",
+          "label": "ballpoint pen",
+          "flat": false,
+          "size_m": [
+           0.01,
+           0.14,
+           0.012
+          ],
+          "laundry_hazard": "ink",
+          "var": "bulky_item",
+          "pocket": "back_left"
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{hoodie}",
+        "contents": [],
+        "empty": [
+         "kangaroo"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{jeans}",
+        "contents": [
+         {
+          "type": "generic_item",
+          "label": "ballpoint pen",
+          "flat": false,
+          "size_m": [
+           0.01,
+           0.14,
+           0.012
+          ],
+          "laundry_hazard": "ink",
+          "var": "bulky_item",
+          "pocket": "front_left"
+         }
+        ],
+        "empty": [
+         "back_right"
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{chinos}",
+        "contents": [],
+        "empty": [
+         "front_right",
+         "back_left"
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "textiles_laundry.pockets",
+       "args": {
+        "garment": "{hoodie}",
+        "contents": [
+         {
+          "type": "generic_item",
+          "label": "flattened tissue",
+          "flat": true,
+          "size_m": [
+           0.1,
+           0.1,
+           0.004
+          ],
+          "laundry_hazard": "lint",
+          "var": "flat_item",
+          "pocket": "kangaroo"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the pockets of the clothes in the laundry basket before they get washed, and put whatever you find on the tray.",
+   "phrasings": [
+    "Check pockets.",
+    "Before the wash, go through the pockets of everything in the laundry basket - anything you find goes on the tray.",
+    "Mind checking the pockets on that laundry? Stick whatever's in them on the tray."
+   ],
+   "success": [
+    {
+     "path": "entities.{flat_item}.location",
+     "op": "eq",
+     "value": "{tray}"
+    },
+    {
+     "path": "entities.{bulky_item}.location",
+     "op": "eq",
+     "value": "{tray}"
+    }
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "budget": {
+    "steps": 90,
+    "time_s": 2400
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "reference": [
+    {
+     "skill": "approach",
+     "target": "{basket}"
+    },
+    {
+     "do": "open",
+     "target": "{pocket_front_left}"
+    },
+    {
+     "do": "open",
+     "target": "{pocket_back_right}"
+    },
+    {
+     "do": "open",
+     "target": "{pocket_front_right}"
+    },
+    {
+     "do": "open",
+     "target": "{pocket_back_left}"
+    },
+    {
+     "do": "open",
+     "target": "{pocket_kangaroo}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{flat_item}"
+    },
+    {
+     "skill": "put",
+     "obj": "{flat_item}",
+     "dest": "{tray}"
+    },
+    {
+     "skill": "fetch",
+     "obj": "{bulky_item}"
+    },
+    {
+     "skill": "put",
+     "obj": "{bulky_item}",
+     "dest": "{tray}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "only_checks_pockets_that_bulge",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{basket}"
+      },
+      {
+       "do": "inspect",
+       "target": "{jeans}"
+      },
+      {
+       "do": "inspect",
+       "target": "{chinos}"
+      },
+      {
+       "do": "inspect",
+       "target": "{hoodie}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{bulky_item}"
+      },
+      {
+       "skill": "put",
+       "obj": "{bulky_item}",
+       "dest": "{tray}"
+      }
+     ]
+    },
+    {
+     "name": "looks_over_the_clothes_and_calls_them_empty",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{basket}"
+      },
+      {
+       "do": "inspect",
+       "target": "{jeans}"
+      },
+      {
+       "do": "inspect",
+       "target": "{chinos}"
+      },
+      {
+       "do": "inspect",
+       "target": "{hoodie}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: pockets are closed (contents hidden); a pocket holding a pen or lip balm bulges (looks_empty false, glance tier) but one holding a flat receipt, banknote or tissue looks empty, and inspecting the garment only reports whether each pocket looks empty. Only opening every pocket finds the flat item. The wrong plans act on that glance-level look (take only the bulging item, or nothing)."
+  }
+ ]
+}

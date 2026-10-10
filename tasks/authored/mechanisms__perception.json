@@ -1,0 +1,1290 @@
+{
+ "specs": [
+  {
+   "catalog_id": "A-565da7517f3394-01",
+   "title": "Find why this drawer keeps sticking (hidden cause: feel it, look closely, fix the matching cause)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "mechanisms.lights_on"
+    },
+    {
+     "op": "room",
+     "var": "k",
+     "type": "kitchen",
+     "pick": "first"
+    },
+    {
+     "op": "find",
+     "var": "counter",
+     "type": "counter",
+     "room": "{k}",
+     "pick": "first"
+    },
+    {
+     "op": "spawn",
+     "var": "driver",
+     "type": "screwdriver",
+     "on": "{counter}"
+    },
+    {
+     "op": "find",
+     "var": "towel_drawer",
+     "type": "drawer",
+     "room": "{k}",
+     "where": {
+      "label": "towel drawer"
+     },
+     "pick": "first"
+    },
+    {
+     "op": "spawn",
+     "var": "cloth",
+     "type": "microfiber_cloth",
+     "in": "{towel_drawer}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "mechanisms.drawer",
+       "args": {
+        "room": "{k}",
+        "host": "kitchen",
+        "props": {
+         "label": "kitchen drawer",
+         "open": false
+        },
+        "hidden": {
+         "stick": "screw_head"
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wooden spoon",
+           "size_m": [
+            0.06,
+            0.3,
+            0.03
+           ],
+           "volume_l": 0.1,
+           "mass_kg": 0.05
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{drawer}.cause",
+       "op": "eq",
+       "value": "screw_head"
+      },
+      {
+       "path": "entities.{drawer}._mech.fixed",
+       "op": "eq",
+       "value": "tightened"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{drawer}",
+       "force": "gentle"
+      },
+      {
+       "do": "inspect",
+       "target": "{drawer}"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{driver}"
+      },
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "turn",
+       "target": "{drawer}",
+       "part": "screw"
+      },
+      {
+       "do": "open",
+       "target": "{drawer}"
+      },
+      {
+       "do": "report",
+       "target": "{drawer}",
+       "field": "cause",
+       "value": "screw_head"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "re-seats the runner blindly (the most common fix) and reports a roller off its track without inspecting",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{drawer}"
+        },
+        {
+         "do": "pull_handle",
+         "target": "{drawer}",
+         "force": "gentle"
+        },
+        {
+         "do": "push_handle",
+         "target": "{drawer}",
+         "lift": true
+        },
+        {
+         "do": "report",
+         "target": "{drawer}",
+         "field": "cause",
+         "value": "roller_off_track"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "mechanisms.drawer",
+       "args": {
+        "room": "{k}",
+        "host": "kitchen",
+        "props": {
+         "label": "kitchen drawer",
+         "open": false
+        },
+        "hidden": {
+         "stick": "roller_off_track"
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wooden spoon",
+           "size_m": [
+            0.06,
+            0.3,
+            0.03
+           ],
+           "volume_l": 0.1,
+           "mass_kg": 0.05
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{drawer}.cause",
+       "op": "eq",
+       "value": "roller_off_track"
+      },
+      {
+       "path": "entities.{drawer}._mech.fixed",
+       "op": "eq",
+       "value": "reseated_roller"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{drawer}",
+       "force": "gentle"
+      },
+      {
+       "do": "inspect",
+       "target": "{drawer}"
+      },
+      {
+       "do": "push_handle",
+       "target": "{drawer}",
+       "lift": true
+      },
+      {
+       "do": "open",
+       "target": "{drawer}"
+      },
+      {
+       "do": "report",
+       "target": "{drawer}",
+       "field": "cause",
+       "value": "roller_off_track"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "tightens the rail screws blindly and reports a proud screw without inspecting",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{drawer}"
+        },
+        {
+         "do": "pull_handle",
+         "target": "{drawer}",
+         "force": "gentle"
+        },
+        {
+         "skill": "fetch",
+         "obj": "{driver}"
+        },
+        {
+         "skill": "mechanisms.approach",
+         "target": "{drawer}"
+        },
+        {
+         "do": "turn",
+         "target": "{drawer}",
+         "part": "screw"
+        },
+        {
+         "do": "report",
+         "target": "{drawer}",
+         "field": "cause",
+         "value": "screw_head"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "mechanisms.drawer",
+       "args": {
+        "room": "{k}",
+        "host": "kitchen",
+        "props": {
+         "label": "kitchen drawer",
+         "open": false
+        },
+        "hidden": {
+         "stick": "dirty_runners"
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wooden spoon",
+           "size_m": [
+            0.06,
+            0.3,
+            0.03
+           ],
+           "volume_l": 0.1,
+           "mass_kg": 0.05
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{drawer}.cause",
+       "op": "eq",
+       "value": "dirty_runners"
+      },
+      {
+       "path": "entities.{drawer}._mech.fixed",
+       "op": "in",
+       "value": [
+        "cleaned",
+        "waxed"
+       ]
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{drawer}",
+       "force": "gentle"
+      },
+      {
+       "do": "inspect",
+       "target": "{drawer}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{drawer}",
+       "force": "firm"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{cloth}"
+      },
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "push_handle",
+       "target": "{drawer}",
+       "part": "runners",
+       "tool": "{cloth}"
+      },
+      {
+       "do": "close",
+       "target": "{drawer}"
+      },
+      {
+       "do": "open",
+       "target": "{drawer}"
+      },
+      {
+       "do": "report",
+       "target": "{drawer}",
+       "field": "cause",
+       "value": "dirty_runners"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "re-seats the runner blindly (the most common fix) and reports a roller off its track without inspecting",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{drawer}"
+        },
+        {
+         "do": "pull_handle",
+         "target": "{drawer}",
+         "force": "gentle"
+        },
+        {
+         "do": "push_handle",
+         "target": "{drawer}",
+         "lift": true
+        },
+        {
+         "do": "report",
+         "target": "{drawer}",
+         "field": "cause",
+         "value": "roller_off_track"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Find why this drawer keeps sticking.",
+   "phrasings": [
+    "Find why this drawer keeps sticking.",
+    "The kitchen drawer keeps catching - can you figure out what's wrong with it and fix it?",
+    "that drawer sticks every time, work out why"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 50,
+    "time_s": 1200
+   },
+   "wrong": [
+    {
+     "name": "goes by the look of it: assumes humid swollen wood without a close look and reports that",
+     "plan": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{drawer}",
+       "force": "gentle"
+      },
+      {
+       "do": "report",
+       "target": "{drawer}",
+       "field": "cause",
+       "value": "swollen"
+      }
+     ]
+    },
+    {
+     "name": "yanks it open repeatedly",
+     "plan": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{drawer}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{drawer}",
+       "force": "yank"
+      },
+      {
+       "do": "inspect",
+       "target": "{drawer}"
+      },
+      {
+       "do": "report",
+       "target": "{drawer}",
+       "field": "cause",
+       "value": "stuck"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: at a glance a sticking drawer is just a closed drawer (the cause lives in hidden _mech.stick). A gentle pull gives the resistance profile (touch) and a close, lit inspection shows the visual clue and the cause it points to (inspect 'suggests'); the matching low-risk fix differs per cause (screwdriver on the proud screw, lift to re-seat the roller, one firm pull then wipe the gritty runners with a cloth). The reported cause must match the hidden ground truth and appear in what the robot observed."
+  },
+  {
+   "catalog_id": "T-94a0a940224c22-01",
+   "title": "Report damaged gate latch (bent bar / missing keeper screw / sagging gate: only a close look tells)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "randint",
+     "var": "sag",
+     "min": 9,
+     "max": 14
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "fault_name",
+       "value": "bent_bar"
+      },
+      {
+       "op": "helper",
+       "name": "mechanisms.gate",
+       "args": {
+        "which": "gate",
+        "props": {
+         "open": false,
+         "latched": false
+        },
+        "hidden": {
+         "fault": "bent_bar"
+        }
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{inside}",
+       "props": {
+        "activity": "weeding the flower bed"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{gate}.fault",
+       "op": "eq",
+       "value": "bent_bar"
+      },
+      {
+       "path": "reports.{gate}._to.fault",
+       "op": "eq",
+       "value": "resident_1"
+      },
+      {
+       "path": "entities.{gate}.open",
+       "op": "is_false",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{gate}"
+      },
+      {
+       "do": "close",
+       "target": "{gate}"
+      },
+      {
+       "do": "inspect",
+       "target": "{gate}"
+      },
+      {
+       "do": "report",
+       "target": "{gate}",
+       "field": "fault",
+       "value": "bent_bar",
+       "to": "resident_1"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "assumes the usual sag without looking at the hardware: lifts it, latches and reports sag",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{gate}"
+        },
+        {
+         "do": "close",
+         "target": "{gate}"
+        },
+        {
+         "do": "latch",
+         "target": "{gate}",
+         "lift": true
+        },
+        {
+         "do": "report",
+         "target": "{gate}",
+         "field": "fault",
+         "value": "sag",
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "fault_name",
+       "value": "missing_screw"
+      },
+      {
+       "op": "helper",
+       "name": "mechanisms.gate",
+       "args": {
+        "which": "gate",
+        "props": {
+         "open": false,
+         "latched": false
+        },
+        "hidden": {
+         "fault": "missing_screw"
+        }
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{inside}",
+       "props": {
+        "activity": "weeding the flower bed"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{gate}.fault",
+       "op": "eq",
+       "value": "missing_screw"
+      },
+      {
+       "path": "reports.{gate}._to.fault",
+       "op": "eq",
+       "value": "resident_1"
+      },
+      {
+       "path": "entities.{gate}.open",
+       "op": "is_false",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{gate}"
+      },
+      {
+       "do": "close",
+       "target": "{gate}"
+      },
+      {
+       "do": "inspect",
+       "target": "{gate}"
+      },
+      {
+       "do": "report",
+       "target": "{gate}",
+       "field": "fault",
+       "value": "missing_screw",
+       "to": "resident_1"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "assumes the usual sag without looking at the hardware: lifts it, latches and reports sag",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{gate}"
+        },
+        {
+         "do": "close",
+         "target": "{gate}"
+        },
+        {
+         "do": "latch",
+         "target": "{gate}",
+         "lift": true
+        },
+        {
+         "do": "report",
+         "target": "{gate}",
+         "field": "fault",
+         "value": "sag",
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "bind",
+       "var": "fault_name",
+       "value": "sag"
+      },
+      {
+       "op": "helper",
+       "name": "mechanisms.gate",
+       "args": {
+        "which": "gate",
+        "props": {
+         "open": false,
+         "latched": false
+        },
+        "hidden": {
+         "sag_mm": "{sag}"
+        }
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{inside}",
+       "props": {
+        "activity": "weeding the flower bed"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{gate}.fault",
+       "op": "in",
+       "value": [
+        "sag",
+        "latch_misaligned"
+       ]
+      },
+      {
+       "path": "reports.{gate}._to.fault",
+       "op": "eq",
+       "value": "resident_1"
+      },
+      {
+       "path": "entities.{gate}.open",
+       "op": "is_false",
+       "value": true
+      },
+      {
+       "path": "entities.{gate}.latched",
+       "op": "is_true",
+       "value": true
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{gate}"
+      },
+      {
+       "do": "close",
+       "target": "{gate}"
+      },
+      {
+       "do": "inspect",
+       "target": "{gate}"
+      },
+      {
+       "do": "latch",
+       "target": "{gate}",
+       "lift": true
+      },
+      {
+       "do": "report",
+       "target": "{gate}",
+       "field": "fault",
+       "value": "sag",
+       "to": "resident_1"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "assumes the latch bar is bent without a close look and reports that",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{gate}"
+        },
+        {
+         "do": "close",
+         "target": "{gate}"
+        },
+        {
+         "do": "pull_handle",
+         "target": "{gate}",
+         "test": true
+        },
+        {
+         "do": "close",
+         "target": "{gate}"
+        },
+        {
+         "do": "report",
+         "target": "{gate}",
+         "field": "fault",
+         "value": "bent_bar",
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Report damaged latch.",
+   "phrasings": [
+    "Report damaged latch.",
+    "The side gate latch seems off - check it and let me know what's wrong.",
+    "have a look at the gate latch and tell me if it's busted"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 1,
+   "fidelity": "G",
+   "target_fidelity": "G",
+   "budget": {
+    "steps": 50,
+    "time_s": 1200
+   },
+   "wrong": [
+    {
+     "name": "goes by the look of it: the gate rests shut, so it reports the latch as fine",
+     "plan": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{gate}"
+      },
+      {
+       "do": "close",
+       "target": "{gate}"
+      },
+      {
+       "do": "inspect",
+       "target": "{gate}"
+      },
+      {
+       "do": "report",
+       "target": "{gate}",
+       "field": "fault",
+       "value": "none",
+       "to": "resident_1"
+      }
+     ]
+    },
+    {
+     "name": "finds the fault but leaves the gate swinging open after testing it",
+     "plan": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{gate}"
+      },
+      {
+       "do": "close",
+       "target": "{gate}"
+      },
+      {
+       "do": "inspect",
+       "target": "{gate}"
+      },
+      {
+       "do": "pull_handle",
+       "target": "{gate}",
+       "test": true
+      },
+      {
+       "do": "report",
+       "target": "{gate}",
+       "field": "fault",
+       "value": "{fault_name}",
+       "to": "resident_1"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: a gate resting shut looks latched at a glance (latched is inspect-tier). A close, lit inspection shows the seeded fault's evidence - a bent bar, a missing keeper screw, or the latch bar sitting below the catch (an eyeballed gap, 5 mm resolution) - and what it points to. The report must name the hidden fault and reach the resident; a sagging gate can and should be latched by lifting it, the other faults cannot latch (left shut)."
+  },
+  {
+   "catalog_id": "T-1e3f1a4d26121e-01",
+   "title": "Report broken lock (test each exterior lock gently; jammed smart lock / misaligned strike / merely low battery)",
+   "perception": "realistic",
+   "house": {
+    "dwelling": "house",
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "mechanisms.door",
+       "prefix": "f_",
+       "args": {
+        "kind": "front",
+        "props": {
+         "open": false,
+         "latched": true,
+         "locked": false
+        },
+        "mech": {
+         "smart": {
+          "display": "Unlocked",
+          "reported": "unlocked",
+          "battery": 0.85
+         }
+        },
+        "hidden": {
+         "fault": "smart_jam"
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "mechanisms.door",
+       "prefix": "b_",
+       "args": {
+        "kind": "back",
+        "props": {
+         "open": false,
+         "latched": true,
+         "locked": false
+        }
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{f_inside}",
+       "props": {
+        "activity": "putting on shoes"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{f_door}.lock_broken",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "reports.{f_door}._to.lock_broken",
+       "op": "eq",
+       "value": "resident_1"
+      },
+      {
+       "not": {
+        "path": "reports.{b_door}.lock_broken",
+        "op": "is_true",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{f_door}"
+      },
+      {
+       "do": "lock",
+       "target": "{f_door}",
+       "expect": "fail"
+      },
+      {
+       "do": "inspect",
+       "target": "{f_door}"
+      },
+      {
+       "skill": "mechanisms.approach",
+       "target": "{b_door}"
+      },
+      {
+       "do": "lock",
+       "target": "{b_door}"
+      },
+      {
+       "do": "report",
+       "target": "{f_door}",
+       "field": "lock_broken",
+       "value": true,
+       "to": "resident_1"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "assumes the old back-door lock is the broken one without testing and reports it",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{b_door}"
+        },
+        {
+         "do": "inspect",
+         "target": "{b_door}"
+        },
+        {
+         "do": "report",
+         "target": "{b_door}",
+         "field": "lock_broken",
+         "value": true,
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "mechanisms.door",
+       "prefix": "f_",
+       "args": {
+        "kind": "front",
+        "props": {
+         "open": false,
+         "latched": true,
+         "locked": false
+        },
+        "mech": {
+         "smart": {
+          "display": "Unlocked",
+          "reported": "unlocked",
+          "battery": 0.85
+         }
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "mechanisms.door",
+       "prefix": "b_",
+       "args": {
+        "kind": "back",
+        "props": {
+         "open": false,
+         "latched": true,
+         "locked": false
+        },
+        "hidden": {
+         "fault": "strike_misaligned"
+        }
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{f_inside}",
+       "props": {
+        "activity": "putting on shoes"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{b_door}.lock_broken",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "reports.{b_door}._to.lock_broken",
+       "op": "eq",
+       "value": "resident_1"
+      },
+      {
+       "not": {
+        "path": "reports.{f_door}.lock_broken",
+        "op": "is_true",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{f_door}"
+      },
+      {
+       "do": "lock",
+       "target": "{f_door}"
+      },
+      {
+       "skill": "mechanisms.approach",
+       "target": "{b_door}"
+      },
+      {
+       "do": "lock",
+       "target": "{b_door}",
+       "expect": "fail"
+      },
+      {
+       "do": "inspect",
+       "target": "{b_door}"
+      },
+      {
+       "do": "report",
+       "target": "{b_door}",
+       "field": "lock_broken",
+       "value": true,
+       "to": "resident_1"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "sees the smart lock's battery figure in the app and reports that lock as broken without testing either door",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{f_door}"
+        },
+        {
+         "do": "inspect",
+         "target": "{f_door}"
+        },
+        {
+         "do": "report",
+         "target": "{f_door}",
+         "field": "lock_broken",
+         "value": true,
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "mechanisms.door",
+       "prefix": "f_",
+       "args": {
+        "kind": "front",
+        "props": {
+         "open": false,
+         "latched": true,
+         "locked": false,
+         "display": "Low battery"
+        },
+        "mech": {
+         "smart": {
+          "display": "Low battery",
+          "reported": "unlocked",
+          "battery": 0.08
+         }
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "mechanisms.door",
+       "prefix": "b_",
+       "args": {
+        "kind": "back",
+        "props": {
+         "open": false,
+         "latched": true,
+         "locked": false
+        }
+       }
+      },
+      {
+       "op": "person",
+       "id": "resident_1",
+       "room": "{f_inside}",
+       "props": {
+        "activity": "putting on shoes"
+       }
+      }
+     ],
+     "success": [
+      {
+       "path": "reports.{f_door}.battery_low",
+       "op": "is_true",
+       "value": true
+      },
+      {
+       "path": "reports.{f_door}._to.battery_low",
+       "op": "eq",
+       "value": "resident_1"
+      },
+      {
+       "not": {
+        "path": "reports.{f_door}.lock_broken",
+        "op": "is_true",
+        "value": true
+       }
+      },
+      {
+       "not": {
+        "path": "reports.{b_door}.lock_broken",
+        "op": "is_true",
+        "value": true
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{f_door}"
+      },
+      {
+       "do": "lock",
+       "target": "{f_door}"
+      },
+      {
+       "do": "read",
+       "target": "{f_door}"
+      },
+      {
+       "skill": "mechanisms.approach",
+       "target": "{b_door}"
+      },
+      {
+       "do": "lock",
+       "target": "{b_door}"
+      },
+      {
+       "do": "report",
+       "target": "{f_door}",
+       "field": "battery_low",
+       "value": true,
+       "to": "resident_1"
+      }
+     ],
+     "+wrong": [
+      {
+       "name": "sees the smart lock's battery figure in the app and reports that lock as broken without testing either door",
+       "plan": [
+        {
+         "skill": "mechanisms.approach",
+         "target": "{f_door}"
+        },
+        {
+         "do": "inspect",
+         "target": "{f_door}"
+        },
+        {
+         "do": "report",
+         "target": "{f_door}",
+         "field": "lock_broken",
+         "value": true,
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Report broken lock.",
+   "phrasings": [
+    "Report broken lock.",
+    "I think one of the door locks is broken - check them and tell me which.",
+    "can u see if any of the locks r busted and let me know"
+   ],
+   "side_effects": {
+    "no_damage": true
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 60,
+    "time_s": 1500
+   },
+   "wrong": [
+    {
+     "name": "trusts the look of the doors and the app: every door shows shut, so it reports no lock broken",
+     "plan": [
+      {
+       "skill": "mechanisms.approach",
+       "target": "{f_door}"
+      },
+      {
+       "do": "inspect",
+       "target": "{f_door}"
+      },
+      {
+       "skill": "mechanisms.approach",
+       "target": "{b_door}"
+      },
+      {
+       "do": "inspect",
+       "target": "{b_door}"
+      },
+      {
+       "do": "report",
+       "target": "{f_door}",
+       "field": "lock_broken",
+       "value": false,
+       "to": "resident_1"
+      },
+      {
+       "do": "report",
+       "target": "{b_door}",
+       "field": "lock_broken",
+       "value": false,
+       "to": "resident_1"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: lock faults are hidden (_mech.fault); doors look the same at a glance and the phone app only repeats what the lock last reported. Turning each lock gently is the test: a jammed smart lock's motor whirs without moving the bolt, a misaligned strike stops the bolt partway (both refusals, nothing forced), a lock with a low battery still locks and its keypad reads 'Low battery' (read). The broken one is reported to the resident; a merely low battery is reported as such, not as broken."
+  }
+ ]
+}

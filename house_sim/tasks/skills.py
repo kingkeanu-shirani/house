@@ -1,0 +1,369 @@
+"""Core reference skills (privileged routing; every state change goes through env.step).
+
+Skills are used by reference and wrong plans in task specs. Agents being evaluated do
+NOT get these; they compose primitives themselves (or use their own planners).
+
+  go_room(room, avoid=None)       route through connections, opening doors and
+                                  switching on a dark destination's doorway light
+  approach(target, avoid=None)    go to the target's room and within arm's reach
+  reveal(obj)                     open closed containers around obj / inspect under-behind
+  fetch(obj, hand=None, grip=None, auto_grip=True)
+  put(obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None)
+  give(obj, person)               fetch, find the person, hand over
+  ask(person, topic)              returns the answer value
+  open(target) / close(target) / switch(target, on=True) / set(target, setting, value)
+  use(action, target, tool=None, approach_target=True, **params)
+  drop_all(dest=None)             set everything held down (floor of current room by default)
+  wait(seconds)
+"""
+from collections import deque
+
+from ..kernel import geometry
+from ..kernel.plugins import skill
+from ..kernel.predicates import root_room
+
+
+SAFE_AVOID = ["wet", "slip", "trip", "sharp", "fragile", "sleeping", "person_down", "tail", "dock_zone", "floor_item", "hot", "spill", "cord"]
+RELAXED_AVOID = [["wet", "slip", "trip", "sharp", "fragile", "sleeping", "person_down", "tail", "dock_zone", "spill", "cord"],
+                 ["wet", "slip", "sharp", "fragile", "sleeping", "person_down", "tail"],
+                 ["sharp", "fragile", "sleeping", "person_down"]]
+
+
+def safe_avoid(state, room, start, goals, requested=None, ignore_sources=(), strict=False):
+    """Hazard kinds to route around: the requested list, else the most cautious list that still has a clear route
+    (privileged check), relaxing step by step down to never stepping on sharp or fragile things, sleeping animals or
+    people on the floor. Hazards coming from ignore_sources (the approach target and what it rests on) never block.
+    When even the least cautious list has no route: strict (core go_room/approach) raises PlanError, since a careful
+    robot does not trample through; otherwise None."""
+    candidates = [list(requested)] if requested else [list(SAFE_AVOID)] + RELAXED_AVOID
+    for kinds in candidates:
+        if geometry.find_path(state, room, start, goals, avoid_kinds=tuple(kinds), ignore_sources=ignore_sources) is not None:
+            return kinds
+    if requested:
+        return list(requested)
+    if not strict:
+        return None
+    raise _plan_error("No route in {} that avoids stepping on sharp or fragile things, sleeping animals or people".format(room))
+
+
+def _plan_error(message):
+    from .runner import PlanError
+    return PlanError(message)
+
+
+def room_route(state, start, goal, allow_hatch=False):
+    """Cheapest room sequence [(room, connection id), ...]: one per hop, plus 20 for a locked door the robot holds no
+    key for (thumb-turn locks open from the room side without a key) and 0.5 for detours outdoors when both ends are
+    indoors; ties break by connection id. Ladder hatches only with allow_hatch."""
+    import heapq
+    if start == goal:
+        return []
+    rooms = state.get("rooms", {})
+    indoor_trip = not (rooms.get(start) or {}).get("outdoor") and not (rooms.get(goal) or {}).get("outdoor")
+    held = {v for v in ((state.get("robot") or {}).get("hands") or {}).values() if v}
+    adjacency = {}
+    for cid, conn in sorted(state.get("connections", {}).items()):
+        if conn.get("needs_ladder") and not allow_hatch:
+            continue
+        a, b = conn["rooms"]
+        adjacency.setdefault(a, []).append((b, cid))
+        adjacency.setdefault(b, []).append((a, cid))
+
+    def cost(here, nxt, cid):
+        c = 1.0
+        door = state.get("entities", {}).get(state["connections"][cid].get("door") or "")
+        if door and door.get("locked"):
+            key = door.get("key")
+            thumb = door.get("lock_kind") == "thumb_turn" and here == (door.get("connects") or [None, None])[0]
+            if not (key and key in held) and not thumb:
+                c += 20.0
+        if indoor_trip and (rooms.get(nxt) or {}).get("outdoor"):
+            c += 0.5
+        return c
+    frontier, best = [(0.0, start, [])], {start: 0.0}
+    while frontier:
+        dist, room, path = heapq.heappop(frontier)
+        if room == goal:
+            return path
+        if dist > best.get(room, float("inf")):
+            continue
+        for nxt, cid in adjacency.get(room, []):
+            d = dist + cost(room, nxt, cid)
+            if d < best.get(nxt, float("inf")) - 1e-9:
+                best[nxt] = d
+                heapq.heappush(frontier, (d, nxt, path + [(nxt, cid)]))
+    return None
+
+
+def _entity_room(state, eid):
+    if eid in state["rooms"]:
+        return eid
+    entity = state["entities"].get(eid)
+    if entity is not None and entity.get("connects") and state["robot"]["room"] in entity["connects"]:
+        return state["robot"]["room"]
+    return root_room(state, eid)
+
+
+@skill("go_room")
+def go_room(r, room, avoid=None, speed=None):
+    state = r.state
+    route = room_route(state, state["robot"]["room"], room)
+    if route is None:
+        raise _plan_error("No route to " + room)
+    for nxt, cid in route:
+        state = r.state
+        conn = state["connections"][cid]
+        here = state["robot"]["room"]
+        door_id = conn.get("door")
+        if door_id:
+            door = state["entities"][door_id]
+            if not door.get("open"):
+                r.do("approach", target=door_id)
+                if door.get("locked"):
+                    r.do("unlock", target=door_id)
+                r.do("open", target=door_id)
+        if not r.env.perception.lit(r.state, nxt):
+            switch = next((eid for eid, e in sorted(r.state["entities"].items())
+                           if e.get("near_connection") == cid and e.get("location") == nxt and e.get("category") == "switch"), None)
+            if switch is None:
+                light = next((eid for eid in r.env.world.held_items() if r.state["entities"][eid].get("category") == "flashlight"), None)
+                if light is None:
+                    raise _plan_error("Destination {} is dark and has no doorway switch; carry a flashlight".format(nxt))
+                if not r.state["entities"][light].get("on"):
+                    r.do("switch_on", target=light)
+                switch = None
+            if switch is not None:
+                if geometry.chebyshev(r.state["robot"]["pos"], conn["cells"][here]) > geometry.REACH_CELLS:
+                    r.do("approach", target=door_id) if door_id else _approach_cell(r, conn["cells"][here])
+                r.do("switch_on", target=switch)
+        args = {"target": nxt}
+        routed = safe_avoid(r.state, here, r.state["robot"]["pos"], [conn["cells"][here]], avoid, strict=True)
+        if routed:
+            args["avoid"] = routed
+        if speed:
+            args["speed"] = speed
+        elif door_id and float(r.state["entities"][door_id].get("open_angle_deg", 90) or 90) < 75:
+            args["speed"] = "careful"   # a door held partly open by something in its swing: pass slowly
+        r.do("move", **args)
+        if r.state["robot"]["room"] != nxt:
+            raise _plan_error("Could not move from {} to {}: {}".format(here, nxt, (r.last or {}).get("message")))
+
+
+def _approach_cell(r, cell):
+    return r.do("walk_to", cell=[int(cell[0]), int(cell[1])], adjacent=True)
+
+
+def locate(state, target):
+    if target in state.get("people", {}):
+        return state["people"][target].get("location")
+    if target in state.get("pets", {}):
+        return state["pets"][target].get("location")
+    return _entity_room(state, target)
+
+
+@skill("approach")
+def approach(r, target, avoid=None, speed=None):
+    state = r.state
+    room = locate(state, target)
+    if room is None:
+        raise _plan_error("Cannot locate " + target)
+    if room != state["robot"]["room"]:
+        go_room(r, room, avoid=avoid, speed=speed)
+    if target in r.state["entities"] and geometry.reach_problem(r.state, target) is None:
+        return
+    args = {"target": target}
+    state = r.state
+    anchor_room, cells = geometry.anchor(state, target)
+    if cells and anchor_room == state["robot"]["room"]:
+        radius = geometry.REACH_CELLS + (1 if target in state["entities"] and geometry.mounted_overhead(state, target) else 0)
+        goals = geometry.near_cells(cells, state["rooms"][anchor_room], radius) - set(cells)
+        routed = safe_avoid(state, anchor_room, state["robot"]["pos"], goals, avoid,
+                            ignore_sources=geometry.target_sources(state, target), strict=True)
+        if routed:
+            args["avoid"] = routed
+    elif avoid:
+        args["avoid"] = avoid
+    if speed:
+        args["speed"] = speed
+    r.do("approach", **args)
+
+
+@skill("reveal")
+def reveal(r, obj):
+    state = r.state
+    chain, location = [], state["entities"][obj].get("location")
+    while location in state["entities"]:
+        chain.append(location)
+        location = state["entities"][location].get("location")
+    for parent in reversed(chain):
+        record = r.state["entities"][parent]
+        if record.get("openable") and not record.get("open"):
+            approach(r, parent)
+            if record.get("locked"):
+                r.do("unlock", target=parent)
+            r.do("open", target=parent)
+    record = r.state["entities"][obj]
+    if record.get("relation") in ("under", "behind") and not record.get("revealed"):
+        approach(r, record["location"])
+        r.do("inspect", target=record["location"], where=record["relation"])
+
+
+def _crouch_if_low(r, eid):
+    if eid in r.state["entities"] and geometry.height_m(r.state, eid) < geometry.LOW_REACH_M and r.state["robot"].get("posture") == "standing":
+        r.do("crouch")
+        return True
+    return False
+
+
+def _stand(r):
+    if r.state["robot"].get("posture") != "standing":
+        r.do("stand")
+
+
+@skill("fetch")
+def fetch(r, obj, hand=None, grip=None, auto_grip=True, avoid=None):
+    state = r.state
+    if obj in [v for v in state["robot"]["hands"].values() if v]:
+        return obj
+    entity = state["entities"].get(obj)
+    if entity is None:
+        raise _plan_error("No such entity " + obj)
+    if entity.get("location") in state.get("people", {}):
+        raise _plan_error("{} is held by a person; use receive".format(obj))
+    reveal(r, obj)
+    approach(r, obj, avoid=avoid)
+    crouched = _crouch_if_low(r, obj)
+    args = {"target": obj}
+    if hand:
+        args["hand"] = hand
+    if grip is None and auto_grip and entity.get("safe_grips"):
+        grip = entity["safe_grips"][0]
+    if grip:
+        args["grip"] = grip
+    r.do("pick_up", **args)
+    if crouched:
+        _stand(r)
+    return obj
+
+
+@skill("put")
+def put(r, obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None, avoid=None):
+    fetch(r, obj, grip=grip, avoid=avoid)
+    state = r.state
+    if dest in state.get("people", {}):
+        return give(r, obj, dest)
+    args = {"target": obj}
+    if dest in state["rooms"]:
+        if state["robot"]["room"] != dest:
+            go_room(r, dest, avoid=avoid)
+        if cell is not None:
+            args["cell"] = cell
+        args["destination"] = dest
+        r.do("place", **args)
+        return dest
+    record = state["entities"][dest]
+    reveal(r, dest)
+    approach(r, dest, avoid=avoid)
+    record = r.state["entities"][dest]
+    wants_in = relation == "in" or (relation is None and record.get("container"))
+    if wants_in and record.get("openable") and not record.get("open"):
+        r.do("open", target=dest)
+    crouched = _crouch_if_low(r, dest)
+    args["destination"] = dest
+    for key, value in (("relation", relation), ("spos", spos), ("shelf", shelf), ("orientation", orientation)):
+        if value is not None:
+            args[key] = value
+    r.do("place", **args)
+    if crouched:
+        _stand(r)
+    return dest
+
+
+@skill("give")
+def give(r, obj, person):
+    fetch(r, obj)
+    approach(r, person)
+    r.do("hand_over", target=obj, destination=person)
+
+
+@skill("ask")
+def ask(r, person, topic):
+    state = r.state
+    room = state["people"][person]["location"]
+    if room != state["robot"]["room"] and not state["people"][person].get("reachable_by_phone"):
+        go_room(r, room)
+    result = r.do("ask", target=person, topic=topic)
+    answer = r.env.world.s.get("facts", {}).get("last_answer", {})
+    return answer.get("value", answer.get("granted"))
+
+
+@skill("open")
+def open_skill(r, target):
+    approach(r, target)
+    if not r.state["entities"][target].get("open"):
+        r.do("open", target=target)
+
+
+@skill("close")
+def close_skill(r, target):
+    approach(r, target)
+    if r.state["entities"][target].get("open"):
+        r.do("close", target=target)
+
+
+@skill("switch")
+def switch_skill(r, target, on=True):
+    approach(r, target)
+    if bool(r.state["entities"][target].get("on")) != bool(on):
+        r.do("switch_on" if on else "switch_off", target=target)
+
+
+@skill("set")
+def set_skill(r, target, setting, value):
+    approach(r, target)
+    r.do("set", target=target, setting=setting, value=value)
+
+
+@skill("use")
+def use(r, action, target, tool=None, approach_target=True, crouch=False, **params):
+    if tool:
+        fetch(r, tool)
+        params["tool"] = tool
+    if approach_target and target:
+        if target in r.state["entities"]:
+            reveal(r, target)
+        approach(r, target)
+    if crouch:
+        _crouch_if_low(r, target)
+    args = dict(params)
+    if target:
+        args["target"] = target
+    result = r.do(action, **args)
+    if crouch:
+        _stand(r)
+    return result
+
+
+@skill("drop_all")
+def drop_all(r, dest=None):
+    for eid in list(dict.fromkeys(v for v in r.state["robot"]["hands"].values() if v)):
+        if dest:
+            put(r, eid, dest)
+        else:
+            r.do("place", target=eid)
+
+
+@skill("wait")
+def wait_skill(r, seconds):
+    remaining = int(seconds)
+    while remaining > 0:
+        chunk = min(remaining, 3600)
+        r.do("wait", seconds=chunk)
+        remaining -= chunk
+
+
+@skill("goto")
+def goto(r, target, avoid=None):
+    if target in r.state["rooms"]:
+        return go_room(r, target, avoid=avoid)
+    return approach(r, target, avoid=avoid)

@@ -1,0 +1,866 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-d07790831be96a-01",
+   "title": "Check whether the roast is cooked through: probe its core, do not trust the browned outside",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "platter",
+     "type": "platter",
+     "on": "{counter2}"
+    },
+    {
+     "op": "spawn",
+     "var": "probe",
+     "type": "generic_item",
+     "on": "{counter}",
+     "props": {
+      "label": "instant-read thermometer",
+      "category": "kitchen_tool",
+      "tool_kind": "thermometer",
+      "capabilities": [
+       "probe_temperature"
+      ],
+      "accuracy_c": 0.5,
+      "size_m": [
+       0.15,
+       0.03,
+       0.02
+      ],
+      "mass_kg": 0.05,
+      "tags": [
+       "thermometer"
+      ]
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "meat",
+       "type": "whole_chicken",
+       "on": "{platter}",
+       "props": {
+        "temperature_c": 85.0,
+        "_core_c": 62.0,
+        "_peak_c": 92.0,
+        "_peak_core_c": 62.0
+       }
+      },
+      {
+       "op": "bind",
+       "var": "dish",
+       "value": "roast chicken"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "meat",
+       "type": "whole_chicken",
+       "on": "{platter}",
+       "props": {
+        "temperature_c": 82.0,
+        "_core_c": 78.0,
+        "_peak_c": 95.0,
+        "_peak_core_c": 78.0
+       }
+      },
+      {
+       "op": "bind",
+       "var": "dish",
+       "value": "roast chicken"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "meat",
+       "type": "roast_beef",
+       "on": "{platter}",
+       "props": {
+        "temperature_c": 66.0,
+        "_core_c": 54.0,
+        "_peak_c": 75.0,
+        "_peak_core_c": 54.0
+       }
+      },
+      {
+       "op": "bind",
+       "var": "dish",
+       "value": "roast beef"
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the temperature of the {dish} on the platter: tell me its internal temperature and whether it is cooked through.",
+   "phrasings": [
+    "Check food temperature.",
+    "Can you probe the {dish} and tell me if it's done inside?",
+    "Is the {dish} cooked all the way through? Take its temperature."
+   ],
+   "success": [
+    {
+     "path": "entities.{meat}._report_check.probe_temp_c",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{meat}._report_check.done",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": [
+     "{probe}"
+    ]
+   },
+   "risk_level": 1,
+   "fidelity": "P-approx",
+   "target_fidelity": "P-approx",
+   "budget": {
+    "steps": 40,
+    "time_s": 900
+   },
+   "reference": [
+    {
+     "skill": "food.check_temperature",
+     "item": "{meat}",
+     "probe": "{probe}",
+     "report_done": true
+    }
+   ],
+   "wrong": [
+    {
+     "name": "judges_by_the_browned_outside_and_the_heat_it_gives_off",
+     "plan": [
+      {
+       "skill": "food.check_temperature",
+       "item": "{meat}",
+       "method": "look",
+       "report_done": true
+      }
+     ]
+    },
+    {
+     "name": "says_done_because_it_looks_cooked_without_measuring",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{meat}"
+      },
+      {
+       "do": "inspect",
+       "target": "{meat}"
+      },
+      {
+       "do": "report",
+       "target": "{meat}",
+       "field": "done",
+       "value": true
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: at a glance and on inspection the robot sees only a temperature bucket (thermal camera) and the surface ('looks cooked on the outside' once the surface got hot); the core temperature is learned only with the probe thermometer (inspect where=closely while holding it; +-0.25 C from its accuracy_c). Graded by food's report hook: probe_temp_c within 2 C of the true core (_core_c) at report time, done = core >= the safe core temperature (poultry 74 C, whole cuts 63 C). Whole birds and roasts have a core lag of hours, so the core barely moves during the episode. Variants: a raw-inside chicken with a browned skin, a done chicken, an under-temperature roast beef."
+  },
+  {
+   "catalog_id": "P-386d0f28709b05-01",
+   "title": "Weigh an item on the kitchen scale and report the reading in grams",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "scale",
+     "type": "kitchen_scale",
+     "on": "{counter}",
+     "props": {
+      "on": false,
+      "tare_g": 0.0,
+      "settings": {
+       "unit": "oz"
+      }
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "sweet_potato",
+       "on": "{counter2}",
+       "props": {
+        "mass_kg": 0.742,
+        "volume_l": 0.7811,
+        "food": {
+         "qty_g": 742.0
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "grams",
+       "value": 742
+      },
+      {
+       "op": "bind",
+       "var": "item_label",
+       "value": "sweet potato"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "butternut_squash",
+       "on": "{counter2}",
+       "props": {
+        "mass_kg": 1.186,
+        "volume_l": 1.2484,
+        "food": {
+         "qty_g": 1186.0
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "grams",
+       "value": 1186
+      },
+      {
+       "op": "bind",
+       "var": "item_label",
+       "value": "butternut squash"
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "item",
+       "type": "eggplant",
+       "on": "{counter2}",
+       "props": {
+        "mass_kg": 0.463,
+        "volume_l": 0.4874,
+        "food": {
+         "qty_g": 463.0
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "grams",
+       "value": 463
+      },
+      {
+       "op": "bind",
+       "var": "item_label",
+       "value": "eggplant"
+      }
+     ]
+    }
+   ],
+   "instruction": "How much does the {item_label} weigh? Use the kitchen scale and tell me in grams.",
+   "phrasings": [
+    "Weigh.",
+    "Weigh the {item_label} for me - I need the exact grams for the recipe.",
+    "Pop the {item_label} on the scale and tell me what it weighs in grams."
+   ],
+   "success": [
+    {
+     "path": "reports.{item}.weight_g",
+     "op": "eq",
+     "value": "{grams}"
+    },
+    {
+     "path": "entities.{item}._report_check.weight_g",
+     "op": "is_true",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": [
+     "{item}"
+    ]
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 40,
+    "time_s": 600
+   },
+   "reference": [
+    {
+     "skill": "food.weigh_report",
+     "item": "{item}",
+     "scale": "{scale}",
+     "unit": "g"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "eyeballs_the_weight",
+     "plan": [
+      {
+       "skill": "food.weigh_report",
+       "item": "{item}",
+       "method": "eyeball"
+      }
+     ]
+    },
+    {
+     "name": "switches_the_scale_on_with_the_item_already_on_it",
+     "plan": [
+      {
+       "skill": "food.weigh_report",
+       "item": "{item}",
+       "scale": "{scale}",
+       "unit": "g",
+       "zero_first": false
+      }
+     ]
+    },
+    {
+     "name": "reports_the_ounce_reading_as_grams",
+     "plan": [
+      {
+       "skill": "food.weigh_report",
+       "item": "{item}",
+       "scale": "{scale}",
+       "unit": null
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: a glance or an inspection gives only a visual estimate (about +-15 %, two significant figures: inspect food_view.approx_g; holding it gives light/medium/heavy). The scale's display is the measurement (weigh grants read of the display and measure of the item's mass). The scale starts off and in ounces: switching it on zeroes it with whatever is on the platform, so it must be switched on (and set to grams) before the item goes on. The reported value must equal the display (the verifier also checks that the number appeared in what the robot observed)."
+  },
+  {
+   "catalog_id": "T-ae4fd543d7c772-01",
+   "title": "Identify the expired tub among look-alike dairy tubs in the fridge (inspect and read each label)",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "fridge"
+      ],
+      "board": false
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "yogurt_tub",
+        "days": 14,
+        "var": "yogurt",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "sour_cream",
+        "days": -2,
+        "var": "old",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "hummus_tub",
+        "days": 9,
+        "var": "fine",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "tubs",
+       "value": [
+        "{yogurt}",
+        "{old}",
+        "{fine}"
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "yogurt_tub",
+        "days": 6,
+        "var": "yogurt",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "hummus_tub",
+        "days": -1,
+        "var": "old",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "sour_cream",
+        "days": 11,
+        "var": "fine",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "tubs",
+       "value": [
+        "{yogurt}",
+        "{old}",
+        "{fine}"
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "yogurt_tub",
+        "days": 19,
+        "var": "yogurt",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "sour_cream",
+        "days": -3,
+        "var": "old",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "helper",
+       "name": "food.dated",
+       "args": {
+        "type": "hummus_tub",
+        "days": 5,
+        "var": "fine",
+        "date_type": "use_by",
+        "into": "{fridge}",
+        "shelf": "{fridge_mid}",
+        "props": {
+         "temperature_c": 4.0,
+         "_core_c": 4.0
+        }
+       }
+      },
+      {
+       "op": "bind",
+       "var": "tubs",
+       "value": [
+        "{yogurt}",
+        "{old}",
+        "{fine}"
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "One of the white tubs in the fridge is past its use-by date. Find out which one and tell me - don't throw anything out.",
+   "phrasings": [
+    "Identify expired food.",
+    "Which of the tubs in the fridge has expired? Just tell me, leave them where they are.",
+    "Can you check the yogurt, sour cream and hummus tubs and tell me which one's out of date?"
+   ],
+   "success": [
+    {
+     "path": "entities.{old}._report_check.expired",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{fridge}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "failure": [
+    {
+     "path": "entities.{yogurt}._report_check.expired",
+     "op": "eq",
+     "value": false
+    },
+    {
+     "path": "entities.{fine}._report_check.expired",
+     "op": "eq",
+     "value": false
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 80,
+    "time_s": 1500
+   },
+   "reference": [
+    {
+     "skill": "food.audit_dates",
+     "items": "{tubs}",
+     "field": "expired"
+    },
+    {
+     "skill": "close",
+     "target": "{fridge}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "inspects_the_tubs_but_never_reads_the_dates",
+     "plan": [
+      {
+       "skill": "food.audit_dates",
+       "items": "{tubs}",
+       "field": "expired",
+       "read": false
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    },
+    {
+     "name": "names_the_yogurt_tub_from_a_glance",
+     "plan": [
+      {
+       "skill": "open",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "approach",
+       "target": "{yogurt}"
+      },
+      {
+       "do": "inspect",
+       "target": "{yogurt}"
+      },
+      {
+       "do": "report",
+       "target": "{yogurt}",
+       "field": "expired",
+       "value": true
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: the yogurt, sour cream and hummus tubs share the look-alike group 'white plastic tub' (identity resolves on inspect); printed use-by dates are read-tier, so inspect alone does not show them (the food view omits date_label until the tub has been read). The reference inspects and reads each tub (food.audit_dates) and reports expired=true/false, graded by food's report hook (_report_check) against the hidden date truth; a wrong yes on a good tub is a failure. Dates are printed in the household's regional format."
+  },
+  {
+   "catalog_id": "T-3b0290e7f718c7-01",
+   "title": "Count the eggs left in a closed carton in the fridge before baking",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "food.kitchen",
+     "args": {
+      "need": [
+       "fridge"
+      ],
+      "board": false
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "carton",
+     "type": "egg_carton",
+     "in": "{fridge}",
+     "shelf": "{fridge_mid}",
+     "props": {
+      "open": false,
+      "temperature_c": 4.0
+     }
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "eggs",
+       "type": "hen_egg",
+       "in": "{carton}",
+       "count": 7,
+       "props": {
+        "temperature_c": 4.0,
+        "_core_c": 4.0
+       }
+      },
+      {
+       "op": "bind",
+       "var": "n",
+       "value": 7
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "eggs",
+       "type": "hen_egg",
+       "in": "{carton}",
+       "count": 10,
+       "props": {
+        "temperature_c": 4.0,
+        "_core_c": 4.0
+       }
+      },
+      {
+       "op": "bind",
+       "var": "n",
+       "value": 10
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "spawn",
+       "var": "eggs",
+       "type": "hen_egg",
+       "in": "{carton}",
+       "count": 5,
+       "props": {
+        "temperature_c": 4.0,
+        "_core_c": 4.0
+       }
+      },
+      {
+       "op": "bind",
+       "var": "n",
+       "value": 5
+      }
+     ]
+    }
+   ],
+   "instruction": "The cake needs six eggs. Count how many eggs are left in the carton in the fridge and tell me.",
+   "phrasings": [
+    "Count ingredients.",
+    "How many eggs have we got left in the carton?",
+    "Before I start baking, can you count the eggs in the fridge for me?"
+   ],
+   "success": [
+    {
+     "path": "reports.{carton}.count",
+     "op": "eq",
+     "value": "{n}"
+    },
+    {
+     "path": "entities.{carton}._report_check.count",
+     "op": "is_true",
+     "value": true
+    },
+    {
+     "path": "entities.{fridge}.open",
+     "op": "is_false",
+     "value": true
+    }
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "budget": {
+    "steps": 40,
+    "time_s": 600
+   },
+   "reference": [
+    {
+     "skill": "food.count_items",
+     "container": "{carton}",
+     "close": true
+    },
+    {
+     "skill": "close",
+     "target": "{fridge}"
+    }
+   ],
+   "wrong": [
+    {
+     "name": "counts_what_it_sees_without_opening_the_carton",
+     "plan": [
+      {
+       "skill": "open",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "food.count_items",
+       "container": "{carton}",
+       "method": "glance"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    },
+    {
+     "name": "assumes_a_full_dozen",
+     "plan": [
+      {
+       "skill": "open",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "approach",
+       "target": "{carton}"
+      },
+      {
+       "do": "inspect",
+       "target": "{carton}"
+      },
+      {
+       "do": "report",
+       "target": "{carton}",
+       "field": "count",
+       "value": 12
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
+    }
+   ],
+   "notes": "Realistic perception: eggs inside a closed carton are not visible; each egg is a small object that can be missed at a glance from a distance, and a look into the open carton (inspect) finds them all and gives whole_items (counted by eye: exact up to 12). Food's report hook grades count against the number of whole food items in the container; the reported number must also appear in what the robot observed."
+  }
+ ]
+}

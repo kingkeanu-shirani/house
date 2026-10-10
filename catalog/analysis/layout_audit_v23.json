@@ -1,0 +1,6677 @@
+[
+{
+"seed": 0,
+"opts": {},
+"problem": "hazard-only access kitchen_1: 21 targets only reachable over hazards from ['kettle_base_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 0,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 1,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 6 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 1,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 7)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "overlap bedroom_2: closet_2 and toy_block_2 at (3, 0)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (5, 12)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 2,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 3,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (10, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {},
+"problem": "unreachable kitchen_1: venetian_blind_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 5,
+"opts": {},
+"problem": "unreachable kitchen_1: window_7",
+"owner": "core/structure"
+},
+{
+"seed": 5,
+"opts": {},
+"problem": "unreachable kitchen_1: window_sill_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 5,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 5,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {},
+"problem": "offgrid backyard_1: robot_mower_1 [(26, 9), (27, 9)]",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 6,
+"opts": {},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (26, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 6,
+"opts": {},
+"problem": "unreachable kitchen_1: venetian_blind_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 6,
+"opts": {},
+"problem": "unreachable kitchen_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 6,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 6,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (10, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "unreachable kitchen_1: venetian_blind_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "unreachable kitchen_1: window_10",
+"owner": "core/structure"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "unreachable kitchen_1: window_sill_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "door clearance office_1: office_paper_bin_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['lamp_1 (cord)']",
+"owner": "core_furniture"
+},
+{
+"seed": 8,
+"opts": {},
+"problem": "door clearance office_1: office_paper_bin_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "unreachable kitchen_1: cellular_shade_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "unreachable kitchen_1: window_14",
+"owner": "core/structure"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "unreachable kitchen_1: window_sill_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 9,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {},
+"problem": "door clearance bedroom_2: wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (1, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 10,
+"opts": {},
+"problem": "hazard-only access living_room_1: 1 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 10,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (2, 13)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 11,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {},
+"problem": "hazard-only access kitchen_1: 0 targets and doorways only reachable over hazards from ['waffle_maker_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 12,
+"opts": {},
+"problem": "hazard-only access office_1: 10 targets only reachable over hazards from ['pedestal_fan_1 (cord)']",
+"owner": "climate.fans"
+},
+{
+"seed": 12,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap bedroom_3: ball_1 and closet_1 at (0, 4)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 14,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (9, 2)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 15,
+"opts": {},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {},
+"problem": "hazard-only access living_room_1: 1 targets only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 15,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 16,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [3, 1] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "unreachable kitchen_1: cellular_shade_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "unreachable kitchen_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "unreachable kitchen_1: window_sill_5",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 1 targets only reachable over hazards from ['laundry_basket_2']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "unreachable kitchen_1: roller_shade_1",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "unreachable kitchen_1: window_9",
+"owner": "core/structure"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "door clearance office_1: wastebasket_4 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [2, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 19,
+"opts": {},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (7, 18)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 19,
+"opts": {},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 19,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 19,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 20,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (10, 6)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "door clearance garage_1: moving_box_small_1 at [(5, 0)]",
+"owner": "manipulation.items"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 6)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 23,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (6, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 23,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (7, 1)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 24,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 25,
+"opts": {},
+"problem": "unreachable laundry_room_1: utility_sink_1",
+"owner": "plumbing_liquids.fixtures"
+},
+{
+"seed": 25,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (2, 10)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 25,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 7)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 26,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {},
+"problem": "door clearance master_bedroom_1: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {},
+"problem": "overlap bedroom_1: closet_1 and stuffed_animal_2 at (3, 0)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 28,
+"opts": {},
+"problem": "door clearance bedroom_1: wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (9, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 28,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: venetian_blind_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: window_7",
+"owner": "core/structure"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: window_sill_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 6)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['tower_fan_1 (cord)']",
+"owner": "climate.fans"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (6, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (7, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 6)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable shared_laundry_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: roller_shade_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bedroom_2: wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bedroom_2: wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (7, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 1 targets only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bedroom_2: wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 8)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access kitchen_1: 23 targets only reachable over hazards from ['waffle_maker_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (7, 0)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: venetian_blind_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: window_3",
+"owner": "core/structure"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: window_sill_1",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (9, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [1, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable laundry_room_1: window_4",
+"owner": "core/structure"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access laundry_room_1: 2 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: venetian_blind_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable kitchen_1: window_13",
+"owner": "core/structure"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap bedroom_1: closet_1 and doll_1 at (4, 0)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (6, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (3, 0)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 9)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access living_room_1: 1 targets only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance bedroom_2: wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "hazard-only access kitchen_1: 22 targets only reachable over hazards from ['toaster_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable laundry_room_1: radiator_5",
+"owner": "climate.hvac"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable laundry_room_1: utility_sink_1",
+"owner": "plumbing_liquids.fixtures"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable laundry_room_1: window_7",
+"owner": "core/structure"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "unreachable shared_laundry_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "apartment"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 9)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance playroom_1: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 2)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (6, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [2, 0] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access laundry_room_1: 9 targets only reachable over hazards from ['ironing_board_1', 'laundry_basket_1', 'laundry_basket_2']",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (6, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance playroom_1: wastebasket_4 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 2)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access office_1: 11 targets only reachable over hazards from ['office_paper_bin_1', 'pedestal_fan_1 (cord)']",
+"owner": "cleaning_supplies,climate.fans"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance office_1: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "offgrid backyard_1: robot_mower_1 [(20, 9), (21, 9)]",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (20, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable basement_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable garage_1: light_switch_11",
+"owner": "core/structure"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: curtains_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: venetian_blind_5",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: window_13",
+"owner": "core/structure"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: window_15",
+"owner": "core/structure"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access kitchen_1: 0 targets and doorways only reachable over hazards from ['blender_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance guest_room_1: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access kitchen_1: 0 targets and doorways only reachable over hazards from ['kitchen_step_stool_1', 'kitchen_trash_can_1', 'recycling_bin_1', 'slow_cooker_1', 'waffle_maker_1']",
+"owner": "appliances_cooking.kitchen,cleaning_supplies,navigation_robot.features"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: venetian_blind_7",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: window_13",
+"owner": "core/structure"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (6, 0)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [4, 0] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [2, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: wastebasket_5 at [1, 1] cuts a hazard-free route and has no other spot",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint utility_closet_1: upright_vacuum_1 at [2, 0] cuts a hazard-free route and has no other spot",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: curtains_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (1, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access laundry_room_1: 10 targets only reachable over hazards from ['wastebasket_5']",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance laundry_room_1: wastebasket_5 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap utility_closet_1: flat_mop_1 and upright_vacuum_1 at (2, 0)",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access kitchen_1: 25 targets only reachable over hazards from ['blender_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (0, 20)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance garage_1: moving_box_small_2 at [(5, 0)]",
+"owner": "manipulation.items"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (0, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: curtains_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable guest_room_1: window_8",
+"owner": "core/structure"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (25, 19)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (8, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 1)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance garage_1: moving_box_small_1 at [(1, 0)]",
+"owner": "manipulation.items"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access living_room_1: 1 targets only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bedroom_3: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_1 at [2, 0] cuts a hazard-free route and has no other spot",
+"owner": "core_furniture"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [2, 3] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable bedroom_2: supply_register_4",
+"owner": "climate.hvac"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['hvac_filter_2', 'laundry_basket_2']",
+"owner": "climate.hvac,textiles_laundry.appliances"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap laundry_room_1: ironing_board_1 and laundry_basket_1 at (2, 0)",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance office_1: office_paper_bin_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['pedestal_fan_1 (cord)']",
+"owner": "climate.fans"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (19, 0)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (7, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bedroom_3: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bedroom_3: wastebasket_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap bedroom_3: closet_3 and toy_car_1 at (0, 5)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable kitchen_1: venetian_blind_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable kitchen_1: window_14",
+"owner": "core/structure"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable kitchen_1: window_sill_5",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "overlap bedroom_2: closet_2 and doll_1 at (0, 6)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "unreachable garage_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance playroom_1: wastebasket_4 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"garage",
+"patio"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable laundry_room_1: utility_sink_1",
+"owner": "plumbing_liquids.fixtures"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable laundry_room_1: window_12",
+"owner": "core/structure"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access laundry_room_1: 6 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 7)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable garage_1: light_switch_9",
+"owner": "core/structure"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (10, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "offgrid backyard_1: robot_mower_1 [(25, 14), (26, 14)]",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (25, 14)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bedroom_1: wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "chokepoint garage_1: wheelbarrow_1 at [3, 9] cuts a hazard-free route and has no other spot",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access garage_1: 0 targets and doorways only reachable over hazards from ['bicycle_1', 'drying_rack_1', 'floor_pump_1', 'hand_truck_1', 'ironing_board_1', 'kids_bicycle_1', 'laundry_basket_1', 'laundry_basket_2', 'lawn_mower_1', 'moving_box_small_1', 'moving_box_small_2', 'push_broom_1', 'soccer_ball_1', 'step_ladder_1', 'tarp_2', 'wheelbarrow_1']",
+"owner": "cleaning_supplies,manipulation.items,navigation_robot.features,outdoor_plants.outdoor_items,textiles_laundry.appliances,tools_vehicles.vehicles"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap garage_1: lawn_mower_1 and wheelbarrow_1 at (5, 9)",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (10, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: cellular_shade_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: window_14",
+"owner": "core/structure"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: window_sill_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [2, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access laundry_room_1: 4 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (7, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (2, 13)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (10, 2)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [2, 3] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access laundry_room_1: 5 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance guest_room_1: wastebasket_4 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (0, 12)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bedroom_1: wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bedroom_2: wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: venetian_blind_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: window_sill_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (0, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable garage_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance office_1: wastebasket_5 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: drawer_2",
+"owner": "core_furniture"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (3, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance office_1: wastebasket_5 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (5, 22)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 9)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable laundry_room_1: radiator_7",
+"owner": "climate.hvac"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance office_1: office_paper_bin_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "unreachable kitchen_1: drawer_2",
+"owner": "core_furniture"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access laundry_room_1: 9 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "hazard-only access laundry_room_1: 5 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance half_bath_1: toilet_brush_3 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_2: closet_2 and doll_1 at (1, 7)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_1: closet_1 and stuffed_animal_1 at (0, 6)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap bedroom_1: closet_1 and stuffed_animal_2 at (2, 6)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance half_bath_1: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "townhouse"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access kitchen_1: 21 targets only reachable over hazards from ['kettle_base_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 0,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 1,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 6 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 1,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 1,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (7, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (5, 12)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 2,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (1, 10)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: venetian_blind_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_7",
+"owner": "core/structure"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_sill_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 5,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "offgrid backyard_1: robot_mower_1 [(26, 9), (27, 9)]",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 6,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (26, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 6,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: venetian_blind_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 6,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 6,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 6,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 7,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: venetian_blind_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 7,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_10",
+"owner": "core/structure"
+},
+{
+"seed": 7,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_sill_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 7,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 7,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance garage_1: moving_box_small_2 at [(5, 0)]",
+"owner": "manipulation.items"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: cellular_shade_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_14",
+"owner": "core/structure"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_sill_4",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 9,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (7, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 10,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 7)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 11,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access kitchen_1: 0 targets and doorways only reachable over hazards from ['blender_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 12,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance garage_1: push_broom_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (9, 10)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable garage_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (9, 6)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 14,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 16,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [3, 1] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: cellular_shade_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_sill_5",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 1 targets only reachable over hazards from ['laundry_basket_2']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 17,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: roller_shade_1",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_9",
+"owner": "core/structure"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance office_1: wastebasket_4 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [2, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 19,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (7, 18)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 19,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 19,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 19,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (6, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 20,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access living_room_1: 1 targets only reachable over hazards from ['robot_vacuum_dock_1 (cord)']",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable laundry_room_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "chokepoint laundry_room_1: ironing_board_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['ironing_board_1']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap hallway_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 6)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: cellular_shade_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_5",
+"owner": "core/structure"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable kitchen_1: window_sill_2",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 23,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 8)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 24,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 25,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable laundry_room_1: utility_sink_1",
+"owner": "plumbing_liquids.fixtures"
+},
+{
+"seed": 25,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (6, 10)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 25,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 7)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "unreachable shared_laundry_1: washer_dispenser_1",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 26,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 5)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 28,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "hazard-only access living_room_1: 1 targets only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 29,
+"opts": {
+"residents": "minimal",
+"pets": "none"
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 5)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 0,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 1,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (0, 3)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 2,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access kitchen_1: 0 targets and doorways only reachable over hazards from ['electric_pressure_cooker_1 (cord)']",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 3,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 0)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 9)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 4,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 3)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 5,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance garage_1: moving_box_small_2 at [(1, 0)]",
+"owner": "manipulation.items"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (6, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 6,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 7,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_3: ball_1 and closet_3 at (1, 6)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_3: closet_3 and toy_block_1 at (0, 6)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access living_room_1: 0 targets and doorways only reachable over hazards from ['power_strip_1 (cord)']",
+"owner": "electrical.devices"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access master_bedroom_1: 0 targets and doorways only reachable over hazards from ['box_fan_1 (cord)']",
+"owner": "climate.fans"
+},
+{
+"seed": 8,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 9,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 10,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (10, 2)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 11,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable kitchen_1: venetian_blind_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable kitchen_1: window_12",
+"owner": "core/structure"
+},
+{
+"seed": 12,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable guest_room_1: venetian_blind_5",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable guest_room_1: window_11",
+"owner": "core/structure"
+},
+{
+"seed": 13,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: toilet_brush_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 9)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 14,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (8, 4)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 15,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "offgrid backyard_1: robot_mower_1 [(22, 11), (23, 11)]",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (22, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 4)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 16,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (0, 5)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable guest_room_1: curtains_3",
+"owner": "mechanisms.coverings"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "unreachable guest_room_1: window_7",
+"owner": "core/structure"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 17,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (12, 0)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (3, 7)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (7, 11)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 18,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: bathroom_wastebasket_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (8, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 19,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint shed_1: lawn_mower_1 at [4, 1] cuts a hazard-free route and has no other spot",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint shed_1: kids_bicycle_1 at [0, 4] cuts a hazard-free route and has no other spot",
+"owner": "tools_vehicles.vehicles"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint shed_1: push_broom_1 at [3, 4] cuts a hazard-free route and has no other spot",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bedroom_1: wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (1, 1)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_1 and robot_vacuum_dock_1 at (5, 0)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access shed_1: 4 targets only reachable over hazards from ['bicycle_1', 'lawn_mower_1']",
+"owner": "outdoor_plants.outdoor_items,tools_vehicles.vehicles"
+},
+{
+"seed": 20,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [1, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (4, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access laundry_room_1: 3 targets only reachable over hazards from ['ironing_board_1', 'laundry_basket_2']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance office_1: wastebasket_4 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 21,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [2, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap laundry_room_1: laundry_basket_1 and laundry_basket_2 at (2, 2)",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 22,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_1: bathroom_wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap hallway_1: robot_vacuum_1 and robot_vacuum_dock_1 at (0, 8)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (7, 2)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 23,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (2, 6)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap living_room_1: robot_vacuum_dock_1 and robot_vacuum_mop_1 at (0, 10)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 24,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap backyard_1: robot_mower_1 and robot_mower_dock_1 at (16, 16)",
+"owner": "navigation_robot.features"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap kitchen_1: refrigerator_1 and refrigerator_1_freezer at (5, 8)",
+"owner": "appliances_cooking.kitchen"
+},
+{
+"seed": 25,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance office_1: wastebasket_5 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 26,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [3, 2] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bedroom_1: wastebasket_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap bedroom_2: closet_2 and doll_1 at (6, 0)",
+"owner": "core_furniture,manipulation.items"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access laundry_room_1: 8 targets only reachable over hazards from ['ironing_board_1', 'laundry_basket_2']",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 27,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint laundry_room_1: laundry_basket_2 at [0, 4] cuts a hazard-free route and has no other spot",
+"owner": "textiles_laundry.appliances"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint shed_1: wheelbarrow_1 at [0, 2] cuts a hazard-free route and has no other spot",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "chokepoint shed_1: snow_pusher_1 at [3, 3] cuts a hazard-free route and has no other spot",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance bathroom_2: toilet_brush_2 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "overlap laundry_room_1: laundry_basket_1 and laundry_basket_2 at (0, 4)",
+"owner": "core_furniture,textiles_laundry.appliances"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "hazard-only access shed_1: 6 targets only reachable over hazards from ['lawn_mower_1', 'wheelbarrow_1']",
+"owner": "outdoor_plants.outdoor_items"
+},
+{
+"seed": 28,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+},
+{
+"seed": 29,
+"opts": {
+"dwelling": "house",
+"require": [
+"laundry_room",
+"basement",
+"nursery"
+]
+},
+"problem": "door clearance utility_closet_1: flat_mop_1 at [(1, 1)]",
+"owner": "cleaning_supplies"
+}
+]

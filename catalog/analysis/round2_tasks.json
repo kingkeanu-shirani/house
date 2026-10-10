@@ -1,0 +1,81 @@
+{
+  "mechanisms": [
+    "Adopt the kernel door model: common.swing_into must return geometry.swing_room(state, door) (keep mech.swing_into honoured — the kernel already reads it); garage.path_cells must use geometry.overhead_door_cells; any leaf/sweep cell computation must agree with geometry.door_swing. Delete private duplicates.",
+    "Door closers: mechanisms owns self-closing doors (closer_s). Document the closer contract in docs/domains/mechanisms.md so safety can defer (safety is told to stand down when mechanisms is loaded)."
+  ],
+  "navigation_robot": [
+    "Adopt the kernel door model: paths.swing_cells/_door_swing must use geometry.door_swing / swing_room (delete the private swing-room rule).",
+    "Register @hook('derived_hazards') (fn(state, rid) -> iterable of (cell, kind, source)) for every hazard you only derive at run time (dock_zone keep-clear rings, tail/sleeping rings if derived, etc.) so generation/setup placement (geometry.placement_hazards) sees them.",
+    "Robot vacuum furnisher: a vacuum sitting on its own dock must be marked as docked (record 'docked': True) or located on the dock, so it is not an overlapping floor item; place docks and step stools/ladders with Placer.floor_item / Placer.furniture (keep_access) — never with hand-picked cells that cut routes.",
+    "The household robot standing on / leaving robot_dock_1 must never kick or displace its own dock (the dock is standable: is_standable in kernel geometry).",
+    "Soft items (soft: true, e.g. stuffed animals, cushions, clothing) are squashed, not broken, when stepped on: no damage/breakage for them (they may get soiled/displaced). Keep breakage for genuinely crushable items (glass, ceramics, electronics, toys with crush_force_n and not soft).",
+    "Heavy loose items (more than ~15 kg) are not kicked along for many cells: a careful robot stops (the move fails with an obstacle message) or the item does not move; never push a 36 kg carton 3.5 m in one approach.",
+    "scenarios._laptop_on_table: fall back to the next band/room instead of raising SpecError when one room has no spot.",
+    "Footprints of handrails and robot mowers must lie inside the room grid (handrail along the wall it is mounted on; mower parked inside its room)."
+  ],
+  "safety": [
+    "Self-closing doors: when mechanisms is loaded, safety's 4 s closer must stand down entirely (mechanisms owns closer_s); keep safety's closer only as a fallback when mechanisms is absent.",
+    "Re-check every approach-related workaround in your scenarios now that core approach ignores hazard rings sourced by the target (geometry.find_path ignore_sources) and safe_avoid(strict) raises instead of trampling; remove workarounds that are no longer needed."
+  ],
+  "pets": [
+    "Adopt the kernel door model: delete scenarios.swing_room/_sweep_cells copies; use geometry.swing_room / door_swing / door_clearance.",
+    "Pets placed at generation are now put on non-cutting cells by generator/repair.py; at episode start awake pets that wander must likewise never settle on doorway clearance, cut cells (geometry.articulation_cells over the walkable graph) or the only access cell of furniture (mirror people.model settle logic, using kernel helpers).",
+    "DICT_ODOR: finish the pets half of the odor dict shape (CONVENTIONS) if still pending."
+  ],
+  "people": [
+    "Episode-start settling (_settle/settle_spot) must never move a resident onto a cut cell of the walkable area, a doorway clearance cell or the only access cell of furniture (use geometry.free_floor_cell(..., keep_access=True) / articulation_cells); the generator already places agents this way.",
+    "Heat stress: a natural-routine resident whose room is well above their comfort band (e.g. >= 4 C over for 20 min) moves to a cooler room (their home room or the coolest reachable indoor room)."
+  ],
+  "climate": [
+    "pet_at_open_window timer must ignore pets enclosed in a closed cage/crate/carrier (they cannot reach the window).",
+    "Furnaces/air handlers (floor-standing mounts) must not overlap floor-standing shelving or appliances: place with Placer.mount without an explicit cell, or check geometry.floor_standing footprints before choosing a cell; in small laundry rooms leave the washer spot free when a laundry room has no other space (prefer a utility closet/basement/garage).",
+    "Fans furnished on the floor (tower/pedestal) go through Placer.floor_item (keep_access); their cords are electrical's routing."
+  ],
+  "electrical": [
+    "Cord routing (generation AND run time): a cord's floor trip cells must never cut a hazard-free route between doorways or the only hazard-free access to anything, and never lie in doorway clearance: route along walls/behind furniture, choose a nearer outlet, or move the device next to its outlet; if impossible, the cord is dressed (no floor trip cells). Check with geometry.access_report / not_worse over hazards (geometry.placement_hazards).",
+    "If cord trip cells are only computed at episode start, also register @hook('derived_hazards') so generation/setup placement sees them.",
+    "hookup() fallback: an appliance reported plugged_in must have plug_seated 1.0 and an outlet (mains_ok consistent).",
+    "left_in_dark must flag only darkness the robot caused (a light it switched off, curtains it closed, a bulb it removed, a breaker it tripped), not nightfall."
+  ],
+  "plumbing_liquids": [
+    "link_appliances / kitchen loop: add exactly one supply stop and one supply hose per real appliance (dishwasher appliance entity, refrigerator with ice maker), never for parts, racks, baskets, filters, sumps, pods or pod tubs; no duplicate valves under the sink.",
+    "_water_near_power: thin films (water_film below ~0.5 mm) and mop dampness are not standing water; only puddles/standing water near a plugged device raise electrical_hazard.",
+    "Update the outdated assertion in tests/test_plumbing_liquids.py IntegrationV21.test_clear_door_sweeps_helper_moves_loose_items_from_door_arcs (assert no loose item remains in an arc after the helper).",
+    "Floor items you furnish (plungers, buckets) go through Placer.floor_item (keep_access, strict)."
+  ],
+  "textiles_laundry": [
+    "washer_dispenser (and any other appliance part) must be located on/in its appliance (a part), not a separate entity in the room overlapping the washer.",
+    "Ironing boards are stored folded upright (leaning/hung on a hook or in a closet), not lying open across three floor cells; laundry baskets/hampers go through Placer.floor_item (keep_access). Small laundry rooms must stay walkable: if the room is too small for everything, store extras elsewhere (closet, shelf) rather than on the floor.",
+    "A-d66994a566899c-01 can go back to residents 'minimal' (people now sleep at night and switch lights)."
+  ],
+  "appliances_cooking": [
+    "refrigerator_1_freezer (and similar compartments) must be parts of the refrigerator (location = the refrigerator), not room entities overlapping it.",
+    "Kitchen appliances you furnish must not box in reachable wall items (windows, radiators, outlets): use Placer.furniture (it now keeps everything that was accessible accessible)."
+  ],
+  "cleaning": [
+    "Furnished wastebaskets, trash cans, recycling bins, mops, brooms, dusters, toilet brushes must never stand in doorway clearance or door swings (geometry.door_clearance includes the hinge-side leaf now) nor cut routes: use Placer.floor_item (keep_access, strict) or store long tools hung/leaning on hooks in closets.",
+    "Remove helper workarounds made obsolete by v2.3 (kernel now clears door swings and chokepoints at generation)."
+  ],
+  "manipulation": [
+    "stacking.register_packed: only items on the same shelf (and actually under the placed item) can be crushed; a bag placed on shelf 0 must not crush a bowl on shelf 1.",
+    "Your furnisher's floor items (toys, boxes, balls, hand trucks) must use Placer.floor_item (keep_access + strict for tall items) — no direct free_floor_cell without keep_access, so nothing lands in garage-door thresholds, door swings, closet footprints or chokepoints.",
+    "Coordinate the plush-toy rule with navigation_robot: stuffed_animal is soft:true; stepping on it must not count damage."
+  ],
+  "admin_inventory": [
+    "storage._load_check: never collapse a shelf because of load the scene generator put there; collapse only when the robot's own placement pushes the load over max(rating, the load present at episode start). Better still, offer furnishers a public helper (e.g. admin_inventory.storage.shelf_headroom(config, container, shelf)) and use it in your own furnisher.",
+    "Use Placer.mount(strict=...) / None handling instead of random fallback cells in your furnisher; toilet-paper holders and wall shelves must be reachable."
+  ],
+  "outdoor_plants": [
+    "Large potted plants: pass blocks_path=True in props to Placer.floor_item (or use Placer.furniture) — never set blocks_path after placing (that is how saucers sealed rooms).",
+    "Garage/shed items (lawn mowers, snow pushers, tarps) through Placer.floor_item / Placer.furniture (keep_access).",
+    "path_blocked hook: avoid scanning every entity per path plan (cache by state version or use a static index precomputed at episode start)."
+  ],
+  "tools_vehicles": [
+    "perception.inspect_defects must tolerate non-dict entries in _defects (strings) without crashing.",
+    "Vehicles and bicycles must not box in wall items (light switches, valves, outdoor lights): use Placer.furniture / Placer.floor_item with blocks_path in props (keep_access).",
+    "Remove workarounds for go_room through partly open doors (core go_room now passes them at careful speed)."
+  ],
+  "food": [
+    "Remove workarounds that v2.3 makes unnecessary (agent settling, robot boxed-in checks) only if your examples still pass."
+  ]
+}

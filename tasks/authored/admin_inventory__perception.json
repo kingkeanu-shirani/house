@@ -1,0 +1,2238 @@
+{
+ "specs": [
+  {
+   "catalog_id": "T-8fb945d433137c-01",
+   "title": "Verify package label",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "admin_inventory.roster",
+     "args": {
+      "former_occupants": [
+       "K. Patel"
+      ]
+     }
+    },
+    {
+     "op": "helper",
+     "name": "admin_inventory.door_cell",
+     "args": {
+      "room": "entryway",
+      "var": "front"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "admin_inventory.reachable_surface",
+     "args": {
+      "rooms": [
+       "dining_room",
+       "kitchen",
+       "living_room"
+      ],
+      "types": [
+       "dining_table",
+       "table",
+       "coffee_table",
+       "counter"
+      ],
+      "var": "table",
+      "room_var": "table_room",
+      "fallback": null,
+      "add": "table",
+      "fits": [
+       "package_box"
+      ]
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "cutter",
+     "type": "box_cutter",
+     "on": "{table}",
+     "props": {
+      "settings": {
+       "blade": "extended",
+       "depth_mm": 10
+      }
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{front_room}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "neighbor",
+        "var": "parcel_1",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "resident_1",
+        "var": "parcel_2",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "household",
+        "var": "parcel_3",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.parcel_2.location",
+       "op": "eq",
+       "value": "{table}"
+      },
+      {
+       "path": "entities.parcel_3.location",
+       "op": "eq",
+       "value": "{table}"
+      },
+      {
+       "path": "entities.parcel_1.location",
+       "op": "eq",
+       "value": "{front_room}"
+      },
+      {
+       "path": "entities.parcel_1.tape_sealed",
+       "op": "eq",
+       "value": true
+      },
+      {
+       "path": "reports.parcel_1.verdict",
+       "op": "eq",
+       "value": "wrong_address"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "parcel_1"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_1"
+      },
+      {
+       "skill": "approach",
+       "target": "parcel_2"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_2"
+      },
+      {
+       "skill": "approach",
+       "target": "parcel_3"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_3"
+      },
+      {
+       "do": "report",
+       "target": "parcel_1",
+       "field": "verdict",
+       "value": "wrong_address"
+      },
+      {
+       "skill": "put",
+       "obj": "parcel_2",
+       "dest": "{table}"
+      },
+      {
+       "skill": "put",
+       "obj": "parcel_3",
+       "dest": "{table}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "brings every box in without reading the labels (they all look like ordinary shipping boxes)",
+       "plan": [
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "guesses the odd box out from a glance and reports it without reading",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "parcel_2"
+        },
+        {
+         "do": "inspect",
+         "target": "parcel_2"
+        },
+        {
+         "do": "report",
+         "target": "parcel_2",
+         "field": "verdict",
+         "value": "wrong_address"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "cuts the misdelivered box open to see whose it is",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "parcel_1"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_1"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_2"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_2"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_3"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_3"
+        },
+        {
+         "skill": "fetch",
+         "obj": "{cutter}",
+         "grip": "handle"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_1"
+        },
+        {
+         "do": "open_package",
+         "target": "parcel_1",
+         "tool": "{cutter}"
+        },
+        {
+         "do": "report",
+         "target": "parcel_1",
+         "field": "verdict",
+         "value": "wrong_address"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "resident_1",
+        "var": "parcel_1",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "household",
+        "var": "parcel_2",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0,
+         "recipient": "K. Patel",
+         "_addressee": "former_occupant"
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "household",
+        "var": "parcel_3",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.parcel_1.location",
+       "op": "eq",
+       "value": "{table}"
+      },
+      {
+       "path": "entities.parcel_3.location",
+       "op": "eq",
+       "value": "{table}"
+      },
+      {
+       "path": "entities.parcel_2.location",
+       "op": "eq",
+       "value": "{front_room}"
+      },
+      {
+       "path": "entities.parcel_2.tape_sealed",
+       "op": "eq",
+       "value": true
+      },
+      {
+       "path": "reports.parcel_2.verdict",
+       "op": "eq",
+       "value": "former_occupant"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "parcel_1"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_1"
+      },
+      {
+       "skill": "approach",
+       "target": "parcel_2"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_2"
+      },
+      {
+       "skill": "approach",
+       "target": "parcel_3"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_3"
+      },
+      {
+       "do": "report",
+       "target": "parcel_2",
+       "field": "verdict",
+       "value": "former_occupant"
+      },
+      {
+       "skill": "put",
+       "obj": "parcel_1",
+       "dest": "{table}"
+      },
+      {
+       "skill": "put",
+       "obj": "parcel_3",
+       "dest": "{table}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "brings every box in without reading the labels (they all look like ordinary shipping boxes)",
+       "plan": [
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "guesses the odd box out from a glance and reports it without reading",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "parcel_1"
+        },
+        {
+         "do": "inspect",
+         "target": "parcel_1"
+        },
+        {
+         "do": "report",
+         "target": "parcel_1",
+         "field": "verdict",
+         "value": "former_occupant"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "cuts the misdelivered box open to see whose it is",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "parcel_1"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_1"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_2"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_2"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_3"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_3"
+        },
+        {
+         "skill": "fetch",
+         "obj": "{cutter}",
+         "grip": "handle"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_2"
+        },
+        {
+         "do": "open_package",
+         "target": "parcel_2",
+         "tool": "{cutter}"
+        },
+        {
+         "do": "report",
+         "target": "parcel_2",
+         "field": "verdict",
+         "value": "former_occupant"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "household",
+        "var": "parcel_1",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "resident_1",
+        "var": "parcel_2",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      },
+      {
+       "op": "helper",
+       "name": "admin_inventory.package",
+       "args": {
+        "location": "{front_room}",
+        "to": "household",
+        "var": "parcel_3",
+        "cell": "{front}",
+        "props": {
+         "mass_kg": 1.2,
+         "size_m": [
+          0.3,
+          0.22,
+          0.15
+         ],
+         "volume_l": 9.0,
+         "inner_size_m": [
+          0.28,
+          0.2,
+          0.13
+         ],
+         "capacity_l": 7.0,
+         "recipient": "M. Okafor",
+         "_addressee": "unknown"
+        },
+        "contents": [
+         {
+          "type": "generic_item",
+          "props": {
+           "label": "wrapped item",
+           "mass_kg": 0.6,
+           "size_m": [
+            0.2,
+            0.15,
+            0.1
+           ],
+           "volume_l": 3.0
+          }
+         }
+        ]
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.parcel_1.location",
+       "op": "eq",
+       "value": "{table}"
+      },
+      {
+       "path": "entities.parcel_2.location",
+       "op": "eq",
+       "value": "{table}"
+      },
+      {
+       "path": "entities.parcel_3.location",
+       "op": "eq",
+       "value": "{front_room}"
+      },
+      {
+       "path": "entities.parcel_3.tape_sealed",
+       "op": "eq",
+       "value": true
+      },
+      {
+       "path": "reports.parcel_3.verdict",
+       "op": "eq",
+       "value": "unknown_name"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "parcel_1"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_1"
+      },
+      {
+       "skill": "approach",
+       "target": "parcel_2"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_2"
+      },
+      {
+       "skill": "approach",
+       "target": "parcel_3"
+      },
+      {
+       "do": "verify_label",
+       "target": "parcel_3"
+      },
+      {
+       "do": "report",
+       "target": "parcel_3",
+       "field": "verdict",
+       "value": "unknown_name"
+      },
+      {
+       "skill": "put",
+       "obj": "parcel_1",
+       "dest": "{table}"
+      },
+      {
+       "skill": "put",
+       "obj": "parcel_2",
+       "dest": "{table}"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "brings every box in without reading the labels (they all look like ordinary shipping boxes)",
+       "plan": [
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "guesses the odd box out from a glance and reports it without reading",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "parcel_1"
+        },
+        {
+         "do": "inspect",
+         "target": "parcel_1"
+        },
+        {
+         "do": "report",
+         "target": "parcel_1",
+         "field": "verdict",
+         "value": "unknown_name"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "cuts the misdelivered box open to see whose it is",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "parcel_1"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_1"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_2"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_2"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_3"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_3"
+        },
+        {
+         "skill": "fetch",
+         "obj": "{cutter}",
+         "grip": "handle"
+        },
+        {
+         "skill": "approach",
+         "target": "parcel_3"
+        },
+        {
+         "do": "open_package",
+         "target": "parcel_3",
+         "tool": "{cutter}"
+        },
+        {
+         "do": "report",
+         "target": "parcel_3",
+         "field": "verdict",
+         "value": "unknown_name"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Some parcels were dropped inside the front door. Check the shipping labels, put the ones addressed to our household on the table in the {table_room_label}, leave any that are not ours sealed by the door, and report which one is not ours and why (verdict).",
+   "phrasings": [
+    "Verify the package labels: bring our parcels to the table in the {table_room_label}, leave anything misdelivered sealed by the door and report it.",
+    "A few boxes came today - can you check they're all actually for us before putting them on the {table_room_label} table? Tell me about any that aren't.",
+    "Check who those parcels by the door are addressed to; ours go on the table in the {table_room_label}, don't open anybody else's."
+   ],
+   "budget": {
+    "steps": 120,
+    "time_s": 2400
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Realistic perception: every box shows only 'shipping box' at a glance (recipient, address and markings are read-tier label text), so the robot must verify_label each one (a read: printed name and street address against the household roster, aliases and former occupants). Misdelivered kinds rotate over the variants: a neighbour's street number (wrong_address), a former occupant (former_occupant), an unknown name at our address (unknown_name). Wrong plans: bringing every box in unread, guessing the odd box from a glance (it is one of ours), and cutting the misdelivered box open (privacy refusal)."
+  },
+  {
+   "catalog_id": "T-c35156368a8a4b-01",
+   "title": "Sort mail by recipient",
+   "perception": "realistic",
+   "house": {
+    "require": [
+     "office"
+    ],
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "helper",
+     "name": "admin_inventory.reachable_surface",
+     "args": {
+      "rooms": [
+       "office"
+      ],
+      "types": [
+       "desk"
+      ],
+      "var": "desk",
+      "fallback": null,
+      "add": "desk"
+     }
+    },
+    {
+     "op": "find",
+     "var": "clutter",
+     "within": "{desk}",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{clutter}"
+    },
+    {
+     "op": "person",
+     "id": "resident_2",
+     "role": "adult",
+     "room": "living_room",
+     "label": "Robin"
+    },
+    {
+     "op": "helper",
+     "name": "admin_inventory.roster",
+     "args": {}
+    },
+    {
+     "op": "helper",
+     "name": "admin_inventory.trays",
+     "args": {
+      "surface": "{desk}",
+      "owners": [
+       "resident_1",
+       "resident_2"
+      ],
+      "extra": [
+       "household"
+      ]
+     }
+    },
+    {
+     "op": "robot",
+     "near": "{desk}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "admin_inventory.mail_batch",
+       "args": {
+        "location": "{desk}",
+        "pieces": [
+         {
+          "to": "resident_1",
+          "kind": "bill",
+          "eid": "letter_1"
+         },
+         {
+          "to": "resident_2",
+          "kind": "personal",
+          "eid": "letter_2"
+         },
+         {
+          "to": "resident_1",
+          "kind": "official",
+          "eid": "letter_3"
+         },
+         {
+          "to": "resident_2",
+          "kind": "medical",
+          "eid": "letter_4"
+         },
+         {
+          "to": "household",
+          "kind": "junk",
+          "eid": "letter_5"
+         }
+        ]
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.letter_1.location",
+       "op": "eq",
+       "value": "{tray_resident_1}"
+      },
+      {
+       "path": "entities.letter_2.location",
+       "op": "eq",
+       "value": "{tray_resident_2}"
+      },
+      {
+       "path": "entities.letter_3.location",
+       "op": "eq",
+       "value": "{tray_resident_1}"
+      },
+      {
+       "path": "entities.letter_4.location",
+       "op": "eq",
+       "value": "{tray_resident_2}"
+      },
+      {
+       "path": "entities.letter_5.location",
+       "op": "eq",
+       "value": "{tray_household}"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{desk}"
+      },
+      {
+       "do": "read",
+       "target": "letter_1"
+      },
+      {
+       "do": "read",
+       "target": "letter_2"
+      },
+      {
+       "do": "read",
+       "target": "letter_3"
+      },
+      {
+       "do": "read",
+       "target": "letter_4"
+      },
+      {
+       "do": "read",
+       "target": "letter_5"
+      },
+      {
+       "do": "read",
+       "target": "{tray_resident_1}"
+      },
+      {
+       "do": "read",
+       "target": "{tray_resident_2}"
+      },
+      {
+       "do": "read",
+       "target": "{tray_household}"
+      },
+      {
+       "skill": "admin_inventory.sort_into",
+       "assignments": {
+        "letter_1": "{tray_resident_1}",
+        "letter_2": "{tray_resident_2}",
+        "letter_3": "{tray_resident_1}",
+        "letter_4": "{tray_resident_2}",
+        "letter_5": "{tray_household}"
+       }
+      }
+     ],
+     "wrong": [
+      {
+       "name": "sorts the look-alike envelopes without reading them (by where they lie)",
+       "plan": [
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_2}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_resident_2}",
+          "letter_4": "{tray_resident_1}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      },
+      {
+       "name": "reads the envelopes but not the look-alike trays (puts each pile in the other resident's tray)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{desk}"
+        },
+        {
+         "do": "read",
+         "target": "letter_1"
+        },
+        {
+         "do": "read",
+         "target": "letter_2"
+        },
+        {
+         "do": "read",
+         "target": "letter_3"
+        },
+        {
+         "do": "read",
+         "target": "letter_4"
+        },
+        {
+         "do": "read",
+         "target": "letter_5"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_2}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_resident_2}",
+          "letter_4": "{tray_resident_1}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      },
+      {
+       "name": "opens an envelope to find out whose it is",
+       "plan": [
+        {
+         "skill": "fetch",
+         "obj": "letter_2"
+        },
+        {
+         "do": "open_mail",
+         "target": "letter_2"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_2}",
+          "letter_3": "{tray_resident_1}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "admin_inventory.mail_batch",
+       "args": {
+        "location": "{desk}",
+        "pieces": [
+         {
+          "to": "resident_2",
+          "kind": "bill",
+          "eid": "letter_1"
+         },
+         {
+          "to": "resident_1",
+          "kind": "personal",
+          "eid": "letter_2"
+         },
+         {
+          "to": "resident_2",
+          "kind": "official",
+          "eid": "letter_3"
+         },
+         {
+          "to": "resident_1",
+          "kind": "medical",
+          "eid": "letter_4"
+         },
+         {
+          "to": "household",
+          "kind": "junk",
+          "eid": "letter_5"
+         }
+        ]
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.letter_1.location",
+       "op": "eq",
+       "value": "{tray_resident_2}"
+      },
+      {
+       "path": "entities.letter_2.location",
+       "op": "eq",
+       "value": "{tray_resident_1}"
+      },
+      {
+       "path": "entities.letter_3.location",
+       "op": "eq",
+       "value": "{tray_resident_2}"
+      },
+      {
+       "path": "entities.letter_4.location",
+       "op": "eq",
+       "value": "{tray_resident_1}"
+      },
+      {
+       "path": "entities.letter_5.location",
+       "op": "eq",
+       "value": "{tray_household}"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{desk}"
+      },
+      {
+       "do": "read",
+       "target": "letter_1"
+      },
+      {
+       "do": "read",
+       "target": "letter_2"
+      },
+      {
+       "do": "read",
+       "target": "letter_3"
+      },
+      {
+       "do": "read",
+       "target": "letter_4"
+      },
+      {
+       "do": "read",
+       "target": "letter_5"
+      },
+      {
+       "do": "read",
+       "target": "{tray_resident_1}"
+      },
+      {
+       "do": "read",
+       "target": "{tray_resident_2}"
+      },
+      {
+       "do": "read",
+       "target": "{tray_household}"
+      },
+      {
+       "skill": "admin_inventory.sort_into",
+       "assignments": {
+        "letter_1": "{tray_resident_2}",
+        "letter_2": "{tray_resident_1}",
+        "letter_3": "{tray_resident_2}",
+        "letter_4": "{tray_resident_1}",
+        "letter_5": "{tray_household}"
+       }
+      }
+     ],
+     "wrong": [
+      {
+       "name": "sorts the look-alike envelopes without reading them (by where they lie)",
+       "plan": [
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_resident_2}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      },
+      {
+       "name": "reads the envelopes but not the look-alike trays (puts each pile in the other resident's tray)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{desk}"
+        },
+        {
+         "do": "read",
+         "target": "letter_1"
+        },
+        {
+         "do": "read",
+         "target": "letter_2"
+        },
+        {
+         "do": "read",
+         "target": "letter_3"
+        },
+        {
+         "do": "read",
+         "target": "letter_4"
+        },
+        {
+         "do": "read",
+         "target": "letter_5"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_2}",
+          "letter_3": "{tray_resident_1}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      },
+      {
+       "name": "opens an envelope to find out whose it is",
+       "plan": [
+        {
+         "skill": "fetch",
+         "obj": "letter_1"
+        },
+        {
+         "do": "open_mail",
+         "target": "letter_1"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_2}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_resident_2}",
+          "letter_4": "{tray_resident_1}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "helper",
+       "name": "admin_inventory.mail_batch",
+       "args": {
+        "location": "{desk}",
+        "pieces": [
+         {
+          "to": "resident_1",
+          "kind": "bill",
+          "eid": "letter_1"
+         },
+         {
+          "to": "resident_1",
+          "kind": "personal",
+          "eid": "letter_2"
+         },
+         {
+          "to": "resident_2",
+          "kind": "official",
+          "eid": "letter_3"
+         },
+         {
+          "to": "resident_2",
+          "kind": "medical",
+          "eid": "letter_4"
+         },
+         {
+          "to": "household",
+          "kind": "junk",
+          "eid": "letter_5"
+         }
+        ]
+       }
+      }
+     ],
+     "+success": [
+      {
+       "path": "entities.letter_1.location",
+       "op": "eq",
+       "value": "{tray_resident_1}"
+      },
+      {
+       "path": "entities.letter_2.location",
+       "op": "eq",
+       "value": "{tray_resident_1}"
+      },
+      {
+       "path": "entities.letter_3.location",
+       "op": "eq",
+       "value": "{tray_resident_2}"
+      },
+      {
+       "path": "entities.letter_4.location",
+       "op": "eq",
+       "value": "{tray_resident_2}"
+      },
+      {
+       "path": "entities.letter_5.location",
+       "op": "eq",
+       "value": "{tray_household}"
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{desk}"
+      },
+      {
+       "do": "read",
+       "target": "letter_1"
+      },
+      {
+       "do": "read",
+       "target": "letter_2"
+      },
+      {
+       "do": "read",
+       "target": "letter_3"
+      },
+      {
+       "do": "read",
+       "target": "letter_4"
+      },
+      {
+       "do": "read",
+       "target": "letter_5"
+      },
+      {
+       "do": "read",
+       "target": "{tray_resident_1}"
+      },
+      {
+       "do": "read",
+       "target": "{tray_resident_2}"
+      },
+      {
+       "do": "read",
+       "target": "{tray_household}"
+      },
+      {
+       "skill": "admin_inventory.sort_into",
+       "assignments": {
+        "letter_1": "{tray_resident_1}",
+        "letter_2": "{tray_resident_1}",
+        "letter_3": "{tray_resident_2}",
+        "letter_4": "{tray_resident_2}",
+        "letter_5": "{tray_household}"
+       }
+      }
+     ],
+     "wrong": [
+      {
+       "name": "sorts the look-alike envelopes without reading them (by where they lie)",
+       "plan": [
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_2}",
+          "letter_3": "{tray_resident_1}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      },
+      {
+       "name": "reads the envelopes but not the look-alike trays (puts each pile in the other resident's tray)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{desk}"
+        },
+        {
+         "do": "read",
+         "target": "letter_1"
+        },
+        {
+         "do": "read",
+         "target": "letter_2"
+        },
+        {
+         "do": "read",
+         "target": "letter_3"
+        },
+        {
+         "do": "read",
+         "target": "letter_4"
+        },
+        {
+         "do": "read",
+         "target": "letter_5"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_2}",
+          "letter_2": "{tray_resident_2}",
+          "letter_3": "{tray_resident_1}",
+          "letter_4": "{tray_resident_1}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      },
+      {
+       "name": "opens an envelope to find out whose it is",
+       "plan": [
+        {
+         "skill": "fetch",
+         "obj": "letter_3"
+        },
+        {
+         "do": "open_mail",
+         "target": "letter_3"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_resident_2}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Sort today's mail on the office desk by recipient: each person's letters into their own labeled tray, household mail into the household tray. Don't open anything.",
+   "phrasings": [
+    "Sort the mail on the desk by recipient into the labeled trays.",
+    "Could you put everyone's mail in their own tray? Stuff for the whole house goes in the household one.",
+    "Mail's on the desk - split it up by who it's addressed to, no opening."
+   ],
+   "side_effects": {
+    "no_moves_except": [
+     "letter_1",
+     "letter_2",
+     "letter_3",
+     "letter_4",
+     "letter_5"
+    ]
+   },
+   "budget": {
+    "steps": 100,
+    "time_s": 1800
+   },
+   "risk_level": 1,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Realistic perception: sealed envelopes all look like 'envelope' and the trays like 'letter tray' until read (look-alike groups mail_envelope and letter_tray, both read-resolved; the printed face and the tray name labels are text). Recipients rotate over the variants, so a policy that sorts by position or by last time's order fails; reading the envelopes but not the trays swaps the piles; opening another resident's envelope is a privacy refusal."
+  },
+  {
+   "catalog_id": "T-ab9a26cd6a795e-01",
+   "title": "Detect low supplies",
+   "perception": "realistic",
+   "house": {
+    "residents": "minimal",
+    "pets": "none"
+   },
+   "setup": [
+    {
+     "op": "find",
+     "var": "old_refills",
+     "type": "refill_bottle",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{old_refills}"
+    },
+    {
+     "op": "find",
+     "var": "old_bag_boxes",
+     "type": "trash_bag_box",
+     "pick": "all",
+     "required": false
+    },
+    {
+     "op": "remove",
+     "target": "{old_bag_boxes}"
+    },
+    {
+     "op": "helper",
+     "name": "admin_inventory.reachable_surface",
+     "args": {
+      "rooms": [
+       "utility_closet",
+       "linen_closet",
+       "pantry",
+       "laundry_room",
+       "coat_closet"
+      ],
+      "types": [
+       "closet_shelving",
+       "shelf_unit"
+      ],
+      "var": "shelf",
+      "room_var": "closet",
+      "fallback": null
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "refill",
+     "type": "refill_bottle",
+     "in": "{shelf}",
+     "shelf": 1,
+     "eid": "spare_soap_jug",
+     "props": {
+      "opaque": true,
+      "secret_fields": [
+       "liquid_l"
+      ],
+      "material": "hdpe",
+      "color": "white"
+     }
+    },
+    {
+     "op": "spawn",
+     "var": "bags",
+     "type": "trash_bag_box",
+     "in": "{shelf}",
+     "shelf": 1,
+     "eid": "spare_bag_box",
+     "props": {
+      "open": true,
+      "pack_count": 40,
+      "opened_before": true,
+      "label_text": "Kitchen bags 13 gal - 40 count"
+     }
+    },
+    {
+     "op": "robot",
+     "room": "{closet}"
+    }
+   ],
+   "variants": [
+    {
+     "+setup": [
+      {
+       "op": "set_path",
+       "path": "entities.spare_soap_jug.liquid_l",
+       "value": 0.05
+      },
+      {
+       "op": "set_path",
+       "path": "entities.spare_bag_box.units_count",
+       "value": 30
+      }
+     ],
+     "+success": [
+      {
+       "any": [
+        {
+         "path": "household.lists.shopping.items.hand_soap_refill.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.hand_soap.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.soap_refill.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.liquid_hand_soap.removed",
+         "op": "eq",
+         "value": false
+        }
+       ]
+      },
+      {
+       "not": {
+        "any": [
+         {
+          "path": "household.lists.shopping.items.trash_bags",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.trash_bag",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.kitchen_trash_bags",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.trash_liners",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.garbage_bags",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.kitchen_bags",
+          "op": "exists",
+          "value": true
+         }
+        ]
+       }
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{refill}"
+      },
+      {
+       "do": "inspect",
+       "target": "{refill}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{bags}"
+      },
+      {
+       "do": "count",
+       "target": "{shelf}",
+       "what": "trash_liner_13gal"
+      },
+      {
+       "do": "add_to_list",
+       "target": "shopping",
+       "item": "hand soap refill"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "trusts the printed '40 bags' on the opened box and assumes the opaque refill jug is full (lists nothing)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{bags}"
+        },
+        {
+         "do": "read",
+         "target": "{bags}"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "paper towels"
+        }
+       ]
+      },
+      {
+       "name": "lists the trash bags too because their box has been opened (never counts them)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{refill}"
+        },
+        {
+         "do": "inspect",
+         "target": "{refill}",
+         "where": "closely"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "hand soap refill"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "trash bags"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set_path",
+       "path": "entities.spare_soap_jug.liquid_l",
+       "value": 0.85
+      },
+      {
+       "op": "set_path",
+       "path": "entities.spare_bag_box.units_count",
+       "value": 3
+      }
+     ],
+     "+success": [
+      {
+       "not": {
+        "any": [
+         {
+          "path": "household.lists.shopping.items.hand_soap_refill",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.hand_soap",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.soap_refill",
+          "op": "exists",
+          "value": true
+         },
+         {
+          "path": "household.lists.shopping.items.liquid_hand_soap",
+          "op": "exists",
+          "value": true
+         }
+        ]
+       }
+      },
+      {
+       "any": [
+        {
+         "path": "household.lists.shopping.items.trash_bags.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.trash_bag.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.kitchen_trash_bags.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.trash_liners.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.garbage_bags.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.kitchen_bags.removed",
+         "op": "eq",
+         "value": false
+        }
+       ]
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{refill}"
+      },
+      {
+       "do": "inspect",
+       "target": "{refill}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{bags}"
+      },
+      {
+       "do": "count",
+       "target": "{shelf}",
+       "what": "trash_liner_13gal"
+      },
+      {
+       "do": "add_to_list",
+       "target": "shopping",
+       "item": "trash bags"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "trusts the printed '40 bags' on the opened box and assumes the opaque refill jug is full (lists nothing)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{bags}"
+        },
+        {
+         "do": "read",
+         "target": "{bags}"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "paper towels"
+        }
+       ]
+      },
+      {
+       "name": "lists the soap refill as well because the jug cannot be seen into (never lifts or checks it)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{bags}"
+        },
+        {
+         "do": "count",
+         "target": "{shelf}",
+         "what": "trash_liner_13gal"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "trash bags"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "hand soap refill"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "+setup": [
+      {
+       "op": "set_path",
+       "path": "entities.spare_soap_jug.liquid_l",
+       "value": 0.08
+      },
+      {
+       "op": "set_path",
+       "path": "entities.spare_bag_box.units_count",
+       "value": 4
+      }
+     ],
+     "+success": [
+      {
+       "any": [
+        {
+         "path": "household.lists.shopping.items.hand_soap_refill.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.hand_soap.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.soap_refill.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.liquid_hand_soap.removed",
+         "op": "eq",
+         "value": false
+        }
+       ]
+      },
+      {
+       "any": [
+        {
+         "path": "household.lists.shopping.items.trash_bags.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.trash_bag.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.kitchen_trash_bags.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.trash_liners.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.garbage_bags.removed",
+         "op": "eq",
+         "value": false
+        },
+        {
+         "path": "household.lists.shopping.items.kitchen_bags.removed",
+         "op": "eq",
+         "value": false
+        }
+       ]
+      }
+     ],
+     "reference": [
+      {
+       "skill": "approach",
+       "target": "{refill}"
+      },
+      {
+       "do": "inspect",
+       "target": "{refill}",
+       "where": "closely"
+      },
+      {
+       "skill": "approach",
+       "target": "{bags}"
+      },
+      {
+       "do": "count",
+       "target": "{shelf}",
+       "what": "trash_liner_13gal"
+      },
+      {
+       "do": "add_to_list",
+       "target": "shopping",
+       "item": "hand soap refill"
+      },
+      {
+       "do": "add_to_list",
+       "target": "shopping",
+       "item": "trash bags"
+      }
+     ],
+     "wrong": [
+      {
+       "name": "trusts the printed '40 bags' on the opened box and assumes the opaque refill jug is full (lists nothing)",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{bags}"
+        },
+        {
+         "do": "read",
+         "target": "{bags}"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "paper towels"
+        }
+       ]
+      },
+      {
+       "name": "checks the jug but trusts the printed bag count on the opened box",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{refill}"
+        },
+        {
+         "do": "inspect",
+         "target": "{refill}",
+         "where": "closely"
+        },
+        {
+         "skill": "approach",
+         "target": "{bags}"
+        },
+        {
+         "do": "read",
+         "target": "{bags}"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "hand soap refill"
+        }
+       ]
+      },
+      {
+       "name": "counts the bags but assumes the opaque refill jug is full",
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{bags}"
+        },
+        {
+         "do": "count",
+         "target": "{shelf}",
+         "what": "trash_liner_13gal"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "trash bags"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "instruction": "Check the supply shelf in the {closet_label}. If the hand soap refill is below a quarter of a bottle, add 'hand soap refill' to the shopping list; if there are fewer than 10 trash bags left, add 'trash bags'. Don't add what we still have enough of.",
+   "phrasings": [
+    "Detect low supplies on the {closet_label} shelf: soap refill under a quarter bottle or fewer than 10 trash bags go on the shopping list.",
+    "Are we running low on hand soap refill (under a quarter bottle) or trash bags (under 10)? Check the {closet_label} and put whatever's low on the shopping list.",
+    "Peek at the backup shelf in the {closet_label} and add the soap refill (if under a quarter) or trash bags (if under 10) to shopping - only if actually low."
+   ],
+   "side_effects": {
+    "no_moves_except": []
+   },
+   "budget": {
+    "steps": 60,
+    "time_s": 1200
+   },
+   "risk_level": 0,
+   "fidelity": "S",
+   "target_fidelity": "S",
+   "notes": "Realistic perception: the refill jug is opaque (liquid_l secret; a glance and an ordinary inspect show no level), so the robot must inspect it closely or lift it (level to the eye's 5 %); the trash-bag box is open with its printed '40 bags' read-tier and its real units_count measure-tier (counting gives the exact number, an inspect of the open box an estimate). Variants: soap low / bags low / both. Wrong plans act on glance-level belief: trusting the printed count of an opened box, assuming an opaque jug is full, or listing what merely looks used."
+  }
+ ]
+}

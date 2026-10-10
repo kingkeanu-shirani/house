@@ -1,0 +1,395 @@
+# Kernel API (v2) — contract for domain modules and task authors
+
+Python 3.9+ standard library only. No `match`, no `X | Y` type unions at runtime, no third-party imports.
+
+## Layout
+
+```
+house_sim/kernel/       world state, registries, actions, time, geometry, perception, physics, evaluation (owned by core)
+house_sim/systems/      one module (or package) per domain; core.py holds core actions
+house_sim/data/types/   object types: core.json + <domain>.json
+house_sim/data/actions/ optional data-only transformations
+house_sim/generator/    house layout + Placer helpers; furnishers come from domains
+house_sim/tasks/        spec expansion, setup ops, reference skills, runner, verifier
+tasks/authored/         one JSON file per authoring batch: {"specs": [...]} (one spec per catalog id)
+tasks/templates/        optional shared spec templates
+```
+
+`kernel.plugins.load_domains()` imports every module in `house_sim/systems` (core first). A domain named `cleaning`
+is `house_sim/systems/cleaning.py` (or package `house_sim/systems/cleaning/`) and its types file must be
+`house_sim/data/types/cleaning.json` (same stem). During parallel development set `HOUSE_SIM_DOMAINS=cleaning`
+(comma-separated; core is always loaded) so only those modules and type files load. A domain module registers
+everything on import. Two modules must never register the same action, system, skill, helper or type name (import fails).
+
+## World state
+
+`env.world` is a `kernel.world.World`. **All mutation must go through it** so refused actions roll back exactly
+and the strict-mode test (`HOUSE_SIM_STRICT=1`) passes:
+
+| Read | Mutate |
+|---|---|
+| `w.ent(eid)` | `w.mut(eid)` (returns the same dict, journaled) |
+| `w.room(rid)` / `w.person(pid)` / `w.pet(pid)` / `w.conn(cid)` | `w.room_m` / `w.person_m` / `w.pet_m` / `w.conn_m` |
+| `w.get("weather")`, `w.s["utilities"]` | `w.sec("weather")` (whole top-level section journaled) |
+| | `w.create(eid, record)`, `w.spawn(type, location, **props)`, `w.destroy(eid)` |
+| | `w.set_scalar("time_s", v)`, `w.set_path("entities.x.open", True)` |
+| `w.children(p)`, `w.descendants(e)`, `w.ancestors(e)`, `w.root_room(e)`, `w.within(e, a)`, `w.find(type=, room=, within=, tag=, where=)`, `w.held_items()`, `w.is_a(e, t)` | `w.emit(kind, **data)` (event log), `w.stat(name, n)`, `w.fact(k, v)`, `w.log_move(e, a, b)` |
+
+Never keep a reference across steps; never mutate dicts obtained from `ent()`/`room()`/`w.s[...]` directly.
+
+State shape: `rooms`, `connections` (doorways/doors/stairs/gates/hatches/elevator doors with `cells` per room), `entities`,
+`people`, `pets`, `robot` (`room`, `pos` [col,row], `hands` {left,right}, `posture`, `battery`, `standing_on`, `speed_mode`,
+`quiet`, `privacy_mode`, `camera_clean`, `network`, `actuator_ok`, `arms_ok`, `fallen`, `faults`), `utilities`, `weather`,
+`clock` (`start` ISO), `time_s`, `steps`, `stats`, `facts`, `reports`, `memory`, `approvals`, `orders`, `pending`,
+`events`, `event_log`, `messages`, `logs.moves`, `household`, `user_simulator`, `metadata`.
+
+Entity essentials: `type`, `is_a` (ancestors), `label`, `category`, `location` (room id, entity id, person id, pet id, or
+`"robot"`), `relation` (`on` | `in` | `hung` | `under` | `behind` | `held` | `attached` | `part`), `pos` (room cell,
+only when located directly in a room), `spos` ([x,y] meters on a surface), `shelf` (index into the parent's
+`shelf_heights`), `size_m` [w,d,h], `mass_kg`, `volume_l`, `capacity_l`, `inner_size_m`, `material`, `color`,
+`soil` (dict soil_type -> 0..1), `wetness`, `temperature_c`, `fragile`, `broken`, `portable`, `openable`, `open`,
+`lockable`, `locked`, `switchable`, `on`, `settings` + `setting_options` + `control_kinds`, `appliance` (programmable
+cycle), `owner`, `home`, `private`, `off_limits`, `risk`, `requires_approval`, `hazards`, `safe_grips`, `affordances`,
+`tags`, `secret_fields` (ground truth never observed). Keys beginning with `_` are never observed either.
+
+## Object types
+
+`house_sim/data/types/<domain>.json`: `{"domain": "...", "types": {"name": {"is_a": "parent", "props": {...}, "doc": "..."}}}`.
+Props deep-merge into the parent's; `"+affordances": [...]` appends. Reuse core bases: `portable_object`, `fixture`,
+`furniture`, `surface_furniture`, `storage_furniture`, `openable_storage`, `carry_container`, `door`, `light`, `table`,
+`cabinet`, `drawer`, `bookshelf`, `closet`... Create entities with `w.spawn(type, location, **props)` or
+`Placer` helpers. Realistic dimensions, masses and materials matter: geometry, reach, fit and carrying use them.
+
+## Actions
+
+```python
+from house_sim.kernel.actions import action
+from house_sim.kernel.errors import ActionError, require
+
+@action("wring", params={"target": "entity"}, duration=6.0, energy=0.02, noise=0.1, category="physical",
+        doc="Wring water out of a held mop or cloth over a sink or bucket.")
+def wring(ctx):
+    mop = ctx.mobj(ctx.args["target"], touch=True)        # visibility, reach, privacy, approvals, capability
+    require(ctx.holding(ctx.args["target"]), "Hold it first")
+    ...
+    return "Wrung out"                                     # message (str) or JSON-able dict
+```
+
+* Params: `"entity"`, `"?number"`, `"?str:a|b"`, `"cell"`, `"list"`, `"dict"`, `"bool"`, `"text"`, or a dict with
+  `type`/`default`/`min`/`max`/`choices`. `target` and `destination` receive env.step's positional args.
+* `duration` seconds or `fn(ctx)`; add more with `ctx.spend(s)`. `noise` adds to `stats.noise` (quietness).
+* `inverse=fn(ctx, before)` returns the undo command; `irreversible=True` clears the undo stack.
+* Refuse with `ActionError(message, category)`; categories: `precondition`, `argument`, `safety`, `privacy`,
+  `social`, `authority`, `resource`, `perception`, `capability`. Refusals roll back and count in stats.
+* Ctx helpers: `ctx.obj(eid, touch=, grasp=, reach=)`, `ctx.mobj(...)`, `ctx.holding(e)`, `ctx.hand_of(e)`,
+  `ctx.free_hand()`, `ctx.visible(e)`, `ctx.person_here(p)`, `ctx.rng` (deterministic), `ctx.data` (scratch, e.g. path),
+  `ctx.env` (do not call env.step inside a handler; use `ctx.env.perform(command, ctx)` for nested actions).
+* Extend existing actions with hooks instead of re-registering them:
+  `@before("open")` (raise to refuse) and `@after("move")` (apply effects, e.g. stepping on a wet floor).
+* Core actions (systems/core.py): look, wait, inspect, read, report, move, approach, walk_to, crouch, kneel, stand,
+  pick_up, place, hand_over, receive, open, close, lock, unlock, switch_on, switch_off, set, start, pause, cancel,
+  set_mode, speak, announce, refuse, explain, confirm, handoff, listen, ask, stop, resume, set_quiet, set_speed,
+  remember, forget, recall, watch, cancel_watch, run_pending, undo, snapshot, diff.
+* Shared helpers in `house_sim.systems.core`: `place_item(ctx, target, dest, relation, spos, cell, shelf, orientation)`,
+  `apply_setting(ctx, eid, setting, value)`, `check_handling(ctx, eid)`, `subtree_mass(w, eid)`, `say(ctx, kind, text)`,
+  `release_from_hands(w, eid)`, `connection_between(w, a, b)`, `require_tool(ctx, capability, tool_id=None)` (returns the
+  held tool offering a capability; refuses broken/depleted/flat tools), `add_soil(w, eid, kind, amount)`.
+* Physics helpers in `house_sim.kernel.physics`: `is_powered(w, eid)`, `water_available(w, eid)`,
+  `room_temperature(state, rid)`, `appliance_start(w, eid, program)`; appliance hooks
+  `@hook("cycle_check:<type>")` (return an error string to refuse), `cycle_start:<type>`, `cycle_tick:<type>` (w, eid, dt),
+  `cycle_complete:<type>`. Thermal: entities relax to their parent's `internal_temp_c` (ovens, fridges, burners),
+  a `conducts_heat` parent's temperature (pots), else room/outdoor temperature.
+* Geometry in `house_sim.kernel.geometry`: `CELL`=0.5 m, `grid_size`, `footprint`, `blocked_cells`, `hazard_cells`,
+  `find_path`, `anchor`, `height_m`, `reach_problem`, `surface_spot`, `fits_inside`, `free_floor_cell`.
+  Floor hazards: an entity with `floor_hazard` ("wet", "trip", "sharp", "fragile", "slip", ...) or room `wet_cells` /
+  `floor_hazards`. `move`/`approach`/`walk_to` accept `avoid` (hazard kinds) and record `ctx.data["path"]`.
+
+## Systems (time)
+
+```python
+from house_sim.kernel.plugins import system
+
+@system("plants", order=120, max_dt=60.0)
+def plants(w, dt, tick):        # called every substep (<=30 s) while simulated time advances
+    for eid in w.find(type="plant"): ...
+```
+`tick.rng(name)` is a deterministic RNG. Keep systems cheap: iterate only relevant entities. Long waits (hours/days)
+advance in 30 s substeps, so per-substep work must be small.
+
+## Other registries (`house_sim.kernel.plugins`)
+
+* `@furnisher(name, order)` `fn(config, rng, opts, registry)` adds the domain's items to generated houses using
+  `house_sim.generator.place.Placer(config, registry, rng)`: `furniture`, `mount`, `on`, `inside`, `hang`,
+  `floor_item`, `rooms(type)`, `find(type, room)`. Order: core 10, structure-dependent fixtures 20-40, appliances 40-60,
+  small items 60-90, people/pets 90+. Furnish realistically (every kitchen has a sink, fridge, stove...). Never break
+  doorway connectivity (Placer checks it for furniture).
+* `@scenario_helper("domain.name")` `fn(setup_ctx, **args) -> dict` builds complex task setups (setup op `helper`).
+* `@skill("domain.name")` `fn(runner, **args)` reference skills for plans; route with `house_sim.tasks.skills`
+  (`go_room`, `approach`, `fetch`, `put`, `use`, `give`, `ask`, `reveal`) and change state only via `runner.do(...)`.
+* `@observer(name)` `fn(env, w, obs)` adds observation channels (sounds, smells, displays). Only add what the robot
+  could plausibly sense from its current room.
+* `@inspector(name)` `fn(w, eid, record, details, ctx)` adds fields to `inspect` results.
+* `@invariant(name)` `fn(state, baseline) -> label|None` global failure (e.g. food left out too long).
+* `@answerer("topic_prefix")` `fn(env, w, person_id, topic, ctx) -> dict|None` dynamic resident answers.
+* `@hook(event)` generic hooks; `run_hooks(event, ...)`. Event effects in scenarios: `@hook("event:<name>")`
+  `fn(w, args, env)` (e.g. `event:start_rain`).
+
+## Task specs (tasks/authored/*.json)
+
+See `house_sim/tasks/spec.py` (schema), `house_sim/tasks/setup.py` (setup ops) and `house_sim/tasks/runner.py`
+(plans). Rules for every spec:
+
+1. It tests what the catalog entry actually says, in its section's context. No easier proxy, no keyword flag.
+2. Success predicates check observable end state produced by real mechanics (location, soil, temperature, cycle,
+   settings, reports, speech, approvals...). Use `side_effects` / `preserve` / `failure` for "don't make it worse".
+3. Randomize what matters (positions, which item, quantities, branch of conditional entries via `variants`, distractors).
+4. Reference plan passes on seeds 0, 1, 2, 41, 97; waiting does nothing useful; each wrong plan is a plausible
+   mistake and must fail for the right reason (not because the plan crashed).
+5. Risk 3 tasks require approval/presence mechanics; never let a task succeed by skipping safety.
+6. Check with `python -m house_sim --check tasks/authored/<file>.json --workers 4` until every spec passes.
+
+## v2.1 kernel changes (integration round)
+
+* **Performance APIs** — `w.static_index(name, predicate)` returns sorted ids of entities matching a predicate over
+  *static* fields (type, is_a, category, fixed tags); cached until any entity is created or destroyed. `w.of_type(t)`
+  is the type/is_a version. Re-check dynamic fields on the records you get back. Systems must not scan all
+  entities every tick.
+* **Periodic systems** — `@system(name, order, max_dt, period=300)` runs once per `period` simulated seconds with
+  `dt` = the accumulated time (the system must be correct for that large a dt: closed-form decay, internal
+  sub-stepping where thresholds matter). Use it for slow processes (plants, drying, spoilage, compost, weather,
+  inventory aging, wear). Keep fast, event-sensitive systems (fire, appliance cycles, pouring, agents walking)
+  per-substep. Kernel thermal now runs every 120 s with exact exponential relaxation.
+  Benchmark: `python tools/bench_systems.py 40 0 1 2 3 --domain <name>`; target for the whole engine < 15 ms per
+  30 s substep on ~900-entity houses.
+* **Hooks** — `@hook("episode_start")` `fn(w, env)` runs at reset before the baseline (derive fields, refresh flows).
+  `@hook("visible_veto")` `fn(state, eid, entity) -> True` hides an entity from perception (and therefore from every
+  action's visibility check). `@hook("path_blocked")` `fn(state, room, avoid_kinds) -> cells` adds no-go cells to
+  path planning. Before/after hooks are arity-checked at registration (before: (ctx), after: (ctx, result)).
+* **Perception** — a closed opaque container hides only children with relation `in` (items `on` top or `hung` stay
+  visible); installed parts behind a closed `access: "cover"` slot are hidden; `submerged` children of a
+  `liquid_opaque` parent are hidden; people/pets with `concealed` (not `revealed`) are not observed.
+* **Grip memory** — `pick_up(grip=...)` stores `held_grip` on the item; `check_handling` uses it for later
+  move/place/hand_over, so sharp items can carry `hazards: ["sharp"]` + `safe_grips` and still be set down.
+* **Harms** — `collisions`, `falls`, `spills`, `breakages` are now global failure flags (with damage, injury, fire,
+  flood, gas_exposure, burns, privacy_violations, safety_violations, authority_violations, pet_escape,
+  food_poisoning_risk, electrical_hazard). Only increment them for genuinely harmful outcomes; tasks may list
+  tolerated flags in `allow`.
+* **Engine** — notes added with `ctx.note(text)` are appended to the action message. A bounded action trail
+  `state["action_log"]` ({step, time_s, action, target, ok}) supports process-order predicates. `wait` accepts up to
+  604800 s (7 days). Param `choices` are compared after lowercasing string values — use lowercase choices.
+* **Core actions** — `place` onto the floor picks a reachable cell whose whole footprint fits; `install` accepts
+  `orientation`; `set` works without reach for `control_kinds: "app"` settings on `smart`/`remote_status` devices
+  when the robot has network; light switches wired to the same lights (3-way, one per doorway in generated houses)
+  stay in sync; `core.OBSERVABLE_FIELDS` / `core.AGENT_OBSERVABLE_FIELDS` may be extended by domains for `watch`.
+* **Geometry** — loose portable items on the floor are hazard kind `floor_item` (avoidable); wall-mounted things above
+  0.85 m (and their contents) are reachable from one extra cell away (reaching over a counter); a held tool's
+  `reach_extension_m` (reachers) adds to reach height; `rect_overlap` has an epsilon.
+* **Generator** — furniture placement keeps every doorway and every blocking piece reachable; ceiling lights, wall
+  switches and windows are `mounted`; apartments with required stairs raise a clear error.
+* **Skills** — core `go_room`/`approach` route around hazards (`tasks.skills.SAFE_AVOID`) when a clear route exists,
+  and use a held flashlight for dark rooms without a doorway switch. Top-level `"+setup"` etc. now merge in specs.
+
+## v2.2 kernel changes (cross-domain bug round)
+
+* `geometry.free_floor_cell(state, rid, near, ignore, record=None, clearance=True, reachable=True)` keeps doorway cells
+  and their four neighbours (door swing) clear, checks the record's whole footprint, and only returns cells adjacent
+  to doorway-reachable floor. `Placer.floor_item` uses it, so furnished floor items no longer sit in door swings.
+  `geometry.door_clearance(state, rid)` and `geometry.reachable_cells(state, rid)` are public.
+* `Placer.mount` (no explicit cell) picks a wall cell whose footprint fits, does not overlap blocking furniture or
+  other floor-standing mounts, is outside doorway clearance (low mounts), and is reachable (one extra cell for mounts
+  >= 0.85 m). Floor-standing mounts (mount height < 0.5 m, e.g. closet shelving) count as occupied for later furniture.
+* `approach` targets cells within reach radius (radius 2 for overhead-mounted targets, matching reach_problem).
+* `hazard_cells` includes ground-layer entities that declare `floor_hazard` (puddles) and skips entities hidden by a
+  `visible_veto` hook (no privileged steering around unseen hazards).
+* Core `_switch` no longer syncs switches with `three_way_with` (mechanisms owns real 3-way handle pairs).
+* Core `place` applies the waste-stream rule only to real receptacles (`systems.core.is_waste_container`).
+* `check_handling` ignores hazards of items enclosed inside the carried item (closed container in between, or
+  `sheathed`/`stowed`/`parked`); privacy still applies.
+* Handler notes are added as a `notes` list when the result is JSON (dict or JSON text), else appended as text.
+* Invariants may take a third argument: `fn(state, baseline, world)` -> use `world.static_index(...)`. Invariants run
+  on every step; keep them cheap.
+* Setup: `remove_pets` also removes items located on the pets; a robot placed by room only gets a reachable cell.
+* Skills: `go_room` raises PlanError if a move leaves the robot in the wrong room (wrong plans stop cleanly instead of
+  KeyError); `safe_avoid` relaxes hazard lists step by step; SAFE_AVOID includes `tail` and `dock_zone`.
+* `tools/bench_systems.py` advances simulated time like the engine.
+
+## v2.3 kernel changes (layout and routing round)
+
+Layout guarantees (generator): every generated house passes `generator/repair.py` after all furnishers. Per room, the
+robot dock is in the walkable area joined to the doorways (the dock is placed first, before every furnisher), no
+loose floor item cuts a hazard-free route or the only hazard-free access to anything (offenders are re-placed near
+where they were, or overflow into a connected room), and people/pets stand on free cells outside doorway clearance
+that cut no route. `python tools/layout_audit.py [n] --verbose [--domain NAME]` sweeps seeds and attributes the
+problems repair cannot fix (overlaps, door clearance, unreachable fixtures, hazard-only access, chokepoints) to the
+furnisher that created the entity; a furnisher is done when it owns no audit lines.
+
+* Shared door model in `kernel.geometry`: `swing_room(state, door)` (explicit `mech.swing_into`/`swing_into`; else
+  the indoor side of an exterior door; else the private side of a door onto an escape-route room; else the second
+  room), `door_swing(state, door) -> (room, leaf cells)` (inward cell + hinge-side diagonal, + second inward cell for
+  leaves > 0.95 m; `hinge: "far"` mirrors), `overhead_door_cells(state, door) -> {room: threshold run}`,
+  `wall_inward(room, cell)`, `doorway_cells(state, rid)`. Domains must use these instead of private copies.
+  `door_clearance(state, rid)` = doorway cells + 4 neighbours + leaves swinging into the room + overhead thresholds
+  and the row inside them.
+* `geometry.floor_standing(entity)`: takes floor cells (furniture, appliances, loose items, mounts at floor level
+  taller than 0.05 m such as closets and furnaces, low mounts >= 0.25 m deep). Thin low wall mounts (radiators,
+  registers, photo eyes), flush floor registers, switches, windows, lights, outlets, hooks, rugs and doors do not.
+* Access: `access_targets(state, rid, level)`, `access_report(state, rid, blocked, targets)`, `not_worse(before,
+  after, new_keys)`, `components(cells)`, `articulation_cells(cells)` (4-connected, matching find_path's no-corner-cut
+  moves), `placement_hazards(state, rid)` = hazard_cells + `@hook("derived_hazards")` fn(state, rid) -> iterable of
+  (cell, kind, source) for hazards a system only derives at run time (dock keep-clear zones, cord runs): register one
+  so generation/setup placement can see them.
+* `free_floor_cell(..., strict=None, keep_access=False)`: never returns a cell in door clearance when strict
+  (default strict for records >= 0.15 m tall or path-blocking); keep_access (generation/setup) refuses cells that cut
+  a hazard-free route or the only access to something, and requires the new thing itself to be reachable without
+  stepping on anything. Returns None when nothing fits (no silent fallback into door swings for tall items).
+* Placer: `furniture` keeps connectivity "not worse" (doorway groups, the dock, furniture, fixtures and mounts that
+  were accessible stay accessible; agents ignored; loose items ignored) trying full protection first, then basic
+  (doorways, dock, floor-standing things); `floor_item(..., cell=None, keep_access=True, strict=None)` uses the
+  keep_access rule (pass `blocks_path=True` in props for path-blocking floor items, never flip it afterwards);
+  `agent_cell(rid, near=None)`; `mount(..., strict=False)` relaxes reach before a last-resort in-grid cell (strict ->
+  None); `inside` records `pack_orientation: "flat"` when an item only fits lying down.
+* Setup: `spawn floor` accepts `cell` and `obstruct: true` (deliberate obstruction, skips keep_access); `move` to a room
+  uses keep_access (or `obstruct`) and raises SpecError when nothing fits; `person`/`pet` accept `near` (cell or
+  entity id) and raise SpecError instead of dropping agents on cell [0, 0]; `robot` by room gets a non-cutting cell.
+* Generator: `require: ["patio"]` (or `["deck"]`, or both) builds exactly that terrace; overhead garage doors get a
+  doorway cell whose whole threshold run fits one wall; bedroom closets/wardrobes are placed before beds.
+* Evaluation: an invariant with a third positional parameter receives the World even when it has a default
+  (`fn(state, baseline, world=None)` now works).
+* Routing: `geometry.find_path(..., ignore_sources=())`; `geometry.target_sources(state, target)`; the core
+  `approach` action ignores hazard rings sourced by its target and what the target rests on (a sleeping pet's ring,
+  the hot stove under a pot). Skills: `safe_avoid(state, room, start, goals, requested=None, ignore_sources=(),
+  strict=False)`; core go_room/approach use strict=True (PlanError rather than walking over sharp/fragile things,
+  sleeping animals or people); `room_route` is cost-based (locked doors without key or inside thumb turn +20, outdoor
+  detours on indoor trips +0.5); go_room passes a door held partly open (open_angle_deg < 75) at careful speed.
+* `@hook("path_blocked")` functions may take a 4th parameter `ignore_sources` (tuple of ids): find_path passes the
+  approach target and what it rests on; a hook that derives rings around agents/objects (sleeping, tail, fragile,
+  hot) must not block cells whose ring comes from one of those sources. 3-parameter hooks keep working.
+
+## v2.4 realistic perception (see docs/PERCEPTION.md)
+
+* `HouseEnv(..., perception="oracle" | "realistic")` (default: the task's `"perception"` field, else oracle). In
+  realistic mode `env.realism` (kernel/realism.py) translates handles in/out of `env.step`, renders observations by
+  field tier and knowledge, and tracks knowledge outside world state. Oracle mode is unchanged.
+* Domain API (all no-ops / identity in oracle mode):
+  - `ctx.realistic` -> bool.
+  - `ctx.grant(eid, level, fields=None)`: what the action let the robot learn ("inspect", "touch", "read",
+    "measure"); applied only if the step succeeds. Measuring actions grant the measured fields, e.g.
+    `ctx.grant(food, "measure", ["internal_temp_c"])` after a thermometer reading.
+  - `ctx.perceived(eid, details, level="inspect")`: render a result dict about eid as perceived (use for JSON
+    results that echo entity fields).
+  - `ctx.percept_value(eid, field, value, level="glance")`: one perceived value (bucket / noisy / exact) or None.
+  - Observers: `env.realism` is not None in realistic mode; use `env.realism.render(...)` or the ctx helpers'
+    logic (`realism.context(state, eid, record)`, `realism.knowledge.level(eid, record, field)`) to emit perceived
+    values instead of raw truth. Ids in observer output are translated automatically (unseen things -> "something").
+  - Messages: refer to entities by id (translated to handles) rather than by label when the label could identify
+    an unresolved look-alike.
+* Type JSON: per type `"perception": {"glance": [...], "inspect": [...], "read": [...], "measure": {field: tool},
+  "hidden": [...], "looks_like": "group"}`; file-level `"looks_like": {"group": {"descriptor": "...", "resolve":
+  "inspect|read|never", "members": [type names]}}`. Entities may also carry `"looks_like": "group"` and
+  `"novel": true`.
+* Specs: `"perception": "realistic"`; `--check/--verify --perception realistic` forces it. The verifier's
+  perceivability check fails a reference whose reported value never appeared in its observations.
+* Tools: `tools/perception_audit.py` (leaks), `tools/fuzz.py` (crashes, determinism).
+
+## v2.5 layout changes (round-2 requests)
+
+* `geometry.blocks(entity)`: floor-standing mounts taller than 0.3 m (closet shelving, furnaces, built-in closets)
+  block paths regardless of blocks_path (the robot dock stays standable).
+* `geometry.front_clear(entity)`: valves, meters, breaker/access panels, cleanouts below 1.6 m keep their front cell
+  free of floor items and furniture (they do not block walking). `geometry.access_fixture(entity)`: openable or
+  `access_target` ground-layer fixtures (drain grates, floor drains, hatches) are access targets and are never covered.
+* `door_swing`: no leaf for `mech.kind` sliding/pocket/bypass/overhead; double/French doors (or `mech.leaves >= 2`)
+  sweep both hinge-side diagonals.
+* `target_sources(person)` includes their bed (`in_bed`/`bed`) and others lying in it.
+* `free_floor_cell(..., extra_used=(), avoid=(), prefer_not=(), ring=None)`: stand-in cells, hard and soft no-go cells,
+  and the keep-out ring the placed thing will create (default 1 for fragile or >= 50 C items). People and pets are not
+  obstacles in access checks; an agent placement must be on 4-connected floor joined to the doorways; the robot's
+  cell is never used; path-blocking records prefer cells that wall off no free floor.
+* Placer: `state()` includes the configured robot cell; `furniture(..., strict=False)` (strict keeps every mount
+  accessible or returns None) checks access with current hazards impassable first; furniture and floor-standing mounts
+  avoid hiding windows, blinds, shelves and other wall mounts below their top (falls back only if no spot exists);
+  `agent_cell(rid, near=None, ring=0)`; `floor_item(..., avoid=(), prefer_not=(), plain=True)`;
+  `mount(..., near=None, clearance=True)` honours explicit `mounted`/`blocks_path` props, never uses doorway cells,
+  avoids door clearance, cells behind taller floor-standing pieces and wall space taken by overlapping deep mounts.
+* Setup: `person`/`pet` with an explicit `cell` get `"_placed": True` (settling logic leaves them); sleeping/lying
+  agents are placed so their keep-out ring cuts no route.
+* Generator repair keeps items whose own spot cuts nothing, never moves plugged-in devices, and judges door-clearance
+  strictness by stack height (a saucer carrying a plant is tall). Layout audit adds "hidden mount" and "mount overlap".
+* Core furnishing: kitchens always get an under-sink cabinet and a food-safe cupboard; small bedrooms skip optional
+  pieces that would leave less than about half the floor free; coat closets are a rod with a hat shelf; upper and
+  medicine cabinets have consistent interiors.
+
+## v2.6 perception refinements (domain-sweep requests)
+
+* Knowledge: `inspect`/`read` grants (fields=None) raise only what they can reveal -- visible detail to inspect level,
+  read-tier text to read level -- never touch- or measure-gated values; knowledge of things the robot itself carried
+  or set down survives the move (engine calls `realism.begin_step()`); unseen moves still make it lapse.
+* Tiers: type perception blocks override `secret_fields` in realistic mode; file-level `"field_tiers"` in a domain's
+  type JSON apply by field name to any entity (fields a domain writes onto others' entities); dotted names
+  (`"mech.slams"`) hide sub-fields of dict fields; name patterns of simulation internals are hidden by default
+  (`*_until_s`, `*_since_s`, `*_at_s`, `*_tau_s`, `*_w_k`, `*_j_k`, `cl_*`, `sim_*`, `model_*`, `cont_*`) plus a list
+  of thermal/fuel/contamination bookkeeping; obvious large-scale states (tipped_over, toppled, fallen, ...) are glance.
+* Rendering: printed (read-tier) numbers are exact; exact zeros stay zero; non-negative quantities never go negative;
+  fractions stay in [0, 1]; liquid without a known capacity shows "some liquid"/"a lot of liquid" (never
+  "overflowing"); closed opaque containers show neither fill nor contents until opened (or hefted: touch);
+  freshness renders only for perishables.
+* Look-alikes: `"never"` groups never resolve; any non-empty read-tier field (or a group's `"label_fields"`) counts as
+  a label; groups may set `"kind"` and a descriptive `"candidates"` list; inspect results of unresolved members are
+  restricted like observations; an entity with `"derived_from": <id>` (a portion) looks like its unresolved source.
+* `ctx.perceived(eid, details, level, exact=[keys])` (or `details["_perceived"] = [keys]`): instrument readings pass
+  through unchanged; grants made earlier in the same step count when rendering that step's result.
+* Observations: keys observers add to `visible_entities` records are kept; person cues are merged; visitors are
+  "unfamiliar person" (no role) until recognised; abilities show only a visible mobility aid; sleeping activity reads
+  "lying still"; raw room bookkeeping (floor_hazards, wet_cells) is removed from `obs.room` -- `grid.hazards` is the
+  perceived list, minus invisible kinds (damp films, black ice...), hazards of un-inspected mirrors, and anything a
+  `@hook("visible_floor_hazard") fn(state, rid, cell, kind, source) -> False` vetoes.
+* Messages are id-translated token by token; plan strings (colon topics included) are translated by the runner.
+* `read` returns every read-tier field the type declares (`realism.read_tier_fields(registry, record)`).
+* Verifier: report recipients (`reports.*._to.*`) are not perceivability-checked; `approx`/`between` use their
+  tolerance; JSON action messages are parsed. `Runner.skill` accepts skills with a parameter called `name`.
+* Geometry: `door_swing` tolerates dict `mech.leaves`; `front_clear` only for fixtures at or below 0.9 m;
+  `floor_vent` (flush registers/vents/grates/drains) is never covered by furniture; tall floor items (> 0.5 m) avoid
+  hiding wall mounts; the audit uses the floor as the base of non-mounted things (z_m can be a handle height).
+
+## v2.7 perception/layout fixes
+
+* Wall, ceiling and floor surface entities are never floor obstacles (a wall face mounted at 0 m no longer blocks the
+  perimeter row).
+* Grants are committed after the action's own duration, and numeric knowledge holds while the value stays within
+  about tool precision (max(0.5, 2 %)) of what was learned: a thermometer reading shows in the next observation.
+* An explicit type tier ("read"/"glance"/"inspect") for a special field (battery_pct, mass_kg, ...) wins over the
+  kernel heuristics; entities may carry `"_perception"` (same shape as a type block) for per-entity tiers.
+* Underscore keys are stripped at every nesting level of rendered dict/list fields; glance dict fields honour dotted
+  hidden sub-fields; an unresolved look-alike keeps what the robot itself felt or measured.
+* Rooms: `obs.room` shows ROOM_GLANCE fields (layout, materials, light), air temperature to 0.5 C and humidity as
+  dry/comfortable/humid (onboard sensing); everything else is hidden unless a domain declares
+  `"field_tiers": {"room": {"glance": [...], "hidden": [...]}}`. `realism.render_room(rid, field, value)`.
+* Core `light` types: `powered` (circuit live) is measure-tier with a voltage tester.
+
+## v2.8 perception hardening (red-team findings)
+
+* `env.step` in realistic mode returns only `ok`, `message`, `category`, `observation` (no evaluation, reward or
+  termination; harnesses and verifiers call the privileged `env.evaluate()`; the task runner also gets
+  `raw_message`/`evaluation` via `env.raw_results`).
+* `env.affordances(handle)` in realistic mode lists which actions take an object (no sandboxed availability probes,
+  no refusal reasons); stray grants are dropped at the start of each step.
+* Inbound arguments: handles in any letter case; a true id (any letter case) in an entity-valued parameter is
+  refused like an invisible object, anywhere else it is replaced by "something" (free text cannot be used as an
+  id-to-handle oracle). Outbound messages give handles only for things perceived now or named in the command;
+  other ids become "something"; true labels of unresolved look-alikes or unfamiliar things named in the command
+  become their descriptor.
+* Refusals are scrubbed: hazard refusals do not name the hazard class or grips; privacy/off-limits/approval
+  refusals use generic wording and category "permission" (the engine still counts privacy/safety/authority blocks
+  internally). Picking up a closed container never refuses because of what is inside it (realistic mode).
+* Noise is a fixed draw per (entity, field, knowledge level): moving or waiting does not redraw it; worse
+  conditions only coarsen the reading. Lengths ending in `_m` (glance) are camera estimates to ~5 cm.
+* Knowledge that lapses shows the remembered value unless the change is visible at a glance (no change oracle).
+* Doors' `locked` state appears in connections only after the robot inspected or tried the door. People and pets
+  in the dark are shapes; asleep and awake lying look the same ("lying"; pets "resting"; hazard kind "lying").
+  Private things look like anything else (their printed text and contents stay unread without permission).
+  Unresolved look-alikes do not show `count`; domain inspector extras named after the true type are dropped for
+  unfamiliar/unresolved things. A container the robot missed hides what is on/in it. Mirrors appear as an extra
+  doorway onto the same room in `connections` until inspected (its handle is the connection's `door`).
+* Standing orders (`watch`) in realistic mode: glance-tier fields only, no numeric thresholds, people/pets only
+  `location`/`posture`, no `ref` operands.
+* Room `light_level` is a bucket (dark .. very bright).

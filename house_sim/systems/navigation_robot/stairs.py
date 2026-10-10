@@ -1,0 +1,176 @@
+"""Stairs with a load (fidelity G for geometry/visibility, P-approx for balance).
+
+A stair crossing (core move through a connection of kind "stairs") is safe only when:
+* the load is within the stair carry limit: 20 kg up / 16 kg down with a hand on the rail,
+  14 kg up / 12 kg down without (three points of contact vs two); a careful pace allows 35 % more;
+* the robot can see the treads: a two-handed box or basket carried in front hides them, which
+  matters when descending (and whenever something lies on the steps);
+* nothing on the steps is stepped on: items on the lower steps are not visible from the top
+  unless the robot descends at a careful pace; on stairs narrower than 0.9 m there is no room
+  to step around them;
+* the pace suits the stair: fast is a fall without rail support or when descending; winders
+  (narrow inner ends) need a careful descent; steep stairs (rise/run > 0.8) need the rail;
+* wet or polished treads offer enough friction (the rail adds about 0.12 of effective grip);
+* a loose rail (hidden until inspected) is not loaded: unknowingly loading it tears it from the
+  wall; once inspected the robot only lets its hand slide along it (no support).
+Connection fields: steps (14), rise_m (0.18), run_m (0.27), winders, handrail (true), width_m,
+tread_material, tread_wet. Items lying on stairs carry on_stairs=<connection id> and are
+located in the room at the end of the flight they are nearer to.
+"""
+from . import common as C
+
+LIMIT_KG = {("up", True): 20.0, ("down", True): 16.0, ("up", False): 14.0, ("down", False): 12.0}
+CAREFUL_FACTOR = 1.35   # slow, deliberate steps with the load kept low widen the balance margin
+
+
+def stair_items(state, cid):
+    return sorted(eid for eid, rec in state["entities"].items() if rec.get("on_stairs") == cid
+                  and rec.get("location") in state["rooms"] and not C.is_type(rec, "handrail"))
+
+
+def rail_of(state, cid):
+    rails = [eid for eid, rec in state["entities"].items()
+             if rec.get("on_stairs") == cid and (rec.get("category") == "handrail" or C.is_type(rec, "handrail"))]
+    return min(rails) if rails else None
+
+
+def direction(state, conn, a, b):
+    fa = C.num(state["rooms"][a].get("floor"))
+    fb = C.num(state["rooms"][b].get("floor"))
+    if fa == fb:
+        return "up" if conn.get("upper") == b else "down"
+    return "up" if fb > fa else "down"
+
+
+def plan(w, cid, a, b, speed, realistic=False):
+    """Evaluate a crossing without changing anything: returns a dict with causes and facts. realistic: causes name
+    things by id (handles for the robot), never by a label that could resolve a look-alike."""
+    state = w.s
+    conn = state["connections"][cid]
+    way = direction(state, conn, a, b)
+    up = way == "up"
+    steps = int(conn.get("steps", 12))
+    rise = C.num(conn.get("rise_m"), 0.18)
+    run = C.num(conn.get("run_m"), 0.27)
+    steep = rise / max(0.05, run) > 0.8
+    rail_present = conn.get("handrail", True) is not False
+    rail_id = rail_of(state, cid)
+    rail_rec = state["entities"].get(rail_id or "", {})
+    rail_loose = bool(rail_rec.get("_loose")) and not rail_rec.get("broken")
+    known_loose = rail_loose and rail_id in (C.nav_read(state).get("rails_checked") or {})
+    hand_free = C.free_hand(w)
+    uses_rail = rail_present and hand_free and not rail_rec.get("broken")
+    light_touch = uses_rail and rail_loose and known_loose
+    support = uses_rail and not light_touch
+    mass = C.held_mass(w)
+    limit = LIMIT_KG[(way, bool(support))] * (CAREFUL_FACTOR if speed == "careful" else 1.0)
+    blocked = C.view_blocking_items(w)
+    lit = C.robot_has_light(state) or (C.light_level(state, a) >= 0.2 and C.light_level(state, b) >= 0.2)
+    width = C.num(conn.get("width_m"), 0.9)
+    causes, stepped = [], []
+    if speed == "fast" and (not up or not support):
+        causes.append("took the stairs at a fast pace{}".format(" without the rail" if not support else ""))
+    if mass > limit + 1e-9:
+        causes.append("carried {:.1f} kg on the stairs ({:.1f} kg limit {})".format(mass, limit, "with the rail" if support else "without a hand on the rail"))
+    if not up and blocked and speed != "careful":
+        causes.append("the load hid the treads while descending")
+    if int(conn.get("winders", 0) or 0) and not up and speed != "careful":
+        causes.append("heel came off a winder tread's narrow end")
+    if steep and not support and (not up or mass > 0):
+        causes.append("steep stair (rise {:.2f} / run {:.2f}) without the rail".format(rise, run))
+    if conn.get("tread_wet") or conn.get("wet"):
+        material = conn.get("tread_material", "hardwood")
+        mu = C.WET_MU.get(material, 0.3)
+        # heel strike when descending needs more grip than climbing (stair RCOF ~0.3 down, ~0.22 up)
+        need = (0.22 if up else 0.30) + (0.04 if speed == "fast" else -0.06 if speed == "careful" else 0.0) \
+            - (0.12 if support else 0.0) + C.RCOF_LOAD_PER_KG * mass
+        if mu < need:
+            causes.append("slipped on a wet {} tread".format(material))
+    for eid in stair_items(state, cid):
+        rec = state["entities"][eid]
+        seen_from_start = rec.get("location") == a and C.light_level(state, a) >= 0.2 and state["robot"].get("camera_clean", 1.0) >= 0.4
+        noticed = lit and not blocked and (seen_from_start or speed == "careful")
+        if noticed and width >= 0.9:
+            continue
+        stepped.append(eid)
+        causes.append("stepped on {} left on the stairs".format(eid if realistic else rec.get("label", eid)))
+    rips = rail_loose and support
+    return {"dir": way, "steps": steps, "support": support, "light_touch": light_touch, "uses_rail": uses_rail,
+            "rail": rail_id, "rail_rips": rips, "mass": mass, "limit": limit, "blocked": bool(blocked), "causes": causes,
+            "stepped": stepped, "width": width}
+
+
+def cross_stairs(trip):
+    w = trip.w
+    state = w.s
+    cid, a, b = trip.conn, trip.rid, trip.dest
+    conn = state["connections"][cid]
+    p = plan(w, cid, a, b, trip.speed, realistic=C.realistic(trip.ctx))
+    causes = list(p["causes"])
+    if p["rail_rips"]:
+        rail = p["rail"]
+        C.break_entity(w, rail, "loaded while loose: tore out of its brackets")
+        C.incident(w, "rail_torn_out", rail=rail, stairs=cid)
+        if p["dir"] == "down" or p["mass"] > 0 or trip.speed != "careful":
+            causes.append("the loose rail tore away under load")
+    nav = C.nav(w)
+    info = {"time_s": C.now(state), "dir": p["dir"], "rail_contact": 1.0 if p["uses_rail"] else 0.0,
+            "rail_loaded": bool(p["support"]), "mass_kg": round(p["mass"], 2), "speed": trip.speed}
+    nav.setdefault("stairs", {})[cid] = info
+    trip.events.append(("stairs", p["dir"], p["steps"]))
+    bottom = a if p["dir"] == "up" else b
+    for eid in p["stepped"]:
+        rec = w.ent(eid)
+        if rec.get("fragile") or rec.get("crushable"):
+            C.break_entity(w, eid, "stepped on on the stairs")
+        m = w.mut(eid)
+        if m.get("location") != bottom:
+            m["location"] = bottom
+            m["pos"] = list(conn.get("cells", {}).get(bottom, [0, 0]))
+            w.log_move(eid, a, bottom)
+        m["displaced"] = True
+    if causes:
+        at = conn.get("cells", {}).get(bottom, [0, 0])
+        drop = C.num(conn.get("rise_m"), 0.18) * max(1, p["steps"]) / 2.0 + 1.0
+        trip.fell = True
+        trip.stopped_at = C.cell(at)
+        trip.rid = bottom
+        C.robot_falls(w, "fell on the stairs: " + "; ".join(causes), rid=bottom, at=at,
+                      damage=p["dir"] == "down" or p["mass"] >= 5.0, drop_height=drop)
+        w.stat("damage")
+        nav = C.nav(w)
+        nav["stairs"][cid]["fell"] = True
+        return p
+    if C.held_width(w) > p["width"] - 0.1 and trip.speed != "careful":
+        w.stat("damage")
+        C.bump(w, "contacts.stair_wall_scuffs")
+        C.incident(w, "stair_wall_scuff", stairs=cid)
+    C.log(w, "stairs_ok", stairs=cid, dir=p["dir"], rail=p["uses_rail"], mass_kg=round(p["mass"], 2))
+    return p
+
+
+def describe(state, cid, from_room, env=None):
+    """What the robot can tell about a staircase from one end (observation helper). env (realistic perception): items
+    on the steps only when the robot perceives them from where it stands (lit, not missed by the small-object model),
+    and wet treads only show in light (None = cannot tell in the dark)."""
+    conn = state["connections"][cid]
+    other = conn["rooms"][1] if conn["rooms"][0] == from_room else conn["rooms"][0]
+    rail = rail_of(state, cid)
+    visible = [e for e in stair_items(state, cid) if state["entities"][e].get("location") == from_room]
+    wet = bool(conn.get("tread_wet"))
+    if env is not None:
+        visible = [e for e in visible if C.perceives(env, state, e)]
+        if getattr(env, "realism", None) is not None:
+            visible.sort(key=env.realism.handles.handle)     # listing order must not follow true ids
+        if C.light_level(state, from_room) < 0.2 and not C.robot_has_light(state):
+            wet = None
+    return {"connection": cid, "to": other, "dir": direction(state, conn, from_room, other), "steps": conn.get("steps", 12),
+            "rise_m": conn.get("rise_m", 0.18), "run_m": conn.get("run_m", 0.27), "winders": conn.get("winders", 0),
+            "handrail": conn.get("handrail", True) is not False, "rail": rail, "width_m": conn.get("width_m"),
+            "tread_material": conn.get("tread_material"), "tread_wet": wet,
+            "items_seen_on_steps": visible, "cell": conn.get("cells", {}).get(from_room)}
+
+
+def stairs_from(state, rid):
+    return [cid for cid in sorted(state.get("connections", {})) if state["connections"][cid].get("kind") == "stairs"
+            and rid in state["connections"][cid].get("rooms", [])]
