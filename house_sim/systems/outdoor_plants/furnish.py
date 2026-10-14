@@ -166,14 +166,16 @@ def floor_place(p, rid, type_name, near=None, eid=None, avoid=(), plain=True, **
 
 
 # ---------------------------------------------------------------------------
-# serviceable lights (round-3 report): the kernel's access targets leave out the wall and porch lights a person
-# re-lamps from a step stool, so a raised bed, deck box, pool or compost bin placed along a yard wall could seal one
-# off. `guarded` keeps every such light that was accessible before the placement accessible after it (plain walking
-# graph from the doorways, like the kernel's furniture rule): a piece that seals one is removed and retried near the
-# corners farthest from the lights, and left out if every try seals one. A first attempt that seals nothing is kept
-# as is, so layouts without the problem do not change.
+# serviceable lights (round-3 report): a raised bed, deck box, pool or compost bin placed along a wall could seal off
+# a wall or porch light a person re-lamps from a step stool. Since kernel v2.9 round 5 the kernel's access targets
+# keep outdoor wall lights up to geometry.SERVICE_LIGHT_MAX_M (geometry.overhead_light), but still treat indoor lights
+# mounted 2.0 m or higher (a garage or mudroom wall light) as ladder-serviced ceiling lights; this guard covers every
+# light up to that height in any room. `guarded` keeps every such light that was accessible before the placement
+# accessible after it (plain walking graph from the doorways, like the kernel's furniture rule): a piece that seals
+# one is removed and retried near the corners farthest from the lights, and left out if every try seals one. A first
+# attempt that seals nothing is kept as is, so layouts without the problem do not change.
 
-SERVICE_LIGHT_MAX_M = 2.5
+SERVICE_LIGHT_MAX_M = geometry.SERVICE_LIGHT_MAX_M
 
 
 def light_targets(state, rid):

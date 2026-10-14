@@ -29,51 +29,60 @@
      }
     },
     {
-     "op": "spawn",
-     "var": "stopper",
-     "type": "sink_stopper",
-     "on": "{counter}"
-    },
-    {
-     "op": "spawn",
-     "var": "soap",
-     "type": "generic_item",
-     "on": "{counter}",
-     "props": {
-      "label": "dish soap",
-      "product": "dish_soap",
-      "amount_ml": 500.0,
-      "size_m": [
-       0.07,
-       0.05,
-       0.22
-      ],
-      "mass_kg": 0.55,
-      "label_text": "Dish Soap. Add 1-2 ml per litre of warm water."
+     "op": "helper",
+     "name": "plumbing_liquids.counter_items",
+     "args": {
+      "type": "sink_stopper",
+      "var": "stopper",
+      "counter": "{counter}"
      }
     },
     {
-     "op": "spawn",
-     "var": "plate",
-     "type": "generic_item",
-     "on": "{counter}",
-     "count": 3,
-     "required": false,
-     "props": {
-      "label": "dirty plate",
-      "category": "dish",
-      "material": "ceramic",
-      "mass_kg": 0.45,
-      "size_m": [
-       0.26,
-       0.26,
-       0.02
-      ],
-      "soil": {
-       "food": 0.4,
-       "grease": 0.2
+     "op": "helper",
+     "name": "plumbing_liquids.counter_items",
+     "args": {
+      "type": "generic_item",
+      "var": "soap",
+      "counter": "{counter}",
+      "props": {
+       "label": "dish soap",
+       "product": "dish_soap",
+       "amount_ml": 500.0,
+       "size_m": [
+        0.07,
+        0.05,
+        0.22
+       ],
+       "mass_kg": 0.55,
+       "label_text": "Dish Soap. Add 1-2 ml per litre of warm water."
+      }
+     }
+    },
+    {
+     "op": "helper",
+     "name": "plumbing_liquids.counter_items",
+     "args": {
+      "type": "generic_item",
+      "var": "plate",
+      "counter": "{counter}",
+      "count": 3,
+      "props": {
+       "label": "dirty plate",
+       "category": "dish",
+       "material": "ceramic",
+       "mass_kg": 0.45,
+       "size_m": [
+        0.26,
+        0.26,
+        0.02
+       ],
+       "soil": {
+        "food": 0.4,
+        "grease": 0.2
+       },
+       "food_safe": true
       },
-      "food_safe": true
+      "required": false
      }
     },
     {
@@ -1088,61 +1097,67 @@
      ]
     },
     {
-     "op": "spawn",
-     "var": "carton",
-     "type": "generic_item",
-     "on": "{counter}",
-     "props": {
-      "label": "carton of chicken broth",
-      "liquid_container": true,
-      "liquid": "broth",
-      "liquid_l": 0.95,
-      "_mix": {
-       "broth": 0.95
-      },
-      "capacity_l": 1.0,
-      "package": "carton",
-      "neck_mm": 30,
-      "openable": true,
-      "open": false,
-      "size_m": [
-       0.1,
-       0.07,
-       0.24
-      ],
-      "inner_size_m": [
-       0.09,
-       0.06,
-       0.22
-      ],
-      "mass_kg": 0.05,
-      "temperature_c": 4.0
+     "op": "helper",
+     "name": "plumbing_liquids.counter_items",
+     "args": {
+      "type": "generic_item",
+      "var": "carton",
+      "counter": "{counter}",
+      "props": {
+       "label": "carton of chicken broth",
+       "liquid_container": true,
+       "liquid": "broth",
+       "liquid_l": 0.95,
+       "_mix": {
+        "broth": 0.95
+       },
+       "capacity_l": 1.0,
+       "package": "carton",
+       "neck_mm": 30,
+       "openable": true,
+       "open": false,
+       "size_m": [
+        0.1,
+        0.07,
+        0.24
+       ],
+       "inner_size_m": [
+        0.09,
+        0.06,
+        0.22
+       ],
+       "mass_kg": 0.05,
+       "temperature_c": 4.0
+      }
      }
     },
     {
-     "op": "spawn",
-     "var": "cup",
-     "type": "generic_item",
-     "on": "{counter}",
-     "props": {
-      "label": "2-cup liquid measuring jug",
-      "category": "dish",
-      "container": true,
-      "accepts_items": true,
-      "capacity_l": 0.5,
-      "graduated": true,
-      "material": "glass",
-      "size_m": [
-       0.15,
-       0.11,
-       0.11
-      ],
-      "inner_size_m": [
-       0.1,
-       0.1,
-       0.1
-      ],
-      "mass_kg": 0.45
+     "op": "helper",
+     "name": "plumbing_liquids.counter_items",
+     "args": {
+      "type": "generic_item",
+      "var": "cup",
+      "counter": "{counter}",
+      "props": {
+       "label": "2-cup liquid measuring jug",
+       "category": "dish",
+       "container": true,
+       "accepts_items": true,
+       "capacity_l": 0.5,
+       "graduated": true,
+       "material": "glass",
+       "size_m": [
+        0.15,
+        0.11,
+        0.11
+       ],
+       "inner_size_m": [
+        0.1,
+        0.1,
+        0.1
+       ],
+       "mass_kg": 0.45
+      }
      }
     },
     {
@@ -1743,11 +1758,14 @@
      }
     },
     {
-     "op": "spawn",
-     "var": "trays",
-     "type": "ice_cube_tray",
-     "on": "{counter}",
-     "count": 2
+     "op": "helper",
+     "name": "plumbing_liquids.counter_items",
+     "args": {
+      "type": "ice_cube_tray",
+      "var": "trays",
+      "counter": "{counter}",
+      "count": 2
+     }
     },
     {
      "op": "robot",

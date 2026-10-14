@@ -1533,6 +1533,33 @@ class RealisticPerceptionTests(unittest.TestCase):
         run(oracle, ob, [{"skill": "approach", "target": "{p1}"}], strict=True)
         self.assertEqual(oracle.step("water_plant", ob["p1"], amount_l=0.3)["category"], "safety")
 
+    def test_look_alike_groups_show_one_glance_size_and_a_pool_cover_is_recognised_on_sight(self):
+        import warnings
+        from house_sim.kernel.registry import TypeRegistry
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            reg = TypeRegistry()
+        mine = {"granule_bag", "soil_bag", "garden_spray", "hand_pruners", "snow_shovel", "seed_packet", "outdoor_cover", "pool_cover"}
+        self.assertEqual([w for w in reg.lookalike_warnings if w.split(":")[0] in mine], [])   # kernel round-5 lint
+        self.assertEqual(sorted(reg.lookalike_types()["outdoor_cover"]), ["furniture_cover", "grill_cover"])
+        setup = [{"op": "room", "var": "k", "type": "living_room"},
+                 {"op": "spawn", "type": "grass_seed_bag", "floor": "{k}", "var": "seed"},
+                 {"op": "spawn", "type": "rock_salt_bag", "floor": "{k}", "var": "salt"},
+                 {"op": "spawn", "type": "grill_cover", "floor": "{k}", "var": "grill"},
+                 {"op": "spawn", "type": "pool_cover", "floor": "{k}", "var": "pool"}]
+        env, b = make_r(setup)
+        run(env, b, [{"skill": "approach", "target": "{seed}"}], strict=True)
+        group = reg.lookalike_groups()["granule_bag"]["size_m"]
+        for bag in ("seed", "salt"):                  # a 1.5 kg seed bag and an 11 kg salt bag: the same bag at a glance
+            rec = seen(env, b[bag])
+            self.assertEqual(rec["label"], "bag of granules")
+            for got, want in zip(rec["size_m"], group):
+                self.assertLessEqual(abs(got - want), 0.08, (bag, rec["size_m"], group))
+        self.assertEqual(seen(env, b["grill"])["label"], "outdoor cover")
+        pool = seen(env, b["pool"])
+        self.assertEqual(pool["label"], "winter pool cover")      # a 16 kg bundle is no folded grill cover
+        self.assertNotIn("candidates", pool)
+
     def test_unread_look_alike_bags_get_one_refusal_whatever_they_hold(self):
         setup = [{"op": "room", "var": "k", "type": "living_room"},
                  {"op": "spawn", "type": "rock_salt_bag", "floor": "{k}", "var": "salt"},
@@ -1667,9 +1694,15 @@ class RealisticPerceptionTests(unittest.TestCase):
                     rec = config["entities"][eid]
                     if str(trace.get(eid, "")).startswith("outdoor_plants") and rec.get("pos") and G.floor_standing(rec):
                         hidden = F.hidden_mount_cells(state, rid, rec) & set(G.footprint(rec))
-                        mine = {m for m in G.room_entities(state, rid) if set(G.footprint(config["entities"][m])) & hidden}
+                        # the wall mounts it hides: exactly what hidden_mount_cells counts (one mount at a time), never
+                        # the room's ground-layer floor surface or a rug, which cover every cell and are no mount
+                        mine = {m for m in G.room_entities(state, rid)
+                                if m != eid and not config["entities"][m].get("ground_layer")
+                                and set(G.footprint(config["entities"][m])) & hidden
+                                and F.hidden_mount_cells(dict(state, entities={m: config["entities"][m]}), rid, rec)}
                         later = {m for m in mine if list(config["entities"]).index(m) > list(config["entities"]).index(eid)}
-                        self.assertEqual(mine - later - {eid}, set(), (seed, opts, rid, eid))
+                        # a mount hung after this piece was placed is the hanging domain's to keep clear (reported)
+                        self.assertEqual(mine - later, set(), (seed, opts, rid, eid))
 
 
 if __name__ == "__main__":

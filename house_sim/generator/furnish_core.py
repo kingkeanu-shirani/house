@@ -135,13 +135,15 @@ def furnish_core(config, rng, opts, registry):
             p.furniture(rid, "workbench")
         elif kind == "shed":
             p.furniture(rid, "shelf_unit")
+        # outdoor pieces are strict (geometry access level "all" or nothing): they keep every wall mount -- the
+        # porch/deck/balcony light included (geometry.overhead_light) -- serviceable, or are left out
         elif kind == "porch":
-            p.furniture(rid, "outdoor_chair")
+            p.furniture(rid, "outdoor_chair", strict=True)
         elif kind in ("patio", "deck"):
-            table = p.furniture(rid, "outdoor_table", wall=False)
+            table = p.furniture(rid, "outdoor_table", wall=False, strict=True)
             for _ in range(rng.randint(2, 4)):
-                p.furniture(rid, "outdoor_chair", wall=False, near=config["entities"][table]["pos"] if table else None)
+                p.furniture(rid, "outdoor_chair", wall=False, near=config["entities"][table]["pos"] if table else None, strict=True)
         elif kind == "balcony":
-            p.furniture(rid, "outdoor_chair")
+            p.furniture(rid, "outdoor_chair", strict=True)
         elif kind in ("lobby", "mail_room"):
             p.furniture(rid, "bench")

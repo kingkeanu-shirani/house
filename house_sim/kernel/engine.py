@@ -41,6 +41,31 @@ def empty_stats():
             "falls": 0, "spills": 0, "breakages": 0}
 
 
+TIMESTAMP_KEYS = {"time_s", "t_s", "at_s", "since_s", "until_s", "started_s", "start_s", "end_s", "last_s", "heard_s", "seen_s"}
+TIMESTAMP_SUFFIXES = ("_time_s", "_since_s", "_at_s", "_until_s", "_started_s")
+
+
+def whole_seconds(value):
+    """A clock reading as the agent sees it in realistic perception: whole seconds (half up), as a float."""
+    return float(int(float(value) + 0.5)) if value >= 0 else -float(int(-float(value) + 0.5))
+
+
+def _round_timestamps(value, depth):
+    """Round clock readings (TIMESTAMP_KEYS / TIMESTAMP_SUFFIXES) inside observer channels to whole seconds."""
+    if depth > 6:
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(item, float) and isinstance(key, str) and (key in TIMESTAMP_KEYS or key.endswith(TIMESTAMP_SUFFIXES)):
+                value[key] = whole_seconds(item)
+            elif isinstance(item, (dict, list)):
+                _round_timestamps(item, depth + 1)
+    elif isinstance(value, list):
+        for item in value:
+            if isinstance(item, (dict, list)):
+                _round_timestamps(item, depth + 1)
+
+
 def _with_notes(result, notes):
     """Attach handler notes without breaking JSON results."""
     if isinstance(result, dict):
@@ -162,8 +187,33 @@ class HouseEnv:
 
     def observe(self):
         if self.realism is not None:
-            return self.realism.observe()
+            obs = self.realism.observe()
+            self._agent_clock(obs)
+            if self.realism.record_observations and self.realism.observed and \
+                    isinstance(self.realism.observed[-1], dict) and "visible_entities" in self.realism.observed[-1]:
+                self._agent_clock(self.realism.observed[-1])
+            return obs
         return self.perception.observe(self)
+
+    def _agent_clock(self, obs):
+        """Realistic perception: the clock the agent sees reads whole seconds (time_s, the calendar view derived from
+        it, and timestamps in observer channels and messages), so step durations computed from hidden quantities
+        (liters, rates, identities) cannot be recovered from exact clock differences. The world keeps the exact
+        clock; oracle observations are unchanged."""
+        if not isinstance(obs, dict):
+            return obs
+        true_s = obs.get("time_s")
+        if isinstance(true_s, (int, float)) and not isinstance(true_s, bool):
+            shown = whole_seconds(true_s)
+            obs["time_s"] = shown
+            state = self.world.s
+            if isinstance(obs.get("time"), dict):
+                from . import clock
+                obs["time"] = clock.describe({"clock": state.get("clock", {}), "time_s": shown, "weather": state.get("weather", {})})
+        for key, value in obs.items():
+            if key not in ("time_s", "time", "visible_entities", "grid", "connections", "room"):
+                _round_timestamps(value, 0)
+        return obs
 
     # ------------------------------------------------------------------
     def action_names(self):
@@ -251,7 +301,17 @@ class HouseEnv:
                 fn(ctx, result)
             if scheduled:
                 w.sec("pending").pop(0)
-            seconds = (spec.duration(ctx) if callable(spec.duration) else float(spec.duration)) + ctx.extra_time
+            if self.realism is not None:
+                # realistic perception: the computed parts of a step's duration (a duration function, time a handler
+                # added) last whole seconds, so no hidden quantity behind them (mass, liters, identity) can be read off
+                # the clock below one second -- not even by offsetting the clock with actions of known fractional
+                # duration; declared constant durations stay as they are
+                base = spec.duration(ctx) if callable(spec.duration) else float(spec.duration)
+                if callable(spec.duration):
+                    base = whole_seconds(max(0.0, float(base)))
+                seconds = base + whole_seconds(max(0.0, float(ctx.extra_time)))
+            else:
+                seconds = (spec.duration(ctx) if callable(spec.duration) else float(spec.duration)) + ctx.extra_time
             seconds = max(0.0, seconds)
             if robot.get("speed_mode") == "careful" and spec.category == "physical":
                 seconds *= 1.5
@@ -323,6 +383,7 @@ class HouseEnv:
                 message, category = self.realism.scrub_refusal(message, category)
             message = self.realism.outbound_message(message, involved=getattr(self.realism, "involved", ()))
             self.realism.involved = set()
+            self.realism._agent_text = ()
             # an agent gets what a robot would: no evaluator verdict, reward or termination signal
             # (env.evaluate() remains the privileged scoring API for harnesses and verifiers)
             result = {"ok": ok, "message": message, "category": category,

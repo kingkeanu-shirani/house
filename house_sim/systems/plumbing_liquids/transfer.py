@@ -78,6 +78,7 @@ def source_parcel(w, eid, amount, carry_chem=True):
         product = rec["product"]
         parcel = L.make_parcel(product, ml / 1000.0, temp_c=C.num(rec.get("temperature_c"), 21.0), source=eid)
         parcel["chem"] = {product: ml}
+        parcel["origin"] = L.origin_of(w, eid)        # provenance (kernel v2.9 contents_from)
         return parcel
     raise ActionError("It is empty", "resource")
 
@@ -121,12 +122,12 @@ def spill_near(w, eid, parcel, why):
         over = L.add(w, surface, parcel)
         return spill_near(w, surface, over, why) if over else surface
     if surface and not w.ent(surface).get("container"):
-        spill = C.make_spill(w, rid, name, parcel["liters"], surface=surface, source=eid, unidentified=unknown)
+        spill = C.make_spill(w, rid, name, parcel["liters"], surface=surface, source=eid, unidentified=unknown, origin=parcel.get("origin"))
         _surface_effects(w, surface, name, parcel["liters"])
         return spill
     if rid is None:
         return None
-    return C.add_floor_water(w, rid, cell, name, parcel["liters"], source=eid, unidentified=unknown)
+    return C.add_floor_water(w, rid, cell, name, parcel["liters"], source=eid, unidentified=unknown, origin=parcel.get("origin"))
 
 
 def unidentified(parcel):
@@ -165,11 +166,11 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
         C.pcount(w, "grease_to_drain_l", grease)
     if kind == "floor":
         cell = C.cell_of(w, dest) if dest not in w.s["rooms"] else list(w.robot.get("pos") or [0, 0])
-        C.add_floor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel))
+        C.add_floor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel), origin=parcel.get("origin"))
         return None
     if kind == "ground":
         cell = list(w.robot.get("pos") or [0, 0])
-        C.outdoor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel))
+        C.outdoor_water(w, rid, cell, name, liters_, source=source, unidentified=unidentified(parcel), origin=parcel.get("origin"))
         return None
     if kind == "storm_drain":
         if name not in ("water", "rainwater", "hose_water", "filtered_water", "ice_water", "distilled_water"):

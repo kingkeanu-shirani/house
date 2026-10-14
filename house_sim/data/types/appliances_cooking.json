@@ -4,7 +4,8 @@
     "kettle_lookalike": {"descriptor": "kettle", "kind": "kettle", "resolve": "inspect", "members": ["electric_kettle", "stovetop_kettle"],
                          "candidates": ["cordless electric kettle", "stovetop kettle"]},
     "countertop_cooker": {"descriptor": "round countertop cooker with a lid", "kind": "countertop cooker", "resolve": "inspect",
-                          "members": ["rice_cooker", "electric_pressure_cooker"], "candidates": ["electric pressure cooker", "rice cooker"]},
+                          "members": ["rice_cooker", "electric_pressure_cooker"], "candidates": ["electric pressure cooker", "rice cooker"],
+                          "size_m": [0.3, 0.32, 0.27]},
     "dial_thermometer": {"descriptor": "small dial thermometer", "kind": "thermometer", "resolve": "inspect", "members": ["oven_thermometer", "fridge_thermometer"],
                          "candidates": ["fridge thermometer", "oven thermometer"]}
   },

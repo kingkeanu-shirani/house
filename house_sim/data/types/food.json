@@ -5,6 +5,12 @@
    "descriptor": "paper bag of white powder",
    "kind": "baking staple",
    "resolve": "inspect",
+   "portion_descriptor": "pile of white powder",
+   "size_m": [
+    0.18,
+    0.09,
+    0.25
+   ],
    "members": [
     "all_purpose_flour",
     "bread_flour",
@@ -16,6 +22,7 @@
    "descriptor": "small box of white powder",
    "kind": "baking staple",
    "resolve": "inspect",
+   "portion_descriptor": "small heap of white powder",
    "members": [
     "baking_soda_box",
     "baking_powder_can",
@@ -26,6 +33,7 @@
    "descriptor": "jar of brown nut spread",
    "kind": "nut spread",
    "resolve": "inspect",
+   "portion_descriptor": "dollop of brown nut spread",
    "members": [
     "peanut_butter_jar",
     "almond_butter_jar"
@@ -35,6 +43,7 @@
    "descriptor": "aluminium drink can",
    "kind": "canned drink",
    "resolve": "inspect",
+   "portion_descriptor": "fizzy drink",
    "members": [
     "canned_soda",
     "beer_can",
@@ -45,6 +54,12 @@
    "descriptor": "paper drink carton",
    "kind": "carton drink",
    "resolve": "inspect",
+   "portion_descriptor": "white liquid",
+   "size_m": [
+    0.07,
+    0.07,
+    0.2
+   ],
    "members": [
     "milk_carton",
     "almond_milk_carton",
@@ -57,6 +72,7 @@
    "descriptor": "white plastic tub",
    "kind": "chilled tub",
    "resolve": "inspect",
+   "portion_descriptor": "dollop of creamy food",
    "members": [
     "sour_cream",
     "yogurt_tub",
@@ -67,6 +83,7 @@
    "descriptor": "small spice jar",
    "kind": "spice",
    "resolve": "inspect",
+   "portion_descriptor": "small amount of spice",
    "members": [
     "black_peppercorns_jar",
     "cayenne_jar",
@@ -84,6 +101,7 @@
    "descriptor": "bagged loaf of sliced bread",
    "kind": "sliced loaf",
    "resolve": "inspect",
+   "portion_descriptor": "sliced bread",
    "members": [
     "bread_loaf",
     "gluten_free_bread_loaf"
@@ -93,6 +111,7 @@
    "descriptor": "box of crackers",
    "kind": "crackers",
    "resolve": "inspect",
+   "portion_descriptor": "crackers",
    "members": [
     "crackers_box",
     "gluten_free_crackers_box"
@@ -102,6 +121,7 @@
    "descriptor": "bottle of yellow cooking oil",
    "kind": "cooking oil",
    "resolve": "inspect",
+   "portion_descriptor": "yellow cooking oil",
    "members": [
     "olive_oil_bottle",
     "vegetable_oil_bottle"
@@ -140,6 +160,7 @@
     "boiled egg",
     "uncooked egg"
    ],
+   "portion_descriptor": "piece of egg",
    "members": [
     "hen_egg",
     "hard_boiled_egg"

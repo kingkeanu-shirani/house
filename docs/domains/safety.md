@@ -198,7 +198,8 @@ when `env.realism` is set (`perception="realistic"`), apart from the few physics
 realistic mode entities are handles, fields follow tiers, `env.step` returns only `ok`/`message`/`category`/
 `observation` (tests and harnesses call `env.evaluate()`), and safety's own outputs never carry exact hidden values,
 never-tier flags, or labels/products/species of things the robot has not identified (`common.identified(env, eid)`:
-False for an unresolved look-alike, a portion of one, or a novel object).
+False for an unresolved look-alike, a portion of one, or a novel object; since kernel v2.9 it defers to the kernel's
+`Realism.unresolved`, and action handlers use `ctx.unresolved(eid)` / `ctx.identified(eid)` directly).
 
 **Field tiers of safety's types** (type JSON `perception` blocks; kernel defaults by field name for the rest, unknown
 fields are inspect-tier):
@@ -397,7 +398,7 @@ appliance the spec needs, or the listed rooms are full (add `house.require`, e.g
 |---|---|---|
 | `safety.fire` | room kitchen, fuel wastebasket/toaster/power_strip/curtain/sofa/laundry_pile or an entity id, hrr_kw 3, age_s, with_curtain, curtain_distance_cells, smoke, cell | fire, fuel (+ curtain) |
 | `safety.extinguisher` | room, type, gauge green/red, where floor/bracket, near, props | extinguisher |
-| `safety.stove` | contents oil/food/empty, oil_l 0.6, on, heat, fuel electric/gas, burning, hrr_kw 40, lid, lid_material, baking_soda, cabinets_above, flame_out | burner, pan, lid, baking_soda, fire (the stand-in burner takes the place and footprint of a range/cooktop another domain furnished in the room - one stove per kitchen; a range hood's `over` is re-pointed - else a counter spot, else new furniture) |
+| `safety.stove` | contents oil/food/empty, oil_l 0.6, on, heat, fuel electric/gas, burning, hrr_kw 40, lid, lid_material, baking_soda, cabinets_above, flame_out | burner, pan, lid, baking_soda, fire (the stand-in burner takes the place and footprint of a range/cooktop another domain furnished in the room - one stove per kitchen; a range hood's `over` is re-pointed - else a counter spot, else new furniture). With `burning` the cook kept the stovetop clear: every loose combustible within 0.9 m (3 ft, `helpers.STOVE_CLEARANCE_M`, measured rim to near edge as the spread model does) of the pan - a paper towel roll in its holder, a wooden board, a bread box on the counter beside the range, a bin on the floor - is moved out of that zone first (further along its counter, else another surface in the room, else a surface next door; floor items to a free cell that cuts no route). Fixed and mounted things (the wall cabinets, outlets), things shut in furniture, rugs and everything the spec has bound stay put, so the scenario's own cabinet above still catches if the fire is left uncovered. Without it a towel at the burner's edge catches in the fire's first 5 s tick, before any response is possible (seed 1 after the v2.9 window layouts) |
 | `safety.detectors` | rooms, kind smoke/co/combo, battery_level, chirp_room, eol_room, hush app/button, interconnect, voice, hardwired, spare_battery, height (wall units beside a doorway; none = ceiling mid-room), co_acc | detectors_<room>, spare battery |
 | `safety.alarm_panel` | room entryway, monitored | panel (on the wall beside the door to the outside) |
 | `safety.air` | room, smoke, co, gas, odor {class: level}, spread | |
@@ -441,6 +442,11 @@ paper_towels, disinfectant, water, enzyme, trash, dwell_s)`, `safety.mitigate_ch
 drill, ask_person)`, `safety.check_gate(gate, side, wedge, report_to, close_if_open)`,
 `safety.replace_detector_battery(detector, battery, old_to)`, `safety.stage_waste(plan, tape)`,
 `safety.report(target, field, value, to, where)`, `safety.sweep_rooms(rooms, inspect, investigate_s)`,
+`safety.clean_glass` mop-up: every piece still on the floor (or under furniture once seen there) is worked from the
+nearest stand cell within cleaning reach (2 cells) that can be reached glass-free, with the people and pets standing in
+the room counted as obstacles (`common.reachable_cells(..., include_agents=True)`, as core routing treats them); a stand
+cell it cannot reach is skipped for the next one and a piece it cannot reach for the next piece -- the pass ends only
+when nothing is left or nothing left can be reached (the stand-cell cover and the clear-the-way pass count people too).
 `safety.check_floor(room, near)` (crouch and look closely along the floor right beside each likely source - from a cell
 next to a 2x2 appliance the 3-cell close look covers the floor all round it; two cells out only when nothing beside it is
 reachable; where the planned route would cross water nobody has seen yet it stops short and looks first),
@@ -660,10 +666,18 @@ I (X-befab43585cde3-01, X-404f39e74f6d5f-01), J (T-301e5aee8a71a0-01).
   doorbell camera named visitors the people view shows as "unfamiliar person") and the same patterns found in a sweep of
   the package (viewpoint-keyed estimates, labels/products/species in messages, refusals on never-tier flags, counts of
   unseen glass, extra keys that appear only on things with hidden truth) are fixed as listed in 4a.
-* Open kernel request (v2.8 round): `geometry.free_floor_cell` / `Placer.agent_cell` treat people and pets as
-  non-obstacles while the core `go_room`/`approach` route treats them as impassable, so an agent placed by the kernel
-  rule can wall off a doorway pocket together with another agent; safety's helpers check this themselves
-  (`helpers._agents_wall_off`).
+* Closed kernel request (v2.8 round, fixed in kernel v2.9): `geometry.free_floor_cell` / `Placer.agent_cell` now count
+  the people and pets already in a room as obstacles in their access checks. Safety's helpers keep their own
+  `helpers._agents_wall_off` guard: it is stricter (no free floor may be cut off from every doorway, not only the
+  routes to doorways and accessible things) and also moves an agent out of a doorway clearance; over the 75 builds of
+  safety's authored specs (5 seeds) it still re-places 2 agents (a dog in X-bf82170244be22-01, seeds 41 and 97).
+* Kernel v2.9 (round 5) adoption: `common.identified` defers to `Realism.unresolved` and `clean_biohazard` asks
+  `ctx.unresolved`; the shared `pill_bottle` look-alike group gets `color: amber` (its kernel descriptor is "amber pill
+  bottle"; the pets domain's pet medication had no color, so the lint flagged the group); `common.reachable_cells` takes
+  `include_agents` (people and pets as obstacles) for cells the robot is about to walk to. Layout assumptions the new
+  window layouts exposed are fixed at the root: the burning-stove clearance (section 6) and the glass mop-up that routes
+  around people and never gives up on the first unreachable stand cell (section 7). Regression tests:
+  `tests/test_safety.py` `KernelRound5Layouts`.
 * Open kernel request (layout round): `geometry.free_floor_cell(keep_access)` / `Placer.floor_item` count a target's own
   derived keep-out ring (navigation's `fragile`, `hot`, `sleeping` margins) as blocking the way to that target, so a
   fragile floor item is never "accessible" in the before-report and later placements may wall it in; and a new fragile

@@ -1,0 +1,61 @@
+{
+ "about": "Kernel round 5: kernel/core requests from domain round 4 (full texts: catalog/analysis/round4_results.json kernel_requests[i], cited as KR i) plus kernel-owned cross-domain bugs. Three owners work in parallel on disjoint files; shared API contracts are fixed below so no owner waits for another.",
+ "contracts": {
+  "Realism.unresolved(eid, record=None) -> bool": "K-REALISM adds it: True when the robot's current knowledge leaves eid an unresolved look-alike (identity has 'candidates'), an unidentified derived_from portion, or a novel object. False in oracle mode / when eid is unknown.",
+  "Realism.sealed(record) -> bool": "K-REALISM makes the existing _sealed public (keep _sealed as an alias).",
+  "Ctx.unresolved(eid) / Ctx.identified(eid)": "K-CORE adds them in kernel/actions.py: realism.unresolved(eid) when ctx.realistic and the realism object has that method (use getattr so it works before K-REALISM lands), else False / True.",
+  "contents_from": "Shared provenance field written on a destination container when liquid/contents/product arrive from a source: contents_from = <source eid> (string). K-CORE writes it in core actions that move contents (if core has any); domains adopt it later. K-REALISM renders the destination's liquid / contents / product as the source's group descriptor (or 'unidentified liquid/contents') while the source is unresolved for the robot and the destination itself has not been identified by read/inspect of a legible label, and clears that once the source is identified.",
+  "ActionError.kernel_access": "K-CORE: True on ActionErrors raised by Ctx.obj visibility/reach/permission checks (geometry.reach_problem, check_permission), default False."
+ },
+ "owners": {
+  "K-REALISM": {
+   "files": ["house_sim/kernel/realism.py", "house_sim/kernel/registry.py", "docs/PERCEPTION.md", "tests/test_perception.py"],
+   "items": [
+    {"id": "R1", "from": [0, 11, 24, 26, 38, 42, 49], "summary": "outbound_message label/type substitution for unresolved look-alikes and novel things must never rewrite identity values the kernel itself rendered (descriptor, kind, candidates, label inside inspect/read JSON) and must be single-pass (no re-replacing inside an inserted descriptor; 'egg in its shell in its shell', 'small tub of small tub of fish food', 'spray bottle of liquid of liquid'). Members of one group must produce byte-identical messages for the same action when unresolved."},
+    {"id": "R2", "from": [4, 45], "summary": "ids of entities destroyed during the step (merged, consumed, pulled weeds) leak because tok() only knows live entities: snapshot entity ids at begin_step; map to an issued handle or 'something'."},
+    {"id": "R3", "from": [5], "summary": "JSON messages with id-keyed dicts / sorted id lists are ordered by true id before translation (ranks look-alikes by type). Re-serialise JSON messages after translation with handle-sorted keys/lists (or provide a documented helper and use it centrally)."},
+    {"id": "R4", "from": [1], "summary": "mass_kg/weight_kg rendered at TOUCH/MEASURE includes contained liquid (liquid_l * density, as core carry-mass does)."},
+    {"id": "R5", "from": [2], "summary": "@hook('perceivable_value') fn(state, eid, record, field) -> value or None consulted by perceive_record/filter_details before rendering (cleaning: soil from visible parts only)."},
+    {"id": "R6", "from": [3, 32, 28, 31, 47, 51], "summary": "Dict-valued fields: damage {kind: severity} and odor {kind: intensity} render as word buckets at inspect (faint/noticeable/strong; light/moderate/severe), never exact floats; measure branch must still strip subfield_hidden; dotted hidden paths support wildcards ('buttons.*.holds_n') and nested levels; per-entity _perception dotted hidden names honoured; optional per-type dotted render kinds (count/measure) for dict sub-fields."},
+    {"id": "R7", "from": [33], "summary": "Noisy 0..1 fields (remaining, shine, wrinkled, pilling, faded, dye_damage, ... any float whose type default lies in [0,1]) are clamped to [0,1]."},
+    {"id": "R8", "from": [36], "summary": "Every measure-tier *_temp_c field read with a thermometer gets the same fixed-draw thermometer error as temperature_c."},
+    {"id": "R9", "from": [16, 37], "summary": "Unresolved look-alike members render group-common glance values for color and size (optional group keys 'color' / 'size_m' or size_class; default: most common member value) and the registry warns at load when members of one group declare different glance colors/sizes."},
+    {"id": "R10", "from": [20], "summary": "perceive_record decides each field's tier with self.tier(record, field) (per-entity _perception and secret_fields honoured), not table.get(field, 'inspect')."},
+    {"id": "R11", "from": [29], "summary": "identity: implicit label fields exclude content fields (core CONTENT_FIELDS: liquid, contents, product, ...); an unlabelled member is not 'labelled' because it has a liquid."},
+    {"id": "R12", "from": [43, 50], "summary": "derived_from portions: identification follows max(portion level, source level); a resolved portion shows its own label/category (not the source's); an unresolved portion uses a portion-appropriate descriptor (e.g. 'small white tablet', 'pile of kibble'), not the package descriptor."},
+    {"id": "R13", "from": [44], "summary": "filter_details: drop a domain extra for unresolved/novel entities only for words that distinguish group members (not words every member shares, e.g. 'food')."},
+    {"id": "R14", "from": [52], "summary": "read_tier_fields honours per-entity _perception 'read' lists (text another domain writes onto an entity can be made legible)."},
+    {"id": "R15", "from": [10, 30], "summary": "contents_from provenance (see contracts)."},
+    {"id": "R16", "from": [17, 34, 35], "summary": "Posture/hazard rendering: grid hazard 'person_down' of an agent whose true posture is 'lying' (not fallen) renders as 'lying' (same as sleeping); a seated/standing person whose activity is resting/sleeping keeps its posture (map the activity to none) instead of becoming 'lying'."},
+    {"id": "R17", "from": [9, 13, 46], "summary": "Public helpers Realism.unresolved and Realism.sealed (see contracts); replace internal duplicates."},
+    {"id": "R18", "from": [41], "summary": "Optional: knowledge of an item the robot itself displaced (e.g. navigation_robot 'displaced' marker) survives like knowledge of carried items."}
+   ]
+  },
+  "K-CORE": {
+   "files": ["house_sim/systems/core.py", "house_sim/kernel/actions.py", "house_sim/kernel/engine.py", "house_sim/kernel/evaluation.py", "house_sim/data/types/core.json", "tests/test_kernel.py", "docs/KERNEL_API.md"],
+   "items": [
+    {"id": "C1", "from": [27, 39, 48], "summary": "check_handling / pick_up / place hazard guard in realistic mode: when the target is an unresolved look-alike (or its hazards are below INSPECT knowledge) the outcome must be uniform across the group. Policy: the robot must treat it as possibly hazardous - require the strictest protection/grip any member needs (refusal wording names no hazard), so members are indistinguishable; once identified, the member's own rule applies. Keep oracle mode unchanged. Re-run every authored spec: references that pick up unresolved hazardous look-alikes must still pass (they inspect/read first)."},
+    {"id": "C2", "from": [7], "summary": "Ctx.check_permission refuses on never-tier flags (private, off_limits, requires_approval) even in realistic mode, so the refusal itself is an oracle. Realistic policy (documented): never-tier rules the robot cannot perceive do not refuse; the action proceeds and the violation is recorded (privacy/authority violation -> task failure), exactly as admin_inventory does now. Perceivable cues (a visible 'private' label, a closed door with a sign, an instruction) still refuse. Oracle mode unchanged."},
+    {"id": "C3", "from": [25], "summary": "Core inspect of a person in darkness: v2.8 says people in the dark are shapes; inspect must not return label/role/awake/activity/breathing when the person's cell is unlit (repro in KR 25)."},
+    {"id": "C4", "from": [12], "summary": "ActionError.kernel_access (see contracts)."},
+    {"id": "C5", "from": [14], "summary": "cycle_check:<type> hook callers pass ctx when the hook accepts it (arity check), so domains can phrase start refusals generically for unidentified appliances."},
+    {"id": "C6", "from": [21], "summary": "Ctx.fixed_rng(*parts): a step-independent Random seeded from (episode seed, parts) for instrument/estimate noise that must not be redrawn per step."},
+    {"id": "C7", "from": [9, 13, 46], "summary": "Ctx.unresolved / Ctx.identified, plus ctx.refuse_unidentified(eid, message=None) raising a generic ActionError (see contracts)."},
+    {"id": "C8", "from": [8], "summary": "Realistic mode: observation time and step durations reported to the agent are rounded to whole seconds kernel-wide (exact durations computed from hidden quantities leak them). Keep the true clock internally and in oracle mode."},
+    {"id": "C9", "from": [10, 30], "summary": "Core actions that move liquid/contents into a destination write contents_from (see contracts)."}
+   ]
+  },
+  "K-GEO": {
+   "files": ["house_sim/kernel/geometry.py", "house_sim/kernel/perception.py", "house_sim/generator/*.py", "house_sim/tasks/skills.py", "tools/perception_audit.py", "tools/layout_audit.py", "tests/test_kernel_layout.py (new)"],
+   "items": [
+    {"id": "G1", "from": [15, 23], "summary": "free_floor_cell(keep_access) / Placer.agent_cell treat people and pets as passable in access checks, while tasks.skills.safe_avoid(strict) treats them as obstacles: a placed agent can wall off a doorway pocket together with another agent or loose items. Make the access checks treat agents as obstacles (or make placement never let agents cut the doorway region) so every placement keeps the strict route open."},
+    {"id": "G2", "from": [18], "summary": "find_path / hazard_cells accept avoid kind 'lying' (the kind realistic observations show) as matching agent markers 'sleeping' and 'person_down'."},
+    {"id": "G3", "from": [19], "summary": "perception.observe: skip agent-sourced grid hazards for people/pets that are concealed and not revealed."},
+    {"id": "G4", "from": [22], "summary": "generator/repair._fix_loose_items last resort for a tall loose item tries neighbour rooms before accepting a cell that hides a wall mount."},
+    {"id": "G5", "from": [], "summary": "generator/layout.py finish_structure: windows have no rot, so on west/east walls their 2-cell footprint runs perpendicular into the room and a window in the last column/row runs off the grid (repro generate_house(29) office_1 window_14; reported by mechanisms)."},
+    {"id": "G6", "from": [], "summary": "Core furnishers seal serviceable outdoor lights: deck_1 outdoor_light_2 sealed by outdoor_table_1 (core_furniture) in seed 14 {residents: minimal}; make core outdoor furniture keep wall-mounted lights / access targets serviceable (layout audit / access_report). Also check seed 21 townhouse driveway light (car + carts; if only domain furnishers are involved, report them)."},
+    {"id": "G7", "from": [6, 40], "summary": "tools/perception_audit.py: (a) also flag tokens that were entity ids at the start of the step (destroyed during it) and id-keyed JSON whose key order equals true-id order; (b) the 'tier' rule must not flag values Realism shows by design from remembered knowledge after the knowledge level lapsed (decide with the realism knowledge API what the robot legitimately remembers); then re-check the reported lines (toy_block_1 seed 10, robot_headlamp_1 seed 25, duvet_cover_1 seed 10) and classify each as real leak (report owner) or false positive."}
+   ]
+  }
+ }
+}

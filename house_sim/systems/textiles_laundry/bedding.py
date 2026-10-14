@@ -151,7 +151,7 @@ def dress_bed(ctx):
     role = rec.get("bed_role") or rec.get("cover_role")
     require(role, "That is not bedding or a cover", "argument")
     require(not rec.get("folded") or rec.get("folded") is False, "Unfold it first")
-    if M.unresolved(ctx.env, target) and M.group_varies(ctx.env, target, _dressing_key):
+    if ctx.unresolved(target) and M.group_varies(ctx.env, target, _dressing_key):
         # look-alikes that go on differently (fitted vs flat sheet, pillowcase vs sham vs protector): which arguments
         # are asked for, which refusal comes back and what the result says would identify them; the robot first has
         # to see which one it holds (the same answer for every member)

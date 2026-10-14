@@ -45,8 +45,7 @@ def _grams_by_eye(ctx, fid):
     """Realistic perception: a gram amount judged by eye needs to know what the food is (its density). For something
     the robot has not identified it measures by volume or on a scale instead -- the same refusal for every member of a
     look-alike group, so the poured volume cannot be used to tell flour from sugar."""
-    if ctx.realistic and P.unidentified(ctx.env, fid):
-        raise ActionError("Unidentified contents: measure by volume (amount_ml) or on a scale, not grams by eye", "precondition")
+    ctx.refuse_unidentified(fid, "Unidentified contents: measure by volume (amount_ml) or on a scale, not grams by eye")
 
 
 def _scale_under(state, vessel):
@@ -341,8 +340,8 @@ def transfer(ctx):
         # consolidating duplicates: pour into another opened package of the same product. Realistic perception: the
         # robot can only judge "same product" for packages it has identified, so it asks for that first -- the same
         # refusal whatever the packages really hold (no product oracle)
-        if ctx.realistic and (P.unidentified(ctx.env, fid) or P.unidentified(ctx.env, dest)):
-            raise ActionError("Identify both products before combining them", "precondition")
+        for eid in (fid, dest):
+            ctx.refuse_unidentified(eid, "Identify both products before combining them")
         require(M.kind(drec) == pf.get("kind"), "That package holds a different product", "argument")
         require(drec.get("open") or drec.get("opened"), "Open the {} first".format(P.name(ctx, dest, "package")), "precondition")
         full = float(drec.get("full_g") or (drec.get("food") or {}).get("full_g") or 0.0)

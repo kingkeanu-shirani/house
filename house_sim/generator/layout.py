@@ -335,6 +335,7 @@ def finish_structure(b, plan, registry):
                                        label="{} window".format(room["label"].lower()))
                 record["pos"] = b._wall_cell(rid)
                 record["mounted"] = True
+                geometry.along_wall(room, record)     # runs along its wall, footprint on the grid
                 b.entities[wid] = record
         windowed = any(e.get("location") == rid and e.get("category") == "window" for e in b.entities.values())
         if room["outdoor"]:

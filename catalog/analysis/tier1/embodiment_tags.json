@@ -1,0 +1,7132 @@
+{
+"n_tags": 986,
+"n_entries": 838,
+"tags": [
+{
+"tag": "stairs.carry_load",
+"count": 11,
+"examples": [
+"T-dea1156b50840c-01",
+"T-e90c16c6bc69e5-01",
+"T-04c149047cc9b6-01",
+"T-6852f0e4c16e13-01"
+]
+},
+{
+"tag": "garment.owner",
+"count": 11,
+"examples": [
+"T-b0fddf3ce3f062-01",
+"T-5bda780b3e1752-01",
+"T-46172acd4527d5-01",
+"T-fd806dbf7d28a4-01"
+]
+},
+{
+"tag": "child.reach_envelope",
+"count": 9,
+"examples": [
+"T-7002a14f7e45c7-01",
+"T-d22443f9afa064-01",
+"T-104d29adfd19c4-01",
+"T-2d0c11b0a06ee4-01"
+]
+},
+{
+"tag": "robot.payload_limit",
+"count": 9,
+"examples": [
+"T-b0ae8f10e3e8d1-01",
+"T-9d169f63d09b4d-01",
+"T-f30b9f8e07cee6-01",
+"V-6e206f69ec8a04-01"
+]
+},
+{
+"tag": "nav.reach_height_step_stool",
+"count": 8,
+"examples": [
+"T-ca4d2216deb3fa-01",
+"T-f7742b696a380a-01",
+"T-8b5e0729918ef2-01",
+"T-5e09990e5c1777-01"
+]
+},
+{
+"tag": "object.mass_lift_two_handed",
+"count": 8,
+"examples": [
+"T-855c226f37d3a8-01",
+"T-b1fe8e2098fb4e-01",
+"T-d68ab38db98293-01",
+"T-93826506c06fba-01"
+]
+},
+{
+"tag": "disinfect.contact_time",
+"count": 7,
+"examples": [
+"T-3e6e26dab9db28-01",
+"T-866b688fb957ae-01",
+"T-18e3dff35ca3c7-01",
+"T-5ec8e706f4f82c-01"
+]
+},
+{
+"tag": "battery.level_indicator",
+"count": 7,
+"examples": [
+"T-218086485f894e-01",
+"T-c30edbadea7cdb-01",
+"T-40eca9cf7ca745-01",
+"T-db1a1f16643fdb-01"
+]
+},
+{
+"tag": "payload.mass_limit",
+"count": 6,
+"examples": [
+"T-aeb0117b306882-01",
+"T-4e55473af5084b-01",
+"T-caeb9d1324808d-01",
+"T-7b09dd953dff6b-01"
+]
+},
+{
+"tag": "allergen.cross_contact_utensil",
+"count": 6,
+"examples": [
+"T-c5d17689a07bee-01",
+"T-d8543202ea01dd-01",
+"T-c8e64fd8532587-01",
+"T-bee1b178cda2e0-01"
+]
+},
+{
+"tag": "battery.charge_level",
+"count": 6,
+"examples": [
+"T-af1062d1adc86d-01",
+"T-014ead7380942d-01",
+"T-9ce0d263d2bc21-01",
+"T-e798dcf3f98328-01"
+]
+},
+{
+"tag": "battery.type_match",
+"count": 6,
+"examples": [
+"T-a59a7d0cad512c-01",
+"T-721d759fa890fa-01",
+"T-66e9d1d7f9e92e-01",
+"T-ac3aed88a95856-01"
+]
+},
+{
+"tag": "garment.size_vs_child_current_size",
+"count": 6,
+"examples": [
+"T-b0fddf3ce3f062-01",
+"T-5bda780b3e1752-01",
+"T-46172acd4527d5-01",
+"T-fd806dbf7d28a4-01"
+]
+},
+{
+"tag": "handover.to_person",
+"count": 6,
+"examples": [
+"T-966002888c628c-01",
+"T-ca67352febe635-01",
+"T-1e24be4a8b2565-01",
+"T-1e7fbd46420b03-01"
+]
+},
+{
+"tag": "privacy.bedroom_zone",
+"count": 6,
+"examples": [
+"T-efae737380707e-01",
+"T-46172acd4527d5-01",
+"T-fd806dbf7d28a4-01",
+"T-d5ee66c7123ace-01"
+]
+},
+{
+"tag": "nav.stairs_stance_stability",
+"count": 5,
+"examples": [
+"T-439b14cb7762ff-01",
+"T-0de24bd48a6574-01",
+"T-1df7a1c0ffe988-01",
+"T-31ab664e722977-01"
+]
+},
+{
+"tag": "cloth.floor_contact_avoid",
+"count": 5,
+"examples": [
+"T-4e432cd05581a9-01",
+"T-6cc42e6fd77a37-01",
+"T-c3c0c01b9d1814-01",
+"T-dc7e8967cec0c7-01"
+]
+},
+{
+"tag": "garment.color_class",
+"count": 5,
+"examples": [
+"T-e33be7f5f32230-01",
+"T-9ac6c0d1468ae0-01",
+"T-c32284261135cd-01",
+"T-32483706f17670-01"
+]
+},
+{
+"tag": "ownership.garment_owner",
+"count": 5,
+"examples": [
+"T-3018674e806f0a-01",
+"T-f99b96068896b0-01",
+"T-2105f441a1b598-01",
+"T-1d7eb50f094a6a-01"
+]
+},
+{
+"tag": "garment.clean_state",
+"count": 5,
+"examples": [
+"T-5bda780b3e1752-01",
+"T-3cf88534e45717-01",
+"T-ef59d17a2cbd1e-01",
+"T-e22b06b39cd64c-01"
+]
+},
+{
+"tag": "dishwasher.spray_arm_clearance",
+"count": 5,
+"examples": [
+"T-ecea849fdde97f-01",
+"T-96776d28de6413-01",
+"T-835438daefe7b6-01",
+"T-cde541ebe2eb57-01"
+]
+},
+{
+"tag": "garment.owner_tag",
+"count": 5,
+"examples": [
+"T-3cd953e27116ae-01",
+"T-3cf88534e45717-01",
+"T-ef59d17a2cbd1e-01",
+"T-e22b06b39cd64c-01"
+]
+},
+{
+"tag": "balance.com_support_polygon",
+"count": 4,
+"examples": [
+"T-aeb0117b306882-01",
+"T-0a63bb79d5ed53-01",
+"T-5419ee0cd25458-01",
+"T-fb37e25e7be8c8-01"
+]
+},
+{
+"tag": "stairs.handrail_use",
+"count": 4,
+"examples": [
+"T-dea1156b50840c-01",
+"T-0a63bb79d5ed53-01",
+"T-90a466003f68e9-01",
+"T-5419ee0cd25458-01"
+]
+},
+{
+"tag": "battery.polarity_orientation",
+"count": 4,
+"examples": [
+"T-ac3aed88a95856-01",
+"T-908bb84a0e9c56-01",
+"T-081036bf22fbeb-01",
+"T-edb245dcee3f75-01"
+]
+},
+{
+"tag": "handover.handle_first_pose",
+"count": 4,
+"examples": [
+"T-91f1c391e377ac-01",
+"T-48a31f142dbed8-01",
+"T-ab2276ced24af7-01",
+"T-e37d7bb45c3832-01"
+]
+},
+{
+"tag": "safety.child_reach_height",
+"count": 4,
+"examples": [
+"T-9a816d7b0b2569-01",
+"T-7b7a81d7c72ca7-01",
+"T-a8afa86c6f2c2f-01",
+"T-793bf51a5a90e6-01"
+]
+},
+{
+"tag": "charger.connector_type_match",
+"count": 4,
+"examples": [
+"T-40eca9cf7ca745-01",
+"T-bb69a78b125b48-01",
+"T-d413280e3b617b-01",
+"T-306c403f3f47c7-01"
+]
+},
+{
+"tag": "handover.handle_first",
+"count": 4,
+"examples": [
+"T-54c6622a099b99-01",
+"V-bd52dcd680ac87-01",
+"A-aa62be21ce886a-01",
+"A-27f8d877e9726e-01"
+]
+},
+{
+"tag": "grasp.mode_selection",
+"count": 3,
+"examples": [
+"T-bc25cef617fdc0-01",
+"T-8dc1b0d2d71f25-01",
+"P-bec307d4ed39b7-01"
+]
+},
+{
+"tag": "stairs.obstacle_items",
+"count": 3,
+"examples": [
+"T-dea1156b50840c-01",
+"T-0a63bb79d5ed53-01",
+"T-90a466003f68e9-01"
+]
+},
+{
+"tag": "privacy.zone_entry_rules",
+"count": 3,
+"examples": [
+"T-66f3da50af0603-01",
+"T-54a8a8191c8930-01",
+"T-9c314ab844eadb-01"
+]
+},
+{
+"tag": "garment.clean_dirty_state",
+"count": 3,
+"examples": [
+"T-f3268d97ac12b3-01",
+"T-5374cf0647f596-01",
+"T-3cd953e27116ae-01"
+]
+},
+{
+"tag": "privacy.private_documents_no_read",
+"count": 3,
+"examples": [
+"T-732f60c26a5cb1-01",
+"T-933a4623543d76-01",
+"T-e2e84e4bc1d0d4-01"
+]
+},
+{
+"tag": "reach.height_by_person",
+"count": 3,
+"examples": [
+"T-18bc6f929cbbc0-01",
+"T-983bd9a69ddc02-01",
+"T-cbb26cf82d12d1-01"
+]
+},
+{
+"tag": "privacy.no_content_inspection",
+"count": 3,
+"examples": [
+"T-ebd88fc0d3ff5e-01",
+"T-f9c6a8603a514a-01",
+"T-497c7e52ef01e3-01"
+]
+},
+{
+"tag": "closet.shelf_reach_heights",
+"count": 3,
+"examples": [
+"T-c9029bf3af7f69-01",
+"T-9343455e331c12-01",
+"T-0f7edf08d6ab1c-01"
+]
+},
+{
+"tag": "garment.season_class",
+"count": 3,
+"examples": [
+"T-5bda780b3e1752-01",
+"T-46172acd4527d5-01",
+"T-b11255e97efff6-01"
+]
+},
+{
+"tag": "safety.broken_glass_handling",
+"count": 3,
+"examples": [
+"T-6525084be8a7cd-01",
+"T-68af0e7503c599-01",
+"T-3023018e997bdc-01"
+]
+},
+{
+"tag": "nav.pool_edge_balance_limit",
+"count": 3,
+"examples": [
+"T-773e8e632446ec-01",
+"T-09a928e76c12cc-01",
+"T-f02de5156c99d3-01"
+]
+},
+{
+"tag": "uv.sun_degradation",
+"count": 3,
+"examples": [
+"T-a8075c2a333d73-01",
+"T-a0af2e97b8b218-01",
+"T-74d8d6b6f81453-01"
+]
+},
+{
+"tag": "handle.looseness_hidden_state",
+"count": 3,
+"examples": [
+"T-083aea3089ab18-01",
+"T-d4323965565b88-01",
+"T-7e3e6867419760-01"
+]
+},
+{
+"tag": "garment.clean_before_store",
+"count": 3,
+"examples": [
+"T-46172acd4527d5-01",
+"T-834468f7ec19c8-01",
+"T-1b315d3b079ac0-01"
+]
+},
+{
+"tag": "handover.receive_detection",
+"count": 3,
+"examples": [
+"T-1951a2823cf6c3-01",
+"T-54c6622a099b99-01",
+"T-c6fbcd6748245a-01"
+]
+},
+{
+"tag": "bin.tilt_roll_wheeled",
+"count": 3,
+"examples": [
+"T-9ad372b8f7f628-01",
+"T-fa7df6d58013e3-01",
+"T-59bdc0781c8074-01"
+]
+},
+{
+"tag": "battery.level",
+"count": 3,
+"examples": [
+"T-1e24be4a8b2565-01",
+"T-d413280e3b617b-01",
+"T-306c403f3f47c7-01"
+]
+},
+{
+"tag": "knife.safe_grip_handle",
+"count": 3,
+"examples": [
+"V-bd52dcd680ac87-01",
+"X-1a8a23b295cde3-01",
+"A-f03cb9ad6b3813-01"
+]
+},
+{
+"tag": "object.footprint_contact_damage",
+"count": 2,
+"examples": [
+"T-bc25cef617fdc0-01",
+"T-3cb411b1250c88-01"
+]
+},
+{
+"tag": "reach.height_envelope",
+"count": 2,
+"examples": [
+"T-162be08ab41005-01",
+"A-c93f46cbfe9563-01"
+]
+},
+{
+"tag": "grasp.from_confined_space",
+"count": 2,
+"examples": [
+"T-87f5b312c723bd-01",
+"T-fe3c96ae9e9e15-01"
+]
+},
+{
+"tag": "sharp.handle_grasp",
+"count": 2,
+"examples": [
+"T-87f5b312c723bd-01",
+"T-dd962ab08d03f3-01"
+]
+},
+{
+"tag": "grasp.force_window_slip_vs_crush",
+"count": 2,
+"examples": [
+"T-a9985742f525ea-01",
+"T-2d09e4c92eabbb-01"
+]
+},
+{
+"tag": "stairs.descent_foot_placement",
+"count": 2,
+"examples": [
+"T-dea1156b50840c-01",
+"T-90a466003f68e9-01"
+]
+},
+{
+"tag": "battery.polarity",
+"count": 2,
+"examples": [
+"T-57b6efd0b4cd30-01",
+"T-a59a7d0cad512c-01"
+]
+},
+{
+"tag": "door.handle_type_actuation",
+"count": 2,
+"examples": [
+"T-364ac3df12ef8e-01",
+"V-770b31e3af6893-01"
+]
+},
+{
+"tag": "robot.footprint_with_payload",
+"count": 2,
+"examples": [
+"T-032bf4d6e2751d-01",
+"T-62fe1251aafeed-01"
+]
+},
+{
+"tag": "stairs.riser_tread_geometry",
+"count": 2,
+"examples": [
+"T-0a63bb79d5ed53-01",
+"T-90a466003f68e9-01"
+]
+},
+{
+"tag": "noise.night_quiet_mode",
+"count": 2,
+"examples": [
+"T-eec72ca5d21c54-01",
+"T-9c314ab844eadb-01"
+]
+},
+{
+"tag": "people.privacy_zone_entry",
+"count": 2,
+"examples": [
+"T-56d1d7f6a17796-01",
+"T-25c4fa523e27e0-01"
+]
+},
+{
+"tag": "cleaning.tool_tip_corner_reach",
+"count": 2,
+"examples": [
+"T-c7468688b931cb-01",
+"T-0a1a0880429e70-01"
+]
+},
+{
+"tag": "surface.scuff_from_contact",
+"count": 2,
+"examples": [
+"T-0a1a0880429e70-01",
+"T-5b7b816d4d563a-01"
+]
+},
+{
+"tag": "food.allergen_cross_contact",
+"count": 2,
+"examples": [
+"T-3d11170423f13e-01",
+"T-fd1bc4bc27fb19-01"
+]
+},
+{
+"tag": "gripper.coating_buildup",
+"count": 2,
+"examples": [
+"T-678a4eed450078-01",
+"T-9fa00d48a02149-01"
+]
+},
+{
+"tag": "oil.water_contact_splatter",
+"count": 2,
+"examples": [
+"T-917604ea6b4f6a-01",
+"T-73e4c33310222e-01"
+]
+},
+{
+"tag": "safety.hand_in_blade_zone_powered",
+"count": 2,
+"examples": [
+"T-d770b5d40b58ba-01",
+"T-8608d9bf32f61d-01"
+]
+},
+{
+"tag": "shelf.weight_height_rule",
+"count": 2,
+"examples": [
+"T-01bd9731e66b83-01",
+"T-5ec46d9e7453e0-01"
+]
+},
+{
+"tag": "reach.child_height_zone",
+"count": 2,
+"examples": [
+"T-138313b60492ca-01",
+"T-5ec46d9e7453e0-01"
+]
+},
+{
+"tag": "reach.low_clearance_under_appliance",
+"count": 2,
+"examples": [
+"T-b2ecc7dc25f509-01",
+"T-2c92b09593c17a-01"
+]
+},
+{
+"tag": "grasp.fragile_ceramic",
+"count": 2,
+"examples": [
+"T-ae5127f8bb81a4-01",
+"T-9702542460ae51-01"
+]
+},
+{
+"tag": "hygiene.grip_handle_not_eating_end",
+"count": 2,
+"examples": [
+"T-abf4b126fc8bb1-01",
+"T-1ab2c4ec0c884f-01"
+]
+},
+{
+"tag": "garment.dye_bleed_risk",
+"count": 2,
+"examples": [
+"T-e33be7f5f32230-01",
+"T-c32284261135cd-01"
+]
+},
+{
+"tag": "garment.fabric_delicacy",
+"count": 2,
+"examples": [
+"T-e33be7f5f32230-01",
+"T-6e3fbf384a654f-01"
+]
+},
+{
+"tag": "garment.pocket_hidden_contents",
+"count": 2,
+"examples": [
+"T-09c9659677296e-01",
+"T-6d32c6346ad15e-01"
+]
+},
+{
+"tag": "cloth.ground_contact_soil",
+"count": 2,
+"examples": [
+"T-7a3e3247a1204b-01",
+"T-c098c30df41f8a-01"
+]
+},
+{
+"tag": "garment.season_class_by_weight",
+"count": 2,
+"examples": [
+"T-5d2b884e69337d-01",
+"T-1b679ad306c3a2-01"
+]
+},
+{
+"tag": "safety.chemical_storage_child_reach",
+"count": 2,
+"examples": [
+"T-c3d7cc2a139285-01",
+"T-ea233171c6e9ca-01"
+]
+},
+{
+"tag": "reach.high_shelf",
+"count": 2,
+"examples": [
+"T-269f080f72efe4-01",
+"T-921f105d8a5c82-01"
+]
+},
+{
+"tag": "hygiene.head_contact",
+"count": 2,
+"examples": [
+"T-6ab83e63b30ca9-01",
+"T-6e2b51491a8843-01"
+]
+},
+{
+"tag": "remote.device_pairing_identity",
+"count": 2,
+"examples": [
+"T-f9fa7c5d590594-01",
+"T-f81c14e60efb17-01"
+]
+},
+{
+"tag": "grasp.heavy_two_handed",
+"count": 2,
+"examples": [
+"T-a2be958134d7bc-01",
+"T-b0ae8f10e3e8d1-01"
+]
+},
+{
+"tag": "privacy.no_document_reading",
+"count": 2,
+"examples": [
+"T-9ae91750af3423-01",
+"T-39c2d77b36e0e9-01"
+]
+},
+{
+"tag": "privacy.sensitive_document",
+"count": 2,
+"examples": [
+"T-f7e2a4f9ea0ac3-01",
+"T-e412f4b23f57ee-01"
+]
+},
+{
+"tag": "charger.compatibility_wattage_voltage",
+"count": 2,
+"examples": [
+"T-af1062d1adc86d-01",
+"T-014ead7380942d-01"
+]
+},
+{
+"tag": "indicator.charging_state",
+"count": 2,
+"examples": [
+"T-af1062d1adc86d-01",
+"T-014ead7380942d-01"
+]
+},
+{
+"tag": "people.hand_over_item",
+"count": 2,
+"examples": [
+"T-e98bd98b0597f7-01",
+"T-b4390308cdcfd3-01"
+]
+},
+{
+"tag": "privacy.personal_bag_contents",
+"count": 2,
+"examples": [
+"T-f61b1067700861-01",
+"T-b3b8b3c0729639-01"
+]
+},
+{
+"tag": "door.swing_obstruction_contact",
+"count": 2,
+"examples": [
+"T-74a0aa76b86353-01",
+"T-49198502ef3ca5-01"
+]
+},
+{
+"tag": "storage.weight_by_height_rule",
+"count": 2,
+"examples": [
+"T-7002a14f7e45c7-01",
+"T-629ce445ec2dd7-01"
+]
+},
+{
+"tag": "carry.two_handed_box",
+"count": 2,
+"examples": [
+"T-6852f0e4c16e13-01",
+"T-4b6a567444e5f1-01"
+]
+},
+{
+"tag": "garment.pocket_contents",
+"count": 2,
+"examples": [
+"T-6e852a2af4a202-01",
+"T-cdf8e8b491b1dd-01"
+]
+},
+{
+"tag": "detector.test_button_alarm",
+"count": 2,
+"examples": [
+"T-721d759fa890fa-01",
+"T-66e9d1d7f9e92e-01"
+]
+},
+{
+"tag": "handover.to_child",
+"count": 2,
+"examples": [
+"T-31f5cea2a51c36-01",
+"T-47d0cea769b5c9-01"
+]
+},
+{
+"tag": "accessibility.wheelchair_space",
+"count": 2,
+"examples": [
+"T-3d6fe1cabdf0de-01",
+"T-ad779d37fbd96d-01"
+]
+},
+{
+"tag": "tray.carry_liquid_balance",
+"count": 2,
+"examples": [
+"T-b6afb3aebcac37-01",
+"T-68a66a0b901705-01"
+]
+},
+{
+"tag": "blade.safe_handling",
+"count": 2,
+"examples": [
+"T-10ea343ea94522-01",
+"T-208e863ce5bc08-01"
+]
+},
+{
+"tag": "chemical.storage_height_and_lock",
+"count": 2,
+"examples": [
+"T-c816ee319d868d-01",
+"T-128a5d8441de9d-01"
+]
+},
+{
+"tag": "tool.dedicated_wheel_vs_paint",
+"count": 2,
+"examples": [
+"T-8fe52ab2ad1395-01",
+"T-a99c3079ee8418-01"
+]
+},
+{
+"tag": "ev.charging_state_machine",
+"count": 2,
+"examples": [
+"T-0b22013744db75-01",
+"T-c6875a82f1d77c-01"
+]
+},
+{
+"tag": "battery.state_of_charge_target",
+"count": 2,
+"examples": [
+"T-0b22013744db75-01",
+"T-c6875a82f1d77c-01"
+]
+},
+{
+"tag": "reach.extension_pole_height",
+"count": 2,
+"examples": [
+"T-eb9eaa1ea0514f-01",
+"T-82bd7c3583d6e4-01"
+]
+},
+{
+"tag": "mail.privacy_unopened",
+"count": 2,
+"examples": [
+"T-ca432e5e6e1f80-01",
+"T-de6e3c42fc68a3-01"
+]
+},
+{
+"tag": "lawn.seed_soil_contact",
+"count": 2,
+"examples": [
+"T-6af8dc2b2d5c9a-01",
+"T-e1c45f3b207dfd-01"
+]
+},
+{
+"tag": "wheelbarrow.load_balance_tip",
+"count": 2,
+"examples": [
+"T-9efb18ffda3ddc-01",
+"T-90f7d3939d8906-01"
+]
+},
+{
+"tag": "safety.robot_water_ingress",
+"count": 2,
+"examples": [
+"T-773e8e632446ec-01",
+"T-f02de5156c99d3-01"
+]
+},
+{
+"tag": "manipulation.push_wheeled_cart_slope",
+"count": 2,
+"examples": [
+"T-497cd72d4a62cc-01",
+"T-03ec6d1edf3741-01"
+]
+},
+{
+"tag": "people.reach_envelope_by_ability",
+"count": 2,
+"examples": [
+"T-f508193f2a49ae-01",
+"T-86b35883cbd79d-01"
+]
+},
+{
+"tag": "safety.hazard_out_of_child_reach",
+"count": 2,
+"examples": [
+"T-f508193f2a49ae-01",
+"T-86b35883cbd79d-01"
+]
+},
+{
+"tag": "privacy.personal_items_zone",
+"count": 2,
+"examples": [
+"T-2b05e4be721b1c-01",
+"T-003145c53869b7-01"
+]
+},
+{
+"tag": "privacy.financial_document",
+"count": 2,
+"examples": [
+"T-53fd5648f8a471-01",
+"T-e50c46ef795861-01"
+]
+},
+{
+"tag": "electrical.battery_level",
+"count": 2,
+"examples": [
+"T-9912e70195fa59-01",
+"T-744c06be8cbd59-01"
+]
+},
+{
+"tag": "safety.small_parts_toddler_reach",
+"count": 2,
+"examples": [
+"T-fb39dd43c43e55-01",
+"T-232b96119c10bc-01"
+]
+},
+{
+"tag": "people.quiet_hours",
+"count": 2,
+"examples": [
+"T-f1b483bd515278-01",
+"T-d11cdcaf70b285-01"
+]
+},
+{
+"tag": "handle.alignment_angle",
+"count": 2,
+"examples": [
+"T-d4323965565b88-01",
+"T-7e3e6867419760-01"
+]
+},
+{
+"tag": "reach.ceiling_height_with_stool",
+"count": 2,
+"examples": [
+"T-d5ff2b4aca645d-01",
+"T-60f9ade4b85964-01"
+]
+},
+{
+"tag": "battery.swelling_damage_flag",
+"count": 2,
+"examples": [
+"T-3d4002245e70b6-01",
+"T-c910930d668c6e-01"
+]
+},
+{
+"tag": "battery.storage_temperature",
+"count": 2,
+"examples": [
+"T-c910930d668c6e-01",
+"T-9df27252d8aac4-01"
+]
+},
+{
+"tag": "garment.moisture_before_store",
+"count": 2,
+"examples": [
+"T-834468f7ec19c8-01",
+"T-1b315d3b079ac0-01"
+]
+},
+{
+"tag": "garment.musty_odor_state",
+"count": 2,
+"examples": [
+"T-fd806dbf7d28a4-01",
+"T-d5ee66c7123ace-01"
+]
+},
+{
+"tag": "weather.wind_speed",
+"count": 2,
+"examples": [
+"T-d72570b1e460ea-01",
+"T-633ee860ead278-01"
+]
+},
+{
+"tag": "bedding.layer_warmth",
+"count": 2,
+"examples": [
+"T-ef9e803afa7c64-01",
+"T-a5825d9912266a-01"
+]
+},
+{
+"tag": "decor.visual_balance_rubric",
+"count": 2,
+"examples": [
+"T-5d1833028b0278-01",
+"T-793bf51a5a90e6-01"
+]
+},
+{
+"tag": "reach.step_stool_vs_ladder",
+"count": 2,
+"examples": [
+"T-2c6ecce991042e-01",
+"T-8a1516722b4a67-01"
+]
+},
+{
+"tag": "privacy.pocket_bag_search_consent",
+"count": 2,
+"examples": [
+"T-bf02edf6468505-01",
+"T-ea01c1f4bd8546-01"
+]
+},
+{
+"tag": "handover.to_owner",
+"count": 2,
+"examples": [
+"T-bf02edf6468505-01",
+"T-a2952782c820d8-01"
+]
+},
+{
+"tag": "ownership.charger_assignment",
+"count": 2,
+"examples": [
+"T-67dbe6a4f27277-01",
+"T-6233063b1cfd72-01"
+]
+},
+{
+"tag": "garment.clean_dry_state",
+"count": 2,
+"examples": [
+"T-2ba8d783b87ee6-01",
+"T-fb56e2bffcec99-01"
+]
+},
+{
+"tag": "charger.connector_match",
+"count": 2,
+"examples": [
+"T-6233063b1cfd72-01",
+"T-39bfa6a9efcd0f-01"
+]
+},
+{
+"tag": "charging.indicator_verify",
+"count": 2,
+"examples": [
+"T-6233063b1cfd72-01",
+"T-39bfa6a9efcd0f-01"
+]
+},
+{
+"tag": "battery.swollen_hazard",
+"count": 2,
+"examples": [
+"T-6233063b1cfd72-01",
+"T-39bfa6a9efcd0f-01"
+]
+},
+{
+"tag": "privacy.room_zone",
+"count": 2,
+"examples": [
+"T-59eb2055e0f616-01",
+"T-9bc0ec34cf3dd6-01"
+]
+},
+{
+"tag": "privacy.private_documents",
+"count": 2,
+"examples": [
+"T-a00624cc98277a-01",
+"P-fd41eaef588496-01"
+]
+},
+{
+"tag": "transport_wheels.tip_and_roll",
+"count": 2,
+"examples": [
+"T-195caad309951e-01",
+"T-c68776f9e579a1-01"
+]
+},
+{
+"tag": "charger.dock_contact_seating",
+"count": 2,
+"examples": [
+"T-c30edbadea7cdb-01",
+"T-26dfebd4aaa165-01"
+]
+},
+{
+"tag": "battery.alkaline_no_recharge",
+"count": 2,
+"examples": [
+"T-c30edbadea7cdb-01",
+"T-26dfebd4aaa165-01"
+]
+},
+{
+"tag": "dock.contact_alignment",
+"count": 2,
+"examples": [
+"T-cc1f9dc25238f8-01",
+"T-d413280e3b617b-01"
+]
+},
+{
+"tag": "reach.high_shelf_with_stool",
+"count": 2,
+"examples": [
+"T-dd1adf4b536bb1-01",
+"T-e338293f1d2e00-01"
+]
+},
+{
+"tag": "privacy.unopened",
+"count": 2,
+"examples": [
+"T-a3034f9c90cdc9-01",
+"T-47ebf159d8f657-01"
+]
+},
+{
+"tag": "manip.handover",
+"count": 2,
+"examples": [
+"T-174879124a1c17-01",
+"T-744c06be8cbd59-01"
+]
+},
+{
+"tag": "mechanisms.faucet_handle",
+"count": 2,
+"examples": [
+"T-c4d5c6f0af6a0e-01",
+"T-4633efc75437f5-01"
+]
+},
+{
+"tag": "tool.battery_removal",
+"count": 2,
+"examples": [
+"T-76335724fd0dca-01",
+"T-7021be6a36d02e-01"
+]
+},
+{
+"tag": "thermal.hot_dish_handling",
+"count": 2,
+"examples": [
+"T-e1fe1cd32564f9-01",
+"T-1c44e776e83e6c-01"
+]
+},
+{
+"tag": "safety.child_reach_sharp",
+"count": 2,
+"examples": [
+"T-62913ba8f0dbd3-01",
+"T-7021be6a36d02e-01"
+]
+},
+{
+"tag": "plant.crown_height_vs_grade",
+"count": 2,
+"examples": [
+"T-95c4ef869afb58-01",
+"T-48264ead69f842-01"
+]
+},
+{
+"tag": "item.hazardous_battery",
+"count": 2,
+"examples": [
+"T-f0547ff6438c32-01",
+"T-90242d2f8c8927-01"
+]
+},
+{
+"tag": "storage.child_reach_height",
+"count": 2,
+"examples": [
+"T-f782b2285ea5b7-01",
+"V-bd52dcd680ac87-01"
+]
+},
+{
+"tag": "privacy.zone_rules",
+"count": 2,
+"examples": [
+"T-ea15572dd318da-01",
+"T-d11cdcaf70b285-01"
+]
+},
+{
+"tag": "person.fallen_state_responsiveness",
+"count": 2,
+"examples": [
+"A-f83758b69a9fc2-01",
+"A-7b7f654e30551f-01"
+]
+},
+{
+"tag": "noise.task_noise",
+"count": 2,
+"examples": [
+"A-d1959ab8f75835-01",
+"A-5abd7b4dae1b1e-01"
+]
+},
+{
+"tag": "reach.floor_level_crouch",
+"count": 1,
+"examples": [
+"T-bc25cef617fdc0-01"
+]
+},
+{
+"tag": "grasp.stability_hold",
+"count": 1,
+"examples": [
+"T-bc25cef617fdc0-01"
+]
+},
+{
+"tag": "grasp.approach_clearance",
+"count": 1,
+"examples": [
+"T-c70376d22cdba2-01"
+]
+},
+{
+"tag": "grasp.extract_wedged",
+"count": 1,
+"examples": [
+"T-162be08ab41005-01"
+]
+},
+{
+"tag": "grasp.two_hand_heavy",
+"count": 1,
+"examples": [
+"T-aeb0117b306882-01"
+]
+},
+{
+"tag": "grasp.enveloping_support",
+"count": 1,
+"examples": [
+"T-a9985742f525ea-01"
+]
+},
+{
+"tag": "grasp.gather_multiple_points",
+"count": 1,
+"examples": [
+"T-9b7a169446bdd5-01"
+]
+},
+{
+"tag": "grasp.point_selection_shape",
+"count": 1,
+"examples": [
+"T-0717040a331746-01"
+]
+},
+{
+"tag": "grasp.support_from_below",
+"count": 1,
+"examples": [
+"T-2d09e4c92eabbb-01"
+]
+},
+{
+"tag": "grasp.bimanual_coordination",
+"count": 1,
+"examples": [
+"T-262de0d920465e-01"
+]
+},
+{
+"tag": "balance.level_tilt",
+"count": 1,
+"examples": [
+"T-262de0d920465e-01"
+]
+},
+{
+"tag": "payload.per_arm_limit",
+"count": 1,
+"examples": [
+"T-262de0d920465e-01"
+]
+},
+{
+"tag": "grasp.fragile_food",
+"count": 1,
+"examples": [
+"T-06aa47349d89a5-01"
+]
+},
+{
+"tag": "carry.capacity_hands",
+"count": 1,
+"examples": [
+"T-5467e94afab7ea-01"
+]
+},
+{
+"tag": "grasp.handle_or_hug",
+"count": 1,
+"examples": [
+"T-29724c29b23aa1-01"
+]
+},
+{
+"tag": "box.bottom_failure_load",
+"count": 1,
+"examples": [
+"T-4e55473af5084b-01"
+]
+},
+{
+"tag": "bag.handle_grasp_deformable",
+"count": 1,
+"examples": [
+"T-17346f85d4bee2-01"
+]
+},
+{
+"tag": "stairs.step_visibility",
+"count": 1,
+"examples": [
+"T-dea1156b50840c-01"
+]
+},
+{
+"tag": "push.friction_force_balance",
+"count": 1,
+"examples": [
+"T-b28dff2faf6d45-01"
+]
+},
+{
+"tag": "push.tip_over_height_ratio",
+"count": 1,
+"examples": [
+"T-b28dff2faf6d45-01"
+]
+},
+{
+"tag": "pull.friction_force_balance",
+"count": 1,
+"examples": [
+"T-7dfa3bdf120cf9-01"
+]
+},
+{
+"tag": "roll.rolling_dynamics_speed",
+"count": 1,
+"examples": [
+"T-7b9950e9864557-01"
+]
+},
+{
+"tag": "roll.tilt_on_wheels",
+"count": 1,
+"examples": [
+"T-7b9950e9864557-01"
+]
+},
+{
+"tag": "flip.contents_fall_out",
+"count": 1,
+"examples": [
+"T-365969e210f5ec-01"
+]
+},
+{
+"tag": "lid.counterbalance_slam",
+"count": 1,
+"examples": [
+"T-baa7ca414071f7-01"
+]
+},
+{
+"tag": "lid.seal_contact",
+"count": 1,
+"examples": [
+"T-0c042ee9d87e93-01"
+]
+},
+{
+"tag": "window.fall_hazard_child",
+"count": 1,
+"examples": [
+"T-f93913130e8903-01"
+]
+},
+{
+"tag": "blinds.slat_tilt_privacy",
+"count": 1,
+"examples": [
+"T-a34cc8db026493-01"
+]
+},
+{
+"tag": "handle.pull_direction",
+"count": 1,
+"examples": [
+"T-5f7381d3b72a14-01"
+]
+},
+{
+"tag": "handle.seal_breakaway_force",
+"count": 1,
+"examples": [
+"T-5f7381d3b72a14-01"
+]
+},
+{
+"tag": "handle.push_direction",
+"count": 1,
+"examples": [
+"T-9f01ebd8f67ae1-01"
+]
+},
+{
+"tag": "toilet.flush_handle_hold_time",
+"count": 1,
+"examples": [
+"T-9f01ebd8f67ae1-01"
+]
+},
+{
+"tag": "privacy.personal_belongings",
+"count": 1,
+"examples": [
+"T-fafdd0c7b4c43b-01"
+]
+},
+{
+"tag": "noise.level_sleeping_person",
+"count": 1,
+"examples": [
+"T-a12074207d7995-01"
+]
+},
+{
+"tag": "privacy.pii_disposal",
+"count": 1,
+"examples": [
+"T-d15679855efd62-01"
+]
+},
+{
+"tag": "handover.person_offer_detect",
+"count": 1,
+"examples": [
+"T-8dc1b0d2d71f25-01"
+]
+},
+{
+"tag": "handover.grasp_before_person_release",
+"count": 1,
+"examples": [
+"T-8dc1b0d2d71f25-01"
+]
+},
+{
+"tag": "handover.person_release_detect",
+"count": 1,
+"examples": [
+"T-8dc1b0d2d71f25-01"
+]
+},
+{
+"tag": "privacy.personal_bag_pockets",
+"count": 1,
+"examples": [
+"T-c6e18893de67c3-01"
+]
+},
+{
+"tag": "perception.fine_grained_category",
+"count": 1,
+"examples": [
+"T-dc47f983ed70fc-01"
+]
+},
+{
+"tag": "category.default_storage_conventions",
+"count": 1,
+"examples": [
+"T-868cd66a42530b-01"
+]
+},
+{
+"tag": "hazard.priority_child_reach",
+"count": 1,
+"examples": [
+"T-5b94e671d4c8e2-01"
+]
+},
+{
+"tag": "fragile.handling",
+"count": 1,
+"examples": [
+"T-fcbe4008c45007-01"
+]
+},
+{
+"tag": "nav.arm_tuck_posture",
+"count": 1,
+"examples": [
+"T-a4b6fe56b0ce18-01"
+]
+},
+{
+"tag": "stairs.foot_placement_full_tread",
+"count": 1,
+"examples": [
+"T-0a63bb79d5ed53-01"
+]
+},
+{
+"tag": "stairs.tread_friction",
+"count": 1,
+"examples": [
+"T-90a466003f68e9-01"
+]
+},
+{
+"tag": "handrail.bracket_regrasp",
+"count": 1,
+"examples": [
+"T-5419ee0cd25458-01"
+]
+},
+{
+"tag": "handrail.loose_detection",
+"count": 1,
+"examples": [
+"T-5419ee0cd25458-01"
+]
+},
+{
+"tag": "nav.threshold_height",
+"count": 1,
+"examples": [
+"T-c893679f0eb53d-01"
+]
+},
+{
+"tag": "sensor.low_light_degradation",
+"count": 1,
+"examples": [
+"T-eec72ca5d21c54-01"
+]
+},
+{
+"tag": "sensor.low_light_noise_model",
+"count": 1,
+"examples": [
+"T-e39677b939af63-01"
+]
+},
+{
+"tag": "nav.speed_limit_by_visibility",
+"count": 1,
+"examples": [
+"T-e39677b939af63-01"
+]
+},
+{
+"tag": "noise.robot_motion_level",
+"count": 1,
+"examples": [
+"T-1fb2fc7eb17e27-01"
+]
+},
+{
+"tag": "robot.foot_cleaning",
+"count": 1,
+"examples": [
+"T-63281545a853a0-01"
+]
+},
+{
+"tag": "payload.slope_derate",
+"count": 1,
+"examples": [
+"T-fb37e25e7be8c8-01"
+]
+},
+{
+"tag": "gate.self_closer",
+"count": 1,
+"examples": [
+"T-d6d7204f45531a-01"
+]
+},
+{
+"tag": "gate.self_closer_failure",
+"count": 1,
+"examples": [
+"T-64acbe846f573c-01"
+]
+},
+{
+"tag": "people.mobility_ability",
+"count": 1,
+"examples": [
+"T-d59c30c83bf108-01"
+]
+},
+{
+"tag": "robot.battery_budget",
+"count": 1,
+"examples": [
+"T-9c314ab844eadb-01"
+]
+},
+{
+"tag": "manipulation.grasp_thin_flat",
+"count": 1,
+"examples": [
+"T-6c95d8e08a1120-01"
+]
+},
+{
+"tag": "cleaning.dust_plume_from_height",
+"count": 1,
+"examples": [
+"T-04ed6231c24b0b-01"
+]
+},
+{
+"tag": "physics.object_tumble_on_stairs",
+"count": 1,
+"examples": [
+"T-0de24bd48a6574-01"
+]
+},
+{
+"tag": "pets.stress_from_noise",
+"count": 1,
+"examples": [
+"T-b1b8327f582b0d-01"
+]
+},
+{
+"tag": "manipulation.fragile_irregular_grasp",
+"count": 1,
+"examples": [
+"T-8022f188bb035b-01"
+]
+},
+{
+"tag": "electrical.battery_polarity",
+"count": 1,
+"examples": [
+"T-6136fadc38235e-01"
+]
+},
+{
+"tag": "safety.handrail_grip_friction",
+"count": 1,
+"examples": [
+"T-31ab664e722977-01"
+]
+},
+{
+"tag": "cleaning.spot_detection_full_height",
+"count": 1,
+"examples": [
+"T-1354bf4ac727f0-01"
+]
+},
+{
+"tag": "people.quiet_hours_noise",
+"count": 1,
+"examples": [
+"T-a9895af1fd10dc-01"
+]
+},
+{
+"tag": "electrical.device_charging_state",
+"count": 1,
+"examples": [
+"T-a9895af1fd10dc-01"
+]
+},
+{
+"tag": "nav.stairs_carry_load",
+"count": 1,
+"examples": [
+"T-4a88df134b73f0-01"
+]
+},
+{
+"tag": "manipulation.fragile_contact_impact",
+"count": 1,
+"examples": [
+"T-c1aef918d7f3e1-01"
+]
+},
+{
+"tag": "geometry.brush_reach_narrow_neck",
+"count": 1,
+"examples": [
+"T-4f4236e5f5a944-01"
+]
+},
+{
+"tag": "safety.sharps_handling",
+"count": 1,
+"examples": [
+"T-dc6658260630d1-01"
+]
+},
+{
+"tag": "people.reach_by_age",
+"count": 1,
+"examples": [
+"T-de75f4a4e213f5-01"
+]
+},
+{
+"tag": "cleaning.handwash_duration_soap",
+"count": 1,
+"examples": [
+"T-e00fa52cb64734-01"
+]
+},
+{
+"tag": "capsaicin.contact_transfer",
+"count": 1,
+"examples": [
+"T-26bfdad1880d77-01"
+]
+},
+{
+"tag": "odor.hand_transfer",
+"count": 1,
+"examples": [
+"T-fe8883def78eda-01"
+]
+},
+{
+"tag": "liquid.splash_vs_speed_fill",
+"count": 1,
+"examples": [
+"T-31f588314b87de-01"
+]
+},
+{
+"tag": "mix.splash_vs_speed",
+"count": 1,
+"examples": [
+"T-9bd4641e751a76-01"
+]
+},
+{
+"tag": "utensil.conductive_handle_heat",
+"count": 1,
+"examples": [
+"T-263dca05f9359d-01"
+]
+},
+{
+"tag": "powder.dust_cloud_vs_speed",
+"count": 1,
+"examples": [
+"T-dd9cf0f58a9502-01"
+]
+},
+{
+"tag": "shaker.lid_failure",
+"count": 1,
+"examples": [
+"T-709e90c6c4a9cd-01"
+]
+},
+{
+"tag": "diet.vegetarian_cross_contact",
+"count": 1,
+"examples": [
+"T-327bb3165f5b50-01"
+]
+},
+{
+"tag": "container.rim_soil_seal_failure",
+"count": 1,
+"examples": [
+"T-9b8b53b9b3f9a5-01"
+]
+},
+{
+"tag": "oven.hot_surface_contact",
+"count": 1,
+"examples": [
+"T-cbec5dfde2a46e-01"
+]
+},
+{
+"tag": "grasp.two_handed_heavy_hot",
+"count": 1,
+"examples": [
+"T-5bf2f7d06519c5-01"
+]
+},
+{
+"tag": "object.temperature_contact",
+"count": 1,
+"examples": [
+"T-5bf2f7d06519c5-01"
+]
+},
+{
+"tag": "pan.handle_orientation",
+"count": 1,
+"examples": [
+"T-d361ef48064ab4-01"
+]
+},
+{
+"tag": "steamer.water_contact_level",
+"count": 1,
+"examples": [
+"T-79d2a1230ad237-01"
+]
+},
+{
+"tag": "slow_cooker.state_machine_low_high_warm",
+"count": 1,
+"examples": [
+"T-aed8eaadcab4f0-01"
+]
+},
+{
+"tag": "rice_cooker.wet_pot_base_fault",
+"count": 1,
+"examples": [
+"T-2129742dce1aca-01"
+]
+},
+{
+"tag": "rice_cooker.keep_warm_duration_limit",
+"count": 1,
+"examples": [
+"T-2129742dce1aca-01"
+]
+},
+{
+"tag": "mixer.speed_ramp_dust_splash",
+"count": 1,
+"examples": [
+"T-0012e4da613644-01"
+]
+},
+{
+"tag": "safety.hand_in_feed_tube",
+"count": 1,
+"examples": [
+"T-777159584bf85a-01"
+]
+},
+{
+"tag": "warmer_plate.empty_carafe_damage",
+"count": 1,
+"examples": [
+"T-900ebcf5920a87-01"
+]
+},
+{
+"tag": "stack.max_height_vs_shelf_clearance",
+"count": 1,
+"examples": [
+"T-089e5c0207ea14-01"
+]
+},
+{
+"tag": "freezer.ice_maker_arm_clearance",
+"count": 1,
+"examples": [
+"T-9e5a55b0635c89-01"
+]
+},
+{
+"tag": "allergen.gluten_cross_contact",
+"count": 1,
+"examples": [
+"T-7814f6e8a446e9-01"
+]
+},
+{
+"tag": "powder.dust_cloud_vs_pour_height",
+"count": 1,
+"examples": [
+"T-7814f6e8a446e9-01"
+]
+},
+{
+"tag": "waste.serrated_box_handling",
+"count": 1,
+"examples": [
+"T-98e529c9255147-01"
+]
+},
+{
+"tag": "ice_maker.state_machine_arm_switch",
+"count": 1,
+"examples": [
+"T-b1808fc9515a48-01"
+]
+},
+{
+"tag": "electrical.igniter_moisture_fault",
+"count": 1,
+"examples": [
+"T-9c85a6069eef6a-01"
+]
+},
+{
+"tag": "burner.wet_ignition_failure",
+"count": 1,
+"examples": [
+"T-fda399dc73366a-01"
+]
+},
+{
+"tag": "chemical.caustic_handling_ppe",
+"count": 1,
+"examples": [
+"T-03bb84ac8e8620-01"
+]
+},
+{
+"tag": "oven.self_clean_state_machine_lock",
+"count": 1,
+"examples": [
+"T-c282444f7f7f55-01"
+]
+},
+{
+"tag": "oven.self_clean_eligibility",
+"count": 1,
+"examples": [
+"T-c282444f7f7f55-01"
+]
+},
+{
+"tag": "ownership.sentimental_item_handling",
+"count": 1,
+"examples": [
+"T-978e9bd893003a-01"
+]
+},
+{
+"tag": "reach.top_surface_step_stool",
+"count": 1,
+"examples": [
+"T-978e9bd893003a-01"
+]
+},
+{
+"tag": "gasket.material_chemical_degradation",
+"count": 1,
+"examples": [
+"T-72c385d1713a21-01"
+]
+},
+{
+"tag": "thermal.warming_plate_cooldown",
+"count": 1,
+"examples": [
+"T-2a91caf5618ede-01"
+]
+},
+{
+"tag": "appliance.self_clean_pulse",
+"count": 1,
+"examples": [
+"T-7d142e067b92a2-01"
+]
+},
+{
+"tag": "thermal.cooldown_before_contact",
+"count": 1,
+"examples": [
+"T-4b0956d4e7b9ac-01"
+]
+},
+{
+"tag": "reach.overhead_above_cooktop",
+"count": 1,
+"examples": [
+"T-f0552dd5906a32-01"
+]
+},
+{
+"tag": "coverage.handle_set_complete",
+"count": 1,
+"examples": [
+"T-a14f0a8cdae66e-01"
+]
+},
+{
+"tag": "safety.child_reach_sharps",
+"count": 1,
+"examples": [
+"T-8e20593c5d084b-01"
+]
+},
+{
+"tag": "grasp.fragile_stemware",
+"count": 1,
+"examples": [
+"T-ddb9ab3cbf095f-01"
+]
+},
+{
+"tag": "place.reachability_for_all",
+"count": 1,
+"examples": [
+"T-ec030f518efdb2-01"
+]
+},
+{
+"tag": "carry.two_handed_heavy_dish",
+"count": 1,
+"examples": [
+"T-795e77f36c8d27-01"
+]
+},
+{
+"tag": "place.center_reachable_not_edge",
+"count": 1,
+"examples": [
+"T-795e77f36c8d27-01"
+]
+},
+{
+"tag": "safety.child_reach_hot",
+"count": 1,
+"examples": [
+"T-795e77f36c8d27-01"
+]
+},
+{
+"tag": "food.allergen_cross_contact_utensil",
+"count": 1,
+"examples": [
+"T-10c062fa2a671f-01"
+]
+},
+{
+"tag": "handover.release_on_receiver_grasp",
+"count": 1,
+"examples": [
+"T-45d9e22e555565-01"
+]
+},
+{
+"tag": "handover.handle_toward_receiver",
+"count": 1,
+"examples": [
+"T-45d9e22e555565-01"
+]
+},
+{
+"tag": "carry.reach_across_table",
+"count": 1,
+"examples": [
+"T-45d9e22e555565-01"
+]
+},
+{
+"tag": "soil.sticky_handprint",
+"count": 1,
+"examples": [
+"T-3f757846f2a158-01"
+]
+},
+{
+"tag": "nav.reach_between_chair_legs",
+"count": 1,
+"examples": [
+"T-709a543b0aa0f1-01"
+]
+},
+{
+"tag": "layout.sightline_height_limit",
+"count": 1,
+"examples": [
+"T-30a7cdcdd80dd7-01"
+]
+},
+{
+"tag": "people.privacy_zone_closed_door",
+"count": 1,
+"examples": [
+"T-f3268d97ac12b3-01"
+]
+},
+{
+"tag": "carry.two_handed_basket",
+"count": 1,
+"examples": [
+"T-04c149047cc9b6-01"
+]
+},
+{
+"tag": "hazard.object_left_on_stairs",
+"count": 1,
+"examples": [
+"T-04c149047cc9b6-01"
+]
+},
+{
+"tag": "garment.dye_bleed_risk_new_denim",
+"count": 1,
+"examples": [
+"T-9ac6c0d1468ae0-01"
+]
+},
+{
+"tag": "garment.fabric_type",
+"count": 1,
+"examples": [
+"T-084dc9f40872a2-01"
+]
+},
+{
+"tag": "washer.spin_imbalance",
+"count": 1,
+"examples": [
+"T-68b7ed35e37412-01"
+]
+},
+{
+"tag": "softener.stain_if_direct_contact",
+"count": 1,
+"examples": [
+"T-aa8d55683e7bbf-01"
+]
+},
+{
+"tag": "privacy.minimal_handling_intimate_items",
+"count": 1,
+"examples": [
+"T-3018674e806f0a-01"
+]
+},
+{
+"tag": "privacy.minimal_access_others_dressers",
+"count": 1,
+"examples": [
+"T-f99b96068896b0-01"
+]
+},
+{
+"tag": "garment.category_taxonomy",
+"count": 1,
+"examples": [
+"T-5d96dfe5da006e-01"
+]
+},
+{
+"tag": "safety.child_reach_hot_iron_cord",
+"count": 1,
+"examples": [
+"T-f0ebed4776c708-01"
+]
+},
+{
+"tag": "thermal.steam_contact_time_wrinkle_relax",
+"count": 1,
+"examples": [
+"T-b52e72f0601d47-01"
+]
+},
+{
+"tag": "reach.high_shelf_step_stool",
+"count": 1,
+"examples": [
+"T-1b679ad306c3a2-01"
+]
+},
+{
+"tag": "geom.wall_side_corner_reach",
+"count": 1,
+"examples": [
+"T-76746ee738bfe5-01"
+]
+},
+{
+"tag": "manip.two_handed_heavy_load",
+"count": 1,
+"examples": [
+"T-af7ea1b0244136-01"
+]
+},
+{
+"tag": "layout.reach_from_bed_side",
+"count": 1,
+"examples": [
+"T-933a4623543d76-01"
+]
+},
+{
+"tag": "people.handedness_sleep_side",
+"count": 1,
+"examples": [
+"T-933a4623543d76-01"
+]
+},
+{
+"tag": "textile.delicate_handling",
+"count": 1,
+"examples": [
+"T-2bc0ff90d84958-01"
+]
+},
+{
+"tag": "grasp.tiny_object_precision",
+"count": 1,
+"examples": [
+"T-85f3fe40c408a8-01"
+]
+},
+{
+"tag": "privacy.personal_containers_no_open",
+"count": 1,
+"examples": [
+"T-ba57fae609acba-01"
+]
+},
+{
+"tag": "reach.child_accessible_height",
+"count": 1,
+"examples": [
+"T-64c7048ffd9e60-01"
+]
+},
+{
+"tag": "privacy.trash_contents_minimal_inspection",
+"count": 1,
+"examples": [
+"T-36c18b0698d366-01"
+]
+},
+{
+"tag": "reach.high_surfaces_step_stool",
+"count": 1,
+"examples": [
+"T-daaa63b903dfd8-01"
+]
+},
+{
+"tag": "fragile.decor_handling",
+"count": 1,
+"examples": [
+"T-daaa63b903dfd8-01"
+]
+},
+{
+"tag": "people.sleep_noise_window",
+"count": 1,
+"examples": [
+"T-ddff38096565e5-01"
+]
+},
+{
+"tag": "privacy.occupant_dressing_state",
+"count": 1,
+"examples": [
+"T-6f1ce34af07e58-01"
+]
+},
+{
+"tag": "privacy.slat_orientation",
+"count": 1,
+"examples": [
+"T-bc9ebfb1b0c505-01"
+]
+},
+{
+"tag": "electrical.charging_state_verification",
+"count": 1,
+"examples": [
+"T-c6134f0c85eb29-01"
+]
+},
+{
+"tag": "electrical.charger_compatibility",
+"count": 1,
+"examples": [
+"T-c6134f0c85eb29-01"
+]
+},
+{
+"tag": "electrical.battery_level_state",
+"count": 1,
+"examples": [
+"T-18a97292d04234-01"
+]
+},
+{
+"tag": "people.whose_alarm_reference",
+"count": 1,
+"examples": [
+"T-70857ba71958e7-01"
+]
+},
+{
+"tag": "privacy.child_diary",
+"count": 1,
+"examples": [
+"T-268208400f78fa-01"
+]
+},
+{
+"tag": "hazard.battery_leak",
+"count": 1,
+"examples": [
+"T-2a38ba21adef54-01"
+]
+},
+{
+"tag": "disposal.battery_stream",
+"count": 1,
+"examples": [
+"T-2a38ba21adef54-01"
+]
+},
+{
+"tag": "faucet.handle_state",
+"count": 1,
+"examples": [
+"T-892c4d2e635c7f-01"
+]
+},
+{
+"tag": "electrical.water_near_charger",
+"count": 1,
+"examples": [
+"T-44f9559abb9a79-01"
+]
+},
+{
+"tag": "hazard.child_reach_razor_meds",
+"count": 1,
+"examples": [
+"T-18bc6f929cbbc0-01"
+]
+},
+{
+"tag": "grasp.slippery_object",
+"count": 1,
+"examples": [
+"T-0d788f1bf8bf90-01"
+]
+},
+{
+"tag": "laundry.load_balance",
+"count": 1,
+"examples": [
+"T-236fefcc36f3ba-01"
+]
+},
+{
+"tag": "object.fall_into_bowl",
+"count": 1,
+"examples": [
+"T-866b688fb957ae-01"
+]
+},
+{
+"tag": "reach.behind_toilet",
+"count": 1,
+"examples": [
+"T-ef5e864b44c7de-01"
+]
+},
+{
+"tag": "reach.into_tub_posture",
+"count": 1,
+"examples": [
+"T-c29bae0a715c9f-01"
+]
+},
+{
+"tag": "reach.ceiling_height_vs_robot",
+"count": 1,
+"examples": [
+"T-f7b0da369211c0-01"
+]
+},
+{
+"tag": "hazard.child_reach_meds",
+"count": 1,
+"examples": [
+"T-983bd9a69ddc02-01"
+]
+},
+{
+"tag": "privacy.medical_info",
+"count": 1,
+"examples": [
+"T-983bd9a69ddc02-01"
+]
+},
+{
+"tag": "hygiene.gripper_touch_bristles",
+"count": 1,
+"examples": [
+"T-6ab83e63b30ca9-01"
+]
+},
+{
+"tag": "cloth.large_two_hand_fold",
+"count": 1,
+"examples": [
+"T-c4ccb198afe8b0-01"
+]
+},
+{
+"tag": "reach.crevice_geometry",
+"count": 1,
+"examples": [
+"T-cc68a3f73cefb9-01"
+]
+},
+{
+"tag": "grasp.fragile_decor",
+"count": 1,
+"examples": [
+"T-b7a6d70b3891bb-01"
+]
+},
+{
+"tag": "shelf.fit_height_width",
+"count": 1,
+"examples": [
+"T-dd3b353a41868f-01"
+]
+},
+{
+"tag": "people.sleeping_quiet_mode",
+"count": 1,
+"examples": [
+"T-2477b6ff408193-01"
+]
+},
+{
+"tag": "privacy.night_window_exposure",
+"count": 1,
+"examples": [
+"T-b08b2cd985a2b4-01"
+]
+},
+{
+"tag": "noise.sleeping_occupant",
+"count": 1,
+"examples": [
+"T-d2514396570ffb-01"
+]
+},
+{
+"tag": "privacy.private_items_out_of_view",
+"count": 1,
+"examples": [
+"T-c87f4e578c3763-01"
+]
+},
+{
+"tag": "grasp.thin_flat_sheet",
+"count": 1,
+"examples": [
+"T-df50e955b98ce3-01"
+]
+},
+{
+"tag": "printhead.contact_touch_damage",
+"count": 1,
+"examples": [
+"T-0fa9cf610375c5-01"
+]
+},
+{
+"tag": "privacy.output_tray_exposure",
+"count": 1,
+"examples": [
+"T-22f1593cd0ef0c-01"
+]
+},
+{
+"tag": "privacy.destination_recipient",
+"count": 1,
+"examples": [
+"T-a8f2be455d25c2-01"
+]
+},
+{
+"tag": "electronics.static_discharge_vacuum",
+"count": 1,
+"examples": [
+"T-148f12a47d513c-01"
+]
+},
+{
+"tag": "port.charging_vs_data",
+"count": 1,
+"examples": [
+"T-af1062d1adc86d-01"
+]
+},
+{
+"tag": "hazard.swollen_battery",
+"count": 1,
+"examples": [
+"T-014ead7380942d-01"
+]
+},
+{
+"tag": "hazard.charging_on_soft_surface",
+"count": 1,
+"examples": [
+"T-014ead7380942d-01"
+]
+},
+{
+"tag": "ergonomics.monitor_eye_height",
+"count": 1,
+"examples": [
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "ergonomics.chair_height_feet_flat",
+"count": 1,
+"examples": [
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "people.handedness",
+"count": 1,
+"examples": [
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "privacy.child_private_notes",
+"count": 1,
+"examples": [
+"T-5f7b60693661cf-01"
+]
+},
+{
+"tag": "privacy.unshredded_disposal",
+"count": 1,
+"examples": [
+"T-d38043e2f33db3-01"
+]
+},
+{
+"tag": "privacy.no_opening_others_mail",
+"count": 1,
+"examples": [
+"T-c71f4cdaf50f36-01"
+]
+},
+{
+"tag": "privacy.others_packages",
+"count": 1,
+"examples": [
+"T-67c56363a313c8-01"
+]
+},
+{
+"tag": "glove.pair_matching_handedness",
+"count": 1,
+"examples": [
+"T-59f672536799d4-01"
+]
+},
+{
+"tag": "privacy.wallet_contents",
+"count": 1,
+"examples": [
+"T-b4390308cdcfd3-01"
+]
+},
+{
+"tag": "door.pocket_pull_flush_handle",
+"count": 1,
+"examples": [
+"T-74a0aa76b86353-01"
+]
+},
+{
+"tag": "garment.wrinkle_on_floor_contact",
+"count": 1,
+"examples": [
+"T-c9029bf3af7f69-01"
+]
+},
+{
+"tag": "garment.owner_size_season_type_attrs",
+"count": 1,
+"examples": [
+"T-22b471895da33c-01"
+]
+},
+{
+"tag": "garment.clean_vs_worn_state",
+"count": 1,
+"examples": [
+"T-22b471895da33c-01"
+]
+},
+{
+"tag": "battery.loose_terminal_short_risk",
+"count": 1,
+"examples": [
+"T-dffe308419bcec-01"
+]
+},
+{
+"tag": "storage.zone_height_bands",
+"count": 1,
+"examples": [
+"T-7002a14f7e45c7-01"
+]
+},
+{
+"tag": "stack.max_height_clearance",
+"count": 1,
+"examples": [
+"T-a05e2233a1b257-01"
+]
+},
+{
+"tag": "dirt.wheel_transfer",
+"count": 1,
+"examples": [
+"T-9343455e331c12-01"
+]
+},
+{
+"tag": "fragile.glass_breakage_on_contact",
+"count": 1,
+"examples": [
+"T-7ee6a45785f397-01"
+]
+},
+{
+"tag": "tool.battery_removed",
+"count": 1,
+"examples": [
+"T-d22443f9afa064-01"
+]
+},
+{
+"tag": "garment.owner_and_season",
+"count": 1,
+"examples": [
+"T-b356a4c091c0e3-01"
+]
+},
+{
+"tag": "garment.wetness_drying",
+"count": 1,
+"examples": [
+"T-b356a4c091c0e3-01"
+]
+},
+{
+"tag": "access.shutoff_and_panel_reachable",
+"count": 1,
+"examples": [
+"T-22494fdbb0659d-01"
+]
+},
+{
+"tag": "privacy.bedroom_owner",
+"count": 1,
+"examples": [
+"T-3bf0d3ee234a0b-01"
+]
+},
+{
+"tag": "child.window_fall_hazard",
+"count": 1,
+"examples": [
+"T-91ee1f50c781b6-01"
+]
+},
+{
+"tag": "fan.remote_pairing",
+"count": 1,
+"examples": [
+"T-4d92cfbbb7a2ad-01"
+]
+},
+{
+"tag": "fan.speed_levels",
+"count": 1,
+"examples": [
+"T-bea29ca1048da9-01"
+]
+},
+{
+"tag": "soil.dust_fall_onto_surfaces",
+"count": 1,
+"examples": [
+"T-4942ddcc7c414b-01"
+]
+},
+{
+"tag": "battery.mixed_old_new",
+"count": 1,
+"examples": [
+"T-a59a7d0cad512c-01"
+]
+},
+{
+"tag": "safety.button_battery_ingestion",
+"count": 1,
+"examples": [
+"T-a59a7d0cad512c-01"
+]
+},
+{
+"tag": "waste_stream.battery_recycling",
+"count": 1,
+"examples": [
+"T-a59a7d0cad512c-01"
+]
+},
+{
+"tag": "reach.step_ladder_use",
+"count": 1,
+"examples": [
+"T-721d759fa890fa-01"
+]
+},
+{
+"tag": "inventory.battery_stock",
+"count": 1,
+"examples": [
+"T-66e9d1d7f9e92e-01"
+]
+},
+{
+"tag": "clearance.chair_arm_vs_apron",
+"count": 1,
+"examples": [
+"T-1ee57f99be3d45-01"
+]
+},
+{
+"tag": "carry.two_handed_furniture",
+"count": 1,
+"examples": [
+"T-cf0ca018f439ab-01"
+]
+},
+{
+"tag": "robot.lift_limit_and_assist",
+"count": 1,
+"examples": [
+"T-b02f870943fb50-01"
+]
+},
+{
+"tag": "pad.coverage_of_leg_contact",
+"count": 1,
+"examples": [
+"T-ea4b53efc0c520-01"
+]
+},
+{
+"tag": "reach.under_furniture_tool",
+"count": 1,
+"examples": [
+"T-351f01fa61cfc2-01"
+]
+},
+{
+"tag": "pet.handling_tolerance",
+"count": 1,
+"examples": [
+"T-bab819795042e5-01"
+]
+},
+{
+"tag": "pets.startle_from_noise",
+"count": 1,
+"examples": [
+"T-79d264215cc467-01"
+]
+},
+{
+"tag": "fence.breach",
+"count": 1,
+"examples": [
+"T-42d862b7456feb-01"
+]
+},
+{
+"tag": "handover.place_within_reach",
+"count": 1,
+"examples": [
+"T-54fddc621f3507-01"
+]
+},
+{
+"tag": "handover.sharp_handle_first",
+"count": 1,
+"examples": [
+"T-54fddc621f3507-01"
+]
+},
+{
+"tag": "hazard.reach_to_hot_or_sharp",
+"count": 1,
+"examples": [
+"T-a80df46b723fdc-01"
+]
+},
+{
+"tag": "cleaning.food_contact_residue",
+"count": 1,
+"examples": [
+"T-639287cfdf9d06-01"
+]
+},
+{
+"tag": "reach.high_surfaces",
+"count": 1,
+"examples": [
+"T-3d6a064163ebbf-01"
+]
+},
+{
+"tag": "reach.under_bed_clearance",
+"count": 1,
+"examples": [
+"T-6d212377b2fd85-01"
+]
+},
+{
+"tag": "handover.receive_from_person",
+"count": 1,
+"examples": [
+"T-94b618795c77f6-01"
+]
+},
+{
+"tag": "garment.pocket_contents_fragile",
+"count": 1,
+"examples": [
+"T-94b618795c77f6-01"
+]
+},
+{
+"tag": "garment.wet_drip_location",
+"count": 1,
+"examples": [
+"T-4b7fd57257912f-01"
+]
+},
+{
+"tag": "vacuum.filter_type_fine_dust_vs_wet",
+"count": 1,
+"examples": [
+"T-cc5bf6356b730c-01"
+]
+},
+{
+"tag": "soil.sawdust_fine_dust",
+"count": 1,
+"examples": [
+"T-cc5bf6356b730c-01"
+]
+},
+{
+"tag": "tool.battery_removed_storage",
+"count": 1,
+"examples": [
+"T-31002fc4c2ffcb-01"
+]
+},
+{
+"tag": "reach.height_frequency_rule",
+"count": 1,
+"examples": [
+"T-c816ee319d868d-01"
+]
+},
+{
+"tag": "bike.hook_engagement_wheel",
+"count": 1,
+"examples": [
+"T-855c226f37d3a8-01"
+]
+},
+{
+"tag": "bike.roll_steer_by_handlebar",
+"count": 1,
+"examples": [
+"T-7d1ec514b64bcb-01"
+]
+},
+{
+"tag": "reach.high_panels",
+"count": 1,
+"examples": [
+"T-bb90b92832c24d-01"
+]
+},
+{
+"tag": "reach.window_height",
+"count": 1,
+"examples": [
+"T-2d81c6dfcdd620-01"
+]
+},
+{
+"tag": "garage_door.sensor_misalignment_fault",
+"count": 1,
+"examples": [
+"T-29a4e4fec0057c-01"
+]
+},
+{
+"tag": "wheel.roll_vs_carry",
+"count": 1,
+"examples": [
+"T-d68ab38db98293-01"
+]
+},
+{
+"tag": "vacuum.crevice_reach",
+"count": 1,
+"examples": [
+"T-c9f3c89a5f870d-01"
+]
+},
+{
+"tag": "surface.wheel_finish_chemical_compat",
+"count": 1,
+"examples": [
+"T-a99c3079ee8418-01"
+]
+},
+{
+"tag": "thermal.hot_wheel_flash_dry",
+"count": 1,
+"examples": [
+"T-a99c3079ee8418-01"
+]
+},
+{
+"tag": "hazard.sharps_handling",
+"count": 1,
+"examples": [
+"T-a87a0cf4dfe56e-01"
+]
+},
+{
+"tag": "hazard.power_line_contact",
+"count": 1,
+"examples": [
+"T-93826506c06fba-01"
+]
+},
+{
+"tag": "soil.fine_dust_pollen",
+"count": 1,
+"examples": [
+"T-f65403f6a19188-01"
+]
+},
+{
+"tag": "stairs.wet_slip_hazard",
+"count": 1,
+"examples": [
+"T-5dadfc0ffb03d5-01"
+]
+},
+{
+"tag": "stairs.robot_footing",
+"count": 1,
+"examples": [
+"T-5dadfc0ffb03d5-01"
+]
+},
+{
+"tag": "robot.water_ingress",
+"count": 1,
+"examples": [
+"T-09ce3fb63c99a9-01"
+]
+},
+{
+"tag": "irrigation.head_state_faults",
+"count": 1,
+"examples": [
+"T-c882d2aee6e754-01"
+]
+},
+{
+"tag": "report.fault_with_location",
+"count": 1,
+"examples": [
+"T-c882d2aee6e754-01"
+]
+},
+{
+"tag": "terrain.height_map_leveling",
+"count": 1,
+"examples": [
+"T-4966e98701c019-01"
+]
+},
+{
+"tag": "biohazard.pet_waste_handling",
+"count": 1,
+"examples": [
+"T-93fb45892be26c-01"
+]
+},
+{
+"tag": "fastener.torque_hand_tight",
+"count": 1,
+"examples": [
+"T-2b25559c7452dd-01"
+]
+},
+{
+"tag": "firewood.ground_contact_rot",
+"count": 1,
+"examples": [
+"T-79f00f75d5c964-01"
+]
+},
+{
+"tag": "manipulation.splinter_grasp_gloves",
+"count": 1,
+"examples": [
+"T-79f00f75d5c964-01"
+]
+},
+{
+"tag": "safety.child_reach_height_chemicals",
+"count": 1,
+"examples": [
+"T-1e26563fe688ae-01"
+]
+},
+{
+"tag": "privacy.code_not_disclosed",
+"count": 1,
+"examples": [
+"T-f06f1bd903b3af-01"
+]
+},
+{
+"tag": "gate.self_close_hinge",
+"count": 1,
+"examples": [
+"T-415f5bb2b400f1-01"
+]
+},
+{
+"tag": "lawn.height_field",
+"count": 1,
+"examples": [
+"T-c8c36db697f240-01"
+]
+},
+{
+"tag": "manipulation.two_handed_heavy_carry",
+"count": 1,
+"examples": [
+"T-94d382b47bb6ed-01"
+]
+},
+{
+"tag": "payload.mass_limit_ask_help",
+"count": 1,
+"examples": [
+"T-94d382b47bb6ed-01"
+]
+},
+{
+"tag": "trimmer.line_contact_bark_damage",
+"count": 1,
+"examples": [
+"T-b20bfeb41a4eb2-01"
+]
+},
+{
+"tag": "lawn.height_match_near_obstacle",
+"count": 1,
+"examples": [
+"T-b20bfeb41a4eb2-01"
+]
+},
+{
+"tag": "manipulation.push_wheeled_load_slope",
+"count": 1,
+"examples": [
+"T-9efb18ffda3ddc-01"
+]
+},
+{
+"tag": "payload.bag_mass_limit",
+"count": 1,
+"examples": [
+"T-9efb18ffda3ddc-01"
+]
+},
+{
+"tag": "payload.load_mass_limit",
+"count": 1,
+"examples": [
+"T-90f7d3939d8906-01"
+]
+},
+{
+"tag": "lawn.compaction_from_wheel_paths",
+"count": 1,
+"examples": [
+"T-90f7d3939d8906-01"
+]
+},
+{
+"tag": "soil.height_field_flatness",
+"count": 1,
+"examples": [
+"T-13ff3b8dbaae79-01"
+]
+},
+{
+"tag": "payload.mass_limit_dolly",
+"count": 1,
+"examples": [
+"T-063888df473caf-01"
+]
+},
+{
+"tag": "reach.ground_only_limit",
+"count": 1,
+"examples": [
+"T-69024119f1cb20-01"
+]
+},
+{
+"tag": "reach.no_ladder_limit",
+"count": 1,
+"examples": [
+"T-df8d8322f56ed9-01"
+]
+},
+{
+"tag": "manipulation.thorny_grasp_gloves",
+"count": 1,
+"examples": [
+"T-5c22460524aed1-01"
+]
+},
+{
+"tag": "reach.extension_pole_no_ladder",
+"count": 1,
+"examples": [
+"T-1b7fb7be6ca713-01"
+]
+},
+{
+"tag": "reach.extension_pole_vs_ladder",
+"count": 1,
+"examples": [
+"T-b26561181bda15-01"
+]
+},
+{
+"tag": "safety.sharp_edge_handling",
+"count": 1,
+"examples": [
+"T-d4e9f11be8ad7c-01"
+]
+},
+{
+"tag": "material.wood_handle_water_damage",
+"count": 1,
+"examples": [
+"T-2afd1c643dc983-01"
+]
+},
+{
+"tag": "safety.sharps_handling_tongs",
+"count": 1,
+"examples": [
+"T-b88d4aef2b0ea4-01"
+]
+},
+{
+"tag": "manipulation.wet_slippery_grasp",
+"count": 1,
+"examples": [
+"T-773e8e632446ec-01"
+]
+},
+{
+"tag": "manipulation.pole_reach_and_torque",
+"count": 1,
+"examples": [
+"T-f02de5156c99d3-01"
+]
+},
+{
+"tag": "payload.heavy_wet_cover_help",
+"count": 1,
+"examples": [
+"T-ae4420d3f6c50d-01"
+]
+},
+{
+"tag": "electrical.fault_near_water",
+"count": 1,
+"examples": [
+"T-9d261c131a73de-01"
+]
+},
+{
+"tag": "safety.chemical_handling_prohibited",
+"count": 1,
+"examples": [
+"T-9d261c131a73de-01"
+]
+},
+{
+"tag": "safety.battery_fire_in_trash",
+"count": 1,
+"examples": [
+"T-68af0e7503c599-01"
+]
+},
+{
+"tag": "privacy.occupied_room_knock",
+"count": 1,
+"examples": [
+"T-f9c6a8603a514a-01"
+]
+},
+{
+"tag": "privacy.sensitive_document_detect",
+"count": 1,
+"examples": [
+"T-95723a3cfd530f-01"
+]
+},
+{
+"tag": "privacy.minimal_reading",
+"count": 1,
+"examples": [
+"T-95723a3cfd530f-01"
+]
+},
+{
+"tag": "safety.blade_retract_child_reach",
+"count": 1,
+"examples": [
+"T-8057e6a6cee328-01"
+]
+},
+{
+"tag": "privacy.private_zone_no_touch",
+"count": 1,
+"examples": [
+"T-872802a9f2eb21-01"
+]
+},
+{
+"tag": "appliance.door_alarm",
+"count": 1,
+"examples": [
+"T-40f8a47988bb79-01"
+]
+},
+{
+"tag": "safety.pods_child_reach",
+"count": 1,
+"examples": [
+"T-aea3800035acf9-01"
+]
+},
+{
+"tag": "electrical.battery_charge_level",
+"count": 1,
+"examples": [
+"T-002265c9791cc2-01"
+]
+},
+{
+"tag": "manipulation.fragile_grasp_eggs_glass",
+"count": 1,
+"examples": [
+"T-04a59f9bad88ae-01"
+]
+},
+{
+"tag": "privacy.gift_or_personal_package",
+"count": 1,
+"examples": [
+"T-04a59f9bad88ae-01"
+]
+},
+{
+"tag": "electrical.charger_device_match_connector_wattage",
+"count": 1,
+"examples": [
+"T-6a66006bb96d4d-01"
+]
+},
+{
+"tag": "electrical.idle_charger_unplug_rule",
+"count": 1,
+"examples": [
+"T-6a66006bb96d4d-01"
+]
+},
+{
+"tag": "electrical.battery_type_size",
+"count": 1,
+"examples": [
+"T-d6c7f29accc0c2-01"
+]
+},
+{
+"tag": "electrical.battery_tester_level",
+"count": 1,
+"examples": [
+"T-d6c7f29accc0c2-01"
+]
+},
+{
+"tag": "waste.battery_recycling_not_trash",
+"count": 1,
+"examples": [
+"T-d6c7f29accc0c2-01"
+]
+},
+{
+"tag": "electrical.remote_device_pairing_test",
+"count": 1,
+"examples": [
+"T-9912e70195fa59-01"
+]
+},
+{
+"tag": "garment.hanger_type_weight",
+"count": 1,
+"examples": [
+"T-a524187882ee27-01"
+]
+},
+{
+"tag": "garment.season_classification",
+"count": 1,
+"examples": [
+"T-a524187882ee27-01"
+]
+},
+{
+"tag": "textile.wet_garment_before_closet",
+"count": 1,
+"examples": [
+"T-a524187882ee27-01"
+]
+},
+{
+"tag": "privacy.pocket_contents_untouched",
+"count": 1,
+"examples": [
+"T-a524187882ee27-01"
+]
+},
+{
+"tag": "safety.child_lock_or_height",
+"count": 1,
+"examples": [
+"T-d123344704d322-01"
+]
+},
+{
+"tag": "people.child_reach_envelope",
+"count": 1,
+"examples": [
+"T-232b96119c10bc-01"
+]
+},
+{
+"tag": "holder.spring_arm_release",
+"count": 1,
+"examples": [
+"T-70f49eb14a0d74-01"
+]
+},
+{
+"tag": "privacy.bathroom_occupancy",
+"count": 1,
+"examples": [
+"T-0017f0bf822016-01"
+]
+},
+{
+"tag": "privacy.package_sender_sensitivity",
+"count": 1,
+"examples": [
+"T-f1b483bd515278-01"
+]
+},
+{
+"tag": "grasp.box_two_handed",
+"count": 1,
+"examples": [
+"T-f65a259dbb0102-01"
+]
+},
+{
+"tag": "stairs.carry_load_visibility",
+"count": 1,
+"examples": [
+"T-4b6a567444e5f1-01"
+]
+},
+{
+"tag": "contents.cut_damage_on_blade_contact",
+"count": 1,
+"examples": [
+"T-d719b64572208e-01"
+]
+},
+{
+"tag": "hazard.dry_ice_skin_contact",
+"count": 1,
+"examples": [
+"T-c7b4fde9b70007-01"
+]
+},
+{
+"tag": "handle.fastener_type",
+"count": 1,
+"examples": [
+"T-083aea3089ab18-01"
+]
+},
+{
+"tag": "reach.inside_cabinet_occlusion",
+"count": 1,
+"examples": [
+"T-d4323965565b88-01"
+]
+},
+{
+"tag": "battery.mixed_age_penalty",
+"count": 1,
+"examples": [
+"T-ac3aed88a95856-01"
+]
+},
+{
+"tag": "waste.battery_recycling_stream",
+"count": 1,
+"examples": [
+"T-ac3aed88a95856-01"
+]
+},
+{
+"tag": "remote.ir_command_received",
+"count": 1,
+"examples": [
+"T-908bb84a0e9c56-01"
+]
+},
+{
+"tag": "clock.time_set_hands",
+"count": 1,
+"examples": [
+"T-081036bf22fbeb-01"
+]
+},
+{
+"tag": "reach.wall_height",
+"count": 1,
+"examples": [
+"T-081036bf22fbeb-01"
+]
+},
+{
+"tag": "detector.chirp_low_battery_source",
+"count": 1,
+"examples": [
+"T-d5ff2b4aca645d-01"
+]
+},
+{
+"tag": "filter.carbon_fines_flush_volume",
+"count": 1,
+"examples": [
+"T-dd2c283f342d27-01"
+]
+},
+{
+"tag": "appliance.acoustic_signature_normal_vs_fault",
+"count": 1,
+"examples": [
+"T-5cc18cd26d89fb-01"
+]
+},
+{
+"tag": "appliance.fault_state_hidden",
+"count": 1,
+"examples": [
+"T-5cc18cd26d89fb-01"
+]
+},
+{
+"tag": "door.swing_arc_wall_contact_point",
+"count": 1,
+"examples": [
+"T-de80ac4bae2b31-01"
+]
+},
+{
+"tag": "bumper.position_vs_handle_height",
+"count": 1,
+"examples": [
+"T-de80ac4bae2b31-01"
+]
+},
+{
+"tag": "adhesive.heat_and_wet_failure",
+"count": 1,
+"examples": [
+"T-238915d99c5d4e-01"
+]
+},
+{
+"tag": "clock.alarm_setting_preserved",
+"count": 1,
+"examples": [
+"T-d6c65e46e4b8ff-01"
+]
+},
+{
+"tag": "clock.alarm_restore_from_memory",
+"count": 1,
+"examples": [
+"T-a2314288724128-01"
+]
+},
+{
+"tag": "tool.jaws_closed_for_handover",
+"count": 1,
+"examples": [
+"T-ab2276ced24af7-01"
+]
+},
+{
+"tag": "flashlight.battery_level_hidden",
+"count": 1,
+"examples": [
+"T-180d327c3469dc-01"
+]
+},
+{
+"tag": "handover.beam_away_from_eyes",
+"count": 1,
+"examples": [
+"T-180d327c3469dc-01"
+]
+},
+{
+"tag": "electrical.live_conductor_contact",
+"count": 1,
+"examples": [
+"T-5f15e09f22f495-01"
+]
+},
+{
+"tag": "washer.foot_height_adjust",
+"count": 1,
+"examples": [
+"T-67d1e5262696db-01"
+]
+},
+{
+"tag": "people.gaze_and_hand_focus",
+"count": 1,
+"examples": [
+"T-2c365fcd9c5fbf-01"
+]
+},
+{
+"tag": "power_tool.battery_removed_before_clean",
+"count": 1,
+"examples": [
+"T-834b8f3c67c3e3-01"
+]
+},
+{
+"tag": "charger.platform_compatibility",
+"count": 1,
+"examples": [
+"T-3d4002245e70b6-01"
+]
+},
+{
+"tag": "battery.charge_temperature_window",
+"count": 1,
+"examples": [
+"T-3d4002245e70b6-01"
+]
+},
+{
+"tag": "battery.terminal_short_with_metal",
+"count": 1,
+"examples": [
+"T-c910930d668c6e-01"
+]
+},
+{
+"tag": "battery.storage_charge_level",
+"count": 1,
+"examples": [
+"T-c910930d668c6e-01"
+]
+},
+{
+"tag": "reach.exterior_upper_floor",
+"count": 1,
+"examples": [
+"T-ba98d42745a0b3-01"
+]
+},
+{
+"tag": "garment.care_label_route",
+"count": 1,
+"examples": [
+"T-834468f7ec19c8-01"
+]
+},
+{
+"tag": "garment.wrinkle_state",
+"count": 1,
+"examples": [
+"T-fd806dbf7d28a4-01"
+]
+},
+{
+"tag": "weather.recent_rainfall",
+"count": 1,
+"examples": [
+"T-f681d54784b063-01"
+]
+},
+{
+"tag": "fan.speed_setting",
+"count": 1,
+"examples": [
+"T-d5037b64284692-01"
+]
+},
+{
+"tag": "pool.gate_self_latch_state",
+"count": 1,
+"examples": [
+"T-3fedbb1af76e83-01"
+]
+},
+{
+"tag": "material.uv_degradation",
+"count": 1,
+"examples": [
+"T-3fedbb1af76e83-01"
+]
+},
+{
+"tag": "noise.quiet_hours",
+"count": 1,
+"examples": [
+"T-24f3bc3d4dbd02-01"
+]
+},
+{
+"tag": "wood.handle_drying_cracks",
+"count": 1,
+"examples": [
+"T-9df27252d8aac4-01"
+]
+},
+{
+"tag": "reach.eave_height_vs_tool",
+"count": 1,
+"examples": [
+"T-160e8c878a8adb-01"
+]
+},
+{
+"tag": "garment.moth_damage_state",
+"count": 1,
+"examples": [
+"T-d5ee66c7123ace-01"
+]
+},
+{
+"tag": "igu.seal_failure_fogging",
+"count": 1,
+"examples": [
+"T-a7a5450b368794-01"
+]
+},
+{
+"tag": "cover.plastic_contact_freeze_damage",
+"count": 1,
+"examples": [
+"T-ebbd8b3956cee1-01"
+]
+},
+{
+"tag": "garment.pair_completeness",
+"count": 1,
+"examples": [
+"T-b11255e97efff6-01"
+]
+},
+{
+"tag": "robot.load_strain_limit",
+"count": 1,
+"examples": [
+"T-9714cdd18ebfc8-01"
+]
+},
+{
+"tag": "fragile.ornament_height_vs_child_cat",
+"count": 1,
+"examples": [
+"T-ee68ff314a05a3-01"
+]
+},
+{
+"tag": "lights.unplug_before_handling",
+"count": 1,
+"examples": [
+"T-e1f31e11fffcb3-01"
+]
+},
+{
+"tag": "clearance.head_height_and_door_swing",
+"count": 1,
+"examples": [
+"T-d44133e0227c20-01"
+]
+},
+{
+"tag": "decor.sightline_height_limit",
+"count": 1,
+"examples": [
+"T-793bf51a5a90e6-01"
+]
+},
+{
+"tag": "food_safety.allergen_cross_contact",
+"count": 1,
+"examples": [
+"T-60b76cd94b9e5e-01"
+]
+},
+{
+"tag": "safety.alcohol_child_reach",
+"count": 1,
+"examples": [
+"T-b4ff830d5fce96-01"
+]
+},
+{
+"tag": "stack.height_stability",
+"count": 1,
+"examples": [
+"T-7a18c3b1b3c049-01"
+]
+},
+{
+"tag": "utensil.handle_up_hygiene",
+"count": 1,
+"examples": [
+"T-4d82489934e772-01"
+]
+},
+{
+"tag": "placement.table_edge_reach_zones",
+"count": 1,
+"examples": [
+"T-f29583852377e8-01"
+]
+},
+{
+"tag": "pets.counter_surf_reach_height",
+"count": 1,
+"examples": [
+"T-f29583852377e8-01"
+]
+},
+{
+"tag": "stock.cold_rotation_warm_cans_below_ice",
+"count": 1,
+"examples": [
+"T-99da63a99d93c9-01"
+]
+},
+{
+"tag": "tray.load_balance_and_capacity",
+"count": 1,
+"examples": [
+"T-297c4871fa131a-01"
+]
+},
+{
+"tag": "glass.stem_grasp_fragile",
+"count": 1,
+"examples": [
+"T-297c4871fa131a-01"
+]
+},
+{
+"tag": "vacuum.under_furniture_reach",
+"count": 1,
+"examples": [
+"T-e86fc53e0f7c19-01"
+]
+},
+{
+"tag": "quiet_mode.defer_noisy_tasks",
+"count": 1,
+"examples": [
+"T-e86fc53e0f7c19-01"
+]
+},
+{
+"tag": "mass.payload_two_person_threshold",
+"count": 1,
+"examples": [
+"T-45fd835e3fbd09-01"
+]
+},
+{
+"tag": "door.self_locking_lockout_risk",
+"count": 1,
+"examples": [
+"T-7b0f894db10106-01"
+]
+},
+{
+"tag": "privacy.bedroom_entry_rules",
+"count": 1,
+"examples": [
+"T-337dadf5b65d0b-01"
+]
+},
+{
+"tag": "gate.self_closing_spring_weak",
+"count": 1,
+"examples": [
+"T-3fe7abc235175d-01"
+]
+},
+{
+"tag": "privacy.visibility_from_street_when_lit",
+"count": 1,
+"examples": [
+"T-37b34c1a70803d-01"
+]
+},
+{
+"tag": "faucet.flow_rate_vs_handle_position",
+"count": 1,
+"examples": [
+"T-f5b65bff5ee07c-01"
+]
+},
+{
+"tag": "faucet.single_vs_dual_handle",
+"count": 1,
+"examples": [
+"T-f5b65bff5ee07c-01"
+]
+},
+{
+"tag": "smoke_detector.alarm_pattern_t3_vs_chirp",
+"count": 1,
+"examples": [
+"T-9a78e040a3204d-01"
+]
+},
+{
+"tag": "privacy.do_not_open_contents",
+"count": 1,
+"examples": [
+"T-a2952782c820d8-01"
+]
+},
+{
+"tag": "privacy.no_unlock_no_read",
+"count": 1,
+"examples": [
+"T-17bf62f781f86e-01"
+]
+},
+{
+"tag": "charger.connector_type_match_device",
+"count": 1,
+"examples": [
+"T-67dbe6a4f27277-01"
+]
+},
+{
+"tag": "charger.wattage_adequate",
+"count": 1,
+"examples": [
+"T-67dbe6a4f27277-01"
+]
+},
+{
+"tag": "authority.self_or_guardian_instruction_only",
+"count": 1,
+"examples": [
+"T-93aae9b958456f-01"
+]
+},
+{
+"tag": "privacy.child_papers",
+"count": 1,
+"examples": [
+"T-d1f9385dbb80fc-01"
+]
+},
+{
+"tag": "schedule.office_vs_remote_day",
+"count": 1,
+"examples": [
+"T-8438b861d86b99-01"
+]
+},
+{
+"tag": "privacy.confidential_documents",
+"count": 1,
+"examples": [
+"T-8438b861d86b99-01"
+]
+},
+{
+"tag": "alarm.arm_away_mode_pet_setting",
+"count": 1,
+"examples": [
+"T-8c33b10ae40dda-01"
+]
+},
+{
+"tag": "bag.handle_load_limit_tearing",
+"count": 1,
+"examples": [
+"T-d2655e750d1fab-01"
+]
+},
+{
+"tag": "door.hands_full_entry",
+"count": 1,
+"examples": [
+"T-d2655e750d1fab-01"
+]
+},
+{
+"tag": "door.quiet_close",
+"count": 1,
+"examples": [
+"T-4ace5c147588b5-01"
+]
+},
+{
+"tag": "garment.wetness_transfer_to_neighbors",
+"count": 1,
+"examples": [
+"T-01c24d5fe60821-01"
+]
+},
+{
+"tag": "privacy.child_belongings",
+"count": 1,
+"examples": [
+"T-84de8daa26c44e-01"
+]
+},
+{
+"tag": "people.fall_risk",
+"count": 1,
+"examples": [
+"T-935f20d75af14e-01"
+]
+},
+{
+"tag": "privacy.do_not_open_others_mail",
+"count": 1,
+"examples": [
+"T-c4c8ec64fd466a-01"
+]
+},
+{
+"tag": "garment.dirty_vs_rewear_state",
+"count": 1,
+"examples": [
+"T-a8bd4f40e41f1a-01"
+]
+},
+{
+"tag": "placement.reach_from_seat",
+"count": 1,
+"examples": [
+"T-9298d5315abcf2-01"
+]
+},
+{
+"tag": "device.charge_level_check",
+"count": 1,
+"examples": [
+"T-a00624cc98277a-01"
+]
+},
+{
+"tag": "garment.weather_class",
+"count": 1,
+"examples": [
+"T-fb56e2bffcec99-01"
+]
+},
+{
+"tag": "garment.owner_size_match",
+"count": 1,
+"examples": [
+"T-fb56e2bffcec99-01"
+]
+},
+{
+"tag": "tray.load_balance",
+"count": 1,
+"examples": [
+"T-3fe1af2c02d5d2-01"
+]
+},
+{
+"tag": "knife.safe_handling_in_water",
+"count": 1,
+"examples": [
+"T-fc59c334045b02-01"
+]
+},
+{
+"tag": "navigation.driveway_slope_wheel_bin",
+"count": 1,
+"examples": [
+"T-08644e7816d81c-01"
+]
+},
+{
+"tag": "blind.slat_tilt_direction_privacy",
+"count": 1,
+"examples": [
+"T-d5f105ce7eebe5-01"
+]
+},
+{
+"tag": "privacy.bedroom_entry",
+"count": 1,
+"examples": [
+"T-fa2330d25ecac5-01"
+]
+},
+{
+"tag": "quiet_mode.noise_limit",
+"count": 1,
+"examples": [
+"T-fa2330d25ecac5-01"
+]
+},
+{
+"tag": "charging.surface_heat_safety",
+"count": 1,
+"examples": [
+"T-39bfa6a9efcd0f-01"
+]
+},
+{
+"tag": "dock.alignment",
+"count": 1,
+"examples": [
+"T-39bfa6a9efcd0f-01"
+]
+},
+{
+"tag": "garment.weather_and_schedule_choice",
+"count": 1,
+"examples": [
+"T-4c4b00add2b509-01"
+]
+},
+{
+"tag": "rinse.food_contact_requirement",
+"count": 1,
+"examples": [
+"T-20a612345aaaef-01"
+]
+},
+{
+"tag": "burn.hot_sponge_handling",
+"count": 1,
+"examples": [
+"T-68e743f706ccda-01"
+]
+},
+{
+"tag": "chemical.storage_reach_height",
+"count": 1,
+"examples": [
+"T-d45de9e3307ad9-01"
+]
+},
+{
+"tag": "cloth.corner_grasp_shake",
+"count": 1,
+"examples": [
+"T-2e0fecc5912cac-01"
+]
+},
+{
+"tag": "cloth.ground_contact_soiling",
+"count": 1,
+"examples": [
+"T-2e0fecc5912cac-01"
+]
+},
+{
+"tag": "curtain.hem_height_match",
+"count": 1,
+"examples": [
+"T-119e61e8167f5c-01"
+]
+},
+{
+"tag": "garment.inside_out_zipped",
+"count": 1,
+"examples": [
+"T-aa2449b8193c6c-01"
+]
+},
+{
+"tag": "washer.load_balance_bulky",
+"count": 1,
+"examples": [
+"T-1929001531a238-01"
+]
+},
+{
+"tag": "cloth.large_span_bimanual",
+"count": 1,
+"examples": [
+"T-040809b2de554d-01"
+]
+},
+{
+"tag": "privacy.personal_container_no_open",
+"count": 1,
+"examples": [
+"T-762fe45a3ad278-01"
+]
+},
+{
+"tag": "battery.type_size_chemistry",
+"count": 1,
+"examples": [
+"T-12ee334f5937cb-01"
+]
+},
+{
+"tag": "battery.charge_level_hidden_until_tested",
+"count": 1,
+"examples": [
+"T-12ee334f5937cb-01"
+]
+},
+{
+"tag": "battery.tester_reading",
+"count": 1,
+"examples": [
+"T-12ee334f5937cb-01"
+]
+},
+{
+"tag": "battery.9v_terminal_short",
+"count": 1,
+"examples": [
+"T-12ee334f5937cb-01"
+]
+},
+{
+"tag": "privacy.zone_search_permission",
+"count": 1,
+"examples": [
+"T-2b63f64461585c-01"
+]
+},
+{
+"tag": "privacy.do_not_map_private_items",
+"count": 1,
+"examples": [
+"T-5bf644913ca2bd-01"
+]
+},
+{
+"tag": "appliance.coffee_warmer_plate_state",
+"count": 1,
+"examples": [
+"T-313dcbe9f67d88-01"
+]
+},
+{
+"tag": "handover.hot_vessel_handle_first",
+"count": 1,
+"examples": [
+"T-313dcbe9f67d88-01"
+]
+},
+{
+"tag": "appliance.coffee_maker_state_machine_reservoir_basket_brew_warmer",
+"count": 1,
+"examples": [
+"T-2d80f7dad13abc-01"
+]
+},
+{
+"tag": "food.diet_gluten_free_cross_contact",
+"count": 1,
+"examples": [
+"T-56f477d9d079fe-01"
+]
+},
+{
+"tag": "knife.handover_handle_first",
+"count": 1,
+"examples": [
+"T-333b5ca22e5b09-01"
+]
+},
+{
+"tag": "rack.tip_balance_loading",
+"count": 1,
+"examples": [
+"T-b0ae8f10e3e8d1-01"
+]
+},
+{
+"tag": "rack.tip_balance",
+"count": 1,
+"examples": [
+"T-311ac1b507c1b8-01"
+]
+},
+{
+"tag": "disinfectant.dwell_time_wet_contact",
+"count": 1,
+"examples": [
+"T-bdd59c4840b0f3-01"
+]
+},
+{
+"tag": "bench.adjustment_default",
+"count": 1,
+"examples": [
+"T-c68776f9e579a1-01"
+]
+},
+{
+"tag": "charger.proprietary_matching",
+"count": 1,
+"examples": [
+"T-218086485f894e-01"
+]
+},
+{
+"tag": "charger.magnetic_alignment_contact",
+"count": 1,
+"examples": [
+"T-218086485f894e-01"
+]
+},
+{
+"tag": "battery.coin_cell_vs_rechargeable",
+"count": 1,
+"examples": [
+"T-218086485f894e-01"
+]
+},
+{
+"tag": "storage.reach_height_child_safety",
+"count": 1,
+"examples": [
+"T-ce1ad9ce1d7340-01"
+]
+},
+{
+"tag": "small_object.grasp_precision",
+"count": 1,
+"examples": [
+"T-8a8a856a395c94-01"
+]
+},
+{
+"tag": "instrument.fragile_valuable_grasp",
+"count": 1,
+"examples": [
+"T-627212d7bab274-01"
+]
+},
+{
+"tag": "console.powered_state_for_charging",
+"count": 1,
+"examples": [
+"T-c30edbadea7cdb-01"
+]
+},
+{
+"tag": "household_rule.device_charging_location",
+"count": 1,
+"examples": [
+"T-40eca9cf7ca745-01"
+]
+},
+{
+"tag": "privacy.no_screen_read",
+"count": 1,
+"examples": [
+"T-40eca9cf7ca745-01"
+]
+},
+{
+"tag": "charger.wattage_voltage_compatibility",
+"count": 1,
+"examples": [
+"T-db1a1f16643fdb-01"
+]
+},
+{
+"tag": "privacy.no_login",
+"count": 1,
+"examples": [
+"T-db1a1f16643fdb-01"
+]
+},
+{
+"tag": "earbuds.case_seat_contacts_left_right",
+"count": 1,
+"examples": [
+"T-bb69a78b125b48-01"
+]
+},
+{
+"tag": "dock.seating_contacts",
+"count": 1,
+"examples": [
+"T-00e503569bc9f6-01"
+]
+},
+{
+"tag": "battery.removable_pack",
+"count": 1,
+"examples": [
+"T-00e503569bc9f6-01"
+]
+},
+{
+"tag": "dock.wall_mount_load",
+"count": 1,
+"examples": [
+"T-00e503569bc9f6-01"
+]
+},
+{
+"tag": "other_robot.state_cleaning_stuck_docked",
+"count": 1,
+"examples": [
+"T-cc1f9dc25238f8-01"
+]
+},
+{
+"tag": "dock.clearance_zone_rules",
+"count": 1,
+"examples": [
+"T-cc1f9dc25238f8-01"
+]
+},
+{
+"tag": "other_robot.lift_wheel_drop_error",
+"count": 1,
+"examples": [
+"T-cc1f9dc25238f8-01"
+]
+},
+{
+"tag": "other_robot.schedule",
+"count": 1,
+"examples": [
+"T-cc1f9dc25238f8-01"
+]
+},
+{
+"tag": "signal.handshake_display",
+"count": 1,
+"examples": [
+"T-40556d7a43c85b-01"
+]
+},
+{
+"tag": "cable.data_vs_charge_only",
+"count": 1,
+"examples": [
+"T-3689eb3de73ff3-01"
+]
+},
+{
+"tag": "battery.size_match",
+"count": 1,
+"examples": [
+"T-edb245dcee3f75-01"
+]
+},
+{
+"tag": "remote.ir_test",
+"count": 1,
+"examples": [
+"T-edb245dcee3f75-01"
+]
+},
+{
+"tag": "battery.disposal_stream",
+"count": 1,
+"examples": [
+"T-edb245dcee3f75-01"
+]
+},
+{
+"tag": "battery.mixed_old_new_rule",
+"count": 1,
+"examples": [
+"T-edb245dcee3f75-01"
+]
+},
+{
+"tag": "garment.wrinkle_crush_in_box",
+"count": 1,
+"examples": [
+"T-3cd953e27116ae-01"
+]
+},
+{
+"tag": "battery.removal_for_transport",
+"count": 1,
+"examples": [
+"T-24a1d88e82791e-01"
+]
+},
+{
+"tag": "label.handling_marks_match_content",
+"count": 1,
+"examples": [
+"T-15a27757448d74-01"
+]
+},
+{
+"tag": "privacy.do_not_open_boxes",
+"count": 1,
+"examples": [
+"T-5dbfd60c8492d7-01"
+]
+},
+{
+"tag": "fragile.unwrap_handling",
+"count": 1,
+"examples": [
+"T-ee3182f63b1a71-01"
+]
+},
+{
+"tag": "reach.height_by_user",
+"count": 1,
+"examples": [
+"T-2586eadc783f9c-01"
+]
+},
+{
+"tag": "stairs.landing_turn_clearance",
+"count": 1,
+"examples": [
+"T-ae6adfd34251ec-01"
+]
+},
+{
+"tag": "dust.fine_particle_penetration",
+"count": 1,
+"examples": [
+"T-080ac52f1b8617-01"
+]
+},
+{
+"tag": "paint.drip_contact",
+"count": 1,
+"examples": [
+"T-080ac52f1b8617-01"
+]
+},
+{
+"tag": "stairs.slip_hazard",
+"count": 1,
+"examples": [
+"T-edc0ca06ef76e3-01"
+]
+},
+{
+"tag": "tool.battery_charge_state",
+"count": 1,
+"examples": [
+"T-54c6622a099b99-01"
+]
+},
+{
+"tag": "occlusion.hand_shadow",
+"count": 1,
+"examples": [
+"T-d80d4871224cc5-01"
+]
+},
+{
+"tag": "measure.read_precision_fraction",
+"count": 1,
+"examples": [
+"T-9aaad85165c94e-01"
+]
+},
+{
+"tag": "handover.orientation_ready_to_use",
+"count": 1,
+"examples": [
+"T-c6fbcd6748245a-01"
+]
+},
+{
+"tag": "dust.generation_on_handling",
+"count": 1,
+"examples": [
+"T-3ceb5776665d29-01"
+]
+},
+{
+"tag": "soil.fine_dust_airborne_fraction",
+"count": 1,
+"examples": [
+"T-d0d725100a100d-01"
+]
+},
+{
+"tag": "sweep.stroke_speed_dust_lofting",
+"count": 1,
+"examples": [
+"T-d0d725100a100d-01"
+]
+},
+{
+"tag": "tool.battery_remove_charge",
+"count": 1,
+"examples": [
+"T-34abf6653196c2-01"
+]
+},
+{
+"tag": "soil.fine_construction_dust",
+"count": 1,
+"examples": [
+"T-dba6d9d42293b2-01"
+]
+},
+{
+"tag": "sewing.shank_height",
+"count": 1,
+"examples": [
+"T-74c37f23b52cd9-01"
+]
+},
+{
+"tag": "hanger.type_match_garment",
+"count": 1,
+"examples": [
+"T-4213b712c5f092-01"
+]
+},
+{
+"tag": "garment.shoulder_alignment_bumps",
+"count": 1,
+"examples": [
+"T-4213b712c5f092-01"
+]
+},
+{
+"tag": "garment.stretch_if_knit_hung",
+"count": 1,
+"examples": [
+"T-4213b712c5f092-01"
+]
+},
+{
+"tag": "garment.top_button_fasten",
+"count": 1,
+"examples": [
+"T-4213b712c5f092-01"
+]
+},
+{
+"tag": "drying.heat_glue_failure",
+"count": 1,
+"examples": [
+"T-13be1514a30488-01"
+]
+},
+{
+"tag": "garment.season_weather_match",
+"count": 1,
+"examples": [
+"T-3cf88534e45717-01"
+]
+},
+{
+"tag": "reach.high_shelf_bulky_overhead",
+"count": 1,
+"examples": [
+"T-7ef27f5ac7498d-01"
+]
+},
+{
+"tag": "carry.bulky_wheels_stairs",
+"count": 1,
+"examples": [
+"T-7ef27f5ac7498d-01"
+]
+},
+{
+"tag": "cleaning.wheels_before_bed",
+"count": 1,
+"examples": [
+"T-7ef27f5ac7498d-01"
+]
+},
+{
+"tag": "garment.structure_class",
+"count": 1,
+"examples": [
+"T-75e689a6067bd9-01"
+]
+},
+{
+"tag": "garment.dress_code_match",
+"count": 1,
+"examples": [
+"T-ef59d17a2cbd1e-01"
+]
+},
+{
+"tag": "privacy.intimate_items_discretion",
+"count": 1,
+"examples": [
+"T-0a7b746c3627c1-01"
+]
+},
+{
+"tag": "packing.position_heavy_near_wheels",
+"count": 1,
+"examples": [
+"T-09033d1584a8a3-01"
+]
+},
+{
+"tag": "travel.lithium_battery_carry_on_rule",
+"count": 1,
+"examples": [
+"T-88c7bd6656f27c-01"
+]
+},
+{
+"tag": "device.charge_state",
+"count": 1,
+"examples": [
+"T-88c7bd6656f27c-01"
+]
+},
+{
+"tag": "charger.device_matching_set_cover",
+"count": 1,
+"examples": [
+"T-bc0b5a665d768d-01"
+]
+},
+{
+"tag": "ownership.shared_chargers",
+"count": 1,
+"examples": [
+"T-bc0b5a665d768d-01"
+]
+},
+{
+"tag": "privacy.sensitive_document_handling",
+"count": 1,
+"examples": [
+"T-892b039a685cc2-01"
+]
+},
+{
+"tag": "pack.weight_distribution_wheel_end",
+"count": 1,
+"examples": [
+"T-ba0ef01ce4d381-01"
+]
+},
+{
+"tag": "pack.compression_force_vs_fill_height",
+"count": 1,
+"examples": [
+"T-43508ac1d2d641-01"
+]
+},
+{
+"tag": "label.write_text(owner_contact)",
+"count": 1,
+"examples": [
+"T-48d6eee738f301-01"
+]
+},
+{
+"tag": "fastener.loop_strap_through_handle",
+"count": 1,
+"examples": [
+"T-48d6eee738f301-01"
+]
+},
+{
+"tag": "privacy.contact_field_policy",
+"count": 1,
+"examples": [
+"T-48d6eee738f301-01"
+]
+},
+{
+"tag": "stairs.carry_load(mass,two_hand)",
+"count": 1,
+"examples": [
+"T-3fd1e06544bad4-01"
+]
+},
+{
+"tag": "carry.roll_on_wheels(surface)",
+"count": 1,
+"examples": [
+"T-3fd1e06544bad4-01"
+]
+},
+{
+"tag": "privacy.mail_ownership",
+"count": 1,
+"examples": [
+"T-beed8fbe4a3c94-01"
+]
+},
+{
+"tag": "manip.reach_behind_items",
+"count": 1,
+"examples": [
+"T-fee8c8c26ea591-01"
+]
+},
+{
+"tag": "reach.low_clearance_retrieval",
+"count": 1,
+"examples": [
+"T-dad25010e2668e-01"
+]
+},
+{
+"tag": "manip.handover(orientation,grip_confirmed)",
+"count": 1,
+"examples": [
+"T-dad25010e2668e-01"
+]
+},
+{
+"tag": "people.reach_envelope(seated)",
+"count": 1,
+"examples": [
+"T-a90040271a62d1-01"
+]
+},
+{
+"tag": "grasp.slip_friction(rubber_pad)",
+"count": 1,
+"examples": [
+"T-c60ad5103cfd11-01"
+]
+},
+{
+"tag": "door.self_closer_force",
+"count": 1,
+"examples": [
+"T-9782ff5dc66bdd-01"
+]
+},
+{
+"tag": "nav.doorway_clearance_with_robot",
+"count": 1,
+"examples": [
+"T-9782ff5dc66bdd-01"
+]
+},
+{
+"tag": "people.mobility_aid_width",
+"count": 1,
+"examples": [
+"T-9782ff5dc66bdd-01"
+]
+},
+{
+"tag": "door.close_speed_noise",
+"count": 1,
+"examples": [
+"T-dc56b8f123e306-01"
+]
+},
+{
+"tag": "electrical.bulb_failure",
+"count": 1,
+"examples": [
+"T-d0053dbb80eba3-01"
+]
+},
+{
+"tag": "safety.darkness_fall_risk",
+"count": 1,
+"examples": [
+"T-c7fd81c3d3a1a5-01"
+]
+},
+{
+"tag": "privacy.window_visibility",
+"count": 1,
+"examples": [
+"T-3760ae5b0c2895-01"
+]
+},
+{
+"tag": "privacy.window_gap",
+"count": 1,
+"examples": [
+"T-062bfe43bbefa6-01"
+]
+},
+{
+"tag": "manip.handover(grip_confirmed)",
+"count": 1,
+"examples": [
+"T-8dbdb210a910c6-01"
+]
+},
+{
+"tag": "nav.yield_to_mobility_aid",
+"count": 1,
+"examples": [
+"T-9b7fd0ff83fb58-01"
+]
+},
+{
+"tag": "nav.path_clear_width(mobility_aid)",
+"count": 1,
+"examples": [
+"T-7480617226d091-01"
+]
+},
+{
+"tag": "people.transfer_geometry(wheelchair_to_chair)",
+"count": 1,
+"examples": [
+"T-3b9837b60b40d9-01"
+]
+},
+{
+"tag": "ownership.mobility_aid_owner(height_set)",
+"count": 1,
+"examples": [
+"T-4a12e4da37a961-01"
+]
+},
+{
+"tag": "people.reach_envelope",
+"count": 1,
+"examples": [
+"T-4a12e4da37a961-01"
+]
+},
+{
+"tag": "place.handover_pose(handles_toward_user)",
+"count": 1,
+"examples": [
+"T-4a12e4da37a961-01"
+]
+},
+{
+"tag": "stability.leaning_object_fall",
+"count": 1,
+"examples": [
+"T-4a12e4da37a961-01"
+]
+},
+{
+"tag": "privacy.no_screen_reading",
+"count": 1,
+"examples": [
+"T-79734e7497edea-01"
+]
+},
+{
+"tag": "electrical.charger_wattage",
+"count": 1,
+"examples": [
+"T-ce1c6edee289a4-01"
+]
+},
+{
+"tag": "electrical.remote_device_pairing",
+"count": 1,
+"examples": [
+"T-744c06be8cbd59-01"
+]
+},
+{
+"tag": "safety.fabric_in_wheels",
+"count": 1,
+"examples": [
+"T-53853743b1afef-01"
+]
+},
+{
+"tag": "timing.warn_before_reach",
+"count": 1,
+"examples": [
+"T-c7c2ad800886b3-01"
+]
+},
+{
+"tag": "electrical.detector_state(alarm,low_battery)",
+"count": 1,
+"examples": [
+"T-71cc976f3be6fd-01"
+]
+},
+{
+"tag": "audio.masking_noise(tv)",
+"count": 1,
+"examples": [
+"T-71cc976f3be6fd-01"
+]
+},
+{
+"tag": "mechanisms.self_closer_function",
+"count": 1,
+"examples": [
+"T-5b89a11429fc7e-01"
+]
+},
+{
+"tag": "people.child_reach_climb_envelope(age)",
+"count": 1,
+"examples": [
+"T-bef4b096de0ca5-01"
+]
+},
+{
+"tag": "safety.false_alarm_cost",
+"count": 1,
+"examples": [
+"T-eb67d52673d659-01"
+]
+},
+{
+"tag": "safety.water_electrical_contact",
+"count": 1,
+"examples": [
+"T-ef77497aad9991-01"
+]
+},
+{
+"tag": "object.uv_degradation",
+"count": 1,
+"examples": [
+"T-afb23b8f64b32b-01"
+]
+},
+{
+"tag": "reach.height_limit",
+"count": 1,
+"examples": [
+"T-2e7e1278f1a65c-01"
+]
+},
+{
+"tag": "safety.blade_handling",
+"count": 1,
+"examples": [
+"T-167f25226655b9-01"
+]
+},
+{
+"tag": "stack.height_stability_limit",
+"count": 1,
+"examples": [
+"T-e0ccba630ab4f3-01"
+]
+},
+{
+"tag": "blower.noise_quiet_hours",
+"count": 1,
+"examples": [
+"T-57dae6e932bbf5-01"
+]
+},
+{
+"tag": "bike.roll_by_handlebar",
+"count": 1,
+"examples": [
+"T-1100bdc9fce6ba-01"
+]
+},
+{
+"tag": "bike.handlebar_pedal_clearance",
+"count": 1,
+"examples": [
+"T-a1079d527fc799-01"
+]
+},
+{
+"tag": "path.wheelchair_clearance",
+"count": 1,
+"examples": [
+"T-44ce90d0403cd0-01"
+]
+},
+{
+"tag": "hazard.trip_height_threshold",
+"count": 1,
+"examples": [
+"T-83b077d9525266-01"
+]
+},
+{
+"tag": "gate.self_closing_spring",
+"count": 1,
+"examples": [
+"T-0a871b9ef92ba1-01"
+]
+},
+{
+"tag": "gate.self_close_from_angle",
+"count": 1,
+"examples": [
+"T-1096b71b415ccf-01"
+]
+},
+{
+"tag": "pool_gate.self_latch_compliance",
+"count": 1,
+"examples": [
+"T-1096b71b415ccf-01"
+]
+},
+{
+"tag": "sharps.do_not_handle",
+"count": 1,
+"examples": [
+"T-90242d2f8c8927-01"
+]
+},
+{
+"tag": "remote.ir_line_of_sight",
+"count": 1,
+"examples": [
+"T-6279fac7c7d19c-01"
+]
+},
+{
+"tag": "remote.battery_level",
+"count": 1,
+"examples": [
+"T-6279fac7c7d19c-01"
+]
+},
+{
+"tag": "remote.device_identity",
+"count": 1,
+"examples": [
+"T-ca67352febe635-01"
+]
+},
+{
+"tag": "charging.indicator_state",
+"count": 1,
+"examples": [
+"T-d413280e3b617b-01"
+]
+},
+{
+"tag": "battery.aa_vs_pack",
+"count": 1,
+"examples": [
+"T-d413280e3b617b-01"
+]
+},
+{
+"tag": "battery.level_dock_rule",
+"count": 1,
+"examples": [
+"T-c1e188db5f96a2-01"
+]
+},
+{
+"tag": "cloth.carry_no_floor_contact",
+"count": 1,
+"examples": [
+"T-a3ac1798006848-01"
+]
+},
+{
+"tag": "handover.within_reach",
+"count": 1,
+"examples": [
+"T-ca9207503289b2-01"
+]
+},
+{
+"tag": "layout.reach_distance",
+"count": 1,
+"examples": [
+"T-5cad6f6f541a45-01"
+]
+},
+{
+"tag": "cloth.no_floor_contact",
+"count": 1,
+"examples": [
+"T-70ff81accc646a-01"
+]
+},
+{
+"tag": "dishwashing.hand_wash_sequence",
+"count": 1,
+"examples": [
+"T-e2dc95bd81c88f-01"
+]
+},
+{
+"tag": "sharps.no_hand_compaction",
+"count": 1,
+"examples": [
+"T-ec65beda6f9d2a-01"
+]
+},
+{
+"tag": "reach.extension_tool",
+"count": 1,
+"examples": [
+"T-d9e9ab8957aa36-01"
+]
+},
+{
+"tag": "reach.low_crouch",
+"count": 1,
+"examples": [
+"T-8c79b74826dfa7-01"
+]
+},
+{
+"tag": "reach.header_height",
+"count": 1,
+"examples": [
+"T-3bb27e638c1364-01"
+]
+},
+{
+"tag": "surface.handle_disinfect",
+"count": 1,
+"examples": [
+"T-2e67a6f40b608f-01"
+]
+},
+{
+"tag": "dust.capture_vs_fall",
+"count": 1,
+"examples": [
+"T-774677e2714844-01"
+]
+},
+{
+"tag": "blind.restore_tilt_height",
+"count": 1,
+"examples": [
+"T-994f1d676b618e-01"
+]
+},
+{
+"tag": "child_safety.cord_reach",
+"count": 1,
+"examples": [
+"T-994f1d676b618e-01"
+]
+},
+{
+"tag": "reach.low_clearance_tool",
+"count": 1,
+"examples": [
+"T-c7663891bf91b2-01"
+]
+},
+{
+"tag": "reach.thin_tool_under_appliance",
+"count": 1,
+"examples": [
+"T-ad342b5b6538e3-01"
+]
+},
+{
+"tag": "food_contact.rinse_after",
+"count": 1,
+"examples": [
+"T-86c04bd533b015-01"
+]
+},
+{
+"tag": "battery.dock_charging",
+"count": 1,
+"examples": [
+"T-f782b2285ea5b7-01"
+]
+},
+{
+"tag": "people.sleep_quiet_mode",
+"count": 1,
+"examples": [
+"T-ea15572dd318da-01"
+]
+},
+{
+"tag": "garment.dirty_vs_clean",
+"count": 1,
+"examples": [
+"T-cc99124ac17ed6-01"
+]
+},
+{
+"tag": "remote.device_room_identity",
+"count": 1,
+"examples": [
+"T-3bc61d879236d8-01"
+]
+},
+{
+"tag": "battery.swelling_hazard",
+"count": 1,
+"examples": [
+"T-306c403f3f47c7-01"
+]
+},
+{
+"tag": "charging.fire_safe_surface",
+"count": 1,
+"examples": [
+"T-306c403f3f47c7-01"
+]
+},
+{
+"tag": "laundry.handoff",
+"count": 1,
+"examples": [
+"T-83442cab7a5bbb-01"
+]
+},
+{
+"tag": "garment.care_label_rules",
+"count": 1,
+"examples": [
+"T-62e5b719ca0f22-01"
+]
+},
+{
+"tag": "garment.pocket_items",
+"count": 1,
+"examples": [
+"T-62e5b719ca0f22-01"
+]
+},
+{
+"tag": "stairs.carry_vacuum",
+"count": 1,
+"examples": [
+"T-d11cdcaf70b285-01"
+]
+},
+{
+"tag": "reach.top_of_tall_mirror",
+"count": 1,
+"examples": [
+"T-406e95007bb14c-01"
+]
+},
+{
+"tag": "disinfectant.contact_time_wet",
+"count": 1,
+"examples": [
+"T-88ab4e77267339-01"
+]
+},
+{
+"tag": "liquid.ingress_into_switch_or_remote",
+"count": 1,
+"examples": [
+"T-88ab4e77267339-01"
+]
+},
+{
+"tag": "stairs.step_edge_sweeping",
+"count": 1,
+"examples": [
+"T-06367acd97af6d-01"
+]
+},
+{
+"tag": "oven.self_clean_cycle_lock_and_temperature",
+"count": 1,
+"examples": [
+"T-cedf687c8dddb5-01"
+]
+},
+{
+"tag": "cleaner.caustic_on_self_clean_enamel_damage",
+"count": 1,
+"examples": [
+"T-cedf687c8dddb5-01"
+]
+},
+{
+"tag": "oven.racks_discolor_in_self_clean",
+"count": 1,
+"examples": [
+"T-cedf687c8dddb5-01"
+]
+},
+{
+"tag": "vacuum.head_height_vs_furniture_clearance",
+"count": 1,
+"examples": [
+"T-059c63d5603967-01"
+]
+},
+{
+"tag": "vacuum.wand_reach_under_depth",
+"count": 1,
+"examples": [
+"T-059c63d5603967-01"
+]
+},
+{
+"tag": "vacuum.crevice_tool_gap_reach",
+"count": 1,
+"examples": [
+"T-4f47dcd3257c52-01"
+]
+},
+{
+"tag": "dust.fall_onto_surfaces_below",
+"count": 1,
+"examples": [
+"T-10331dfeeaae92-01"
+]
+},
+{
+"tag": "reach.ceiling_vent_step_stool",
+"count": 1,
+"examples": [
+"T-10331dfeeaae92-01"
+]
+},
+{
+"tag": "fan.must_be_stopped_before_contact",
+"count": 1,
+"examples": [
+"T-e5e4b235b6c504-01"
+]
+},
+{
+"tag": "dust.fall_trajectory_onto_below",
+"count": 1,
+"examples": [
+"T-e5e4b235b6c504-01"
+]
+},
+{
+"tag": "reach.ceiling_height_step_stool_vs_ladder",
+"count": 1,
+"examples": [
+"T-e5e4b235b6c504-01"
+]
+},
+{
+"tag": "fan.state_restore_speed_light",
+"count": 1,
+"examples": [
+"T-e5e4b235b6c504-01"
+]
+},
+{
+"tag": "reach.floor_level_kneel",
+"count": 1,
+"examples": [
+"T-61921f950ce6b1-01"
+]
+},
+{
+"tag": "fall.lean_out_upper_story",
+"count": 1,
+"examples": [
+"T-d2b80070716dd2-01"
+]
+},
+{
+"tag": "crevice.narrow_channel_reach",
+"count": 1,
+"examples": [
+"T-aa1483f5db83d6-01"
+]
+},
+{
+"tag": "leak.at_shower_arm_connection",
+"count": 1,
+"examples": [
+"T-f9c9d789af2624-01"
+]
+},
+{
+"tag": "shower_arm.torque_damage_in_wall",
+"count": 1,
+"examples": [
+"T-f9c9d789af2624-01"
+]
+},
+{
+"tag": "reach.child_accessible_shelf_rules",
+"count": 1,
+"examples": [
+"T-1c12daf20b0d93-01"
+]
+},
+{
+"tag": "garment.hang_vs_fold_rule_knits",
+"count": 1,
+"examples": [
+"T-896a49d074bf09-01"
+]
+},
+{
+"tag": "privacy.bedroom_closet_permission",
+"count": 1,
+"examples": [
+"T-896a49d074bf09-01"
+]
+},
+{
+"tag": "child.reach_hazard_height",
+"count": 1,
+"examples": [
+"T-5215f988d39587-01"
+]
+},
+{
+"tag": "inventory.shortfall_to_shopping_list",
+"count": 1,
+"examples": [
+"T-cc4e7d87d0e75b-01"
+]
+},
+{
+"tag": "reach.attic_or_high_shelf",
+"count": 1,
+"examples": [
+"T-ab1e52fe8e7304-01"
+]
+},
+{
+"tag": "person.location_tracking_privacy",
+"count": 1,
+"examples": [
+"P-038b5f6b6e6b5d-01"
+]
+},
+{
+"tag": "compare.tie_handling",
+"count": 1,
+"examples": [
+"P-e069c179612c5a-01"
+]
+},
+{
+"tag": "compare.perceptual_noise_threshold",
+"count": 1,
+"examples": [
+"P-e069c179612c5a-01"
+]
+},
+{
+"tag": "measure.read_precision_parallax",
+"count": 1,
+"examples": [
+"P-cfe7e482c43cdd-01"
+]
+},
+{
+"tag": "text.ocr_conditions_glare_handwriting_small_font",
+"count": 1,
+"examples": [
+"P-fd41eaef588496-01"
+]
+},
+{
+"tag": "schedule.quiet_hours_nap",
+"count": 1,
+"examples": [
+"P-4cef6d23925560-01"
+]
+},
+{
+"tag": "dust.fall_redeposit_on_lower_surfaces",
+"count": 1,
+"examples": [
+"P-855f7f031531c4-01"
+]
+},
+{
+"tag": "nav.stairs_traversal",
+"count": 1,
+"examples": [
+"P-9f25133150ed23-01"
+]
+},
+{
+"tag": "nav.closed_door_handling",
+"count": 1,
+"examples": [
+"P-9f25133150ed23-01"
+]
+},
+{
+"tag": "approach.manipulation_reachable_pose",
+"count": 1,
+"examples": [
+"P-95e3dfec1c3af0-01"
+]
+},
+{
+"tag": "approach.proxemics_distance_speed",
+"count": 1,
+"examples": [
+"P-95e3dfec1c3af0-01"
+]
+},
+{
+"tag": "nav.sleeping_agent_buffer_noise",
+"count": 1,
+"examples": [
+"P-2f81bfa225f93d-01"
+]
+},
+{
+"tag": "grasp.force_vs_fragility_crush",
+"count": 1,
+"examples": [
+"P-bec307d4ed39b7-01"
+]
+},
+{
+"tag": "grasp.slip_friction_wet_oily",
+"count": 1,
+"examples": [
+"P-bec307d4ed39b7-01"
+]
+},
+{
+"tag": "thermal.hot_handle_requires_mitt",
+"count": 1,
+"examples": [
+"P-bec307d4ed39b7-01"
+]
+},
+{
+"tag": "lift.payload_limit",
+"count": 1,
+"examples": [
+"P-fcfca59f2312bf-01"
+]
+},
+{
+"tag": "lift.two_handed_bulky",
+"count": 1,
+"examples": [
+"P-fcfca59f2312bf-01"
+]
+},
+{
+"tag": "lower.contact_velocity_limit",
+"count": 1,
+"examples": [
+"P-dc8fef64e5235b-01"
+]
+},
+{
+"tag": "carry.tray_balance",
+"count": 1,
+"examples": [
+"P-044aecfaaef44a-01"
+]
+},
+{
+"tag": "stairs.carry_load_handrail",
+"count": 1,
+"examples": [
+"P-044aecfaaef44a-01"
+]
+},
+{
+"tag": "push.contact_height_tipping",
+"count": 1,
+"examples": [
+"P-3cb3bdd3570ea3-01"
+]
+},
+{
+"tag": "push.wheeled_vs_sliding",
+"count": 1,
+"examples": [
+"P-3cb3bdd3570ea3-01"
+]
+},
+{
+"tag": "pull.grip_point_handle_vs_cord",
+"count": 1,
+"examples": [
+"P-1a790d4f7e8431-01"
+]
+},
+{
+"tag": "wheeled_bin.tilt_and_roll",
+"count": 1,
+"examples": [
+"P-724924c483f1fd-01"
+]
+},
+{
+"tag": "rotate.in_hand_vs_regrasp",
+"count": 1,
+"examples": [
+"P-6bc0280d2f92a7-01"
+]
+},
+{
+"tag": "stir.scorch_prevention_bottom_contact",
+"count": 1,
+"examples": [
+"P-88995c5ef11ca4-01"
+]
+},
+{
+"tag": "stir.splash_vs_speed",
+"count": 1,
+"examples": [
+"P-88995c5ef11ca4-01"
+]
+},
+{
+"tag": "sweep.corner_reach",
+"count": 1,
+"examples": [
+"P-40e813894482c8-01"
+]
+},
+{
+"tag": "vacuum.noise_vs_occupants",
+"count": 1,
+"examples": [
+"P-5e47bcee9c18d9-01"
+]
+},
+{
+"tag": "wash.hand_hygiene_duration",
+"count": 1,
+"examples": [
+"P-5c1594e793fbb9-01"
+]
+},
+{
+"tag": "towel.hygiene_class_dish_hand_floor",
+"count": 1,
+"examples": [
+"P-861ee184f1492d-01"
+]
+},
+{
+"tag": "cloth.corner_finding_grasp",
+"count": 1,
+"examples": [
+"P-cc2b11c4b2613d-01"
+]
+},
+{
+"tag": "stack.height_clearance",
+"count": 1,
+"examples": [
+"P-16531dd6722b9d-01"
+]
+},
+{
+"tag": "fridge.gasket_seal_alarm",
+"count": 1,
+"examples": [
+"P-04c295a5923b65-01"
+]
+},
+{
+"tag": "close.slam_noise",
+"count": 1,
+"examples": [
+"P-04c295a5923b65-01"
+]
+},
+{
+"tag": "unplug.wet_hands_shock_rule",
+"count": 1,
+"examples": [
+"P-e63e616369ddba-01"
+]
+},
+{
+"tag": "handover.recipient_grip_force_threshold",
+"count": 1,
+"examples": [
+"P-2bb9620c7e6eab-01"
+]
+},
+{
+"tag": "bulb.socket_contact_power_off",
+"count": 1,
+"examples": [
+"P-e4be079d1d4f8f-01"
+]
+},
+{
+"tag": "washer.capacity_and_balance",
+"count": 1,
+"examples": [
+"P-7f0c39cc2250ab-01"
+]
+},
+{
+"tag": "unpack.clean_vs_dirty_garments",
+"count": 1,
+"examples": [
+"P-564736d67300f4-01"
+]
+},
+{
+"tag": "handover.presentation_pose_reachable",
+"count": 1,
+"examples": [
+"P-9a6cbd2e53a11f-01"
+]
+},
+{
+"tag": "handover.handle_orientation",
+"count": 1,
+"examples": [
+"P-9a6cbd2e53a11f-01"
+]
+},
+{
+"tag": "handover.grip_detection_release",
+"count": 1,
+"examples": [
+"P-9a6cbd2e53a11f-01"
+]
+},
+{
+"tag": "handover.recipient_ability_model",
+"count": 1,
+"examples": [
+"P-9a6cbd2e53a11f-01"
+]
+},
+{
+"tag": "receive.grasp_upon_offer",
+"count": 1,
+"examples": [
+"P-2a0cdecdbd4a79-01"
+]
+},
+{
+"tag": "support.fall_detection_controlled_lowering",
+"count": 1,
+"examples": [
+"P-ed9f409bbfaa51-01"
+]
+},
+{
+"tag": "support.wheelchair_brake_check",
+"count": 1,
+"examples": [
+"P-ed9f409bbfaa51-01"
+]
+},
+{
+"tag": "disinfect.contact_time_wet",
+"count": 1,
+"examples": [
+"P-35637d8bbbd60e-01"
+]
+},
+{
+"tag": "disinfect.food_contact_rinse",
+"count": 1,
+"examples": [
+"P-35637d8bbbd60e-01"
+]
+},
+{
+"tag": "verify.injected_silent_failures",
+"count": 1,
+"examples": [
+"P-24004725be5196-01"
+]
+},
+{
+"tag": "robot.battery_range_recharge_planning",
+"count": 1,
+"examples": [
+"V-b8977e1941db1f-01"
+]
+},
+{
+"tag": "reach.height_thresholds",
+"count": 1,
+"examples": [
+"V-6d03678cccb29d-01"
+]
+},
+{
+"tag": "appliance.type_registry_data_defined",
+"count": 1,
+"examples": [
+"V-b9d7ebf3217cff-01"
+]
+},
+{
+"tag": "household.missing_appliance_fallback",
+"count": 1,
+"examples": [
+"V-b9d7ebf3217cff-01"
+]
+},
+{
+"tag": "panel.layout_brand_variants_data_defined",
+"count": 1,
+"examples": [
+"V-f4ed848c13ab4d-01"
+]
+},
+{
+"tag": "vacuum.brush_height_setting",
+"count": 1,
+"examples": [
+"V-6718a197783d4c-01"
+]
+},
+{
+"tag": "cart.wheels_on_gravel",
+"count": 1,
+"examples": [
+"V-a67a44bbc06577-01"
+]
+},
+{
+"tag": "grasp.size_dependent_mode",
+"count": 1,
+"examples": [
+"V-9e29796117aaa5-01"
+]
+},
+{
+"tag": "two_arm.bulky_handling",
+"count": 1,
+"examples": [
+"V-9e29796117aaa5-01"
+]
+},
+{
+"tag": "payload.limit",
+"count": 1,
+"examples": [
+"V-359d7f68a40517-01"
+]
+},
+{
+"tag": "shape.grasp_affordances",
+"count": 1,
+"examples": [
+"V-ab55415b16c442-01"
+]
+},
+{
+"tag": "perception.noise_vs_lux",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "robot.onboard_light_low_glare",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "schedule.quiet_hours",
+"count": 1,
+"examples": [
+"V-6946f9dcdca28e-01"
+]
+},
+{
+"tag": "robot.battery_temp_derate",
+"count": 1,
+"examples": [
+"V-da03eefb5e876d-01"
+]
+},
+{
+"tag": "child.agent_behavior_reach_grab",
+"count": 1,
+"examples": [
+"V-c6568f21770790-01"
+]
+},
+{
+"tag": "hazard.reach_height_rule",
+"count": 1,
+"examples": [
+"V-c6568f21770790-01"
+]
+},
+{
+"tag": "nap.quiet",
+"count": 1,
+"examples": [
+"V-c6568f21770790-01"
+]
+},
+{
+"tag": "privacy.occupied_room_rules",
+"count": 1,
+"examples": [
+"V-15494796a1da9f-01"
+]
+},
+{
+"tag": "people.ability_profile.gait_hearing_vision_balance",
+"count": 1,
+"examples": [
+"V-a46ebcb1628114-01"
+]
+},
+{
+"tag": "people.fall_risk_model",
+"count": 1,
+"examples": [
+"V-a46ebcb1628114-01"
+]
+},
+{
+"tag": "storage.reach_band_by_owner",
+"count": 1,
+"examples": [
+"V-a46ebcb1628114-01"
+]
+},
+{
+"tag": "pets.reach_envelope.jump_and_counter_surf",
+"count": 1,
+"examples": [
+"V-91c91d61347749-01"
+]
+},
+{
+"tag": "pets.follow_robot",
+"count": 1,
+"examples": [
+"V-91c91d61347749-01"
+]
+},
+{
+"tag": "privacy.zone.occupied_guest_room",
+"count": 1,
+"examples": [
+"V-9e9298c9a0494f-01"
+]
+},
+{
+"tag": "noise.quiet_hours_with_sleeping_guest",
+"count": 1,
+"examples": [
+"V-9e9298c9a0494f-01"
+]
+},
+{
+"tag": "handling.conservative_default_fragile_valuable",
+"count": 1,
+"examples": [
+"V-7b5401969e0b87-01"
+]
+},
+{
+"tag": "grasp.force_limit",
+"count": 1,
+"examples": [
+"V-87a271b3ad9c5b-01"
+]
+},
+{
+"tag": "handling.log_who_moved_what",
+"count": 1,
+"examples": [
+"V-ff73e81b72f90e-01"
+]
+},
+{
+"tag": "privacy.not_displayed_to_visitors",
+"count": 1,
+"examples": [
+"V-ff73e81b72f90e-01"
+]
+},
+{
+"tag": "grasp.heat_rated_contact",
+"count": 1,
+"examples": [
+"V-96f8e152374551-01"
+]
+},
+{
+"tag": "safety.burn_risk_child_reach",
+"count": 1,
+"examples": [
+"V-96f8e152374551-01"
+]
+},
+{
+"tag": "grasp.friction_wet",
+"count": 1,
+"examples": [
+"V-5477c9827b2a50-01"
+]
+},
+{
+"tag": "robot.stability_margin_under_load",
+"count": 1,
+"examples": [
+"V-6e206f69ec8a04-01"
+]
+},
+{
+"tag": "grasp.two_handed",
+"count": 1,
+"examples": [
+"V-6e206f69ec8a04-01"
+]
+},
+{
+"tag": "grasp.intercept_moving_object",
+"count": 1,
+"examples": [
+"V-79f441f1f2192d-01"
+]
+},
+{
+"tag": "safety.no_reach_into_moving_machinery",
+"count": 1,
+"examples": [
+"V-79f441f1f2192d-01"
+]
+},
+{
+"tag": "navigation.other_robot_dynamic_obstacle",
+"count": 1,
+"examples": [
+"V-79f441f1f2192d-01"
+]
+},
+{
+"tag": "door.self_closer",
+"count": 1,
+"examples": [
+"V-b666a3b8465573-01"
+]
+},
+{
+"tag": "safety.no_pet_contact",
+"count": 1,
+"examples": [
+"V-4b7f259d47235d-01"
+]
+},
+{
+"tag": "navigation.stopping_distance_vs_speed",
+"count": 1,
+"examples": [
+"V-7caf27cf2ece8f-01"
+]
+},
+{
+"tag": "navigation.blind_corner_speed_limit",
+"count": 1,
+"examples": [
+"V-7caf27cf2ece8f-01"
+]
+},
+{
+"tag": "schedule.quiet_windows",
+"count": 1,
+"examples": [
+"V-1c5b0f69848b38-01"
+]
+},
+{
+"tag": "rules.room_norms_quiet_private",
+"count": 1,
+"examples": [
+"V-64cc5c68c1543b-01"
+]
+},
+{
+"tag": "affordance.handle_grasp_regions",
+"count": 1,
+"examples": [
+"V-e0bb7984435891-01"
+]
+},
+{
+"tag": "compat.contact_matrix",
+"count": 1,
+"examples": [
+"V-4cca34bc1d6a56-01"
+]
+},
+{
+"tag": "food.cross_contamination_contact",
+"count": 1,
+"examples": [
+"V-4cca34bc1d6a56-01"
+]
+},
+{
+"tag": "electrical.battery_terminal_short",
+"count": 1,
+"examples": [
+"V-4cca34bc1d6a56-01"
+]
+},
+{
+"tag": "handling.conservative_when_uncertain",
+"count": 1,
+"examples": [
+"V-52656c5e286779-01"
+]
+},
+{
+"tag": "privacy.zones_by_resident_and_time",
+"count": 1,
+"examples": [
+"V-1dbdf8f5835846-01"
+]
+},
+{
+"tag": "privacy.sensor_capture_policy",
+"count": 1,
+"examples": [
+"V-1dbdf8f5835846-01"
+]
+},
+{
+"tag": "privacy.document_read_policy",
+"count": 1,
+"examples": [
+"V-1dbdf8f5835846-01"
+]
+},
+{
+"tag": "privacy.disclosure_rules",
+"count": 1,
+"examples": [
+"V-1dbdf8f5835846-01"
+]
+},
+{
+"tag": "robot.capability_envelope.payload_reach_force",
+"count": 1,
+"examples": [
+"V-dd9bf6dc2d9a9f-01"
+]
+},
+{
+"tag": "comms.hand_off_to_human",
+"count": 1,
+"examples": [
+"V-dd9bf6dc2d9a9f-01"
+]
+},
+{
+"tag": "task.failure_counter",
+"count": 1,
+"examples": [
+"V-aec8589b23097d-01"
+]
+},
+{
+"tag": "comms.handoff_with_context",
+"count": 1,
+"examples": [
+"V-aec8589b23097d-01"
+]
+},
+{
+"tag": "safety.drop_height_assessment",
+"count": 1,
+"examples": [
+"X-1edffe5487cfe6-01"
+]
+},
+{
+"tag": "pets.confine_for_responders",
+"count": 1,
+"examples": [
+"X-d70c0fc64a8a63-01"
+]
+},
+{
+"tag": "esd.charge_accumulation_by_floor_and_humidity",
+"count": 1,
+"examples": [
+"X-40a3468ed50631-01"
+]
+},
+{
+"tag": "esd.grounding_discharge",
+"count": 1,
+"examples": [
+"X-40a3468ed50631-01"
+]
+},
+{
+"tag": "grasp.allowed_contact_regions_edges",
+"count": 1,
+"examples": [
+"X-40a3468ed50631-01"
+]
+},
+{
+"tag": "component.pin_and_contact_damage",
+"count": 1,
+"examples": [
+"X-40a3468ed50631-01"
+]
+},
+{
+"tag": "workspace.tight_space_reach",
+"count": 1,
+"examples": [
+"X-d9d92c2d8e381b-01"
+]
+},
+{
+"tag": "fan.rotor_speed_under_airflow",
+"count": 1,
+"examples": [
+"X-3ea419515f514f-01"
+]
+},
+{
+"tag": "tactile.contact_feature_probe",
+"count": 1,
+"examples": [
+"X-22e8b408c30eae-01"
+]
+},
+{
+"tag": "hub.network_join_and_room_assignment",
+"count": 1,
+"examples": [
+"X-b93cff7974684d-01"
+]
+},
+{
+"tag": "privacy.credential_handling",
+"count": 1,
+"examples": [
+"X-b93cff7974684d-01"
+]
+},
+{
+"tag": "cutting.blade_contact_slicing",
+"count": 1,
+"examples": [
+"X-d2063e3e1f2de9-01"
+]
+},
+{
+"tag": "stairs.arm_assist",
+"count": 1,
+"examples": [
+"X-179ebce8661520-01"
+]
+},
+{
+"tag": "wheelchair.fold_unfold_mechanism",
+"count": 1,
+"examples": [
+"X-179ebce8661520-01"
+]
+},
+{
+"tag": "privacy.mail_recipient_check",
+"count": 1,
+"examples": [
+"X-d1985582ac3e3a-01"
+]
+},
+{
+"tag": "detect.fall_unresponsive_person",
+"count": 1,
+"examples": [
+"X-9cf7a6b23ab6e0-01"
+]
+},
+{
+"tag": "video.frame_contents_privacy",
+"count": 1,
+"examples": [
+"X-e44a72b38266ba-01"
+]
+},
+{
+"tag": "action.hand_off_to_human",
+"count": 1,
+"examples": [
+"P-ac94b2194cab7e-01"
+]
+},
+{
+"tag": "navigation.climb_kneel_balance",
+"count": 1,
+"examples": [
+"P-ac94b2194cab7e-01"
+]
+},
+{
+"tag": "reach.height_envelope_by_aid",
+"count": 1,
+"examples": [
+"X-e0cb4401b15112-01"
+]
+},
+{
+"tag": "tool.drill_state_chuck_clutch_direction_battery",
+"count": 1,
+"examples": [
+"X-ba81601690ce5d-01"
+]
+},
+{
+"tag": "robot.battery_soc_and_reserve_policy",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "robot.camera_occlusion_dirt",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "robot.fall_and_self_right",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "privacy.sensor_mode_by_room",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "robot.remote_help_request",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "robot.fault_log",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "security.alarm_arm_state",
+"count": 1,
+"examples": [
+"X-670723dc3bb36f-01"
+]
+},
+{
+"tag": "privacy.status_photo_scope",
+"count": 1,
+"examples": [
+"X-670723dc3bb36f-01"
+]
+},
+{
+"tag": "pet.stress_from_noise_events",
+"count": 1,
+"examples": [
+"X-b4cc1a54265e33-01"
+]
+},
+{
+"tag": "ebike.charging_safety",
+"count": 1,
+"examples": [
+"X-39c2d7286859b5-01"
+]
+},
+{
+"tag": "rules.hoa_quiet_hours_and_common_areas",
+"count": 1,
+"examples": [
+"V-22104c010bebc1-01"
+]
+},
+{
+"tag": "robot.degradation_camera_battery_network_actuator",
+"count": 1,
+"examples": [
+"V-22104c010bebc1-01"
+]
+},
+{
+"tag": "reach.child_and_pet_envelopes",
+"count": 1,
+"examples": [
+"A-7114f56a795c43-01"
+]
+},
+{
+"tag": "planning.self_generated_cleanup_plan",
+"count": 1,
+"examples": [
+"A-d5cbb514756c6d-01"
+]
+},
+{
+"tag": "safety.breakables_out_of_reach",
+"count": 1,
+"examples": [
+"A-eaebda7147099e-01"
+]
+},
+{
+"tag": "eval.waste_vs_shortfall",
+"count": 1,
+"examples": [
+"A-e060bcba7ddb22-01"
+]
+},
+{
+"tag": "food.flavor_balance_proxy",
+"count": 1,
+"examples": [
+"A-749f5064385d34-01"
+]
+},
+{
+"tag": "cutting.blade_contact",
+"count": 1,
+"examples": [
+"A-f03cb9ad6b3813-01"
+]
+},
+{
+"tag": "affordance.prop_rigidity_height_friction",
+"count": 1,
+"examples": [
+"A-8029bdfb84190a-01"
+]
+},
+{
+"tag": "food.contact_surface_contamination",
+"count": 1,
+"examples": [
+"A-3286b5878fe8e9-01"
+]
+},
+{
+"tag": "stairs.carry_load_stability",
+"count": 1,
+"examples": [
+"A-714e511e8fc953-01"
+]
+},
+{
+"tag": "stairs.geometry_rise_run_turns",
+"count": 1,
+"examples": [
+"A-714e511e8fc953-01"
+]
+},
+{
+"tag": "collision.no_contact_with_arrangements",
+"count": 1,
+"examples": [
+"A-3132fda2f2451b-01"
+]
+},
+{
+"tag": "collision.no_contact_with_setup",
+"count": 1,
+"examples": [
+"A-bee4f39d136762-01"
+]
+},
+{
+"tag": "cleaning.edge_tool_reach",
+"count": 1,
+"examples": [
+"A-fd005ef88dc0af-01"
+]
+},
+{
+"tag": "collision.no_contact",
+"count": 1,
+"examples": [
+"A-fd005ef88dc0af-01"
+]
+},
+{
+"tag": "geometry.low_clearance_reach",
+"count": 1,
+"examples": [
+"A-7789b239b940a2-01"
+]
+},
+{
+"tag": "tool.reach_gap_width",
+"count": 1,
+"examples": [
+"A-1b22c022500cec-01"
+]
+},
+{
+"tag": "reach.high_and_low_spots",
+"count": 1,
+"examples": [
+"A-f333ae907c6bc0-01"
+]
+},
+{
+"tag": "device.fault_state_signature",
+"count": 1,
+"examples": [
+"A-7d1f5c7bfcb959-01"
+]
+},
+{
+"tag": "smoke_detector.low_battery_chirp",
+"count": 1,
+"examples": [
+"A-7d1f5c7bfcb959-01"
+]
+},
+{
+"tag": "report.device_and_fault",
+"count": 1,
+"examples": [
+"A-7d1f5c7bfcb959-01"
+]
+},
+{
+"tag": "event.fall_spawn_with_audio_direction",
+"count": 1,
+"examples": [
+"A-f83758b69a9fc2-01"
+]
+},
+{
+"tag": "stairs.climb",
+"count": 1,
+"examples": [
+"A-f83758b69a9fc2-01"
+]
+},
+{
+"tag": "report.anomaly_list_precision_recall",
+"count": 1,
+"examples": [
+"A-d8512ac91c78ed-01"
+]
+},
+{
+"tag": "privacy.personal_bag_permission",
+"count": 1,
+"examples": [
+"A-a456d9775ec3ca-01"
+]
+},
+{
+"tag": "reach.child_height_envelope",
+"count": 1,
+"examples": [
+"A-0e405864557c2d-01"
+]
+},
+{
+"tag": "handover.safe_orientation",
+"count": 1,
+"examples": [
+"A-b4fc72b9473937-01"
+]
+},
+{
+"tag": "frame.robot_egocentric",
+"count": 1,
+"examples": [
+"A-892a2de34191ad-01"
+]
+},
+{
+"tag": "perception.distance_estimate_noise",
+"count": 1,
+"examples": [
+"A-ce2fc54fad0b7f-01"
+]
+},
+{
+"tag": "aesthetics.balance_score",
+"count": 1,
+"examples": [
+"A-1a66b50de4e2ef-01"
+]
+},
+{
+"tag": "aesthetics.height_variation",
+"count": 1,
+"examples": [
+"A-1a66b50de4e2ef-01"
+]
+},
+{
+"tag": "chain.fine_topology",
+"count": 1,
+"examples": [
+"A-cf8cbad40dbc6d-01"
+]
+},
+{
+"tag": "grasp.precision_pinch",
+"count": 1,
+"examples": [
+"A-cf8cbad40dbc6d-01"
+]
+},
+{
+"tag": "garment.owner_attribute",
+"count": 1,
+"examples": [
+"A-4681138ceba184-01"
+]
+},
+{
+"tag": "garment.wrinkle_propensity",
+"count": 1,
+"examples": [
+"A-d9e82606eef21a-01"
+]
+},
+{
+"tag": "garment.stretch_when_hung",
+"count": 1,
+"examples": [
+"A-d9e82606eef21a-01"
+]
+},
+{
+"tag": "garment.hang_vs_fold_class",
+"count": 1,
+"examples": [
+"A-1d94511ec2a679-01"
+]
+},
+{
+"tag": "garment.button_zip_before_hang",
+"count": 1,
+"examples": [
+"A-1d94511ec2a679-01"
+]
+},
+{
+"tag": "garment.care_label_parse",
+"count": 1,
+"examples": [
+"A-9e6a1bb9e11576-01"
+]
+},
+{
+"tag": "garment.dry_clean_only_exclusion",
+"count": 1,
+"examples": [
+"A-9e6a1bb9e11576-01"
+]
+},
+{
+"tag": "report.remote_update",
+"count": 1,
+"examples": [
+"A-e8281b8bd5a9ba-01"
+]
+},
+{
+"tag": "stairs.object_on_step",
+"count": 1,
+"examples": [
+"A-d034d50e07e38f-01"
+]
+},
+{
+"tag": "pets.reach_by_size_and_counter_surfing",
+"count": 1,
+"examples": [
+"A-b6de6466ce91df-01"
+]
+},
+{
+"tag": "child.reach_envelope_by_age",
+"count": 1,
+"examples": [
+"A-504e36c3c967f8-01"
+]
+},
+{
+"tag": "cooperative.height_matching",
+"count": 1,
+"examples": [
+"A-a39b0aaa5b7804-01"
+]
+},
+{
+"tag": "manipulation.rotate_in_hand",
+"count": 1,
+"examples": [
+"A-c2492cf099c5d9-01"
+]
+},
+{
+"tag": "people.reach_gesture",
+"count": 1,
+"examples": [
+"A-aa62be21ce886a-01"
+]
+},
+{
+"tag": "door_closer.speed_setting",
+"count": 1,
+"examples": [
+"A-34775f82823c41-01"
+]
+},
+{
+"tag": "appliance.internal_fault_no_open",
+"count": 1,
+"examples": [
+"A-3209c459f02630-01"
+]
+},
+{
+"tag": "device.fault_state_hidden",
+"count": 1,
+"examples": [
+"A-9fb37e451f2407-01"
+]
+},
+{
+"tag": "failure.retry_limit",
+"count": 1,
+"examples": [
+"A-f31e9af8d87a02-01"
+]
+},
+{
+"tag": "robot.freeze_detection",
+"count": 1,
+"examples": [
+"A-f31e9af8d87a02-01"
+]
+},
+{
+"tag": "noise.tool_profile_db",
+"count": 1,
+"examples": [
+"A-0a22bb5e153a13-01"
+]
+},
+{
+"tag": "noise.db_budget_at_listeners",
+"count": 1,
+"examples": [
+"A-0a22bb5e153a13-01"
+]
+},
+{
+"tag": "noise.propagation_through_doors_walls",
+"count": 1,
+"examples": [
+"A-709f8dc12d3c18-01"
+]
+},
+{
+"tag": "maintenance.degradation_curve",
+"count": 1,
+"examples": [
+"A-28a8ea19b18ae7-01"
+]
+},
+{
+"tag": "organization.weight_height_rule",
+"count": 1,
+"examples": [
+"A-1872db807bd2ca-01"
+]
+},
+{
+"tag": "reach.prime_zone_by_user_height",
+"count": 1,
+"examples": [
+"A-863b217ff95ebb-01"
+]
+},
+{
+"tag": "decision.default_policy_low_risk",
+"count": 1,
+"examples": [
+"A-9829f4d9e05da8-01"
+]
+},
+{
+"tag": "failure.detection",
+"count": 1,
+"examples": [
+"A-5e61d731e0175f-01"
+]
+},
+{
+"tag": "dynamics.freefall_trajectory",
+"count": 1,
+"examples": [
+"A-38f9a001185587-01"
+]
+},
+{
+"tag": "grasp.dynamic_catch",
+"count": 1,
+"examples": [
+"A-38f9a001185587-01"
+]
+},
+{
+"tag": "noise.plate_clatter_model",
+"count": 1,
+"examples": [
+"A-3b39b080152758-01"
+]
+},
+{
+"tag": "esd.discharge_risk",
+"count": 1,
+"examples": [
+"A-e907eba9251565-01"
+]
+},
+{
+"tag": "component.contact_force_limit",
+"count": 1,
+"examples": [
+"A-e907eba9251565-01"
+]
+},
+{
+"tag": "thermal.house_heat_balance_solar_gain",
+"count": 1,
+"examples": [
+"A-8cf3582a886142-01"
+]
+},
+{
+"tag": "aesthetics.height_color_balance",
+"count": 1,
+"examples": [
+"A-e12dbb1115fb96-01"
+]
+},
+{
+"tag": "notification.alert_policy_precision",
+"count": 1,
+"examples": [
+"A-627c634ca86186-01"
+]
+},
+{
+"tag": "privacy.secret_knowledge_partition",
+"count": 1,
+"examples": [
+"A-7b5edf28da28b0-01"
+]
+},
+{
+"tag": "report.fall_timeline",
+"count": 1,
+"examples": [
+"A-7b7f654e30551f-01"
+]
+},
+{
+"tag": "motion.speed_scale_adjust",
+"count": 1,
+"examples": [
+"A-bbf0462f3ceed5-01"
+]
+},
+{
+"tag": "escalation.contact_policy",
+"count": 1,
+"examples": [
+"A-07bbdf40890c4b-01"
+]
+},
+{
+"tag": "sensing.non_contact_temperature",
+"count": 1,
+"examples": [
+"A-dd98761c9087df-01"
+]
+},
+{
+"tag": "tool.reacher_payload_limit",
+"count": 1,
+"examples": [
+"A-c93f46cbfe9563-01"
+]
+},
+{
+"tag": "fall.risk_model",
+"count": 1,
+"examples": [
+"A-c93f46cbfe9563-01"
+]
+},
+{
+"tag": "reach.narrow_gap_tool",
+"count": 1,
+"examples": [
+"A-d4c6a3835838ff-01"
+]
+},
+{
+"tag": "people.privacy_zone_learning",
+"count": 1,
+"examples": [
+"A-ea605735823af4-01"
+]
+},
+{
+"tag": "robot.quiet_mode",
+"count": 1,
+"examples": [
+"A-385ad88f5d7d07-01"
+]
+},
+{
+"tag": "noise.db_at_listener",
+"count": 1,
+"examples": [
+"A-385ad88f5d7d07-01"
+]
+},
+{
+"tag": "doorbell.preempt_handling",
+"count": 1,
+"examples": [
+"A-385ad88f5d7d07-01"
+]
+},
+{
+"tag": "reach.seated_reach_zone",
+"count": 1,
+"examples": [
+"A-0c7cf910425070-01"
+]
+},
+{
+"tag": "rules.robot_footwear_cleaning",
+"count": 1,
+"examples": [
+"A-3e71d42bf393b3-01"
+]
+},
+{
+"tag": "chemical.storage_out_of_reach",
+"count": 1,
+"examples": [
+"A-889c18ac8f40e2-01"
+]
+}
+]
+}

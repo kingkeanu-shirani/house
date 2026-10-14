@@ -19,7 +19,7 @@ Tests: `tests/test_manipulation.py`. Examples: `tasks/authored/manipulation__exa
 | `fasteners.py` | `attach`, `detach`, `fasten`, `unfasten`, `twist`, `untwist`, `screw_together`, `unscrew_apart`, `clip`, `unclip`, `zip`, `unzip`, `snap`, `unsnap`, `velcro`, `unvelcro`, `tie`, `untie`, `seal`, `unseal` |
 | `wrapping.py` | `wrap`, `unwrap`, `cover`, `uncover`, `tape`, `remove_tape`, `apply_label`, `remove_label`, `squeeze`, `tear` |
 | `jobs.py` | `hold_steady`, `support`; system `manipulation.jobs` (hold / light / co-carry with spoken corrections) |
-| `world.py` | systems `manipulation.falls`, `.timers`, `.wind`; watch-list seeding (`episode_start`); events; observers; inspector; answerer `manip:` |
+| `world.py` | systems `manipulation.falls`, `.breaks`, `.timers`, `.wind`; watch-list seeding (`episode_start`); events; observers; inspector; answerer `manip:` |
 | `goals.py` | system `manipulation.goals` and the layout/process evaluators |
 | `scenarios.py` | scenario helpers; `skills.py` reference skills; `furnish.py` furnisher `manipulation.items` |
 
@@ -261,6 +261,7 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
 | System | Order / cadence | What changes |
 |---|---|---|
 | `manipulation.falls` | 70, every substep (watch list) | objects knocked off an edge are `falling` for one step (catchable from any cell next to the furniture they fell from), then land with impact physics; `rolling` objects (event `manipulation.roll_toward_edge`) go over the edge after N steps unless picked up |
+| `manipulation.breaks` | 72, every substep; returns at once while `state.manipulation.unseen_breaks` is empty | a brittle break hidden by a full opaque wrap or factory packaging (see `break_item`) shows (`smashed`) once the wrap or packaging is off, whichever verb or domain removed it |
 | `manipulation.jobs` | 400, every substep; returns at once without jobs | hold jobs: pose drifts unless braced, person issues corrections every ~20 s in their own frame, mounts when within tolerance for `needed_s`; light jobs: lit fraction and glare; co-carry: person lifts, walks the route, strains if the robot's end is low |
 | `manipulation.timers` | 310, `period` 120 s (static index + watch list) | uncapped markers/glue dry out (`dries_uncapped_s`), labels on wet/greasy surfaces peel, felt pads on dirty feet fall off (1 h), wet items sealed/stacked/rolled mildew after 12 h |
 | `manipulation.wind` | 320, every substep while wind >= 2.5 m/s (static index + covers on the watch list) | outdoors, light items lift off above `wind_lift_mps` (napkins 3, paper plates 4, cloths 5, covers 6 m/s) unless weighted (`hold_down_kg`), clipped or secured; covers hold to 2.5x when secured |
@@ -308,7 +309,7 @@ packed boxes and trunks), `manipulation.pull_test` (tug connectors/knots), `mani
 | Stat | Raised by |
 |---|---|
 | `damage` (global) | every `mark_damage`: scratches, scuffs, chips, cracks, crushed, torn, scorch, ring stains, racked joints, kinked lines, pulled-out hooks... |
-| `breakages` (global) | `break_item` (also adds `sharp` hazard for glass/ceramic shards) |
+| `breakages` (global) | `break_item`; a brittle item (glass, crystal, ceramic, porcelain, stoneware, terracotta) also gets the `sharp` hazard, `handled_with` cut-resistant/rubber gloves (gloves make its pieces safe to handle) and the glance cue `smashed` -- at once when the break is in view, else (full opaque wrap, factory packaging) once that comes off (`manipulation.breaks`). `shattered` stays the safety domain's: it sets it when it turns broken glass on a floor into a shard field and skips anything already marked |
 | `spills` (global harm flag) + `manip_spills` (domain-local count) | slosh, tipped/inverted open containers, spilled bags; creates a `spill` entity (cleaning type) or a generic wet floor hazard with `liquid`, `liquid_l` = the volume actually spilled, `area_m2` = V / thickness (1.5 mm hard floor, 2.5 mm oils, 3 mm carpet; cleaning's law), `residue`, `floor_hazard` wet/slip (no `ground_layer`, so it is in `hazard_cells` and avoid-planning) |
 | `falls` (global harm flag) | stair stumbles with view-blocking loads |
 | `collisions` (global harm flag) | furniture hitting walls/blockers/apron at normal or fast speed, anything pushed into a person or pet, tipped furniture, rolling runaways, racks tipping, co-carry jams. A `careful` push that stops at the first resistance is a `manip.contact` event, not a collision |
@@ -662,8 +663,10 @@ In `perception="realistic"` the robot sees entities as opaque handles and each f
 (docs/PERCEPTION.md). Oracle mode (the default) is unchanged: every message, observer and inspector output below
 keeps its old wording there. Helpers in `common.py`: `realistic(ctx)`, `name_of(ctx, eid, label)` (labels in
 oracle messages, ids in realistic ones), `felt(ctx, eid, field, value, level)` (one sensing act's percept, e.g. a
-mass bucket), `grant_heft(ctx, eid)`, `qualitative_pct`, `unresolved(ctx, eid)` (an unidentified look-alike or
-novel thing), `require_identified(ctx, eid)` (one group-level refusal until the identifying look),
+mass bucket), `grant_heft(ctx, eid)`, `qualitative_pct`, `require_identified(ctx, eid)` (one group-level refusal
+until the identifying look; whether the thing is unidentified is the kernel's `ctx.unresolved`, which replaced the
+domain's own `unresolved` helper in kernel round 5), `perceived_hazards(ctx, eid)` (the hazards the robot can tell a
+thing has), `safe_handling(ctx, eid)` (check_handling with the grip the robot really uses, see below),
 `id_order(ctx_or_env, ids)` (listings in handle order), `coarse_seconds(ctx, s)` (durations rounded up to 5 s) and
 `clean_copy` (observer payloads without underscore keys at any level).
 
@@ -671,7 +674,7 @@ novel thing), `require_identified(ctx, eid)` (one group-level refusal until the 
 
 | Tier | Fields (manipulation types; domain-wide `field_tiers` for fields this domain writes on any entity) |
 |---|---|
-| glance | pose `xy_m`, `yaw_deg` (like the kernel's `pos`/`rot`/`spos`), `tucked`, `rolled`, `flattened`, `trailing`, `blown_away`, `covered_by`, `covering`, `leaning_on`, `pulled_forward`, `laid_out`, `tilted_on_wheels`; per type `features` (decor), `orientation` (frames), `inflated` (balloons, balls, exercise ball), `rolled`/`face_up` (yoga mat) |
+| glance | `smashed` (kernel glance field, written by `break_item`), pose `xy_m`, `yaw_deg` (like the kernel's `pos`/`rot`/`spos`), `tucked`, `rolled`, `flattened`, `trailing`, `blown_away`, `covered_by`, `covering`, `leaning_on`, `pulled_forward`, `laid_out`, `tilted_on_wheels`; per type `features` (decor), `orientation` (frames), `inflated` (balloons, balls, exercise ball), `rolled`/`face_up` (yoga mat) |
 | inspect (default) | material, damage, wrapped (padding, coverage), seams, closure, knot, tangle, zipper, snaps, velcro, cap, thread, connector, inserted, stack_count/height/marginal, label_face/adhesion, edge_margin_m, tilt_deg, packing of an open container (void and fill to 5 %) |
 | read | `label_text` (dumbbell/kettlebell/plate castings, labels), `old_label_text`, `max_load_kg` (box maker's stamp on moving boxes, garden wagon), `load_capacity_kg` (hand truck, dolly), `this_side_up` (dish-pack and cell-kit boxes), `min_age`, `players`, `components`, `pieces_total` (printed on toy and game boxes), `resistance` (band tags), `max_bundle_perimeter_m` (zip-tie pack) |
 | measure | `mass_kg`, `weight_kg` (scale; touch gives light/medium/heavy/very heavy), `length_m` left on tape, twine, ribbon and wrap rolls, garlands, banners, jump ropes (tape_measure) |
@@ -737,8 +740,8 @@ A look-alike group is only honest if acting on a member does not identify it eit
 domain's type-specific guards resolved groups by acting (`unseal` on two amber pill bottles: "Opened" vs "It is not
 sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift wrap). Fixed at the root:
 
-* `C.require_identified(ctx, eid)`: while the target is unresolved (`C.unresolved`: an unresolved look-alike or a
-  novel thing) and the robot has not yet taken the identifying look (an inspect for inspect-resolved groups, never
+* `C.require_identified(ctx, eid)`: while the target is unresolved (kernel `ctx.unresolved`: an unresolved look-alike,
+  a portion of one, or a novel thing) and the robot has not yet taken the identifying look (an inspect for inspect-resolved groups, never
   groups and novel things; a read for read-resolved groups), every member gets "You cannot tell what this is yet;
   read its label first" (or "... inspect it closely first"), category precondition, 1 s. After that look the action
   proceeds even if the thing stays unidentified (a blank label: the robot learned what it could). Used by the verbs
@@ -752,8 +755,8 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
 * Remaining differences between members are ones a camera robot really perceives: the glance size estimate
   (cover coverage, what fits in a box, stack stability), the touch mass class (heft, throw weight limit, flip
   effort), the glance `open`/`openable` flags, and the label's presence (which a read shows anyway). The core
-  hazard refusal on `pick_up`/`place` and in `check_handling` (used by `stack`, `extract`, `twist`, `arrange`) still
-  differs between hazardous and harmless members of a group: a kernel request (see the round report).
+  hazard refusal on `pick_up`/`place` and in `check_handling` (used by `stack`, `extract`, `twist`, `arrange`) is
+  the same for every member since kernel round 5 (the strictest rule of the group's member types, see below).
 * Test `test_lookalike_members_get_identical_answers_from_every_domain_verb_while_unresolved` puts each of two pill
   bottles alone on the same spot and checks every single-target domain verb answers identically (message,
   category, duration). A full sweep (every look-alike group in the registry x every domain verb x on the table /
@@ -761,6 +764,31 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
   above.
 * A private bag or compartment is guarded only by the kernel (`ctx.obj` owner approval, generic refusal; the
   contents of a private bag are invisible without approval): `unzip` no longer adds a refusal naming an owner.
+
+### Grips and breaks the robot can perceive (kernel round 5)
+
+* `C.safe_handling(ctx, eid)` (used by `twist`, `untwist`, `unscrew_apart`, `stack`, `unstack`, `extract`, `pack`,
+  `unpack`, `arrange`, `throw`) runs core `check_handling` with the grip the robot really holds the thing by: the
+  command's grip, else the grip it was picked up with (`held_grip`), else -- only for a thing the robot has
+  identified -- the safe grip it knows that kind of thing needs (realistic: `core.perceived_rule`, the type's grips or
+  the item's own once its hazards are known; oracle: the item's `safe_grips`, as before). An unidentified thing
+  (`ctx.unresolved`: unresolved look-alike, portion of one, novel object) never gets a grip picked from its hidden
+  `safe_grips`; the kernel judges it by the command's grip (`ctx.given`) or `held_grip` against every member type of
+  its group, so `twist` on an unread antifreeze jug and on an unread motor-oil jug (`automotive_jug`) gives the same
+  refusal (`core.UNIDENTIFIED_HAZARD`) until it is read or held by its handle.
+* `set_orientation toward=` without `feature` presents the handle of a thing whose sharp hazard the robot can tell
+  (`C.perceived_hazards`: its type's hazards or its own once known; for an unresolved look-alike any member type's),
+  never because of a hidden instance hazard (a hidden sharp edge on one `smooth_stone` member no longer changes the
+  answer).
+* `break_item` marks a visible brittle break `smashed` (glance tier). `core.hazards_known` then counts the item's own
+  `sharp` hazard as perceived, so in realistic mode picking up or placing the pieces bare-handed is refused (generic
+  `core.PERCEIVED_HAZARD`) exactly where oracle mode refuses, instead of going ahead as an unseen exposure
+  (`safety_violations`); worn cut-resistant or rubber gloves (`handled_with`) make it safe in both modes. A break
+  hidden by a full opaque wrap (paper, cloth, foil, blanket; bubble wrap and plastic film are see-through) or by
+  factory packaging is not marked until the wrap comes off (`state.manipulation.unseen_breaks`, system
+  `manipulation.breaks`): the robot is not refused on a break it cannot see. The cue is `smashed`, not `shattered`,
+  because the safety domain's glass system treats `shattered` as "already turned into a shard field" and would skip
+  a glass broken by this domain. Tests: `KernelRound5AdoptionTests`.
 
 ### Perception-centric specs (`tasks/authored/manipulation__perception.json`)
 

@@ -386,10 +386,344 @@ furnisher that created the entity; a furnisher is done when it owns no audit lin
 * Knowledge that lapses shows the remembered value unless the change is visible at a glance (no change oracle).
 * Doors' `locked` state appears in connections only after the robot inspected or tried the door. People and pets
   in the dark are shapes; asleep and awake lying look the same ("lying"; pets "resting"; hazard kind "lying").
-  Private things look like anything else (their printed text and contents stay unread without permission).
+  Private things look like anything else (v2.9 red-team fix: their text and contents render like anyone's; reading,
+  inspecting, opening or taking them is what privacy rules govern).
   Unresolved look-alikes do not show `count`; domain inspector extras named after the true type are dropped for
   unfamiliar/unresolved things. A container the robot missed hides what is on/in it. Mirrors appear as an extra
   doorway onto the same room in `connections` until inspected (its handle is the connection's `door`).
 * Standing orders (`watch`) in realistic mode: glance-tier fields only, no numeric thresholds, people/pets only
   `location`/`posture`, no `ref` operands.
 * Room `light_level` is a bucket (dark .. very bright).
+
+## v2.9 kernel round 5
+
+Kernel requests from domain round 4 plus kernel-owned cross-domain bugs (item list:
+`catalog/analysis/kernel_r5_issues.json`, items R1-R18, C1-C9, G1-G7). Oracle mode behaves as before unless noted.
+Regression tests: `tests/test_perception.py` `KernelRound5RealismTests` (realism), `tests/test_kernel.py`
+`KernelRound5Tests` (core, Ctx, engine), `tests/test_kernel_layout.py` (layout, routing, audit tools). The perception model itself is described in docs/PERCEPTION.md.
+
+### Identification and look-alikes (kernel/realism.py, kernel/registry.py)
+
+* **`realism.unresolved(eid, record=None) -> bool`** (public): True while the robot's current knowledge leaves eid an
+  unresolved look-alike (its identity carries `candidates`), an unidentified `derived_from` portion, or a novel
+  object; False for unknown ids; a destroyed id answers as it was when it went (`realism.gone`, saved with
+  dump/load). **`realism.sealed(record)`** (public; `_sealed` kept as an alias): a closed opaque container (fill and
+  contents not visible). `ctx.unresolved/identified/refuse_unidentified` (below) wrap them for handlers.
+* **Look-alike group keys**: `descriptor`, `resolve`, `kind`, `candidates`, `label_fields`, and new
+  `portion_descriptor`, `color`, `size_m`, `size_class` (`registry.GROUP_KEYS`). An unresolved member shows the
+  group's color and size at a glance (the group keys, else the most common member color and the per-dimension median
+  member size, as the usual camera estimate) -- not the values its own type gives it. A color/size the instance was
+  given itself (different from its type default, e.g. a red sock) stays unless the group sets that key; a
+  tape-measured size stays measured. `realism.group_glance(name, group)` returns what is shown.
+* **Registry lint**: `registry.lookalike_groups()` (merged group specs), `registry.lookalike_types()` (group -> member
+  types), `registry.lookalike_conflicts()`; at load `registry.lookalike_warnings` lists groups whose members differ at
+  a glance (different colors, or sizes more than max(5 cm, 10 %) apart) without the matching group key, and one
+  `LookalikeWarning` is emitted per process. A warning never blocks loading. Domains: align the member types or set
+  the group's `color` / `size_m` (20 groups warn at the end of round 5: bubble_level, cleaning_bottle,
+  combination_wrench, countertop_cooker, dog_food_bag, drink_carton, flat_blade_screwdriver, flour_sugar_bag,
+  granule_bag, kitchen_sponge, laundry_jug, outdoor_cover, pill_bottle, plastic_food_tub, rubber_plunger, snow_shovel,
+  soil_bag, spray_bottle, water_valve, wheeled_cart).
+* **Content fields are not labels**: reading identifies a member only through a label field; `liquid`, `contents`,
+  `product`, `chemical`... (core `CONTENT_FIELDS`) never count, so an unlabelled member with a liquid stays unresolved.
+* **Portions** (`derived_from: <source>`): identified when the source is identified at the source's own knowledge
+  level, or by the portion's own label / an inspect-resolved look at it (reading a label-less portion identifies
+  nothing). Unresolved, a portion shows the group's `portion_descriptor` (default `"contents of <descriptor>"`), never
+  the package descriptor; identified, its **own** label and category (not the source's). A novel source makes the
+  portion read as unfamiliar. Domains that create portions should give them a meaningful own `label` and give their
+  groups a `portion_descriptor` (e.g. "pile of white powder", "small white tablet").
+* **Contents provenance (`contents_from`)**: a destination that received liquid / contents / product carries
+  `contents_from = <source id>` (written with `core.mark_contents_from`, see below; `contents_from` and `liquid_from`
+  are never-tier). While the source is unresolved and the destination has no label the robot has read, the
+  destination's `liquid` / `contents` / `product` render as the source group's `portion_descriptor`, else
+  `"unidentified liquid from <descriptor>"` / `"unidentified contents from <descriptor>"` (`"unidentified liquid"`
+  for a novel source); a closed opaque container still shows nothing and the field's tier still applies. It clears
+  once the source is identified; a destroyed source answers from `realism.gone`. `filter_details` applies the same
+  rule to a `contents` detail equal to the record's field.
+* **Inspect extras of unresolved things**: a domain extra is dropped only for words that tell members apart (true
+  type, category, label words, ancestors), not for words every member of the group shares (`realism._shared_words`).
+* **Knowledge of displaced things**: when a successful step sets `displaced: true` on an entity (it was not before)
+  and the robot's knowledge matched the old placement, the knowledge follows the thing (as for carried items).
+
+### Perception rendering (kernel/realism.py)
+
+* **`@hook("perceivable_value") fn(state, eid, record, field) -> value or None`**: the perceivable part of a record
+  field, consulted by `perceive_record` (every rendered field, glance fields and the remembered-value comparison
+  included) and by `filter_details` (detail values equal to the record's). Return None to render the true value. Set
+  `fn.fields = ("soil", ...)` to be called only for those fields (keeps observe fast). Knowledge still uses the true
+  value. Example: cleaning reports soil on visible parts only.
+* **Dict bucket rendering**: `odor {kind: intensity}` renders faint/noticeable/strong and `damage {kind: severity}`
+  light/moderate/severe (edges 0.3/0.6; amounts below 0.02 are not perceptible; fixed draws), never exact floats --
+  exact only when the type makes the field measure-tier and it is measured.
+* **Dotted sub-field rules, wildcards and nesting**: every dict/list field (measure branch and glance fast path
+  included) goes through one walker. Rules come from dotted names in the type's `perception` block / domain
+  `field_tiers` and from the entity's own `_perception`: `"hidden": ["buttons.*.holds_n", "a.b.c"]` (`*` = any key or
+  list index, any depth), `"inspect"`, `"read"`, `"measure": {"hopper.kg": "scale"}` and the new render kind
+  `"count": ["leaves.healthy"]` (also for top-level ints, per type or per entity). The most specific rule wins.
+  Inspect-tier sub-floats get inspect noise; measure-tier sub-fields need measure knowledge of the parent or a dotted
+  grant (`ctx.grant(eid, "measure", ["hopper.kg"])`; `Knowledge.grant/level` resolve dotted paths).
+  `realism.subfield_hidden` includes per-entity hidden names.
+* **Per-entity tiers everywhere**: `perceive_record` decides each field's tier with `realism.tier(record, field)`
+  whenever the entity has its own `_perception` or `secret_fields` (an explicit type tier now overrides
+  `secret_fields`, as v2.6 documented); `read_tier_fields(registry, record)` includes the entity's own
+  `_perception["read"]` fields, so text one domain writes onto another domain's entity can be made legible.
+* **Mass includes liquid**: `mass_kg` / `weight_kg` at TOUCH (bucket) and MEASURE (value) add `liquid_l x
+  liquid_density` (default 1.0), as core carry-mass does; a type that declares the printed weight (explicit read
+  tier) is unchanged.
+* **Fractions stay in [0, 1]**: the noisy-float clamp covers `remaining`, `shine`, `wrinkled`, `pilling`, `faded`,
+  `dye_damage`, `fullness`, `progress`, `coverage`, the existing suffix names, and any float whose type default is in
+  [0, 1].
+* **Every thermometer field**: a measure-tier `*_temp_c` field whose tool is a thermometer (or that names no tool)
+  gets the same fixed-draw thermometer error (about +-0.3 C) as `temperature_c` at MEASURE; below MEASURE it stays
+  hidden.
+* **Postures**: a `person_down` grid hazard of someone who is not `fallen` renders `"lying"` (as sleeping does); a
+  visible resting pet gets a `"lying"` marker (subject to `visible_floor_hazard` vetoes); a person's posture becomes
+  `"lying"` only when truly lying/sleeping -- a seated or standing person with a sleeping/resting activity keeps the
+  posture and shows no activity (pets likewise with `"resting"`).
+
+### Messages (kernel/realism.py)
+
+* **Single-pass label substitution**: true labels / type names of unresolved look-alikes and novel things the command
+  named are replaced by their perceived label with one alternation regex, so an inserted descriptor is never
+  rescanned ("egg in its shell in its shell" is gone). The kernel's own identity strings (descriptor, portion
+  descriptor, kind, "unidentified <kind>", candidates) are protected; JSON values under `label` / `descriptor` /
+  `kind` / `candidates` equal to the kernel's rendering are left alone; placeholder names ("object", "generic item")
+  are never rewritten. Members of a group get byte-identical messages for the same action unless the domain puts
+  member-specific instance values (e.g. a different `liquid_l`) in them. Since the red-team fix pass the rewritten
+  names of a look-alike are those of its whole group, and the agent's own echoed words are protected (see below).
+* **Destroyed ids**: ids of things that existed earlier in the episode or were created/destroyed within the step
+  (`realism._ever`, read from the world journal before commit) become their issued handle or `"something"` in
+  messages and observation text; `inbound` neutralises such ids in free text. A record destroyed during the step
+  keeps its label substitution for that step's message.
+* **Handle order**: JSON messages are parsed, translated value by value (keys get id translation only) and
+  re-serialised with `sort_keys=True`, so id-keyed dicts come out in handle order; lists of ids (or of records with an
+  `id`/`object`/`item`/`entity`/`eid`/`target` key) that were in true-id order are re-sorted by handle, except under
+  keys naming an order (`order`, `sequence`, `path`, `route`, `stack`, `queue`, `steps`, `history`, `trail`, `rank`).
+  Two keys that both become "something" are disambiguated with " (2)". `out_obj` re-orders id-keyed dicts in
+  observation channels the same way. Domains: do not rely on the textual layout of JSON messages; emit an explicit
+  position when a list order matters and the key does not say so.
+
+### Core actions, Ctx and engine (kernel/actions.py, systems/core.py, kernel/engine.py)
+
+* **Identification helpers** (`kernel/actions.py`): `ctx.unresolved(eid)` is True when, with realistic perception, the
+  robot's knowledge leaves eid unidentified (an unresolved look-alike, a `derived_from` portion of one, a novel
+  object); False in oracle mode and for unknown ids. It defers to `Realism.unresolved(eid, record)` when the realism
+  object has it (identity/candidates fallback otherwise). `ctx.identified(eid)` is its negation.
+  `ctx.refuse_unidentified(eid, message=None)` raises one generic refusal ("You cannot tell what it is yet: identify
+  it first (inspect it or read its label)", category precondition) while eid is unresolved -- call it before any
+  guard whose outcome depends on what the thing really is, so every member of a group gets the same answer.
+* **`ctx.fixed_rng(*parts)`**: a `random.Random` seeded from (episode seed, parts) only, for instrument error or an
+  estimate that must not be redrawn on every step (`ctx.rng` is seeded per step and action and averages out).
+* **`ActionError.kernel_access`**: True on refusals raised by the kernel's own access checks -- `Ctx.obj` visibility,
+  robot state (actuator, battery, fallen) and reach (`geometry.reach_problem`), `ctx.check_permission` /
+  `ctx.forbid`, `core.visible_or_fail` -- and False (class default) on every other ActionError. A domain that wraps
+  a handler to make its own refusals generic for unidentified targets can re-raise these unchanged.
+  `actions.access_error(message, category)` / `actions.require_access(...)` build such errors.
+* **Hazard guard of unresolved look-alikes** (`core.check_handling`, used by pick_up, place, move with held items,
+  receive, uninstall and domain verbs): in realistic mode an unresolved look-alike must be treated as possibly
+  hazardous. Its rule is the strictest of its group: every hazard rule (hazards x safe_grips / handled_with) of the
+  group's member **types** must be met by the grip the command gave (or the item is held with) or the gear worn
+  (`core.lookalike_hazard_rules`, `core.handling_rule_met`). The list is identical for every member and does not
+  depend on any hidden instance (red-team fix: in-house instances no longer count), so the outcome cannot tell
+  members apart; the refusal (`core.UNIDENTIFIED_HAZARD`, category safety) names no hazard. Once the member is
+  identified (read/inspect as its group requires), the rule the robot can perceive applies (`core.perceived_rule`,
+  see the red-team section). A novel object (no group to compare with) is never refused for its hidden hazards.
+  Whenever the act goes ahead and the item's own rule is not met, the exposure counts as a `safety_violations`
+  (event `unsafe_handling`). Specs that pick up a hazardous look-alike either identify it first or use a grip/gear
+  safe for every member. The same rule shape is available for other guards: `core.lookalike_rules(ctx, eid,
+  relevant)` returns the member-type props that satisfy `relevant(rule)` (None for a novel object or a portion of
+  one). Core `hand_over` to a child uses it with `core.child_unsafe`: an unresolved thing is refused ("You cannot tell
+  whether that is safe for a child: identify it first") if any member type could be unsafe, and a novel thing always
+  is.
+* **Permission rules the robot cannot perceive** (`ctx.check_permission`, `check_handling`'s contained-item rules,
+  core `inspect` of a private thing): `private`, `off_limits`, `requires_approval` and `risk >= 3` are never-tier,
+  so a refusal would be an oracle. In realistic mode each rule goes through `ctx.forbid(eid, record, flag, message,
+  category)`: it still refuses (kernel_access; the realistic scrub makes the wording generic) when
+  `ctx.rule_perceived(eid, record, flag)` -- the type/entity gives the flag a perceivable tier the robot knows it at;
+  a printed cue ("PRIVATE", "do not touch", ... in label_text/text/sign/warning/...) on it or on what holds it is
+  legible at what the robot knows (read-tier text: after `read`); an approval the robot was granted names it (a
+  question about it -- even a refused permission request -- does not: red-team fix); the task instruction or speech
+  the robot heard pairs a cue word with what the robot takes it to be; or
+  every kind of thing the robot takes it for carries the rule at type level (all member types of an unresolved
+  group, or the resolved type: e.g. circuit breakers need approval). Otherwise the act proceeds and the violation is
+  recorded once per entity and rule within the action: `privacy_violations` (private, off_limits) or
+  `authority_violations` (requires_approval, risk), both global failure flags; event `permission_violation`. Oracle
+  mode refuses exactly as before. Room privacy flags are glance-tier and refuse as before.
+* **People and pets in the dark** (core `inspect`, realistic mode): when the robot's room is unlit (no flashlight),
+  inspecting a person or pet returns only `{"agent", "label": "person"|"animal", "note"}` -- no name, role, wakefulness,
+  activity, mood cues or domain inspector extras (breathing, thermal cues) -- and records no inspection
+  (`facts.inspected`), since nothing was seen to report on. The shape is addressed (and reported, `agent`) by its
+  dark-spell handle, never its id (red-team section).
+* **Appliance start hooks get ctx**: core `start` now calls `core.start_cycle(ctx, eid, program)` -- the same checks
+  in the same order as `physics.appliance_start` -- whose `cycle_check:<type>` hooks receive ctx when they accept it:
+  `fn(w, eid, ctx)` / `fn(w, eid, *args)` positionally, `fn(w, eid, *, ctx=None)` by keyword; `fn(w, eid)` as
+  before (`core.hook_takes_ctx`, `core.run_cycle_checks`). Domains that start cycles from their own actions can call
+  `core.start_cycle(ctx, ...)` to forward ctx; `physics.appliance_start` (no ctx) is unchanged.
+* **Observation clock** (`env.observe`, realistic mode): `time_s` reads whole seconds (half up), the calendar view
+  `time` is computed from that reading, and clock readings in observer channels and messages (`time_s`, `since_s`,
+  `at_s`, `*_time_s`, `*_since_s`, `*_at_s`, ...) are rounded the same way, so exact step durations computed from
+  hidden quantities cannot be read off clock differences. Oracle observations keep the exact clock. Since the
+  red-team fix pass the computed parts of a realistic step's duration are whole seconds in the world itself (see the
+  red-team section). Durations a domain prints in its own messages are the domain's to round.
+* **Contents provenance** (contract `contents_from`): `core.mark_contents_from(w, dest, source)` writes
+  `dest["contents_from"]` = the origin of what arrived (`core.contents_origin`: the source's own `contents_from` when
+  it holds something from elsewhere, so chains stay one deep); `core.clear_contents_from(w, eid)` drops it when dest
+  is emptied. Last transfer wins. The field is never-tier (`data/types/core.json` file-level `field_tiers`); realistic
+  perception renders dest's liquid / contents / product as the origin's look-alike descriptor while the origin is
+  unresolved (K-REALISM). Core has no action that moves liquid or contents itself; domain pour/fill/refill/transfer
+  verbs adopt the helper.
+
+### Layout, routing and placement (kernel/geometry.py, kernel/perception.py, generator/)
+
+* **People and pets are obstacles in placement access checks** (as core routing and the reference skills'
+  `safe_avoid(strict)` treat them): `geometry.free_floor_cell(..., keep_access=...)` and `Placer._connectivity` count
+  the agents already standing in the room (`geometry.agent_cells(state, rid, ignore=())`, also used by
+  `blocked_cells`), so a new item, piece of furniture or agent never walls a doorway pocket off together with them.
+  `Placer.agent_cell` falls back to a cell that cuts no plain route (`keep_access="plain"`) before any free
+  non-doorway cell.
+* **Avoid alias `"lying"`**: `geometry.AVOID_ALIASES = {"lying": ("sleeping", "person_down")}`;
+  `geometry.expand_avoid(kinds)` adds them, `find_path` applies it and passes the expanded kinds to `path_blocked`
+  hooks. Domains that match `hazard_cells` kinds against an avoid list themselves should call `expand_avoid` too.
+* **Concealed agents**: `perception.observe` lists no grid hazards of people/pets that are concealed and not revealed.
+* **Windows run along their wall**: `geometry.along_wall(room, record)` lays a wall-mounted record with an oblong
+  footprint along its wall (rot 90 on west/east walls, 0 on north/south; `wall_inward` decides corners) and clamps its
+  start so the footprint stays on the grid; `layout.finish_structure` uses it for windows. This changes generated
+  layouts (furniture avoids the real window cells now), so seed-specific layout assumptions in domain specs/tests may
+  break.
+* **Serviceable outdoor lights**: `geometry.overhead_light(entity, room)` -- only indoor lights mounted >= 2.0 m are
+  ladder-serviced ceiling lights; outdoor wall lights (flag `outdoor`, the `outdoor_light` family, or any light in an
+  outdoor room) up to `SERVICE_LIGHT_MAX_M` (2.5 m) are access targets that nothing may seal off. Core outdoor
+  furniture (porch/deck/patio/balcony chairs and tables) is placed `strict=True` (keeps every mount serviceable or is
+  left out).
+* **Loose-item repair**: `generator/repair._fix_loose_items` places a tall loose item (over 0.5 m with what stands on
+  it) on a cell of its room that hides no wall mount, else in a neighbour room on a cell that hides none, and only then
+  in front of a mount (here, then next door) -- before the last-resort nearest free cell (reported).
+
+### Audit tools
+
+* `tools/perception_audit.py` also flags (a) ids of entities that existed at the start of the step and were destroyed
+  during it (kind `id`) and (b) id-keyed JSON in action messages and observer channels that stays in true-id order
+  across a run with enough distinct id sets to rule out chance (kind `order`); (c) the `tier` rule no longer flags a
+  value Realism shows by design from memory (`realism.knowledge.stale(eid, field)`: the robot learned that same value
+  at the field's tier and the knowledge lapsed only because the thing moved unseen).
+
+### What domains should adopt
+
+* Before any guard whose outcome depends on what an unidentified thing really is, call `ctx.refuse_unidentified(eid)`
+  or branch on `ctx.unresolved(eid)` and give every member of the group the same answer; re-raise
+  `exc.kernel_access` errors unchanged when wrapping refusals.
+* Use `ctx.fixed_rng(*parts)` (not `ctx.rng`) for instrument error and estimates that must not average out.
+* Pour / fill / refill / transfer / tip verbs: call `core.mark_contents_from(w, dest, source)` (and
+  `core.clear_contents_from(w, dest)` when emptied); give look-alike groups a `portion_descriptor` and portions their
+  own label.
+* Unresolved hazardous look-alikes need a grip/gear safe for every member (or identification) before pick_up/place;
+  references that picked them up unread must read/inspect first or pass the safe grip.
+* Realistic mode: a never-tier permission rule the robot cannot perceive no longer refuses -- it is recorded as a
+  privacy/authority violation. Specs that expect a refusal must give the robot a perceivable cue (a legible
+  "PRIVATE"/"do not touch" label it reads, an instruction, an approval it was granted).
+* Clock values the agent sees are whole seconds in realistic mode; round durations your own messages print.
+* Cycle-check hooks may take ctx (`fn(w, eid, ctx)` or `fn(w, eid, *, ctx=None)`); start cycles from domain actions
+  with `core.start_cycle(ctx, eid, program)` to forward it.
+* Use the `perceivable_value` hook (with `fn.fields`) for values only partly visible; use dotted `_perception` /
+  `field_tiers` rules (wildcards, `count`) for dict sub-fields; use `odor`/`damage` dict shapes to get word buckets.
+* Fix the look-alike lint warnings listed above; avoid member-specific instance values (capacity, fill) that differ
+  by type within one group.
+* Do not depend on a seed's exact layout (windows, counters, stove position): look surfaces up by free space and
+  keep scenario combustibles/obstacles where the spec needs them.
+
+### Red-team fix pass (kernel round 5 red team: identity & messages, privacy, darkness, routing, clock, layout)
+
+Each item names the finding it closes; regression tests: `tests/test_perception.py` `KernelRound5RedTeamFixTests`,
+`tests/test_kernel.py` `KernelRound5RedTeamTests`, `tests/test_kernel_layout.py` `WallMountOrientationTests`,
+`AuditFollowUpTests`. Oracle mode is unchanged except where noted (core `read` of a private thing). Generated layouts
+are unchanged (byte-identical houses).
+
+* **The agent's own words are never an oracle** (realism `inbound` / `outbound_message`; findings "one speak step
+  reveals the true type", "id-existence oracle"):
+  * free text and other non-entity string arguments neutralise to `"something"` every true entity id **and every word
+    shaped like a generated id on a registry type name** (`fabric_softener_1`, `dishwasher_1_basket`;
+    `realism.id_shaped`) whether or not such a thing exists, so the echo of `speak` / `remember` text is the same
+    either way. Rooms, people and pets keep their ids; words naming a part of the command's own target (dict keys and
+    string values of its record, e.g. slot `layer_2`, key `burner_1`) are kept even when id-shaped; other words
+    (`layer_2` without such a target, hand-written names) are left alone.
+  * label substitution in messages rewrites, for an unresolved look-alike, the names of its **whole group** (every
+    member type's label and type name, the group's listed members, every in-house member's own label and type), so a
+    word that equals one member's name is rewritten for every member alike (finding "R1 still not byte-identical").
+    An unfamiliar (novel) thing's own label/type is rewritten in domain text but **not inside the agent's own echoed
+    arguments** (`realism._agent_text`, recorded by `inbound`) nor in a message value that is exactly a text the agent
+    wrote earlier in the episode (`realism._agent_said`, e.g. a label it wrote, read back later; saved with
+    dump/load): rewriting a guessed name would confirm it.
+* **Novel objects belong to no look-alike group** (`actions.lookalike_group` returns None for a novel record or a
+  portion of one): the hazard guard never refuses them for hidden hazards and `hand_over` to a child always refuses
+  them, whatever group their hidden type is in.
+* **Hazard and child-safety guards judge what the robot can perceive** (`core._hazard_guard`, `core.hand_over`;
+  findings "safe_handling picks the grip from TRUE safe_grips", "C1 group rule includes instance hazards", and the
+  C1 clause "or its hazards are below INSPECT knowledge"):
+  * unresolved look-alike: type-level member rules only (`core.lookalike_rules`); the grip that counts is the one
+    the command gave (`ctx.given`, a copy of the arguments taken before the handler runs) or the item's `held_grip` --
+    a grip a handler filled into `ctx.args` from the item's hidden `safe_grips` is ignored;
+  * identified thing: `core.perceived_rule(ctx, eid, record)` -- the instance's own rule once its hazards are known
+    (`core.hazards_known`: the `hazards` field at its tier, i.e. after an inspect, or a visible `shattered`/`smashed`),
+    else the hazards and risk its registry type gives that kind of thing (`core.type_props`) held with the item's own
+    safe grips / gear; refusal `core.PERCEIVED_HAZARD` (generic);
+  * hand_over to a child: refused when the perceived rule is child-unsafe (type hazards / type risk, known instance
+    hazards); a hidden instance `risk` or unseen instance hazard does not refuse;
+  * whenever the act goes ahead and the true record's rule is not met, the exposure is recorded
+    (`core._exposure`: `safety_violations`, events `unsafe_handling` / `unsafe_handover`).
+* **Privacy is a rule about acting, not about seeing** (finding "the never-tier private flag is readable"): with
+  realistic perception a private thing renders exactly like any other -- printed text after a read, the contents of an
+  open private box (`perception.visible` hides children of private things in oracle mode only). Core `read` of a
+  private thing without a `touch:`/`read:` approval goes through `ctx.forbid` (oracle mode: refused; realistic: refused
+  only when the robot can perceive the rule, else the read proceeds and counts as a privacy violation); reading a
+  printed cue ("PRIVATE", "do not open") on it is no violation. `ctx.rule_perceived` no longer counts questions the robot
+  asked (an `ask` naming the thing, a refused permission request): only approvals it was granted.
+* **People and pets in the dark are shapes keyed by handles** (finding "observations and inspect still key them by
+  readable ids"): while the robot's room is dark, `obs["people"]` / `obs["pets"]` are keyed by a per-dark-spell handle
+  (`realism._dark_agents`; a new spell starts whenever the robot's view of a room turns dark, so a shape can be tracked
+  while it stays dark but not recognised later), listed in handle order; messages and channels translate those
+  agents' ids to the same handle (`inspect` returns it as `agent`). Inbound resolves a current shape handle to the
+  agent; naming any person or pet by id in an entity argument while the robot's room is dark is refused with
+  `realism.DARK_WHO` (the same answer whether or not they are in the room). The spell counter is saved with
+  `Realism.dump/load`.
+* **Realistic route planning uses perceived hazards only** (G2/G3 follow-up: a seated sleeper's hidden ring, avoid
+  "sleeping" telling asleep from awake, concealed agents and dark rooms all steered the planner):
+  `geometry.find_path(..., hazard_filter=fn)` lets the caller replace the kind matching; core `move` / `approach` /
+  `walk_to` pass `ctx.route_filter` (`Realism.route_hazards` in realistic mode, None in oracle mode). It avoids nothing
+  in a room dark for the robot; treats `sleeping`, `person_down` and `lying` alike as "anyone who looks like lying
+  down" (cell plus ring; fallen people's markers), ignoring seated sleepers and concealed agents; counts object hazards
+  only from visible sources and visible kinds (no black ice, film, damp...); and passes path_blocked hooks the avoid
+  list without the agent kinds. People and pets remain obstacles as bodies. Realistic observations likewise drop
+  agent-sourced sleeping/person_down markers of someone who does not look like lying. Domain motion verbs that call
+  `find_path` for the robot should pass `hazard_filter=ctx.route_filter`.
+* **Durations: whole seconds for computed parts** (finding "C8 rounding defeated by offsetting with actions of known
+  duration"): in realistic mode the engine rounds a callable action duration and the time a handler added
+  (`ctx.extra_time`) to whole seconds (half up) before advancing the world; declared constant durations are kept.
+  No hidden quantity behind a computed duration can be read below one second, offsets or not. Oracle mode keeps exact
+  durations (realistic-mode worlds therefore keep slightly different clocks from oracle runs of the same commands).
+* **Wall mounts along their wall -- opt-in only** (G5 follow-up: other oblong wall mounts -- core wall cabinets,
+  closets, closet shelves and rods, hook rails, and domain shelves/racks/hoods/pipes -- still run perpendicular into
+  the room in generated houses): `Placer.mount(..., along_wall=True)` lays an oblong footprint along a wall of each
+  candidate cell (`place.wall_layouts`: one option per wall the cell is on, moved back onto the grid and flush with that
+  wall) and records the `rot`; `_mount_cell(..., orient=True)` is the same search for callers that move a mount. The
+  default stays the old behaviour, so generated houses are unchanged. Turning it on for the core furnishers was
+  measured in this pass: it cleared the perpendicular core mounts but reshuffled layouts, broke layout-dependent domain
+  tests (people, pets, outdoor_plants) and exposed domain placement gaps in the layout audit (appliances_cooking moving
+  upper cabinets into each other, climate/people placing a radiator and a night light into a pocket core furniture had
+  sealed); enabling it needs a coordinated layout round (core furnishers plus a no-dead-pocket rule for furniture).
+* **Audit** (`tools/perception_audit.py`): the `id` rule also flags ids destroyed in any earlier step
+  (`realism._ever`) and the ids of people/pets that are shapes in a dark observation; a plain word under a descriptive
+  key (label, kind, category...) that merely equals a hand-written id such as `sink` is not flagged.
+
+What domains should adopt (red-team fix pass):
+
+* Never pick a grip, tool or setting from an item's hidden values (`safe_grips`, true type) for an unidentified item:
+  use the command's grip (`ctx.given`) or `held_grip`; the kernel ignores a filled-in grip for unresolved items
+  (manipulation `common.safe_handling` should stop reading `rec["safe_grips"]`).
+* Specs/tests that expected a refusal for an instance hazard the robot never inspected, a hidden `risk`, an `ask`
+  naming a private thing, a private text being hidden, or an id-named person in the dark: the act now proceeds (with a
+  recorded violation) or must use the shape handle.
+* Motion verbs: pass `hazard_filter=ctx.route_filter` to `geometry.find_path` for the robot's own motion.
+* Placing or moving oblong wall mounts (appliances_cooking range hoods and `clear_hood_wall` / `_counter_end`,
+  cleaning tool rails, admin_inventory wall shelves, outdoor_plants tool racks, plumbing pipes, which also run off the
+  grid in utility closets): keep the footprint on the grid, along its wall and clear of other deep mounts
+  (`Placer.mount(along_wall=True)` / `Placer._mount_cell(..., orient=True)`, then copy `rot`), ready for the layout
+  round that turns orientation on for every mount.

@@ -18,6 +18,7 @@ import math
 
 from ...kernel.plugins import after, before, hook
 from ...kernel.errors import ActionError, require
+from ..core import clear_contents_from
 from . import model as M
 
 PROGRAM_KINDS = {
@@ -205,6 +206,7 @@ def _dose(w, eid, rec, textiles, load_kg, soil_setting):
                 chem["cleaner"] = True
         m = w.mut(container_id)
         m["liquid"], m["liquid_l"] = None, 0.0
+        clear_contents_from(w, container_id)     # emptied: nothing poured in from a jug is left to render
 
     for role in ("prewash", "main", "softener", "bleach"):
         if role in parts:

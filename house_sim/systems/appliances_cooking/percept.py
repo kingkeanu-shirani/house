@@ -14,13 +14,13 @@ and action messages stay byte-for-byte as before. In realistic mode:
     unfamiliar thing nor give away a hidden value -- operating an unresolved member of this domain's look-alike groups
     gets one group-level reason (`unresolved_member`, guard in status.py), this domain's type-specific reasons become
     generic for unidentified things (`plain_refusals` / `plain`), listed ids go in handle order (`ordered`), instrument
-    errors are one fixed draw per (instrument, object) (`fixed_offset`), durations that would time a hidden quantity are
-    quantized or fixed (`coarse_seconds`), sound names that give away a type or mode are plain (`PLAIN_SOUNDS`).
+    errors are one fixed draw per (instrument, object) (kernel `ctx.fixed_rng`), durations that would time a hidden
+    quantity are quantized or fixed (`coarse_seconds`), sound names that give away a type or mode are plain
+    (`PLAIN_SOUNDS`).
 """
 import contextlib
 import functools
 import math
-import random
 
 from ...kernel import geometry
 from ...kernel.errors import ActionError
@@ -46,12 +46,16 @@ def active(env):
 
 def unidentified(env, eid):
     """Realistic mode: True when the robot has not identified eid -- a member of a look-alike group it has not resolved
-    yet (kettle vs stovetop kettle, rice cooker vs pressure cooker...) or an unfamiliar (novel) object. Always False in
-    oracle mode."""
+    yet (kettle vs stovetop kettle, rice cooker vs pressure cooker...), a portion of one, or an unfamiliar (novel)
+    object. Always False in oracle mode. The kernel's `Realism.unresolved` decides (round 5; it also answers for a
+    thing destroyed during the step as it was when it went); the identity fallback is for an older realism object."""
     realism = getattr(env, "realism", None)
-    if realism is None:
+    if realism is None or not isinstance(eid, str):
         return False
-    rec = env.world.s["entities"].get(eid) if isinstance(eid, str) else None
+    rec = env.world.s["entities"].get(eid)
+    own = getattr(realism, "unresolved", None)
+    if callable(own):
+        return bool(own(eid, rec))
     if rec is None:
         return False
     if rec.get("novel"):
@@ -68,11 +72,13 @@ def plain_refusals(ctx, *eids):
     """Refusals raised inside the block are this domain's own type-specific reasons ("seat the kettle on its base",
     "the float valve is up", "lock the portafilter into the group head"). In realistic mode, when one of `eids` is not
     identified (an unresolved look-alike or a novel object), the reason would name what it is: one generic reason is
-    given instead (same category). Kernel access refusals (not visible, out of reach, permission) are raised outside
-    such blocks and pass unchanged."""
+    given instead (same category). Kernel access refusals (not visible, out of reach, robot state, permission:
+    `exc.kernel_access`, kernel round 5) pass unchanged even when raised inside the block."""
     try:
         yield
     except ActionError as exc:
+        if getattr(exc, "kernel_access", False):
+            raise
         if getattr(ctx, "realistic", False) and any(unidentified(ctx.env, e) for e in eids if isinstance(e, str)):
             raise ActionError(GENERIC_REFUSAL, exc.category) from None
         raise
@@ -99,13 +105,6 @@ def ordered(ctx, ids):
     if realism is None:
         return ids
     return sorted(ids, key=lambda e: realism.handles.handle(e) if isinstance(e, str) else str(e))
-
-
-def fixed_offset(env, spread, *key):
-    """An instrument's error for one (instrument, object) pair: drawn once from (seed, key), so repeating a reading gives
-    the same value and cannot be averaged towards the truth (realistic mode)."""
-    rng = random.Random("{}|ac|{}".format(getattr(env, "seed", 0), "|".join(str(k) for k in key)))
-    return rng.uniform(-float(spread), float(spread))
 
 
 # this domain's look-alike groups (members are all this domain's types): until the robot resolves which member it is,

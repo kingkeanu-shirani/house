@@ -4,6 +4,8 @@ knowledge for the manipulation domain.
 Systems (none scans every entity: static props come from w.static_index, dynamic fields from the
 journaled watch list state.manipulation.watch, seeded at episode_start and extended by C.watch):
   manipulation.falls    every substep: resolves objects knocked off an edge (catchable for one step)
+  manipulation.breaks   every substep while state.manipulation.unseen_breaks lists something: a brittle break
+                        hidden by an opaque wrap or factory packaging shows (`smashed`) once that is off
   manipulation.timers   period 120 s: uncapped markers/glue/paint dry out (1-2 h), labels on wet/greasy
                         surfaces peel (15 min), felt pads on dirty feet fall off (1 h),
                         wet items sealed/stacked/rolled grow mildew (12 h)
@@ -98,6 +100,14 @@ def falls_system(w, dt, tick):
             continue
         w.mut(eid).pop("falling", None)
         C.drop_item(w, eid, C.num(falling.get("height_m"), 0.9), falling.get("room") or w.root_room(eid), falling.get("cell"), cause="fell")
+
+
+@system("manipulation.breaks", order=72, max_dt=30.0)
+def breaks_system(w, dt, tick):
+    """Hidden breaks (C.break_item under an opaque wrap or packaging) become visible once unwrapped, whoever
+    unwrapped them; nothing to do (one dict lookup) while none is pending."""
+    if C.section(w).get("unseen_breaks"):
+        C.reveal_breaks(w)
 
 
 @hook("episode_start")

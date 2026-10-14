@@ -111,17 +111,34 @@ def _fix_loose_items(config, placer, rid, report):
     for eid in order:
         record = config["entities"][eid]
         tall_top = _stack_top(record, config, eid)
-        cell = geometry.free_floor_cell(placer.state(), rid, near=tuple(saved[eid]), ignore=(eid,), record=record,
-                                        strict=_tall(record, config, eid), keep_access=True,
-                                        prefer_not=tuple(placer._hidden_by(rid, tall_top)) if tall_top > 0.5 else ())
-        if cell is None:
+        strict = _tall(record, config, eid)
+
+        def hides(room_id):
+            # wall cells of mounts a tall item (over 0.5 m with what stands on it) would stand in front of
+            return tuple(sorted(placer._hidden_by(room_id, tall_top))) if tall_top > 0.5 else ()
+
+        def here(avoid=()):
+            return geometry.free_floor_cell(placer.state(), rid, near=tuple(saved[eid]), ignore=(eid,), record=record,
+                                            strict=strict, keep_access=True, avoid=avoid)
+
+        def overflow(hide_free):
             for other in _neighbour_rooms(config, rid):
                 record["location"] = other
-                cell = geometry.free_floor_cell(placer.state(), other, ignore=(eid,), record=record,
-                                                strict=_tall(record, config, eid), keep_access=True)
-                if cell is not None:
-                    break
+                found = geometry.free_floor_cell(placer.state(), other, ignore=(eid,), record=record, strict=strict,
+                                                 keep_access=True, avoid=hides(other) if hide_free else ())
+                if found is not None:
+                    return found
                 record["location"] = rid
+            return None
+        # a cell here that hides no wall mount, else one in a neighbour room that hides none there; only then a cell
+        # here (or next door) in front of a mount -- still better than cutting a route
+        cell = here(avoid=hides(rid))
+        if cell is None:
+            cell = overflow(hide_free=True)
+        if cell is None and hides(rid):
+            cell = here()
+            if cell is None:
+                cell = overflow(hide_free=False)
         if cell is None:
             # nowhere that cuts nothing: the free cell nearest its old spot (reported; the furnisher should fix this)
             cell = geometry.free_floor_cell(placer.state(), rid, near=tuple(saved[eid]), ignore=(eid,), record=record,

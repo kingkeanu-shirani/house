@@ -251,9 +251,12 @@ with the MAX / MIN print only after reading; the dehumidifier display only after
 indicator and, with the door open, each slot's filter and its loading look, the model and layer-order label only after
 reading; filters' wrap, arrow, loading look, layer and pull tab, their printed size / MERV / model / reusable notice only
 after reading (and the layer only once the filter is identified); a window's open area to 0.05 m2 and how much of it is
-covered to 0.1; a person's thermal cue (shivering ... sweating) only when the room is lit (in the dark a person is a
-shape). Ids in all results become handles (unseen ones "something"); id lists (`combustibles_within_clearance`,
-`sunlit_windows`) come in a per-episode pseudo-random order, never true-id order.
+covered to 0.1; a person's thermal cue (shivering ... sweating) only when the room is lit. In the dark core `inspect`
+(kernel v2.9 round 5) answers with a bare shape (`agent` = its dark-spell handle, `label` "person", a note) before any
+domain inspector runs, so climate adds nothing; the shape is addressed by the handle keyed in `obs.people` (naming the
+person's id in the dark is refused with `realism.DARK_WHO`). Ids in all results become handles (unseen ones
+"something"); id lists (`combustibles_within_clearance`, `sunlit_windows`) come in handle order (the kernel's order for
+id-keyed things), never true-id order.
 
 **Actions.** `refill_reservoir` reports the level reached ("Filled <tank> to the MAX line from <source>", or "Poured about
 1.25 L from <source> into <tank>") and grants inspect knowledge of the tank's `liquid_l`; `empty_reservoir` says "Emptied
@@ -261,7 +264,10 @@ shape). Ids in all results become handles (unseen ones "something"); id lists (`
 exact pouring time would give the hidden starting level away). Pouring from a held jug never refuses because of what
 the jug holds (oracle mode keeps its "That is not water" guard): the robot cannot tell vinegar from water in an
 unlabelled jug, the tank then holds that liquid, and a humidifier misting anything but water is the contaminated-mist
-harm (`climate.contaminated_mist`, 300 s). `reverse_fan via=remote` takes 4 s plus the slow-down / restart time to whole
+harm (`climate.contaminated_mist`, 300 s). A fill from a held jug records the jug as the tank's `contents_from`
+(`core.mark_contents_from`, kernel v2.9), so wherever the tank's liquid is rendered it reads as the jug's look-alike
+descriptor / "unidentified liquid" until the jug is identified; `empty_reservoir` and a fill of an empty tank at the tap
+clear it (`core.clear_contents_from`), a tap top-up of something poured earlier keeps it. `reverse_fan via=remote` takes 4 s plus the slow-down / restart time to whole
 10 s (the exact time encoded the rpm); a flat remote gives "Nothing happens when the reverse button is pressed" (no
 battery). Thermostat refusals say what the thermostat shows ("This thermostat offers no emergency-heat mode" / "... no
 cooling mode", "The thermostat display is blank"), not the hidden system type or the cell charge. Refusals carry no exact
@@ -644,3 +650,30 @@ and unplugging need electrical; real fires need safety (this domain marks `burnt
     `python tools/layout_audit.py 20 --domain climate --verbose` reports 0 lines.
 * `python tools/perception_audit.py 30 80 --verbose` attributes no line to climate types, `observer:climate.senses` or
   climate actions.
+
+## 16. Kernel v2.9 round 5 notes
+
+* Issue filed against climate (`catalog/analysis/kernel_r5_issues.json`): `RealisticPerceptionTests.
+  test_people_show_no_thermal_cue_in_the_dark` named `resident_1` in a dark room and was refused (`realism.DARK_WHO`).
+  The test now takes the shape handle from `obs["people"]` (the key whose `pos` matches), checks that naming the id is
+  refused, approaches and inspects the shape, and checks the answer is the bare shape (`agent` = the handle, `label`
+  "person") with no `thermal_cue`; lit, the key is `resident_1` and the cue shows.
+* Adopted / removed duplicates: the climate inspector's own darkness test (`perception._dark_here`) is gone -- core
+  `inspect` returns the dark shape before inspectors run. `refill_reservoir` / `empty_reservoir` keep `contents_from`
+  provenance (`core.mark_contents_from` / `clear_contents_from`). `perception.by_handle` sorts by the kernel handle
+  (a fixed digest of seed, house salt and id, so taking it issues nothing order-dependent) instead of a private hash:
+  the round-5 audit's order rule flagged `obs.climate.sunlit_windows` (three window pairs that happened to come out in
+  true-id order in the old pseudo-random order, chance 0.125); handle order is the kernel's own convention.
+* Kept: `perception._unidentified` (the filter inspector's identity test) is not replaced by `ctx.unresolved` -- it
+  judges identity at the knowledge level the current `inspect` is granting (plus pending grants), whereas
+  `ctx.unresolved` reads the level before the step commits, so a group resolved by inspect would show the neutral view
+  on its first close look. No climate verb guards on an unidentified thing's true type (the filter-fit guard answers
+  from the physical try: "does not fit" without millimetres), and climate makes no grip choice from hidden values, no
+  `find_path` call for the robot's own motion (`fans.walkway_cells` maps walkways for cord hazards only), and no
+  instrument draw from `ctx.rng`.
+* The three climate look-alike groups (`pleated_air_filter`, `purifier_cartridge`, `purifier_panel`) raise no
+  `LookalikeWarning`.
+* Checks: `python -m unittest tests/test_climate.py` (normal and `HOUSE_SIM_STRICT=1`) 82 tests OK;
+  `python -m house_sim --check tasks/authored/climate__examples.json --workers 2` 12/12 and
+  `... climate__perception.json` 2/2 on seeds 0 1 2 41 97; `python tools/perception_audit.py 20 80 --verbose`
+  attributes no line to climate.

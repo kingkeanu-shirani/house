@@ -1,0 +1,274 @@
+{
+ "needs": [
+  {
+   "area": "User simulator: how the agent asks questions",
+   "need": "Core `ask` (systems/core.py `ask` -> `answer_from_simulator`) only answers a topic string that exactly matches a hidden user_simulator key. The agent-facing docs (the ask doc string, and the LLMAgent prompt, which cuts docs to 120 chars) only describe `permission:<scope>`. Authored specs already use private per-domain names: `laundry:bed_style` for 'Make the bed.', `appliance:intended:<burner>`, `pet:treats:dog_1`, `climate.humidify` (dot, not colon), `plants:care: <id>`, `postage`. An honest agent therefore cannot ask the question a spec scores as necessary. NEED: one canonical, documented question schema the agent can build from what it perceives, e.g. ask(person, about=<handle|room|category|activity|person>, aspect=owner|where|which|preference|amount|when|ok_to|why|how). user_simulator facts would be keyed by (about, aspect); the people domain's necessity judgement (knowledge.py) would apply to every topic; anything unknown gets one uniform 'don't know' answer; free-text `question` would be kept for logs only. Add a spec lint that every user_sim fact and every `questions.min_necessary` target can be reached through the schema.",
+   "owner": "people (user simulator) + kernel/core (ask) + tasks (lint)",
+   "entries": 589,
+   "example_ids": [
+    "T-0a7593cbd7c2d0-01",
+    "T-20ff57a1f67bb2-01",
+    "T-1f1a0b428d4235-01",
+    "T-5c3031b1365185-01",
+    "A-a173914b24b190-01",
+    "T-78f2e9ada0"
+   ],
+   "priority": "blocker"
+  },
+  {
+   "area": "Reporting and notifying people",
+   "need": "Core `report(target, field, value)` stores a field name that each spec makes up. Authored specs score `reports.<x>.leak`, `lock_broken`, `unusual_noise`, `cord_condition`, `rain_delay`, `over_allowance`, `humidity_pct` and more, with value vocabularies that are never published. It also requires a prior `inspect` of a single entity. It cannot express: a room or whole-house subject, absence ('nothing is missing'), a set or list of findings, a measurement with units, or a summary for someone who is not there. NEED: typed report kinds with published vocabularies:\n- finding {subject: entity|room|person|pet|house, issue from an enum registry that domains extend, location, severity}\n- measurement {quantity, unit with conversion, value}\n- status {state enum}\n- count\n- set/list, scored by precision/recall with tolerances\n- none_found\nPlus delivery (`to` a person who is present, by phone, or as a written note entity) and evaluator helpers, so 'tell me / report / let me know' entries score the content, not how a key is spelled.",
+   "owner": "kernel/core (report + evaluation helpers) + people (delivery channels) + tasks (lint)",
+   "entries": 290,
+   "example_ids": [
+    "T-8adcc7a83550d2-01",
+    "A-d8512ac91c78ed-01",
+    "A-7f23890d17d7fa-01",
+    "T-8c33b10ae40dda-01",
+    "V-ff60bc04e43614-01",
+    "A-0f18effc27f3fb-01"
+   ],
+   "priority": "blocker"
+  },
+  {
+   "area": "Time: waiting, monitoring and standing orders",
+   "need": "Three problems:\n1. `wait` takes a fixed number of seconds (up to 7 days) and nothing interrupts it.\n2. `watch` only queues commands into `pending`, and each one needs an explicit `run_pending` step, so nothing runs during a long wait.\n3. Reference plans use the task runner's privileged `wait_until` on hidden state. Ten authored specs poll `people.<v>.at_door`, `_core_wetness`, `boil_state`, `weather.condition`, `household.collections` and `pending`. Verification therefore proves a task can be solved using information an agent never has.\nNEED:\n- An agent-facing `wait(seconds, until=<perceivable predicate under the same rules as watch_condition_visible>, interrupt_on=[sound kinds, speech to the robot, alarm, doorbell, person entering, order fired])` that returns early and says why.\n- Standing orders that can run bounded command lists on their own while the robot waits, with guards, and refusals logged.\n- A runner/verifier lint that rejects reference `wait_until` predicates that would not be perceivable in realistic mode.",
+   "owner": "kernel (engine, core wait/watch/run_pending) + tasks (runner, verify)",
+   "entries": 130,
+   "example_ids": [
+    "A-d048c6c15f805e-01",
+    "A-627c634ca86186-01",
+    "A-07bbdf40890c4b-01",
+    "A-56a4c7b9d67d56-01",
+    "P-8b5a6408e44339-01",
+    "P-b3efacfffb18eb-01",
+    "A-875f3fb3e94d8f-01"
+   ],
+   "priority": "blocker"
+  },
+  {
+   "area": "Robot memory and prior knowledge (realistic perception)",
+   "need": "The eval harness always runs realistic perception, and its outbound translation (realism.outbound_message) turns every entity id that is not visible right now into 'something'. I checked this in a scratch run: after `remember spot:a <handle>` and moving one room away, `recall` returns {\"spot:a\": \"something\"}. Knowledge, `known_map` and snapshots (`env._snapshots`) all start empty each episode. The `memory` setup op only seeds raw key/values that contain true ids. So the robot cannot honestly have any prior knowledge for 'yesterday', 'where I usually put it', 'last seen', 'how it was', 'what changed since I left' or 'learn the house'. NEED:\n- (a) Handles issued earlier in the episode stay valid in recall, snapshots and messages, shown as remembered beliefs with last-seen room and time, never the current truth.\n- (b) A setup op `prior_knowledge` {known map, entities seen at time -T with location and fields at a tier, named snapshots}, treated as stale beliefs.\n- (c) Episode chaining: carry the robot's memory and knowledge into a later episode in the same house after scripted changes.",
+   "owner": "kernel (realism, engine, core recall/snapshot) + tasks (setup op)",
+   "entries": 155,
+   "example_ids": [
+    "A-498dc58563286f-01",
+    "A-8525895aaadf82-01",
+    "A-0f18effc27f3fb-01",
+    "A-a456d9775ec3ca-01",
+    "V-343bb4d3003a9a-01",
+    "A-7c03072124a71d-01",
+    "T-45fd835e3fbd09-01",
+    "A-ea605735823af4-01"
+   ],
+   "priority": "blocker"
+  },
+  {
+   "area": "Task specs: checking conditions over time",
+   "need": "How kernel/evaluation.py and engine.py work today:\n- failure, preserve and side_effects are only checked against the current state, so a violation that clears before the end is never seen.\n- Milestones record only their first time, and only after each action, never inside a long wait's 30 s substeps (`_update_milestones` runs after `_advance`).\n- Deadlines are absolute seconds.\nAbout 100 remaining success criteria say 'throughout', 'never', 'at all times', 'within N s of an event' or 'each occurrence'. Domains currently fake these with ad hoc stats. NEED:\n- latched `never`/`always` predicates sampled every substep\n- `held_for` milestones\n- trigger-response pairs with deadlines relative to a trigger milestone, repeated for every occurrence (each spill, arrival or alarm answered within X s)\n- counts of milestone occurrences\n- milestone sampling inside `_advance`, limited to spec predicates so it stays cheap",
+   "owner": "kernel (evaluation, engine) + tasks (spec schema)",
+   "entries": 100,
+   "example_ids": [
+    "T-83936813e629a3-01",
+    "T-d350b1b5f99afe-01",
+    "T-1fb2fc7eb17e27-01",
+    "T-c22a5399c1ceff-01",
+    "T-ae550722870bf9-01",
+    "T-663c728c827bbc-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Task specs: episodes with several phases or requests",
+   "need": "A spec has one instruction, one success set and one questions block. Later requests can only be scripted as people events, with no success, questions or deadlines of their own, and the instruction the agent sees never changes. Many entries need more than that:\n- resume later\n- ask once and remember, across days\n- edit a rule ('don't ever do that again' / 'forget what I said')\n- reuse a demonstration later\n- deferred work ('finish after they leave', 'whenever you get a chance', 'wait until I'm done')\n- learning preferences over repeated requests\nNEED: spec `phases: [{start: at_s|when, request {from, channel, text}, success, deadlines, questions, budget}]`, with time skips and scripted household changes between phases, memory and knowledge carried over, scoring per phase, and harness support for showing each phase's request to the agent.",
+   "owner": "tasks (spec, runner, verify, eval harness) + kernel",
+   "entries": 60,
+   "example_ids": [
+    "V-defec9c1f9917e-01",
+    "A-85bdb64b21e53e-01",
+    "A-d48e4ab26fef6c-01",
+    "V-eccc9b8c51c4ed-01",
+    "A-7e4702bc091842-01",
+    "A-f20485e2b10a28-01",
+    "T-20ff57a1f67bb2-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Household calendar, schedules and holidays",
+   "need": "Today the 'calendar' is an ad hoc `memory.calendar` dict that two people helpers write (guests_today, appointments). People's `schedule` holds only time blocks (sleep, away, working). Trash collection dates live separately in admin_inventory curb.py. kernel/clock.py knows seasons and daylight but no holidays or DST. No wall calendar, whiteboard or calendar-app type exists. What is missing:\n- dated events with attributes: school days and items to bring, office vs remote days, sports practice, trips with destination, dates and travellers, appointments and service visits with arrival windows, deliveries and carrier pickups\n- recurrence rules\n- a forecast for a trip destination\nNEED: a `household.calendar` of per-person events {who, start/end, kind, location, attributes, hidden needs, recurrence}. The robot should be able to read it from a calendar artifact (read tier), through an app (network), or by asking. Also: a holiday table per region, today/tomorrow/weekday helpers, and data tables of what each event needs, so evaluation can check the items gathered.",
+   "owner": "people (calendar + schedules) + kernel/clock (holidays, DST) + admin_inventory (collection/carrier dates) + outdoor_plants (destination forecast)",
+   "entries": 100,
+   "example_ids": [
+    "A-eede65634caaa7-01",
+    "A-0703b3903e2674-01",
+    "T-2dc0a5328b9cb9-01",
+    "T-d1f9385dbb80fc-01",
+    "T-8438b861d86b99-01",
+    "T-4c4b00add2b509-01",
+    "T-f8941b440fa145-01",
+    "T-cacdbbc0c0fdf3-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Household history and resident profiles",
+   "need": "Across 20 generated houses, residents only carry the `wake_method` preference, a schedule, comfort settings and medication schedules. Habits, per-person storage homes, how often things are used, food likes, allergies and diet, drink orders, fold styles, who used what, and meal history all have to be seeded by hand in each spec (memory keys, people.use events). NEED: a deterministic history synthesizer that builds:\n- resident profiles: preferences, diet and allergies, tidiness, storage habits, routines\n- N past days of household activity consistent with schedules: who moved or used what and where they left it, usage counts, a meal log\n- the physical evidence that history leaves (dust on rarely used items, wear, where things are now)\n- what each resident can answer about it\n- the part the robot itself observed (this feeds the prior-knowledge need above)",
+   "owner": "people (habit/profile model) + generator + kernel (event log/evidence)",
+   "entries": 110,
+   "example_ids": [
+    "V-1c5b0f69848b38-01",
+    "A-863b217ff95ebb-01",
+    "A-6dc6961385a8b5-01",
+    "A-90975786a943a4-01",
+    "A-36099989b5fc95-01",
+    "A-5caee989e21803-01",
+    "V-eccc9b8c51c4ed-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Generator: personal belongings",
+   "need": "100 generated houses (seeds 0-99) contain zero smartphones, tablets, wallets, headphones or earbuds, smartwatches, jackets (only coat and raincoat appear), boots, rain umbrellas or umbrella stands, key bowls, passports or scissors. The types do exist (electrical, admin_inventory, textiles_laundry, tools_vehicles). Residents also have `has_phone`/`reachable_by_phone`, and people `call` rings a phone entity that is never there. NEED: a per-resident belongings furnisher, varying by role, age, season and region:\n- phone and charger (nightstand or kitchen), tablet\n- wallet, keys and bag at the entry\n- outerwear and footwear in the coat closet or entry\n- umbrellas\n- kids' backpacks and lunch boxes\n- headphones, glasses\nEach item gets an `owner`, a home spot, and displacement consistent with that person's habits, so find/search, departure, return-home and charging entries have real targets and distractors.",
+   "owner": "generator (core furnisher) + electrical, admin_inventory, textiles_laundry, people furnishers",
+   "entries": 210,
+   "example_ids": [
+    "T-17bf62f781f86e-01",
+    "T-a2952782c820d8-01",
+    "T-67dbe6a4f27277-01",
+    "T-6233063b1cfd72-01",
+    "T-60264422926c0b-01",
+    "T-01c24d5fe60821-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Who gave the instruction (requester, channel, gesture)",
+   "need": "The agent only sees `obs.instruction`, a plain string (kernel/perception.py). Nothing says who asked, where they were, over which channel (in person, phone, intercom, note) or what they pointed at when they spoke. No authored spec uses people.say/request events to give the instruction. 'Who's asking, and should I?', authority conflicts, a child's commands, per-speaker preferences ('where I usually put it'), deixis ('give me that') and remote requests all depend on this. NEED: the initial instruction (and later phase requests) delivered as a structured request {from pid, channel, room, time, pointing/gaze ray} that is visible to the agent and bound to `user_simulator.intent.requester`, with phrasings rendered per requester.",
+   "owner": "tasks (spec/runner/harness) + people (requests, gestures) + kernel (observation)",
+   "entries": 76,
+   "example_ids": [
+    "A-5b33cd69ede05a-01",
+    "A-f0fd2723b92624-01",
+    "T-93aae9b958456f-01",
+    "A-b4fc72b9473937-01",
+    "A-498dc58563286f-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Season, date and climate consistency",
+   "need": "Generator weather is always clear or cloudy, 8-24 C, wind 1-5 m/s, whatever the `start` date. There is no default weather process:\n- outdoor_plants weather changes only through scripted events, and a forecast exists only when scripted\n- the climate domain's diurnal cycle is opt-in, and latitude is fixed\nThe generator does not know the season either: the pool is open or closed by coin flip, there is no snow, ice, leaf litter or garden stage by date, closets and stored goods are not seasonal, and holiday decor ignores the date. Without this, week-long and seasonal entries see unrealistically static weather. NEED:\n- climate normals by region and date\n- a seeded default multi-day weather sequence with a diurnal cycle, and a forecast derived from it with realistic error\n- season-aware furnishing and ground state: snow and ice, leaves, pool state, garden stage, seasonal clothing in storage vs closet",
+   "owner": "outdoor_plants (weather owner) + climate + generator + textiles_laundry",
+   "entries": 120,
+   "example_ids": [
+    "V-68a0baf1a10293-01",
+    "A-e8281b8bd5a9ba-01",
+    "T-1b679ad306c3a2-01",
+    "T-ab1e52fe8e7304-01",
+    "T-d082fbf246301f-01",
+    "T-24f3bc3d4dbd02-01"
+   ],
+   "priority": "high"
+  },
+  {
+   "area": "Residents' daily activity leaves real consequences",
+   "need": "Residents follow schedules (sleep, away, lights, heat walks), but their activities never use or leave items: meals produce no dishes, getting ready leaves no clothes or towels, play leaves no toys, coming home leaves no shoes or bags, and no mail or packages arrive. Multi-day and away episodes, 'clean while people are using the kitchen', 'work around me', partial completion by a human, and routine learning all need people actually doing things. NEED: an opt-in, deterministic resident activity engine. Scheduled activities (meals, cooking, homework, play, getting ready, returning home) would take items, use them through domain effects, and leave them in habit-consistent places. Interruptions would be tracked, and the same model would feed the history synthesizer.",
+   "owner": "people (+ food, textiles_laundry, admin_inventory effects)",
+   "entries": 50,
+   "example_ids": [
+    "A-8fd2ae4d772fd5-01",
+    "A-812feb473ca9b9-01",
+    "V-defec9c1f9917e-01",
+    "A-f20485e2b10a28-01",
+    "V-1c5b0f69848b38-01",
+    "A-07bbdf40890c4b-01"
+   ],
+   "priority": "medium"
+  },
+  {
+   "area": "Generator: who lives in the house",
+   "need": "In 100 generated houses the residents are only adult, child or elderly (178/70/15): no infants, toddlers, teens or roommates. Pets are only dogs and cats (38/32), even though the pets domain has types for aquariums, birds, reptiles, small mammals and chicken coops. Specs can add these with person/pet ops, but the realistic distribution, and items that follow from them (cribs, high chairs, aquariums, coops: never generated), are missing. NEED: a household-composition model that sometimes generates infants, toddlers, teens, roommates and less common pets, each with their own furnishings.",
+   "owner": "generator + people + pets",
+   "entries": 62,
+   "example_ids": [
+    "V-c6568f21770790-01",
+    "V-08bd2fe68b5427-01",
+    "T-a9895af1fd10dc-01",
+    "T-76ddac21521100-01",
+    "T-d66116e3cf7cc8-01"
+   ],
+   "priority": "medium"
+  },
+  {
+   "area": "Smart-home layer",
+   "need": "smart_bulb, smart_plug, smart_hub, smart_speaker and security_camera exist as electrical types with pairing and app control, but none appear in any of 100 generated houses. Only smart_thermostat (29%), video_doorbell (34%) and robot vacuums appear. There is no cross-device layer: no automations, scenes, schedules spanning devices, away mode, or device notifications to the robot or residents. That layer is needed for entries like low-energy optimisation, smart lock/app state, lights on timers while away, and syncing smart switches with their app. NEED: smart devices furnished in a share of houses, plus a hub model for automations, scenes and schedules, with app-visible state and notifications.",
+   "owner": "electrical (+ mechanisms smart locks, climate)",
+   "entries": 45,
+   "example_ids": [
+    "T-845d40a0582b66-01",
+    "T-73ba0f823024c1-01",
+    "A-8cf3582a886142-01",
+    "V-18776998cc648f-01",
+    "A-07bbdf40890c4b-01"
+   ],
+   "priority": "medium"
+  },
+  {
+   "area": "Generator: common furnishings missing",
+   "need": "Entries assume everyday furnishings that either have no type at all (sofa or seat cushions, coasters, candles, ottomans, couch/dining-chair variants) or have a type that is never generated (doormats `coir_doormat`/`outdoor_mat`, `picnic_cooler`, `key_bowl`, `umbrella_stand`, `crib`/`high_chair` without infants, exterior `steps`/porch steps/stoops). Porch and yard are joined by a flat doorway, so 'salt the porch steps' or 'carry groceries up the steps' have nothing to act on. NEED: types and furnishing for these items, including exterior steps as stairs or connections between porch, entry and yard, so living-room, entryway and winter entries do not need hand-spawned basics.",
+   "owner": "generator (core furnisher) + manipulation/textiles_laundry/safety types + navigation_robot (steps)",
+   "entries": 150,
+   "example_ids": [
+    "T-365969e210f5ec-01",
+    "T-b28dff2faf6d45-01",
+    "T-621cf361460347-01",
+    "T-5631b2605b2757-01",
+    "T-43e01c7eb9abdb-01"
+   ],
+   "priority": "medium"
+  },
+  {
+   "area": "Task specs: predicates over people and totals",
+   "need": "Predicate quantifiers (forall/exists/count) only select entities. Nothing quantifies over `people`, `pets`, list items or report sets, and there are no aggregates (sum/min/max of a field over a selection, comparison with the number of people present). Authors have to enumerate bound ids by hand for 'each guest got their drink', 'everyone was told', 'enough portions for whoever is here' or 'fair pieces'. NEED: `in: people|pets|<section path>` selectors, plus sum/min/max/count aggregates with comparisons to other paths or counts.",
+   "owner": "kernel (predicates) + tasks",
+   "entries": 65,
+   "example_ids": [
+    "T-b6afb3aebcac37-01",
+    "T-99da63a99d93c9-01",
+    "A-e060bcba7ddb22-01",
+    "T-7ab90d10fc324b-01",
+    "A-5caee989e21803-01"
+   ],
+   "priority": "medium"
+  },
+  {
+   "area": "User simulator that reacts to the robot's work",
+   "need": "Corrections are only possible through scripted one-shot events with a `when` condition (or the manipulation co-carry job's own spoken corrections). There is no general loop where a person watches the result, gives relative corrections ('a little to the left', 'gentler', 'not like that', 'more'), repeats until satisfied or loses patience, and records satisfaction. NEED: reactive feedback rules in the user simulator {watch predicate -> utterance, tolerance, max rounds, patience}, with relative-amount vocabulary tied to the person's frame of reference and scored satisfaction.",
+   "owner": "people (user simulator)",
+   "entries": 31,
+   "example_ids": [
+    "A-bbf0462f3ceed5-01",
+    "A-892a2de34191ad-01",
+    "A-1ef0028f0ee97e-01",
+    "T-1800a07f593b5d-01",
+    "T-bea29ca1048da9-01"
+   ],
+   "priority": "medium"
+  },
+  {
+   "area": "Locale and language",
+   "need": "Region metadata includes units, voltage and appliance variants, but printed labels always use ISO dates, with no regional date formats (MM/DD vs DD/MM ambiguity, best-by rules) and no unit-system labels. Instructions and phrasings are English only, and house_sim/language.py is a tiny grammar the harness does not use. NEED: locale-aware rendering of printed dates and quantities on labels, and optionally non-English/accented phrasing variants for the few entries that ask for them.",
+   "owner": "kernel (realism rendering of read-tier text) + food/admin_inventory labels + people (language)",
+   "entries": 20,
+   "example_ids": [
+    "V-22104c010bebc1-01",
+    "T-1117aa08dafb3c-01",
+    "P-fd41eaef588496-01",
+    "P-e069c179612c5a-01"
+   ],
+   "priority": "low"
+  }
+ ],
+ "notes": "I only read the project; nothing in it was edited. Scratch scripts and outputs are in <home>\\AppData\\Local\\Temp\\claude\\C--Users-USER-OneDrive-Desktop-house-ai\\e86e18f6-923d-4bcc-93e1-ba70c8993bc5\\scratchpad (load.py, themes.py, gen.py, gen2.py, bench.py, mem.py, gen_out.json). All Python ran with -B / PYTHONDONTWRITEBYTECODE=1, so no .pyc files were written into the repo.\n\nHow I worked:\n- Set of remaining entries = 2,720 analysis records minus the 242 catalog_ids in tasks/authored/*.json = 2,478.\n- Read every field of those records (mechanics prefixes, objects, agents, user_sim, conditional, success, protect), plus the catalog sections.\n- Read docs/KERNEL_API.md, PERCEPTION.md, CONVENTIONS.md, AUTHORING_GUIDE.md, TASK_SPEC.md and KNOWN_LIMITS.md, the people/safety/navigation/admin docs and the limits sections of the domain docs.\n- Read the code: kernel evaluation.py, predicates.py, engine.py, clock.py, actions.py and realism.py (outbound translation); core.py (ask, report, wait, watch, remember/recall, snapshot); tasks/spec.py, setup.py, runner.py; generator layout and __init__.\n\nChecks I actually ran:\n- (1) Generated 100 houses with default options to count room types, entity types, roles and pets that really appear. This is the source of the 'never generated' claims: phones, wallets, jackets, smart devices, infants, other pets.\n- (2) Timed a 1-day `wait` on three houses: about 5-6.5 s of wall time per simulated day (roughly 45 s per week). Long horizons are therefore not a performance blocker, so I list none.\n- (3) Ran a realistic-perception episode that showed `recall` of a remembered handle returning \"something\" after moving one room away.\n- (4) Grepped the authored specs: per-domain ask topic names (laundry:, appliance:, pet:, plants:, climate.) and invented report field names, which backs the two discoverability blockers. Also counted 10 specs whose reference plans use privileged `wait_until` on hidden state.\n\nEntry counts are estimates from keywords/mechanics over the records. They overlap across needs and should be read as orders of magnitude, not exact figures.\n\nAlready well covered elsewhere, so not listed:\n- visitors, alerts, authority conflicts, abilities, sleep and noise norms (people domain)\n- weather events and forecasts (outdoor_plants)\n- lists and collection days (admin_inventory curb.py)\n- errands and the car (tools_vehicles drive_to)\n- cooperative holding/carrying and aesthetic layout metrics (manipulation jobs.py, goals.py)\n- smart locks (mechanisms mech.smart)\n- smart-device pairing (electrical)\nPhysics, camera, robot embodiment, and stairs/carry dynamics were excluded as instructed.\n\nLow priority, not listed as a need: docs/KNOWN_LIMITS.md and docs/TASK_SPEC.md still describe the v1 prototype (old schema, 'no geometry/physics'). They should be rewritten or flagged before authors read them.\n\nSuggested order: the four blockers first. The ask schema and the report schema decide whether user-sim and reporting entries can be scored fairly at all. Interruptible wait/standing orders plus the reference lint, and prior knowledge with recall that keeps handles, decide whether monitoring and memory entries are honest under the harness's always-realistic perception. Then temporal evaluation and phases (spec features), then calendar, history, belongings and season (world content)."
+}

@@ -374,7 +374,13 @@ domain writes no room fields an agent could see (the only one, `wet_cells`, is s
 lawn fertilizer, lawn lime, grass seed; resolve by read), `soil_bag` "bag of soil or mix" (potting, cactus, seed-starting
 mix, garden soil, topsoil, compost, mulch; read), `garden_spray` (herbicide vs insecticide trigger sprayers; read),
 `hand_pruners` (bypass vs anvil; inspect), `snow_shovel` (plastic pusher vs metal-edged shovel; inspect), `seed_packet`
-(read), `outdoor_cover` (furniture vs grill cover; inspect). Plant species look-alikes (peace/calla lily, mint/lemon balm,
+(read), `outdoor_cover` (furniture vs grill cover; inspect). Kernel v2.9 round 5 shows an unresolved member at the
+group's glance size: `granule_bag`, `soil_bag` and `snow_shovel` set it explicitly (`size_m` = the kernel's per-dimension
+median camera estimate: [0.35, 0.12, 0.5], [0.45, 0.15, 0.65], [0.5, 0.1, 1.3]; bag sizes overlap across products, so
+size is no clue to what is in a bag), so the registry's look-alike lint has nothing to report for this domain. A folded
+winter pool cover (16 kg, a 0.8 m bundle) is plainly not a grill or table cover: it is in its own `pool_cover` group
+("folded pool cover", resolved at a glance, i.e. recognised on sight) instead of inheriting `outdoor_cover` through
+`is_a: furniture_cover`. Plant species look-alikes (peace/calla lily, mint/lemon balm,
 flat parsley/cilantro) are resolved by the plant inspector, not by a group: `inspect where=closely` reports
 `species_candidates` (with `toxic_to` the union of both) until the resident is asked (`plants:care:<plant>`). An
 artificial plant's plain-inspect `appearance` is that of the species it imitates; only a close look reveals it.
@@ -429,7 +435,9 @@ over gives away a hidden value or the identity of something the robot has not id
   `fertilize`, hand `overseed`, `mulch`, `repot` mix, `dig loosen=true incorporate=`, `fill_hole source=`, `sow`) refuses
   an unresolved look-alike (an unread bag of granules, soil bag, garden spray or seed packet, or a barrow holding one)
   with one message for every member: "You cannot tell what is in it yet: read its label first"; after `read` the real
-  guards apply. Automatic searches by identity (a held fertilizer, a disinfectant near the pruners) skip unidentified
+  guards apply. Since kernel v2.9 round 5, `C.unresolved` / `C.require_identified` are thin wrappers of the kernel's
+  `ctx.unresolved` / `ctx.refuse_unidentified` (with the domain's wording), so a `derived_from` portion of an unread
+  package (another domain's) counts as unidentified too. Automatic searches by identity (a held fertilizer, a disinfectant near the pruners) skip unidentified
   things.
 * liquids: a held can or jug is never refused because of what is in it (an unlabelled bottle's liquid would be named by
   the refusal); a wrong liquid is poured, harms the plants it lands on (`P.harm` 0.3, `_op_status.wrong_liquid`) and
@@ -611,7 +619,9 @@ Placement rules (kernel v2.3 layout round; furnishers and helpers share them):
   the pool, an emptied nursery pot, storm debris events) land on `C.drop_cell`: the kernel's nearest free reachable
   cell that fits the footprint, never a fixed [0, 0] corner.
 
-* Serviceable lights (round-3 report; the kernel's access targets leave lights out): every `Placer.furniture` call of
+* Serviceable lights (round-3 report; since kernel v2.9 round 5 the kernel's access targets keep outdoor wall lights up
+  to `geometry.SERVICE_LIGHT_MAX_M` = 2.5 m, which the domain reuses, but still treat indoor lights 2.0 m or higher, e.g.
+  a garage wall light, as ladder-serviced ceiling lights): every `Placer.furniture` call of
   the yard/outdoor-items furnishers (beds, shrubs, trees, hedge, mailbox, pool, deck box, compost bin, fire pit, firewood
   rack) and the pool pump / rescue post mounts go through `furnish.guarded`: if the new piece seals a wall or porch light
   (<= 2.5 m) that was reachable before, it is removed and retried near the room corners farthest from the lights, and left
@@ -622,8 +632,12 @@ Placement rules (kernel v2.3 layout round; furnishers and helpers share them):
   tool rack is mounted with `strict=True` (no last-resort cell behind a shelf unit or step ladder).
 
 `python tools/layout_audit.py 20 --domain outdoor_plants --verbose` reports no lines caused by this domain's furnishers;
-the remaining "hidden mount ... pegboard_1 behind lawn_mower_1" lines (seed 7 garage/patio, seed 0 townhouse) are
-tools_vehicles placing its pegboard after, and behind, the already placed mower.
+the remaining "hidden mount ... pegboard_1 behind lawn_mower_1" lines (seed 7 garage/patio, seed 0 townhouse, and since
+kernel round 5's layout changes seed 1's garage: pegboard_1 at (12, 1) rot 90 behind the mower at (11, 2)) are
+tools_vehicles placing its pegboard after, and behind, the already placed mower. The furnisher test
+(`test_furnished_yards_keep_lights_accessible_and_wall_mounts_visible`) counts as "hidden by this domain" exactly the
+mounts `hidden_mount_cells` counts, one at a time (never the room's ground-layer floor surface or a rug, which cover
+every cell), and only those hung before the domain's piece.
 
 ## 8. Cross-domain contracts
 
@@ -909,6 +923,6 @@ Secondary entries (`outdoor_plants__secondary.jsonl`, owned by other domains) re
 * Rain/wind see items carried outdoors by people/pets during a long wait at the next 600 s boundary
   (`outdoor_map` cache); robot actions invalidate the cache immediately.
 * Leaf-pile scattering in wind is 15 %/30 s per 6 m/s of gust above 6 m/s, scaled by substep length.
-* Realistic perception: members of a look-alike group keep their real bag sizes and weights (a 1.5 kg seed bag and an
-  11 kg salt bag look different at a glance and feel different when lifted); the group makes them confusable by label
-  and contents only. A product's printed `qty` is the remaining amount (labels in this domain double as fill gauges).
+* Realistic perception: since kernel v2.9 round 5 an unread bag shows its group's glance size (section 5a), not its
+  own, so a 1.5 kg seed bag and an 11 kg salt bag look alike at a glance; they still feel different when lifted (mass
+  is touch-tier). An instance spawned with its own size (e.g. a small mulch bag) also shows the group size until read. A product's printed `qty` is the remaining amount (labels in this domain double as fill gauges).

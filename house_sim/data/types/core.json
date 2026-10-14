@@ -1,5 +1,6 @@
 {
   "domain": "core",
+  "field_tiers": {"hidden": ["contents_from"]},
   "types": {
     "object": {"props": {"category": "object"}, "doc": "Root of every entity type."},
     "portable_object": {"is_a": "object", "props": {"portable": true, "category": "item"}},

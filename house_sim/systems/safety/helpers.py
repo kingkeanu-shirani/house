@@ -999,6 +999,165 @@ def _replace_cooktop(ctx, rid, burner_props):
     return burner
 
 
+STOVE_CLEARANCE_M = 0.9     # "keep anything that can burn at least 3 ft (0.9 m) from the stovetop" (NFPA / USFA cooking safety)
+
+
+def _bound_ids(ctx):
+    """Entity ids the spec has bound so far (scenario things it refers to): the stovetop clearance never moves them."""
+    out = set()
+    stack = list(ctx.bindings.values())
+    while stack:
+        value = stack.pop()
+        if isinstance(value, str) and value in ctx.config["entities"]:
+            out.add(value)
+        elif isinstance(value, (list, tuple)):
+            stack.extend(value)
+        elif isinstance(value, dict):
+            stack.extend(value.values())
+    return out
+
+
+def _loose_top(ctx, eid):
+    """The outermost portable thing eid goes with (itself, or the holder/box it sits in) when that stands in the open
+    on furniture or on the floor; None when eid is fixed, mounted, carried, or shut away inside furniture."""
+    ents, rooms = ctx.config["entities"], ctx.config["rooms"]
+    cur, seen = eid, set()
+    while cur not in seen:
+        seen.add(cur)
+        rec = ents.get(cur)
+        if rec is None or not rec.get("portable") or rec.get("mounted"):
+            return None
+        loc = rec.get("location")
+        if loc in rooms:
+            return cur if rec.get("pos") else None
+        parent = ents.get(loc)
+        if parent is None:                       # on the robot or a person
+            return None
+        if parent.get("portable") and not parent.get("mounted"):
+            cur = loc
+            continue
+        return cur if rec.get("relation") in ("on", "hung") else None
+    return None
+
+
+def _stovetop_gap(state, pan, eid):
+    """Horizontal gap (m) from the pan's rim to the near edge of eid (the fire model's own spread geometry)."""
+    room_p, px, py, _ = C.entity_xyz(state, pan)
+    room_e, ex, ey, _ = C.entity_xyz(state, eid)
+    if room_p is None or room_e != room_p:
+        return 99.0
+    size = state["entities"][eid].get("size_m") or [0.3, 0.3, 0.3]
+    pan_r = float(state["entities"][pan].get("diameter_m") or 0.28) / 2.0
+    return math.hypot(ex - px, ey - py) - pan_r - max(float(size[0]), float(size[1])) / 2.0
+
+
+def _clear_of_stove(state, pan, burnables, clearance_m):
+    return all(_stovetop_gap(state, pan, b) >= clearance_m for b in burnables)
+
+
+def _move_onto_surface(ctx, rid, top, pan, burnables, clearance_m, keep):
+    """Put a loose thing on a free spot of a surface in rid (nearest surface first) that keeps every burnable part of
+    it clearance_m from the pan (any spot when rid is not the stove's room). True when it moved."""
+    ents = ctx.config["entities"]
+    rec = ents[top]
+    old = {k: copy.deepcopy(rec.get(k)) for k in ("location", "relation", "spos", "pos", "rot")}
+    state = ctx.placer.state()
+    same_room = C.root_room(state, pan) == rid
+    surfaces = []
+    for sid in sorted(ents):
+        srec = ents[sid]
+        if sid in keep or srec.get("location") != rid or not srec.get("pos") or srec.get("portable") or not srec.get("surface") \
+                or srec.get("category") in ("floor", "burner") or srec.get("heat_source"):
+            continue
+        # further along its own counter first, then the nearest other surface
+        surfaces.append((sid != old["location"], round(C.distance_m(state, sid, pan), 3) if same_room else 0.0, sid))
+    for _other, _d, sid in sorted(surfaces):
+        srec = ents[sid]
+        sw, sd = [float(v) for v in (srec.get("surface_size_m") or (srec.get("size_m") or [0.5, 0.5])[:2])[:2]]
+        rec.update(location=sid, relation="on", pos=None, rot=None, spos=None)
+        iw, idp = geometry.footprint_m(rec)
+        if iw > sw + 1e-9 or idp > sd + 1e-9:
+            continue
+        others = [(o["spos"], geometry.footprint_m(o)) for k, o in ents.items()
+                  if k != top and o.get("location") == sid and o.get("relation", "on") == "on" and o.get("spos") is not None]
+        for j in range(int((sd - idp) / 0.05 + 1e-9) + 1):
+            for i in range(int((sw - iw) / 0.05 + 1e-9) + 1):
+                spot = [round(i * 0.05, 3), round(j * 0.05, 3)]
+                if any(geometry.rect_overlap(spot, (iw, idp), opos, osize) for opos, osize in others):
+                    continue
+                rec["spos"] = spot
+                if not same_room or _clear_of_stove(state, pan, burnables, clearance_m):
+                    return True
+        rec["spos"] = None
+    rec.update(old)
+    return False
+
+
+def _move_on_floor(ctx, rid, top, pan, burnables, clearance_m):
+    """A loose floor item (bin, basket) moves to the nearest free floor cell out of the clearance zone that cuts no
+    route. True when it moved."""
+    ents = ctx.config["entities"]
+    rec = ents[top]
+    state = ctx.placer.state()
+    old = list(rec["pos"])
+    cols, rows = geometry.grid_size(ctx.config["rooms"][rid])
+    near_zone = []
+    for x in range(cols):
+        for y in range(rows):
+            rec["pos"] = [x, y]
+            if not _clear_of_stove(state, pan, burnables, clearance_m):
+                near_zone.append((x, y))
+    rec["pos"] = old
+    cell = geometry.free_floor_cell(state, rid, near=old, ignore=(top,), record=rec, keep_access=True, avoid=near_zone)
+    if cell is None:
+        return False
+    rec["pos"] = list(cell)
+    return True
+
+
+def _clear_stovetop(ctx, rid, pan, keep=(), clearance_m=STOVE_CLEARANCE_M):
+    """The cook kept the stovetop clear: loose combustibles that stand within clearance_m of the pan (paper towels, a
+    wooden board, a plastic bottle on the counter beside the range; a bin on the floor) are moved out of that zone --
+    further along a counter or onto another surface in the room, else onto a surface next door; floor items to a free
+    cell out of the zone. Fixed and mounted things (cabinets, outlets), things in closed furniture, rugs, and everything
+    the spec has bound stay put. Without it a fire seeded in the pan reaches a towel at the burner's edge within the first
+    5 s tick, before any response is possible. Returns the ids moved."""
+    from . import fire as F
+    ents = ctx.config["entities"]
+    keep = set(keep) | _bound_ids(ctx)
+    state = ctx.placer.state()
+    tops = {}
+    for eid in sorted(ents):
+        rec = ents[eid]
+        if eid in keep or eid == pan or C.root_room(state, eid) != rid or not F.combustible(rec):
+            continue
+        if C.within_fire_fuel(state, eid, pan) or _stovetop_gap(state, pan, eid) >= clearance_m:
+            continue
+        top = _loose_top(ctx, eid)
+        if top is None or top in keep or ents[top].get("ground_layer"):
+            continue                             # a rug or mat on the floor is not what catches from a pan
+        tops.setdefault(top, []).append(eid)
+    moved = []
+    for top in sorted(tops):
+        burnables = sorted(set(tops[top]) | ({top} if F.combustible(ents[top]) else set()))
+        rec = ents[top]
+        if rec.get("location") == rid:
+            ok = _move_on_floor(ctx, rid, top, pan, burnables, clearance_m)
+        else:
+            ok = _move_onto_surface(ctx, rid, top, pan, burnables, clearance_m, keep)
+            if not ok:
+                for other, _cid, _conn in C.neighbors(state, rid):
+                    room = ctx.config["rooms"][other]
+                    if room.get("outdoor") or room.get("shared"):
+                        continue
+                    if _move_onto_surface(ctx, other, top, pan, burnables, clearance_m, keep):
+                        ok = True
+                        break
+        if ok:
+            moved.append(top)
+    return moved
+
+
 @scenario_helper("safety.stove")
 def stove_helper(ctx, room="kitchen", contents="oil", oil_l=0.6, on=True, heat="high", fuel="electric", pan_temp_c=None,
                  burning=False, hrr_kw=40.0, lid=True, lid_material="metal", baking_soda=True, cabinets_above=True,
@@ -1063,6 +1222,7 @@ def stove_helper(ctx, room="kitchen", contents="oil", oil_l=0.6, on=True, heat="
         ctx.config["entities"][cab]["pos"] = list(ctx.config["entities"][base].get("pos") or [0, 0])
         out[prefix + "cabinet_above"] = cab
     if burning:
+        _clear_stovetop(ctx, rid, pan, keep={v for v in out.values() if isinstance(v, str)})
         view = _View(ctx)
         out[prefix + "fire"] = F.ignite(view.w, pan, hrr_kw=float(hrr_kw), seeded=True, harm=False)
         ctx.config["entities"][pan]["temperature_c"] = 360.0   # burning oil sits near its fire point

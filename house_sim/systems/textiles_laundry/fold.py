@@ -167,7 +167,7 @@ def fold(ctx):
     rec = ctx.obj(target, touch=True)
     require(M.is_textile(rec), "Only textiles can be folded", "argument")
     require(style in STYLES, "Unknown fold style; try one of " + ", ".join(sorted(STYLES)), "argument")
-    if M.unresolved(ctx.env, target) and M.group_varies(ctx.env, target, allowed_styles):
+    if ctx.unresolved(target) and M.group_varies(ctx.env, target, allowed_styles):
         # look-alikes that fold differently (fitted vs flat sheet): the style list, a refusal, the time taken or a
         # lumpy result would tell them apart, so the robot first has to see which one it holds (same answer for all)
         raise ActionError("Spread it out and look it over first (inspect it) to see which kind it is and how it folds", "precondition")

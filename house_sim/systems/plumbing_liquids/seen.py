@@ -15,9 +15,6 @@ Senses and instruments of this domain:
 Flow rates (L/min, a measuring cup and a timer), dissolved products (test strips), grams of ice (a scale) and the
 age of standing water are never shown by looking.
 """
-import hashlib
-import math
-
 from ...kernel.realism import FILL5, TEMP6, WET3, _bucket
 from . import common as C
 
@@ -112,17 +109,11 @@ def seconds(ctx, true_s):
 def unresolved(ctx, eid):
     """True when the robot has not identified eid (realistic perception): an unresolved look-alike, an unfamiliar
     (novel) thing, or a portion of one. Its contents' names, its type-specific coefficients (how fast a liquid
-    pours) and anything named after its type must not reach the agent."""
-    realism = getattr(getattr(ctx, "env", None), "realism", None)
-    if realism is None:
+    pours) and anything named after its type must not reach the agent. The kernel's rule (kernel round 5:
+    ctx.unresolved -> Realism.unresolved); False in oracle mode and for unknown ids."""
+    if ctx is None or getattr(getattr(ctx, "env", None), "realism", None) is None:
         return False
-    rec = ctx.w.s["entities"].get(eid)
-    if rec is None:
-        return False
-    if rec.get("novel"):
-        return True
-    ident = realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec))
-    return "candidates" in ident
+    return bool(ctx.unresolved(eid))
 
 
 def liquid_word(ctx, eid, name):
@@ -139,10 +130,11 @@ def liquid_word(ctx, eid, name):
 
 
 def sealed(ctx, rec):
-    """A closed opaque container (the kernel's rule): neither fill nor contents show until it is opened or hefted."""
+    """A closed opaque container (the kernel's rule, Realism.sealed): neither fill nor contents show until it is
+    opened or hefted."""
     realism = getattr(getattr(ctx, "env", None), "realism", None)
     if realism is not None:
-        return realism._sealed(rec)
+        return realism.sealed(rec)
     see_through = rec.get("transparent") or str(rec.get("material") or "") in ("glass", "clear_plastic", "acrylic")
     return bool(rec.get("openable")) and not rec.get("open") and not see_through
 
@@ -221,18 +213,11 @@ def moisture_meter(ctx):
     return None
 
 
-def _gauss(key):
-    digest = hashlib.blake2b(key.encode("utf-8"), digest_size=16).digest()
-    u1 = max(int.from_bytes(digest[:8], "big") / 18446744073709551616.0, 1e-12)
-    u2 = int.from_bytes(digest[8:], "big") / 18446744073709551616.0
-    return math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
-
-
 def reading(ctx, tool, eid, field, value, digits=1):
     """An instrument reading: the true value plus the tool's error (sigma = half its rated accuracy; 0.3 C for a
-    thermometer with no rating). The error is one fixed draw per (seed, tool, target, field): re-reading, stepping
-    to another cell or waiting does not redraw it (no free averaging; kernel v2.8 noise rule)."""
+    thermometer with no rating). The error is one fixed draw per (seed, tool, target, field) from the kernel's
+    ctx.fixed_rng: re-reading, stepping to another cell or waiting does not redraw it (no free averaging)."""
     trec = ctx.w.ent(tool) if tool in ctx.w.s["entities"] else {}
     sigma = C.num(trec.get("accuracy_c"), 0.6) / 2.0 if "temp" in field else 0.005
-    key = "plumbing.reading|{}|{}|{}|{}".format(getattr(ctx.env, "seed", 0), tool, eid, field)
-    return round(C.num(value) + sigma * _gauss(key), digits)
+    error = ctx.fixed_rng("plumbing.reading", tool, eid, field).gauss(0.0, 1.0)
+    return round(C.num(value) + sigma * error, digits)

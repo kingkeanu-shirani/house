@@ -514,21 +514,75 @@ def mark_damage(w, eid, kind, detail="", stat=True, broken=None, severity=None):
     note_event(w, "damage", eid, damage_kind=kind, detail=detail)
 
 
+BRITTLE = ("glass", "crystal", "ceramic", "porcelain", "terracotta", "stoneware")    # break into sharp pieces
+SEE_THROUGH_WRAPS = ("bubble_wrap", "plastic_wrap", "stretch_wrap", "cling_film", "cellophane")
+SHARD_GEAR = ("cut_resistant_gloves", "rubber_gloves")     # what makes handling broken pieces safe (as safety's shards)
+
+
+def break_shows(rec):
+    """Whether the break of a brittle item shows on it at a glance: its pieces are in view unless a full opaque wrap
+    (paper, cloth, foil, a blanket) or its factory packaging hides them. A closed opaque box hides the whole item,
+    which kernel visibility handles already: the pieces show once the box is open."""
+    wrapped = rec.get("wrapped")
+    if isinstance(wrapped, dict):
+        if num(wrapped.get("coverage")) >= 0.95 and wrapped.get("material") not in SEE_THROUGH_WRAPS:
+            return False
+    elif wrapped:
+        return False        # another domain's plain wrapped flag (burlap, a tarp): treated as an opaque full wrap
+    return not rec.get("packaged")
+
+
+def show_break(w, eid):
+    """The glance-visible cue of a brittle break: `smashed` (kernel glance tier; core.hazards_known then counts the
+    item's own sharp hazard as perceived). `shattered` is left to the safety domain, which sets it when it turns a
+    broken glass item into a shard field and skips anything already marked."""
+    if not w.ent(eid).get("smashed"):
+        w.mut(eid)["smashed"] = True
+
+
+def reveal_breaks(w):
+    """Breaks hidden by a wrap or packaging (state.manipulation.unseen_breaks) show once that is off."""
+    ids = section(w).get("unseen_breaks") or ()
+    ents = w.s["entities"]
+    keep = []
+    for eid in ids:
+        rec = ents.get(eid)
+        if rec is None or not rec.get("broken"):
+            continue
+        if break_shows(rec):
+            show_break(w, eid)
+        else:
+            keep.append(eid)
+    if len(keep) != len(ids):
+        w.sec(SECTION)["unseen_breaks"] = keep
+
+
 def break_item(w, eid, cause):
-    """An object breaks: broken flag, damage + breakage stats, contents released, shards hazard."""
+    """An object breaks: broken flag, damage + breakage stats, contents released, shards hazard. A brittle item's
+    break shows at a glance (`smashed`) unless an opaque wrap or its packaging hides it, in which case it shows once
+    that comes off (reveal_breaks): the robot then perceives the sharp hazard (and refusals follow it) instead of
+    being exposed to a hazard it could not see."""
     rec = w.ent(eid)
     if rec.get("broken"):
         return False
     m = w.mut(eid)
     m["broken"] = True
     m["condition"] = "broken"
-    if material(rec) in ("glass", "crystal", "ceramic", "porcelain", "terracotta", "stoneware"):
+    if material(rec) in BRITTLE:
         hazards = list(m.get("hazards") or [])
         if "sharp" not in hazards:
             hazards.append("sharp")
         m["hazards"] = hazards
+        gear = list(m.get("handled_with") or [])
+        m["handled_with"] = gear + [g for g in SHARD_GEAR if g not in gear]
         if m.get("location") in w.s["rooms"]:
             m["floor_hazard"] = "sharp"
+        if break_shows(m):
+            show_break(w, eid)
+        else:
+            ids = section(w).get("unseen_breaks") or ()
+            if eid not in ids:
+                w.sec(SECTION)["unseen_breaks"] = sorted(set(ids) | {eid})
     w.stat("breakages")
     w.stat("damage")
     note_event(w, "break", eid, cause=cause)
@@ -612,7 +666,7 @@ def move_to_floor(w, eid, rid, cell=None):
         m.pop(key, None)
     m["location"], m["relation"] = rid, "on"
     m["pos"] = list(cell) if cell else landing_cell(w, rid)
-    if m.get("broken") and material(m) in ("glass", "crystal", "ceramic", "porcelain", "terracotta"):
+    if m.get("broken") and material(m) in BRITTLE:
         m["floor_hazard"] = "sharp"
     elif not m.get("ground_layer") and is_kind(m, "toy", "ball", "game_piece", "small_parts"):
         m.setdefault("floor_hazard", "trip")
@@ -944,31 +998,15 @@ def qualitative_pct(frac, step=0.1):
     return round(round(num(frac) / step) * step, 2)
 
 
-def unresolved(ctx, eid):
-    """Realistic mode: True while the robot has not identified eid (an unresolved look-alike or an unfamiliar, novel
-    thing). Messages, refusals and durations about it must then not depend on what it really is (its type, its
-    type's defaults or hidden flags): every member of its look-alike group has to get the same answer. False in
-    oracle mode and for anything the robot has identified."""
-    realism = getattr(ctx.env, "realism", None) if ctx is not None else None
-    if realism is None:
-        return False
-    rec = ctx.w.s["entities"].get(eid)
-    if rec is None:
-        return False
-    if rec.get("novel"):
-        return True
-    ident = realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec))
-    return "candidates" in ident
-
-
 def require_identified(ctx, eid):
     """Realistic mode: refuse, with one wording for every member of the look-alike group, an action whose outcome
     hinges on what the thing really is (its material, packaging, seal or label -- type-specific facts the robot has
-    not seen) while it is unidentified and the robot has not yet taken the look that could identify it (an inspect
-    for inspect-resolved groups and unfamiliar things, a read for read-resolved ones). After that look the action
-    proceeds even if the thing stays unidentified (a blank label): the robot has learned what it can. No-op in
-    oracle mode and for identified things."""
-    if not unresolved(ctx, eid):
+    not seen) while it is unidentified (kernel `ctx.unresolved`: an unresolved look-alike, a portion of one, or a
+    novel thing) and the robot has not yet taken the look that could identify it (an inspect for inspect-resolved
+    groups and unfamiliar things, a read for read-resolved ones). After that look the action proceeds even if the
+    thing stays unidentified (a blank label): the robot has learned what it can -- unlike `ctx.refuse_unidentified`,
+    which refuses for as long as it stays unidentified. No-op in oracle mode and for identified things."""
+    if not ctx.unresolved(eid):
         return
     realism = ctx.env.realism
     rec = ctx.w.s["entities"][eid]
@@ -1024,12 +1062,33 @@ def robj(ctx, eid, touch=False, grasp=False, reach=True):
     return ctx.obj(eid, touch=touch, grasp=grasp, reach=reach)
 
 
+def perceived_hazards(ctx, eid):
+    """The hazards the robot can tell eid has (oracle: its own). Realistic: for an identified thing, core.perceived_rule
+    (its type's hazards, or its own once known: inspected, or visibly smashed); for an unresolved look-alike, every
+    hazard any member type of its group has (the same list for every member); for a novel thing, none it can name."""
+    rec = ctx.w.ent(eid)
+    if not realistic(ctx):
+        return set(rec.get("hazards") or [])
+    if ctx.unresolved(eid):
+        from ..core import lookalike_rules
+        rules = lookalike_rules(ctx, eid, lambda rule: bool(rule.get("hazards"))) or []
+        return {h for rule in rules for h in (rule.get("hazards") or [])}
+    from ..core import perceived_rule
+    return set(perceived_rule(ctx, eid, rec).get("hazards") or [])
+
+
 def safe_handling(ctx, eid, carrying=True):
-    """core.check_handling, holding hazardous items by their safe grip (the grip they were picked up with)."""
-    from ..core import check_handling
-    if ctx.args.get("grip") is None:
-        rec = ctx.w.ent(eid)
-        grip = rec.get("held_grip") or (rec.get("safe_grips") or [None])[0]
-        if grip:
-            ctx.args["grip"] = grip
+    """core.check_handling with the grip the robot really holds the item by: the command's grip, else the grip it was
+    picked up with (`held_grip`, which check_handling reads itself), else -- only for a thing the robot has
+    identified -- the safe grip it knows that kind of thing needs (realistic: core.perceived_rule, its type's or its
+    own known grips; oracle: the item's `safe_grips`). An unidentified thing (unresolved look-alike, portion of one,
+    novel object) never gets a grip picked from its hidden values: the kernel judges it by the command's grip
+    (`ctx.given`) or `held_grip` against every member of its group."""
+    from ..core import check_handling, perceived_rule
+    rec = ctx.w.ent(eid)
+    if ctx.args.get("grip") is None and not rec.get("held_grip") and ctx.identified(eid):
+        rule = perceived_rule(ctx, eid, rec) if realistic(ctx) else rec
+        grips = rule.get("safe_grips") or []
+        if grips:
+            ctx.args["grip"] = grips[0]
     check_handling(ctx, eid, carrying=carrying)

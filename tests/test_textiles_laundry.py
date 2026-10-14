@@ -2467,20 +2467,31 @@ class PerceptionHardeningTests(unittest.TestCase):
         config, p, s = build()
         sock = p.on(s["table"], "sock", color="black", brand="Hanes", size_label="L 10-13")
         odd = p.on(s["table"], "t_shirt", novel=True)
+        odd_sheet = p.on(s["table"], "fitted_sheet", novel=True)
         env, H = self._env(config)
         self._do(env, "approach", H(s["table"]))
         self.assertIn("candidates", env.observe()["visible_entities"][H(sock)])     # an uninspected sock is unresolved
         self._do(env, "fold", H(sock), style="ball")                             # every sock folds alike: no wait
         self._do(env, "fold", H(odd), style="half")                              # a novel thing never resolves
+        # a novel thing belongs to no look-alike group whatever its hidden type (kernel r5): an unfamiliar fitted
+        # sheet is not held up as a "bed sheet" look-alike (it would never resolve, so it could never be folded)
+        self._do(env, "fold", H(odd_sheet), style="fitted_nest")
 
     def test_an_unread_jug_is_applied_not_refused_and_a_set_stain_is_not_announced(self):
         config, p, s = build()
         shirt = p.on(s["table"], "dress_shirt", soil={"stain_wine": 0.3}, set_stains=["stain_wine"])
         trace = p.on(s["table"], "t_shirt", soil={"stain_coffee": 0.01})
         jug = p.on(s["table"], "fabric_softener")
+        bleach = p.on(s["table"], "chlorine_bleach_bottle")
         env, H = self._env(config)
         self._do(env, "approach", H(s["table"]))
-        self._do(env, "pick_up", H(jug))
+        # kernel r5 (C1): an unread jug could be the corrosive bleach, so a bare grab is refused - with the same
+        # generic answer for every jug - and a grip safe for every member (the handle) is needed until it is read
+        grabs = [self._no(env, "pick_up", H(eid)) for eid in (jug, bleach)]
+        self.assertEqual({(r["message"], r["category"]) for r in grabs}, {(grabs[0]["message"], "safety")})
+        self.assertNotIn("softener", grabs[0]["message"])
+        self.assertNotIn("bleach", grabs[0]["message"])
+        self._do(env, "pick_up", H(jug), grip="handle")
         self.assertEqual(env.observe()["visible_entities"][H(jug)]["label"], "plastic jug of laundry liquid")
         message = self._do(env, "treat_stain", H(shirt), agent=H(jug), method="blot")["message"]
         self.assertNotIn("set", message)                                         # a set stain looks like any stain
@@ -2493,6 +2504,24 @@ class PerceptionHardeningTests(unittest.TestCase):
         ok(oracle, "approach", s["table"])
         ok(oracle, "pick_up", jug)
         self.assertIn("not a stain treatment", no(oracle, "treat_stain", shirt, agent=jug)["message"])
+
+    def test_unread_jugs_of_every_kind_look_and_feel_alike_and_weigh_what_a_full_jug_weighs(self):
+        from house_sim.systems.core import subtree_mass
+        kinds = ("liquid_detergent", "free_clear_detergent", "regular_detergent", "fabric_softener",
+                 "chlorine_bleach_bottle", "oxygen_laundry_booster", "enzyme_presoak")
+        seen = {}
+        for kind in kinds:
+            config, p, s = build()
+            jug = p.on(s["table"], kind)
+            env, H = self._env(config)
+            # mass_kg is the empty plastic jug: core carry mass and the realistic heft add the liquid on top
+            self.assertLess(subtree_mass(env.world, jug), 3.0, kind)
+            self._do(env, "approach", H(s["table"]))
+            self._do(env, "pick_up", H(jug), grip="handle")
+            held = env.observe()["visible_entities"][H(jug)]
+            seen[kind] = tuple(held.get(k) for k in ("label", "kind", "liquid_l", "mass_kg", "size_class", "color"))
+        self.assertEqual(len(set(seen.values())), 1, seen)                       # neither the look nor the heft tells
+        self.assertEqual(seen["fabric_softener"][3], "medium")
 
     def test_ironing_time_does_not_read_out_the_exact_flat_size(self):
         from house_sim.systems.textiles_laundry.helpers import station

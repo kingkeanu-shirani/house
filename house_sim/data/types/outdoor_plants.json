@@ -194,7 +194,8 @@
                 "fastened": false, "vented": true, "propped": false, "wetness": 0.0, "pooled_water_l": 0.0, "debris_kg": 0.0, "torn": false, "melted": false, "max_temp_c": 70.0, "nest": null}, "perception": {"hidden": ["max_temp_c", "nest"]}},
     "grill_cover": {"is_a": "furniture_cover", "props": {"label": "grill cover", "cover_kind": "grill", "fits_kind": ["grill"], "fits_max_m": [1.5, 0.7, 1.3], "mass_kg": 1.0}},
     "pool_cover": {"is_a": "furniture_cover", "doc": "Winter/safety pool cover; secure with straps to deck anchors or water bags (secure_outdoor method=anchor|water_bags).",
-      "props": {"label": "winter pool cover", "cover_kind": "pool", "fits_kind": ["pool"], "fits_max_m": [6.0, 4.0, 0.5], "mass_kg": 16.0, "size_m": [0.8, 0.6, 0.3], "volume_l": 60.0, "two_handed": true, "anchored": false, "max_gap_cm": 100.0}},
+      "props": {"label": "winter pool cover", "cover_kind": "pool", "fits_kind": ["pool"], "fits_max_m": [6.0, 4.0, 0.5], "mass_kg": 16.0, "size_m": [0.8, 0.6, 0.3], "volume_l": 60.0, "two_handed": true, "anchored": false, "max_gap_cm": 100.0},
+      "perception": {"looks_like": "pool_cover"}},
     "outdoor_decoration": {"is_a": "portable_object", "props": {"drying_owner": "outdoor_plants", "label": "outdoor decoration", "category": "decoration", "material": "plastic", "mass_kg": 1.0, "size_m": [0.3, 0.3, 0.6], "volume_l": 10.0, "season": "autumn", "staked": false, "weatherproof": true}},
     "inflatable_decoration": {"is_a": "outdoor_decoration", "props": {"label": "inflatable decoration", "material": "nylon", "mass_kg": 2.5, "size_m": [0.4, 0.3, 0.3], "inflated_size_m": [1.2, 1.0, 1.8], "inflated": false, "plug_required": true, "plugged_in": false, "stake_points": 4, "wetness": 0.0}, "perception": {"glance": ["inflated"]}},
     "lawn_sign": {"is_a": "outdoor_decoration", "props": {"label": "lawn sign", "material": "corrugated_plastic", "mass_kg": 0.4, "size_m": [0.6, 0.02, 0.8]}},
@@ -254,15 +255,16 @@
     "hidden": ["secured.rating_n", "deicer", "cured_days", "spalling_risk", "snow_density", "crack_roots", "uv_h", "bundle.kg", "bundle.compliant"]
   },
   "looks_like": {
-    "granule_bag": {"descriptor": "bag of granules", "resolve": "read", "kind": "bag of granules", "label_fields": ["label_text"],
+    "granule_bag": {"descriptor": "bag of granules", "resolve": "read", "kind": "bag of granules", "label_fields": ["label_text"], "size_m": [0.35, 0.12, 0.5],
                     "candidates": ["grass seed", "ice melt", "lawn fertilizer", "lawn lime", "rock salt", "traction sand"], "members": ["ice_melt_bag", "rock_salt_bag", "traction_sand_bag", "lawn_fertilizer_bag", "lawn_lime_bag", "grass_seed_bag"]},
-    "soil_bag": {"descriptor": "bag of soil or mix", "resolve": "read", "kind": "bag of soil or mix", "label_fields": ["label_text"],
+    "soil_bag": {"descriptor": "bag of soil or mix", "resolve": "read", "kind": "bag of soil or mix", "label_fields": ["label_text"], "size_m": [0.45, 0.15, 0.65],
                  "candidates": ["cactus mix", "compost", "garden soil", "mulch", "potting mix", "seed-starting mix", "topsoil"], "members": ["potting_mix_bag", "cactus_mix_bag", "seed_starting_mix_bag", "garden_soil_bag", "topsoil_bag", "compost_bag", "mulch_bag"]},
     "garden_spray": {"descriptor": "trigger spray bottle of garden chemical", "resolve": "read", "kind": "garden chemical sprayer", "label_fields": ["label_text"],
                      "candidates": ["herbicide (weed killer)", "insecticide"], "members": ["herbicide_bottle", "insecticide_bottle"]},
     "hand_pruners": {"descriptor": "pair of hand pruners", "resolve": "inspect", "members": ["bypass_pruners", "anvil_pruners"]},
-    "snow_shovel": {"descriptor": "snow shovel", "resolve": "inspect", "candidates": ["metal-edged snow shovel", "plastic snow pusher"], "members": ["snow_pusher", "metal_snow_shovel"]},
+    "snow_shovel": {"descriptor": "snow shovel", "resolve": "inspect", "size_m": [0.5, 0.1, 1.3], "candidates": ["metal-edged snow shovel", "plastic snow pusher"], "members": ["snow_pusher", "metal_snow_shovel"]},
     "seed_packet": {"descriptor": "seed packet", "resolve": "read", "label_fields": ["label_text"], "candidates": ["seeds (crop on the label)"], "members": ["seed_packet"]},
-    "outdoor_cover": {"descriptor": "outdoor cover", "resolve": "inspect", "members": ["furniture_cover", "grill_cover"]}
+    "outdoor_cover": {"descriptor": "outdoor cover", "resolve": "inspect", "members": ["furniture_cover", "grill_cover"]},
+    "pool_cover": {"descriptor": "folded pool cover", "resolve": "glance", "members": ["pool_cover"]}
   }
 }

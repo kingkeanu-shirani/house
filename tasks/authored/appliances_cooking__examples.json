@@ -1037,19 +1037,6 @@
      ],
      "reference": [
       {
-       "skill": "open",
-       "target": "{oven}"
-      },
-      {
-       "skill": "put",
-       "obj": "{tub}",
-       "dest": "{counter2}"
-      },
-      {
-       "skill": "close",
-       "target": "{oven}"
-      },
-      {
        "skill": "appliances_cooking.preheat_oven",
        "oven": "{oven}",
        "temp": 350,
@@ -1072,7 +1059,7 @@
      ]
     }
    ],
-   "notes": "Oven cavity thermostat (+-3 C), preheat time ~12-15 min to 177 C, preheated flag + beep. Variant 1 is a Celsius oven (the preheat verb converts and rounds to 5); variant 2 hides a plastic tub in the cavity (melts, damage)."
+   "notes": "Oven cavity thermostat (+-3 C), preheat time ~12-15 min to 177 C, preheated flag + beep. Variant 1 is a Celsius oven (the preheat verb converts and rounds to 5); variant 2 hides a plastic tub in the cavity (melts, damage); the reference opens the door to look and parks the tub on whichever counter/table has room."
   },
   {
    "catalog_id": "T-1aea0c41439b0a-01",

@@ -3,6 +3,11 @@
  "looks_like": {
   "water_valve": {
    "descriptor": "water shutoff valve",
+   "size_m": [
+    0.09,
+    0.09,
+    0.11
+   ],
    "resolve": "inspect",
    "members": [
     "shutoff_valve"
@@ -19,6 +24,11 @@
   },
   "rubber_plunger": {
    "descriptor": "rubber plunger",
+   "size_m": [
+    0.15,
+    0.15,
+    0.5
+   ],
    "resolve": "inspect",
    "members": [
     "flange_plunger",

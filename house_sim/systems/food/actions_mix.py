@@ -4,7 +4,7 @@ import math
 from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
-from ..core import add_soil
+from ..core import add_soil, clear_contents_from, mark_contents_from
 from . import common as C
 from . import data as D
 from . import mixing as X
@@ -595,6 +595,7 @@ def strain(ctx):
             r["liquid"] = srec.get("liquid") or "water"
             r["liquid_l"] = round(float(r.get("liquid_l", 0.0) or 0.0) + take, 4)
             r["liquid_temp_c"] = srec.get("temperature_c", 21.0)
+            mark_contents_from(w, rto, src)        # provenance: where the reserved liquid came from (kernel v2.9)
             if srec.get("dissolved_starch"):
                 r["dissolved_starch"] = True
             water_l -= take
@@ -626,9 +627,12 @@ def strain(ctx):
             m["food"]["wet"] = 0.2
             solids_kept.append(fid)
             M.contact(w, tool_id, fid, 0.4)
+    if not to_drain and water_l > 0:
+        mark_contents_from(w, dest, src)       # before src is emptied: its own provenance carries over
     s = w.mut(src)
     s["liquid_l"] = 0.0
     s["liquid"] = None
+    clear_contents_from(w, src)
     if not to_drain and water_l > 0:
         d = w.mut(dest)
         d["liquid"] = srec.get("liquid") or "water"
@@ -731,7 +735,7 @@ def marinate(ctx):
         for key in ("spos", "pos", "shelf", "held_hand"):
             m.pop(key, None)
     amount = float(ctx.args["amount_ml"] or 0) or M.volume_ml(mrec)
-    known = not (ctx.realistic and P.unidentified(ctx.env, mid))      # an unidentified liquid's acidity is not seen
+    known = ctx.identified(mid)      # an unidentified liquid's acidity is not seen
     portion, grams = M.take(w, mid, amount * M.density(mrec))
     comp = portion["food"].get("composition") or {}
     acid = bool(set(comp) & X.ACIDS) or bool(portion["food"].get("acid"))
@@ -835,7 +839,7 @@ def season(ctx):
         for t in targets:
             M.contact(w, spoon, t, 0.3)
     # (realistic perception: what the seasoning is shows only once the jar/shaker has been identified)
-    out.update({"added_g": round(grams, 3), "seasoning": sid if ctx.realistic and P.unidentified(ctx.env, sid) else pk,
+    out.update({"added_g": round(grams, 3), "seasoning": sid if ctx.unresolved(sid) else pk,
                 "_subject": sid})
     C.seconds(ctx, 3.0 + 0.3 * (int(ctx.args.get("shakes") or 0) + int(ctx.args.get("turns") or 0)))
     return out

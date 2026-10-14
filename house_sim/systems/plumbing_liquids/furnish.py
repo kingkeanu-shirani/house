@@ -265,6 +265,45 @@ def mount_clear(p, rid, type_name, exempt=(), **props):
     return eid
 
 
+def lay_pipe(p, eid, exempt=()):
+    """An exposed supply run follows a wall: lay the pipe along the wall of its cell (geometry.along_wall: rot 90 on
+    the west/east walls) and, where that wall is shorter than the run (a 1.5 m utility closet), cut the run to the
+    wall's length (mass in proportion), so its whole footprint stays on the grid. It stays on its cell when it is
+    usable there (reachable, not hidden behind anything taller), else the nearest wall cell where it is. Placer.mount
+    keeps the type's orientation, which ran a 2 m pipe straight into the room or off a small closet's grid.
+    Deterministic, no randomness. Returns True when it ends up reachable."""
+    rec = p.c["entities"].get(eid)
+    if rec is None or not rec.get("pos") or rec.get("location") not in p.c["rooms"]:
+        return False
+    rid = rec["location"]
+    room = p.c["rooms"][rid]
+    here = (int(rec["pos"][0]), int(rec["pos"][1]))
+    size = [C.num(v) for v in (rec.get("size_m") or [2.0, 0.05, 0.05])]
+    full = max(size[0], size[1])
+    thin = min(size[0], size[1])
+    per_m = C.num(rec.get("mass_kg"), 0.0) / full if full > 0 else 0.0
+    walls = (room.get("size_m") or [4.0, 4.0])[:2]
+
+    def lay(cell):
+        rec["pos"] = [int(cell[0]), int(cell[1])]
+        inward, _ = geometry.wall_inward(room, cell)
+        wall_m = C.num(walls[1] if inward[0] != 0 else walls[0], full)
+        length = round(min(full, wall_m), 3)
+        rec["size_m"] = [length, thin] + size[2:]
+        if per_m > 0:
+            rec["mass_kg"] = round(per_m * length, 3)
+        rec.pop("rot", None)
+        geometry.along_wall(room, rec)
+        return all(geometry.in_grid(room, c) for c in geometry.footprint(rec))
+
+    options = sorted(set(_wall_options(p, rid)) - {here}, key=lambda c: (geometry.chebyshev(c, here), c[1], c[0]))
+    for cell in [here] + options:
+        if lay(cell) and reachable(p, eid) and not hidden_behind(p, eid, exempt):
+            return True
+    lay(here)
+    return reachable(p, eid)
+
+
 # ----------------------------------------------------------------------------------------------------------------
 # loose floor items
 
@@ -443,7 +482,9 @@ def keep_controls_reachable(config, rng, opts, registry):
         rec = ents.get(eid)
         if rec is None or rec.get("location") not in config["rooms"] or rec.get("type") not in REACH_TYPES + FLOOR_TYPES + DRAIN_TYPES + ("outdoor_spigot",):
             continue
-        if rec.get("type") in REACH_TYPES and rec.get("mounted"):
+        if rec.get("type") == "water_pipe" and rec.get("mounted"):
+            lay_pipe(p, eid)
+        elif rec.get("type") in REACH_TYPES and rec.get("mounted"):
             relocate_reachable(p, eid)
         elif rec.get("type") == "outdoor_spigot" and rec.get("mounted") and rec.get("pos"):
             # yard furniture placed later (planters, downspouts, sheds, grills) can stand in front of the spigot: the
@@ -689,7 +730,9 @@ def _service(p, rng, opts):
                 p.c["entities"][heater]["recovery_kw"] = 24.0 if p.c["entities"][heater].get("tankless") else 4.5
                 p.c["entities"][heater]["plug_required"] = False      # hardwired
     if room in p.rooms("basement") or room in p.rooms("utility_closet"):
-        mount_clear(p, room, "water_pipe", height=2.1, label="cold water supply pipe", condensation_prone=rng.random() < 0.4)
+        pipe = mount_clear(p, room, "water_pipe", height=2.1, label="cold water supply pipe", condensation_prone=rng.random() < 0.4)
+        if pipe is not None:
+            lay_pipe(p, pipe)
     for rid in p.rooms("basement") + p.rooms("garage"):
         if rng.random() < 0.6:
             p.floor_item(rid, "floor_drain")

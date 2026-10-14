@@ -9,6 +9,12 @@ empty, transfer), spills, wet things and ice. Package `house_sim/systems/plumbin
 passes all 12 examples and all 3 perception specs on seeds 0, 1, 2, 41, 97; `tools/perception_audit.py 30 80` and
 `tools/layout_audit.py 20 --domain plumbing_liquids` attribute no line to this domain. See section 4b for what the
 robot can perceive (liquid names, durations and instrument draws were hardened after the red-team round).
+Kernel round 5 pass: spec items start on a counter with room (`counter_items`, section 6; seed 1's short, crowded
+counter had no room for two ice trays), exposed supply pipes run along their wall on the grid (`furnish.lay_pipe`),
+the `water_valve` / `rubber_plunger` groups set one glance size, and identification, sealed containers, instrument
+draws and liquid provenance use the kernel helpers (`ctx.unresolved`, `Realism.sealed`, `ctx.fixed_rng`,
+`core.mark_contents_from`); `--check` passes both spec files on the five seeds (also with HOUSE_SIM_STRICT=1 for the
+unit tests) and `tools/perception_audit.py 20 80` attributes nothing to this domain.
 
 | Module | Contents |
 |---|---|
@@ -79,7 +85,7 @@ S for controller modes. Hidden ground truth uses `_` keys (`_leak`, `_clog`, `_w
 | `main_shutoff_valve` | gate 6 turns (or ball 0.25), `main`, label_text "MAIN" | |
 | `water_meter` | `display` (cumulative L), `flow_indicator` | readable with `read` |
 | `water_heater` | tank_l 190, `tank_temp_c`, `settings.temp_c` 49 (dial), recovery 9 kW gas / 4.5 kW electric; wall-hung `tankless` units (`furnish.TANKLESS`: 0.5 L exchanger, 44 kW gas / 24 kW electric) | drawing hot water cools the tank; it reheats. A tankless unit delivers the setpoint on demand while it has gas/power and stores nothing (cools within ~5 min of a cut). Tanks stand in a basement, utility closet, garage, or a laundry room/pantry of at least 6 m2 that still has a washer spot; never in a kitchen - otherwise the house gets a tankless unit |
-| `water_pipe` | exposed run; `condensation_prone`, may hold `_leak` | |
+| `water_pipe` | exposed run; `condensation_prone`, may hold `_leak` | runs along its wall at 2.1 m (`furnish.lay_pipe`: rot 90 on the west/east walls; a run longer than its wall - 2 m in a 1.5 m utility closet - is cut to the wall's length, mass in proportion) |
 | `drain_trap` | P-trap under a basin (drain-side leaks) | |
 | `floor_drain`, `storm_drain` | `floor_drain` (sanitary), `storm_drain` ("NO DUMPING - DRAINS TO CREEK") | |
 | `garbage_disposal` | `_jam` (tools_vehicles' `reset_disposal` contract), switchable, 5.5 kg | hangs from the sink's drain flange: an installed part of the sink base (`relation` part, cabinet `slots.disposal` access open, `hangs_from` the sink, `z_m` ~0.3 m), so it is hidden while the doors are closed, cannot be picked up, and never loads the cabinet shelf (admin_inventory's shelf rating counts only items `in` it); the sink's `disposal` names it |
@@ -236,7 +242,9 @@ also write (`water_damage`, `swollen`, `clogged`, `plant_harm`, ...) are left to
 valves, the heater inlet and the main look alike until one is inspected - its label then says which line/fixture it
 serves); `rubber_plunger` ("rubber plunger", kind "plunger": flange vs cup; both now carry neutral labels "flange
 plunger" / "cup plunger", so no other domain's label routing - e.g. a "toilet ..." label sent to a flush - can tell
-them apart); `water_stain` ("brownish water stain", kind "stain": an active wet stain and an old dry one have
+them apart); both groups give the size an unresolved member shows at a glance (`size_m`: valves 0.09 x 0.09 x 0.11 m,
+plungers 0.15 x 0.15 x 0.5 m - a main valve is twice a fixture stop's size and a flange plunger 10 cm taller than a cup
+plunger, which the kernel round 5 look-alike lint flagged as a giveaway); `water_stain` ("brownish water stain", kind "stain": an active wet stain and an old dry one have
 identical glance records); `reusable_bottle` (kind "bottle"; water bottles, taken out of the kernel's clear-liquid
 group: the steel bottle hides its contents, but it is not a vinegar jug). Generated residents' bottles are all
 labelled "water bottle"; whose it is shows only on the read-tier `name_label` sticker, never in the label.
@@ -265,8 +273,8 @@ labelled "water bottle"; whose it is shows only on the read-tier `name_label` st
   liquid/bath thermometer): `measured.outlet_temp_c` of a running tap or `measured.temperature_c` of basin/vessel water,
   +- half the tool's rated accuracy (0.3 C unrated), granted as a measurement. Holding a moisture meter: `measured.moisture`
   (stains: ~0.1 dry drywall, 0.35-0.95 active) or `measured.moisture_inner`, granted as a measurement. The instrument
-  error is **one fixed draw** per (seed, tool, target, field): re-reading, stepping to another cell or waiting does not
-  redraw it (kernel v2.8 noise rule; it was keyed by the robot's cell before).
+  error is **one fixed draw** per (seed, tool, target, field) from the kernel's `ctx.fixed_rng` (kernel round 5; the
+  domain's own hash draw is gone): re-reading, stepping to another cell or waiting does not redraw it.
 * Actions grant what they reveal: pour/fill (inspect: both levels, and the liquid only when the robot could tell what
   it was), wring (touch: wetness), valves (touch: `settings`, `valve_open`), plug/drain (inspect: `plug`), flush with
   the lid up and plunge (inspect: bowl; plunging resolves which plunger it was).
@@ -278,6 +286,16 @@ labelled "water bottle"; whose it is shows only on the read-tier `name_label` st
   poured on into) gets per-entity tiers (`_perception.hidden`: `liquid`, `product`, `hazards`) until it is emptied, and a
   puddle of it is a plain "spill" with the same hidden fields - so neither the next glance nor an inspection of the
   bucket or puddle names it. Wrung-out water is "water" or "dirty water" (dissolved cleaner is not visible).
+  "Unidentified" is the kernel's rule (`seen.unresolved` = `ctx.unresolved`: an unresolved look-alike, a portion of
+  one, a novel thing) and a closed opaque container is `Realism.sealed`.
+* **Provenance** (kernel v2.9 `contents_from` contract): every parcel taken out of a container carries its origin
+  (`liquids.origin_of` = `core.contents_origin`, read before the take empties the source, so a chain stays one deep);
+  `liquids.add` marks whatever receives it (vessel, basin, toilet bowl, bucket) and a spill from it gets the same
+  `contents_from` (`core.mark_contents_from`); an emptied container drops it (`core.clear_contents_from`). Tap, hose,
+  leak and melt water carry no origin and leave provenance alone (topping a glass up from the tap does not make an
+  unknown liquid in it "tap water"). The parcel flag above still hides such contents for good until emptied; the
+  kernel's rendering ("unidentified liquid from <descriptor>", cleared once the origin is identified) applies to
+  receivers the flag did not mark (a dispenser fill).
 * **Durations** (the observation clock): in realistic mode `seen.seconds` rounds an action's duration to whole seconds
   (5 s steps past two minutes, 15 s past ten), and durations that depended on a hidden quantity are computed from the
   message's estimate instead: a pour takes 2 s + the estimated liters at the rate the robot can know (the
@@ -349,7 +367,16 @@ loads down to open doors with full hands),
 walk), `inspect_report`, `contain_leak` (careful steps around the leak water, off wet cells when possible).
 
 Helpers (`{"op": "helper", "name": ...}`): `plumbing_liquids.kitchen_sink` (sink, sink_cabinet, hot_stop,
-cold_stop, trap, counter (the roomiest reachable), kitchen), `bathroom` (faucet two_handle|single_lever, worn,
+cold_stop, trap, counter (the reachable one with the most free area), kitchen), `counter_items` (type, count, var,
+props, room, counter, required -> `var` = the id, or for count > 1 the list plus `var_1`, `var_2` ..., like the spawn
+op: loose things to start on the kitchen counters - each item on the first reachable work surface where it fits as the
+type lies, else turned 90 degrees, trying the bound `counter` first, then the other counters and then tables by free
+area, never a cooktop, appliance, sink or window sill; when nothing has room it puts counter dressing away in a kitchen
+cabinet or drawer, largest first - portable things that are not countertop appliances and not bound by the task -
+until the item fits, as a person clears a work area; SpecError only if even that fails; `required: false` skips
+the item instead of clearing anything; specs use it instead of `spawn ... "on": "{counter}"`, because generated
+counters differ in length (a built-in dishwasher halves a run) and other furnishers crowd them),
+`bathroom` (faucet two_handle|single_lever, worn,
 reversed, nonpotable, running, tub -> bath_sink, vanity, bath_hot, bath_cold, toilet, tub, bathroom),
 `water_service` (valve_kind, seized, heater_c -> main, meter, heater, heater_inlet, service_room),
 `toilet_trouble` (kind paper|rising|object|chemical|sewer -> toilet, plunger, cup_plunger, gloves, toy, cleaner),
@@ -372,9 +399,11 @@ hazard-free route or only access is cut, the item is reachable without stepping 
 `geometry.door_clearance`, never in front of a lower wall mount); a room with no such cell (a tiny half bath) passes
 the item to the room next door, and required items fall back to Placer.floor_item's own choice in their room.
 Helpers also relocate bound wall controls they did not create (the main, meter, heater inlet, the controller, the
-storage hanger, a burst pipe) along the walls when later furniture boxed them in or stands in front of them
-(`furnish.relocate_reachable`). Nothing assumes a fixed spot: helpers raise SpecError only when the house lacks the
-room (no kitchen, no bathroom, no yard: add it to `house.require` / use `dwelling: house`).
+storage hanger) along the walls when later furniture boxed them in or stands in front of them
+(`furnish.relocate_reachable`); a burst pipe is laid along its wall (`furnish.lay_pipe`). Nothing assumes a fixed spot:
+helpers raise SpecError only when the house lacks the room (no kitchen, no bathroom, no yard: add it to
+`house.require` / use `dwelling: house`) or, for `counter_items`, no kitchen surface has room even with the dressing
+put away.
 `plumbing_liquids.clear_door_sweeps` (rooms, fronts optional -> cleared_items): free-standing floor items >= 0.15 m
 tall in a room's `geometry.door_clearance` (doorway cells + neighbours, hinged leaves, overhead thresholds) move to
 the nearest `floor_cell` (in a closet too small for that, the room next door); `fronts` lists floor cabinets the plan
@@ -390,7 +419,12 @@ water heater under a counter drawer at 0.75 m, a window sill or a register), ano
 then tries the next service room and finally becomes a wall-hung tankless unit. Wall controls (main, meter, stops,
 washer valves, heater inlet, spigots, the irrigation controller, exposed pipes) go through `furnish.mount_clear`:
 Placer.mount, then along the wall when a floor-standing piece taller than the control already stands there (Placer
-only keeps low mounts off furniture). Loose floor items (`place_floor_item` with `clean=True`) go only into rooms whose
+only keeps low mounts off furniture). The exposed supply pipe is then laid along the wall of its cell
+(`furnish.lay_pipe`, kernel round 5 advisory: Placer.mount kept the 2 m type orientation, running it straight into a
+basement or off a 1.5 m utility closet's grid in 50 of 60 probe houses); it stays on its cell when usable there, else
+takes the nearest wall cell where it is reachable and not hidden, and the run is cut to the wall's length when the
+wall is shorter. No randomness, and a 2.1 m pipe constrains nothing else, so generated houses are otherwise
+unchanged. Loose floor items (`place_floor_item` with `clean=True`) go only into rooms whose
 routes and access are hazard-free without them (`furnish.room_clean`, the condition under which the final layout
 repair leaves a room alone): an already cluttered shed sends the watering can on to the patio or yard instead of
 making it the item repair cannot re-place; the bucket tries the next utility room, the flange plunger goes under the
@@ -409,9 +443,9 @@ the hanger.
 
 Furnisher `plumbing_liquids.reach` (order 91, after every furniture and small-item furnisher, no randomness): moves
 this domain's wall-mounted `main_shutoff_valve`, `shutoff_valve`, `water_meter`, `irrigation_controller`,
-`water_pipe` and `outdoor_spigot` (with its hose hanger) that the robot can no longer reach, or that a later appliance,
+`outdoor_spigot` (with its hose hanger) that the robot can no longer reach, or that a later appliance,
 shelving or yard piece now stands in front of (a dryer over the meter, a downspout over the spigot), to the nearest
-usable wall cell; floor drains that later furniture covered to a free cell; and its floor items whose cell now cuts a
+usable wall cell (an exposed `water_pipe` through `lay_pipe`, so it keeps running along its wall); floor drains that later furniture covered to a free cell; and its floor items whose cell now cuts a
 route, or whose room later loose items cluttered, to the nearest `floor_cell` or another suitable room (plungers:
 under the vanity).
 
@@ -428,7 +462,8 @@ as `failure`/`not` predicates; allow `flood` only when the scenario floods from 
 
 ### C1 Basins and taps
 Setup: `kitchen_sink` / `bathroom` (+`water_service` heater_c 52-58 so straight hot is too hot), stopper and dish
-soap (`generic_item` product dish_soap, amount_ml) on the counter, dishes on the counter or in the sink;
+soap (`generic_item` product dish_soap, amount_ml) on the counter (`counter_items`), dishes on the counter
+(`counter_items required=false`) or in the sink;
 for detection tasks set taps running (`bathroom running=true`) and people `using` fixtures (leave theirs alone),
 appliances with water programs running (they sound like filling, they are not taps).
 Success: `plug` closed, `liquid_l` band (leave displacement room: 35-65 % of basin_l), `temperature_c` 40-49,
@@ -459,7 +494,7 @@ Wrong plans: brimful glass carried at normal speed, dirty glass, bathroom tap, g
 water into a filter pitcher, topping off stale water, wine for the 12-year-old, pouring for a decliner.
 
 ### C4 Ice
-Setup: `freezer` helper, trays (`ice_cube_tray`, some frozen: `ice_g`, `frozen_frac` 1), ice maker with its
+Setup: `freezer` helper, trays (`ice_cube_tray` via `counter_items count=2`, some frozen: `ice_g`, `frozen_frac` 1), ice maker with its
 valve (`shutoff_valve feeds=[maker]`), ice bin, scoop (`tool_kind` ice_scoop), drinks near full, events for guests.
 Success: tray `cell_fill` 0.8-0.95, `joined` false, `location` freezer, `tilt_deg` <= 3, no `frozen_spill_l`,
 freezer closed; ice maker `on`, `settings.arm` down, valve open, `ice_g` >= target by a deadline; bin

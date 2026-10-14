@@ -5,6 +5,8 @@ use privileged state like every reference skill.
   appliances_cooking.wear_mitts(mitts)                       fetch and put on oven mitts (no-op if worn)
   appliances_cooking.remove_mitts(mitts, home=None)          take them off and put them back
   appliances_cooking.preheat_oven(oven, temp, unit=None, mode="bake", park=None, wait=True)
+                                                             opens the door to look; cavity items go to `park` or the
+                                                             nearest surface with room (park_surface)
   appliances_cooking.oven_in(dish, oven, rack, mitts=None)   dish onto a rack of a hot oven (mitts on, door shut after)
   appliances_cooking.oven_out(dish, oven, dest, mitts=None, turn_off=True)
   appliances_cooking.load_dishwasher(dishwasher, items, aside=None, close=True)
@@ -77,27 +79,83 @@ def remove_mitts(r, mitts, home=None):
         S.put(r, mitts, home)
 
 
+PARK_WORDS = ("counter", "island", "table", "cart")
+PARK_SKIP = ("bedside", "night", "coffee", "side_table", "outdoor", "patio")
+PARK_MIN_HEIGHT_M = 0.6
+
+
+def _surface_room(state, eid):
+    room, _ = geometry.anchor(state, eid)
+    return room or S.locate(state, eid)
+
+
+def _park_surfaces(state, near):
+    """Work surfaces (counters, islands, kitchen/dining tables, carts at work height; never an appliance top) the
+    robot can walk up to: in the room of `near` first, then the adjoining indoor rooms; counters before tables,
+    nearest first."""
+    room = _surface_room(state, near)
+    rooms = state.get("rooms") or {}
+    neighbours = sorted({x for conn in (state.get("connections") or {}).values() if room in (conn.get("rooms") or [])
+                         for x in conn.get("rooms") or [] if x != room and not (rooms.get(x) or {}).get("outdoor")})
+    _, near_cells = geometry.anchor(state, near)
+    near_cells = near_cells or []
+    out = []
+    for eid in sorted(state["entities"]):
+        rec = state["entities"][eid]
+        t = str(rec.get("type") or "")
+        if not rec.get("surface") or not rec.get("accepts_items") or rec.get("ac_kind") or rec.get("portable"):
+            continue
+        if not any(w in t for w in PARK_WORDS) or any(w in t for w in PARK_SKIP):
+            continue
+        if C.num(rec.get("surface_height_m"), 0.9) < PARK_MIN_HEIGHT_M:
+            continue
+        where = _surface_room(state, eid)
+        if where not in [room] + neighbours or not C.approachable(state, eid):
+            continue
+        _, cells = geometry.anchor(state, eid)
+        dist = min((geometry.chebyshev(a, b) for a in (cells or []) for b in near_cells), default=99) if where == room else 99
+        out.append((where != room, 0 if ("counter" in t or "island" in t) else 1, dist, eid))
+    return [e for _, _, _, e in sorted(out)]
+
+
+def park_surface(r, item, near, prefer=None):
+    """Where to set `item` down for a while: `prefer` when it has a clear patch big enough for the item, else the
+    nearest work surface that has one (what the robot sees on top of it -- a full counter is visibly full), else the
+    floor of the room of `near` as the last resort. Never assumes a particular counter has room."""
+    state = r.state
+    if prefer and (prefer in state.get("rooms", {}) or prefer in state.get("people", {})):
+        return prefer
+    pref = state["entities"].get(prefer) if prefer else None
+    if pref is not None and pref.get("container") and not pref.get("surface"):
+        return prefer                                # going in, not on: the place verb judges the room inside
+    candidates = ([prefer] if pref is not None else []) + [s for s in _park_surfaces(state, near) if s != prefer]
+    for s in candidates:
+        if s != item and geometry.surface_spot(state, s, item) is not None:
+            return s
+    return _surface_room(state, near)
+
+
 @skill("appliances_cooking.preheat_oven")
 def preheat_oven(r, oven, temp, unit=None, mode="bake", park=None, wait=True, max_s=2400, check=True):
-    """Clear anything stored in the cavity (pans, plastic) onto `park`, close the door, preheat, wait for the beep.
-    check=False skips looking inside (the classic mistake)."""
+    """Look inside first (open the door: a shut oven hides its cavity), move anything stored there (pans, a plastic
+    tub) to `park` -- or, when that is not given or has no room, the nearest counter/table with a clear patch (floor of
+    the kitchen as the last resort) -- close the door, preheat, wait for the beep. check=False skips looking inside
+    (the classic mistake)."""
     S.approach(r, oven)
+    if check and not _ent(r, oven).get("open"):
+        r.do("open", target=oven)                    # a cavity check means looking in, not reading hidden state
     stored = [c for c in C.descendants(r.state, oven) if _ent(r, c).get("ac_kind") != "oven_rack"] if check else []
-    if stored and park is None:
-        raise _err("something is stored in the oven and there is nowhere to park it")
-    if stored:
-        if not _ent(r, oven).get("open"):
-            r.do("open", target=oven)
-        for item in stored:
-            if item in r.state["entities"] and C.parent_chain(r.state, item) and oven in C.parent_chain(r.state, item):
-                if any(p in stored for p in C.parent_chain(r.state, item)):
-                    continue
-                crouched = _crouch_for(r, item)
-                r.do("pick_up", target=item)
-                if crouched:
-                    _stand(r)
-                S.put(r, item, park)
-                S.approach(r, oven)
+    for item in stored:
+        chain = C.parent_chain(r.state, item) if item in r.state["entities"] else []
+        if oven not in chain or any(p in stored for p in chain):
+            continue                                 # gone already, or it comes out with its container
+        dest = park_surface(r, item, oven, prefer=park)
+        crouched = _crouch_for(r, item)
+        r.do("pick_up", target=item)
+        if crouched:
+            _stand(r)
+        S.put(r, item, dest)
+        S.approach(r, oven)
     if _ent(r, oven).get("open"):
         r.do("close", target=oven)
     args = {"target": oven, "temp": float(temp), "mode": mode}

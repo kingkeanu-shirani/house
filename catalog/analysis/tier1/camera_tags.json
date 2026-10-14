@@ -1,0 +1,8999 @@
+{
+"n_tags": 1244,
+"n_entries": 1047,
+"tags": [
+{
+"tag": "user_sim.hidden_target",
+"count": 47,
+"examples": [
+"T-c6a754a799fd83-01",
+"T-a2413c7ef5cd03-01",
+"T-f7e2a4f9ea0ac3-01",
+"T-22f1593cd0ef0c-01"
+]
+},
+{
+"tag": "item.home_location",
+"count": 26,
+"examples": [
+"T-62a91cbb7b0aa9-01",
+"T-093e372008b6c2-01",
+"T-d7dedfa558636c-01",
+"T-31002fc4c2ffcb-01"
+]
+},
+{
+"tag": "item.home_location_map",
+"count": 16,
+"examples": [
+"T-268208400f78fa-01",
+"T-39017905ab6e4e-01",
+"T-bdcfd7d75ea0fd-01",
+"T-3936e6642a320b-01"
+]
+},
+{
+"tag": "user_sim.hidden_preference",
+"count": 15,
+"examples": [
+"T-70f49eb14a0d74-01",
+"T-f1b483bd515278-01",
+"T-46172acd4527d5-01",
+"T-9cf63e4c7eb6d9-01"
+]
+},
+{
+"tag": "inventory.item_location_map",
+"count": 10,
+"examples": [
+"T-98e529c9255147-01",
+"T-4be8268bd656f8-01",
+"T-efae737380707e-01",
+"T-91f1c391e377ac-01"
+]
+},
+{
+"tag": "label.text_matches_contents",
+"count": 8,
+"examples": [
+"T-91e8f5ef1affd8-01",
+"T-fd0c211b92ca58-01",
+"T-7ee6a45785f397-01",
+"T-769ecfec875d2d-01"
+]
+},
+{
+"tag": "organization.zone_labels",
+"count": 7,
+"examples": [
+"T-e798dcf3f98328-01",
+"T-62a91cbb7b0aa9-01",
+"T-d7dedfa558636c-01",
+"T-c816ee319d868d-01"
+]
+},
+{
+"tag": "inventory.item_location_map_update",
+"count": 7,
+"examples": [
+"T-1e26563fe688ae-01",
+"T-f508193f2a49ae-01",
+"T-86b35883cbd79d-01",
+"T-de6bd1f21728e0-01"
+]
+},
+{
+"tag": "report.message_with_location",
+"count": 7,
+"examples": [
+"T-eb0b09888831d1-01",
+"T-5cc18cd26d89fb-01",
+"T-a87b8983335b5d-01",
+"T-0c0c4383c41730-01"
+]
+},
+{
+"tag": "textile.mildew_timer",
+"count": 7,
+"examples": [
+"T-de85456e6c0dbf-01",
+"T-cdf8e8b491b1dd-01",
+"T-981df41c899b56-01",
+"T-a2637b96797442-01"
+]
+},
+{
+"tag": "item_location_map.home_location",
+"count": 6,
+"examples": [
+"T-f6a052cde12e3f-01",
+"T-21049f0bf94b7c-01",
+"T-868cd66a42530b-01",
+"T-5b94e671d4c8e2-01"
+]
+},
+{
+"tag": "debris.relocation_tracking",
+"count": 6,
+"examples": [
+"T-de38216272d8a9-01",
+"T-a1fbbaa57d44ee-01",
+"T-2f88f482dce794-01",
+"T-2dcb5a2857186c-01"
+]
+},
+{
+"tag": "textile.wet_mildew_timer",
+"count": 6,
+"examples": [
+"T-b216de77e4dd16-01",
+"T-2e719af7809769-01",
+"T-d1c9158656eaf7-01",
+"T-fcfeb1aa891c23-01"
+]
+},
+{
+"tag": "debris.landing_location",
+"count": 6,
+"examples": [
+"T-5c4ac8d4788a25-01",
+"T-0234ac51b832da-01",
+"T-a5d053d672f2c3-01",
+"T-12c7853677ea4b-01"
+]
+},
+{
+"tag": "inventory.item_home_location",
+"count": 6,
+"examples": [
+"T-908bb84a0e9c56-01",
+"T-de85456e6c0dbf-01",
+"T-dd1adf4b536bb1-01",
+"T-7480617226d091-01"
+]
+},
+{
+"tag": "care_label.parse",
+"count": 6,
+"examples": [
+"T-a31e3d6d0f0a3e-01",
+"T-aa2449b8193c6c-01",
+"T-9985fb281e9fa7-01",
+"T-1929001531a238-01"
+]
+},
+{
+"tag": "textile.care_label_lookup",
+"count": 5,
+"examples": [
+"T-7a469df881e6f5-01",
+"T-e33be7f5f32230-01",
+"T-6e3fbf384a654f-01",
+"T-084dc9f40872a2-01"
+]
+},
+{
+"tag": "garment.color_class",
+"count": 5,
+"examples": [
+"T-e33be7f5f32230-01",
+"T-9ac6c0d1468ae0-01",
+"T-c32284261135cd-01",
+"T-32483706f17670-01"
+]
+},
+{
+"tag": "textile.mildew_risk",
+"count": 5,
+"examples": [
+"T-06e28e6bd65d6c-01",
+"T-60264422926c0b-01",
+"T-767ad1cbc1ebbd-01",
+"T-fa725df43f429e-01"
+]
+},
+{
+"tag": "textile.dry_state",
+"count": 5,
+"examples": [
+"T-236fefcc36f3ba-01",
+"T-f8aaca82898380-01",
+"T-06025dc2939e55-01",
+"T-05f0be8bfc11cc-01"
+]
+},
+{
+"tag": "inventory.item_home_location_map",
+"count": 5,
+"examples": [
+"T-221f4f038c83f0-01",
+"T-e1b39f95424795-01",
+"T-d8f9ed4d190261-01",
+"T-2d0c11b0a06ee4-01"
+]
+},
+{
+"tag": "inventory.count_partial_levels",
+"count": 5,
+"examples": [
+"T-eda420191591d7-01",
+"T-40f8a47988bb79-01",
+"T-2b05e4be721b1c-01",
+"T-294ed7e1cfe0ba-01"
+]
+},
+{
+"tag": "food.expiration_date_read",
+"count": 5,
+"examples": [
+"T-eda420191591d7-01",
+"T-d1bdd6349434d9-01",
+"T-5ddfdb5795684e-01",
+"T-0e6f51ec5ab689-01"
+]
+},
+{
+"tag": "item_location_map.update",
+"count": 5,
+"examples": [
+"T-00b4f61f620972-01",
+"T-70a7df113d2217-01",
+"T-84de8daa26c44e-01",
+"T-bd9146bb3aac84-01"
+]
+},
+{
+"tag": "item_location_map.last_seen",
+"count": 5,
+"examples": [
+"T-bf02edf6468505-01",
+"T-a2952782c820d8-01",
+"T-17bf62f781f86e-01",
+"T-ea01c1f4bd8546-01"
+]
+},
+{
+"tag": "inventory.count_record_vs_ground_truth",
+"count": 5,
+"examples": [
+"T-762fe45a3ad278-01",
+"T-12ee334f5937cb-01",
+"T-c39183fe4e70ea-01",
+"T-921f105d8a5c82-01"
+]
+},
+{
+"tag": "carry.view_occlusion",
+"count": 4,
+"examples": [
+"T-29724c29b23aa1-01",
+"T-4e55473af5084b-01",
+"T-caeb9d1324808d-01",
+"T-62fe1251aafeed-01"
+]
+},
+{
+"tag": "pantry.lookalike_identification",
+"count": 4,
+"examples": [
+"T-8ec51a8da457b8-01",
+"T-a9e4a846f5af23-01",
+"T-691472568b6089-01",
+"T-0891fed9e2858b-01"
+]
+},
+{
+"tag": "fridge.zone_raw_below_ready",
+"count": 4,
+"examples": [
+"T-a7125975f72470-01",
+"T-22b6980946af59-01",
+"T-7e888e2b0e88ac-01",
+"T-92f55d8f9d2501-01"
+]
+},
+{
+"tag": "textile.moisture_per_region",
+"count": 4,
+"examples": [
+"T-c098c30df41f8a-01",
+"T-10ad929bcb5902-01",
+"T-9626643f171bb0-01",
+"T-1e722ad13b8589-01"
+]
+},
+{
+"tag": "item.search_hidden_locations",
+"count": 4,
+"examples": [
+"T-f9fa7c5d590594-01",
+"T-73f96e18218e31-01",
+"T-9ce0d263d2bc21-01",
+"T-b4390308cdcfd3-01"
+]
+},
+{
+"tag": "textile.wet_state",
+"count": 4,
+"examples": [
+"T-60264422926c0b-01",
+"T-fa725df43f429e-01",
+"T-100dbc708f2768-01",
+"T-59f672536799d4-01"
+]
+},
+{
+"tag": "package.label_verification",
+"count": 4,
+"examples": [
+"T-65adcc4b7054a6-01",
+"T-e53dd055540de1-01",
+"T-67c56363a313c8-01",
+"A-ec85c073ac1985-01"
+]
+},
+{
+"tag": "textile.clean_state",
+"count": 4,
+"examples": [
+"T-31f5cea2a51c36-01",
+"T-ca528fede186ba-01",
+"T-78f2e9ada0626a-01",
+"T-a3ac1798006848-01"
+]
+},
+{
+"tag": "textile.clean_vs_used_state",
+"count": 4,
+"examples": [
+"T-1e722ad13b8589-01",
+"T-900573e81f8733-01",
+"T-88539c3e470d67-01",
+"T-03ac25bf9118d2-01"
+]
+},
+{
+"tag": "memory.item_location_map",
+"count": 4,
+"examples": [
+"T-2b63f64461585c-01",
+"A-4f9c616fc8e1c6-01",
+"A-6dc6961385a8b5-01",
+"A-7b5edf28da28b0-01"
+]
+},
+{
+"tag": "textile.moisture_level",
+"count": 4,
+"examples": [
+"T-cdf8e8b491b1dd-01",
+"T-dd1adf4b536bb1-01",
+"T-18c059cadf44c9-01",
+"T-72dddd3bf5d4d9-01"
+]
+},
+{
+"tag": "people.speaker_identification",
+"count": 4,
+"examples": [
+"V-9ca9386e1503be-01",
+"A-498dc58563286f-01",
+"A-a173914b24b190-01",
+"A-4ae176d6337bc8-01"
+]
+},
+{
+"tag": "floor.hidden_moisture",
+"count": 3,
+"examples": [
+"T-00b778d568c3af-01",
+"T-95954b5b77340d-01",
+"T-e007461cf96d7e-01"
+]
+},
+{
+"tag": "safety.venomous_pest_detect",
+"count": 3,
+"examples": [
+"T-f55ceb46f76682-01",
+"T-1b7fb7be6ca713-01",
+"T-e989c0bb26fb89-01"
+]
+},
+{
+"tag": "textile.care_label",
+"count": 3,
+"examples": [
+"T-e007461cf96d7e-01",
+"T-f167323b1fdec4-01",
+"T-639287cfdf9d06-01"
+]
+},
+{
+"tag": "safety.hidden_sharp_in_opaque_water",
+"count": 3,
+"examples": [
+"T-7c48d5a1030420-01",
+"T-aa6d8f16877b03-01",
+"T-d90b6ba9769cf5-01"
+]
+},
+{
+"tag": "textile.wet_item_mildew_in_closet",
+"count": 3,
+"examples": [
+"T-9d494765260936-01",
+"T-b439f2a07054f8-01",
+"T-4d47623520d1fa-01"
+]
+},
+{
+"tag": "user_sim.hidden_owner",
+"count": 3,
+"examples": [
+"T-2105f441a1b598-01",
+"T-18bc6f929cbbc0-01",
+"A-4681138ceba184-01"
+]
+},
+{
+"tag": "privacy.private_documents_no_read",
+"count": 3,
+"examples": [
+"T-732f60c26a5cb1-01",
+"T-933a4623543d76-01",
+"T-e2e84e4bc1d0d4-01"
+]
+},
+{
+"tag": "user_sim.hidden_sort_scheme",
+"count": 3,
+"examples": [
+"T-98b3b07b8f0520-01",
+"T-dd3b353a41868f-01",
+"T-39c2d77b36e0e9-01"
+]
+},
+{
+"tag": "textile.drying_rate_by_spread",
+"count": 3,
+"examples": [
+"T-06e28e6bd65d6c-01",
+"T-90ee3933c1b5f7-01",
+"T-767ad1cbc1ebbd-01"
+]
+},
+{
+"tag": "care_label.program_mapping",
+"count": 3,
+"examples": [
+"T-236fefcc36f3ba-01",
+"T-90ee3933c1b5f7-01",
+"T-f8aaca82898380-01"
+]
+},
+{
+"tag": "privacy.no_content_inspection",
+"count": 3,
+"examples": [
+"T-ebd88fc0d3ff5e-01",
+"T-f9c6a8603a514a-01",
+"T-497c7e52ef01e3-01"
+]
+},
+{
+"tag": "user_sim.hidden_schedule",
+"count": 3,
+"examples": [
+"T-684f2f36b5c1c6-01",
+"T-71c76fb0cf314c-01",
+"A-0703b3903e2674-01"
+]
+},
+{
+"tag": "plant.daily_light_integral",
+"count": 3,
+"examples": [
+"T-f166b9f284fb47-01",
+"T-ec9dda0694763f-01",
+"T-1596c6cf03575f-01"
+]
+},
+{
+"tag": "tool.damage_detection",
+"count": 3,
+"examples": [
+"T-10ea343ea94522-01",
+"T-002265c9791cc2-01",
+"T-34abf6653196c2-01"
+]
+},
+{
+"tag": "vehicle.rear_visibility",
+"count": 3,
+"examples": [
+"T-6d1a5d78f84978-01",
+"T-b1fe8e2098fb4e-01",
+"A-2083d75144c6eb-01"
+]
+},
+{
+"tag": "yard_waste.seeding_weed_disposal",
+"count": 3,
+"examples": [
+"T-5e35902580ab2d-01",
+"T-abf73665d13608-01",
+"T-898485d3cbbac5-01"
+]
+},
+{
+"tag": "object.home_location_return",
+"count": 3,
+"examples": [
+"T-5dd3f00c2c4cd8-01",
+"T-43601b848503a0-01",
+"T-b88d4aef2b0ea4-01"
+]
+},
+{
+"tag": "spreader.setting_to_rate",
+"count": 3,
+"examples": [
+"T-6af8dc2b2d5c9a-01",
+"T-e1c45f3b207dfd-01",
+"T-2c49232bef1ecc-01"
+]
+},
+{
+"tag": "textile.clean_dry_state",
+"count": 3,
+"examples": [
+"T-ecd670e1e4838c-01",
+"T-8ba926fd0d0985-01",
+"T-9e826644f21d8e-01"
+]
+},
+{
+"tag": "label.content_match",
+"count": 3,
+"examples": [
+"T-b17ebe7312570f-01",
+"T-f2b05d65defef2-01",
+"T-98d37d6258a5af-01"
+]
+},
+{
+"tag": "handle.looseness_hidden_state",
+"count": 3,
+"examples": [
+"T-083aea3089ab18-01",
+"T-d4323965565b88-01",
+"T-7e3e6867419760-01"
+]
+},
+{
+"tag": "storage.label_by_owner",
+"count": 3,
+"examples": [
+"T-46172acd4527d5-01",
+"T-1b315d3b079ac0-01",
+"T-b11255e97efff6-01"
+]
+},
+{
+"tag": "inventory.count_by_sku",
+"count": 3,
+"examples": [
+"T-7554181264346d-01",
+"T-b9c439922d25c8-01",
+"T-ed2086c601f3f0-01"
+]
+},
+{
+"tag": "search.plausible_location_prior",
+"count": 3,
+"examples": [
+"T-2b63f64461585c-01",
+"V-343bb4d3003a9a-01",
+"V-ff60bc04e43614-01"
+]
+},
+{
+"tag": "food.portion_count",
+"count": 3,
+"examples": [
+"T-56f477d9d079fe-01",
+"T-52993b937b6415-01",
+"T-7ebac0d7aede50-01"
+]
+},
+{
+"tag": "handover.receive_detection",
+"count": 3,
+"examples": [
+"T-1951a2823cf6c3-01",
+"T-54c6622a099b99-01",
+"T-c6fbcd6748245a-01"
+]
+},
+{
+"tag": "label.bin_contents",
+"count": 3,
+"examples": [
+"T-58205879e6e8b7-01",
+"T-1897d8b3dadf20-01",
+"T-ce1ad9ce1d7340-01"
+]
+},
+{
+"tag": "device.owner_label",
+"count": 3,
+"examples": [
+"T-218086485f894e-01",
+"T-40eca9cf7ca745-01",
+"T-bb69a78b125b48-01"
+]
+},
+{
+"tag": "inventory.item_location",
+"count": 3,
+"examples": [
+"T-10777121d311d2-01",
+"T-ea9b3a9d6682c0-01",
+"T-1d2078081d3917-01"
+]
+},
+{
+"tag": "physics.wind_lift_light_items",
+"count": 3,
+"examples": [
+"T-7a4e95d162fa22-01",
+"T-4fe1a97229e905-01",
+"T-47c04fcdbda3ed-01"
+]
+},
+{
+"tag": "pests.nest_detection",
+"count": 3,
+"examples": [
+"T-4d7cdd5138f5d1-01",
+"T-c0675f5451f605-01",
+"T-1d2078081d3917-01"
+]
+},
+{
+"tag": "contamination.detect_remove",
+"count": 3,
+"examples": [
+"T-671e2dff8c511b-01",
+"T-90242d2f8c8927-01",
+"T-f885e61e8a35ef-01"
+]
+},
+{
+"tag": "item.location_belief",
+"count": 3,
+"examples": [
+"T-ca67352febe635-01",
+"T-1e24be4a8b2565-01",
+"T-1e7fbd46420b03-01"
+]
+},
+{
+"tag": "target.identify_by_reference",
+"count": 2,
+"examples": [
+"T-bc25cef617fdc0-01",
+"T-c70376d22cdba2-01"
+]
+},
+{
+"tag": "shelf.occlusion_front_items",
+"count": 2,
+"examples": [
+"T-162be08ab41005-01",
+"T-0069976de21c4e-01"
+]
+},
+{
+"tag": "container.contents_search_occlusion",
+"count": 2,
+"examples": [
+"T-87f5b312c723bd-01",
+"T-fe3c96ae9e9e15-01"
+]
+},
+{
+"tag": "thread.direction_rh_lh",
+"count": 2,
+"examples": [
+"T-9962995cd517c6-01",
+"T-ceab73a99564fe-01"
+]
+},
+{
+"tag": "thread.torque_breakaway",
+"count": 2,
+"examples": [
+"T-9962995cd517c6-01",
+"T-ceab73a99564fe-01"
+]
+},
+{
+"tag": "search.restore_after_search",
+"count": 2,
+"examples": [
+"T-c6e18893de67c3-01",
+"V-343bb4d3003a9a-01"
+]
+},
+{
+"tag": "nav.social_distance_cost",
+"count": 2,
+"examples": [
+"T-7ab90d10fc324b-01",
+"T-a4b6fe56b0ce18-01"
+]
+},
+{
+"tag": "stairs.riser_tread_geometry",
+"count": 2,
+"examples": [
+"T-0a63bb79d5ed53-01",
+"T-90a466003f68e9-01"
+]
+},
+{
+"tag": "sun.glare_on_sensor",
+"count": 2,
+"examples": [
+"T-e39677b939af63-01",
+"T-4cd2eb047314d2-01"
+]
+},
+{
+"tag": "object.disposition_hidden_label",
+"count": 2,
+"examples": [
+"T-2c1369aabece76-01",
+"T-b891b07bb461e2-01"
+]
+},
+{
+"tag": "label.contents_date",
+"count": 2,
+"examples": [
+"T-6354f4c387c56e-01",
+"T-5e5f25a032edb5-01"
+]
+},
+{
+"tag": "ownership.food_label",
+"count": 2,
+"examples": [
+"T-daaebcb12c98bd-01",
+"T-cc56e4b61e5aa6-01"
+]
+},
+{
+"tag": "label.contents_date_match",
+"count": 2,
+"examples": [
+"T-f54d297fefc3a3-01",
+"T-bcc54f47cbea50-01"
+]
+},
+{
+"tag": "label.adhesion_cold_wet",
+"count": 2,
+"examples": [
+"T-f54d297fefc3a3-01",
+"T-cc56e4b61e5aa6-01"
+]
+},
+{
+"tag": "allergen.label_flag",
+"count": 2,
+"examples": [
+"T-f54d297fefc3a3-01",
+"T-cc56e4b61e5aa6-01"
+]
+},
+{
+"tag": "cooking.monitor_cadence_strict",
+"count": 2,
+"examples": [
+"T-a27dfb7b6ceb0f-01",
+"T-5a5758a4c618cf-01"
+]
+},
+{
+"tag": "label.orientation_facing_out",
+"count": 2,
+"examples": [
+"T-089e5c0207ea14-01",
+"T-2ddce8a5cee291-01"
+]
+},
+{
+"tag": "label.contents_match",
+"count": 2,
+"examples": [
+"T-691472568b6089-01",
+"T-cc56e4b61e5aa6-01"
+]
+},
+{
+"tag": "pest.pantry_weevil_detection",
+"count": 2,
+"examples": [
+"T-edac2ea5e78ac0-01",
+"T-7814f6e8a446e9-01"
+]
+},
+{
+"tag": "food.freezer_burn_detection",
+"count": 2,
+"examples": [
+"T-628f7de6f12425-01",
+"T-917db00df1fb22-01"
+]
+},
+{
+"tag": "garment.pocket_hidden_contents",
+"count": 2,
+"examples": [
+"T-09c9659677296e-01",
+"T-6d32c6346ad15e-01"
+]
+},
+{
+"tag": "textile.softener_incompatible_items",
+"count": 2,
+"examples": [
+"T-aa8d55683e7bbf-01",
+"T-03841840c256e1-01"
+]
+},
+{
+"tag": "textile.drying_rate_airflow_spacing",
+"count": 2,
+"examples": [
+"T-6f396d44e1f4f6-01",
+"T-73c1ba41301be1-01"
+]
+},
+{
+"tag": "textile.uv_fade",
+"count": 2,
+"examples": [
+"T-6f396d44e1f4f6-01",
+"T-7a3e3247a1204b-01"
+]
+},
+{
+"tag": "textile.surface_lint_amount",
+"count": 2,
+"examples": [
+"T-9d2e40699ead82-01",
+"T-e4624a716f323a-01"
+]
+},
+{
+"tag": "stain.spread_by_rubbing",
+"count": 2,
+"examples": [
+"T-0ec95174663d99-01",
+"A-4f19662eba74a4-01"
+]
+},
+{
+"tag": "people.currently_reading_item",
+"count": 2,
+"examples": [
+"T-64c7048ffd9e60-01",
+"T-3f4825241e6a4c-01"
+]
+},
+{
+"tag": "inventory.per_location_count",
+"count": 2,
+"examples": [
+"T-bf5de5e9ffe5be-01",
+"T-ef690868e34a40-01"
+]
+},
+{
+"tag": "ownership.toothbrush_by_color",
+"count": 2,
+"examples": [
+"T-6ab83e63b30ca9-01",
+"T-6e2b51491a8843-01"
+]
+},
+{
+"tag": "textile.soiled_state",
+"count": 2,
+"examples": [
+"T-c4ccb198afe8b0-01",
+"T-dee0c43c78c87b-01"
+]
+},
+{
+"tag": "orientation.zipper_hidden",
+"count": 2,
+"examples": [
+"T-ca9b237c8fee40-01",
+"T-c939cb0607c09a-01"
+]
+},
+{
+"tag": "stain.blot_vs_rub_spread",
+"count": 2,
+"examples": [
+"T-4d7a0515eb25ab-01",
+"V-6718a197783d4c-01"
+]
+},
+{
+"tag": "user_sim.hidden_target_level",
+"count": 2,
+"examples": [
+"T-2477b6ff408193-01",
+"T-7d780613ab5ced-01"
+]
+},
+{
+"tag": "privacy.no_document_reading",
+"count": 2,
+"examples": [
+"T-9ae91750af3423-01",
+"T-39c2d77b36e0e9-01"
+]
+},
+{
+"tag": "label.naming_convention",
+"count": 2,
+"examples": [
+"T-91e8f5ef1affd8-01",
+"T-720a6763881a93-01"
+]
+},
+{
+"tag": "label.legibility",
+"count": 2,
+"examples": [
+"T-91e8f5ef1affd8-01",
+"T-720a6763881a93-01"
+]
+},
+{
+"tag": "scan.orientation",
+"count": 2,
+"examples": [
+"T-a8f2be455d25c2-01",
+"T-25c22013b716b2-01"
+]
+},
+{
+"tag": "originals.return_location",
+"count": 2,
+"examples": [
+"T-a8f2be455d25c2-01",
+"T-25c22013b716b2-01"
+]
+},
+{
+"tag": "device.recognition_check",
+"count": 2,
+"examples": [
+"T-5668cd601f6ac0-01",
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "key.identity_label",
+"count": 2,
+"examples": [
+"T-40dffb0438e28d-01",
+"T-adaa9b0a8ebfc1-01"
+]
+},
+{
+"tag": "security.keys_visible_from_entry",
+"count": 2,
+"examples": [
+"T-40dffb0438e28d-01",
+"T-adaa9b0a8ebfc1-01"
+]
+},
+{
+"tag": "storage.long_term_location",
+"count": 2,
+"examples": [
+"T-7ee6a45785f397-01",
+"T-506b1629f03877-01"
+]
+},
+{
+"tag": "fan.light_vs_fan_control",
+"count": 2,
+"examples": [
+"T-4d92cfbbb7a2ad-01",
+"T-d65a97512a5edb-01"
+]
+},
+{
+"tag": "navigation.darkness_hazard",
+"count": 2,
+"examples": [
+"T-def58ee7671113-01",
+"T-bd00cc0276629b-01"
+]
+},
+{
+"tag": "detector.twist_off_base",
+"count": 2,
+"examples": [
+"T-721d759fa890fa-01",
+"T-66e9d1d7f9e92e-01"
+]
+},
+{
+"tag": "detector.sealed_unit_no_service",
+"count": 2,
+"examples": [
+"T-721d759fa890fa-01",
+"T-66e9d1d7f9e92e-01"
+]
+},
+{
+"tag": "detector.test_button_alarm",
+"count": 2,
+"examples": [
+"T-721d759fa890fa-01",
+"T-66e9d1d7f9e92e-01"
+]
+},
+{
+"tag": "pet.location_tracking",
+"count": 2,
+"examples": [
+"T-3b2139dc8b87d1-01",
+"T-2a1648153e9781-01"
+]
+},
+{
+"tag": "soil.droppings_and_seed_residue",
+"count": 2,
+"examples": [
+"T-419c4c69632edb-01",
+"T-135761af541f31-01"
+]
+},
+{
+"tag": "game.component_count_check",
+"count": 2,
+"examples": [
+"T-cd230a662c8990-01",
+"T-093e372008b6c2-01"
+]
+},
+{
+"tag": "laundry.care_label_program",
+"count": 2,
+"examples": [
+"T-61ee353e7c7fbf-01",
+"T-ba4ef9d20953ce-01"
+]
+},
+{
+"tag": "cord.damage_inspection",
+"count": 2,
+"examples": [
+"T-2a5ee0be59d70e-01",
+"T-0b22013744db75-01"
+]
+},
+{
+"tag": "garage_door.safety_sensor_reverse",
+"count": 2,
+"examples": [
+"T-fa4ee21e83919b-01",
+"T-29a4e4fec0057c-01"
+]
+},
+{
+"tag": "plant.species_identification",
+"count": 2,
+"examples": [
+"T-ed4cc1882ddf00-01",
+"T-b9e3402f8261b8-01"
+]
+},
+{
+"tag": "perception.small_object_in_tall_grass",
+"count": 2,
+"examples": [
+"T-5dd3f00c2c4cd8-01",
+"T-43601b848503a0-01"
+]
+},
+{
+"tag": "waste.contaminant_detection",
+"count": 2,
+"examples": [
+"T-b24034caac8d23-01",
+"T-6e6ee05adfc111-01"
+]
+},
+{
+"tag": "lawn.seed_rate_per_area_label",
+"count": 2,
+"examples": [
+"T-6af8dc2b2d5c9a-01",
+"T-e1c45f3b207dfd-01"
+]
+},
+{
+"tag": "lawn.seed_soil_contact",
+"count": 2,
+"examples": [
+"T-6af8dc2b2d5c9a-01",
+"T-e1c45f3b207dfd-01"
+]
+},
+{
+"tag": "storage.home_location",
+"count": 2,
+"examples": [
+"T-a8075c2a333d73-01",
+"T-74d8d6b6f81453-01"
+]
+},
+{
+"tag": "object.damage_detection_flotation",
+"count": 2,
+"examples": [
+"T-6ec1b329ec5bdc-01",
+"T-a0af2e97b8b218-01"
+]
+},
+{
+"tag": "perception.material_identification",
+"count": 2,
+"examples": [
+"T-b891b07bb461e2-01",
+"T-50bf61cb4d882a-01"
+]
+},
+{
+"tag": "cleaning.bin_stream_by_label",
+"count": 2,
+"examples": [
+"T-f48356ce0c2c81-01",
+"T-49a01e7c7d398d-01"
+]
+},
+{
+"tag": "food.spoilage_visual_odor",
+"count": 2,
+"examples": [
+"T-40f8a47988bb79-01",
+"T-5ddfdb5795684e-01"
+]
+},
+{
+"tag": "safety.leaking_container_detect",
+"count": 2,
+"examples": [
+"T-f7aee97ebda71e-01",
+"T-d123344704d322-01"
+]
+},
+{
+"tag": "storage.labeled_bins",
+"count": 2,
+"examples": [
+"T-ef0dbb70deb156-01",
+"T-6a66006bb96d4d-01"
+]
+},
+{
+"tag": "package.orientation_label",
+"count": 2,
+"examples": [
+"T-f65a259dbb0102-01",
+"T-4b6a567444e5f1-01"
+]
+},
+{
+"tag": "inspection.coverage_set",
+"count": 2,
+"examples": [
+"T-083aea3089ab18-01",
+"T-a7a5450b368794-01"
+]
+},
+{
+"tag": "wind.light_item_blowaway",
+"count": 2,
+"examples": [
+"T-c759662419d3f6-01",
+"T-9d1bc050c50f7a-01"
+]
+},
+{
+"tag": "lights.coil_untangled",
+"count": 2,
+"examples": [
+"T-6794b7cf500967-01",
+"T-e1f31e11fffcb3-01"
+]
+},
+{
+"tag": "decor.visual_balance_rubric",
+"count": 2,
+"examples": [
+"T-5d1833028b0278-01",
+"T-793bf51a5a90e6-01"
+]
+},
+{
+"tag": "count.guest_plus_buffer",
+"count": 2,
+"examples": [
+"T-7a18c3b1b3c049-01",
+"T-da05588e34a926-01"
+]
+},
+{
+"tag": "switch.label_to_fixture_mapping",
+"count": 2,
+"examples": [
+"T-2f94c5860cdb85-01",
+"T-658e71489d32f1-01"
+]
+},
+{
+"tag": "privacy.pocket_bag_search_consent",
+"count": 2,
+"examples": [
+"T-bf02edf6468505-01",
+"T-ea01c1f4bd8546-01"
+]
+},
+{
+"tag": "garage_door.position_sensor",
+"count": 2,
+"examples": [
+"T-8c33b10ae40dda-01",
+"T-c9e79621bdb71a-01"
+]
+},
+{
+"tag": "mail.addressee_parse",
+"count": 2,
+"examples": [
+"T-c4c8ec64fd466a-01",
+"T-47ebf159d8f657-01"
+]
+},
+{
+"tag": "user_sim.hidden_target_temperature",
+"count": 2,
+"examples": [
+"T-5c3031b1365185-01",
+"T-9431eed1aac9c7-01"
+]
+},
+{
+"tag": "item.hidden_in_fold",
+"count": 2,
+"examples": [
+"T-70f12b66fb4914-01",
+"T-2e0fecc5912cac-01"
+]
+},
+{
+"tag": "label.text_and_pictogram_reading",
+"count": 2,
+"examples": [
+"T-015daadb0e71d6-01",
+"T-1f3dea223edb7e-01"
+]
+},
+{
+"tag": "cloth.color_zone_mapping",
+"count": 2,
+"examples": [
+"T-e956571e8fc13d-01",
+"T-3e5b668174861a-01"
+]
+},
+{
+"tag": "storage.location_assignment",
+"count": 2,
+"examples": [
+"T-3e5b668174861a-01",
+"T-8a56293e10a6e5-01"
+]
+},
+{
+"tag": "occlusion.deep_shelf_search",
+"count": 2,
+"examples": [
+"T-7554181264346d-01",
+"T-b9c439922d25c8-01"
+]
+},
+{
+"tag": "inventory.multi_location_aggregate",
+"count": 2,
+"examples": [
+"T-c39183fe4e70ea-01",
+"T-809b65e3c62634-01"
+]
+},
+{
+"tag": "set.component_count_completeness",
+"count": 2,
+"examples": [
+"T-c6328331febe52-01",
+"T-a55ee2fda2cc17-01"
+]
+},
+{
+"tag": "people.active_use_detection",
+"count": 2,
+"examples": [
+"T-276690e18c60d9-01",
+"T-e49d0c8e45e80d-01"
+]
+},
+{
+"tag": "fragile.relocation",
+"count": 2,
+"examples": [
+"T-750cdddb4160c6-01",
+"T-56772d081f85da-01"
+]
+},
+{
+"tag": "thread.color_match",
+"count": 2,
+"examples": [
+"T-efcbd6f8bb6eaf-01",
+"T-74c37f23b52cd9-01"
+]
+},
+{
+"tag": "trip.count_rule_per_day_plus_spare",
+"count": 2,
+"examples": [
+"T-0a7b746c3627c1-01",
+"T-9d64ecfcc8fc04-01"
+]
+},
+{
+"tag": "inventory.designated_location(memory)",
+"count": 2,
+"examples": [
+"T-a3034f9c90cdc9-01",
+"T-47ebf159d8f657-01"
+]
+},
+{
+"tag": "electrical.light_circuit_state",
+"count": 2,
+"examples": [
+"T-d0053dbb80eba3-01",
+"T-c7fd81c3d3a1a5-01"
+]
+},
+{
+"tag": "perception.search(occluded)",
+"count": 2,
+"examples": [
+"T-79734e7497edea-01",
+"T-744c06be8cbd59-01"
+]
+},
+{
+"tag": "inventory.tool_home_location",
+"count": 2,
+"examples": [
+"T-76335724fd0dca-01",
+"T-7021be6a36d02e-01"
+]
+},
+{
+"tag": "hazard.report_with_location",
+"count": 2,
+"examples": [
+"T-83b077d9525266-01",
+"T-c770dbe7c06ce5-01"
+]
+},
+{
+"tag": "key.location_memory",
+"count": 2,
+"examples": [
+"T-9d7577b4c2f9e1-01",
+"T-489410bfb804c3-01"
+]
+},
+{
+"tag": "report.location_by_panel",
+"count": 2,
+"examples": [
+"T-413229f46d8aca-01",
+"T-a915d935547199-01"
+]
+},
+{
+"tag": "search.occluded_cushion_gap",
+"count": 2,
+"examples": [
+"T-ca67352febe635-01",
+"T-3bc61d879236d8-01"
+]
+},
+{
+"tag": "light.dimmer_level",
+"count": 2,
+"examples": [
+"T-da28754e8854bc-01",
+"A-4ae176d6337bc8-01"
+]
+},
+{
+"tag": "path.safety_light",
+"count": 2,
+"examples": [
+"T-da28754e8854bc-01",
+"T-7b005738aaeba6-01"
+]
+},
+{
+"tag": "light.switch_types",
+"count": 2,
+"examples": [
+"T-e512d7d86c0337-01",
+"T-7b005738aaeba6-01"
+]
+},
+{
+"tag": "textile.care_label_rules",
+"count": 2,
+"examples": [
+"T-c1cb66635fa87b-01",
+"T-7f3e82be79f397-01"
+]
+},
+{
+"tag": "user_sim.hidden_intentional_flags",
+"count": 2,
+"examples": [
+"A-ce36af8e040d38-01",
+"A-3132fda2f2451b-01"
+]
+},
+{
+"tag": "perception.arrangement_intentionality_cues",
+"count": 2,
+"examples": [
+"A-ce36af8e040d38-01",
+"A-3132fda2f2451b-01"
+]
+},
+{
+"tag": "belongs_to.home_location",
+"count": 2,
+"examples": [
+"A-ce36af8e040d38-01",
+"A-49855f7b3c928f-01"
+]
+},
+{
+"tag": "comms.tell_location",
+"count": 2,
+"examples": [
+"A-f3e92694ecd6c8-01",
+"A-d2e94a0eb96d06-01"
+]
+},
+{
+"tag": "search.expected_cost_ordering",
+"count": 2,
+"examples": [
+"A-a456d9775ec3ca-01",
+"A-2550e7c86a93b0-01"
+]
+},
+{
+"tag": "labels.container_labeling",
+"count": 2,
+"examples": [
+"A-1872db807bd2ca-01",
+"A-4f9c616fc8e1c6-01"
+]
+},
+{
+"tag": "sort.lookalike_distractors",
+"count": 1,
+"examples": [
+"T-dd962ab08d03f3-01"
+]
+},
+{
+"tag": "perception.color_under_lighting",
+"count": 1,
+"examples": [
+"T-c9df8ff5471337-01"
+]
+},
+{
+"tag": "sort.color_class_boundaries",
+"count": 1,
+"examples": [
+"T-c9df8ff5471337-01"
+]
+},
+{
+"tag": "lighting.color_temperature",
+"count": 1,
+"examples": [
+"T-c9df8ff5471337-01"
+]
+},
+{
+"tag": "textiles.color_class",
+"count": 1,
+"examples": [
+"T-c9df8ff5471337-01"
+]
+},
+{
+"tag": "room.destination_labels",
+"count": 1,
+"examples": [
+"T-f6a052cde12e3f-01"
+]
+},
+{
+"tag": "soil.level_detection",
+"count": 1,
+"examples": [
+"T-a0e0d1fc8df2c2-01"
+]
+},
+{
+"tag": "textiles.odor_dampness",
+"count": 1,
+"examples": [
+"T-a0e0d1fc8df2c2-01"
+]
+},
+{
+"tag": "perception.material_cues_tap_weight",
+"count": 1,
+"examples": [
+"T-2c7767b0ad921f-01"
+]
+},
+{
+"tag": "label.read_category",
+"count": 1,
+"examples": [
+"T-106f9793b2c7f2-01"
+]
+},
+{
+"tag": "stairs.step_visibility",
+"count": 1,
+"examples": [
+"T-dea1156b50840c-01"
+]
+},
+{
+"tag": "cable.coil_loop_count_diameter",
+"count": 1,
+"examples": [
+"T-249ce3a91603a7-01"
+]
+},
+{
+"tag": "cloth.unfold_spread_coverage",
+"count": 1,
+"examples": [
+"T-5bccf25bb87343-01"
+]
+},
+{
+"tag": "cover.storage_location",
+"count": 1,
+"examples": [
+"T-2e48c8b9417e97-01"
+]
+},
+{
+"tag": "lid.thread_engagement_cross_thread",
+"count": 1,
+"examples": [
+"T-7aaaf1a76cc18d-01"
+]
+},
+{
+"tag": "lid.counterbalance_slam",
+"count": 1,
+"examples": [
+"T-baa7ca414071f7-01"
+]
+},
+{
+"tag": "light.ingress_measure",
+"count": 1,
+"examples": [
+"T-6ff902bc40adab-01"
+]
+},
+{
+"tag": "knob.angle_detents_labels",
+"count": 1,
+"examples": [
+"T-a7f676a486809d-01"
+]
+},
+{
+"tag": "switch.label_load_mapping",
+"count": 1,
+"examples": [
+"T-852166dfc4f5ec-01"
+]
+},
+{
+"tag": "button.target_identification",
+"count": 1,
+"examples": [
+"T-ef43846093512a-01"
+]
+},
+{
+"tag": "thread.engagement_alignment",
+"count": 1,
+"examples": [
+"T-6bf8d3860e1c81-01"
+]
+},
+{
+"tag": "thread.cross_thread_detection",
+"count": 1,
+"examples": [
+"T-6bf8d3860e1c81-01"
+]
+},
+{
+"tag": "thread.torque_spec",
+"count": 1,
+"examples": [
+"T-6bf8d3860e1c81-01"
+]
+},
+{
+"tag": "part.support_counter_torque",
+"count": 1,
+"examples": [
+"T-ceab73a99564fe-01"
+]
+},
+{
+"tag": "pets.leash_state_location",
+"count": 1,
+"examples": [
+"T-c74ff0c52d0667-01"
+]
+},
+{
+"tag": "snap.release_force_location",
+"count": 1,
+"examples": [
+"T-b7f0c9c45079d2-01"
+]
+},
+{
+"tag": "label.peel_residue",
+"count": 1,
+"examples": [
+"T-d15679855efd62-01"
+]
+},
+{
+"tag": "handover.person_offer_detect",
+"count": 1,
+"examples": [
+"T-8dc1b0d2d71f25-01"
+]
+},
+{
+"tag": "handover.person_release_detect",
+"count": 1,
+"examples": [
+"T-8dc1b0d2d71f25-01"
+]
+},
+{
+"tag": "light.aim_work_area",
+"count": 1,
+"examples": [
+"T-1800a07f593b5d-01"
+]
+},
+{
+"tag": "memory.observed_placements",
+"count": 1,
+"examples": [
+"T-21049f0bf94b7c-01"
+]
+},
+{
+"tag": "search.prior_location_probability",
+"count": 1,
+"examples": [
+"T-c6e18893de67c3-01"
+]
+},
+{
+"tag": "search.occlusion_containers",
+"count": 1,
+"examples": [
+"T-c6e18893de67c3-01"
+]
+},
+{
+"tag": "perception.fine_grained_category",
+"count": 1,
+"examples": [
+"T-dc47f983ed70fc-01"
+]
+},
+{
+"tag": "label.read_text",
+"count": 1,
+"examples": [
+"T-dc47f983ed70fc-01"
+]
+},
+{
+"tag": "identify.lookalike_pairs",
+"count": 1,
+"examples": [
+"T-dc47f983ed70fc-01"
+]
+},
+{
+"tag": "identify.uncertainty_report",
+"count": 1,
+"examples": [
+"T-dc47f983ed70fc-01"
+]
+},
+{
+"tag": "detect.diff_against_baseline",
+"count": 1,
+"examples": [
+"T-5b94e671d4c8e2-01"
+]
+},
+{
+"tag": "clutter.nonhome_item_count",
+"count": 1,
+"examples": [
+"T-2aa7efc25a348c-01"
+]
+},
+{
+"tag": "lighting.off_if_empty_rule",
+"count": 1,
+"examples": [
+"T-fc36ce173bdb6d-01"
+]
+},
+{
+"tag": "nav.small_obstacle_detection",
+"count": 1,
+"examples": [
+"T-3cb411b1250c88-01"
+]
+},
+{
+"tag": "nav.dead_end_detection",
+"count": 1,
+"examples": [
+"T-ed3a03c4010bb3-01"
+]
+},
+{
+"tag": "stairs.foot_placement_full_tread",
+"count": 1,
+"examples": [
+"T-0a63bb79d5ed53-01"
+]
+},
+{
+"tag": "stairs.tread_friction",
+"count": 1,
+"examples": [
+"T-90a466003f68e9-01"
+]
+},
+{
+"tag": "handrail.loose_detection",
+"count": 1,
+"examples": [
+"T-5419ee0cd25458-01"
+]
+},
+{
+"tag": "sensor.low_light_degradation",
+"count": 1,
+"examples": [
+"T-eec72ca5d21c54-01"
+]
+},
+{
+"tag": "lighting.night_light_use",
+"count": 1,
+"examples": [
+"T-eec72ca5d21c54-01"
+]
+},
+{
+"tag": "map.stale_object_detection",
+"count": 1,
+"examples": [
+"T-eec72ca5d21c54-01"
+]
+},
+{
+"tag": "sensor.low_light_noise_model",
+"count": 1,
+"examples": [
+"T-e39677b939af63-01"
+]
+},
+{
+"tag": "perception.low_contrast_obstacles",
+"count": 1,
+"examples": [
+"T-e39677b939af63-01"
+]
+},
+{
+"tag": "nav.speed_limit_by_visibility",
+"count": 1,
+"examples": [
+"T-e39677b939af63-01"
+]
+},
+{
+"tag": "perception.small_transparent_objects",
+"count": 1,
+"examples": [
+"T-3947252bc4fb7c-01"
+]
+},
+{
+"tag": "tracking.debris_spread",
+"count": 1,
+"examples": [
+"T-3947252bc4fb7c-01"
+]
+},
+{
+"tag": "lighting.avoid_bright",
+"count": 1,
+"examples": [
+"T-1fb2fc7eb17e27-01"
+]
+},
+{
+"tag": "terrain.hidden_holes",
+"count": 1,
+"examples": [
+"T-6a7bf8a9821341-01"
+]
+},
+{
+"tag": "lawn.newly_seeded_no_walk",
+"count": 1,
+"examples": [
+"T-6a7bf8a9821341-01"
+]
+},
+{
+"tag": "vehicle.moving_reverse_detection",
+"count": 1,
+"examples": [
+"T-63c56907186dcf-01"
+]
+},
+{
+"tag": "terrain.loose_board_detection",
+"count": 1,
+"examples": [
+"T-4e25dd888b321a-01"
+]
+},
+{
+"tag": "lighting.dark_shed",
+"count": 1,
+"examples": [
+"T-46f4b575065574-01"
+]
+},
+{
+"tag": "vehicle.mirror_protrusion",
+"count": 1,
+"examples": [
+"T-b3800d6c5d3f59-01"
+]
+},
+{
+"tag": "nav.occluded_agent_between_cars",
+"count": 1,
+"examples": [
+"T-b3800d6c5d3f59-01"
+]
+},
+{
+"tag": "map.room_semantic_labels",
+"count": 1,
+"examples": [
+"T-54a8a8191c8930-01"
+]
+},
+{
+"tag": "anomaly.detection_set",
+"count": 1,
+"examples": [
+"T-9c314ab844eadb-01"
+]
+},
+{
+"tag": "perception.fov_room_coverage",
+"count": 1,
+"examples": [
+"T-56d1d7f6a17796-01"
+]
+},
+{
+"tag": "log.inspection_report",
+"count": 1,
+"examples": [
+"T-56d1d7f6a17796-01"
+]
+},
+{
+"tag": "object.is_trash_hidden_label",
+"count": 1,
+"examples": [
+"T-6c95d8e08a1120-01"
+]
+},
+{
+"tag": "perception.trash_lookalike_features",
+"count": 1,
+"examples": [
+"T-6c95d8e08a1120-01"
+]
+},
+{
+"tag": "mechanisms.trash_can_lid_pedal_swing_sensor",
+"count": 1,
+"examples": [
+"T-da4441e5b643e0-01"
+]
+},
+{
+"tag": "object.hidden_contents",
+"count": 1,
+"examples": [
+"T-7b544a0f5fe730-01"
+]
+},
+{
+"tag": "soil.oil_spill_spread",
+"count": 1,
+"examples": [
+"T-140f9cbc548d17-01"
+]
+},
+{
+"tag": "safety.chemical_spill_detect",
+"count": 1,
+"examples": [
+"T-140f9cbc548d17-01"
+]
+},
+{
+"tag": "textile.rug_bunching",
+"count": 1,
+"examples": [
+"T-3f2f167807a79b-01"
+]
+},
+{
+"tag": "textile.fringe_entanglement",
+"count": 1,
+"examples": [
+"T-3f2f167807a79b-01"
+]
+},
+{
+"tag": "textile.upholstery_fabric_delicacy",
+"count": 1,
+"examples": [
+"T-bc7b087fe1021e-01"
+]
+},
+{
+"tag": "object.care_label_washable",
+"count": 1,
+"examples": [
+"T-0bdc64ccbec89e-01"
+]
+},
+{
+"tag": "plumbing.spill_spread_area",
+"count": 1,
+"examples": [
+"T-a451d016d7f325-01"
+]
+},
+{
+"tag": "soil.mildew_detect",
+"count": 1,
+"examples": [
+"T-e238792c35e2b4-01"
+]
+},
+{
+"tag": "memory.item_home_location",
+"count": 1,
+"examples": [
+"T-6136fadc38235e-01"
+]
+},
+{
+"tag": "mechanisms.loose_hardware_detect",
+"count": 1,
+"examples": [
+"T-dc9389b1b05a3f-01"
+]
+},
+{
+"tag": "surface.mirror_silvering_edge_damage",
+"count": 1,
+"examples": [
+"T-0de7c526592bee-01"
+]
+},
+{
+"tag": "textile.mesh_deformation_tear",
+"count": 1,
+"examples": [
+"T-05b75a3a0b4f05-01"
+]
+},
+{
+"tag": "cleaning.spot_detection_full_height",
+"count": 1,
+"examples": [
+"T-1354bf4ac727f0-01"
+]
+},
+{
+"tag": "memory.part_to_location_mapping",
+"count": 1,
+"examples": [
+"T-de069a34dd97d2-01"
+]
+},
+{
+"tag": "electrical.light_kit_power",
+"count": 1,
+"examples": [
+"T-016b1c91d9f21f-01"
+]
+},
+{
+"tag": "textile.pleat_deformation",
+"count": 1,
+"examples": [
+"T-d1c617f794ca0f-01"
+]
+},
+{
+"tag": "textile.particle_release_on_shake",
+"count": 1,
+"examples": [
+"T-8b504b8efa8379-01"
+]
+},
+{
+"tag": "textile.particle_release_on_beat",
+"count": 1,
+"examples": [
+"T-4c075f07882faa-01"
+]
+},
+{
+"tag": "textile.fiber_damage_from_force",
+"count": 1,
+"examples": [
+"T-4c075f07882faa-01"
+]
+},
+{
+"tag": "textile.rug_ripple",
+"count": 1,
+"examples": [
+"T-7f5a6b08f2d255-01"
+]
+},
+{
+"tag": "cleaning.coverage_hidden_zones",
+"count": 1,
+"examples": [
+"T-6145b629064ad0-01"
+]
+},
+{
+"tag": "cleaning.visible_clutter_score",
+"count": 1,
+"examples": [
+"T-2454da7d7ab899-01"
+]
+},
+{
+"tag": "cleaning.counter_soil",
+"count": 1,
+"examples": [
+"T-a9895af1fd10dc-01"
+]
+},
+{
+"tag": "nav.room_search_coverage",
+"count": 1,
+"examples": [
+"T-25c4fa523e27e0-01"
+]
+},
+{
+"tag": "object.in_use_hidden_flag",
+"count": 1,
+"examples": [
+"T-25c4fa523e27e0-01"
+]
+},
+{
+"tag": "object.utensil_in_waste_detect",
+"count": 1,
+"examples": [
+"T-9bf9aa7b806c06-01"
+]
+},
+{
+"tag": "soil.milk_residue_hidden",
+"count": 1,
+"examples": [
+"T-eb2fa3c902bf61-01"
+]
+},
+{
+"tag": "textile.towel_saturation",
+"count": 1,
+"examples": [
+"T-22fc76ec1277ab-01"
+]
+},
+{
+"tag": "dishwasher.spray_occlusion_raycast",
+"count": 1,
+"examples": [
+"T-e3f8c94766beee-01"
+]
+},
+{
+"tag": "dishwasher.nesting_detection",
+"count": 1,
+"examples": [
+"T-e3f8c94766beee-01"
+]
+},
+{
+"tag": "user_sim.preference_hidden",
+"count": 1,
+"examples": [
+"T-de75f4a4e213f5-01"
+]
+},
+{
+"tag": "food.raw_vs_ready_to_eat",
+"count": 1,
+"examples": [
+"T-e00fa52cb64734-01"
+]
+},
+{
+"tag": "food.ingredient_identity_lookalikes",
+"count": 1,
+"examples": [
+"T-5461bb64f5e2cc-01"
+]
+},
+{
+"tag": "admin_inventory.item_location_map",
+"count": 1,
+"examples": [
+"T-5461bb64f5e2cc-01"
+]
+},
+{
+"tag": "perception.render_text_document",
+"count": 1,
+"examples": [
+"T-aff728d90d9050-01"
+]
+},
+{
+"tag": "people.read_aloud_report",
+"count": 1,
+"examples": [
+"T-aff728d90d9050-01"
+]
+},
+{
+"tag": "admin_inventory.labeling_date",
+"count": 1,
+"examples": [
+"T-8b882b341f55b1-01"
+]
+},
+{
+"tag": "food.cut_location",
+"count": 1,
+"examples": [
+"T-1b2495e8b03e1d-01"
+]
+},
+{
+"tag": "produce.wilted_leaf_detection",
+"count": 1,
+"examples": [
+"T-dcb62f2df2e242-01"
+]
+},
+{
+"tag": "produce.seed_cavity_geometry",
+"count": 1,
+"examples": [
+"T-26bfdad1880d77-01"
+]
+},
+{
+"tag": "produce.seed_count_residual",
+"count": 1,
+"examples": [
+"T-26bfdad1880d77-01"
+]
+},
+{
+"tag": "count.pit_inventory",
+"count": 1,
+"examples": [
+"T-34fd4db35318fc-01"
+]
+},
+{
+"tag": "produce.blemish_detection",
+"count": 1,
+"examples": [
+"T-6b661e727f1590-01"
+]
+},
+{
+"tag": "produce.pit_detection",
+"count": 1,
+"examples": [
+"T-550ca024ee9517-01"
+]
+},
+{
+"tag": "produce.core_detection",
+"count": 1,
+"examples": [
+"T-b4d5b8ea482ec8-01"
+]
+},
+{
+"tag": "board.color_code",
+"count": 1,
+"examples": [
+"T-d7e67720a531ec-01"
+]
+},
+{
+"tag": "fish.pin_bone_detection",
+"count": 1,
+"examples": [
+"T-2a2dd452cb7f22-01"
+]
+},
+{
+"tag": "egg.white_strand_detection",
+"count": 1,
+"examples": [
+"T-31f588314b87de-01"
+]
+},
+{
+"tag": "dough.spread_during_bake",
+"count": 1,
+"examples": [
+"T-0a64bc7a21bbaa-01"
+]
+},
+{
+"tag": "spread.coverage_vs_viscosity",
+"count": 1,
+"examples": [
+"T-c5d17689a07bee-01"
+]
+},
+{
+"tag": "spread.temperature_softening",
+"count": 1,
+"examples": [
+"T-c5d17689a07bee-01"
+]
+},
+{
+"tag": "bread.tear_threshold",
+"count": 1,
+"examples": [
+"T-c5d17689a07bee-01"
+]
+},
+{
+"tag": "grate.finger_to_blade_distance",
+"count": 1,
+"examples": [
+"T-2ad50853b19574-01"
+]
+},
+{
+"tag": "juice.seed_passage",
+"count": 1,
+"examples": [
+"T-64d50d63dd8092-01"
+]
+},
+{
+"tag": "powder.lump_detection",
+"count": 1,
+"examples": [
+"T-c032ed8a38eba0-01"
+]
+},
+{
+"tag": "bread.sogginess_vs_time_moisture",
+"count": 1,
+"examples": [
+"T-d8543202ea01dd-01"
+]
+},
+{
+"tag": "counter.soil_after_prep",
+"count": 1,
+"examples": [
+"T-bee1b178cda2e0-01"
+]
+},
+{
+"tag": "ownership.label_match",
+"count": 1,
+"examples": [
+"T-ba554b61c849cc-01"
+]
+},
+{
+"tag": "food.leftover_age_from_label",
+"count": 1,
+"examples": [
+"T-daaebcb12c98bd-01"
+]
+},
+{
+"tag": "food.reheat_count",
+"count": 1,
+"examples": [
+"T-daaebcb12c98bd-01"
+]
+},
+{
+"tag": "display.readback_verification",
+"count": 1,
+"examples": [
+"T-fdd635ecad2c3d-01"
+]
+},
+{
+"tag": "textile.ignition_near_flame",
+"count": 1,
+"examples": [
+"T-5bf2f7d06519c5-01"
+]
+},
+{
+"tag": "cooking.monitor_cadence",
+"count": 1,
+"examples": [
+"T-83936813e629a3-01"
+]
+},
+{
+"tag": "oven.rack_distance_to_element",
+"count": 1,
+"examples": [
+"T-a27dfb7b6ceb0f-01"
+]
+},
+{
+"tag": "chop.pulse_vs_continuous_texture",
+"count": 1,
+"examples": [
+"T-777159584bf85a-01"
+]
+},
+{
+"tag": "waffle_maker.state_machine_ready_light",
+"count": 1,
+"examples": [
+"T-94ae360dbf84ed-01"
+]
+},
+{
+"tag": "label.zone_match",
+"count": 1,
+"examples": [
+"T-01bd9731e66b83-01"
+]
+},
+{
+"tag": "label.date_format_parsing",
+"count": 1,
+"examples": [
+"T-765fb8642c71a6-01"
+]
+},
+{
+"tag": "label.use_by_vs_best_before",
+"count": 1,
+"examples": [
+"T-25b6ab22b0cb0c-01"
+]
+},
+{
+"tag": "label.date_field_correctness",
+"count": 1,
+"examples": [
+"T-d84cd0b4110c23-01"
+]
+},
+{
+"tag": "label.date_update",
+"count": 1,
+"examples": [
+"T-0d7b4eca44a7c9-01"
+]
+},
+{
+"tag": "pest.ant_detection",
+"count": 1,
+"examples": [
+"T-0891fed9e2858b-01"
+]
+},
+{
+"tag": "dispenser.leading_edge_threading",
+"count": 1,
+"examples": [
+"T-4be8268bd656f8-01"
+]
+},
+{
+"tag": "organization.slot_label_match",
+"count": 1,
+"examples": [
+"T-df63af4bb8d97f-01"
+]
+},
+{
+"tag": "dish.temporary_relocation",
+"count": 1,
+"examples": [
+"T-9a94d7cd2a6bb3-01"
+]
+},
+{
+"tag": "surface.streak_waterspot_count",
+"count": 1,
+"examples": [
+"T-108df8d2c9cad1-01"
+]
+},
+{
+"tag": "flame.color_stability_detection",
+"count": 1,
+"examples": [
+"T-fda399dc73366a-01"
+]
+},
+{
+"tag": "appliance.manual_lookup_descaler_type",
+"count": 1,
+"examples": [
+"T-95618a88ad8ec5-01"
+]
+},
+{
+"tag": "soil.hidden_under_gasket",
+"count": 1,
+"examples": [
+"T-7d142e067b92a2-01"
+]
+},
+{
+"tag": "dishwasher.care_label_top_rack_only",
+"count": 1,
+"examples": [
+"T-000ebff35f7c77-01"
+]
+},
+{
+"tag": "people.expected_diner_count",
+"count": 1,
+"examples": [
+"T-49bd8a1f79521b-01"
+]
+},
+{
+"tag": "liquid.level_monitoring",
+"count": 1,
+"examples": [
+"T-cf7f7c4b934a10-01"
+]
+},
+{
+"tag": "cloth.spread_centered_even_drop",
+"count": 1,
+"examples": [
+"T-e1ad98d00db36b-01"
+]
+},
+{
+"tag": "textile.damp_mildew_if_stored",
+"count": 1,
+"examples": [
+"T-4e432cd05581a9-01"
+]
+},
+{
+"tag": "user_sim.hidden_theme_and_guest_list",
+"count": 1,
+"examples": [
+"T-30a7cdcdd80dd7-01"
+]
+},
+{
+"tag": "carry.bulky_soft_load_view_occlusion",
+"count": 1,
+"examples": [
+"T-e90c16c6bc69e5-01"
+]
+},
+{
+"tag": "textile.care_label_dry_clean_only",
+"count": 1,
+"examples": [
+"T-e90c16c6bc69e5-01"
+]
+},
+{
+"tag": "nav.view_occlusion_by_load",
+"count": 1,
+"examples": [
+"T-04c149047cc9b6-01"
+]
+},
+{
+"tag": "textile.care_label_wash_separately",
+"count": 1,
+"examples": [
+"T-c32284261135cd-01"
+]
+},
+{
+"tag": "textile.dry_clean_only_flag",
+"count": 1,
+"examples": [
+"T-6e3fbf384a654f-01"
+]
+},
+{
+"tag": "laundry.abrasion_heavy_vs_light",
+"count": 1,
+"examples": [
+"T-084dc9f40872a2-01"
+]
+},
+{
+"tag": "perception.small_item_in_cloth",
+"count": 1,
+"examples": [
+"T-09c9659677296e-01"
+]
+},
+{
+"tag": "stain.location_targeting",
+"count": 1,
+"examples": [
+"T-e5ed5935a220e4-01"
+]
+},
+{
+"tag": "textile.care_label_bleach_symbols",
+"count": 1,
+"examples": [
+"T-fd8180921969bd-01"
+]
+},
+{
+"tag": "textile.care_label_max_agitation",
+"count": 1,
+"examples": [
+"T-bc6d4e8b2f4edc-01"
+]
+},
+{
+"tag": "textile.care_label_max_temp",
+"count": 1,
+"examples": [
+"T-2f28833adcc133-01"
+]
+},
+{
+"tag": "textile.care_label_dryer_heat",
+"count": 1,
+"examples": [
+"T-d78feb399fcde4-01"
+]
+},
+{
+"tag": "dryer.moisture_sensor_vs_timed",
+"count": 1,
+"examples": [
+"T-d78feb399fcde4-01"
+]
+},
+{
+"tag": "dryer.items_hidden_in_drum_or_inside_items",
+"count": 1,
+"examples": [
+"T-2487906fef06f6-01"
+]
+},
+{
+"tag": "textile.wrinkle_set_timer",
+"count": 1,
+"examples": [
+"T-2487906fef06f6-01"
+]
+},
+{
+"tag": "textile.moisture_check_on_unload",
+"count": 1,
+"examples": [
+"T-2487906fef06f6-01"
+]
+},
+{
+"tag": "textile.knit_flat_dry_rule",
+"count": 1,
+"examples": [
+"T-6f396d44e1f4f6-01"
+]
+},
+{
+"tag": "textile.pin_mark_on_knits",
+"count": 1,
+"examples": [
+"T-7a3e3247a1204b-01"
+]
+},
+{
+"tag": "textile.molded_cup_no_invert",
+"count": 1,
+"examples": [
+"T-3018674e806f0a-01"
+]
+},
+{
+"tag": "textile.elastic_cuff_stretch_from_balling",
+"count": 1,
+"examples": [
+"T-f9cc5ba944885c-01"
+]
+},
+{
+"tag": "textile.knit_stretch",
+"count": 1,
+"examples": [
+"T-6cc42e6fd77a37-01"
+]
+},
+{
+"tag": "textile.knit_stretch_hang",
+"count": 1,
+"examples": [
+"T-2f5b69634e9a0b-01"
+]
+},
+{
+"tag": "textile.care_label_iron_dots",
+"count": 1,
+"examples": [
+"T-f0ebed4776c708-01"
+]
+},
+{
+"tag": "textile.wrinkle_removal_heat_steam_pressure",
+"count": 1,
+"examples": [
+"T-f0ebed4776c708-01"
+]
+},
+{
+"tag": "textile.steam_incompatible_materials",
+"count": 1,
+"examples": [
+"T-b52e72f0601d47-01"
+]
+},
+{
+"tag": "textile.pilling_level",
+"count": 1,
+"examples": [
+"T-9d2e40699ead82-01"
+]
+},
+{
+"tag": "textile.loose_weave_snag",
+"count": 1,
+"examples": [
+"T-9d2e40699ead82-01"
+]
+},
+{
+"tag": "textile.embellishment_damage",
+"count": 1,
+"examples": [
+"T-e4624a716f323a-01"
+]
+},
+{
+"tag": "filter.softener_film_occlusion",
+"count": 1,
+"examples": [
+"T-027dcb1ea75b97-01"
+]
+},
+{
+"tag": "geom.hidden_folds_require_peel",
+"count": 1,
+"examples": [
+"T-ec16d84fd4594d-01"
+]
+},
+{
+"tag": "residue.bleach_rinse_before_colors",
+"count": 1,
+"examples": [
+"T-ec16d84fd4594d-01"
+]
+},
+{
+"tag": "label.product_identity_check",
+"count": 1,
+"examples": [
+"T-7404d5101b3764-01"
+]
+},
+{
+"tag": "inventory.backstock_location",
+"count": 1,
+"examples": [
+"T-ea233171c6e9ca-01"
+]
+},
+{
+"tag": "textile.tear_propagation_if_pulled",
+"count": 1,
+"examples": [
+"T-d4bcad90dafe33-01"
+]
+},
+{
+"tag": "textile.thread_tension_unravel",
+"count": 1,
+"examples": [
+"T-5f621b2236b612-01"
+]
+},
+{
+"tag": "textile.thread_role_structural_vs_loose",
+"count": 1,
+"examples": [
+"T-5f621b2236b612-01"
+]
+},
+{
+"tag": "color.polish_match",
+"count": 1,
+"examples": [
+"T-f5258487631c3d-01"
+]
+},
+{
+"tag": "storage.box_label",
+"count": 1,
+"examples": [
+"T-b439f2a07054f8-01"
+]
+},
+{
+"tag": "storage.label_contents_owner",
+"count": 1,
+"examples": [
+"T-1b679ad306c3a2-01"
+]
+},
+{
+"tag": "textile.store_only_clean",
+"count": 1,
+"examples": [
+"T-1b679ad306c3a2-01"
+]
+},
+{
+"tag": "textile.seam_tear_force",
+"count": 1,
+"examples": [
+"T-5d0b6af665a9ae-01"
+]
+},
+{
+"tag": "textile.elastic_tear_force",
+"count": 1,
+"examples": [
+"T-76746ee738bfe5-01"
+]
+},
+{
+"tag": "textile.store_only_clean_dry",
+"count": 1,
+"examples": [
+"T-152ca0cd08cf9a-01"
+]
+},
+{
+"tag": "textile.wet_item_mildew_in_hamper",
+"count": 1,
+"examples": [
+"T-6d32c6346ad15e-01"
+]
+},
+{
+"tag": "textile.delicate_handling",
+"count": 1,
+"examples": [
+"T-2bc0ff90d84958-01"
+]
+},
+{
+"tag": "privacy.trash_contents_minimal_inspection",
+"count": 1,
+"examples": [
+"T-36c18b0698d366-01"
+]
+},
+{
+"tag": "textile.rug_moisture_damage",
+"count": 1,
+"examples": [
+"T-8904cbfd5996f7-01"
+]
+},
+{
+"tag": "people.preference_light_heat",
+"count": 1,
+"examples": [
+"T-6f1ce34af07e58-01"
+]
+},
+{
+"tag": "climate.sun_angle_glare_on_target",
+"count": 1,
+"examples": [
+"T-bc9ebfb1b0c505-01"
+]
+},
+{
+"tag": "people.relative_command_target_light",
+"count": 1,
+"examples": [
+"T-bc9ebfb1b0c505-01"
+]
+},
+{
+"tag": "safety.damaged_cord_detection",
+"count": 1,
+"examples": [
+"T-e5e6c995021099-01"
+]
+},
+{
+"tag": "device.unfamiliar_ui_manual_lookup",
+"count": 1,
+"examples": [
+"T-70857ba71958e7-01"
+]
+},
+{
+"tag": "people.comfort_target_hidden",
+"count": 1,
+"examples": [
+"T-b3b3227399cac8-01"
+]
+},
+{
+"tag": "bin.label_semantics",
+"count": 1,
+"examples": [
+"T-98b3b07b8f0520-01"
+]
+},
+{
+"tag": "textile.wet_mildew_risk",
+"count": 1,
+"examples": [
+"T-bdcfd7d75ea0fd-01"
+]
+},
+{
+"tag": "mirror.edge_desilvering_from_liquid",
+"count": 1,
+"examples": [
+"T-da2c35e8a3effd-01"
+]
+},
+{
+"tag": "curtain.ring_detach_attach_count",
+"count": 1,
+"examples": [
+"T-90ee3933c1b5f7-01"
+]
+},
+{
+"tag": "attach.ring_grommet_count",
+"count": 1,
+"examples": [
+"T-7a1e6027eba3b7-01"
+]
+},
+{
+"tag": "bleach.damage_colored_textile",
+"count": 1,
+"examples": [
+"T-ac821795869f60-01"
+]
+},
+{
+"tag": "soil.limescale_light",
+"count": 1,
+"examples": [
+"T-0c11d3af137089-01"
+]
+},
+{
+"tag": "plumbing.thread_seal_leak",
+"count": 1,
+"examples": [
+"T-6cc6e8da994d2f-01"
+]
+},
+{
+"tag": "med.owner_label",
+"count": 1,
+"examples": [
+"T-983bd9a69ddc02-01"
+]
+},
+{
+"tag": "label.expiry_date",
+"count": 1,
+"examples": [
+"T-b51b5e8f2f05c5-01"
+]
+},
+{
+"tag": "label.period_after_opening",
+"count": 1,
+"examples": [
+"T-b51b5e8f2f05c5-01"
+]
+},
+{
+"tag": "perception.small_text_reading",
+"count": 1,
+"examples": [
+"T-b51b5e8f2f05c5-01"
+]
+},
+{
+"tag": "chemical.label_integrity",
+"count": 1,
+"examples": [
+"T-ef690868e34a40-01"
+]
+},
+{
+"tag": "user_sim.hidden_target_layout",
+"count": 1,
+"examples": [
+"T-ca9b237c8fee40-01"
+]
+},
+{
+"tag": "textile.seam_stress",
+"count": 1,
+"examples": [
+"T-c939cb0607c09a-01"
+]
+},
+{
+"tag": "fabric.colorfastness_test",
+"count": 1,
+"examples": [
+"T-4d7a0515eb25ab-01"
+]
+},
+{
+"tag": "item.search_under_furniture",
+"count": 1,
+"examples": [
+"T-20504f33176e30-01"
+]
+},
+{
+"tag": "device.power_state_observation",
+"count": 1,
+"examples": [
+"T-da7f0aa33c5202-01"
+]
+},
+{
+"tag": "people.watching_flag",
+"count": 1,
+"examples": [
+"T-da7f0aa33c5202-01"
+]
+},
+{
+"tag": "light.switch_type_semantics",
+"count": 1,
+"examples": [
+"T-7dade40da3e79e-01"
+]
+},
+{
+"tag": "light.three_way_cycle",
+"count": 1,
+"examples": [
+"T-7dade40da3e79e-01"
+]
+},
+{
+"tag": "light.state_observation",
+"count": 1,
+"examples": [
+"T-7dade40da3e79e-01"
+]
+},
+{
+"tag": "item.artificial_plant_detection",
+"count": 1,
+"examples": [
+"T-04cd9b3841da63-01"
+]
+},
+{
+"tag": "pot.orientation_relative_to_light",
+"count": 1,
+"examples": [
+"T-a2be958134d7bc-01"
+]
+},
+{
+"tag": "people.guest_count",
+"count": 1,
+"examples": [
+"T-c87f4e578c3763-01"
+]
+},
+{
+"tag": "privacy.private_items_out_of_view",
+"count": 1,
+"examples": [
+"T-c87f4e578c3763-01"
+]
+},
+{
+"tag": "lighting.ambient_level",
+"count": 1,
+"examples": [
+"T-c87f4e578c3763-01"
+]
+},
+{
+"tag": "item.guest_owned_detection",
+"count": 1,
+"examples": [
+"T-39024d59e9c7b5-01"
+]
+},
+{
+"tag": "folder.label_match",
+"count": 1,
+"examples": [
+"T-ca8aeb1fd4a939-01"
+]
+},
+{
+"tag": "label.placement_on_tab",
+"count": 1,
+"examples": [
+"T-91e8f5ef1affd8-01"
+]
+},
+{
+"tag": "user_sim.hidden_naming_convention",
+"count": 1,
+"examples": [
+"T-91e8f5ef1affd8-01"
+]
+},
+{
+"tag": "item.search_systematic",
+"count": 1,
+"examples": [
+"T-f7e2a4f9ea0ac3-01"
+]
+},
+{
+"tag": "cartridge.color_slot_match",
+"count": 1,
+"examples": [
+"T-0fa9cf610375c5-01"
+]
+},
+{
+"tag": "scan.page_capture_completeness",
+"count": 1,
+"examples": [
+"T-a8f2be455d25c2-01"
+]
+},
+{
+"tag": "scan.destination_routing",
+"count": 1,
+"examples": [
+"T-a8f2be455d25c2-01"
+]
+},
+{
+"tag": "copy.count",
+"count": 1,
+"examples": [
+"T-25c22013b716b2-01"
+]
+},
+{
+"tag": "staple.text_obstruction",
+"count": 1,
+"examples": [
+"T-e50b2a4c83236a-01"
+]
+},
+{
+"tag": "soil.sensor_debris",
+"count": 1,
+"examples": [
+"T-830aa1e7143052-01"
+]
+},
+{
+"tag": "sensor.scratch_damage",
+"count": 1,
+"examples": [
+"T-830aa1e7143052-01"
+]
+},
+{
+"tag": "monitor.stand_stability",
+"count": 1,
+"examples": [
+"T-0560a5ef281c01-01"
+]
+},
+{
+"tag": "label.plug_identity",
+"count": 1,
+"examples": [
+"T-bcb061c6bc38ea-01"
+]
+},
+{
+"tag": "ergonomics.monitor_eye_height",
+"count": 1,
+"examples": [
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "ergonomics.viewing_distance",
+"count": 1,
+"examples": [
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "glare.ray_geometry_to_screen",
+"count": 1,
+"examples": [
+"T-c21258245549f9-01"
+]
+},
+{
+"tag": "mail.junk_detection",
+"count": 1,
+"examples": [
+"T-d38043e2f33db3-01"
+]
+},
+{
+"tag": "user_sim.hidden_arrangement_preference",
+"count": 1,
+"examples": [
+"T-cbb26cf82d12d1-01"
+]
+},
+{
+"tag": "packaging.small_part_search",
+"count": 1,
+"examples": [
+"T-2dcb5a2857186c-01"
+]
+},
+{
+"tag": "soil.smear_spread",
+"count": 1,
+"examples": [
+"T-e807e21d2a4d68-01"
+]
+},
+{
+"tag": "liquid.spread_to_rug_seams",
+"count": 1,
+"examples": [
+"T-47fe53625e58f9-01"
+]
+},
+{
+"tag": "leak.detection_report",
+"count": 1,
+"examples": [
+"T-47fe53625e58f9-01"
+]
+},
+{
+"tag": "textile.shape_crush_damage",
+"count": 1,
+"examples": [
+"T-100dbc708f2768-01"
+]
+},
+{
+"tag": "user_sim.hidden_destination",
+"count": 1,
+"examples": [
+"T-9ce0d263d2bc21-01"
+]
+},
+{
+"tag": "user_sim.hidden_essentials_list",
+"count": 1,
+"examples": [
+"T-b4390308cdcfd3-01"
+]
+},
+{
+"tag": "memory.last_seen_location",
+"count": 1,
+"examples": [
+"T-b4390308cdcfd3-01"
+]
+},
+{
+"tag": "closet.interior_light",
+"count": 1,
+"examples": [
+"T-74a0aa76b86353-01"
+]
+},
+{
+"tag": "sort.hidden_criterion_partition",
+"count": 1,
+"examples": [
+"T-22b471895da33c-01"
+]
+},
+{
+"tag": "label.facing_out",
+"count": 1,
+"examples": [
+"T-a05e2233a1b257-01"
+]
+},
+{
+"tag": "inventory.count_by_type_and_location",
+"count": 1,
+"examples": [
+"T-becec4e1d33465-01"
+]
+},
+{
+"tag": "bin.opaque_contents_hidden_until_opened",
+"count": 1,
+"examples": [
+"T-becec4e1d33465-01"
+]
+},
+{
+"tag": "luggage.compartment_contents_hidden",
+"count": 1,
+"examples": [
+"T-9343455e331c12-01"
+]
+},
+{
+"tag": "label.lookup",
+"count": 1,
+"examples": [
+"T-567aa9d12d69fa-01"
+]
+},
+{
+"tag": "textile.damp_mildew",
+"count": 1,
+"examples": [
+"T-769ecfec875d2d-01"
+]
+},
+{
+"tag": "airflow.disturb_light_objects",
+"count": 1,
+"examples": [
+"T-7b916e5cd743ca-01"
+]
+},
+{
+"tag": "occupancy.room_presence_including_hidden",
+"count": 1,
+"examples": [
+"T-def58ee7671113-01"
+]
+},
+{
+"tag": "light.exempt_classes",
+"count": 1,
+"examples": [
+"T-def58ee7671113-01"
+]
+},
+{
+"tag": "light.lux_at_task_area",
+"count": 1,
+"examples": [
+"T-bd00cc0276629b-01"
+]
+},
+{
+"tag": "time.sunset_and_daylight",
+"count": 1,
+"examples": [
+"T-bd00cc0276629b-01"
+]
+},
+{
+"tag": "water_damage.spread_over_time",
+"count": 1,
+"examples": [
+"T-b4225c6700e82d-01"
+]
+},
+{
+"tag": "utility.anomaly_detection",
+"count": 1,
+"examples": [
+"T-dd0cda6a6ee668-01"
+]
+},
+{
+"tag": "spot_test.hidden_area",
+"count": 1,
+"examples": [
+"T-1ce8aa0805efea-01"
+]
+},
+{
+"tag": "stain.spread_from_rubbing",
+"count": 1,
+"examples": [
+"T-0d7a76a24ee2b5-01"
+]
+},
+{
+"tag": "fabric.color_loss",
+"count": 1,
+"examples": [
+"T-0d7a76a24ee2b5-01"
+]
+},
+{
+"tag": "fastener.loose_detection",
+"count": 1,
+"examples": [
+"T-61ac3035c66104-01"
+]
+},
+{
+"tag": "inventory.hardware_count",
+"count": 1,
+"examples": [
+"T-f5b3335c0d9dd9-01"
+]
+},
+{
+"tag": "pet.bowl_home_location",
+"count": 1,
+"examples": [
+"T-9d66c9d2c77fe1-01"
+]
+},
+{
+"tag": "pets.box_location_preference",
+"count": 1,
+"examples": [
+"T-a0248947d787fc-01"
+]
+},
+{
+"tag": "pet.count_out_vs_in",
+"count": 1,
+"examples": [
+"T-e6b055c1825f91-01"
+]
+},
+{
+"tag": "time.daylight",
+"count": 1,
+"examples": [
+"T-5d2da5ec8b20ea-01"
+]
+},
+{
+"tag": "bird.seed_hull_vs_food",
+"count": 1,
+"examples": [
+"T-76ddac21521100-01"
+]
+},
+{
+"tag": "food.wet_seed_mold",
+"count": 1,
+"examples": [
+"T-419c4c69632edb-01"
+]
+},
+{
+"tag": "sun.position_and_glare",
+"count": 1,
+"examples": [
+"T-f166b9f284fb47-01"
+]
+},
+{
+"tag": "plant.farina_coating",
+"count": 1,
+"examples": [
+"T-fca4eacaf501bf-01"
+]
+},
+{
+"tag": "user_sim.preference_keep_seedheads",
+"count": 1,
+"examples": [
+"T-cfb216e251e698-01"
+]
+},
+{
+"tag": "plant.seedling_stem_crush",
+"count": 1,
+"examples": [
+"T-5956fc275b97e5-01"
+]
+},
+{
+"tag": "plant.pest_spread_by_proximity",
+"count": 1,
+"examples": [
+"T-1596c6cf03575f-01"
+]
+},
+{
+"tag": "object.toy_identification",
+"count": 1,
+"examples": [
+"T-9e679b3290681b-01"
+]
+},
+{
+"tag": "search.under_furniture_coverage",
+"count": 1,
+"examples": [
+"T-9e679b3290681b-01"
+]
+},
+{
+"tag": "harness.threading_correct",
+"count": 1,
+"examples": [
+"T-639287cfdf9d06-01"
+]
+},
+{
+"tag": "item.care_label_dishwasher_safe",
+"count": 1,
+"examples": [
+"T-43c831e406adcb-01"
+]
+},
+{
+"tag": "people.supervision_present",
+"count": 1,
+"examples": [
+"T-632176beb4b8dc-01"
+]
+},
+{
+"tag": "liquid.spread_and_pooling",
+"count": 1,
+"examples": [
+"T-a950fee2e3afc1-01"
+]
+},
+{
+"tag": "game.player_count_scaling",
+"count": 1,
+"examples": [
+"T-cd230a662c8990-01"
+]
+},
+{
+"tag": "search.under_furniture_small_parts",
+"count": 1,
+"examples": [
+"T-093e372008b6c2-01"
+]
+},
+{
+"tag": "search.belief_over_locations",
+"count": 1,
+"examples": [
+"T-61e21c91ca17b4-01"
+]
+},
+{
+"tag": "perception.occlusion_under_furniture",
+"count": 1,
+"examples": [
+"T-61e21c91ca17b4-01"
+]
+},
+{
+"tag": "textile.owner_and_comfort_item",
+"count": 1,
+"examples": [
+"T-31f5cea2a51c36-01"
+]
+},
+{
+"tag": "people.adult_location_tracking",
+"count": 1,
+"examples": [
+"T-c484b8b005a4e5-01"
+]
+},
+{
+"tag": "safety.child_hazard_detection",
+"count": 1,
+"examples": [
+"T-c484b8b005a4e5-01"
+]
+},
+{
+"tag": "room.clutter_relocation_to_home_location",
+"count": 1,
+"examples": [
+"T-00442dc4b067f3-01"
+]
+},
+{
+"tag": "room.guest_ready_checklist",
+"count": 1,
+"examples": [
+"T-00442dc4b067f3-01"
+]
+},
+{
+"tag": "towel.set_per_guest_count",
+"count": 1,
+"examples": [
+"T-78f2e9ada0626a-01"
+]
+},
+{
+"tag": "storage.overflow_location",
+"count": 1,
+"examples": [
+"T-3137563795bcbc-01"
+]
+},
+{
+"tag": "place_setting.count_from_guest_list",
+"count": 1,
+"examples": [
+"T-1f1a0b428d4235-01"
+]
+},
+{
+"tag": "seating.count_vs_guests",
+"count": 1,
+"examples": [
+"T-d163c79e81f89a-01"
+]
+},
+{
+"tag": "garment.wet_drip_location",
+"count": 1,
+"examples": [
+"T-4b7fd57257912f-01"
+]
+},
+{
+"tag": "cord.gauge_length_label",
+"count": 1,
+"examples": [
+"T-2a5ee0be59d70e-01"
+]
+},
+{
+"tag": "hazardous_waste.labeling",
+"count": 1,
+"examples": [
+"T-128a5d8441de9d-01"
+]
+},
+{
+"tag": "object.tip_over_detection",
+"count": 1,
+"examples": [
+"T-7d1ec514b64bcb-01"
+]
+},
+{
+"tag": "item.damage_detection_crack",
+"count": 1,
+"examples": [
+"T-d6bbc427fd547d-01"
+]
+},
+{
+"tag": "bin.home_location",
+"count": 1,
+"examples": [
+"T-73edcf76822bfd-01"
+]
+},
+{
+"tag": "garage_door.sensor_misalignment_fault",
+"count": 1,
+"examples": [
+"T-29a4e4fec0057c-01"
+]
+},
+{
+"tag": "verification.observe_end_state",
+"count": 1,
+"examples": [
+"T-29a4e4fec0057c-01"
+]
+},
+{
+"tag": "light.switch_state",
+"count": 1,
+"examples": [
+"T-f64b7460f6ab2c-01"
+]
+},
+{
+"tag": "light.auto_timeout_behavior",
+"count": 1,
+"examples": [
+"T-f64b7460f6ab2c-01"
+]
+},
+{
+"tag": "hazard.detection_odor_visual",
+"count": 1,
+"examples": [
+"T-c1c2e917556108-01"
+]
+},
+{
+"tag": "soil.residue_glare",
+"count": 1,
+"examples": [
+"T-99e33677f79fc1-01"
+]
+},
+{
+"tag": "textile.clean_towel_state",
+"count": 1,
+"examples": [
+"T-f021ae66d59065-01"
+]
+},
+{
+"tag": "structure.loose_rail_detection",
+"count": 1,
+"examples": [
+"T-e1382a0aa151e4-01"
+]
+},
+{
+"tag": "mail.outgoing_ready_check_stamp_address",
+"count": 1,
+"examples": [
+"T-e5b5fcabdb9b55-01"
+]
+},
+{
+"tag": "plumbing.leak_detection",
+"count": 1,
+"examples": [
+"T-c882d2aee6e754-01"
+]
+},
+{
+"tag": "report.fault_with_location",
+"count": 1,
+"examples": [
+"T-c882d2aee6e754-01"
+]
+},
+{
+"tag": "plant.owner_keep_seedheads",
+"count": 1,
+"examples": [
+"T-93941419231d22-01"
+]
+},
+{
+"tag": "plant.sun_requirement_vs_location",
+"count": 1,
+"examples": [
+"T-68c639782ccb09-01"
+]
+},
+{
+"tag": "seed.sow_depth_spacing",
+"count": 1,
+"examples": [
+"T-ff0b719c792841-01"
+]
+},
+{
+"tag": "seed.germination_conditions",
+"count": 1,
+"examples": [
+"T-ff0b719c792841-01"
+]
+},
+{
+"tag": "garden.label_rows",
+"count": 1,
+"examples": [
+"T-ff0b719c792841-01"
+]
+},
+{
+"tag": "package.label_recipient_verification",
+"count": 1,
+"examples": [
+"T-de6e3c42fc68a3-01"
+]
+},
+{
+"tag": "pet.waste_location_spawn",
+"count": 1,
+"examples": [
+"T-93fb45892be26c-01"
+]
+},
+{
+"tag": "search.zone_coverage",
+"count": 1,
+"examples": [
+"T-93fb45892be26c-01"
+]
+},
+{
+"tag": "metal.rust_detection",
+"count": 1,
+"examples": [
+"T-bc112a770bb0b6-01"
+]
+},
+{
+"tag": "textile.foam_drying_time",
+"count": 1,
+"examples": [
+"T-ba4ef9d20953ce-01"
+]
+},
+{
+"tag": "laundry.colorfast_bleach_risk",
+"count": 1,
+"examples": [
+"T-ba4ef9d20953ce-01"
+]
+},
+{
+"tag": "plumbing.drip_detection",
+"count": 1,
+"examples": [
+"T-aed4155235c001-01"
+]
+},
+{
+"tag": "fastener.thread_engagement_cross_thread",
+"count": 1,
+"examples": [
+"T-2b25559c7452dd-01"
+]
+},
+{
+"tag": "fertilizer.disposal_location",
+"count": 1,
+"examples": [
+"T-e135685dd9882f-01"
+]
+},
+{
+"tag": "safety.venomous_spider_detect",
+"count": 1,
+"examples": [
+"T-4be3e9c0919e7b-01"
+]
+},
+{
+"tag": "safety.fuel_ignition_distance",
+"count": 1,
+"examples": [
+"T-1e26563fe688ae-01"
+]
+},
+{
+"tag": "lock.combination_hidden_code",
+"count": 1,
+"examples": [
+"T-f06f1bd903b3af-01"
+]
+},
+{
+"tag": "keys.return_to_designated_location",
+"count": 1,
+"examples": [
+"T-f06f1bd903b3af-01"
+]
+},
+{
+"tag": "perception.coverage_survey",
+"count": 1,
+"examples": [
+"T-c8c36db697f240-01"
+]
+},
+{
+"tag": "report.located_findings",
+"count": 1,
+"examples": [
+"T-c8c36db697f240-01"
+]
+},
+{
+"tag": "buried.line_strike_detection",
+"count": 1,
+"examples": [
+"T-502643ae72a664-01"
+]
+},
+{
+"tag": "lawn.seed_type_sun_shade",
+"count": 1,
+"examples": [
+"T-6af8dc2b2d5c9a-01"
+]
+},
+{
+"tag": "label.parse_rate_and_reentry",
+"count": 1,
+"examples": [
+"T-2c49232bef1ecc-01"
+]
+},
+{
+"tag": "lawn.seed_washout_threshold",
+"count": 1,
+"examples": [
+"T-8ad6f14b6f4ba6-01"
+]
+},
+{
+"tag": "compost.seed_head_contamination",
+"count": 1,
+"examples": [
+"T-787d58a7430ca6-01"
+]
+},
+{
+"tag": "plant.branch_collar_cut_location",
+"count": 1,
+"examples": [
+"T-69024119f1cb20-01"
+]
+},
+{
+"tag": "plant.bud_cut_location",
+"count": 1,
+"examples": [
+"T-5bc40951b28bf3-01"
+]
+},
+{
+"tag": "soil.oil_stain_no_spread",
+"count": 1,
+"examples": [
+"T-e462959241d516-01"
+]
+},
+{
+"tag": "textile.cushion_care_label",
+"count": 1,
+"examples": [
+"T-a5c157d72cb425-01"
+]
+},
+{
+"tag": "safety.ladder_requires_supervision",
+"count": 1,
+"examples": [
+"T-b26561181bda15-01"
+]
+},
+{
+"tag": "screen.remove_label_reinstall",
+"count": 1,
+"examples": [
+"T-b26561181bda15-01"
+]
+},
+{
+"tag": "drain.deep_clog_detect_report",
+"count": 1,
+"examples": [
+"T-f45a67596f8dea-01"
+]
+},
+{
+"tag": "storage.tool_home_location",
+"count": 1,
+"examples": [
+"T-d4e9f11be8ad7c-01"
+]
+},
+{
+"tag": "textile.wet_cushion_mildew",
+"count": 1,
+"examples": [
+"T-e989c0bb26fb89-01"
+]
+},
+{
+"tag": "safety.loose_wire_bristle_detect",
+"count": 1,
+"examples": [
+"T-2afd1c643dc983-01"
+]
+},
+{
+"tag": "perception.litter_in_hedge",
+"count": 1,
+"examples": [
+"T-b88d4aef2b0ea4-01"
+]
+},
+{
+"tag": "textile.wet_storage_mildew",
+"count": 1,
+"examples": [
+"T-a8075c2a333d73-01"
+]
+},
+{
+"tag": "inventory.count_vs_expected_users",
+"count": 1,
+"examples": [
+"T-ecd670e1e4838c-01"
+]
+},
+{
+"tag": "textile.wet_used_state",
+"count": 1,
+"examples": [
+"T-900573e81f8733-01"
+]
+},
+{
+"tag": "textile.wet_in_hamper_mildew",
+"count": 1,
+"examples": [
+"T-900573e81f8733-01"
+]
+},
+{
+"tag": "cover.edge_gap_detection",
+"count": 1,
+"examples": [
+"T-faa3a644a4ee44-01"
+]
+},
+{
+"tag": "pool.water_clarity_bottom_visibility",
+"count": 1,
+"examples": [
+"T-9d261c131a73de-01"
+]
+},
+{
+"tag": "object.valuable_lookalike_in_trash",
+"count": 1,
+"examples": [
+"T-b891b07bb461e2-01"
+]
+},
+{
+"tag": "object.material_identification",
+"count": 1,
+"examples": [
+"T-e36627248d2254-01"
+]
+},
+{
+"tag": "privacy.sensitive_document_detect",
+"count": 1,
+"examples": [
+"T-95723a3cfd530f-01"
+]
+},
+{
+"tag": "privacy.minimal_reading",
+"count": 1,
+"examples": [
+"T-95723a3cfd530f-01"
+]
+},
+{
+"tag": "bin.color_scheme_by_locale",
+"count": 1,
+"examples": [
+"T-f48356ce0c2c81-01"
+]
+},
+{
+"tag": "storage.bin_pad_location",
+"count": 1,
+"examples": [
+"T-03ec6d1edf3741-01"
+]
+},
+{
+"tag": "label.visibility_orientation",
+"count": 1,
+"examples": [
+"T-b17ebe7312570f-01"
+]
+},
+{
+"tag": "label.adhesive_surface_compat",
+"count": 1,
+"examples": [
+"T-b17ebe7312570f-01"
+]
+},
+{
+"tag": "people.literacy_language_picture_labels",
+"count": 1,
+"examples": [
+"T-b17ebe7312570f-01"
+]
+},
+{
+"tag": "storage.labeled_bin_contents",
+"count": 1,
+"examples": [
+"T-506b1629f03877-01"
+]
+},
+{
+"tag": "inventory.keep_donate_discard_label",
+"count": 1,
+"examples": [
+"T-a2849bddcaaa72-01"
+]
+},
+{
+"tag": "label.donation_vs_trash",
+"count": 1,
+"examples": [
+"T-8ba926fd0d0985-01"
+]
+},
+{
+"tag": "pest.pantry_moth_detect",
+"count": 1,
+"examples": [
+"T-eda420191591d7-01"
+]
+},
+{
+"tag": "label.unlabeled_package_identify",
+"count": 1,
+"examples": [
+"T-1e71b2eab54f24-01"
+]
+},
+{
+"tag": "textile.detergent_he_compat",
+"count": 1,
+"examples": [
+"T-aea3800035acf9-01"
+]
+},
+{
+"tag": "memory.last_seen_location_log",
+"count": 1,
+"examples": [
+"T-002265c9791cc2-01"
+]
+},
+{
+"tag": "cable.type_identification_connector",
+"count": 1,
+"examples": [
+"T-ef0dbb70deb156-01"
+]
+},
+{
+"tag": "label.position_near_plug",
+"count": 1,
+"examples": [
+"T-98d37d6258a5af-01"
+]
+},
+{
+"tag": "document.scan_digitize",
+"count": 1,
+"examples": [
+"T-e50c46ef795861-01"
+]
+},
+{
+"tag": "textile.wet_garment_before_closet",
+"count": 1,
+"examples": [
+"T-a524187882ee27-01"
+]
+},
+{
+"tag": "textile.bed_size_identification",
+"count": 1,
+"examples": [
+"T-9e826644f21d8e-01"
+]
+},
+{
+"tag": "textile.set_completeness",
+"count": 1,
+"examples": [
+"T-9e826644f21d8e-01"
+]
+},
+{
+"tag": "textile.towel_type_size_class",
+"count": 1,
+"examples": [
+"T-b1327ba2cf1034-01"
+]
+},
+{
+"tag": "textile.rag_vs_towel_condition",
+"count": 1,
+"examples": [
+"T-b1327ba2cf1034-01"
+]
+},
+{
+"tag": "textile.wet_gear_before_store",
+"count": 1,
+"examples": [
+"T-fd0588fb640eed-01"
+]
+},
+{
+"tag": "object.damage_detection_helmet",
+"count": 1,
+"examples": [
+"T-fd0588fb640eed-01"
+]
+},
+{
+"tag": "perception.container_fill_state",
+"count": 1,
+"examples": [
+"T-a6c4b0e32bddaf-01"
+]
+},
+{
+"tag": "inventory.bag_count_vs_list_volume",
+"count": 1,
+"examples": [
+"T-5b94bdf65ac9b6-01"
+]
+},
+{
+"tag": "food.fridge_vs_counter_rules",
+"count": 1,
+"examples": [
+"T-7e888e2b0e88ac-01"
+]
+},
+{
+"tag": "label.date_frozen",
+"count": 1,
+"examples": [
+"T-d837cd6b0d64e3-01"
+]
+},
+{
+"tag": "food.decant_label_transfer_expiry_allergen",
+"count": 1,
+"examples": [
+"T-deae448faf1ffa-01"
+]
+},
+{
+"tag": "label.transfer_expiry",
+"count": 1,
+"examples": [
+"T-b2744d0ed4f81b-01"
+]
+},
+{
+"tag": "consumable.tissue_count",
+"count": 1,
+"examples": [
+"T-2da29f9e1fd320-01"
+]
+},
+{
+"tag": "sensor.doorbell_camera_feed",
+"count": 1,
+"examples": [
+"T-e54aee68e3c2e0-01"
+]
+},
+{
+"tag": "perception.package_occlusion",
+"count": 1,
+"examples": [
+"T-e54aee68e3c2e0-01"
+]
+},
+{
+"tag": "log.event_timestamp_location",
+"count": 1,
+"examples": [
+"T-e54aee68e3c2e0-01"
+]
+},
+{
+"tag": "stairs.carry_load_visibility",
+"count": 1,
+"examples": [
+"T-4b6a567444e5f1-01"
+]
+},
+{
+"tag": "package.perishable_label",
+"count": 1,
+"examples": [
+"T-0e63d3d23d7c2d-01"
+]
+},
+{
+"tag": "authority.requester_is_addressee_or_adult",
+"count": 1,
+"examples": [
+"T-d719b64572208e-01"
+]
+},
+{
+"tag": "label.item_and_date",
+"count": 1,
+"examples": [
+"T-9278612cb78404-01"
+]
+},
+{
+"tag": "label.old_barcode_obscured",
+"count": 1,
+"examples": [
+"T-022e74c198897c-01"
+]
+},
+{
+"tag": "label.order_rma_match",
+"count": 1,
+"examples": [
+"T-86003b674bb693-01"
+]
+},
+{
+"tag": "label.placement_single_flat_face",
+"count": 1,
+"examples": [
+"T-86003b674bb693-01"
+]
+},
+{
+"tag": "label.barcode_scannability",
+"count": 1,
+"examples": [
+"T-86003b674bb693-01"
+]
+},
+{
+"tag": "label.old_label_covered",
+"count": 1,
+"examples": [
+"T-86003b674bb693-01"
+]
+},
+{
+"tag": "label.visible_orientation",
+"count": 1,
+"examples": [
+"T-9e2c8313a4b5e9-01"
+]
+},
+{
+"tag": "report.item_location",
+"count": 1,
+"examples": [
+"T-083aea3089ab18-01"
+]
+},
+{
+"tag": "reach.inside_cabinet_occlusion",
+"count": 1,
+"examples": [
+"T-d4323965565b88-01"
+]
+},
+{
+"tag": "detector.chirp_low_battery_source",
+"count": 1,
+"examples": [
+"T-d5ff2b4aca645d-01"
+]
+},
+{
+"tag": "detector.sealed_10yr_flag",
+"count": 1,
+"examples": [
+"T-d5ff2b4aca645d-01"
+]
+},
+{
+"tag": "detector.test_button_sounds",
+"count": 1,
+"examples": [
+"T-d5ff2b4aca645d-01"
+]
+},
+{
+"tag": "detector.twist_lock_mount",
+"count": 1,
+"examples": [
+"T-d5ff2b4aca645d-01"
+]
+},
+{
+"tag": "safety.detector_coverage_gap_time",
+"count": 1,
+"examples": [
+"T-d5ff2b4aca645d-01"
+]
+},
+{
+"tag": "bulb.color_temperature_match",
+"count": 1,
+"examples": [
+"T-60f9ade4b85964-01"
+]
+},
+{
+"tag": "appliance.fault_state_hidden",
+"count": 1,
+"examples": [
+"T-5cc18cd26d89fb-01"
+]
+},
+{
+"tag": "view.line_of_sight_behind_appliance",
+"count": 1,
+"examples": [
+"T-0c0c4383c41730-01"
+]
+},
+{
+"tag": "hardware.leftover_count",
+"count": 1,
+"examples": [
+"T-8e1fe0230eb26b-01"
+]
+},
+{
+"tag": "hardware.bagged_and_labeled",
+"count": 1,
+"examples": [
+"T-2c11522011af48-01"
+]
+},
+{
+"tag": "mount.location_safety_rules",
+"count": 1,
+"examples": [
+"T-238915d99c5d4e-01"
+]
+},
+{
+"tag": "egress.detector_vent_outlet_clear",
+"count": 1,
+"examples": [
+"T-238915d99c5d4e-01"
+]
+},
+{
+"tag": "context.sewing_vs_construction",
+"count": 1,
+"examples": [
+"T-bc1b2f4de6fa48-01"
+]
+},
+{
+"tag": "flashlight.battery_level_hidden",
+"count": 1,
+"examples": [
+"T-180d327c3469dc-01"
+]
+},
+{
+"tag": "flashlight.on_off_state",
+"count": 1,
+"examples": [
+"T-180d327c3469dc-01"
+]
+},
+{
+"tag": "lighting.room_darkness",
+"count": 1,
+"examples": [
+"T-180d327c3469dc-01"
+]
+},
+{
+"tag": "scope.light_vs_restricted",
+"count": 1,
+"examples": [
+"T-19adfc50fb0dc9-01"
+]
+},
+{
+"tag": "tape.unit_scale_reading",
+"count": 1,
+"examples": [
+"T-8b096df9685bdb-01"
+]
+},
+{
+"tag": "level.bubble_reading",
+"count": 1,
+"examples": [
+"T-67d1e5262696db-01"
+]
+},
+{
+"tag": "beam.glare_to_eyes",
+"count": 1,
+"examples": [
+"T-2c365fcd9c5fbf-01"
+]
+},
+{
+"tag": "body.occlusion_of_workspace",
+"count": 1,
+"examples": [
+"T-2c365fcd9c5fbf-01"
+]
+},
+{
+"tag": "coverage.hidden_surfaces_under_behind",
+"count": 1,
+"examples": [
+"T-60a4dd9f4cd0c7-01"
+]
+},
+{
+"tag": "garment.care_label_route",
+"count": 1,
+"examples": [
+"T-834468f7ec19c8-01"
+]
+},
+{
+"tag": "seed.sowing_depth",
+"count": 1,
+"examples": [
+"T-3752e8c2ede867-01"
+]
+},
+{
+"tag": "bed.row_labels",
+"count": 1,
+"examples": [
+"T-3752e8c2ede867-01"
+]
+},
+{
+"tag": "inspection.coverage_outdoor_zones",
+"count": 1,
+"examples": [
+"T-c4417aa71a72da-01"
+]
+},
+{
+"tag": "hazard.seeded_outdoor_issues",
+"count": 1,
+"examples": [
+"T-c4417aa71a72da-01"
+]
+},
+{
+"tag": "chem.sealed_labeled_storage",
+"count": 1,
+"examples": [
+"T-a8afa86c6f2c2f-01"
+]
+},
+{
+"tag": "pest.detection_and_approved_treatment",
+"count": 1,
+"examples": [
+"T-7f710c054752af-01"
+]
+},
+{
+"tag": "plant.light_requirement",
+"count": 1,
+"examples": [
+"T-4e8e0c99d6d504-01"
+]
+},
+{
+"tag": "people.room_use_daylight",
+"count": 1,
+"examples": [
+"T-4e8e0c99d6d504-01"
+]
+},
+{
+"tag": "schedule.monitor_interval",
+"count": 1,
+"examples": [
+"T-3e6dfba9dc60c4-01"
+]
+},
+{
+"tag": "inventory.coverage_outdoor_search",
+"count": 1,
+"examples": [
+"T-8076196f8c7c50-01"
+]
+},
+{
+"tag": "hidden.objects_in_leaf_layer",
+"count": 1,
+"examples": [
+"T-d082fbf246301f-01"
+]
+},
+{
+"tag": "storage.bin_label",
+"count": 1,
+"examples": [
+"T-6794b7cf500967-01"
+]
+},
+{
+"tag": "draft.airflow_detection",
+"count": 1,
+"examples": [
+"T-93c213f319c651-01"
+]
+},
+{
+"tag": "fire.textile_near_heater_clearance",
+"count": 1,
+"examples": [
+"T-a5825d9912266a-01"
+]
+},
+{
+"tag": "mop.water_dirtiness_spread",
+"count": 1,
+"examples": [
+"T-3d75c03a46bd2f-01"
+]
+},
+{
+"tag": "snow.pile_location_rules",
+"count": 1,
+"examples": [
+"T-9714cdd18ebfc8-01"
+]
+},
+{
+"tag": "lights.damage_inspection",
+"count": 1,
+"examples": [
+"T-ee68ff314a05a3-01"
+]
+},
+{
+"tag": "lights.daisy_chain_limit",
+"count": 1,
+"examples": [
+"T-ee68ff314a05a3-01"
+]
+},
+{
+"tag": "lights.unplug_before_handling",
+"count": 1,
+"examples": [
+"T-e1f31e11fffcb3-01"
+]
+},
+{
+"tag": "label.contents_room",
+"count": 1,
+"examples": [
+"T-03017fe5afbaa1-01"
+]
+},
+{
+"tag": "package.small_items_hidden",
+"count": 1,
+"examples": [
+"T-4204258f90d2a9-01"
+]
+},
+{
+"tag": "fragile.edge_distance",
+"count": 1,
+"examples": [
+"T-793bf51a5a90e6-01"
+]
+},
+{
+"tag": "table.seat_count_vs_guest_count",
+"count": 1,
+"examples": [
+"T-9a83adb12d0679-01"
+]
+},
+{
+"tag": "seating.count_vs_guest_count",
+"count": 1,
+"examples": [
+"T-ad779d37fbd96d-01"
+]
+},
+{
+"tag": "utensil.count_per_guest",
+"count": 1,
+"examples": [
+"T-4d82489934e772-01"
+]
+},
+{
+"tag": "napkin.count_per_guest",
+"count": 1,
+"examples": [
+"T-9d1bc050c50f7a-01"
+]
+},
+{
+"tag": "pets.counter_surf_reach_height",
+"count": 1,
+"examples": [
+"T-f29583852377e8-01"
+]
+},
+{
+"tag": "spill.spread_over_time",
+"count": 1,
+"examples": [
+"T-c22a5399c1ceff-01"
+]
+},
+{
+"tag": "carpet.blot_vs_rub_spreading",
+"count": 1,
+"examples": [
+"T-c22a5399c1ceff-01"
+]
+},
+{
+"tag": "string_lights.unplug_then_unhook",
+"count": 1,
+"examples": [
+"T-2c6ecce991042e-01"
+]
+},
+{
+"tag": "string_lights.coil_without_tangle",
+"count": 1,
+"examples": [
+"T-2c6ecce991042e-01"
+]
+},
+{
+"tag": "string_lights.function_test_by_plugging",
+"count": 1,
+"examples": [
+"T-ca8d2b8f5a1836-01"
+]
+},
+{
+"tag": "bin.label_category_match",
+"count": 1,
+"examples": [
+"T-ca8d2b8f5a1836-01"
+]
+},
+{
+"tag": "bin.label_matches_contents",
+"count": 1,
+"examples": [
+"T-00b4f61f620972-01"
+]
+},
+{
+"tag": "shelf.label_facing_out",
+"count": 1,
+"examples": [
+"T-00b4f61f620972-01"
+]
+},
+{
+"tag": "light.fixture_lit_verification",
+"count": 1,
+"examples": [
+"T-2f94c5860cdb85-01"
+]
+},
+{
+"tag": "light.burned_out_bulb_detection",
+"count": 1,
+"examples": [
+"T-2f94c5860cdb85-01"
+]
+},
+{
+"tag": "light.photocell_override_daylight",
+"count": 1,
+"examples": [
+"T-2f94c5860cdb85-01"
+]
+},
+{
+"tag": "smart_light.group_control",
+"count": 1,
+"examples": [
+"T-2f94c5860cdb85-01"
+]
+},
+{
+"tag": "light.fixture_dark_verification",
+"count": 1,
+"examples": [
+"T-cc269227824b31-01"
+]
+},
+{
+"tag": "time_of_day.darkness",
+"count": 1,
+"examples": [
+"T-cc269227824b31-01"
+]
+},
+{
+"tag": "privacy.visibility_from_street_when_lit",
+"count": 1,
+"examples": [
+"T-37b34c1a70803d-01"
+]
+},
+{
+"tag": "people.intent_hidden_target",
+"count": 1,
+"examples": [
+"T-319abf2b5f68dd-01"
+]
+},
+{
+"tag": "faucet.drip_detection_audio_visual",
+"count": 1,
+"examples": [
+"T-f5b65bff5ee07c-01"
+]
+},
+{
+"tag": "obstacle.relocate_to_home",
+"count": 1,
+"examples": [
+"T-c54fddb6a59de3-01"
+]
+},
+{
+"tag": "window.open_state_detection",
+"count": 1,
+"examples": [
+"T-53e78bd51c95de-01"
+]
+},
+{
+"tag": "report.location_extent_source",
+"count": 1,
+"examples": [
+"T-b2daee5259e044-01"
+]
+},
+{
+"tag": "smoke_detector.alarm_pattern_t3_vs_chirp",
+"count": 1,
+"examples": [
+"T-9a78e040a3204d-01"
+]
+},
+{
+"tag": "fire.spread_model",
+"count": 1,
+"examples": [
+"T-9a78e040a3204d-01"
+]
+},
+{
+"tag": "detector.never_disable_rule",
+"count": 1,
+"examples": [
+"T-9a78e040a3204d-01"
+]
+},
+{
+"tag": "perception.known_vs_unknown_person",
+"count": 1,
+"examples": [
+"T-73ba0f823024c1-01"
+]
+},
+{
+"tag": "knife.visible_placement_not_submerged",
+"count": 1,
+"examples": [
+"T-8900663f5335b2-01"
+]
+},
+{
+"tag": "light.room_occupancy",
+"count": 1,
+"examples": [
+"T-fe23d8155006e4-01"
+]
+},
+{
+"tag": "light.purpose_tag",
+"count": 1,
+"examples": [
+"T-fe23d8155006e4-01"
+]
+},
+{
+"tag": "user_sim.hidden_keep_on_list",
+"count": 1,
+"examples": [
+"T-fe23d8155006e4-01"
+]
+},
+{
+"tag": "device.unsaved_work_detection",
+"count": 1,
+"examples": [
+"T-8a2bdc60f461ea-01"
+]
+},
+{
+"tag": "door.floor_gap_detection",
+"count": 1,
+"examples": [
+"T-22f9ed6a98599c-01"
+]
+},
+{
+"tag": "search.occluded_locations",
+"count": 1,
+"examples": [
+"T-bf02edf6468505-01"
+]
+},
+{
+"tag": "privacy.no_unlock_no_read",
+"count": 1,
+"examples": [
+"T-17bf62f781f86e-01"
+]
+},
+{
+"tag": "search.ring_device_with_consent",
+"count": 1,
+"examples": [
+"T-17bf62f781f86e-01"
+]
+},
+{
+"tag": "medication.container_label_identity",
+"count": 1,
+"examples": [
+"T-93aae9b958456f-01"
+]
+},
+{
+"tag": "medication.lookalike_container_decoy",
+"count": 1,
+"examples": [
+"T-93aae9b958456f-01"
+]
+},
+{
+"tag": "light.ambient_lux_threshold",
+"count": 1,
+"examples": [
+"T-2e218ed4232adf-01"
+]
+},
+{
+"tag": "cable.damage_detection",
+"count": 1,
+"examples": [
+"T-6233063b1cfd72-01"
+]
+},
+{
+"tag": "hamper.sort_by_color_class",
+"count": 1,
+"examples": [
+"T-a8bd4f40e41f1a-01"
+]
+},
+{
+"tag": "user_pref.morning_light_level",
+"count": 1,
+"examples": [
+"T-658e71489d32f1-01"
+]
+},
+{
+"tag": "bed.hidden_items_check",
+"count": 1,
+"examples": [
+"T-0a7593cbd7c2d0-01"
+]
+},
+{
+"tag": "user_pref.counter_vs_fridge_items",
+"count": 1,
+"examples": [
+"T-389217be397797-01"
+]
+},
+{
+"tag": "label.date",
+"count": 1,
+"examples": [
+"T-5c4a1c99aec1ba-01"
+]
+},
+{
+"tag": "pets.under_blanket_detection",
+"count": 1,
+"examples": [
+"T-70f12b66fb4914-01"
+]
+},
+{
+"tag": "light.off_state",
+"count": 1,
+"examples": [
+"T-c9e79621bdb71a-01"
+]
+},
+{
+"tag": "device.in_use_detection",
+"count": 1,
+"examples": [
+"T-7c60421d50db54-01"
+]
+},
+{
+"tag": "towel.owner_color_assignment",
+"count": 1,
+"examples": [
+"T-de886472534cbd-01"
+]
+},
+{
+"tag": "towel.count_per_person",
+"count": 1,
+"examples": [
+"T-de886472534cbd-01"
+]
+},
+{
+"tag": "light.night_light_exception",
+"count": 1,
+"examples": [
+"T-0fa0b2abbf2a41-01"
+]
+},
+{
+"tag": "inventory.product_location",
+"count": 1,
+"examples": [
+"T-015daadb0e71d6-01"
+]
+},
+{
+"tag": "label.write_contents_date",
+"count": 1,
+"examples": [
+"T-13c1daf6d3285f-01"
+]
+},
+{
+"tag": "label.no_rinse_sanitizer",
+"count": 1,
+"examples": [
+"T-20a612345aaaef-01"
+]
+},
+{
+"tag": "spill.spread_and_fumes",
+"count": 1,
+"examples": [
+"T-db74306e227f8d-01"
+]
+},
+{
+"tag": "report.product_location_size",
+"count": 1,
+"examples": [
+"T-db74306e227f8d-01"
+]
+},
+{
+"tag": "particulate.release_location",
+"count": 1,
+"examples": [
+"T-2e0fecc5912cac-01"
+]
+},
+{
+"tag": "textile.shrinkage_and_coating_damage",
+"count": 1,
+"examples": [
+"T-a31e3d6d0f0a3e-01"
+]
+},
+{
+"tag": "textile.shrinkage_vs_fit",
+"count": 1,
+"examples": [
+"T-aa2449b8193c6c-01"
+]
+},
+{
+"tag": "textile.heat_damage_poly",
+"count": 1,
+"examples": [
+"T-1fc3db0997d55b-01"
+]
+},
+{
+"tag": "label.missing_or_illegible",
+"count": 1,
+"examples": [
+"T-ed2086c601f3f0-01"
+]
+},
+{
+"tag": "cabinet.occlusion_search_move_and_restore",
+"count": 1,
+"examples": [
+"T-762fe45a3ad278-01"
+]
+},
+{
+"tag": "battery.charge_level_hidden_until_tested",
+"count": 1,
+"examples": [
+"T-12ee334f5937cb-01"
+]
+},
+{
+"tag": "battery.tester_reading",
+"count": 1,
+"examples": [
+"T-12ee334f5937cb-01"
+]
+},
+{
+"tag": "bulb.color_temperature",
+"count": 1,
+"examples": [
+"T-5964bf8c96c404-01"
+]
+},
+{
+"tag": "inventory.count_by_spec",
+"count": 1,
+"examples": [
+"T-5964bf8c96c404-01"
+]
+},
+{
+"tag": "pets.counter_surf_open_bag",
+"count": 1,
+"examples": [
+"T-568f5cd4b4fd53-01"
+]
+},
+{
+"tag": "inventory.count_by_size",
+"count": 1,
+"examples": [
+"T-c39183fe4e70ea-01"
+]
+},
+{
+"tag": "chemical.leak_spread",
+"count": 1,
+"examples": [
+"T-8df5cadaeb8a4a-01"
+]
+},
+{
+"tag": "glass.crack_detection",
+"count": 1,
+"examples": [
+"T-8df5cadaeb8a4a-01"
+]
+},
+{
+"tag": "inspection.rotate_to_view_all_faces",
+"count": 1,
+"examples": [
+"T-8df5cadaeb8a4a-01"
+]
+},
+{
+"tag": "privacy.zone_search_permission",
+"count": 1,
+"examples": [
+"T-2b63f64461585c-01"
+]
+},
+{
+"tag": "memory.observation_timestamp",
+"count": 1,
+"examples": [
+"T-5bf644913ca2bd-01"
+]
+},
+{
+"tag": "inventory.reconcile_recount",
+"count": 1,
+"examples": [
+"T-d8c1fe85f6f40c-01"
+]
+},
+{
+"tag": "item.label_contents_date",
+"count": 1,
+"examples": [
+"T-fe18323a9ae8b3-01"
+]
+},
+{
+"tag": "inventory.occlusion_stacked_drawers",
+"count": 1,
+"examples": [
+"T-fe18323a9ae8b3-01"
+]
+},
+{
+"tag": "food.unlabeled_item_identification",
+"count": 1,
+"examples": [
+"T-fe18323a9ae8b3-01"
+]
+},
+{
+"tag": "inventory.home_location_assignment",
+"count": 1,
+"examples": [
+"T-809b65e3c62634-01"
+]
+},
+{
+"tag": "ice.cube_count_volume_displacement",
+"count": 1,
+"examples": [
+"T-d8c16770dd7a2a-01"
+]
+},
+{
+"tag": "food.produce_parts_peel_core_pit_hull_seed",
+"count": 1,
+"examples": [
+"T-2b02cc0053d67d-01"
+]
+},
+{
+"tag": "food.owner_label_leftovers",
+"count": 1,
+"examples": [
+"T-b847a5f333f61a-01"
+]
+},
+{
+"tag": "dish.in_use_vs_finished_detection",
+"count": 1,
+"examples": [
+"T-d4aa504d11674f-01"
+]
+},
+{
+"tag": "context.spill_present",
+"count": 1,
+"examples": [
+"T-1951a2823cf6c3-01"
+]
+},
+{
+"tag": "food.allergen_label",
+"count": 1,
+"examples": [
+"T-cdd1dc8dff1dcc-01"
+]
+},
+{
+"tag": "band.resistance_color_code",
+"count": 1,
+"examples": [
+"T-ddfd5ee39c01e4-01"
+]
+},
+{
+"tag": "appliance.treadmill_running_hazard",
+"count": 1,
+"examples": [
+"T-97d73075957c44-01"
+]
+},
+{
+"tag": "object.owner_label",
+"count": 1,
+"examples": [
+"T-25bf4cfa4478b2-01"
+]
+},
+{
+"tag": "textile.dampness",
+"count": 1,
+"examples": [
+"T-88539c3e470d67-01"
+]
+},
+{
+"tag": "textile.dampness_mildew_timer",
+"count": 1,
+"examples": [
+"T-03ac25bf9118d2-01"
+]
+},
+{
+"tag": "cap.color_match",
+"count": 1,
+"examples": [
+"T-5109e1510279f1-01"
+]
+},
+{
+"tag": "storage.slot_order_color_sequence",
+"count": 1,
+"examples": [
+"T-7e224d116421e1-01"
+]
+},
+{
+"tag": "brush.ferrule_water_seep_if_wet_upright",
+"count": 1,
+"examples": [
+"T-0d869d2cfb03f2-01"
+]
+},
+{
+"tag": "lid.screw_thread_engagement",
+"count": 1,
+"examples": [
+"T-bc0dd20ff2f881-01"
+]
+},
+{
+"tag": "lid.container_color_match",
+"count": 1,
+"examples": [
+"T-bc0dd20ff2f881-01"
+]
+},
+{
+"tag": "glitter.spill_spread",
+"count": 1,
+"examples": [
+"T-ce1ad9ce1d7340-01"
+]
+},
+{
+"tag": "search.small_object_coverage",
+"count": 1,
+"examples": [
+"T-8a8a856a395c94-01"
+]
+},
+{
+"tag": "sort.by_type_color",
+"count": 1,
+"examples": [
+"T-8a8a856a395c94-01"
+]
+},
+{
+"tag": "count.recovered_vs_dropped",
+"count": 1,
+"examples": [
+"T-8a8a856a395c94-01"
+]
+},
+{
+"tag": "sort.scheme_by_set_color_type",
+"count": 1,
+"examples": [
+"T-01d72c7a95c44a-01"
+]
+},
+{
+"tag": "cards.deal_count",
+"count": 1,
+"examples": [
+"T-dca67be32730c6-01"
+]
+},
+{
+"tag": "people.player_count",
+"count": 1,
+"examples": [
+"T-dca67be32730c6-01"
+]
+},
+{
+"tag": "search.strays_under_table",
+"count": 1,
+"examples": [
+"T-a55ee2fda2cc17-01"
+]
+},
+{
+"tag": "sort.by_color",
+"count": 1,
+"examples": [
+"T-602595622a81fc-01"
+]
+},
+{
+"tag": "piece.count_conservation",
+"count": 1,
+"examples": [
+"T-602595622a81fc-01"
+]
+},
+{
+"tag": "soil.glitter_particulate_spread",
+"count": 1,
+"examples": [
+"T-522bb3661e2801-01"
+]
+},
+{
+"tag": "search.under_cushions",
+"count": 1,
+"examples": [
+"T-8a71f9b17fab16-01"
+]
+},
+{
+"tag": "household_rule.device_charging_location",
+"count": 1,
+"examples": [
+"T-40eca9cf7ca745-01"
+]
+},
+{
+"tag": "privacy.no_screen_read",
+"count": 1,
+"examples": [
+"T-40eca9cf7ca745-01"
+]
+},
+{
+"tag": "device.recognized_state",
+"count": 1,
+"examples": [
+"T-3689eb3de73ff3-01"
+]
+},
+{
+"tag": "cable.trace_endpoints_label",
+"count": 1,
+"examples": [
+"T-99d55553972c09-01"
+]
+},
+{
+"tag": "device.power_off_to_see_soil",
+"count": 1,
+"examples": [
+"T-9aa7c51e682d5a-01"
+]
+},
+{
+"tag": "sensor.thermal_or_touch_estimate",
+"count": 1,
+"examples": [
+"T-d13636819c8244-01"
+]
+},
+{
+"tag": "plug.discoloration_melting",
+"count": 1,
+"examples": [
+"T-d13636819c8244-01"
+]
+},
+{
+"tag": "report.content_device_location_severity_evidence",
+"count": 1,
+"examples": [
+"T-d13636819c8244-01"
+]
+},
+{
+"tag": "energy.consumption_accounting",
+"count": 1,
+"examples": [
+"T-a958f8c2e9c422-01"
+]
+},
+{
+"tag": "label.owner_room",
+"count": 1,
+"examples": [
+"T-3cd953e27116ae-01"
+]
+},
+{
+"tag": "pack.heavy_bottom_light_top",
+"count": 1,
+"examples": [
+"T-f9e83dad872f83-01"
+]
+},
+{
+"tag": "string_lights.tangle_state",
+"count": 1,
+"examples": [
+"T-1eed1fd58c82d3-01"
+]
+},
+{
+"tag": "cable.label_to_device",
+"count": 1,
+"examples": [
+"T-24a1d88e82791e-01"
+]
+},
+{
+"tag": "label.contents_truthful",
+"count": 1,
+"examples": [
+"T-15a27757448d74-01"
+]
+},
+{
+"tag": "label.visibility_sides_when_stacked",
+"count": 1,
+"examples": [
+"T-15a27757448d74-01"
+]
+},
+{
+"tag": "label.handling_marks_match_content",
+"count": 1,
+"examples": [
+"T-15a27757448d74-01"
+]
+},
+{
+"tag": "label.not_covered",
+"count": 1,
+"examples": [
+"T-638b4b24578ca1-01"
+]
+},
+{
+"tag": "box.mass_hidden_until_lift_test",
+"count": 1,
+"examples": [
+"T-f30b9f8e07cee6-01"
+]
+},
+{
+"tag": "carry.bulky_visibility",
+"count": 1,
+"examples": [
+"T-f30b9f8e07cee6-01"
+]
+},
+{
+"tag": "label.read_room_destination",
+"count": 1,
+"examples": [
+"T-5dbfd60c8492d7-01"
+]
+},
+{
+"tag": "pack.small_item_hidden_in_paper",
+"count": 1,
+"examples": [
+"T-ee3182f63b1a71-01"
+]
+},
+{
+"tag": "placement.home_location_assignment",
+"count": 1,
+"examples": [
+"T-15ed1797c9e005-01"
+]
+},
+{
+"tag": "label.fragile_visible",
+"count": 1,
+"examples": [
+"T-1398ee6fccdf72-01"
+]
+},
+{
+"tag": "light.beam_cone_pose",
+"count": 1,
+"examples": [
+"T-d80d4871224cc5-01"
+]
+},
+{
+"tag": "light.target_tracking",
+"count": 1,
+"examples": [
+"T-d80d4871224cc5-01"
+]
+},
+{
+"tag": "people.eye_glare_avoidance",
+"count": 1,
+"examples": [
+"T-d80d4871224cc5-01"
+]
+},
+{
+"tag": "occlusion.hand_shadow",
+"count": 1,
+"examples": [
+"T-d80d4871224cc5-01"
+]
+},
+{
+"tag": "measure.read_precision_fraction",
+"count": 1,
+"examples": [
+"T-9aaad85165c94e-01"
+]
+},
+{
+"tag": "stud_finder.detect_center",
+"count": 1,
+"examples": [
+"T-37e6cc512ef07c-01"
+]
+},
+{
+"tag": "count.quantity",
+"count": 1,
+"examples": [
+"T-c6fbcd6748245a-01"
+]
+},
+{
+"tag": "handover.orientation_ready_to_use",
+"count": 1,
+"examples": [
+"T-c6fbcd6748245a-01"
+]
+},
+{
+"tag": "people.timing_readiness",
+"count": 1,
+"examples": [
+"T-c6fbcd6748245a-01"
+]
+},
+{
+"tag": "tool.home_location_slot",
+"count": 1,
+"examples": [
+"T-34abf6653196c2-01"
+]
+},
+{
+"tag": "inspection.baseline_diff",
+"count": 1,
+"examples": [
+"T-a6f6fe9dbe1229-01"
+]
+},
+{
+"tag": "report.content_location_severity_photo_time",
+"count": 1,
+"examples": [
+"T-a6f6fe9dbe1229-01"
+]
+},
+{
+"tag": "people.honesty_no_concealment",
+"count": 1,
+"examples": [
+"T-a6f6fe9dbe1229-01"
+]
+},
+{
+"tag": "thread.tip_fray_stiffness",
+"count": 1,
+"examples": [
+"T-efcbd6f8bb6eaf-01"
+]
+},
+{
+"tag": "thread.knot_end",
+"count": 1,
+"examples": [
+"T-efcbd6f8bb6eaf-01"
+]
+},
+{
+"tag": "thread.tail_vs_structural_classification",
+"count": 1,
+"examples": [
+"T-9931b4b1239422-01"
+]
+},
+{
+"tag": "polish.color_match",
+"count": 1,
+"examples": [
+"T-deac4a96072a72-01"
+]
+},
+{
+"tag": "lace.length_by_eyelet_count",
+"count": 1,
+"examples": [
+"T-b4104882051f23-01"
+]
+},
+{
+"tag": "label.contents",
+"count": 1,
+"examples": [
+"T-5b0931f085a67d-01"
+]
+},
+{
+"tag": "list.save_location",
+"count": 1,
+"examples": [
+"T-f8941b440fa145-01"
+]
+},
+{
+"tag": "trip.count_rule_per_day",
+"count": 1,
+"examples": [
+"T-ef59d17a2cbd1e-01"
+]
+},
+{
+"tag": "trip.count_rule_rewearable",
+"count": 1,
+"examples": [
+"T-e22b06b39cd64c-01"
+]
+},
+{
+"tag": "cable.bundle_label",
+"count": 1,
+"examples": [
+"T-bc0b5a665d768d-01"
+]
+},
+{
+"tag": "inventory.item_location_in_bag",
+"count": 1,
+"examples": [
+"T-ba0ef01ce4d381-01"
+]
+},
+{
+"tag": "label.write_text(owner_contact)",
+"count": 1,
+"examples": [
+"T-48d6eee738f301-01"
+]
+},
+{
+"tag": "textile.storage_mode(hang/fold)",
+"count": 1,
+"examples": [
+"T-1d7eb50f094a6a-01"
+]
+},
+{
+"tag": "textile.wrinkle_accumulation",
+"count": 1,
+"examples": [
+"T-1d7eb50f094a6a-01"
+]
+},
+{
+"tag": "inventory.count_all_pieces",
+"count": 1,
+"examples": [
+"T-d624cd349b9d36-01"
+]
+},
+{
+"tag": "mail.junk_classifier(sender,postage_class,addressee,content_cues)",
+"count": 1,
+"examples": [
+"T-1a797201ba6222-01"
+]
+},
+{
+"tag": "mail.lookalike_traps",
+"count": 1,
+"examples": [
+"T-1a797201ba6222-01"
+]
+},
+{
+"tag": "mail.pii_detection",
+"count": 1,
+"examples": [
+"T-9829452124a5ee-01"
+]
+},
+{
+"tag": "mail.junk_label_from_prior_step",
+"count": 1,
+"examples": [
+"T-9829452124a5ee-01"
+]
+},
+{
+"tag": "people.authority(addressee/adult)",
+"count": 1,
+"examples": [
+"T-beed8fbe4a3c94-01"
+]
+},
+{
+"tag": "inventory.folder_lookup",
+"count": 1,
+"examples": [
+"T-f5e9480505196b-01"
+]
+},
+{
+"tag": "fastener.label_adhesion_alignment",
+"count": 1,
+"examples": [
+"T-720a6763881a93-01"
+]
+},
+{
+"tag": "documents.search(category,date,person)",
+"count": 1,
+"examples": [
+"T-174879124a1c17-01"
+]
+},
+{
+"tag": "mail.address_format(country)",
+"count": 1,
+"examples": [
+"T-43a5b1d41a694c-01"
+]
+},
+{
+"tag": "label.write_text",
+"count": 1,
+"examples": [
+"T-43a5b1d41a694c-01"
+]
+},
+{
+"tag": "mail.window_address_visibility",
+"count": 1,
+"examples": [
+"T-4b14463ca3f9db-01"
+]
+},
+{
+"tag": "mail.ready_to_send_check(sealed,addressed,postage)",
+"count": 1,
+"examples": [
+"T-f29ae26a967c5b-01"
+]
+},
+{
+"tag": "food.date_label_types(use_by,best_by,sell_by,packed_on)",
+"count": 1,
+"examples": [
+"T-3924dc5116739e-01"
+]
+},
+{
+"tag": "perception.occluded_items_back_shelf",
+"count": 1,
+"examples": [
+"T-3924dc5116739e-01"
+]
+},
+{
+"tag": "perception.front_visibility",
+"count": 1,
+"examples": [
+"T-fee8c8c26ea591-01"
+]
+},
+{
+"tag": "label.adhesion_on_cold_wet_surface",
+"count": 1,
+"examples": [
+"T-787858f56c49f2-01"
+]
+},
+{
+"tag": "food.visual_ambiguity_frozen",
+"count": 1,
+"examples": [
+"T-787858f56c49f2-01"
+]
+},
+{
+"tag": "label.date_format_unambiguous",
+"count": 1,
+"examples": [
+"T-e5196bf8f63f4b-01"
+]
+},
+{
+"tag": "waste.contaminant_detection(stickers,plastic_tea_bags)",
+"count": 1,
+"examples": [
+"T-751a9d02d1c88c-01"
+]
+},
+{
+"tag": "liquid.spill_spread_and_drip(shelf_to_lower)",
+"count": 1,
+"examples": [
+"T-1aaf825b15d2d3-01"
+]
+},
+{
+"tag": "perception.search_under_furniture",
+"count": 1,
+"examples": [
+"T-dad25010e2668e-01"
+]
+},
+{
+"tag": "memory.item_location_update",
+"count": 1,
+"examples": [
+"T-a90040271a62d1-01"
+]
+},
+{
+"tag": "people.passage_complete_detection",
+"count": 1,
+"examples": [
+"T-9782ff5dc66bdd-01"
+]
+},
+{
+"tag": "pets.location",
+"count": 1,
+"examples": [
+"T-dc56b8f123e306-01"
+]
+},
+{
+"tag": "perception.illuminance_at_location",
+"count": 1,
+"examples": [
+"T-d0053dbb80eba3-01"
+]
+},
+{
+"tag": "people.which_light_preference",
+"count": 1,
+"examples": [
+"T-d0053dbb80eba3-01"
+]
+},
+{
+"tag": "safety.darkness_fall_risk",
+"count": 1,
+"examples": [
+"T-c7fd81c3d3a1a5-01"
+]
+},
+{
+"tag": "climate.sun_glare_angle",
+"count": 1,
+"examples": [
+"T-3760ae5b0c2895-01"
+]
+},
+{
+"tag": "privacy.window_visibility",
+"count": 1,
+"examples": [
+"T-3760ae5b0c2895-01"
+]
+},
+{
+"tag": "privacy.no_screen_reading",
+"count": 1,
+"examples": [
+"T-79734e7497edea-01"
+]
+},
+{
+"tag": "inventory.item_location_memory",
+"count": 1,
+"examples": [
+"T-79734e7497edea-01"
+]
+},
+{
+"tag": "textile.cleanliness",
+"count": 1,
+"examples": [
+"T-53853743b1afef-01"
+]
+},
+{
+"tag": "perception.low_light_detection",
+"count": 1,
+"examples": [
+"T-c7c2ad800886b3-01"
+]
+},
+{
+"tag": "electrical.detector_state(alarm,low_battery)",
+"count": 1,
+"examples": [
+"T-71cc976f3be6fd-01"
+]
+},
+{
+"tag": "people.occupant_locations",
+"count": 1,
+"examples": [
+"T-e83f9c6b6622eb-01"
+]
+},
+{
+"tag": "electrical.detector_state",
+"count": 1,
+"examples": [
+"T-e83f9c6b6622eb-01"
+]
+},
+{
+"tag": "perception.small_transparent_fragment",
+"count": 1,
+"examples": [
+"T-9de1e1dcc3e16b-01"
+]
+},
+{
+"tag": "audio.water_flow_detection",
+"count": 1,
+"examples": [
+"T-c4d5c6f0af6a0e-01"
+]
+},
+{
+"tag": "liquid.floor_spread",
+"count": 1,
+"examples": [
+"T-4633efc75437f5-01"
+]
+},
+{
+"tag": "pets.headcount",
+"count": 1,
+"examples": [
+"T-5b89a11429fc7e-01"
+]
+},
+{
+"tag": "inventory.item_location(first_aid_kit)",
+"count": 1,
+"examples": [
+"T-a51fe8cf3f5715-01"
+]
+},
+{
+"tag": "textile.water_absorption(rain_exposure)",
+"count": 1,
+"examples": [
+"T-981df41c899b56-01"
+]
+},
+{
+"tag": "textile.care_label(dryer_ok)",
+"count": 1,
+"examples": [
+"T-18c059cadf44c9-01"
+]
+},
+{
+"tag": "cleaning.no_spread_with_saturated_tool",
+"count": 1,
+"examples": [
+"T-662ebe9f5a2812-01"
+]
+},
+{
+"tag": "textile.drying(hang)",
+"count": 1,
+"examples": [
+"T-419e02fe5c244d-01"
+]
+},
+{
+"tag": "textile.drying_rate(open_vs_closed)",
+"count": 1,
+"examples": [
+"T-a2637b96797442-01"
+]
+},
+{
+"tag": "plant.light_deprivation_if_left_shaded",
+"count": 1,
+"examples": [
+"T-18926c050be5f0-01"
+]
+},
+{
+"tag": "perception.visibility_from_ground",
+"count": 1,
+"examples": [
+"T-d9ec72b4438ac0-01"
+]
+},
+{
+"tag": "perception.line_of_sight_to_roof_faces",
+"count": 1,
+"examples": [
+"T-6bfcd0386f887c-01"
+]
+},
+{
+"tag": "nav.viewpoint_selection",
+"count": 1,
+"examples": [
+"T-6bfcd0386f887c-01"
+]
+},
+{
+"tag": "report.uncertainty_unseen_faces",
+"count": 1,
+"examples": [
+"T-6bfcd0386f887c-01"
+]
+},
+{
+"tag": "report.location_photo",
+"count": 1,
+"examples": [
+"T-18956e35b61b6b-01"
+]
+},
+{
+"tag": "textile.water_absorption",
+"count": 1,
+"examples": [
+"T-a38cb52522d8b4-01"
+]
+},
+{
+"tag": "people.player_count_and_sizes",
+"count": 1,
+"examples": [
+"T-10777121d311d2-01"
+]
+},
+{
+"tag": "measure.distance_on_lawn",
+"count": 1,
+"examples": [
+"T-68a7dc082fb906-01"
+]
+},
+{
+"tag": "inventory.set_completeness(count)",
+"count": 1,
+"examples": [
+"T-45c3866fc1e76e-01"
+]
+},
+{
+"tag": "outdoor.lawn_hidden_items(mower_hazard)",
+"count": 1,
+"examples": [
+"T-45c3866fc1e76e-01"
+]
+},
+{
+"tag": "safety.pool_supervision_rule",
+"count": 1,
+"examples": [
+"T-ea9b3a9d6682c0-01"
+]
+},
+{
+"tag": "cloth.blanket_spread_flat",
+"count": 1,
+"examples": [
+"T-7a4e95d162fa22-01"
+]
+},
+{
+"tag": "textile.item_outdoor_permitted",
+"count": 1,
+"examples": [
+"T-161e04f74e36e0-01"
+]
+},
+{
+"tag": "textile.ground_moisture_soil",
+"count": 1,
+"examples": [
+"T-161e04f74e36e0-01"
+]
+},
+{
+"tag": "textile.soil_state",
+"count": 1,
+"examples": [
+"T-72dddd3bf5d4d9-01"
+]
+},
+{
+"tag": "cleaning.residue_inspection",
+"count": 1,
+"examples": [
+"T-c67d80f52b627c-01"
+]
+},
+{
+"tag": "place.secure_light_items",
+"count": 1,
+"examples": [
+"T-4fe1a97229e905-01"
+]
+},
+{
+"tag": "outdoor.small_litter_detection",
+"count": 1,
+"examples": [
+"T-d4dc417919c201-01"
+]
+},
+{
+"tag": "food.storage_zone_by_label",
+"count": 1,
+"examples": [
+"T-42b234aa5f93fc-01"
+]
+},
+{
+"tag": "plant.seed_depth_rule",
+"count": 1,
+"examples": [
+"T-85d1e2032da515-01"
+]
+},
+{
+"tag": "plant.light_germination_flag",
+"count": 1,
+"examples": [
+"T-85d1e2032da515-01"
+]
+},
+{
+"tag": "label.weatherproof",
+"count": 1,
+"examples": [
+"T-57e264bf14bd6d-01"
+]
+},
+{
+"tag": "liquid.flow_impact_on_seedlings",
+"count": 1,
+"examples": [
+"T-8186d910d3fb24-01"
+]
+},
+{
+"tag": "plant.readiness(true_leaves,hardened)",
+"count": 1,
+"examples": [
+"T-0384502878e3b2-01"
+]
+},
+{
+"tag": "plant.seed_emergence_blocked",
+"count": 1,
+"examples": [
+"T-c4e3e06cb8c2e6-01"
+]
+},
+{
+"tag": "manip.spread_granular",
+"count": 1,
+"examples": [
+"T-c4e3e06cb8c2e6-01"
+]
+},
+{
+"tag": "plant.species_identification(weed_vs_crop)",
+"count": 1,
+"examples": [
+"T-5a09edfd909ba6-01"
+]
+},
+{
+"tag": "waste.compost_suitability(seeds)",
+"count": 1,
+"examples": [
+"T-5a09edfd909ba6-01"
+]
+},
+{
+"tag": "people.preference_leave_seedheads",
+"count": 1,
+"examples": [
+"T-45f8bb28a5af0d-01"
+]
+},
+{
+"tag": "waste.compost_suitability(disease,seeds,invasive)",
+"count": 1,
+"examples": [
+"T-55b9ed1bc8c3d1-01"
+]
+},
+{
+"tag": "plant.disease_spread",
+"count": 1,
+"examples": [
+"T-55b9ed1bc8c3d1-01"
+]
+},
+{
+"tag": "inventory.key_location",
+"count": 1,
+"examples": [
+"T-091fd2a9da6a0a-01"
+]
+},
+{
+"tag": "tool.identification",
+"count": 1,
+"examples": [
+"T-ffdb3b44cb2c65-01"
+]
+},
+{
+"tag": "inventory.tool_location",
+"count": 1,
+"examples": [
+"T-ffdb3b44cb2c65-01"
+]
+},
+{
+"tag": "inventory.box_label_lookup",
+"count": 1,
+"examples": [
+"T-e338293f1d2e00-01"
+]
+},
+{
+"tag": "textile.mildew_damage_check",
+"count": 1,
+"examples": [
+"T-1d2078081d3917-01"
+]
+},
+{
+"tag": "shelf.zone_labels",
+"count": 1,
+"examples": [
+"T-051a2f399af4c7-01"
+]
+},
+{
+"tag": "inventory.count",
+"count": 1,
+"examples": [
+"T-1792807450ce11-01"
+]
+},
+{
+"tag": "seed.packet_date_expiry",
+"count": 1,
+"examples": [
+"T-1792807450ce11-01"
+]
+},
+{
+"tag": "vehicle.parked_occlusion",
+"count": 1,
+"examples": [
+"T-e4efd8e34a15a3-01"
+]
+},
+{
+"tag": "spill.type_identification",
+"count": 1,
+"examples": [
+"T-a0001a70307e99-01"
+]
+},
+{
+"tag": "spreader.calibration",
+"count": 1,
+"examples": [
+"T-a3cf8ce16581f6-01"
+]
+},
+{
+"tag": "hazard.detection_catalog",
+"count": 1,
+"examples": [
+"T-83b077d9525266-01"
+]
+},
+{
+"tag": "perception.lighting_dependency",
+"count": 1,
+"examples": [
+"T-83b077d9525266-01"
+]
+},
+{
+"tag": "perception.walk_coverage",
+"count": 1,
+"examples": [
+"T-413229f46d8aca-01"
+]
+},
+{
+"tag": "plant.toxic_identification",
+"count": 1,
+"examples": [
+"T-9e08d6a87a0783-01"
+]
+},
+{
+"tag": "pest.nest_detection",
+"count": 1,
+"examples": [
+"T-46d4fc5759a825-01"
+]
+},
+{
+"tag": "tumbler.rotation_count",
+"count": 1,
+"examples": [
+"T-9c96b61b02d268-01"
+]
+},
+{
+"tag": "seedling.burial_damage",
+"count": 1,
+"examples": [
+"T-f7fbca55b4c4ef-01"
+]
+},
+{
+"tag": "spread.coverage_uniformity",
+"count": 1,
+"examples": [
+"T-f7fbca55b4c4ef-01"
+]
+},
+{
+"tag": "tv.button_location",
+"count": 1,
+"examples": [
+"T-6279fac7c7d19c-01"
+]
+},
+{
+"tag": "tv.input_label_mapping",
+"count": 1,
+"examples": [
+"T-b3c737f675cad8-01"
+]
+},
+{
+"tag": "snapshot.restore_after_search",
+"count": 1,
+"examples": [
+"T-ca67352febe635-01"
+]
+},
+{
+"tag": "layout.viewing_angle_distance",
+"count": 1,
+"examples": [
+"T-51e37819a7f90d-01"
+]
+},
+{
+"tag": "people.count_and_needs",
+"count": 1,
+"examples": [
+"T-51e37819a7f90d-01"
+]
+},
+{
+"tag": "sun.glare_on_screen",
+"count": 1,
+"examples": [
+"T-55ab8d08a9ca61-01"
+]
+},
+{
+"tag": "light.non_dimmable_flicker",
+"count": 1,
+"examples": [
+"T-da28754e8854bc-01"
+]
+},
+{
+"tag": "book.identify_title_spine",
+"count": 1,
+"examples": [
+"T-1e7fbd46420b03-01"
+]
+},
+{
+"tag": "textile.owner_purpose",
+"count": 1,
+"examples": [
+"T-a3ac1798006848-01"
+]
+},
+{
+"tag": "light.illuminance_at_point",
+"count": 1,
+"examples": [
+"T-e512d7d86c0337-01"
+]
+},
+{
+"tag": "sun.glare",
+"count": 1,
+"examples": [
+"T-79d47cc7bfe9eb-01"
+]
+},
+{
+"tag": "layout.reach_distance",
+"count": 1,
+"examples": [
+"T-5cad6f6f541a45-01"
+]
+},
+{
+"tag": "textile.crumbs_pet_hair",
+"count": 1,
+"examples": [
+"T-70ff81accc646a-01"
+]
+},
+{
+"tag": "sink.hidden_sharp_hazard",
+"count": 1,
+"examples": [
+"T-86425741de4be1-01"
+]
+},
+{
+"tag": "food.label_date",
+"count": 1,
+"examples": [
+"T-b21a47280b1741-01"
+]
+},
+{
+"tag": "food.raw_above_ready_to_eat",
+"count": 1,
+"examples": [
+"T-0306017d55718b-01"
+]
+},
+{
+"tag": "spill.liquid_spread",
+"count": 1,
+"examples": [
+"T-13b88dd0daff68-01"
+]
+},
+{
+"tag": "soil.counter_floor",
+"count": 1,
+"examples": [
+"T-dfb57ff1bf55a5-01"
+]
+},
+{
+"tag": "vent.part_to_location_map",
+"count": 1,
+"examples": [
+"T-767480ac58db8e-01"
+]
+},
+{
+"tag": "perimeter.coverage_occluded",
+"count": 1,
+"examples": [
+"T-2946b7b1b92b96-01"
+]
+},
+{
+"tag": "window.screen_location_map",
+"count": 1,
+"examples": [
+"T-e4c0bd268b64e3-01"
+]
+},
+{
+"tag": "textile.shrink_felting",
+"count": 1,
+"examples": [
+"T-c1cb66635fa87b-01"
+]
+},
+{
+"tag": "textile.shrink_coating_crack",
+"count": 1,
+"examples": [
+"T-7f3e82be79f397-01"
+]
+},
+{
+"tag": "waste_water.disposal_location",
+"count": 1,
+"examples": [
+"T-c82c93178068da-01"
+]
+},
+{
+"tag": "textile.microfiber_no_softener",
+"count": 1,
+"examples": [
+"T-330a744dba1452-01"
+]
+},
+{
+"tag": "textile.wet_mildew",
+"count": 1,
+"examples": [
+"T-cc99124ac17ed6-01"
+]
+},
+{
+"tag": "soil.visible_debris_traffic",
+"count": 1,
+"examples": [
+"T-9d29a7a3beb8bf-01"
+]
+},
+{
+"tag": "food.counter_ok_items",
+"count": 1,
+"examples": [
+"T-4bcbc8da32bd5b-01"
+]
+},
+{
+"tag": "soil.counter",
+"count": 1,
+"examples": [
+"T-4bcbc8da32bd5b-01"
+]
+},
+{
+"tag": "light.purpose_flag",
+"count": 1,
+"examples": [
+"T-bdb40808a8372c-01"
+]
+},
+{
+"tag": "path.night_safety_light",
+"count": 1,
+"examples": [
+"T-bdb40808a8372c-01"
+]
+},
+{
+"tag": "textile.color_class_dye_transfer",
+"count": 1,
+"examples": [
+"T-affd7ef6d042cb-01"
+]
+},
+{
+"tag": "textile.dryness_mildew",
+"count": 1,
+"examples": [
+"T-affd7ef6d042cb-01"
+]
+},
+{
+"tag": "garment.care_label_rules",
+"count": 1,
+"examples": [
+"T-62e5b719ca0f22-01"
+]
+},
+{
+"tag": "laundry.sort_color_fabric",
+"count": 1,
+"examples": [
+"T-62e5b719ca0f22-01"
+]
+},
+{
+"tag": "item.owner_label",
+"count": 1,
+"examples": [
+"T-77e2aaa929efff-01"
+]
+},
+{
+"tag": "inventory.par_levels_per_location",
+"count": 1,
+"examples": [
+"T-9bd3015af0a5f6-01"
+]
+},
+{
+"tag": "mirror.edge_desilvering_from_liquid_seep",
+"count": 1,
+"examples": [
+"T-406e95007bb14c-01"
+]
+},
+{
+"tag": "reach.top_of_tall_mirror",
+"count": 1,
+"examples": [
+"T-406e95007bb14c-01"
+]
+},
+{
+"tag": "doormat.shake_out_location",
+"count": 1,
+"examples": [
+"T-06367acd97af6d-01"
+]
+},
+{
+"tag": "ownership.labeled_leftovers",
+"count": 1,
+"examples": [
+"T-ac5ed1556ccb4c-01"
+]
+},
+{
+"tag": "oven.racks_discolor_in_self_clean",
+"count": 1,
+"examples": [
+"T-cedf687c8dddb5-01"
+]
+},
+{
+"tag": "dryer.vent_kink_disconnect_detection",
+"count": 1,
+"examples": [
+"T-ff94325f73a589-01"
+]
+},
+{
+"tag": "fan.state_restore_speed_light",
+"count": 1,
+"examples": [
+"T-e5e4b235b6c504-01"
+]
+},
+{
+"tag": "curtain.ring_detach_reattach_count",
+"count": 1,
+"examples": [
+"T-d5a78cee616ef3-01"
+]
+},
+{
+"tag": "care_label.material_rules",
+"count": 1,
+"examples": [
+"T-d5a78cee616ef3-01"
+]
+},
+{
+"tag": "bleach.color_damage",
+"count": 1,
+"examples": [
+"T-d5a78cee616ef3-01"
+]
+},
+{
+"tag": "thread.ptfe_tape_reapply",
+"count": 1,
+"examples": [
+"T-f9c9d789af2624-01"
+]
+},
+{
+"tag": "filter.load_fraction_visual",
+"count": 1,
+"examples": [
+"T-8adcc7a83550d2-01"
+]
+},
+{
+"tag": "filter.install_date_label",
+"count": 1,
+"examples": [
+"T-8adcc7a83550d2-01"
+]
+},
+{
+"tag": "fridge.filter_indicator_light",
+"count": 1,
+"examples": [
+"T-8adcc7a83550d2-01"
+]
+},
+{
+"tag": "pantry.category_zones_labels",
+"count": 1,
+"examples": [
+"T-1c12daf20b0d93-01"
+]
+},
+{
+"tag": "inventory.count_conservation",
+"count": 1,
+"examples": [
+"T-1c12daf20b0d93-01"
+]
+},
+{
+"tag": "fuel.approved_can_ignition_distance",
+"count": 1,
+"examples": [
+"T-ae475df264cd5f-01"
+]
+},
+{
+"tag": "pests.rodent_wasp_detection_report",
+"count": 1,
+"examples": [
+"T-ae475df264cd5f-01"
+]
+},
+{
+"tag": "label.date_reading_formats_locale",
+"count": 1,
+"examples": [
+"T-1117aa08dafb3c-01"
+]
+},
+{
+"tag": "ownership.labeled_items",
+"count": 1,
+"examples": [
+"T-1117aa08dafb3c-01"
+]
+},
+{
+"tag": "flashlight.function_test",
+"count": 1,
+"examples": [
+"T-cc4e7d87d0e75b-01"
+]
+},
+{
+"tag": "kit.location_map",
+"count": 1,
+"examples": [
+"T-cc4e7d87d0e75b-01"
+]
+},
+{
+"tag": "storage.bin_labeling",
+"count": 1,
+"examples": [
+"T-ab1e52fe8e7304-01"
+]
+},
+{
+"tag": "textile.clean_before_store",
+"count": 1,
+"examples": [
+"T-ab1e52fe8e7304-01"
+]
+},
+{
+"tag": "textile.damp_store_mildew",
+"count": 1,
+"examples": [
+"T-ab1e52fe8e7304-01"
+]
+},
+{
+"tag": "perception.occlusion_visibility",
+"count": 1,
+"examples": [
+"P-f95682b2c56050-01"
+]
+},
+{
+"tag": "search.container_open_to_observe",
+"count": 1,
+"examples": [
+"P-f95682b2c56050-01"
+]
+},
+{
+"tag": "memory.last_seen_location_prior",
+"count": 1,
+"examples": [
+"P-f95682b2c56050-01"
+]
+},
+{
+"tag": "search.restore_disturbed_containers",
+"count": 1,
+"examples": [
+"P-f95682b2c56050-01"
+]
+},
+{
+"tag": "search.viewpoint_coverage_map",
+"count": 1,
+"examples": [
+"P-460bb5bb07329c-01"
+]
+},
+{
+"tag": "search.container_interior_observation",
+"count": 1,
+"examples": [
+"P-460bb5bb07329c-01"
+]
+},
+{
+"tag": "search.dynamic_target_relocation",
+"count": 1,
+"examples": [
+"P-460bb5bb07329c-01"
+]
+},
+{
+"tag": "search.absence_claim_requires_full_coverage",
+"count": 1,
+"examples": [
+"P-460bb5bb07329c-01"
+]
+},
+{
+"tag": "search.path_efficiency",
+"count": 1,
+"examples": [
+"P-460bb5bb07329c-01"
+]
+},
+{
+"tag": "report.location_reference_frame_room_landmark",
+"count": 1,
+"examples": [
+"P-038b5f6b6e6b5d-01"
+]
+},
+{
+"tag": "person.location_tracking_privacy",
+"count": 1,
+"examples": [
+"P-038b5f6b6e6b5d-01"
+]
+},
+{
+"tag": "verification.observed_vs_assumed",
+"count": 1,
+"examples": [
+"P-038b5f6b6e6b5d-01"
+]
+},
+{
+"tag": "object.attribute_label_reading",
+"count": 1,
+"examples": [
+"P-ca33f215369434-01"
+]
+},
+{
+"tag": "object.lookalike_distractors",
+"count": 1,
+"examples": [
+"P-ca33f215369434-01"
+]
+},
+{
+"tag": "hazard.ghs_label_pictograms",
+"count": 1,
+"examples": [
+"P-ca33f215369434-01"
+]
+},
+{
+"tag": "identify.confidence_and_abstain",
+"count": 1,
+"examples": [
+"P-ca33f215369434-01"
+]
+},
+{
+"tag": "people.role_authority_lookup",
+"count": 1,
+"examples": [
+"P-d19af9a09d10c5-01"
+]
+},
+{
+"tag": "recognition.appearance_change",
+"count": 1,
+"examples": [
+"P-d19af9a09d10c5-01"
+]
+},
+{
+"tag": "recognition.uncertainty_requires_verification",
+"count": 1,
+"examples": [
+"P-d19af9a09d10c5-01"
+]
+},
+{
+"tag": "inspection.viewpoint_dependent_defects",
+"count": 1,
+"examples": [
+"P-dafc2923e7bb54-01"
+]
+},
+{
+"tag": "inspection.manipulate_to_reveal",
+"count": 1,
+"examples": [
+"P-dafc2923e7bb54-01"
+]
+},
+{
+"tag": "report.defect_location_severity",
+"count": 1,
+"examples": [
+"P-dafc2923e7bb54-01"
+]
+},
+{
+"tag": "inspection.remove_from_service_tag",
+"count": 1,
+"examples": [
+"P-dafc2923e7bb54-01"
+]
+},
+{
+"tag": "compare.attribute_extraction",
+"count": 1,
+"examples": [
+"P-e069c179612c5a-01"
+]
+},
+{
+"tag": "compare.unit_normalization_oz_ml_unit_price",
+"count": 1,
+"examples": [
+"P-e069c179612c5a-01"
+]
+},
+{
+"tag": "compare.tie_handling",
+"count": 1,
+"examples": [
+"P-e069c179612c5a-01"
+]
+},
+{
+"tag": "compare.perceptual_noise_threshold",
+"count": 1,
+"examples": [
+"P-e069c179612c5a-01"
+]
+},
+{
+"tag": "count.occlusion_stacked_nested",
+"count": 1,
+"examples": [
+"P-c1af4800698875-01"
+]
+},
+{
+"tag": "count.double_count_avoidance",
+"count": 1,
+"examples": [
+"P-c1af4800698875-01"
+]
+},
+{
+"tag": "count.units_vs_packages",
+"count": 1,
+"examples": [
+"P-c1af4800698875-01"
+]
+},
+{
+"tag": "count.category_filter",
+"count": 1,
+"examples": [
+"P-c1af4800698875-01"
+]
+},
+{
+"tag": "measure.read_precision_parallax",
+"count": 1,
+"examples": [
+"P-cfe7e482c43cdd-01"
+]
+},
+{
+"tag": "text.ocr_conditions_glare_handwriting_small_font",
+"count": 1,
+"examples": [
+"P-fd41eaef588496-01"
+]
+},
+{
+"tag": "text.date_format_locale",
+"count": 1,
+"examples": [
+"P-fd41eaef588496-01"
+]
+},
+{
+"tag": "text.unit_quantity_parsing_tsp_tbsp",
+"count": 1,
+"examples": [
+"P-fd41eaef588496-01"
+]
+},
+{
+"tag": "read_aloud.to_requester",
+"count": 1,
+"examples": [
+"P-fd41eaef588496-01"
+]
+},
+{
+"tag": "categorize.important_document_detection",
+"count": 1,
+"examples": [
+"P-9081218e9950fb-01"
+]
+},
+{
+"tag": "approach.proxemics_distance_speed",
+"count": 1,
+"examples": [
+"P-95e3dfec1c3af0-01"
+]
+},
+{
+"tag": "approach.field_of_view_front",
+"count": 1,
+"examples": [
+"P-95e3dfec1c3af0-01"
+]
+},
+{
+"tag": "carry.view_occlusion_by_load",
+"count": 1,
+"examples": [
+"P-044aecfaaef44a-01"
+]
+},
+{
+"tag": "dial.detent_positions_labels",
+"count": 1,
+"examples": [
+"P-4aebe78f258f1a-01"
+]
+},
+{
+"tag": "mattress.no_flip_label",
+"count": 1,
+"examples": [
+"P-9b3045216d361f-01"
+]
+},
+{
+"tag": "shake.debris_release_location_outdoors",
+"count": 1,
+"examples": [
+"P-d840c4f3d0ec33-01"
+]
+},
+{
+"tag": "spread.coverage_fraction",
+"count": 1,
+"examples": [
+"P-7bf432ff1ba300-01"
+]
+},
+{
+"tag": "spread.thickness_uniformity",
+"count": 1,
+"examples": [
+"P-7bf432ff1ba300-01"
+]
+},
+{
+"tag": "spread.substrate_tear",
+"count": 1,
+"examples": [
+"P-7bf432ff1ba300-01"
+]
+},
+{
+"tag": "scrub.splash_spread",
+"count": 1,
+"examples": [
+"P-cf40cddf633c57-01"
+]
+},
+{
+"tag": "cloth.corner_finding_grasp",
+"count": 1,
+"examples": [
+"P-cc2b11c4b2613d-01"
+]
+},
+{
+"tag": "cloth.orientation_right_side_label",
+"count": 1,
+"examples": [
+"P-cc2b11c4b2613d-01"
+]
+},
+{
+"tag": "insert.full_seating_detect",
+"count": 1,
+"examples": [
+"P-e48c8322ef9c9b-01"
+]
+},
+{
+"tag": "button.thread_tension_pull_off",
+"count": 1,
+"examples": [
+"P-dc6eb4f67207f1-01"
+]
+},
+{
+"tag": "close.latch_engagement_detect",
+"count": 1,
+"examples": [
+"P-04c295a5923b65-01"
+]
+},
+{
+"tag": "lock.person_location_awareness",
+"count": 1,
+"examples": [
+"P-ab474a23ea0e8b-01"
+]
+},
+{
+"tag": "thread.engagement_cross_thread_detect",
+"count": 1,
+"examples": [
+"P-e4be079d1d4f8f-01"
+]
+},
+{
+"tag": "fill.overflow_detection",
+"count": 1,
+"examples": [
+"P-3067d6b787f751-01"
+]
+},
+{
+"tag": "putaway.item_home_location",
+"count": 1,
+"examples": [
+"P-24b524b541acaf-01"
+]
+},
+{
+"tag": "unpack.item_home_location_map",
+"count": 1,
+"examples": [
+"P-564736d67300f4-01"
+]
+},
+{
+"tag": "store.home_location_map",
+"count": 1,
+"examples": [
+"P-ee7f7b0e68a1ca-01"
+]
+},
+{
+"tag": "store.labeling_dating",
+"count": 1,
+"examples": [
+"P-ee7f7b0e68a1ca-01"
+]
+},
+{
+"tag": "retrieve.item_location_lookup",
+"count": 1,
+"examples": [
+"P-6b472d6c092a53-01"
+]
+},
+{
+"tag": "handover.grip_detection_release",
+"count": 1,
+"examples": [
+"P-9a6cbd2e53a11f-01"
+]
+},
+{
+"tag": "support.fall_detection_controlled_lowering",
+"count": 1,
+"examples": [
+"P-ed9f409bbfaa51-01"
+]
+},
+{
+"tag": "level.bubble_or_digital_reading",
+"count": 1,
+"examples": [
+"P-2cea9d31f52189-01"
+]
+},
+{
+"tag": "soil.relocation_conservation_check",
+"count": 1,
+"examples": [
+"P-680931763faaa7-01"
+]
+},
+{
+"tag": "organize.findability_retrieval_test",
+"count": 1,
+"examples": [
+"P-c2720fc3c39c26-01"
+]
+},
+{
+"tag": "label.content_accuracy",
+"count": 1,
+"examples": [
+"P-5a14e2c4d332e3-01"
+]
+},
+{
+"tag": "label.date_format",
+"count": 1,
+"examples": [
+"P-5a14e2c4d332e3-01"
+]
+},
+{
+"tag": "label.legibility_placement",
+"count": 1,
+"examples": [
+"P-5a14e2c4d332e3-01"
+]
+},
+{
+"tag": "label.adhesion_surface_cold_wet",
+"count": 1,
+"examples": [
+"P-5a14e2c4d332e3-01"
+]
+},
+{
+"tag": "label.hazard_decant_requirement",
+"count": 1,
+"examples": [
+"P-5a14e2c4d332e3-01"
+]
+},
+{
+"tag": "inventory.record_schema_qty_location_condition_expiry",
+"count": 1,
+"examples": [
+"P-bc2c796aa650ef-01"
+]
+},
+{
+"tag": "inventory.occluded_items",
+"count": 1,
+"examples": [
+"P-bc2c796aa650ef-01"
+]
+},
+{
+"tag": "inventory.duplicates_detection",
+"count": 1,
+"examples": [
+"P-bc2c796aa650ef-01"
+]
+},
+{
+"tag": "monitor.sampling_interval_vs_event_rate",
+"count": 1,
+"examples": [
+"P-b3efacfffb18eb-01"
+]
+},
+{
+"tag": "monitor.threshold_triggers",
+"count": 1,
+"examples": [
+"P-b3efacfffb18eb-01"
+]
+},
+{
+"tag": "monitor.attention_split_with_other_tasks",
+"count": 1,
+"examples": [
+"P-b3efacfffb18eb-01"
+]
+},
+{
+"tag": "monitor.escalation_policy",
+"count": 1,
+"examples": [
+"P-b3efacfffb18eb-01"
+]
+},
+{
+"tag": "detect.cue_modalities_audio_odor_visual",
+"count": 1,
+"examples": [
+"P-394fee474f63d7-01"
+]
+},
+{
+"tag": "detect.benign_lookalikes",
+"count": 1,
+"examples": [
+"P-394fee474f63d7-01"
+]
+},
+{
+"tag": "detect.latency",
+"count": 1,
+"examples": [
+"P-394fee474f63d7-01"
+]
+},
+{
+"tag": "detect.response_level_mapping",
+"count": 1,
+"examples": [
+"P-394fee474f63d7-01"
+]
+},
+{
+"tag": "question.count_penalty",
+"count": 1,
+"examples": [
+"P-ae7a91b872759f-01"
+]
+},
+{
+"tag": "semantic.room_labeling_by_contents",
+"count": 1,
+"examples": [
+"V-915c5ad7fd711d-01"
+]
+},
+{
+"tag": "manual.error_code_lookup",
+"count": 1,
+"examples": [
+"V-f4ed848c13ab4d-01"
+]
+},
+{
+"tag": "light.state_observation_lux",
+"count": 1,
+"examples": [
+"V-18776998cc648f-01"
+]
+},
+{
+"tag": "switch.adjacent_non_light_loads",
+"count": 1,
+"examples": [
+"V-18776998cc648f-01"
+]
+},
+{
+"tag": "floor.identification_wood_vs_laminate",
+"count": 1,
+"examples": [
+"V-ae50834e3d7909-01"
+]
+},
+{
+"tag": "perception.small_object_detection",
+"count": 1,
+"examples": [
+"V-9e29796117aaa5-01"
+]
+},
+{
+"tag": "mass.hidden_from_appearance",
+"count": 1,
+"examples": [
+"V-359d7f68a40517-01"
+]
+},
+{
+"tag": "manip.occluder_removal_and_restore",
+"count": 1,
+"examples": [
+"V-0d7a192faed95e-01"
+]
+},
+{
+"tag": "light.lux_field_per_room",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "perception.noise_vs_lux",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "robot.onboard_light_low_glare",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "people.sleeping_light_sensitivity",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "outage.no_power_lights",
+"count": 1,
+"examples": [
+"V-d6f8f56e8199d4-01"
+]
+},
+{
+"tag": "time.daylight_outdoor_tasks",
+"count": 1,
+"examples": [
+"V-6946f9dcdca28e-01"
+]
+},
+{
+"tag": "people.ability_profile.gait_hearing_vision_balance",
+"count": 1,
+"examples": [
+"V-a46ebcb1628114-01"
+]
+},
+{
+"tag": "pets.reach_envelope.jump_and_counter_surf",
+"count": 1,
+"examples": [
+"V-91c91d61347749-01"
+]
+},
+{
+"tag": "memory.item_location_belief_staleness",
+"count": 1,
+"examples": [
+"V-343bb4d3003a9a-01"
+]
+},
+{
+"tag": "perturb.object_relocation_event",
+"count": 1,
+"examples": [
+"V-343bb4d3003a9a-01"
+]
+},
+{
+"tag": "search.occluded_containers",
+"count": 1,
+"examples": [
+"V-343bb4d3003a9a-01"
+]
+},
+{
+"tag": "map.change_detection",
+"count": 1,
+"examples": [
+"V-cb111f76a0f31d-01"
+]
+},
+{
+"tag": "perception.damage_detection",
+"count": 1,
+"examples": [
+"V-0e4f47b421205e-01"
+]
+},
+{
+"tag": "liquid.spill_volume_and_spread",
+"count": 1,
+"examples": [
+"V-0ada7db4baa89c-01"
+]
+},
+{
+"tag": "storage.owner_secure_location",
+"count": 1,
+"examples": [
+"V-ff73e81b72f90e-01"
+]
+},
+{
+"tag": "sink.hidden_blade_in_soapy_water",
+"count": 1,
+"examples": [
+"V-bd52dcd680ac87-01"
+]
+},
+{
+"tag": "counter.edge_overhang_rule",
+"count": 1,
+"examples": [
+"V-bd52dcd680ac87-01"
+]
+},
+{
+"tag": "perception.motion_prediction",
+"count": 1,
+"examples": [
+"V-79f441f1f2192d-01"
+]
+},
+{
+"tag": "navigation.emergency_stop_distance",
+"count": 1,
+"examples": [
+"V-4b7f259d47235d-01"
+]
+},
+{
+"tag": "pets.counter_jump",
+"count": 1,
+"examples": [
+"V-4b7f259d47235d-01"
+]
+},
+{
+"tag": "navigation.stopping_distance_vs_speed",
+"count": 1,
+"examples": [
+"V-7caf27cf2ece8f-01"
+]
+},
+{
+"tag": "user_sim.hidden_scope",
+"count": 1,
+"examples": [
+"V-e8b15ba3cb3ad2-01"
+]
+},
+{
+"tag": "memory.observed_placement_history",
+"count": 1,
+"examples": [
+"V-9ca9386e1503be-01"
+]
+},
+{
+"tag": "object.fragility_hidden_label",
+"count": 1,
+"examples": [
+"V-52656c5e286779-01"
+]
+},
+{
+"tag": "perception.material_inference",
+"count": 1,
+"examples": [
+"V-52656c5e286779-01"
+]
+},
+{
+"tag": "ownership.inference_from_size_name_location",
+"count": 1,
+"examples": [
+"V-1c35cbc5e2486e-01"
+]
+},
+{
+"tag": "privacy.sensor_capture_policy",
+"count": 1,
+"examples": [
+"V-1dbdf8f5835846-01"
+]
+},
+{
+"tag": "privacy.document_read_policy",
+"count": 1,
+"examples": [
+"V-1dbdf8f5835846-01"
+]
+},
+{
+"tag": "task.failure_counter",
+"count": 1,
+"examples": [
+"V-aec8589b23097d-01"
+]
+},
+{
+"tag": "comms.handoff_with_context",
+"count": 1,
+"examples": [
+"V-aec8589b23097d-01"
+]
+},
+{
+"tag": "map.panel_location_memory",
+"count": 1,
+"examples": [
+"X-8ac1b4fc82de94-01"
+]
+},
+{
+"tag": "lighting.path_illumination",
+"count": 1,
+"examples": [
+"X-d70c0fc64a8a63-01"
+]
+},
+{
+"tag": "component.seated_state_detection",
+"count": 1,
+"examples": [
+"X-c9545280809568-01"
+]
+},
+{
+"tag": "perception.occluded_view",
+"count": 1,
+"examples": [
+"X-22e8b408c30eae-01"
+]
+},
+{
+"tag": "tool.blade_end_effector_min_distance",
+"count": 1,
+"examples": [
+"X-d2063e3e1f2de9-01"
+]
+},
+{
+"tag": "ocr.read_label_aloud",
+"count": 1,
+"examples": [
+"X-d1985582ac3e3a-01"
+]
+},
+{
+"tag": "electrical.visual_alert_lights",
+"count": 1,
+"examples": [
+"X-d1985582ac3e3a-01"
+]
+},
+{
+"tag": "detect.fall_unresponsive_person",
+"count": 1,
+"examples": [
+"X-9cf7a6b23ab6e0-01"
+]
+},
+{
+"tag": "detect.audio_events_choking_glass_break_help",
+"count": 1,
+"examples": [
+"X-9cf7a6b23ab6e0-01"
+]
+},
+{
+"tag": "detect.gas_odorant_concentration",
+"count": 1,
+"examples": [
+"X-9cf7a6b23ab6e0-01"
+]
+},
+{
+"tag": "detect.co_in_enclosed_garage",
+"count": 1,
+"examples": [
+"X-9cf7a6b23ab6e0-01"
+]
+},
+{
+"tag": "detect.child_hazard_proximity_zones",
+"count": 1,
+"examples": [
+"X-9cf7a6b23ab6e0-01"
+]
+},
+{
+"tag": "evacuation.people_and_pets_headcount",
+"count": 1,
+"examples": [
+"X-8b36620949ffa7-01"
+]
+},
+{
+"tag": "outage.routine_fridge_door_count",
+"count": 1,
+"examples": [
+"X-8b36620949ffa7-01"
+]
+},
+{
+"tag": "weather.shelter_location_by_hazard",
+"count": 1,
+"examples": [
+"X-8b36620949ffa7-01"
+]
+},
+{
+"tag": "map.shutoffs_and_panel_locations",
+"count": 1,
+"examples": [
+"X-8b36620949ffa7-01"
+]
+},
+{
+"tag": "ladder.stability_support_polygon_and_spreader_lock",
+"count": 1,
+"examples": [
+"X-e0cb4401b15112-01"
+]
+},
+{
+"tag": "tool.stud_finder_calibration_and_detection",
+"count": 1,
+"examples": [
+"X-ba81601690ce5d-01"
+]
+},
+{
+"tag": "paint.color_sheen_match",
+"count": 1,
+"examples": [
+"X-13ba9a3fca80a7-01"
+]
+},
+{
+"tag": "pressure_wash.nozzle_distance_surface_damage",
+"count": 1,
+"examples": [
+"X-13ba9a3fca80a7-01"
+]
+},
+{
+"tag": "robot.camera_occlusion_dirt",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "privacy.sensor_mode_by_room",
+"count": 1,
+"examples": [
+"X-c87789aaa8e2ac-01"
+]
+},
+{
+"tag": "lighting.randomized_timers",
+"count": 1,
+"examples": [
+"X-670723dc3bb36f-01"
+]
+},
+{
+"tag": "mail.accumulation_visible_absence",
+"count": 1,
+"examples": [
+"X-670723dc3bb36f-01"
+]
+},
+{
+"tag": "outage.freezer_thaw_detection",
+"count": 1,
+"examples": [
+"X-670723dc3bb36f-01"
+]
+},
+{
+"tag": "parasite.tick_flea_detection",
+"count": 1,
+"examples": [
+"X-b4cc1a54265e33-01"
+]
+},
+{
+"tag": "texture.modified_levels",
+"count": 1,
+"examples": [
+"X-3e7af3558bdebd-01"
+]
+},
+{
+"tag": "coffee.espresso_extraction_and_milk_texture",
+"count": 1,
+"examples": [
+"X-6900af3c2e307d-01"
+]
+},
+{
+"tag": "robot.degradation_camera_battery_network_actuator",
+"count": 1,
+"examples": [
+"V-22104c010bebc1-01"
+]
+},
+{
+"tag": "textiles.cushion_plumped_state",
+"count": 1,
+"examples": [
+"A-a6412f0eb9f73f-01"
+]
+},
+{
+"tag": "people.owner_informed_of_location",
+"count": 1,
+"examples": [
+"A-7114f56a795c43-01"
+]
+},
+{
+"tag": "storage.memorable_location_score",
+"count": 1,
+"examples": [
+"A-f3e92694ecd6c8-01"
+]
+},
+{
+"tag": "people.user_mental_model_locations",
+"count": 1,
+"examples": [
+"A-f3e92694ecd6c8-01"
+]
+},
+{
+"tag": "user_sim.hidden_disposition",
+"count": 1,
+"examples": [
+"A-63c97287e1b54b-01"
+]
+},
+{
+"tag": "anomaly.deviation_from_norm_detection",
+"count": 1,
+"examples": [
+"A-5fddd53425e799-01"
+]
+},
+{
+"tag": "textiles.wrinkle_state",
+"count": 1,
+"examples": [
+"A-5fddd53425e799-01"
+]
+},
+{
+"tag": "search.missing_component",
+"count": 1,
+"examples": [
+"A-3e98a97d100c79-01"
+]
+},
+{
+"tag": "user_sim.hidden_activity",
+"count": 1,
+"examples": [
+"A-11fcca6dee9f2d-01"
+]
+},
+{
+"tag": "geometry.line_of_sight_occlusion",
+"count": 1,
+"examples": [
+"A-b33e80fb44e5fc-01"
+]
+},
+{
+"tag": "viewing.angle_and_distance_bounds",
+"count": 1,
+"examples": [
+"A-b33e80fb44e5fc-01"
+]
+},
+{
+"tag": "climate.sun_glare_on_screen",
+"count": 1,
+"examples": [
+"A-b33e80fb44e5fc-01"
+]
+},
+{
+"tag": "user_sim.hidden_party_spec",
+"count": 1,
+"examples": [
+"A-eaebda7147099e-01"
+]
+},
+{
+"tag": "seating.capacity_vs_guest_count",
+"count": 1,
+"examples": [
+"A-eaebda7147099e-01"
+]
+},
+{
+"tag": "eval.visibility_weighted_mess_score",
+"count": 1,
+"examples": [
+"A-add6f6f9e6bce0-01"
+]
+},
+{
+"tag": "zone.guest_visible_and_used",
+"count": 1,
+"examples": [
+"A-add6f6f9e6bce0-01"
+]
+},
+{
+"tag": "inspection.soil_survey_all_rooms",
+"count": 1,
+"examples": [
+"A-f46fa95d6fb3ab-01"
+]
+},
+{
+"tag": "user_sim.hidden_priorities",
+"count": 1,
+"examples": [
+"A-de906824a286d1-01"
+]
+},
+{
+"tag": "aesthetics.visual_gain_per_action",
+"count": 1,
+"examples": [
+"A-974c50d942f93d-01"
+]
+},
+{
+"tag": "user_sim.hidden_forgotten_chores",
+"count": 1,
+"examples": [
+"A-3e1b5adf0069ba-01"
+]
+},
+{
+"tag": "inspection.incomplete_chore_detection",
+"count": 1,
+"examples": [
+"A-3e1b5adf0069ba-01"
+]
+},
+{
+"tag": "laundry.care_label_air_dry",
+"count": 1,
+"examples": [
+"A-3e1b5adf0069ba-01"
+]
+},
+{
+"tag": "pets.water_food_location_check",
+"count": 1,
+"examples": [
+"A-5b2236e0a919ca-01"
+]
+},
+{
+"tag": "lighting.per_room_night_preferences",
+"count": 1,
+"examples": [
+"A-ee1cd34c808ee1-01"
+]
+},
+{
+"tag": "user_sim.hidden_calendar_and_habits",
+"count": 1,
+"examples": [
+"A-eede65634caaa7-01"
+]
+},
+{
+"tag": "packing.duration_to_counts",
+"count": 1,
+"examples": [
+"A-62615134b16a19-01"
+]
+},
+{
+"tag": "textiles.fold_to_volume",
+"count": 1,
+"examples": [
+"A-dd15130fda2d0e-01"
+]
+},
+{
+"tag": "user_sim.hidden_use_order",
+"count": 1,
+"examples": [
+"A-df96d15e0036a0-01"
+]
+},
+{
+"tag": "food.unfamiliar_item_inference_from_label",
+"count": 1,
+"examples": [
+"A-25ffe77171f9a9-01"
+]
+},
+{
+"tag": "user_sim.hidden_use_frequency",
+"count": 1,
+"examples": [
+"A-d2e94a0eb96d06-01"
+]
+},
+{
+"tag": "food.spoilage_state_inspection",
+"count": 1,
+"examples": [
+"A-645855feda2e2a-01"
+]
+},
+{
+"tag": "inventory.food_stock_scan",
+"count": 1,
+"examples": [
+"A-31bbcfa93b111b-01"
+]
+},
+{
+"tag": "eval.outcome_quality_rise_texture",
+"count": 1,
+"examples": [
+"A-44b8f6822f0ed6-01"
+]
+},
+{
+"tag": "user_sim.hidden_recipe_and_steps_done",
+"count": 1,
+"examples": [
+"A-23f2401d392fb7-01"
+]
+},
+{
+"tag": "perception.browning_color_and_texture",
+"count": 1,
+"examples": [
+"A-a4412268196350-01"
+]
+},
+{
+"tag": "people.headcount_present",
+"count": 1,
+"examples": [
+"A-2a69ec44f416e4-01"
+]
+},
+{
+"tag": "allocation.fair_division_envy_free",
+"count": 1,
+"examples": [
+"A-2a69ec44f416e4-01"
+]
+},
+{
+"tag": "user_sim.hidden_content_and_volume",
+"count": 1,
+"examples": [
+"A-04359bbc84e851-01"
+]
+},
+{
+"tag": "comms.lift_count_and_direction",
+"count": 1,
+"examples": [
+"A-5160e3090d6a7e-01"
+]
+},
+{
+"tag": "user_sim.hidden_current_activity",
+"count": 1,
+"examples": [
+"A-49855f7b3c928f-01"
+]
+},
+{
+"tag": "object.importance_score_contextual",
+"count": 1,
+"examples": [
+"A-5d25da0944e6d0-01"
+]
+},
+{
+"tag": "user_sim.hidden_importance_labels",
+"count": 1,
+"examples": [
+"A-5d25da0944e6d0-01"
+]
+},
+{
+"tag": "user_sim.hidden_setup_relations",
+"count": 1,
+"examples": [
+"A-bee4f39d136762-01"
+]
+},
+{
+"tag": "search.found_items_return",
+"count": 1,
+"examples": [
+"A-1b22c022500cec-01"
+]
+},
+{
+"tag": "soil.hidden_spot_seeding",
+"count": 1,
+"examples": [
+"A-f333ae907c6bc0-01"
+]
+},
+{
+"tag": "search.gradient_following_across_rooms",
+"count": 1,
+"examples": [
+"A-32ecbe60bb97e9-01"
+]
+},
+{
+"tag": "eval.root_cause_identified",
+"count": 1,
+"examples": [
+"A-0041c7a3c72ba1-01"
+]
+},
+{
+"tag": "audio.attenuation_by_distance_and_walls",
+"count": 1,
+"examples": [
+"A-7d1f5c7bfcb959-01"
+]
+},
+{
+"tag": "smoke_detector.low_battery_chirp",
+"count": 1,
+"examples": [
+"A-7d1f5c7bfcb959-01"
+]
+},
+{
+"tag": "search.room_prior_from_audio",
+"count": 1,
+"examples": [
+"A-f83758b69a9fc2-01"
+]
+},
+{
+"tag": "emergency.call_with_location",
+"count": 1,
+"examples": [
+"A-f83758b69a9fc2-01"
+]
+},
+{
+"tag": "sensor.temperature_humidity_co2",
+"count": 1,
+"examples": [
+"A-70e030e5471ea5-01"
+]
+},
+{
+"tag": "light.flicker_detection",
+"count": 1,
+"examples": [
+"A-70e030e5471ea5-01"
+]
+},
+{
+"tag": "inspection.coverage_all_rooms",
+"count": 1,
+"examples": [
+"A-d8512ac91c78ed-01"
+]
+},
+{
+"tag": "anomaly.seeded_set_with_decoys",
+"count": 1,
+"examples": [
+"A-d8512ac91c78ed-01"
+]
+},
+{
+"tag": "perception.pose_change_threshold",
+"count": 1,
+"examples": [
+"A-0f18effc27f3fb-01"
+]
+},
+{
+"tag": "inventory.count_vs_expected",
+"count": 1,
+"examples": [
+"A-e0bb9dfe9a1cfd-01"
+]
+},
+{
+"tag": "search.relocated_item",
+"count": 1,
+"examples": [
+"A-e0bb9dfe9a1cfd-01"
+]
+},
+{
+"tag": "search.habit_prior",
+"count": 1,
+"examples": [
+"A-a456d9775ec3ca-01"
+]
+},
+{
+"tag": "container.pocket_bag_inspection",
+"count": 1,
+"examples": [
+"A-a456d9775ec3ca-01"
+]
+},
+{
+"tag": "search.posterior_from_agent_trajectories",
+"count": 1,
+"examples": [
+"A-2550e7c86a93b0-01"
+]
+},
+{
+"tag": "search.exclude_habitual_locations",
+"count": 1,
+"examples": [
+"A-4b2ed8f9349091-01"
+]
+},
+{
+"tag": "search.atypical_location_prior",
+"count": 1,
+"examples": [
+"A-4b2ed8f9349091-01"
+]
+},
+{
+"tag": "memory.already_checked_set",
+"count": 1,
+"examples": [
+"A-4b2ed8f9349091-01"
+]
+},
+{
+"tag": "search.adversarial_prior",
+"count": 1,
+"examples": [
+"A-0e405864557c2d-01"
+]
+},
+{
+"tag": "container.inspect_and_restore",
+"count": 1,
+"examples": [
+"A-0e405864557c2d-01"
+]
+},
+{
+"tag": "pets.stash_location_prior",
+"count": 1,
+"examples": [
+"A-06e0ae0c2af149-01"
+]
+},
+{
+"tag": "search.agent_path_trace",
+"count": 1,
+"examples": [
+"A-06e0ae0c2af149-01"
+]
+},
+{
+"tag": "dialogue.context_prior",
+"count": 1,
+"examples": [
+"A-b4fc72b9473937-01"
+]
+},
+{
+"tag": "user_sim.hidden_target_region",
+"count": 1,
+"examples": [
+"A-19bed83263a68b-01"
+]
+},
+{
+"tag": "quantity.a_little_distance",
+"count": 1,
+"examples": [
+"A-892a2de34191ad-01"
+]
+},
+{
+"tag": "user_sim.hidden_frame",
+"count": 1,
+"examples": [
+"A-892a2de34191ad-01"
+]
+},
+{
+"tag": "user_sim.hidden_reference",
+"count": 1,
+"examples": [
+"A-294aa57ad5d1a6-01"
+]
+},
+{
+"tag": "perception.distance_estimate_noise",
+"count": 1,
+"examples": [
+"A-ce2fc54fad0b7f-01"
+]
+},
+{
+"tag": "user_sim.hidden_style",
+"count": 1,
+"examples": [
+"A-8f0fe047b2c441-01"
+]
+},
+{
+"tag": "cloth.unseen_mesh_generation",
+"count": 1,
+"examples": [
+"A-90c4451dc45a2e-01"
+]
+},
+{
+"tag": "cloth.symmetry_axis_detection",
+"count": 1,
+"examples": [
+"A-90c4451dc45a2e-01"
+]
+},
+{
+"tag": "rope.knot_type_identification",
+"count": 1,
+"examples": [
+"A-a87654e2d68b24-01"
+]
+},
+{
+"tag": "cloth.corner_pocket_identification",
+"count": 1,
+"examples": [
+"A-6d278a65dedad2-01"
+]
+},
+{
+"tag": "cloth.seam_label_cues",
+"count": 1,
+"examples": [
+"A-360e2e84191d89-01"
+]
+},
+{
+"tag": "garment.care_label_parse",
+"count": 1,
+"examples": [
+"A-9e6a1bb9e11576-01"
+]
+},
+{
+"tag": "fabric.colorfastness_spot_test",
+"count": 1,
+"examples": [
+"A-4f19662eba74a4-01"
+]
+},
+{
+"tag": "soil.drying_rate_by_temp_light",
+"count": 1,
+"examples": [
+"A-e8281b8bd5a9ba-01"
+]
+},
+{
+"tag": "plant.stress_cause_hidden",
+"count": 1,
+"examples": [
+"A-1c14366c4db93c-01"
+]
+},
+{
+"tag": "storage.indoor_dry_location",
+"count": 1,
+"examples": [
+"A-23d5a2982bd84f-01"
+]
+},
+{
+"tag": "storage.secure_location",
+"count": 1,
+"examples": [
+"A-86b7faf3b0281e-01"
+]
+},
+{
+"tag": "lighting.dark_path",
+"count": 1,
+"examples": [
+"A-d034d50e07e38f-01"
+]
+},
+{
+"tag": "pets.reach_by_size_and_counter_surfing",
+"count": 1,
+"examples": [
+"A-b6de6466ce91df-01"
+]
+},
+{
+"tag": "memory.relocation_log_for_return",
+"count": 1,
+"examples": [
+"A-504e36c3c967f8-01"
+]
+},
+{
+"tag": "follow.distance_band",
+"count": 1,
+"examples": [
+"A-6f2ab64d67dd38-01"
+]
+},
+{
+"tag": "task_stage.recognition",
+"count": 1,
+"examples": [
+"A-aa62be21ce886a-01"
+]
+},
+{
+"tag": "assembly.empty_socket_detection",
+"count": 1,
+"examples": [
+"A-9b7f7b60ff2c27-01"
+]
+},
+{
+"tag": "assembly.hidden_fastener_discovery",
+"count": 1,
+"examples": [
+"A-a6c3b6ea797d2a-01"
+]
+},
+{
+"tag": "parts.organized_tray_and_labels",
+"count": 1,
+"examples": [
+"A-a6c3b6ea797d2a-01"
+]
+},
+{
+"tag": "device.fault_state_hidden",
+"count": 1,
+"examples": [
+"A-9fb37e451f2407-01"
+]
+},
+{
+"tag": "test.spot_test_hidden_area",
+"count": 1,
+"examples": [
+"A-a47aeb8e11be36-01"
+]
+},
+{
+"tag": "robot.freeze_detection",
+"count": 1,
+"examples": [
+"A-f31e9af8d87a02-01"
+]
+},
+{
+"tag": "light.leak_under_door",
+"count": 1,
+"examples": [
+"A-709f8dc12d3c18-01"
+]
+},
+{
+"tag": "social.line_of_sight_occlusion",
+"count": 1,
+"examples": [
+"A-d1959ab8f75835-01"
+]
+},
+{
+"tag": "people.activity_state_recognition",
+"count": 1,
+"examples": [
+"A-f20485e2b10a28-01"
+]
+},
+{
+"tag": "event.activity_end_detection",
+"count": 1,
+"examples": [
+"A-f20485e2b10a28-01"
+]
+},
+{
+"tag": "event.guest_departure_detection",
+"count": 1,
+"examples": [
+"A-875f3fb3e94d8f-01"
+]
+},
+{
+"tag": "inspection.dirt_detection",
+"count": 1,
+"examples": [
+"A-9dc7fc25a2355e-01"
+]
+},
+{
+"tag": "user_sim.hidden_preferences",
+"count": 1,
+"examples": [
+"A-c676568badd510-01"
+]
+},
+{
+"tag": "retrieval.human_search_model",
+"count": 1,
+"examples": [
+"A-4f9c616fc8e1c6-01"
+]
+},
+{
+"tag": "dialogue.tell_location",
+"count": 1,
+"examples": [
+"A-4f9c616fc8e1c6-01"
+]
+},
+{
+"tag": "memory.item_home_location_update",
+"count": 1,
+"examples": [
+"A-2741b833ec7b88-01"
+]
+},
+{
+"tag": "activity.recognition_from_observation",
+"count": 1,
+"examples": [
+"A-833a277cbb3d8b-01"
+]
+},
+{
+"tag": "situation.inspection",
+"count": 1,
+"examples": [
+"A-5e61d731e0175f-01"
+]
+},
+{
+"tag": "plan.execute_monitor_recover",
+"count": 1,
+"examples": [
+"A-5e61d731e0175f-01"
+]
+},
+{
+"tag": "failure.detection",
+"count": 1,
+"examples": [
+"A-5e61d731e0175f-01"
+]
+},
+{
+"tag": "air.pressure_distance_at_component",
+"count": 1,
+"examples": [
+"A-e907eba9251565-01"
+]
+},
+{
+"tag": "supervision.continuous_watch",
+"count": 1,
+"examples": [
+"A-f84eb38b861b7c-01"
+]
+},
+{
+"tag": "aesthetics.height_color_balance",
+"count": 1,
+"examples": [
+"A-e12dbb1115fb96-01"
+]
+},
+{
+"tag": "people.instruction_conflict_detection",
+"count": 1,
+"examples": [
+"A-f0fd2723b92624-01"
+]
+},
+{
+"tag": "people.child_search_model",
+"count": 1,
+"examples": [
+"A-7b5edf28da28b0-01"
+]
+},
+{
+"tag": "fire.ignition_spread_model",
+"count": 1,
+"examples": [
+"A-8d2bb976fc4757-01"
+]
+},
+{
+"tag": "water.overflow_spread",
+"count": 1,
+"examples": [
+"A-17b5a7d25ae3de-01"
+]
+},
+{
+"tag": "lighting.darkness_navigation",
+"count": 1,
+"examples": [
+"A-bb3033d0c6af5d-01"
+]
+},
+{
+"tag": "user_sim.hidden_intended_scope",
+"count": 1,
+"examples": [
+"A-85bdb64b21e53e-01"
+]
+},
+{
+"tag": "appliance.cycle_state_observation",
+"count": 1,
+"examples": [
+"A-d048c6c15f805e-01"
+]
+},
+{
+"tag": "supervision.continuous_visibility",
+"count": 1,
+"examples": [
+"A-56a4c7b9d67d56-01"
+]
+},
+{
+"tag": "food.ripeness_firmness_color",
+"count": 1,
+"examples": [
+"A-5ae091d96c888c-01"
+]
+},
+{
+"tag": "perception.mold_detection",
+"count": 1,
+"examples": [
+"A-5ae091d96c888c-01"
+]
+},
+{
+"tag": "label.symbol_parse",
+"count": 1,
+"examples": [
+"A-fba40668056583-01"
+]
+},
+{
+"tag": "perception.low_light_gap",
+"count": 1,
+"examples": [
+"A-d4c6a3835838ff-01"
+]
+},
+{
+"tag": "window.stuck_cause_hidden",
+"count": 1,
+"examples": [
+"A-f84387af1a5f39-01"
+]
+},
+{
+"tag": "panel.icon_label_parse",
+"count": 1,
+"examples": [
+"A-2e242502dccd12-01"
+]
+},
+{
+"tag": "manual.lookup",
+"count": 1,
+"examples": [
+"A-2e242502dccd12-01"
+]
+},
+{
+"tag": "map.semantic_labeling",
+"count": 1,
+"examples": [
+"A-ea605735823af4-01"
+]
+},
+{
+"tag": "safety.shutoff_locations",
+"count": 1,
+"examples": [
+"A-ea605735823af4-01"
+]
+},
+{
+"tag": "camera_view.avoid_frame",
+"count": 1,
+"examples": [
+"A-385ad88f5d7d07-01"
+]
+},
+{
+"tag": "event.call_end_detection",
+"count": 1,
+"examples": [
+"A-385ad88f5d7d07-01"
+]
+},
+{
+"tag": "lighting.task_lux",
+"count": 1,
+"examples": [
+"A-0c7cf910425070-01"
+]
+},
+{
+"tag": "context.event_type_inference",
+"count": 1,
+"examples": [
+"A-c0129d165d57d4-01"
+]
+},
+{
+"tag": "pets.gait_asymmetry_detection",
+"count": 1,
+"examples": [
+"A-80fb62c16ae8dd-01"
+]
+},
+{
+"tag": "pets.symptom_observation_log",
+"count": 1,
+"examples": [
+"A-80fb62c16ae8dd-01"
+]
+},
+{
+"tag": "report.structured_observation",
+"count": 1,
+"examples": [
+"A-80fb62c16ae8dd-01"
+]
+}
+]
+}

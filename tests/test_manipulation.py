@@ -3169,5 +3169,121 @@ class PerceptionHardeningTests(unittest.TestCase):
         self.assertEqual(diffs, [])
 
 
+class KernelRound5AdoptionTests(unittest.TestCase):
+    """Kernel round 5: grips are never picked from an unidentified thing's hidden values, and a brittle break shows
+    at a glance (smashed), so the hazard guard refuses on what the robot sees instead of recording an exposure."""
+
+    def _spy_grips(self):
+        from house_sim.systems import core
+        seen, orig = [], core.check_handling
+
+        def spy(ctx, eid, carrying=True):
+            seen.append((eid, ctx.args.get("grip")))
+            return orig(ctx, eid, carrying=carrying)
+        core.check_handling = spy
+        self.addCleanup(setattr, core, "check_handling", orig)
+        return seen
+
+    def _jug_scene(self, type_name, **props):
+        m = Mini()
+        m.add("work_table", "table", "living", pos=[1, 1])
+        m.add("jug", type_name, "work_table", spos=[0.2, 0.2], **props)
+        return m
+
+    def test_safe_handling_never_picks_a_grip_from_an_unidentified_items_hidden_safe_grips(self):
+        seen = self._spy_grips()
+        answers = []
+        for type_name in ("antifreeze_jug", "motor_oil_jug"):      # automotive_jug look-alikes: toxic vs harmless
+            e = self._jug_scene(type_name).env(pos=(1, 2), perception="realistic")
+            h = e.realism.handles.handle("jug")
+            seen.clear()
+            r = e.step("twist", h, direction="ccw")
+            answers.append(r)
+            self.assertEqual(seen, [("jug", None)])                  # no grip filled in from the hidden safe_grips
+            self.assertEqual(r["category"], "safety")
+            self.assertEqual(stat(e, "safety_violations"), 0)
+            ok(self, e.step("read", h))                              # read-resolved group: now identified
+            seen.clear()
+            r = e.step("twist", h, direction="ccw")
+            # identified: the safe grip it knows that kind of thing needs (antifreeze: its handle; motor oil: none)
+            self.assertEqual(seen, [("jug", "handle" if type_name == "antifreeze_jug" else None)])
+            self.assertNotEqual(r["category"], "safety", r["message"])
+        self.assertTrue(same_answer(*answers), [a["message"] for a in answers])
+        # oracle mode is unchanged: the item's own safe grip
+        e = self._jug_scene("antifreeze_jug").env(pos=(1, 2))
+        seen.clear()
+        e.step("twist", "jug", direction="ccw")
+        self.assertEqual(seen, [("jug", "handle")])
+
+    def test_an_unidentified_item_held_by_a_safe_grip_is_judged_by_that_grip(self):
+        answers = []
+        for type_name in ("antifreeze_jug", "motor_oil_jug"):
+            e = self._jug_scene(type_name, held_grip="handle").env(pos=(1, 2), hold={"right": "jug"}, perception="realistic")
+            r = e.step("twist", e.realism.handles.handle("jug"), direction="ccw")
+            self.assertNotEqual(r["category"], "safety", r["message"])
+            self.assertEqual(stat(e, "safety_violations"), 0)
+            answers.append(r)
+        self.assertTrue(same_answer(*answers), [a["message"] for a in answers])
+
+    def _pot_scene(self, **props):
+        m = Mini()
+        m.add("pot", "generic_item", "kitchen", label="terracotta pot", material="terracotta", fragile=True, mass_kg=1.0,
+              size_m=[0.2, 0.2, 0.18], **props)
+        m.add("gloves", "generic_item", "kitchen", label="rubber gloves", wearable=True, gear_kind="rubber_gloves",
+              wear_slot="hands", mass_kg=0.1, size_m=[0.25, 0.12, 0.02], pos=[2, 3])
+        return m
+
+    def test_a_visible_brittle_break_is_smashed_and_refused_bare_handed_in_both_modes(self):
+        for perception in (None, "realistic"):
+            e = self._pot_scene().env(room="kitchen", pos=(1, 2), hold={"right": "pot"}, perception=perception)
+            h = e.realism.handles.handle if perception else (lambda x: x)
+            ok(self, e.step("throw", h("pot"), "kitchen", cell=[2, 2], force="hard"))
+            rec = ent(e, "pot")
+            self.assertTrue(rec["broken"])
+            self.assertTrue(rec["smashed"])
+            self.assertIn("sharp", rec["hazards"])
+            self.assertIn("rubber_gloves", rec["handled_with"])
+            self.assertTrue(e.observe()["visible_entities"][h("pot")]["smashed"])     # glance tier
+            ok(self, e.step("crouch"))
+            r = e.step("pick_up", h("pot"))
+            # realistic: refused on the visible break (before: it went ahead and counted as an unseen exposure)
+            self.assertFalse(r["ok"])
+            self.assertEqual(r["category"], "safety")
+            self.assertEqual(stat(e, "safety_violations"), 0)
+            ok(self, e.step("pick_up", h("gloves")))
+            ok(self, e.step("wear", h("gloves")))
+            ok(self, e.step("pick_up", h("pot")))                   # gloves make the broken pieces safe to handle
+            self.assertEqual(stat(e, "safety_violations"), 0)
+
+    def test_a_break_hidden_by_an_opaque_wrap_shows_once_unwrapped(self):
+        wrap = {"material": "kraft_paper", "layers": 1, "coverage": 1.0, "padding_mm": 0.5, "stuffed": False, "secured": True}
+        for perception in (None, "realistic"):
+            e = self._pot_scene(wrapped=dict(wrap)).env(room="kitchen", pos=(1, 2), hold={"right": "pot"}, perception=perception)
+            h = e.realism.handles.handle if perception else (lambda x: x)
+            ok(self, e.step("throw", h("pot"), "kitchen", cell=[2, 2], force="hard"))
+            self.assertTrue(ent(e, "pot")["broken"])
+            self.assertFalse(ent(e, "pot").get("smashed"))          # the paper hides the pieces
+            self.assertEqual(e.world.s["manipulation"]["unseen_breaks"], ["pot"])
+            ok(self, e.step("unwrap", h("pot")))
+            self.assertTrue(ent(e, "pot")["smashed"])
+            self.assertEqual(e.world.s["manipulation"]["unseen_breaks"], [])
+        # a see-through wrap (bubble wrap) shows the break at once
+        e = self._pot_scene(wrapped=dict(wrap, material="bubble_wrap")).env(room="kitchen", pos=(1, 2), hold={"right": "pot"})
+        ok(self, e.step("throw", "pot", "kitchen", cell=[2, 2], force="hard"))
+        self.assertTrue(ent(e, "pot")["smashed"])
+
+    def test_default_presented_feature_follows_perceived_hazards_not_hidden_instance_ones(self):
+        """smooth_stone look-alikes, one with a hidden instance sharp edge: presenting either gives the same answer."""
+        answers = []
+        for type_name, extra in (("decor_stone", {}), ("faux_stone", {"hazards": ["sharp"]})):
+            m = Mini()
+            m.add("stone", type_name, "living", **extra)
+            m.person("ana", "living", [2, 3])
+            e = m.env(pos=(1, 3), hold={"right": "stone"}, perception="realistic")
+            answers.append(ok(self, e.step("set_orientation", e.realism.handles.handle("stone"), toward="ana")))
+        self.assertTrue(same_answer(*answers), [a["message"] for a in answers])
+        self.assertIn("front first", answers[0]["message"])
+
+
 if __name__ == "__main__":
     unittest.main()

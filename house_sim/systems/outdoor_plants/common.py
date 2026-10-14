@@ -87,18 +87,11 @@ def temp_feel(c):
 def unresolved(ctx, eid):
     """Realistic mode: True when the robot has not identified eid -- an unresolved member of a look-alike group
     (an unread bag of granules, seed packet or spray bottle; uninspected pruners), an unfamiliar (novel) object, or a
-    portion taken from such a package. Type- or content-specific guards must not run on such things (a refusal
-    would tell the members apart). Always False in oracle mode."""
+    portion (derived_from) taken from such a package. Type- or content-specific guards must not run on such things (a
+    refusal would tell the members apart). Always False in oracle mode. The kernel decides (ctx.unresolved, v2.9)."""
     if not realistic(ctx):
         return False
-    realism = getattr(ctx.env, "realism", None)
-    record = ctx.w.s["entities"].get(eid) if isinstance(eid, str) else None
-    if realism is None or record is None:
-        return False
-    if record.get("novel"):
-        return True
-    ident = realism.identity(eid, record, realism.knowledge.entity_level(eid, record))
-    return "candidates" in ident
+    return bool(ctx.unresolved(eid))
 
 
 UNIDENTIFIED = "You cannot tell what is in it yet: read its label first"
@@ -106,9 +99,12 @@ UNIDENTIFIED = "You cannot tell what is in it yet: read its label first"
 
 def require_identified(ctx, *eids):
     """Realistic mode: one refusal, identical for every member of a look-alike group, before any guard that depends
-    on what the thing really is (product kind, crop, liquid)."""
+    on what the thing really is (product kind, crop, liquid). The kernel's ctx.refuse_unidentified with the domain's
+    wording (category precondition)."""
+    if not realistic(ctx):
+        return
     for eid in eids:
-        require(not unresolved(ctx, eid), UNIDENTIFIED, "precondition")
+        ctx.refuse_unidentified(eid, UNIDENTIFIED)
 
 
 def gone_refs(ctx, eids):

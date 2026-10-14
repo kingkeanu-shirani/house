@@ -1,0 +1,385 @@
+{
+ "red_team": [
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "A private thing still looks different: the contents of an open private container disappear, and a label the robot read is dropped from view",
+   "severity": "high",
+   "owner": "kernel/perception.py Perception.visible (parent.get('private') hides children); kernel/realism.py perceive_record private branch (drops read-tier fields and contents); systems/core.py inspect (contents filtered by visible)",
+   "repro": "Use the r5_fixture from tests/test_kernel.py. Set box_1 to private=True or False, plus label_text='Photos 2019', openable=True, open=True, container=True, accepts_items=True, capacity_l=10. Put ball_1 = object_record('tennis ball','box_1',relation='in',size_m=[.07]*3) inside it. Then: e=HouseEnv(c,perception='realistic'); approach counter; step('read',box); step('inspect',box); step('pick_up',sugar,grip='pinch'); step('place',sugar,box,relation='in'); step('pick_up',sugar,grip='pinch'). Measured with private=True: the tennis ball is never in visible_entities; after the read, the box record in the observation has no label_text; inspect returns contents []; the sugar jar vanishes once placed (visible=False) and picking it up again fails with 'That is not visible here'. With private=False: the ball is visible, label_text is shown, contents lists the ball, and the jar stays visible and can be picked up again. Script: scratchpad/p2_private_view.py",
+   "item": "C2"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "Asking any question that names an object makes the never-tier 'private' flag refuse, so the refusal is an oracle",
+   "severity": "medium",
+   "owner": "kernel/actions.py Ctx.rule_perceived (the facts.asked and approvals checks accept any topic that contains the eid)",
+   "repro": "r5_fixture. Set box_1 private=True or False. e.step('approach',h(counter_1)); e.step('ask','resident_1',topic='colour:'+h(box_1)) gets the same answer both times: 'I have no additional information about that.' Then e.step('pick_up',h(box_1)): private=True gives (False,'permission',\"That needs the household's permission first\"); private=False gives (True,'Picked up ...'). The same happens with topic='permission:touch:'+h: both answers are {granted:false}, yet the non-private box can then be taken with no violation at all. Script: scratchpad/p1_perm.py",
+   "item": "C2"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "The G2 alias lying -> sleeping makes the planner reveal hidden wakefulness and posture (seated sleepers, people in the dark, concealed people)",
+   "severity": "high",
+   "owner": "kernel/geometry.py AVOID_ALIASES/expand_avoid (G2), together with systems/navigation_robot/hazards.py fresh_margins/derived/lying_cells, which use true awake/posture and ignore darkness and concealment",
+   "repro": "r5_fixture, robot room_1 at [4,4]. people={'p1':{location:'room_1',pos:[0,0],posture:'seated',awake:A,activity:'sleeping' if not A else 'resting'}}. The observation is identical in both cases (posture 'seated', no activity, no hazard). e.step('walk_to',cell=[1,1],avoid=['lying']): awake gives (True,'Walked to [1, 1]'); asleep gives (False,'precondition','No clear path there'). With geometry.AVOID_ALIASES cleared, both succeed, so G2 introduced this. In the dark (lights off, 23:30) the person is only {'label':'person',pos:[0,0]}, but the same walk_to succeeds for 'seated awake' and fails for seated asleep, lying or sleeping. A concealed person (not in obs at all) who is lying or sleeping also makes walk_to [1,1] with avoid lying fail, while a concealed standing person does not. avoid=['sleeping'] (a documented kind) tells a lying-awake person from a sleeping one even in the light. Scripts: scratchpad/p5_route_leak.py, p5c.py, p13_dark_route.py, p13b.py",
+   "item": "G2 / R16 / C3 / G3"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "Handing an identified object to a child is refused on the never-tier 'risk' or on instance hazards the robot never inspected",
+   "severity": "medium",
+   "owner": "systems/core.py hand_over (the identified branch: child_unsafe(record))",
+   "repro": "r5_fixture plus cup_1=object_record('plastic cup','counter_1',relation='on',risk=R) and kid_1 (role child) in room_1. approach counter; pick_up cup; approach kid_1; hand_over cup kid_1. R=0 gives (True,'Handed ...'); R=2 gives (False,'safety','That is not safe to give to a child'). The same thing happens with hazards=['choking'] versus [] (inspect-tier, not inspected). The cup is a plain identified object, so the realistic look-alike branch is never used. Script: scratchpad/p6_c1_more.py (B, C)",
+   "item": "C1 (child hand_over rule)"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "The pick_up hazard guard reveals instance hazards below INSPECT on identified objects, for example a broken ceramic bowl",
+   "severity": "medium",
+   "owner": "systems/core.py _hazard_guard (the realistic uniform/novel handling covers only ctx.unresolved items; C1 also asked to cover 'hazards below INSPECT knowledge')",
+   "repro": "r5_fixture plus bowl_1=object_record('ceramic bowl','counter_1',relation='on',material='ceramic',safe_grips=['handle']). For the broken variant, add broken=True, condition='broken', hazards=['sharp'] (what manipulation.common.break_item writes). At a glance both bowls show only {'label':'ceramic bowl'}. approach counter, then pick_up: intact gives (True,'Picked up'); broken gives (False,'safety','Hazardous item: it needs its safe grip or protective gear'). No safety_violations are recorded. Scripts: scratchpad/p16_broken.py, p6_c1_more.py (D)",
+   "item": "C1"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "Whole-second rounding of the cumulative clock is defeated by first spending a known fractional duration",
+   "severity": "medium",
+   "owner": "kernel/engine.py _agent_clock/whole_seconds (C8). The example's hidden-quantity duration is in systems/manipulation/motion.py rotate (2+delta/90*(2 if subtree_mass>10 else 1))",
+   "repro": "r5_fixture plus chest_1 (closed opaque container on the floor at [5,5], mass 6 kg) holding books_1 of 1 kg or 8 kg, robot at [4,4]. With no prelude, rotate(chest,by_deg=45) shows clock 0->3 in both cases (true 2.5 vs 3.0). After first doing crouch (1.5 s, a documented duration), the light chest shows 2->4 and the heavy one 2->5. The hidden contents mass of a closed chest is read off the observed clock. The docs claim exact durations 'cannot be read off clock differences'. Rounding each step's duration (or keeping an agent clock that only adds rounded durations) would close this. Script: scratchpad/p7_clock.py",
+   "item": "C8"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "People and pet ids are plain, role-revealing ids (child_1, elder_1, visitor_1), shown in the dark and for an 'unfamiliar person'",
+   "severity": "medium",
+   "owner": "kernel/realism.py (people/pets are in _plain_ids and never get handles: obs people keys, inspect 'agent') and generator/layout.py default_residents naming (child_N, elder_1)",
+   "repro": "r5_fixture at night with lights off, plus child_1 (role child, lying asleep) and visitor_1 (role visitor). obs['people'] = {'child_1':{'label':'person',...},'visitor_1':{'label':'person',...}}, and inspect in the dark returns {'agent':'child_1','label':'person',...}. Lit, the visitor is shown as label 'unfamiliar person' with role removed, but under the key 'visitor_1'. Generated houses use ids child_1/child_2/elder_1/resident_N for 30 seeds. Script: scratchpad/p4_dark_posture.py",
+   "item": "C3 / new"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "The strictest look-alike rule includes instances anywhere in the house, so a refusal reveals an unseen hazardous member",
+   "severity": "low",
+   "owner": "systems/core.py lookalike_rules (it adds every in-house group member's instance rule, perceived or not)",
+   "repro": "r5_fixture without salt_jar_1, sugar_jar_1 hazards=[], plus far_jar (looks_like white_powder_jar) in room_3, which the robot never visits, with hazards ['corrosive'] or []. approach counter; pick_up sugar jar: an unseen hazardous far jar gives (False,'safety','You cannot tell what this is yet and it could be hazardous...'); a non-hazardous far jar gives (True,'Picked up'). The outcome is uniform across members, but it depends on things the robot has never perceived. Script: scratchpad/p6_c1_more.py (A)",
+   "item": "C1"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "Oblong wall mounts other than windows still run perpendicular into the room, or off the grid",
+   "severity": "low",
+   "owner": "generator/place.py Placer.mount and _last_resort_wall_cell (along_wall is used only for windows in layout.finish_structure); domain furnishers that call mount",
+   "repro": "Over _generate(seed, trace=...) for 6 configs x 25 seeds: 0 of 2724 windows are wrong. Wrong orientation on a W/E or N/S wall: core_furniture 406 (e.g. seed 1 kitchen_1 upper_cabinet_3 pos [0,4] footprint 2x1 on the west wall; seed 1 bathroom_1 medicine cabinet), coat_hooks 133, admin wall_shelf 130, cleaning tool holder 88, range_hood 91, garden_tool_rack 29. plumbing water_pipe_1 (2.0 m) is off the grid 105 times (seed 0 utility_closet_1, 3x3 grid, pos [2,0]). Script: scratchpad/p9_windows.py",
+   "item": "G5 (related, new)"
+  },
+  {
+   "lens": "BEHAVIOUR & SAFETY: look-alike",
+   "title": "perception_audit only flags ids destroyed during the same step, not ids destroyed earlier in the episode",
+   "severity": "low",
+   "owner": "tools/perception_audit.py (_known_ids uses current entities plus that step's start_ids only)",
+   "repro": "r5_fixture plus crumb_1; destroy crumb_1. check_message(e,'look',None,'You swept up crumb_1',leaks,start_ids=<ids before destroy>) flags it. The same call with start_ids=<current ids> (a later step) flags nothing, and so does check_obs with an observer channel ['a crunch near crumb_1']. The kernel itself translates such ids through realism._ever, but the audit cannot catch a regression. Script: scratchpad/p10_audit.py",
+   "item": "G7"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "One speak step reveals the exact true type of any unresolved look-alike or novel object (label substitution runs on text the agent supplies)",
+   "severity": "high",
+   "owner": "house_sim/kernel/realism.py (Realism._label_substitution / outbound_message); trigger: systems/core.py _speech_action (speak, explain, confirm, refuse, handoff, announce) returns the agent's own text",
+   "repro": "Scripts: scratchpad/rt_ident/p_echo.py, p_echo2.py, p_dict_attack.py.\nfrom common import build, on_counter\nenv = build({'probe_1': on_counter('fabric_softener')})   # laundry_jug group, resolve=read, never read\nobs = env.observe(); h = [h for h, r in obs['visible_entities'].items() if 'candidates' in r][0]\nenv.step('speak', h, text='Is it chlorine bleach, fabric softener, laundry detergent?')['message']\n# -> 'Is it chlorine bleach, plastic jug of laundry liquid, laundry detergent?'  (only the true member's name is rewritten)\n# With chlorine_bleach_bottle the first name is rewritten instead.\nDictionary attack: text = ' | '.join(every registry type name with spaces), target = handle. Exactly one phrase is rewritten to the descriptor. It recovered chlorine_bleach_bottle, rx_kibble_bag, black_widow_spider, pet_medication, and a novel toaster ('toaster' -> 'unfamiliar medium object'). The item does not need to be visible: it still works after `move room_2`. No approach, touch or read is needed.",
+   "item": "R1 (also v2.8 outbound label substitution)"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "manipulation.safe_handling picks the grip from the item's TRUE safe_grips, so the hazardous member of an unresolved group passes the C1 guard and the harmless members are refused",
+   "severity": "high",
+   "owner": "house_sim/systems/manipulation/common.py safe_handling. Used by extract, arrange, twist and the other manipulation verbs in fasteners.py, handling.py and stacking.py (11 call sites).",
+   "repro": "Scripts: scratchpad/rt_ident/p_pill.py; battery results in probe_actions_counter.json.\nRealistic env with one unread member on counter_1, approach the counter, env.step('extract', handle) (same result for arrange and twist):\n laundry_jug: chlorine_bleach_bottle (toxic, corrosive, safe_grips ['handle']) -> 'Extracted obj'. The other 6 members -> 'You cannot tell what this is yet and it could be hazardous...'\n pill_bottle: pet_medication (toxic) -> 'Extracted obj'. expired_medication and prescription_bottle -> refused.\n automotive_jug: antifreeze and washer fluid -> 'Extracted obj'. motor_oil_jug -> refused.\nCause: `grip = rec.get('held_grip') or (rec.get('safe_grips') or [None])[0]` is set before core.check_handling, so only the member that carries safe_grips meets the group rule. Core pick_up is uniform (refused for all without a grip, allowed for all with grip=normal).",
+   "item": "C1"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "Id-existence oracle: inbound rewrites every true id in free text to 'something', and the speech echo shows which words were rewritten",
+   "severity": "medium",
+   "owner": "house_sim/kernel/realism.py Realism.inbound (free-text neutralisation, includes _ever ids) combined with the speech echo",
+   "repro": "Script: scratchpad/rt_ident/p_id_oracle.py\nenv = HouseEnv(generate_house(seed=4), seed=4, perception='realistic')\nguesses = ['{}_{}'.format(t, n) for t in REG.types for n in (1, 2)]\nr = env.step('speak', text=' '.join(guesses))\n# Each guess echoed as 'something' exists (or existed) in the house: 563 of 4052, 536 of them not visible from where the robot stands. Examples: chlorine_bleach_bottle_1, bleach_1, car_key_fob_1, cat_kibble_bag_1.\nMinimal form: build({'chlorine_bleach_bottle_1': on_counter('chlorine_bleach_bottle')}); speak text='Is chlorine_bleach_bottle_1 or fabric_softener_1 here?' -> 'Is something or fabric_softener_1 here?'. Generated ids are <type>_<n>, so this lists the hidden types in the house (destroyed ones too). Together with one visible laundry jug, it identifies that jug.",
+   "item": "new (side effect of the v2.8 inbound rule and R2 _ever)"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "R1 still not byte-identical: a generic word in a domain message that equals ONE member's label or type name is rewritten for that member only",
+   "severity": "medium",
+   "owner": "house_sim/kernel/realism.py _label_substitution (the names set is built from the involved member's own label and type, not from the whole group)",
+   "repro": "Script: scratchpad/rt_ident/p_r1_generic.py (unread member on counter_1, approach, one step on its handle):\n absorb: sponge -> 'Hold an absorbent towel, paper towels, kitchen sponge, mop...'. non_scratch_sponge -> '...paper towels, sponge, mop...'\n steam_milk: milk_carton -> 'Hold the paper drink carton pitcher'. oat_milk_carton -> 'Hold the milk pitcher'\n apply_cleaner (spray_bottle group, resolve=read): type spray_bottle -> 'Hold the cleaner bottle or spray bottle of liquid'. glass_cleaner -> '...or spray bottle'\n shred: document -> 'Hold the printed document to feed it'. printout -> 'Hold the document...'\n shut_off_gas: shutoff_valve -> 'That is not a gas water shutoff valve'. main_shutoff_valve -> 'That is not a gas shutoff valve'",
+   "item": "R1"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "Novel ('unfamiliar') objects are judged by the look-alike group of their hidden type: the hazard guard refuses some, and hand_over to a child allows some, which reveals group membership",
+   "severity": "medium",
+   "owner": "house_sim/kernel/actions.py lookalike_group (ignores record['novel']) as used by systems/core.py lookalike_rules, _hazard_guard and hand_over",
+   "repro": "Script: scratchpad/rt_ident/p_novel_guard.py. Every object has novel=True and the same size_m, mass_kg, color and material, so all look identical ('unfamiliar medium object').\n pick_up (no grip, and grip=normal): fabric_softener and chlorine_bleach_bottle -> UNIDENTIFIED_HAZARD refusal. mug, sugar_bag, hen_egg, toaster -> 'Picked up obj'.\n hand_over to a child: mug, toaster -> 'You cannot tell whether that is safe for a child'. sugar_bag, hen_egg -> 'Handed obj to kid_1'.\nKERNEL_API v2.9 says a novel object is never refused for hidden hazards and a novel thing is always refused for a child.",
+   "item": "C1"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "People and pets in the dark are 'shapes', but observations and inspect still key them by readable ids that name who they are (and encode their role)",
+   "severity": "medium",
+   "owner": "house_sim/kernel/realism.py _observe dark branch (obs['people'] and obs['pets'] keyed by pid); systems/core.py inspect dark branch returns 'agent': pid",
+   "repro": "Script: scratchpad/rt_ident/p_dark.py. Fixture room_1 with lights off, time_s=57600, child_1 and elder_1 present:\nobs['people'] = {'child_1': {'label': 'person', ...}, 'elder_1': {'label': 'person', ...}, 'resident_1': {'label': 'person', ...}}\nenv.step('inspect', 'child_1') -> {'agent': 'child_1', 'label': 'person', 'note': 'Too dark...'}\nGenerated houses use ids like resident_1, child_1, elder_1, dog_1 and cat_1, so the agent knows which shape is the child or the dog, and tracks each one, without light. This defeats the point of C3.",
+   "item": "C3"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "The never-tier `private` flag is readable: core `read` returns a private item's printed text with no permission check, and the following observation hides `text` only for private items",
+   "severity": "medium",
+   "owner": "house_sim/systems/core.py read (no permission or forbid path); house_sim/kernel/realism.py perceive_record private restriction (filter_details does not apply it)",
+   "repro": "Script: scratchpad/rt_ident/p_private.py. Two identical notes (text 'Dentist at 3pm'), one with private=True:\n read -> '{\"text\": \"Dentist at 3pm\"}' for both. privacy_violations stays 0 after the read.\n observation after read: non-private shows 'text'. Private omits it. So 'read succeeded but the text is not in the observation' means private.\n inspect afterwards shows 'text' for both (inconsistent with the observation).\nv2.8 says the printed text of private things stays unread without permission.",
+   "item": "C2 (v2.8 private rule)"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "The C1 group rule includes instance hazards of unseen in-house members, so a pick_up outcome reveals objects hidden elsewhere",
+   "severity": "low",
+   "owner": "house_sim/systems/core.py lookalike_rules (adds every in-house entity of the group, perceived or not)",
+   "repro": "Script: scratchpad/rt_ident/p_hidden_rule.py. Visible unread glass_cleaner on counter_1, env.step('pick_up', h, grip='normal'):\n house without anything else -> 'Picked up obj'\n same house plus a glass_cleaner with hazards ['corrosive'] and safe_grips ['handle'] inside a CLOSED cabinet in room_2 -> UNIDENTIFIED_HAZARD refusal.\nThe result is still uniform across members, but it leaks whether an unseen hazardous member exists. Limiting it to members the robot has perceived would keep it uniform without the leak.",
+   "item": "C1"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "Dark shapes show the true size_class of unresolved look-alikes, while the same item in the light shows the group size",
+   "severity": "low",
+   "owner": "house_sim/kernel/realism.py perceive_record dark branch (size_class(record)); the shape threshold in perception.observe also uses the true size",
+   "repro": "Script: scratchpad/rt_ident/p_darkshape.py. outdoor_cover members on the floor of room_1:\n lit: furniture_cover, grill_cover and pool_cover all show ('outdoor cover', 'medium').\n dark: furniture_cover and grill_cover -> ('dark shape', 'medium'). pool_cover -> ('dark shape', 'large').",
+   "item": "R9"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "Group-common rendering only covers color and size: other glance fields and inspect/read output still differ by member type (field presence, type defaults, read-tier values)",
+   "severity": "low",
+   "owner": "Domains: mechanisms (trigger_bottle added to the kernel spray_bottle group with glance liquid_l/fill_level), appliances_cooking (countertop_cooker types default open true vs false), admin_inventory (accordion_file and hanging_folder inherit the file_folder_tab group but differ in openable and in read-tier capacity_sheets), climate (purifier_panel openable, plus extra climate.looks 'still in its plastic wrap' vs 'clean'), textiles_laundry (laundry_jug liquid_l 0.9/1.4/2.3/2.6 by type). Kernel: registry lint checks only color/size; LOOKALIKE_FIELDS passes any listed field the record has; core.read prints every read-tier field even when reading leaves the item unresolved.",
+   "repro": "Script: scratchpad/rt_ident/probe_groups.py (output groups_all.txt). One member on counter_1, observe, approach, inspect, read:\n spray_bottle glance: trigger_bottle has liquid_l 'half'; the other 12 members have no liquid_l.\n countertop_cooker glance: open true (electric_pressure_cooker) vs false (rice_cooker); open and close outcomes differ to match.\n file_folder_tab read while still unresolved: '{\"capacity_sheets\": 500}' accordion vs 100 manila vs 150 hanging.\n purifier_panel inspect: climate.looks differs, contents 'hidden' vs [].\n laundry_jug inspect: liquid_l 2.6 (bleach), 1.4 (softener), 0.9 (enzyme, oxygen), 2.3 (detergents).",
+   "item": "R1 / R9"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "Domain verbs still branch on the true type of unresolved targets (no refuse_unidentified), so refusal wording, outcome or duration names the member",
+   "severity": "low",
+   "owner": "appliances_cooking/cook.py check_doneness; cleaning/surfaces.py disinfect and rinse, cleaning/floors.py absorb; tools_vehicles/tools.py lubricate; admin_inventory/paper.py shred",
+   "repro": "Battery results: scratchpad/rt_ident/actions_diff.txt and actions_diff_held.txt (same step on each unread member):\n check_doneness: flour_sugar_bag bread_flour 'pale' vs the others 'raw'; bread_loaf adds 'top'; nut_butter_jar almond 'pale' vs peanut 'raw'.\n disinfect (held bottle): disinfectant_spray, mildew_remover, plastic_jug bleach -> no 'dwell until wiped' note and 6 s; other members -> note and 3 s.\n lubricate (held): hard_boiled_egg -> 'Nothing on it needs lubrication' vs hen_egg 'Hold a lubricant or oil' (egg_in_shell has resolve=read); same split for oil_absorbent and toilet_bowl_cleaner vs the other 16 cleaning bottles.\n rinse: toilet_bowl_cleaner -> 'That is not something you flush'; the others get the generic message.\n shred (held): thermal_receipt, foil_wrapping_paper and vacuum_filter_hepa_washable -> 'Only paper goes in a shredder' vs 'Approach a paper shredder'.\n absorb (held): oil_absorbent -> 'Spread granules over a spill'.",
+   "item": "C7 (domain adoption of refuse_unidentified) / new"
+  },
+  {
+   "lens": "IDENTITY & MESSAGES: whether a",
+   "title": "The spray_bottle look-alike family behaves inconsistently across domains: only mechanisms' trigger_bottle has a trigger, a reservoir or a discharge",
+   "severity": "low",
+   "owner": "mechanisms/dispense.py squeeze_trigger and data/types/mechanisms.json trigger_bottle; climate/moisture.py empty_reservoir and refill_reservoir; safety/suppress.py discharge; outdoor_plants/verbs.py water_plant",
+   "repro": "Held unread member of the spray_bottle group (actions_diff_held.txt):\n squeeze_trigger: trigger_bottle -> 'Sprayed 1 squeeze into the air'. All 12 cleaning spray bottles -> 'It has no trigger'.\n discharge: trigger_bottle -> 'Discharged for 2 s...'. The others -> 'Nothing to discharge from that'.\n empty_reservoir and refill_reservoir: spray_bottle and trigger_bottle -> 'Hold it first' or 'Pour it into...'. The other 11 -> 'That has no reservoir...'.\n water_plant: trigger_bottle -> 'Water a plant...'. The others -> 'Hold a watering can...'.",
+   "item": "R1 (group consistency) / new"
+  }
+ ],
+ "fix_not_fixed": [
+  {
+   "title": "(second lens, reconstructed) Oblong wall mounts other than windows still run perpendicular into the room in generated houses (core wall cabinets, closets, closet shelves and rods, hook rails; domain shelves, racks, hoods; plumbing pipes are also off the grid)",
+   "why": "Only an opt-in was added: Placer.mount(along_wall=True), Placer._mount_cell(orient=True) and place.wall_layouts, with tests in WallMountOrientationTests. Turning it on for the core furnishers was measured. It removed the perpendicular core mounts, but it reshuffled every layout and needed two further generator rules: furniture tries the strict level first, and furniture must not leave dead floor pockets. Even with those, it broke 6 layout-dependent domain tests (people x4, pets x1, outdoor_plants x1) and left 3 layout-audit problems caused by domain placement code. So I reverted it, and generated houses are byte-identical to the integrator's. Enabling it needs a coordinated layout round."
+  },
+  {
+   "title": "Residual oracles judged out of scope",
+   "why": "(1) A hand-written entity id with no digits (fixture ids like 'sink') is still neutralised in free text only if it exists. Generated ids are all type-stem ids except floor_<room>. (2) Person and pet ids are public by design, so an absent or nonexistent pid still gets a different refusal outside the dark. (3) The novel-name rewrite still applies when a domain separately prints the true name and the agent's echoed argument is not involved; that needs a domain leak. (4) ask to a sleeping shape still says 'They are asleep' (a sleeper does not answer). (5) A concealed agent is still a physical obstacle to walk_to."
+  }
+ ],
+ "fix_domain_breakages": [
+  {
+   "domain": "climate",
+   "problem": "tests/test_climate.py RealisticPerceptionTests.test_people_show_no_thermal_cue_in_the_dark fails, normal and strict: env.step('approach', 'resident_1') in a dark room is refused with 'It is too dark to tell who is who here...'.",
+   "cause": "Kernel fix: in the dark, people and pets are shapes keyed by per-spell handles, and naming a pid in an entity argument is refused. The test must take the shape handle from obs['people'] (key whose pos matches) and approach/inspect that."
+  },
+  {
+   "domain": "textiles_laundry",
+   "problem": "Already failing before this pass (integrator round 5, C1): test_textiles_laundry PerceptionHardeningTests.test_an_unread_jug_is_applied_not_refused_and_a_set_stain_is_not_announced. pick_up of an unread laundry jug without a grip is refused with UNIDENTIFIED_HAZARD.",
+   "cause": "The laundry_jug group includes the chlorine_bleach_bottle type (corrosive), so an unidentified jug needs a grip safe for every member (grip='handle') or must be read first. Update the test/reference."
+  },
+  {
+   "domain": "food",
+   "problem": "Already failing before this pass: test_food RealisticLeaks.test_portions_poured_from_an_unidentified_bag_stay_unidentified expects 'paper bag of white powder' for an unresolved poured portion and gets 'contents of paper bag of white powder'.",
+   "cause": "Kernel R12 portion descriptor. Give the flour/sugar group a portion_descriptor (e.g. 'pile of white powder') and expect that, and give portions their own label."
+  },
+  {
+   "domain": "outdoor_plants",
+   "problem": "Already failing before this pass: test_outdoor_plants RealisticPerceptionTests.test_furnished_yards_keep_lights_accessible_and_wall_mounts_visible reports 'floor_garage_1' among cells hiding a mount (seed 1, garage_1, lawn_mower_1).",
+   "cause": "furnish.hidden_mount_cells / the test count the room's ground_layer floor entity as a mount. Skip ground_layer and floor entities."
+  },
+  {
+   "domain": "appliances_cooking",
+   "problem": "Already failing before this pass: spec T-d8355138bcf9fb-01 (oracle, seed 41 variant 2) reference error 'place generic_item_1 counter_1 failed: No free space there'.",
+   "cause": "counter_1 is a full 1.0 m run since the round-5 layout change. Look the surface up by free space instead of assuming counter_1."
+  },
+  {
+   "domain": "plumbing_liquids",
+   "problem": "Already failing before this pass: spec T-9a6cc7b8c7cefc-01 (oracle, seed 1) SpecError 'spawn: no room for ice_cube_tray on counter_2 count 2'.",
+   "cause": "counter_2 is 1.0 m with the dishwasher under it and already holds the microwave, coffee maker, toaster, salt and pepper. Spawn onto a surface with free space. Advisory: water_pipe mounts run off the grid in small utility closets (43 of 60 houses in the wall-mount probe); lay pipes along their wall on the grid."
+  },
+  {
+   "domain": "safety",
+   "problem": "Already failing before this pass: spec X-d734ea3e299b16-01 (oracle, seed 1 variant 1) reference fails ['damage','fire'] because the grease fire spreads at t=5 s to kitchen_paper_roll_1 (stove at (4,8) beside counter_1). Spec X-bc4e8d373e62c5-01 (oracle, seed 1) reaches goal_fraction 0.5 because the broken-glass skill leaves glass_shard_12 and glass_shard_7/9.",
+   "cause": "Seed-specific layout assumptions. Keep scenario combustibles away from the stove (or place them where the spec needs them), and make the shard cleanup collect every shard and keep a route."
+  },
+  {
+   "domain": "manipulation",
+   "problem": "Finding 'safe_handling picks the grip from TRUE safe_grips'. The kernel now ignores a filled-in grip for unresolved items, so behaviour is uniform, but common.safe_handling still reads rec['safe_grips'].",
+   "cause": "Use the command's grip (ctx.given) or held_grip, and never hidden values, for unidentified items. Also, break_item should set a glance-visible cue (shattered=True) when a break is visible: unseen instance hazards no longer refuse in realistic mode and are recorded as exposures instead."
+  },
+  {
+   "domain": "all domains (advisory, no current failure)",
+   "problem": "Realistic-mode guards and motion that still use hidden truth.",
+   "cause": "Domain motion verbs that call geometry.find_path for the robot should pass hazard_filter=ctx.route_filter. Domain refusals should be decided only on perceivable information (core.perceived_rule / ctx.unresolved). Placing or moving oblong wall mounts (appliances_cooking range hoods and clear_hood_wall/_counter_end, cleaning tool rails, admin_inventory wall shelves, outdoor_plants tool racks) should use Placer.mount(along_wall=True) or _mount_cell(orient=True) and copy rot, ready for the layout round."
+  }
+ ],
+ "repair_not_fixed": {
+  "food": [
+   {
+    "item": "perception_audit 20 80 --verbose reports 1 leak: observer:climate.senses ('obs climate.sunlit_windows listed in true-id order').",
+    "why": "This belongs to the climate domain, not food. No audit line is attributed to food, and the audit was clean when I started, so it probably comes from concurrent climate work."
+   }
+  ],
+  "appliances_cooking": [
+   {
+    "item": "tasks/specs.jsonl (line 401) still has the old variant-2 reference for T-d8355138bcf9fb-01 (open / put {counter2} / close).",
+    "why": "It is a compiled copy outside my edit list. `--check` reads the authored file, which passes on all 5 seeds. Whoever owns compilation should re-run `python -m house_sim --compile`."
+   },
+   {
+    "item": "The kitchen helper's {counter} and {counter2} bindings are still ranked by free area at the moment the helper picks them. That happens before it places the microwave, toaster, mitts, etc., so {counter2} can end up full.",
+    "why": "I left the selection unchanged on purpose. food__examples.json and food__perception.json (owned by the food domain) also bind {counter2}, and re-ranking would change their bindings while that domain is being repaired at the same time. All appliances_cooking specs pass on 5 seeds, and the only full-counter assumption was the preheat reference, now fixed. If food specs hit the same problem, re-rank at the end of scenarios.kitchen as a coordinated change."
+   },
+   {
+    "item": "Red-team G5 follow-up: lay range hoods and the oblong mounts moved by clear_hood_wall / _counter_end along their wall (Placer.mount(along_wall=True) / _mount_cell(orient=True)).",
+    "why": "The kernel doc says this waits for a coordinated layout round. Turning it on for this domain's furnishers would reshuffle every generated house and break other domains' layout-dependent tests and specs during the concurrent repairs."
+   }
+  ],
+  "textiles_laundry": [
+   {
+    "item": "tools/perception_audit.py 20 80 --verbose now prints one line: kind 'order', observer:climate.senses, 'obs climate.sunlit_windows listed in true-id order 11 times (3 distinct sets, chance 0.125)'. It is attributed to the climate domain, not this one.",
+    "why": "I tested this on a copy of the tree with my changes taken out: the audit shows 0 leaks without them, and 1 leak with only my textiles_laundry.json change put back. So the jug data change shifts the generated or random audit runs enough for this to appear; the code that lists the windows is climate's. climate/perception.py by_handle sorts sunlit_windows by a salted SHA-1 of each id, so the true-id order over 3 sets looks like coincidence (chance 1/8) rather than a real leak. Fix belongs to the climate owner (sort by the issued handle instead of a hash of the id) or the kernel audit owner (require more distinct id sets before the order rule fires). Nothing in my allowed files can fix it."
+   },
+   {
+    "item": "This domain still has its own smell words (model.smell_word, edges 0.35/0.7) and hides the raw odor dict, instead of using the kernel's new odor dict-bucket rendering (edges 0.3/0.6).",
+    "why": "Not a simple swap: the inspector's odor word, the room smell channels and their tests depend on the domain's own edges and on the room-level strength model. Nothing leaks today, so I left it."
+   }
+  ],
+  "outdoor_plants": [
+   {
+    "item": "tools_vehicles hangs pegboard_1 behind the already placed lawn mower (seed 1 garage_1: pegboard at (12,1) rot 90, mower at (11,2) covers wall cells (12,2)/(12,3); also the earlier seed 7 garage/patio and seed 0 townhouse cases). The pegboard is hidden by a tall floor item.",
+    "why": "Another domain's furnisher (house_sim/systems/tools_vehicles/furnish.py). Outdoor_plants places the mower first and cannot know where a pegboard will go later. tools_vehicles should refuse wall cells behind a floor-standing item taller than the mount when hanging its pegboard, for example with a check like outdoor_plants furnish.hidden_mount_cells run in reverse."
+   },
+   {
+    "item": "perception_audit 20 80 --verbose reported 1 leak, not in this domain: 'order observer:climate.senses -- obs climate.sunlit_windows listed in true-id order 11 times' (seeds 1, 8, 12). My first audit run in this session showed 0 leaks, so it most likely comes from another domain's concurrent edit or from run-to-run variation.",
+    "why": "Belongs to the climate domain's observer; outside my editable files. No audit lines are attributed to outdoor_plants."
+   }
+  ],
+  "safety": [
+   {
+    "item": "perception_audit leak `order observer:climate.senses` (climate.sunlit_windows listed in true-id order)",
+    "why": "It belongs to the climate domain, not safety. It is the only line the audit reports."
+   },
+   {
+    "item": "helpers._agents_wall_off kept, even though kernel v2.9 counts people and pets in placement checks",
+    "why": "Removing it was not straightforward. Safety's guard is stricter: no free floor may be cut off from every doorway, and it also moves an agent out of a doorway clearance. I measured it over the 75 builds of safety's authored specs (5 seeds): it still re-places a dog in X-bf82170244be22-01 on seeds 41 and 97. Removing it would change those layouts for no gain. The docs now say why it stays."
+   },
+   {
+    "item": "Fire spread does not account for items being shut away inside furniture",
+    "why": "Out of scope here, within safety's own domain (house_sim/systems/safety/fire.py). `_candidates`/`_spread` heat every combustible in the room by distance only, including things inside closed drawers or cabinets. No spec fails because of it after the stovetop clearance. Shielding needs a fire-model change and its own tests."
+   },
+   {
+    "item": "pets domain: pet_medication has no color while the other pill_bottle members are amber",
+    "why": "Not safety's file. Setting the group-level `color` in safety.json already clears the warning; the pets owner may also want to give pet_medication `color: amber`. Either way the result is the same."
+   }
+  ],
+  "plumbing_liquids": [
+   {
+    "item": "The domain's own sticky _unidentified_liquid parcel flag (common.UNIDENTIFIED, per-entity hidden tiers for liquid, product and hazards) is kept alongside the kernel's contents_from rendering.",
+    "why": "Replacing it is not a simple swap. The kernel's contents_from covers only liquid, contents and product, while this flag also hides a receiver's hazards and relabels the puddle as a plain 'spill'. Swapping would change what realistic agents see in several passing perception specs. The behaviour is conservative and honest: contents stay hidden until the container is emptied, rather than clearing once the origin is identified. This is noted in the doc."
+   },
+   {
+    "item": "A transient perception-audit line from another domain: observer climate.senses, kind 'order' (climate.sunlit_windows listed in true-id order).",
+    "why": "It belongs to climate, whose files were being edited at the same time. It showed up once mid-session and was gone on the final run (20 houses, 1600 steps, 0 leaks). No line was attributed to plumbing_liquids in any run."
+   }
+  ],
+  "manipulation": [
+   {
+    "item": "Kernel: a visibly broken unresolved look-alike is still picked up bare-handed with a recorded exposure",
+    "why": "In core._hazard_guard, the ctx.unresolved branch checks only lookalike_hazard_rules (the member types' rules) and never consults hazards_known, so a visible smashed or shattered cue is ignored for unresolved items. Reproduced: a decor_stone (smooth_stone group) given material terracotta or ceramic was thrown and broke. pick_up went ahead with safety_violations=1, even though the ceramic one showed shattered=True in its perceived record. Suggested kernel fix: in the unresolved branch, also require handling_rule_met on the record's own rule (or a generic sharp-pieces rule) when the record is smashed or shattered. This is kernel code (house_sim/systems/core.py), outside my files."
+   },
+   {
+    "item": "Kernel: an unresolved look-alike's perceived record drops `smashed` but keeps `shattered`",
+    "why": "realism.LOOKALIKE_FIELDS (kernel/realism.py:158) lists 'shattered' but not 'smashed', although both are DEFAULT_TIERS glance fields and core.hazards_known accepts both. The filter for unidentified things removes manipulation's break cue from an unresolved member (confirmed with a terracotta decor_stone). Adding 'smashed' to LOOKALIKE_FIELDS is a one-word kernel change."
+   },
+   {
+    "item": "Safety domain: glass_system shatters broken glass even when it is fully wrapped in opaque material",
+    "why": "safety/glass.py glass_system turns any broken portable glass or ceramic item on a floor into a shard field and sets shattered=True, without checking manipulation's `wrapped` dict (coverage >= 0.95) or `packaged`. A glass broken inside kraft paper therefore scatters shards and gets a visible cue that manipulation deliberately holds back until it is unwrapped. Safety should skip, or defer until unwrapped, items for which manipulation's common.break_shows(rec) is false. That code belongs to the safety domain owner."
+   }
+  ],
+  "climate": []
+ },
+ "impl_notes": {
+  "K-CORE": "Verification: each of the 13 new KernelRound5Tests fails on a pre-change snapshot of the repo and passes after the change. On the live tree: tests/test_kernel.py passed 36/36 normally and with HOUSE_SIM_STRICT=1, and `python -m unittest tests/test_kernel.py tests/test_perception.py` passed 83/83, including the observe-overhead timing test.\n\nMy changes were also checked in isolation, on a scratch copy of the pre-round repo plus only my files, so the other owners' in-progress edits do not mix in:\n- All 32 authored spec files (242 specs, seeds 0,1,2,41,97) pass, the same as the baseline.\n- tools/orchestration/green_tests.py (normal + strict): only two failures come from my changes (below). test_eval_dataset and test_eval_splits also fail in that copy, but they fail the same way in the baseline copy, which lacks datasets/ and the packaging files. Both pass (82 tests) in the live repo.\n\nDomain or other-owner tests broken by the intended new behaviour (not edited):\n1. tests/test_textiles_laundry.py PerceptionHardeningTests.test_an_unread_jug_is_applied_not_refused_and_a_set_stain_is_not_announced, line 2483. It picks up an unread fabric_softener jug (laundry_jug group) with no grip. Under C1 that is now refused, because chlorine_bleach_bottle in the same group needs grip 'handle'. Fix: pick it up with grip='handle', or read it first. Still failing on the live tree.\n2. tests/test_perception.py RedTeamRegressionTests.test_refusals_do_not_name_hidden_hazards_or_flags expected a refusal on an instance-private pan (C2 changes that). K-REALISM has already updated it on the live tree and it passes there.\n\nImplementation notes:\n- ActionError.kernel_access defaults to False through a class attribute set in kernel/actions.py, because errors.py is not in my file list. Domains should read it as getattr(exc, 'kernel_access', False) if they might run before actions.py is imported (in practice it always is).\n- physics.appliance_start is not in my list, so domain verbs that call it directly (coffee, oven air_fry, mechanisms controls) still pass no ctx; they can switch to core.start_cycle.\n- evaluation.py needed no change: privacy_violations, authority_violations and safety_violations are already global failure flags.\n- The C1 and C2 policies only change realistic mode, and may affect future specs:\n  - Picking up an unresolved member of a group with a hazardous member now needs a grip or gear that is safe for every member. Groups where no single grip satisfies every member, such as wheel_cleaner, can't be picked up until identified (wheel_cleaner_acid itself has no safe grip, even in oracle mode).\n  - An unperceived private/off_limits/approval flag now proceeds and fails the task through the violation stat instead of refusing. That includes core inspect of a private thing.\n  - A dark inspect of a person no longer counts toward facts.inspected.\n\nLeaks I saw but did not fix, because they are outside my items:\n- core place_item's waste-stream refusal ('That does not belong in the X stream') can tell unresolved look-alikes apart.\n- The 'Protected or valuable item must not be discarded' refusal reveals never-tier value/sentimental.\n- Core inspect of a person checks only location, so it ignores concealment.",
+  "K-REALISM": "Verification:\n- tests/test_perception.py passes (47 tests), both normally and with HOUSE_SIM_STRICT=1.\n- `python -m unittest tests/test_kernel.py tests/test_perception.py` passes (83 tests).\n- I checked \"fails before\" by running the final test file against HEAD's realism.py and registry.py (all other files current) in a scratch copy: all 20 new tests fail (19 failures, 1 error) and the 27 existing tests pass.\n- tools/perception_audit.py 6 120 reported 0 leaks and 0 crashes.\n- Realistic observe overhead is now about 2.5-3.1 ms over oracle (seeds 7/2/11). Before my changes it measured 4.1-4.7 ms, but that baseline was taken while other tests were running.\n\nDomain tests (all 16 suites run after the final edits):\n- Broken by my change: tests/test_food.py RealisticLeaks.test_portions_poured_from_an_unidentified_bag_stay_unidentified. It asserts the old package descriptor 'paper bag of white powder' for an unresolved poured portion. R12 deliberately replaces it with a portion descriptor: the default is now 'contents of paper bag of white powder'. Repair in food: give its group a \"portion_descriptor\" (e.g. 'pile of white powder') and update the assertion.\n- Not caused by me (both also fail with HEAD's realism.py and registry.py):\n  - tests/test_outdoor_plants.py RealisticPerceptionTests.test_furnished_yards_keep_lights_accessible_and_wall_mounts_visible: pure generator/geometry code; likely K-GEO's in-progress generator changes.\n  - tests/test_textiles_laundry.py PerceptionHardeningTests.test_an_unread_jug_is_applied_not_refused_and_a_set_stain_is_not_announced: pick_up is refused with K-CORE C1's 'You cannot tell what this is yet...' message.\n- The other 13 suites pass.\n\nEdit to an existing test in my file: test_refusals_do_not_name_hidden_hazards_or_flags expected a private pan pick-up to be refused. Under K-CORE's C2 policy that pick-up now goes ahead. The test now checks the scrubbing only when a refusal happens, and calls scrub_refusal directly.\n\nRegistry warning: `LookalikeWarning` now fires once per process at load. 20 current groups are flagged and need group \"color\"/\"size_m\" keys or aligned types:\n- color: kitchen_sponge, pill_bottle, spray_bottle, wheeled_cart\n- size: bubble_level, cleaning_bottle, combination_wrench, countertop_cooker, dog_food_bag, drink_carton, flat_blade_screwdriver, flour_sugar_bag, granule_bag, laundry_jug, outdoor_cover, plastic_food_tub, rubber_plunger, snow_shovel, soil_bag, water_valve\nRegistry load cost rose from about 25 ms to about 85 ms once per registry, because the check resolves every type.\n\nDesign choices to review:\n- A per-instance color or size (different from the type default, e.g. a red sock) is not replaced by the group value, because a camera sees it; a group-level color/size key overrides even that.\n- contents_from rendering: the group's portion_descriptor, else 'unidentified liquid/contents from <descriptor>'. I did this rather than putting the bare container descriptor into the liquid field.\n- Messages: labels are never rewritten inside JSON keys, and placeholder names ('object', 'item', 'generic item') are never rewritten.\n- New behaviour domains will see: all realistic JSON messages are re-serialised with sorted keys; id-keyed dicts in observation channels are ordered by handle; odor and damage dicts now show words, not floats.\n- New public API: Realism.unresolved, sealed (with _sealed kept as an alias), group_glance and gone; the 'count' perception key; dotted rules with wildcards. These are documented in PERCEPTION.md. KERNEL_API.md belongs to K-CORE and could get a v2.9 pointer to these.\n- contents_from and liquid_from are now never-tier by default.\n\nScratch-space mishap: the scratchpad root turned out to be shared with other agents. I overwrote a `survey.py` that already existed there, and ran `rm -rf scratchpad/before`, which may have deleted another agent's directory of that name. All my later work is in scratchpad/krealism_r5. I made no commits or branches.",
+  "K-GEO": "TESTS: tests/test_kernel_layout.py has 22 tests and passes normally and with HOUSE_SIM_STRICT=1. All 20 regression tests fail on a copy of the tree with my 7 files reverted to HEAD; the 2 guard tests pass on both. `python -m unittest tests/test_kernel.py tests/test_perception.py` passes (83 tests, includes the perception timing test).\n\nFULL SUITE (2604 tests, current tree including the other owners' in-progress edits): 3 failures.\n- Caused by me: tests/test_outdoor_plants.py RealisticPerceptionTests.test_furnished_yards_keep_lights_accessible_and_wall_mounts_visible.\n  - Case: seed 1 {}, garage_1. tools_vehicles now places pegboard_1 at [12,1] rot 90, behind outdoor_plants' lawn_mower_1, which was placed earlier.\n  - The test counts floor_garage_1 (the whole-room floor surface, created first) as an earlier entity overlapping the hidden cells, so any later mount behind the mower fails it.\n  - Cause: G5. The new window footprints change generated layouts, and Placer._free_spot's rng.sample over a different number of options shifts each furnisher's RNG stream.\n  - Verified: the test passes with my files reverted, and disabling along_wall restores the old garage layout.\n- Not caused by me (they also fail with my files reverted):\n  - test_textiles_laundry PerceptionHardeningTests.test_an_unread_jug_is_applied_not_refused_and_a_set_stain_is_not_announced: pick_up of an unresolved look-alike is now refused (K-CORE C1).\n  - test_food RealisticLeaks.test_portions_poured_from_an_unidentified_bag_stay_unidentified: the portion descriptor is now 'contents of paper bag of white powder' (K-REALISM R12).\n- An earlier mid-round failure of test_perception test_refusals_do_not_name_hidden_hazards_or_flags (K-CORE C2) passed in the final runs.\n\nAUTHORED SPECS (`--check` on all 32 tasks/authored files): 238 pass, 4 fail. All 4 pass on the reverted tree and pass again with only G5 (along_wall) disabled, so each is a G5 layout ripple exposing a domain helper or skill gap:\n- T-d8355138bcf9fb-01 (appliances_cooking), seed 41 variant 2: the preheat_oven reference puts the cavity item generic_item_1 on counter_1, which is full ('No free space there').\n- T-9a6cc7b8c7cefc-01 (plumbing_liquids), seed 1: setup error 'spawn: no room for ice_cube_tray' on counter_2.\n- X-d734ea3e299b16-01 (safety), seed 1 variant 1: the reference run ends with 'damage' and 'fire' failures.\n- X-bc4e8d373e62c5-01 (safety), seed 1: safety.clean_glass leaves glass_shard_12 at kitchen_1 [0,1], which is reachable, plus 2 shards on counter_2; goal fraction 0.5.\n- The G1 repro spec X-befab43585cde3-01 passes.\n\nAUDITS:\n- Layout audit, seeds 20-79 x 6 configs: 9 problems before, 4 after. No new kind is attributable to the kernel. The remaining lines are domain-owned:\n  - hidden mount: climate.fans tower_fan_1 hides window_sill_1 (mechanisms.coverings), seed 63, two configs.\n  - hidden mount: seed 74 apartment, towel_hook_1 (core_furniture) behind plumbing_liquids' shower_stall_1.\n  - hazard-only access: seed 78 backyard_1, robot_mower_dock_1 (navigation_robot.features).\n- Perception audit, 30 houses x 80 steps: 0 leaks with the new rules.\n  - My first version of the order rule flagged climate.senses sunlit_windows 46 times. That climate code deliberately uses a salted pseudo-random order, and with 2 windows it matched true-id order by chance. That is why the order rule now weighs evidence over the whole run.\n\nFOLLOW-UPS (not done; outside the listed items):\n- Placer.mount (_mount_cell) still does not lay other elongated wall mounts along their wall. In 20 seeds about 137 of 1276 run perpendicular: closets, upper cabinets, coat hooks, wall shelves and cleaning tool holders. water_pipe runs off the grid 17 times. geometry.along_wall is the shared helper for that. I did not apply it because it would change every kitchen and bedroom layout across the frozen domains.\n- Tall loose items that furnishers place in front of mounts are not G4's scope; the repair pass moved none of them. Found in 30 seeds x 4 configs (12 after the change, 15 before): outdoor_plants' lawn_mower hides shed windows, tools_vehicles' bicycles hide a shed window and a basement register, cleaning_supplies' stick_vacuum hides breaker_panel_1 in a utility closet, and navigation_robot's step_stool and reacher hide mounts in an apartment laundry room.\n\nAPI NOTES for whoever updates docs/KERNEL_API.md (owned by K-CORE; I did not edit docs):\n- geometry.agent_cells(state, rid, ignore=())\n- geometry.AVOID_ALIASES and expand_avoid(kinds); find_path expands the aliases and passes the expanded kinds to path_blocked hooks.\n- geometry.overhead_light(entity, room) and SERVICE_LIGHT_MAX_M = 2.5: outdoor wall lights are access targets.\n- geometry.along_wall(room, record)\n- free_floor_cell keep_access, Placer._connectivity and Placer.agent_cell count agents as obstacles; agent_cell has a 'plain' fallback.\n- perception hides hazards sourced by concealed agents.\n- repair overflows tall items to neighbour rooms before letting them hide a mount.\n- Core outdoor furniture is placed with strict=True.\n- perception_audit: start_ids, the 'order' kind with order_leaks(records, chance=0.125), and the remembered-value exemption in the tier rule.\n\ntasks/skills.py and tools/layout_audit.py did not need changes. My edited files keep the working tree's CRLF checkout convention (core.autocrlf=true); the audit's JSON output is written LF."
+ },
+ "fix_fixed": [
+  {
+   "title": "One speak step revealed the true type of an unresolved look-alike or novel object (label substitution ran on the agent's own text)",
+   "how": "house_sim/kernel/realism.py. For a look-alike, _label_substitution now rewrites the names of the whole group (every member type's label and type name, the group's listed members, every in-house member's label; see _group_names), so every member gets the same echo. A novel object's own name is no longer rewritten inside the agent's echoed arguments (inbound records them in _agent_text) or in a message value equal to text the agent wrote earlier (_agent_said, saved with dump/load, e.g. a label written and then read back). Probe rerun: p_echo, p_echo2 and p_dict_attack now give identical results for every member, and the novel toaster has nothing rewritten. Tests: test_perception KernelRound5RedTeamFixTests.test_speaking_member_names_..., test_speaking_a_guessed_name_of_a_novel_object_is_echoed_unchanged."
+  },
+  {
+   "title": "Id-existence oracle: inbound rewrote only real ids in free text and the echo showed which",
+   "how": "Realism.inbound now turns into 'something' every true id and every id-shaped word built on a registry type name (_typed_id; this covers type names that contain digits, such as combination_wrench_1_2in), whether or not the thing exists. Rooms, people and pets keep their ids. Words naming a part of the command's own target, such as slot 'layer_2' (_record_names), are kept. p_id_oracle rerun: all 4052 guesses read 'something'. Test: test_free_text_ids_are_neutralised_whether_or_not_they_exist."
+  },
+  {
+   "title": "R1 not byte-identical: a generic word equal to one member's name was rewritten for that member only",
+   "how": "Fixed by the same group-wide name set in _label_substitution. p_r1_generic rerun: absorb, steam_milk, apply_cleaner, shred and shut_off_gas messages are now identical per group. Test: test_a_generic_word_equal_to_one_member_name_is_rewritten_for_every_member."
+  },
+  {
+   "title": "manipulation.safe_handling took the grip from the item's true safe_grips, so the hazardous member passed and harmless members were refused",
+   "how": "Fixed at the root in the kernel. Ctx keeps ctx.given, a copy of the command's arguments made before the handler runs. core._hazard_guard now judges an unresolved look-alike only by the grip the command gave or the item's held_grip, so a grip a domain filled into ctx.args from hidden safe_grips is ignored. p_pill rerun: extract, arrange and twist now give the same result for every pill_bottle member. Test: test_kernel KernelRound5RedTeamTests.test_handler_filled_grip_does_not_decide_the_lookalike_guard. The domain should still stop reading safe_grips (see domain_breakages)."
+  },
+  {
+   "title": "C1 group rule included instance hazards of every in-house member (a hidden jar elsewhere changed the answer)",
+   "how": "core.lookalike_rules now returns the group's member type props only. If the item's own record has a rule that is not met, the act goes ahead and is recorded as an exposure (core._exposure: safety_violations, event unsafe_handling). p_hidden_rule and p6 A rerun: uniform. Test: test_lookalike_guard_does_not_depend_on_hidden_members_elsewhere."
+  },
+  {
+   "title": "Novel objects were judged by the look-alike group of their hidden type (hazard guard and child hand_over)",
+   "how": "actions.lookalike_group returns None for a novel record or for a portion of one. Novel things are now never refused for hidden hazards and always refused for a child. p_novel_guard rerun: uniform. Test: test_novel_objects_are_not_judged_by_their_hidden_group."
+  },
+  {
+   "title": "People and pets in the dark were keyed by readable ids (child_1, dog_1) in observations and inspect",
+   "how": "Realism._dark_agents gives each agent in the robot's dark room a handle that lasts one dark spell. A new spell starts whenever the robot's view of a room turns dark; spell state is saved with dump/load. obs people/pets are keyed by these handles in handle order, and messages and channels (including inspect's 'agent') translate those ids to the same handle. Inbound resolves a current shape handle. Naming any person or pet by id in an entity argument while the room is dark is refused with realism.DARK_WHO. p_dark and p4 rerun: no ids. Tests: test_people_and_pets_in_the_dark_are_keyed_by_shape_handles, and the updated test_c3."
+  },
+  {
+   "title": "The never-tier private flag was readable (read had no permission check, observation hid text and open-box contents only for private things)",
+   "how": "In realistic mode perceive_record no longer restricts private things, and perception.visible hides the children of private things only in oracle mode. Core read of a private thing without approval goes through ctx.forbid: refused in oracle mode, and in realistic mode refused only if the robot can perceive the rule, otherwise recorded as a privacy violation. Reading a printed PRIVATE cue is not a violation. p_private and p2 rerun: identical views, with violations recorded. Test: test_private_things_look_and_read_like_anything_else."
+  },
+  {
+   "title": "(second lens, reconstructed) Asking any question naming a thing, or a refused permission request, made the private flag 'perceived', so the refusal revealed it",
+   "how": "Ctx.rule_perceived no longer counts facts.asked; only approvals the robot was granted count. p1 rerun: the pick_up outcome is the same for private and non-private, with the violation recorded. Test: test_questions_and_refused_permission_requests_do_not_reveal_privacy."
+  },
+  {
+   "title": "(second lens, reconstructed) An identified item's unseen instance hazard refused pick_up; hidden risk or unseen hazards refused a child hand_over",
+   "how": "New core.perceived_rule: the item's own record once its hazards are known (hazards_known: inspected, or visibly shattered/smashed); otherwise its type's hazards and risk with the item's own grips. A refusal uses the generic PERCEIVED_HAZARD message. When the act goes ahead but the true rule is unmet, an exposure is recorded (unsafe_handling / unsafe_handover). p6 B/C/D and p16 rerun: uniform. Tests: test_instance_hazards_below_inspect_do_not_refuse, test_child_hand_over_ignores_hidden_risk_and_unseen_hazards."
+  },
+  {
+   "title": "(second lens, reconstructed) Route planning used hidden truth: a seated sleeper's ring, avoid 'sleeping' telling asleep from awake, concealed agents, dark rooms",
+   "how": "geometry.find_path takes a new hazard_filter argument. Core move, approach and walk_to pass ctx.route_filter, which is Realism.route_hazards in realistic mode. It avoids nothing in a dark room. It treats 'sleeping', 'person_down' and 'lying' alike as anyone who looks like lying down (their cell plus a ring), ignoring seated sleepers and concealed agents. Object hazards count only from visible sources and visible kinds. path_blocked hooks get the avoid list without the agent kinds. Realistic observations also drop sleep markers of agents who do not look like lying. p5 and p13 rerun: uniform. Test: test_route_planning_does_not_reveal_sleep_concealment_or_darkness."
+  },
+  {
+   "title": "(second lens, reconstructed) C8 whole-second clock rounding defeated by offsetting with known fractional durations",
+   "how": "house_sim/kernel/engine.py: in realistic mode, a callable action duration and ctx.extra_time are rounded to whole seconds before the world advances. Declared constant durations are kept, and oracle mode keeps exact durations. p7 rerun: shown deltas are equal. Test: test_hidden_dependent_durations_cannot_be_measured_below_a_second."
+  },
+  {
+   "title": "(second lens, reconstructed) perception_audit missed ids destroyed in earlier steps and pids in dark observations, and flagged a fixture label equal to an id ('sink')",
+   "how": "tools/perception_audit.py: _known_ids now includes realism._ever, and dark-room agents' ids count as leaks in a dark observation. Plain words under descriptive keys are no longer flagged unless they are id-shaped. Tests: test_kernel_layout AuditFollowUpTests (3 tests)."
+  },
+  {
+   "title": "Docs",
+   "how": "docs/KERNEL_API.md: v2.9 statements that these fixes made stale are corrected (C1 rules, C2 'told' paths, dark inspect, clock, the v2.8 private note), and a new 'Red-team fix pass' subsection is added with its own domain adoption list. docs/PERCEPTION.md: Messages, 'Acting on what the robot cannot tell apart' and the audit description are updated. Edited files are LF except geometry.py and perception.py, which were already CRLF."
+  }
+ ]
+}

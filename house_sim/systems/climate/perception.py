@@ -23,11 +23,11 @@ point as numbers: those need an instrument), and sounds name only what the sound
 filter sizes / MERV / model, layer-order labels, MAX lines, dehumidifier display) only after the robot has read it,
 water appearance without its age, a boiler gauge to 0.1 bar, combustibles near a heater only when visible (in a
 per-episode order, never true-id order), no wall-switch state from the fan itself, nothing identity-bearing about an
-unresolved look-alike or novel thing (an unread filter shows only its look and orientation cue), no thermal cues of
-people in the dark.
+unresolved look-alike or novel thing (an unread filter shows only its look and orientation cue). People in the dark get
+no thermal cues: kernel core ``inspect`` (v2.9 round 5) answers a dark-room person or pet with a bare shape before any
+domain inspector runs, and the shape is addressed by its dark-spell handle (naming a person by id in the dark is
+refused with ``realism.DARK_WHO``).
 """
-import hashlib
-
 from ...kernel.plugins import inspector, invariant, observer
 from . import common as C
 from . import heaters as H
@@ -46,13 +46,13 @@ def compass(deg):
 
 
 def by_handle(env, ids):
-    """Realistic mode: a list of entity ids in a per-episode pseudo-random order (true-id order could tell look-alikes
-    apart; no handle is issued by sorting); oracle mode: unchanged."""
+    """Realistic mode: a list of entity ids in handle order, the order the kernel lists id-keyed things in (true-id
+    order could tell look-alikes apart). A handle is a fixed digest of (episode seed, house salt, id), so taking it
+    here issues nothing that depends on this order. Oracle mode: unchanged."""
     realism = getattr(env, "realism", None)
     if realism is None:
         return list(ids)
-    salt = "{}:{}".format(getattr(realism.handles, "seed", ""), getattr(realism.handles, "salt", ""))
-    return sorted(ids, key=lambda e: hashlib.sha1((salt + ":" + str(e)).encode("utf-8")).hexdigest())
+    return sorted(ids, key=realism.handles.handle)
 
 
 @observer("climate.senses", order=90)
@@ -142,8 +142,7 @@ def climate_observer(env, w, obs):
 def climate_inspector(w, eid, record, details, ctx):
     state = w.s
     if eid in state.get("people", {}):
-        if getattr(ctx.env, "realism", None) is not None and _dark_here(state):
-            return      # in the dark a person is a shape: no shivering or sweating to see
+        # (in the dark, realistic mode, core inspect returns a bare shape before inspectors run: no cue to withhold here)
         cl = record.get("climate") or {}
         cue = {"too_cold": "shivering, arms wrapped around themselves", "cool": "rubbing their arms, pulled sleeves down",
                "comfortable": "looks comfortable", "warm": "fanning themselves, a little flushed",
@@ -294,13 +293,6 @@ def _realistic_tank(ctx, w, tid, view):
     if not _has_read(ctx, tid, w.s["entities"].get(tid)):
         view.pop("label", None)
     return view
-
-
-def _dark_here(state):
-    """The robot's room is too dark to make out faces and gestures (kernel perception DARK, flashlight counts)."""
-    from ...kernel.perception import DARK, flashlight_on, light_level
-    rid = state["robot"]["room"]
-    return light_level(state, rid) < DARK and not flashlight_on(state)
 
 
 def _unidentified(ctx, eid, record):

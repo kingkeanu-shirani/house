@@ -69,7 +69,9 @@ def percept_estimate(env, value, rel_sigma, key, step=1.0, lo=None, max_rel=0.25
 def identified(env, eid, record=None):
     """Realistic perception: does the robot know what this thing is? False for an unresolved look-alike (or a portion of
     one) and for a novel object; True otherwise and always in oracle mode. Messages, refusals and behaviour that
-    depend on WHAT a thing is (its product, species, contents) must use this, never the record's true type/fields."""
+    depend on WHAT a thing is (its product, species, contents) must use this, never the record's true type/fields.
+    Inside an action handler prefer ctx.identified / ctx.refuse_unidentified (kernel v2.9); this env-level form defers
+    to the kernel's Realism.unresolved (which also covers derived_from portions) for observers and internal calls."""
     realism = realism_of(env)
     if realism is None:
         return True
@@ -77,6 +79,9 @@ def identified(env, eid, record=None):
     rec = record if record is not None else state["entities"].get(eid)
     if rec is None:
         return False
+    kernel = getattr(realism, "unresolved", None)
+    if callable(kernel):
+        return not kernel(eid, rec)
     if rec.get("novel"):
         return False
     try:
@@ -512,12 +517,13 @@ def agent_cell_distance(a, b):
     return geometry.chebyshev(tuple(a), tuple(b))
 
 
-def reachable_cells(state, rid, start=None, extra_blocked=None):
+def reachable_cells(state, rid, start=None, extra_blocked=None, include_agents=False):
     """Free cells reachable on foot from the room's first doorway (or start); extra_blocked cells (e.g. loose floor
-    items) are treated as impassable."""
+    items) are treated as impassable. include_agents: the people and pets standing in the room are obstacles too, as
+    core routing (find_path) treats them -- use it when the robot is about to walk to the cell it picks."""
     room = state["rooms"][rid]
     cols, rows = geometry.grid_size(room)
-    blocked = set(geometry.blocked_cells(state, rid, include_agents=False)) | set(extra_blocked or ())
+    blocked = set(geometry.blocked_cells(state, rid, include_agents=include_agents)) | set(extra_blocked or ())
     if start is None:
         doors = [tuple(c["cells"][rid]) for _, c in sorted(state.get("connections", {}).items()) if rid in c.get("cells", {})]
         start = doors[0] if doors else None

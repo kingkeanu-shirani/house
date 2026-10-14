@@ -1773,7 +1773,8 @@ class HelpersAndSkills(unittest.TestCase):
 
     def test_fill_sink_skill_reaches_the_band(self):
         env, b = self.build([{"op": "helper", "name": "plumbing_liquids.kitchen_sink"},
-                             {"op": "spawn", "var": "stopper", "type": "sink_stopper", "on": "{counter}"},
+                             {"op": "helper", "name": "plumbing_liquids.counter_items",
+                              "args": {"type": "sink_stopper", "var": "stopper", "counter": "{counter}"}},
                              {"op": "robot", "room": "{kitchen}"}], seed=2)
         self.run_skill(env, b, [{"skill": "plumbing_liquids.fill_sink", "sink": "{sink}", "stopper": "{stopper}", "target_c": 44.0, "level": 0.5}])
         s = ent(env, b["sink"])
@@ -2472,3 +2473,181 @@ class PerceptionHardening(unittest.TestCase):
         for rec in bottles:
             self.assertEqual(rec["label"], "water bottle")
             self.assertTrue(rec.get("name_label"))
+
+
+# ======================================================================================
+# kernel round 5 domain pass: counter space for loose spec items, supply pipes along their wall
+
+class CounterSpaceAndPipes(unittest.TestCase):
+    def _kitchen(self, a_items=(), b_items=(), cabinet=True):
+        """A 4 x 3 m kitchen off a hall with two 1.0 m counters (A, B) and optionally a base cabinet; *_items are
+        (id, spos, props) laid on the counters."""
+        import random
+        from house_sim.tasks.setup import SetupCtx
+        reg = default_registry()
+        c = {"rooms": {"kitchen": {"type": "kitchen", "size_m": [4.0, 3.0]}, "hall": {"type": "hallway", "size_m": [3.0, 1.5]}},
+             "connections": {"c": {"rooms": ["hall", "kitchen"], "cells": {"hall": [2, 0], "kitchen": [0, 5]}}},
+             "entities": {}, "people": {}, "pets": {}}
+        for eid, pos in (("counter_a", [2, 0]), ("counter_b", [5, 0])):
+            rec = reg.make("counter", "kitchen", size_m=[1.0, 0.6, 0.9])
+            rec["pos"] = pos
+            c["entities"][eid] = rec
+        if cabinet:
+            rec = reg.make("cabinet", "kitchen", label="base cabinet")
+            rec["pos"] = [6, 4]
+            c["entities"]["cab"] = rec
+        for surface, items in (("counter_a", a_items), ("counter_b", b_items)):
+            for eid, spos, props in items:
+                rec = reg.make("generic_item", surface, **props)
+                rec["relation"], rec["spos"] = "on", list(spos)
+                c["entities"][eid] = rec
+        return SetupCtx(c, reg, random.Random(0), 0, {"catalog_id": "TEST-COUNTER"}), c["entities"]
+
+    APPLIANCE = {"label": "countertop oven", "category": "appliance", "portable": False, "mass_kg": 12.0}
+    CLUTTER = {"label": "bread box", "portable": True, "mass_kg": 1.0, "volume_l": 12.0}
+
+    def test_a_crowded_counter_takes_the_tray_turned_along_the_free_strip(self):
+        from house_sim.systems.plumbing_liquids.scenarios import counter_items
+        ctx, ents = self._kitchen(a_items=[("oven", [0, 0], dict(self.APPLIANCE, size_m=[0.8, 0.5, 0.4]))])
+        b = counter_items(ctx, type="ice_cube_tray", var="tray", counter="counter_a")
+        tray = ents[b["tray"]]
+        self.assertEqual(tray["location"], "counter_a")
+        self.assertEqual(tray.get("rot"), 90)                    # 0.2 m strip: only fits turned
+        self.assertEqual(tray["spos"], [0.8, 0.0])
+
+    def test_a_full_counter_sends_items_to_the_next_counter(self):
+        from house_sim.systems.plumbing_liquids.scenarios import counter_items
+        ctx, ents = self._kitchen(a_items=[("oven", [0, 0], dict(self.APPLIANCE, size_m=[1.0, 0.6, 0.4]))])
+        b = counter_items(ctx, type="ice_cube_tray", count=2, var="trays", counter="counter_a")
+        self.assertEqual([ents[t]["location"] for t in b["trays"]], ["counter_b", "counter_b"])
+        self.assertEqual((b["trays_1"], b["trays_2"]), tuple(b["trays"]))
+        self.assertIsNone(ents[b["trays_1"]].get("rot"))
+
+    def test_counter_dressing_is_put_away_when_no_counter_has_room(self):
+        from house_sim.kernel.errors import SpecError
+        from house_sim.systems.plumbing_liquids.scenarios import counter_items
+        full_a = [("oven", [0, 0], dict(self.APPLIANCE, size_m=[0.6, 0.6, 0.4])),
+                  ("box_1", [0.6, 0.0], dict(self.CLUTTER, size_m=[0.4, 0.3, 0.2])),
+                  ("box_2", [0.6, 0.3], dict(self.CLUTTER, size_m=[0.4, 0.3, 0.2]))]
+        full_b = [("oven_b", [0, 0], dict(self.APPLIANCE, size_m=[1.0, 0.6, 0.4]))]
+        ctx, ents = self._kitchen(full_a, full_b)
+        ctx.bind("keep", "box_1")                               # a thing the task bound is never moved
+        b = counter_items(ctx, type="ice_cube_tray", count=2, var="trays", counter="counter_a")
+        self.assertEqual([ents[t]["location"] for t in b["trays"]], ["counter_a", "counter_a"])
+        self.assertEqual((ents["box_2"]["location"], ents["box_2"]["relation"]), ("cab", "in"))
+        self.assertNotIn("spos", ents["box_2"])
+        self.assertEqual(ents["box_1"]["location"], "counter_a")
+        for eid in ("oven", "oven_b"):
+            self.assertEqual(ents[eid]["relation"], "on")       # appliances stay where they are
+        # nowhere to put anything away: an optional item is skipped, a required one is a SpecError
+        ctx, ents = self._kitchen(full_a, full_b, cabinet=False)
+        before = copy.deepcopy(ents)
+        self.assertEqual(counter_items(ctx, type="ice_cube_tray", count=2, var="trays", counter="counter_a", required=False),
+                         {"trays": []})
+        self.assertEqual(ents, before)
+        with self.assertRaises(SpecError):
+            counter_items(ctx, type="ice_cube_tray", var="tray", counter="counter_a")
+        self.assertEqual(ents, before)                          # a failed attempt leaves the dressing where it was
+
+    def test_ice_tray_spec_finds_counter_space_in_the_short_kitchen_of_seed_1(self):
+        # kernel round 5 regression: seed 1's counter_2 is a 1.0 m run (dishwasher under it) holding the microwave,
+        # coffee maker, toaster, salt and pepper; "spawn on {counter} count 2" raised "no room for ice_cube_tray"
+        import os
+        from house_sim.tasks.runner import build
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tasks", "authored", "plumbing_liquids__examples.json")
+        with open(path, encoding="utf-8") as fh:
+            spec = next(s for s in json.load(fh)["specs"] if s["catalog_id"] == "T-9a6cc7b8c7cefc-01")
+        for seed in (1, 4):
+            config, _, oracle = build(spec, seed)
+            b, ents = oracle["bindings"], config["entities"]
+            self.assertEqual(len(b["trays"]), 2)
+            for tray in b["trays"]:
+                surface = ents[tray]["location"]
+                self.assertEqual(ents[surface]["type"], "counter", (seed, tray))
+                self.assertEqual(ents[surface]["location"], b["kitchen"], (seed, tray))
+
+    def _pipe_room(self, size, rtype="utility_closet"):
+        reg = default_registry()
+        return {"rooms": {"svc": {"type": rtype, "size_m": list(size)}, "hall": {"type": "hallway", "size_m": [3.0, 1.5]}},
+                "connections": {"c": {"rooms": ["hall", "svc"], "cells": {"hall": [0, 2], "svc": [1, 0]}}},
+                "entities": {}, "people": {}, "pets": {}}, reg
+
+    def _along_wall_on_grid(self, room, rec):
+        from house_sim.kernel import geometry
+        cells = geometry.footprint(rec)
+        cols, rows = geometry.grid_size(room)
+        xs, ys = {c[0] for c in cells}, {c[1] for c in cells}
+        on_grid = all(geometry.in_grid(room, c) for c in cells)
+        along = (len(xs) == 1 and xs <= {0, cols - 1} and len(ys) > 1) or (len(ys) == 1 and ys <= {0, rows - 1} and len(xs) > 1)
+        return on_grid and along
+
+    def test_supply_pipes_run_along_their_wall_and_fit_a_small_closet(self):
+        # red-team wall-mount probe: Placer.mount kept the 2 m pipe's orientation, running it off a 1.5 m closet's grid
+        # (and straight into a basement from the west wall)
+        import random
+        from house_sim.generator.place import Placer
+        from house_sim.systems.plumbing_liquids.furnish import lay_pipe, mount_clear, reachable
+        for seed in range(8):
+            for size, rtype, length in (((1.5, 1.5), "utility_closet", 1.5), ((6.0, 7.5), "basement", 2.0)):
+                c, reg = self._pipe_room(size, rtype)
+                p = Placer(c, reg, random.Random(seed))
+                pipe = mount_clear(p, "svc", "water_pipe", height=2.1, label="cold water supply pipe")
+                self.assertTrue(lay_pipe(p, pipe), (seed, rtype))
+                rec = c["entities"][pipe]
+                self.assertTrue(self._along_wall_on_grid(c["rooms"]["svc"], rec), (seed, rtype, rec["pos"], rec.get("rot")))
+                self.assertAlmostEqual(rec["size_m"][0], length)
+                self.assertAlmostEqual(rec["mass_kg"], round(1.5 * length / 2.0, 3))
+                self.assertTrue(reachable(p, pipe))
+
+    def test_poured_liquid_records_where_it_came_from(self):
+        # kernel v2.9 contents_from contract: pour / fill from a container mark the destination with the origin of
+        # what arrived (a chain stays one deep), spills from a pour too, and an emptied container drops it
+        m = Mini()
+        m.kitchen_sink()
+        m.add("counter", "counter", "kitchen", pos=[5, 0], size_m=[2.0, 0.6, 0.9])
+        jug(m, "jug", "counter", spos=[0.0, 0.0], open=True)
+        m.add("bowl", "generic_item", "counter", spos=[0.5, 0.0], label="mixing bowl", category="dish", liquid_container=True, liquid=None,
+              liquid_l=0.0, capacity_l=3.0, material="glass", portable=True, size_m=[0.3, 0.3, 0.15])
+        glass(m, "cup", "counter", spos=[1.0, 0.0])
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("pick_up", "jug"))
+        ok(self, e.step("pour", "jug", "bowl", amount_l=0.4, rate="slow"))
+        self.assertEqual(ent(e, "bowl")["contents_from"], "jug")
+        ok(self, e.step("place", "jug", destination="counter"))
+        ok(self, e.step("pick_up", "bowl"))
+        ok(self, e.step("pour", "bowl", "cup", amount_l=0.2, rate="slow"))
+        self.assertEqual(ent(e, "cup")["contents_from"], "jug")           # the origin, not the bowl
+        ok(self, e.step("empty", "bowl", destination="ksink"))
+        self.assertNotIn("contents_from", ent(e, "bowl"))
+        ok(self, e.step("place", "bowl", destination="counter"))
+        ok(self, e.step("pick_up", "cup"))
+        ok(self, e.step("pour", "cup", "floor_kitchen", rate="fast"))
+        puddles = [s for s in spills(e) if ent(e, s).get("liquid_l", 0) > 0]
+        self.assertTrue(puddles)
+        self.assertTrue(all(ent(e, s).get("contents_from") == "jug" for s in puddles))
+
+    def test_look_alike_groups_show_one_size_at_a_glance(self):
+        # kernel round-5 lint: a main valve is twice a fixture stop's size and a flange plunger 10 cm taller than a
+        # cup plunger; the groups give the size every unresolved member shows
+        reg = default_registry()
+        mine = {name for name, types in reg.lookalike_types().items() if any(reg.sources.get(t) == "plumbing_liquids.json" for t in types)}
+        self.assertTrue({"water_valve", "rubber_plunger"} <= mine)
+        self.assertEqual([w for w in reg.lookalike_warnings if w.split(":")[0] in mine], [])
+        m = Mini()
+        m.add("main", "main_shutoff_valve", "basement", pos=[0, 2], mounted=True, mount_height_m=0.6)
+        m.add("stop", "shutoff_valve", "basement", pos=[0, 3], mounted=True, mount_height_m=0.6)
+        e = m.env(room="basement", pos=[1, 2], perception="realistic")
+        glance = e.realism.group_glance("water_valve", reg.lookalike_groups()["water_valve"])
+        self.assertEqual(glance["size_m"], [0.09, 0.09, 0.11])
+
+    def test_generated_supply_pipes_stay_on_the_grid(self):
+        from house_sim.generator import generate_house
+        seen = 0
+        for seed, opts in ((0, {"dwelling": "apartment"}), (2, {"dwelling": "apartment"}), (1, {"dwelling": "townhouse"}),
+                           (0, {"dwelling": "house", "require": ["garage", "patio"]})):
+            config = generate_house(seed, **opts)
+            for eid, rec in config["entities"].items():
+                if rec.get("type") == "water_pipe" and rec.get("pos"):
+                    seen += 1
+                    self.assertTrue(self._along_wall_on_grid(config["rooms"][rec["location"]], rec), (seed, opts, eid, rec["pos"]))
+        self.assertGreater(seen, 0)

@@ -35,7 +35,7 @@ from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import SYSTEMS, after, hook
-from ..core import add_soil
+from ..core import add_soil, clear_contents_from, mark_contents_from
 from . import common as C
 
 HUMID_RATE = {"ultrasonic": {"low": 0.18, "high": 0.35}, "evaporative": {"low": 0.25, "high": 0.40},
@@ -550,6 +550,12 @@ def refill_reservoir(ctx):
         m["liquid"] = trec.get("liquid")      # water topped onto something else does not wash it out
     else:
         m["liquid"] = "water" if liquid != trec.get("liquid") else liquid
+    if src_id and ctx.holding(src_id):
+        # provenance (kernel v2.9 contents_from): while the jug is an unidentified look-alike the tank's liquid reads as
+        # "unidentified liquid from <jug>" in realistic mode, never the jug's hidden contents
+        mark_contents_from(w, target_id, src_id)
+    elif fresh:
+        clear_contents_from(w, target_id)     # an empty tank filled at the tap holds tap water only
     if fresh:
         m["water_age_h"] = 0.0
         cont = dict(m.get("contamination") or {})
@@ -610,6 +616,7 @@ def empty_reservoir(ctx):
         cont["bacteria"] = C.rnd(C.num(cont.get("bacteria")) * 0.3, 3)
     m["contamination"] = cont
     m.pop("mineral_ppm", None)
+    clear_contents_from(w, tid)
     ctx.data["seconds"] = 6.0 + (round(liters * 4.0) / 4.0 if ctx.realistic else liters) * 2.0
     C.log(w, "emptied", target=tid, liters=round(liters, 2), into=dest or "ground")
     if ctx.realistic:

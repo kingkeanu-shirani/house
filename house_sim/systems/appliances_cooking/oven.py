@@ -762,8 +762,8 @@ def _preheat_body(ctx):
     mode = ctx.args.get("mode") or ("air_fry" if kind == "air_fryer" else "bake")
     if kind == "air_fryer":
         apply_setting(ctx, oid, "temp_c", shown)
-        from ...kernel import physics
-        physics.appliance_start(w, oid, "air_fry")
+        from ..core import start_cycle                 # kernel round 5: cycle_check hooks get the robot's ctx
+        start_cycle(ctx, oid, "air_fry")
         return "Air fryer heating to {} C".format(shown)
     if kind == "toaster_oven" and mode not in ("bake", "toast", "broil", "keep_warm"):
         mode = "bake"

@@ -16,6 +16,7 @@ whose kind and phase follow its composition. Work done (strokes x intensity) dri
 """
 import math
 
+from ..core import clear_contents_from
 from . import data as D
 from . import model as M
 
@@ -103,6 +104,7 @@ def absorb_vessel_water(w, vessel, into):
         v["dissolved_salt_g"] = 0.0
     v["liquid_l"] = 0.0
     v["liquid"] = None
+    clear_contents_from(w, vessel)          # the vessel's own liquid is gone (it joined the food)
     log(w, vessel, "add", kind="water", g=round(grams, 1))
 
 

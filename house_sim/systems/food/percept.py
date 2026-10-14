@@ -214,19 +214,24 @@ def has_read(env, eid, field):
 
 def unresolved(env, eid, at=INSPECT):
     """True while eid is an unresolved look-alike (or a portion of one, or an unfamiliar object) at knowledge level `at`
-    or what the robot already learned, whichever is higher."""
+    or what the robot already learned, whichever is higher. At what it already learned this is the kernel's
+    Realism.unresolved (a destroyed id answers as it was when it went); a higher `at` asks what a look it is about to
+    take (the inspector's own) would leave unresolved."""
     r = realism(env)
-    rec = env.world.s["entities"].get(eid) if isinstance(eid, str) else None
-    if r is None or rec is None:
+    if r is None or not isinstance(eid, str):
         return False
-    if rec.get("novel"):
-        return True
-    known = max(at, r.knowledge.entity_level(eid, rec))
-    return "candidates" in r.identity(eid, rec, known)
+    rec = env.world.s["entities"].get(eid)
+    if rec is None or rec.get("novel"):
+        return bool(r.unresolved(eid, rec))
+    known = r.knowledge.entity_level(eid, rec)
+    if at <= known:
+        return bool(r.unresolved(eid, rec))
+    return "candidates" in r.identity(eid, rec, at)
 
 
 def unidentified(env, eid):
-    """unresolved() at what the robot has learned so far (no inspection implied)."""
+    """unresolved() at what the robot has learned so far (no inspection implied): Realism.unresolved (ctx.unresolved
+    for handlers)."""
     return unresolved(env, eid, at=0)
 
 

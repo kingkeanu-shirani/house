@@ -1302,7 +1302,9 @@ def set_orientation(ctx):
     toward = ctx.args.get("toward")
     if toward:
         require(ctx.holding(eid), "Hold it to present it toward someone")
-        feature = ctx.args.get("feature") or ("handle" if rec.get("has_handle") or "sharp" in (rec.get("hazards") or []) or C.num(rec.get("temperature_c"), 21) > 50 else _default_feature(rec))
+        # the default feature follows what the robot can tell: a sharp hazard it perceives (C.perceived_hazards: for an
+        # unidentified look-alike, any member type's), never the item's hidden instance hazards
+        feature = ctx.args.get("feature") or ("handle" if rec.get("has_handle") or "sharp" in C.perceived_hazards(ctx, eid) or C.num(rec.get("temperature_c"), 21) > 50 else _default_feature(rec))
         present(w, eid, feature, toward)
         if not orientation:
             return "Presenting {} {} first toward {}".format(eid, feature, toward)

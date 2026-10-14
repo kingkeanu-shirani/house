@@ -195,6 +195,28 @@ class StoveTests(unittest.TestCase):
         self.assertLess(ent(env, "pot_1")["liquid_l"], 1.5)
         self.assertEqual(stat(env, "safety_violations"), 0)
 
+    def test_hidden_per_burner_approval_rule_follows_the_realistic_permission_policy(self):
+        """Kernel round 5: a burner's own `ignite_requires_approval` flag is not something a camera sees. Oracle mode
+        refuses as before; realistic mode lets the lighting go ahead and records an authority violation (no refusal and
+        no adult-present check that would reveal the rule); with the approval granted nothing is recorded."""
+        kit = Kit("gas")
+        bid = kit.k["burner_lf"]
+        kit.c["entities"][bid]["ignite_requires_approval"] = True
+        oracle = kit.env()
+        ok(oracle, "approach", bid)
+        self.assertIn("approval", refused(oracle, "ignite", bid)["message"])
+        real = renv(kit)
+        ok(real, "approach", H(real, bid))
+        ok(real, "ignite", H(real, bid))
+        self.assertTrue(ent(real, bid)["burner"]["lit"])
+        self.assertEqual(stat(real, "authority_violations"), 1)
+        kit.c["approvals"] = ["ignite:" + bid]
+        kit.person("pat", "kitchen", pos=[2, 6])
+        granted = renv(kit)
+        ok(granted, "approach", H(granted, bid))
+        ok(granted, "ignite", H(granted, bid))
+        self.assertEqual(stat(granted, "authority_violations"), 0)
+
     def test_set_gas_knob_without_ignition_leaks_unlit_gas(self):
         kit = Kit("gas")
         bid = kit.k["burner_rf"]
@@ -800,6 +822,68 @@ class OvenTests(unittest.TestCase):
         ok(env, "preheat", "af", temp=200)
         wait(env, 600)
         self.assertGreater(stat(env, "fire"), 0)
+
+
+class PreheatSkillParkTests(unittest.TestCase):
+    """Reference skill preheat_oven: it looks inside, and what it finds goes to a surface that has room -- never an
+    assumed counter (round-5 layouts can leave any one counter run full)."""
+
+    def kit(self):
+        kit = Kit("electric_coil", unit="F")
+        kit.item("tub", kit.k["rack_low"], material="plastic", size_m=[0.18, 0.12, 0.07], mass_kg=0.1)
+        return kit
+
+    def fill(self, kit, surface):
+        rec = kit.c["entities"][surface]
+        w, d = (rec.get("surface_size_m") or rec["size_m"])[:2]
+        kit.item("clutter_" + surface, surface, size_m=[w, d, 0.05], mass_kg=2.0)
+
+    def preheat(self, kit, **args):
+        from house_sim.tasks.runner import run_plan
+        env = kit.env()
+        step = {"skill": "appliances_cooking.preheat_oven", "oven": kit.k["oven"], "temp": 350, "unit": "F"}
+        step.update(args)
+        run_plan(env, [step], {}, strict=True)
+        oven = ent(env, kit.k["oven"])
+        self.assertTrue(oven["preheated"])
+        self.assertFalse(oven.get("open"))
+        self.assertFalse(ent(env, "tub").get("melted"))
+        return env
+
+    def test_full_park_surface_falls_back_to_a_counter_with_room(self):
+        kit = self.kit()
+        self.fill(kit, "counter_1")
+        env = self.preheat(kit, park="counter_1")
+        self.assertEqual(ent(env, "tub")["location"], "counter_2")
+
+    def test_no_park_given_uses_a_surface_with_room(self):
+        kit = self.kit()
+        self.fill(kit, "counter_2")
+        env = self.preheat(kit)
+        self.assertEqual(ent(env, "tub")["location"], "counter_1")
+
+    def test_every_surface_full_sets_it_on_the_kitchen_floor(self):
+        kit = self.kit()
+        for s in ("counter_1", "counter_2", "table_1"):
+            self.fill(kit, s)
+        env = self.preheat(kit)
+        self.assertEqual(ent(env, "tub")["location"], "kitchen")
+
+    def test_check_opens_the_door_to_look_even_when_empty(self):
+        kit = Kit("electric_coil", unit="F")
+        from house_sim.tasks.runner import run_plan
+        env = kit.env()
+        run_plan(env, [{"skill": "appliances_cooking.preheat_oven", "oven": kit.k["oven"], "temp": 350, "unit": "F",
+                        "wait": False}], {}, strict=True)
+        commands = [(h["command"]["action"], h["command"]["target"]) for h in env._history]
+        self.assertIn(("open", kit.k["oven"]), commands)
+        self.assertLess(commands.index(("open", kit.k["oven"])), commands.index(("preheat", kit.k["oven"])))
+        self.assertFalse(ent(env, kit.k["oven"]).get("open"))
+        # check=False is the classic mistake: it never looks in
+        env2 = kit.env()
+        run_plan(env2, [{"skill": "appliances_cooking.preheat_oven", "oven": kit.k["oven"], "temp": 350, "unit": "F",
+                         "wait": False, "check": False}], {}, strict=True)
+        self.assertNotIn("open", [h["command"]["action"] for h in env2._history])
 
 
 # ======================================================================================================

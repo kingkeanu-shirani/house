@@ -2126,6 +2126,114 @@ class LayoutRound(unittest.TestCase):
         self.assertEqual(len(C.floor_cell(state, "util")), 2)
 
 
+# ---------------------------------------------------------------------------------------------- kernel round 5 layouts
+
+
+def _example_spec(cid):
+    import pathlib
+    data = json.loads(pathlib.Path(__file__).resolve().parent.parent.joinpath("tasks", "authored", "safety__examples.json").read_text(encoding="utf-8"))
+    return next(s for s in data["specs"] if s["catalog_id"] == cid)
+
+
+STOVETOP = {"burner": ("generic_item", "kitchen", {"pos": [8, 0], "label": "stove burner", "safety_burner": True, "surface": True,
+                                                   "accepts_items": True, "size_m": [0.76, 0.6, 0.9], "surface_size_m": [0.76, 0.6],
+                                                   "surface_height_m": 0.9, "blocks_path": True, "portable": False, "material": "steel"}),
+            "pan": ("generic_item", "burner", {"relation": "on", "spos": [0.15, 0.1], "label": "frying pan", "material": "steel",
+                                               "diameter_m": 0.28, "size_m": [0.28, 0.28, 0.06], "liquid_container": True, "liquid": "oil",
+                                               "liquid_l": 0.6, "container": True, "accepts_items": True}),
+            # a paper towel roll in its (metal) holder at the burner's edge, a wooden board and a bound bottle beside it
+            "holder": ("generic_item", "counter", {"relation": "on", "spos": [1.85, 0.0], "label": "paper towel holder", "material": "metal",
+                                                   "size_m": [0.15, 0.15, 0.33]}),
+            "roll": ("generic_item", "holder", {"relation": "part", "label": "paper towel roll", "material": "paper", "size_m": [0.13, 0.13, 0.28]}),
+            "board": ("generic_item", "counter", {"relation": "on", "spos": [1.3, 0.2], "label": "wooden cutting board", "material": "wood",
+                                                  "size_m": [0.45, 0.3, 0.03], "mass_kg": 1.0}),
+            "bottle": ("generic_item", "counter", {"relation": "on", "spos": [1.6, 0.4], "label": "oil bottle", "material": "plastic",
+                                                   "size_m": [0.08, 0.08, 0.28]}),
+            "cab": ("generic_item", "kitchen", {"pos": [8, 1], "label": "wall cabinet", "material": "wood", "mounted": True, "portable": False,
+                                                "mount_height_m": 1.45, "blocks_path": False, "size_m": [0.8, 0.35, 0.7]})}
+
+
+class KernelRound5Layouts(unittest.TestCase):
+    """Seed-specific layout assumptions the v2.9 layouts (windows along their wall) exposed."""
+
+    def _stovetop_lab(self):
+        lab = Lab(extra=fx(STOVETOP), room_props={"kitchen": {"size_m": [5.0, 5.0]}}, robot={"room": "kitchen", "pos": [4, 4]})
+        return lab
+
+    def test_burning_stove_keeps_loose_combustibles_three_feet_from_the_pan(self):
+        import random
+        from house_sim.systems.safety import fire as F
+        from house_sim.systems.safety import helpers as H
+        from house_sim.tasks.setup import SetupCtx
+        # without the clearance, a seeded 12 kW grease fire reaches the roll at the burner's edge in its first tick
+        raw = self._stovetop_lab()
+        ignite(raw, "pan", 12.0)
+        raw.ok("wait", seconds=5)
+        self.assertIsNotNone(F.fire_on(raw.s, "roll"), "the roll beside the burner catches before anyone could act")
+        lab = self._stovetop_lab()
+        ctx = SetupCtx(lab.config, REG, random.Random(0), 0, {})
+        ctx.bind("bottle", "bottle")
+        moved = H._clear_stovetop(ctx, "kitchen", "pan")
+        state = ctx.placer.state()
+        self.assertEqual(sorted(moved), ["board", "holder"], "the holder moves with its roll; the bound bottle and mounted cabinet stay")
+        self.assertEqual(lab.config["entities"]["roll"]["location"], "holder")
+        for eid in ("roll", "board"):
+            self.assertGreaterEqual(H._stovetop_gap(state, "pan", eid), H.STOVE_CLEARANCE_M - 1e-9, eid)
+        self.assertEqual(lab.config["entities"]["bottle"]["spos"], [1.6, 0.4])
+        self.assertEqual(lab.config["entities"]["cab"]["pos"], [8, 1])
+        rebuild(lab)
+        ignite(lab, "pan", 12.0)
+        lab.ok("wait", seconds=10)
+        self.assertEqual([lab.ent(f)["location"] for f in F.fires(lab.s)], ["pan"], "nothing else has caught in the first 10 s")
+
+    def test_grease_fire_spec_seed_1_does_not_spread_before_the_response(self):
+        from house_sim.systems.safety import common as C
+        from house_sim.systems.safety import fire as F
+        from house_sim.systems.safety import helpers as H
+        config, task, oracle = build(_example_spec("X-d734ea3e299b16-01"), 1)
+        b = oracle["bindings"]
+        env = make_env(config, task, 1)
+        state = env.world.s
+        rid = b["k"]
+        for eid in sorted(state["entities"]):
+            rec = state["entities"][eid]
+            if eid in b.values() or C.root_room(state, eid) != rid or not F.combustible(rec) or not rec.get("portable"):
+                continue
+            loc = rec.get("location")
+            if loc == "robot" or (loc in state["entities"] and not state["entities"][loc].get("portable")
+                                  and rec.get("relation") not in ("on", "hung")):
+                continue
+            self.assertGreaterEqual(H._stovetop_gap(state, b["pan"], eid), H.STOVE_CLEARANCE_M - 1e-9, eid)
+        env.step("wait", seconds=10)
+        self.assertEqual(F.fires(env.world.s), [b["fire"]])
+
+    def test_glass_mop_up_routes_around_a_person_in_the_way(self):
+        from house_sim.systems.safety import common as C
+        from house_sim.systems.safety import skills as SK
+        # a shard in the corner by the doorway; the doorway-side cells beside it are reachable only past the resident
+        extra = fx(GLASS_TOOLS, {"block": ("generic_item", "kitchen", {"pos": [2, 0], "label": "kitchen island", "blocks_path": True,
+                                                                         "portable": False, "size_m": [1.0, 1.0, 0.9]}),
+                                 "shard": ("glass_shard", "kitchen", {"pos": [0, 1], "shard_size": "large", "spotted": True})})
+        people = {"res": {"role": "adult", "label": "resident", "location": "kitchen", "pos": [1, 1]}}
+        lab = Lab(extra=extra, people=people, robot={"room": "kitchen", "pos": [4, 4]})
+        held(lab, "pan", "left")
+        held(lab, "broom", "right")
+        rebuild(lab)
+        state = lab.s
+        self.assertIn((1, 0), C.reachable_cells(state, "kitchen", start=(4, 4), extra_blocked={(0, 1)}))
+        self.assertNotIn((1, 0), C.reachable_cells(state, "kitchen", start=(4, 4), extra_blocked={(0, 1)}, include_agents=True))
+        SK._mop_up(lab.r, "kitchen", (0, 1), 6, "pan", "broom", None)
+        self.assertNotEqual(lab.ent("shard").get("location"), "kitchen", "the piece is swept up from a stand cell clear of the resident")
+        self.assertEqual(lab.ent("shard").get("location"), "pan")
+
+    def test_broken_glass_spec_seed_1_clears_every_shard(self):
+        config, task, oracle = build(_example_spec("X-bc4e8d373e62c5-01"), 1)
+        env = make_env(config, task, 1)
+        run_plan(env, oracle["reference"], oracle["bindings"], strict=True)
+        result = env.evaluate()
+        self.assertTrue(result["success"], result)
+
+
 # ---------------------------------------------------------------------------------------------- realistic perception
 
 

@@ -13,6 +13,7 @@ from house_sim.generator import generate_house
 from house_sim.kernel.engine import HouseEnv
 from house_sim.kernel.plugins import ACTIONS, FURNISHERS, SCENARIO_HELPERS, SKILLS, load_domains
 from house_sim.kernel.predicates import digest
+from house_sim.kernel.realism import DARK_WHO
 from house_sim.kernel.registry import default_registry
 
 load_domains()
@@ -732,9 +733,11 @@ class HumidityTests(unittest.TestCase):
         ok(self, env.step("open", "jug"))
         ok(self, env.step("pick_up", "jug", hand="left"))
         ok(self, env.step("refill_reservoir", "tank", source="jug"))
+        self.assertEqual(ent(env, "tank").get("contents_from"), "jug")
         self.assertIn("topped_up_old_water", [e["kind"] for e in env.world.s["climate"]["log"]])
         self.assertGreater(ent(env, "tank")["contamination"]["bacteria"], 0.3)
         # correct way: dump the old water at the sink first
+        h.c["entities"]["tank"]["contents_from"] = "jug"       # what is in it came from the jug (kernel v2.9 provenance)
         env = h.env()
         go_to(self, env, "bedroom")
         near(self, env, "hum")
@@ -744,8 +747,10 @@ class HumidityTests(unittest.TestCase):
         ok(self, env.step("open", "tank"))
         no(self, env.step("empty_reservoir", "tank", destination="floor_bathroom"), "sink")
         ok(self, env.step("empty_reservoir", "tank", destination="sink"))
+        self.assertNotIn("contents_from", ent(env, "tank"))     # emptied: nothing from the jug is left
         ok(self, env.step("refill_reservoir", "tank", source="sink"))
         t = ent(env, "tank")
+        self.assertNotIn("contents_from", t)                    # filled at the tap: plain tap water
         self.assertAlmostEqual(t["liquid_l"], 3.8, delta=0.01)
         self.assertLess(t["contamination"]["bacteria"], 0.3)
         self.assertEqual(t["liquid"], "water")
@@ -1968,6 +1973,7 @@ class RealisticPerceptionTests(unittest.TestCase):
         msg = ok(self, self.step(env, "refill_reservoir", "hum_tank", source="jug_x"))["message"]
         self.assertNotIn("vinegar", msg)
         self.assertEqual(ent(env, "hum_tank")["liquid"], "white_vinegar")
+        self.assertEqual(ent(env, "hum_tank").get("contents_from"), "jug_x")     # kernel v2.9 provenance of what was poured
         # oracle mode keeps its guard
         env_o = house().env()
         go_to(self, env_o, "bedroom")
@@ -2024,8 +2030,18 @@ class RealisticPerceptionTests(unittest.TestCase):
             h.c["entities"]["light_living"]["on"] = light_on
             h.c["rooms"]["living"]["temperature_c"] = 14.0         # cold enough to shiver
             env = self.renv(h)
-            ok(self, env.step("approach", "resident_1"))
-            return json.loads(ok(self, env.step("inspect", "resident_1"))["message"]).get("thermal_cue")
+            pos = h.c["people"]["resident_1"]["pos"]
+            obs = env.observe()
+            # in the dark people are shapes keyed by a per-spell handle (naming a pid is refused): address what is seen
+            who = next(k for k, v in obs["people"].items() if v.get("pos") == pos)
+            self.assertEqual(who == "resident_1", light_on)
+            if not light_on:
+                self.assertEqual(no(self, env.step("approach", "resident_1"), category="perception")["message"], DARK_WHO)
+            ok(self, env.step("approach", who))
+            info = json.loads(ok(self, env.step("inspect", who))["message"])
+            if not light_on:
+                self.assertEqual((info.get("agent"), info.get("label")), (who, "person"))
+            return info.get("thermal_cue")
         self.assertEqual(cue(True), "shivering, arms wrapped around themselves")
         self.assertIsNone(cue(False))                                # a shape in the dark
 

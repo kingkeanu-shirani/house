@@ -10,7 +10,7 @@ age/choking, serving temperature, alcohol, texture, sodium) when food is handed 
 
 Code: `house_sim/systems/food/` (package: `data`, `model`, `systems`, `mixing`, `common`, `actions_knife`, `actions_mix`,
 `actions_measure`, `hooks`, `perception`, `percept` (realistic-perception helpers), `furnish`, `scenarios`, `skills`). Types: `house_sim/data/types/food.json`
-(365 types, 13 look-alike groups). Tests: `tests/test_food.py` (120 tests incl. `RealisticPerception`, `RealisticLeaks` and an `Integration` class; pass with all 16 domains loaded and with
+(365 types, 13 look-alike groups). Tests: `tests/test_food.py` (122 tests incl. `RealisticPerception`, `RealisticLeaks` and an `Integration` class; pass with all 16 domains loaded and with
 `HOUSE_SIM_STRICT=1`; with `HOUSE_SIM_DOMAINS=food` all but one `Integration` case pass: core-only furniture plus four stand-ins
 crowd the seed-2 townhouse kitchen until a resident blocks the way to the stand-in pantry). Examples: `tasks/authored/food__examples.json` (12 specs, all pass `--check` on seeds
 0, 1, 2, 41, 97 with every domain loaded); perception-centric specs: `tasks/authored/food__perception.json`
@@ -58,6 +58,14 @@ carving by the browned outside, opener on bulging cans) became consistent behavi
 file-level `field_tiers` cover what food writes on other entities; the egg group resolves only once an egg's inside is
 seen (section 10). Inspector percepts are marked `_perceived` (fixes the round-4 report that `food_view` vanished for
 unresolved eggs).
+
+Kernel round 5 (v2.9): every food look-alike group that portions come out of has a `portion_descriptor` ("pile of
+white powder" for a scoop from an unresolved flour/sugar bag, no longer the bag's own descriptor); an identified portion
+shows its own label (the food kind: "all purpose flour", not the bag's printed "all-purpose flour"), and identifying the
+source identifies its portions. `percept.unidentified` is the kernel's `Realism.unresolved`, the identity guards use
+`ctx.refuse_unidentified` / `ctx.identified`, the realistic inspector hides vessel contents with the kernel's
+`Realism.sealed` (a closed glass container shows them), `strain` records `contents_from` on the liquid it moves, and
+the two groups whose members differ in size at a glance set the group `size_m` (section 10).
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -465,7 +473,7 @@ author a full spec (food supplies the food-side state and grading fields):
 
 ---------------------------------------------------------------------------------------------------------------------
 
-## 10. What the robot can perceive (realistic perception, kernel v2.4-v2.8)
+## 10. What the robot can perceive (realistic perception, kernel v2.4-v2.9)
 
 In `perception="realistic"` (docs/PERCEPTION.md) the robot learns food state only through its senses and tools. Oracle
 mode keeps its output (the few realistic-only behaviours below are gated on `env.realism` / `ctx.realistic`;
@@ -497,7 +505,10 @@ fields food writes onto other domains' entities):
 (soda, beer, sparkling water), `drink_carton` (milk, almond, oat, buttermilk, cream), `dairy_tub` (sour cream, yogurt,
 hummus), `spice_jar` (10 spice jars), `bread_loaf_bag` (regular vs gluten-free), `cracker_box` (regular vs gluten-free),
 `cooking_oil_bottle` (olive vs vegetable), `measuring_cup` (1, 1/2, 1/3, 1/4 cup), `measuring_spoon` (tbsp, tsp, 1/2,
-1/4 tsp): all resolve on `inspect` (the product name or the stamped size is legible at reach). `egg_in_shell` "egg in
+1/4 tsp): all resolve on `inspect` (the product name or the stamped size is legible at reach). `flour_sugar_bag` and
+`drink_carton` set the group `size_m` the kernel shows for every unresolved member ([0.18, 0.09, 0.25] and
+[0.07, 0.07, 0.2] m, the typical member size; a powdered-sugar bag or a cream carton is smaller) so the size estimate
+cannot tell members apart. `egg_in_shell` "egg in
 its shell" (raw `hen_egg`, labelled "raw egg", vs `hard_boiled_egg`; kind "egg", candidates "boiled egg" / "uncooked
 egg") resolves by `"read"` on the group's `label_fields: ["_seen_inside"]`: nothing on an egg says raw or boiled, so it
 stays unidentified until its inside has been seen -- cracked (`crack_egg` / `separate_egg`), peeled (`remove_part
@@ -508,17 +519,26 @@ cannot produce member-specific text (kernel request filed for the rewriting itse
 
 **Portions** taken out of anything (`model.take`: transfer, scoop, portion, plate, garnish, sift, season, coat ...)
 carry the hidden `derived_from` = the package or whole item they ultimately came from (`model.derivation_root`), so
-the kernel shows a portion like its unresolved source (descriptor, candidates, group kind) instead of its true label
-(red-team finding). Once the portion's kind changes (mixed into a batter, cooked into a dish) the food refresh system
-drops `derived_from`. With the current kernel a portion resolves when both its source and the portion itself have been
-inspected (kernel request filed: the source's identification alone should carry over).
+the kernel shows a portion of an unresolved source by its group's `portion_descriptor` (with the group kind and
+candidates) instead of its true label (red-team finding). Portion descriptors: `flour_sugar_bag` "pile of white
+powder", `small_baking_box` "small heap of white powder", `nut_butter_jar` "dollop of brown nut spread",
+`beverage_can` "fizzy drink", `drink_carton` "white liquid", `dairy_tub` "dollop of creamy food", `spice_jar` "small
+amount of spice", `bread_loaf_bag` "sliced bread", `cracker_box` "crackers", `cooking_oil_bottle` "yellow cooking oil",
+`egg_in_shell` "piece of egg" (each true of every member; the measuring groups yield no portions). The same words
+render another domain's `liquid`/`contents` that carry `contents_from` one of these packages. A portion is identified
+once its source is (inspecting the bag identifies everything poured out of it) or by an inspect of the portion
+itself (reading a scoop finds no label); identified, it shows its **own** label -- the food kind ("all purpose flour",
+"sugar", "milk"), never the package label, which often names the packaging ("can of beer", "chicken breasts
+(2-pack)"). Once the portion's kind changes (mixed into a batter, cooked into a dish) the food refresh system drops
+`derived_from`. A coating layer whose source was used up still reads "unidentified coating" if that source was
+unresolved when it went (`percept.unidentified` is the kernel's `Realism.unresolved`, which answers for destroyed ids).
 
 **What reveals what**
 
 | Action / tool | Reveals | Precision / grant |
 |---|---|---|
 | glance | label (or look-alike descriptor + candidates), package, size estimate (5 cm), temperature bucket, soil/wetness buckets | no `food` record, no appearance |
-| `inspect` | `food_view`: cut, parts, phase, peeled, layers (kind as known, coverage word, method; never grams), evenness word, piece/slice/particle sizes (+-12 %), counts (exact up to 12, then +-8 %), `approx_g` (+-15 %, two significant figures), appearance, odor (exposed food, not through an eggshell), mixing/doneness words, ripeness word, frozen word, `surface` ("looks cooked on the outside" / "looks raw", never core doneness), `date_label`/`food_label` only once read. **Unidentified** food (an unresolved look-alike, a portion of one, an egg in its shell) shows only state -- `approx_ml` (a volume: the camera cannot see density), count, appearance, odor, frozen, shell, opened, can/lid, surface -- never kind, phase, cut, parts or firmness, so every member shows the same view. A **sealed opaque package** shows its product (when identified), "sealed package" appearance, opened flag, printed text once read, frozen word: nothing of the amount, cut or condition inside. Open vessels: `food_contents` (the same views, each at the item's own knowledge, listed in handle order, only items the robot can see), `whole_items` (counted by eye: exact up to 12) and fill level (5 %). These keys are passed to the kernel as percepts (`details["_perceived"]`), so the kernel's look-alike filter keeps them | kernel grant inspect |
+| `inspect` | `food_view`: cut, parts, phase, peeled, layers (kind as known, coverage word, method; never grams), evenness word, piece/slice/particle sizes (+-12 %), counts (exact up to 12, then +-8 %), `approx_g` (+-15 %, two significant figures), appearance, odor (exposed food, not through an eggshell), mixing/doneness words, ripeness word, frozen word, `surface` ("looks cooked on the outside" / "looks raw", never core doneness), `date_label`/`food_label` only once read. **Unidentified** food (an unresolved look-alike, a portion of one, an egg in its shell) shows only state -- `approx_ml` (a volume: the camera cannot see density), count, appearance, odor, frozen, shell, opened, can/lid, surface -- never kind, phase, cut, parts or firmness, so every member shows the same view. A **sealed opaque package** shows its product (when identified), "sealed package" appearance, opened flag, printed text once read, frozen word: nothing of the amount, cut or condition inside. Open vessels: `food_contents` (the same views, each at the item's own knowledge, listed in handle order, only items the robot can see), `whole_items` (counted by eye: exact up to 12) and fill level (5 %); a closed opaque container (kernel `Realism.sealed`) lists none, a closed glass one does. These keys are passed to the kernel as percepts (`details["_perceived"]`), so the kernel's look-alike filter keeps them | kernel grant inspect |
 | `inspect where=closely` | + firmness (touch), windowpane, pin bones, bulging can, loose lid, eggshell intact/cracked | |
 | `inspect where=closely` holding a probe thermometer | `probe_temp_c` = the core temperature at the probe's precision (one fixed error per item of about accuracy_c/2, else the kernel thermometer model about 0.3 C), to 0.1 C | grant measure `_core_c` |
 | inspect a refrigerator/freezer stand-in | `thermometer_c` from its dial (about 0.3 C); a lunch box, cooler or water bath has none; a gel ice pack is squeezed: `frozen` word | grant measure `internal_temp_c` |
@@ -526,6 +546,7 @@ inspected (kernel request filed: the source's identification alone should carry 
 | `weigh` | the display text (1 g / 0.01 oz) | grant read `display`; measure `mass_kg` of the single item on an un-tared scale, or of the single food in a tared vessel |
 | `transfer until_reading`, `portion method=scale` | amounts read off the scale (1 g) | grant read `display` / measure `mass_kg` of each portion |
 | other food actions | results as perceived: grams/ml/mm become visual estimates (one fixed relative error per entity and unit -- about 15 % / 10 % / 12 % -- the same however often or from wherever it is asked; poor viewing only states it one step coarser), `piece_cv`/`thickness_cv` become an evenness word, `coverage` a word, `lump_frac` lumps, `pith_frac` pith, `yield_frac` 10 % in 5 % steps, `temperature_c` (stir) a touch bucket; `gluten`, `hydration` and `glue` are dropped (the `state` words stay). Amounts of an **unidentified** food are volumes (`moved_g` -> `moved_ml`, `grams` -> `ml`); `season` names an unidentified seasoning by its handle, `coat` lists an unidentified coating as "unidentified coating", `marinate` does not say whether an unidentified liquid is acidic; warnings never name flour ("a cloud of fine powder rose") | refusals name entities by id (a handle), never by a label that would resolve a look-alike |
+| `strain` | the reserved and the strained liquid carry `contents_from` = the pot's (or its own source's) origin (`core.mark_contents_from`); the emptied pot's provenance is cleared, as is a vessel's when its water joins the food in it | rendering through the kernel's contents rule |
 | durations | pouring, scraping, serving, draining and sifting take time by the **volume** moved (`common.pour_ml`), not its hidden mass; cracking a boiled egg takes as long as cracking a raw one | |
 | smell channel (`food.smells`) | smell class (rotten_egg, spoiled_food, burning_food, pungent_food) for the room with a word strength (faint / noticeable / strong); no source, no amount; nothing from an egg in its shell | |
 | `ask food:<pid>:...` | allergies, diet, likes, orders, household rules (unchanged) | |
@@ -568,9 +589,6 @@ sealed packages; field tiers). A self red-team battery (every member of every fo
 grams and by volume, inspect, read, consolidate, scoop and season in fresh scenes) shows no member-specific message
 other than what the action physically reveals (cracking an egg; a jar running empty).
 
-Known limits: a portion's descriptor is its package's ("paper bag of white powder" for a pile in a bowl) until the
-kernel offers a portion descriptor; a portion resolves only when its source and the portion itself have been inspected
-(kernel identity uses the lower of the two knowledge levels); mixing an unidentified powder into water still produces
-the true mixture kind (a sugar syrup and a flour slurry look different, so this is treated as a legitimate test);
-eggs that other domains spawn with an explicit `label: "egg"` prop collide with the "egg in its shell" descriptor in the
-kernel's message rewriting (kernel request).
+Known limits: mixing an unidentified powder into water still produces the true mixture kind (a sugar syrup and a
+flour slurry look different, so this is treated as a legitimate test). (Eggs other domains spawn with an explicit
+`label: "egg"` no longer double the descriptor: the kernel's message rewriting is single-pass since v2.9.)

@@ -111,12 +111,20 @@ def blocked_cells(state, rid, ignore=(), include_agents=True):
             for cell in footprint(entity):
                 cells.setdefault(cell, []).append(eid)
     if include_agents:
-        for group in ("people", "pets"):
-            for aid, agent in state.get(group, {}).items():
-                if aid in ignore or agent.get("location") != rid or not agent.get("pos"):
-                    continue
-                cells.setdefault(tuple(agent["pos"]), []).append(aid)
+        for cell, aid in agent_cells(state, rid, ignore):
+            cells.setdefault(cell, []).append(aid)
     return cells
+
+
+def agent_cells(state, rid, ignore=()):
+    """[(cell, id)] of the people and pets standing in a room (dynamic obstacles)."""
+    out = []
+    for group in ("people", "pets"):
+        for aid, agent in state.get(group, {}).items():
+            if aid in ignore or agent.get("location") != rid or not agent.get("pos"):
+                continue
+            out.append((tuple(agent["pos"]), aid))
+    return out
 
 
 def hazard_cells(state, rid):
@@ -205,25 +213,55 @@ def target_sources(state, target):
     return tuple(out)
 
 
-def find_path(state, rid, start, goals, avoid_kinds=(), ignore=(), extra_blocked=(), ignore_sources=()):
+# Avoid-kind aliases: "lying" is the hazard kind realistic observations show for anyone lying down (asleep or awake,
+# fallen or not), so avoiding it avoids the agent markers hazard_cells writes ("sleeping", "person_down") too.
+AVOID_ALIASES = {"lying": ("sleeping", "person_down")}
+
+
+def expand_avoid(avoid_kinds):
+    """avoid_kinds as a tuple with AVOID_ALIASES added after the kinds that imply them (order kept, no duplicates).
+    find_path applies it (and passes the expanded kinds to path_blocked hooks); domains that match hazard_cells kinds
+    against an avoid list themselves should use it too."""
+    out = []
+    for kind in avoid_kinds or ():
+        for k in (kind,) + tuple(AVOID_ALIASES.get(kind, ()) if isinstance(kind, str) else ()):
+            if k not in out:
+                out.append(k)
+    return tuple(out)
+
+
+def find_path(state, rid, start, goals, avoid_kinds=(), ignore=(), extra_blocked=(), ignore_sources=(), hazard_filter=None):
     """A* over the room grid. Returns a list of cells from start (exclusive) to a goal.
 
     Obstacles and other agents are impassable. Hazard cells whose kind is listed in
-    avoid_kinds are impassable too, unless every entry on the cell comes from a source in
+    avoid_kinds (with AVOID_ALIASES: "lying" also means "sleeping" and "person_down") are
+    impassable too, unless every entry on the cell comes from a source in
     ignore_sources; other hazards are walked over (and their effects are applied by the
     navigation system). Diagonal moves may not cut corners.
+
+    hazard_filter (realistic perception, e.g. Realism.route_hazards): fn(state, rid, avoid_kinds, ignore_sources) ->
+    (kinds for path_blocked hooks, cells to keep out of). It replaces the kind matching against hazard_cells, so the
+    plan uses only the hazards the robot perceives (no route around a sleeper it cannot tell is asleep).
     """
     room = state["rooms"][rid]
     start = tuple(start)
     goals = {tuple(g) for g in goals if in_grid(room, tuple(g))}
     if not goals:
         return None
+    avoid_cells = None
+    if hazard_filter is not None:
+        hook_kinds, avoid_cells = hazard_filter(state, rid, tuple(avoid_kinds or ()), tuple(ignore_sources or ()))
+        avoid_kinds = hook_kinds = expand_avoid(hook_kinds)
+    else:
+        avoid_kinds = hook_kinds = expand_avoid(avoid_kinds)
     blocked = set(blocked_cells(state, rid, ignore=ignore)) | {tuple(c) for c in extra_blocked}
     from .plugins import HOOKS
     for _, _, fn in HOOKS.get("path_blocked", []):
-        cells = fn(state, rid, avoid_kinds, ignore_sources) if _hook_takes_sources(fn) else fn(state, rid, avoid_kinds)
+        cells = fn(state, rid, hook_kinds, ignore_sources) if _hook_takes_sources(fn) else fn(state, rid, hook_kinds)
         blocked |= {tuple(c) for c in (cells or ())}
-    if avoid_kinds:
+    if avoid_cells is not None:
+        blocked |= {tuple(c) for c in avoid_cells}
+    elif avoid_kinds:
         for cell, items in hazard_cells(state, rid).items():
             if any(kind in avoid_kinds and src not in ignore_sources for kind, src in items):
                 blocked.add(cell)
@@ -448,6 +486,25 @@ def wall_inward(room, cell):
     if y == 0:
         return (0, 1), (1, 0)
     return (0, -1), (1, 0)
+
+
+def along_wall(room, record):
+    """Lay a wall-mounted record whose footprint is longer one way (a 1.0 m window is 2 cells by 1) along the wall its
+    pos cell is on: rot 90 on the west/east walls, 0 on the north/south walls (wall_inward decides a corner), and move
+    its start back along the wall so the whole footprint stays on the grid. A square footprint keeps its rot; only its
+    pos may move. Returns the record (changed in place)."""
+    if not record.get("pos"):
+        return record
+    cols, rows = grid_size(room)
+    x, y = int(record["pos"][0]), int(record["pos"][1])
+    w, d = footprint_size(dict(record, rot=0))
+    if w != d:
+        inward, _ = wall_inward(room, (x, y))
+        side_wall = inward[0] != 0          # west/east wall: the long side must run along y
+        record["rot"] = (90 if w > d else 0) if side_wall else (0 if w > d else 90)
+    fc, fr = footprint_size(record)
+    record["pos"] = [max(0, min(x, cols - fc)), max(0, min(y, rows - fr))]
+    return record
 
 
 def _door_conn(state, door_id):
@@ -733,10 +790,26 @@ def access_targets(state, rid, level="all", ignore=()):
             if level in ("basic", "all"):
                 targets[eid] = (cells, access_radius(entity), False)
         elif (entity.get("mounted") or "mount_height_m" in entity) and                 (level == "all" or (level == "basic" and entity.get("category") in BASIC_MOUNTS)):
-            if entity.get("category") == "light" and float(entity.get("mount_height_m", 0.0) or 0.0) >= 2.0 and not entity.get("outdoor"):
+            if entity.get("category") == "light" and overhead_light(entity, room):
                 continue      # ceiling lights are reached with a ladder from any cell below them
             targets[eid] = (cells, access_radius(entity), False)
     return targets
+
+
+SERVICE_LIGHT_MAX_M = 2.5    # wall lights a person re-lamps from a step stool beside their wall
+
+
+def overhead_light(entity, room=None):
+    """Lights serviced with a ladder from any cell below them, which are therefore not access targets: indoor lights
+    mounted 2.0 m or higher (ceiling lights). Outdoor wall lights -- flagged ``outdoor``, of the outdoor_light family,
+    or mounted in an outdoor room (which has no ceiling) -- up to SERVICE_LIGHT_MAX_M are serviced from the ground
+    beside their wall and stay targets, so nothing may seal them off."""
+    height = _num_or(entity.get("mount_height_m", 0.0) or 0.0, 0.0)
+    if height < 2.0 or entity.get("outdoor"):
+        return False
+    outdoor = bool((room or {}).get("outdoor")) or entity.get("type") == "outdoor_light" or \
+        "outdoor_light" in (entity.get("is_a") or [])
+    return not (outdoor and height <= SERVICE_LIGHT_MAX_M + 1e-9)
 
 
 def access_report(state, rid, blocked, targets):
@@ -795,9 +868,10 @@ def free_floor_cell(state, rid, near=None, ignore=(), record=None, clearance=Tru
     graph only (hazards passable): the fallback for a room whose hazard-free routes are already cut.
     extra_used: cells to treat as taken (stand-ins); avoid: hard no-go cells; prefer_not: cells used only if nothing
     else fits. ring: keep-out ring the placed thing will itself create (1 for fragile or hot items and for sleeping or
-    lying people; default derived from the record). People and pets are not obstacles in the access checks (they
-    move), but an agent placement (record None) must land on floor joined to the doorways by 4-connected moves.
-    Path-blocking records prefer cells that wall off no free floor."""
+    lying people; default derived from the record). The people and pets already in the room (minus `ignore`) count as
+    obstacles in the access checks, as they do for core routing, so the new item or agent never walls part of the room
+    off together with them; an agent placement (record None) must land on floor joined to the doorways by 4-connected
+    moves. Path-blocking records prefer cells that wall off no free floor."""
     room = state["rooms"][rid]
     cols, rows = grid_size(room)
     if strict is None:
@@ -821,11 +895,14 @@ def free_floor_cell(state, rid, near=None, ignore=(), record=None, clearance=Tru
     reach = reachable_cells(state, rid, static_blocked) if reachable else None
     checkers = []
     if keep_access:
+        # the people and pets already standing in the room are walls to core routing (find_path, the reference skills'
+        # strict safe_avoid): the new thing must not cut a route together with them
+        agents = {cell for cell, _ in agent_cells(state, rid, ignore)}
         if keep_access != "plain":
-            checkers.append(_AccessChecker(state, rid, static_blocked | hazard_set, ignore, ring=ring, standable=record is None))
+            checkers.append(_AccessChecker(state, rid, static_blocked | agents | hazard_set, ignore, ring=ring, standable=record is None))
         if keep_access == "plain" or record is None or blocks(record):
             # people, pets and path-blocking things are physical obstacles: they must not cut plain routes either
-            checkers.append(_AccessChecker(state, rid, static_blocked, ignore, standable=record is None))
+            checkers.append(_AccessChecker(state, rid, static_blocked | agents, ignore, standable=record is None))
 
     hard = {tuple(c) for c in avoid}
     soft = {tuple(c) for c in prefer_not}

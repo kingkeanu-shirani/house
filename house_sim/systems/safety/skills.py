@@ -227,7 +227,7 @@ def _cover_positions(state, rid, center, radius_cells, reach_cells=2):
     cols, rows = geometry.grid_size(room)
     targets = {(x, y) for x in range(cols) for y in range(rows) if geometry.chebyshev((x, y), center) <= radius_cells}
     start = state["robot"].get("pos") if state["robot"].get("room") == rid else None
-    stands = sorted(C.reachable_cells(state, rid, start=start))
+    stands = sorted(C.reachable_cells(state, rid, start=start, include_agents=True))
     left = set(targets)
     chosen = []
     pos = tuple(start or center)
@@ -396,8 +396,34 @@ def _zone_shards(state, room, origin_center, radius_cells):
     return out
 
 
+MOP_REACH_CELLS = 2     # clean_shards radius=1.0 m: the stand cell must be within this of the piece
+
+
+def _mop_stand(r, room, cell, tries=6):
+    """Walk to the nearest cell within cleaning reach of `cell` that the robot can get to without stepping on glass.
+    People and pets standing in the room are obstacles (as core routing treats them); a cell that cannot be reached
+    glass-free is skipped for the next one. Returns the stand cell, or None when there is none."""
+    pos = tuple(r.state["robot"]["pos"])
+    glass = _glass_cells(r.state, room)
+    reach = C.reachable_cells(r.state, room, start=pos, extra_blocked=glass, include_agents=True)
+    options = sorted((geometry.chebyshev(c, cell), geometry.chebyshev(c, pos), c[1], c[0]) for c in reach if c not in glass)
+    options = [o for o in options if o[0] <= MOP_REACH_CELLS][:tries]
+    for _d, _dp, y, x in options:
+        target = (x, y)
+        if target == tuple(r.state["robot"]["pos"]):
+            return target
+        kinds = _glass_go(r, room, [target])
+        if kinds:
+            r.do("walk_to", cell=list(target), avoid=kinds)
+            if tuple(r.state["robot"]["pos"]) == target:
+                return target
+    return None
+
+
 def _mop_up(r, room, center, radius_cells, dustpan, broom, damp, rounds=8):
-    """Work toward any piece still on the floor: stand as close as possible without stepping on glass, then clean."""
+    """Work toward every piece still on the floor (or under furniture, once seen there): stand as close as possible
+    without stepping on glass, then clean. A piece that cannot be reached from any stand cell this round is left for
+    the next piece; the skill ends when nothing is left or nothing left can be reached."""
     tools = [t for t in (broom, damp) if t]
     floor = "floor_" + room if ("floor_" + room) in r.state["entities"] else room
     for _ in range(rounds):
@@ -405,18 +431,13 @@ def _mop_up(r, room, center, radius_cells, dustpan, broom, damp, rounds=8):
         if not left:
             return
         pos = tuple(r.state["robot"]["pos"])
-        sid, cell = sorted(left, key=lambda t: (geometry.chebyshev(t[1], pos), t[0]))[0]
-        glass = _glass_cells(r.state, room)
-        reach = C.reachable_cells(r.state, room, start=pos, extra_blocked=glass)
-        options = sorted((geometry.chebyshev(c, cell), c[1], c[0]) for c in reach if c not in glass)
-        if not options:
+        target = None
+        for cell in sorted({c for _sid, c in left}, key=lambda c: (geometry.chebyshev(c, pos), c[1], c[0])):
+            target = _mop_stand(r, room, cell)
+            if target is not None:
+                break
+        if target is None:
             return
-        target = (options[0][2], options[0][1])
-        if tuple(target) != pos:
-            kinds = _glass_go(r, room, [target])
-            if not kinds:
-                return
-            r.do("walk_to", cell=list(target), avoid=kinds)
         for tool in tools:
             if tool not in _held(r):
                 for held in _held(r):
@@ -424,10 +445,11 @@ def _mop_up(r, room, center, radius_cells, dustpan, broom, damp, rounds=8):
                         _drop(r, held)
                 _fetch_clear(r, tool, dustpan=dustpan)
                 if tuple(r.state["robot"]["pos"]) != tuple(target):
-                    kinds = _glass_go(r, room, [target])
-                    if not kinds:
-                        return
-                    r.do("walk_to", cell=list(target), avoid=kinds)
+                    if r.state["robot"].get("posture") != "standing":
+                        r.do("stand")
+                    target = _mop_stand(r, room, cell)
+                    if target is None:
+                        break
             if r.state["robot"].get("posture") == "standing":
                 r.do("crouch")
             method = "sweep" if tool == broom else "damp_wipe"
@@ -667,7 +689,7 @@ def _clear_way_to(r, rid, goals, dustpan, rounds=6):
         first = next((c for c in route if c in glass), None)
         if first is None:
             return True
-        reach = C.reachable_cells(state, rid, start=pos, extra_blocked=glass)
+        reach = C.reachable_cells(state, rid, start=pos, extra_blocked=glass, include_agents=True)
         stands = sorted((geometry.chebyshev(c, first), geometry.chebyshev(c, pos), c[1], c[0]) for c in reach if c not in glass)
         if not stands or stands[0][0] > 2:
             return False

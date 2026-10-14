@@ -253,9 +253,9 @@ def _brew_body(ctx):
     rec = ctx.obj(target, touch=True)
     kind = rec.get("ac_kind")
     if kind == "coffee_maker":
-        from ...kernel import physics
-        physics.appliance_start(w, target, "brew" if rec.get("liquid") in ("water", None) or C.num(rec.get("liquid_l")) <= 0 else "descale"
-                                if rec.get("liquid") in ("descaler", "vinegar") else "brew")
+        from ..core import start_cycle                 # kernel round 5: cycle_check hooks get the robot's ctx
+        start_cycle(ctx, target, "brew" if rec.get("liquid") in ("water", None) or C.num(rec.get("liquid_l")) <= 0 else "descale"
+                    if rec.get("liquid") in ("descaler", "vinegar") else "brew")
         return "Brewing started"
     if kind == "pod_machine":
         return _pod_brew(ctx, target, rec)

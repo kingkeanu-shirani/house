@@ -21,7 +21,7 @@ import math
 from ...kernel import physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
-from ..core import release_from_hands
+from ..core import clear_contents_from, release_from_hands
 from . import model as M
 from .dry import DEVICE_TICKERS, TEXTILE_TICKERS, wet_floor_near
 
@@ -308,7 +308,7 @@ def treat_stain(ctx):
         agents = _agents(arec)
         # realistic: an unidentified product (an unread jug) is simply applied - whether it treats stains shows in the
         # result; refusing would identify it without reading the label
-        require(agents or M.unresolved(ctx.env, agent), "That product is not a stain treatment", "argument")
+        require(agents or ctx.unresolved(agent), "That product is not a stain treatment", "argument")
         require(float(arec.get("remaining", 1.0)) > 0.0 and float(arec.get("amount_ml", 1.0)) > 0.0, "That product is used up", "resource")
     fab = M.fabric(rec)
     if ctx.args["spot_test"]:
@@ -449,6 +449,7 @@ def soak(ctx):
         dm = w.mut(dest)
         dm["liquid"], dm["liquid_l"] = "water", round(added, 3)
         dm["liquid_temp_c"] = temp
+        clear_contents_from(w, dest)            # fresh tap water: nothing poured in from elsewhere is left
         dm["stoppered"] = True
         if want > capacity + 1e-9:
             wet_floor_near(w, dest, want - capacity, "basin overflowed while filling for a soak")
@@ -460,7 +461,7 @@ def soak(ctx):
     if agent:
         arec = ctx.obj(agent, touch=True)
         agents = _agents(arec) or (["surfactant"] if "detergent" in str(arec.get("liquid", "")) else [])
-        require(agents or M.unresolved(ctx.env, agent), "That product is not a soaking agent", "argument")
+        require(agents or ctx.unresolved(agent), "That product is not a soaking agent", "argument")
         dm = w.mut(dest)
         dm["soak_agents"] = sorted(set(dm.get("soak_agents") or []) | set(agents))
         if "remaining" in arec:

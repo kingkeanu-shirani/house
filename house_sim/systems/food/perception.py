@@ -247,7 +247,7 @@ def _seen_inspector(w, eid, rec, details, ctx):
         if closely:
             _probe(w, eid, rec, details, ctx)
     foods = M.vessel_foods(w.s, eid)
-    if foods and (not rec.get("openable") or rec.get("open") or rec.get("transparent")):
+    if foods and not ctx.env.realism.sealed(rec):      # a closed opaque container hides its contents; glass does not
         seen = [c for c in foods if ctx.env.perception.visible(w.s, c)]
         details["food_contents"] = [dict(_seen_view(w, c, w.ent(c), closely, ctx, at=0), id=c) for c in _by_handle(ctx, seen)]
         units = M.whole_items(w.s, eid)

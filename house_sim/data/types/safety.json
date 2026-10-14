@@ -366,6 +366,6 @@
       "members": ["floor_puddle", "clear_water_puddle", "soapy_water_puddle", "cooking_oil_film", "spilled_juice", "spilled_coffee"]},
     "spider": {"descriptor": "spider", "resolve": "inspect", "kind": "spider", "candidates": ["house spider", "black widow", "brown recluse"],
       "members": ["house_spider", "black_widow_spider", "brown_recluse_spider"]},
-    "pill_bottle": {"members": ["expired_medication"]}
+    "pill_bottle": {"members": ["expired_medication"], "color": "amber"}
   }
 }

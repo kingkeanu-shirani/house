@@ -592,6 +592,28 @@ class Transfers(unittest.TestCase):
         self.assertTrue(out2["to_drain"])
         self.assertFalse([e for e, rec in env2.world.s["entities"].items() if (rec.get("food") or {}).get("kind") == "stock"])
 
+    def test_strained_liquid_keeps_its_provenance(self):
+        # kernel v2.9 contents_from: the reserved and the strained water came from wherever the pot's water came from
+        # (chains stay one deep); the emptied pot no longer holds anything from elsewhere
+        env, b, r = scene([
+            {"op": "spawn", "var": "kettle", "type": "stovetop_kettle", "on": "{counter}"},
+            {"op": "spawn", "var": "pot", "type": "saucepan", "on": "{counter}",
+             "props": {"liquid": "water", "liquid_l": 1.0, "contents_from": "{kettle}"}},
+            {"op": "spawn", "var": "bones", "type": "food_item", "in": "{pot}",
+             "props": {"label": "chicken carcass", "food": {"kind": "chicken_bones", "cat": "scraps", "phase": "solid", "qty_g": 300.0}, "mass_kg": 0.3, "size_m": [0.12, 0.1, 0.08]}},
+            {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"},
+            {"op": "spawn", "var": "cup", "type": "liquid_measuring_cup", "on": "{counter}"},
+            {"op": "spawn", "var": "sieve", "type": "fine_mesh_sieve", "on": "{counter}"}], kitchen_args={"need": ["sink"]})
+        r.skill("put", obj=b["sieve"], dest=b["bowl"], relation="in")
+        r.skill("fetch", obj=b["pot"])
+        r.skill("approach", target=b["bowl"])
+        r.do("strain", target=b["pot"], destination=b["bowl"], tool=b["sieve"], reserve_ml=200, reserve_to=b["cup"])
+        self.assertAlmostEqual(ent(env, b["cup"])["liquid_l"], 0.2, places=3)
+        self.assertAlmostEqual(ent(env, b["bowl"])["liquid_l"], 0.8, places=3)
+        self.assertEqual(ent(env, b["cup"]).get("contents_from"), b["kettle"])
+        self.assertEqual(ent(env, b["bowl"]).get("contents_from"), b["kettle"])
+        self.assertNotIn("contents_from", ent(env, b["pot"]))
+
     def test_bulk_food_takes_the_shape_of_its_container(self):
         # 1.6 L of chili scraped into a 22 x 16 cm box fills it wall to wall 4.5 cm deep, so the lid closes; the old
         # 20 x 20 cm mound stood on its side 20 cm tall in the 11 cm box and no lid could close over it
@@ -1870,22 +1892,47 @@ class RealisticLeaks(unittest.TestCase):
             portions[src] = new
             self.assertEqual(ent(env, new)["derived_from"], b[src])
             glance = self.seen(env, new)
-            self.assertEqual(glance["label"], "paper bag of white powder")     # not "sugar" / "all purpose flour"
+            # the group's portion descriptor: not "sugar" / "all purpose flour", and not the bag it came out of
+            self.assertEqual(glance["label"], "pile of white powder")
+            self.assertEqual(glance["kind"], "baking staple")
             self.assertNotIn("sugar", json.dumps(glance).replace("sugar bag", ""))
             contents = msg_json(r.do("inspect", target=b[bowl])["agent_message"])["food_contents"]
             self.assertEqual(len(contents), 1)
             views.append(contents[0])
             r.do("read", target=new, expect="fail")                # a scoop of powder carries no label
-            self.assertEqual(self.seen(env, new)["label"], "paper bag of white powder")
+            self.assertEqual(self.seen(env, new)["label"], "pile of white powder")
         self.assertEqual(len(refusals), 1)                          # the same refusal for flour and sugar
         self.assertEqual(sorted(views[0]), sorted(views[1]))        # same view shape: no kind, no phase
         for view in views:
             for key in ("kind", "phase", "approx_g", "cut"):
                 self.assertNotIn(key, view)
-        r.do("inspect", target=b["flour"])                          # the bag identified, then the portion itself
-        r.do("inspect", target=portions["flour"])
-        self.assertEqual(self.seen(env, portions["flour"])["label"], "all-purpose flour")
-        self.assertEqual(self.seen(env, portions["sugar"])["label"], "paper bag of white powder")
+        r.do("inspect", target=b["flour"])                          # identifying the bag identifies what came out of it
+        self.assertEqual(self.seen(env, portions["flour"])["label"], "all purpose flour")    # the portion's own label
+        self.assertEqual(self.seen(env, portions["sugar"])["label"], "pile of white powder")
+        r.do("inspect", target=portions["sugar"])                   # or a close look at the portion itself
+        self.assertEqual(self.seen(env, portions["sugar"])["label"], "sugar")
+        self.assertEqual(self.seen(env, b["sugar"])["label"], "paper bag of white powder")    # the bag is still unread
+
+    def test_a_coating_whose_unidentified_source_is_gone_stays_unidentified(self):
+        # kernel v2.9: percept.unidentified is Realism.unresolved, which answers for a destroyed id as it was when it went
+        env, b, r = scene([{"op": "spawn", "var": "flour", "type": "all_purpose_flour", "on": "{counter2}", "props": {"open": True}},
+                           {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter2}"},
+                           {"op": "spawn", "var": "chicken", "type": "chicken_breast", "on": "{counter2}"}],
+                          kitchen_args={"need": ["sink"]}, perception="realistic")
+        r.skill("approach", target=b["flour"])
+        portion = msg_json(r.do("transfer", target=b["flour"], destination=b["bowl"], amount_ml=150)["message"])["new"]
+        r.skill("fetch", obj=b["chicken"])
+        r.do("coat", target=b["chicken"], coating=b["bowl"], method="dredge")
+        layer = ent(env, b["chicken"])["food"]["layers"][0]
+        self.assertEqual(layer["_src"], portion)
+        set_down(r, b, b["chicken"], where="counter2")
+        r.skill("fetch", obj=b["bowl"])
+        r.skill("approach", target=b["sink"])
+        r.do("transfer", target=b["bowl"], destination=b["sink"], fraction=1.0)
+        self.assertNotIn(portion, env.world.s["entities"])          # the rest of the powder went down the drain
+        r.skill("approach", target=b["chicken"])
+        view = msg_json(r.do("inspect", target=b["chicken"])["agent_message"])["food_view"]
+        self.assertEqual([l["kind"] for l in view["layers"]], ["unidentified coating"])
 
     def test_consolidating_and_weighing_by_eye_need_identified_packages(self):
         env, b, r = self.bags()

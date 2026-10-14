@@ -676,7 +676,7 @@ def _check_doneness_body(ctx):
         if ctx.realistic:
             # the probe's error for this food is one fixed draw: probing again gives the same reading, so repeated
             # probes cannot be averaged below the instrument's accuracy
-            reading += C.num(hc.get("probe_bias")) + P.fixed_offset(ctx.env, acc, "probe", tool, target)
+            reading += C.num(hc.get("probe_bias")) + ctx.fixed_rng("ac", "probe", tool, target).uniform(-acc, acc)
         else:
             reading += C.num(hc.get("probe_bias")) + ctx.rng.uniform(-acc, acc)
         lo, hi = (trec.get("range_c") or [-40.0, 300.0])[:2]

@@ -16,6 +16,34 @@ import copy
 from ..kernel import geometry
 
 
+def wall_layouts(room, record, cell):
+    """[(pos, rot)] for a wall-mounted record at perimeter cell `cell`, one per wall that cell is on (west, east,
+    north, south; a corner is on two, so is every cell of a room one cell wide): an oblong footprint runs along that
+    wall (rot 90 on west/east, 0 on north/south), its start moved back along the wall so the whole footprint stays on
+    the grid and its back stays flush with the wall. A square footprint is left as it is ([(cell, its rot)]: the
+    caller checks it fits). The first entry is geometry.along_wall's choice. Used by Placer.mount(along_wall=True)."""
+    cols, rows = geometry.grid_size(room)
+    x, y = int(cell[0]), int(cell[1])
+    w, d = geometry.footprint_size(dict(record, rot=0))
+    if w == d:
+        return [((x, y), record.get("rot"))]
+    first = geometry.along_wall(room, dict(record, pos=[x, y]))
+    out = [(tuple(first["pos"]), first.get("rot"))]
+    sides = [s for s, on in (("west", x == 0), ("east", x == cols - 1), ("north", y == 0), ("south", y == rows - 1)) if on]
+    for side in sides:
+        rot = (90 if w > d else 0) if side in ("west", "east") else (0 if w > d else 90)
+        fc, fr = geometry.footprint_size(dict(record, rot=rot))
+        px, py = max(0, min(x, cols - fc)), max(0, min(y, rows - fr))
+        if side == "east":
+            px = max(0, cols - fc)
+        elif side == "south":
+            py = max(0, rows - fr)
+        option = ((px, py), rot)
+        if option not in out:
+            out.append(option)
+    return out
+
+
 class Placer:
     def __init__(self, config, registry, rng):
         self.c, self.reg, self.rng = config, registry, rng
@@ -144,12 +172,13 @@ class Placer:
 
     def _connectivity(self, rid, level, hazards=False):
         """Placement check for a blocking (or standable) footprint: connectivity and access must not get worse
-        (geometry.not_worse) and the new piece itself must be accessible. People and pets are ignored (they
-        move). With hazards=True the check also treats current floor hazards (loose items, cords, keep-out rings)
-        as impassable, so the piece does not leave anything reachable only over hazards."""
+        (geometry.not_worse) and the new piece itself must be accessible. People and pets already standing in the
+        room count as obstacles (core routing treats them as walls), so a piece never walls part of the room off
+        together with them. With hazards=True the check also treats current floor hazards (loose items, cords,
+        keep-out rings) as impassable, so the piece does not leave anything reachable only over hazards."""
         state = self.state()
         room = self.c["rooms"][rid]
-        base_blocked = set(geometry.blocked_cells(state, rid, include_agents=False))
+        base_blocked = set(geometry.blocked_cells(state, rid, include_agents=True))
         if hazards:
             base_blocked |= set(geometry.placement_hazards(state, rid))
         targets = geometry.access_targets(state, rid, level=level)
@@ -226,10 +255,14 @@ class Placer:
     def agent_cell(self, rid, near=None, ring=0):
         """A cell for a person or pet: free, outside doorway clearance where possible, joined to the doorways by
         4-connected floor, and not cutting any walking route or the only access to furniture, fixtures or the robot
-        dock (ring=1 for someone sleeping or lying down: their keep-out ring must not cut routes either). None if
+        dock -- counting the people and pets already in the room as obstacles, as core routing does (ring=1 for
+        someone sleeping or lying down: their keep-out ring must not cut routes either). If the room's hazard-free
+        routes are already cut, a cell that cuts no plain route; then any free cell that is not a doorway. None if
         the room has no such cell."""
         state = self.state()
         cell = geometry.free_floor_cell(state, rid, near=near, keep_access=True, ring=ring)
+        if cell is None:
+            cell = geometry.free_floor_cell(state, rid, near=near, keep_access="plain")
         if cell is None:
             cell = geometry.free_floor_cell(state, rid, near=near, clearance=False, reachable=False)
             if cell is not None and tuple(cell) in set(geometry.doorway_cells(state, rid)):
@@ -267,7 +300,10 @@ class Placer:
         record["pos"] = cell
         return eid
 
-    def _mount_cell(self, rid, record, relaxed=False, near=None, clearance=True):
+    def _mount_cell(self, rid, record, relaxed=False, near=None, clearance=True, orient=False):
+        """A wall cell for a mount (see mount). orient=True: an oblong footprint is laid along a wall of each candidate
+        cell (wall_layouts) and record["rot"] is set to the orientation of the cell returned; orient=False (default)
+        keeps record's rot and never changes the record."""
         state = self.state()
         room = self.c["rooms"][rid]
         gc, gr = geometry.grid_size(room)
@@ -309,8 +345,13 @@ class Placer:
         check = self._connectivity(rid, "basic") if standing and not relaxed else None
         cols, rows = geometry.footprint_size(record)
         options = []
-        for pos in perimeter:
-            cells = geometry.footprint(dict(record, pos=list(pos)))
+        layouts = (lambda c: wall_layouts(room, record, c)) if orient else (lambda c: [(tuple(c), record.get("rot"))])
+        seen = set()
+        for cell, (pos, rot) in ((c, o) for c in perimeter for o in layouts(c)):
+            if (pos, rot) in seen:
+                continue
+            seen.add((pos, rot))
+            cells = geometry.footprint(dict(record, pos=list(pos), rot=rot))
             if not all(geometry.in_grid(room, c) for c in cells):
                 continue
             if (low or standing) and any(c in blocked or c in taken for c in cells):
@@ -327,12 +368,16 @@ class Placer:
                 continue
             if standing and not relaxed and any(c in hides for c in cells):
                 continue       # a floor-standing closet or furnace must not stand in front of a window or wall mount
-            options.append(pos)
+            options.append((pos, rot))
         self.rng.shuffle(options)
         if near is not None:
-            options.sort(key=lambda p: geometry.chebyshev(p, tuple(near)))
-        for pos in options:
+            options.sort(key=lambda o: geometry.chebyshev(o[0], tuple(near)))
+        for pos, rot in options:
+            if orient:
+                cols, rows = geometry.footprint_size(dict(record, rot=rot))
             if check is None or check(pos, cols, rows):
+                if orient and rot is not None:
+                    record["rot"] = rot        # the orientation along its wall (the caller keeps this record)
                 return list(pos)
         return None
 
@@ -341,12 +386,15 @@ class Placer:
         perimeter = sorted({(x, 0) for x in range(gc)} | {(x, gr - 1) for x in range(gc)} | {(0, y) for y in range(gr)} | {(gc - 1, y) for y in range(gr)})
         return list(self.rng.choice(perimeter))
 
-    def mount(self, rid, type_name, eid=None, height=None, cell=None, strict=False, near=None, clearance=True, **props):
+    def mount(self, rid, type_name, eid=None, height=None, cell=None, strict=False, near=None, clearance=True,
+              along_wall=False, **props):
         """Wall/ceiling-mounted entity. Without an explicit cell it picks a wall cell whose footprint fits the room,
         does not overlap furniture or other floor-standing things (for low and floor-standing mounts), stays out of
         doorway clearance, is reachable (adjacent to a doorway-reachable cell; one more cell away for mounts above
         counter height) and, for floor-standing mounts, does not cut access to anything. If nothing qualifies it
-        relaxes reachability; strict=True returns None instead of a last-resort cell."""
+        relaxes reachability; strict=True returns None instead of a last-resort cell. along_wall=True (opt-in, not yet
+        used by the generator: it changes layouts) lays an oblong footprint along a wall of its cell (wall_layouts)
+        instead of keeping the type's orientation, which can run perpendicular into the room."""
         record = self.reg.make(type_name, rid, **props)
         record["mounted"] = props.get("mounted", True)
         record["blocks_path"] = props.get("blocks_path", False)
@@ -355,8 +403,8 @@ class Placer:
         if cell is not None:
             record["pos"] = list(cell)
         else:
-            pos = self._mount_cell(rid, record, near=near, clearance=clearance) or \
-                self._mount_cell(rid, record, relaxed=True, near=near, clearance=clearance)
+            pos = self._mount_cell(rid, record, near=near, clearance=clearance, orient=along_wall) or \
+                self._mount_cell(rid, record, relaxed=True, near=near, clearance=clearance, orient=along_wall)
             if pos is None:
                 if strict:
                     return None

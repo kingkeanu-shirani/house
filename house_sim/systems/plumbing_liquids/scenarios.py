@@ -1,13 +1,17 @@
 """Scenario helpers for plumbing_liquids task specs (setup op "helper"; every helper returns bindings).
 
   plumbing_liquids.kitchen_sink(room)            -> sink, sink_cabinet, hot_stop, cold_stop, trap, counter, kitchen
+  plumbing_liquids.counter_items(type, count, var, props, room, counter, required)
+                                                 -> var (id, or list + var_1 ...): loose things on a kitchen counter
+                                                 with room (the bound counter first, turned if need be, dressing put
+                                                 away as a last resort) - use it instead of "spawn on {counter}"
   plumbing_liquids.bathroom(room, faucet, worn, reversed, nonpotable, running)
                                                  -> bath_sink, vanity, bath_hot, bath_cold, toilet, tub, bathroom
   plumbing_liquids.water_service(valve_kind, seized, heater_c)
                                                  -> main, meter, heater, heater_inlet, service_room
   plumbing_liquids.toilet_trouble(kind)          kind paper|rising|object|chemical|sewer -> toilet, plunger, cup_plunger,
                                                  gloves, toy, cleaner, bathroom
-  plumbing_liquids.burst_pipe(rate_lpm, line)    -> pipe, service_room (an exposed run spraying until the main closes)
+  plumbing_liquids.burst_pipe(rate_lpm, line)    -> pipe, service_room (an exposed run along a wall spraying until the main closes)
   plumbing_liquids.hidden_leak(source, rate_lpm, preleak_l, witness)
                                                  source kitchen_supply|toilet_supply|heater_relief|bath_trap ->
                                                  leak_source, leak_fixture, leak_valve, puddle, leak_room, decoy
@@ -21,7 +25,8 @@
 All placements tolerate crowded rooms and any generated layout: floor furniture goes where it and everything else in
 the room stays reachable (furnish.furniture_keeping_reach), floor items on cells that cut no route, outside door
 clearance and reachable without stepping on anything (furnish.place_floor_item; or the room next door), wall controls
-are moved along the walls when boxed in or hidden. SpecError only when the house lacks the room.
+are moved along the walls when boxed in or hidden, supply pipes run along a wall (furnish.lay_pipe). SpecError only
+when the house lacks the room (counter_items: when no kitchen surface has room even with the dressing put away).
 """
 from ...kernel import clock, geometry
 from ...kernel.errors import SpecError
@@ -88,19 +93,191 @@ def derive(ctx, *eids):
                 F.refresh_drain(w, eid)
 
 
+def _free_area(ctx, sid):
+    """Top area of a surface not covered by what already stands on it (m2)."""
+    ents = _ents(ctx)
+    rec = ents[sid]
+    size = rec.get("surface_size_m") or (rec.get("size_m") or [0.5, 0.5])[:2]
+    used = sum(float((ents[c].get("size_m") or [0.1, 0.1])[0]) * float((ents[c].get("size_m") or [0.1, 0.1])[1])
+               for c in sorted(ents) if ents[c].get("location") == sid and ents[c].get("relation", "on") == "on")
+    return float(size[0]) * float(size[1]) - used
+
+
 def _roomiest(ctx, surfaces):
     """The surface with the most free area (other domains may have crowded the counters)."""
-    ents = _ents(ctx)
     best, best_free = None, -1.0
     for sid in surfaces:
-        rec = ents[sid]
-        size = rec.get("surface_size_m") or (rec.get("size_m") or [0.5, 0.5])[:2]
-        used = sum(float((ents[c].get("size_m") or [0.1, 0.1])[0]) * float((ents[c].get("size_m") or [0.1, 0.1])[1])
-                   for c in sorted(ents) if ents[c].get("location") == sid and ents[c].get("relation", "on") == "on")
-        free = float(size[0]) * float(size[1]) - used
+        free = _free_area(ctx, sid)
         if free > best_free:
             best, best_free = sid, free
     return best
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# loose items on the kitchen counters
+
+def _spot(ctx, surface, size, rot=None):
+    """Where an item of `size` (and rot) would go on surface next to what stands there now: the kernel's first-fit
+    geometry.surface_spot, exactly as Placer.on places it. None when it does not fit."""
+    ents = _ents(ctx)
+    view = {k: v for k, v in ents.items() if k == surface or v.get("location") == surface}
+    probe = {"location": surface, "relation": "on", "size_m": list(size)}
+    if rot:
+        probe["rot"] = rot
+    view["__probe__"] = probe
+    return geometry.surface_spot({"entities": view}, surface, "__probe__")
+
+
+def _work_surfaces(ctx, rid, first=None):
+    """Reachable surfaces of a kitchen to set loose things on: `first` (the bound counter) if it is one, then the
+    other counters by free area, then other work surfaces of the room (tables, islands) by free area. Never a
+    cooktop, an appliance, a sink or a window sill."""
+    ents = _ents(ctx)
+
+    def ok(sid):
+        rec = ents.get(sid) or {}
+        kinds = set(rec.get("is_a") or []) | {rec.get("type")}
+        if not rec.get("accepts_items") or rec.get("container") or not (rec.get("surface") or rec.get("surface_size_m")):
+            return False
+        if rec.get("appliance") or rec.get("heat_source") or rec.get("drain") or rec.get("category") in ("window_sill", "appliance"):
+            return False
+        return bool(kinds & {"counter", "surface_furniture"}) and _reachable(ctx, sid)
+    counters = [c for c in ctx.placer.find("counter", room=rid) if ok(c)]
+    others = [s for s in ctx.placer.find("surface_furniture", room=rid) if s not in counters and ok(s)]
+    order = sorted(counters, key=lambda s: (-_free_area(ctx, s), s)) + sorted(others, key=lambda s: (-_free_area(ctx, s), s))
+    if first in order:
+        order.remove(first)
+        order.insert(0, first)
+    return order
+
+
+def _bound_ids(ctx):
+    out = set()
+    for value in ctx.bindings.values():
+        for v in (value if isinstance(value, list) else [value]):
+            if isinstance(v, str):
+                out.add(v)
+    return out
+
+
+def _clutter(ctx, surface):
+    """Loose counter dressing that may be put away to free a work area (largest first): small portable things that
+    are not countertop appliances, hold nothing a task bound and are not bound themselves."""
+    ents = _ents(ctx)
+    keep = _bound_ids(ctx)
+    out = []
+    for eid in sorted(ents):
+        rec = ents[eid]
+        if rec.get("location") != surface or rec.get("relation", "on") != "on" or eid in keep:
+            continue
+        kinds = set(rec.get("is_a") or []) | {rec.get("type")}
+        if not rec.get("portable") or rec.get("appliance") or "countertop_appliance" in kinds or rec.get("category") == "appliance":
+            continue
+        if float(rec.get("mass_kg", 0.0) or 0.0) > 5.0 or any(ents[k].get("location") == eid for k in keep if k in ents):
+            continue
+        w, d = geometry.footprint_m(rec)
+        out.append((-w * d, eid))
+    return [eid for _, eid in sorted(out)]
+
+
+def _stow(ctx, eid, rid):
+    """Put a dressing item away in a kitchen cabinet or drawer it fits (never the sink base, where the cleaners
+    live). Returns the undo record, or None when no cabinet takes it."""
+    ents = _ents(ctx)
+    rec = ents[eid]
+    size = rec.get("size_m") or [0.1, 0.1, 0.1]
+    vol = float(rec.get("volume_l", 0.0) or 0.0)
+    for cid in ctx.placer.find("openable_storage", room=rid):
+        c = ents[cid]
+        if not c.get("container") or not c.get("accepts_items") or c.get("sink") or c.get("sink_base") or c.get("locked"):
+            continue
+        if "sink" in str(c.get("label") or "") or not geometry.fits_inside(size, c.get("inner_size_m")):
+            continue
+        cap = float(c.get("capacity_l", 0) or 0)
+        used = sum(float(e.get("volume_l", 0) or 0) for e in ents.values() if e.get("location") == cid and e.get("relation") == "in")
+        if cap > 0 and used + vol > cap + 1e-9:
+            continue
+        undo = {k: rec.get(k) for k in ("location", "relation", "spos", "shelf")}
+        rec["location"], rec["relation"] = cid, "in"
+        rec.pop("spos", None)
+        if c.get("shelf_heights"):
+            rec["shelf"] = 0
+        else:
+            rec.pop("shelf", None)
+        return undo
+    return None
+
+
+def _unstow(ctx, eid, undo):
+    rec = _ents(ctx)[eid]
+    for key, value in undo.items():
+        if value is None:
+            rec.pop(key, None)
+        else:
+            rec[key] = value
+
+
+def place_on_counters(ctx, rid, type_name, count=1, props=None, first=None, required=True):
+    """Set `count` loose items of type_name on the kitchen's work surfaces: each on the first surface of
+    _work_surfaces (the bound counter first) where it fits as the type lies, else turned 90 degrees; when no surface
+    has room, counter dressing (salt and pepper, a fruit bowl, a bread box ...) is put away in a kitchen cabinet until
+    it fits, as a person clears a work area. SpecError when even that fails. required=False: an optional item is
+    skipped instead of clearing anything away for it.
+    Generated counters vary in length (a dishwasher shortens a run) and other furnishers crowd them, so a spec must
+    not assume the bound counter has room."""
+    props = dict(props or {})
+    probe = ctx.reg.make(type_name, rid, **props)
+    size = list(probe.get("size_m") or [0.1, 0.1, 0.1])
+    turns = [props.get("rot")] if props.get("rot") is not None or abs(float(size[0]) - float(size[1])) < 1e-9 else [None, 90]
+    created = []
+    for _ in range(int(count)):
+        surfaces = _work_surfaces(ctx, rid, first)
+        new = None
+        for sid in surfaces:
+            rot = next((r for r in turns if _spot(ctx, sid, size, r) is not None), "none")
+            if rot != "none":
+                new = ctx.placer.on(sid, type_name, **dict(props, **({"rot": rot} if rot else {})))
+                break
+        for sid in surfaces if new is None and required else []:
+            stowed = []
+            for item in _clutter(ctx, sid):
+                undo = _stow(ctx, item, rid)
+                if undo is None:
+                    continue
+                stowed.append((item, undo))
+                rot = next((r for r in turns if _spot(ctx, sid, size, r) is not None), "none")
+                if rot != "none":
+                    new = ctx.placer.on(sid, type_name, **dict(props, **({"rot": rot} if rot else {})))
+                    break
+            if new is not None:
+                break
+            for item, undo in reversed(stowed):
+                _unstow(ctx, item, undo)
+        if new is None:
+            if required:
+                raise SpecError("No counter space for {} in {}".format(type_name, rid))
+            continue
+        created.append(new)
+    return created
+
+
+@scenario_helper("plumbing_liquids.counter_items")
+def counter_items(ctx, type="generic_item", count=1, var="items", props=None, room=None, counter=None, required=True):
+    """Loose things to start on the kitchen counters (place_on_counters): binds `var` to the id (count 1) or the
+    list of ids plus `var_1`, `var_2` ... like the spawn op."""
+    rid = _room(ctx, room, "kitchen")
+    if rid is None and counter in _ents(ctx):
+        from ...kernel.predicates import root_room
+        rid = root_room(ctx.state(), counter)
+    if rid is None:
+        raise SpecError("House has no kitchen")
+    created = place_on_counters(ctx, rid, type, count=count, props=props, first=counter, required=required)
+    if int(count) == 1:
+        return {var: created[0] if created else None}
+    out = {var: created}
+    for i, eid in enumerate(created, 1):
+        out["{}_{}".format(var, i)] = eid
+    return out
 
 
 def _reachable(ctx, eid):
@@ -380,7 +557,8 @@ def burst_pipe(ctx, rate_lpm=20.0, line="cold"):
     pipe = next((e for e in ctx.placer.find("water_pipe", room=room)), None)
     if pipe is None:
         pipe = ctx.placer.mount(room, "water_pipe", height=2.1, label="{} water supply pipe".format(line))
-    _fix_reach(ctx, pipe)
+    from .furnish import lay_pipe
+    lay_pipe(ctx.placer, pipe)         # along its wall, on the grid, reachable
     # the spray comes down on open floor near the split (not neatly into a bucket someone left standing there)
     cell = geometry.free_floor_cell(ctx.state(), room, near=ents[pipe]["pos"], ignore=(pipe,), clearance=False) or ents[pipe]["pos"]
     ents[pipe]["line"] = line
@@ -601,10 +779,11 @@ def drinkware(ctx, room=None):
                                     inner_size_m=[0.07, 0.07, 0.1], size_m=[0.08, 0.08, 0.11], mass_kg=0.04, volume_l=0.4, shelf=0, **common)
     counter = ks["counter"]
     if glass is None and counter:
-        glass = ctx.placer.on(counter, "generic_item", label="drinking glass", material="glass", fragile=True, capacity_l=0.35,
-                              size_m=[0.08, 0.08, 0.13], mass_kg=0.25, **common)
-        plastic = ctx.placer.on(counter, "generic_item", label="plastic cup", material="plastic", fragile=False, capacity_l=0.3,
-                                size_m=[0.08, 0.08, 0.11], mass_kg=0.04, **common)
+        # no cupboard: the glasses stand on a counter with room (place_on_counters), the bound one first
+        glass = place_on_counters(ctx, rid, "generic_item", first=counter, props=dict(label="drinking glass", material="glass", fragile=True,
+                                  capacity_l=0.35, size_m=[0.08, 0.08, 0.13], mass_kg=0.25, **common))[0]
+        plastic = place_on_counters(ctx, rid, "generic_item", first=counter, props=dict(label="plastic cup", material="plastic", fragile=False,
+                                    capacity_l=0.3, size_m=[0.08, 0.08, 0.11], mass_kg=0.04, **common))[0]
     dirty = ctx.placer.make("generic_item", ks["sink"], label="used glass", material="glass", fragile=True, capacity_l=0.35,
                             size_m=[0.08, 0.08, 0.13], mass_kg=0.25, soil={"food": 0.3, "sticky": 0.4}, **common)
     ents[dirty]["relation"] = "in"

@@ -27,3 +27,4 @@ archive/stale_*/
 history.bundle
 # local snapshot archives (kept on disk, not in git)
 archive/*.zip
+tools/orchestration/green_tests.json

@@ -389,12 +389,13 @@ def resize(w, spill):
     m["size_m"] = [side, side, 0.002]
 
 
-def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None, count=True, unidentified=False):
+def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None, count=True, unidentified=False, origin=None):
     """Liquid lands on a floor cell or a surface. Merges with an existing spill of the same liquid there.
 
     Uses cleaning's `spill` type when it is registered (cleaning evaporates/absorbs it), else a generic item with
     category "spill". Returns the spill id (or None for negligible amounts). unidentified: the robot poured it out
-    of something it had not identified - the puddle is a plain "spill" whose liquid stays unknown to it."""
+    of something it had not identified - the puddle is a plain "spill" whose liquid stays unknown to it. origin:
+    the container the liquid came out of (a parcel's origin): recorded as the spill's contents_from (kernel v2.9)."""
     liters = float(liters)
     if liters < 0.002:
         return None
@@ -446,6 +447,9 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
             m["relation"] = "on" if not w.ent(target).get("container") else "in"
     if unidentified:
         mark_unidentified(w, spill, True)
+    if origin:
+        from ..core import mark_contents_from
+        mark_contents_from(w, spill, origin)
     resize(w, spill)
     if target in w.s["rooms"] and not info(liquid).get("grease"):
         wet_cell(w, target, cell)
@@ -455,13 +459,13 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
     return spill
 
 
-def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=False):
+def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None):
     """Water reaching a floor: a spill, a wet cell, and flood accounting per source."""
     if liters <= 0:
         return None
     if is_outdoor(w, rid):
-        return outdoor_water(w, rid, cell, liquid, liters, source, unidentified=unidentified)
-    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, unidentified=unidentified)
+        return outdoor_water(w, rid, cell, liquid, liters, source, unidentified=unidentified, origin=origin)
+    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, unidentified=unidentified, origin=origin)
     sec = psec(w)
     floods = sec.setdefault("floor_water", {})
     key = source or rid
@@ -473,7 +477,7 @@ def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=Fals
     return spill
 
 
-def outdoor_water(w, rid, cell, liquid, liters, source=None, unidentified=False):
+def outdoor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None):
     """Water on outdoor ground: grass/soil absorbs it; hardscape gets a puddle (ice when freezing)."""
     ground = floor_material(w, rid)
     data = info(liquid)
@@ -484,7 +488,7 @@ def outdoor_water(w, rid, cell, liquid, liters, source=None, unidentified=False)
         soak = sec.setdefault("ground_soak_l", {})
         soak[rid] = rnd(num(soak.get(rid)) + liters, 3)
         return None
-    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, count=False, unidentified=unidentified)
+    spill = make_spill(w, rid, liquid, liters, cell=cell, source=source, count=False, unidentified=unidentified, origin=origin)
     temp = num(w.s.get("weather", {}).get("temperature_c"), 15.0)
     if temp <= 0.0 and spill:
         freeze_puddle(w, rid, cell, spill)

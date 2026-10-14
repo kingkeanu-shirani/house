@@ -8,12 +8,26 @@ File format:
 Child props deep-merge into the parent's resolved props. A key written as "+name"
 appends to the parent's list instead of replacing it. Every entity record created
 from a type carries "type" and "is_a" (the ancestor chain, nearest first).
+
+A file may also declare look-alike groups for realistic perception ("looks_like": {group: {"descriptor", "resolve",
+"members", "kind", "candidates", "label_fields", "portion_descriptor", "color", "size_m", "size_class"}}) and
+domain-wide "field_tiers". lookalike_groups() / lookalike_types() give the merged groups and the types each covers;
+loading warns (LookalikeWarning, self.lookalike_warnings) about groups whose members a camera could tell apart.
 """
 import copy
 import json
+import warnings
 from pathlib import Path
 
 TYPE_DIR = Path(__file__).resolve().parent.parent / "data" / "types"
+# keys a file-level look-alike group may set (besides "members"); see kernel/realism.py and docs/PERCEPTION.md
+GROUP_KEYS = ("descriptor", "resolve", "kind", "candidates", "label_fields", "portion_descriptor", "color", "size_m",
+              "size_class")
+CAMERA_RESOLUTION_M = 0.05      # sizes closer than this (or 10 %) look the same to the robot's camera
+
+
+class LookalikeWarning(UserWarning):
+    """Members of one look-alike group declare glance values (color, size) a camera would tell apart."""
 
 # Fields every entity has. Domains add their own through type props.
 BASE_PROPS = {
@@ -47,6 +61,8 @@ class TypeRegistry:
     def __init__(self, folder=TYPE_DIR, extra_files=()):
         self.types, self.sources, self._cache = {}, {}, {}
         self.perception, self.looks_like, self.field_tiers = {}, {}, []
+        self._groups = self._group_types = None
+        self.lookalike_warnings = []
         files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
         from .plugins import enabled_domains
         only = enabled_domains()
@@ -64,7 +80,7 @@ class TypeRegistry:
         for name, group in (data.get("looks_like") or {}).items():
             # file-level look-alike groups: {"group": {"descriptor": "...", "resolve": "inspect|read|never", "members": [types]}}
             base = self.looks_like.setdefault(name, {"members": []})
-            for key in ("descriptor", "resolve", "kind", "candidates", "label_fields"):
+            for key in GROUP_KEYS:
                 if key in group:
                     base[key] = group[key]
             for member in group.get("members", []):
@@ -86,10 +102,102 @@ class TypeRegistry:
                 self.perception[name] = spec["perception"]
             self.sources[name] = str(Path(path).name)
         self._cache.clear()
+        self._groups = self._group_types = None
 
     def check(self):
         for name in self.types:
             self.ancestors(name)  # raises on unknown parent or cycle
+        try:
+            self.lookalike_warnings = self.lookalike_conflicts()
+        except (KeyError, TypeError, ValueError):      # a lint must never stop a registry from loading
+            self.lookalike_warnings = []
+        if self.lookalike_warnings:
+            text = "look-alike group members differ at a glance (realistic perception shows the group's common " \
+                   "color/size; set the group's \"color\"/\"size_m\" or align the types): " + "; ".join(self.lookalike_warnings[:8]) \
+                   + ("; and {} more".format(len(self.lookalike_warnings) - 8) if len(self.lookalike_warnings) > 8 else "")
+            warnings.warn(text, LookalikeWarning, stacklevel=3)     # shown once per process by the default filter
+
+    # ----- look-alike groups (realistic perception) ----------------------------------------------------------
+    def lookalike_groups(self):
+        """Look-alike groups: kernel defaults (realism.DEFAULT_LOOKS_LIKE) merged with the file-level groups (by
+        name), in the order realistic perception tries them. Built once per registry; do not mutate."""
+        if self._groups is None:
+            from .realism import DEFAULT_LOOKS_LIKE
+            groups = copy.deepcopy(DEFAULT_LOOKS_LIKE)
+            for name, spec in sorted(self.looks_like.items()):
+                base = groups.setdefault(name, {"descriptor": spec.get("descriptor", name.replace("_", " ")),
+                                                "resolve": spec.get("resolve", "inspect"), "members": []})
+                for key in GROUP_KEYS:
+                    if key in spec:
+                        base[key] = copy.deepcopy(spec[key])
+                for member in spec.get("members", []):
+                    if member not in base["members"]:
+                        base["members"].append(member)
+            self._groups = groups
+        return self._groups
+
+    def _nearest_looks_like(self, chain):
+        for name in chain:
+            found = (self.perception.get(name) or {}).get("looks_like")
+            if found:
+                return found
+        return None
+
+    def lookalike_types(self):
+        """{group: [types]} -- the registry types realistic perception puts in each look-alike group (same rule as
+        Realism.group_of: a looks_like prop, else the nearest perception "looks_like", else the first group whose
+        members name the type, an ancestor or its category)."""
+        if self._group_types is None:
+            groups = self.lookalike_groups()
+            order = {name: i for i, name in enumerate(groups)}
+            by_member = {}
+            for name, spec in groups.items():
+                for member in spec.get("members", []):
+                    by_member.setdefault(member, []).append(name)
+            out = {name: [] for name in groups}
+            for type_name in sorted(self.types):
+                chain = [type_name] + self.ancestors(type_name)
+                props = self.resolve(type_name)
+                found = props.get("looks_like") if props.get("looks_like") in groups else None
+                if found is None:
+                    found = self._nearest_looks_like(chain)
+                    found = found if found in groups else None
+                if found is None:
+                    keys = chain + [props.get("category")]
+                    hits = [g for k in keys if isinstance(k, str) for g in by_member.get(k, ())]
+                    found = min(hits, key=order.get) if hits else None
+                if found is not None:
+                    out[found].append(type_name)
+            self._group_types = out
+        return self._group_types
+
+    def lookalike_conflicts(self):
+        """Groups whose member types declare different glance colors, or sizes further apart than the camera
+        resolution, without a group "color" / "size_m" to show instead: ["group: color None/'blue'", ...]."""
+        out = []
+        groups = self.lookalike_groups()
+        for name, types in sorted(self.lookalike_types().items()):
+            if len(types) < 2:
+                continue
+            spec = groups.get(name) or {}
+            if "color" not in spec:
+                colors = sorted({json.dumps(self.resolve(t).get("color")) for t in types})
+                if len(colors) > 1:
+                    out.append("{}: color {}".format(name, "/".join(colors)))
+            if "size_m" not in spec:
+                sizes = []
+                for t in types:
+                    try:
+                        sizes.append([float(v) for v in (self.resolve(t).get("size_m") or [])[:3]])
+                    except (TypeError, ValueError):
+                        continue
+                sizes = [s for s in sizes if len(s) == 3]
+                for dim in range(3):
+                    column = sorted(s[dim] for s in sizes)
+                    if column and column[-1] - column[0] > max(CAMERA_RESOLUTION_M, 0.1 * column[(len(column) - 1) // 2]):
+                        out.append("{}: size {:.2f}-{:.2f} m".format(name, column[0], column[-1]))
+                        break
+        return out
 
     def known(self, name):
         return name in self.types

@@ -11,6 +11,7 @@ Every function here is pure or mutates only through the journaled World API.
 import math
 
 from ...kernel import clock, geometry
+from ...kernel.actions import lookalike_group
 from ...kernel.predicates import root_room
 
 DRY = 0.05          # wetness below which a textile counts as dry (fold/store OK)
@@ -669,31 +670,19 @@ def smell_word(intensity):
     return "strong"
 
 
-def unresolved(env, eid):
-    """Realistic mode: the robot has not identified this thing yet (an unresolved look-alike shows a candidate list,
-    a novel object only its looks)."""
-    realism = getattr(env, "realism", None)
-    if realism is None:
-        return False
-    rec = env.world.s["entities"].get(eid)
-    if rec is None:
-        return False
-    if rec.get("novel"):
-        return True
-    return "candidates" in realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec))
-
-
 def group_varies(env, eid, key):
     """True when the members of eid's look-alike group differ in key(record) (type defaults of every member and its
     sub-types, plus eid's own record): an action whose result depends on key would then tell look-alikes apart, so it
-    must wait until the robot has identified the thing."""
+    must wait until the robot has identified the thing (callers check ctx.unresolved first). A novel (unfamiliar)
+    thing belongs to no group whatever its hidden type (kernel actions.lookalike_group), so it is never held up."""
     realism = getattr(env, "realism", None)
     if realism is None:
         return False
     rec = env.world.s["entities"].get(eid)
     if rec is None:
         return False
-    _, group = realism.group_of(rec)
+    name = lookalike_group(realism, env.world.s, rec)
+    group = realism.groups().get(name) if name else None
     if not group or group.get("resolve") == "never":
         return False        # nothing to wait for: a novel thing (or a never-resolving group) is learned by handling it
     reg = env.registry

@@ -87,6 +87,10 @@ class Perception:
             if reach_problem(state, eid) is None:
                 return True
         approvals = state.get("approvals", [])
+        # privacy hides what a private thing holds in oracle observations only: with realistic perception an open
+        # private box shows its contents like any other (hiding them would itself mark the box private) and privacy is
+        # enforced on acting (ctx.forbid)
+        private_hides = getattr(self.env, "realism", None) is None
         # concealment of the entity itself
         if entity.get("relation") in ("under", "behind") and not entity.get("revealed"):
             return False
@@ -97,7 +101,7 @@ class Perception:
             seen.add(location)
             parent = entities[location]
             relation = child.get("relation", "on")
-            if parent.get("private") and "touch:" + location not in approvals:
+            if private_hides and parent.get("private") and "touch:" + location not in approvals:
                 return False
             # a closed opaque container hides what is IN it, not what rests ON it or hangs on it
             if relation == "in" and parent.get("openable") and not parent.get("open", False) and not parent.get("transparent"):
@@ -188,9 +192,12 @@ class Perception:
         blocked = sorted(list(c) for c in geometry.blocked_cells(state, rid, include_agents=False))
         hazards = []
         if not dark:
+            # people and pets the robot cannot see (concealed, not revealed) are not listed, nor are their hazards
+            agents = {aid for group in ("people", "pets") for aid, agent in state.get(group, {}).items()
+                      if not (agent.get("concealed") and not agent.get("revealed"))}
             for cell, items in sorted(geometry.hazard_cells(state, rid).items()):
                 for kind, source in items:
-                    if source == rid or source in visible or source in state.get("people", {}) or source in state.get("pets", {}):
+                    if source == rid or source in visible or source in agents:
                         hazards.append({"cell": list(cell), "kind": kind, "source": source})
         people = {}
         for pid, person in sorted(state.get("people", {}).items()):

@@ -323,7 +323,9 @@ hidden (the perceived floor hazards are the kernel's `grid.hazards`).
 ("plastic jug of laundry liquid", kind "laundry liquid", resolve read, `label_fields` ["label_text"]: HE / regular /
 free & clear detergent, fabric softener, chlorine bleach, oxygen booster, enzyme presoak - every jug carries a
 `label_text`, so `read` identifies it; inspecting does not, `liquid` is read-tier, and a blank label stays
-unidentified), `dryer_sheet` (scented vs unscented, resolve inspect: smell), `bed_sheet` (fitted / flat / crib sheet,
+unidentified; the group sets `size_m` [0.15, 0.1, 0.28], so every unread jug shows the same camera size, and an unread
+jug is handled as if it could be the corrosive bleach: kernel C1 refuses a bare `pick_up`/`place` with one generic
+safety answer until it is read or held by the `handle`), `dryer_sheet` (scented vs unscented, resolve inspect: smell), `bed_sheet` (fitted / flat / crib sheet,
 resolve inspect), `pillow_cover` (pillowcase / king pillowcase / sham / protector, kind "pillow cover", resolve
 inspect), plus the kernel's `sock` group (every sock reads "sock"; matching needs the close marks, or reading the size
 tag). Actions whose outcome differs between members of a group answer the same for every member until the robot has
@@ -370,6 +372,21 @@ pretreatment efficacy, button pull-test force and mm errors, seam lengths, fold 
 summary offsets), the look-alike oracles of `fold`/`dress_bed`/`treat_stain`/`soak`, the set-stain and invisible-trace
 messages, the stack-height numbers and the duration leaks above. `tools/perception_audit.py 30 80` and
 `tools/layout_audit.py 20 --domain textiles_laundry` attribute nothing to this domain.
+
+**Kernel round 5 (v2.9)**: identification uses the kernel's `ctx.unresolved(eid)` (the domain's own
+`model.unresolved` is gone; the kernel's also covers portions). `model.group_varies` takes the group from
+`actions.lookalike_group`, so a novel (unfamiliar) textile belongs to no group whatever its hidden type: an
+unfamiliar fitted sheet is folded or put on a bed like any novel thing instead of being held up forever by the
+bed-sheet "look it over first" rule (it never resolves). Laundry jugs: kernel C1 makes an unread jug need a grip safe
+for every member (the bleach's `handle`) or a `read` first; the `laundry_jug` group's `size_m` silences the look-alike
+lint (it is the median the kernel already showed); jug `mass_kg` is the empty plastic jug (0.07-0.17 kg) because core
+carry mass and the realistic heft add `liquid_l` on top - a full jug weighed its liquid twice (a full 2.5 L detergent
+jug was 5.2 kg) and the heft bucket split the group (bleach/detergent/softener "heavy", enzyme/booster "medium"); now
+every full jug weighs 1.1-3.0 kg and feels "medium". Contents provenance: washer dosing calls
+`core.clear_contents_from` on each compartment (and the drum) it empties, and `soak` clears it when it fills an
+empty basin with tap water; the domain has no verb that pours one container into another (pouring into compartments
+is plumbing_liquids' `pour`), and `soak` does not mark the basin (its `liquid` stays "water"; the product's identity
+is in the hidden `soak_agents`).
 
 ## 5. Harms and stats
 

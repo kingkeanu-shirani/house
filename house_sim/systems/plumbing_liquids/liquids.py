@@ -247,6 +247,7 @@ def write_state(w, eid, mix, chem=None, temp=None, extra=None):
             m["_cl_ref_l"] = 0.0
         if m.get(C.UNIDENTIFIED):
             C.mark_unidentified(w, eid, False)       # emptied: whatever goes in next is seen afresh
+        clear_provenance(w, eid)
     elif m.get(C.UNIDENTIFIED):
         C.mark_unidentified(w, eid, True)
     return m
@@ -264,7 +265,7 @@ def take(w, eid, amount, carry_chem=True):
               "mix": {k: v * frac for k, v in mix.items()}, "chem": {k: C.num(v) * frac for k, v in chem.items()} if carry_chem else {},
               "solids": {k: C.num(v) * frac for k, v in (rec.get("solids") or {}).items()},
               "flags": {k: rec.get(k) for k in ("carbon_fines", "_nonpotable", C.UNIDENTIFIED) if rec.get(k)},
-              "filled_s": rec.get("filled_s"), "source": eid, "soil_g": C.num(rec.get("cl_soil_g")) * frac,
+              "filled_s": rec.get("filled_s"), "source": eid, "origin": origin_of(w, eid), "soil_g": C.num(rec.get("cl_soil_g")) * frac,
               "ice_g": C.num(rec.get("ice_g")) * frac}
     rest = {k: v - parcel["mix"].get(k, 0.0) for k, v in mix.items()}
     new_chem = {k: C.num(v) - parcel["chem"].get(k, 0.0) for k, v in chem.items()} if carry_chem else None
@@ -338,6 +339,8 @@ def add(w, eid, parcel, now_s=None, limit=None):
     for flag, value in (parcel.get("flags") or {}).items():
         if value:
             extra[flag] = value
+    if into > 0 and parcel.get("origin"):
+        mark_provenance(w, eid, parcel["origin"])
     if was_empty:
         extra["filled_s"] = C.now(w) if now_s is None else now_s
         if parcel.get("filled_s") is not None and not parcel.get("fresh", False):
@@ -350,6 +353,32 @@ def add(w, eid, parcel, now_s=None, limit=None):
                     chem={k: C.num(v) * scale for k, v in parcel.get("chem", {}).items()}, solids={})
         return over
     return None
+
+
+def origin_of(w, eid):
+    """Whose identity liquid taken out of eid carries (kernel v2.9 contents_from contract, core.contents_origin):
+    eid's own contents_from origin when it holds liquid poured in from elsewhere, else eid. Taken before the take
+    empties eid (which clears its provenance), so a chain stays one deep."""
+    from ..core import contents_origin
+    return contents_origin(w, eid)
+
+
+def mark_provenance(w, eid, origin):
+    """eid received liquid from a container (a parcel with an origin): core.mark_contents_from, so realistic
+    perception names what eid holds after the origin's look-alike descriptor until the robot identifies the origin.
+    Taps, leaks and melt make parcels without an origin and leave provenance alone."""
+    from ..core import mark_contents_from
+    mark_contents_from(w, eid, origin)
+
+
+def clear_provenance(w, eid):
+    """The last liquid left eid: drop its contents_from, unless it still holds other contents (a product it
+    dispenses, contents another domain tracks) whose provenance that field may describe."""
+    rec = w.ent(eid)
+    if rec.get("contents") or C.num(rec.get("amount_ml")) > 0:
+        return
+    from ..core import clear_contents_from
+    clear_contents_from(w, eid)
 
 
 def parcel_name(parcel):

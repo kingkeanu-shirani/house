@@ -81,13 +81,13 @@ def _held_product(ctx, key, kinds):
     if eid:
         require(ctx.holding(eid), "Hold the {} first".format(key))
         kind = _product_kind(w.ent(eid))
-        if realistic and not C.identified(ctx.env, eid):
+        if realistic and ctx.unresolved(eid):
             ctx.data["unidentified_product"] = True
             return eid, kind
         require(kind in kinds, "That is not suitable for this step ({} needed)".format(" / ".join(kinds)), "argument")
         return eid, kind
     for h in w.held_items():
-        if realistic and not C.identified(ctx.env, h):
+        if realistic and ctx.unresolved(h):
             continue
         kind = _product_kind(w.ent(h))
         if kind in kinds:
