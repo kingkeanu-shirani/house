@@ -12,7 +12,7 @@ import os
 import random
 from pathlib import Path
 
-from . import evaluation, physics  # noqa: F401  (physics registers shared systems)
+from . import evaluation, physics, timeline  # noqa: F401  (physics registers shared systems; timeline the time verbs)
 from .actions import Ctx
 from .errors import ActionError
 from .perception import Perception
@@ -479,13 +479,12 @@ class HouseEnv:
             w.emit(event.get("kind", event.get("effect", "event")), **{k: v for k, v in event.get("log", {}).items()})
 
     def _fire_orders(self):
-        from ..systems.core import watch_condition_visible
         w = self.world
         state = w.s
         for i, order in enumerate(state.get("orders", [])):
             if order.get("fired") and not order.get("persistent"):
                 continue
-            if not watch_condition_visible(w, order["condition"]) or not check(state, order["condition"]):
+            if not timeline.watch_condition_visible(w, order["condition"]) or not check(state, order["condition"]):
                 if order.get("persistent") and order.get("armed") is False:
                     w.sec("orders")[i]["armed"] = True
                 continue

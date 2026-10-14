@@ -1,0 +1,29 @@
+{
+  "doc": "Law states of the tier-1 physics layer (docs/design/TIER1_PHYSICS.md 10.2; read through house_sim/kernel/phys/lawbook.py). A law is the kernel applying a physical rule automatically during settle, a timed process or the environment system; the underlying functions are always callable whatever the state. A law that duplicates a domain's existing behaviour starts `deferred` so the verified specs see no change; it is flipped to `active` (stage D1, PHYS-FLIP) only after every domain in `duplicated_by` has routed its own code through the kernel and reported ready (adoption protocol, TIER1_PHYSICS 10.3). `order` is the position in the settle pass (TIER1_PHYSICS 6.1); null marks a law applied elsewhere (core place, a process, the environment system, or once after the ordered laws).",
+  "states": ["active", "deferred"],
+  "laws": {
+    "orphan": {"state": "active", "order": 10, "duplicated_by": [], "note": "an item whose support vanished (destroyed, or its relation became invalid) falls"},
+    "overflow": {"state": "active", "order": 20, "duplicated_by": [], "note": "liquid above a container's capacity spills where the container stands"},
+    "overload": {"state": "deferred", "order": 30, "duplicated_by": ["admin_inventory"], "note": "shelves and surfaces over their rating collapse (admin storage._load_check)"},
+    "hang": {"state": "deferred", "order": 30, "duplicated_by": ["manipulation", "mechanisms"], "note": "hooks, rails and rods over their rating pull out (manipulation hook ratings, mechanisms curtain rods)"},
+    "crush": {"state": "deferred", "order": 40, "duplicated_by": ["manipulation"], "note": "items under more load than they bear are crushed (manipulation max_load, stacking)"},
+    "handle": {"state": "deferred", "order": 45, "duplicated_by": ["manipulation", "plumbing_liquids", "cleaning"], "note": "carried bags, buckets and liners tear over their handle rating (manipulation bags, plumbing bucket handles, cleaning liners)"},
+    "edge": {"state": "deferred", "order": 50, "duplicated_by": ["manipulation"], "note": "an item whose centre of mass leaves its support falls (manipulation handling.after_placement)"},
+    "slope": {"state": "deferred", "order": 50, "duplicated_by": ["manipulation", "outdoor_plants"], "note": "items slide, tip or roll on slopes and tilted supports (manipulation runaway and rolling watch, outdoor_plants slopes)"},
+    "stack": {"state": "deferred", "order": 55, "duplicated_by": ["manipulation"], "note": "unstable stacks topple (manipulation settle_stack)"},
+    "furniture_tip": {"state": "deferred", "order": 60, "duplicated_by": ["mechanisms", "manipulation", "safety", "climate"], "note": "unanchored furniture tips under front loads and pulls (mechanisms dresser, manipulation tip_check, safety tip_over, climate fan topple)"},
+    "open_spill": {"state": "deferred", "order": 70, "duplicated_by": ["manipulation", "plumbing_liquids"], "note": "open containers tilted, on their side or upside down lose liquid (manipulation orientation verbs, plumbing)"},
+    "contact_heat": {"state": "deferred", "order": 80, "duplicated_by": ["manipulation", "appliances_cooking"], "note": "hot items scorch or melt the support they rest on (manipulation scorch, appliances surface_heat_limit_c)"},
+    "wet_contact": {"state": "deferred", "order": 85, "duplicated_by": ["manipulation"], "note": "wet or sweating items ring water-sensitive supports (manipulation ring stains)"},
+    "thermal_shock": {"state": "deferred", "order": 90, "duplicated_by": ["appliances_cooking", "cleaning"], "note": "brittle items crack under a sudden temperature difference (appliances_cooking, cleaning's column)"},
+    "phase": {"state": "deferred", "order": 95, "duplicated_by": ["plumbing_liquids", "food"], "note": "water-like liquids freeze and thaw; sealed rigid containers burst (plumbing ice; food liquids stay food-owned)"},
+    "setdown": {"state": "active", "order": null, "duplicated_by": [], "note": "core place drops a held item from the speed's set-down height onto the support"},
+    "drip": {"state": "active", "order": null, "duplicated_by": [], "note": "explicitly started drips deposit liquid down the support chain each substep (process)"},
+    "creep": {"state": "active", "order": null, "duplicated_by": [], "note": "a support staged with phys_creep_s and still over its true rating collapses at that time (process)"},
+    "carry": {"state": "deferred", "order": null, "duplicated_by": ["manipulation", "navigation_robot", "plumbing_liquids", "pets", "climate"], "note": "robot travel sloshes and topples what it carries (applied once after the ordered laws in the action phase)"},
+    "melt": {"state": "deferred", "order": null, "duplicated_by": ["admin_inventory", "textiles_laundry"], "note": "items above their melting point deform (admin MELT_MATERIALS, textiles iron; process)"},
+    "thermal_tau": {"state": "deferred", "order": null, "duplicated_by": ["appliances_cooking", "food", "plumbing_liquids", "electrical"], "note": "lumped m c / (h A) cooling time constants replace 300 sqrt(m) + 60 s (flips with plumbing_liquids and food after re-verifying cooling times)"},
+    "wind": {"state": "deferred", "order": null, "duplicated_by": ["manipulation", "outdoor_plants", "mechanisms", "admin_inventory"], "note": "wind slides, tips and lifts loose outdoor items (environment system)"},
+    "rain": {"state": "deferred", "order": null, "duplicated_by": ["outdoor_plants", "mechanisms", "admin_inventory"], "note": "rain wets exposed outdoor items and soaks paper (environment system)"}
+  }
+}

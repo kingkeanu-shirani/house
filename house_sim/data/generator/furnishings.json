@@ -1,0 +1,48 @@
+{
+  "format": "furnishings-v1",
+  "about": "Common furnishings for generation-2 houses (docs/design/TIER1_SWEEP.md section 14.5), read by house_sim/generator/furnishings.py. Each item is placed through the generator's Placer so it never cuts a walking route or anyone's access; an item that fits nowhere is skipped and reported (layout-audit note), never forced. The first type of 'types' that the registry knows is used; missing types are requested from their owner domain (owner) and reported.",
+  "items": [
+    {"kind": "sofa_cushions", "types": ["sofa_cushion"], "owner": "textiles_laundry", "room": "living_room", "place": "on",
+     "spot": ["sofa"], "count": [2, 3], "chance": 1.0, "source": "sweep 14.5 (sofa cushions; type requested from textiles_laundry)"},
+    {"kind": "throw_pillows", "types": ["decorative_pillow"], "owner": "textiles_laundry", "room": "living_room", "place": "on",
+     "spot": ["sofa", "armchair"], "at_least": 2, "chance": 1.0, "source": "sweep 14.5 (throw pillows; textiles_laundry already puts two on the sofa, which count)"},
+    {"kind": "throw_blanket", "types": ["knit_throw"], "owner": "textiles_laundry", "room": "living_room", "place": "on",
+     "spot": ["sofa", "armchair"], "unless_any": ["throw_blanket"], "chance": 0.8, "source": "sweep 14.5 (throw blanket; textiles_laundry's folded throw counts)"},
+    {"kind": "coasters", "types": ["coaster"], "owner": "manipulation", "room": "living_room", "place": "on",
+     "spot": ["coffee_table", "side_table"], "count": [4, 4], "chance": 0.5, "source": "sweep 14.5 (coasters 0.5; type requested from manipulation)"},
+    {"kind": "candle", "types": ["candle"], "owner": "safety", "room": "living_room", "place": "on",
+     "spot": ["side_table", "coffee_table", "tv_stand"], "props": {"lit": false}, "chance": 0.4,
+     "source": "sweep 14.5 (an unlit candle 0.4; type requested from safety)"},
+    {"kind": "ottoman", "types": ["ottoman"], "owner": "core", "room": "living_room", "place": "furniture", "near": "sofa",
+     "min_free": 0.45, "chance": 0.3, "source": "sweep 14.5 (ottoman 0.3; the core type is added by the main session at B6, conflict 37)"},
+    {"kind": "indoor_mat", "types": ["indoor_mat", "entry_mat"], "owner": "core", "room": "entryway", "place": "inside_front_door",
+     "chance": 0.7, "source": "sweep 14.5 (indoor mat; assumption 0.7; type requested)"},
+    {"kind": "doormat", "types": ["coir_doormat"], "owner": "core", "place": "outside_front_door", "chance": 0.85,
+     "source": "sweep 14.5 (coir doormat outside the front door; assumption: 85 % of homes have one)"},
+    {"kind": "key_bowl", "types": ["key_bowl"], "owner": "admin_inventory", "room": "entryway", "place": "on",
+     "spot": ["bench", "side_table"], "chance": 0.4, "source": "sweep 14.5 (key bowl 0.4; it needs an entry surface)"},
+    {"kind": "umbrella_stand", "types": ["umbrella_stand"], "owner": "admin_inventory", "room": "entryway", "place": "floor",
+     "near": "front_door", "chance": 0.5, "source": "sweep 14.5 (umbrella stand 0.5)"},
+    {"kind": "picnic_cooler", "types": ["picnic_cooler"], "owner": "admin_inventory", "room": "garage", "place": "in",
+     "spot": ["shelf_unit"], "shelf": 0, "fallback": "floor", "chance": 0.5, "source": "sweep 14.5 (picnic cooler in the garage 0.5)"}
+  ],
+  "bedrooms": {
+    "crib": {"types": ["crib"], "doc": "every infant sleeps in a crib: the nursery's, else a new one in its own bedroom, else in its parents' room (AAP 2022 safe-sleep guidance: room-sharing without bed-sharing for the first 6 months), else any bedroom or the living room (a travel cot)"},
+    "shared_bed": {"size_m": [1.0, 2.0, 0.55], "doc": "a shared bedroom gets one twin bed per sleeper (the core furnisher's bedroom bed size)"}
+  },
+  "high_chair": {"types": ["high_chair"], "rooms": ["dining_room", "kitchen"], "infant": 1.0, "toddler": 0.6,
+                 "doc": "sweep 14.5 (infants get a high chair, toddlers 0.6); one per household"},
+  "chair_variants": {
+    "doc": "dining and kitchen-table chairs of one set share a material and colour (sweep 14.5: variants through props of existing types); assumption",
+    "variants": [
+      {"weight": 0.25, "material": "wood", "color": "oak"},
+      {"weight": 0.15, "material": "wood", "color": "walnut"},
+      {"weight": 0.10, "material": "wood", "color": "white"},
+      {"weight": 0.10, "material": "wood", "color": "black"},
+      {"weight": 0.15, "material": "fabric", "color": "gray"},
+      {"weight": 0.05, "material": "fabric", "color": "beige"},
+      {"weight": 0.10, "material": "steel", "color": "black"},
+      {"weight": 0.10, "material": "plastic", "color": "white"}
+    ]
+  }
+}

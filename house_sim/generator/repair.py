@@ -8,7 +8,7 @@ them and guarantees, per room:
   * no loose floor item cuts a hazard-free walking route between doorways or the only hazard-free access to
     furniture, fixtures or the dock (such items are moved to a cell that cuts nothing),
   * every person and pet stands on a free cell outside doorway clearance that cuts no route, and no two agents
-    share a cell.
+    share a cell (a person lying in a bed, in_bed, keeps their cell on the bed).
 
 What it cannot fix is reported (when a report list is passed): rooms whose doorways are split by furniture,
 entities nothing can reach, overlapping floor-standing footprints, footprints off the grid, and tall things standing
@@ -62,6 +62,18 @@ def _stack_above(config, eid, depth):
     return best
 
 
+def _layout_hazards(state, rid):
+    """geometry.placement_hazards without the margins around people lying in a bed (generation-2 sleepers and infants
+    in their crib): a sleeper's keep-out ring is temporary, so loose items are not moved for it and it is not a
+    layout problem. Without anyone in bed (every generation-1 house) this is placement_hazards itself."""
+    hazards = geometry.placement_hazards(state, rid)
+    sleepers = {aid for aid, agent in state.get("people", {}).items() if agent.get("in_bed") and agent.get("location") == rid}
+    if not sleepers:
+        return hazards
+    kept = {cell: [item for item in items if item[1] not in sleepers] for cell, items in hazards.items()}
+    return {cell: items for cell, items in kept.items() if items}
+
+
 def _relocate_dock(config, placer, dock):
     record = config["entities"][dock]
     rid = record["location"]
@@ -89,7 +101,7 @@ def _fix_loose_items(config, placer, rid, report):
     static_blocked = set(geometry.blocked_cells(state, rid, include_agents=False))
     targets = geometry.access_targets(state, rid, level="all")
     static = geometry.access_report(state, rid, static_blocked, targets)
-    hazards = geometry.placement_hazards(state, rid)
+    hazards = _layout_hazards(state, rid)
     safe = geometry.access_report(state, rid, static_blocked | set(hazards), targets)
     if geometry.not_worse(static, safe):
         return
@@ -169,6 +181,10 @@ def _place_agents(config, placer, report):
             if rid not in config["rooms"]:
                 continue
             pos = tuple(agent["pos"]) if agent.get("pos") else None
+            bed = config["entities"].get(agent.get("in_bed") or "")
+            if pos is not None and bed and (rid, pos) not in taken and pos in set(geometry.footprint(bed)):
+                taken.add((rid, pos))       # lying in a bed (generation 2 sleepers, infants in a crib): stays there
+                continue
             if pos is not None:
                 agent["pos"] = None
                 state = placer.state()
@@ -211,7 +227,7 @@ def _audit(config, placer, report):
                     if key in trial["ok"]:
                         sealers.append(eid)
             report.append("unreachable {}: {}{}".format(rid, key, " sealed by {}".format(sealers) if sealers else ""))
-        hazards = geometry.placement_hazards(state, rid)
+        hazards = _layout_hazards(state, rid)
         safe = geometry.access_report(state, rid, static_blocked | set(hazards), targets)
         lost = []
         for key in sorted(k for k in static["ok"] - safe["ok"] if k[0:1] != ("door",)):

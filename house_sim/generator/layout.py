@@ -117,6 +117,17 @@ class Builder:
         return "{}_{}".format(stem, n)
 
 
+def exterior_steps(seed, porch, room):
+    """Generation 2 (sweep 14.6): the flight of steps joining a raised porch to its yard, a same-floor `stairs`
+    connection marked exterior with the porch as its upper end (navigation_robot reads `upper` for same-floor
+    stairs). 2-4 risers of 0.17 m on 0.28 m treads (IRC R311.7.5: risers at most 7 3/4 in, treads at least 10 in);
+    a handrail from four risers up (IRC R311.7.8); a straight flight (no winders). Drawn from its own stream so the
+    rest of the layout is the same as without steps."""
+    steps = random.Random("layout:{}:steps".format(seed)).randint(2, 4)
+    return {"kind": "stairs", "width": 1.0, "steps": steps, "rise_m": 0.17, "run_m": 0.28, "exterior": True,
+            "upper": porch, "handrail": steps >= 4, "winders": 0, "tread_material": room.get("floor_material") or "wood"}
+
+
 def plan_house(rng, opts):
     dwelling = opts.get("dwelling")
     features = set(opts.get("features", ())) | set(opts.get("require", ()))
@@ -128,6 +139,9 @@ def plan_house(rng, opts):
             dwelling = "apartment"
         elif features & {"garage", "shed", "pool", "basement", "attic", "driveway", "garden", "deck", "front_yard", "backyard", "porch", "poolside", "stairs"}:
             dwelling = rng.choice(["house", "house", "townhouse"]) if not features & {"pool", "shed", "basement", "attic"} else "house"
+        elif (opts.get("min_bedrooms") or 0) > 3:
+            # generation 2: a household that needs four or more bedrooms lives in a house or a townhouse
+            dwelling = rng.choices(["house", "townhouse"], [0.6, 0.15])[0]
         else:
             dwelling = rng.choices(["house", "apartment", "townhouse"], [0.6, 0.25, 0.15])[0]
     if dwelling == "apartment" and features & {"garage", "shed", "pool", "basement", "attic", "driveway", "garden", "front_yard", "backyard", "porch", "poolside", "deck"}:
@@ -143,6 +157,8 @@ def plan_house(rng, opts):
             raise ValueError("Generated apartments have no internal stairs; use dwelling house or townhouse")
         floors = 2
     bedrooms = opts.get("bedrooms") or (rng.randint(1, 3) if dwelling == "apartment" else rng.randint(2, 4))
+    if not opts.get("bedrooms") and opts.get("min_bedrooms"):
+        bedrooms = max(bedrooms, int(opts["min_bedrooms"]))     # generation 2: the household's bedrooms (profile.compose)
     bathrooms = opts.get("bathrooms") or (1 if bedrooms <= 2 else 2)
     plan = {"dwelling": dwelling, "floors": floors, "bedrooms": bedrooms, "bathrooms": bathrooms, "features": set()}
     defaults = {"house": {"garage": 0.7, "porch": 0.8, "patio": 0.55, "deck": 0.3, "shed": 0.4, "pool": 0.15, "garden": 0.5,
@@ -271,7 +287,10 @@ def build_structure(seed, opts, registry):
             porch = b.add_room("porch", 0)
             b.connect(entry, porch, door_type="exterior_door", door_props={"label": "front door", "key": "house_key_1"})
             front = b.add_room("front_yard", 0)
-            b.connect(porch, front)
+            if opts.get("exterior_steps"):
+                b.connect(front, porch, **exterior_steps(seed, porch, b.rooms[porch]))
+            else:
+                b.connect(porch, front)
         else:
             front = b.add_room("front_yard", 0)
             b.connect(entry, front, door_type="exterior_door", door_props={"label": "front door", "key": "house_key_1"})

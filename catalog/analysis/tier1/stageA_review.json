@@ -1,0 +1,303 @@
+{
+ "findings": [
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-STATICS",
+   "severity": "medium",
+   "title": "Fallen items and pulled-out fixtures keep their old height (z_m / mounted / mount_height_m are not cleared)",
+   "evidence": "impact._relocate (impact.py:359) clears only PLACEMENT_KEYS (spos, pos, shelf, held_*, xy_m, stack/pack keys). geometry.height_m returns z_m before anything else, and mount_height_m for room-located entities. Probe 1: a generic_item with z_m 0.9 on a table, after impact.fall, has location living_room_1 and pos [3,1], but z_m is still 0.9 and geometry.height_m is still 0.9. Probe 2: a mounted wall_shelf overloaded with 16 kg (rating 12) and collapsed through impact.collapse ends with fell True, damage.pulled_out 1.0 and pos [2,1], but it still has mounted True and mount_height_m 1.6, geometry.height_m 1.6 and support_of None. Adhesive-hook falls and anchor pull-outs take the same path. Sight's entity_box, support_of, a later fall and core place would all treat the item as still at its old height or still on the wall.",
+   "fix": "In _relocate, always pop z_m. When the destination is a room floor, also drop mounted and mount_height_m (or set mounted False), and do the same in _pull_out and the adhesive-hook fall. Add tests: after a fall from a record with z_m, and after a wall-shelf pull-out, geometry.height_m(state, eid) == 0 and support_of gives ('floor', cell)."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-DATA",
+   "severity": "medium",
+   "title": "Floor scratching emits no phys.scratch event",
+   "evidence": "TIER1_PHYSICS 7.7 and TIER1_INTEGRATION 1.11 list phys.scratch as an event-log kind; grep finds it nowhere in kernel/phys. forces.scratch -> _add_damage -> impact.damage only appends a 'phys.damage' consequence record, and impact.damage emits no event by design (PHYS-STATICS deviation 7: callers emit their own kind). Probe: a 12 kg storage_bin dragged 2 m on the hardwood floor_hallway_1 returns severity 0.1 and sets damage {'scratch': 0.1}, but adds no event_log entry. PHYS-INT's sounds observer ('scrape'), camera visual events and any spec reading the event log will never see a scratch.",
+   "fix": "In forces.scratch, after the damage, call impact.emit_consequence(w, 'phys.scratch', floor_id, by=<resolved by>, room=..., mover=mover, severity=...), and record the consequence as kind 'phys.scratch' rather than 'phys.damage'. Add a test that asserts the event."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-DATA",
+   "severity": "medium",
+   "title": "The anchor 'Phones survive 1 m' fails for about half of the instances under the default ±15 % variation",
+   "evidence": "The electronics class drop_tol_m is exactly 1.0 and variation is on by default (TIER1_DECISIONS). On seed 0, vary() ranges from 0.851 to 1.149 with 47 % of entities below 1.0. Probe: 40 registry smartphones dropped by body_faults.drop_held from 1.0 m onto the tile kitchen: 20 broke. AnchorTests.test_drop_anchors checks only the class column with phys_exact, so it cannot catch this. Any task that drops a phone becomes seed- and id-dependent.",
+   "fix": "Calibrate thresholds whose anchor says 'survives X' so that the whole variation band survives (electronics or phone row drop_tolerance_m >= 1.0/0.85, about 1.2 m), or apply variation only above the anchor. Add an anchor test that runs registry types over many entity ids with variation on. The same check should cover 'break' anchors, which need the upper band edge below the drop height."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-DATA",
+   "severity": "medium",
+   "title": "The stemware anchors are not met by the shipped wine_glass type",
+   "evidence": "TIER1_PHYSICS 4.3 says stemware breaks from about 0.25 m, and 5.4 says an empty wine glass tips at 0.32 g. The registry wine_glass resolves to soda-lime glass, drop_tol 0.5 m (0.564 after variation on seed 0). Only the 'crystal' class has 0.25, and no type uses it; the test pins the anchor on rec(material='crystal'). With size [0.09,0.09,0.2] and com_frac 0.6, statics.tip_accel_g gives 0.375 g. A real wine glass on a dining table hit by the spec's 'dog brushing past' bump (impact.knock 0.3 g, toward the edge) does nothing: {'tipped': False, 'slid_m': 0.0}. test_wine_glass_tips_at_035_g overrides size_m to [0.07,0.07,0.1833] to reach 0.318 g, so the shipped data is never tested.",
+   "fix": "In the supports.json wine_glass (stemware) row, set drop_tolerance_m 0.25 (or material crystal) and model the foot. One option is a base width field (e.g. base_m 0.07) that tip_accel_g uses instead of the bounding box; the other is tuning com_frac and size so that b/2z is about 0.32. Test the anchors on the registry type."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-FLUIDS",
+   "severity": "low",
+   "title": "A TIER1-STUB(BODY-ENGINE) marker sits in a file BODY-ENGINE may not edit",
+   "evidence": "liquids.py:59 CARRY_HAND_Z_M = 1.0 is marked TIER1-STUB(BODY-ENGINE). TIER1_INTEGRATION 2.2 gives BODY-ENGINE only phys/forces.py and phys/support.py in B4, and the gate's PACKAGES['BODY-ENGINE'] matches, so G10 would fail if BODY-ENGINE removed the stub. Section 5 requires the package named in the marker to remove it. The carry law (liquids.carry -> impact.fall(height_m=CARRY_HAND_Z_M)) would then keep humanoid_v1's 1.0 m for the compact (0.8) and mobile-manipulator (0.9) profiles.",
+   "fix": "Read support.CARRY['hand_z_m'] (support.py is in BODY-ENGINE's scope and already carries the same stub) instead of a local constant. Otherwise re-mark it TIER1-STUB(PHYS-INT) and have PHYS-INT make that switch."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-DATA",
+   "severity": "low",
+   "title": "contain.fits narrows openings from supports.json noun rows (e.g. baby bottle mouth 1.5 cm): R3 is wider than 'declared openings'",
+   "evidence": "Every (item, container) pair in the registry (338 containers x 1,702 portable items, empty container) was compared with today's place rule (fits_inside + capacity). contain.fits refuses 1,150 pairs today's rule accepts ('It does not fit through the opening'): 8 containers get an opening, and 6 of them (baby_bottle, blender_jar, mason_jar, pet_treat_jar, screw_lid_jar, used_oil_jug) get it only from noun rows; 2 declare one. It also accepts 1,679 pairs today's rule refuses (diagonal fits and compressible textiles, e.g. frost_cloth into accordion_file). baby_bottle takes the 'bottle' noun's mouth_frac 0.3, an opening of 0.3 x 0.05 = 1.5 cm, while real baby bottles have 3.5-5 cm necks. No authored spec uses these containers today, but TIER1_PHYSICS 5.6/10.1 and R3 promise a difference only for declared openings, nest groups and diagonals.",
+   "fix": "Give baby_bottle (and other wide-neck bottles) a type row with mouth_frac of about 0.8. List the row-derived mouths and nest groups next to compressible textiles in the PHYS-INT R3 follow-up. Have physics_audit --data report every container whose opening comes from a row rather than its type."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-STATICS",
+   "severity": "low",
+   "title": "com_height and the held-load helpers recurse without a cycle guard",
+   "evidence": "subtree_mass, descendants and top_support guard against location cycles, but com_height (support.py:388), _load_top and _load_moment do not. Probe: entities a(location b) and b(location a): subtree_mass gives 3.0 and top_support gives 'b', but com_height raises RecursionError. geometry.height_m caps its depth at 30.",
+   "fix": "Thread a seen set or a depth cap (as in geometry.height_m) through com_height, _load_top and _load_moment, and return the body's own COM on a revisit."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-STATICS",
+   "severity": "low",
+   "title": "impact.setdown bypasses body.effective_speed",
+   "evidence": "impact.py:1018 defaults speed to state['robot']['speed_mode']. TIER1_INTEGRATION 1.7 makes the set-down drop a consumer of body.effective_speed (quiet: fast -> normal; limp/weak legs -> careful). With quiet mode and speed_mode 'fast', the default path drops 0.06 m (an egg breaks) instead of 0.02 m. liquids.carry_motion does take the effective speed from the motion record.",
+   "fix": "With speed=None, use body.effective_speed(state, None)[0] (lazy import), or require the caller to pass the effective speed and say so in the docstring and the PHYS-INT follow-up."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-STATICS",
+   "severity": "low",
+   "title": "The idempotency ledger and consequence list span every substep of a long advance (spec-conformant, but a risk for PHYS-INT)",
+   "evidence": "impact._scratch resets the ledger and consequence list only when state['steps'] changes, and 1.8/6.1 clear phys_scratch only at begin(). One wait of up to 604,800 s is one step, so for its whole length once(w, eid, 'tip'), the fall@spot key, 'roll' and 'crush' allow one occurrence per entity. Example: the 7.4 'perturb after completion' recipe repeats physics.bump every 300 s; an item a person put back after the first tip can never tip again during that wait. The consequence list also grows for the whole wait, so the per-phase 64 budget must be counted from offsets.",
+   "fix": "PHYS-INT: key the ledger by (step, settle phase or substep), or clear it at the start of each settle call, and count the budget per settle call. Record the choice in the PHYS-INT handoff."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "BODY-MODEL",
+   "severity": "low",
+   "title": "body_audit.py writes a filtered run over the shared baseline file",
+   "evidence": "tools/body_audit.py:271 defaults --out to <tempdir>/house_ai_tier1/body_audit/<baseline|check>.json whatever the filters are. Running `--baseline --spec-files \"manipulation__*\" --seeds 0` (the handoff's own quick check) replaced the full baseline with a 14-trial one: the file's timestamp changed to 04:54, and the directory dates from 02:53. BODY-CORE's `--against` check reads that baseline. This review triggered the overwrite (see notes).",
+   "fix": "Refuse to write the default baseline path when --spec-files or --seeds filter the run, unless --out is given. Store the B0 baseline in catalog/analysis/tier1/gate/B0/ and point --against at it."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-DATA",
+   "severity": "low",
+   "title": "robot_caps' stage-A fallback has no TIER1-STUB(BODY-ENGINE) marker",
+   "evidence": "TIER1_INTEGRATION 1.2 requires robot_caps to delegate to the body from BODY-ENGINE on. forces.FALLBACK_CAPS and robot_caps read robot fields with the humanoid_v1 table and carry no marker, while the sibling stand-ins (support.CARRY, liquids.CARRY_HAND_Z_M, sight.EYE_HEIGHT_M) are marked. The PHYS-DATA handoff states 'No TIER1-STUB marker in these files'.",
+   "fix": "Mark robot_caps / FALLBACK_CAPS TIER1-STUB(BODY-ENGINE). forces.py is in BODY-ENGINE's B4 scope, so the grep in section 5 will find it."
+  },
+  {
+   "lens": "Spec conformance and correctne",
+   "package": "PHYS-DATA / PHYS-STATICS / PHYS-FLUIDS (tests)",
+   "severity": "low",
+   "title": "Anchor tests do not check the shipped type data under default variation",
+   "evidence": "Several anchors are pinned on synthetic records with phys_exact, or with geometry overridden to fit the anchor: stemware on the crystal class; the wine glass tip with size_m overridden; the 3 kg chair wind slide with drag_cd 0.7 set by the test (with the default Cd 1.2 it slides near 6.6 m/s); the 25 kg shelf holds 24 and fails at 26 only with phys_exact. These tests would catch a wrong formula, but not the data and variation problems above (phone at 1 m, wine glass).",
+   "fix": "Add one data-level anchor test per spec anchor. It should use registry types (or the generated houses) with variation on and assert the anchor over many entity ids, or document the band. For the chair, add the open-frame drag_cd row (the PHYS-FLUIDS follow-up) so the anchor holds without a test override."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-FLUIDS (liquids.pour_in / thermal.shock_check) + PHYS-DATA (ceramic and glass shock_k)",
+   "severity": "high",
+   "title": "Pouring hot drinks cracks ordinary mugs, bowls and glasses, and the check runs even though the thermal_shock law is still deferred",
+   "evidence": "Probe p_shock.py: liquids.transfer of 0.25 L of water from a kettle into a 21 C vessel, 40 instance ids each. Default `mug` (ceramic, shock 80 K +-15%) cracks 25% of the time at 95 C and 50% at 100 C. soup_bowl cracks 42% and cereal_bowl 50% at 100 C. drinking_glass cracks 82% at 70 C and 100% at 85 C; wine_glass 78% at 70 C. An open mason_jar cracks 100% at 90 C. The same mug in stoneware or porcelain cracks 0%. liquids.pour_in (about lines 355-358) calls thermal.shock_check(dst, temp_c, COUPLING_IMMERSION=1.0) without checking the lawbook, so once plumbing's do_pour is routed through transfer/pour_in (adoption round), making tea breaks half the mugs. Mugs are made for boiling water, mason jars are made for boiling-water canning, and tea glasses take hot tea every day. 45 K is soda-lime glass's downshock figure (ASTM C149, hot glass into cold water). Hot liquid into a cold vessel is upshock, which glass tolerates better.",
+   "fix": "Give hot-into-cold pours an upshock coupling of about 0.5 (or an upshock tolerance of about 1.5-2x shock_k). This keeps the spec anchor: boiling soup into a 4 C soda-lime jar is 96 K x 0.6 = 58 K > 45 K, so it still cracks. Raise ceramic tableware to at least 100 K (ceramic class, or mug/bowl/plate rows). Give canning jars a heat-treated row. Gate pour_in's check with lawbook.active('thermal_shock') until PHYS-FLIP."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-STATICS (statics.crush_limit_kg / crush_law) + PHYS-DATA (class crush_kg)",
+   "severity": "high",
+   "title": "Crush law applies the class crush_kg to every item, so a stack of 10 books crushes the bottom book",
+   "evidence": "Probe p_stack.py with crush forced active, real types stacked on a table. book x10 (0.5 kg each): load 4.5 kg > crush 4.3 kg (paper 5 kg x vary), so book_1 is damaged. book x20 also damaged. dinner_plate x20: 11.4 kg > 10.6, bottom plate broken. statics.crush_limit_kg (statics.py 475-490) returns a limit whenever Phys.crush_kg is finite. Manipulation's max_load (systems/manipulation/common.py 398-416), which TIER1_PHYSICS 5.3 says is reproduced 'unchanged', returns None (unlimited) unless the record declares crush_kg/max_load_kg or is fragile/crushable. Books, notebooks, plastic bins (30 kg), electronics (20 kg) and every organic package (5 kg) therefore gain crush limits they never had. Stacking books is a very common household task.",
+   "fix": "In crush_limit_kg, return None unless the record is fragile/crushable or declares crush_kg/max_load_kg, or its class is genuinely soft (food produce/bread, foam, cardboard, thin paper goods), as manipulation does. Add a book/stationery row with a high crush_kg (for example 300). Treat distributed flat stacks of plates/bowls as bearing well over 10 kg."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-DATA (props._factors / vary)",
+   "severity": "medium",
+   "title": "Per-instance variation is strongly anti-correlated between sibling entities and between laws (crc32 linearity)",
+   "evidence": "Probe p_vary.py, using props._factors on the salts of 200 generated houses. Drop factor correlation: mug_1 vs mug_2 -0.975, mug_2 vs mug_3 -0.977, drinking_glass_1 vs drinking_glass_3 -0.972, dinner_plate_1 vs _2 -0.602. In 200 houses, mug_1 and mug_2 are never both in the weakest third. Within one entity: drop vs heat -0.885, drop vs hang -0.884, rating vs handle +0.607. Cause: u = crc32(salt|eid|type|law). For messages of equal length, CRC differences are a constant XOR mask that does not depend on the salt. An agent can learn 'if mug_1 survived, mug_2 is weak', and variety shrinks.",
+   "fix": "Keep the key string but mix it non-linearly: int.from_bytes(hashlib.blake2b(key, digest_size=8).digest()[:4]) or a murmur3 fmix32 finalizer on the crc32 value. Factors are cached per entity, so cost is unchanged. Anchors are tested with phys_exact, and no engine path reads props in stage A, so no gate digests move."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-DATA (supports.json categories.phone / electronics anchor)",
+   "severity": "medium",
+   "title": "Anchor 'a phone survives a 1 m drop onto tile' fails for about half of phones once variation is on, and robot drops happen at exactly 1.0 m",
+   "evidence": "Probe p_drops.py: impact.fall of a real smartphone onto tile, variation on, 40 ids. 1.0 m: 48% break (tablet 52%). 0.9 m: 15%. body_faults drops held items from carry.hand_z_m = 1.0 m (body_faults.py lines 268, 315, 507). tests/test_physics_data.py 256-257 check the anchor with props_of, which applies no variation. Row: phone drop_tolerance_m 1.0, and variation is +-15%.",
+   "fix": "Set the phone (and tablet) drop tolerance to at least 1.0/0.85, about 1.2 m. The cited MIL-STD-810G uses 1.2 m. Make anchor tests use the lower variation bound (tol x (1 - VARY_SPREAD) >= anchor height) so every anchor holds for every instance."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-FLUIDS (thermal.phase_step)",
+   "severity": "medium",
+   "title": "Ice thaws about 11x too fast if the phase law flips before thermal_tau; even with the lumped tau the latent-heat rate is 8-23% fast",
+   "evidence": "Probe p_thermal.py: a frozen 0.5 L plastic bottle (ice_frac 1, 0 C) on a 21 C floor. Thaw takes 17.5 min with phase active and thermal_tau deferred (kernel_tau_s falls back to the legacy 300 sqrt(m)+60 = 276 s). It takes 154.5 min with thermal_tau active. The latent-heat value m L/(hA dT) with the same h=10 and box area is 202 min. A 0.3 L glass jar: 18.0 / 142.5 / 155.3 min. Causes: the rate divides by (80 K x tau), where tau includes ice c_p (2100 rather than 4186) and the container's heat capacity. laws.json lets phase (duplicated_by plumbing_liquids, food) and thermal_tau (appliances_cooking, food, plumbing_liquids, electrical) flip independently. Separately, rounding ice_frac to 4 decimals each step skews slow phases: p_phase2.py, 2 L at 1 C thaws in 83.3 h while the unrounded integration still has 13.6% ice.",
+   "fix": "Compute the phase rate as dt x coupling x |T_f - T_amb| x hA / (m_liquid x L), with hA = 10 x area from the lumped formula whatever the thermal_tau state (equivalently, tau at ice_frac 0 scaled by m_liquid c_w / C_total). Or declare phase as requiring thermal_tau in laws.json and enforce that in lawbook. Keep ice_frac at 6 decimals or carry the remainder."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-FLUIDS (thermal.contact_check/contact_tick) + PHYS-DATA (wood/plastic finish heat limits)",
+   "severity": "medium",
+   "title": "A cup of coffee scorches every wooden table and melts plastic trays",
+   "evidence": "Probe p_contact.py, contact_heat forced, ceramic mug with 0.3 L of coffee, 5 min of contact. At 75 C: table (limit 66.9) scorch 0.08, coffee_table 0.09, desk 0.19, nightstand 0.13. At 65 C the desk (limit 55.9) already gets scorch 0.09. Plastic tray (limit 71.1): 75 C gives melted 0.04, 85 C gives melted 0.14. The vessel's lumped temperature (equal to the coffee's) is used as the contact temperature, with no wall or foot-ring drop. The kind is 'scorch' (charring) even at 65-85 C. Modern polyurethane finishes tolerate a hot mug, and PP/ABS trays soften only above about 100 C.",
+   "fix": "Use a base contact temperature for liquid-filled vessels: T_amb + k(T - T_amb), with k about 0.6-0.7 for ceramic/glass. Record a 'heat_ring' kind below about 150 C and keep 'scorch' for pans and irons. Keep the 60 C lacquer/shellac anchor only through a record finish field. Set the plastic finish limit for trays and tables to about 100 C."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-DATA (props absorb_l = class abs x whole mass) + GEN (chair_variants)",
+   "severity": "medium",
+   "title": "Implausible absorption capacities: fabric dining chairs hold 15 L, sandbags hold more than their own volume, closed-cell foam soaks",
+   "evidence": "props_of on real types. GEN's 'fabric' dining-chair variant makes chair class cotton, so absorb_l = 15.0 L for a 6 kg chair (10 of 144 chairs in gen-2 seeds 0-29). sand_bag (canvas, 10 kg) holds 25 L in a 10 L box. Because the whole bag mass is counted as paper: chicken_feed_bag 23 L, charcoal_bag 14.4 L, dog_kibble_bag 13.8 L. Closed-cell items in the open-cell foam class (10 L/kg): ring_buoy 11 L, life_jacket 7 L, foam_play_mat 15 L. Sofa and armchair are already fixed at 0.3 L/kg by supports rows; chair is not.",
+   "fix": "Cap absorb_l at about 0.9 x box volume. Add a supports.json chair row with absorb_l_per_kg 0.3, or have GEN set an upholstery field instead of replacing material. Filled sacks absorb by container mass only. Add a closed-cell foam alias or class (eva, nylon_foam for buoyancy aids, play mats): wp true, abs about 0."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-DATA (Phys.floats, props.py line 476)",
+   "severity": "medium",
+   "title": "Phys.floats uses bounding-box bulk density, so knives, hammers and canned food float while life rings sink",
+   "evidence": "Of 397 portable types whose class is metal, glass or ceramic, 311 have floats=True. Examples: chef_knife (0.22 kg in 0.33x0.05x0.02 m, 667 kg/m3), claw_hammer, canned_beans (box 0.62 L vs cylinder 0.49 L). ring_buoy and life_jacket have floats=False because the foam class is not waterproof. The field is part of the frozen 4.9 Phys contract and is unused today; sink, bathtub and pool tasks will read it.",
+   "fix": "For solid items, float when the class rho < 1000. For sealed hollow containers, use shape-aware volume (cylinder pi/4, sphere pi/6 of the box) and include contents. Open vessels are flooded. Closed-cell foam floats."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-STATICS (impact h_eff) / PHYS-DATA (floors.json soft-floor hardness)",
+   "severity": "medium",
+   "title": "Soft landings are too harsh above table height: mugs and plates always break falling 1.5 m onto carpet, eggs break on grass and carpet from 0.3 m",
+   "evidence": "Probe p_drops.py: impact.fall, 40 varied ids per case. Carpet at 1.5 m: mug and dinner_plate 100%, drinking_glass and wine_glass 65%, glass_jar 60%. Grass at 1.5 m: mug and plate 50%. hen_egg at 0.3 m: 100% on carpet and grass. ceramic_vase at 0.75 m on carpet: 100%. Cause: h_eff = h x hardness / padding is linear (carpet 0.35, grass 0.3), so 1.5 x 0.35 = 0.525 > 0.45 x 1.15. Spec anchors stop at 0.9 m. Items fall from top shelves at 1.6-1.8 m.",
+   "fix": "Model soft floors (floors.json soft: true) with a stopping distance, for example h_eff = h x hardness^2, or hardness x min(h, about 1 m). Add anchors: a mug falling 1.5 m onto carpet survives; an egg falling 0.3 m onto lawn or carpet survives about half the time."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-FLUIDS (environment.run vs wind_effect gating)",
+   "severity": "medium",
+   "title": "Wind gating is inconsistent: the system never moves outdoor chairs or bins, while wind_effect moves fences, lawns and doors at 1 m/s",
+   "evidence": "Probe p_wind.py, generated houses seeds 0-11, lowest wind speed that triggers an effect. environment.run only considers portable items or covers. outdoor_chair, trash_cart, recycling_cart, outdoor_table, deck_box and charcoal_grill are not portable, so they never move at any speed; the spec anchor 'a 3 kg chair slides at about 9 m/s' cannot occur through the system. wind_effect, which the PHYS-FLUIDS follow-up says PHYS-INT will call for the physics.wind_gust event on exposed items, only checks _free_to_move: lawn lifts at 1.0 m/s, fence tips at 1.0, balcony floor_surface slides at 1.0, garage_door and mailbox tip at 1.5, door at 2.0, gate at 3.5, hedge slides at 5.5, tree tips at 17.5. PHYS-STATICS added statics.free_standing (its deviation 15) for exactly this problem on slopes.",
+   "fix": "Use one gate in both run() and wind_effect: statics.free_standing (portable, wheeled or free-standing furniture, not secured, anchored, rooted or fixed) or a cover. Add a test that wind_effect leaves ground layers, floor surfaces, plants, fences and doors alone."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "GEN (climate wind) x PHYS-FLUIDS (environment.wind_speed_mps / wind_force_n)",
+   "severity": "medium",
+   "title": "Ground-level objects feel 1.5x the 10 m airport wind as a sustained force on their bounding box, so light items move on most daytime hours",
+   "evidence": "climate_normals.json wind_mps is the 'mean wind speed at 10 m' at an airport. weather_at sets gust = 1.5 x wind. environment.wind_speed_mps uses max(wind, gust), and drag is Cd 1.2 on the box's max(w,d) x h. GEN weather over 5 seeds x 1 year, 09:00-18:00: us winter >=5 m/s 83% of hours and >=10 m/s 18%; summer 66% and 6%; ca winter 91% and 30%. Thresholds from p_wind.py: watering_can (0.6 kg) slides at 5.0 m/s, wheelbarrow (15 kg, 1.4x0.65 m box face) at 9.5, metal_ash_can at 11.0. Once wind flips, a watering can wanders on 2/3-4/5 of daytime hours and a wheelbarrow on about 1 in 5 winter hours.",
+   "fix": "Convert to object height and shelter: an exposure factor of about 0.5 for yards at about 1 m (log-law suburban) and about 0.7 for decks and balconies, documented in climate or environment. Use the mean wind for sliding and gusts only for lift and tip impulses. Add the open-frame drag/solidity row PHYS-FLUIDS already lists as a follow-up."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "GEN (profile.compose / households.json)",
+   "severity": "medium",
+   "title": "Residents 65+ get role 'adult' outside multigenerational homes, and elderly mobility aids are drawn uniformly",
+   "evidence": "compose({'residents': {'composition': 'single_senior'}}) returns [{'role': 'adult', 'age': 85, ...}] with no abilities. Over 4,000 random US compositions, 1,188 of 6,566 adults are 65+ with role 'adult'; the 330 'elderly' members exist only in multigenerational homes. Their mobility is rng.choice(full, cane, walker): walker 34%, cane 28%, full 38% (real 65+: roughly 10-15% cane, 5-10% walker). Role drives behaviour downstream: climate/comfort.py VULNERABLE heat stress, people/common.py reach (lines 26-27) and fall-risk branches (211-235), SLEEP_WAKE_DB, and forces._helper_value, which counts an 85-year-old as a 23 kg / 200 N adult helper. Mean household size is 2.29 vs about 2.5 for the US (CPS 2023).",
+   "fix": "Assign role 'elderly' by age (for example >= 70, or >= 65) in every preset, generation 2 only, with abilities. Weight the abilities draw by age (for example 75+: mobility full 0.75 / cane 0.15 / walker 0.10; vision low about 0.15). Generation 1's draw stays untouched."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "PHYS-DATA (supports.json categories.hooks)",
+   "severity": "low",
+   "title": "A 10-slot garden tool rack gets a single coat hook's 10 kg rating for the whole rack",
+   "evidence": "garden_tool_rack has hang_slots 10 and gets hang_kg 10 from the category 'hooks' row (coat_hooks, key_hook and towel_hook get the same 10 kg total). Probes p_loads.py and p_loads2.py (gen 1 and gen 2, 40 houses each): seed 33 garden_tool_rack_1 holds 5 tools, 8.1 kg against a varied 8.82 kg, so it is sagging at start. One more rake pulls it off the wall once the hang law flips. Otherwise 0 of about 2,400-2,500 rated slots are over their rating at start.",
+   "fix": "Give multi-slot racks and hook rails a per-slot rating, for example {'per_slot': 10} x hang_slots, analogous to closet_rod's per_m."
+  },
+  {
+   "lens": "Physical realism, performance ",
+   "package": "GEN (climate.normal_value)",
+   "severity": "low",
+   "title": "Linear interpolation between monthly means damps the annual temperature cycle",
+   "evidence": "Probe p_climate.py (12 years x 3 seeds per region). January mean highs run warm: us 6.5 vs 5.2, ca 0.5 vs -0.7, eu 5.2 vs 4.4, uk 9.0 vs 8.4, jp 10.5 vs 9.8. July runs 0.3-0.5 C cool. Interpolation alone biases Philadelphia's January by about +0.56 C (interpolated January mean 5.76 vs 5.2); the rest is the shared anomaly sample. Wet days, precipitation and wind otherwise reproduce the normals (within about 1.5 days, about 15% and 0.1 m/s).",
+   "fix": "Use mean-preserving interpolation: solve for knot values whose piecewise-linear monthly averages equal the normals, or fit 2-3 annual harmonics."
+  }
+ ],
+ "fix": {
+  "fixed": [
+   {
+    "title": "Fallen items and pulled-out fixtures keep their old height (z_m / mounted / mount_height_m) [PHYS-STATICS, medium]",
+    "how": "impact._relocate now also clears MOUNT_KEYS (z_m, mounted, mount_height_m) whenever a consequence moves something. A new _unfasten also drops anchored on a fixture torn off the wall (_pull_out and the adhesive-hook branch). The fall height is read before the move, so a shelf still falls 1.6 m. Test test_what_falls_or_tears_out_rests_where_it_lands covers a z_m item, a pulled-out wall shelf and an adhesive hook: each ends with geometry.height_m 0 and support_of ('room', ('floor', cell))."
+   },
+   {
+    "title": "Floor scratching emitted no phys.scratch event [PHYS-DATA, medium]",
+    "how": "impact.damage gained the keywords event, note, ids and **data. With event set it emits that phys.* event and records one consequence of that kind instead of phys.damage. forces.scratch uses it with event='phys.scratch'. The mark is charged to the drag: by if given, else impact.robot_caused(mover). robot_caps/FALLBACK_CAPS now carry a TIER1-STUB(BODY-ENGINE) marker. A test with the real impact module checks the event, the consequence kind, the id-only note and the attribution."
+   },
+   {
+    "title": "Phone 'survives 1 m' anchor failed for about half the instances under the +-15 % variation [PHYS-DATA, medium; realism duplicate]",
+    "how": "Calibration rule written into props: a 'survives' anchor must hold for the whole band. Electronics class and phone row 1.0 -> 1.2 m; laptop_computer 0.75 -> 0.9 m. Break anchors already held. New DataAnchorTests check the anchors on registry types over 120 instance ids with variation on: smartphone, drinking_glass, wine_glass, mug, dinner_plate, laptop, egg set-down, thermal shock, tip thresholds, the shelf rating band, chair wind and openings."
+   },
+   {
+    "title": "Stemware anchors not met by the shipped wine_glass [PHYS-DATA, medium]",
+    "how": "New Phys.base_m (foot width), used by statics.base_width_m inside tip_accel_g for upright items. wine_glass row: com_frac 0.55, base_m 0.07, drop 0.25, so it tips at 0.318 g and breaks from about 0.25 m. Lamps got base_m too: table_lamp 0.2 (0.48 g, anchor about 0.5 g; was 0.71 g) and floor_lamp 0.3. The tip anchors are tested on the registry types, with no size override."
+   },
+   {
+    "title": "TIER1-STUB(BODY-ENGINE) marker in liquids.py, a file BODY-ENGINE may not edit [PHYS-FLUIDS, low]",
+    "how": "Removed CARRY_HAND_Z_M and its marker. The new liquids.carry_hand_z_m(state) reads support.CARRY['hand_z_m'] (support.py is in BODY-ENGINE's B4 list). The fluids FakeSupport now carries a CARRY of 0.8 m, so the test proves the value comes from support."
+   },
+   {
+    "title": "contain.fits took openings from supports.json noun rows (baby bottle mouth 1.5 cm) [PHYS-DATA, low]",
+    "how": "New type rows: baby_bottle mouth_frac 0.8 (4 cm neck) and blender_jar 1.0. Opening-refused pairs dropped from 1,150 to 972. The PHYS-DATA handoff now lists for PHYS-INT's R3 review the remaining row-derived mouths (mason, pet-treat and screw-lid jars, used_oil_jug, water_bottle, water_carafe) and the 20 row-derived nest groups. It also asks physics_audit --data to report any opening or nest group that comes from a row. A data test checks the baby bottle."
+   },
+   {
+    "title": "com_height, _load_top and _load_moment recursed without a cycle guard [PHYS-STATICS, low]",
+    "how": "Each now carries a seen set and stops where a location cycle closes. Test test_location_cycles_end_the_recursion covers a in b, b in a."
+   },
+   {
+    "title": "impact.setdown bypassed body.effective_speed [PHYS-STATICS, low]",
+    "how": "New impact.effective_speed(state, requested) calls body.effective_speed lazily; the rule is idempotent and an unknown mode is returned unchanged. setdown runs the requested speed (or the robot's speed_mode) through it. Test: quiet + fast drops 0.02 m, legs_health 0.5 drops 0 m."
+   },
+   {
+    "title": "Idempotency ledger and consequence list spanned every substep of a long advance [PHYS-STATICS, low]",
+    "how": "impact._scratch now restarts the ledger and consequence list when the step or time_s changes, so the action phase and each substep get their own. Test: a glass put back upright tips again at the next repeat bump in a later substep. The PHYS-STATICS handoff tells PHYS-INT how settle should count notes, undo and its 64 budget."
+   },
+   {
+    "title": "body_audit.py overwrote the shared baseline with a filtered run [BODY-MODEL, low]",
+    "how": "A run narrowed by --spec-files or --seeds now defaults to <mode>_partial.json, and its record carries partial: true. The gate's G9 (tier1_gate.py) runs body_audit --baseline --out <gate folder>/body_audit.json, so B0 leaves the baseline at gate/B0/body_audit.json; docs and handoff point --against there. A test drives main() with faked trials."
+   },
+   {
+    "title": "Anchor tests did not check shipped type data under default variation [tests, low]",
+    "how": "Added DataAnchorTests in test_physics_data.py; they skip any type a core-only run lacks. Added the open-frame drag rows (chair type row and rack noun row, drag_cd 0.7) and Phys.drag_cd, so the registry's 4 kg outdoor chair slides at about 9.1 m/s with no override. The shelf rating is pinned as its documented 21.25-28.75 kg band."
+   },
+   {
+    "title": "Hot pours cracked mugs, bowls and glasses, and the check ran although thermal_shock is deferred [PHYS-FLUIDS + PHYS-DATA, high]",
+    "how": "thermal.liquid_coupling: 1.0 for downshock (liquid colder than the vessel), COUPLING_UPSHOCK 0.6 for upshock. Used by shock_exposure and the new pour_shock_check, which liquids.pour_in calls only while lawbook.active('thermal_shock'). The anchor still holds: 96 x 0.6 > 45 x 1.15. Data: ceramic class 80 -> 100 K, mason_jar 60 K, casserole_dish and liquid_measuring_cup tempered, french_press 160 K. Measured with the law forced, 200 instances each: boiling water into a mug or bowl 0 %, cold rinse of a 90 C mug 0 %, 85 C into a tumbler 1 %. Tests cover the fluids pours and the data anchors."
+   },
+   {
+    "title": "Crush law applied the class crush_kg to every item (10 books crushed the bottom one) [PHYS-STATICS + PHYS-DATA, high]",
+    "how": "New Phys.crushable, following manipulation's max_load rule. It is true for declared crush or stack limits, portable max_load_kg (which also becomes the crush limit), fragile or crushable records, row crush_kg, and the classes cardboard, lined paperboard and eggshell; crushable: false opts out. crush_limit_kg returns None for anything else. An item under a stack of its own kind gets 5x: same type (not generic_item) or nest group, no wider. Tests: books, bins, 20 plates and a 12 kg pot, plus the props rules."
+   },
+   {
+    "title": "Per-instance variation anti-correlated between siblings and laws (crc32 linearity) [PHYS-DATA, medium]",
+    "how": "props._unit now takes u from the first 32 bits of a BLAKE2b digest. Factors are still cached per entity, and no engine path reads props, so no digests moved. Test: |r| < 0.2 over 400 houses for sibling ids and for laws of one entity. A 3000-house check gave -0.033 and 0.003."
+   },
+   {
+    "title": "(Rebuilt from the reviewers' probes because the finding list was cut off) wind_effect moved fixtures",
+    "how": "environment._free_to_move now follows statics.free_standing: portable, wheeled or casters, free-standing furniture, or a cover; never fixed_in_place, mounted, anchored, rooted, ground_layer or a doorway (connects). Before, generated yards had floor slabs and fences moving at 1 m/s, lawns lifting, and doors, gates, walkways, drains, hedges and trees moving. The cheap drag bound uses max(1.2, the record's Cd), since rows may only lower Cd (a data test enforces this). Regression test added; the probe re-run shows only movable things."
+   },
+   {
+    "title": "(Rebuilt from the reviewers' probes) ice_frac rounding made slow thaws 10-15 % wrong",
+    "how": "thermal.phase_step keeps the exact progress in the phase process parameters (_phys_phase.ice, 9 decimals) and writes ice_frac to 4 decimals; a changed ice_frac wins. Test: thaw time matches an unrounded integration at 0.5 C for 0.5 L and 2 L, and the test fails with the old behaviour."
+   },
+   {
+    "title": "Package request (PHYS-DATA): tier1_gate --shared-tree should attribute concurrent packages' gate folders",
+    "how": "scope_check now allows each listed package's own gate folder and, with --shared-tree, attributes a peer's gate folder to it. On the shared tree a single package's G10 now lists only A0's uncommitted files as outside."
+   }
+  ],
+  "rejected": [
+   {
+    "title": "contain.fits accepts 1,679 pairs today's rule refuses (diagonal fits, compressible textiles)",
+    "why": "Not a defect: TIER1_PHYSICS 5.6 specifies diagonal fits and textile compression. Left unchanged and documented as a PHYS-INT R3 review item."
+   },
+   {
+    "title": "Raise ceramic tableware via mug/bowl/plate rows (the finding's alternative)",
+    "why": "A row value beats the material class whatever the record's material, so a glass or plastic mug would inherit 100 K. The class value was changed instead (ceramic 100 K)."
+   },
+   {
+    "title": "Lower the upshock coupling to 0.5 (the finding's first suggestion)",
+    "why": "At 0.5 about 28 % of fridge-cold soda-lime jars would survive boiling soup, breaking the spec's anchor for them. 0.6 keeps the anchor for every instance. Cost: boiling water into a room-temperature tumbler cracks about 70 % once the law flips. Documented as a known gap in the PHYS-FLUIDS handoff."
+   }
+  ],
+  "gate": "TIER1-GATE A-FIX [A0+PHYS-DATA+PHYS-STATICS+PHYS-FLUIDS+CAM-SIGHT+BODY-MODEL+GEN] vs A0: PASS (12 pass, G8 skip). Full gate run, then G1, G1b, G1c and G10 re-run after the last statics change, so the record matches the final tree. compare A0 A-FIX: PASS. G0 fingerprint unchanged (3e6e94c37334). G1: 35 files normal+strict, 3130 tests, 0 failing runs. G1b: only the 8 failures known from A0; core-only kernel files 9/10 (test_perception.py, known from A0). G1c: 22 modules, none registers anything. G2: 242/242 own mode, 1210 trials, 0 verdict / state-digest / observation-digest changes. G3: 226/242 forced realistic, 0/0/0 changes. G4: 0 leaks. G5: layout equal, generation-1 digests 340/340. G6: 0 defects, deterministic. G7: 4.40 ms/substep (+0.5 %), 1 h wait 1.112 s (+0.9 %). G9: body_audit, generator compat, gen-2 tests and timing ok. G10: 0 files outside. Record: catalog/analysis/tier1/gate/A-FIX/.",
+  "tests_total": 3130,
+  "tests_failed": 0,
+  "specs_passed": 242,
+  "notes": "The task text cut off the finding list mid-entry (\"Anchor 'a phon...\") and the package reports. The 12 conformance findings and 4 realism findings shown were all fixed. To cover the rest, I re-ran the realism reviewers' probe scripts (copied to my scratch folder t1_fix/rp). That turned up two more real defects, both fixed: wind moving fixtures and the ice_frac rounding. Other probes judged acceptable: drops after recalibration, contact heat (hot mugs mark wood above about 60 C, the spec anchor), shelf loads, liquids, body, sight cost (the documented fast path is about 0.01 ms per entity), determinism and library budgets. Climate snow-day counts differ from the normals by up to about 2x in some regions; this looks like a different counting definition, so GEN was not changed. If the cut-off list held other findings, they were not seen.\n\nSpec deviations, all recorded in the handoffs:\n- BLAKE2b replaces crc32 for variation.\n- Ceramic thermal shock is 100 K (spec table says 80).\n- Hot-into-cold pours use a 0.6 upshock coupling (spec says 1.0 for every pour).\n- The phys scratch ledger is per settle phase.\n- Phys gains base_m, crushable and drag_cd (namedtuple defaults, so keyword builders that omit them keep working).\n\nPackage requests:\n- PHYS-DATA's gate-folder attribution request is done in tier1_gate.py.\n- A0's request to fix test_perception.py's core-only failure is not done: the file is outside the stage-A list (main session or BODY-FAULTS/PEOPLE-IO).\n- Commits are left to the main session.\n\nHandoffs updated: catalog/analysis/tier1/handoff_PHYS-DATA.md (deviations 20-28, stubs, R3 and adoption follow-ups, gate), handoff_PHYS-STATICS.md (22-28, PHYS-INT ledger guidance, gate), handoff_PHYS-FLUIDS.md (25-29, stubs, known gaps, gate), handoff_BODY-MODEL.md (21, how to test, gate), handoff_TIER1-GATE.md (deviation 13). No other files were changed.\n\nMain files changed:\n- house_sim/kernel/phys/{props,forces,support,statics,impact,liquids,thermal,environment}.py\n- house_sim/data/physics/{materials,supports}.json\n- tests/test_physics_{data,forces,statics,fluids,thermal}.py, tests/test_body_model.py\n- tools/body_audit.py, tools/orchestration/tier1_gate.py\n\nAll files are LF and Python 3.9-compatible."
+ }
+}

@@ -13,6 +13,10 @@ A file may also declare look-alike groups for realistic perception ("looks_like"
 "members", "kind", "candidates", "label_fields", "portion_descriptor", "color", "size_m", "size_class"}}) and
 domain-wide "field_tiers". lookalike_groups() / lookalike_types() give the merged groups and the types each covers;
 loading warns (LookalikeWarning, self.lookalike_warnings) about groups whose members a camera could tell apart.
+
+A type may carry a "view" block for the geometric camera (porosity, clear_below_m, opening, faces, text_m, ...; see
+kernel/sight.py). Like "perception" it is type metadata: it is never copied into records, so it changes no state.
+view_props(name) gives the block merged along the is_a chain.
 """
 import copy
 import json
@@ -24,6 +28,8 @@ TYPE_DIR = Path(__file__).resolve().parent.parent / "data" / "types"
 GROUP_KEYS = ("descriptor", "resolve", "kind", "candidates", "label_fields", "portion_descriptor", "color", "size_m",
               "size_class")
 CAMERA_RESOLUTION_M = 0.05      # sizes closer than this (or 10 %) look the same to the robot's camera
+TYPE_KEYS = ("is_a", "props", "doc", "perception", "view")
+META_KEYS = ("perception", "view")      # type metadata kept out of types[name] (never copied into records)
 
 
 class LookalikeWarning(UserWarning):
@@ -61,6 +67,7 @@ class TypeRegistry:
     def __init__(self, folder=TYPE_DIR, extra_files=()):
         self.types, self.sources, self._cache = {}, {}, {}
         self.perception, self.looks_like, self.field_tiers = {}, {}, []
+        self.view, self._view_cache = {}, {}
         self._groups = self._group_types = None
         self.lookalike_warnings = []
         files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
@@ -90,18 +97,24 @@ class TypeRegistry:
             # domain-wide perception tiers by field name, for fields this domain writes onto any entity
             self.field_tiers.append(data["field_tiers"])
         for name, spec in types.items():
-            core = {k: v for k, v in spec.items() if k not in ("perception",)} if isinstance(spec, dict) else spec
+            core = {k: v for k, v in spec.items() if k not in META_KEYS} if isinstance(spec, dict) else spec
             if name in self.types and self.types[name] != core:
                 raise ValueError("Type {} defined twice ({} and {})".format(name, self.sources[name], path))
-            if not isinstance(spec, dict) or set(spec) - {"is_a", "props", "doc", "perception"}:
-                raise ValueError("Type {} must have only is_a/props/doc/perception".format(name))
+            if not isinstance(spec, dict) or set(spec) - set(TYPE_KEYS):
+                raise ValueError("Type {} must have only is_a/props/doc/perception/view".format(name))
+            if "view" in spec and not isinstance(spec["view"], dict):
+                raise ValueError("Type {} view must be an object".format(name))
             self.types[name] = core
             if "perception" in spec:
                 # realistic perception: {"glance"|"inspect"|"read"|"hidden": [fields], "measure": {field: tool},
                 # "looks_like": "group"}; see kernel/realism.py
                 self.perception[name] = spec["perception"]
+            if "view" in spec:
+                # geometric camera: {"porosity", "clear_below_m", "opening", "faces", "text_m", ...}; see kernel/sight.py
+                self.view[name] = spec["view"]
             self.sources[name] = str(Path(path).name)
         self._cache.clear()
+        self._view_cache.clear()
         self._groups = self._group_types = None
 
     def check(self):
@@ -228,6 +241,20 @@ class TypeRegistry:
             props.pop("is_a", None)
             self._cache[name] = props
         return self._cache[name]
+
+    def view_props(self, name):
+        """The type's "view" blocks merged along its is_a chain (the farthest ancestor first, the type's own block
+        last; nested dicts merge, "+key" lists append) without their "doc" notes; {} for an unknown type or one with
+        no block on its chain. Built once per type; do not mutate."""
+        if name not in self._view_cache:
+            merged = {}
+            if name in self.types:
+                for type_name in reversed([name] + self.ancestors(name)):
+                    block = self.view.get(type_name)
+                    if block:
+                        merged = _merge(merged, {k: v for k, v in block.items() if k != "doc"})
+            self._view_cache[name] = merged
+        return self._view_cache[name]
 
     def make(self, name, location, **overrides):
         record = copy.deepcopy(self.resolve(name))

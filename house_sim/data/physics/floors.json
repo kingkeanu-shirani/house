@@ -1,0 +1,67 @@
+{
+  "doc": "Floor materials for the tier-1 physics layer (docs/design/TIER1_PHYSICS.md 4.5; read through props.floor_props and forces). impact_hardness, scratch and mu are manipulation's FLOOR_HARDNESS, FLOOR_SCRATCH and FLOOR_FRICTION unchanged; c_rr and the water columns are added. A room's floor is its floor_<room> entity's material, else the room's floor_material, else its terrain, else `default`; a rug under the cell turns a hard floor into `rug`.",
+  "columns": {
+    "impact_hardness": "how hard a landing is, tile = 1.0 (effective drop height = height x hardness / padding); on a soft floor, the compacted layer's once its cushion has bottomed out",
+    "cushion_m": "soft floors: depth of the layer that stops a falling item before it bottoms out (pile and pad, thatch and topsoil); the drop tolerances are drops onto tile, where an item stops within about 1 mm, so while the cushion works the effective drop is h x 1 mm / (1 mm + cushion_m). null: a hard floor",
+    "cushion_j": "soft floors: impact energy the cushion takes under a small item before it bottoms out (J); the energy beyond it lands with impact_hardness. Light things (an egg, a mug) are stopped by the cushion, heavy ones bottom it out (impact.effective_drop_m)",
+    "scratch": "how easily the finish scratches, 0-1 (hardwood 1.0)",
+    "mu": "static friction of a wood or plastic furniture foot on this floor",
+    "c_rr": "rolling resistance of casters, wheels and balls",
+    "soft": "a soft floor (carpet, turf): sliders need their soft-floor factor and a rug adds nothing",
+    "absorbs": "liquid soaks in instead of standing as a puddle",
+    "film_mm": "puddle film thickness on this floor, mm (null: the liquid's own film on a hard floor)",
+    "water_tolerance_s": "standing water this long damages the floor (null: unlimited)",
+    "water_damage": "the damage kind standing water causes"
+  },
+  "floors": {
+    "tile": {"impact_hardness": 1.0, "cushion_m": null, "cushion_j": null, "scratch": 0.25, "mu": 0.35, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "glazed ceramic or porcelain tile: rigid, glaze resists scratching; c_rr about 0.01 for hard casters"},
+    "stone": {"impact_hardness": 1.0, "cushion_m": null, "cushion_j": null, "scratch": 0.2, "mu": 0.4, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "granite, slate and limestone flooring and patios"},
+    "concrete": {"impact_hardness": 1.0, "cushion_m": null, "cushion_j": null, "scratch": 0.0, "mu": 0.55, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "bare or sealed concrete (garage, basement, driveway): nothing a household drag can scratch"},
+    "marble": {"impact_hardness": 1.0, "cushion_m": null, "cushion_j": null, "scratch": 0.5, "mu": 0.4, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "polished marble: soft calcite (Mohs 3) shows scratches readily"},
+    "hardwood": {"impact_hardness": 0.85, "cushion_m": null, "cushion_j": null, "scratch": 1.0, "mu": 0.3, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": 3600, "water_damage": "water_damage", "source": "site-finished oak or maple with polyurethane: scratches most easily; standing water for about an hour lifts the finish and cups boards"},
+    "hardwood_unsealed": {"impact_hardness": 0.85, "cushion_m": null, "cushion_j": null, "scratch": 1.0, "mu": 0.3, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": 900, "water_damage": "water_damage", "source": "oiled or worn unsealed hardwood: water marks within minutes"},
+    "laminate": {"impact_hardness": 0.85, "cushion_m": null, "cushion_j": null, "scratch": 0.8, "mu": 0.3, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": 1800, "water_damage": "swollen", "source": "laminate planks: HDF core swells at the joints after about 30 min of standing water"},
+    "vinyl": {"impact_hardness": 0.75, "cushion_m": null, "cushion_j": null, "scratch": 0.7, "mu": 0.35, "c_rr": 0.01, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "sheet vinyl and luxury vinyl plank: waterproof, slightly cushioned"},
+    "wood": {"impact_hardness": 0.8, "cushion_m": null, "cushion_j": null, "scratch": 0.7, "mu": 0.35, "c_rr": 0.015, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": 7200, "water_damage": "water_damage", "source": "deck, porch and shed boards: weathered outdoor wood"},
+    "plywood": {"impact_hardness": 0.7, "cushion_m": null, "cushion_j": null, "scratch": 0.3, "mu": 0.4, "c_rr": 0.015, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": 7200, "water_damage": "water_damage", "source": "attic and subfloor plywood decking"},
+    "rubber": {"impact_hardness": 0.45, "cushion_m": null, "cushion_j": null, "scratch": 0.1, "mu": 0.8, "c_rr": 0.03, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "gym rubber flooring: cushions drops, grips feet"},
+    "carpet": {"impact_hardness": 0.35, "cushion_m": 0.012, "cushion_j": 3.0, "scratch": 0.0, "mu": 0.6, "c_rr": 0.06, "soft": true, "absorbs": true, "film_mm": 3.0, "water_tolerance_s": null, "water_damage": null, "source": "cut-pile carpet on pad: absorbs impacts and liquid (mildew after 24-48 h wet is cleaning's); casters roll about 5x harder than on hard floors. Cushion: 6-12 mm of pile over a 10-11 mm rebond pad compress about 12 mm under a falling cup before the pad bottoms out, at about 3 J under a cup's footprint: a mug or a plate dropped from 1.5 m usually survives, an egg from counter height does not"},
+    "rug": {"impact_hardness": 0.45, "cushion_m": 0.006, "cushion_j": 1.0, "scratch": 0.0, "mu": 0.6, "c_rr": 0.06, "soft": true, "absorbs": true, "film_mm": 3.0, "water_tolerance_s": null, "water_damage": null, "source": "an area rug on a hard floor: thinner padding than wall-to-wall carpet (about 6 mm of pile, no pad, bottoms out at about 1 J)"},
+    "grass": {"impact_hardness": 0.3, "cushion_m": 0.035, "cushion_j": 10.0, "scratch": 0.0, "mu": 0.7, "c_rr": 0.1, "soft": true, "absorbs": true, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "lawn turf: blades, thatch and moist topsoil give 3-5 cm under a small falling item and take about 10 J before it reaches firm ground (playground guidance treats grass as a poor surface for a falling child, whose energy is hundreds of joules): an egg dropped on a thick lawn from waist height often survives, a 10 kg box lands about as on the old 0.3 hardness"},
+    "soil": {"impact_hardness": 0.25, "cushion_m": 0.05, "cushion_j": 15.0, "scratch": 0.0, "mu": 0.7, "c_rr": 0.1, "soft": true, "absorbs": true, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "garden soil and beds: loose dug soil gives about 5 cm"},
+    "mulch": {"impact_hardness": 0.25, "cushion_m": 0.05, "cushion_j": 15.0, "scratch": 0.0, "mu": 0.7, "c_rr": 0.1, "soft": true, "absorbs": true, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "bark mulch: a loose layer several cm deep (CPSC playground handbook: 9 in of wood mulch protects falls of up to 10 ft)"},
+    "sand": {"impact_hardness": 0.25, "cushion_m": 0.04, "cushion_j": 15.0, "scratch": 0.0, "mu": 0.7, "c_rr": 0.1, "soft": true, "absorbs": true, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "loose sand: about 4 cm give"},
+    "default": {"impact_hardness": 0.9, "cushion_m": null, "cushion_j": null, "scratch": 0.5, "mu": 0.4, "c_rr": 0.015, "soft": false, "absorbs": false, "film_mm": null, "water_tolerance_s": null, "water_damage": null, "source": "an unknown hard floor: manipulation's fallbacks (FLOOR_HARDNESS 0.9, FLOOR_SCRATCH 0.5, FLOOR_FRICTION 0.4)"}
+  },
+  "aliases": {
+    "granite": "stone", "slate": "stone", "limestone": "stone", "terrazzo": "stone", "paver": "stone",
+    "ceramic": "tile", "porcelain": "tile", "ceramic_tile": "tile",
+    "asphalt": "concrete", "brick": "concrete", "cement": "concrete",
+    "oak": "hardwood", "maple": "hardwood", "bamboo": "hardwood", "engineered_wood": "hardwood", "parquet": "hardwood",
+    "linoleum": "vinyl", "lvp": "vinyl", "deck": "wood", "decking": "wood",
+    "lawn": "grass", "turf": "grass", "dirt": "soil", "earth": "soil", "gravel": "sand", "wool": "rug"
+  },
+  "feet": {
+    "doc": "Furniture feet and sliding aids. mu_factor multiplies the floor's mu (capped at 1.0; mu_factor_soft on soft floors), scratch is manipulation's FOOT_SCRATCH. Casters roll (c_rr instead of mu). Material classes not listed use a factor of 1.0 and the default scratch.",
+    "default_scratch": 0.6,
+    "kinds": {
+      "felt": {"mu_factor": 0.5, "scratch": 0.0, "source": "felt pads roughly halve the friction of wood legs on hard floors"},
+      "slider": {"mu_factor": 0.3, "mu_factor_soft": 0.5, "scratch": 0.0, "source": "PTFE furniture sliders: about 0.1 on hard floors; on carpet the pile drags (about 0.3)"},
+      "caster": {"rolls": true, "scratch": 0.0, "source": "casters roll: the floor's c_rr applies"},
+      "rubber": {"mu_factor": 2.0, "scratch": 0.15, "source": "rubber feet grip (mu capped at 1.0)"},
+      "steel": {"mu_factor": 1.0, "scratch": 1.0}, "cast_iron": {"mu_factor": 1.0, "scratch": 1.0},
+      "aluminum": {"mu_factor": 1.0, "scratch": 1.0}, "soft_metal": {"mu_factor": 1.0, "scratch": 1.0},
+      "enameled_metal": {"mu_factor": 1.0, "scratch": 1.0}, "stone": {"mu_factor": 1.0, "scratch": 1.0},
+      "concrete": {"mu_factor": 1.0, "scratch": 1.0},
+      "glass": {"scratch": 0.9}, "tempered_glass": {"scratch": 0.9}, "borosilicate": {"scratch": 0.9},
+      "crystal": {"scratch": 0.9}, "porcelain": {"scratch": 0.9}, "stoneware": {"scratch": 0.9},
+      "ceramic": {"scratch": 0.9}, "terracotta": {"scratch": 0.9},
+      "wood": {"scratch": 0.8}, "engineered_wood": {"scratch": 0.8}, "laminate": {"scratch": 0.8},
+      "plastic": {"scratch": 0.5}, "wicker": {"scratch": 0.4}, "cardboard": {"scratch": 0.2}, "leather": {"scratch": 0.2},
+      "cotton": {"scratch": 0.1}, "synthetic_fabric": {"scratch": 0.1}, "coated_fabric": {"scratch": 0.1},
+      "wool": {"scratch": 0.0}, "foam": {"scratch": 0.05}, "foam_plastic": {"scratch": 0.05}
+    },
+    "upholstered_legs": {"kind": "wood", "classes": ["cotton", "synthetic_fabric", "coated_fabric", "wool", "leather", "foam"],
+                         "source": "upholstered pieces stand on wooden or plastic legs (manipulation foot_material)"}
+  }
+}

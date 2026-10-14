@@ -15,7 +15,7 @@ from house_sim.generator import generate_house
 from house_sim.kernel import realism as realism_module
 from house_sim.kernel import registry as registry_module
 from house_sim.kernel.engine import HouseEnv
-from house_sim.kernel.plugins import HOOKS
+from house_sim.kernel.plugins import HOOKS, enabled_domains
 from house_sim.kernel.predicates import digest
 from house_sim.world import make_house, object_record
 
@@ -662,16 +662,14 @@ class KernelRound5RealismTests(unittest.TestCase):
         c["pets"]["rex_1"] = {"label": "Rex", "species": "dog", "location": "room_1", "pos": [1, 2], "posture": "resting"}
         c["pets"]["tom_1"] = {"label": "Tom", "species": "cat", "location": "room_1", "pos": [2, 1], "posture": "sleeping"}
         patches = []
-        try:   # a build without the navigation_robot / people observers that even this out on their own
+        only = enabled_domains()   # importing a disabled domain would register it in a core-only process
+        if only is None or "navigation_robot" in only:
+            # a build without the navigation_robot / people observers that even this out on their own
             from house_sim.systems.navigation_robot import hazards as nav_hazards
             patches.append(mock.patch.object(nav_hazards, "scrub_observation", lambda env, state, obs: None))
-        except ImportError:
-            pass
-        try:
+        if only is None or "people" in only:
             from house_sim.systems.people import perception as people_perception
             patches.append(mock.patch.object(people_perception, "glance_activity", lambda p, view: None))
-        except ImportError:
-            pass
         for p in patches:
             p.start()
         try:

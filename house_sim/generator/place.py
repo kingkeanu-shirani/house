@@ -162,7 +162,10 @@ class Placer:
             candidates = self.rng.sample(options, len(options))
         if not keep_path:
             return list(candidates[0])
-        levels = [("all", True), ("all", False)] + ([] if strict else [("basic", False)])
+        if strict == "hazards":
+            levels = [("all", True)]
+        else:
+            levels = [("all", True), ("all", False)] + ([] if strict else [("basic", False)])
         for level, hazards in levels:
             check = self._connectivity(rid, level, hazards=hazards)
             for pos in candidates[:80]:
@@ -215,7 +218,9 @@ class Placer:
         """Furniture against a wall (or anywhere with wall=False) that keeps access not worse (see _connectivity).
         min_free: optional pieces are skipped (None returned) when they would leave less than this share of the
         room's floor free -- real rooms keep walking space. strict: keep every mount (radiators, registers, wall
-        cabinets...) accessible too, or return None, instead of falling back to the basic protection level."""
+        cabinets...) accessible too, or return None, instead of falling back to the basic protection level.
+        strict="hazards" (generation 2): moreover never leave anything reachable only over floor hazards (loose
+        items, cords, keep-out rings), which a piece placed after the domains' floor items could otherwise do."""
         record = self.reg.make(type_name, rid, **props)
         if min_free is not None:
             cols, rows = geometry.footprint_size(record)

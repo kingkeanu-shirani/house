@@ -1,8 +1,10 @@
 """Print a generated house as ASCII room grids (debugging aid).
 
-usage: python tools/show_house.py [seed] [room_id ...] [--require garage pool ...]
+usage: python tools/show_house.py [seed] [room_id ...] [--require garage pool ...] [--gen 1|2]
 Legend: R robot, D doorway cell, letters = first letter of blocking furniture, P person, A pet (animal),
         ~ wet cell, ! floor hazard, . free floor.
+--gen 2 shows a generation-2 house and prints its household profile (composition, season, smart-home tier, pending
+pets) and each resident's role, bedroom and belongings count.
 """
 import sys
 from pathlib import Path
@@ -41,22 +43,47 @@ def draw(state, rid):
         lines.append("  " + row)
     for cell, cid in sorted(doors.items()):
         other = [r for r in state["connections"][cid]["rooms"] if r != rid][0]
-        lines.append("  D{} -> {} ({})".format(list(cell), other, state["connections"][cid].get("kind")))
+        conn = state["connections"][cid]
+        extra = " exterior, {} steps".format(conn.get("steps")) if conn.get("exterior") else ""
+        lines.append("  D{} -> {} ({}{})".format(list(cell), other, conn.get("kind"), extra))
+    return "\n".join(lines)
+
+
+def household(state):
+    """Generation-2 household summary lines."""
+    prof = (state.get("household") or {}).get("profile") or {}
+    lines = ["household: {} ({}), season {}, smart home {}, pending pets {}".format(
+        prof.get("composition"), prof.get("relation"), prof.get("season"), prof.get("smart_home"),
+        [p["species"] for p in prof.get("pets_pending", [])])]
+    for pid, person in sorted(state["people"].items()):
+        owned = sum(1 for e in state["entities"].values() if e.get("owner") == pid)
+        lines.append("  {} {} {} age {} in {} (bedroom {}), {}, {} things owned".format(
+            pid, person.get("label"), person.get("role"), person.get("age"), person.get("location"), person.get("home_room"),
+            "asleep in " + person["in_bed"] if person.get("in_bed") and not person.get("awake") else "awake", owned))
     return "\n".join(lines)
 
 
 def main(argv):
+    gen = 1
+    if "--gen" in argv:
+        i = argv.index("--gen")
+        gen, argv = int(argv[i + 1]), argv[:i] + argv[i + 2:]
     require = []
     if "--require" in argv:
         i = argv.index("--require")
         require, argv = argv[i + 1:], argv[:i]
     seed = int(argv[0]) if argv else 0
-    env = HouseEnv(generate_house(seed, require=require) if require else generate_house(seed), seed=seed)
+    opts = {"require": require} if require else {}
+    if gen != 1:
+        opts["gen"] = gen
+    env = HouseEnv(generate_house(seed, **opts), seed=seed)
     state = env.world.s
     print(state["name"], "|", state["metadata"].get("region"), "| people:", list(state["people"]), "| pets:", list(state["pets"]))
+    if gen >= 2:
+        print(household(state))
     rooms = argv[1:] or sorted(state["rooms"])
     for rid in rooms:
-        print(draw(state, rid))
+        print(draw(state, rid) if rid in state["rooms"] else "no room {} in this house".format(rid))
         print()
 
 

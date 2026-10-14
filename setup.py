@@ -17,6 +17,8 @@ class Build(build_py):
 
 setup(name='house-ai-symbolic',version='2.0.0',python_requires='>=3.9',
       description='Dependency-free symbolic household decision environment',
-      packages=find_packages(),package_data={'house_sim':['data/*.json','data/types/*.json','eval/*.json','eval/*.html']},
+      packages=find_packages(),package_data={'house_sim':['data/*.json','data/types/*.json','data/physics/*.json','data/robot/*.json',
+                                                  'data/calendar/*.json','data/vocab/*.json','data/generator/*.json',
+                                                  'eval/*.json','eval/*.html']},
       entry_points={'console_scripts':['house-ai=house_sim.cli:main']},
       cmdclass={'build_py':Build},install_requires=[])
