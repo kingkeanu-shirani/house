@@ -43,6 +43,24 @@ and turns) and checks every observation and action message for leaks:
             and no people, pets, hazards, sounds or messages; hearing "none", no messages and no sounds; hearing
             "addressed", only messages addressed to the robot; room mode with imaging off, no thing under 0.4 m except
             what the robot holds, and no hazards
+  people    (kernel v3.1, TIER1_SWEEP 17) the people-and-memory actions the walk also exercises (canonical ask with
+            handles, words, rooms, people and "it"; typed reports with known and unknown words; recall map / seen: /
+            snap:; snapshot and diff): an answer's clarify options or refers_to carry a handle (people speak in
+            descriptions); a recall, diff or snapshot message names a handle that was neither issued before the step
+            nor of a thing in view; a report's suggestions for an unresolved look-alike or unfamiliar thing differ from
+            the generic list (they must be the same for every member of a group); obs.notices lists a notice whose
+            source handle was never issued, an audio notice while the robot hears nothing, or any notice while it is
+            powered down; obs.request names a person who is a shape in the robot's dark room. The houses run with
+            the notice bus on (state "notices", as schema-3 episodes do), and half the waits listen
+            (interrupt_on), so obs.notices, listen and the wait messages are audited too. Stage-C fix additions:
+            the houses carry a request with a hidden target (user_simulator.intent with candidates, a request
+            subject), prior knowledge of look-alikes seen at a glance, and dark rooms with people in them; the walk
+            asks about "request" and about people present or not, reports about people and to people away, and
+            issues wait(until) on handles in view or not, on dark shapes and on people. Leaks: an answer's "about"
+            that is not the agent's own argument (a handle it did not give: the request's target); a recalled
+            label that is the true name of a thing the robot cannot tell apart and was never shown that name; a
+            person's id typed in a dark room that comes back as a shape handle; a wait(until) accepted on a thing
+            the robot does not see now, on a dark shape's field, or on a person in the dark
 --battery PCT and --faults random start the houses with an almost flat pack and random robot faults, as tools/fuzz.py
 does (the same per-seed rules: fuzz.robot_options), so the robot and sensor checks see powered-down, deaf, blind and
 faulty robots.
@@ -79,7 +97,15 @@ HANDLE_IN = re.compile(r"obj_[0-9a-f]{8,16}")
 # observation keys the kernel builds (handle-ordered or ordered by meaning, e.g. hands); the rest are observer channels
 KERNEL_OBS_KEYS = {"room_id", "room", "connections", "robot", "holding", "visible_entities", "people", "pets", "grid",
                    "time", "steps", "time_s", "battery", "stopped", "pending", "dark", "weather", "instruction",
-                   "last_answer", "messages", "perception", "camera", "lidar"}
+                   "last_answer", "messages", "perception", "camera", "lidar", "request", "notices"}
+MEMORY_ACTIONS = ("recall", "diff", "snapshot")
+SELF_NOTICES = ("battery", "fault", "order")         # the robot's own reports: no microphone needed
+ASK_WORDS = ("mug", "blanket", "the remote", "towels", "plant", "keys", "it", "house", "request", "spaceship")
+ASK_ASPECTS = ("which", "owner", "where", "preference", "amount", "when", "ok", "keep", "intended", "why", "how",
+               "status", "who", "said", "help")
+REPORT_WORDS = ("leak", "dripping", "broken", "dirty", "needs water", "zorbled", "wobbly", "low")
+IT_WORDS = ("it", "that", "this", "them", "those")
+PERSON_KEYS = ("target", "about", "subject", "to", "options")
 # the geometric camera's observation contract (TIER1_CAMERA 10.6, TIER1_INTEGRATION 1.12)
 VIEW_KEYS = {"bearing_deg", "elev_deg", "dist", "range_m", "px", "occluded", "via", "light"}
 VIEW_VIA = {"head", "wrist", "depth", "held"}
@@ -653,6 +679,200 @@ def check_message(env, action, target_eid, message, leaks, start_ids=None, order
                         break
 
 
+def _true_names(record):
+    names = {str(record.get("label") or ""), str(record.get("type") or ""), str(record.get("type") or "").replace("_", " ")}
+    return {n.lower() for n in names if n}
+
+
+def check_people_message(env, action, args, message, leaks, issued_before, shown_labels=None):
+    """The people-and-memory checks of one action message (TIER1_SWEEP 17)."""
+    try:
+        data = json.loads(message)
+    except (TypeError, ValueError):
+        data = None
+    realism = env.realism
+    if action == "ask" and isinstance(data, dict):
+        for key in ("options", "refers_to"):
+            for item in data.get(key) or []:
+                text = json.dumps(item)
+                if HANDLE_IN.search(text):
+                    leaks.append(("people", "kernel:dialogue", "ask {}: a handle in {}".format(key, text[:120])))
+        about, given = data.get("about"), args.get("about")
+        if (isinstance(about, str) and HANDLE_IN.search(about) and about != given and
+                not (isinstance(given, str) and given.strip().lower() in IT_WORDS)) or \
+                (given == "request" and about not in (None, "request")):
+            leaks.append(("people", "kernel:dialogue", "ask about {!r} answered about {}, which the agent did not "
+                          "give".format(given, about)))
+        if "route" in data:
+            leaks.append(("people", "kernel:dialogue", "ask answer carries its route {}".format(data["route"])))
+    if action == "recall" and isinstance(data, dict) and shown_labels is not None:
+        state = env.world.s
+        for handle, belief in sorted(data.items()):
+            if not (isinstance(handle, str) and HANDLE.match(handle) and isinstance(belief, dict)):
+                continue
+            eid = realism.handles.resolve(handle)
+            record = state["entities"].get(eid) if isinstance(eid, str) else None
+            label = str(belief.get("label") or "").lower()
+            if record is None or not label or label in shown_labels.get(handle, ()):
+                continue
+            ident = realism._identify(eid, record, realism.knowledge.entity_level(eid, record))[0]
+            now = str(ident.get("label") or "").lower()
+            if label != now and label in _true_names(record) and realism.unresolved(eid, record):
+                leaks.append(("people", "kernel:mind", "recall {} remembers {!r}, the true name of a thing it cannot "
+                              "tell apart (shown as {!r})".format(handle, label, now)))
+    if action in MEMORY_ACTIONS:
+        state = env.world.s
+        for handle in sorted(set(HANDLE_IN.findall(message or ""))):
+            eid = realism.handles.resolve(handle)
+            if handle in issued_before or (eid in state["entities"] and env.perception.visible(state, eid)):
+                continue
+            leaks.append(("people", "kernel:mind", "{} names never-issued {}".format(action, handle)))
+    if action == "report" and isinstance(data, dict) and data.get("suggest"):
+        from house_sim.kernel import reports
+        subject = args.get("subject")
+        eid = realism.handles.resolve(subject) if isinstance(subject, str) else None
+        record = env.world.s["entities"].get(eid) if eid else None
+        if record is not None and realism.unresolved(eid, record):
+            # an unknown issue word gets the category's issue words ("object" while unresolved); an unknown state
+            # word gets the one category-free state list - either way every member of a group sees the same list
+            generic = {tuple(reports.issue_words("object")[:reports.SUGGESTIONS]),
+                       tuple(reports.state_words()[:reports.SUGGESTIONS])}
+            if tuple(data["suggest"]) not in generic:
+                leaks.append(("people", "kernel:reports", "report suggestions for an unresolved thing differ from the "
+                              "generic list: {}".format(data["suggest"][:5])))
+
+
+def check_people_obs(env, obs, leaks, where, issued_before=None):
+    """obs.notices and obs.request (TIER1_SWEEP 17)."""
+    from house_sim.kernel import body
+    state = env.world.s
+    notices = obs.get("notices") or []
+    if notices and not body.is_on(state):
+        leaks.append(("people", "kernel:notices", "{} notices while powered down".format(where)))
+    hearing = body.can_hear(state)
+    for notice in notices:
+        if not isinstance(notice, dict):
+            continue
+        kind = notice.get("kind")
+        if hearing == "none" and not notice.get("visual") and kind not in SELF_NOTICES and kind != "visual":
+            leaks.append(("people", "kernel:notices", "{} audio notice {} while the robot hears nothing".format(where, kind)))
+        source = notice.get("source")
+        if isinstance(source, str) and HANDLE.match(source) and source not in env.realism.handles.by_handle:
+            leaks.append(("people", "kernel:notices", "{} notice source {} never issued".format(where, source)))
+    request = obs.get("request")
+    if isinstance(request, dict) and obs.get("dark"):
+        who = request.get("from")
+        room = state["robot"].get("room")
+        if who in (state.get("people") or {}) and (state["people"][who] or {}).get("location") == room \
+                and request.get("channel") in ("in_person", "overheard"):
+            leaks.append(("people", "kernel:request", "{} request names {} in the dark".format(where, who)))
+
+
+def check_typed_people(env, action, args, result, obs_before, leaks):
+    """A person's id the agent typed while the robot's room was dark (shapes in it) never comes back as that person's
+    shape handle; a wait(until) is not accepted on what the robot does not perceive now: a thing not in view, a dark
+    shape's field, or a person while the robot's room is dark (TIME-EVAL perceivability, TIER1_INTEGRATION 1.3)."""
+    realism = env.realism
+    state = env.world.s
+    people = set(state.get("people") or {}) | set(state.get("pets") or {})
+    dark = bool(obs_before.get("dark"))
+    typed = set()
+    for key in PERSON_KEYS:
+        value = args.get(key)
+        for item in (value if isinstance(value, list) else [value]):
+            if isinstance(item, str) and item in people:
+                typed.add(item)
+    message = result.get("message") or ""
+    if dark and typed and result.get("ok"):
+        for handle in set(HANDLE_IN.findall(message)):
+            eid = realism.handles.resolve(handle)
+            if isinstance(eid, str) and eid.startswith("shape:") and eid.split(":")[1] in typed:
+                leaks.append(("people", "kernel:realism", "{} typed {} in the dark and got its shape {}".format(
+                    action, eid.split(":")[1], handle)))
+    until = args.get("until") if action == "wait" else None
+    if not (isinstance(until, dict) and result.get("ok") and isinstance(until.get("path"), str)):
+        return
+    parts = until["path"].split(".")
+    visible = obs_before.get("visible_entities") or {}
+    eid = realism.handles.resolve(parts[1]) if parts[0] == "entities" and len(parts) >= 3 else None
+    true = state["entities"].get(eid) if isinstance(eid, str) else None
+    if true is not None and not (true.get("remote_status") or true.get("audible_status")):
+        record = visible.get(parts[1])
+        if record is None:
+            leaks.append(("people", "kernel:timeline", "wait until on {} accepted while it is not in view".format(
+                parts[1])))
+        elif record.get("label") == "dark shape":
+            leaks.append(("people", "kernel:timeline", "wait until on a dark shape's {} accepted".format(parts[2])))
+    if parts[0] in ("people", "pets") and dark and (obs_before.get("people") or obs_before.get("pets")):
+        leaks.append(("people", "kernel:timeline", "wait until on {} accepted in the dark".format(parts[1])))
+
+
+def people_command(rng, obs, handles, state):
+    """A structured people-and-memory command for the walk."""
+    people = sorted(obs.get("people") or {})
+    everyone = sorted(state.get("people") or {})
+    if obs.get("dark") and people and everyone and rng.random() < 0.5:
+        # a person's id typed while the robot cannot tell who is who (it must never come back as their shape)
+        pid = rng.choice(everyone)
+        if rng.random() < 0.6:
+            return {"action": "ask", "target": rng.choice(people), "aspect": rng.choice(["where", "status", "who"]),
+                    "about": pid}
+        return {"action": "report", "kind": "status", "subject": pid, "state": "asleep", "to": "household"}
+    roll = rng.random()
+    if roll < 0.12:
+        # wait(until): on a handle (in view or remembered), a dark shape's field, a person's posture or coming / going
+        choices = []
+        for handle in handles + sorted(obs.get("_issued") or ())[:20]:
+            choices.append({"path": "entities.{}.open".format(handle), "op": "eq", "value": rng.random() < 0.5})
+        for pid in everyone:
+            choices.append({"path": "people.{}.posture".format(pid), "op": "eq", "value": "sitting"})
+            choices.append({"path": "people.{}.location".format(pid), "op": rng.choice(["eq", "ne"]),
+                            "value": obs["room_id"]})
+        if choices:
+            return {"action": "wait", "seconds": 30, "until": rng.choice(choices)}
+    if roll < 0.45 and people:
+        about = rng.choice(handles + list(ASK_WORDS) + [obs["room_id"]] + people + everyone) if handles else \
+            rng.choice(list(ASK_WORDS) + everyone)
+        if rng.random() < 0.25:
+            about = "request"           # the request's hidden target must not come back as the answer's about
+        cmd = {"action": "ask", "target": rng.choice(people), "aspect": rng.choice(ASK_ASPECTS), "about": about}
+        if rng.random() < 0.3:
+            cmd["detail"] = rng.choice(["strength", "fold_style", "care", "rules", "pillows"])
+        if cmd["aspect"] == "ok":
+            cmd["act"] = rng.choice(["pick_up", "open", "take", "discard"])
+        if rng.random() < 0.2 and handles:
+            cmd["options"] = rng.sample(handles, min(2, len(handles)))
+        return cmd
+    if roll < 0.75 and handles:
+        kind = rng.choice(["finding", "finding", "status", "measurement", "count", "none_found"])
+        cmd = {"action": "report", "kind": kind}
+        if kind in ("finding", "status", "measurement"):
+            cmd["subject"] = rng.choice(handles + everyone[:2]) if kind == "status" else rng.choice(handles)
+        if kind in ("finding", "none_found"):
+            cmd["issue"] = rng.choice(REPORT_WORDS)
+        if kind == "status":
+            cmd["state"] = rng.choice(["open", "done", "frobbed"])
+        if kind == "measurement":
+            cmd.update(value=21.5, unit=rng.choice(["C", "F", "kg", "furlong"]))
+        if kind == "count":
+            cmd.update(of="towel", value=3, scope=obs["room_id"])
+        if kind == "none_found":
+            cmd["scope"] = obs["room_id"]
+        if people and rng.random() < 0.4:
+            cmd["to"] = rng.choice(people)
+        elif everyone and rng.random() < 0.3:
+            cmd["to"] = rng.choice(everyone)        # perhaps away: phone and text reach them
+            cmd["channel"] = rng.choice(["phone", "text", "app"])
+        return cmd
+    form = rng.choice(["map", "seen:", "seen:", "seen:", "seen:" + (rng.choice(handles) if handles else "x"), "snap:",
+                       "", "snapshot", "diff"])
+    if form == "snapshot":
+        return {"action": "snapshot", "target": "audit"}
+    if form == "diff":
+        return {"action": "diff", "target": "audit"}
+    return {"action": "recall", "target": form}
+
+
 def run_house(job):
     seed, opts, steps = job[:3]
     camera = job[3] if len(job) > 3 else None
@@ -667,6 +887,8 @@ def run_house(job):
     rng = random.Random("percaudit:{}".format(seed))
     try:
         config = generate_house(seed, **opts)
+        config.setdefault("notices", [])     # the notice bus on, as in schema-3 episodes: obs.notices and listen
+        enrich(config, seed)
         if battery is not None or faults:
             from tools.fuzz import robot_options      # the fuzzer's per-seed battery and fault rules
             robot_options(config, seed, battery, faults)
@@ -677,10 +899,16 @@ def run_house(job):
     env._observer_keys = _observer_keys(env)
     names = sorted(n for n in plugins.ACTIONS if n not in ("undo", "watch", "run_pending"))
     order = []        # id-order findings, judged across the whole run (order_leaks)
+    shown_labels = defaultdict(set)     # handle -> labels observations showed it with
     obs = env.observe()
     check_obs(env, obs, leaks, "step0", order=order)
     for i in range(steps):
         handles = sorted(obs.get("visible_entities", {}))
+        for handle, record in (obs.get("visible_entities") or {}).items():
+            if isinstance(record, dict) and record.get("label"):
+                shown_labels[handle].add(str(record["label"]).lower())
+        obs["_issued"] = sorted(env.realism.handles.by_handle)
+        obs_before = obs
         roll = rng.random()
         if roll < 0.25 and handles:
             cmd = {"action": "approach", "target": rng.choice(handles)}
@@ -695,11 +923,16 @@ def run_house(job):
             cmd = {"action": "move", "target": rng.choice(exits)} if exits else {"action": "look"}
         elif roll < 0.73:
             cmd = {"action": "wait", "seconds": 300}
+            if rng.random() < 0.5:         # an interruptible wait: its message lists the notices it heard
+                cmd["interrupt_on"] = ["urgent", "person_enters", "person_leaves", "any_sound"]
         elif roll < 0.79 and geometric:
             # the camera's own verbs: look around (any form the look action offers), turn to a thing
             cmd = {"action": "look", "target": rng.choice(["around", "forward", "down", "up", "left", "right"])}
             if handles and "face" in plugins.ACTIONS and rng.random() < 0.3:
                 cmd = {"action": "face", "target": rng.choice(handles)}
+        elif roll < 0.88:
+            # questions, typed reports and the robot's memory (kernel v3.1)
+            cmd = people_command(rng, obs, handles, env.world.s)
         else:
             name = rng.choice(names)
             spec = plugins.ACTIONS[name]
@@ -734,6 +967,7 @@ def run_house(job):
         destination = args.pop("destination", "")
         target_eid = env.realism.handles.resolve(target) if isinstance(target, str) else None
         start_ids = set(env.world.s["entities"])
+        issued_before = set(env.realism.handles.by_handle)
         del _CAPTURED[:]
         try:
             result = env.step(action, target, destination, **args)
@@ -745,10 +979,54 @@ def run_house(job):
                 pass
             continue
         check_message(env, action, target_eid, result.get("message"), leaks, start_ids=start_ids, order=order)
+        if result.get("ok"):
+            check_people_message(env, action, args, result.get("message"), leaks, issued_before, shown_labels)
+        check_typed_people(env, action, args, result, obs_before, leaks)
         check_physics_notes(env, _CAPTURED, leaks, "step{}".format(i + 1))
         obs = env.observe()
         check_obs(env, obs, leaks, "step{}".format(i + 1), start_ids=start_ids, order=order)
+        check_people_obs(env, obs, leaks, "step{}".format(i + 1))
     return {"seed": seed, "leaks": leaks, "errors": errors, "steps": steps, "order": [list(r[:2]) + [list(r[2]), r[3]] for r in order]}
+
+
+def enrich(config, seed):
+    """Stage-C fix: what the leaks the review found need -- a request whose target the robot was not told (intent with
+    candidates, a request subject), prior knowledge of look-alikes seen at a glance (beliefs as tasks/setup.py's
+    prior_knowledge op writes them), and, on every other seed, dark rooms with people in them (their lights off and
+    their windows covered)."""
+    from house_sim.kernel.registry import default_registry
+    from house_sim.tasks.setup import _belief
+    rng = random.Random("percaudit-enrich:{}".format(seed))
+    entities = config["entities"]
+    people = config.get("people") or {}
+    adults = sorted(p for p, r in people.items() if r.get("role", "adult") == "adult") or sorted(people)
+    portable = sorted(e for e, r in entities.items() if r.get("portable") and r.get("type"))
+    if portable and adults:
+        target = rng.choice(portable)
+        kind = entities[target]["type"]
+        candidates = [e for e in portable if entities[e]["type"] == kind]
+        config.setdefault("user_simulator", {})["intent"] = {"target": target, "candidates": candidates,
+                                                              "category": kind, "requester": adults[0]}
+        config["requests"] = [{"id": "r1", "phase": None, "from": adults[0], "channel": "in_person",
+                               "room": people[adults[0]].get("location"), "t": 0.0, "text": "Bring me that one.",
+                               "subject": target, "gesture": None}]
+    groups = set()
+    for types in default_registry().lookalike_types().values():
+        groups.update(types)
+    alike = [e for e in sorted(entities) if entities[e].get("type") in groups and entities[e].get("location")]
+    if alike:
+        prior = config.setdefault("prior_knowledge", {"map": {}, "seen": {}, "snapshots": {}, "records": {},
+                                                      "grants": [], "from_s": -86400.0, "source": "setup"})
+        for eid in rng.sample(alike, min(12, len(alike))):
+            prior["seen"][eid] = _belief(config, eid, -86400.0, "glance")
+    if seed % 2 == 0:
+        rooms = sorted({r.get("location") for r in people.values() if r.get("location") in config["rooms"]})[:2]
+        for record in entities.values():
+            if record.get("category") in ("light", "window") and record.get("location") in rooms:
+                if record.get("category") == "light":
+                    record["on"] = False
+                else:
+                    record["covered"] = 1.0
 
 
 def _observer_keys(env):

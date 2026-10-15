@@ -38,8 +38,11 @@ rendering and its detection band are CAM-RENDER's).
 
 Per substep the system camera.watch (order 195) keeps tracked agents in frame, accumulates in_view_s / gap_s /
 max_gap_s, logs frame-based privacy captures and evaluates view_watch specs; it returns at once unless agents share
-the robot's room, the head tracks something or watch specs exist. visual_event() is how a visual occurrence is logged
-(seen or missed); physics consequences reach it through phys.observe.emit_consequence.
+the robot's room, the head tracks something or watch specs exist (its idle probe skips it in room mode). visual_event()
+is how a visual occurrence is logged (seen or missed); physics consequences reach it through
+phys.observe.emit_consequence. A seen occurrence is also a "visual" notice (kernel v3.1, TIER1_SWEEP 6.1-6.2:
+timeline.post with the camera's verdict); sees_event() is the pure test the timeline uses for visual notices posted
+by domains in geometric mode.
 
 Camera verbs (CAM-ACTIONS, 9.1-9.2; systems/core.py owns the actions): look (forward, around in six frames with an
 optional low row, up / down / left / right / behind, at a thing, person, pet or cell, or a head pan / tilt; track),
@@ -1790,7 +1793,13 @@ def _track_pose(w, sc, track):
     _set_pose(w, facing_deg=body_yaw, pan=pan, tilt=tilt, aim=target)
 
 
-@system("camera.watch", order=195, max_dt=30.0)
+def watch_idle(w):
+    """Exact idle probe of camera.watch (kernel v3.1): room mode (no robot.view), where watch returns at once. In
+    geometric mode the system always runs: it keeps sight's touch-log consumer current every substep."""
+    return not isinstance(w.s["robot"].get("view"), dict)
+
+
+@system("camera.watch", order=195, max_dt=30.0, idle=watch_idle)
 def watch(w, dt, tick):
     """Per substep (8.3; geometric mode): keep tracked agents in frame, accumulate in_view_s / gap_s / max_gap_s,
     log frame-based privacy captures at the current head pose and evaluate the view_watch specs. Returns at once in
@@ -2008,18 +2017,20 @@ def _event_point(state, source, room, at, z):
         return None
 
 
-def witness(w, kind, source=None, room=None, at=None, z=None, size_m=0.3, visual=None):
-    """Whether the robot's head camera, in its current pose, sees a visual occurrence: in frame, in line of sight,
-    lit to 0.05 and at least 24 px across for its size (a sure detection), with imaging on. Seen occurrences go to
-    robot.view.events (this step, perceived form) and camera_log.events with seen true, missed ones to the log with
-    seen false. Returns True / False, or None when the occurrence has no place (nothing is logged) and in room
-    mode."""
+def sees_event(w, source=None, room=None, at=None, z=None, size_m=0.3):
+    """The camera's event rule without writing anything (TIER1_SWEEP 6.2, visual notices): True / False whether the
+    head camera in its current pose surely detects an occurrence at the source (or room / cell), None in room mode or
+    when the occurrence has no place."""
     state = w.s
     if not _geometric(state):
         return None
     found = _event_point(state, source, room, at, z)
     if found is None:
         return None
+    return _event_seen(w, state, source, found, size_m)
+
+
+def _event_seen(w, state, source, found, size_m):
     rid, point = found
     seen = False
     if rid == state["robot"].get("room") and body.imaging(state):
@@ -2036,6 +2047,23 @@ def witness(w, kind, source=None, room=None, at=None, z=None, size_m=0.3, visual
                                             sight.k_lens(sc.clarity), sight.k_light(light), 1.0,
                                             sight.k_haze(sc.room, d), 1.0)
                 seen = light >= sight.LIGHT["detect"] - EPS and px_eff >= EVENT_PX - EPS
+    return bool(seen)
+
+
+def witness(w, kind, source=None, room=None, at=None, z=None, size_m=0.3, visual=None):
+    """Whether the robot's head camera, in its current pose, sees a visual occurrence: in frame, in line of sight,
+    lit to 0.05 and at least 24 px across for its size (a sure detection), with imaging on. Seen occurrences go to
+    robot.view.events (this step, perceived form) and camera_log.events with seen true, missed ones to the log with
+    seen false; a seen one is also posted as a "visual" notice (kernel v3.1). Returns True / False, or None when the
+    occurrence has no place (nothing is logged) and in room mode."""
+    state = w.s
+    if not _geometric(state):
+        return None
+    found = _event_point(state, source, room, at, z)
+    if found is None:
+        return None
+    rid, point = found
+    seen = _event_seen(w, state, source, found, size_m)
     cl = w.sec("camera_log")
     events = cl.setdefault("events", [])
     events.append({"step": state.get("steps", 0), "time_s": state.get("time_s", 0.0), "kind": kind,
@@ -2050,7 +2078,22 @@ def witness(w, kind, source=None, room=None, at=None, z=None, size_m=0.3, visual
         view["events"].append({"what": visual or kind, "id": source if isinstance(source, str) else None,
                                "bearing_deg": round(_bearing_body(state, point, x, y), 1), "dist": _dist_bucket(d)})
         del view["events"][:-MAX_VIEW_EVENTS]
+        _visual_notice(w, kind, source, rid, visual)
     return bool(seen)
+
+
+def _visual_notice(w, kind, source, rid, visual):
+    """A seen visual occurrence as a "visual" notice (TIER1_SWEEP 6.1: camera geometric mode posts its visual events):
+    the camera already decided it was seen, so the timeline stores it as perceived."""
+    from . import timeline
+    if not timeline.active(w):
+        return
+    state = w.s
+    record = {"t": state.get("time_s", 0.0), "step": state.get("steps", 0), "kind": "visual", "room": rid,
+              "data": {"what": visual or kind}}
+    if isinstance(source, str) and timeline.source_perceived(w, source):
+        record["source"] = source
+    timeline.post(w, {"kind": "visual"}, perceived=record)
 
 
 def visual_event(w, kind, *, source=None, room=None, at=None, z=None, size_m=0.3, visual=None, emit=True, **data):
@@ -2117,6 +2160,77 @@ def acuity(env_or_state, eid):
     if info is None:
         return None
     return {"level": info["level"], "px": info["px"], "view": info}
+
+
+_SEEN = weakref.WeakKeyDictionary()     # World -> {eid: (signature, acuity)} of entity_view_now
+
+
+def _chain_signature(state, eid):
+    """What containment and placement of a thing (and of everything holding it) the view reads."""
+    entities = state["entities"]
+    out, current, depth = [], eid, 0
+    while current in entities and depth < 16:
+        rec = entities[current]
+        out.append((current, rec.get("location"), rec.get("relation"), tuple(rec.get("pos") or ()),
+                    repr(rec.get("spos")), rec.get("shelf"), rec.get("open"), rec.get("cover_open"),
+                    rec.get("covered_by"), rec.get("revealed"), repr(rec.get("size_m"))))
+        current, depth = rec.get("location"), depth + 1
+    return tuple(out)
+
+
+def entity_view_now(env, eid):
+    """acuity(env, eid) for the timeline's per-substep perceivability of conditions (kernel v3.1, TIER1_INTEGRATION
+    1.3), memoized per entity by the watch signature (room geometry epoch, the robot's pose, sensors, lens, lights and
+    load, the room's people and pets, ambient light and haze) plus this step's frames and the thing's own placement and
+    containment chain: a quiet substep reuses the last answer. Computed every time while a domain view hook is
+    registered (it may change the view unseen). None in room mode."""
+    w = env.world
+    state = w.s
+    if not _geometric(state) or eid not in state["entities"]:
+        return None
+    sig = _watch_signature(w, state, state["robot"].get("room"), ())
+    memo = None
+    if sig is not None:
+        sig = (sig, repr((state["robot"].get("view") or {}).get("frames")), _chain_signature(state, eid))
+        memo = _SEEN.setdefault(w, {})
+        found = memo.get(eid)
+        if found is not None and found[0] == sig:
+            return found[1]
+    result = acuity(env, eid)
+    if memo is not None:
+        if len(memo) > 256:
+            memo.clear()
+        memo[eid] = (sig, result)
+    return result
+
+
+def agent_level_now(env, aid):
+    """The level at which the head camera in its current pose sees a person or pet now ("shape" / "detect" /
+    "recognize" / "identify"), or None (not in the robot's room, hiding, out of frame, imaging off): the per-substep
+    view of the timeline's perceivability rules (kernel v3.1, TIER1_INTEGRATION 1.3). It reuses camera.watch's
+    substep memo when nothing its in-view rule reads changed since. None in room mode."""
+    w = env.world
+    state = w.s
+    if not _geometric(state) or not body.imaging(state):
+        return None
+    rid = state["robot"].get("room")
+    here = _agent_ids(state, rid, "people") + _agent_ids(state, rid, "pets")
+    if aid not in here:
+        return None
+    view = state["robot"].get("view") or {}
+    log = state.get("camera_log") or {}
+    agents = set(state.get("people", {})) | set(state.get("pets", {}))
+    track = [t for t in view.get("track") or () if isinstance(t, str)]
+    track_ids = [t for t in log.get("track_ids") or () if isinstance(t, str)]
+    watched = sorted(set(here) | set(t for t in track + track_ids if t in agents))
+    sig = _watch_signature(w, state, rid, watched)
+    memo = _WATCHED.get(w)
+    if sig is not None and memo is not None and memo[0] == sig and aid in memo[1]:
+        return memo[1][aid]
+    sc = _scene(state, w)
+    viewer = head_viewer(state)
+    beams = sight.robot_beams(state, (viewer.x, viewer.y, viewer.z), viewer.yaw, viewer.tilt)
+    return _agent_level(state, sc, viewer, beams, aid)
 
 
 def agent_identified(env, aid):

@@ -1,0 +1,174 @@
+{
+ "lens": "questions, reports and memory: ask / user-simulator matching (free-form topics, synonyms, multi-turn, preferences; necessary vs unnecessary scored fairly; no hidden-intent leaks through answers or refusals), the shared report vocabulary and report predicates, memory / recall / known map in realistic mode (no id oracles), request rendering (requester, channel, location, gesture), listen / hearing with privacy mode, the LLM agent prompt and docs, perception audit",
+ "findings": [
+  {
+   "package": "PEOPLE-IO",
+   "severity": "high",
+   "title": "Asking about \"request\" (or leaving about out) hands the agent the hidden intended target, and the canonical \"which one did you mean?\" to the requester fails",
+   "evidence": "house_sim/kernel/dialogue.py _request_subject (524-536) falls back to user_simulator.intent.target (the hidden truth the people which: answerer scores) and returns Subject(entity, <target>); _about_shown (1245-1253) puts subject.id into every answer's \"about\", which realism turns into the target's handle. Probe p10_request_subject.py (3 visible books, intent target book_2, requester Ann): ask(kim [a child], aspect why|which, about=\"request\"), ask(ann, status, \"request\") and ask(sam, keep, \"request\", channel=phone) all answer \"I don't know.\" but carry about = obj_3b6bd651 (= book_2's handle; oracle: \"book_2\"), at the cost of one unnecessary question, from anyone, even by phone. Probe p10b.py: ask(ann, aspect=\"which\") with about omitted or \"request\" answers \"I don't know.\" (unnecessary + questions_unmatched, about \"book_2\") because the bound entity subject reaches no route (_route_which only takes word/request kinds), while about=\"book\" routes to which:book (necessary, \"The blue book on the bed\") and the legacy topic which:book works. about=\"it\" afterwards resolves to the same hidden entity (_remember_context). tools/perception_audit.py never sees it (its houses have no intent target / request subject and check_people_message only scans options / refers_to).",
+   "fix": "Keep a subject that came from the request as kind \"request\" (carry the bound id internally for fact matching only): _about_shown returns \"request\" for it, _remember_context stores the request subject (not the entity), and _route_which maps (which, request) to which:<intent.category, else the target's type word>. Never echo a resolved id the agent did not supply: \"about\" in an answer is the agent's own argument (a handle it gave, a room / person id, or its words). Add tests (realistic and oracle) that an answer about the request never names the target, and that (which, request) to the requester reaches which:, plus a perception-audit case with an intent target."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "high",
+   "title": "Phone, text and app questions and reports cannot reach anyone who is away from home",
+   "evidence": "dialogue.reach (dialogue.py 1196-1197) requires person.location is not None for phone/text, and reports.deliver (reports.py 487-488) the same for phone/text/app, but the people domain writes location=None, away=True whenever someone leaves (systems/people/routine.py 177-179, model.py 449-450, door.py 305-306). Probe p1_dialogue.py: Sam (has_phone, reachable_by_phone) away -> canonical ask by default channel, phone and text: \"That person is not available here\"; the legacy topic pref:dinner to the same Sam is answered. Probe p4_reports.py (both modes): report(kind=status, to=sam, channel=text|phone) -> \"They cannot be reached by phone\"; report(channel=app) to every resident is refused outright because one resident is away. Sweep 4.3 / 5.3 require only the network, a phone (and being awake for a call). Schema-3 reference plans must use canonical asks (lint_plan), so a schema-3 spec cannot ask or text an absent requester at all; \"tell me when the laundry is done\" (sweep 23, 130 entries) is the archetype.",
+   "fix": "Phone / text / app reachability = robot network and has_phone and reachable_by_phone (calls: also awake); drop the location check (keep it only for voice / written / intercom). Texts and app messages to absent people queue as today (read_s). Leave refinements (handset left at home rings unanswered, as systems/people/comms.py does) to dialogue_channel / report_delivered. Also make skills.ask not walk for an away person. Tests: away recipient answered by phone and text, report text / app to an away resident heard after ack_delay_s, both perception modes."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "high",
+   "title": "Prior-knowledge beliefs show an unresolved look-alike's true type in recall (identity oracle)",
+   "evidence": "tasks/setup.py _belief (723-729) writes label_seen = record label or type and ident \"identified\" for every prior seen / seen_rooms item whatever its level; Mind.from_config copies the beliefs as they are, and grant_prior gives no knowledge at glance. Probe p5_prior.py (realistic): milk_carton on the table and oat_milk_carton in the hall, both prior_knowledge seen at level glance. The observation shows the table carton as \"paper drink carton\", but recall(\"seen:\") returns {\"label\": \"oat_milk_carton\", \"room\": \"hall\", \"stale\": true} under the hall carton's handle, so the robot knows which handle is oat milk before it ever reads it. Contradicts TIER1_SWEEP 7.1 / 17 (label_seen at the identity level the robot had) and docs/DIALOGUE.md \"An unresolved look-alike is remembered by what it looked like\". The sweep's \"what changed since yesterday\" and \"where I usually put it\" recipes rely on this op.",
+   "fix": "Record the prior level in each prior belief and, in Mind.from_config with realism, recompute ident / label_seen through realism._identify at the granted level (glance: the group descriptor, ident \"unresolved\"; read / inspect: after grant_prior); oracle runs keep the label (never the bare type name with underscores). Test: a prior look-alike at glance recalls as its descriptor; at read as its label."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "high",
+   "title": "In the dark, a person's id typed in about / subject comes back as their shape handle (who-is-which oracle)",
+   "evidence": "realism.inbound refuses unnamed people only in entity-typed params; ask's about and report's subject / scope / options are ?any, where people ids are public and pass, and outbound then maps the pid to its dark-spell handle. Probe p14_dark_ask.py (realistic, room camera, dark lab with Ann and Kim as shapes obj_398255df / obj_4b05e444): ask(target=\"ann\") is refused \"It is too dark to tell who is who here\", but ask(obj_398255df, aspect=where, about=\"ann\") answers about: \"obj_4b05e444\", and report(kind=status, subject=\"ann\", to=household) is accepted with subject [\"obj_4b05e444\"]: Ann is the second shape. Costs 2-4 s, counts nothing for the report. The perception audit has no such case.",
+   "fix": "Apply the dark / unidentified rule to every parameter: a person or pet id of someone in the robot's dark room (or a geometric keyed shape) typed anywhere is refused with DARK_WHO / BLIND_WHO (or neutralised to \"someone\"), never translated to its shape handle. Add a perception-audit check: in a dark room, no message maps a typed person id to a shape handle."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "With privacy mode on, or in a dark room with someone in it, the robot cannot phone, text, ask or report to anyone by id, even people elsewhere",
+   "evidence": "realism.inbound (realism.py 1806) sets unnamed = every person and pet in the house whenever the robot's own view is dark (cameras off counts as dark) and someone shares its room, then refuses any entity param naming one (the rule predates stage C, but stage C made phone / text / app first-class). Probe p18_privacy_phone.py: Sam is in the lit hall with a phone; with privacy mode on (Ann and Kim in the robot's room) ask(sam, channel=phone), the legacy permission topic and report(to=sam, channel=phone) are all refused \"With the cameras off it is too dark to tell who is who\"; with the robot's room dark: \"It is too dark to tell who is who here\". Night monitoring (texting a parent from a dark nursery) and privacy-mode assistance cannot contact anyone. TIER1_DECISIONS: privacy mode only turns cameras off and stops recording.",
+   "fix": "Only people and pets in the robot's dark room (the _dark_agents keys, plus geometric keyed shapes) are unnamed; anyone elsewhere stays nameable for remote channels and as recipients (`to`). Test: privacy mode and a dark room still allow phone / text asks and reports to someone in another room."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "A person outside known_by says \"I'm not sure.\" while an unmodelled question gets \"I don't know.\": the wording tells the agent the spec scores that question",
+   "evidence": "dialogue._answer_from_facts (1381-1384) answers fact.otherwise or \"I'm not sure.\"; the unmatched branch of answer (1328-1332) says \"I don't know.\"; both results have the same keys and known false. Probe p1_dialogue.py P2, both modes: asking the child Kim why about the box -> \"I'm not sure.\" when a fact exists, \"I don't know.\" when nothing is modelled. The agent learns for the price of one unnecessary question that a hidden fact exists and that an adult must be asked.",
+   "fix": "Use one default for both (\"I don't know.\"); keep author-written otherwise texts (they are part of the scenario). Same idea for any default answer: unknown and \"not known by this person\" must read the same unless the author wrote otherwise."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "A clarify-back appears only when one of the named things has a fact: a free probe of which questions a spec models",
+   "evidence": "dialogue._answer_from_facts (1359-1368) clarifies a word naming two or more things only when one has an entity fact for that aspect (sweep 4.3 step 5 says the same); otherwise the routes or \"I don't know.\" (counted unnecessary + unmatched). Probe p16_clarify_oracle.py (realistic, three books, asking the child Kim): aspect keep about \"book\" -> \"Which book do you mean?\" (counts nothing) when book_2 has a keep fact, \"I don't know.\" (0,1,1) without it; intended / why give \"I don't know.\" either way; owner always clarifies (the people owner: route). A person who cannot tell which thing is meant asks back whatever they know.",
+   "fix": "Decide the clarify-back from the word alone: for entity-directed aspects (owner, where, keep, intended, ok, why, how, status ...) a word naming two or more household things always gets the clarify-back (facts or not), and count nothing; then a re-ask with a handle answers or misses as usual. Amend sweep 4.3 step 5 / DIALOGUE.md accordingly."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "Word subjects match any word of a compound name: \"dryer\" names dryer sheets, \"oven\" oven mitts, \"bed\" pillows, \"light\" 39 light switches",
+   "evidence": "dialogue.names_entity (418-425) accepts an entity when every subject word is one of its name words (type, label, is_a, look-alike descriptor), and type facts match any n-gram of the subject (_matches 687-689). named_entities on default generated houses: seed 0 \"oven\" -> oven_rack x2 + oven_mitts (no oven), \"dryer\" -> clothes_dryer x2 + dryer_sheet x2 + dryer_sheet_box x2, \"table\" -> table_spoon, table_knife, salt_canister, desk_lamp..., \"sink\" -> shutoff_valve x4, drain_trap x2, sink_stopper..., \"light\" -> 28 light_switch + 15 lights; seed 1 \"bed\" -> bed_pillow x3, fitted_sheet x3, flat_sheet, pet_bed, garden_bed, raised_bed x2 + 2 beds, \"light\" -> light_machine_oil too. Effects: absurd clarify-backs (\"Which dryer do you mean?\" listing dryer sheets), a word that names exactly one thing to a person names several, `necessary: ambiguous` (_candidates_seen) counts a one-bed house as ambiguous, and a \"dryer sheets\" question matches a type:clothes_dryer fact.",
+   "fix": "Match by head noun: the last word of the subject phrase must equal the head (last word) of one of the entity's name phrases, and the other subject words must be among its modifier, colour or material words (\"blue mug\", \"clothes dryer\" yes; \"dryer\" vs \"dryer sheet\" no); apply the same rule to type-fact matching. Regression test over a generated house for the words above."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "options do not resolve a clarify-back: the documented re-ask loops",
+   "evidence": "_answer_from_facts clarifies before options are looked at. Probe p1_dialogue.py P3 (entity owner facts on three books): ask(ann, owner, about=\"book\") -> clarify; re-asking with options=[\"red book\", \"blue book\"] or options=[book_1, book_2] returns the same clarify-back each time (4 s, counts nothing). docs/DIALOGUE.md line 53 says \"ask again with a handle or `options`\" and sweep 4.3 step 5 lists options as a way to answer it.",
+   "fix": "When options are given with a word subject, narrow `named` to the entities the options name (one -> answer it; several -> answer with picked / per-option values), or remove options from the docs and say \"ask again with a handle or a more specific word\". Add a test."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "Any memory key that merely contains a fact id as a substring makes a necessary question count as unnecessary",
+   "evidence": "dialogue._in_memory (759-763) tests `fact_id in mkey or key in mkey` over every memory key. Probe p13_memory_substring.py: fact id \"tea\" (preference / drink, known by everyone); asked first -> (necessary 1, unnecessary 0); after remember(\"steak_timer\") or remember(\"instead_of_mopping\") the same first question counts (0, 1). With the recipes' max_unnecessary: 0 an honest agent fails for an unrelated note.",
+   "fix": "Match memory keys by whole segments (split on ':' and '.', compare to the fact id and the canonical key) or keep an explicit record of answers the robot remembered (remember(destination=key) already names the fact key). Fix the sweep 4.5 wording (\"contains\")."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "\"Who is at the door?\" is answered from the visitor's hidden identity before the robot has looked, and the answer grants admission",
+   "evidence": "_route_visitor (963-972) routes a word subject with door / guest / visitor / caller to visitor:<id> when exactly one person has the hidden at_door field; people's visitor: answerer decides from v._identity.kind. Probe p2_visitor.py on X-9cb1ee87e09363-01 (both modes, robot in the living room, the visitor never in obs.people): after the doorbell, ask(resident_1, who, \"door\") -> variant 0 \"Yes, I'm expecting Dana; please let them in.\" with granted true and approvals [admit:visitor_1]; variant 1 (impostor) \"I'm not expecting anyone. Don't open the door.\" (counted necessary); the result's route field names visitor_1. The spec's point is to screen the visitor at the door.",
+   "fix": "Route (who, door words) only to visitors the robot has perceived at the door (Mind belief / perceived now) and let the resident's answer depend on what they know (expected list), not on the visitor's hidden identity (\"I'm expecting Dana - check it's her\"); grant admit only for the identified expected guest. People-domain follow-up for the answerer; the route gate is PEOPLE-IO's."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "Questions are answered when the person cannot hear the robot: a failed speaker, or a phone call to a deaf person",
+   "evidence": "dialogue.reach (1169-1208) checks the robot's microphones and the person's hearing for voice only; body.can_speak is never consulted, and phone calls ignore deafness (sweep 4.3 step 1: deaf -> text and written work). Probe p11_speaker.py: robot sensors.speaker false (speak shows audience [] audible false), canonical ask(ann, why, box_1) -> answered \"presents\", counted necessary; a typed report to Ann in the same state correctly records heard false.",
+   "fix": "Voice / phone / intercom questions need body.can_speak (else the person does not respond: \"No answer\", time spent, nothing counted, speaker fault detected as say() does) and a hearing person for phone; text and written work. Same rule for the legacy path when it is next touched."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "obs.request misattributes relayed requests and reveals a remote requester's current room",
+   "evidence": "perception.request_view / realism._request_sender render \"from\" (the claimed requester) and \"room\", which runner._resolve_request and phases.post_request default to the requester's location; relayed_by is not shown. Probe p12_relay.py (both modes): Kim (child, in the robot's room) relays \"Mum says you can give me the cookies\" from Ann in the hall -> obs.request {from: ann, from_label: Ann, channel: in_person, room: hall}, while obs.messages shows speaker kim in the lab; the agent is told the adult asked in person (the \"who is asking\" recipe, sweep 23, needs the opposite). Probe p6_request.py: an app request from Sam shows room \"hall\" in obs.request and obs.messages although Sam is unseen; every schema-3 default request whose first adult is elsewhere uses app and leaks that room at t=0.",
+   "fix": "Show relayed requests as said by the relayer (from = relayed_by as the robot can tell, plus \"claims_from\": the claimed requester) and keep dialogue.requester the claimed one; room = the speaker's room only for in-person / overheard / intercom-with-known-station, None for phone / app / text / note; the request message's room likewise None for remote channels."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "medium",
+   "title": "listen drops alarm notices in privacy mode that obs.notices shows",
+   "evidence": "core.listen (systems/core.py 1823-1824) keeps a stored notice only if hearing is full, its kind is \"addressed\" or it is visual; timeline.robot_perceives already stores only what the robot perceived and keeps alarm-like kinds under \"addressed\" hearing. Probe p7_listen.py (realistic, schema-3 bus): privacy mode, an alarm (85 dB) and an addressed speech in the room -> stored [alarm, addressed], obs.notices [alarm, addressed], listen notices [addressed] only. TIER1_INTEGRATION 1.3: under \"addressed\" alarms stay.",
+   "fix": "listen returns the stored notices as they are (they are the perceived ones), or filters with the same rule as timeline (addressed speech, alarm-like kinds, visual, the robot's own); test both hearing states."
+  },
+  {
+   "package": "TIME-EVAL",
+   "severity": "medium",
+   "title": "Privacy mode drops non-speech sound notices (glass breaking, crash) that 1.3 says stay, while obs.sounds keeps them",
+   "evidence": "timeline.robot_perceives (timeline.py 370-371) returns None under \"addressed\" hearing for anything but speech to the robot and alarm-like kinds; perception only drops sounds for hearing \"none\" (perception.py 696). Probe p7_listen.py: glass_breaking (60 dB, robot's room) is stored with privacy off and not stored with privacy on. TIER1_INTEGRATION 1.3: \"addressed\" -> only speech addressed to the robot is heard; non-speech sounds and alarms stay. So a wait(interrupt_on=[...]) in privacy mode sleeps through a crash the observation's sounds report.",
+   "fix": "Under \"addressed\" filter only speech kinds (speech not to the robot is dropped); keep every non-speech sound kind (subject to propagation). Test: privacy mode hears glass_breaking and alarm, not third-party speech."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "low",
+   "title": "The request's speech message in obs.messages names the sender realism anonymised",
+   "evidence": "Probe p6_request.py (realistic): a phone request from a courier (role delivery) -> obs.request {from: \"unknown caller\", from_label: null} but obs.messages [{speaker: \"vic\", room: \"lab\", channel: \"phone\"}]; an in-person request from the unfamiliar courier -> obs.request \"unfamiliar person\" while the message speaker is the person id. phases.post_request writes the speaker id and realism keeps people ids plain in messages.",
+   "fix": "Render the request message's speaker with the same decision as obs.request (realism._request_from, keyed by the message's request id): \"unknown caller\" / \"unfamiliar person\" / shape handle."
+  },
+  {
+   "package": "TIME-EVAL+PEOPLE-IO",
+   "severity": "low",
+   "title": "A note-channel request cannot name its note through a spec",
+   "evidence": "perception.request_view and realism._request_sender render the note's handle from request[\"note\"], and test_requests_obs injects state.requests with a \"note\" key, but tasks/spec.py REQUEST_KEYS (line 61) has no \"note\" (request_problems rejects it) and phases.post_request copies only id, phase, from, channel, room, t, text, subject, gesture, relayed_by. A spec's written request therefore shows from \"note\" without any handle (sweep 10.2: \"note\" with the note's handle).",
+   "fix": "Add \"note\" (a bound entity id) to REQUEST_KEYS, copy it in post_request, and add a runner-level test (spec -> obs.request.note handle; realistic: the handle only, issued for a note the robot can find)."
+  },
+  {
+   "package": "TIME-EVAL",
+   "severity": "low",
+   "title": "A request's gesture is not in the first observation",
+   "evidence": "phases.post_request schedules people.point as an event at t=0, which fires only in the first step's advance. Probe p15_gesture.py (both modes): request \"Bring me that one.\" with gesture point_at book_2 -> the reset observation has the request and no gestures; obs.gestures appears after the first action, stamped time_s 1.0. An agent may act on \"that one\" before it sees the point; no test covers gestures (sweep 21 item 11).",
+   "fix": "Fire the request's point event during reset (or render the gesture from the request at t=0) and add the gesture test of sweep 21 item 11."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "low",
+   "title": "Answers expose the legacy route topic",
+   "evidence": "_answer_by_route (1474-1475) adds \"route\": topic to the agent-facing answer. Probes: \"route\": \"visitor:visitor_1\" names a visitor the robot never saw (p2_visitor.py); the which route of a request subject is \"which:<intent.category>\"; hint:/where: tells the agent which child hid the thing. The sweep's answer format (4.3) has no route.",
+   "fix": "Keep route and topic in dialogue_log only; drop them from the result."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "low",
+   "title": "Realistic clarify options name look-alikes by their true labels and count unseen ones; the handoff's known gap says the opposite",
+   "evidence": "Probe p3_lookalike.py (realistic): two cartons on the table render as \"paper drink carton\"; ask(ann, owner, \"carton\") -> options [\"milk\", \"oat milk, 2 alike\"] (the third, unseen carton in the hall included). handoff_PEOPLE-IO 7 claims a person's look-alike words are rewritten to the group's descriptor; _label_substitution only covers things the command named.",
+   "fix": "Decide and document: either people's household knowledge may name types (then correct the handoff / DIALOGUE.md), or appearances() renders unresolved look-alikes the robot perceived through realism identity and describes unseen ones without the true type."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "low",
+   "title": "Agent docs: a few inaccurate or cut sentences",
+   "evidence": "docs/DIALOGUE.md 53 \"ask again with a handle or `options`\" (options do not work, finding above) and 287 (look-alike memory, contradicted by prior beliefs); the LLM prompt section says \"count needs of, value and scope\" while reports.normalize and sweep 5.1 make scope optional; ASK_DOC says \"channel voice (default, same room)\" but the default for someone elsewhere with a phone is phone; in the 120-character catalog (llm.catalog_text) the listen doc is cut mid-word (\"...the latest notices it pe...\") because its first sentence is longer than the limit. The rest of the section is accurate (2.1 KB).",
+   "fix": "Correct the three sentences; give listen a first sentence under 120 characters (\"Listen: recent speech and the latest notices the robot perceived.\")."
+  },
+  {
+   "package": "PEOPLE-IO",
+   "severity": "low",
+   "title": "The perception audit's people checks cannot see the leaks above",
+   "evidence": "tools/perception_audit.py people_command / check_people_message (672-768): houses without user_simulator intent targets, request subjects or prior_knowledge; ask leaks are only searched in options / refers_to; no dark-room person ids in about / subject. Runs: room (20 houses, 2,400 steps) and geometric (6 x 150) report 0 leaks while probes p5, p10 and p14 show identity leaks.",
+   "fix": "Give audit houses an intent target with candidates and a request subject, a prior_knowledge op with look-alikes at glance, and dark rooms with people; check that an answer's about is the agent's own argument, that recall labels equal the observation's identity, and that no typed person id comes back as a shape handle."
+  }
+ ],
+ "verified_ok": [
+  "The four PEOPLE-IO test files pass (python -m unittest tests.test_dialogue tests.test_reports tests.test_mind tests.test_requests_obs: 119 tests OK).",
+  "Canonical asks replace the legacy topics of the authored references with identical results: permission:<act>:<thing> (T-e19f473c5cfd0d-01, T-702453ef553c00-01, T-fa2552570f7b6f-01, X-404f39e74f6d5f-01) and conflict:thermostat (V-10424aa789320a-01) rewritten as aspect ok + act + about / which + about give the same verdicts, approvals and question counts, oracle and realistic, seed 0 (p9_canonical_specs.py).",
+  "Realistic answers never hand out handles of unseen things: ids in values become \"something\", clarify options and refers_to are descriptions (tests and p3); a true id typed as about names nothing.",
+  "One refusal wording for anyone unreachable (\"That person is not available here\"), \"They are asleep\" only for a sleeper in the robot's room.",
+  "Microphones: mic switch off and mic fault refuse ask and listen with the 1.15 wording (\"Microphone is off\", \"Microphone fault: request help\"); text questions skip the hearing check (p17).",
+  "The Mind in a dark room (room camera) holds exactly the observation's dark shapes under the same handles, labelled \"dark shape\" with ident shape; the geometric camera in the dark adds nothing (p8). Things perceived earlier keep their issued handles in recall; recall(\"seen:<true id>\") gives {} in realistic mode.",
+  "Typed reports: an unseen subject is refused \"You have not seen that\" (realistic), unknown issue words are kept with a static suggestion list, in-person delivery records heard false when the speaker failed (p4, p11).",
+  "Report vocabulary: tools/vocab.py --check reports 0 problems (load 1.9 ms); every one of the 76 issues and 43 states has evidence entries; docs/DIALOGUE.md's 231 vocabulary table rows equal tools/vocab.py --markdown.",
+  "obs.request rendering for an in-person request in the dark (the speaker's shape handle), an unfamiliar visitor (\"unfamiliar person\") and a stranger's phone call (\"unknown caller\") (p6).",
+  "obs.weather drops the process bookkeeping (test_requests_obs).",
+  "tools/perception_audit.py: room camera 20 houses / 2,400 steps and geometric 6 x 150 steps, 0 leaks, 0 crashes (the leaks in the findings are outside what it exercises).",
+  "The LLM prompt's \"Asking, reporting, waiting, memory\" section matches the code apart from the low finding, is about 2.1 KB, and the ask / report / recall / wait / watch docs arrive whole in the 120-character catalog."
+ ],
+ "notes": "Probes (all in the scratch dir t1_reviewC_people/, run against the working tree, seed 3 hand-built houses from tests/test_dialogue.config unless named, authored specs at seed 0): p1_dialogue (away phone/text, otherwise wording, options), p2_visitor (X-9cb1ee87e09363-01), p3_lookalike, p4_reports, p5_prior, p6_request, p7_listen, p8_dark_mind, p9_canonical_specs, p10_request_subject / p10b, p11_speaker, p12_relay, p13_memory_substring, p14_dark_ask, p15_gesture, p16_clarify_oracle, p17_privacy_ask, p18_privacy_phone. The gate was not re-run. Four high findings: two hidden-state oracles in realistic mode (the request's target through about; who is which shape in the dark), the look-alike identity of prior beliefs, and remote channels that cannot reach anyone away from home. Several medium findings follow from sweep wording the implementation copied (clarify only with a fact, memory-key \"contains\", the otherwise default) and need the spec text amended together with the code."
+}

@@ -35,6 +35,21 @@ obs.robot and the top-level obs.battery come from kernel/proprio.py: oracle obse
 exactly (today's keys plus every registered robot field that is not hidden), realistic ones what its own sensors and
 battery management report (integer gauge, estimates, buckets, detected faults only; pos None while unlocalized); in
 geometric mode obs.camera.pose.cell mirrors obs.robot.pos.
+
+People, requests and memory (kernel v3.1, docs/design/TIER1_SWEEP.md 6.1, 7.1, 10.2; TIER1_INTEGRATION 1.12):
+  * perceived_ids(env) is the set of ids observe() renders as themselves -- the things listed (dark shapes included;
+    realistic perception: after small things missed from this viewpoint; the geometric camera: what the step view
+    detected) and the people and pets the robot identified (a shape in the dark is no one) -- cached per step, so the
+    Mind's once-per-step update agrees with the observation whether or not the agent observes;
+  * obs.request (only when the episode has requests: state["requests"], written by the runner) is the current request
+    {"id", "from", "from_label", "channel", "room", "time_s", "text"} (a relayed request: "from" the relayer and
+    "claims_from"; "room" only for in-person, overheard and intercom requests); obs.instruction is its text (else the
+    task's instruction, as before); realistic perception renders "from" by what the robot can tell (kernel/realism.py)
+    and names the request's own speech in obs.messages the same way;
+  * obs.notices (only when there are any) lists the notices stored since the agent's previous step (state["notices"]:
+    only perceived notices are stored, kernel/timeline.py);
+  * obs.weather shows what can be seen or felt, never the weather process's bookkeeping (process,
+    override_until_s, underscore keys).
 """
 import copy
 
@@ -49,6 +64,7 @@ TEXT_FIELDS = {"text", "label_text", "expiration", "expires", "date_label", "add
 DARK = 0.2
 SHAPE_M = 0.4               # the smallest thing seen as a shape in the dark or by the depth camera alone
 DIRTY_LENS = 0.4            # below this lens clarity, small things (< 8 cm) and text are not seen
+WEATHER_HIDDEN = ("process", "override_until_s", "forecast_state", "seed_key")   # weather bookkeeping, never perceived
 # obs.robot's keys before the body (kernel v3.0): proprio.LEGACY_KEYS plus the camera's facing_deg. obs.robot is built
 # by proprio.render now; kept for tools that list the legacy keys.
 ROBOT_KEYS = proprio.LEGACY_KEYS + ("facing_deg",)
@@ -125,6 +141,108 @@ def heard_messages(state, hearing=None):
     return list(messages)
 
 
+def perceived_ids(env):
+    """The ids env's observation renders as themselves (Perception.perceived_ids), cached per step."""
+    return env.perception.perceived_ids(env)
+
+
+def current_request(state):
+    """The current request record (the one rule for obs.request, obs.instruction, env.request(), the dialogue's and
+    the evaluation's "requester"): in a multi-phase episode the last request of the active phase -- or, while no
+    phase is active (a gap, waiting for a phase that starts on its own), of the phase that ended last -- and None when
+    that phase came without a request (its instruction is the task's, kernel/phases.py); otherwise the last of
+    state["requests"]; None without requests."""
+    requests = state.get("requests")
+    if not isinstance(requests, list) or not requests:
+        return None
+    phase = state.get("phase") if isinstance(state.get("phase"), dict) else {}
+    current = phase.get("active")
+    if current is None:
+        history = [h for h in phase.get("history") or () if isinstance(h, dict)]
+        current = history[-1].get("id") if history else None
+    if current is not None:
+        for request in reversed(requests):
+            if isinstance(request, dict) and request.get("phase") == current:
+                return request
+        return None
+    return requests[-1] if isinstance(requests[-1], dict) else None
+
+
+LOCAL_REQUEST_CHANNELS = ("in_person", "overheard", "intercom")    # spoken where the robot hears where it comes from
+
+
+def request_view(state):
+    """obs.request in oracle form: {"id", "from", "from_label", "channel", "room", "time_s", "text"} (plus the note's
+    id for a written request), or None when the episode has no request. A relayed request is said by its relayer:
+    "from" is the relayer and "claims_from" the person the relayer says it comes from (dialogue.requester stays the
+    claimed one). "room" is the speaker's room only for a request spoken where the robot is (in person, overheard,
+    intercom); a phone, app, text or note request does not say where its sender is (None)."""
+    request = current_request(state)
+    if request is None:
+        return None
+    claimed = request.get("from")
+    pid = request.get("relayed_by") or claimed
+    person = (state.get("people") or {}).get(pid) if isinstance(pid, str) else None
+    channel = request.get("channel")
+    out = {"id": request.get("id"), "from": pid,
+           "from_label": (person or {}).get("label") if person is not None else request.get("from_label"),
+           "channel": channel, "room": request.get("room") if channel in LOCAL_REQUEST_CHANNELS else None,
+           "time_s": request.get("t", request.get("time_s")), "text": request.get("text")}
+    if request.get("relayed_by") and claimed != pid:
+        out["claims_from"] = claimed
+    if request.get("note") is not None:
+        out["note"] = request.get("note")
+    return out
+
+
+def notices_since(state):
+    """The stored notices of the current step (state["notices"], kernel/timeline.py): those stamped with the current
+    step number; a record without a step stamp counts when it was posted after the current step began (the action
+    log's last entry), and at reset every stored notice counts. After env.phase_done() (which counts no step) only
+    those perceived since it was called: its mark in state["phase"]["notice_mark"] ({"step", "t", "n"}: the n notices
+    stamped at that step and time were already shown with the step's own observation)."""
+    notices = state.get("notices")
+    if not isinstance(notices, list) or not notices:
+        return []
+    steps = state.get("steps", 0)
+    start = None
+    trail = state.get("action_log") or []
+    if trail and isinstance(trail[-1], dict) and trail[-1].get("step") == steps:
+        start = trail[-1].get("time_s")
+    phase = state.get("phase") if isinstance(state.get("phase"), dict) else {}
+    mark = phase.get("notice_mark") if isinstance(phase.get("notice_mark"), dict) else None
+    if mark is not None and mark.get("step") != steps:
+        mark = None
+    skip = int(mark.get("n", 0)) if mark is not None else 0
+    out = []
+    for notice in notices:
+        if not isinstance(notice, dict):
+            continue
+        if "step" in notice:
+            keep = notice.get("step") == steps
+        elif steps == 0:
+            keep = True
+        else:
+            t = notice.get("t")
+            keep = start is not None and isinstance(t, (int, float)) and t > start + 1e-9
+        if keep and mark is not None:
+            t = float(notice.get("t", 0.0) or 0.0)
+            if t < float(mark.get("t", 0.0)) - 1e-9:
+                keep = False                        # shown with the step's own observation
+            elif t <= float(mark.get("t", 0.0)) + 1e-9 and skip > 0:
+                skip -= 1
+                keep = False
+        if keep:
+            out.append(notice)
+    return out
+
+
+def perceived_weather(weather):
+    """The weather as the robot perceives it: the weather record without the process's bookkeeping."""
+    return {k: copy.deepcopy(v) for k, v in (weather or {}).items()
+            if not str(k).startswith("_") and k not in WEATHER_HIDDEN}
+
+
 def drop_sounds(obs):
     """Remove every sounds channel from an observation (hearing "none"): the top-level sounds channels and a channel
     dict's own "sounds" list (climate's)."""
@@ -139,6 +257,7 @@ def drop_sounds(obs):
 class Perception:
     def __init__(self, env):
         self.env = env
+        self._perceived = None    # (key, frozenset) of perceived_ids, cached per step
         self._light_cache = {}
         self._lit_now = None      # {room: lit} while one observe() runs (lighting cannot change mid-observation)
         self._sense_now = None    # (powered, imaging, lens clarity) while one observe() runs
@@ -369,6 +488,113 @@ class Perception:
                     hazards.append({"cell": list(cell), "kind": kind, "source": source})
         return visible, groups["people"], groups["pets"], hazards
 
+    # ----- what the robot perceives (kernel v3.1) ----------------------------------------------------------------
+    def perceived_ids(self, env):
+        """frozenset of the ids observe() renders as themselves now (TIER1_SWEEP 7.1, TIER1_INTEGRATION 1.12): room
+        camera -- the visible things observe lists (dark shapes included, small map fixtures with the cameras off not)
+        and, realistic, minus what realism misses from this viewpoint and un-inspected mirrors; the people and pets in
+        the room unless concealed (none while powered down; realistic: none in the dark, where they are shapes);
+        geometric camera -- the step view's detections (realistic: after the detection band; people and pets only
+        when identified). Cached per step: the key is the step, clock, World write counter and realism's knowledge
+        version, so observe() and the Mind's update agree."""
+        world = env.world
+        state = world.s
+        realism = getattr(env, "realism", None)
+        key = (id(world), state.get("steps", 0), state.get("time_s", 0.0), getattr(world, "mutation_count", None),
+               getattr(realism, "version", None) if realism is not None else None, state["robot"].get("room"))
+        cached = self._perceived
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        self._lit_now = {}
+        self._sense_now = None
+        self._sense_now = self._sense(state)
+        try:
+            ids = frozenset(self._perceived_now(env, state, realism))
+        finally:
+            self._lit_now = None
+            self._sense_now = None
+        self._perceived = (key, ids)
+        return ids
+
+    def _perceived_now(self, env, state, realism):
+        robot = state["robot"]
+        rid = robot["room"]
+        powered, imaging = self.senses(state)
+        if "view" in robot:
+            sv = _camera().step_view(env)
+            if sv is None:
+                return set()
+            if realism is not None:
+                from .realism import INSPECT
+                dark = self.seen_dark(state, rid)
+                out = set()
+                for eid in realism.perceived_in(sv):
+                    record = state["entities"].get(eid)
+                    if record is None:
+                        continue
+                    if (record.get("category") == "mirror" or record.get("reflective")) and not dark and \
+                            realism.knowledge.entity_level(eid, record) < INSPECT:
+                        continue        # an un-inspected mirror shows as an opening, not a thing
+                    out.add(eid)
+                if not dark:
+                    from .realism import VIEW_LEVELS
+                    for table in (sv.people, sv.pets):
+                        for aid in sorted(table):
+                            info = table[aid]
+                            if VIEW_LEVELS.get(info.get("level"), 0) >= VIEW_LEVELS["identify"] and \
+                                    realism.geo_detected(state, aid, None, info):
+                                out.add(aid)
+                return out
+            out = {eid for eid, info in sv.entities.items() if info.get("detected") and eid in state["entities"]}
+            out |= {aid for table in (sv.people, sv.pets) for aid, info in table.items() if info.get("detected")}
+            return out
+        dark = not imaging or not self.lit(state, rid)      # observe's rule: no colour view (lit() is memoized)
+        entities = state["entities"]
+        held = {v for v in (robot.get("hands") or {}).values() if v}
+        roots = {}
+
+        def root(eid):
+            chain, current = [], eid
+            while current in entities and current not in roots:
+                chain.append(current)
+                current = entities[current].get("location")
+                if len(chain) > 64:
+                    break
+            if current in entities:
+                found = roots.get(current)
+            elif current == "robot":
+                found = rid
+            else:
+                for group in ("people", "pets"):
+                    agent = (state.get(group) or {}).get(current)
+                    if agent is not None:
+                        current = agent.get("location")
+                        break
+                found = current
+            for item in chain:
+                roots[item] = found
+            return found
+
+        base = []
+        for eid, entity in entities.items():
+            if eid not in held and entity.get("location") != "robot" and root(eid) != rid \
+                    and not ("connects" in entity and rid in entity["connects"]) and not entity.get("near_connection"):
+                continue
+            if not self.visible(state, eid):
+                continue
+            is_held = eid in held or entity.get("location") == "robot"
+            shape = dark and _max_dim(entity) >= SHAPE_M and not is_held
+            if not imaging and not is_held and not shape:
+                continue
+            base.append(eid)
+        out = realism.perceived_room(state, base, dark) if realism is not None else set(base)
+        if powered and not (realism is not None and dark):
+            for group in ("people", "pets"):
+                for aid, agent in (state.get(group) or {}).items():
+                    if agent.get("location") == rid and not (agent.get("concealed") and not agent.get("revealed")):
+                        out.add(aid)
+        return out
+
     def observe(self, env, records=True):
         """records=False (realistic perception builds its own records): visible_entities maps ids to {} or
         {"label": "dark shape"} only, and obs.robot / obs.battery are the realistic proprioception."""
@@ -460,13 +686,22 @@ class Perception:
         # the weather is felt outdoors and seen through a window (with the cameras on); nothing while powered down
         if powered and (room.get("outdoor") or imaging and any(e.get("category") == "window" and e.get("location") == rid
                                                                for e in state["entities"].values())):
-            obs["weather"] = copy.deepcopy(state.get("weather", {}))
+            obs["weather"] = perceived_weather(state.get("weather", {}))
         hearing = body.can_hear(state)
         if "language" in env.sensors:
-            obs["instruction"] = env._task.get("instruction", "") if env._task else ""
+            request = request_view(state)
+            instruction = env._task.get("instruction", "") if env._task else ""
+            if request is not None and isinstance(request.get("text"), str) and request["text"].strip():
+                instruction = request["text"]
+            obs["instruction"] = instruction
+            if request is not None:
+                obs["request"] = request
             obs["last_answer"] = copy.deepcopy(state.get("facts", {}).get("last_answer"))
             obs["messages"] = [m for m in heard_messages(state, hearing)
                                if m.get("heard_by_robot") and m.get("step", -1) >= state.get("steps", 0) - 1]
+        notices = notices_since(state) if powered else []
+        if notices:
+            obs["notices"] = copy.deepcopy(notices)
         if powered:            # powered down: no sensor feeds any observer channel
             for _, _, fn in OBSERVERS:
                 fn(env, env.world, obs)

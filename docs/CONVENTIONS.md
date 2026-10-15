@@ -208,3 +208,34 @@ wear, take_off.
   constants.
 * **Guards.** `ctx.require_mobile(legacy_message)`, `ctx.require_arm(hand)`, `ctx.require_imaging()`,
   `ctx.require_hearing()`; a powered-down robot is refused every action but `wait` by the engine itself.
+
+## 8. People, questions and reports (kernel v3.1; docs/DIALOGUE.md)
+
+* **Ownership.** The kernel owns the question schema and pipeline (`kernel/dialogue.py`), typed reports and their
+  vocabulary core (`kernel/reports.py`, `data/vocab/core.json`), the robot's memory (`kernel/mind.py`), and the
+  rendering of `obs.request` / `obs.notices`. The people domain owns what people say and know (facts from profiles,
+  channels, languages, phrasings, reliability, who heard a report, calendar semantics, the history synthesizer).
+  Every domain keeps its own answerer prefix (`@answerer`) and adds the rest below in its adoption round.
+* **Routes.** A domain whose answerer answers canonical questions registers a route once at import:
+  `dialogue.route("<domain>.<name>", aspects, fn)` with `fn(state, pid, subject, aspect, detail, act) -> legacy topic
+  or None` (subject is a `dialogue.Subject(kind, id, words)`; kinds entity, room, person, pet, event, house, request,
+  word). Route names are unique. Return a topic only for questions the answerer really answers: the first route that
+  answers wins and the answerer counts its own question statistics as today. Example (textiles):
+  `dialogue.route("textiles.bed_style", ("preference",), lambda s, pid, subj, a, d, act: "laundry:bed_style" if
+  d == "bed_style" else None)`.
+* **Vocabulary.** A domain's issue, state, detail and synonym words go in `house_sim/data/vocab/<domain>.json` (same
+  sections as `core.json`; the file stem is the domain name, as for types). A key defined in two files fails at
+  load, and `python tools/vocab.py --check` must stay clean (no word naming two things). Every issue and state lists
+  `evidence`: the entity fields (with `"near": true` for a field on things in the subject's room) or notice kinds a
+  robot would perceive it by; the realistic verification requires a scored finding's evidence to have been perceived.
+  Regenerate docs/DIALOGUE.md's tables with `python tools/vocab.py --markdown` after an edit (a test compares them).
+* **Hooks** (people): `dialogue_channel`, `dialogue_comprehends`, `dialogue_render`, `dialogue_reliability`,
+  `report_delivered` (signatures in docs/DIALOGUE.md); `mind_seen` `fn(state, eid, record, belief) -> belief` lets a
+  domain add a glance field to a last-seen belief (e.g. a bucket's fill).
+* **Report hooks.** `@after("report")` hooks that judge a legacy field report keep working: a typed report leaves
+  `ctx.args["target"]` and `["field"]` None. A domain that wants to judge typed reports reads `report_log` (or
+  `reports.match`), never the message.
+* **Memory.** Domains never write `env.mind`; they read beliefs only for evaluation helpers (`mind.*` paths). Robot
+  memories a helper seeds go through the `memory` / `prior_knowledge` setup ops.
+* **Speech to the robot** is marked `to: "robot"` (or `addressed_robot`) so privacy-mode hearing and the `addressed`
+  notice kind find it; requests and amendments carry a `request` id.

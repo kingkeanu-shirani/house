@@ -3,7 +3,10 @@
 * ``emit_consequence(w, kind, target, **data)`` is the one place every physics consequence event goes through
   (``phys.*`` kinds of 7.7; payloads carry oracle numbers and never reach a realistic agent). It writes the event log
   entry and, in geometric camera mode, routes the occurrence through ``camera.visual_event`` (camera_log.events
-  records whether the robot saw it; seen ones reach obs.camera.events); TIME-EVAL posts sound notices from it.
+  records whether the robot saw it; seen ones reach obs.camera.events). A consequence that makes a sound is also
+  posted on the notice bus (kernel v3.1, TIER1_SWEEP 6.1): notice kind = the sound kind below, at NOTICE_DB of its
+  loudness word (faint 45, noticeable 60, loud 80 dB at 1 m) in the consequence's room, its target as the source;
+  the timeline's propagation decides whether the robot hears it.
 * ``sounds(env, w, obs)`` is the observer ``physics.sounds``: this step's ``phys.*`` events become entries of the
   existing ``sounds`` channel, ``{"kind", "source_hint", "loudness"}`` with words only: kind crash | thud |
   glass_breaking | splash | scrape | creak | clatter, source_hint here | nearby | elsewhere, loudness faint |
@@ -44,6 +47,7 @@ SOUND_OF = {
     "phys.blown": ("clatter", "noticeable"),
 }
 LOUDNESS = ("faint", "noticeable", "loud")
+NOTICE_DB = {"faint": 45.0, "noticeable": 60.0, "loud": 80.0}     # sound level at 1 m of a heard consequence (6.2)
 COUNT_WORDS = ((5, "many"), (2, "several"))     # events merged into one heard sound -> a coarse word (1: no word)
 FAINT_J, LOUD_J = 1.0, 15.0           # impact energy (J): a napkin or a pen is faint, a mug off a table noticeable,
                                       # a 10 kg box or a toppling bookcase loud
@@ -70,7 +74,25 @@ def emit_consequence(w, kind, target, **data):
         camera.visual_event(w, kind, source=target if isinstance(target, str) else None, room=data.get("room"),
                             at=cell if isinstance(cell, (list, tuple)) and len(cell) == 2 else None,
                             size_m=_event_size(w.s, target), emit=False)
+    _sound_notice(w, entry)
     return entry
+
+
+def _sound_notice(w, entry):
+    """Post the consequence's sound on the notice bus (only while someone listens: kernel/timeline.py active)."""
+    from .. import timeline
+    if not timeline.active(w):
+        return
+    found = _sound(w.s, entry)
+    if found is None:
+        return
+    sound, word = found
+    target = entry.get("target")
+    room = entry.get("room")
+    if room is None and isinstance(target, str) and target in w.s["entities"]:
+        room = root_room(w.s, target)
+    w.notice(sound, room=room, db=NOTICE_DB[word], source=target if isinstance(target, str) else None,
+             data={"loudness": word})
 
 
 def _event_size(state, target):

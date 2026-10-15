@@ -24,7 +24,8 @@ import threading
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5"
 DONE = "done"
 # keys an evaluator or the privileged runner would produce; never part of what an agent receives
-EVALUATOR_KEYS = frozenset({"evaluation", "reward", "terminated", "truncated", "raw_message", "agent_message"})
+EVALUATOR_KEYS = frozenset({"evaluation", "reward", "terminated", "truncated", "raw_message", "agent_message",
+                            "decided"})
 RESULT_KEYS = ("ok", "message", "category")
 
 
@@ -129,11 +130,17 @@ class Agent:
         """Start an episode. observation is the environment's own (realistic) observation."""
 
     def act(self, observation, last_result):
-        """Return a command dict ({"action": name, "target": ..., **params}) or {"action": "done"}."""
+        """Return a command dict ({"action": name, "target": ..., **params}) or {"action": "done"}. In a multi-phase
+        task "done" ends the current phase; the episode goes on while another one follows."""
         raise NotImplementedError
 
     # ----- optional harness hooks (defaults are no-ops) ------------------------------------------------------
     budget = None
+
+    def on_request(self, request):
+        """A new request arrived (the next phase of a multi-phase task, kernel v3.1): the request as the robot
+        perceives it (the observation's "request", else {"text": instruction}). The next act() gets the new
+        observation, whose "instruction" is the new phase's."""
 
     def bind_budget(self, budget):
         self.budget = budget
@@ -358,7 +365,9 @@ class ScriptedOracle(Agent):
             info["plan_error"] = str(exc)[:500]
         except Exception as exc:  # noqa: BLE001  (recorded; the oracle then replays what it managed)
             info["plan_error"] = "{}: {}".format(type(exc).__name__, exc)[:500]
-        self.commands = [copy.deepcopy(record["command"]) for record in shadow._history]
+        # a phase end in the shadow run is the agent's "done" (the harness ends the phase and goes on)
+        self.commands = [{"action": DONE} if record.get("phase_done") else copy.deepcopy(record["command"])
+                         for record in shadow._history]
         self._expected = [bool(record["ok"]) for record in shadow._history]
         info["shadow_steps"] = len(self.commands)
         try:

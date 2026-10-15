@@ -13,6 +13,8 @@ HELP = '''Commands (IDs come from observations):
  look [around|up|down|left|right|behind|ID] | move ROOM | approach ID | walk_to (JSON) | inspect ID [WHERE] | read ID
  pick_up ID | place ID DESTINATION | hand_over ID PERSON | open ID | close ID | lock ID | unlock ID
  switch_on ID | switch_off ID | start ID | pause ID | crouch | kneel | stand | wait [SECONDS]
+ waits that end early: {"action":"wait","seconds":3600,"interrupt_on":["urgent","doorbell"]} or "until": a condition
+ phase_done (multi-phase tasks: the current request is done; the next one follows)
  ask PERSON TOPIC | speak TEXT | stop | resume | undo | snapshot NAME | diff NAME
  geometric camera (--camera geometric): face north|east|south|west|left|right|back|ID|DEGREES
                                         peek ID under|behind|inside|top|closely
@@ -112,6 +114,11 @@ def interactive(env):
                 print(json.dumps(env.observe()["time"], indent=2)); continue
             if name == "goal":
                 print(env.observe().get("instruction") or "Free exploration"); continue
+            if name == "phase_done":
+                result = env.phase_done()
+                print(result["message"])
+                show(result["observation"] or env.observe())
+                continue
             if name == "score":
                 print(json.dumps(env.evaluate(), indent=2)); continue
             if name == "reset":
@@ -175,6 +182,11 @@ def main(argv=None):
                         help="Camera mode: room (room-wide visibility) or geometric (the robot's posed cameras: line of "
                              "sight, light, resolution; face / peek). Default: the task's own, else room. With "
                              "--check/--verify it is forced for every spec.")
+    parser.add_argument("--gen", type=int, choices=[1, 2],
+                        help="House generation (kernel v3.1): 1 (the generator as before) or 2 (households, belongings, "
+                             "furnishings, climate and clock model 2). Default: the spec's house.gen, else 2 for "
+                             "\"schema\": 3 specs, else 1. With --check/--verify it is forced for every spec "
+                             "(migration M-GEN2).")
     parser.add_argument("--report", action="store_true")
     parser.add_argument("--compile", action="store_true")
     parser.add_argument("--list-tasks", action="store_true")
@@ -191,15 +203,18 @@ def main(argv=None):
             import inspect
             from .audit import verify
             options = {"camera": args.camera} if args.camera else {}
-            if options and "camera" not in inspect.signature(verify).parameters:
-                raise ValueError("--camera with --verify needs audit.verify(camera=); use --check FILE --camera "
-                                 "instead")
+            if args.gen:
+                options["gen"] = args.gen
+            for key in sorted(options):
+                if key not in inspect.signature(verify).parameters:
+                    raise ValueError("--{0} with --verify needs audit.verify({0}=); use --check FILE --{0} "
+                                     "instead".format(key))
             run = verify(only=set(args.verify_only) if args.verify_only else None, workers=args.workers,
                          perception=args.perception, **options)
             return 1 if run["failed_entries"] else 0
         if args.check:
             return check_file(args.check, args.workers, args.ids, args.seeds, perception=args.perception,
-                              camera=args.camera)
+                              camera=args.camera, gen=args.gen)
         if args.report:
             from .audit import report
             print(json.dumps(report(), indent=2)); return 0
@@ -229,7 +244,7 @@ def main(argv=None):
         elif args.task or args.demo:
             from .tasks.runner import build
             record = find_record(args.task or args.demo)
-            config, task, oracle = build(record["spec"], args.seed, camera=args.camera)
+            config, task, oracle = build(record["spec"], args.seed, camera=args.camera, gen=args.gen)
             env = HouseEnv(config, task, args.seed, camera=args.camera)
         elif args.scenario:
             bundle = json.loads(Path(args.scenario).read_text(encoding="utf-8"))
@@ -245,6 +260,8 @@ def main(argv=None):
             opts = {"require": args.features} if args.features else {}
             if args.dwelling:
                 opts["dwelling"] = args.dwelling
+            if args.gen:
+                opts["gen"] = args.gen
             env = HouseEnv(generate_house(args.seed, **opts), seed=args.seed, camera=args.camera)
         if args.export:
             with open(args.export, "x", encoding="utf-8") as stream:
@@ -300,7 +317,7 @@ def main(argv=None):
         parser.error(str(exc))
 
 
-def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera=None):
+def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera=None, gen=None):
     from .tasks.verify import SEEDS, verify_many
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     specs = data.get("specs", []) if isinstance(data, dict) else data
@@ -310,7 +327,7 @@ def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera
             print("No specs with those ids in", path)
             return 1
     results = verify_many(specs, seeds=tuple(seeds) if seeds else SEEDS, workers=workers, perception=perception,
-                          camera=camera)
+                          camera=camera, gen=gen)
     failed = 0
     for result in results:
         if result["passed"]:
@@ -323,7 +340,7 @@ def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera
                 continue
             detail = {k: trial.get(k) for k in ("seed", "variant", "perception", "camera", "error", "trace", "initial_fails", "idle_fails", "reference_passes",
                                                  "reference_error", "reference_failures", "reference_goal_fraction", "perceivability_gaps",
-                                                 "wrong_fails", "wrong_ran") if k in trial}
+                                                 "wrong_fails", "wrong_ran", "temporal_warnings", "privileged_waits") if k in trial}
             detail["wrong"] = [w for w in trial.get("wrong", []) if not w.get("fails") or not w.get("ran")]
             print("   ", json.dumps(detail, default=str)[:1500])
     print("{} passed, {} failed".format(len(results) - failed, failed))

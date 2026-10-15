@@ -60,6 +60,7 @@ class Agent:
     privileged = False                   # True only for ScriptedOracle (labelled in results)
     def reset(self, instruction: str, observation: dict, action_catalog: list[dict]) -> None: ...
     def act(self, observation: dict, last_result: dict | None) -> dict: ...   # command dict, or {"action": "done"}
+    def on_request(self, request: dict) -> None: ...   # optional (kernel v3.1): the next phase's request
 # last_result passed to agents contains ONLY {"ok", "message", "category"}.
 class RandomValidAgent(Agent); class SearchAgentAdapter(Agent); class ScriptedOracle(Agent); class MockLLMAgent(Agent)
 class LLMAgent(Agent)                    # providers: anthropic, openai-compatible (urllib); see EVAL_HARNESS.md
@@ -82,8 +83,21 @@ commands as the agent issued them, the results it saw, timings; enough to re-sco
 Episode record: `{"catalog_id", "split", "seed_tag", "agent", "privileged", "success", "goal_fraction",
 "failures", "harm_flags", "side_effects", "blocks": {"safety", "privacy", "authority"}, "invalid_steps",
 "questions": {"necessary", "unnecessary"}, "steps", "sim_time_s", "wall_s", "tokens": {"input", "output"},
-"cost_usd", "done_declared", "end_reason", "log", "spec_hash", "perception", "kind", "section", "domain",
-"risk_level", "fidelity"}`. Raw seeds are recorded only for train/dev (`"seed"`); never for test.
+"cost_usd", "done_declared", "end_reason", "log", "spec_hash", "perception", "camera", "kind", "section", "domain",
+"risk_level", "fidelity", "phases"}`. Raw seeds are recorded only for train/dev (`"seed"`); never for test.
+`"phases"` (kernel v3.1) is `[{"id", "success", "steps", "time_s", "end_reason"}]` for a multi-phase task, else null.
+
+Multi-phase tasks (kernel v3.1, docs/TASK_SPEC.md "Phases"): a `{"action": "done"}` while a phase is active ends that
+phase (`env.phase_done()`: scored, its gap run, the next phase started) and the episode continues while another phase
+follows, at once or later (a phase that starts on its own, at_s / when: the agent waits for it -- unless it is
+`"optional": true`, an interruption that may not come, which keeps nobody waiting); `done` while no
+phase is active ends the episode as before (`done_declared`). The agent's optional hook
+`on_request(request)` receives each new request as the robot perceives it (the observation's `"request"`, else
+`{"text": <instruction>}`), also when the environment starts a phase by itself (a phase that ends on time, on a
+condition or on its budget); the next `act()` gets the new observation, whose `"instruction"` is the new phase's.
+The command log records each phase end as a step `{"i", "command", "done": true, "phase_done": true, "phase",
+"next_phase", ...}` (no environment step is counted); `replay_log` replays it in order. The scripted oracle turns
+its shadow run's phase ends into `done` commands.
 
 ## C. leaderboard.py (owner: leaderboard)
 

@@ -1,0 +1,529 @@
+{
+ "packages": {
+  "TIME-EVAL": {
+   "not_done": [
+    {
+     "what": "Full-suite G1 is FAIL. The only failing file is test_eval_splits.py (PackagingTests.test_gitignore_covers_private_artifacts, normal and strict).",
+     "why": "It fails at HEAD already (the stage-B commit added demos/replays/ to .gitignore) and is outside TIME-EVAL's files (request 2)."
+    },
+    {
+     "what": "Domain notices (doorbell, knock, alarm, phone, crying, appliance_done, drips, device) are not posted yet, so interrupt_on ['urgent'] hears only addressed speech today.",
+     "why": "They need the domains (adoption round, request 6)."
+    },
+    {
+     "what": "Domain idle probes are missing, so the 3.5 s quiet-day target is not reached. The quiet day is 6.57 s in the gate (budget at landing <= 7.2 s); a paired CPU-time comparison shows +1.5% vs HEAD.",
+     "why": "Only the kernel's three systems are TIME-EVAL's; heavy systems belong to the domains (request 6)."
+    },
+    {
+     "what": "obs.notices / obs.request rendering, Mind integration (env.mind stays None while kernel/mind.py is a stub), and reports.match / match_set. The TIER1-STUB(PEOPLE-IO) guards remain in engine.py, monitor.py, evaluation.py and predicates.py.",
+     "why": "PEOPLE-IO owns those modules and merges second."
+    },
+    {
+     "what": "The viewer does not know extended milestone forms or phase_done history records.",
+     "why": "viewer.py is not on TIME-EVAL's list (request 4)."
+    },
+    {
+     "what": "python -m house_sim --verify --gen 2 is refused with a clear message.",
+     "why": "It needs audit.verify(gen=) in house_sim/audit.py, which is outside the list (request 3)."
+    },
+    {
+     "what": "Phase conditions (ends.when / start.when) are evaluated on the plain state (no mind.*, no milestone_count). Auto orders do not run during listen. Calendar data has one table per region, today's DST rules for every year, and an equinox formula valid 1980-2099.",
+     "why": "Simplest scope for this stage; recorded as known gaps in the handoff."
+    }
+   ],
+   "requests": [
+    "1. Safety owner, tasks/authored/safety__examples.json, A-d9e7a4d5d112d2-01 variant 0: replace milestones {quiet: Q} and deadlines {quiet: 300} with milestone alarm_sounding (exists detector alarm_state == alarm) and responses [{trigger: alarm_sounding, response: Q, within_s: 300, each: false, label: quiet}]. Probed: passes seeds 0, 1, 2, 41, 97; idle and wrong plans fail.",
+    "2. Main session: tests/test_eval_splits.py test_gitignore_covers_private_artifacts fails at HEAD (demos/replays/ is in .gitignore). Align the test or .gitignore (B6 request 3).",
+    "3. house_sim/audit.py: verify(..., gen=None) should pass gen to verify_many so 'python -m house_sim --verify --gen 2' works for M-GEN2.",
+    "4. house_sim/eval/viewer.py: read the episode's monitor record instead of check(state, rule) for milestones, and add step-list entries for phase_done history records.",
+    "5. PEOPLE-IO: render obs.instruction/obs.request from state.requests or env.request(), and obs.notices from state['notices'] (records carry 'step'). Confirm the dialogue_log fields (matched, to, comprehended, otherwise, act, aspect, t). The TIER1-STUB(PEOPLE-IO) guards in engine.py, monitor.py, evaluation.py and predicates.py are removed at C-CLOSE. AUTHORING_GUIDE can take the sweep-23 recipes.",
+    "6. Domains (adoption round): post notices with w.notice (doorbell, knock, crying, call_for_help, phone, alarm, device, appliance_done, drips, thunder, barking) and register extra kinds with timeline.register_notice_kind. Add exact idle probes on heavy systems with a probes-on/off digest test. navigation_robot: a phase_start hook to refresh spot bookkeeping after phase_relocate.",
+    "7. house_sim/eval/dataset.py (C-CLOSE): export multi-phase episodes, where done ends a phase.",
+    "8. C-CLOSE: the action fingerprint changed (482f9adf9717 -> 24641cb8a126). Regenerate evidence, replays and datasets, and refresh tests/data/spec_baseline.json from the C1 gate.",
+    "9. Design docs: TIER1_INTEGRATION 1.11 / TIER1_SWEEP 6.1 name the power_down / fault_onset hooks as notice sources; the implementation uses the event log (deviation 2)."
+   ],
+   "deviations": [
+    {
+     "what": "The notice bus is data-gated by the state's 'notices' section (schema-3 tasks, or configs that carry it). Waits that listen still perceive notices transiently in any episode.",
+     "why": "The gate row allows no state or observation digest change (S-R4: new sections only when the new features are used)."
+    },
+    {
+     "what": "Battery and fault notices come from the event log (battery_low, battery_reserve, fault_detected via World.emit / EMIT_NOTICES), not from the power_down / fault_onset hooks.",
+     "why": "A powered-down robot perceives nothing, and a latent fault is unknown to the robot until it is detected."
+    },
+    {
+     "what": "Stored notice records add 'step' and 'remote', and 'far' is true. Notices about the robot's own systems carry the robot's room.",
+     "why": "obs.notices needs 'since previous step' selection, and remote notices must be distinguishable."
+    },
+    {
+     "what": "Speech notices follow the domain's heard_by_robot and body.can_hear. Propagation only decides the room information and whether the words carry.",
+     "why": "A notice must never contradict obs.messages."
+    },
+    {
+     "what": "The 'action' sample uses the step-start time. The first monitor sample is at the first step, not at reset.",
+     "why": "The simulator applies action effects at the step start and then spends the duration with the systems running."
+    },
+    {
+     "what": "Held auto orders run at the start of the next idle advance (a wait or a gap), not via run_pending. A refused auto command costs no time.",
+     "why": "run_pending keeps serving queue orders only, and refused commands are rolled back."
+    },
+    {
+     "what": "Queue-mode order records keep today's six keys unless the new parameters are used. The max_runs/cooldown defaults apply only to auto orders.",
+     "why": "Keeps digests unchanged for existing watch usage."
+    },
+    {
+     "what": "Phase windows: after 'phase:<id>' opens at the phase start, until 'phase:<id>' closes at its end, with explicit :start / :end forms. Phase-level deadline numbers count from the phase start.",
+     "why": "This is the simplest unambiguous reading of the windows."
+    },
+    {
+     "what": "A response obligation still open at evaluation is reported as response_open:<label> (no success, not decided).",
+     "why": "It is neither met nor missed yet."
+    },
+    {
+     "what": "The idle early exit applies only to schema-3 specs.",
+     "why": "Schema-2 idle_state_hash is a compared digest."
+    },
+    {
+     "what": "Phase relocation writes robot.room/pos/docked/posture directly. It does not call navigation's spot bookkeeping, and it refuses (with a logged reason) while the robot holds something or has fallen.",
+     "why": "Kernel scope per INTEGRATION 1.1; teleporting held items or a fallen robot is unrealistic."
+    },
+    {
+     "what": "phase_done is not an action. It counts no step, is recorded in history with phase_done:true and is replayed, and its result says 'waiting' when a timed phase is still to come.",
+     "why": "Ending a phase is a protocol signal, not a robot action."
+    },
+    {
+     "what": "env._task['instruction'] follows the active phase's request text. env.request() returns r0 {'from': null, 'channel': 'unspecified'} for tasks without requests, and nothing is written to the state for them.",
+     "why": "obs.instruction shows the right text before PEOPLE-IO renders requests, without changing digests."
+    },
+    {
+     "what": "is_true / is_false may omit 'value'.",
+     "why": "The sweep's own example {'path': '$exists', 'op': 'is_false'} has none."
+    },
+    {
+     "what": "Report forms resolve after/before_s by bounding report_log in predicates.py before calling reports.match / match_set.",
+     "why": "No time key is applied twice."
+    },
+    {
+     "what": "The questions forms read the dialogue_log fields matched, to, comprehended, otherwise, act, aspect, t.",
+     "why": "PEOPLE-IO's log shape was not frozen; these field names are an assumption (request 5)."
+    },
+    {
+     "what": "Nothing is perceivable while powered down. Weather through a window needs imaging. Under 'addressed' hearing, kinds that imply alarm are also heard.",
+     "why": "Realism."
+    },
+    {
+     "what": "Physics sound notices use 45/60/80 dB with the 6.2 propagation, which can differ from observe.heard_sounds' room-hop rule.",
+     "why": "These are the sweep's thresholds; the sounds list stays unchanged for digests."
+    },
+    {
+     "what": "Footprints narrow type selectors via World.of_type. Category selectors still scan. Quiet entity writes count as changes.",
+     "why": "Types are static but categories can change."
+    },
+    {
+     "what": "Clock data choices: ca = Ontario, eu = Germany's nationwide holidays, per-region observance rules, model-2 sun times centred on 12:00 with Cooper declination, and parse_when relative forms counted from the current time.",
+     "why": "Simplest realistic choices, consistent with generator/climate.py."
+    },
+    {
+     "what": "tools/verify.py --privileged-waits lists reference and wrong plans (13 specs, including A-2bbd9d39ff1512-01, whose only wait_until is in a wrong plan).",
+     "why": "This matches the sweep's 13-spec count."
+    },
+    {
+     "what": "Verification lint: a never without an after window that holds initially is a trial error. Milestones holding initially are reported as temporal_warnings.",
+     "why": "Catches specs like A-d9e7a4d5d112d2-01."
+    },
+    {
+     "what": "The default requester is the first adult resident by id (else the first person). Phrasings default to the drawn instruction. The heard rule is the kernel default (intercom always heard, note never).",
+     "why": "The simplest deterministic rule."
+    },
+    {
+     "what": "A phase budget ends the phase only when exceeded (steps > budget or time > budget at the end of that step).",
+     "why": "This matches the episode budget: success on the last allowed step passes."
+    },
+    {
+     "what": "Responses are judged at samples (every action, substep of at most 30 s, auto command and step end). An obligation first seen holding after its due time is missed. Predicates not evaluated at the previous sample are re-evaluated instead of reusing the footprint cache.",
+     "why": "Late responses must not count as met, and cached values must not be stale."
+    }
+   ],
+   "reviewed": [
+    "A-d9e7a4d5d112d2-01, seed 0, own and realistic modes: passed -> failed (idle_fails true -> false), code S-R1. Variant 0 (burnt toast): milestone 'quiet' (no detector in alarm) holds in the initial state, because detectors only start sounding at the safety system's first tick (30 s). Sampled accurately, it is reached at t=0, so its 300 s deadline was met by doing nothing. Measured: the alarm sounds 30-390 s when nobody acts. Verdict: the kernel is right; spec fix requested (request 1: the deadline becomes a response to the alarm starting, within_s 300, each false). Probed: it passes on all five seeds, idle fails, and both wrong plans fail. Recorded in the handoff table; compare PASS."
+   ]
+  },
+  "PEOPLE-IO": {
+   "not_done": [
+    {
+     "what": "Removing the TIER1-STUB(PEOPLE-IO) guards in engine.py, evaluation.py, monitor.py and predicates.py",
+     "why": "Those are TIME-EVAL's files and outside the PEOPLE-IO file list; the guarded code is dead now (request 1)"
+    },
+    {
+     "what": "Calling dialogue.lint_* and reports.perceivability_gaps from verify.py",
+     "why": "verify.py is TIME-EVAL's; the helpers exist and are tested, and no schema-3 spec exists yet (request 2)"
+    },
+    {
+     "what": "Time-bounding legacy report records in report/report_set predicates",
+     "why": "predicates._report_world (TIME-EVAL's) bounds only report_log; reports.match handles the bounds itself if they are passed through (request 3)"
+    },
+    {
+     "what": "engine.known_map() as a view of mind.map",
+     "why": "engine.py is TIME-EVAL's; navigation still reads env._known_map (request 4)"
+    },
+    {
+     "what": "Resolving look-alike identity by asking",
+     "why": "realism's label substitution rewrites true names in every message, answers included; this is an unchanged realism policy"
+    }
+   ],
+   "requests": [
+    "Main session: remove the TIER1-STUB(PEOPLE-IO) guards in house_sim/kernel/engine.py (_start_mind, _update_mind, load, _mind_dump), evaluation.py (evaluation_view), monitor.py (_Sampler.view) and predicates.py (_check_form). They are now dead code, and PEOPLE-IO may not edit those files",
+    "TIME-EVAL/main: in house_sim/tasks/verify.py, run dialogue.lint_facts, lint_reference and lint_plan for schema-3 specs (sweep 4.11), and add reports.perceivability_gaps to the realistic perceivability check (sweep 5.5)",
+    "TIME-EVAL/main: in predicates._report_world, also bound the legacy `reports` store, or pass after/before_s through to reports.match, which resolves them itself (including the $temporal overlay)",
+    "TIME-EVAL/main: make engine.known_map() a view of env.mind.map (sweep 7.1); navigation_robot/paths.py reads env._known_map",
+    "Main session: tests/test_eval_splits.py test_gitignore_covers_private_artifacts fails because .gitignore line 34 ignores demos/replays/; fix the .gitignore or the test (not a stage C file)",
+    "C-CLOSE: the action fingerprint changed (S-R6); regenerate saved states and replays together with TIME-EVAL's"
+   ],
+   "deviations": [
+    {
+     "what": "Legacy field reports are not copied into report_log; reports.records_of synthesizes them from the legacy reports store for match/match_set",
+     "why": "Copying would change the state of the 53 legacy-report specs, and the PEOPLE-IO gate row allows no state change"
+    },
+    {
+     "what": "The legacy topic ask writes no dialogue_log record",
+     "why": "The legacy path must stay byte-identical (3.2)"
+    },
+    {
+     "what": "Necessity: 'asked before' means the robot already has the answer (same key in facts, or the same fact answered). An earlier ask that got an 'otherwise' reply does not count",
+     "why": "Asking someone who did not know, then the right person, should leave the second question necessary"
+    },
+    {
+     "what": "A word phrase naming exactly one room, person or pet by label resolves to that room, person or pet",
+     "why": "Simpler and more realistic subject handling, e.g. room: facts reached by 'the living room'"
+    },
+    {
+     "what": "Routes are retried with the thing a word names when it names exactly one household thing; when it names several and a route would answer, the person asks back which one",
+     "why": "Lets canonical questions reach entity answerers (where:/owner:/permission:) without leaking which one"
+    },
+    {
+     "what": "Clarify options describe things by appearance (label, colour, material), never by their current location",
+     "why": "Location descriptions would reveal the hidden positions of things the robot has not found"
+    },
+    {
+     "what": "Kernel-default calendar facts: each event gives a 'when' fact, and each hidden key a 'status' fact",
+     "why": "Asking about events works before the people follow-up; people may replace it through routes"
+    },
+    {
+     "what": "Hearing is required only for voice and phone questions; text and written questions work with the microphones off",
+     "why": "Those answers are read, not heard"
+    },
+    {
+     "what": "Report `to` is a list; a household-only report has channel None. Kernel delivery defaults: text/app reports count as read after ack_delay_s; intercom needs a station in both rooms; a note needs a held writable item or a whiteboard",
+     "why": "Realistic defaults that work until the people report_delivered hook exists"
+    },
+    {
+     "what": "A typed report sets ctx.args target/field to None, and a routed canonical ask sets ctx.args['topic'] to its legacy topic",
+     "why": "The food, safety and tools_vehicles @after hooks read legacy args and would otherwise crash or skip"
+    },
+    {
+     "what": "The Mind also remembers identified people and pets. perceived_ids excludes un-inspected mirrors, and in realistic dark rooms excludes people and pets (they render as shapes)",
+     "why": "Needed for the report precondition and recall seen:<pid>; matches exactly what observe renders"
+    },
+    {
+     "what": "The LLM catalog cuts a doc at the last sentence end within 120 characters when that keeps at least three quarters of it",
+     "why": "The schema sentences of ask/report/recall/wait/watch then arrive whole"
+    },
+    {
+     "what": "Question scoring (sweep 4.6) stays in TIME-EVAL's evaluation.question_failures; PEOPLE-IO writes the dialogue_log fields it reads",
+     "why": "One implementation; TIME-EVAL's assumed field names are confirmed"
+    },
+    {
+     "what": "The current request is the active phase's latest request, else the last record. listen returns notices only when the episode stores them (schema 3). Realistic recall times are rounded to whole seconds",
+     "why": "Phase-correct rendering; legacy output unchanged; no sub-second clock leak through action messages"
+    }
+   ],
+   "reviewed": [
+    "None needed: vs the TIME-EVAL gate there were 0 verdict, 0 state-digest and 0 observation-digest changes in 2,420 trials (G2 and G3). The only allowed difference that occurred is the action fingerprint change (S-R6: new ask/report parameters), 24641cb8a126 -> 955c5ef9ac14. The golden is byte-identical and was not re-recorded"
+   ]
+  },
+  "C-MERGE": {
+   "not_done": [
+    {
+     "what": "timeline.perceivable is not aware of light, imaging or the geometric camera's view in realistic perception. It uses room-mode visibility for things and counts people's or pets' location and posture whenever they are in the robot's room, so wait-until conditions, standing orders and person_enters/leaves notices can fire on what the robot does not perceive. The new evidence check exposes this: the monitoring E2E spec fails realistic verification with the geometric camera.",
+     "why": "The fix touches the timeline, camera and body sensor semantics and the 0.02 ms per-substep until budget. A realistic-wide change could alter queue-mode watch outcomes in forced-realistic runs of existing specs, which the TIME-EVAL row forbids. This is left to the main session before D3, with a concrete proposal in the handoffs."
+    },
+    {
+     "what": "env.known_map() and env._known_map are still not a view of mind.map (sweep 7.1, PEOPLE-IO request 4).",
+     "why": "navigation_robot/paths.py reads _known_map keys and exits and is outside the union (adoption round)."
+    },
+    {
+     "what": "test_eval_splits.py test_gitignore_covers_private_artifacts fails, normal and strict.",
+     "why": "It already fails at HEAD and in both package gates: .gitignore ignores demos/replays/. Neither file is in the union (TIME-EVAL request 2, PEOPLE-IO request 5)."
+    },
+    {
+     "what": "Requests outside the union stay open: the safety spec fix for A-d9e7a4d5d112d2-01, audit.verify(gen=), the viewer's milestone/phase_done handling, domain notices and idle probes, dataset phases, and C-CLOSE regeneration.",
+     "why": "The files are outside the union (TIME-EVAL requests 1, 3, 4, 6-9)."
+    }
+   ],
+   "requests": [
+    "Main session, before D3: make timeline.perceivable (and person_enters/person_leaves derivation) camera- and light-aware for realistic perception, so things and people count only when the robot perceives them now (room mode: lit room, imaging on, not concealed; geometric mode: the camera's current view). Check per referenced id to keep the 0.02 ms until budget. Evidence: the monitoring E2E spec fails realistic + geometric verification with perceivability_gaps 'status awake of sam'.",
+    "Main session: decide test_eval_splits test_gitignore_covers_private_artifacts against the demos/replays/ line in .gitignore (still the only G1 failure).",
+    "Safety owner: apply TIME-EVAL request 1 (A-d9e7a4d5d112d2-01 variant 0: deadline to response).",
+    "Adoption round, navigation_robot and people: move env._known_map to a view of mind.map (PEOPLE-IO request 4); navigation's paths.py reads its keys and exits.",
+    "C-CLOSE: regenerate replays, evidence and datasets (action fingerprint 955c5ef9ac14), and refresh tests/data/spec_baseline.json from the C-MERGE or C1 gate."
+   ],
+   "deviations": [
+    {
+     "what": "The sweep 21 integration examples are kept as tests at seed 0, with 5-seed evidence recorded in the handoff. The third example ('where I usually put it' from people.history) is replaced by a two-phase 'asked once, remembered' spec.",
+     "why": "Five seeds in both modes, with the gap, cost minutes per test file, and people.history is not built until the people domain's adoption round. The tests use generated houses with core types so they pass with HOUSE_SIM_DOMAINS=core."
+    },
+    {
+     "what": "The episode's first request is not an 'addressed' notice. Only requests posted later (at phase starts) are.",
+     "why": "This keeps the stored-notice and observation behaviour TIME-EVAL and PEOPLE-IO shipped at reset; the first request is already obs.request and obs.instruction. The cursor now starts after _post_requests."
+    },
+    {
+     "what": "dialogue.requester also falls back to the state's 'requester', which schema.normalize sets and people's helpers write.",
+     "why": "The evaluation already used this fallback. Without it, known_by 'requester' in a spec with no request and no intent would match nobody, while ask_whom would match the household default."
+    },
+    {
+     "what": "The typed-report evidence check counts any field an observation showed for the subject (things, people and pets) as perceived evidence. It does not collect inspect/read results or instrument readings from action messages; end-of-run realism knowledge stands in for them.",
+     "why": "PEOPLE-IO's evidence_perceived accepts collected grants. Observations are recorded by the verifier, while the targets of action messages are not."
+    },
+    {
+     "what": "Recorded the gate on the shared working tree, not an isolated copy.",
+     "why": "Its git status lists only the union's files (G10: 56 files, 0 outside the union)."
+    }
+   ],
+   "reviewed": [
+    "A-d9e7a4d5d112d2-01, seed 0, both modes: passed True -> False (idle_fails). Code S-R1, already reviewed in TIME-EVAL's table: the milestone 'quiet' holds in the initial state. The kernel is right; the spec fix is requested from the safety owner (TIME-EVAL request 1). The merge added no new verdict change, and compare against TIME-EVAL and PEOPLE-IO shows 0 changes of any class."
+   ]
+  },
+  "C1": {
+   "not_done": [
+    {
+     "what": "Archive snapshot and stage-C commit",
+     "why": "The task said not to snapshot or commit; tools/orchestration/snapshot.py and the commit are left to the main session."
+    },
+    {
+     "what": "A-d9e7a4d5d112d2-01 back to DONE, and the 67th demo section",
+     "why": "Needs the safety owner's spec fix in tasks/authored/safety__examples.json (TIME-EVAL request 1). That file is outside C1's list, and changing it would change a verdict."
+    },
+    {
+     "what": "Fix the failing test_eval_splits test_gitignore_covers_private_artifacts",
+     "why": "It fails because .gitignore ignores demos/replays/. Neither file is C1's, and the failure predates C1 (it shows in every stage-C gate)."
+    },
+    {
+     "what": "Viewer milestone and phase_done support; dataset export of multi-phase episodes (TIME-EVAL requests 4 and 7)",
+     "why": "viewer.py and dataset.py are not on C1's list. No phased spec exists yet, so the sample is unaffected."
+    },
+    {
+     "what": "Remove or regenerate the prototype-era reports (unit_tests.txt, unit_test_summary.json, cli_checks.json, package_checks.json, package_build.txt, compilation_summary.json)",
+     "why": "No current tool writes them, and removing tracked files is the main session's decision. Flagged as request 6."
+    }
+   ],
+   "requests": [
+    "Apply the safety spec fix for A-d9e7a4d5d112d2-01 (TIME-EVAL request 1, tasks/authored/safety__examples.json). Then run `python -m house_sim --verify-only A-d9e7a4d5d112d2-01` and `--demo`, and re-record tests/data/spec_baseline.json from a gate that includes the fix. That restores 242 DONE and 67 demo sections.",
+    "Add coverage.csv, tasks/specs.jsonl and tasks/id_to_family.jsonl to the B-CLOSE and C-CLOSE file lists in tools/orchestration/tier1_gate.py and TIER1_INTEGRATION 2.4/2.5 (B6 request 2).",
+    "Resolve tests/test_eval_splits.py against .gitignore's demos/replays/ entry and decide where the demo replays live (223 MB). This is the same item as TIME-EVAL request 2, PEOPLE-IO request 5 and B6 request 3.",
+    "Gate: write spec chunks (all_specs.json, chunks/*.json) without sort_keys so dict-ordered plan arguments such as pets.report `fields` keep their authored order. This would change X-c7a6de4ed9ba04-01's gate digests once.",
+    "Gate G9: pass --out to tools/physics_audit.py so a gate run writes nothing to %TEMP%\\house_ai_tier1. Isolated-copy gates also need the empty directories tasks/templates and house_sim/data/actions.",
+    "Delete or regenerate the prototype-era reports/unit_tests.txt, unit_test_summary.json, cli_checks.json, package_checks.json, package_build.txt and compilation_summary.json (from 2026-10-07; they contradict the current evidence).",
+    "Fix the `cd %PROJECT%` line in tools/orchestration/regen_leaderboard.sh (B6 request 4).",
+    "The archive snapshot (snapshot.py tier1_C) and the stage-C commit are the main session's. The stale replay moved to scratch t1_C1/stale_replays/A-d9e7a4d5d112d2-01.json can be deleted.",
+    "Still open and not C1's: TIME-EVAL requests 3, 4, 6, 7 and 9; the STAGE-C-FIX follow-ups; PEOPLE-IO request 4; B6 request 5 (stale README.md, FINAL_REPORT.md, docs/ARCHITECTURE.md and GENERATOR.md)."
+   ],
+   "deviations": [
+    {
+     "what": "coverage.csv was regenerated even though it is not on the C-CLOSE file list, so G10 fails on that one file.",
+     "why": "`--verify` always rewrites coverage.csv through audit.report. Its STUB row has to match reports/* and the demos, which read it. This is B6 request 2, still open."
+    },
+    {
+     "what": "The gate ran on an isolated copy in scratch: a throwaway git repo whose base commit is the tree as STAGE-C-FIX left it. The project repository was only read.",
+     "why": "So that G10 sees only C1's files, as B6 did. The first record failed test_eval_splits test_report_evidence_must_be_current because git does not copy empty directories (tasks/templates, house_sim/data/actions). Both were created in the copy and G1 was re-run with --only G1: the test then passes. G10 was refreshed with --only G10 after the handoff and spec baseline were copied in."
+    },
+    {
+     "what": "The stale replay demos/replays/A-d9e7a4d5d112d2-01.json (old action fingerprint, no longer in the manifest) was moved to scratch t1_C1/stale_replays/ instead of being deleted.",
+     "why": "So demos/replays holds exactly the 66 replays the manifest lists, without permanently deleting anything. Deleting it is the main session's call."
+    },
+    {
+     "what": "The gate ran with --extras physics,camera,body,gen,sweep, although C-CLOSE lists no extras. G9's physics_audit wrote its JSON to %TEMP%\\house_ai_tier1\\physics_audit.json, outside my scratch folder.",
+     "why": "So the close record carries every audit. The gate passes no --out to physics_audit, and every earlier gate wrote the same file."
+    },
+    {
+     "what": "regen_leaderboard.sh was run from a scratch copy with only its `cd %PROJECT%` line changed to the project path.",
+     "why": "The literal placeholder cannot be followed by bash (B6 request 4, still open)."
+    }
+   ],
+   "reviewed": [
+    "None needed. C-CLOSE allows no differences, and compare STAGE-C-FIX -> C1 shows 0 verdict, 0 state-digest and 0 observation-digest changes.",
+    "Evidence versus B6: A-d9e7a4d5d112d2-01 is now STUB instead of DONE, the demo set drops to 66/105, and the spec baseline's seed-0 trials for that spec are false. These all come from TIME-EVAL's already-reviewed S-R1 verdict change (spec fix pending), not from C1.",
+    "Finding (not a simulator defect): X-c7a6de4ed9ba04-01's gate reference_state_hash differs from the verifier's on all 5 seeds, the same at B6 as now, with identical verdicts. Cause: the gate's write_json sorts the keys of spec chunks, and pets.report iterates its `fields` dict in order, so the gate runs the reports in sorted order. The final states differ only in the order of three event_log entries. Reproduced and bisected with scratch probes."
+   ]
+  }
+ },
+ "fix": {
+  "items": [
+   {
+    "title": "T1 (high) wait(until)/watch/person notices used room-mode visibility; identity oracle by id in the dark",
+    "status": "fixed",
+    "detail": "timeline.observed/perceivable/holds_perceived now judge each atom per referenced id: entity_seen (room camera: visible, not a dark shape, realistic not missed; geometric: camera.entity_view_now, a signature-memoized acuity with 0 mismatches in 4,331 checks), agent_seen (realistic: lit room; geometric: identified in view). all/any/not are three-valued. The wait's at-once check, firing and guards use holds_perceived. Notices name a source only via source_perceived. person_leaves 'seen' is derived from state (room rule or camera_log sightings), so save/load stays exact. Speech notices no longer carry data.speaker (probe10). Tests: test_timeline.StageCFixTests (7 tests). Probes 1 and 2 re-run clean."
+   },
+   {
+    "title": "T2 (high) nothing woke a waiting robot when smoke alarms sounded",
+    "status": "fixed",
+    "detail": "Kernel bridge in derive_notices: an entity that starts sounding (alarm_state alarm/testing, T3/T4 pattern, beeping; static index) posts an 'alarm' notice at alarm_db (default 95 dB) through 6.2 propagation, also in privacy mode. alarm_state joins OBSERVABLE_FIELDS and is observable by sound when compared with 'alarm'. Tests: test_smoke_alarms_post_alarm_notices_and_can_be_waited_on, test_an_unattended_wait_hears_the_safety_specs_smoke_alarm (A-d9e7a4d5d112d2-01 now ends at 30 s)."
+   },
+   {
+    "title": "T3 (medium) 'X leaves' never fired, 'X comes in' refused",
+    "status": "fixed",
+    "detail": "A people/pets location compared (eq/ne) with the robot's room is accepted while the robot watches its room, and absence is observed when the robot can tell. Deviation (documented): in geometric mode absence is observable only for tracked people (a pre-wait coverage cannot tell who walked out behind the camera); footsteps are not used because they don't identify who. Test: test_until_and_watch_on_someone_coming_in_or_leaving (oracle, realistic, dark-room refusal); probe5 now fires at 60 s."
+   },
+   {
+    "title": "T4 (medium) milestones/responses reached by an action stamped at its start",
+    "status": "fixed",
+    "detail": "Monitor.sample(env, point, at=None): the engine passes the action's end (start + seconds; a wait keeps its start; partial-commit path; auto command end). Milestones, counted times, held_for starts, response triggers and met times use the stamp; windows and never/always latches keep the sample time. Tests: updated pin test_the_action_sample_sees_what_the_action_did, new test_an_action_that_ends_after_a_deadline_misses_it. probe4: the 20 s walk now misses the 5 s deadline. Gate: 0 verdict changes."
+   },
+   {
+    "title": "T5 (medium) decided 'fail' from a superseded (unscored) phase",
+    "status": "fixed",
+    "detail": "Monitor.decided(state, skip=()) ignores the entries of phases that evaluation.decided finds ended unscored. Test: test_phases.StageCFixTests.test_a_superseded_phases_failures_do_not_decide_the_episode (fails with the fix undone)."
+   },
+   {
+    "title": "T6 (medium) gen-2 clock showed DST while domains run on standard time",
+    "status": "fixed",
+    "detail": "DST now needs clock.dst: true besides model 2 (clock.dst_enabled; wall, describe, parse_when). The generator doesn't set the flag, so gen-2 houses show the time the people, clock displays and collection days keep. Moving those domains to wall time and setting the flag is a handoff follow-up. Tests: test_clock.DstFlagTests (a gen-2 house in October: obs.time hour = people's hour); DST tests set the flag."
+   },
+   {
+    "title": "T7 (medium) hidden weather bookkeeping readable through until/watch",
+    "status": "fixed",
+    "detail": "weather.<field> rejects perception.WEATHER_HIDDEN and '_' keys. With the network every perceived field is allowed. From outdoors or through a window without the network, realistic perception allows only the condition word without numeric ops. Test: test_the_weather_bookkeeping_is_not_observable (fails with the fix undone). Remaining gap noted: realistic obs.weather itself still shows numbers through a window (weather/realism follow-up)."
+   },
+   {
+    "title": "T8 (medium) a phase's deadline met by an earlier phase's milestone",
+    "status": "fixed",
+    "detail": "A phase's milestones compile as '<id>/<name>' and are sampled only inside the phase. Its deadlines, triggers and anchors name them first. Monitor.overlay(phase) gives the phase's predicates their plain names, and the same name may serve several phases. Test: test_a_phases_deadline_needs_its_own_milestone."
+   },
+   {
+    "title": "T9 (medium) auto orders stalled inside waits; budget disabled them for multi-day waits; note uncapped",
+    "status": "fixed",
+    "detail": "An order due when a listening wait ends runs before the wait ends. The budget is per step and simulated hour, logged once per window; a paused firing resumes at its next command (key 'resume'), where it used to restart its commands. The orders note is capped at 10 entries with '(+N more)'. Tests: test_an_order_that_fires_in_a_listening_wait_runs_before_it_ends, test_the_command_budget_is_per_hour_of_a_long_wait, test_the_standing_orders_note_is_capped."
+   },
+   {
+    "title": "T10 (medium) idle verification stopped after 30 h",
+    "status": "fixed",
+    "detail": "verify._wait_out uses at most 30 waits of max(3600, ceil(budget/30)) s (capped at a week), applied to the episode and each phase; budgets up to 30 h are unchanged. Test: test_idle_verification_waits_out_a_long_budget (40 h; fails with the fix undone). Gate consequence: A-d66994a566899c-01 has a 64 h budget (the reviewer's scan missed it). Its idle check now reaches 230,400 s instead of 108,000 s and still fails (damage), so the verdict is unchanged, but idle_state_hash changed on 5 seeds. The gate policy has no state class for these packages; listed as a reviewed difference for the main session."
+   },
+   {
+    "title": "T11 (low) a contingent phase that never starts made the episode unwinnable",
+    "status": "fixed",
+    "detail": "New phase key 'optional': true, lint-allowed only with a when/at_s start. If not started it is unscored and does not keep the harness waiting. Other scored phases not started add 'phase_not_started:<id>' to the episode failures. Test: test_an_optional_interruption_that_never_comes_is_unscored."
+   },
+   {
+    "title": "P1 (high) asking about 'request' handed over the hidden target",
+    "status": "fixed",
+    "detail": "'request' stays a request subject (id = the request record id, key q:<aspect>:request:<rid>). Facts and routes match the bound target internally (bound_subject/request_target). The answer's about is 'request' and 'it' stays the request. (which, request) reaches which:<category or target type>, and entity routes no longer see the target. Tests: 3 in test_dialogue.StageCFixTests; probes p10/p10b re-run clean."
+   },
+   {
+    "title": "P2 (high) phone/text/app could not reach anyone away from home",
+    "status": "fixed",
+    "detail": "dialogue.reach and reports.deliver need only network and a phone, wherever the person is (a call refused for a deaf person; asks still need them awake). skills.ask/tell never walk to an absent person. Tests: test_phone_and_text_reach_someone_away_from_home, test_reports test_phone_text_and_app_reach_someone_away_from_home (both modes)."
+   },
+   {
+    "title": "P3 (high) prior beliefs showed an unresolved look-alike's true type",
+    "status": "fixed",
+    "detail": "setup._belief records the prior level (oracle label: label, else type in words). Mind.from_config renders ident/label_seen via realism._identify at that level. Test: test_prior_look_alikes_are_remembered_at_the_level_they_were_seen. The extended perception audit flags 130 recall leaks when the old behaviour is re-injected, and 0 after the fix."
+   },
+   {
+    "title": "P4 (high) in the dark a typed person id came back as its shape handle",
+    "status": "fixed",
+    "detail": "realism.inbound: while shapes share the robot's dark room, every person/pet id is refused in every parameter (about, subject, options, to, predicate paths) with one wording for present and absent people. Ids in free text become 'someone'. Test: test_a_typed_person_id_never_comes_back_as_a_shape_in_the_dark; p14 re-run clean."
+   },
+   {
+    "title": "P5 (medium) privacy mode / a dark room blocked contacting anyone by id",
+    "status": "fixed",
+    "detail": "Commands on a remote channel (phone/text/app) name people as they are, and their reply keeps them plain (realism._named_plain). Design note: voice in the dark still refuses every id alike, because refusing only those present would itself be a who-is-here oracle. Test: test_privacy_mode_still_reaches_people_elsewhere_by_phone; p18 re-run clean."
+   },
+   {
+    "title": "P6 (medium) 'I'm not sure.' vs 'I don't know.' revealed modelled questions",
+    "status": "fixed",
+    "detail": "One default, 'I don't know.'; author-written 'otherwise' texts are kept. Test: test_someone_who_does_not_know_answers_like_an_unmodelled_question."
+   },
+   {
+    "title": "P7 (medium) clarify-back only when a fact existed",
+    "status": "fixed",
+    "detail": "For entity-directed aspects, a word naming several household things is asked back whether or not any of them has a fact, unless a fact about the word itself answers. DIALOGUE.md amended; the sweep 4.3 wording is a main-session follow-up. Test: test_a_word_naming_several_things_is_asked_back_whether_or_not_one_has_a_fact; p16 re-run clean."
+   },
+   {
+    "title": "P8 (medium) word subjects matched any word of compound names",
+    "status": "fixed",
+    "detail": "Head-noun rule in names_entity and type-fact matching ('dryer' names a clothes dryer, not dryer sheets; 'bed' a bed, not a bed pillow; modifiers must be the thing's words). Test: test_words_name_things_by_their_head_noun (fails with the fix undone)."
+   },
+   {
+    "title": "P9 (medium) options did not resolve a clarify-back",
+    "status": "fixed",
+    "detail": "Options narrow what a word names: with one left the question is about it (options consumed); with several the person asks back among those. Per-option answers are not modelled (documented). Docs updated. Test: test_options_narrow_a_word_naming_several_things."
+   },
+   {
+    "title": "P10 (medium) memory-key substring made necessary questions unnecessary",
+    "status": "fixed",
+    "detail": "Memory keys must name the fact id or canonical key as whole ':'/'.' segments. Test: test_only_a_whole_memory_key_segment_names_a_fact (fails with the fix undone); p13 re-run clean. The sweep 4.5 wording is a main-session follow-up."
+   },
+   {
+    "title": "P11 (medium) 'who is at the door' answered from the visitor's hidden identity before the robot looked",
+    "status": "fixed",
+    "detail": "PEOPLE-IO's part: dialogue.VETTED_ROUTES lets people.visitor answer only about a visitor the robot has perceived (Mind). Test: test_who_is_at_the_door_needs_a_visitor_the_robot_has_seen; p2 now answers 'I don't know.' with no admit approval. Follow-up for the people domain: the visitor: answerer should use the expected list, not _identity."
+   },
+   {
+    "title": "P12 (medium) questions answered through a failed speaker / call to a deaf person",
+    "status": "fixed",
+    "detail": "Canonical voice/phone asks need body.can_speak; otherwise said '(no answer)', time spent, nothing counted, and the fault detected as speech detects it. Calls to a deaf person are refused. The legacy topic path is left byte-identical (gate rule; follow-up). Tests: test_a_question_through_a_failed_speaker_gets_no_answer, the deaf case in the away-phone test."
+   },
+   {
+    "title": "P13 (medium) obs.request misattributed relays and leaked a remote sender's room",
+    "status": "fixed",
+    "detail": "request_view: a relayed request's from is the relayer and claims_from the claimed requester (dialogue.requester unchanged). Room is shown only for in-person/overheard/intercom. The runner and post_request default the room to the speaker's, and the request message's room is None for remote channels. Tests: test_a_relayed_request_is_said_by_its_relayer, test_a_remote_request_does_not_say_where_its_sender_is."
+   },
+   {
+    "title": "P14 (medium) listen dropped alarm notices in privacy mode",
+    "status": "fixed",
+    "detail": "listen returns the stored (already perceived) notices as they are. Test: test_listen_returns_every_perceived_notice_in_privacy_mode; p7 re-run clean."
+   },
+   {
+    "title": "P15 (medium, TIME-EVAL) privacy mode dropped non-speech sound notices",
+    "status": "fixed",
+    "detail": "robot_perceives under 'addressed' hearing now drops only speech not addressed to the robot. Test: AudibilityTests updated pin (knock and glass_breaking heard, third-party speech not)."
+   },
+   {
+    "title": "P16 (low) request message speaker named the sender realism anonymised",
+    "status": "fixed",
+    "detail": "Realistic obs.messages: a request's own message names its speaker with the same decision as obs.request (realism.request_sender). Test: test_the_request_message_names_its_sender_as_the_request_does; p6 re-run clean."
+   },
+   {
+    "title": "P17 (low) a note-channel request could not name its note via a spec",
+    "status": "fixed",
+    "detail": "'note' added to spec.REQUEST_KEYS (lint: note channel only) and copied by post_request. Test: test_a_note_request_names_its_note_through_a_spec (runner level, both modes)."
+   },
+   {
+    "title": "P18 (low) a request's gesture was not in the first observation",
+    "status": "fixed",
+    "detail": "post_request fires people's people.point effect immediately. Test: test_a_requests_gesture_is_in_the_first_observation (both modes); p15 shows the gesture at t=0."
+   },
+   {
+    "title": "P19 (low) answers exposed the legacy route topic",
+    "status": "fixed",
+    "detail": "route/topic are kept in dialogue_log only. RouteTests pins updated to assert no 'route' in answers; the audit flags any answer carrying route."
+   },
+   {
+    "title": "P20 (low) realistic clarify options name look-alikes by true labels; handoff claimed otherwise",
+    "status": "fixed",
+    "detail": "Decision: options are the person's own words for their things (household knowledge) and never map to handles, so they don't reveal which handle is which. DIALOGUE.md documents it and the PEOPLE-IO handoff's known-gap bullet is corrected."
+   },
+   {
+    "title": "P21 (low) agent docs inaccurate or cut sentences",
+    "status": "fixed",
+    "detail": "DIALOGUE.md (options, look-alike memory, channels, request subject), the LLM prompt (count scope optional, channels reach people away, options), ASK_DOC (default channel), and the listen doc (107 chars, whole in the 120-char catalog) corrected."
+   },
+   {
+    "title": "P22 (low) perception audit could not see these leaks",
+    "status": "fixed",
+    "detail": "tools/perception_audit.py: enrich() gives houses a request with a hidden target, prior look-alikes at a glance, and dark rooms with people. The walk asks about 'request' and about people present or not, reports to people who are away, and issues wait(until) on handles in or out of view, dark shapes and people. New checks in check_people_message and check_typed_people. Re-injecting old P1/P3 behaviour yields 2 dialogue and 130 memory leaks; the fixed tree gives 0 (G4 room and geometric)."
+   }
+  ],
+  "notes": "All 33 findings are fixed (11 time, 22 people), each with a regression test. The only exception is P20, a documented decision plus a docs correction. Every reviewer probe was re-run and its symptom is gone. Six fixes (P8, P10, T5, T6, T7, T10) were spot-checked: their tests fail with the old function monkeypatched back in (scratch mutation_check.py). The stage-C test files went from 233 to 274 tests, all green normal and strict.\n\nGate results:\n- Own mode is 241/242. The one failure is A-d9e7a4d5d112d2-01 seed 0, unchanged since TIME-EVAL's reviewed S-R1 row; its spec fix is TIME-EVAL request 1 in tasks/authored, outside these packages.\n- 0 verdict changes against C-MERGE in both modes.\n- The single failing test (counted once; it fails in both normal and strict runs) is the pre-existing test_eval_splits.py gitignore check.\n\nDeviations, all recorded in handoff section 11:\n- Geometric 'X leaves' is observable only for tracked people (T3).\n- The frozen Subject contract changed for request subjects: id is now the request record id (P1).\n- In a dark room, voice commands still refuse every typed id alike; remote channels name people plainly (P5).\n\nPerformance:\n- The until check costs 0.0181 ms in the gate (budget 0.02).\n- The geometric-camera until costs 0.027-0.029 ms per quiet substep thanks to the new camera.entity_view_now memo (0.35-0.46 ms before it).\n\nFollow-ups for the main session are in both handoffs:\n- domains move to wall time, then set clock.dst\n- the people visitor: answerer should use the expected list\n- design-doc wording for sweep 4.3, 4.5, 9 and 10.2\n- the legacy ask path still answers through a failed speaker\n- realistic obs.weather still shows numbers through a window\n\nFiles:\n- Handoffs: <home>/OneDrive/Desktop/house_ai/catalog/analysis/tier1/handoff_TIME-EVAL.md and handoff_PEOPLE-IO.md (section 11).\n- Gate record: <home>/OneDrive/Desktop/house_ai/catalog/analysis/tier1/gate/STAGE-C-FIX/.\n- Main code: house_sim/kernel/timeline.py, monitor.py, dialogue.py, realism.py, camera.py, tools/perception_audit.py.\n- New tests: the StageCFixTests classes in tests/test_timeline.py, test_phases.py, test_dialogue.py, test_requests_obs.py, plus additions in test_monitor.py, test_clock.py, test_mind.py, test_reports.py."
+ }
+}

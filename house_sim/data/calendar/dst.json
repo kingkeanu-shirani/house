@@ -1,0 +1,19 @@
+{
+ "format": "house-dst-v1",
+ "about": "Daylight saving time per region for kernel/clock.py (dst_active, wall; TIER1_SWEEP 11.1). Transitions are given in local STANDARD time, the clock the simulator keeps (state time_s counts standard-time seconds): the wall clock reads offset_h later from start (inclusive) to end (exclusive). A transition day is the nth weekday of a month (nth 1..5, or -1 for the last). null: the region keeps standard time all year.",
+ "regions": {
+  "us": {"source": "Energy Policy Act of 2005, s. 110 (15 U.S.C. 260a): second Sunday of March 02:00 to first Sunday of November 02:00 local time (01:00 standard)",
+         "offset_h": 1, "start": {"month": 3, "nth": 2, "weekday": "SU", "time": "02:00"},
+         "end": {"month": 11, "nth": 1, "weekday": "SU", "time": "01:00"}},
+  "ca": {"source": "Ontario Time Act (R.S.O. 1990, c. T.9), following the United States dates: second Sunday of March 02:00 to first Sunday of November 02:00 local time (01:00 standard)",
+         "offset_h": 1, "start": {"month": 3, "nth": 2, "weekday": "SU", "time": "02:00"},
+         "end": {"month": 11, "nth": 1, "weekday": "SU", "time": "01:00"}},
+  "uk": {"source": "Summer Time Act 1972 and Summer Time Order 2002 (EU Directive 2000/84/EC dates): last Sunday of March to last Sunday of October, 01:00 UTC (01:00 GMT)",
+         "offset_h": 1, "start": {"month": 3, "nth": -1, "weekday": "SU", "time": "01:00"},
+         "end": {"month": 10, "nth": -1, "weekday": "SU", "time": "01:00"}},
+  "eu": {"source": "Directive 2000/84/EC (Germany: Zeitgesetz): last Sunday of March to last Sunday of October, 01:00 UTC (02:00 CET standard time)",
+         "offset_h": 1, "start": {"month": 3, "nth": -1, "weekday": "SU", "time": "02:00"},
+         "end": {"month": 10, "nth": -1, "weekday": "SU", "time": "02:00"}},
+  "jp": null
+ }
+}

@@ -729,7 +729,8 @@ class PackagingTests(Isolated):
                      "reports/private_results/run1/viewer/T-x__test-abc__PRIVATE.html",
                      "reports/T-x__test-abc__PRIVATE.html", "reports/T-x__test-abc__PRIVATE.json"):
             self.assertTrue(gitignored(path, rules), path)
-        for path in ("reports/leaderboard.html", "reports/test_commitment.json", "demos/replays/T-x.json",
+        # demos/replays/ is ignored on purpose (about 3 MB per replay; regenerated with --demo), so it is not listed
+        for path in ("reports/leaderboard.html", "reports/test_commitment.json", "demos/manifest.json",
                      "house_sim/eval/splits.py", "house_sim/eval/viewer_template.html", "docs/SPLITS.md"):
             self.assertFalse(gitignored(path, rules), path)
 

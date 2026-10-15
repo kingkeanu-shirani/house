@@ -1,5 +1,5 @@
 {
-  "demonstrated_sections": 67,
+  "demonstrated_sections": 66,
   "total_sections": 105,
   "missing_sections": [
     "Dining",
@@ -33,6 +33,7 @@
     "Advanced Delicate Handling",
     "Resourcefulness and Optimization",
     "Security and Trust Delegation",
+    "Who's asking, and should I? (must-have)",
     "Feedback and recovery (must-have)",
     "Is it okay? (judging state)",
     "Improvising physical fixes",
@@ -810,18 +811,6 @@
         "success": true,
         "steps": 5,
         "time_s": 36.768,
-        "score": 1.0
-      }
-    },
-    {
-      "section": "Who's asking, and should I? (must-have)",
-      "catalog_id": "A-d9e7a4d5d112d2-01",
-      "seed": 701,
-      "replay": "demos/replays/A-d9e7a4d5d112d2-01.json",
-      "evaluation": {
-        "success": true,
-        "steps": 10,
-        "time_s": 61.849,
         "score": 1.0
       }
     },

@@ -70,6 +70,9 @@ DARK_WHO = "It is too dark to tell who is who here: turn on a light, or address 
 # the same with imaging off (the depth camera shows shapes only)
 BLIND_WHO = "With the cameras off it is too dark to tell who is who: address the shape you see"
 FAR_WHO = "You cannot tell who that is from here; get closer or address the shape you see"   # lit room, unidentified
+# a call, a text or an app message reaches a person by name: no need to see who is who (kernel v3.1 stage-C fix)
+REMOTE_CHANNELS = ("phone", "text", "app")
+UNNAMED_TEXT = "someone"            # a person's id in free text while the robot cannot tell who is who
 # hazard kinds of a lying agent (asleep and awake look the same: realistic observations show "lying"; fallen stays
 # person_down) and the postures that look like lying down
 AGENT_LYING_KINDS = ("sleeping", "person_down", "lying")
@@ -479,6 +482,12 @@ class Realism:
         self._geo_keyed = set()
         self._geo_infos = None
         self._geo_view = None
+        # the robot's memory (kernel v3.1, TIER1_SWEEP 7.2): a cognitive action (recall, diff, snapshot) of the step in
+        # progress shows every id whose handle was issued earlier, visible or not; the version counts knowledge
+        # changes (perception.perceived_ids keys its cache on it); requests: who the robot could tell gave each one
+        self._memory_out = False
+        self.version = 0
+        self._request_from = {}
 
     # ----- registry-driven tables ------------------------------------------------------------------------
     def groups(self):
@@ -1621,6 +1630,8 @@ class Realism:
         """Called by the engine before an action: remember what the robot holds (knowledge of things the robot
         itself carries or sets down survives the move) and drop any stray grants."""
         self.pending = []
+        self._memory_out = False
+        self._named_plain = set()       # people the command named over a remote channel (kept plain in its message)
         state = self.env.world.s
         self._held_before = {v for v in (state["robot"].get("hands") or {}).values() if v}
         self._ever.update(state["entities"])      # ids of things this step destroys still get translated
@@ -1659,6 +1670,7 @@ class Realism:
 
     def commit_grants(self, ok):
         grants, self.pending = self.pending, []
+        self.version += 1
         state = self.env.world.s
         if ok:
             held_now = {v for v in (state["robot"].get("hands") or {}).values() if v}
@@ -1696,6 +1708,31 @@ class Realism:
                 entry = self.knowledge.data.get(eid)
                 if entry is not None:
                     entry["fields"]["_contents"] = [INSPECT, _digest(sorted(self._children(state, eid)))]
+
+    def grant_prior(self, eid, record, level):
+        """Knowledge the robot brought into the episode (setup op prior_knowledge, TIER1_SWEEP 7.4): eid as `record`
+        showed it then, at `level` ("glance" / "inspect" / "read" / "touch" / "measure"), with the same field rule as
+        an action's grant. The signature is the record's of that moment, so it lapses as soon as the thing has moved."""
+        lvl = LEVELS.get(level, level) if isinstance(level, str) else int(level)
+        if not isinstance(lvl, int) or lvl <= GLANCE:
+            return
+        names = [f for f in record if not f.startswith("_") and self.tier(record, f) not in ("measure", "never")]
+        if lvl in (INSPECT, READ):
+            self.knowledge.grant(eid, record, INSPECT, [f for f in names if self.tier(record, f) != "read"])
+            if lvl == READ:
+                self.knowledge.grant(eid, record, READ, [f for f in names if self.tier(record, f) == "read"])
+            entry = self.knowledge.data.get(eid)
+            if entry is not None:
+                entry["level"] = max(entry.get("level", GLANCE), lvl)
+        else:
+            self.knowledge.grant(eid, record, lvl, None)
+        self.version += 1
+
+    def memory_output(self):
+        """The step in progress is a cognitive action reporting the robot's memory (recall, diff, snapshot): its
+        message names every thing whose handle was issued earlier, seen now or not (TIER1_SWEEP 7.2); things never
+        perceived stay "something"."""
+        self._memory_out = True
 
     # ----- translation -----------------------------------------------------------------------------------
     def _plain_ids(self, state):
@@ -1763,14 +1800,34 @@ class Realism:
         such a thing exists, unless it names a part of the command's own target (a slot "layer_2") -- so guessing ids
         neither works nor tells anything (the echo of the agent's own text is the same either way). Rooms, people and
         pets keep their ids, but in the dark a person or pet named by id is refused (DARK_WHO): the robot sees shapes,
-        addressed by their shape handle. The converted free-text arguments are remembered for outbound_message (the
-        agent's own words are never rewritten as if they were the domain's)."""
+        addressed by their shape handle. That holds for every parameter (about, subject, options, a predicate path...),
+        not only the person-typed ones: a typed id never comes back as a shape handle; in free text (text parameters)
+        such an id becomes "someone". A command over a remote channel (channel phone, text or app) names people as
+        they are -- a call needs no sight of who is who -- and its message keeps them plain. The converted free-text
+        arguments are remembered for outbound_message (the agent's own words are never rewritten as if they were the
+        domain's)."""
         state = self.env.world.s
         dark = self._dark_agents(state)
         agents = {a.lower() for group in ("people", "pets") for a in (state.get(group) or {})}
-        # who cannot be named by id: everyone while the robot's room is dark; in a lit room (geometric camera) the
-        # people and pets the camera could not identify
-        unnamed = agents if (self._last_view and self._last_view[1]) else {a.lower() for a in dark}
+        remote = str(raw.get("channel") or "").strip().lower() in REMOTE_CHANNELS
+        dark_room = bool(self._last_view and self._last_view[1])
+        # who cannot be named by id: while shapes share the robot's dark room everyone (present or not: a refusal
+        # must not tell who is there); in a lit room (geometric camera) the people and pets the camera could not
+        # identify; nobody over a remote channel
+        if remote or not dark:
+            unnamed = set()
+        else:
+            unnamed = agents if dark_room else {a.lower() for a in dark}
+        if remote:
+            self._named_plain = getattr(self, "_named_plain", set()) | {
+                a for group in ("people", "pets") for a in (state.get(group) or {})
+                if any(isinstance(v, str) and v.strip().lower() == a.lower() for v in raw.values())}
+
+        def who_refusal():
+            if not dark_room:
+                # a lit room: the geometric camera saw them too far, backlit or too dim to tell who it is
+                return ActionError(FAR_WHO, "perception")
+            return ActionError(DARK_WHO if body.imaging(state) else BLIND_WHO, "perception")
         public = {r.lower() for r in state.get("rooms", {})} | agents | {"robot"}
         lowered = getattr(self, "_lower_ids", None)
         if lowered is None or lowered[0] != (len(state["entities"]), len(self._ever)):
@@ -1781,16 +1838,13 @@ class Realism:
         stems = self._type_stems()
         names = set()             # names of parts of the command's own targets (slot "layer_2", key "burner_1")
 
-        def conv(value, entity_param=False):
+        def conv(value, entity_param=False, text_param=False):
             if isinstance(value, str):
                 low_value = value.strip().lower()
                 if HANDLE_RE.match(value.lower()):
                     return self._resolve_handle(value.lower(), state, dark)
-                if entity_param and dark and low_value in unnamed:
-                    if not (self._last_view and self._last_view[1]):
-                        # a lit room: the geometric camera saw them too far, backlit or too dim to tell who it is
-                        raise ActionError(FAR_WHO, "perception")
-                    raise ActionError(DARK_WHO if body.imaging(state) else BLIND_WHO, "perception")
+                if low_value in unnamed and not text_param:
+                    raise who_refusal()
                 if entity_param and low_value in entities and low_value not in public:
                     raise ActionError("That is not visible here", "perception")
 
@@ -1799,6 +1853,10 @@ class Realism:
                     low = word.lower()
                     if HANDLE_RE.match(low):
                         return self._resolve_handle(low, state, dark)
+                    if low in unnamed:
+                        if text_param:
+                            return UNNAMED_TEXT
+                        raise who_refusal()
                     if low in public:
                         return word
                     if low in entities or (low not in names and _typed_id(low, stems)):
@@ -1808,15 +1866,16 @@ class Realism:
                     return word
                 return TOKEN_RE.sub(tok, value)
             if isinstance(value, list):
-                return [conv(v, entity_param) for v in value]
+                return [conv(v, entity_param, text_param) for v in value]
             if isinstance(value, dict):
-                return {conv(k) if isinstance(k, str) else k: conv(v, entity_param) for k, v in value.items()}
+                return {conv(k, False, text_param) if isinstance(k, str) else k: conv(v, entity_param, text_param)
+                        for k, v in value.items()}
             return value
         out = {key: conv(value, True) for key, value in raw.items() if key in entity_keys}
         for value in out.values():
             if isinstance(value, str) and value in state["entities"]:
                 names |= _record_names(state["entities"][value]) - entities
-        out.update({key: conv(value, False) for key, value in raw.items() if key not in entity_keys})
+        out.update({key: conv(value, False, key in text_keys) for key, value in raw.items() if key not in entity_keys})
         out = {key: out[key] for key in raw}
         said = getattr(self, "_agent_said", None)
         if said is None:
@@ -1982,17 +2041,21 @@ class Realism:
         spans = [s for s in self._agent_text if s] if sub is not None else []
         span_re = re.compile("|".join(re.escape(s) for s in spans)) if spans else None
 
+        named_plain = getattr(self, "_named_plain", None) or ()
+
         def tok(m):
             word = m.group(0)
-            if word in dark:
+            if word in dark and word not in named_plain:
                 return dark[word]
-            if word in plain:
+            if word in plain or word in named_plain:
                 return word
             if word not in entities:
                 if word in ever or word in by_id:
                     # destroyed during the step (merged, consumed, pulled): its handle if issued, else "something"
                     return by_id.get(word) or ("something" if word not in involved else self.handles.handle(word))
                 return word
+            if self._memory_out and word in by_id:
+                return by_id[word]          # the robot's own memory names what it perceived before (TIER1_SWEEP 7.2)
             if word in involved or word in self.handles.by_id and perception.visible(state, word) or perception.visible(state, word):
                 return self.handles.handle(word)
             return "something"
@@ -2378,6 +2441,21 @@ class Realism:
         obs["holding"] = list(obs.get("holding", []))
         if geo and isinstance(obs.get("camera"), dict):
             obs["camera"] = self._camera_channel(obs["camera"])
+        if isinstance(obs.get("request"), dict):
+            obs["request"] = self.render_request(obs["request"], state)
+        if isinstance(obs.get("messages"), list):
+            # a request's own speech names its speaker as obs.request does ("unknown caller", "unfamiliar person", a
+            # shape handle): one decision for both
+            messages = []
+            for message in obs["messages"]:
+                if isinstance(message, dict) and message.get("request") is not None:
+                    decided = self.request_sender(message["request"], state)
+                    if decided is not None and decided.get("from") != message.get("speaker"):
+                        message = dict(message, speaker=decided.get("from"))
+                messages.append(message)
+            obs["messages"] = messages
+        if isinstance(obs.get("notices"), list):
+            obs["notices"] = [self._render_notice(n) for n in obs["notices"] if isinstance(n, dict)]
         # channels and messages: ids of things not perceived become 'something' (the camera and lidar blocks too)
         channels = {k: v for k, v in obs.items() if k not in ("visible_entities", "room", "connections", "robot", "holding",
                                                                "grid", "people", "pets", "room_id")}
@@ -2535,6 +2613,7 @@ class Realism:
         None)."""
         if view is None:
             return
+        self.version += 1
         state = self.env.world.s
         for eid in sorted(view.entities):
             info = view.entities[eid]
@@ -2568,9 +2647,108 @@ class Realism:
                     out.add(aid)
         return out
 
+    def perceived_room(self, state, base, dark):
+        """Room camera: the entity ids a realistic observation lists among `base` (the oracle-visible ids observe
+        would render; dark: the cameras give no colour view), applying observe's rules in its order: small things
+        missed from this viewpoint (and what they hold) drop out, an un-inspected mirror shows as an opening, not a
+        thing (for perception.perceived_ids, TIER1_INTEGRATION 1.12)."""
+        entities = state["entities"]
+        out, missed = set(), set()
+        own_ctx = self._room_ctx is None
+        if own_ctx:
+            self._room_ctx = self.room_context(state)
+        try:
+            for eid in sorted(base, key=lambda e: len(self._chain(state, e))):
+                record = entities.get(eid)
+                if record is None:
+                    continue
+                ctx = self.context(state, eid, record)
+                if record.get("location") in missed or (not dark and self.missed(state, eid, record, ctx)):
+                    missed.add(eid)
+                    continue
+                if (record.get("category") == "mirror" or record.get("reflective")) and not dark and \
+                        self.knowledge.entity_level(eid, record) < INSPECT:
+                    continue
+                out.add(eid)
+        finally:
+            if own_ctx:
+                self._room_ctx = None
+        return out
+
+    def render_request(self, request, state):
+        """obs.request as the robot can tell it (TIER1_SWEEP 10.2): "from" is the person when the robot can tell who
+        it is -- a household member or a person it knows (by face, or by voice in person or over the intercom), a
+        known contact on the phone or app -- the shape handle (or "person") while the robot's view of the speaker is
+        dark, "unfamiliar person" for a visitor it does not know, "unknown caller" for a stranger on the phone, "note"
+        for a written request (with the note's handle). A relayed request is said by the relayer: "from" is decided
+        for the relayer, and "claims_from" (the person the relayer says it comes from, as heard) stays as said.
+        Decided the first time the request is shown and kept."""
+        out = dict(request)
+        rid = str(out.get("id"))
+        decided = self._request_from.get(rid)
+        if decided is None:
+            decided = self._request_sender(out, state)
+            self._request_from[rid] = decided
+        out.update(decided)
+        return out
+
+    def request_sender(self, request_id, state):
+        """The sender decision of a request by its record id ({"from", "from_label"}, decided once, as obs.request
+        shows it), or None for an unknown request: the speaker of the request's own message in obs.messages."""
+        decided = self._request_from.get(str(request_id))
+        if decided is None:
+            record = next((r for r in state.get("requests") or () if isinstance(r, dict)
+                           and str(r.get("id")) == str(request_id)), None)
+            if record is None:
+                return None
+            from .perception import request_view
+            shown = request_view(dict(state, requests=[record], phase={}))
+            decided = self._request_sender(shown or record, state)
+            self._request_from[str(request_id)] = decided
+        return decided
+
+    def _request_sender(self, request, state):
+        pid = request.get("from")
+        channel = request.get("channel")
+        people = state.get("people") or {}
+        person = people.get(pid) if isinstance(pid, str) else None
+        if pid is None or person is None:
+            return {"from": pid, "from_label": request.get("from_label")}
+        known = str(person.get("role") or "adult") not in VISITOR_ROLES or \
+            bool(self.knowledge.data.get(pid, {}).get("level"))
+        label = person.get("label") or pid
+        if channel == "note":
+            note = request.get("note")
+            out = {"from": "note", "from_label": None}
+            if isinstance(note, str) and note in state.get("entities", {}):
+                out["note"] = self.handles.handle(note)
+            return out
+        if channel in ("phone", "app", "text"):
+            return {"from": pid, "from_label": label} if known else {"from": "unknown caller", "from_label": None}
+        dark = self._dark_now if self._dark_now is not None else self._dark_agents(state)
+        if pid in dark:
+            return {"from": dark[pid], "from_label": "person"}
+        robot_room = (state.get("robot") or {}).get("room")
+        if person.get("location") == robot_room and self.env.perception.seen_dark(state, robot_room):
+            return {"from": "person", "from_label": "person"}
+        if not known:
+            return {"from": "unfamiliar person", "from_label": "unfamiliar person"}
+        return {"from": pid, "from_label": label}
+
+    @staticmethod
+    def _render_notice(notice):
+        """A stored notice as the robot reads it: its time in whole seconds (the realistic clock)."""
+        out = dict(notice)
+        t = out.get("t")
+        if isinstance(t, float):
+            out["t"] = float(int(t + 0.5)) if t >= 0 else -float(int(-t + 0.5))
+        return out
+
     # ----- persistence -----------------------------------------------------------------------------------
     def dump(self):
         out = {"handles": self.handles.dump(), "knowledge": self.knowledge.dump()}
+        if self._request_from:
+            out["requests"] = copy.deepcopy(self._request_from)
         if self.gone:
             out["gone"] = copy.deepcopy(self.gone)
         if self._spell or self._last_view is not None:
@@ -2592,7 +2770,9 @@ class Realism:
         geo = (data or {}).get("geo") or {}
         self._geo_spell = {str(k): int(v) for k, v in (geo.get("spell") or {}).items()}
         self._geo_keyed = set(geo.get("keyed") or ())
+        self._request_from = copy.deepcopy((data or {}).get("requests") or {})
         self._ever = set(self.env.world.s["entities"]) | {e for e in self.handles.by_id if not e.startswith("shape:")} | set(self.gone)
+        self.version += 1
         self.invalidate()
 
 

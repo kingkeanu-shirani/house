@@ -18,6 +18,14 @@ robot); speech through a failed speaker is inaudible; set_speed fast is refused 
 robot that climbs them; the motion verbs time themselves from the walking speed (timing="speed", so careful speed
 slows them once).
 
+People and memory (kernel v3.1, docs/design/TIER1_SWEEP.md 4, 5, 7; docs/DIALOGUE.md): ask takes the canonical
+question form (about / aspect / detail / act / options / channel / language; kernel/dialogue.py) beside the legacy
+topic, whose answer path (legacy_answer) is unchanged; report takes typed kinds (finding / measurement / status /
+count / none_found with subject, issue, state, quantity, value, unit, scope, to, channel; kernel/reports.py) beside the
+legacy target / field / value form, whose store is unchanged; recall reads the robot's Mind (map, seen:, snap:) as
+well as its stored memories; snapshot and diff keep their scenes in the Mind; the realistic messages of these memory
+actions name every thing whose handle was issued before (kernel/mind.py, realism.memory_output).
+
 Domain modules refine these with @before/@after hooks rather than replacing them.
 """
 import copy
@@ -25,7 +33,8 @@ import json
 import math
 import re
 
-from ..kernel import body, camera, geometry, physics
+from ..kernel import body, camera, dialogue, geometry, physics, reports
+from ..kernel import mind as mind_mod
 from ..kernel.actions import action, require_access
 from ..kernel.phys import contain, impact, lawbook, liquids, support
 from ..kernel.errors import ActionError, require
@@ -711,10 +720,30 @@ def read(ctx):
     return json.dumps(text, sort_keys=True)
 
 
-@action("report", params={"target": "target", "field": "str", "value": "any", "to": "?person"}, duration=2.0,
-        energy=0.0, category="communication", stopped_ok=True,
-        doc="Report an observed fact about an inspected entity, optionally to a person present.")
+REPORT_TYPED = ("kind", "subject", "issue", "severity", "quantity", "unit", "state", "of", "scope", "location", "channel",
+                "detail")
+REPORT_DOC = ("Report (kind finding/measurement/status/count/none_found; subject; issue/state/quantity+value+unit; "
+              "to+channel). A finding needs subject and issue (severity optional); measurement subject, value, unit "
+              "(quantity optional); status subject and state; count of, value, scope; none_found issue or of, and scope. "
+              "subject: a handle (or a list), room, person, pet or house. to: a person or household; channel: in_person "
+              "(default, they must be here), phone, text, intercom, note (hold a note or stand at a whiteboard) or app. "
+              "Words are matched to a vocabulary (synonyms allowed); an unknown word is kept and suggestions are "
+              "listed. Legacy form: target (an inspected entity), field, value, to.")
+
+
+@action("report", params={"target": "?target", "field": "?str", "value": "?any", "to": "?person",
+                          "kind": "?str:" + "|".join(reports.KINDS), "subject": "?any", "issue": "?str",
+                          "severity": "?str", "quantity": "?str", "unit": "?str", "state": "?str", "of": "?str",
+                          "scope": "?any", "location": "?room", "channel": "?str:" + "|".join(reports.CHANNELS),
+                          "detail": "?text"},
+        duration=2.0, energy=0.0, category="communication", stopped_ok=True, doc=REPORT_DOC)
 def report(ctx):
+    if ctx.args.get("kind") is not None:
+        return _typed_report(ctx)
+    for key in ("target", "field", "value"):            # the legacy form's required parameters, in their old order
+        require(key in ctx.args, "report requires " + key, "argument")
+    extra = [k for k in REPORT_TYPED if ctx.args.get(k) not in (None, "", [])]
+    require(not extra, "Give kind for a typed report (or use target, field and value alone)", "argument")
     w, target, field = ctx.w, ctx.args["target"], ctx.args["field"]
     require(FIELD_RE.match(field) and not field.startswith("_") and "secret" not in field, "Unsupported report field", "argument")
     inspected = w.s.get("facts", {}).get("inspected", {})
@@ -728,6 +757,44 @@ def report(ctx):
         reports[target].setdefault("_to", {})[field] = to
     w.emit("report", target=target, field=field, to=to)
     return "Reported {}.{}".format(target, field)
+
+
+def _typed_report(ctx):
+    """A typed report (kernel/reports.py): normalized, checked (the subject must be known to the robot, the recipients
+    reachable over the channel), delivered and logged in report_log. The message says how the report was understood
+    and delivered, never whether it is right."""
+    args = ctx.args
+    require(not any(args.get(k) not in (None, "") for k in ("target", "field")),
+            "Use either kind/subject or target/field", "argument")
+    rec = reports.normalize(args, ctx.w.s)
+    out = reports.record(ctx, rec)
+    # domains' report hooks judge the legacy target / field / value: a typed report gives them nothing to judge
+    for key in ("target", "field"):
+        args[key] = None
+    args.setdefault("value", None)
+    first = out["records"][0] if out["records"] else {}
+    message = {"reported": rec["kind"], "records": len(out["records"]),
+               "subject": [r["subject"]["id"] for r in out["records"] if r.get("subject")]}
+    for key in ("issue", "severity", "state", "quantity", "unit", "value", "of"):
+        if first.get(key) is not None:
+            message[key] = first[key]
+    if first.get("scope"):
+        message["scope"] = first["scope"]["id"]
+    if rec.get("to"):
+        message["to"] = list(first.get("to") or rec["to"])
+        message["channel"] = out["channel"]
+    if out["note"] is not None:
+        message["written_on"] = out["note"]
+    if rec.get("issue_raw") is not None:
+        message["unclassified"] = "{!r} is not a known issue word".format(rec["issue_raw"])
+    if rec.get("state_raw") is not None:
+        message["unclassified"] = "{!r} is not a known state word".format(rec["state_raw"])
+    if rec.get("severity_raw") is not None:
+        message["severity_unclassified"] = "{!r} is not a severity (none, minor, moderate, major, critical)".format(
+            rec["severity_raw"])
+    if out["suggest"]:
+        message["suggest"] = out["suggest"]
+    return json.dumps(message, sort_keys=True)
 
 
 # ----------------------------------------------------------------------
@@ -1740,34 +1807,43 @@ def addressed_to_robot(message):
     return message.get("to") == "robot" or bool(message.get("addressed_robot"))
 
 
+LISTEN_NOTICES = 10
+
+
 @action("listen", duration=2.0, energy=0.0, category="perception", stopped_ok=True,
-        doc="Listen for speech and sounds; returns recent messages addressed to or heard by the robot. Needs the "
-            "microphones; in privacy mode only speech addressed to the robot is heard.")
+        doc="Listen: recent speech and the notices the robot perceived (privacy mode: speech only when addressed to it).")
 def listen(ctx):
     w = ctx.w
     hearing = ctx.require_hearing()         # "none" refuses; "addressed": the wake word only (1.3)
     heard = [m for m in w.s.get("messages", []) if m.get("speaker") != "robot" and (m.get("room") == w.robot["room"] or m.get("loud"))
              and (hearing == "full" or addressed_to_robot(m))][-5:]
+    # the notices the robot perceived, as they are: state["notices"] stores only what it perceived, under the hearing
+    # it had then (kernel/timeline.py robot_perceives: privacy mode keeps addressed speech, other sounds and alarms)
+    notices = [copy.deepcopy(n) for n in (w.s.get("notices") or []) if isinstance(n, dict)][-LISTEN_NOTICES:]
+    if notices:
+        return json.dumps({"messages": heard, "notices": notices}, sort_keys=True)
     return json.dumps(heard if heard else "No new message", sort_keys=True)
 
 
-@action("ask", params={"target": "person", "topic": "?str", "destination": "?str", "question": "?text"}, duration=4.0,
-        energy=0.0, category="communication", stopped_ok=True,
-        doc="Ask a present person a question. topic 'permission:<scope>' requests approval (e.g. permission:pick_up:knife_1, permission:enter:bedroom_1); other topics query the simulated resident.")
-def ask(ctx):
+ASK_DOC = ("Ask a person (aspect: which/owner/where/preference/amount/when/ok/keep/intended/why/how/status/who; "
+           "about: handle/word). detail names a preference slot or what you mean; act the verb of an ok question (a "
+           "permission: ok + act pick_up about a handle); options candidate handles or words (for which; for other "
+           "aspects they narrow a word naming several things); aspect said checks a quoted claim (about the person "
+           "quoted, detail the claim); aspect help + act step_aside asks them to move. about may also be a room, "
+           "person or pet id, it (the last subject), request or house. channel voice, phone, text or written (default: "
+           "voice in the same room, else phone when they have one; phone and text reach people away from home); "
+           "language (default en). A person may ask back which one you mean. Legacy: topic (e.g. "
+           "permission:<action>:<handle>).")
+ASK_CANONICAL = ("about", "aspect", "detail", "act", "options", "channel", "language")
+
+
+def legacy_answer(ctx, pid, topic):
+    """The answer to a legacy topic, exactly as ask has always produced it: the domain answerer with the longest
+    matching prefix, else a permission:<scope> request (granted by an adult with that permission), else the exact
+    user_simulator answers / by_person keys (counted necessary or unnecessary), else "I have no additional information
+    about that." (counted unnecessary). Canonical questions reach it through the dialogue routes."""
     w = ctx.w
-    pid = ctx.args["target"]
-    topic = ctx.args.get("topic") or ctx.args.get("destination")
-    require(topic, "Name a topic", "argument")
-    # the answer has to be heard: refused with the microphones off or failed; an answer is speech addressed to the
-    # robot, so privacy mode still hears it (TIER1_INTEGRATION 1.3)
-    ctx.require_hearing(addressed_ok=True)
-    people = w.s.get("people", {})
-    reachable = pid in people and (people[pid].get("location") == w.robot["room"] or
-                                    (w.robot.get("network", True) and people[pid].get("reachable_by_phone")))
-    require(reachable, "That person is not available here")
-    person = people[pid]
-    require(person.get("awake", True), "They are asleep", "social")
+    person = w.s.get("people", {})[pid]
     answer = None
     for prefix in sorted(ANSWERERS, key=len, reverse=True):
         if topic.startswith(prefix):
@@ -1792,6 +1868,32 @@ def ask(ctx):
         else:
             w.stat("unnecessary_questions")
             answer = {"topic": topic, "value": "I have no additional information about that.", "by": pid}
+    return answer
+
+
+@action("ask", params={"target": "person", "topic": "?str", "destination": "?str", "question": "?text",
+                       "about": "?any", "aspect": "?str", "detail": "?str", "act": "?str", "options": "?list",
+                       "channel": "?str:" + "|".join(dialogue.CHANNELS), "language": "?str"},
+        duration=4.0, energy=0.0, category="communication", stopped_ok=True, doc=ASK_DOC)
+def ask(ctx):
+    w = ctx.w
+    pid = ctx.args["target"]
+    topic = ctx.args.get("topic") or ctx.args.get("destination")
+    canonical = any(ctx.args.get(k) not in (None, "", []) for k in ASK_CANONICAL)
+    if canonical:
+        require(not topic, "Use either topic or about/aspect", "argument")
+        return json.dumps(dialogue.answer(ctx, ctx.args), sort_keys=True)
+    require(topic, "Name a topic, or ask with an aspect and what it is about", "argument")
+    # the answer has to be heard: refused with the microphones off or failed; an answer is speech addressed to the
+    # robot, so privacy mode still hears it (TIER1_INTEGRATION 1.3)
+    ctx.require_hearing(addressed_ok=True)
+    people = w.s.get("people", {})
+    reachable = pid in people and (people[pid].get("location") == w.robot["room"] or
+                                    (w.robot.get("network", True) and people[pid].get("reachable_by_phone")))
+    require(reachable, "That person is not available here")
+    person = people[pid]
+    require(person.get("awake", True), "They are asleep", "social")
+    answer = legacy_answer(ctx, pid, topic)
     facts = w.sec("facts")
     facts.setdefault("asked", {})[pid + ":" + topic] = w.s["time_s"]
     facts["last_answer"] = answer
@@ -1863,12 +1965,66 @@ def forget(ctx):
     return "Forgot " + ctx.args["target"]
 
 
+RECALL_DOC = ("Recall memories: prefix, map (known rooms), seen:<handle> (last seen where/when, may be stale), snap: "
+              "(snapshots). A prefix lists stored memories with when they were stored; map lists the rooms the robot "
+              "knows with their exits and when it was last there; seen: lists every last-seen belief, seen:<handle> "
+              "one, seen:room:<room> those of a room (stale unless in view now); snap: lists snapshot names.")
+MIND_FORMS = ("map", "seen", "seen:", "snap", "snap:", "snapshots")
+
+
+def _mind(ctx):
+    """The robot's Mind (the engine keeps one per episode: Mind.from_config at reset, mind.update every step)."""
+    mind = mind_mod.of(ctx.env)
+    require(mind is not None, "The robot keeps no memory in this environment", "capability")
+    return mind
+
+
+def _stored(state, mind, entry):
+    t = entry.get("time_s") if isinstance(entry, dict) else None
+    if t == -1:
+        t = None                        # the memory setup op's "known before the episode"
+    return {"value": copy.deepcopy(entry.get("value") if isinstance(entry, dict) else entry),
+            "stored": mind_mod._when(mind.start, state.get("time_s", 0.0), t), "stored_s": t}
+
+
+def _round_s(value):
+    return float(int(value + 0.5)) if value >= 0 else -float(int(-value + 0.5))
+
+
+def _whole_seconds(value, depth=0):
+    """Realistic perception: the times ("..._s" keys) in a memory message read whole seconds, as the robot's clock."""
+    if depth > 6:
+        return value
+    if isinstance(value, dict):
+        return {k: _round_s(v) if isinstance(v, float) and isinstance(k, str) and k.endswith("_s")
+                else _whole_seconds(v, depth + 1) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_whole_seconds(v, depth + 1) for v in value]
+    return value
+
+
 @action("recall", params={"target": "?str"}, duration=1.0, energy=0.0, category="cognitive", stopped_ok=True,
-        doc="List stored memories (optionally with a key prefix).")
+        doc=RECALL_DOC)
 def recall(ctx):
     prefix = ctx.args.get("target") or ""
-    memory = ctx.w.s.get("memory", {})
-    return json.dumps({k: v.get("value") if isinstance(v, dict) else v for k, v in sorted(memory.items()) if k.startswith(prefix)}, sort_keys=True, default=str)
+    state = ctx.w.s
+    if ctx.realistic:
+        ctx.env.realism.memory_output()             # the robot's own memory: issued handles, seen now or not
+    memory = state.get("memory", {})
+    mind = _mind(ctx)
+    if prefix in MIND_FORMS or prefix.startswith(("seen:", "snap:")):
+        out = mind.recall(prefix)
+        stored = {k: _stored(state, mind, v) for k, v in sorted(memory.items()) if k.startswith(prefix)
+                  and prefix.startswith("seen")}
+        if stored:
+            out = dict(out or {})
+            out["memories"] = stored
+        out = out if out is not None else {}
+    else:
+        out = {k: _stored(state, mind, v) for k, v in sorted(memory.items()) if k.startswith(prefix)}
+    if ctx.realistic:
+        out = _whole_seconds(out)
+    return json.dumps(out, sort_keys=True, default=str)
 
 
 @action("undo", duration=lambda ctx: ctx.data.get("seconds", 1.0), category="control",
@@ -1890,27 +2046,18 @@ def undo(ctx):
         doc="Remember how the visible scene looks now under a name (for 'put it back exactly how it was').")
 def snapshot(ctx):
     name = ctx.args["target"]
-    obs = ctx.env.observe()
-    ctx.env._snapshots[name] = {"room": obs["room_id"], "time_s": ctx.w.s["time_s"],
-                                "entities": {eid: {k: v.get(k) for k in ("location", "relation", "spos", "pos", "shelf", "orientation", "open", "on")}
-                                             for eid, v in obs["visible_entities"].items()}}
+    if ctx.realistic:
+        ctx.env.realism.memory_output()
+    _mind(ctx).snapshot(name, ctx.env)
     return "Snapshot " + name
 
 
 @action("diff", params={"target": "str"}, duration=2.0, energy=0.0, category="cognitive", stopped_ok=True,
-        doc="Compare the visible scene with a named snapshot.")
+        doc="Compare the visible scene with a named snapshot (one you took, or one the robot remembers).")
 def diff(ctx):
     name = ctx.args["target"]
-    require(name in ctx.env._snapshots, "No such snapshot")
-    snap = ctx.env._snapshots[name]
-    obs = ctx.env.observe()
-    now = {eid: {k: v.get(k) for k in ("location", "relation", "spos", "pos", "shelf", "orientation", "open", "on")}
-           for eid, v in obs["visible_entities"].items()}
-    changes = []
-    for eid in sorted(set(snap["entities"]) | set(now)):
-        if obs["room_id"] != snap["room"] and eid not in now:
-            continue
-        before, after = snap["entities"].get(eid), now.get(eid)
-        if before != after:
-            changes.append({"entity": eid, "before": before, "after": after})
-    return json.dumps(changes, sort_keys=True)
+    if ctx.realistic:
+        ctx.env.realism.memory_output()
+    mind = _mind(ctx)
+    require(name in mind.snapshots, "No such snapshot")
+    return json.dumps(mind.diff(name, ctx.env), sort_keys=True)

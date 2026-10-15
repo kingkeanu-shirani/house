@@ -11,6 +11,14 @@ emits the harness-level {"action": "done"}, the task's step budget (or --max-ste
 harness cap (wall clock, tokens, cost) ends the episode. Success is the environment's evaluation at that end AND a
 declared done (require_done; so achieving the goal and then undoing it fails). The agent only ever receives the
 instruction, observations and {"ok", "message", "category"} of its previous step.
+
+Multi-phase tasks (kernel v3.1, TIER1_SWEEP 9; docs/EVAL_CONTRACTS.md): a "done" while a phase is active ends that
+phase (env.phase_done(): it is scored, its gap runs and the next phase starts) and, when another phase follows, the
+episode continues: the agent's optional hook on_request(request) receives the new request (the observation's
+"request", else {"text": instruction}) and its next act() the new observation, whose "instruction" is the new phase's.
+The same hook is called when the environment starts a phase by itself (a phase that ends on time, on a condition or
+on its budget). The log records each phase end as a step {"phase_done": true, "phase", "next_phase"}; replay_log
+replays it in order. Records carry "phases": [{id, success, steps, time_s, end_reason}] (None for single-phase tasks).
 """
 import argparse
 import copy
@@ -45,7 +53,7 @@ NON_HARM_LABELS = {"budget", "too_many_unnecessary_questions", "missing_necessar
 RECORD_KEYS = ("catalog_id", "split", "seed_tag", "agent", "privileged", "success", "goal_fraction", "failures", "harm_flags",
                "side_effects", "blocks", "invalid_steps", "questions", "steps", "sim_time_s", "wall_s", "tokens", "cost_usd",
                "done_declared", "end_reason", "log", "spec_hash", "perception", "camera", "kind", "section", "domain",
-               "risk_level", "fidelity")
+               "risk_level", "fidelity", "phases")
 CAMERA_MODES = ("room", "geometric")
 
 
@@ -452,7 +460,8 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
               "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0, "done_declared": False, "end_reason": None, "log": None,
               "spec_hash": spec_hash(raw_spec), "perception": mode, "camera": camera, "kind": rec.get("kind"),
               "section": rec.get("section"),
-              "domain": rec.get("domain"), "risk_level": raw_spec.get("risk_level"), "fidelity": raw_spec.get("fidelity")}
+              "domain": rec.get("domain"), "risk_level": raw_spec.get("risk_level"), "fidelity": raw_spec.get("fidelity"),
+              "phases": None}
     log = {"format": "house-harness-log-v1", "harness_version": HARNESS_VERSION, "run_id": run_id, "catalog_id": cid, "split": split,
            "seed_tag": tag, "spec_hash": record["spec_hash"], "perception": mode, "camera": camera, "agent": record["agent"],
            "privileged": record["privileged"], "require_done": bool(caps["require_done"]), "caps": _jsonable(caps),
@@ -548,10 +557,26 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
             break
         t_agent = time.monotonic() - t0
         step_usage = _usage_delta(agent.usage(), before)
+        if is_done(command) and _phase_active(env):
+            # a multi-phase task: "done" ends the active phase; the episode goes on while another phase follows
+            ended = env._phases.active()["id"]
+            outcome = env.phase_done()
+            following = (outcome.get("phase") or {}).get("active")
+            steps.append({"i": n, "command": loggable_command(command, private), "done": True, "phase_done": True,
+                          "phase": ended, "next_phase": following, "t_agent_s": round(t_agent, 4), "usage": step_usage,
+                          "sim_time_s": env.world.s.get("time_s", 0.0)})
+            if following is not None or (outcome.get("phase") or {}).get("waiting"):
+                last = filter_result(outcome)
+                observation = outcome.get("observation") or env.observe()
+                if following is not None:
+                    _notify_request(agent, observation)
+                continue                # (waiting: a phase that starts on its own is still to come)
         if is_done(command):
             done = True
             end_reason = "done"
-            steps.append({"i": n + 1, "command": loggable_command(command, private), "done": True, "t_agent_s": round(t_agent, 4), "usage": step_usage})
+            if not (steps and steps[-1].get("phase_done") and steps[-1].get("next_phase") is None
+                    and not _phase_active(env)):
+                steps.append({"i": n + 1, "command": loggable_command(command, private), "done": True, "t_agent_s": round(t_agent, 4), "usage": step_usage})
             break
         if final:
             end_reason = "step_budget"
@@ -560,6 +585,7 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
             break
         sent, parse = normalize_command(command)
         t1 = time.monotonic()
+        phase_before = env._phases.active() if env._phases.phases else None
         try:
             result = env.step(**sent)
         except Exception as exc:  # noqa: BLE001  (simulator defect; run with HOUSE_SIM_SAFE=1 to turn these into refusals)
@@ -573,6 +599,8 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
         steps.append({"i": n, "command": loggable_command(command, private), "sent": sent, "parse": parse, "result": _jsonable(last),
                       "t_agent_s": round(t_agent, 4), "t_env_s": round(time.monotonic() - t1, 4),
                       "sim_time_s": env.world.s.get("time_s", 0.0), "usage": step_usage})
+        if env._phases.phases and env._phases.active() is not phase_before and env._phases.active() is not None:
+            _notify_request(agent, observation)     # the environment started the next phase itself
         consecutive_invalid = 0 if result.get("ok") else consecutive_invalid + 1
         if caps.get("max_consecutive_invalid") and consecutive_invalid >= int(caps["max_consecutive_invalid"]):
             end_reason = "invalid_limit"
@@ -594,7 +622,9 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
                   questions={"necessary": int(metrics.get("necessary_questions", 0)), "unnecessary": int(metrics.get("unnecessary_questions", 0))},
                   steps=int(evaluation.get("steps", n)), sim_time_s=float(evaluation.get("time_s", 0.0)),
                   tokens={"input": int(usage.get("input", 0) or 0), "output": int(usage.get("output", 0) or 0)},
-                  cost_usd=round(float(usage.get("cost_usd", 0.0) or 0.0), 6), done_declared=done, end_reason=end_reason)
+                  cost_usd=round(float(usage.get("cost_usd", 0.0) or 0.0), 6), done_declared=done, end_reason=end_reason,
+                  phases=[{k: phase.get(k) for k in ("id", "success", "steps", "time_s", "end_reason")}
+                          for phase in evaluation.get("phases") or []] or None)
     record["wall_s"] = round(time.monotonic() - wall0, 3)
     if split in ("dev", "train") and not private:
         record["seed"] = seed           # raw seeds only for public splits, never for test
@@ -611,6 +641,21 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
     extra["usage"] = dict(usage)
     _write_outputs(record, log, env, agent, out_dir, name, private, private_dir, run_id, save_replay)
     return record, extra
+
+
+def _phase_active(env):
+    phases = getattr(env, "_phases", None)
+    return phases is not None and bool(phases.phases) and phases.active() is not None
+
+
+def _notify_request(agent, observation):
+    """The agent's optional hook on_request(request): the new phase's request as the robot perceives it."""
+    hook = getattr(agent, "on_request", None)
+    if not callable(hook):
+        return
+    obs = observation if isinstance(observation, dict) else {}
+    request = obs.get("request") if isinstance(obs.get("request"), dict) else {"text": obs.get("instruction")}
+    hook(copy.deepcopy(request))
 
 
 def _accepts(fn, name):
@@ -707,7 +752,9 @@ def replay_log(log, spec, seed=None, phrasing=None, perception=None, camera=None
     env = HouseEnv(config, task, seed, perception=mode, camera=camera, trace=False, observe_on_step=True)
     env.observe()
     for step in log.get("steps", []):
-        if step.get("sent") is not None and "result" in step:
+        if step.get("phase_done"):
+            env.phase_done()
+        elif step.get("sent") is not None and "result" in step:
             env.step(**step["sent"])
     evaluation = env.evaluate()
     done = bool(log.get("done_declared"))

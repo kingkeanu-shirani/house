@@ -4,7 +4,9 @@ Decorators:
     @action(name, params=..., duration=..., ...)      new agent action (see ActionSpec)
     @before(action_name, order=100)                   guard: fn(ctx) may raise ActionError
     @after(action_name, order=100)                    effect: fn(ctx, result) runs after success
-    @system(name, order=100, max_dt=60)              tick: fn(w, dt, tick) each simulated substep
+    @system(name, order=100, max_dt=60, idle=None)   tick: fn(w, dt, tick) each simulated substep; idle: an exact
+                                                      probe fn(w) -> True when the system would change nothing this
+                                                      substep (the engine skips the call; kernel v3.1)
     @furnisher(name, order=100)                       fn(config, rng, opts, reg) during house generation
     @scenario_helper(name)                            fn(ctx, **args) -> dict of new bindings
     @skill(name)                                      reference skill: fn(runner, **args)
@@ -15,6 +17,7 @@ Decorators:
     @validator(name)                                  fn(config) raises ValueError for bad layouts
     @hook(event_name)                                 generic named hooks (e.g. "cycle_complete:washer")
 """
+import os
 from collections import defaultdict
 
 ACTIONS = {}
@@ -22,6 +25,9 @@ BEFORE = defaultdict(list)
 AFTER = defaultdict(list)
 SYSTEMS = []
 SYSTEM_PERIODS = {}
+SYSTEM_IDLE = {}        # system name -> fn(w) -> True when the system provably changes nothing this substep
+# HOUSE_SIM_IDLE_PROBES=0 turns the probes off (the probe test compares state digests with them on and off)
+IDLE_PROBES = [os.environ.get("HOUSE_SIM_IDLE_PROBES", "1") != "0"]
 FURNISHERS = []
 SCENARIO_HELPERS = {}
 SKILLS = {}
@@ -73,15 +79,25 @@ def after(action_name, order=100):
     return deco
 
 
-def system(name, order=100, max_dt=60.0, period=None):
+def system(name, order=100, max_dt=60.0, period=None, idle=None):
     """period: run at most once per `period` simulated seconds with dt = the time accumulated since
     the last run (the system must be correct for large dt, e.g. closed-form decay). Without a period
-    the system runs every substep, split into chunks of at most max_dt."""
+    the system runs every substep, split into chunks of at most max_dt.
+
+    idle (kernel v3.1, TIER1_SWEEP 6.7): fn(w) -> True when the system would change nothing this substep (no active
+    cycle, no wet entity, no running device). The engine then skips the call; a periodic system still accumulates
+    its time and, at a period boundary where it is idle, starts a new period as if it had run. A probe must be exact
+    (the same states with and without it) and cheaper than the system; it must not write anything."""
+    if idle is not None and not callable(idle):
+        raise TypeError("System {}: idle must be a callable fn(w) -> bool".format(name))
+
     def deco(fn):
         if any(s[1] == name for s in SYSTEMS):
             raise ValueError("System registered twice: " + name)
         if period:
             SYSTEM_PERIODS[name] = float(period)
+        if idle is not None:
+            SYSTEM_IDLE[name] = idle
         SYSTEMS.append((order, name, float(max_dt), fn))
         SYSTEMS.sort(key=lambda t: (t[0], t[1]))
         return fn

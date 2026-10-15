@@ -190,7 +190,10 @@ observation channels are re-ordered by handle the same way.
   failed, a room privacy policy) are shapes keyed by a handle that lasts one dark spell (`obs["people"]` /
   `obs["pets"]` keys, messages, `inspect`'s `agent`); naming any person or pet by id while the robot's room is dark is
   refused ("It is too dark to tell who is who here...", with the cameras off "With the cameras off it is too dark to
-  tell who is who..."); inspecting a shape in an unlit room gives only `label` "person"/"animal" and a note and records
+  tell who is who...") in every parameter -- `ask`'s about, a report's subject and to, options, a wait's or a standing
+  order's predicate path -- with the same words for someone there and someone elsewhere, so a typed id never comes
+  back as a shape handle; in free text (a `text` parameter) such an id becomes "someone"; a command over a remote
+  channel (`channel` phone, text or app) names people as they are and its reply keeps them plain; inspecting a shape in an unlit room gives only `label` "person"/"animal" and a note and records
   no inspection (with the cameras off `inspect` is refused before that: docs/ACTION_API.md "Robot body").
 * Route planning (core move/approach/walk_to with `avoid`) uses only the hazards the robot perceives: nothing in a
   dark room, anyone who looks like lying down (asleep or awake) for `sleeping`/`person_down`/`lying`, no seated
@@ -370,7 +373,7 @@ keeps only `pos`, `posture` and `hands`. Domain channels that still show exact s
 |---|---|
 | imaging off: privacy mode, `camera_on: false`, a failed camera, a room `privacy_policy` naming the room under `camera_off` (`when` "always", or "occupied" while a person is there) | the depth camera alone. Room mode applies the darkness rule to the whole room: things of 0.4 m and up are `"dark shape"` records, smaller ones are not listed, people and pets are shapes keyed per dark spell in realistic mode (naming one by id is refused: "With the cameras off it is too dark to tell who is who: address the shape you see"), no grid hazards, no weather through a window. What the robot holds stays visible; the room's map fixtures (non-portable furniture and fixtures standing in it, its doors) stay targetable by actions without being listed. `look`, `inspect`, `read` and `peek` are refused ("Cameras are off; turn privacy mode off to look closely", or "Camera fault: request help" for a failed camera: docs/ACTION_API.md "Robot body"). The geometric camera lists IR depth shapes (TIER1_CAMERA 9.3) and keeps the lidar |
 | powered down | only what the robot holds or wears is visible or targetable; no people, pets, hazards, weather, sounds, messages, lidar or observer channels. The map (room, exits, connections, blocked cells) and `obs.robot` stay; every action but `wait` is refused |
-| hearing "addressed": privacy mode, a `mic_off` policy | `obs.messages` keeps only speech addressed to the robot (`to == "robot"`, or marked `addressed_robot`); non-speech sounds stay; `listen` returns only that speech too, and `ask` still works (an answer is addressed speech) |
+| hearing "addressed": privacy mode, a `mic_off` policy | `obs.messages` keeps only speech addressed to the robot (`to == "robot"`, or marked `addressed_robot`); non-speech sounds stay, in `obs.sounds` and as notices (glass breaking, a crash, an alarm: the notice bus drops only speech to others); `listen` returns only that speech and the notices as perceived, and `ask` still works (an answer is addressed speech) |
 | hearing "none": `mic_on: false`, a failed microphone, powered down | `obs.messages` is empty and every sounds channel is dropped (`sounds`, `mechanism_sounds`, a channel's own `sounds` list); `listen` and `ask` are refused ("Microphone is off" / "Microphone fault: request help") |
 | a dirty or scratched lens | clarity = `camera_clean` capped by 1 - `lens_scratch` (`body.clarity`, the `sensors_view` clarity): below 0.4 small things (< 8 cm) and text are not seen in room mode, and realism's lens noise term uses it |
 
@@ -383,6 +386,62 @@ position while unlocalized, no latent fault anywhere (by its id) or in `obs.robo
 in an observer channel, and the sensor gates above. `--battery PCT --faults random` (also on `tools/fuzz.py`) starts
 the houses with an almost flat pack and random robot faults, so powered-down, deaf, blind and faulty robots are
 audited and fuzzed too.
+
+## People, requests and memory (kernel v3.1)
+
+docs/DIALOGUE.md is the reference; what perception does for it (TIER1_SWEEP 7, 10.2, 17; TIER1_INTEGRATION 1.12):
+
+* **What the robot perceived.** `perception.perceived_ids(env)` (`Perception.perceived_ids`) is the set of ids
+  `observe()` renders as themselves, cached per step: room camera -- the visible things observe lists (dark shapes
+  included; small map fixtures while the cameras are off are not), with realistic perception minus the small things
+  missed from this viewpoint (and what they hold) and un-inspected mirrors (they show as openings), plus the people
+  and pets of the room (none while powered down; with realistic perception none in the dark, where they are shapes);
+  geometric camera -- the step view's detections (realistic: after the detection band; people and pets only when
+  identified). The engine updates the robot's Mind from it once per step (after `realism.commit_grants`,
+  `camera.end_step` and `realism.note_step`), so beliefs are the same whether or not the agent observes, and with
+  realistic perception every perceived thing's handle is issued then.
+* **Memory messages keep issued handles.** The messages of `recall`, `diff` and `snapshot` name every thing whose
+  handle was issued before (perceived this episode or known from prior knowledge), in view or not; anything never
+  perceived stays "something"; times read whole seconds. Every other message keeps the rule of "Messages" above. At
+  reset the handles of every id in prior beliefs, prior snapshots and memory values are issued.
+* **Answers** (`ask`) are messages like any other: an entity id in a person's answer becomes a handle only when the
+  robot sees the thing now or named it; people speak in descriptions (`refers_to`, clarify `options`), never handles.
+  Report replies never say whether a report is right; an unknown word's suggestions are the same for every member of
+  a look-alike group.
+* **obs.request** (episodes with requests only) is the current request with `from` as the robot can tell it: the
+  person in person (a household member, or a visitor it knows), the dark-spell shape handle while its view of them is
+  dark, "unfamiliar person" for a visitor it does not know, the contact on the phone or app ("unknown caller" for a
+  stranger), "note" with the note's handle; decided the first time it is shown and saved with realism. A relayed
+  request is said by the relayer (`from`, decided for the relayer) and `claims_from` names who the relayer says it
+  comes from; `room` is shown only for a request spoken where the robot is (in person, overheard, intercom), never for
+  a phone, app, text or note request. The request's own speech in `obs.messages` names its speaker by the same
+  decision.
+  `obs.instruction` is the request's text. In a multi-phase episode the current request is the active phase's (between
+  phases, the phase that ended last); a phase that came without a request shows no `obs.request` and its own
+  instruction (`perception.current_request`, the record `env.request()` returns too).
+* **obs.notices** (when there are any) lists the notices stored during the current step -- only perceived notices are
+  stored (the notice bus, kernel/timeline.py) -- translated like a channel (a source the robot has no handle for is
+  "something"), with times in whole seconds; none while powered down. After `env.phase_done()` (which counts no step)
+  only the notices perceived since it was called (the next phase's request among them, as `addressed`).
+* **obs.weather** never shows the weather process's bookkeeping (`process`, `override_until_s`).
+* **Waits and standing orders** (kernel/timeline.py, TIME-EVAL) end or fire only on what the robot perceives now, per
+  referenced id: a thing's glance field while it is seen (not a dark shape; geometric: in the head camera's view at
+  the level the field needs), a person's location or posture while the robot can tell who it is (realistic: lit room;
+  geometric: identified in the view), "someone comes in / leaves" (a location compared with the robot's room) while
+  it watches its room, an alarm by its sound, the weather by the weather rule (never its bookkeeping; through a window
+  without the network only the condition word); a condition the robot cannot observe now is refused when issued.
+  Notices name their source only when the robot perceives it.
+
+`tools/perception_audit.py` exercises canonical questions, typed reports, recall, snapshot and diff on its walk (its
+houses run with the notice bus on and half its waits listen with `interrupt_on`) and checks them (leak kind `people`): no handle in clarify options or `refers_to`; no handle in a memory message that was
+neither issued before the step nor of a thing in view; report suggestions for an unresolved thing equal to the
+generic list; no notice while powered down, no audio notice while the robot hears nothing, no notice source handle
+that was never issued; no request naming a person who is a shape in the dark. Since the stage-C fix its houses also
+carry a request with a hidden target, prior knowledge of look-alikes seen at a glance and dark rooms with people, and
+it checks that an answer's `about` is the agent's own argument (never the request's target), that a recalled label is
+never the true name of a thing the robot cannot tell apart unless an observation showed it, that a person's id typed
+in the dark never comes back as a shape handle, and that no wait(until) is accepted on a thing not in view, on a dark
+shape's field or on a person in the dark.
 
 ## Not modeled
 

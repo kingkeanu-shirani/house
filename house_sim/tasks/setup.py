@@ -25,7 +25,7 @@ Each op is a dict with "op". Strings may reference earlier bindings as "{name}".
                                                     a robot fault at reset (at_s 0 / absent) or at at_s, ended at
                                                     until_s; choose draws one (binds f and f_id)
   event       {"op":"event","at_s":30,"changes":{...}} or {"effect":"start_rain","args":{...}}
-  user_sim    {"op":"user_sim","answers":{...},"by_person":{"resident_1":{...}},"intent":{...}}
+  user_sim    {"op":"user_sim","answers":{...},"by_person":{"resident_1":{...}},"intent":{...},"facts":[...]}
   weather / utilities / household / clock / metadata  {"op":"weather","condition":"rain",...}  (shallow update)
   memory      {"op":"memory","key":"preferred_location:mug","value":"cabinet_1"}
   approvals   {"op":"approvals","add":["touch:box_1"]}
@@ -34,6 +34,35 @@ Each op is a dict with "op". Strings may reference earlier bindings as "{name}".
   uniform     {"op":"uniform","var":"t","min":0.2,"max":0.9,"round":2}; bind {"op":"bind","var":"x","value":...}
   helper      {"op":"helper","name":"domain.helper","args":{...}}  -> registered @scenario_helper, returns bindings
   assert      {"op":"assert","pred":{...}}                          sanity check on the built config
+
+People, questions and memory (kernel v3.1, docs/design/TIER1_SWEEP.md 4.2, 7.4, 11.2, 16.4; docs/DIALOGUE.md):
+
+  facts       {"op":"facts","add":[{"id":"pillow_style","about":"{bed}" | "type:bed" | "kind:pillow" | "room:{r}" |
+               "person:{p}" | "pet:{p}" | "event:{e}" | "topic:guests" | "request" | "house","aspect":"preference",
+               "detail":"pillow_layout","value":{...},"said":"...","known_by":"adults","otherwise":"Ask Sam.",
+               "necessary":"not_known","observable_via":[{"entity":"{x}","field":"f","tier":"glance"}],
+               "aliases":[...],"grants":[...],"sets":{...},"reliability":1.0,"wrong_value":null}]}
+                                                                    appends validated facts to user_simulator.facts
+                                                                    (the user_sim op's "facts" key does the same)
+  prior_knowledge {"op":"prior_knowledge","map":"all" | ["{r}"],"seen":[{"entity":"{mug}","at":"-1d 18:40",
+               "level":"glance"}],"seen_rooms":{"rooms":["{k}"],"at":"-2h","level":"glance","min_size_m":0.15},
+               "snapshots":{"living_tidy":{"room":"{living}","at":"-1d"}},"memory":{"rule:x":{"value":true,"at":"-3d"}},
+               "import":<Mind dump>,"source":"setup"}
+                                                                    what the robot knew before the episode, as the
+                                                                    config stands when the op runs (later ops are the
+                                                                    changes it does not know about): the config section
+                                                                    prior_knowledge (kernel/mind.py Mind.from_config)
+                                                                    plus memory entries; "at" is negative seconds or a
+                                                                    clock.parse_when text before the start (default
+                                                                    "-1d"); level glance (a belief only), inspect or
+                                                                    read (realism knowledge of that moment, lapsing
+                                                                    once the thing has moved)
+  calendar    {"op":"calendar","events":[{"id":"ev_school","who":["child_1"],"kind":"school","title":"School",
+               "start":"2026-10-12T08:15","end":"2026-10-12T15:00","recurrence":{...},"status":"confirmed",
+               "hidden":{...},"visible_on":["wall_calendar"],"known_by":"adults"}],"sources":{"wall_calendar":"{eid}"}}
+                                                                    appends events to household.calendar (ids unique,
+                                                                    times ISO, recurrence keys checked); asking "when"
+                                                                    about an event is answered from it
 
 Physics (kernel v3.0, docs/design/TIER1_PHYSICS.md 7.5; docs/PHYSICS.md):
 
@@ -603,6 +632,8 @@ def op_event(ctx, op):
 
 def op_user_sim(ctx, op):
     sim = ctx.config.setdefault("user_simulator", {})
+    if "facts" in op:
+        _add_facts(ctx, op["facts"], "user_sim")
     for key in ("answers", "by_person", "intent"):
         if key in op:
             target = sim.setdefault(key, {})
@@ -612,8 +643,247 @@ def op_user_sim(ctx, op):
             else:
                 target.update(copy.deepcopy(op[key]))
     for key, value in op.items():
-        if key not in ("op", "answers", "by_person", "intent"):
+        if key not in ("op", "answers", "by_person", "intent", "facts"):
             sim[key] = copy.deepcopy(value)
+
+
+# ----- people, questions and memory (kernel v3.1) ---------------------------------------------------------------------
+
+def _add_facts(ctx, facts, where):
+    """Validate facts (dialogue.validate_fact) and append them to user_simulator.facts; a fact id used twice is an
+    error."""
+    from ..kernel import dialogue
+    if not isinstance(facts, list):
+        raise SpecError("{}: facts must be a list".format(where))
+    sim = ctx.config.setdefault("user_simulator", {})
+    current = sim.setdefault("facts", [])
+    ids = {f.get("id") for f in current if isinstance(f, dict)}
+    for i, fact in enumerate(facts):
+        problems = dialogue.validate_fact(fact, "{} fact {}".format(where, i))
+        if problems:
+            raise SpecError("; ".join(problems))
+        if fact["id"] in ids:
+            raise SpecError("{}: fact id {} is defined twice".format(where, fact["id"]))
+        ids.add(fact["id"])
+        current.append(copy.deepcopy(fact))
+
+
+def op_facts(ctx, op):
+    _add_facts(ctx, op.get("add"), "facts")
+
+
+PRIOR_LEVELS = ("glance", "inspect", "read")
+PRIOR_DEFAULT_AT = "-1d"
+
+
+def _prior_at(ctx, value):
+    """Seconds of a prior-knowledge time (before the episode start): a negative number or a clock.parse_when text
+    ("-1d 18:40", "-2h", "yesterday 18:40"); default one day before."""
+    from ..kernel import clock
+    state = {"clock": ctx.config.get("clock") or {}, "metadata": ctx.config.get("metadata") or {}, "time_s": 0.0}
+    try:
+        t = clock.parse_when(state, PRIOR_DEFAULT_AT if value is None else value)
+    except (TypeError, ValueError) as exc:
+        raise SpecError("prior_knowledge: {}".format(exc))
+    if t > 0:
+        raise SpecError("prior_knowledge: {!r} is after the episode start".format(value))
+    return float(t)
+
+
+def _prior_level(value):
+    level = value or "glance"
+    if level not in PRIOR_LEVELS:
+        raise SpecError("prior_knowledge: level must be one of " + ", ".join(PRIOR_LEVELS))
+    return level
+
+
+def _config_visible(state, eid, rid):
+    """Whether a robot standing in room rid (lit, cameras on) would have seen eid as the config stands: in that room,
+    not inside a closed opaque container or a closed slot, not concealed under or behind something unrevealed, not
+    inside something private (perception's containment rule)."""
+    from ..kernel.perception import Perception
+    entities = state["entities"]
+    record = entities.get(eid)
+    if record is None or root_room(state, eid) != rid:
+        return False
+    current = record
+    seen = {eid}
+    while True:
+        if current.get("relation") in ("under", "behind") and not current.get("revealed"):
+            return False
+        parent = current.get("location")
+        if parent not in entities or parent in seen:
+            break
+        seen.add(parent)
+        current = entities[parent]
+    view = dict(state, robot=dict(state.get("robot") or {}, room=rid, hands={}))
+    return Perception(None).contained(view, eid)
+
+
+def _belief(state, eid, t, level="glance"):
+    """A prior last-seen belief as the config stands now. label_seen is the oracle label (label, else the type in
+    words); "level" is the identity level the robot had then, from which Mind.from_config renders what a realistic
+    robot remembers (an unresolved look-alike seen at a glance is remembered by its group's descriptor)."""
+    from ..kernel import mind as mind_mod
+    record = state["entities"][eid]
+    belief = {k: copy.deepcopy(record.get(k)) for k in mind_mod.BELIEF_FIELDS}
+    belief.update(room=root_room(state, eid), seen_s=t, ident="identified",
+                  label_seen=record.get("label") or str(record.get("type") or "thing").replace("_", " "),
+                  level=level)
+    return belief
+
+
+def _max_dim(record):
+    size = record.get("size_m") or [0.1, 0.1, 0.1]
+    try:
+        return max(float(v) for v in size[:3])
+    except (TypeError, ValueError):
+        return 0.1
+
+
+def op_prior_knowledge(ctx, op):
+    """What the robot knew before the episode (TIER1_SWEEP 7.4): the known map, last-seen beliefs, snapshots and
+    memories, recorded from the config as it stands when the op runs, into the config section prior_knowledge
+    (consumed by Mind.from_config at reset) and memory."""
+    from ..kernel import mind as mind_mod
+    known = {"op", "at", "map", "seen", "seen_rooms", "snapshots", "memory", "import", "source"}
+    unknown = sorted(set(op) - known)
+    if unknown:
+        raise SpecError("prior_knowledge: unknown keys " + ", ".join(unknown))
+    config = ctx.config
+    state = ctx.state()
+    entities = config["entities"]
+    prior = config.setdefault("prior_knowledge", {})
+    for key in ("map", "seen", "snapshots", "records"):
+        prior.setdefault(key, {})
+    prior.setdefault("grants", [])
+    times = []
+    rooms_map = op.get("map")
+    if rooms_map is not None:
+        if rooms_map == "all":
+            rooms = sorted(config["rooms"])
+        elif isinstance(rooms_map, list):
+            rooms = [_resolve_room(ctx, r) for r in rooms_map]
+        else:
+            raise SpecError("prior_knowledge: map is \"all\" or a list of rooms")
+        t = _prior_at(ctx, op.get("at"))
+        times.append(t)
+        for rid in rooms:
+            prior["map"][rid] = mind_mod.map_entry(state, rid, t)
+
+    def note(eid, t, level):
+        prior["seen"][eid] = _belief(state, eid, t, level)
+        if level != "glance":
+            prior["grants"] = [g for g in prior["grants"] if g[0] != eid] + [[eid, level]]
+            prior["records"][eid] = {k: copy.deepcopy(v) for k, v in entities[eid].items()}
+        rid = prior["seen"][eid]["room"]
+        if rid in config["rooms"] and rid not in prior["map"]:
+            prior["map"][rid] = mind_mod.map_entry(state, rid, t)
+
+    for item in op.get("seen") or []:
+        if not isinstance(item, dict) or item.get("entity") not in entities:
+            raise SpecError("prior_knowledge: seen items need an existing entity")
+        t = _prior_at(ctx, item.get("at"))
+        times.append(t)
+        note(item["entity"], t, _prior_level(item.get("level")))
+    seen_rooms = op.get("seen_rooms")
+    if seen_rooms is not None:
+        if not isinstance(seen_rooms, dict) or not isinstance(seen_rooms.get("rooms"), list):
+            raise SpecError("prior_knowledge: seen_rooms needs a rooms list")
+        t = _prior_at(ctx, seen_rooms.get("at"))
+        times.append(t)
+        level = _prior_level(seen_rooms.get("level"))
+        smallest = float(seen_rooms.get("min_size_m", 0.15))
+        for rid in [_resolve_room(ctx, r) for r in seen_rooms["rooms"]]:
+            for eid in sorted(entities):
+                if _max_dim(entities[eid]) >= smallest and _config_visible(state, eid, rid):
+                    note(eid, t, level)
+    for name, spec in sorted((op.get("snapshots") or {}).items()):
+        if not isinstance(spec, dict) or not spec.get("room"):
+            raise SpecError("prior_knowledge: snapshot {} needs a room".format(name))
+        rid = _resolve_room(ctx, spec["room"])
+        t = _prior_at(ctx, spec.get("at"))
+        times.append(t)
+        scene = {eid: {k: copy.deepcopy(entities[eid].get(k)) for k in mind_mod.SNAPSHOT_FIELDS}
+                 for eid in sorted(entities) if _config_visible(state, eid, rid)}
+        prior["snapshots"][name] = {"room": rid, "time_s": t, "entities": scene}
+        if rid not in prior["map"]:
+            prior["map"][rid] = mind_mod.map_entry(state, rid, t)
+    memory = config.setdefault("memory", {}) if op.get("memory") else None
+    for key, spec in sorted((op.get("memory") or {}).items()):
+        if not isinstance(key, str) or not key:
+            raise SpecError("prior_knowledge: memory keys are text")
+        value, at = (spec.get("value"), spec.get("at")) if isinstance(spec, dict) and "value" in spec else (spec, None)
+        t = _prior_at(ctx, at)
+        times.append(t)
+        memory[key] = {"value": copy.deepcopy(value), "time_s": t, "scope": (spec.get("scope") if isinstance(spec, dict)
+                                                                          else None) or "household"}
+    if op.get("import") is not None:
+        if not isinstance(op["import"], dict):
+            raise SpecError("prior_knowledge: import is a Mind dump")
+        prior["import"] = copy.deepcopy(op["import"])
+    earlier = [prior.get("from_s")] if isinstance(prior.get("from_s"), (int, float)) else []
+    if times or earlier:
+        prior["from_s"] = min(times + earlier)
+    prior["source"] = op.get("source", prior.get("source", "setup"))
+
+
+CALENDAR_EVENT_KEYS = {"id", "who", "kind", "title", "start", "end", "location", "attributes", "hidden", "recurrence",
+                       "status", "visible_on", "known_by", "window", "notes"}
+RECURRENCE_KEYS = {"freq", "interval", "byday", "bymonthday", "until", "count", "except"}
+EVENT_STATUSES = ("confirmed", "tentative", "cancelled")
+
+
+def _iso(value, where):
+    import datetime
+    try:
+        text = str(value)
+        if len(text) == 10:
+            datetime.date.fromisoformat(text)
+        else:
+            datetime.datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        raise SpecError("calendar: {} must be an ISO date or date-time, not {!r}".format(where, value))
+
+
+def op_calendar(ctx, op):
+    """Append events to household.calendar (TIER1_SWEEP 11.2; the people domain owns their semantics) and merge the
+    sources (wall_calendar / whiteboard entity ids, app true)."""
+    household = ctx.config.setdefault("household", {})
+    calendar = household.setdefault("calendar", {})
+    events = calendar.setdefault("events", [])
+    ids = {e.get("id") for e in events if isinstance(e, dict)}
+    for i, event in enumerate(op.get("events") or []):
+        if not isinstance(event, dict) or not isinstance(event.get("id"), str) or not event["id"]:
+            raise SpecError("calendar: event {} needs an id".format(i))
+        unknown = sorted(set(event) - CALENDAR_EVENT_KEYS)
+        if unknown:
+            raise SpecError("calendar: event {} has unknown keys {}".format(event["id"], ", ".join(unknown)))
+        if event["id"] in ids:
+            raise SpecError("calendar: event id {} is defined twice".format(event["id"]))
+        if "start" not in event:
+            raise SpecError("calendar: event {} needs a start".format(event["id"]))
+        for key in ("start", "end"):
+            if key in event:
+                _iso(event[key], "{}.{}".format(event["id"], key))
+        if event.get("status", "confirmed") not in EVENT_STATUSES:
+            raise SpecError("calendar: event {} status must be one of {}".format(event["id"], ", ".join(EVENT_STATUSES)))
+        rec = event.get("recurrence")
+        if rec is not None:
+            if not isinstance(rec, dict) or set(rec) - RECURRENCE_KEYS or rec.get("freq") not in ("daily", "weekly", "monthly", "yearly"):
+                raise SpecError("calendar: event {} recurrence needs freq daily/weekly/monthly/yearly and only {}".format(
+                    event["id"], ", ".join(sorted(RECURRENCE_KEYS))))
+            if "until" in rec:
+                _iso(rec["until"], "{}.recurrence.until".format(event["id"]))
+        who = event.get("who", [])
+        if not isinstance(who, list):
+            raise SpecError("calendar: event {} who must be a list of person ids".format(event["id"]))
+        ids.add(event["id"])
+        events.append(copy.deepcopy(event))
+    sources = op.get("sources") or {}
+    if not isinstance(sources, dict):
+        raise SpecError("calendar: sources must be an object")
+    calendar.setdefault("sources", {}).update(copy.deepcopy(sources))
 
 
 def _section(name):
@@ -1314,7 +1584,8 @@ OPS = {"room": op_room, "find": op_find, "spawn": op_spawn, "set": op_set, "set_
        "lights": op_lights, "choose": op_choose, "randint": op_randint, "uniform": op_uniform, "bind": op_bind,
        "helper": op_helper, "assert": op_assert, "phys": op_phys, "load": op_load, "edge": op_edge,
        "stage": op_stage, "check_physics": op_check_physics, "camera": op_camera, "view": op_view,
-       "track_view": op_track_view, "view_watch": op_view_watch}
+       "track_view": op_track_view, "view_watch": op_view_watch, "facts": op_facts,
+       "prior_knowledge": op_prior_knowledge, "calendar": op_calendar}
 NEW_SPEC_SCHEMA = 3          # specs authored under tier 1: the physics lint is an error for them (TIER1_INTEGRATION 1.13)
 
 

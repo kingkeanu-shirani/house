@@ -803,8 +803,8 @@ today's room-wide visibility and stays the default everywhere, byte-identical in
 else `camera.default_mode(perception)` ("room" until the D3 switch-over); anything else is a ValueError
 (`camera.resolve_mode`). `env.camera_mode` is authoritative: `reset` installs (`camera.install`) or strips
 (`camera.strip`) the camera state before the episode starts. A state is geometric exactly when `robot.view` exists
-(`camera.mode(state)`). Realistic perception with the geometric camera raises NotImplementedError until CAM-RENDER
-(TIER1-STUB(CAM-RENDER) in `engine.py`). `env.action_names()` hides `camera.GEOMETRIC_ONLY` (`face`, `peek`; added by
+(`camera.mode(state)`). Realistic perception with the geometric camera works since CAM-RENDER (B3; it removed the
+guard that raised NotImplementedError before). `env.action_names()` hides `camera.GEOMETRIC_ONLY` (`face`, `peek`; added by
 CAM-ACTIONS) in room mode; `actions_fingerprint()` still covers them. `save` and `save_replay` record `"camera"`;
 `load` and `replay` pass it back.
 
@@ -1049,3 +1049,179 @@ What domains should adopt (TIER1_INTEGRATION 6, "Body"): never write `robot.batt
 (`body.spend_wh`, `body.swap_pack`, the `robot.battery` event); a verb that moves the robot calls `ctx.motion` (and
 `ctx.cut_motion` when it stops early); guard with `ctx.require_mobile` / `ctx.require_arm`; declare robot fields with
 `body.register_robot_field`; give loud verbs `noise_db`; read capacities and limits through the body.
+
+## v3.1 time and evaluation (tier 1 sweep, TIME-EVAL; docs/design/TIER1_SWEEP.md 6, 8, 9, 10.1, 11.1, 16)
+
+The sweep's kernel layer is split between two packages: TIME-EVAL (this section: waits, notices, standing orders,
+temporal evaluation, phases, requests in the state, the calendar clock, predicates, the spec / runner / verifier and
+the harness's phase loop) and PEOPLE-IO (questions, typed reports, the robot's memory, request and notice rendering
+in observations: docs/DIALOGUE.md). Generation-2 houses are GEN's (docs/GENERATOR.md). Specs opt in with
+`"schema": 3`; everything below is data-gated or opt-in, so schema-2 specs keep their states and verdicts (the one
+change for all specs: milestones are sampled inside waits, so they record their true time).
+
+**World** (`kernel/world.py`; transient, never saved, strict mode unaffected)
+
+```
+w.notice(kind, room=None, db=None, source=None, to_robot=False, remote=False, visual=False, text=None, data=None)
+        -> stored record | None       something perceivable happened; the timeline decides whether the robot
+                                      perceives it and stores it (list section "notices", cap 200) when the state has
+                                      that section, and hands it to a listening wait
+sp = w.savepoint(); w.rollback_to(sp); w.release(sp)
+                                      nested journal layers within a step: rollback_to restores exactly what changed
+                                      after sp (entities, sections, scalars, keyed records, quiet fields), truncates
+                                      the touch log to its length at sp (every consumer cursor clamped), restores the
+                                      physics scratch and the heard-notice buffer, increments mutation_count and ends
+                                      the savepoint; release keeps the changes (merged into the enclosing layer).
+                                      begin(), rollback() and commit() end all savepoints. Writes after a savepoint
+                                      go through the World API (a record fetched with mut() before it and written
+                                      after it is not seen)
+w._touched_sections, w._quiet_touched sections / scalars / keyed kinds and quietly written entity ids since the
+                                      monitor's last sample (the monitor clears them)
+world.LIST_SECTIONS                   + notices, order_log, report_log, dialogue_log, requests
+world.EMIT_NOTICES                    event-log kind -> fn(w, entry): battery_low / battery_reserve -> "battery",
+                                      fault_detected -> "fault" notices (the robot's own warnings)
+```
+
+**Timeline** (`kernel/timeline.py`)
+
+```
+perceivable(w, rule, realism=None, env=None) -> bool
+                                                what wait(until), watch and guards accept: every atomic condition is
+                                                one the robot observes now (observed() is not None), or a people / pets
+                                                location compared with the robot's own room while it watches the room
+                                                ("X comes in" is accepted while X is elsewhere); nothing while powered
+                                                down; env: default the World's own (timeline.start keeps a weak ref)
+observed(w, rule, realism=None, env=None) -> True | False | None
+                                                what the robot observes of a condition now, per referenced id
+                                                (TIER1_INTEGRATION 1.3): entity fields when entity_seen (remote_status
+                                                over the network, audible_status by ear, alarm_state == "alarm" by its
+                                                sound), people / pets location and posture when agent_seen, "X comes in
+                                                / leaves" also when the robot can tell X is not in its room (room
+                                                camera: it watches the room; geometric: X is tracked), weather by the
+                                                weather rule (never perception.WEATHER_HIDDEN or "_" keys; through a
+                                                window without the network, realistic: the condition word only),
+                                                time_s / clock always; all / any / not three-valued
+holds_perceived(w, rule, realism=None, env=None) -> bool
+                                                check(state, rule) and observed(...) is True: what ends a wait's until,
+                                                fires a standing order and passes a guard
+entity_seen(w, eid, realism=None, env=None, field=None) -> bool
+                                                held; room camera: visible, not a dark shape, realistic not missed
+                                                from this viewpoint; geometric: camera.acuity above a shape (realistic:
+                                                the detection band and realism.acuity_need)
+agent_seen(w, aid, realism=None, env=None, lit=False) -> bool
+                                                in the robot's room, not hiding; room camera: oracle always, realistic
+                                                lit with imaging; geometric: camera.agent_level_now above a shape
+                                                (realistic: "identify")
+source_perceived(w, source, env=None) -> bool   a notice names its source only then
+register_notice_kind(kind, doc, implies=(), db=None, visual=False)    NOTICE_KINDS; GROUPS = {"urgent": ...}
+robot_perceives(w, notice) -> dict | None       sweep 6.2: sound L = db - 6 per open hop - 20 per closed door on the
+                                                quietest path, heard at 40 dB (body.can_hear first; "addressed":
+                                                speech only when addressed to the robot, every other sound and alarm
+                                                stays; the hook robot_hears(state, notice)
+                                                -> bool | None replaces the propagation), words in the robot's room or
+                                                at 55 dB addressed to it; visual: the robot's room lit with imaging, or
+                                                camera.sees_event in geometric mode; remote: the robot's network
+post(w, notice, perceived=None); store(w, record); bus_on(state); active(w); derive_notices(env); start(env)
+fire_orders(env); run_auto_orders(env, idle_ctx) -> [order_log records]; IdleRun(env, label); WaitRun(env, plan)
+wait_message(waited, run, idle_ctx)             "Waited N s[ (until condition met)| (interrupted: <notice>)]
+                                                [ | noticed: ...][ | standing orders ran: ...]"
+```
+
+Actions (the action fingerprint changes): `wait(seconds, until=?, interrupt_on=?)` and `watch(condition, commands,
+persistent, mode="queue"|"auto", guard=?, max_runs=?, cooldown_s=?, expires_s=?)`; `cancel_watch` and `run_pending`
+are unchanged. A default `wait` and a queue-mode `watch` behave and write exactly as before (an order record gains
+keys only when the new parameters are used). Stored notice: `{"t", "step", "kind", "room" | "near" | "far" |
+"remote", "source" (when perceived now), "text" (heard words), "data"}`. Order log (list section `order_log`, cap
+300): `{"t", "order", "cmd", "action", "ok", "message", "category"}`; refusals count `stats.order_refusals`, never
+`stats.invalid`. Kernel-derived notices: `speech` / `addressed` (new heard messages), `person_enters` /
+`person_leaves` / `pet_enters` (named by their source only when the robot saw who it was: agent_seen per id, so a
+person behind the geometric camera or a shape in the dark is heard without a source), `alarm` (the kernel's bridge
+until the domains post their own: an entity that starts sounding -- `alarm_state` alarm / testing, the T3 / T4
+`alarm_pattern`, `beeping` -- at its `alarm_db`, default 95 dB at 1 m, over a static index of alarm-capable
+entities), `order`, `battery`, `fault` (a phase's request posted at its start is heard as `addressed` at that
+boundary; the episode's first request is `obs.request`, not a notice); speech notices carry no speaker id beyond a
+perceived `source`; physics consequences
+post their sound
+(`phys/observe.py`: `crash`, `glass_breaking`, `splash`, `thud`, `clatter`, `scrape`, `creak` at 45 / 60 / 80 dB
+for faint / noticeable / loud) and the geometric camera its seen visual events (`visual`). Domains post their own
+(`doorbell`, `knock`, `alarm`, `phone`, `crying`, `call_for_help`, `appliance_done`, `device`, ...) with `w.notice`.
+Auto orders: at most 500 commands per step and simulated hour of an idle advance (`order_budget` is logged once per
+window; a paused firing resumes at its next command, order key `resume`); an order due when a listening wait ends
+(its `order` notice may be what ended it) runs before the agent gets control back; the wait's note lists at most 10
+commands ("(+N more)").
+
+**Engine** (`kernel/engine.py`; the order of TIER1_INTEGRATION 1.9)
+
+```
+step: ... settle("action") -> monitor.sample("action", at=start + the step's seconds; a wait: its start) -> message
+      ... -> _advance(seconds, wait=WaitRun | None,
+      idle=IdleRun | None) -> commit_grants -> camera.end_step -> note_step -> mind.update -> monitor.sample("end")
+      -> phases.tick(end_of_step) (then the gap and the next phase, and the end of step again) -> evaluate
+_advance, per substep: time -> systems (skipping those whose idle probe is true) -> events -> settle("substep") ->
+      fire_orders -> derive_notices -> monitor.sample("substep") -> phases.tick -> the wait's check (may end the
+      advance) -> due auto orders (idle advances only; per command: savepoint, perform, settle("action"),
+      release / rollback_to, monitor.sample("order"), then its seconds advanced as "covered" time counted against the
+      wait) -> trim_touched
+env.phase_done() -> {"ok", "message", "phase": {"ended", "active"}, "observation"}   (no step is counted; recorded in
+      the history and replayed; its observation lists only the notices perceived since it was called: the mark
+      state.phase.notice_mark)
+env.request() -> the current request record (perception.current_request, the record obs.request shows; r0 for a
+      task or phase without one); env.mind (PEOPLE-IO's Mind, kernel/mind.py: started at reset and rebuilt with the
+      Realism on replay); env._monitor; env._phases
+```
+
+`@system(name, ..., idle=fn)` (`kernel/plugins.py`): `fn(w) -> True` when the system would change nothing this
+substep; the engine skips the call (a periodic system keeps its schedule). Probes must be exact and write nothing
+(`HOUSE_SIM_IDLE_PROBES=0` turns them off for comparisons). Kernel probes: `physics.environment` (wind and rain
+deferred, or calm and dry), `physics.processes` (nothing queued due, no active process), `camera.watch` (room mode).
+Domains add theirs in the adoption round; `tools/bench_systems.py --day` reports per-system ms per quiet day.
+
+**Monitor** (`kernel/monitor.py`): `Monitor(task)` with `sample(env, point, at=None)` (at: when what an "action" /
+"order" sample finds was reached -- the action's or auto command's end: milestones, counted times, held_for starts,
+response triggers and met responses are stamped then), `record()`, `load(data)`, `decided(state, skip=())` (skip: ids
+of superseded, unscored phases whose entries no longer count), `failures(state, phase=None)`, `result(state)`,
+`deadline_limits(state)`, `note_phase(id, start=None, end=None)`, `overlay(phase=None)` (a phase sees its own
+milestones under their plain names); module functions `footprint(rule)`, `validate_task(task, phases)`,
+`compile_task` (a phase's milestones are "<id>/<name>", sampled only inside the phase, and its deadlines, triggers and
+anchors name them first), `deadline_limit`, `narrowed(rule, w)`. Keys and semantics: docs/TASK_SPEC.md "Temporal
+keys"; `env._milestones` is the monitor's milestone dict.
+
+**Phases** (`kernel/phases.py`): `PhaseController(task)` with `active()`, `end(env, reason)`, `start_next(env)`,
+`record()`, `tick(env, end_of_step=False)`, `gap_left(env)`, `history(state)`, `evaluate(view, state, baseline,
+monitor)`; `post_request(env, request, phase_id)`, `relocate_to_dock(env, phase_id)`, `default_request_heard(state,
+request)` (relayed requests are spoken by the relayer; the message's room only for in-person, overheard and
+intercom requests; a gesture fires people's `people.point` at once). An `"optional": true` phase (start when / at_s)
+that has not started is unscored and keeps nobody waiting; another one not started fails the episode as
+`phase_not_started:<id>`. State: list section `requests`, section `phase` = `{"active", "started_s", "started_step", "stats",
+"pending", "history"}` (+ `notice_mark` `{"step", "t", "n"}` once `phase_done` ran with the notice bus on). Hooks `phase_start` / `phase_end`: `fn(w, env, phase)`. Event-log kinds `phase_start`,
+`phase_end`, `phase_relocate`.
+
+**Evaluation** (`kernel/evaluation.py`): `evaluate(task, state, baseline, milestones, steps, world=None,
+temporal=None, phases=None, mind=None)` adds the temporal failure labels, `decided`, `temporal` (tasks with temporal
+keys) and `phases`; `evaluation_view(state, temporal, mind)`; `question_failures(questions, state, stats_before,
+window)` (the sweep 4.6 forms read PEOPLE-IO's `dialogue_log`); `score_phase(...)`; `decided(...)`.
+
+**Predicates** (`kernel/predicates.py`): quantifiers with `"in"` (people, pets, a path), `agg`, `milestone_count`,
+`report` / `report_set` (delegating to `kernel/reports.py`; `report_bounds` resolves the `after` anchor and the
+window bounds every record, report_log and legacy field reports alike), `mind.*` paths through the evaluation
+overlay (`TEMPORAL_KEY` "$temporal", `MIND_KEY` "mind"), `is_true` / `is_false` without a value; `select_in`,
+`collection`, `anchor_s`.
+
+**Clock** (`kernel/clock.py`; data `data/calendar/holidays.json`, `dst.json`): `holiday(state, date=None)`,
+`holidays_between(state, d0, d1)`, `dst_active(state)`, `wall(state)`, `today`, `tomorrow`, `weekday`,
+`is_weekend`, `parse_when(state, text)`, `occurrences(event, d0, d1)`, `format_date(state, date, style=None)`,
+`region(state)`, `model(state)`, `dst_enabled(state)`, `easter(year)`, `declination_deg`, `day_length_h`. Clock model
+2 (generation-2 houses): `describe()` shows `dst` and the day's `holiday`; `sun_times` follows `clock.latitude`. DST
+applies only with `"dst": true` as well (wall, describe, parse_when's wall-clock times): the domains keep standard time
+(people's schedules, clock displays, collection days) until the adoption round moves them and sets the flag, so a
+generation-2 house shows the time everything in it keeps. Model 1 is unchanged.
+
+**Spec, runner, verifier, CLI, tools.** `spec.ALLOWED` gains `schema`, `request`, `phases`, `never`, `always`,
+`responses` (TASK_KEYS too); `runner.build(spec, seed, ..., gen=None)` resolves requests and phases, binds the
+requester, and for schema 3 defaults the house to generation 2, adds a default request and turns the notice bus on;
+plan steps `phase_done`, `wait_for`, schema-3 `wait_until`; `verify.run_trial(spec, seed, perception, camera,
+gen=None)` (phase-aware initial and idle checks, the schema-3 early exit, the temporal lint, `temporal_warnings`,
+`privileged_waits`, `gesture_dropped`; the schema-3 dialogue lints `dialogue_lint` and, with realistic perception,
+the typed-report evidence check, whose gaps join `perceivability_gaps`; both read the phases' success too); CLI `--gen 1|2` and the interactive `phase_done`; `tools/verify.py
+--privileged-waits`; `tools/bench_systems.py --day [--no-probes]`; `tools/sweep_bench.py` (notice, until, monitor,
+calendar, ask, report and mind micro-benchmarks against their budgets; exit 1 above 3x).

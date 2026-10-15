@@ -1588,21 +1588,18 @@
       }
      ],
      "milestones": {
-      "quiet": {
-       "forall": {
+      "alarm_sounding": {
+       "exists": {
         "where": {
          "ids": "{detectors}"
         },
         "check": {
          "path": "alarm_state",
-         "op": "ne",
+         "op": "eq",
          "value": "alarm"
         }
        }
       }
-     },
-     "deadlines": {
-      "quiet": 300
      },
      "reference": [
       {
@@ -1679,6 +1676,26 @@
          "seconds": 120
         }
        ]
+      }
+     ],
+     "responses": [
+      {
+       "trigger": "alarm_sounding",
+       "response": {
+        "forall": {
+         "where": {
+          "ids": "{detectors}"
+         },
+         "check": {
+          "path": "alarm_state",
+          "op": "ne",
+          "value": "alarm"
+         }
+        }
+       },
+       "within_s": 300,
+       "each": false,
+       "label": "quiet"
       }
      ]
     },

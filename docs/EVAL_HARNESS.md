@@ -16,7 +16,9 @@ class Agent:
 
 * `instruction`: the task text (for the test split, the held-out phrasing).
 * `observation`: the environment's own observation in **realistic** perception (opaque `obj_xxxxxxxx` handles,
-  field tiers, noise; docs/PERCEPTION.md). Each call gets a deep copy.
+  field tiers, noise; docs/PERCEPTION.md). Each call gets a deep copy. Kernel v3.1 adds `request` (who asked and how,
+  in episodes with requests) and `notices` (what the robot heard or noticed during its last step, when anything);
+  `instruction` follows the current request (docs/DIALOGUE.md).
 * `action_catalog`: `[{"name", "category", "doc", "params", "duration_s"}]` from `env.describe_action` (the
   guard/effect hook lists are dropped).
 * `last_result`: `None` on the first step, then exactly `{"ok", "message", "category"}` of the previous step.
@@ -100,14 +102,20 @@ Each step is one **stateless** request: a static system prompt plus one user tur
 or edited, so there are no history-editing or thinking-block replay issues, and the static prefix stays cacheable.
 
 * **System prompt** (static, prompt-cached): robot role; perception (handles, inspect/read/measure, look-alikes);
-  norms (safety first, privacy, permission/authority via `ask` with `permission:<scope>`, ask when ambiguous but not
-  unnecessarily, minimal side effects); the command format; the `done` protocol (judged at that moment, do not undo
-  work, do not stop early); the compact action catalog (`name(param:type, opt?:type, choice:a|b, n[min..max]) - doc`,
-  docs cut to `doc_chars`, 120). About 90 KB for the full catalog. When the catalog offers the camera verbs
+  norms (safety first, privacy, permission/authority via `ask` with aspect `ok`, `act` and `about` -- the older topic
+  `permission:<action>:<handle>` also works -- ask when ambiguous but not unnecessarily, minimal side effects); an
+  "Asking, reporting, waiting, memory" section (kernel v3.1, about 2 KB: the question aspects and subjects,
+  clarify-back, what counts against the agent, typed reports and their delivery channels, waits that end on what the
+  robot perceives and auto standing orders, recall forms, `obs.request` and `obs.notices`; docs/DIALOGUE.md); the
+  command format; the `done` protocol (judged at that moment, do not undo work, do not stop early); the compact
+  action catalog (`name(param:type, opt?:type, choice:a|b, n[min..max]) - doc`, docs cut to `doc_chars`, 120: a doc
+  whose sentence ends within the last quarter of the limit is cut there, so the schema sentence of `ask`, `report`,
+  `recall`, `wait` and `watch` arrives whole, else cut with "..."). About 95 KB for the full catalog. When the catalog offers the camera verbs
   (`face`, `peek`: geometric-camera episodes; `env.action_names()` hides them in room mode) a camera paragraph
   (`llm.CAMERA_PROMPT`) explains framing, the view levels ("object", category, full description), the `view` dict,
   `face` / `look around` (`rows` 2) / `look up|down|left|right` / `peek`, `obs.camera` and `obs.lidar`.
-* **User turn**: instruction, step number (`of at most N` when `--max-steps` is set), the memory note, the last
+* **User turn**: instruction (the observation's `instruction` when it has one -- the current request of a
+  multi-phase episode -- else the episode's), step number (`of at most N` when `--max-steps` is set), the memory note, the last
   `history` (8) steps as `command -> ok|refused[category]: message`, and the compacted observation: empty fields
   and unremarkable defaults (clean, looks dry, room temperature) dropped, lists capped at `max_list` (25), at most
   `max_entities` (80) entities, nearest first, every handle verbatim, at most `max_obs_chars` (12000).

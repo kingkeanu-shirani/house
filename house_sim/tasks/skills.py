@@ -10,7 +10,10 @@ NOT get these; they compose primitives themselves (or use their own planners).
   fetch(obj, hand=None, grip=None, auto_grip=True)
   put(obj, dest, relation=None, spos=None, shelf=None, cell=None, orientation=None, grip=None)
   give(obj, person)               fetch, find the person, hand over
-  ask(person, topic)              returns the answer value
+  ask(person, topic)              returns the answer value; the canonical form ask(person, about=..., aspect=...,
+                                  detail=..., act=..., options=..., channel=..., language=...) too
+  tell(person, kind=..., ...)     a typed report to a person: walks to them for an in-person report (or uses the
+                                  channel given; person "household" logs it)
   open(target) / close(target) / switch(target, on=True) / set(target, setting, value)
   use(action, target, tool=None, approach_target=True, **params)
   drop_all(dest=None)             set everything held down (floor of current room by default)
@@ -368,14 +371,44 @@ def give(r, obj, person):
 
 
 @skill("ask")
-def ask(r, person, topic):
+def ask(r, person, topic=None, **question):
+    """Ask a person: the legacy topic, or the canonical question (about, aspect, detail, act, options, channel,
+    language; kernel/dialogue.py). Walks to the person's room unless they can be reached by phone (or a phone / text
+    channel is named) or are away from home (location None: only a phone or text reaches them); a written question
+    walks right up to them. Returns the answer value (a permission's grant)."""
     state = r.state
-    room = state["people"][person]["location"]
-    if room != state["robot"]["room"] and not state["people"][person].get("reachable_by_phone"):
+    person_rec = state["people"][person]
+    room = person_rec.get("location")
+    channel = question.get("channel")
+    remote = channel in ("phone", "text") or (channel is None and person_rec.get("reachable_by_phone"))
+    if room is not None and room != state["robot"]["room"] and not remote:
         go_room(r, room)
-    result = r.do("ask", target=person, topic=topic)
+    if channel == "written":
+        approach(r, person)
+    args = {k: v for k, v in question.items() if v is not None}
+    if topic is not None:
+        args["topic"] = topic
+    r.do("ask", target=person, **args)
     answer = r.env.world.s.get("facts", {}).get("last_answer", {})
     return answer.get("value", answer.get("granted"))
+
+
+@skill("tell")
+def tell(r, person=None, channel=None, **report):
+    """A typed report (kernel/reports.py): kind, subject, issue / state / quantity, value, unit, of, scope, ... to
+    `person` over `channel` (in person by default: the robot walks to their room first; "household" logs it for the
+    household). Returns the report message."""
+    state = r.state
+    args = {k: v for k, v in report.items() if v is not None}
+    if person:
+        args["to"] = person
+        if person != "household" and channel in (None, "in_person"):
+            room = state["people"][person].get("location")
+            if room is not None and room != state["robot"]["room"]:
+                go_room(r, room)
+    if channel:
+        args["channel"] = channel
+    return r.do("report", **args)
 
 
 @skill("open")

@@ -294,13 +294,40 @@ from .phys import environment as _environment, events as _events, observe as _ob
 from .phys import processes as _processes, thermal as _thermal  # noqa: E402
 
 
-@system("physics.environment", order=47, max_dt=30.0)
+def environment_idle(w):
+    """Exact idle probe of physics.environment (kernel v3.1, TIER1_SWEEP 6.7): the wind and rain laws are deferred, or
+    the wind is calm (under 2.5 m/s, gusts included) and no rain falls -- environment.run's own early returns."""
+    from .phys import lawbook as _lawbook
+    wind_on = bool(_lawbook.active("wind"))
+    rain_on = bool(_lawbook.active("rain"))
+    if not (wind_on or rain_on):
+        return True
+    weather = w.s.get("weather") or {}
+    speed = _environment.wind_speed_mps(weather) if wind_on else 0.0
+    rain = _environment.rain_mm_h(weather) if rain_on else 0.0
+    return speed < _environment.CALM_MPS and rain <= 0
+
+
+def processes_idle(w):
+    """Exact idle probe of physics.processes: no physics section, no check due now and no active process (the
+    queue's first entry is the earliest; processes.run returns at once then)."""
+    sec = w.s.get("physics")
+    if not sec:
+        return True
+    queue = sec.get("queue")
+    if queue and queue[0][0] <= _processes.now_s(w.s) + 1e-9:
+        return False
+    active = sec.get("active") or {}
+    return not any(active.get(kind) for kind in _processes.ACTIVE_KINDS)
+
+
+@system("physics.environment", order=47, max_dt=30.0, idle=environment_idle)
 def physics_environment(w, dt, tick):
     """Wind and rain on objects while the wind / rain laws are active (phys/environment.py)."""
     _environment.run(w, dt, tick)
 
 
-@system("physics.processes", order=48, max_dt=30.0)
+@system("physics.processes", order=48, max_dt=30.0, idle=processes_idle)
 def physics_processes(w, dt, tick):
     """Timed physics checks and continuous processes (phys/processes.py): creep, rolling, drips, leaks, contact heat,
     freezing and melting."""

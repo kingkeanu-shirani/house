@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-10-15T12:23:48.177522+00:00",
-  "elapsed_seconds": 455.448,
-  "implementation_hash": "555b44d7f6ba3bbb83aa9fa15277154e699ff3cd2213a883f537e69ce105ac90",
+  "generated_at": "2026-10-15T20:51:26.868619+00:00",
+  "elapsed_seconds": 508.105,
+  "implementation_hash": "9fa0c9852da0dec1794261853e4d6cf63f7a1bba9dc2aa525b84fa2e63c65a18",
   "source_sha256": "57dfb1b5c0c7936fa78b86955e6eeb28fb4a0fa7159b8afa1fbe95b83c6d366b",
   "seeds": [
     0,
@@ -11,7 +11,9 @@
     97
   ],
   "candidate_entries": 242,
-  "passed_entries": 242,
-  "failed_entries": [],
+  "passed_entries": 241,
+  "failed_entries": [
+    "A-d9e7a4d5d112d2-01"
+  ],
   "partial": false
 }

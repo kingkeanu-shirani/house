@@ -1,5 +1,5 @@
 {
-  "actions_fingerprint": "482f9adf9717a4a1b8d2b12ef4e19713fa735b2da16dbebe34d3a338147ce8fa",
+  "actions_fingerprint": "955c5ef9ac14515cc6879b49185e628187b3dd4989d2e437c9f3882327531a3e",
   "audit": {
     "drop_kinds": [
       "hidden",
@@ -10,7 +10,7 @@
     "tool": "tools/perception_audit.py",
     "warnings": {}
   },
-  "code_fingerprint": "555b44d7f6ba3bbb83aa9fa15277154e699ff3cd2213a883f537e69ce105ac90",
+  "code_fingerprint": "9fa0c9852da0dec1794261853e4d6cf63f7a1bba9dc2aa525b84fa2e63c65a18",
   "counts": {
     "entries_exported": 4,
     "entries_selected": 4,
@@ -78,7 +78,7 @@
       "duplicates_removed": 0,
       "file": "critique.jsonl",
       "records": 9,
-      "sha256": "4063112fcec9eab7e19716aed3ad48e7368bd4f18cf6098b07c3d83336919092"
+      "sha256": "21651d49fc815f4f09365eadf2233ba5550f6a7182ccf79b72bfa5ac7dd44107"
     },
     "pairs_step": {
       "bytes": 198936,
@@ -86,7 +86,7 @@
       "duplicates_removed": 0,
       "file": "pairs_step.jsonl",
       "records": 9,
-      "sha256": "b10c6fc464876a933b7598c525566b4106e2a680eeb492bfb7731514b1a66e6d"
+      "sha256": "6b9370358de561ad2387e60dd1040bfe8f68750d6b7dc0f724c0db2678165ef8"
     },
     "pairs_trajectory": {
       "bytes": 207977,
@@ -94,7 +94,7 @@
       "duplicates_removed": 0,
       "file": "pairs_trajectory.jsonl",
       "records": 9,
-      "sha256": "4a131d8e9cce9654fede8615060869e4adf78792025c0bfc17f106ae888e5995"
+      "sha256": "19a535932464da190f15a478c6d82d77cfc632a11fb6842c7cc0f948e88b7004"
     },
     "sft": {
       "bytes": 747162,
@@ -102,11 +102,11 @@
       "duplicates_removed": 0,
       "file": "sft.jsonl",
       "records": 4,
-      "sha256": "fcdccc62d6f388e452c761232096ac1436a31ddc059f610b353d5606a6b7cc81"
+      "sha256": "968a15b63e48681ba16c236fd9a669be47d85fc3dd596aa82aacbc6e8726e81d"
     }
   },
   "generator": "house_sim.eval.dataset",
-  "harness_fingerprint": "4765d74a10118b944ecb29129c72d3f8823b5e00bc41f96170ae68eee70d0575",
+  "harness_fingerprint": "7fe761bf713a36f0045e5bbc0e454bd865376de79e6cfaa7a9dced55321cac0c",
   "license": "See docs/DATASET.md (license and provenance statement).",
   "options": {
     "catalog_ids": [

@@ -30,6 +30,30 @@ part of the state, none is saved, and strict mode is unaffected:
                             and rollback()
     w.mutation_count        +1 on every journaled write call and every rollback; never decreases (camera memos)
     w._power_down_step      None; body.power_down stamps the step (the engine's partial-commit rule)
+
+The sweep's additions (kernel v3.1, TIME-EVAL; TIER1_SWEEP 6.1, 6.4, 8.2, 16.6; TIER1_INTEGRATION 1.8), transient as
+well:
+
+    w.notice(kind, room=None, db=None, source=None, to_robot=False, remote=False, visual=False, text=None, data=None)
+                            something perceivable happened (a doorbell, an alarm, a chime, glass breaking): the
+                            timeline decides whether the robot perceives it (kernel/timeline.py robot_perceives) and,
+                            if so, stores it in the list section "notices" (only in episodes whose state has that
+                            section: schema-3 tasks or a config that carries it) and hands it to a listening wait.
+                            Returns the stored record or None
+    sp = w.savepoint(); w.rollback_to(sp); w.release(sp)
+                            nested journal layers inside a step (auto standing-order commands): rollback_to restores
+                            exactly what changed after sp (entities, sections, scalars, quiet fields), truncates the
+                            touch log to its length at sp (clamping every consumer cursor), restores the physics
+                            scratch and the heard-notice buffer as they were at sp, increments mutation_count and ends
+                            the savepoint; release keeps the changes and ends it (its snapshots merge into the parent
+                            layer). begin(), rollback() and commit() end every savepoint
+    w._touched_sections     the top-level sections and scalars written (sec, set_scalar, set_path) and the keyed
+                            collections changed (rooms, people, pets, connections) since the monitor's last sample
+    w._quiet_touched        entity ids written through set_quiet / mut_quiet since the monitor's last sample (they are
+                            no touches for the settle pass, but temporal predicates may read them)
+    w._heard                perceived notices not yet read by a listening wait (engine-internal)
+    w._env_ref              a weak reference to the env the World belongs to (timeline.start), so the timeline's
+                            per-id perceivability rules can read its perception, camera view and realism
 """
 import marshal
 
@@ -37,11 +61,23 @@ from .errors import ActionError
 from .predicates import MISSING, differences, get_path, is_within, root_room
 
 RESERVED_IDS = {"hand", "robot", "floor", "nobody", "household"}
-LIST_SECTIONS = {"events", "orders", "pending", "event_log", "approvals", "messages", "action_log"}
+# list sections (a fresh one starts as []); notices .. requests are the sweep's (16.6): report_log and dialogue_log are
+# written by PEOPLE-IO's verbs, the others by the kernel's timeline, engine and phases
+LIST_SECTIONS = {"events", "orders", "pending", "event_log", "approvals", "messages", "action_log",
+                 "notices", "order_log", "report_log", "dialogue_log", "requests"}
+NOTICES_CAP = 200
+# event-log kind -> fn(w, entry): notices derived from what w.emit logs (kernel/timeline.py fills it: the body's battery
+# warnings and detected faults become "battery" / "fault" notices)
+EMIT_NOTICES = {}
 
 
 def clone(value):
     return marshal.loads(marshal.dumps(value))
+
+
+def _plain(value):
+    """A journal copy of one field value: scalars (and MISSING) as they are, containers cloned."""
+    return value if value is MISSING or isinstance(value, (int, float, str, bool, type(None))) else clone(value)
 
 
 class World:
@@ -59,11 +95,18 @@ class World:
         self.phys_scratch = {}
         self.mutation_count = 0
         self._power_down_step = None
+        self._layers = []               # savepoint layers: {"journal", "quiet", "touched", "scratch", "heard"}
+        self._touched_sections = set()  # sections / scalars / keyed kinds written since the monitor's last sample
+        self._quiet_touched = set()     # entity ids written quietly since the monitor's last sample
+        self._heard = []                # perceived notices a listening wait has not read yet
+        self._listening = False         # True while a wait listens for notices (interrupt_on)
+        self._env_ref = None            # weak reference to the env (timeline.start): the per-id perceivability rules
 
     # ----- journaling -------------------------------------------------
     def begin(self):
         self._journal = {}
         self._quiet = {}
+        self._layers = []
         self._reset_transient()
 
     def _reset_transient(self):
@@ -75,14 +118,24 @@ class World:
             self._touch_readers = dict.fromkeys(self._touch_readers, 0)
         self.phys_scratch = {}
         self._power_down_step = None
+        self._heard = []
 
     def _snap(self, key, value):
         if key not in self._journal:
             self._journal[key] = MISSING if value is MISSING else clone(value)
+        if self._layers:
+            top = self._layers[-1]["journal"]
+            if key not in top:
+                top[key] = MISSING if value is MISSING else clone(value)
         self.mutation_count += 1
-        if key[0] == "entities":
+        kind = key[0]
+        if kind == "entities":
             self._index = None
             self._touched.append(key[1])
+        elif kind in ("section", "scalar"):
+            self._touched_sections.add(key[1])
+        else:
+            self._touched_sections.add(kind)
 
     def journal_keys(self):
         return list(self._journal) + [("entities", eid) for eid in self._quiet if ("entities", eid) not in self._journal]
@@ -145,10 +198,78 @@ class World:
                     record[field] = value
         self._journal = {}
         self._quiet = {}
+        self._layers = []
         self._index = None
         self._version += 1
         self.mutation_count += 1
         self._reset_transient()
+
+    # ----- savepoints (TIER1_SWEEP 6.4, TIER1_INTEGRATION 1.8) ----------
+    def savepoint(self):
+        """Open a journal layer inside the step and return its token. Every write after it is recorded (first value per
+        key) in the layer as well as in the step journal, so rollback_to(sp) can restore exactly the state at sp."""
+        scratch = {}
+        for key, value in self.phys_scratch.items():
+            scratch[key] = value.copy() if isinstance(value, (dict, list, set)) else value
+        self._layers.append({"journal": {}, "quiet": {}, "touched": self._touched_base + len(self._touched),
+                             "scratch": scratch, "heard": len(self._heard)})
+        return len(self._layers)
+
+    def _check_sp(self, sp):
+        if not isinstance(sp, int) or isinstance(sp, bool) or not 1 <= sp <= len(self._layers):
+            raise ValueError("Unknown or ended savepoint: {!r}".format(sp))
+
+    def rollback_to(self, sp):
+        """Undo everything written since savepoint sp (and the savepoints opened after it) and end it: entities,
+        sections, scalars and keyed records written after sp get their value at sp back (created ones disappear), quiet
+        field writes too; the touch log is truncated to its length at sp (every consumer cursor clamped to it), the
+        physics scratch and the heard-notice buffer are what they were at sp; mutation_count increments."""
+        self._check_sp(sp)
+        for layer in reversed(self._layers[sp - 1:]):
+            for (kind, name), value in layer["journal"].items():
+                container = self.s if kind in ("section", "scalar") else self.s[kind]
+                if value is MISSING:
+                    container.pop(name, None)
+                else:
+                    container[name] = value         # the layer's own copy (the layer ends here)
+            for eid, fields in layer["quiet"].items():
+                record = self.s["entities"].get(eid)
+                if record is None:
+                    continue
+                for field, value in fields.items():
+                    if value is MISSING:
+                        record.pop(field, None)
+                    else:
+                        record[field] = value
+        first = self._layers[sp - 1]
+        del self._layers[sp - 1:]
+        end = max(self._touched_base, first["touched"])
+        del self._touched[end - self._touched_base:]
+        for consumer, cursor in list(self._touch_readers.items()):
+            if cursor > end:
+                self._touch_readers[consumer] = end
+        self.phys_scratch = first["scratch"]
+        del self._heard[first["heard"]:]
+        self._index = None
+        self._version += 1
+        self.mutation_count += 1
+
+    def release(self, sp):
+        """End savepoint sp (and the ones opened after it) keeping its changes: its first values merge into the layer
+        below, so an enclosing savepoint still rolls back to its own point."""
+        self._check_sp(sp)
+        merged = self._layers[sp - 1:]
+        del self._layers[sp - 1:]
+        if not self._layers:
+            return
+        parent = self._layers[-1]
+        for layer in merged:
+            for key, value in layer["journal"].items():
+                parent["journal"].setdefault(key, value)
+            for eid, fields in layer["quiet"].items():
+                target = parent["quiet"].setdefault(eid, {})
+                for field, value in fields.items():
+                    target.setdefault(field, value)
 
     def changes(self):
         """Leaf-level diffs for everything journaled since begin() (field-level quiet writes included, in the same
@@ -182,6 +303,7 @@ class World:
         changed = self.changes()
         self._journal = {}
         self._quiet = {}
+        self._layers = []
         return changed
 
     # ----- entities ---------------------------------------------------
@@ -211,11 +333,16 @@ class World:
         if ("entities", eid) not in self._journal:
             fields = self._quiet.setdefault(eid, {})
             if field not in fields:
-                old = record.get(field, MISSING)
-                fields[field] = old if old is MISSING or isinstance(old, (int, float, str, bool, type(None))) \
-                    else clone(old)
+                fields[field] = _plain(record.get(field, MISSING))
+        if self._layers:
+            top = self._layers[-1]
+            if ("entities", eid) not in top["journal"]:
+                fields = top["quiet"].setdefault(eid, {})
+                if field not in fields:
+                    fields[field] = _plain(record.get(field, MISSING))
         record[field] = value
         self.mutation_count += 1
+        self._quiet_touched.add(eid)
 
     def mut_quiet(self, eid):
         """Like mut (journaled, counted in mutation_count) but not a touch: the settle pass does not look at it. Only
@@ -224,8 +351,11 @@ class World:
         key = ("entities", eid)
         if key not in self._journal:
             self._journal[key] = clone(record)
+        if self._layers and key not in self._layers[-1]["journal"]:
+            self._layers[-1]["journal"][key] = clone(record)
         self.mutation_count += 1
         self._index = None
+        self._quiet_touched.add(eid)
         return record
 
     def create(self, eid, record):
@@ -422,7 +552,22 @@ class World:
         log.append(entry)
         if len(log) > 600:
             del log[:len(log) - 600]
+        derive = EMIT_NOTICES.get(kind)
+        if derive is not None:
+            derive(self, entry)
         return entry
+
+    def notice(self, kind, room=None, db=None, source=None, to_robot=False, remote=False, visual=False, text=None,
+               data=None):
+        """Something perceivable happened (TIER1_SWEEP 6.1): a doorbell, a knock, an alarm, a chime, crying, glass
+        breaking. room: where it happened (default: the source's room); db: sound level at 1 m (default the kind's);
+        source: the entity, person or pet that made it; to_robot: speech addressed to the robot; remote: an app or
+        phone notification (needs the robot's network); visual: seen, not heard; text: what was said; data: any
+        JSON-safe details. The timeline decides whether the robot perceives it (6.2) and returns the stored record, or
+        None when nobody listens or the robot did not perceive it."""
+        from . import timeline
+        return timeline.post(self, {"kind": kind, "room": room, "db": db, "source": source, "to_robot": bool(to_robot),
+                                    "remote": bool(remote), "visual": bool(visual), "text": text, "data": data})
 
     def stat(self, name, amount=1):
         stats = self.sec("stats")

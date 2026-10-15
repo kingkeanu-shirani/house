@@ -1,0 +1,94 @@
+{
+ "format": "house-holidays-v1",
+ "about": "Public holidays per region for kernel/clock.py (holiday, holidays_between; TIER1_SWEEP 11.1). A rule is one of: a fixed date (month, day); the nth weekday of a month (nth 1..5, or -1 for the last); the last given weekday on or before a date (on_or_before); a day relative to Easter Sunday (easter: days, Anonymous Gregorian computus); the Japanese equinox days (equinox: vernal | autumnal, the Japanese government's approximation formula for 1980-2099). observed: the region's rule for a holiday that falls on a weekend (nearest_weekday: Saturday -> the Friday before, Sunday -> the Monday after; next_free_weekday: the next weekday that is not already a holiday or a substitute; jp: a holiday on a Sunday moves to the next day that is not a holiday, and a weekday between two holidays is a holiday; none). Only holidays marked observed true move (jp: all of them). since / until: the first / last year a holiday applies. The regions are the generator's (us, uk, eu, jp, ca); eu is a documented German baseline and ca the province of Ontario (the climate normals' representative cities).",
+ "regions": {
+  "us": {
+   "name": "United States, federal holidays",
+   "source": "5 U.S.C. 6103 (legal public holidays); weekend observance per OPM (Saturday -> preceding Friday, Sunday -> following Monday); Juneteenth since 2021 (Pub. L. 117-17)",
+   "observed": "nearest_weekday",
+   "holidays": [
+    {"name": "New Year's Day", "month": 1, "day": 1, "observed": true},
+    {"name": "Martin Luther King Jr. Day", "month": 1, "nth": 3, "weekday": "MO"},
+    {"name": "Washington's Birthday", "month": 2, "nth": 3, "weekday": "MO"},
+    {"name": "Memorial Day", "month": 5, "nth": -1, "weekday": "MO"},
+    {"name": "Juneteenth National Independence Day", "month": 6, "day": 19, "observed": true, "since": 2021},
+    {"name": "Independence Day", "month": 7, "day": 4, "observed": true},
+    {"name": "Labor Day", "month": 9, "nth": 1, "weekday": "MO"},
+    {"name": "Columbus Day", "month": 10, "nth": 2, "weekday": "MO"},
+    {"name": "Veterans Day", "month": 11, "day": 11, "observed": true},
+    {"name": "Thanksgiving Day", "month": 11, "nth": 4, "weekday": "TH"},
+    {"name": "Christmas Day", "month": 12, "day": 25, "observed": true}
+   ]
+  },
+  "uk": {
+   "name": "United Kingdom, England and Wales bank holidays",
+   "source": "Banking and Financial Dealings Act 1971 and the annual proclamations (gov.uk/bank-holidays): substitute days are the next weekday that is not already a bank holiday",
+   "observed": "next_free_weekday",
+   "holidays": [
+    {"name": "New Year's Day", "month": 1, "day": 1, "observed": true},
+    {"name": "Good Friday", "easter": -2},
+    {"name": "Easter Monday", "easter": 1},
+    {"name": "Early May bank holiday", "month": 5, "nth": 1, "weekday": "MO"},
+    {"name": "Spring bank holiday", "month": 5, "nth": -1, "weekday": "MO"},
+    {"name": "Summer bank holiday", "month": 8, "nth": -1, "weekday": "MO"},
+    {"name": "Christmas Day", "month": 12, "day": 25, "observed": true},
+    {"name": "Boxing Day", "month": 12, "day": 26, "observed": true}
+   ]
+  },
+  "eu": {
+   "name": "European baseline: Germany, nationwide public holidays",
+   "source": "German federal and state holiday laws: the nine holidays observed in every Land (Neujahr, Karfreitag, Ostermontag, Tag der Arbeit, Christi Himmelfahrt, Pfingstmontag, Tag der Deutschen Einheit, 1. and 2. Weihnachtsfeiertag); Germany has no substitute days. Regional holidays (Epiphany, Corpus Christi, Reformation Day, All Saints) are not included",
+   "observed": "none",
+   "holidays": [
+    {"name": "New Year's Day", "month": 1, "day": 1},
+    {"name": "Good Friday", "easter": -2},
+    {"name": "Easter Monday", "easter": 1},
+    {"name": "Labour Day", "month": 5, "day": 1},
+    {"name": "Ascension Day", "easter": 39},
+    {"name": "Whit Monday", "easter": 50},
+    {"name": "Day of German Unity", "month": 10, "day": 3},
+    {"name": "Christmas Day", "month": 12, "day": 25},
+    {"name": "Second Day of Christmas", "month": 12, "day": 26}
+   ]
+  },
+  "jp": {
+   "name": "Japan, national holidays",
+   "source": "Act on National Holidays (Act No. 178 of 1948, as amended): Art. 2 holidays, Art. 3(2) substitute holiday, Art. 3(3) citizens' holiday; equinox days by the National Astronomical Observatory's approximation (valid 1980-2099)",
+   "observed": "jp",
+   "holidays": [
+    {"name": "New Year's Day", "month": 1, "day": 1},
+    {"name": "Coming of Age Day", "month": 1, "nth": 2, "weekday": "MO"},
+    {"name": "National Foundation Day", "month": 2, "day": 11},
+    {"name": "Emperor's Birthday", "month": 2, "day": 23, "since": 2020},
+    {"name": "Vernal Equinox Day", "equinox": "vernal"},
+    {"name": "Showa Day", "month": 4, "day": 29},
+    {"name": "Constitution Memorial Day", "month": 5, "day": 3},
+    {"name": "Greenery Day", "month": 5, "day": 4},
+    {"name": "Children's Day", "month": 5, "day": 5},
+    {"name": "Marine Day", "month": 7, "nth": 3, "weekday": "MO"},
+    {"name": "Mountain Day", "month": 8, "day": 11, "since": 2016},
+    {"name": "Respect for the Aged Day", "month": 9, "nth": 3, "weekday": "MO"},
+    {"name": "Autumnal Equinox Day", "equinox": "autumnal"},
+    {"name": "Sports Day", "month": 10, "nth": 2, "weekday": "MO"},
+    {"name": "Culture Day", "month": 11, "day": 3},
+    {"name": "Labour Thanksgiving Day", "month": 11, "day": 23}
+   ]
+  },
+  "ca": {
+   "name": "Canada, Ontario public holidays",
+   "source": "Ontario Employment Standards Act, 2000, s. 1 (public holidays); a holiday that falls on a weekend is taken on the next working day that is not a holiday (the substitute day most employers and schools use)",
+   "observed": "next_free_weekday",
+   "holidays": [
+    {"name": "New Year's Day", "month": 1, "day": 1, "observed": true},
+    {"name": "Family Day", "month": 2, "nth": 3, "weekday": "MO", "since": 2008},
+    {"name": "Good Friday", "easter": -2},
+    {"name": "Victoria Day", "on_or_before": {"month": 5, "day": 24, "weekday": "MO"}},
+    {"name": "Canada Day", "month": 7, "day": 1, "observed": true},
+    {"name": "Labour Day", "month": 9, "nth": 1, "weekday": "MO"},
+    {"name": "Thanksgiving Day", "month": 10, "nth": 2, "weekday": "MO"},
+    {"name": "Christmas Day", "month": 12, "day": 25, "observed": true},
+    {"name": "Boxing Day", "month": 12, "day": 26, "observed": true}
+   ]
+  }
+ }
+}

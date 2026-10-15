@@ -12,6 +12,15 @@ its motion record); idle time (wait, a refused step's second) is integrated by t
 system. While the robot is powered down every action except wait is refused (PowerOff). A
 power-down partway through a step is a consequence, not a refusal: the step commits what
 happened, ok=True, "Powered down partway: ..." (TIER1_INTEGRATION 1.9).
+
+Time (kernel v3.1, TIME-EVAL; TIER1_SWEEP 6, 8, 9, 10.1; TIER1_INTEGRATION 1.8-1.9): every 30 s substep runs the
+systems (skipping those whose idle probe says they would change nothing), events, the physics settle, the standing
+orders, the kernel's notices, a monitor sample and the phase controller; a wait with until / interrupt_on ends at the
+first boundary where its condition holds or a notice it listens for arrived (the step lasts the time waited); auto
+standing orders run their commands at idle boundaries (a wait, a phase gap), each under a World savepoint and settled
+as an action. The temporal monitor (kernel/monitor.py) samples after the action's settlement, after every substep,
+after every auto command and at the end of each step (after the Mind's update), so milestones record their true time.
+phase_done() ends the active phase of a multi-phase task, runs the gap and starts the next phase (kernel/phases.py).
 """
 import copy
 import json
@@ -21,11 +30,15 @@ from pathlib import Path
 
 from . import body, evaluation, physics, timeline  # noqa: F401  (physics registers shared systems; timeline the time verbs)
 from . import camera as camera_mod      # the camera runtime: its system, after-hooks and hooks; begin/end of step
+from . import mind as mind_mod
+from . import monitor as monitor_mod
+from . import phases as phases_mod
 from .actions import Ctx, motion_records
 from .errors import ActionError
 from .phys import settle
-from .perception import Perception
-from .plugins import ACTIONS, AFTER, BEFORE, SYSTEM_PERIODS, SYSTEMS, load_domains, run_hooks
+from .perception import Perception, current_request
+from .plugins import (ACTIONS, AFTER, BEFORE, IDLE_PROBES, SYSTEM_IDLE, SYSTEM_PERIODS, SYSTEMS, load_domains,
+                      run_hooks)
 from .predicates import check, digest, validate_predicate
 from .registry import default_registry
 from .schema import normalize, validate
@@ -132,8 +145,12 @@ class HouseEnv:
             for key in ("success", "failure"):
                 for rule in task.get(key, []):
                     validate_predicate(rule)
-            for rule in task.get("milestones", {}).values():
-                validate_predicate(rule)
+            for phase in task.get("phases") or []:
+                for key in ("success", "failure"):
+                    for rule in phase.get(key) or []:
+                        validate_predicate(rule)
+            # milestones (plain and extended), never / always / responses, deadlines (kernel/monitor.py)
+            monitor_mod.validate_task(task, task.get("phases"))
             for item in task.get("rubric", {}).get("items", []):
                 validate_predicate(item["pred"])
         self.seed = seed
@@ -152,6 +169,9 @@ class HouseEnv:
         # transient (never saved): "idle" while the body system integrates the robot's idle drain (a wait, a refused
         # step's second), "covered" while the time was already paid by the action's settlement (TIER1_INTEGRATION 1.9)
         self._advance_mode = "covered"
+        self._tick_index = 0            # substep index within a step (Tick RNG streams); gaps use their own range
+        self._timeline = None           # the notice cursors (timeline.derive_notices); rebuilt from the state
+        self._uses_mind = '"mind.' in json.dumps(task or {})     # mind.* paths: evaluate with the Mind's view
         self.realism = None
         self.raw_results = False   # the task runner sets this to also receive untranslated messages
         self.action_file = action_file
@@ -203,11 +223,45 @@ class HouseEnv:
             self.world.commit()
         self._baseline = clone(state)
         self._known_map, self._history, self._undo, self._snapshots = {}, [], [], {}
-        self._milestones = {}
-        self._replay_start = clone(state)
+        self._monitor = monitor_mod.Monitor(self._task)         # temporal evaluation (kernel/monitor.py)
+        self._milestones = self._monitor.milestones
+        self._phases = phases_mod.PhaseController(self._task).bind(self)
+        self._tick_index = 0
+        self.mind = None
         self._note_view()
+        self._start_mind()
+        self._post_requests()
+        # the notice cursors start at the reset state, the request just posted included (the episode's first request
+        # is obs.request, not a notice; a later phase's request is an "addressed" notice)
+        timeline.start(self)
+        self._replay_start = clone(self.world.s)
         self._last_score = self.evaluate()["score"]
         return self.observe()
+
+    def _start_mind(self):
+        """The robot's memory at reset (TIER1_SWEEP 7.1; kernel/mind.py): Mind.from_config (prior knowledge; with
+        realistic perception it also issues the handles and grants the knowledge the robot brought into the episode, so
+        it runs after the Realism exists), then the first update from what the robot perceives."""
+        self.mind = mind_mod.Mind.from_config(self.world.s, self)
+        self._update_mind()
+
+    def _update_mind(self):
+        """mind.update(env, perception.perceived_ids(env)) (TIER1_INTEGRATION 1.9 rule 5)."""
+        if self.mind is not None:
+            self.mind.update(self, self.perception.perceived_ids(self))
+
+    def _post_requests(self):
+        """Reset (TIER1_SWEEP 10.1): the first phase starts (its request posted), or a single request is posted. Only
+        tasks that use phases or a request write anything (requests, phase, the request's speech)."""
+        task = self._task or {}
+        if not (self._phases.phases or task.get("request")):
+            return
+        self.world.begin()
+        if self._phases.phases:
+            self._phases.start_first(self)
+        else:
+            phases_mod.post_request(self, task["request"], None)
+        self.world.commit()
 
     def _note_view(self):
         """Realistic perception with the geometric camera: what the cameras see at the start of an episode counts like
@@ -275,6 +329,10 @@ class HouseEnv:
         own seconds; refused while powered down); the parent gets its time, its nested_s (so the parent neither pays
         for nor slows down those seconds again) and its motion records. Physics settle and the camera's step are the
         enclosing step's (TIER1_INTEGRATION 1.9)."""
+        return self._leaf(command, parent_ctx)[0]
+
+    def _leaf(self, command, parent_ctx=None):
+        """perform's body: returns (result, the leaf's Ctx, the seconds it took)."""
         command = dict(command)
         name = command.pop("action")
         spec = ACTIONS.get(name)
@@ -306,7 +364,7 @@ class HouseEnv:
             # no physics settle here: the enclosing step's settle covers nested leaves, and its carry law reads
             # their motion records
             parent_ctx.data.setdefault("motions", []).extend(motion_records(ctx))
-        return result
+        return result, ctx, spent
 
     def _note_facts(self, action, args, seconds):
         """facts.action_times (when the action on its target ends) and facts.last_action of a step that did something
@@ -353,6 +411,7 @@ class HouseEnv:
         w.set_scalar("steps", state["steps"] + 1)
         camera_mod.begin_step(w)        # this step's frames and seen events start empty (no-op in room mode)
         self._advance_mode = "covered"  # the action pays for its own seconds at settlement
+        self._tick_index = 0
         spec = ACTIONS.get(action)
         ok, category, message, seconds = False, "", "", 1.0
         rng = random.Random("{}:{}:{}".format(self.seed, state["steps"], action))
@@ -419,6 +478,9 @@ class HouseEnv:
             body.settle_energy(w, ctx, max(0.0, seconds - ctx.nested_s), hold_check=body.HOLD_SAFETY_NET)
             # physical consequences of the action (TIER1_INTEGRATION 1.9): never raises; adds id-only notes
             consequences = settle.settle(self, "action", ctx)
+            # temporal predicates see the action and its consequences; what it reaches is stamped at its end (an
+            # action completes when its time is spent; a wait's own sample is its start)
+            self._monitor.sample(self, "action", at=None if spec.idle else state["time_s"] + seconds)
             message = _with_notes(result, ctx.notes)
             if spec.noise:
                 w.stat("noise", float(spec.noise))
@@ -447,6 +509,7 @@ class HouseEnv:
                 ok, category = True, ""
                 # the nested leaves' time (realistic perception: whole seconds, as computed durations are)
                 seconds = ctx.extra_time if self.realism is None else whole_seconds(max(0.0, float(ctx.extra_time)))
+                self._monitor.sample(self, "action", at=state["time_s"] + seconds)
                 message = _with_notes("Powered down partway: " + str(exc), ctx.notes)
                 self._note_facts(action, ctx.args, seconds)
             else:
@@ -479,14 +542,30 @@ class HouseEnv:
                       "target": target if isinstance(target, str) else "", "ok": ok})
         if len(trail) > 300:
             del trail[:len(trail) - 300]
-        self._advance(seconds)
+        # a wait that can end early (until / interrupt_on) or, in an episode with the notice bus, lists what it heard;
+        # an idle step runs due auto standing orders (TIER1_SWEEP 6.3-6.4)
+        is_wait = ok and spec is not None and spec.name == "wait" and ctx is not None
+        plan = ctx.data.get("wait") if is_wait else None
+        wait_run = timeline.WaitRun(self, plan or {"seconds": seconds}) \
+            if is_wait and (plan is not None or timeline.bus_on(state)) else None
+        idle_run = timeline.IdleRun(self) if ok and spec is not None and spec.idle and timeline.has_auto(state) else None
+        waited = self._advance(seconds, wait=wait_run, idle=idle_run)
+        if wait_run is not None or (idle_run is not None and (idle_run.ran or idle_run.stopped or idle_run.paused)):
+            message = timeline.wait_message(waited, wait_run, idle_run)
+            if abs(waited - seconds) > 1e-9:
+                self._note_facts(action, ctx.args, 0.0)     # the wait ended now (time has advanced)
         if self.realism is not None:
             self.realism.commit_grants(ok)      # after the action's duration, so a reading matches what is shown next
-        # the step view (cached for observe and this step's evaluation), the camera log; None in room mode (1.9 rule 5)
-        view = camera_mod.end_step(self)
-        if self.realism is not None and hasattr(self.realism, "note_step"):
-            self.realism.note_step(view)        # camera tracked identity (CAM-RENDER)
-        self._update_milestones()
+        self._end_of_step()
+        if self._phases.phases:
+            before = self._phases.active()
+            self._phases.tick(self, end_of_step=True)       # a phase's at_s / when / budget end
+            if self._phases.gap_left(self) is not None:
+                camera_mod.begin_step(w)
+                self._phases.start_next(self)               # its gap and the next phase before the agent acts again
+                self._end_of_step()
+            if self._phases.active() is not before:
+                timeline.derive_notices(self)               # a new phase's request reaches the robot now
         outcome = self.evaluate()
         changes = w.changes() if self.trace else []
         if STRICT:
@@ -524,6 +603,86 @@ class HouseEnv:
                   "truncated": outcome["budget_exceeded"]}
         return result
 
+    def _end_of_step(self):
+        """The end of a step after time advanced (TIER1_INTEGRATION 1.9 rule 5): the camera's step view and log, the
+        realism note of the view, the Mind's update, the monitor's end sample."""
+        view = camera_mod.end_step(self)
+        if self.realism is not None and hasattr(self.realism, "note_step"):
+            self.realism.note_step(view)        # camera tracked identity (CAM-RENDER)
+        self._update_mind()
+        self._monitor.sample(self, "end")
+
+    # ------------------------------------------------------------------
+    def phase_done(self):
+        """The agent (or a plan's {"phase_done": true}) declares the active phase done (TIER1_SWEEP 9): the phase ends
+        and is scored, its gap runs (an idle advance; the robot parked on its dock when the next phase asks for it)
+        and the next phase starts with its request. Not an action: no step is counted. Returns {"ok", "message",
+        "phase": {"ended", "active", "waiting"}, "observation"} (oracle also "evaluation"); waiting: no phase follows at
+        once but one that starts on its own (at_s / when) is still to come."""
+        w = self.world
+        if not self._phases.phases or self._phases.active() is None:
+            return {"ok": False, "message": "No active phase", "phase": {"ended": None, "active": None},
+                    "observation": self.observe() if self.observe_on_step else None}
+        state = w.s
+        strict_copy = clone(state) if STRICT else None
+        if self.realism is not None:
+            self.realism.begin_step()
+        w.begin()
+        camera_mod.begin_step(w)
+        if timeline.bus_on(state):
+            # the agent already saw this step's notices: the observation phase_done returns lists only those perceived
+            # from here on (perception.notices_since reads the mark; phase_done counts no step)
+            steps, now = state.get("steps", 0), state["time_s"]
+            seen = sum(1 for n in state.get("notices") or () if isinstance(n, dict) and n.get("step") == steps
+                       and abs(float(n.get("t", 0.0)) - now) <= 1e-9)
+            w.sec("phase")["notice_mark"] = {"step": steps, "t": now, "n": seen}
+        ended = self._phases.end(self, "done")
+        self._tick_index = phases_mod.GAP_TICK_BASE
+        started = self._phases.start_next(self)
+        timeline.derive_notices(self)               # the new phase's request reaches the robot now (once)
+        if self.realism is not None:
+            self.realism.commit_grants(True)
+        self._end_of_step()
+        outcome = self.evaluate()
+        changes = w.changes() if self.trace else []
+        if STRICT:
+            self._strict_check(strict_copy)
+        w.commit()
+        waiting = started is None and self._phases.waiting(self)
+        message = "Phase {} done{}".format(ended["id"], "; phase {} begins".format(started["id"]) if started else
+                                           "; the next request comes later" if waiting else "; no phase left")
+        record = {"command": {"action": "phase_done"}, "phase_done": True, "ok": True, "category": "",
+                  "message": message, "time_s": state["time_s"]}
+        if self.trace:
+            record["state_hash"] = digest(state)
+            record["changes"] = changes
+        self._history.append(record)
+        self._last_score = outcome["score"]
+        result = {"ok": True, "message": message, "category": "",
+                  "phase": {"ended": ended["id"], "active": started["id"] if started else None, "waiting": waiting},
+                  "observation": self.observe() if self.observe_on_step else None}
+        if self.realism is not None:
+            self.realism.invalidate()
+            if self.raw_results:
+                result["evaluation"] = outcome
+            return result
+        result["evaluation"] = outcome
+        return result
+
+    def request(self):
+        """The active request (TIER1_SWEEP 10.1): the last state.requests record of the active phase (or of the
+        episode); a task without requests has today's plain instruction, {"id": "r0", "from": None, "channel":
+        "unspecified", ...}, as has a phase that came without a request. None without a task. The record is the one
+        obs.request shows (perception.current_request)."""
+        record = current_request(self.world.s)
+        if record is not None:
+            return copy.deepcopy(record)
+        if not self._task:
+            return None
+        active = self._phases.active() if self._phases.phases else None
+        return {"id": "r0", "phase": active["id"] if active else None, "from": None, "channel": "unspecified",
+                "room": None, "t": 0.0, "text": self._task.get("instruction", ""), "subject": None, "gesture": None}
+
     def _strict_check(self, before):
         w = self.world
         journaled = set()
@@ -549,33 +708,130 @@ class HouseEnv:
                 raise RuntimeError("Untracked mutation at " + top)
 
     # ------------------------------------------------------------------
-    def _advance(self, seconds):
+    def _advance(self, seconds, wait=None, idle=None):
+        """Advance simulated time in substeps of at most 30 s (TIER1_INTEGRATION 1.9). wait: a timeline.WaitRun that
+        may end the advance at a substep boundary (until / interrupt_on); idle: a timeline.IdleRun when the robot is
+        idle (a wait, a phase gap), so due auto standing orders run at the boundaries (each command's time is spent in
+        the world and counts against the advance). Returns the seconds actually advanced."""
         w = self.world
-        remaining, index = float(seconds), 0
-        while remaining > 1e-9:
-            dt = min(remaining, SUBSTEP_S)
-            w.set_scalar("time_s", round(w.s["time_s"] + dt, 3))
-            tick = Tick(self, index)
-            for _, name, max_dt, fn in SYSTEMS:
-                period = SYSTEM_PERIODS.get(name)
-                if period:
-                    acc = float(w.s.get("_sched", {}).get(name, 0.0)) + dt
-                    if acc + 1e-9 >= period:
+        remaining, waited = float(seconds), 0.0
+        if wait is not None:
+            w._listening, w._heard = True, []
+        try:
+            if wait is not None and wait.reason is not None:
+                return 0.0                      # until held when the wait began
+            if idle is not None and timeline.has_due(w.s):
+                spent = self._run_orders(idle)  # orders held during a busy step run at this idle moment
+                remaining -= spent
+                waited += spent
+            while remaining > 1e-9:
+                dt = min(remaining, SUBSTEP_S)
+                self._substep(dt)
+                remaining -= dt
+                waited += dt
+                if wait is not None and wait.check():
+                    if idle is not None and timeline.has_due(w.s):
+                        # an order that fired at this boundary (its "order" notice may be what ended the wait) runs
+                        # before the agent gets control back
+                        waited += self._run_orders(idle)
+                    w.trim_touched()
+                    break
+                if idle is not None and timeline.has_due(w.s):
+                    spent = self._run_orders(idle)
+                    remaining -= spent
+                    waited += spent
+                w.trim_touched()                # every consumer of the touch log has read this substep's touches
+        finally:
+            if wait is not None:
+                w._listening = False
+        return round(waited, 3)
+
+    def _substep(self, dt):
+        """One substep: systems in order (idle probes skip provably idle ones; a periodic system still keeps its
+        schedule), events, physics settle, standing orders, notices, the monitor, phase boundaries."""
+        w = self.world
+        w.set_scalar("time_s", round(w.s["time_s"] + dt, 3))
+        tick = Tick(self, self._tick_index)
+        self._tick_index += 1
+        probes = IDLE_PROBES[0]
+        for _, name, max_dt, fn in SYSTEMS:
+            probe = SYSTEM_IDLE.get(name) if probes else None
+            period = SYSTEM_PERIODS.get(name)
+            if period:
+                acc = float(w.s.get("_sched", {}).get(name, 0.0)) + dt
+                if acc + 1e-9 >= period:
+                    if probe is None or not probe(w):
                         fn(w, acc, tick)
-                        acc = 0.0
-                    w.sec("_sched")[name] = round(acc, 6)
-                    continue
-                sub = dt
-                while sub > 1e-9:
-                    part = min(sub, max_dt)
-                    fn(w, part, tick)
-                    sub -= part
-            self._fire_events()
-            settle.settle(self, "substep")      # consequences of what systems and events changed in this substep
-            self._fire_orders()
-            w.trim_touched()                    # every consumer of the touch log has read this substep's touches
-            remaining -= dt
-            index += 1
+                    acc = 0.0
+                w.sec("_sched")[name] = round(acc, 6)
+                continue
+            if probe is not None and probe(w):
+                continue
+            sub = dt
+            while sub > 1e-9:
+                part = min(sub, max_dt)
+                fn(w, part, tick)
+                sub -= part
+        self._fire_events()
+        settle.settle(self, "substep")          # consequences of what systems and events changed in this substep
+        self._fire_orders()
+        timeline.derive_notices(self)           # speech, people coming and going (the kernel's own notices)
+        self._monitor.sample(self, "substep")
+        if self._phases.phases:
+            before = self._phases.active()
+            self._phases.tick(self)
+            if self._phases.active() is not before:
+                timeline.derive_notices(self)   # a new phase's request reaches a listening wait at this boundary
+
+    def _run_orders(self, idle):
+        """Run the due auto standing orders; returns the seconds their commands took."""
+        before = self.world.s["time_s"]
+        timeline.run_auto_orders(self, idle)
+        return round(self.world.s["time_s"] - before, 3)
+
+    def _auto_command(self, command, idle):
+        """One auto standing-order command (TIER1_SWEEP 6.4, TIER1_INTEGRATION 1.9 rule 3 and conflict 43): a nested
+        leaf under a savepoint, its energy settled under "covered"; refused -> rolled back to the savepoint (its body
+        bookkeeping kept); done -> settled as an action, sampled by the monitor, then its time spent in the world.
+        Returns (ok, message, category)."""
+        w = self.world
+        mode = self._advance_mode
+        sp = w.savepoint()
+        self._advance_mode = "covered"
+        settle.begin_action(w)
+        try:
+            result, ctx, spent = self._leaf(dict(command))
+        except ActionError as exc:
+            w.rollback_to(sp)
+            self._advance_mode = mode
+            if isinstance(exc, body.BodyRefusal):
+                exc.apply(self)
+            return False, str(exc), exc.category
+        except Exception as exc:  # noqa: BLE001
+            if not SAFE:
+                raise
+            w.rollback_to(sp)
+            self._advance_mode = mode
+            w.stat("internal_errors")
+            return False, "Internal simulator error ({})".format(type(exc).__name__), "internal"
+        settle.settle(self, "action", ctx)
+        w.release(sp)
+        self._monitor.sample(self, "order", at=w.s["time_s"] + spent)  # what it reached: at the command's end
+        message = _with_notes(result, ctx.notes)
+        if spent > 1e-9:
+            self._advance(spent)                # the command's time: the world keeps running (covered energy)
+        self._advance_mode = mode
+        return True, message, ""
+
+    def _run_gap(self, seconds):
+        """A phase gap: an idle advance with every system and auto standing orders (TIER1_SWEEP 9)."""
+        mode = self._advance_mode
+        self._advance_mode = "idle"
+        self._tick_index = max(self._tick_index, phases_mod.GAP_TICK_BASE)
+        try:
+            return self._advance(seconds, idle=timeline.IdleRun(self, "gap"))
+        finally:
+            self._advance_mode = mode
 
     def _fire_events(self):
         w = self.world
@@ -605,37 +861,20 @@ class HouseEnv:
             w.emit(event.get("kind", event.get("effect", "event")), **{k: v for k, v in event.get("log", {}).items()})
 
     def _fire_orders(self):
-        w = self.world
-        state = w.s
-        for i, order in enumerate(state.get("orders", [])):
-            if order.get("fired") and not order.get("persistent"):
-                continue
-            if not timeline.watch_condition_visible(w, order["condition"]) or not check(state, order["condition"]):
-                if order.get("persistent") and order.get("armed") is False:
-                    w.sec("orders")[i]["armed"] = True
-                continue
-            if order.get("persistent") and order.get("armed") is False:
-                continue
-            orders = w.sec("orders")
-            orders[i]["fired"] = True
-            orders[i]["armed"] = False
-            pending = w.sec("pending")
-            pending.extend(copy.deepcopy(order["commands"]))
-            facts = w.sec("facts")
-            facts["orders_fired"] = facts.get("orders_fired", 0) + 1
-            w.emit("standing_order_fired", order=i)
+        """Standing orders (timeline.fire_orders): queue orders fill `pending`, auto orders become due; the condition
+        must hold and be perceivable now, realism included (TIER1_SWEEP 6.5)."""
+        timeline.fire_orders(self)
 
     def _update_milestones(self):
-        if not self._task:
-            return
-        state = self.world.s
-        for name, rule in self._task.get("milestones", {}).items():
-            if name not in self._milestones and check(state, rule):
-                self._milestones[name] = {"step": state["steps"], "time_s": state["time_s"]}
+        """The monitor's end-of-step sample (milestones are sampled at every sample point since kernel v3.1)."""
+        self._monitor.sample(self, "end")
 
     # ------------------------------------------------------------------
     def evaluate(self):
-        return evaluation.evaluate(self._task, self.world.s, self._baseline, self._milestones, self.world.s["steps"], world=self.world)
+        phases = self._phases if self._phases.phases else None
+        return evaluation.evaluate(self._task, self.world.s, self._baseline, self._milestones, self.world.s["steps"],
+                                   world=self.world, temporal=self._monitor, phases=phases,
+                                   mind=self.mind if self._uses_mind else None)
 
     def task_complete(self):
         return self.evaluate()["success"]
@@ -694,7 +933,8 @@ class HouseEnv:
                    "replay_start": self._replay_start, "sensors": self.sensors, "milestones": self._milestones,
                    "actions_hash": actions_fingerprint(), "perception": self.perception_mode,
                    "camera": self.camera_mode,
-                   "realism": self.realism.dump() if self.realism is not None else None}
+                   "realism": self.realism.dump() if self.realism is not None else None,
+                   "monitor": self._monitor.record(), "mind": self._mind_dump()}
         envelope = {"payload": payload, "sha256": digest(payload)}
         Path(path).write_text(json.dumps(envelope, ensure_ascii=False), encoding="utf-8")
 
@@ -718,11 +958,32 @@ class HouseEnv:
         env._camera_view = None
         env._baseline, env._history = payload["baseline"], payload["history"]
         env._known_map, env._undo, env._snapshots = payload["known_map"], payload["undo"], payload["snapshots"]
-        env._replay_start, env._milestones = payload["replay_start"], payload.get("milestones", {})
+        env._replay_start = payload["replay_start"]
+        if payload.get("monitor") is not None:
+            env._monitor.load(payload["monitor"])
+        else:
+            env._monitor.load({"milestones": payload.get("milestones", {})})
+        timeline.start(env)
+        env._sync_instruction()
         if env.realism is not None:
             env.realism.load(payload.get("realism"))
+        if env.mind is not None and payload.get("mind") is not None:
+            env.mind.load(payload["mind"])
         env._last_score = env.evaluate()["score"]
         return env
+
+    def _mind_dump(self):
+        return self.mind.dump() if self.mind is not None else None
+
+    def _sync_instruction(self):
+        """The instruction is the active phase's request text (a loaded or replayed multi-phase episode)."""
+        if not self._phases.phases or self._task is None:
+            return
+        phase = self._phases.active()
+        if phase is not None:
+            text = (phase.get("request") or {}).get("text", phase.get("instruction"))
+            if text is not None:
+                self._task["instruction"] = text
 
     def save_replay(self, path):
         data = {"format": "house-replay-v2", "initial": self._initial, "start_state": self._replay_start,
@@ -748,20 +1009,27 @@ class HouseEnv:
                 recorded or "from before kernel v3.0", physics.physics_version()), RuntimeWarning, stacklevel=2)
         env.world = World(clone(data["start_state"]), env.registry)
         env._camera_view = None
+        timeline.start(env)
+        env._sync_instruction()
         if env.realism is not None:
             from .realism import Realism
             env.realism = Realism(env)
-            # as at the recorded episode's reset: the view noted, and the observation reset() returned (it issued the
-            # handles of what was seen then and started a dark spell; with the geometric camera those things may never
-            # be in view again)
+            # as at the recorded episode's reset: the view noted, the Mind started against this Realism (prior knowledge
+            # issues its handles and grants its knowledge there, kernel/mind.py from_config), and the observation
+            # reset() returned (it issued the handles of what was seen then and started a dark spell; with the
+            # geometric camera those things may never be in view again)
             env._note_view()
+            env._start_mind()
             env.observe()
         env._baseline = data["baseline"]
         env._replay_start = clone(env.world.s)
         env._last_score = env.evaluate()["score"]
         for number, record in enumerate(data["steps"], 1):
             command = dict(record["command"])
-            result = env.step(**command)
+            if record.get("phase_done"):
+                result = env.phase_done()
+            else:
+                result = env.step(**command)
             if result["ok"] != record["ok"]:
                 raise ValueError("Replay diverged at step {} (ok {} vs {})".format(number, result["ok"], record["ok"]))
             if record.get("state_hash") and digest(env.world.s) != record["state_hash"]:

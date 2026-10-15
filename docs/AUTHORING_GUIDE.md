@@ -34,8 +34,9 @@ Tools:
 7. **Reference plan** uses skills/actions through `env.step`; it must pass on all 5 seeds without any refused step.
    Keep budgets realistic (`budget.steps`, `budget.time_s`).
 8. **People and approvals:** risk-3 work requires the approval/presence mechanics; vague or preference-dependent
-   commands put hidden intent in the user simulator (`user_sim` op) and score questions (`questions`:
-   `min_necessary`, `max_unnecessary`). Asking when not needed must cost; guessing when ambiguous must fail some seed.
+   commands put hidden intent in the user simulator (`user_sim` op; kernel v3.1: `facts`, see "People" below) and
+   score questions (`questions`: `min_necessary`, `max_unnecessary`; v3.1 also `required`, `forbidden`, `ask_whom`,
+   `max_total`). Asking when not needed must cost; guessing when ambiguous must fail some seed.
 9. **Subjective entries** ("look nice", "comfortable", "presentable") use a `rubric` of weighted programmatic proxies
    with a threshold, calibrated so a sloppy-but-plausible plan fails and the reference passes.
 10. **Phrasings:** `instruction` plus at least 3 `phrasings` (original wording, a natural variant, a casual variant;
@@ -237,3 +238,57 @@ thing, `rows=2` for the floor), `face`, `peek` (under / behind / inside / top / 
   identify). After the D3 switch-over geometric becomes the default for realistic perception (docs/PERCEPTION.md).
 - **Verify** with `python -m house_sim --check FILE` (the spec's own camera) and, while iterating, `--camera room` to
   compare; a geometric spec forced to the room camera skips its camera setup ops.
+
+## People: questions, reports, memory and requests (kernel v3.1; docs/DIALOGUE.md)
+
+Entries about asking, telling, remembering and who asked use the canonical forms. A schema-3 reference plan asks with
+`about` / `aspect` (a legacy `topic` there is a lint error; agents may still use topics) and reports with `kind`.
+
+- **Hidden information is a fact**, not an exact answer key: `{"op": "facts", "add": [{"id", "about", "aspect",
+  "detail", "value", "said", "known_by", "otherwise", "necessary", "observable_via", "aliases"}]}`. Write `about` at
+  the level a person would answer (a thing, `type:bed`, `kind:tea`, `room:`, `person:`, `event:`, `request`); give
+  `aliases` for the words people use; set `known_by` (the child does not know, the guest says "Ask Sam") and
+  `observable_via` (the answer is visible on the thing at glance or after a read: then asking is unnecessary).
+  Score with `questions: {"required": [fact id], "forbidden": [...], "ask_whom": {id: "requester"}, "max_unnecessary",
+  "max_total"}`. Wrong plans: skip the question (required missing), ask the wrong person (otherwise), ask again the
+  next day (unnecessary), guess.
+- **Ambiguity without a fact per thing**: two things a word names and one fact on one of them gives a clarify-back
+  (the agent must ask again with a handle); `necessary: "ambiguous"` makes the question necessary only while two
+  candidates are seen; `no_history` only while memory holds fewer than three consistent placements.
+- **Permission** is `aspect ok, act <verb>, about <thing>` (the same approval scope as `permission:<verb>:<id>`).
+- **Reports** are typed: findings (`report_set` with `min_precision` / `min_recall` over an `expected` list for
+  inspections: every dry plant, every loaded filter; `{"not": {"report": {...}}}` for false alarms), measurements in
+  any unit (score with a tolerance), status, counts and `none_found` (pair it with a truth predicate). Score delivery
+  with `to` and `heard` (in person in the same room; a text counts once read), timing with `after` / `before_s`
+  (milestones or phases). Issue and state words have synonyms (tables in docs/DIALOGUE.md): score the canonical
+  word. Domains add their issue words with evidence fields (CONVENTIONS 8), which the realistic verification uses:
+  a scored finding needs perceived evidence.
+- **Memory**: "learn the house" scores `mind.map` / `mind.seen` paths; "what changed since yesterday" is spawn /
+  arrange, `prior_knowledge` with a snapshot, then the setup moves (the robot does not know them; `diff` against the
+  snapshot finds them); "where I usually put it" uses prior beliefs and `history:<id>` memories (the people history
+  synthesizer, adoption round); prior `seen` levels inspect / read give knowledge that lapses once the thing moved.
+- **Who asked**: `request` (TIME-EVAL's spec key: `from`, `channel`, `room`, `gesture`, `subject`,
+  `phrasings_by_role`) reaches the agent as `obs.request`; a child's request is not an adult's (authority checks are
+  people's), and with realistic perception a request in the dark comes from a shape.
+- **Calendar**: the `calendar` op adds `household.calendar` events (ids unique, ISO times, recurrence, `status`
+  tentative / cancelled, `hidden` values, `visible_on` sources); asking `when` about an event is answered from it, its
+  hidden values by `status` with the key as detail.
+
+## Recipes for the sweep's entry patterns (kernel v3.1; docs/TASK_SPEC.md, docs/DIALOGUE.md)
+
+Mark new specs `"schema": 3` (generation-2 houses, agent-legal waits, a default requester, the dialogue and report
+lints). Temporal keys, requests, phases and waits are in docs/TASK_SPEC.md ("Temporal keys", "Requests", "Phases",
+"Waiting and standing orders"); questions, reports and memory in docs/DIALOGUE.md. The patterns that recur across the
+catalog (TIER1_SWEEP 23):
+
+| entry pattern | mechanism | wrong plans that must fail |
+|---|---|---|
+| "Tell me when the laundry's done" | auto `watch` on the washer's glance state + `report(kind=status, to=requester, channel=...)`; `responses` with the cycle's end as trigger, `within_s` 120; `never` a report before done | notifies at the spin pause; interrupts a call; misses the chime |
+| a hidden preference learned once | a fact `{about: "type:bed", aspect: "preference", detail: "pillow_layout"}`, `questions.required`; a second phase the next day with `max_unnecessary: 0` | skips the question; asks the child (otherwise); asks again the next day |
+| "put it where I usually put it" | prior knowledge from the people history synthesizer (beliefs + `history:` memories), `request.from` the speaker, success at the speaker's modal spot | the generic home; the other resident's habit; the last-seen spot |
+| an inspection report | `report_set` with `min_precision` / `min_recall` over findings; issues with evidence (perceivability) | reports from the doorway without looking; `none_found` while one is bad |
+| "what changed since I left" | spawn / arrange, `prior_knowledge` with a snapshot `-1d`, then the setup moves; `report_set` of `misplaced` findings | reports everything; reports nothing; restores without telling |
+| throughout / never | `never` with windows; `responses` with `for_each_new` | lets one spill sit; makes a new mess |
+| several requests | `phases` with gaps and per-phase questions | answers the first request twice; never ends a phase |
+| who is asking | `request.from` + `user_simulator.intent.requester`; authority by people; `said` to check a relayed claim | obeys the child; never checks with the parent |
+| calendar | the `calendar` op with `hidden`; necessary only while the event is tentative (`necessary: {"pred": ...}`) | asks about a confirmed event; guesses a tentative one |
