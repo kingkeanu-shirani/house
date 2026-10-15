@@ -1,7 +1,7 @@
 """Robot capacities, lift plans, pushing, friction and floor scratching (docs/design/TIER1_PHYSICS.md 5.6, with the
 binding changes of docs/design/TIER1_INTEGRATION.md 1.2 and 1.5).
 
-    robot_caps(w, eid=None)                  the robot's capability numbers (the only way physics reads them)
+    robot_caps(w, eid=None)                  the robot body's capability numbers (the only way physics reads them)
     lift_plan(w, eid, hands=None, helpers=()) how an item would be lifted; never raises (refusals are reason codes)
     push_needed_n(w, eid, floor_id=None)     force to start sliding an item: mu(foot, floor) m g, casters c_rr m g
     max_push_n(w, helpers=())                robot push plus the push of present, awake, consenting helpers
@@ -18,11 +18,7 @@ import math
 from .props import FLOORS, INF, MATERIALS, SUPPORTS, floor_kind, floor_props, props_of
 
 G = 9.81
-# humanoid_v1 of house_sim/data/robot/profiles.json (TIER1_INTEGRATION 1.2), used for any capability the robot record
-# does not carry. TIER1-STUB(BODY-ENGINE): robot_caps delegates to kernel/body.py (body.capacity_kg, body.limit,
-# body.grip_limit_n) and this stage-A fallback table goes.
-FALLBACK_CAPS = {"max_hand_kg": 8.0, "max_mass_kg": 20.0, "push_n": 220.0, "pull_n": 180.0, "grip_n": 150.0,
-                 "pinch_n": 30.0, "wrist_nm": 6.0}
+CAP_KEYS = ("max_hand_kg", "max_mass_kg", "push_n", "pull_n", "grip_n", "pinch_n", "wrist_nm")
 TWO_HAND_SPAN_M = 0.7          # core pick_up: an item wider than this needs both hands
 MU_CAP = 1.0                   # a foot factor can not raise friction above this (rubber feet; TIER1_PHYSICS 4.5)
 SCRATCH_VISIBLE_RISK = 0.3     # manipulation floor_contact_effects: below this risk a drag leaves no visible mark
@@ -68,13 +64,23 @@ def _num(value, default):
 # robot and helpers
 
 def robot_caps(w, eid=None):
-    """{"max_hand_kg", "max_mass_kg", "push_n", "pull_n", "grip_n", "pinch_n", "wrist_nm"} of the robot.
+    """{"max_hand_kg", "max_mass_kg", "push_n", "pull_n", "grip_n", "pinch_n", "wrist_nm"} of the robot, all from the
+    robot body (TIER1_INTEGRATION 1.2; kernel/body.py, imported at call time):
 
-    Stage A reads the robot record and falls back to humanoid_v1 for every missing value. eid (the item being
-    handled) is accepted for the body's position derates, which BODY-ENGINE adds when it delegates to
-    body.capacity_kg / body.limit / body.grip_limit_n. TIER1-STUB(BODY-ENGINE): that delegation replaces this body."""
-    robot = w.s["robot"]
-    return {key: _num(robot.get(key), default) for key, default in FALLBACK_CAPS.items()}
+    max_hand_kg   body.capacity_kg(state, None, eid): the stronger single hand, derated for eid's reach (an overhead
+                  cell, above the head), a climbing aid, limp mode, arm health and the lift_capacity hooks
+    max_mass_kg   body.capacity_kg(state, "both", eid): both hands near the body, with the same derates
+    push_n, pull_n, wrist_nm   body.limit (the profile, profile_overrides applied)
+    grip_n, pinch_n            body.grip_limit_n of the stronger working hand ("power" / "pinch"; 0 with no arm)
+
+    Physics reads robot capabilities only through this function."""
+    body = importlib.import_module("..body", __package__)
+    state = w.s
+    grip = [body.grip_limit_n(state, hand, "power") for hand in HANDS]
+    pinch = [body.grip_limit_n(state, hand, "pinch") for hand in HANDS]
+    return {"max_hand_kg": body.capacity_kg(state, None, eid), "max_mass_kg": body.capacity_kg(state, "both", eid),
+            "push_n": body.limit(state, "push_n"), "pull_n": body.limit(state, "pull_n"), "grip_n": max(grip),
+            "pinch_n": max(pinch), "wrist_nm": body.limit(state, "wrist_nm")}
 
 
 def _helper_value(person, key):
@@ -119,9 +125,12 @@ def lift_plan(w, eid, hands=None, helpers=()):
     """How the robot would lift eid; it never raises (TIER1_INTEGRATION 1.5).
 
     hands: None (any free hand), "left" or "right" (that hand only), or "both" (also pass "both" for grip=two_hand).
-    Two hands are needed when hands is "both", the record is two_handed, the subtree mass exceeds max_hand_kg or
-    the largest of the first two size_m sides exceeds 0.7 m: core pick_up's thresholds, unchanged. A two-hand
-    lift over max_mass_kg is still ok when present, awake, consenting helpers' lift_kg covers the rest.
+    Two hands are needed when hands is "both", the record is two_handed, the subtree mass exceeds what the stronger
+    hand can take as the robot believes it (body.capacity_kg(..., believed=True): a latent weak arm still counts at
+    full strength, so check_lift finds it) or the largest of the first two size_m sides exceeds 0.7 m: core
+    pick_up's thresholds. With hands None the free working hand whose believed capacity takes the mass is chosen,
+    the right one first (a known weak right arm hands a load it cannot take to the left). A two-hand lift over
+    max_mass_kg is still ok when present, awake, consenting helpers' lift_kg covers the rest.
 
     Returns {"ok", "hands" (the hands it would use: ["left", "right"], [hand], or [] when none is free),
     "mass_kg", "reason", "helpers" (ids counted in a team lift)} with reason None, "hands_busy" (the hands it needs
@@ -134,7 +143,9 @@ def lift_plan(w, eid, hands=None, helpers=()):
     held = robot.get("hands") or {}
     arms = robot.get("arms_ok") or {}
     size = record.get("size_m") or [0.1]
-    two = (hands == "both" or bool(record.get("two_handed")) or mass > caps["max_hand_kg"]
+    from .. import body
+    believed = {hand: body.capacity_kg(state, hand, eid, believed=True) for hand in HANDS}
+    two = (hands == "both" or bool(record.get("two_handed")) or mass > max(believed.values()) + 1e-9
            or max(_num(v, 0.1) for v in size[:2]) > TWO_HAND_SPAN_M)
     plan = {"ok": False, "hands": [], "mass_kg": mass, "reason": None, "helpers": []}
     if two:
@@ -154,6 +165,9 @@ def lift_plan(w, eid, hands=None, helpers=()):
     order = [hands] if hands in HANDS else ["right", "left"]          # core's free_hand prefers the right hand
     free = [hand for hand in order if hand in held and held[hand] is None]
     usable = [hand for hand in free if arms.get(hand, True)]
+    if hands not in HANDS:
+        # any free hand: the one the robot believes can take it, the right one first on a tie
+        usable = [h for h in usable if believed[h] + 1e-9 >= mass] + [h for h in usable if believed[h] + 1e-9 < mass]
     if usable:
         plan.update(ok=True, hands=[usable[0]])
     else:

@@ -95,6 +95,7 @@ main { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr)
 .is-on.ceil, .is-on.dot { stroke: var(--ceil); fill: var(--ceil); fill-opacity: .35; }
 .is-open { stroke: var(--door-open) !important; stroke-width: .09; }
 .is-broken { stroke: var(--bad) !important; stroke-width: .1; stroke-dasharray: .1 .06; }
+.is-phys { stroke: var(--warn) !important; stroke-width: .1; stroke-dasharray: .16 .08; }
 .kids { fill: var(--panel); stroke: var(--muted); stroke-width: .03; }
 .kids-t { fill: var(--ink); font-size: .26px; pointer-events: none; }
 .elabel { fill: var(--ink); font-size: .3px; pointer-events: none; }
@@ -111,6 +112,11 @@ main { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr)
 .hatch-line { stroke: var(--muted); stroke-width: .04; opacity: .45; }
 .trail { fill: none; stroke: var(--robot); stroke-width: .08; stroke-dasharray: .15 .1; opacity: .6; }
 .robot { fill: var(--robot); stroke: var(--panel); stroke-width: .07; }
+.robot.off { fill: var(--muted); }
+.seen { fill: var(--robot); fill-opacity: .1; pointer-events: none; }
+.fov { fill: var(--robot); fill-opacity: .12; stroke: var(--robot); stroke-opacity: .5; stroke-width: .03; pointer-events: none; }
+.fov.past { fill-opacity: .05; stroke-dasharray: .1 .08; }
+.facing { stroke: var(--robot); stroke-width: .1; stroke-linecap: round; pointer-events: none; }
 .robot-t { fill: #fff; font-size: .36px; font-weight: 700; pointer-events: none; }
 .person { fill: var(--person); stroke: var(--panel); stroke-width: .06; }
 .pet { fill: var(--pet); stroke: var(--panel); stroke-width: .06; }
@@ -141,6 +147,15 @@ main { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr)
 .st { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sparams { color: var(--muted); font-family: Consolas, Menlo, monospace; font-size: 11.5px; word-break: break-all; }
 .smsg { color: var(--muted); word-break: break-word; margin-top: 1px; }
+.smarks { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.mk { font-size: 11px; line-height: 1.5; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); color: var(--muted); word-break: break-all; }
+.mk.phys { color: var(--warn); border-color: var(--warn); background: var(--warn-bg); }
+.mk.body { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
+.scrubwrap { position: relative; flex: 1 1 260px; min-width: 160px; display: flex; flex-direction: column; }
+.scrubwrap input[type=range] { width: 100%; margin: 0; }
+#markStrip { position: relative; height: 7px; margin: 1px 8px 0; }
+#markStrip i { position: absolute; top: 0; width: 3px; height: 7px; margin-left: -1px; border-radius: 1px; cursor: pointer; }
+#markStrip i.phys { background: var(--warn); } #markStrip i.body { background: var(--bad); }
 .ev-status { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 6px; margin-bottom: 6px; }
 .ev-status.success { background: var(--ok-bg); color: var(--ok); }
 .ev-status.failed { background: var(--bad-bg); color: var(--bad); }
@@ -158,7 +173,7 @@ ul.plain li { padding: 1px 0; }
 .diff-row.r1 { opacity: .85; } .diff-row.r2, .diff-row.r3 { opacity: .6; }
 .arrow { color: var(--muted); padding: 0 4px; }
 .timeline { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 8px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; z-index: 5; }
-.timeline input[type=range] { flex: 1 1 260px; min-width: 160px; accent-color: var(--accent); }
+.timeline input[type=range] { accent-color: var(--accent); }
 #stepLabel { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 220px; }
 #tooltip { position: fixed; z-index: 20; max-width: 380px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 12.5px; pointer-events: none; }
 #tooltip .kv { font-size: 12px; }
@@ -225,7 +240,7 @@ details summary { cursor: pointer; color: var(--muted); }
     <option value="0.25">0.25x</option><option value="0.5">0.5x</option><option value="1" selected>1x</option>
     <option value="2">2x</option><option value="4">4x</option><option value="8">8x</option>
   </select>
-  <input type="range" id="scrub" min="0" max="0" value="0" aria-label="Timeline scrubber">
+  <div class="scrubwrap"><input type="range" id="scrub" min="0" max="0" value="0" aria-label="Timeline scrubber"><div id="markStrip" aria-hidden="true"></div></div>
   <span id="stepLabel"></span>
 </div>
 <div id="tooltip" role="tooltip" hidden></div>
@@ -247,6 +262,7 @@ details summary { cursor: pointer; color: var(--muted); }
   }
   function decode(a) { var out = [], prev = null; (a || []).forEach(function (x, i) { prev = i === 0 ? x : mp(prev, x); out.push(prev); }); return out; }
   var O = D.frames ? decode(D.frames) : null, P = D.pframes ? decode(D.pframes) : null, E = decode(D.evals), DIFFS = D.diffs || null;
+  var MARKS = D.marks || {};   // oracle only: {frame index: [[event kind, detail], ...]} (physics consequences, body events)
   var S = {f: 0, view: O ? "oracle" : "perceived", floor: null, playing: false, timer: null, speed: 1, scene: null};
 
   // ---- helpers ----
@@ -262,6 +278,19 @@ details summary { cursor: pointer; color: var(--muted); }
   function roomAt(f) { var fr = anyFrame(f); return fr ? fr.r : null; }
   function kv(rows) { return '<dl class="kv">' + rows.filter(function (r) { return r[1] !== undefined && r[1] !== null && r[1] !== ""; }).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl>"; }
   function store(key, value) { try { if (value === undefined) return window.localStorage.getItem(key); window.localStorage.setItem(key, value); } catch (e) { return null; } return null; }
+  function markClass(kind) { return kind === "more" ? "" : String(kind).indexOf("phys.") === 0 ? "phys" : "body"; }
+  function markText(m) { var k = String(m[0]); return (k.indexOf("phys.") === 0 ? k.slice(5) : k.replace(/_/g, " ")) + (m[1] ? ": " + m[1] : ""); }
+  function marksAt(f) { return S.view === "oracle" ? (MARKS[String(f)] || []) : []; }
+  function marksHtml(f) { var m = marksAt(f); return m.length ? '<div class="smarks">' + m.map(function (x) { return '<span class="mk ' + markClass(x[0]) + '">' + esc(trunc(markText(x), 60)) + "</span>"; }).join("") + "</div>" : ""; }
+  function bodyParts(fr) {
+    var out = [];
+    if (!fr) return out;
+    if (fr.pw) out.push("power " + fr.pw);
+    if (fr.bs) out.push("battery " + fr.bs);
+    if ((fr.ft || []).length) out.push("faults: " + fr.ft.join(", "));
+    if ((fr.lf || []).length) out.push("latent: " + fr.lf.join(", "));
+    return out;
+  }
 
   // ---- header ----
   function header() {
@@ -269,6 +298,8 @@ details summary { cursor: pointer; color: var(--muted); }
     var b = [];
     function badge(text, cls) { b.push('<span class="badge ' + (cls || "") + '">' + esc(text) + "</span>"); }
     badge("perception: " + (META.perception || "oracle"));
+    badge("camera: " + (META.camera || "room"));
+    if (META.physics_version) badge("physics " + META.physics_version + (META.physics_recorded ? " (recorded " + META.physics_recorded + ")" : ""), META.physics_recorded ? "bad" : "");
     if (META.split) badge("split: " + META.split, META.split === "test" ? "bad" : "");
     if (META.seed_tag) badge(META.seed_tag); else if (META.seed !== undefined) badge("seed " + META.seed);
     if (META.agent) badge("agent: " + META.agent + (META.privileged ? " (privileged)" : ""));
@@ -353,7 +384,7 @@ details summary { cursor: pointer; color: var(--muted); }
   // ---- scenes (oracle / perceived) ----
   function sceneOracle(f) {
     var fr = O[f], rid = fr.r, rs = (fr.R || {})[rid] || {}, ents = rs.e || {}, items = [];
-    Object.keys(ents).sort().forEach(function (key) { var e = ents[key]; if (e.x !== undefined && e.k) items.push({key: key, x: e.x, y: e.y, w: e.w || 1, d: e.d || 1, k: e.k, label: e.l, open: e.op, on: e.on, broken: e.br, kids: (e.ch || []).length}); });
+    Object.keys(ents).sort().forEach(function (key) { var e = ents[key]; if (e.x !== undefined && e.k) items.push({key: key, x: e.x, y: e.y, w: e.w || 1, d: e.d || 1, k: e.k, label: e.l, open: e.op, on: e.on, broken: e.br, phys: !!e.ph, kids: (e.ch || []).length}); });
     var held = Object.keys(fr.h || {}).map(function (hand) { var id = fr.h[hand], rec = (fr.H || {})[id] || {}; return (rec.l || id) + " (" + hand + ")"; });
     return {mode: "oracle", room: rid, ents: ents, held_records: fr.H || {}, items: items, conns: rs.c || [], people: rs.p || {}, pets: rs.a || {},
             hazards: rs.z || [], wet: rs.wc || [], blocked: [], dark: rs.lt !== undefined && rs.lt < 0.2, light: rs.lt,
@@ -389,6 +420,13 @@ details summary { cursor: pointer; color: var(--muted); }
     for (var x = 1; x < C; x++) g.push("M" + x + " 0V" + R);
     for (var y = 1; y < R; y++) g.push("M0 " + y + "H" + C);
     s.push('<path class="gridline" d="' + g.join("") + '"/>');
+    var cam = (sc.robot && sc.robot.extra && sc.robot.extra.cam) || null;
+    if (cam && typeof cam.sc === "string" && cam.sc.length === C * R) {
+      // geometric camera, oracle view: the floor cells camera_log counts as seen in this room
+      var seen = [];
+      for (var ci = 0; ci < cam.sc.length; ci++) if (cam.sc.charAt(ci) === "1") seen.push("M" + (ci % C) + " " + Math.floor(ci / C) + "h1v1h-1z");
+      if (seen.length) s.push('<path class="seen" d="' + seen.join("") + '"/>');
+    }
     sc.blocked.forEach(function (c) { s.push('<rect class="blocked" x="' + c[0] + '" y="' + c[1] + '" width="1" height="1"/>'); });
     sc.wet.forEach(function (c) { s.push('<rect class="wet" x="' + c[0] + '" y="' + c[1] + '" width="1" height="1" data-hz="' + c[0] + "," + c[1] + '"/>'); });
     var hzCells = {};
@@ -400,7 +438,7 @@ details summary { cursor: pointer; color: var(--muted); }
     });
     var items = sc.items.slice().sort(function (a, b) { return (ORDER[a.k] || 0) - (ORDER[b.k] || 0) || (b.w * b.d - a.w * a.d); });
     items.forEach(function (it) {
-      var st = (it.open ? " is-open" : "") + (it.on ? " is-on" : "") + (it.broken ? " is-broken" : ""), dk = ' data-k="' + esc(it.key) + '"';
+      var st = (it.open ? " is-open" : "") + (it.on ? " is-on" : "") + (it.broken ? " is-broken" : it.phys ? " is-phys" : ""), dk = ' data-k="' + esc(it.key) + '"';
       var x = it.x, y = it.y, w = it.w, d = it.d, side;
       if (it.k === "floor" || it.k === "door") return;
       if (it.k === "win") {
@@ -458,8 +496,25 @@ details summary { cursor: pointer; color: var(--muted); }
       s.push('<text class="agent-t" x="' + (pos[0] + 0.5) + '" y="' + (pos[1] + 0.61) + '" text-anchor="middle">' + esc(String(name).charAt(0).toUpperCase()) + "</text>");
     });
     var rb = sc.robot, small = /crouch|kneel|sit|lying/.test(String(rb.posture || "")), rr = small ? 0.28 : 0.36;
-    s.push('<circle class="robot" data-robot="1" cx="' + (rb.x + 0.5) + '" cy="' + (rb.y + 0.5) + '" r="' + rr + '"/>');
+    if (cam) {
+      // geometric camera: this step's frame headings (dashed), the head's field of view now and the body's facing
+      var cx = rb.x + 0.5, cy = rb.y + 0.5, half = (cam.hf || 69) / 2, reach = 6;
+      var wedge = function (yaw, cls) {
+        var a0 = (yaw - half) * Math.PI / 180, a1 = (yaw + half) * Math.PI / 180;
+        return '<path class="' + cls + '" clip-path="url(#roomclip)" d="M' + cx + " " + cy + "L" + (cx + reach * Math.cos(a0)).toFixed(3) + " " + (cy + reach * Math.sin(a0)).toFixed(3) +
+               "A" + reach + " " + reach + " 0 0 1 " + (cx + reach * Math.cos(a1)).toFixed(3) + " " + (cy + reach * Math.sin(a1)).toFixed(3) + 'Z"/>';
+      };
+      s.push('<clipPath id="roomclip"><rect x="0" y="0" width="' + C + '" height="' + R + '"/></clipPath>');
+      (cam.fy || []).forEach(function (yaw) { if (Math.abs(((yaw - (cam.hy || 0)) % 360 + 540) % 360 - 180) > 0.5) s.push(wedge(yaw, "fov past")); });
+      if (cam.hy !== undefined) s.push(wedge(cam.hy, "fov"));
+    }
+    s.push('<circle class="robot' + (rb.extra && rb.extra.pw === "off" ? " off" : "") + '" data-robot="1" cx="' + (rb.x + 0.5) + '" cy="' + (rb.y + 0.5) + '" r="' + rr + '"/>');
     s.push('<text class="robot-t" x="' + (rb.x + 0.5) + '" y="' + (rb.y + 0.63) + '" text-anchor="middle">R</text>');
+    if (cam && cam.fd !== undefined) {
+      var fa = cam.fd * Math.PI / 180;
+      s.push('<line class="facing" x1="' + (rb.x + 0.5 + rr * Math.cos(fa)).toFixed(3) + '" y1="' + (rb.y + 0.5 + rr * Math.sin(fa)).toFixed(3) +
+             '" x2="' + (rb.x + 0.5 + 0.85 * Math.cos(fa)).toFixed(3) + '" y2="' + (rb.y + 0.5 + 0.85 * Math.sin(fa)).toFixed(3) + '"/>');
+    }
     if (sc.dark) { s.push('<rect class="dark-overlay" x="0" y="0" width="' + C + '" height="' + R + '"/><text class="dark-t" x="' + (C / 2) + '" y="0.7" text-anchor="middle">dark</text>'); }
     s.push("</svg>");
     return s.join("");
@@ -468,23 +523,26 @@ details summary { cursor: pointer; color: var(--muted); }
     var rows = [["var(--furn)", "furniture"], ["var(--fix)", "fixture"], ["var(--item)", "floor item"], ["var(--rug)", "rug / mat"], ["var(--wall)", "wall-mounted"],
                 ["var(--win)", "window"], ["var(--ceil)", "ceiling item / light on"], ["var(--door-open)", "open door"], ["var(--door-closed)", "closed door"],
                 ["var(--door-locked)", "locked door"], ["var(--doorway)", "doorway"], ["var(--hz)", "hazard"], ["var(--wet)", "wet cell"],
-                ["var(--robot)", "robot"], ["var(--person)", "person"], ["var(--pet)", "pet"]];
+                ["var(--robot)", META.camera === "geometric" ? "robot (line: facing; wedges: camera views this step; tint: floor seen)" : "robot"],
+                ["var(--muted)", "robot powered down"], ["var(--person)", "person"], ["var(--pet)", "pet"]];
+    if (O) rows.push(["var(--warn)", "dashed outline: physics cue (sagging, wobbly, rolling, fell, ...); amber/red marks: physics and body events"]);
     $("legend").innerHTML = rows.map(function (r) { return '<span><i style="background:' + r[0] + '"></i>' + r[1] + "</span>"; }).join("") + "<span>numbered badge = items on/in it; hover for details</span>";
   }
 
   // ---- tooltips ----
   var FIELD = {ty: "type", ca: "category", sz: "size (m)", rot: "rotation", mh: "mount height (m)", rel: "relation", "in": "inside / on", op: "open", lk: "locked", on: "on",
-               br: "broken", st: "states", so: "soil", we: "wetness", tc: "temperature (°C)", ma: "material", co: "color", b: "blocks path", k: "drawn as"};
+               br: "broken", st: "states", ph: "physics", dm: "damage", so: "soil", we: "wetness", tc: "temperature (°C)", ma: "material", co: "color", b: "blocks path", k: "drawn as"};
+  function cuesText(ph) { return Object.keys(ph).sort().map(function (k) { var v = ph[k]; return v === true ? k : k + " " + fmt(v); }).join(", "); }
   function oracleEntityHtml(key, e, ents) {
     var rows = [["id", "<code>" + esc(key) + "</code>"]];
     if (e.x !== undefined) rows.push(["cell", esc(e.x + ", " + e.y) + (e.w ? " · " + e.w + "×" + e.d + " cells" : "")]);
-    ["ty", "ca", "in", "rel", "sz", "rot", "mh", "op", "lk", "on", "br", "st", "so", "we", "tc", "ma", "co"].forEach(function (k) { if (e[k] !== undefined) rows.push([FIELD[k] || k, esc(fmt(e[k]))]); });
+    ["ty", "ca", "in", "rel", "sz", "rot", "mh", "op", "lk", "on", "br", "st", "ph", "dm", "so", "we", "tc", "ma", "co"].forEach(function (k) { if (e[k] !== undefined) rows.push([FIELD[k] || k, esc(k === "ph" ? cuesText(e[k]) : fmt(e[k]))]); });
     Object.keys(e.xf || {}).forEach(function (k) { rows.push([k, esc(fmt(e.xf[k]))]); });
     var html = "<h3>" + esc(e.l || key) + "</h3>" + kv(rows);
     if (e.ch && e.ch.length) {
       html += '<div class="muted" style="margin-top:4px">Contents / on it:</div><ul class="plain">' + e.ch.slice(0, 18).map(function (c) {
         var r = ents[c] || {}, flags = [];
-        if (r.op !== undefined) flags.push(r.op ? "open" : "closed"); if (r.on) flags.push("on"); if (r.br) flags.push("broken"); if (r.so) flags.push("soiled"); if (r.we) flags.push("wet " + r.we); if (r.tc !== undefined && (r.tc > 30 || r.tc < 12)) flags.push(r.tc + "°C");
+        if (r.op !== undefined) flags.push(r.op ? "open" : "closed"); if (r.on) flags.push("on"); if (r.br) flags.push("broken"); if (r.ph) flags.push(cuesText(r.ph)); if (r.so) flags.push("soiled"); if (r.we) flags.push("wet " + r.we); if (r.tc !== undefined && (r.tc > 30 || r.tc < 12)) flags.push(r.tc + "°C");
         return "<li>" + esc(r.l || c) + ' <span class="muted">' + esc((r.rel || "") + (flags.length ? " · " + flags.join(", ") : "")) + " <code>" + esc(c) + "</code></span></li>";
       }).join("") + (e.ch.length > 18 ? "<li class=\"muted\">+" + (e.ch.length - 18) + " more</li>" : "") + "</ul>";
     }
@@ -511,7 +569,10 @@ details summary { cursor: pointer; color: var(--muted); }
     if (el.getAttribute("data-robot")) {
       var rb = sc.robot, ex = rb.extra || {};
       return "<h3>Robot</h3>" + kv([["cell", esc(rb.x + ", " + rb.y)], ["posture", esc(rb.posture)], ["holding", esc(rb.held.join(", ") || "nothing")], ["battery", esc(rb.battery)],
-        ["docked", ex.dk ? "yes" : ""], ["standing on", esc(ex.so || "")], ["speed mode", esc(ex.sm || "")], ["stopped", ex.sp ? "yes" : ""], ["fallen", ex.fl ? "yes" : ""]]);
+        ["docked", ex.dk ? "yes" : ""], ["standing on", esc(ex.so || "")], ["speed mode", esc(ex.sm || "")], ["stopped", ex.sp ? "yes" : ""], ["fallen", ex.fl ? "yes" : ""],
+        ["facing (deg)", ex.cam && ex.cam.fd !== undefined ? esc(ex.cam.fd) : ""], ["head yaw (deg)", ex.cam && ex.cam.hy !== undefined ? esc(ex.cam.hy) : ""],
+        ["camera frames this step", ex.cam && ex.cam.fc !== undefined ? esc(ex.cam.fc) : ""], ["room coverage", ex.cam && ex.cam.cv !== undefined ? esc(ex.cam.cv) : ""],
+        ["power", esc(ex.pw || "")], ["battery state", esc(ex.bs || "")], ["faults", esc((ex.ft || []).join(", "))], ["latent faults", esc((ex.lf || []).join(", "))]]);
     }
     if (hz) {
       var list = sc.hazards.filter(function (h) { return h[0] + "," + h[1] === hz; });
@@ -553,9 +614,20 @@ details summary { cursor: pointer; color: var(--muted); }
         '<span class="sok ' + (st.ok ? "y" : "n") + '">' + (st.ok ? "✓" : "✗" + (st.ca ? " " + esc(st.ca) : "")) + "</span>" +
         (st.ts !== undefined ? '<span class="st">' + hms(st.ts) + "</span>" : "") + "</div>" +
         (st.pa ? '<div class="sparams" title="' + esc(st.pa) + '">' + esc(trunc(st.pa, 90)) + "</div>" : "") +
-        '<div class="smsg">' + esc(trunc(stepMessage(st) || "", 240)) + "</div></div>");
+        '<div class="smsg">' + esc(trunc(stepMessage(st) || "", 240)) + "</div>" + marksHtml(i + 1) + "</div>");
     });
     $("stepList").innerHTML = N ? rows.join("") : '<div class="na">No steps</div>';
+    buildMarkStrip();
+  }
+  function buildMarkStrip() {
+    // timeline markers (oracle view): one tick per frame with physics consequences (amber) or body events (red)
+    var ticks = [];
+    if (S.view === "oracle" && N > 0) Object.keys(MARKS).forEach(function (key) {
+      var f = +key, m = MARKS[key] || [], body = m.some(function (x) { return markClass(x[0]) === "body"; });
+      ticks.push('<i class="' + (body ? "body" : "phys") + '" data-f="' + f + '" style="left:' + (100 * f / N).toFixed(3) + '%" title="' +
+                 esc("frame " + f + ": " + m.map(markText).join("; ")) + '"></i>');
+    });
+    $("markStrip").innerHTML = ticks.join("");
   }
   function highlightStep(scroll) {
     var list = $("stepList"), prev = list.querySelector(".step.current");
@@ -617,6 +689,8 @@ details summary { cursor: pointer; color: var(--muted); }
     if (S.f === 0) { body.innerHTML = '<div class="muted">Initial state (no step yet).</div>'; return; }
     var st = STEPS[S.f - 1] || {}, html = ['<div class="muted" style="margin-bottom:4px">Step ' + S.f + ": <b>" + esc(st.a) + "</b> " + (st.ok ? '<span class="ok-t">ok</span>' : '<span class="bad-t">refused</span>') + " — " + esc(trunc(stepMessage(st) || "", 300)) + "</div>"];
     if (st.dv) html.push('<div class="warn">' + esc(st.dv) + "</div>");
+    var events = marksAt(S.f);
+    if (events.length) html.push('<div class="muted">Events in this step (event log):</div><ul class="plain">' + events.map(function (m) { return '<li><span class="mk ' + markClass(m[0]) + '">' + esc(m[0]) + "</span> " + esc(m[1] || "") + "</li>"; }).join("") + "</ul>");
     var rows;
     if (S.view === "oracle" && DIFFS) {
       $("diffTitle").textContent = "State changes in this step (true state)";
@@ -650,6 +724,10 @@ details summary { cursor: pointer; color: var(--muted); }
       var rb = sc.robot, parts = ["Robot at cell (" + rb.x + ", " + rb.y + ")", rb.posture || "standing", "holding: " + (rb.held.join(", ") || "nothing")];
       if (rb.battery !== undefined) parts.push("battery " + rb.battery + "%");
       if (sc.light !== undefined) parts.push("light " + sc.light);
+      var rcam = (rb.extra || {}).cam;
+      if (rcam) parts.push("facing " + rcam.fd + "°" + (rcam.fc !== undefined ? "  ·  " + rcam.fc + " camera frame" + (rcam.fc === 1 ? "" : "s") : "") +
+                           (rcam.cv !== undefined ? "  ·  coverage " + rcam.cv : ""));
+      bodyParts(rb.extra).forEach(function (p) { parts.push(p); });
       if (sc.mode === "perceived" && sc.channels) Object.keys(sc.channels).forEach(function (k) { parts.push(k + ": " + trunc(sc.channels[k], 120)); });
       $("robotLine").textContent = parts.join("  ·  ");
     }
@@ -693,6 +771,7 @@ details summary { cursor: pointer; color: var(--muted); }
   $("speed").addEventListener("change", function () { S.speed = +this.value; if (S.playing) play(); });
   $("follow").addEventListener("change", function () { renderMap(); });
   $("stepList").addEventListener("click", function (e) { var row = e.target.closest(".step[data-i]"); if (row) setFrame(+row.getAttribute("data-i") + 1, false); });
+  $("markStrip").addEventListener("click", function (e) { var tick = e.target.closest("i[data-f]"); if (tick) setFrame(+tick.getAttribute("data-f"), true); });
   document.addEventListener("keydown", function (e) {
     var tag = (e.target && e.target.tagName) || "";
     if (tag === "SELECT" || tag === "TEXTAREA" || (tag === "INPUT" && e.target.type !== "range" && e.target.type !== "checkbox")) return;

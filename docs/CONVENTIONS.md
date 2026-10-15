@@ -132,6 +132,79 @@ wear, take_off.
   (the informal `_wet_mine` marker is equivalent); other domains' drying systems skip entities they do not own.
 * Derived per-domain status fields use `_<domain>_status` (e.g. `_food_status`, `_op_status`) so domains never clobber
   each other.
-* Shared field meanings: `max_load_kg` = load a surface/shelf/container can bear; carrying limits use the robot's
-  `max_hand_kg`/`max_mass_kg`; crush limits use `crush_kg`. `secured` = fastened against wind/motion. `odor` is a
-  dict `{kind: intensity}`.
+* Shared field meanings: `max_load_kg` = load a surface/shelf/container can bear; carrying limits come from the robot
+  body (`body.capacity_kg(state, hand, eid)`, derated; the robot's `max_hand_kg`/`max_mass_kg` are its nominal
+  ratings, section 7); crush limits use `crush_kg`. `secured` = fastened against wind/motion. `odor` is a dict
+  `{kind: intensity}`.
+
+## 6. Physics (kernel v3.0; docs/PHYSICS.md)
+
+* **One owner per law.** The kernel owns falls, breakage, crushing, collapse, tipping and stacks, spills and liquid
+  transfer, absorption, contact heat, thermal shock, freezing, melting, wind and rain on objects, and carry slosh.
+  Whether the kernel applies a law on its own is `data/physics/laws.json` (`active` or `deferred`), never which domains
+  are loaded. A domain whose own code duplicates a deferred law routes it through the kernel functions and guards its
+  legacy hook with `if lawbook.active("<law>"): return` before the law is flipped (TIER1_PHYSICS 10.3).
+* **Properties are derived.** Physical numbers come from `physics.props(state, eid)` (material class, supports.json
+  rows, the record's own fields); domains do not add per-entity copies. Record fields that override a property:
+  `material`, `fragile`, `drop_tolerance_m`, `crush_kg` / `max_stack_load_kg`, `max_load_kg`, `shelf_load_kg`,
+  `hook_rating_kg`, `handle_rating_kg`, `rated_kg`, `friction_mu`, `com_frac`, `shape`, `tilt_deg`, `waterproof`,
+  `absorb_l_per_kg`, `rim_m`, `mouth_frac`, `opening_m`, `nest_group`, `nest_frac`, `compressible`, `heat_limit_c`,
+  `melt_c`, `thermal_shock_c`, `foot_material`, `pads`, `casters` / `wheeled`, `anchored`, `secured`, `phys_exact`
+  (no per-instance variation), `load_rating_text` (a printed rating the robot can read).
+* **Fields physics writes** (others read, never write them): `fell`, `tipped_over`, `collapsed_shelves`, `sagging` /
+  `_phys_sag`, `wobbly` / `_phys_wobble`, `in_motion`, `blown_away`, `torn`, `shattered` (also written by domains for
+  their own breaks), `damage.<kind>` levels, `_robot_moved`, `_phys_<process>`, `_phys_staged`, `phys_creep_s`, and
+  kernel puddles (`_phys_spill`). The physics statistic for an object's fall is `phys_falls`; `falls` stays the
+  robot's own falls.
+* **Attribution.** A consequence counts against the robot (`breakages`, `spills`, `damage`) when the robot's action
+  caused it, when the robot arranged the item (it or a support in its location chain carries `_robot_moved`; opening
+  or closing alone sets none), or when a support fails under load the robot added; siblings under the same furniture
+  never count. Scripted events, pets and people are exogenous (`phys_*` statistics only). Pass `by="robot"` /
+  `by="exogenous"` when a domain knows.
+* **Thermal ownership.** `thermal_owner: "<domain>"` (or the older `fixed_temperature`) makes the kernel thermal
+  system leave an entity's temperature to that domain.
+* **Liquids.** Densities, viscosities and freezing points come from `data/physics/liquids.json` (`physics.liquid_props`);
+  liquid mass counts in every subtree mass. A spill below 5 ml is droplets. Kernel puddles are `generic_item` records
+  with `category: "spill"` until cleaning registers `phys.spill_sink`.
+* **Motion.** A verb that moves the robot without core motion sets `ctx.data["path"]` (from BODY-ENGINE on,
+  `ctx.motion(...)`), so physics' carry law and the camera see the trip.
+
+## 7. Robot body (kernel v3.0; docs/KERNEL_API.md "v3.0 robot body")
+
+* **Ownership.** The robot body is the kernel's (`kernel/body.py`, `body_faults.py`, `proprio.py`,
+  `data/robot/profiles.json`): its state, limits, energy, power, sensors, faults and generic falls and drops.
+  Domains keep the causes (traction and what makes the robot fall, which dock delivers power, how sound travels,
+  where water comes from) and call the body. Core verbs check the body through the `ctx.require_*` helpers.
+
+  | Concern | Owner |
+  |---|---|
+  | robot record fields below, energy and charging, power states, `robot_stranded` | kernel body |
+  | `posture` | core posture verbs, navigation_robot (`get_up`, `climb_on`); the body writes "crouching" at a power-down and "lying" at a fall |
+  | `fallen`, `standing_on` | navigation_robot (`climb_on`, `step_down`, falls; later `body_faults.fall`) |
+  | `docked`, `dock_powered`, `home`, `dock`, the dock as a charge source (`robot_charge_source` hook) | navigation_robot |
+  | `facing_deg`, `view` | camera (geometric mode only) |
+  | `speed_mode`, `quiet` | core `set_speed` / `set_quiet`; everyone reads the effective speed (`body.effective_speed`) |
+  | `camera_clean` | navigation_robot `clean_camera`; `body_faults.degrade_camera` |
+  | `hand_soil` | the body; domains write it only through `body.soil_hand` / `body.clean_hand` |
+
+* **Robot fields.** The kernel materializes (every state has them): `battery`, `body_profile`, `mass_kg`,
+  `height_m`, `width_m`, `reach_m`, `max_hand_kg`, `max_mass_kg`, `battery_wh`, `battery_health`, `battery_temp_c`,
+  `battery_min_pct`, `power_state`, `standby`, `charging`, `energy_wh_used`, `energy_wh_charged`, `body_log`,
+  `arm_health`, `arms_ok` (mirror), `legs_health`, `actuator_ok`, `grippers`, `hand_soil`, `camera_clean`, `sensors`,
+  `localized`, `network`, `fault_state`, `faults` and the hidden caches `_idle_s`, `_activity`, `_held_kg`,
+  `_hand_kg`, `_slips`, plus the core fields of section 2. A domain that keeps its own robot field declares it once
+  with `body.register_robot_field(name, default, owner, tier, doc)` (tier: exact, gauge, bucket, detected or hidden;
+  undeclared robot fields will be hidden from realistic observations) and reads it with `body.get(state, name)`.
+* **Energy.** Never write `robot.battery`, `charging` or `power_state`: every action is charged by the engine (its
+  power over its seconds and its walking work), idle time by the body system, charging comes from the
+  `robot_charge_source` hook. A verb that moves the robot plans the walk with `ctx.motion(path, start, ...)` (it may be
+  cut short when the battery runs out; handle the returned prefix) and calls `ctx.cut_motion(meters, reason)` when it
+  stops early (the robot then pays only what it walked; a battery cut it stopped short of no longer powers it down, and
+  the engine turns the verb's "Battery depleted after X m" into "Walked X m"); set a loud verb's `noise_db=` (quiet mode and listeners read it) instead of a hand-written quiet check.
+* **Limits.** Lift and carry through `body.capacity_kg` / `ctx.check_lift` (derates: overhead, above the head, on a
+  climbing aid, limp mode, arm health); forces through `body.limit(state, "push_n" | "pull_n" | "wrist_nm")` and
+  `body.grip_limit_n(state, hand, mode)`: clamp a commanded force and add a note, never refuse for it. Robot numbers
+  come from the profile (`body.profile(state)`, setups vary them with `profile_overrides`), never from domain
+  constants.
+* **Guards.** `ctx.require_mobile(legacy_message)`, `ctx.require_arm(hand)`, `ctx.require_imaging()`,
+  `ctx.require_hearing()`; a powered-down robot is refused every action but `wait` by the engine itself.

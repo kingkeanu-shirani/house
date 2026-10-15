@@ -10,10 +10,12 @@ from . import __version__
 from .catalog import ROOT, read_jsonl
 
 HELP = '''Commands (IDs come from observations):
- look | move ROOM | approach ID | walk_to (JSON) | inspect ID | read ID
+ look [around|up|down|left|right|behind|ID] | move ROOM | approach ID | walk_to (JSON) | inspect ID [WHERE] | read ID
  pick_up ID | place ID DESTINATION | hand_over ID PERSON | open ID | close ID | lock ID | unlock ID
- switch_on ID | switch_off ID | start ID | pause ID | crouch | stand | wait [SECONDS]
+ switch_on ID | switch_off ID | start ID | pause ID | crouch | kneel | stand | wait [SECONDS]
  ask PERSON TOPIC | speak TEXT | stop | resume | undo | snapshot NAME | diff NAME
+ geometric camera (--camera geometric): face north|east|south|west|left|right|back|ID|DEGREES
+                                        peek ID under|behind|inside|top|closely
  actions | describe ACTION | affordances ID | map | inventory | time | goal | score
  save FILE | replay_log FILE | reset | help | quit | say NATURAL LANGUAGE
 JSON actions carry named parameters, e.g. {"action":"wipe","target":"counter_1","tool":"cloth_1"}
@@ -35,7 +37,39 @@ def show(obs):
     for channel in ("sounds", "smells"):
         if obs.get(channel):
             print(channel.title() + ":", json.dumps(obs[channel]))
+    camera = obs.get("camera")
+    if camera:
+        pose = camera.get("pose") or {}
+        print("Camera: facing {} ({} deg), head pan {} tilt {}, eye {} m | {} frame(s) | room coverage {}".format(
+            pose.get("facing"), pose.get("facing_deg"), pose.get("pan_deg"), pose.get("tilt_deg"), pose.get("height_m"),
+            camera.get("frames"), camera.get("coverage")))
     print("Steps: {} | seconds: {} | battery: {}%{}".format(obs["steps"], obs["time_s"], obs["battery"], " | DARK" if obs.get("dark") else ""))
+
+
+def command_of(line):
+    """The command dict of one interactive line (raises ValueError for one it cannot read): JSON as is; wait, the
+    speech verbs and ask take free text; face DEGREES and the where of peek / inspect become named parameters; other
+    verbs take up to two words (target, destination)."""
+    words = shlex.split(line)
+    name = words[0]
+    if line.startswith("{"):
+        return json.loads(line)
+    if name == "wait":
+        return {"action": "wait", "seconds": int(words[1]) if len(words) > 1 else 1}
+    if name in ("speak", "announce", "refuse", "explain", "confirm", "handoff"):
+        return {"action": name, "text": line.partition(" ")[2]}
+    if name == "ask" and len(words) >= 3:
+        return {"action": "ask", "target": words[1], "topic": " ".join(words[2:])}
+    if name == "face" and len(words) == 2:
+        try:
+            return {"action": "face", "deg": float(words[1])}
+        except ValueError:
+            return {"action": "face", "target": words[1]}
+    if name in ("peek", "inspect") and len(words) == 3:
+        return {"action": name, "target": words[1], "where": words[2]}
+    if len(words) <= 3:
+        return {"action": name, "target": words[1] if len(words) > 1 else "", "destination": words[2] if len(words) > 2 else ""}
+    raise ValueError("Too many arguments; use a JSON action for named parameters")
 
 
 def find_record(value):
@@ -90,23 +124,13 @@ def interactive(env):
                 print(json.dumps([a for a in env.affordances(words[1]) if a["available"]], indent=2)); continue
             if name in ("save", "replay_log") and len(words) == 2:
                 (env.save if name == "save" else env.save_replay)(words[1]); print("Saved:", words[1]); continue
-            if line.startswith("{"):
-                command = json.loads(line)
-            elif name == "say":
+            if name == "say" and not line.startswith("{"):
                 parsed = parse(line.partition(" ")[2], env.observe())
                 if "command" not in parsed:
                     print(parsed["question"], parsed.get("candidates", [])); continue
                 command = parsed["command"]
-            elif name == "wait":
-                command = {"action": "wait", "seconds": int(words[1]) if len(words) > 1 else 1}
-            elif name in ("speak", "announce", "refuse", "explain", "confirm", "handoff"):
-                command = {"action": name, "text": line.partition(" ")[2]}
-            elif name == "ask" and len(words) >= 3:
-                command = {"action": "ask", "target": words[1], "topic": " ".join(words[2:])}
-            elif len(words) <= 3:
-                command = {"action": name, "target": words[1] if len(words) > 1 else "", "destination": words[2] if len(words) > 2 else ""}
             else:
-                raise ValueError("Too many arguments; use a JSON action for named parameters")
+                command = command_of(line)
             result = env.step(**command)
             print(result["message"])
             show(result["observation"])
@@ -147,6 +171,10 @@ def main(argv=None):
     parser.add_argument("--workers", type=int)
     parser.add_argument("--perception", choices=["oracle", "realistic"],
                         help="With --check/--verify: force this perception mode for every spec (default: each spec's own).")
+    parser.add_argument("--camera", choices=["room", "geometric"],
+                        help="Camera mode: room (room-wide visibility) or geometric (the robot's posed cameras: line of "
+                             "sight, light, resolution; face / peek). Default: the task's own, else room. With "
+                             "--check/--verify it is forced for every spec.")
     parser.add_argument("--report", action="store_true")
     parser.add_argument("--compile", action="store_true")
     parser.add_argument("--list-tasks", action="store_true")
@@ -156,12 +184,22 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=__version__)
     args = parser.parse_args(argv)
     try:
+        if args.camera and (args.load_state or args.replay):
+            raise ValueError("--camera cannot be combined with --load-state or --replay: the file records its camera "
+                             "mode")
         if args.verify or args.verify_only:
+            import inspect
             from .audit import verify
-            run = verify(only=set(args.verify_only) if args.verify_only else None, workers=args.workers, perception=args.perception)
+            options = {"camera": args.camera} if args.camera else {}
+            if options and "camera" not in inspect.signature(verify).parameters:
+                raise ValueError("--camera with --verify needs audit.verify(camera=); use --check FILE --camera "
+                                 "instead")
+            run = verify(only=set(args.verify_only) if args.verify_only else None, workers=args.workers,
+                         perception=args.perception, **options)
             return 1 if run["failed_entries"] else 0
         if args.check:
-            return check_file(args.check, args.workers, args.ids, args.seeds, perception=args.perception)
+            return check_file(args.check, args.workers, args.ids, args.seeds, perception=args.perception,
+                              camera=args.camera)
         if args.report:
             from .audit import report
             print(json.dumps(report(), indent=2)); return 0
@@ -191,22 +229,23 @@ def main(argv=None):
         elif args.task or args.demo:
             from .tasks.runner import build
             record = find_record(args.task or args.demo)
-            config, task, oracle = build(record["spec"], args.seed)
-            env = HouseEnv(config, task, args.seed)
+            config, task, oracle = build(record["spec"], args.seed, camera=args.camera)
+            env = HouseEnv(config, task, args.seed, camera=args.camera)
         elif args.scenario:
             bundle = json.loads(Path(args.scenario).read_text(encoding="utf-8"))
-            env = HouseEnv(bundle["world"], bundle["task"], args.seed)
+            env = HouseEnv(bundle["world"], bundle["task"], args.seed, camera=args.camera)
         elif args.house:
-            env = HouseEnv(json.loads(Path(args.house).read_text(encoding="utf-8")), seed=args.seed)
+            env = HouseEnv(json.loads(Path(args.house).read_text(encoding="utf-8")), seed=args.seed, camera=args.camera)
         elif args.rooms or args.agent:
             from .world import make_house
-            env = HouseEnv(make_house(args.rooms or 5, args.floors, args.seed, args.outdoors), seed=args.seed)
+            env = HouseEnv(make_house(args.rooms or 5, args.floors, args.seed, args.outdoors), seed=args.seed,
+                           camera=args.camera)
         else:
             from .generator import generate_house
             opts = {"require": args.features} if args.features else {}
             if args.dwelling:
                 opts["dwelling"] = args.dwelling
-            env = HouseEnv(generate_house(args.seed, **opts), seed=args.seed)
+            env = HouseEnv(generate_house(args.seed, **opts), seed=args.seed, camera=args.camera)
         if args.export:
             with open(args.export, "x", encoding="utf-8") as stream:
                 json.dump(env._initial, stream, indent=2)
@@ -261,7 +300,7 @@ def main(argv=None):
         parser.error(str(exc))
 
 
-def check_file(path, workers=None, ids=None, seeds=None, perception=None):
+def check_file(path, workers=None, ids=None, seeds=None, perception=None, camera=None):
     from .tasks.verify import SEEDS, verify_many
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     specs = data.get("specs", []) if isinstance(data, dict) else data
@@ -270,7 +309,8 @@ def check_file(path, workers=None, ids=None, seeds=None, perception=None):
         if not specs:
             print("No specs with those ids in", path)
             return 1
-    results = verify_many(specs, seeds=tuple(seeds) if seeds else SEEDS, workers=workers, perception=perception)
+    results = verify_many(specs, seeds=tuple(seeds) if seeds else SEEDS, workers=workers, perception=perception,
+                          camera=camera)
     failed = 0
     for result in results:
         if result["passed"]:
@@ -281,7 +321,7 @@ def check_file(path, workers=None, ids=None, seeds=None, perception=None):
         for trial in result["trials"]:
             if trial.get("passed"):
                 continue
-            detail = {k: trial.get(k) for k in ("seed", "variant", "perception", "error", "trace", "initial_fails", "idle_fails", "reference_passes",
+            detail = {k: trial.get(k) for k in ("seed", "variant", "perception", "camera", "error", "trace", "initial_fails", "idle_fails", "reference_passes",
                                                  "reference_error", "reference_failures", "reference_goal_fraction", "perceivability_gaps",
                                                  "wrong_fails", "wrong_ran") if k in trial}
             detail["wrong"] = [w for w in trial.get("wrong", []) if not w.get("fails") or not w.get("ran")]

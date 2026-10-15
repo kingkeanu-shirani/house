@@ -10,11 +10,16 @@ Plan steps:
   {"wait_until": {pred}, "max_s": 3600, "poll_s": 60}   wait in chunks until a state predicate holds
 Reference plans run strictly (any refusal raises PlanError). Wrong plans run leniently.
 Skills may read privileged state to route; they never change state except through env.step.
+
+Camera mode (kernel v3.0, TIER1_INTEGRATION 1.13): build(..., camera=) and make_env(..., camera=) take the run's
+camera ("room" | "geometric"; None: the spec's "camera", else camera.default_mode). The task carries the spec's own
+"camera", so HouseEnv resolves the same mode from it.
 """
 import copy
 import json
 
 from ..generator import generate_house
+from ..kernel import camera as camera_mod
 from ..kernel.engine import HouseEnv
 from ..kernel.errors import SpecError
 from ..kernel.plugins import SKILLS, load_domains
@@ -31,15 +36,19 @@ class PlanError(RuntimeError):
     pass
 
 
-def build(spec, seed=0, registry=None):
-    """Return (config, task, oracle) for one seed. oracle holds bindings and plans."""
+def build(spec, seed=0, registry=None, camera=None, perception=None):
+    """Return (config, task, oracle) for one seed. oracle holds bindings and plans. camera / perception: the run's
+    modes when forced (None: the spec's own); the setup's geometric camera ops apply only in a geometric run."""
     load_domains()
     registry = registry or default_registry()
     full = expand(spec)
     chosen, variant = choose_variant(full, seed)
+    if chosen.get("camera") is not None and chosen["camera"] not in camera_mod.MODES:
+        raise SpecError("camera must be room or geometric")
     house = dict(chosen.get("house", {}))
     config = generate_house(seed, **house)
-    bindings = apply_setup(config, chosen.get("setup", []), registry, seed, chosen)
+    bindings = apply_setup(config, chosen.get("setup", []), registry, seed, chosen, camera=camera,
+                           perception=perception)
     import random as _random
     rng = _random.Random("instruction:{}:{}".format(chosen.get("catalog_id", "custom"), seed))
     phrasings = chosen.get("phrasings") or [chosen.get("instruction", "")]
@@ -52,6 +61,8 @@ def build(spec, seed=0, registry=None):
             "variant": variant}
     if chosen.get("perception"):
         task["perception"] = chosen["perception"]   # "realistic": plans run against imperfect perception
+    if chosen.get("camera"):
+        task["camera"] = chosen["camera"]           # "geometric": the robot's posed cameras decide what it sees
     for key in TASK_KEYS:
         if key in chosen:
             task[key] = substitute(chosen[key], bindings)
@@ -177,8 +188,9 @@ def run_plan(env, plan, bindings, strict=True):
     return runner
 
 
-def make_env(config, task, seed, fast=True, perception=None):
-    """perception: None -> the task's "perception" field (default oracle); "oracle" | "realistic" to force."""
+def make_env(config, task, seed, fast=True, perception=None, camera=None):
+    """perception: None -> the task's "perception" field (default oracle); "oracle" | "realistic" to force.
+    camera: None -> the task's "camera" field (default room); "room" | "geometric" to force."""
     mode = perception or (task or {}).get("perception") or "oracle"
     return HouseEnv(copy.deepcopy(config), copy.deepcopy(task), seed, trace=not fast,
-                    observe_on_step=not fast or mode == "realistic", perception=mode)
+                    observe_on_step=not fast or mode == "realistic", perception=mode, camera=camera)

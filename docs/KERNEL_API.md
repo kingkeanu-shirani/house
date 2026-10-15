@@ -39,7 +39,8 @@ Never keep a reference across steps; never mutate dicts obtained from `ent()`/`r
 
 State shape: `rooms`, `connections` (doorways/doors/stairs/gates/hatches/elevator doors with `cells` per room), `entities`,
 `people`, `pets`, `robot` (`room`, `pos` [col,row], `hands` {left,right}, `posture`, `battery`, `standing_on`, `speed_mode`,
-`quiet`, `privacy_mode`, `camera_clean`, `network`, `actuator_ok`, `arms_ok`, `fallen`, `faults`), `utilities`, `weather`,
+`quiet`, `privacy_mode`, `camera_clean`, `network`, `actuator_ok`, `arms_ok`, `fallen`, `faults`, and from v3.0 the
+body's fields: "v3.0 robot body"), `utilities`, `weather`,
 `clock` (`start` ISO), `time_s`, `steps`, `stats`, `facts`, `reports`, `memory`, `approvals`, `orders`, `pending`,
 `events`, `event_log`, `messages`, `logs.moves`, `household`, `user_simulator`, `metadata`.
 
@@ -78,6 +79,9 @@ def wring(ctx):
 * Params: `"entity"`, `"?number"`, `"?str:a|b"`, `"cell"`, `"list"`, `"dict"`, `"bool"`, `"text"`, or a dict with
   `type`/`default`/`min`/`max`/`choices`. `target` and `destination` receive env.step's positional args.
 * `duration` seconds or `fn(ctx)`; add more with `ctx.spend(s)`. `noise` adds to `stats.noise` (quietness).
+* Energy (kernel v3.0): the robot body charges every action its activity power over its seconds plus its walking work
+  (see "v3.0 robot body"); `energy=` is optional extra mechanical work (legacy % units), `noise_db=` the action's
+  loudness at 1 m (quiet mode refuses above 55 dB), `arms=` the arms it works with.
 * `inverse=fn(ctx, before)` returns the undo command; `irreversible=True` clears the undo stack.
 * Refuse with `ActionError(message, category)`; categories: `precondition`, `argument`, `safety`, `privacy`,
   `social`, `authority`, `resource`, `perception`, `capability`. Refusals roll back and count in stats.
@@ -552,7 +556,10 @@ Regression tests: `tests/test_perception.py` `KernelRound5RealismTests` (realism
   inspecting a person or pet returns only `{"agent", "label": "person"|"animal", "note"}` -- no name, role, wakefulness,
   activity, mood cues or domain inspector extras (breathing, thermal cues) -- and records no inspection
   (`facts.inspected`), since nothing was seen to report on. The shape is addressed (and reported, `agent`) by its
-  dark-spell handle, never its id (red-team section).
+  dark-spell handle, never its id (red-team section). With the geometric camera the same shape answer, with the
+  note `camera.WHO_TEXT`, comes in a lit room for a person or pet the camera does not identify from where the robot
+  stands (`camera.agent_identified`: level "identify", 64 px, light 0.2, not backlit -- the level at which the
+  observation names them); naming such a person by id is refused with `realism.FAR_WHO` (stage-B review).
 * **Appliance start hooks get ctx**: core `start` now calls `core.start_cycle(ctx, eid, program)` -- the same checks
   in the same order as `physics.appliance_start` -- whose `cycle_check:<type>` hooks receive ctx when they accept it:
   `fn(w, eid, ctx)` / `fn(w, eid, *args)` positionally, `fn(w, eid, *, ctx=None)` by keyword; `fn(w, eid)` as
@@ -727,3 +734,318 @@ What domains should adopt (red-team fix pass):
   grid in utility closets): keep the footprint on the grid, along its wall and clear of other deep mounts
   (`Placer.mount(along_wall=True)` / `Placer._mount_cell(..., orient=True)`, then copy `rot`), ready for the layout
   round that turns orientation on for every mount.
+
+## v3.0 physics (tier 1; docs/PHYSICS.md, docs/design/TIER1_PHYSICS.md)
+
+Kernel layout additions: `house_sim/kernel/phys/` (the physics layer: props, lawbook, forces, contain, support,
+statics, impact, liquids, thermal, environment, processes, settle, events, observe), `house_sim/data/physics/` (its
+data), `house_sim/kernel/timeline.py` (the time verbs `wait`, `watch`, `cancel_watch`, `run_pending` and the
+standing-order rule, moved from `systems/core.py` at tier-1 A0; `core.py` re-exports every name).
+`kernel/physics.py` is the facade: it registers the layer and re-exports its functions (`physics.fall`,
+`physics.spill`, `physics.props`, `physics.lift_plan`, `physics.fits`, ...).
+
+**World** (all transient: not state, never saved, strict mode unaffected):
+
+| | |
+|---|---|
+| `w._touched`, `w.touched_since(cursor, consumer=None) -> (ids, cursor)`, `w.trim_touched()` | every `mut` / `create` / `destroy` appends the entity id (append-only within a step; cursors are absolute; the engine trims after each substep) |
+| `w.mut_quiet(eid)`, `w.set_quiet(eid, field, value)` | journaled writes that are no touch; `set_quiet` journals one field without copying the record (kernel thermal) |
+| `w.journal_before(kind, name)` | a journaled key's value at step start (MISSING: created this step; None: unchanged) |
+| `w.phys_scratch` | the settle pass's dict (signatures, ledger, phase, cursor); cleared by `begin()` / `rollback()` |
+| `w.mutation_count` | +1 per journaled write call and per rollback; never decreases |
+| `w._power_down_step` | None; the body stamps the step it powered down in (BODY-ENGINE) |
+
+**Engine** (order in TIER1_INTEGRATION 1.9): `step` starts the action phase (`settle.begin_action`), and after the
+action's duration and before building the message runs `settle.settle(env, "action", ctx)`; its consequence notes
+join the message and a step with a consequence keeps no undo record. `perform` (nested leaves) hands its motion
+records to the parent (`ctx.data["motions"]`) and does not settle. `_advance` runs `settle.settle(env, "substep")`
+after each substep's systems and events and then `w.trim_touched()`. Replays record
+`metadata.physics_version`. New systems: `physics.environment` (47), `physics.processes` (48); the kernel `thermal`
+system (50) is `phys.thermal.thermal_step` (active set, `thermal_owner`, phase plateaus; `physics.thermal_system` is
+the unregistered pre-v3.0 reference, `physics.tau_s` follows the `thermal_tau` law, `physics.legacy_tau_s` is the old
+formula). Observer `physics.sounds` (order 125), inspector `physics` (order 150), event effects `physics.*`.
+
+**Ctx** (kernel/actions.py): `ctx.phys(eid)`, `ctx.fall(eid, **kw)`, `ctx.spill(liters, liquid="water", **kw)`,
+`ctx.knock(eid, accel_g, **kw)` (by "robot" unless given), `ctx.lift_plan(eid, hands=None, helpers=())` (never
+raises), `ctx.settle_physics()` (early settle; the action phase continues). Module functions
+`actions.motion_record(ctx)` / `motion_records(ctx)` / `synth_motion(...)`: the motion record of TIER1_INTEGRATION 1.4
+(`ctx.data["motion"]` when a verb wrote one, else synthesized from `ctx.data` path / from_room / connection / seconds
+and the robot's position at the action's start). Reserved `ctx.data` keys: `motion`, `motions`, `path`, `from_room`,
+`connection`, `seconds`.
+
+**Core** (systems/core.py): `pick_up` plans through `ctx.lift_plan` (same thresholds and refusal texts; the mass now
+counts liquids at their `liquids.json` density); `place` uses `physics.fits` (diagonal fits, openings, nesting,
+compressible textiles; new refusal "It does not fit through the opening"), refuses a collapsed shelf ("That shelf is
+broken") and a support that gave way or broke to pieces ("It is broken and cannot hold anything"; `core.support_failed`),
+and applies the set-down law while it is active (deferred: manipulation and food adopt it first);
+`core.subtree_mass` delegates to `phys.support.subtree_mass`.
+
+**Setup ops** (tasks/setup.py): `phys`, `load`, `edge`, `stage`, `check_physics`; after the ops a physics lint
+(`physics_problems`) is an error for `"schema": 3` specs and warnings (`bindings["_physics_warnings"]`, the trial's
+`physics_warnings`) otherwise.
+
+**Realism**: `core.json` file-level `field_tiers` hide every physical threshold and simulation parameter and give the
+consequence fields glance or inspect tiers (docs/PERCEPTION.md "Physics").
+
+What domains should adopt: the protocol of TIER1_PHYSICS 10.3 (route their copies of a law through the kernel,
+guard the legacy code with `lawbook.active`, register the `phys.*` hooks, report "ready to flip"); call
+`ctx.fall` / `ctx.spill` / `physics.*` instead of private break, spill and drop helpers; set `ctx.data["path"]` (or,
+from BODY-ENGINE on, `ctx.motion`) when a verb moves the robot; never write `fell`, `_robot_moved`, `_phys_*`.
+
+## v3.0 camera (tier 1; docs/design/TIER1_CAMERA.md, TIER1_INTEGRATION.md 1.3, 1.4, 1.9, 1.12)
+
+Two independent switches: `perception` ("oracle" | "realistic") and `camera` ("room" | "geometric"). Room mode is
+today's room-wide visibility and stays the default everywhere, byte-identical in state and observations
+(`tests/test_room_golden.py`). Geometric mode poses the robot's cameras: line of sight, light and resolution from
+`kernel/sight.py` (the pure geometry), the runtime in `kernel/camera.py`.
+
+**Mode.** `HouseEnv(..., camera=None)`: the argument (the CLI's `--camera` arrives here), else the task's `"camera"`,
+else `camera.default_mode(perception)` ("room" until the D3 switch-over); anything else is a ValueError
+(`camera.resolve_mode`). `env.camera_mode` is authoritative: `reset` installs (`camera.install`) or strips
+(`camera.strip`) the camera state before the episode starts. A state is geometric exactly when `robot.view` exists
+(`camera.mode(state)`). Realistic perception with the geometric camera raises NotImplementedError until CAM-RENDER
+(TIER1-STUB(CAM-RENDER) in `engine.py`). `env.action_names()` hides `camera.GEOMETRIC_ONLY` (`face`, `peek`; added by
+CAM-ACTIONS) in room mode; `actions_fingerprint()` still covers them. `save` and `save_replay` record `"camera"`;
+`load` and `replay` pass it back.
+
+**State** (geometric only; journaled; never in observations): `robot.facing_deg` (body yaw, grid degrees: 0 east,
+90 south; written only by the camera), `robot.view` = `{"pan_deg", "tilt_deg", "aim", "track", "frames", "events",
+"step", "hw"}` (head pose; agents the head keeps in frame; this step's frames `[rid, x, y, z, yaw, tilt, cam, kind,
+speed]`; seen visual events; per-spec hardware overrides over `camera.HW` = `sight.HW`), and the section
+`camera_log` = `{"seen_cells", "coverage", "sightings", "track_ids", "looked_in", "peeked", "in_view_s", "gap_s",
+"max_gap_s", "captures", "capture_keys", "events", "watch_specs", "watch"}` (TIER1_CAMERA 4.7; predicates read it,
+e.g. `camera_log.coverage.kitchen_1 gte 0.9`). A config may pre-set `robot.facing_deg`, parts of `robot.view` (pan,
+tilt, aim, track, hw) and `camera_log.track_ids` / `watch_specs`; install keeps them and fills the rest. Both robot
+fields are registered with the body (owner "camera", `facing_deg` exact, `view` hidden, never materialized).
+
+**Engine order** (TIER1_INTEGRATION 1.9): `camera.begin_step(w)` after the step counter moves (and again on the
+refusal path after the rollback): no frames, no seen events. The core motion verbs' after-hooks (`move`, `approach`,
+`walk_to`; order 900) and, for every other action and nested leaf, `camera.note_action(ctx)` after its AFTER hooks
+turn the action's motion record (`actions.motion_record`) into frames: one every 2 path cells (at most 12 motion
+frames per step), then a stationary frame at the arrival pose (into the room after a room change; `approach` faces
+its target with the head aimed at it, C19). Posture verbs (`crouch`, `kneel`, `stand`, `get_up`) add a frame at the
+new eye height. After `_advance` and `realism.commit_grants`: `view = camera.end_step(env)` (a fallback frame at the
+current pose when none matches it, facing the room centre after a relocation without a frame or along a same-room
+displacement; the step view, cached on the env; the camera log), then `realism.note_step(view)` when the realism
+object has it (CAM-RENDER). The system `camera.watch` (order 195) runs per substep. Everything is a no-op in room
+mode.
+
+**Seeing.** `Perception.visible` (and so `Ctx.obj`, `ctx.visible`, `core.visible_or_fail` and every domain call site)
+is `camera.can_see(state, eid, world=None, perception=None)` in geometric mode: L0 (`Perception.contained`:
+containment, closed containers, cover slots, opaque liquids, private parents in oracle mode, the robot's room,
+`visible_veto`; not the under/behind `revealed` rule, darkness or the dirty lens, which geometry and optics decide,
+C9), then held; or with imaging on (`body.imaging`) detectable from the current eye at any pan, tilt or body yaw
+(line of sight, `px_eff >= 10`, light at the target >= 0.05 with the robot's lights aimed at it, or the IR shape rule
+with depth sensing) or reachable by the wrist camera (`camera.wrist_access(state, eid, where=None)`: reach, then
+under needs a crouch or kneel and 6 cm of clearance or a light support, behind a 5 cm gap or a light support, on top
+of something its top within reach + 0.2 m); with imaging off, a map fixture (non-portable furniture of the room, its
+doors) while powered. Sensors are the body's (TIER1_INTEGRATION 1.3): `camera.camera_active = body.imaging`,
+`camera.mic_active = (body.can_hear == "full")`; a room privacy policy applies to the room a frame was taken in.
+
+**Step view and observation** (TIER1_CAMERA 10.6). `camera.step_view(env, fresh=False)` -> `StepView` (`entities`,
+`people`, `pets`: `{id: ViewInfo}` for what the stationary frames at the current eye framed; ViewInfo =
+`{"level", "detected", "px" (effective pixels), "range_m", "bearing_deg" (relative to the body), "elev_deg",
+"visible", "light", "glare", "specular", "faces", "via" (head | wrist | depth | held), "frame", "frame_yaw"}`;
+`seen` floor cells of every frame of the step; `glare`, `light`, `lidar`). Oracle detection is `px_eff >= 17` (the
+50 % point) or an IR shape; the realistic band is CAM-RENDER's. In geometric mode `observe()` lists only detected
+entities, people and pets, each with `"view"` (`bearing_deg`, `elev_deg`, `dist` bucket, `range_m`, `px`,
+`occluded`, `via`, `light`; `observe(records=False)` gives the ViewInfo as `"_view"`); things only the depth camera
+sees as "dark shape" records (people "person", pets "animal"); held items always; `obs.camera` = `{"pose": {"cell"
+(= obs.robot.pos), "facing_deg", "facing", "pan_deg", "tilt_deg", "height_m"}, "frames", "glare", "light",
+"coverage", "tracking", "events"}`; `obs.lidar` = `{"height_m", "sector_deg", "ranges_m"}` with depth sensing;
+`obs.robot.facing_deg`; `grid.hazards` only on cells this step's frames surveyed or with a detected source. Motion
+frames are not rendered (C4); observing never writes and does not depend on how often it is called (C5).
+
+**Camera log** (written by `end_step` and the watch): `seen_cells` / `coverage` (floor cells in frame, in line of
+sight, within 8.7 m, lit to 0.12, C17; the robot's own cell counts), `looked_in` (an open container seen from in
+front or above with at least half of its interior in frame and line of sight through the opening -- the inner floor of
+a top opening, the back of every shelf band of a front opening, `sight.interior_points` -- 32 px or more, lit inside
+to 0.2; a rim in view alone is not a look inside), `sightings` (people, pets and `track_ids` entities:
+first and last time, best level, faces), `captures` (a person doing something private -- `@hook("private_activity")`
+or the kernel list -- in frame and lit to 0.12 with imaging on, or in the room while the microphones hear
+everything; one per person per private moment; `@hook("camera_capture") fn(w, info)` decides what it costs, else the
+kernel counts `privacy_violations` when the people domain is not loaded -- while it is loaded and has not adopted the
+hook, its own entry-based count stands, as in room mode), `in_view_s` / `gap_s` / `max_gap_s` per substep for the agents in the robot's
+room and the tracked ones, `events`, and `watch` (view_watch specs evaluated every `every_s`, at least 10 s).
+
+**Visual events.** `camera.visual_event(w, kind, *, source=None, room=None, at=None, z=None, size_m=0.3, visual=None,
+emit=True, **data)`: with `emit`, exactly `w.emit(kind, **data)` (the keyword-only geometry is not logged, C13); in
+geometric mode the head camera's current pose witnesses it (in frame, in line of sight, lit, a sure detection for
+its size): `robot.view.events` (seen this step, shown in `obs.camera.events`) and `camera_log.events` with `seen`.
+`phys.observe.emit_consequence` routes every physics consequence through it.
+
+**Ctx helpers** (kernel/actions.py): `ctx.camera_mode`, `ctx.can_see(eid)` (room mode: `ctx.visible`),
+`ctx.in_frame(eid)` (in a frame of this step at the current eye), `ctx.gaze_to(target)` (turn the head, beyond its
+150-degree pan limit the body, to an id, a cell or a point; charges the turning time and returns it),
+`ctx.acuity(eid)` (`{"level", "px", "view"}` or None), `ctx.read_check(eid, fields)` -> `(ok, reason, via,
+readable_fields)` (head: 10 px per character, the field's face seen, light 0.25, no specular glare, lens clarity
+0.4; else the wrist within reach), `ctx.inspect_check(eid)` -> `(ok, reason, via)` (head 160 px at light 0.2, else
+the wrist). In room mode the checks answer `(True, None, "room", ...)` and the caller keeps its room rules.
+`Ctx.obj` ends with the auto-gaze in geometric mode: a target in no frame of this step at the current eye (nor in
+view of the current head pose) gets the head turned to it, charged once per target per step (TIER1_INTEGRATION
+1.10 order: visibility, capability, reach, permissions, auto-gaze).
+
+**Other camera functions**: `eye(state)`, `head_viewer(state, frame=None)`, `wrist_viewer(state, eid, where=None)`,
+`add_frame(w, kind, yaw=None, tilt=None, cam="head", speed=None, at=None)`, `note_motion(w, room, path, speed,
+end_face=None, start=None)`, `note_peek(w, eid, where)`, `in_frame(state, eid, world=None)`, `acuity(env_or_state,
+eid)`, `seen_floor(state)`, `specular(state, eid)`, `floor_visible_ahead(state, d_m)`, `device_frame(state, eid)`
+(what a device camera with `view.camera` shows), `bearing_to(state, xy)`, `lidar(state)`, `map_fixture(state, eid)`,
+`private_activity(state, pid)`. Hooks: `robot_keep_awake` (True while the head tracks someone; the body's idle
+drain keeps the robot awake while any such hook is True, "v3.0 robot body"), and the camera hooks domains may provide:
+`view_occluders`, `light_at`, `bright_sources`, `sun_beam`, `private_activity`, `camera_capture`.
+
+**Camera verbs** (CAM-ACTIONS; systems/core.py over kernel/camera.py; docs/ACTION_API.md has the parameters and
+times): `look` (forward, `around` with an optional low row `rows=2`, up / down / left / right / behind, at a thing,
+person, pet or cell, `pan` / `tilt`, `track`), `face` (body heading: degrees, a compass word, a target or a cell) and
+`peek` (the wrist camera `under`, `behind`, `inside`, `top` or `closely`, lifting a light support when it must); in
+room mode `look` is unchanged and `face` / `peek` refuse ("Camera control needs camera: geometric"). The mechanics
+are camera functions: `look(ctx, target=None, point=None, pan=None, tilt=None, rows=1)`, `face(ctx, yaw, point=None)`,
+`peek(ctx, eid, where, lift=False)`, `peek_access(state, eid, where) -> (ok, reason, lift)`, `peek_poses(state, eid,
+where, lift=False)`, `set_track(w, ids)`, `agents_in_frames(state, world=None)`, `agent_visible(state, aid,
+world=None)` (can_see for people and pets), `view_target(state, target, perception=None) -> (kind, id, point)`,
+`direction_deg(state, word)`, `parse_cell(value)`, `can_turn(state)`. A wrist peek frame carries a tenth element
+`{"target", "where", "lift"}` and renders with the head's frames (`via: "wrist"`). `read_check` reads with both cameras
+and returns the union of what each can read; `wrist_access` keeps a thing more than 1.0 m beyond its support's near
+edge out of reach and lets a free-standing support be looked behind from the free floor at its back.
+`sight.row_spos(state, cid, eid, row)` places a thing in a container's front or back row (setup `spawn ... "row"`);
+solid seats (sofas, armchairs) occlude only up to the seat plus a 0.2 m back strip, things on things on furniture are
+tested against the furniture exactly, and an eye that ignores a support (a lifted cushion) drops that support's
+test.
+
+**sight.py changes for the runtime**: eye heights from `body.eye_height_m`, carry geometry from the body profile
+(`sight.carry_geometry`), the carried load from `phys.support.held_envelope` and resting sizes from
+`phys.support.resting_size` (the stage-A stand-ins are gone; `sight._BRIDGES` only takes test overrides); `glare` and
+`specular` take the room's bright sources; new `sample_transmissions(state, eid, eye, geom, vs, cmap, only)` and
+`seen_floor_cells(state, viewer, ...)`; a World memoizes occlusion signatures per geometry epoch (a write that
+changes what occlusion reads, from the touch log; temperature and section writes never invalidate), read in
+geometric mode as the touch-log consumer "sight" (the watch reads every substep, so the log stays bounded).
+`perception.light_level(state, rid, ids=None)` takes a kept list of window and light ids (same sums, no scan).
+
+What domains should adopt (TIER1_INTEGRATION 6, "Camera"): `"view"` blocks where the category defaults mislead;
+visual occurrences through `camera.visual_event`; visual observer cues gated by `ctx.in_frame` / `camera.in_frame` in
+geometric mode; `ctx.read_check` / `ctx.acuity` for reading and visual states; `ctx.data["path"]` or `ctx.motion` on
+verbs that move the robot (the camera frames the walk); keep room-mode outputs identical.
+
+## v3.0 robot body (tier 1; docs/design/TIER1_EMBODIMENT.md, TIER1_INTEGRATION.md 1.1-1.10)
+
+The robot is one body owned by the kernel: `kernel/body.py` (profiles, the robot field registry, energy, power
+states, limits, sensors, the body system), `kernel/body_faults.py` (typed faults, the robot's falls and drops, water
+exposure), `kernel/proprio.py` (`obs.robot` rendering; wired by BODY-FAULTS) and `data/robot/profiles.json`
+(`humanoid_v1` default: 60 kg, 1.6 m, 2.4 kWh; `humanoid_compact`; `mobile_manipulator`, which cannot climb stairs).
+`kernel/engine.py` calls `body.register_plugins()` once (importing the body modules registers nothing): the system
+`kernel.body` (order 72, max_dt 30), the invariant `robot_stranded` and the event effects `robot.battery` `{level}`,
+`robot.network` `{ok, until_s}`, `robot.fault` `{kind, part, severity, latent, until_s}` and `robot.clear_fault`
+`{kind, part}`.
+
+**State.** `schema.normalize` builds the robot with `body.apply_profile(config["robot"], state)`: every kernel robot
+field is materialized from its default (profile values, `profile_overrides` applied), the config's own fields win,
+legacy fault strings become `{"kind", "time_s": None, "legacy": True}`, `fault_state` entries of the setup are applied,
+`arms_ok` mirrors `arm_health > 0`, and `battery_temp_c` (the start room's temperature, outdoors the weather's),
+`power_state` (off when the gauge starts at 0) and `battery_min_pct` are derived. Kernel fields: `battery` (true state
+of charge, % of `battery_wh` x `battery_health`), `body_profile`, `mass_kg`, `height_m`, `width_m`, `reach_m`,
+`max_hand_kg`, `max_mass_kg`, `battery_wh`, `battery_health`, `battery_temp_c`, `battery_min_pct`, `power_state`,
+`standby`, `charging`, `energy_wh_used`, `energy_wh_charged`, `body_log` (first times: `battery_low_s`,
+`battery_reserve_s`, `battery_critical_s`, `power_down_s`, `overload_s`, `fault_detected_s`, ...), `arm_health`,
+`arms_ok`, `legs_health`, `actuator_ok`, `grippers`, `hand_soil`, `camera_clean`, `sensors`, `localized`, `network`,
+`fault_state`, `faults` and the hidden caches `_idle_s`, `_activity`, `_held_kg`, `_hand_kg`, `_slips`, besides
+today's core fields. Domain fields are declarations (`body.register_robot_field(name, default, owner, tier, doc,
+materialize=False)`), resolved by `body.get(state, name)` and never copied into states; every body function works on
+legacy states through those defaults. `schema.ROBOT_DEFAULTS` stays as the pre-body reference the default profile
+reproduces.
+
+**Energy** (Wh, converted at the boundary; `stats.energy` is the % of the pack spent). The gauge is what the BMS
+shows: the true charge above the temperature cutoff (0.85 of the capacity at 0 C, 0.70 at -10 C); every threshold
+compares it (low 20, reserve 15 or `robot.battery_reserve_pct`, critical 5 = limp mode, cutoff 0, wake 3). Crossing
+low or reserve emits `battery_low` / `battery_reserve` (an undocked reserve crossing counts
+`stats.battery_reserve_breaches`). Every **leaf action** pays once it succeeded (`body.settle_energy(w, ctx, own_s)`:
+the engine's top-level step and every `env.perform`): its activity power over its own seconds (humanoid_v1 standing:
+115 W awake idle, 120 W perception or speech, 155 W with one arm working, plus 3 W per kg held and the `robot_power`
+hooks) plus the walking and stair work of its motion record (0.288 Wh/m at normal speed x (1 + load / 40 kg), 1.2 Wh
+per stair up), or a declared `ActionSpec.energy` as extra work (value x 24 Wh). Nothing is charged while seated on a
+live dock (the dock carries the load). Idle time (a `wait`, a refused step's second) is integrated by the body system:
+awake for `auto_standby_s` (60 s), then parked standby (20 W standing) unless a `robot_keep_awake` hook returns True
+(the camera's, while the head tracks someone); the system also charges from the `robot_charge_source` hooks
+(navigation_robot's dock: 2 %/min; constant current to 80 %, then an exponential constant-voltage taper; no charging
+below 0 C or above 45 C, half rate below 10 C), relaxes the pack temperature toward the room's plus its self-heating,
+restores the network at `network_until_s`, and powers the robot down when the gauge sits at the cutoff (a cold pack,
+a level written directly).
+
+**Power-down and running out.** At the cutoff the robot powers down (`body.power_down`): a controlled crouch (or a
+fall from a climbing aid), held items stay gripped, `stats.power_downs` (and `power_downs_off_dock`), event
+`power_down`, a dying-gasp message to the household when the network is up, the `power_down` hooks and
+`w._power_down_step`. While it is off every action except `wait` (`power_off_ok`) is refused with `body.PowerOff`
+("The robot is powered down (battery depleted); it must be charged or have its battery swapped", capability); a live
+charge source wakes it at 3 %. The global failure `robot_stranded` (invariant) is a power-down away from a dock, or a
+robot that ends off and undocked although it started on. A walk is planned against the battery (`ctx.motion`): the
+affordable prefix is walked, the robot stops at its last cell in its own room (a doorway crossing, its door and a
+flight of stairs are all or nothing) and the step returns ok=True with "Battery depleted after X m; the robot powered
+down". When a domain stops that walk first (`ctx.cut_motion` at a blocker or a fall short of the cut point), the robot
+pays only what it walked and stays on, and the engine replaces the verb's battery-cut message with "Walked X m"
+(`body.motion_result(ctx, result)` after the after-hooks in `step` and `perform`; `ctx.data["motion_battery_cut_m"]`
+keeps the superseded cut). A step in which the robot powered down partway (a nested leaf ran the pack flat, the next one was refused)
+commits what happened: ok=True, "Powered down partway: ...", the nested time. A non-motion action whose energy exceeds
+what is left by at most the hidden buffer (0.5 % of the pack) completes and then powers down; a larger shortfall is an
+atomic refusal "Not enough battery left to finish this; dock or swap the battery first" (`stats.energy_refusals`).
+
+**ActionSpec / `@action`** gain `energy=None` (default; a number is extra work), `arms` (0, 1, 2; default 1 for
+physical, 2 when the target is held in both hands), `idle` (the body system integrates the time: `wait`),
+`power_off_ok` (`wait`), `noise_db` (dB at 1 m, a number or `fn(ctx)`: quiet mode refuses an action louder than
+`quiet_limit_db` 55 with "Quiet mode is on: that is too loud now", category social; every action that declares it runs
+`@hook("robot_sound") fn(w, db, action, room, cell)`) and `timing` ("fixed" | "speed" | "commanded"; BODY-CORE's
+careful-speed rule stretches neither a duration from the walking speed nor one the command states -- `hold_s`,
+`seconds`, `minutes` of a hold, a game, a blend). None of these is part of the action fingerprint; `describe()` shows
+`noise_db` when set.
+
+**Engine order** (TIER1_INTEGRATION 1.9): `step` sets `env._advance_mode = "covered"`, then after validation and the
+stopped check `body.power_guard` and the numeric `body.quiet_guard`; after the handler, hooks and duration (the careful
+x1.5 stays until BODY-CORE) the callable quiet guard, `"idle"` for `spec.idle`, `body.settle_energy(w, ctx, seconds -
+ctx.nested_s)` (it may raise the energy refusal), then the physics settle, the message, facts, the undo record (none
+after a physics consequence or a power-down) and `robot_sound`. On a refusal the engine rolls back, sets `"idle"` and
+re-applies a `body.BodyRefusal`'s bookkeeping (`exc.apply(env)`: an energy refusal, an overload, a felt weight survive
+the rollback); when the robot powered down earlier in the step it commits instead (partial commit). `perform` runs
+`power_guard` and both quiet guards, settles its leaf over its own seconds, adds its time to the parent
+(`parent_ctx.spend`) and to `parent_ctx.nested_s`, and runs `robot_sound`.
+
+**Ctx** (kernel/actions.py): `ctx.body` (the read-only body queries bound to the live state: `ctx.body.gauge()`,
+`ctx.body.capacity_kg("left", eid)`, `ctx.body.can_hear()`, `ctx.body.carried_kg()`, ...), `ctx.require_powered()`,
+`ctx.require_mobile(legacy_message=None, stairs=False)` (power, actuator, fallen, failed legs, an overheating pack,
+"Step down first" on a climbing aid, localization; `stairs=True` also the profile's stairs and legs above half
+strength), `ctx.require_arm(hand=None)`, `ctx.require_imaging(message=None)` ("Cameras are off; turn privacy mode off
+to look closely" perception / "Camera fault: request help" capability), `ctx.require_hearing(addressed_ok=True)`
+("Microphone is off" / "Microphone fault: request help"; returns "full" or "addressed"), `ctx.require_grasp(eid,
+hand, grip)` (returns the grip to store, "pinch" for small items), `ctx.require_precision(hand, tolerance_mm,
+what="")`, `ctx.check_lift(eid, hands, mass=None)`, `ctx.motion(path, start, speed=None, stairs=(0, 0), extra_s=0.0,
+connection=None)` -> the cells walked (writes `ctx.data` motion, path, from_room, connection, seconds),
+`ctx.cut_motion(meters_done, reason, stairs_done=(0, 0))`, `ctx.nested_s`. Their refusals are `body.BodyRefusal`
+(`kernel_access`). `Ctx.obj(touch/grasp)` checks `body.manip_problem` with today's wording ("Actuator fault; request
+human assistance", "Battery depleted; dock or request assistance", "The robot has fallen; recover first", "Battery
+overheating; let it cool"); `Ctx.free_hand` needs `body.arm_health > 0` (an arm the `arms_ok` mirror marks out counts
+as failed).
+
+**Core verbs** (systems/core.py): `move`, `approach` and `walk_to` guard with `ctx.require_mobile` (today's wording:
+"Robot cannot move; dock, recover or hand off" for `move`, "Robot cannot move" for the others) and walk with
+`ctx.motion` (the same durations as before at the effective speed: quiet mode turns fast into normal, limp mode or
+weak legs walk careful, with a note); a battery cut ends the walk at the prefix ("Battery depleted after X m; the robot
+powered down") and a cut `move` is an in-room trip (no doorway, no stairs). `crouch`, `kneel` and `stand` keep their
+checks ("Step down first" except for `stand`; "The robot has fallen; recover first") and add the body's
+(`body.manip_problem`, failed legs); they need no localization.
+
+**Physics reads the body**: `phys.forces.robot_caps(w, eid=None)` is `body.capacity_kg(state, None, eid)` (derated:
+an overhead cell or above the head x0.6, on a climbing aid x0.5, limp x0.5, arm health, `lift_capacity` hooks),
+`body.capacity_kg(state, "both", eid)`, `body.limit` (`push_n`, `pull_n`, `wrist_nm`) and the stronger working hand's
+`body.grip_limit_n` (power, pinch); `phys.support.carry_geometry(state)` is the profile's carry block, so
+`held_envelope` (camera occlusion, balance) carries a compact humanoid's loads lower. The held-load safety net at
+settlement (drop above 1.5 x capacity) lands with BODY-CORE (`body.HOLD_SAFETY_NET`).
+
+**Hooks** (kernel to domains): `robot_charge_source fn(w) -> %/min | None`, `robot_power fn(w, action) -> watts`,
+`lift_capacity fn(state, hand, eid) -> factor`, `robot_keep_awake fn(w) -> bool`, `robot_sound fn(w, db, action, room,
+cell)`, `power_down fn(w, cause)`, `robot_fell fn(w, info)`, `fault_onset:<kind>` / `fault_cleared:<kind>` `fn(w,
+record)`, `proprio fn(state, out, realistic)`. Stats (none global): `power_downs`, `power_downs_off_dock`,
+`battery_reserve_breaches`, `overload_attempts`, `robot_drops`, `unfounded_fault_logs`, `energy_refusals`. Spec paths:
+`robot.battery_min_pct`, `robot.power_state`, `robot.charging`, `robot.energy_wh_used`, `robot.body_log.*_s`,
+`robot.fault_state.<id>.detected`, and the failure label `robot_stranded`.
+
+What domains should adopt (TIER1_INTEGRATION 6, "Body"): never write `robot.battery`, `charging` or `power_state`
+(`body.spend_wh`, `body.swap_pack`, the `robot.battery` event); a verb that moves the robot calls `ctx.motion` (and
+`ctx.cut_motion` when it stops early); guard with `ctx.require_mobile` / `ctx.require_arm`; declare robot fields with
+`body.register_robot_field`; give loud verbs `noise_db`; read capacities and limits through the body.

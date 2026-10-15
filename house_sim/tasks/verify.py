@@ -6,6 +6,12 @@ An entry passes only if, on every seed:
   3. the reference plan (strict: no refused step) satisfies it within budget,
   4. every plausible wrong plan fails,
   5. every wrong plan actually ran (no spec/plan construction error).
+
+Setup is linted for physically impossible staged scenes (tasks/setup.py physics_problems, kernel v3.0): a spec with
+"schema": 3 or more fails to build; for older specs the problems are recorded as the trial's "physics_warnings".
+
+camera (kernel v3.0): None runs each spec with its own camera ("camera", default room); "room" | "geometric" forces
+one for every spec (CLI --camera). The trial records the mode it ran in ("camera").
 """
 import copy
 import json
@@ -13,6 +19,7 @@ import os
 import traceback
 from concurrent.futures import ProcessPoolExecutor
 
+from ..kernel import camera as camera_mod
 from ..kernel.errors import SpecError
 from ..kernel.plugins import load_domains
 from ..kernel.predicates import digest
@@ -35,22 +42,29 @@ def idle(env, task):
     return env.evaluate()
 
 
-def run_trial(spec, seed, perception=None):
-    """perception: None -> each spec's own mode ("perception" field, default oracle); "realistic" forces it."""
+def run_trial(spec, seed, perception=None, camera=None):
+    """perception: None -> each spec's own mode ("perception" field, default oracle); "realistic" forces it.
+    camera: None -> each spec's own camera ("camera" field, default room); "room" | "geometric" forces it."""
     trial = {"seed": seed, "passed": False}
     try:
-        config, task, oracle = build(spec, seed)
+        config, task, oracle = build(spec, seed, camera=camera, perception=perception)
         mode = perception or task.get("perception") or "oracle"
         trial["perception"] = mode
+        trial["camera"] = camera_mod.resolve_mode(camera, task, mode)
         trial["variant"] = oracle["variant"]
+        # the physics lint after setup (tasks/setup.py physics_problems): an error for "schema": 3 specs (build raised),
+        # warnings for older ones
+        lint = oracle["bindings"].get("_physics_warnings")
+        if lint:
+            trial["physics_warnings"] = list(lint)[:20]
         trial["initial_hash"] = digest(config)
         trial["task_hash"] = digest(task)
-        env = make_env(config, task, seed, perception=mode)
+        env = make_env(config, task, seed, perception=mode, camera=camera)
         initial = env.evaluate()
         trial["initial_fails"] = not initial["success"]
-        idle_env = make_env(config, task, seed, perception=mode)
+        idle_env = make_env(config, task, seed, perception=mode, camera=camera)
         trial["idle_fails"] = not idle(idle_env, task)["success"]
-        ref = make_env(config, task, seed, perception=mode)
+        ref = make_env(config, task, seed, perception=mode, camera=camera)
         if ref.realism is not None:
             ref.realism.record_observations = True
         try:
@@ -74,7 +88,7 @@ def run_trial(spec, seed, perception=None):
                 trial["perceivability_gaps"] = missing
         wrongs = []
         for item in oracle["wrong"]:
-            bad = make_env(config, task, seed, perception=mode)
+            bad = make_env(config, task, seed, perception=mode, camera=camera)
             record = {"name": item.get("name", "wrong")}
             try:
                 runner = run_plan(bad, item["plan"], oracle["bindings"], strict=False)
@@ -174,10 +188,10 @@ def perceivability_gaps(env, task):
     return gaps
 
 
-def verify_spec(spec, seeds=SEEDS, perception=None):
+def verify_spec(spec, seeds=SEEDS, perception=None, camera=None):
     record = {"catalog_id": spec.get("catalog_id"), "spec_hash": spec_hash(spec), "trials": [], "passed": False}
     for seed in seeds:
-        record["trials"].append(run_trial(spec, seed, perception))
+        record["trials"].append(run_trial(spec, seed, perception, camera))
     record["passed"] = bool(record["trials"]) and all(t["passed"] for t in record["trials"])
     record["fidelity"] = spec.get("fidelity", "S")
     return record
@@ -196,13 +210,13 @@ def _worker_init():
 
 
 def _job(args):
-    spec, seeds, perception = args
-    return verify_spec(spec, seeds, perception)
+    spec, seeds, perception, camera = args
+    return verify_spec(spec, seeds, perception, camera)
 
 
-def verify_many(specs, seeds=SEEDS, workers=None, progress=None, perception=None):
+def verify_many(specs, seeds=SEEDS, workers=None, progress=None, perception=None, camera=None):
     workers = workers or max(1, (os.cpu_count() or 2) - 1)
-    jobs = [(copy.deepcopy(s), tuple(seeds), perception) for s in specs]
+    jobs = [(copy.deepcopy(s), tuple(seeds), perception, camera) for s in specs]
     results = []
     if workers == 1 or len(jobs) <= 2:
         load_domains()

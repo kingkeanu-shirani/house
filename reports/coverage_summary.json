@@ -1,17 +1,40 @@
 {
-  "total_entries": 2719,
+  "total_entries": 2720,
   "catalog_sections": 105,
   "statuses": {
-    "DONE": 723,
-    "TODO": 1995,
+    "TODO": 2477,
+    "DONE": 242,
     "BLOCKED": 1
   },
-  "executable_task_entries": 723,
-  "task_requirement_entries": 2537,
-  "coverage_percent_all_entries": 26.59,
+  "coverage_percent_all_entries": 8.9,
   "fidelity_done": {
-    "S": 723
+    "P-approx": 81,
+    "G": 77,
+    "S": 84
+  },
+  "by_kind": {
+    "adaptability": {
+      "BLOCKED": 1,
+      "TODO": 228,
+      "DONE": 24
+    },
+    "appendix": {
+      "DONE": 14,
+      "TODO": 31
+    },
+    "primitive": {
+      "TODO": 104,
+      "DONE": 4
+    },
+    "task": {
+      "TODO": 2041,
+      "DONE": 199
+    },
+    "variation": {
+      "TODO": 73,
+      "DONE": 1
+    }
   },
   "full_catalog_complete": false,
-  "implementation_hash": "6f21a93bae97c120ea144aa62a5df6172eb0287fc61f1a704caa6033fa4b57ac"
+  "implementation_hash": "555b44d7f6ba3bbb83aa9fa15277154e699ff3cd2213a883f537e69ce105ac90"
 }

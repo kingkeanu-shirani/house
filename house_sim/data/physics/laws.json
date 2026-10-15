@@ -17,7 +17,7 @@
     "wet_contact": {"state": "deferred", "order": 85, "duplicated_by": ["manipulation"], "note": "wet or sweating items ring water-sensitive supports (manipulation ring stains)"},
     "thermal_shock": {"state": "deferred", "order": 90, "duplicated_by": ["appliances_cooking", "cleaning"], "note": "brittle items crack under a sudden temperature difference (appliances_cooking, cleaning's column)"},
     "phase": {"state": "deferred", "order": 95, "duplicated_by": ["plumbing_liquids", "food"], "note": "water-like liquids freeze and thaw; sealed rigid containers burst (plumbing ice; food liquids stay food-owned)"},
-    "setdown": {"state": "active", "order": null, "duplicated_by": [], "note": "core place drops a held item from the speed's set-down height onto the support"},
+    "setdown": {"state": "deferred", "order": null, "duplicated_by": ["manipulation", "food"], "note": "core place drops a held item from the speed's set-down height onto the support (manipulation handling.after_placement chips fragile ware set down fast on hard surfaces; food must turn a broken egg into its raw-egg spill, phys.broke, before the kernel breaks eggs)"},
     "drip": {"state": "active", "order": null, "duplicated_by": [], "note": "explicitly started drips deposit liquid down the support chain each substep (process)"},
     "creep": {"state": "active", "order": null, "duplicated_by": [], "note": "a support staged with phys_creep_s and still over its true rating collapses at that time (process)"},
     "carry": {"state": "deferred", "order": null, "duplicated_by": ["manipulation", "navigation_robot", "plumbing_liquids", "pets", "climate"], "note": "robot travel sloshes and topples what it carries (applied once after the ordered laws in the action phase)"},

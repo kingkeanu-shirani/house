@@ -46,10 +46,14 @@ class RobotCapsTests(unittest.TestCase):
         self.assertEqual(caps, {"max_hand_kg": 8.0, "max_mass_kg": 20.0, "push_n": 220.0, "pull_n": 180.0,
                                 "grip_n": 150.0, "pinch_n": 30.0, "wrist_nm": 6.0})
 
-    def test_robot_fields_override_and_bad_values_fall_back(self):
-        w = world(robot={"max_hand_kg": 4.0, "push_n": 120, "grip_n": "strong", "pinch_n": True})
+    def test_the_body_profile_is_the_only_source(self):
+        # BODY-ENGINE (TIER1_INTEGRATION 1.2): robot_caps delegates to the body; the materialized ratings and the
+        # profile (with profile_overrides) count, a force field on the robot record does not
+        w = world(robot={"max_hand_kg": 4.0, "push_n": 120, "grip_n": "strong",
+                         "profile_overrides": {"push_n": 140.0, "wrist_nm": 5.0}})
         caps = forces.robot_caps(w, "anything")
-        self.assertEqual((caps["max_hand_kg"], caps["push_n"], caps["grip_n"], caps["pinch_n"]), (4.0, 120.0, 150.0, 30.0))
+        self.assertEqual((caps["max_hand_kg"], caps["push_n"], caps["wrist_nm"], caps["grip_n"], caps["pinch_n"]),
+                         (4.0, 140.0, 5.0, 150.0, 30.0))
 
 
 LIFT_MESSAGES = {"over_capacity": "Object and contents exceed carrying capacity; get help or slide it",

@@ -1,0 +1,131 @@
+{
+ "lens": "CAMERA (stage B review: room-mode golden, geometric correctness, camera verbs and times, acuity, camera_log and privacy, realistic leaks, SearchAgent/harness, observe budget)",
+ "findings": [
+  {
+   "package": "CAM-SIGHT (sight.room_geom; carried unchanged through CAM-RUNTIME / CAM-ACTIONS)",
+   "severity": "high",
+   "title": "An open hinged door's leaf is modelled as a solid 2 m block over its whole swept area, blinding a robot that has just walked through the doorway",
+   "evidence": "house_sim/kernel/sight.py 1383-1395: for every open door, room_geom adds ONE span [0, door height] with porosity 0 (glazed: min(.,0.6)) over the bounding rectangle of geometry.door_swing's cells (the inward cell in front of the doorway plus the hinge-side diagonal: a 0.5 x 1.0 m, 2 m tall solid block). A real open leaf is a ~4 cm slab at the hinge jamb. Probe p26_doormove.py (agent-style env.step): seed 0, robot walks hallway_1 -> master_bedroom_1 through open door_2 (swing cells (1,0),(1,1); arrival cell [0,0]); 'look around' gives camera_log.coverage 0.0222 and lists only closet_1, 2 shirts, a switch and the headlamp; 'approach bed_1' (a 1.6 x 2.0 m bed) -> 'That is not visible here'. Probe p8_doorleaf.py (robot at the doorway cell, look around, door open vs closed), e.g. seed 0 master_bedroom_1 coverage 0.022 vs 0.444 (5 vs 21 entities listed), seed 1 master_bedroom_1 0.012 vs 0.590, seed 1 playroom_1 0.037 vs 0.482, seed 3 bedroom_2 0.022 vs 0.378; the same collapse in almost every bedroom / office / bathroom of seeds 0-4. This is the root of B3-MERGE's geometric G3 preview (54 of 55 geometric-only failures refused with 'That is not visible here'), recorded there but still unfixed.",
+   "fix": "In sight.room_geom replace the swept-area block by the leaf at its open position: a thin exact rect (about 0.04 m) perpendicular to the doorway wall at the hinge-side jamb, reaching the leaf width (size_m[0], default 0.85 m) into the room, z [0, leaf height], porosity per glazing; keep door_swing's cells for navigation only. Add a regression: from the doorway cell with the door open, look-around coverage of the seed 0-3 bedrooms is within ~15 % of the closed-door value, and A-c83efc7adcd8f5-01 seed 2 'approach door_3' succeeds; then re-run the D3 geometric G3 preview."
+  },
+  {
+   "package": "CAM-RUNTIME (camera._looked_in)",
+   "severity": "high",
+   "title": "camera_log.looked_in records a top-open container as looked into when its interior is not visible at all (grazing views from across the room)",
+   "evidence": "house_sim/kernel/camera.py 1519-1577: for a top opening the test point is the rim-plane centre ((x0+x1)/2, (y0+y1)/2, z1) (1521-1523), the only geometric condition is viewer.z > rim (1555-1557), and point_transmission is taken to that rim point (1567), which is visible whenever the box top is in line of sight; nothing checks that any of the interior (bottom) is visible (TIER1_CAMERA 4.7: 'interior framed (5.4)'). Probe p3b_box.py: 0.4 x 0.3 x 0.3 m open box on the floor, 6 cm ball inside. From cells (9,4), (9,3) and (0,6) (0.75 / 1.25 / 4.5 m from the near rim) the inner-floor centre has transmission 0.0 and the ball can_see False, yet after 'look box_1' camera_log.looked_in = {'box_1': ...} in every case (also from 4.5 m away with a 1.5 m eye, where the sight line over the rim reaches the bottom only 1.1 m past the rim). The spec's honest-absence pattern (TIER1_CAMERA 14: every candidate in looked_in or peeked before reporting absence; wrong plan 'claims absence after scanning the floor only') is passed by a doorway 'look around'. Front openings have the same laxness (opening centre in LOS within 75 degrees).",
+   "fix": "Judge the interior, not the aperture: top openings -> require a minimum visible share (e.g. >= 1/4) of a 3 x 3 grid of inner-floor points (z = inner floor + 0.02, rel=cid) through sight.point_transmission with the frame's viewer in frame; front openings -> the same on each shelf band's back-wall points. Keep the 32 px and 0.2 light rules. Tests: the box above is not looked_in from 1.25 m or 4.5 m standing and is from 0.5 m standing / a peek inside."
+  },
+  {
+   "package": "CAM-ACTIONS (core.inspect geometric contents) + CAM-RUNTIME (camera.wrist_access C9 rule inside can_see)",
+   "severity": "high",
+   "title": "Geometric 'inspect' (no where=) lists things under/behind the target that no frame ever saw, issuing realistic handles for them without a peek",
+   "evidence": "house_sim/systems/core.py 617-620: in geometric mode details['contents'] = children that pass Perception.visible = camera.can_see, and can_see accepts wrist_access(eid) (camera.py 1006, 904-950), which grants things under a light portable support (C9 liftable, <= 5 kg) and things under furniture when crouched/kneeling within reach -- even though the wrist never went there. Probe p9_leaks.py / p25_roominspect.py (realistic perception, SOFA_SCENE: coin under a 0.6 kg cushion): room mode 'inspect cushion' -> contents [] ; geometric -> contents ['obj_1eca9de6'] (a new handle for the unseen coin), camera_log.peeked {} and coin revealed None; 'pick_up obj_1eca9de6' then succeeds. Kneeling beside the bed (p9): 'inspect bed_1' lists the under-bed toy (oracle 'toy_1', realistic 'obj_3b29eed0') although it is in no frame (observation does not list it). So inspect (3-5 s) replaces 'peek under' (8 s), leaves no camera_log.peeked entry and no 'revealed', and leaks hidden things in realistic mode (room mode hides them until revealed). CAM-ACTIONS known gap 1 records the can_see half, not this channel.",
+   "fix": "In core.inspect's geometric branch list a child only if it was framed this step (camera.in_frame(state, c, w), which covers this step's wrist peek frames) or is in the `seen` list of the where= peek; never through wrist_access alone. Preferably also restrict camera.wrist_access(where=None) for relation under/behind to things already revealed or peeked this step (keep the liftable rule for peek_access), so can_see/pick_up need the look first. Tests: the cushion/coin and kneeling-bed cases list nothing until a peek, in both perception modes."
+  },
+  {
+   "package": "CAM-ACTIONS (core.inspect, people/pets branch)",
+   "severity": "high",
+   "title": "Inspecting a person the camera cannot identify (backlit / far) returns their name, role, activity and mood",
+   "evidence": "house_sim/systems/core.py 540-568: in geometric mode a person is inspectable when camera.agent_visible (LOS, light >= 0.05, >= 10 px or an IR shape) and the room is lit by the room-level rule; no acuity / backlight / identify check. Probe p18_backlit_inspect.py (realistic geometric, lab with a sunlit window, room light off, Ann 3.6 m away in front of the window): the step view gives level 'recognize', glare 'backlit', and the observation lists only {'obj_a0bb288d': {'label': 'person', ...}}; 'inspect obj_a0bb288d' returns {'label': 'Ann', 'role': 'resident', 'activity': 'reading', 'cues': ['tearful'], ...}. The camera's identity rules (TIER1_CAMERA 7/11.1: identify needs >= 64 px, light >= 0.2, not backlit; CAM-RENDER deviation 1: unidentified people are sighting shapes) are bypassed by one 3 s action from across the room.",
+   "fix": "In inspect's people/pets branch (geometric) take camera.acuity(ctx.env, aid) after auto-gaze and require level 'identify' for label/role/identity (and inspect-capable px, 160, for mood/activity cues); otherwise return the shape note, as the dark branch does ({'agent': handle, 'label': 'person'|'animal', 'note': 'Too far or against the light to tell who it is; get closer or change the angle'}) without recording facts.inspected. Test: the backlit case above."
+  },
+  {
+   "package": "CAM-RUNTIME (step view / can_see / seen cells do not apply sight.carried_occluder)",
+   "severity": "high",
+   "title": "A two-hand carried load never occludes the robot's own camera: the floor the kernel itself reports hidden is fully seen",
+   "evidence": "sight.carried_occluder / carried_hides are consulted only by camera.floor_visible_ahead (camera.py 2172-2175); sample_transmissions, the step view, can_see and _seen_cells never apply them (grep: no other caller). TIER1_CAMERA G1 / 5.6 / 14 and TIER1_INTEGRATION 1.6 require the load to hide the floor within 2.36 m (1.50 m eye). Probe p20_carried.py: holding a 0.6 x 0.4 x 0.3 m basket in both hands, carried_occluder = {z_top 1.15, x_front 0.55, half_angle 28.6, floor_hidden_m 2.357} and floor_visible_ahead(1.0) = floor_visible_ahead(1.5) = False, yet after 'look down' a 10 cm toy 1.0 m ahead is listed (level recognize, vis 1.0) and one 1.5 m ahead too, and camera_log.coverage is identical to the empty-handed run (0.2167). The 10 carried-load catalog entries (TIER1_CAMERA 20) cannot be authored on this.",
+   "fix": "Apply the carried occluder to every head-camera ray of the robot: in sight.sample_transmissions / point_transmission and seen_floor_cells, when the eye ignores 'robot' and is a head eye at the robot's current eye, zero the transmission of points with sight.carried_hides(occ, eye_z, rel_bearing, d, z) (compute occ once per scene; wrist frames and the 0.25 m lidar unaffected). Tests: the basket case hides the toys at 1.0/1.5 m and shows one at 3 m; coverage drops; empty hands unchanged."
+  },
+  {
+   "package": "CAM-SIGHT (sight._place_new, room-located placement)",
+   "severity": "medium",
+   "title": "Wall-mounted fixtures on south and east walls float 0.4-0.47 m out from their wall",
+   "evidence": "house_sim/kernel/sight.py 539-549: a room-located entity is boxed at (pos[0]*CELL, pos[1]*CELL) + its footprint, with no wall snapping (doors get it in _door_place 656-688). On the north/west walls this coincides with the wall; on the south/east walls a small mounted thing sits at the far (room) side of its cell. Probe p14_mounted.py (seeds 0-3, room-located mounted things on perimeter cells): off-wall by >= 2 cm: switch 43 of 145, outlet 44/86, vent 17/41, hooks 17/36, blinds 12/39, curtains 8/21, valve 12/21, thermostat 1/4, window 10/76 ... e.g. seed 0 gfci_outlet_2 at [5,8] in a 7 x 9 room boxed y 4.00-4.03 with the wall at y 4.5 (0.47 m), curtains_3 at [7,6] boxed x 3.50-3.62 with the wall at x 4.0. p13b.py: a thermostat at [11,3] (east wall x 6.0) is boxed x 5.5-5.6, y 1.50-1.53, so reading distance, front (rule 4 'toward the room centre' instead of the wall normal), faces and line of sight are those of a thing floating in the room.",
+   "fix": "In _place_new, for room-located entities that are mounted (mounted / mount_height_m / wall_mounted) or whose footprint is smaller than their perimeter cell, snap the box flush to the wall of geometry.wall_inward(room, pos) (east: x1 = cols*CELL; south: y1 = rows*CELL), keeping the cell; same for front_deg rule 3. Test: every mounted perimeter thing of seeds 0-3 has a box face on its wall."
+  },
+  {
+   "package": "CAM-RUNTIME (camera.wrist_access) x BODY-CORE seam",
+   "severity": "medium",
+   "title": "The wrist camera keeps working with both arms failed: read / inspect / can_see still go through the wrist",
+   "evidence": "camera.wrist_access (camera.py 904-950) checks imaging and reach but not the arm; read_check (2069-2093), inspect_check (2013-2016) and can_see (1006) use it. Probe p21_arms.py with robot arm_health {left: 0, right: 0}: 'peek jar_1 closely' -> 'Both arms have failed; request help' and 'inspect table_1 where=under' refused the same way, but 'read jar_1' (4 mm label, head cannot read it) succeeds in 6.714 s via the wrist and returns the label text, exactly as with healthy arms.",
+   "fix": "wrist_access returns (False, body arm text) when body.arm_problem(state, None) is not None (both arms failed, actuator fault, powered down) except for held things; read_check / inspect_check then fall back to the head result and its refusal. Test: the probe's read is refused with the arm text."
+  },
+  {
+   "package": "CAM-RUNTIME (camera._log_capture kernel fallback)",
+   "severity": "medium",
+   "title": "Geometric mode double-counts privacy violations while the people domain is loaded but not yet adopted",
+   "evidence": "camera.py 1643-1662 bumps privacy_violations whenever no @hook('camera_capture') is registered; the people domain registers none yet and still runs its entry-based sensor_capture (systems/people/harms.py 71-73). TIER1_CAMERA 12 says the entry-based bumps are skipped in geometric mode; TIER1_DECISIONS meant the fallback for 'people domain not loaded'. Probe p7_privacy.py: robot moves from 'lab' into 'hall' where Bo is dressing: room mode stats privacy_violations 1; geometric 2 (people.sensor_capture + a kernel 'camera_capture' mic capture 2.1 s later). Any geometric spec bounding privacy_violations gets a different verdict than its room-mode twin (known gap in handoff_CAM-RUNTIME 7, unowned until the adoption round).",
+   "fix": "Until people/navigation_robot adopt: count the kernel fallback only when the people domain is absent (no people.* system/hook registered), or skip people's entry-based sensor_capture in geometric mode through a kernel hook it already calls; add a cross-mode test that the probe counts 1 in both modes."
+  },
+  {
+   "package": "CAM-RUNTIME (camera.watch)",
+   "severity": "low",
+   "title": "camera.watch costs 0.10-0.13 ms per substep with people in the room (budget 0.05 ms)",
+   "evidence": "Probe p22_watch.py (lab, 2 people): 0.128 ms/substep untracked, 0.096 tracked, 0.001 with nobody; budget TIER1_INTEGRATION 3.4 / TIER1_CAMERA 16 is 0.05 ms. Known gap in handoff_CAM-RUNTIME 7 (measured 0.15-0.19 there); a 7-day wait with someone home adds about 2-3 s.",
+   "fix": "Memoize each agent's in-view/capture result per (agent pos, posture, activity, robot pose, geometry epoch, ambient light) and recompute only when one changes; write camera_log only when a value changes (in_view_s can be accumulated lazily from the last change time)."
+  },
+  {
+   "package": "CAM-RUNTIME (camera._track_pose / gaze_to use _body_can_turn)",
+   "severity": "low",
+   "title": "Head tracking turns the body of an e-stopped robot",
+   "evidence": "camera.py 582-584 _body_can_turn omits 'stopped' (camera.can_turn 2365-2367 includes it); _track_pose (1704) and gaze_to/_aim_pose use it. Probe p23_stopped.py: tracking Ann, robot.stopped = True, Ann moved behind; 'wait 60' -> facing_deg 0 -> 180 while 'face east' is refused 'Robot is stopped; resume first'.",
+   "fix": "Use can_turn(state) (with stopped) in _track_pose and in gaze_to's _aim_pose call; when stopped only the head pans."
+  },
+  {
+   "package": "CAM-RUNTIME (camera._sightings / _write_logs)",
+   "severity": "low",
+   "title": "camera_log.sightings are written only at end_step, so first_s is the end of a long wait (and in-wait sightings are lost)",
+   "evidence": "Sightings come only from end_step's frames (camera.py 1437-1445, 1497-1516); the watch system accumulates in_view_s per substep but never touches sightings, and the reset view is not logged. Probe p7_privacy.py: Ann in view from t=0 through a 60 s wait -> sightings {'first_s': 60.0, 'last_s': 60.0} while in_view_s 60.0. A person in view for most of a 1 h wait who leaves before its end gets in_view_s but no sighting.",
+   "fix": "Update sightings (first_s / last_s / best) from camera.watch when an agent is seen in a substep, and once from the reset step view."
+  },
+  {
+   "package": "CAM-RUNTIME (camera._watch_specs)",
+   "severity": "low",
+   "title": "view_watch robot_in_view_s credits a full interval ahead of time",
+   "evidence": "camera.py 1847-1848 adds every_s at each evaluation (the first one included). Probe p24_watchspec.py (person viewer, every_s 60): after 60 s of simulated time robot_in_view_s = 60.0 with last_s 30.0; after 180 s it is 180.0 with last_s 150.0 -- always one interval ahead of what was observed.",
+   "fix": "Credit now - last_s (0 on the first evaluation) when the robot was seen at the previous evaluation, i.e. integrate over elapsed time."
+  },
+  {
+   "package": "CAM-RENDER (realism inbound refusal text)",
+   "severity": "low",
+   "title": "Naming an unidentified person in a lit room is refused with the darkness text",
+   "evidence": "Probe p5_glare.py (realistic geometric, backlit person, room ambient 0.45 'moderate'): 'inspect p1' -> 'It is too dark to tell who is who here: turn on a light, or address the shape you see'. The cause is backlight (or distance), so the advice to turn on a light is wrong.",
+   "fix": "Use a geometric text when the room is lit: 'You cannot tell who that is from here; get closer or address the shape you see'."
+  },
+  {
+   "package": "CAM-ACTIONS (peek through Ctx.obj auto-gaze)",
+   "severity": "low",
+   "title": "peek's documented time (6 s, +2 under/behind, +1 lift) silently grows by the head's auto-gaze",
+   "evidence": "core.wrist_peek calls ctx.obj (auto-gaze, actions.py 636-637). Probe p6_verbs.py: kneeling, body facing 149 deg away from the bed: 'peek bed_1 under' took 9.334 s (8 + 1.334 s head turn to pan -136) and left the head panned -136; from a pose already framing the bed it took 8.0 s. The verb doc and ACTION_API state the fixed times.",
+   "fix": "Either skip auto-gaze for wrist-camera verbs (ctx.obj(..., gaze=False)) or document '+ head turn when the target is out of view' in the peek doc and ACTION_API."
+  },
+  {
+   "package": "B-CLOSE / main session (test pins requested by CAM-RENDER 1, BODY-ENGINE 3, BODY-CORE 1)",
+   "severity": "low",
+   "title": "Three camera test pins still fail on the integrated tree",
+   "evidence": "python -m unittest tests.test_room_golden tests.test_camera tests.test_camera_actions tests.test_camera_realism tests.test_sight: Ran 250, FAILED (failures=3): test_camera.ModeTests.test_realistic_perception_with_the_geometric_camera_waits_for_cam_render (expects the removed NotImplementedError), test_camera_actions.FaceTests.test_arguments_and_guards (expects 'Robot cannot move' for a flat battery, now the PowerOff text), test_camera_actions.LookTests.test_cameras_off_refuse_look_in_geometric_mode_only (conflict 20 makes room-mode look need imaging). All three are requests recorded in the handoffs, not behaviour bugs.",
+   "fix": "Apply the replacement tests given in handoff_CAM-RENDER 9.1, handoff_BODY-ENGINE request 3 and handoff_BODY-CORE request 1 so G1 is green for the camera files."
+  }
+ ],
+ "verified_ok": [
+  "Room mode byte-identical: tests.test_room_golden green, and HOUSE_SIM_GOLDEN_ALL=1 (7 tests, 33 s) green; room-mode states have no robot.view / facing_deg / camera_log, observations no camera / lidar (p1); room look lasts 1.0 s whatever its new params; face/peek hidden from action_names() and refused 'Camera control needs camera: geometric' (p6).",
+  "Under-bed geometry with the 1.50 m eye (p2): toy 6 cm tall 0.3 m inside, L 0.25 m: standing seen from d_near 2.25-2.75 m (0.5-1.0 visible) not from 1.75 m; crouching seen from 1.25 m not 0.75 m; kneeling seen from 0.75 m -- all match ez - (ez - z_top) d_near/d_t <= L; under-bed light = ambient x 0.3 (0.24).",
+  "Behind a sofa against a wall: a floor toy is hidden from every standing viewpoint 1.3-4.7 m away; a 1.6 m lamp behind it is identified (p2).",
+  "Wardrobe top (2.0 m): a 0.1 m box 0.25 m back is hidden within ~1.2 m of the front edge, seen (0.5 visible) from 1.65 m; between 1.65 and ~3.1 m it is out of the default tilt -10 frame and appears after 'look up'; beyond ~3.3 m it is in the default frame (p2).",
+  "Containers: closed cabinet hides its mug (can_see False, not listed, not looked_in); open cabinet seen from the front at 1.5 m (identify, 66.8 px) and 3 m (recognize), not from steep west/east sides, looked_in only from the front (p3).",
+  "Darkness: lights off -> small things not detected, 0.5 m crate at 3 m a 'dark shape' via depth, crate at 5.2 m not (IR 4 m), obs.dark True, coverage = own cell only (C17); headlamp lights its cone (toy ~1.6 m away recognized at light 0.16) (p4/p4b).",
+  "Dirty lens: k_lens scales px (toy at 2.9 m 34.5 -> 15.1 px at camera_clean 0.5, not listed), near toy kept to clean 0.3 (p4b).",
+  "Backlight: a person in front of a sunlit window with the room light off is capped at recognize (glare 'backlit') and rendered as a 'person' shape in realistic mode; with the room light on identify and full record (p5).",
+  "Imaging off (privacy mode, geometric): depth 'dark shape' records for things >= 0.4 m within 4 m, people as 'person' shapes via depth, lidar kept, look refused with the 1.15 text, face works, a map fixture (sofa) approachable; same in realistic with handles (p15).",
+  "Verb time costs (p6): look forward 1.0 s, around 5.4 s (7 frames), around rows=2 8.3 s (13 frames), up 0.733 s, behind 2.4 s (body turn 180), left 1.15 s, pan/tilt aims = slowest axis + 0.4 s, pan beyond 150 turns the body; face |dyaw|/90 + 0.3 s (north 1.64 s, south 2.3 s, deg 45 0.8 s); peek under 8.0 s when the bed is framed; approach takes the same time as room mode and ends facing the target with the head aimed (C19).",
+  "Reading acuity (p13): 4 mm labels never by the head from a standing eye, read by the wrist within reach (+2 s), refused beyond reach; a 10 mm display read by the head from the adjacent cell and refused from ~1.3 m; a 3 cm sign read to ~2.8 m and refused at 3.3 m.",
+  "Privacy captures (p7): camera capture when a dressing person is in frame, mic capture when facing away, none in privacy mode or with the mic off and facing away; one capture per private moment; kernel fallback counts privacy_violations; in_view_s / max_gap_s accumulate per substep.",
+  "Visual events (p16): a 0.3 m fall in front is seen (view.events and camera_log.events seen true), behind not, a 1 cm one not; a physics impact.fall during a step is routed through emit_consequence -> visual_event and reaches obs.camera.events.",
+  "Realistic geometric rendering (p17, 6 houses): detect records carry only label 'object', kind unknown, size_class, shape, location, relation, pos/spos, color, view; recognize adds the category word and RECOGNIZE_FIELDS (open, covered) and fill; identify the full glance; tracking ids and event ids translated to handles (p10); tools/perception_audit.py 3 100 --camera geometric: 0 leaks, 0 crashes.",
+  "C5: observe() called 0, 1 or 2 times per step gives identical final observations, realism.dump() and state digests (3 seeds x 25 mixed steps, realistic geometric; p12).",
+  "Performance (p11, best of 5): geometric realistic observe overhead vs realistic room +2.4 ms (seed 7 cached), +3.0 fresh; seeds 0/3 -1.4..+3.3 ms (target 3, bound 10); end_step 2.3-2.6 ms (<= 3); look-around extra 1.4-3.9 ms (<= 4); geometric 1 h wait 0.269 / 0.349 s vs room 0.249 / 0.352 s.",
+  "Harness: --camera geometric runs record camera 'geometric' in run.json and every episode record; camera unit tests otherwise green (250 tests, only the 3 known pins fail); SearchAgent geometric tests in test_camera_realism green.",
+  "can_see / auto-gaze: a target in the current pose's view is not charged (approach -> pick_up/inspect without extra time); auto-gaze charges max(|dpan|/120, |dtilt|/90) + 0.2 s once per target per step."
+ ],
+ "notes": "Probes are in <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/t1_review_camera/ (p1-p26, common.py builds the test_camera_actions 'lab' scenes; run with python from that folder). No project file was edited apart from this JSON. Highest-impact items: the door-leaf block (blocks most rooms right after entering through an open door), looked_in on unseen interiors, inspect leaking unseen under/behind things and the identity of unidentifiable people, and carried loads not occluding the camera. The privacy double count and watch budget are documented known gaps that still change counts/costs today."
+}

@@ -17,7 +17,9 @@ several run directories. Everything in a run directory is untrusted input.
   episode records that lack a contract key (a missing safety or cost field is never read as 0) or an empty seed tag,
   and reads every command log for the privileged / perception / done-protocol facts it records.
 * ``aggregate`` makes one row per (agent, split, evaluation config). The config is the privileged flag (run.json, any
-  record or any log), the perception mode (anything but realistic is privileged state), the done protocol, the
+  record or any log), the perception mode (anything but realistic is privileged state), the camera mode (kernel
+  v3.0: "room" or "geometric"; the one that is not camera.default_mode("realistic") is labelled, e.g.
+  "[geometric camera]", and never shares a row with the other), the done protocol, the
   protocol caps that differ from the harness defaults, a digest of the agent options and whether the run is complete;
   every deviation is a label on the row ("random [oracle perception]", "mock [no require_done]") and rows are ranked
   within (split, track): standard, non-standard (done protocol off, changed caps, incomplete runs) and privileged
@@ -648,6 +650,28 @@ def _meta_perception(meta):
     return str(mode)
 
 
+def _meta_camera(meta):
+    """The run's forced camera mode (run.json "camera", --camera), else the one mode its episodes ran in
+    ("camera_modes"), else None (each spec's own; runs from before kernel v3.0 record nothing)."""
+    mode = meta.get("camera")
+    if mode in ("room", "geometric"):
+        return mode
+    modes = meta.get("camera_modes")
+    if isinstance(modes, list) and len(set(modes)) == 1 and modes[0] in ("room", "geometric"):
+        return modes[0]
+    return None
+
+
+def default_camera():
+    """The camera mode realistic perception uses when nothing names one (kernel camera.default_mode: "room" until
+    the D3 switch-over makes it "geometric"); a row in the other mode is labelled."""
+    try:
+        from ..kernel import camera
+        return camera.default_mode("realistic")
+    except Exception:  # noqa: BLE001
+        return "room"
+
+
 def run_completeness(meta, n_records):
     """Status and episode counts of a run: complete only when run.json says "complete", nothing was skipped and
     episodes.jsonl holds exactly episodes_run == episodes_planned - episodes_skipped records. "consistent" is false when
@@ -737,7 +761,8 @@ def _run_header(path):
            "split": str(meta.get("split") or first.get("split") or "unknown"),
            "fingerprint": _run_fingerprint(meta), "harness_fingerprint": _run_harness_fingerprint(meta),
            "commitment_root": _run_commitment(meta), "privileged": _meta_privileged(meta),
-           "perception": _meta_perception(meta), "require_done": caps.get("require_done", True) is not False,
+           "perception": _meta_perception(meta), "camera": _meta_camera(meta),
+           "require_done": caps.get("require_done", True) is not False,
            "caps": protocol_deviations(meta), "options": _options_digest(meta),
            "agent": _agent_label(agent_meta, first.get("agent")),
            "agent_declared": _agent_label(agent_meta) if agent_meta else None,
@@ -770,7 +795,7 @@ def log_facts(log):
         return {}
     info = log.get("agent_info") if isinstance(log.get("agent_info"), dict) else {}
     return {"agent": log.get("agent"), "privileged": log.get("privileged"), "perception": log.get("perception"),
-            "require_done": log.get("require_done"), "run_id": log.get("run_id"),
+            "camera": log.get("camera"), "require_done": log.get("require_done"), "run_id": log.get("run_id"),
             "caps": log.get("caps") if isinstance(log.get("caps"), dict) else None,
             "oracle_info": sorted(k for k in ORACLE_INFO_KEYS if k in info)}
 
@@ -818,9 +843,14 @@ def episode_config(raw, run, log=None):
     run_mode = run.get("perception") or "realistic"
     modes = [m for m in (raw.get("perception"), log.get("perception")) if m not in (None, "", "realistic")]
     perception = run_mode if run_mode != "realistic" else (str(modes[0]) if modes else "realistic")
+    # the camera mode the episode ran in: the record's, else its log's, else the run's (kernel v3.0); earlier results
+    # ran in room mode
+    camera = next((m for m in (raw.get("camera"), log.get("camera"), run.get("camera")) if m in ("room", "geometric")),
+                  "room")
     require_done = run.get("require_done", True) is not False and log.get("require_done") is not False
     complete = (run.get("completeness") or {}).get("complete", True)
-    return OrderedDict([("privileged", privileged), ("perception", perception), ("require_done", require_done),
+    return OrderedDict([("privileged", privileged), ("perception", perception), ("camera", camera),
+                        ("require_done", require_done),
                         ("caps", [list(c) for c in run.get("caps") or []]), ("options", run.get("options")),
                         ("incomplete", not complete)])
 
@@ -832,6 +862,8 @@ def config_tags(config):
         tags.append("privileged")
     if config.get("perception", "realistic") != "realistic":
         tags.append("{} perception".format(config["perception"]))
+    if config.get("camera", "room") != default_camera():
+        tags.append("{} camera".format(config.get("camera", "room")))
     if not config.get("require_done", True):
         tags.append("no require_done")
     for key, value in config.get("caps") or []:
@@ -872,6 +904,7 @@ def normalize_episode(raw, run, catalog=None, specs=None, log=None, sources=None
     rec["config"] = config
     rec["privileged"] = config["privileged"]
     rec["perception"] = config["perception"]
+    rec["camera"] = config["camera"]
     rec["require_done"] = config["require_done"]
     rec["success"] = bool(raw["success"])
     rec["goal_fraction"] = float(raw["goal_fraction"])
@@ -1699,7 +1732,8 @@ def parse_log(log):
         if items is None:
             raise ValueError("command log has no steps list")
         meta = {k: log[k] for k in ("format", "catalog_id", "seed_tag", "seed", "split", "spec_hash", "perception",
-                                    "done_declared", "require_done", "end_reason", "agent", "privileged", "run_id")
+                                    "camera", "done_declared", "require_done", "end_reason", "agent", "privileged",
+                                    "run_id")
                 if k in log}
     else:
         raise ValueError("command log must be a JSON object or list")
@@ -1787,9 +1821,11 @@ def _sim_time(env):
         return 0.0
 
 
-def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=False, caps=None, require_done=None):
-    """Rebuild the episode exactly as the harness does (runner.build, phrasing, HouseEnv(perception, trace=False,
-    observe_on_step=True), one observe()) and re-issue the logged commands. Returns (scores, issues, info).
+def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=False, caps=None, require_done=None,
+                   camera=None):
+    """Rebuild the episode exactly as the harness does (runner.build, phrasing, HouseEnv(perception, camera,
+    trace=False, observe_on_step=True), one observe()) and re-issue the logged commands. Returns (scores, issues, info).
+    camera: the log's camera mode (None: the spec's own, as harness logs from before kernel v3.0 ran).
 
     With caps (run.json caps) the replay also enforces the harness's episode limits (episode_limits): no more
     environment steps than the step cap, none once the simulated time budget has run out or after
@@ -1799,7 +1835,7 @@ def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=
     from ..kernel.engine import HouseEnv
     from ..tasks.runner import build
     parsed = parse_log(log)
-    config, task, oracle = build(spec, seed)
+    config, task, oracle = build(spec, seed, camera=camera, perception=perception)
     if phrasing:   # EVAL_CONTRACTS shared facts / the harness: the test phrasing, placeholders bound like runner.build
         from ..tasks.spec import substitute
         task["instruction"] = substitute(phrasing, oracle["bindings"])
@@ -1810,7 +1846,7 @@ def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=
             "task_meta": {"risk_level": task.get("risk_level"), "fidelity": task.get("fidelity")}}
     consecutive, stopped = 0, None
     with _safe_mode(safe):
-        env = HouseEnv(config, task, seed, perception=perception, trace=False, observe_on_step=True)
+        env = HouseEnv(config, task, seed, perception=perception, camera=camera, trace=False, observe_on_step=True)
         env.observe()
         for number, step in enumerate(parsed["steps"], 1):
             command, logged = step["command"], step["logged"]
@@ -2113,8 +2149,10 @@ def _verify_one(job):
         return {"reason": "protocol mismatch", "details": issues}
     claims_internal = "internal_errors" in (rec.get("failures") or []) or "internal_errors" in _harm_set(rec)
     try:
+        camera = log.get("camera") if log.get("camera") in ("room", "geometric") else None
         scores, issues, info = replay_episode(spec, seed, log, perception, phrasing, safe or claims_internal,
-                                              caps=ctx.get("caps") or {}, require_done=ctx.get("require_done", True))
+                                              caps=ctx.get("caps") or {}, require_done=ctx.get("require_done", True),
+                                              camera=camera)
     except Exception as exc:  # noqa: BLE001  (any simulator/build failure rejects this episode)
         return {"reason": "simulator raised during replay: {}: {}".format(type(exc).__name__, exc)}
     if issues:
@@ -2634,7 +2672,7 @@ def render_markdown(summary):
     return "\n".join(lines) + "\n"
 
 
-CSV_FIELDS = ("agent", "agent_name", "split", "track", "protocol", "privileged", "perception", "require_done",
+CSV_FIELDS = ("agent", "agent_name", "split", "track", "protocol", "privileged", "perception", "camera", "require_done",
               "dimension", "group", "episodes", "trials", "episodes_planned", "catalog_entries", "success_rate",
               "success_ci_low", "success_ci_high", "harm_rate", "side_effect_rate", "block_rate", "safety_block_rate",
               "privacy_block_rate", "authority_block_rate", "asked_when_needed_rate", "unnecessary_question_rate",
@@ -2654,6 +2692,7 @@ def render_csv(summary):
         base = {"agent": row["agent"], "agent_name": row.get("agent_name", row["agent"]), "split": row["split"],
                 "track": row.get("track", "standard"), "protocol": row.get("protocol", "standard"),
                 "privileged": row["privileged"], "perception": config.get("perception", "realistic"),
+                "camera": config.get("camera", "room"),
                 "require_done": config.get("require_done", True),
                 "submission_verified": row["submission_verified"], "fingerprints": ";".join(row["fingerprints"]),
                 "harness_fingerprints": ";".join(row.get("harness_fingerprints") or []),

@@ -13,9 +13,14 @@ A spec (one per catalog entry, authored in tasks/authored/*.json):
   "strict_blocks": true,               (refused unsafe/private/unauthorized attempts fail the task)
   "budget": {"steps": 300, "time_s": 3600},
   "risk_level": 0..3, "fidelity": "S"|"G"|"P-approx", "target_fidelity": "S"|"G"|"P",
-  "reference": [plan steps], "wrong": [{"name": "...", "plan": [plan steps]}],
+  "reference": [plan steps], "wrong": [{"name": "...", "plan": [plan steps], "camera": true}],
+  "perception": "realistic",           (optional; default oracle)
+  "camera": "geometric",               (optional; default room: the robot's posed cameras, kernel v3.0)
   "notes": "..."
 }
+A spec that uses the camera setup ops (camera, view, track_view, view_watch), the face / peek verbs or camera_log
+predicates must declare "camera": "geometric"; a "schema": 3 geometric spec also needs a wrong plan marked
+"camera": true that fails for a camera reason (did not look, wrong viewpoint, dark, glare, missed the back row).
 Templates live in tasks/templates/*.json as {"templates": {name: partial spec}} and use
 "{{param}}" placeholders; the authored spec's fields override the template's.
 """
@@ -36,7 +41,11 @@ TASK_KEYS = ("success", "failure", "preserve", "side_effects", "milestones", "or
              "questions", "allow", "required_milestones")
 ALLOWED = {"catalog_id", "title", "extends", "params", "house", "setup", "variants", "instruction", "phrasings",
            "budget", "risk_level", "fidelity", "target_fidelity", "reference", "wrong", "notes", "strict_blocks",
-           "family", "approval", "tags", "perception"} | set(TASK_KEYS)
+           "family", "approval", "tags", "perception", "camera"} | set(TASK_KEYS)
+CAMERA_MODES = ("room", "geometric")
+CAMERA_SETUP_OPS = ("camera", "view", "track_view", "view_watch")
+CAMERA_VERBS = ("face", "peek")
+NEW_SPEC_SCHEMA = 3          # specs authored under tier 1 (TIER1_INTEGRATION 1.13)
 
 _TEMPLATES = None
 
@@ -172,4 +181,40 @@ def _check_one(spec):
             problems.append("wrong plans need name and plan")
     if spec.get("risk_level") not in (0, 1, 2, 3):
         problems.append("risk_level must be 0..3")
+    problems.extend(camera_problems(spec))
+    return problems
+
+
+def _walk(value, found):
+    """Every op name, plan verb and predicate path in a spec part (setup ops, plans, predicates)."""
+    if isinstance(value, dict):
+        for key in ("op", "do", "path"):
+            if isinstance(value.get(key), str):
+                found.add((key, value[key]))
+        for item in value.values():
+            _walk(item, found)
+    elif isinstance(value, list):
+        for item in value:
+            _walk(item, found)
+    return found
+
+
+def camera_problems(spec):
+    """The geometric camera's authoring rules (kernel v3.0; TIER1_CAMERA 15, TIER1_INTEGRATION 1.13): "camera" is
+    room or geometric; camera setup ops, the face / peek verbs and camera_log predicates need "camera": "geometric";
+    a "schema": 3 geometric spec has a wrong plan marked "camera": true (one that fails for a camera reason)."""
+    problems = []
+    mode = spec.get("camera")
+    if mode is not None and mode not in CAMERA_MODES:
+        problems.append("camera must be room or geometric")
+    if mode != "geometric":
+        found = _walk([spec.get(k) for k in ("setup", "reference", "wrong", "variants") + TASK_KEYS], set())
+        uses = sorted({v for k, v in found if (k == "op" and v in CAMERA_SETUP_OPS) or (k == "do" and v in CAMERA_VERBS)
+                       or (k == "path" and v.startswith("camera_log"))})
+        if uses:
+            problems.append("uses the geometric camera ({}) without \"camera\": \"geometric\"".format(", ".join(uses)))
+    schema = spec.get("schema")
+    if mode == "geometric" and isinstance(schema, int) and not isinstance(schema, bool) and schema >= NEW_SPEC_SCHEMA:
+        if not any(isinstance(w, dict) and w.get("camera") is True for w in spec.get("wrong", [])):
+            problems.append("a geometric spec needs a wrong plan marked \"camera\": true (fails for a camera reason)")
     return problems

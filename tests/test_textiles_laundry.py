@@ -2515,7 +2515,7 @@ class PerceptionHardeningTests(unittest.TestCase):
             jug = p.on(s["table"], kind)
             env, H = self._env(config)
             # mass_kg is the empty plastic jug: core carry mass and the realistic heft add the liquid on top
-            self.assertLess(subtree_mass(env.world, jug), 3.0, kind)
+            self.assertLess(subtree_mass(env.world, jug), 3.3, kind)         # bleach is 1.10 kg/L (R7)
             self._do(env, "approach", H(s["table"]))
             self._do(env, "pick_up", H(jug), grip="handle")
             held = env.observe()["visible_entities"][H(jug)]

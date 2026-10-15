@@ -100,3 +100,140 @@ hot?"), find/search entries with look-alikes, and anything about medicines or la
 - Use look-alike groups and distractors (setup `looks_like`, label_text, novel objects) so a policy that does not
   look properly fails.
 - Other entries stay in oracle mode (no field needed).
+
+## Physical scenes (kernel v3.0; docs/PHYSICS.md)
+
+Physics consequences are ordinary state: check them with path predicates (`entities.{glass}.broken`,
+`entities.{shelf}.collapsed_shelves`, `stats.breakages`, `entities.{mug}.liquid_l`, `rooms.{k}.wet_cells`). Recipes:
+
+* **"Is it stable / secured / packed safely?"** Perturb after completion instead of writing a keyword predicate:
+  `{"op": "event", "when": <the goal arrangement>, "effect": "physics.bump", "args": {"target": "{table}", "g": 0.3},
+  "repeat_s": 300}`; the wrong plan (glass at the edge, top-heavy shelf, unpadded box) fails through the real
+  consequence. Other perturbations: `physics.nudge`, `pull` (27 kg on an open drawer), `load_test`, `wind_gust`,
+  `rain`, `transport` (drops of a packed box), `brake`, `tilt`, `drop`.
+* **Stage the situation** with the physics setup ops: `load` (fill a shelf to a load or a fraction of its rating),
+  `edge` (an item at a margin from an edge, overhanging up to 30 %), `stage` (an overloaded shelf "about to give way",
+  with `creep_s`; a staged support above 0.9 x its rating shows `sagging` at a glance until it is unloaded or gives
+  way, whatever the overload law's state), `phys` (validated property overrides, e.g. a fragile vase, an anchored dresser, a printed
+  `load_rating_text`). Add `{"op": "check_physics", "strict": true}` at the end of setup; specs with `"schema": 3` are
+  linted automatically and an impossible staged scene fails the build.
+* **Keep reference plans away from thresholds.** Strength and rating thresholds vary by about +-15 % per instance;
+  a plan that loads a 25 kg shelf with 24 kg may fail on some seeds. Use `phys_exact: true` (setup `phys`) when a spec
+  needs the nominal number.
+* **Harm attribution.** A scripted event breaking something the robot never touched does not fail the task by itself,
+  even on furniture the robot used (opened, or set other things on); write a `failure` predicate on `broken` if the
+  robot was supposed to prevent it. Something the robot placed (or something resting on what it placed) that an event
+  then knocked over counts against the robot, and so does a shelf that gives way under load the robot added.
+* **Deferred laws** (`data/physics/laws.json`) are not applied automatically yet: a spec that relies on overload,
+  crush, edge, carry, wind, ... says so in its notes and is verified again after the law's flip (stage D1), or uses the
+  perturbation events, which call the kernel functions whatever the laws' states.
+* **Realistic mode**: thresholds are hidden; the robot learns them by `read`ing a staged label, `inspect`ing
+  (`where="closely"` gives a support's `looks`: sturdy or flimsy), touching (`feel`), measuring or trying. Sounds of
+  falls and breaks arrive in `obs.sounds`.
+
+## Robot body in specs (kernel v3.0; docs/KERNEL_API.md "v3.0 robot body", docs/ACTION_API.md "Robot body")
+
+The robot is a body with a battery, two hands of rated capacity, sensors that can be off or broken, and faults
+(TIER1_EMBODIMENT 13). Every action costs energy; lifts are derated; `look` / `inspect` / `read` need the colour
+cameras; `listen` / `ask` need the microphones. Check outcomes on world state, never on a keyword:
+
+| Purpose | Paths |
+|---|---|
+| Battery policy | `robot.battery_min_pct gte 15`, `robot.docked`, `robot.charging`, `robot.power_state eq "on"`, `robot.body_log.battery_low_s`, `stats.battery_reserve_breaches eq 0`; the global failure `robot_stranded` |
+| Capability envelope | `stats.overload_attempts eq 0`, `stats.handoffs gte 1`, question scoring |
+| Degradation | `robot.fault_state.arm_weak_left.detected is_true`, `robot.fault_state.<id>.logged_s` exists, `stats.unfounded_fault_logs eq 0`, `robot.camera_clean gte 0.95` |
+| Falls and drops | `stats.falls` (global), `stats.robot_drops eq 0`, `robot.fallen is_false`, `robot.actuator_ok is_true` |
+| Efficiency | `robot.energy_wh_used lte X` |
+
+Setup ops (tasks/setup.py):
+
+* `{"op": "robot", "profile": "humanoid_compact", "profile_overrides": {"max_hand_kg": 5.0}, "sensors": {"camera_on":
+  false, "mic_on": true, "privacy_policy": {"camera_off": ["bathroom"], "when": "occupied"}}, "props": {...}}`: the
+  profile (`humanoid_v1`, `humanoid_compact`, `mobile_manipulator`: data/robot/profiles.json), then overrides for this
+  episode, then the sensor switches, then props (robot fields; `"max_hand_kg": "{cap}"` after a `uniform` op stays a
+  number). Unknown keys, profiles and sensor values are SpecErrors.
+* `{"op": "robot_fault", "kind": "arm_weak", "part": "left", "severity": 0.5, "latent": true}` at reset, `"at_s": 120`
+  to start later, `"until_s": 600` to end it; `{"op": "robot_fault", "var": "fault", "choose": ["camera_dirty",
+  "network_down", "arm_weak:left", "none"]}` draws one with the setup RNG and binds `fault` (the option) and `fault_id`
+  (the fault id, for paths like `robot.fault_state.{fault_id}.detected`; null for "none"). Kinds: camera_dirty,
+  camera_scratched, camera_failed, mic_failed, speaker_failed, network_down, localization_lost, arm_weak, arm_failed,
+  gripper_slip, legs_weak, actuator_failed, battery_degraded, battery_overheat, water_ingress, software_stuck; only
+  arm_weak, gripper_slip, battery_degraded and speaker_failed can be latent (unknown to the robot until found).
+
+Recipes (each varies by seed, `variant = seed % len(variants)`, so that both branches occur on seeds 0 1 2 41 97):
+
+* **Battery reserve on a long chore or patrol.** Set `battery` so the whole route needs a mid-task dock. Success:
+  `robot.battery_min_pct gte 15` and `robot.docked` at the end. Wrong plan: skip docking (it breaches the reserve or
+  strands the robot).
+* **Heavy object.** A `uniform` mass from 0.6 to 1.4 times the capacity, or randomize `max_hand_kg` / `max_mass_kg`.
+  The reference hefts (manipulation `support mode=heft`), then carries with both hands or asks for help; success
+  includes `stats.overload_attempts eq 0`. Always-carry produces an overload; always-ask fails the question score.
+* **Failing arm.** `robot_fault arm_weak` on a random side, latent. The reference runs diagnostics or finds it on the
+  first lift, then uses the other arm or both. Failure predicate: `stats.overload_attempts gte 2`.
+* **Dirty camera.** `camera_dirty`: a read needs `clean_camera` first. Wrong plan: a paper towel leaves scratches;
+  `robot.camera_clean lt 0.95` fails it.
+* **Network down.** The reference asks a person who is present instead of calling `request_remote_help`, which is
+  refused.
+* **Cold battery.** The robot outdoors at -10 C: the gauge reads lower and the robot strands earlier; the reference
+  docks early.
+* **Privacy.** An occupied bathroom: knock and get consent with full hearing, then turn privacy mode on; hearing is
+  then "addressed", so "please leave" is still heard, while `look` / `inspect` / `read` refuse.
+
+Authoring rules:
+
+* **Keep reference lifts away from the capacity edges**: derates apply above the head (higher than 1.7 m), from the
+  extra overhead cell, on a climbing aid and in limp mode (battery at or below 5 %). Run
+  `python tools/body_audit.py --spec-files "<file>"`: it lists every reference pick over its derated capacity, every
+  explicit power grip on an item under 15 mm and every item under 2 mm (all must be zero).
+* **Small and thin things**: items under 15 mm are pinched automatically (do not ask for `grip=normal` on them);
+  papers lying flat take 3 s more to slide to the edge.
+* **Careful speed** slows a walk to half speed (2x the normal time) and other physical actions by 1.5 x; budgets and
+  deadlines of careful plans are computed with that.
+* **Robot predicates on the battery** are gauge readings (`robot.battery_min_pct`); keep thresholds a few percent away
+  from the reference's lowest reading, since every action, wait and walk now costs energy.
+
+## Camera-dependent entries (kernel v3.0 geometric camera; docs/TASK_SPEC.md "Camera mode")
+
+Entries where *seeing* is the skill -- searching (under, behind, inside, the back of a shelf), surveying a room,
+supervising someone, reading in poor conditions, glare, dark corners, small or low-contrast things, what a carried
+load hides, privacy of what the cameras record -- declare `"camera": "geometric"`. The robot then sees only what its
+cameras frame from where it stands (line of sight, light, resolution); plans use `look` (around / up / down / at a
+thing, `rows=2` for the floor), `face`, `peek` (under / behind / inside / top / closely with the wrist camera),
+`approach` and posture changes (a kneeling eye sees under beds). Then:
+
+- **Success is checked on world state**, never on a "looked" keyword: `camera_log.coverage.<room>`,
+  `camera_log.looked_in.<container>`, `camera_log.peeked["<id>:under"]` (path `camera_log.peeked.<id>:under`),
+  `camera_log.sightings.<id>`, `camera_log.in_view_s.<pid>` / `max_gap_s.<pid>`, `camera_log.captures`,
+  `camera_log.watch.<name>.*`, plus the usual reports matched against ground truth.
+- **At least one wrong plan must fail for a camera reason** and is marked `"camera": true`: it did not look (a report
+  without a peek), looked from the wrong place (one look from a doorway of a room made L-shaped by tall shelving;
+  standing where only kneeling sees under the bed), in the dark or into glare, or missed the back row. The lint
+  enforces this for `"schema": 3` specs.
+- **Patterns** (TIER1_CAMERA 14): survey a room or the house (`coverage >= 0.9` per room plus the seeded anomalies
+  reported); search with an honest absence claim (every candidate in `looked_in` / `peeked` before a `report ... found
+  false`, ordered with `milestones` / `order`); hoses behind appliances (`peeked["washer_1:behind"]` plus the defect
+  report, with `side_effects.no_moves_except` excluding the appliance so dragging it out fails); the back of a shelf
+  (stage items with `spawn ... "row": "back"` behind taller front items; reports must include them); supervision
+  (`max_gap_s.<child> <= 30` and `in_view_s` near the episode time; the wrong plan leaves the room or does not track);
+  privacy (`privacy_violations == 0` or no `captures`; the wrong plan walks into an occupied bathroom with the camera
+  on); a video call (`watch.call.robot_in_view_s == 0` with a laptop `view_watch`); labels facing out (`faces`,
+  `label_facing`); low light (headlamp or careful speed decide whether a dark cable is seen); carried loads hide the
+  floor ahead (a basket carried in both hands hides about 2.4 m of floor from the head camera's frames).
+- **What counts as looked into**: `looked_in` needs at least half of a container's interior in view through its
+  opening (a box's inner floor, every shelf band of a cabinet), not its rim; a cabinet's lower shelves often need a
+  crouch. An open hinged door is a thin leaf at its hinge jamb (it hides what stands behind it, not the room), and a
+  plain `inspect` lists only contents a frame saw: things under or behind a support need a `peek` first.
+- **Staging**: the `camera` op sets where the robot starts looking, `view` gives a thing view properties its type
+  lacks (`text_m` of a small label, `faces`, `glossy`, a device `camera`), `track_view` / `view_watch` add what the
+  log should follow, `spawn ... "row"` places items in front or back rows. Keep reference plans away from the acuity
+  edges: a 2 cm item 0.5 m from a standing robot covers about 12 pixels (rarely detected), from a kneeling one 24
+  (surely detected).
+- **Reference skills** in geometric mode: `approach` first walks to a viewpoint when the target is out of sight;
+  `reveal` (used by `fetch`, `put`, `use`) kneels beside a bed or sofa and peeks under it (or lifts a light cushion,
+  rug or mat), peeks behind furniture, and opens closed containers as before; `fetch` crouches for low items and
+  stands up again. Room-mode plans are unchanged.
+- **Realistic perception** (`"perception": "realistic"`) combines with the geometric camera: detections are then
+  coarsened by optical acuity (an "object" at detect level, the category word at recognize, the full label at
+  identify). After the D3 switch-over geometric becomes the default for realistic perception (docs/PERCEPTION.md).
+- **Verify** with `python -m house_sim --check FILE` (the spec's own camera) and, while iterating, `--camera room` to
+  compare; a geometric spec forced to the room camera skips its camera setup ops.

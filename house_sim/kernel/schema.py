@@ -16,6 +16,9 @@ ID_RE = re.compile(r"[a-z][a-z0-9_]*\Z")
 NONNEG = ("mass_kg", "volume_l", "capacity_l", "value", "uses", "soil_load", "liquid_l", "amount", "count")
 UNIT = ("wetness", "freshness")
 
+# The robot record before the body model (kernel v2.9). Kept as the reference that body.apply_profile reproduces value
+# for value for the default humanoid_v1 profile; normalize itself builds the robot through body.apply_profile, which
+# materializes every registered kernel robot field (kernel v3.0, TIER1_INTEGRATION 1.1).
 ROBOT_DEFAULTS = {
     "battery": 100.0, "max_mass_kg": 20.0, "max_hand_kg": 8.0, "reach_m": 1.85, "width_m": 0.5, "height_m": 1.6,
     "camera_clean": 1.0, "network": True, "actuator_ok": True, "arms_ok": {"left": True, "right": True},
@@ -250,8 +253,11 @@ def normalize(config, registry=None):
     data.setdefault("events", [])
     data.setdefault("household", {})
     data.setdefault("user_simulator", {})
-    robot = copy.deepcopy(ROBOT_DEFAULTS)
-    robot.update(copy.deepcopy(data.get("robot", {})))
+    # the robot body (kernel v3.0): every materialized robot field from its profile default, then the config's own
+    # fields, legacy fault strings normalized, setup faults applied, arms_ok mirroring arm_health, and the pack
+    # temperature (the start room's), power state and lowest gauge derived (body.apply_profile)
+    from . import body
+    robot = body.apply_profile(data.get("robot") or {}, data)
     robot.setdefault("room", data["start_room"])
     if robot["room"] not in data["rooms"]:
         robot["room"] = data["start_room"]

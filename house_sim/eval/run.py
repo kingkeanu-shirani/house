@@ -4,7 +4,8 @@
         [--limit N] [--seeds ...] [--seeds-per-entry N] [--workers N] [--out results/<run_id>/] [--dry-run]
         [--max-steps N] [--max-cost-usd X] [--allow-network] [--verify-on-the-fly | --allow-unverified] ...
 
-Episode protocol: build (spec, episode) -> HouseEnv(perception="realistic", trace=False, observe_on_step=True) ->
+Episode protocol: build (spec, episode) -> HouseEnv(perception="realistic", camera=<--camera or the spec's>, trace=False,
+observe_on_step=True) ->
 agent.reset(instruction, observation, action_catalog) -> loop agent.act(observation, last_result) until the agent
 emits the harness-level {"action": "done"}, the task's step budget (or --max-steps), the task's time budget, or a
 harness cap (wall clock, tokens, cost) ends the episode. Success is the environment's evaluation at that end AND a
@@ -43,7 +44,9 @@ NON_HARM_PREFIXES = ("failure_predicate_", "order:", "deadline:") + SIDE_EFFECT_
 NON_HARM_LABELS = {"budget", "too_many_unnecessary_questions", "missing_necessary_question"}
 RECORD_KEYS = ("catalog_id", "split", "seed_tag", "agent", "privileged", "success", "goal_fraction", "failures", "harm_flags",
                "side_effects", "blocks", "invalid_steps", "questions", "steps", "sim_time_s", "wall_s", "tokens", "cost_usd",
-               "done_declared", "end_reason", "log", "spec_hash", "perception", "kind", "section", "domain", "risk_level", "fidelity")
+               "done_declared", "end_reason", "log", "spec_hash", "perception", "camera", "kind", "section", "domain",
+               "risk_level", "fidelity")
+CAMERA_MODES = ("room", "geometric")
 
 
 def _now():
@@ -398,11 +401,12 @@ def _classify(failures):
 
 
 def run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None, ledger=None, run_id=None, private_dir=None,
-                save_replay=True):
+                save_replay=True, camera=None):
     """Run one harness episode (episode from splits.episodes) and return its record (EVAL_CONTRACTS.md schema). With
-    out_dir, writes logs/, replays/ (unless save_replay is false) and transcripts/ under it."""
+    out_dir, writes logs/, replays/ (unless save_replay is false) and transcripts/ under it. camera: "room" or
+    "geometric" forces the camera mode (--camera); None runs the spec's own (camera.default_mode otherwise)."""
     record, _extra = _run_episode(spec, episode, agent, caps, out_dir, perception, ledger, run_id, private_dir,
-                                  save_replay=save_replay)
+                                  save_replay=save_replay, camera=camera)
     return record
 
 
@@ -421,12 +425,14 @@ def _llm_cache_stats(agent, usage):
 
 
 def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None, ledger=None, run_id=None, private_dir=None, name=None,
-                 save_replay=True, code_versions=None):
+                 save_replay=True, code_versions=None, camera=None):
     from ..kernel.engine import HouseEnv, actions_fingerprint
     from ..tasks.runner import build
     from ..tasks.verify import spec_hash
     caps = dict(DEFAULT_CAPS, **(caps or {}))
     code_versions = dict(code_versions or versions())
+    if camera not in (None,) + CAMERA_MODES:
+        raise ValueError("camera must be room or geometric")
     rec = as_record(spec)
     raw_spec = rec["spec"]
     cid = episode.get("catalog_id") or rec["catalog_id"]
@@ -444,10 +450,11 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
               "harm_flags": [], "side_effects": [], "blocks": {"safety": 0, "privacy": 0, "authority": 0}, "invalid_steps": 0,
               "questions": {"necessary": 0, "unnecessary": 0}, "steps": 0, "sim_time_s": 0.0, "wall_s": 0.0,
               "tokens": {"input": 0, "output": 0}, "cost_usd": 0.0, "done_declared": False, "end_reason": None, "log": None,
-              "spec_hash": spec_hash(raw_spec), "perception": mode, "kind": rec.get("kind"), "section": rec.get("section"),
+              "spec_hash": spec_hash(raw_spec), "perception": mode, "camera": camera, "kind": rec.get("kind"),
+              "section": rec.get("section"),
               "domain": rec.get("domain"), "risk_level": raw_spec.get("risk_level"), "fidelity": raw_spec.get("fidelity")}
     log = {"format": "house-harness-log-v1", "harness_version": HARNESS_VERSION, "run_id": run_id, "catalog_id": cid, "split": split,
-           "seed_tag": tag, "spec_hash": record["spec_hash"], "perception": mode, "agent": record["agent"],
+           "seed_tag": tag, "spec_hash": record["spec_hash"], "perception": mode, "camera": camera, "agent": record["agent"],
            "privileged": record["privileged"], "require_done": bool(caps["require_done"]), "caps": _jsonable(caps),
            "code_fingerprint": code_versions.get("code_fingerprint"), "harness_fingerprint": code_versions.get("harness_fingerprint"),
            "steps": []}
@@ -461,7 +468,8 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
     env = None
     steps = log["steps"]
     try:
-        config, task, plans = build(raw_spec, seed)
+        # the run's modes, as verify passes them: a spec's geometric camera setup ops apply only in a geometric run
+        config, task, plans = build(raw_spec, seed, camera=camera, perception=mode)
         task = apply_phrasing(task, episode.get("phrasing"), plans["bindings"])
         del plans                       # privileged reference/wrong plans and bindings: never shown to the agent
         record["risk_level"], record["fidelity"] = task.get("risk_level"), task.get("fidelity")
@@ -473,7 +481,8 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
         else:
             log["instruction"] = instruction
         log["phrasing_override"] = bool(episode.get("phrasing"))
-        env = HouseEnv(config, task, seed, perception=mode, trace=False, observe_on_step=True)
+        env = HouseEnv(config, task, seed, perception=mode, camera=camera, trace=False, observe_on_step=True)
+        record["camera"] = log["camera"] = env.camera_mode      # the mode it ran in (--camera, the spec's, the default)
         log["actions_hash"] = actions_fingerprint()
         catalog = action_catalog(env)
         observation = env.observe()
@@ -498,7 +507,10 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
     consecutive_invalid = 0
     try:
         if record["privileged"] and hasattr(agent, "prepare"):
-            agent.prepare(copy.deepcopy(raw_spec), dict(episode), perception=mode)
+            if _accepts(agent.prepare, "camera"):
+                agent.prepare(copy.deepcopy(raw_spec), dict(episode), perception=mode, camera=env.camera_mode)
+            else:
+                agent.prepare(copy.deepcopy(raw_spec), dict(episode), perception=mode)
         agent.reset(instruction, copy.deepcopy(observation), copy.deepcopy(catalog))
     except BudgetExceeded as exc:
         end_reason = exc.reason
@@ -601,6 +613,16 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
     return record, extra
 
 
+def _accepts(fn, name):
+    """True when a callable takes the keyword `name` (or **kwargs)."""
+    import inspect
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in params or any(p.kind == p.VAR_KEYWORD for p in params.values())
+
+
 def _safe_info(agent, private=False, digest=None):
     try:
         info = dict(agent.info() or {})
@@ -665,10 +687,11 @@ def _write_outputs(record, log, env, agent, out_dir, name, private, private_dir,
     record["log"] = path.relative_to(out_dir).as_posix()
 
 
-def replay_log(log, spec, seed=None, phrasing=None, perception=None):
+def replay_log(log, spec, seed=None, phrasing=None, perception=None, camera=None):
     """Re-score a command log: rebuild the episode, re-issue every command the harness sent, and recompute the
     evaluation and success under the done protocol. Test-split logs carry no seed: pass it explicitly (recovered
-    by the split-key holder from the seed tag). The result also says whether the log was produced by the current
+    by the split-key holder from the seed tag). The camera mode is the log's (a log from before kernel v3.0 has
+    none: the spec's own, as then). The result also says whether the log was produced by the current
     simulation code and harness code ("code_fingerprint_match", "harness_fingerprint_match"; None when the log does
     not record them): a re-score under different code is not evidence for the original run."""
     from ..kernel.engine import HouseEnv
@@ -678,9 +701,10 @@ def replay_log(log, spec, seed=None, phrasing=None, perception=None):
     seed = log.get("seed") if seed is None else seed
     if seed is None:
         raise ValueError("this log records no seed (test split); pass the seed recovered with the split key")
-    config, task, plans = build(as_record(spec)["spec"], seed)
+    mode, camera = perception or log.get("perception") or "realistic", camera or log.get("camera")
+    config, task, plans = build(as_record(spec)["spec"], seed, camera=camera, perception=mode)
     task = apply_phrasing(task, phrasing, plans["bindings"])
-    env = HouseEnv(config, task, seed, perception=perception or log.get("perception") or "realistic", trace=False, observe_on_step=True)
+    env = HouseEnv(config, task, seed, perception=mode, camera=camera, trace=False, observe_on_step=True)
     env.observe()
     for step in log.get("steps", []):
         if step.get("sent") is not None and "result" in step:
@@ -737,7 +761,8 @@ def _sanitize_options(options):
 def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, **filters):
     """Run agent_spec on every selected episode of a split. specs: records or spec dicts (None = all authored).
     filters: ids, sections, kinds, domains, limit, seeds, seeds_per_entry, verify ("evidence" | "fly" | "none"),
-    verify_seeds, perception, agent_options, allow_network, transport, cache_dir, use_cache, rpm, run_id,
+    verify_seeds, perception, camera ("room" | "geometric": every episode in that camera mode; None: each spec's own),
+    agent_options, allow_network, transport, cache_dir, use_cache, rpm, run_id,
     private_dir, save_replays (default True), emit (print-like or None). Returns the run summary (also written to run.json).
     For the test split the LLM response cache defaults to private_dir/cache, and a cache_dir or private_dir inside the
     repository, the results root or out_dir is refused (ValueError) before anything is written."""
@@ -748,6 +773,8 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
     verify = filters.get("verify", "evidence")
     if verify not in ("evidence", "fly", "none"):
         raise ValueError("verify must be evidence, fly or none")
+    if filters.get("camera") not in (None,) + CAMERA_MODES:
+        raise ValueError("camera must be room or geometric")
     price_check = None
     if kind in ("llm", "mock"):
         # checked before any network transport exists and before anything is written: an unpriced model would make
@@ -900,6 +927,8 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
                 "caps": _jsonable(caps), "workers": int(workers or 1), "perception": "realistic" if split == "test" else (filters.get("perception") or "realistic"),
                 # the modes episodes actually run in: anything but ["realistic"] is a privileged-perception run
                 "perception_modes": perception_modes, "privileged_perception": perception_modes != ["realistic"],
+                # the forced camera mode (--camera), None = each spec's own; camera_modes: what episodes ran in
+                "camera": filters.get("camera"), "camera_modes": None,
                 "code_fingerprint": code_versions["code_fingerprint"], "harness_fingerprint": code_versions["harness_fingerprint"],
                 "actions_hash": engine.actions_fingerprint(),
                 "spec_hashes": {cid: spec_hash(by_id[cid]["spec"]) for cid in dict.fromkeys(e["catalog_id"] for e in episodes)},
@@ -944,7 +973,7 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
             agent = make_agent(agent_spec, **dict(options, **shared))
             record, extra = _run_episode(by_id[episode["catalog_id"]], episode, agent, caps, out_dir, filters.get("perception"),
                                          ledger, run_id, private_dir, names[index], save_replay=filters.get("save_replays", True),
-                                         code_versions=code_versions)
+                                         code_versions=code_versions, camera=filters.get("camera"))
         except Exception as exc:  # noqa: BLE001  (harness-level failure, e.g. a refused test seed): stop the run cleanly
             with lock:
                 if not state["aborted"]:
@@ -990,6 +1019,7 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
         hits = sum(int((u or {}).get("cache_hits", 0) or 0) for u in usages)
         totals.update(llm_responses=responses, llm_cache_hits=hits,
                       llm_cache_hit_rate=round(hits / responses, 4) if responses else 0.0)
+    run_info["camera_modes"] = sorted({r.get("camera") for r in done if r.get("camera")})
     run_info.update(status="aborted" if state["aborted"] else ("incomplete" if skipped else "complete"), ended=_now(),
                     aborted=state["aborted"], episodes_run=len(done), episodes_skipped=skipped,
                     skipped_reason=("run cost cap reached" if ledger.exhausted() else state["aborted"]) if skipped else None,
@@ -1031,11 +1061,13 @@ def dry_run_report(agent_spec, split, episodes, by_id, caps, filters, verificati
     for e in episodes:
         cid = e["catalog_id"]
         if cid not in per_spec:
-            config, task, plans = build(by_id[cid]["spec"], e["seed"])
+            mode = episode_perception(e, filters.get("perception"))
+            config, task, plans = build(by_id[cid]["spec"], e["seed"], camera=filters.get("camera"), perception=mode)
             task = apply_phrasing(task, e.get("phrasing"), plans["bindings"])
             info = {"step_budget": int(task.get("step_budget", 400)), "obs_chars": 0, "est": None}
             if llm:
-                env = HouseEnv(config, task, e["seed"], perception=episode_perception(e, filters.get("perception")), trace=False, observe_on_step=True)
+                env = HouseEnv(config, task, e["seed"], perception=mode, camera=filters.get("camera"), trace=False,
+                               observe_on_step=True)
                 observation = env.observe()
                 probe.reset(task.get("instruction", ""), observation, action_catalog(env))
                 probe.history = [{"step": i, "command": {"action": "inspect", "target": "obj_00000000"},
@@ -1151,6 +1183,8 @@ def build_parser():
                    help="Force a perception mode for --verify-on-the-fly (default: each spec's own, as the evidence file).")
     p.add_argument("--allow-unverified", action="store_true", help="Run specs without verification (labelled unverified).")
     p.add_argument("--perception", choices=["realistic", "oracle", "episode"], help="Default realistic (test is always realistic).")
+    p.add_argument("--camera", choices=list(CAMERA_MODES),
+                   help="Camera mode for every episode (default: each spec's own; kernel v3.0 geometric camera).")
     p.add_argument("--agent-opt", action="append", type=_parse_opt, default=[], metavar="KEY=VALUE",
                    help="Agent option, e.g. effort=low, history=12, temperature=0.2, rpm=40, seed=7, prices_path=FILE, "
                         "price_free=true (declare an unlisted model free) (JSON values).")
@@ -1182,7 +1216,7 @@ def main(argv):
                       seeds=args.seeds, seeds_per_entry=args.seeds_per_entry,
                       verify="fly" if args.verify_on_the_fly else ("none" if args.allow_unverified else "evidence"),
                       verify_seeds=args.verify_seeds, verify_perception=args.verify_perception, verify_workers=args.verify_workers,
-                      perception=args.perception, agent_options=dict(args.agent_opt),
+                      perception=args.perception, camera=args.camera, agent_options=dict(args.agent_opt),
                       allow_network=args.allow_network, cache_dir=args.cache_dir, use_cache=not args.no_cache, rpm=args.rpm,
                       run_id=args.run_id, save_replays=not args.no_replays, emit=None if args.quiet else print)
     except Exception as exc:  # noqa: BLE001  (configuration problems: print, never a traceback with secrets)

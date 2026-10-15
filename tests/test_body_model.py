@@ -99,6 +99,11 @@ def world(profile_name=None, materialize=True, **robot):
     state = normalize(config, REG)
     if materialize:
         state["robot"] = body.apply_profile(state["robot"], state)
+    else:
+        # a legacy robot record: normalize materializes the body from BODY-ENGINE on, so keep only the keys a
+        # pre-body state had (schema.ROBOT_DEFAULTS, the position and hands, the config's own fields)
+        keep = set(ROBOT_DEFAULTS) | {"room", "pos", "hands"} | set(cfg)
+        state["robot"] = {k: v for k, v in state["robot"].items() if k in keep}
     state.update(steps=1, time_s=0.0, stats={}, event_log=[], messages=[])
     w = World(state, REG)
     w.begin()

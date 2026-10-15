@@ -50,15 +50,11 @@ and ``melting`` processes and the ``wet_contact`` checks run in ``physics.proces
 """
 import math
 
-from .. import physics as kernel_physics
 from ..plugins import run_hooks
 from ..predicates import root_room
-from . import liquids, processes
-from .processes import blame, dims, finite, num, sibling
+from . import impact, lawbook, liquids, processes, props
+from .processes import blame, dims, finite, num
 
-props = sibling("props")
-lawbook = sibling("lawbook")
-impact = sibling("impact")
 
 H_STILL_AIR = 10.0              # W/m2K: natural convection plus linearised radiation, still indoor air (5.9)
 TAU_MIN_S, TAU_MAX_S = 60.0, 6 * 3600.0
@@ -127,6 +123,18 @@ BURN_TABLE = ((44.0, 21600.0), (47.0, 1200.0), (50.0, 180.0), (55.0, 20.0), (60.
 CHILD_BURN_FACTOR = 0.25
 
 
+_KERNEL = []
+
+
+def _kernel():
+    """kernel/physics.py (room temperatures, the parent-chain ambient, the legacy time constant), imported on first
+    use: kernel/physics.py imports this package when it wires the layer into the engine."""
+    if not _KERNEL:
+        from .. import physics
+        _KERNEL.append(physics)
+    return _KERNEL[0]
+
+
 # ----- ownership and time constants ---------------------------------------------------------------------------------
 
 def domain_owned(rec):
@@ -181,7 +189,7 @@ def kernel_tau_s(rec, lumped=None):
     300 sqrt(mass + liquid) + 60 s)."""
     if lumped is None:
         lumped = lawbook.active("thermal_tau")
-    return tau_s(rec) if lumped else kernel_physics.tau_s(rec)
+    return tau_s(rec) if lumped else _kernel().legacy_tau_s(rec)
 
 
 def relax_c(current, target, coupling, dt, tau):
@@ -260,7 +268,7 @@ def _root_of(state, loc, memo):
     return result
 
 
-def thermal_step(w, dt, tick=None, mut=None):
+def thermal_step(w, dt, tick=None, mut=None, setter=None):
     """The kernel thermal system (kernel/physics.py "thermal", period 120 s) with the active-set optimisation of 5.9:
     the ambient (parent-chain source or root-room air) is resolved once per location instead of once per entity, and
     bodies within 0.05 K of their ambient are skipped before any time constant is computed. Entity order, targets,
@@ -268,14 +276,15 @@ def thermal_step(w, dt, tick=None, mut=None):
     thermal_tau, phase and melt are deferred and no entity carries thermal_owner (tests/test_physics_thermal.py
     proves it on generated houses); it is about 40 % faster on a settled house.
 
-    mut: how to get a writable record for a temperature-only write (PHYS-INT passes w.mut_quiet, which journals
-    without touching the settle log); defaults to w.mut. Owned entities are skipped. With the phase law active a
+    mut: how to get a writable record for a temperature-only write (defaults to w.mut); setter: a field setter
+    setter(eid, "temperature_c", value) used instead when given (kernel/physics.py passes World.set_quiet, which
+    journals the one field without copying the record and is no touch for the settle pass). Owned entities are skipped. With the phase law active a
     liquid crossing its freezing point stops there and starts the phase process; with the melt law active a body
     rising past its melting point starts the melting process."""
     state = w.s
     entities = state["entities"]
     write = mut or w.mut
-    temps = {rid: kernel_physics.room_temperature(state, rid) for rid in state["rooms"]}
+    temps = {rid: _kernel().room_temperature(state, rid) for rid in state["rooms"]}
     indoor = float(state.get("utilities", {}).get("indoor_temp_c", 21.0))
     ambients, rooms_of = {}, {}
     lumped = bool(lawbook.active("thermal_tau"))
@@ -298,7 +307,10 @@ def thermal_step(w, dt, tick=None, mut=None):
         new = relax_c(current, target, coupling, dt, kernel_tau_s(entity, lumped))
         if phase_on:
             new = _phase_gate(w, eid, entity, current, new)
-        write(eid)["temperature_c"] = new
+        if setter is not None:
+            setter(eid, "temperature_c", new)
+        else:
+            write(eid)["temperature_c"] = new
         if melt_on and new > current:
             melt_c = finite(props.props(state, eid).melt_c)
             if melt_c is not None and new > melt_c >= current:
@@ -354,7 +366,7 @@ def contact_temp_c(state, hot):
     temp = num(rec.get("temperature_c"), 21.0)
     if num(rec.get("liquid_l")) <= 0:
         return temp
-    ambient = num(kernel_physics.ambient(state, hot)[0], 21.0)
+    ambient = num(_kernel().ambient(state, hot)[0], 21.0)
     if temp <= ambient:
         return temp
     if rec.get("insulated") or rec.get("vacuum_insulated") or rec.get("double_walled"):
@@ -452,7 +464,7 @@ def _air(state, eid):
     outdoor rooms carry a nominal humidity of their own; the weather's wins when it has one)."""
     rid = root_room(state, eid)
     room = state["rooms"].get(rid) or {}
-    temp = kernel_physics.room_temperature(state, rid) if rid in state["rooms"] else \
+    temp = _kernel().room_temperature(state, rid) if rid in state["rooms"] else \
         float(state.get("utilities", {}).get("indoor_temp_c", 21.0))
     rh = (state.get("weather") or {}).get("humidity") if room.get("outdoor") else None
     if rh is None:
@@ -614,7 +626,7 @@ def phase_needed(state, eid):
     freeze = freeze_point_c(rec)
     if freeze is None:
         return None
-    ambient, _ = kernel_physics.ambient(state, eid)
+    ambient, _ = _kernel().ambient(state, eid)
     temp = num(rec.get("temperature_c"), 21.0)
     ice = num(rec.get("ice_frac"))
     if ambient < freeze and ice < 1.0 and temp <= freeze + 1e-6:
@@ -667,7 +679,7 @@ def phase_step(w, eid, dt):
     freeze = freeze_point_c(rec)
     if freeze is None or domain_owned(rec) or rec.get("broken"):
         return False
-    ambient, coupling = kernel_physics.ambient(state, eid)
+    ambient, coupling = _kernel().ambient(state, eid)
     if ambient == freeze:
         return True
     shown = num(rec.get("ice_frac"))

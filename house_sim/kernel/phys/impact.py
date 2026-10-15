@@ -19,9 +19,12 @@ strict mode holds. Nothing here refuses or raises ActionError: a consequence hap
   wood: damage.chipped), "bruise" (produce: damage.bruised). Liquid in a broken or emptied container runs down its
   support chain (liquids.deposit_below), so it is conserved.
 * **Attribution (6.4).** A consequence is the robot's when the caller says ``by="robot"``, when it happens in the
-  action-phase settle, or when the entity or anything in the subtree of its top-level support carries the
-  ``_robot_moved`` marker. Only robot-attributable consequences raise the global harm flags (``breakages``,
-  ``damage``); ``phys_*`` statistics and events count everything.
+  action-phase settle, or when the robot arranged the entity: it or a support in its location chain carries the
+  ``_robot_moved`` marker (settle writes it on structural changes an action made; opening or closing alone writes
+  none). A support failure (collapse, creep, pull-out, tear, crush, stack, overbalanced furniture) is also the robot's
+  when the load that made it fail carries the marker. Siblings under the same furniture never count. Only
+  robot-attributable consequences raise the global harm flags (``breakages``, ``damage``); ``phys_*`` statistics and
+  events count everything.
 * **Ledger.** In one settle phase (the action phase, or one substep of a time advance: the scratch restarts when the
   step or the simulated time changes) an entity falls from a given spot, tips, is crushed or starts rolling at most
   once, a broken item stays broken and a collapsed shelf collapsed; every consequence is appended to the phase's
@@ -39,7 +42,7 @@ from collections import namedtuple
 from .. import geometry
 from ..plugins import run_hooks
 from ..predicates import root_room
-from . import statics, support
+from . import observe, statics, support
 
 G = statics.G
 CUSHION_STOP_M = 0.001        # an item dropped onto tile stops within about 1 mm (the scale of every drop tolerance)
@@ -93,10 +96,7 @@ def _scratch(w):
     phase has its own: the action phase (the step's start time) and every substep of a long wait (each advances
     time_s before its systems, events and settle run). An item put back upright after a tip can tip again in a later
     substep, and the consequence list never spans more than one phase."""
-    scratch = getattr(w, "phys_scratch", None)
-    if scratch is None:
-        # TIER1-STUB(PHYS-INT): World.phys_scratch arrives with PHYS-INT; until then a per-World dict stands in
-        scratch = w.__dict__.setdefault("_phys_scratch_stub", {})
+    scratch = w.phys_scratch
     phase = (w.s.get("steps", 0), w.s.get("time_s", 0.0))
     if scratch.get("ledger_step") != phase or "ledger" not in scratch:
         scratch["ledger_step"] = phase
@@ -138,17 +138,25 @@ def _record(w, kind, target, who, note, ids=(), **data):
 
 def emit_consequence(w, kind, target, **data):
     """Emit one physics consequence event (kinds phys.*; payloads carry the target, cause, by, room and oracle
-    numbers). TIER1-STUB(PHYS-INT): phys/observe.emit_consequence replaces this shim (sounds, camera visual events,
-    notices); until then the event only goes to the event log."""
-    return w.emit(kind, target=target, **data)
+    numbers) through phys/observe.emit_consequence, the layer's single route (sounds, and from CAM-RUNTIME and
+    TIME-EVAL on camera visual events and notices)."""
+    return observe.emit_consequence(w, kind, target, **data)
 
 
 # ----- attribution --------------------------------------------------------------------------------------------------
 
-def robot_caused(w, eid, cmap=None):
-    """True when a consequence to eid is the robot's: the action-phase settle is running, or eid or anything in the
-    subtree of its top-level support carries the _robot_moved marker (written by settle on every structural change an
-    action made)."""
+def robot_caused(w, eid, cmap=None, load=()):
+    """True when a consequence to eid is the robot's (TIER1_DECISIONS, TIER1_PHYSICS 6.4): the action-phase settle is
+    running (the robot's action or its motion is the direct cause), or the robot arranged eid: eid itself or a support
+    in its location chain (what it rests on or in, up to the top-level furniture) carries the _robot_moved marker that
+    settle writes on every structural change an action made (an open / close alone writes none). Siblings under the
+    same furniture do not count: a scripted bump of a centrepiece the robot never touched is exogenous although the
+    robot set a plate on the same table.
+
+    load: for a support failure (a slot collapsing or creeping, a hanger pulling out, a handle tearing, a body
+    crushed, a stack toppling, furniture overbalancing) the ids whose weight made it fail; the consequence is also the
+    robot's when any of them, or anything resting on or in them, carries the marker (the failing support carries load
+    the robot added)."""
     if _scratch(w).get("phase") == "action":
         return True
     state = w.s
@@ -157,20 +165,35 @@ def robot_caused(w, eid, cmap=None):
         return False
     if entities[eid].get("_robot_moved"):
         return True
-    top = support.top_support(state, eid)
-    if entities[top].get("_robot_moved"):
-        return True
-    return any(entities[item].get("_robot_moved") for item in support.descendants(state, top, cmap))
+    current, seen = eid, {eid}
+    while True:
+        loc = entities[current].get("location")
+        if loc not in entities or loc in seen:
+            break
+        if entities[loc].get("_robot_moved"):
+            return True
+        seen.add(loc)
+        current = loc
+    if load:
+        cmap = support._map(state, cmap)
+        for item in load:
+            if item not in entities:
+                continue
+            if entities[item].get("_robot_moved"):
+                return True
+            if any(entities[sub].get("_robot_moved") for sub in support.descendants(state, item, cmap)):
+                return True
+    return False
 
 
-def _by(w, eid, by, cmap=None):
+def _by(w, eid, by, cmap=None, load=()):
     """Resolved attribution of a consequence: "robot" or "exogenous" (an explicit by wins; any other label, such as a
-    pet or person, is exogenous)."""
+    pet or person, is exogenous). load: the ids whose weight made a support fail (robot_caused)."""
     if by == "robot":
         return "robot"
     if by is not None:
         return "exogenous"
-    return "robot" if robot_caused(w, eid, cmap) else "exogenous"
+    return "robot" if robot_caused(w, eid, cmap, load) else "exogenous"
 
 
 # ----- damage -------------------------------------------------------------------------------------------------------
@@ -725,7 +748,7 @@ def crush(w, eid, load_kg, by=None, cmap=None):
     limit = statics.crush_limit_kg(state, eid, cmap)
     if limit is None or load_kg <= limit + 1e-9 or not once(w, eid, "crush"):
         return []
-    who = _by(w, eid, by, cmap)
+    who = _by(w, eid, by, cmap, load=_children(state, eid, cmap))
     if support.phys(state, eid).brittle:
         _break(w, eid, "crushed", who)
         return []
@@ -790,7 +813,7 @@ def collapse(w, sid, slot, by=None, cmap=None):
         return []
     cmap = support._map(state, cmap)
     items = support.slot_children(state, sid, slot, cmap)
-    who = _by(w, sid, by, cmap)
+    who = _by(w, sid, by, cmap, load=items)
     room = root_room(state, sid)
     kind = slot[0]
     event, note, failure = "phys.collapse", "{} gave way".format(sid), "collapsed"
@@ -875,7 +898,7 @@ def tear(w, eid, by=None, cmap=None):
     rec = entities.get(eid)
     if rec is None or rec.get("torn"):
         return []
-    who = _by(w, eid, by, cmap)
+    who = _by(w, eid, by, cmap, load=_children(state, eid, cmap))
     holder = rec.get("location")
     if holder == "robot":
         rid, cell, height = state["robot"].get("room"), state["robot"].get("pos"), support.CARRY["hand_z_m"]
@@ -964,7 +987,7 @@ def tip_over(w, eid, cause, direction=None, by=None, cmap=None):
     if rec is None or rec.get("orientation") == "on_side" or not once(w, eid, "tip"):
         return out
     cmap = support._map(state, cmap)
-    who = _by(w, eid, by, cmap)
+    who = _by(w, eid, by, cmap, load=_children(state, eid, cmap) if cause == "overbalanced" else ())
     rid = root_room(state, eid) or state["robot"].get("room")
     found = support.support_of(state, eid)
     on_floor = found is not None and found[1][0] == "floor"
@@ -1053,10 +1076,18 @@ def knock(w, eid, accel_g, direction=None, cause="bump", by=None, cmap=None):
         out = tip_over(w, eid, cause, direction=direction, by=by, cmap=cmap)
         result.update(tipped=out["tipped"], fell=out["fell"], broke=out["broke"])
         return result
+    return _slide(w, eid, accel_g, slide, direction, cause, by, cmap, result)
+
+
+def _slide(w, eid, accel_g, mu, direction, cause, by, cmap, result):
+    """The sliding branch of a knock: the item's spot on its surface shifts by the bump's slide distance toward
+    direction; it falls when its centre passes the edge."""
+    state = w.s
+    rec = state["entities"][eid]
     frame = statics.surface_frame(state, eid)
     if frame is None:
         return result
-    distance = slide_distance_m(accel_g, slide)
+    distance = slide_distance_m(accel_g, mu)
     rad = math.radians((direction if direction is not None else 0.0) - statics.world_yaw(state, rec["location"]))
     who = _by(w, eid, by, cmap)
     w.mut(eid)["spos"] = [round(frame[2] + distance * math.cos(rad), 4), round(frame[3] + distance * math.sin(rad), 4)]
@@ -1069,6 +1100,23 @@ def knock(w, eid, accel_g, direction=None, cause="bump", by=None, cmap=None):
         fallen = fall(w, eid, cause=cause, by=who, direction=direction, cmap=cmap)
         result.update(fell=bool(fallen.get("fell")), broke=fallen.get("outcome") == "broke")
     return result
+
+
+def slide(w, eid, accel_g, direction=None, cause="nudge", by=None, cmap=None):
+    """eid slides on its surface under a brief horizontal push of accel_g (g), whatever its tipping threshold (a push
+    low on its body that cannot tip it: events.nudge decides tip versus slide from the push height). Nothing happens
+    below its friction or for things that are not free-standing. Returns {"tipped", "slid_m", "fell", "broke"}."""
+    state = w.s
+    result = {"tipped": False, "slid_m": 0.0, "fell": False, "broke": False}
+    rec = state["entities"].get(eid)
+    if rec is None or not statics.free_standing(state, eid):
+        return result
+    if direction is None or direction == "toward_edge":
+        direction = statics.overhang_dir_deg(state, eid)
+    mu = statics.slide_accel_g(state, eid)
+    if accel_g <= mu + 1e-9:
+        return result
+    return _slide(w, eid, accel_g, mu, direction, cause, by, cmap, result)
 
 
 def effective_speed(state, requested=None):
@@ -1125,6 +1173,28 @@ def _cue(w, eid, field, marker, on):
         m = w.mut(eid)
         m.pop(field, None)
         m.pop(marker, None)
+
+
+def sag_cue(w, sid, env=None, cmap=None):
+    """Refresh the sagging cue of a support from its rated slots (any shelf, surface or fixed container loaded above
+    0.9 x its rating) without applying a collapse. The overload law writes the cue while it is active; staged supports
+    (the stage setup op: "about to give way") get it whatever the law's state, at setup and whenever settle looks at
+    them, so an honest glance shows what the creep check will decide (TIER1_DECISIONS: cues are computed lazily for
+    staged entities). Returns the cue."""
+    state = w.s
+    if sid not in state["entities"]:
+        return False
+    cmap = support._map(state, cmap)
+    sagging = False
+    for slot in support.slots(state, sid, cmap):
+        if slot[0] not in ("shelf", "surface", "in"):
+            continue
+        status = statics.overload(state, sid, slot, env, cmap)
+        if status is not None and status["sagging"]:
+            sagging = True
+            break
+    _cue(w, sid, "sagging", "_phys_sag", sagging)
+    return sagging
 
 
 def orphan_law(w, eid, env=None, cmap=None):
@@ -1303,7 +1373,7 @@ def stack_law(w, eid, env=None, cmap=None):
     for member in members:
         _cue(w, member, "wobbly", "_phys_wobble", member in wobbly)
     if topple:
-        who = _by(w, base, None, cmap)
+        who = _by(w, base, None, cmap, load=members)
         heights, z = {}, 0.0
         for member in members:
             heights[member] = z
@@ -1361,6 +1431,8 @@ def creep_fire(w, eid, args):
     start = len(consequences(w))
     if rated is not None and support.load_on(state, eid, slot) > rated + 1e-9:
         collapse(w, eid, slot)
+    if eid in state["entities"] and state["entities"][eid].get("_phys_staged"):
+        sag_cue(w, eid)                    # what is left on it (or what the robot unloaded in time) decides the cue
     return _since(w, start)
 
 

@@ -26,17 +26,16 @@ dict lookup.
 
 Shared plumbing for the sibling modules of this package:
 
-* ``sibling(name)``: lazy access to the modules other stage-A packages own (props, lawbook, support, statics, impact).
 * ``consequence``: a consequence record in the step's shared list (impact.consequences: settle reads it for its
   notes, its 64-consequence budget and the undo rule) plus its ``phys.*`` event.
 * ``robot_attributed``: the harm-attribution rule of 6.4 for a ``by`` argument.
 * ``num``, ``finite``, ``dims``, ``top_area_m2``, ``floor_cell``, ``now_s``: small pure helpers.
 """
-import importlib
 import math
 from bisect import insort
 
 from .. import geometry
+from . import impact, observe, props, statics
 
 G = 9.81
 QUEUE_KINDS = ("wet_contact",)          # this package's one-shot checks; impact.PROCESS_HANDLERS adds the statics ones
@@ -53,45 +52,10 @@ DOWNHILL_DEG = {"east": 0.0, "south": 90.0, "west": 180.0, "north": 270.0}   # r
 
 # ----- shared plumbing ---------------------------------------------------------------------------------------------
 
-class _Sibling(object):
-    """A module of the physics layer owned by another stage-A package, imported on first attribute access.
-
-    TIER1-STUB(PHYS-INT): props and lawbook (PHYS-DATA) and support, statics and impact (PHYS-STATICS) are written in
-    parallel with this package against the frozen signatures of TIER1_PHYSICS 7.1. PHYS-INT replaces each
-    ``sibling(...)`` proxy with a plain ``from . import <name>`` once they have landed. Tests substitute the proxies
-    with fakes (``liquids.props = fake``), which keeps them independent of the other packages.
-    """
-    __slots__ = ("_name", "_module")
-
-    def __init__(self, name):
-        self._name = name
-        self._module = None
-
-    def __getattr__(self, attr):
-        if self._module is None:
-            self._module = importlib.import_module(__package__ + "." + self._name)
-        return getattr(self._module, attr)
-
-    def __repr__(self):
-        return "<physics sibling {}>".format(self._name)
-
-
-def sibling(name):
-    """Lazy handle on the physics module ``house_sim.kernel.phys.<name>`` (see _Sibling)."""
-    return _Sibling(name)
-
-
-props = sibling("props")
-statics = sibling("statics")
-impact = sibling("impact")
-
-
 def emit_consequence(w, kind, target, **data):
-    """Write a physics event (event-log kind ``phys.*``) with its oracle payload.
-
-    TIER1-STUB(PHYS-INT): phys/observe.py's emit_consequence (created by PHYS-INT, routed through the camera's visual
-    events at CAM-RUNTIME and posted as notices at TIME-EVAL) replaces this direct ``w.emit``."""
-    return w.emit(kind, target=target, **data)
+    """Write a physics event (event-log kind ``phys.*``) with its oracle payload through phys/observe.py's
+    emit_consequence, the layer's single route for consequences."""
+    return observe.emit_consequence(w, kind, target, **data)
 
 
 def consequence(w, kind, target, by, note, **data):

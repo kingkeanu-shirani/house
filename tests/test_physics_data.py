@@ -910,7 +910,7 @@ class LiquidAndFloorTests(unittest.TestCase):
 
 
 class LawbookTests(unittest.TestCase):
-    ACTIVE = {"orphan", "overflow", "setdown", "drip", "creep"}
+    ACTIVE = {"orphan", "overflow", "drip", "creep"}         # setdown deferred: manipulation and food adopt it first
 
     def test_states_at_landing_follow_tier1_physics_10_2(self):
         self.assertEqual({law for law in lawbook.LAWS if lawbook.active(law)}, self.ACTIVE)

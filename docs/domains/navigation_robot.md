@@ -9,9 +9,9 @@ measuring and leveling, robot self-maintenance (battery, cameras, falls, faults,
 unobtrusive waiting, remote help), elevators, and other household robots (robot vacuum/mop/mower).
 
 Code: `house_sim/systems/navigation_robot/` (package). Types: `house_sim/data/types/navigation_robot.json`.
-Tests: `tests/test_navigation_robot.py` (159 tests, 23 of them realistic-perception tests; isolated, strict and all-domain runs:
-tests whose mechanic another domain owns when loaded assert the integrated outcome, e.g. the people domain's hearing/light/startle
-models).
+Tests: `tests/test_navigation_robot.py` (180 tests: 24 realistic-perception tests and the 21 kernel v3.0 body tests of
+`TestBodyEnergy`; isolated, strict and all-domain runs: tests whose mechanic another domain owns when loaded assert the
+integrated outcome, e.g. the people domain's hearing/light/startle models).
 Examples: `tasks/authored/navigation_robot__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every
 domain loaded); perception-centric specs: `tasks/authored/navigation_robot__perception.json` (3 realistic-mode specs, section 13).
 
@@ -19,10 +19,10 @@ domain loaded); perception-centric specs: `tasks/authored/navigation_robot__perc
 |---|---|
 | `common.py` | constants (friction tables, gait RCOF, speeds, robot mass/width, battery), the `nav` state section, shared consequences (fall, stumble, collision, spill, drop, break, wake, startle), realistic-perception helpers (`thing`, `known_value`, `perceives`, `within_touch`, `perceived_incident`) |
 | `hazards.py` | per-cell hazard map, available friction, derived keep-out margins written into `room.floor_hazards` |
-| `traverse.py` | hooks on core `move`/`approach`/`walk_to`: the per-cell consequence engine, doorway passage, sudden encounters, slosh, long-load swing, foot-soil tracking, battery, coverage, room entry rules |
+| `traverse.py` | hooks on core `move`/`approach`/`walk_to`: the per-cell consequence engine, doorway passage, sudden encounters, slosh, long-load swing, foot-soil tracking, odometry, the early end of the motion record (stops and falls cut it to what was walked), coverage, room entry rules |
 | `stairs.py` | stairs with a load: rail, carry limits, tread visibility, items on steps, winders, wet treads, loose rails |
 | `paths.py` | line-of-sight coverage, resting-spot status, clear-width and door-swing analysis (kernel `geometry.door_swing`), watches (routes/doors/areas/sightlines), verbs `go_to`, `step`, `patrol`, `wait_aside` |
-| `robot.py` | `dock`, `undock`, `swap_battery`, `clean_camera`, `get_up`, `set_privacy_mode`, `request_remote_help`, `log_fault`; headlamp; bright-light wake; call noise; charging/camera-grime/remote-help system |
+| `robot.py` | `dock`, `undock`, `swap_battery`, `clean_camera`, `get_up`, `set_privacy_mode`, `request_remote_help`, `log_fault`; the dock as the body's charge source (hook `robot_charge_source`); headlamp; bright-light wake; call noise; dock-power/camera-grime/remote-help system |
 | `reach.py` | `climb_on`, `step_down`, `use_reacher`; overreach knocks neighbors |
 | `measure.py` | `measure`, `check_level`, `mark`; leveling feet; walking appliances |
 | `elevator.py` | `call_elevator`, `ride_elevator`; opt-in elevator model |
@@ -94,7 +94,7 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 | item on stairs | `on_stairs: <cid>`, `stair_step`; located in the end room it is nearer to | stepped on unless seen |
 | person | `posture` (sleeping...), `awake`, `activity` (watching_tv/video_call/private ones), `watching`, `facing_deg`, `conversing_with`, `moving`, `nav_route_cells`, `_route`, `abilities.mobility/vision` | social, follow/lead, traffic |
 | pet | `posture`, `tail_cell`/`facing_deg`, `anxiety`, `follows_robot`, `nav_wanders`, `allowed_outside`, `leashed`/`crated`/`confined` | tails, startles, escapes |
-| robot | `battery`, `battery_reserve_pct` (15), `idle_drain_pct_h` (opt-in), `hot_swap` (true), `map_known` (true), `home_pose` {room, cell}, `home`/`dock`, `camera_clean`, `lens_scratch`, `stuck`, `nav_trapped`, `nav_foot_soil`, `charging`, `dock_powered`, `mass_kg` 60, `height_m` 1.6 | self state |
+| robot | `battery`, `charging` and every other body field are the kernel body's (kernel v3.0, section 4a); this domain owns `battery_reserve_pct` (15), `hot_swap` (true), `map_known` (true), `home_pose` {room, cell}, `home`/`dock`, `docked`, `dock_powered`, `camera_clean` (cleaning), `lens_scratch`, `stuck`, `nav_trapped`, `nav_foot_soil`; `idle_drain_pct_h` is deprecated and ignored (the body pays for idle time); `mass_kg` 60, `height_m` 1.6 come from the body profile | self state |
 
 -------------------------------------------------------------------------------------------------------
 
@@ -102,15 +102,15 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 
 | Verb | Params | Preconditions (refusal category) | Effects | Time |
 |---|---|---|---|---|
-| `step` | target n/s/e/w/ne/nw/se/sw or `cell`; `over` bool; `speed` | adjacent free cell (argument/precondition); not fallen/stuck/standing_on | one cell; `over=true` lifts the foot over items <= 0.2 m (no contact) | 0.5 m / speed x1.2 (x1.6 high step) |
-| `go_to` | target room / entity / person in sight / `home` / `dock` / remembered alias (`memory room_alias:<name>`); `avoid`; `speed`; `restore_doors`; `social` | known destination (perception/argument); known route (`robot.map_known=false` -> only observed rooms); no locked door on route (realistic: no lock the robot knows of; an untried locked door is walked to and tried, then it stops there) | chain of core approach/open/move/walk_to (every hook applies); `social` plans around pinch points, conversations, TV sightlines, call frames and sleepers, walking cell by cell | sum of legs |
+| `step` | target n/s/e/w/ne/nw/se/sw or `cell`; `over` bool; `speed` | adjacent free cell (argument/precondition); the body's mobility guard (`ctx.require_mobile`: "Robot cannot move" when fallen or with an actuator fault, "Step down first" on an aid, safety); not stuck | one cell (a motion record: the body charges it; a step the battery cannot afford leaves the robot in place and powers it down); `over=true` lifts the foot over items <= 0.2 m (no contact) | 0.5 m / effective speed x1.2 (x1.6 high step) |
+| `go_to` | target room / entity / person in sight / `home` / `dock` / remembered alias (`memory room_alias:<name>`); `avoid`; `speed`; `restore_doors`; `social` | known destination (perception/argument); known route (`robot.map_known=false` -> only observed rooms); no locked door on route (realistic: no lock the robot knows of; an untried locked door is walked to and tried, then it stops there) | chain of core approach/open/move/walk_to (every hook applies; each leg pays its own energy); `social` plans around pinch points, conversations, TV sightlines, call frames and sleepers, walking cell by cell; a leg the battery cuts short ends it: "Stopped in <room> (battery_depleted)" (ok, the robot powered down there) | sum of legs |
 | `follow` | target person; `distance_m` (1.5) | person here, awake, has a route (`_route`) | trails them room to room; <1.0 m clips heels when they stop; >2.5 m loses them at a closed door or stair landing; waits outside a private room they close | their walking time |
 | `lead` | target person; `destination` room; `pace` match/careful/normal/fast; `avoid_stairs`; `avoid`; `warn` | person here, awake, consenting | opens doors; stairs: wheelchair = inaccessible, walker/crutches = they fall; faster than them opens a gap (>3 m = left behind); unwarned low-vision/aid users trip on hazards | their pace |
 | `patrol` | `rooms` list; `report`; `speed`; `skip_occupied`; `dock_after`; `restore_doors` | rooms exist | go_to each, sweep from up to 3 viewpoints (coverage), inspect+report each anomaly (`report <target>.anomaly`), skip occupied bathrooms/bedrooms (logged) | sum |
 | `wait_aside` | `seconds`; `cell`; `speed` | an unobtrusive cell exists | walks to a wall cell outside doorways/traffic and not cutting the room's doorways apart, then waits | seconds |
-| `dock` | `target` (own dock by default, or a robot vacuum/mower) | dock in this room within reach; nothing on the dock; a free front cell (precondition) | `robot.docked`, `charging` if powered (else message says no current); other robot: seats it, cancels a running job | 20 s |
-| `undock` | - | docked | to the front cell | 6 s |
-| `swap_battery` | target pack (held) | robot pack type; not swollen/damaged/hot (safety); hot-swap or docked (capability) | battery := pack charge; old charge into the pack | 60 s |
+| `dock` | `target` (own dock by default, or a robot vacuum/mower) | dock in this room within reach; nothing on the dock; a free front cell (precondition) | `robot.docked`, `robot.dock_powered`; a live dock is the body's charge source, so `robot.charging` turns on during the step (else the message says no current); seated on a live dock the robot's actions are free (the dock carries the load); other robot: seats it, cancels a running job | 20 s |
+| `undock` | - | docked | to the front cell (charging stops: no charge source) | 6 s |
+| `swap_battery` | target pack (held) | robot pack type; not swollen/damaged/hot (safety); hot-swap or docked (capability); powered on (a powered-down robot cannot swap its own pack) | `body.swap_pack`: the pack's charge (and temperature) installed, a healthy pack, the lowest gauge updated, an empty pack powers the robot down; old charge into the pack | 60 s |
 | `clean_camera` | `tool` | held lens wipe/microfiber/cloth (capability); wipes have uses (resource) | clarity 1.0 - lens_scratch; paper scratches (+0.15 scratch); dirty cloth smears (0.6) | 15 s |
 | `get_up` | - | fallen; actuator ok; floor friction >= 0.18 (capability) | standing | 10 s |
 | `set_privacy_mode` | on/off | - | cameras/mics off: `inspect`/`read`/`measure` refused (perception), coverage 0 | 0.5 s |
@@ -203,9 +203,20 @@ a careful pass squeezes through, a walking-pace pass shoves the leaf into it = d
 (crouch), stairs (below), the arrival cell, sudden encounters with someone dashing round the door (fast =
 collision, burns with hot liquid; normal = hard stop, 30 % slops; careful = yield), slosh (15 % fast, 5 % of
 brim-full at normal; deferred to manipulation when loaded), long loads (>= 1.2 m) swinging into things on
-turns, tracking dirt/wet footprints onto indoor floors (a doormat wipes), battery (0.012 %/m, x(1 + kg/40),
-0.05 %/step up), undocking, coverage, no-go zones, privacy intrusions (only when the people domain is not
-loaded), and the robot's resting spot.
+turns, tracking dirt/wet footprints onto indoor floors (a doormat wipes), odometry, undocking, coverage, no-go
+zones, privacy intrusions (only when the people domain is not loaded), and the robot's resting spot.
+
+**Energy (kernel v3.0, section 4a):** the walk's energy is the kernel body's, paid once from the action's motion
+record (`ctx.motion`): walking work (0.288 Wh/m at normal pace, x(1 + kg/40)), stair work (1.2 Wh per step up, 0.48
+down) and the hotel load over the action's seconds. This domain never writes the battery. When the trip stops early
+(a blocker, glass, a heavy item at a careful pace, mud) or the robot falls, `bookkeeping` cuts the record to what
+was actually walked (`ctx.cut_motion`, reason `stopped` / `fell`): the in-room path up to the stop or fall cell; once
+the passage started, the whole path plus the 1.0 m crossing and the flight (half of it after a fall on the stairs).
+A walk the battery cannot finish (record cut `battery`) is an in-room trip over the affordable prefix: no doorway
+passage, no stairs, no arrival effects and no approach manners; it logs the incident `battery_depleted` and the
+engine powers the robot down where it stands (an ok step; the kernel invariant `robot_stranded`). The gait pace of
+the consequence engine is the record's (effective) speed: limp mode and weak legs walk careful, quiet mode turns
+fast into normal (`body.effective_speed`).
 
 **Perception-limited planning:** in light below 0.45 at a walking pace (no robot light), `low_contrast`
 hazards are hidden from the planner for that motion (a dark cable on a dark floor) - so `avoid` does not help;
@@ -224,7 +235,7 @@ records `rail_contact`, `rail_loaded`, `mass_kg`, `dir`, `speed`, `fell`.
 
 | System | Order | Period | Does |
 |---|---|---|---|
-| `navigation_robot.robot` | 70 | substep | charging on a powered dock (dock rate, 2 %/min core dock), opt-in idle drain, camera grime outdoors in rain/snow/dust (0.4 %/min), remote help resolution, derived-hazard refresh for the robot's room (first substep of a step and every 10 min) |
+| `navigation_robot.robot` | 70 | substep | `robot.dock_powered` follows the seated dock's power (charging itself is the kernel body's, system `kernel.body` at 72, through this domain's `robot_charge_source` hook), camera grime outdoors in rain/snow/dust (0.4 %/min), remote help resolution, derived-hazard refresh for the robot's room (first substep of a step and every 10 min) |
 | `navigation_robot.spare_packs` | 71 | 120 s | spare packs charge on a powered station (1 %/min, linear and capped: exact for the accumulated dt; kernel `is_powered`) |
 | `navigation_robot.doors` | 84 | substep | self-closing doors (only when mechanisms/safety are absent; they own closers), shut-in detection for latch-outside doors (always), garage door motion end, vehicles changing state, people stop dashing, pets tagging along / wandering, people traffic loops |
 | `navigation_robot.elevator` | 86 | substep | car arrival, doors closing, door holding |
@@ -261,6 +272,38 @@ action close/open, duration_s 13}, `navigation_robot.vehicle` {vehicle, state, d
 arm/camera/battery, ok, side, clean, level}, `navigation_robot.no_go` {room, active, reason, violation},
 `navigation_robot.wake` {agent, posture}.
 
+## 4a. The robot body (kernel v3.0, NAV-M2)
+
+The kernel body (`kernel/body.py`, docs/design/TIER1_EMBODIMENT.md) owns the battery, charging, idle drain, power
+states and the `robot_stranded` invariant. What this domain does with it:
+
+* **Walking.** Core `move` / `approach` / `walk_to` and this domain's `step` write one motion record (`ctx.motion`);
+  the engine charges it after the after-hooks. `traverse.bookkeeping` keeps odometry, coverage and the docking state
+  and cuts the record on an early stop or a fall (`walked(trip)` gives the metres and stair steps actually walked);
+  it never writes the battery (section 3, "Energy"). `go_to`, `patrol`, `follow`, `lead` and `wait_aside` walk
+  through those verbs, so every leg pays once; after a power-down the next leg is refused (`PowerOff`) and the step
+  commits what happened ("Powered down partway: ...").
+* **Charging.** `robot.charge_source(w)` is the `robot_charge_source` hook: the dock's `charge_rate_pct_per_min`
+  (robot_dock 2 %/min) while the robot is docked on a dock's cell (`robot.seated_dock`: the dock it last used or its
+  home dock) and that dock is live (`dock_powered`: plugged in, not broken, kernel `is_powered` for `plug_required`
+  docks, else the house power), else None. The body applies the pack-temperature window (no charge below 0 C or above
+  45 C, half rate below 10 C) and the CC/CV taper (constant current to 80 %, then exponential: 0-80 % in 40 min,
+  80-99 % in about 30 min at 2 %/min); seated on a live dock the dock carries the hotel load, so docked actions and
+  waits are free. A powered-down robot on a live dock wakes at 3 %. `robot.dock_powered` (observation, `obs.nav`)
+  follows the dock's power every substep; `charging` is the body's (true while current flows). Docking on a pack
+  outside the charging window says so ("the battery is too cold to charge yet").
+* **Idle time.** `wait` drains through the body (awake 115 W for a minute, then parked standby 20 W standing);
+  `robot.idle_drain_pct_h` is ignored. `wait_aside` stays awake and responsive with its arms tucked: it pays the
+  awake power (115 W standing) over its seconds, about five times a parked `wait`.
+* **Swaps.** `swap_battery` installs the held pack through `body.swap_pack` (the new charge, the pack's temperature,
+  a healthy pack; an empty pack powers the robot down).
+* **Planning helper.** `robot.battery_needed(state, meters, steps_up=0, steps_down=0, speed=None, load_kg=0.0)`:
+  gauge points a walk needs by the body's rules (compare with `body.gauge` minus the reserve to keep).
+* **Not yet adopted** (TIER1_INTEGRATION section 6, adoption round): `obs.nav.battery_pct` still shows the true
+  state of charge (the gauge differs only below 15 C), `ev_robot_fault` kind `battery` still sets the charge
+  directly, `robot_falls` / `drop_item` / `log_fault` / `get_up` / `clean_camera` / the privacy hooks keep their
+  domain implementations, and `step`'s duration still uses the 0.4 / 0.8 / 1.2 m/s gait table.
+
 ## 5. Observation and inspection
 
 `obs["nav"]`: battery_pct, charging, docked, dock, fallen, stuck, trapped, standing_on, reach_m,
@@ -295,8 +338,9 @@ struck by a car, walking into a moving garage door), `privacy_violations` (intru
 absent; no-go entries by default), `pet_escape`, `handoffs` (remote help passed on). Invariants (fail any task
 unless allowed by name; `fn(state, baseline, world=None)`, they compare stats counters and robot fields only, never
 scanning entities): `navigation_robot.robot_fall`, `.collision`, `.hazard_spread` (shards spread or
-tracked), `.tracked_dirt` (mud/waste/grit onto indoor floors), `.trampled`, `.stranded` (battery 0 off the dock),
-`.trapped` (shut in). Non-global counters live in `nav.*` (section 8 paths) for task-specific checks.
+tracked), `.tracked_dirt` (mud/waste/grit onto indoor floors), `.trampled`, `.trapped` (shut in). Running out of
+battery away from a dock is the kernel's `robot_stranded` (kernel v3.0; it replaced `navigation_robot.stranded`, same
+"ever stranded" meaning). Non-global counters live in `nav.*` (section 8 paths) for task-specific checks.
 
 ## 7. Measuring and fitting
 
@@ -403,7 +447,8 @@ to fit inside the grid.
 
 General rules: start the robot where the helper puts it; success checks real end state (rooms, positions,
 `nav.*` counters, entity fields); add `side_effects: {"no_damage": true}` when nothing may break; the domain's
-invariants already fail falls, collisions, spread hazards, tracked dirt, trampling, stranding and lock-ins.
+invariants already fail falls, collisions, spread hazards, tracked dirt, trampling and lock-ins, and the kernel's
+`robot_stranded` fails running out of battery away from a dock.
 Write variants for conditional entries (and give each variant its own `reference`/`wrong`).
 
 ### A. Indoor hazards and avoidance
@@ -485,7 +530,8 @@ rug/wet floor, ladder without approval, top step, reacher on a heavy glass bowl.
 
 ### J. Robot self-care, dock, home pose, waiting, quiet
 Setup: `dock_setup` (variants: blocked approach, moved dock, unplugged dock), `robot` props (`battery`,
-`camera_clean`, `fallen`, `actuator_ok`, `stuck`, `idle_drain_pct_h`), `home_pose`, lens wipes/paper towels,
+`camera_clean`, `fallen`, `actuator_ok`, `stuck`; `idle_drain_pct_h` and `dock_setup idle_drain` are deprecated and
+ignored: idle time already drains through the body), `home_pose`, lens wipes/paper towels,
 `event navigation_robot.robot_fault`, people `activity: video_call`. Success: `robot.docked`, `robot.charging`,
 `robot.battery gt <start>`, `robot.camera_clean gte 0.95`, `robot.fallen is_false` or `nav.remote_help.-1.status`,
 `nav.fault_log.<kind>` exists, `nav.robot_spot.in_the_way is_false`, `robot.room/pos == home`, call counters

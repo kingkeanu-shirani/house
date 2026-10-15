@@ -11,9 +11,10 @@ import json
 import re
 import unittest
 
+from house_sim.kernel import body
 from house_sim.kernel.engine import HouseEnv
-from house_sim.kernel.plugins import ACTIONS, SCENARIO_HELPERS, SKILLS, load_domains
-from house_sim.kernel.predicates import check
+from house_sim.kernel.plugins import ACTIONS, INVARIANTS, SCENARIO_HELPERS, SKILLS, load_domains, run_hooks
+from house_sim.kernel.predicates import check, digest
 from house_sim.kernel.registry import default_registry
 
 load_domains()
@@ -104,7 +105,7 @@ class Mini:
         rec.update(props)
         self.c["pets"][pid] = rec
 
-    def env(self, task=None, room="living", pos=(1, 3), hold=None, perception=None, **robot):
+    def env(self, task=None, room="living", pos=(1, 3), hold=None, perception=None, camera=None, **robot):
         c = copy.deepcopy(self.c)
         c["robot"] = {"room": room, "pos": list(pos), "home": "robot_dock_1"}
         c["robot"].update(robot)
@@ -117,7 +118,7 @@ class Mini:
                 rec.update(location="robot", relation="held", held_hand=hand)
                 for key in ("pos", "spos", "shelf"):
                     rec.pop(key, None)
-        return HouseEnv(c, task=task, seed=7, perception=perception)
+        return HouseEnv(c, task=task, seed=7, perception=perception, camera=camera)
 
 
 def nav(env):
@@ -833,18 +834,31 @@ class TestDockBattery(unittest.TestCase):
         self.assertLess(env.world.s["robot"]["battery"], 50.0)
 
     def test_battery_runs_out_and_strands(self):
+        # kernel v3.0 (TIER1_EMBODIMENT 4.6): 0.05 % (1.2 Wh) reaches 3.5 of the 4.5 m; the walk is ok, ends there and
+        # powers the robot down; the kernel's robot_stranded replaced navigation_robot.stranded
         env = self.m.env(pos=(1, 4), battery=0.05)
-        ok(self, step(env, "walk_to", cell=[10, 4]))
-        self.assertEqual(env.world.s["robot"]["battery"], 0.0)
-        self.assertIn("navigation_robot.stranded", env.evaluate()["failures"])
+        r = ok(self, step(env, "walk_to", cell=[10, 4]))
+        self.assertIn("powered down", r["message"])
+        robot = env.world.s["robot"]
+        self.assertEqual(robot["battery"], 0.0)
+        self.assertEqual(robot["power_state"], "off")
+        self.assertEqual(robot["pos"], [8, 4], "the affordable prefix: 7 cells of 9")
+        failures = env.evaluate()["failures"]
+        self.assertIn("robot_stranded", failures)
+        self.assertNotIn("navigation_robot.stranded", failures)
         r = step(env, "walk_to", cell=[1, 4])
         self.assertFalse(r["ok"])
+        self.assertEqual(r["message"], body.POWER_OFF_TEXT)
+        ok(self, step(env, "wait", seconds=60))
 
     def test_swap_battery(self):
         self.m.add("pack", "robot_battery_pack", "living", charge_pct=95.0)
         env = self.m.env(pos=(1, 4), battery=12.0, hold={"right": "pack"})
         ok(self, step(env, "swap_battery", "pack"))
-        self.assertEqual(env.world.s["robot"]["battery"], 95.0)
+        robot = env.world.s["robot"]
+        # kernel v3.0: the 60 s swap itself is paid from the new pack (body settlement after the handler)
+        self.assertAlmostEqual(robot["battery"], 95.0 - 100.0 * robot["energy_wh_used"] / body.full_wh(env.world.s), places=6)
+        self.assertGreater(robot["energy_wh_used"], 0.0)
         self.assertEqual(env.world.s["entities"]["pack"]["charge_pct"], 12.0)
         m2 = Mini()
         m2.add("pack", "robot_battery_pack", "living", charge_pct=95.0, swollen=True)
@@ -852,6 +866,404 @@ class TestDockBattery(unittest.TestCase):
         r = step(env2, "swap_battery", "pack")
         self.assertFalse(r["ok"])
         self.assertEqual(r["category"], "safety")
+
+
+def _wh(env):
+    return float(env.world.s["robot"].get("energy_wh_used", 0.0))
+
+
+def _walk_wh(env, meters, seconds, speed="normal", action="walk_to", stairs=(0, 0)):
+    """What the body charges for an unloaded walk (TIER1_EMBODIMENT 4.2 / 4.3): the walking and stair work of the
+    motion record plus the hotel load over the action's seconds."""
+    state = env.world.s
+    power = body.activity_power_w(state, "motion", held_kg=0.0) + body._hook_power(env.world, action)
+    return body.walk_wh(state, meters, speed, 0.0) + body.stairs_wh(state, *stairs) + power * seconds / 3600.0
+
+
+class TestBodyEnergy(unittest.TestCase):
+    """Kernel v3.0 (TIER1_EMBODIMENT 4, 12 (M2); NAV-M2): the kernel body owns the battery. Walking is paid once, from the
+    motion record; a stop or a fall cuts the record to what was walked; a battery cut is an in-room trip; the dock is the
+    body's charge source; robot_stranded replaces navigation_robot.stranded."""
+
+    def setUp(self):
+        self.m = Mini()
+
+    def _step_timed(self, env, *args, **kw):
+        t0, wh0, b0 = env.world.s["time_s"], _wh(env), env.world.s["robot"]["battery"]
+        r = step(env, *args, **kw)
+        state = env.world.s
+        return r, state["time_s"] - t0, _wh(env) - wh0, b0 - state["robot"]["battery"]
+
+    def assert_paid(self, env, wh, drop):
+        """The battery fell by exactly the energy the body spent (nothing else writes it; 9-decimal rounding per
+        write)."""
+        self.assertAlmostEqual(drop, 100.0 * wh / body.full_wh(env.world.s), places=6)
+
+    def test_a_walk_is_paid_once_from_its_motion_record(self):
+        env = self.m.env(pos=(1, 4), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "walk_to", cell=[9, 4])
+        ok(self, r)
+        self.assertAlmostEqual(seconds, 4.0 / 0.8 + 0.2, places=9, msg="walk_to keeps its duration")
+        self.assertAlmostEqual(wh, _walk_wh(env, 4.0, seconds), places=6)
+        self.assert_paid(env, wh, drop)
+        self.assertAlmostEqual(nav(env)["odometry_m"], 4.0, places=6)
+        # a flight of stairs: walking work, the doorway crossing, 14 steps up (1.2 Wh each) and the climbing time
+        env2 = self.m.env(room="hall", pos=(1, 1), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env2, "move", "upstairs")
+        ok(self, r)
+        self.assertEqual(env2.world.s["robot"]["room"], "upstairs")
+        self.assertEqual(nav(env2)["odometry_m"], 0.707, "one diagonal cell to the foot of the flight")
+        walked = 0.5 * 1.4142 + 1.0                     # the in-room path and the doorway crossing
+        own_s = walked / 0.8 + 0.8 * 14                 # the walk and the climb (the clock keeps fewer decimals)
+        self.assertAlmostEqual(seconds, own_s, places=3)
+        self.assertAlmostEqual(wh, _walk_wh(env2, walked, own_s, action="move", stairs=(14, 0)), places=6)
+        self.assert_paid(env2, wh, drop)
+
+    def test_a_stop_cuts_the_record_to_the_cells_walked(self):
+        # a careful robot stops in front of a carton too big to step over: it walked 1.0 m of the planned 4.0 m
+        self.m.add("carton", "box", "living", pos=[5, 4], label="flat-pack carton", size_m=[1.8, 0.6, 0.12], rot=90, mass_kg=2.0)
+        self.m.add("panels", "generic_item", "carton", label="panels", mass_kg=34.0, size_m=[1.7, 0.55, 0.08])
+        env = self.m.env(pos=(5, 1), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "walk_to", cell=[5, 9], speed="careful")
+        ok(self, r)
+        self.assertEqual(env.world.s["robot"]["pos"], [5, 3])
+        self.assertAlmostEqual(wh, _walk_wh(env, 1.0, seconds, speed="careful"), places=6)
+        self.assertLess(wh, _walk_wh(env, 4.0, seconds, speed="careful"))
+        self.assert_paid(env, wh, drop)
+
+    def test_a_stop_before_the_battery_cut_keeps_the_robot_on_and_says_so(self):
+        # B4 merge gate: the pack affords 2.5 m of the planned 4.0 m (walk_to returns the battery-cut text), but the
+        # carton stops the robot after 1.0 m; the stop cuts the record first, so the robot pays 1.0 m, stays on and is
+        # not stranded, and the message says it walked 1.0 m instead of claiming a power-down
+        self.m.add("carton", "box", "living", pos=[5, 4], label="flat-pack carton", size_m=[1.8, 0.6, 0.12], rot=90, mass_kg=2.0)
+        self.m.add("panels", "generic_item", "carton", label="panels", mass_kg=34.0, size_m=[1.7, 0.55, 0.08])
+        for perception in (None, "realistic"):
+            env = self.m.env(pos=(5, 1), battery=0.035, perception=perception)
+            r, seconds, wh, drop = self._step_timed(env, "walk_to", cell=[5, 9], speed="careful")
+            ok(self, r)
+            self.assertTrue(r["message"].startswith(body.STOPPED_FIRST_TEXT.format(1.0) + " | Stopped: "), r["message"])
+            self.assertIn("lies in the way (too big to step over)", r["message"])
+            self.assertNotIn("powered down", r["message"])
+            robot = env.world.s["robot"]
+            self.assertEqual((robot["pos"], robot["power_state"]), ([5, 3], "on"))
+            # the affordable prefix's walking time (realistic perception: whole seconds)
+            self.assertAlmostEqual(seconds, 2.5 / 0.4 if perception is None else 6.0, places=3)
+            self.assertAlmostEqual(wh, _walk_wh(env, 1.0, seconds, speed="careful"), places=6)
+            self.assert_paid(env, wh, drop)
+            self.assertNotEqual((nav(env).get("last_incident") or {}).get("kind"), "battery_depleted")
+            self.assertNotIn("robot_stranded", env.evaluate()["failures"])
+
+    def test_a_fall_cuts_the_record_where_it_fell(self):
+        self.m.add("puddle", "generic_item", "living", pos=[6, 4], category="spill", floor_hazard="wet", ground_layer=True, portable=False,
+                   size_m=[0.5, 0.5, 0.005])
+        env = self.m.env(pos=(1, 4), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "walk_to", cell=[10, 4])
+        ok(self, r)
+        self.assertTrue(env.world.s["robot"]["fallen"])
+        self.assertAlmostEqual(wh, _walk_wh(env, 2.5, seconds), places=6, msg="2.5 m to the puddle, not the 4.5 m planned")
+        self.assert_paid(env, wh, drop)
+        self.assertEqual(env.world.s["robot"]["power_state"], "on")
+
+    def test_falls_past_the_doorway_pay_the_whole_walk(self):
+        # a toe caught on the 3 cm back-door threshold at a fast pace: the path, the crossing and the door were walked
+        env = self.m.env(room="kitchen", pos=(7, 4), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "move", "yard", speed="fast")
+        ok(self, r)
+        self.assertTrue(env.world.s["robot"]["fallen"])
+        own_s = 2.0 / 1.2 + 1.5
+        self.assertAlmostEqual(seconds, own_s, places=3)
+        self.assertAlmostEqual(wh, _walk_wh(env, 2.0, own_s, speed="fast", action="move"), places=6)
+        self.assert_paid(env, wh, drop)
+        # an oil film on the kitchen's landing cell: it slips after the crossing (the arrival), still the whole walk
+        self.m.c["rooms"]["kitchen"]["floor_hazards"] = [{"cell": [0, 4], "kind": "oil", "source": "pan"}]
+        env2 = self.m.env(pos=(9, 4), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env2, "move", "kitchen")
+        ok(self, r)
+        robot = env2.world.s["robot"]
+        self.assertEqual((robot["room"], robot["fallen"]), ("kitchen", True))
+        own_s = 2.0 / 0.8
+        self.assertAlmostEqual(seconds, own_s, places=3)
+        self.assertAlmostEqual(wh, _walk_wh(env2, 2.0, own_s, action="move"), places=6)
+        self.assert_paid(env2, wh, drop)
+
+    def test_the_gait_is_the_effective_speed(self):
+        # TIER1_INTEGRATION 1.7: quiet mode turns fast into normal (no trip on the 3 cm threshold), limp mode (gauge at or
+        # below 5 %) walks careful (no fall on the puddle); the motion record and the consequence engine agree
+        env = self.m.env(room="kitchen", pos=(7, 4), quiet=True)
+        ok(self, step(env, "move", "yard", speed="fast"))
+        self.assertFalse(env.world.s["robot"]["fallen"])
+        self.assertGreaterEqual(counts(env, "thresholds.crossed"), 1)
+        self.m.add("puddle", "generic_item", "living", pos=[6, 4], category="spill", floor_hazard="wet", ground_layer=True, portable=False,
+                   size_m=[0.5, 0.5, 0.005])
+        limp = self.m.env(pos=(1, 4), battery=4.0)
+        r = ok(self, step(limp, "walk_to", cell=[10, 4]))
+        self.assertIn("careful", r["message"])
+        self.assertFalse(limp.world.s["robot"]["fallen"])
+        self.assertEqual(limp.world.s["robot"]["pos"], [10, 4])
+        full = self.m.env(pos=(1, 4), battery=50.0)
+        ok(self, step(full, "walk_to", cell=[10, 4]))
+        self.assertTrue(full.world.s["robot"]["fallen"], "the same walk at its normal pace slips on the puddle")
+        r = step(self.m.env(pos=(3, 3), battery=4.0), "step", "e")
+        self.assertIn("careful", r["message"])
+
+    def test_a_fall_on_the_stairs_pays_half_the_flight(self):
+        self.m.add("shoe", "generic_item", "hall", pos=[0, 0], on_stairs="c_hu", stair_step=3, label="shoe", size_m=[0.3, 0.12, 0.1])
+        env = self.m.env(room="upstairs", pos=(1, 6), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "move", "hall")
+        ok(self, r)
+        self.assertTrue(env.world.s["robot"]["fallen"])
+        self.assertEqual(env.world.s["robot"]["room"], "hall", "it fell to the bottom of the flight")
+        self.assertEqual(nav(env)["odometry_m"], 0.707)
+        walked = 0.5 * 1.4142 + 1.0
+        own_s = walked / 0.8 + 0.8 * 14                 # the move keeps its planned duration
+        self.assertAlmostEqual(seconds, own_s, places=3)
+        self.assertAlmostEqual(wh, _walk_wh(env, walked, own_s, action="move", stairs=(0, 7)), places=6)
+        self.assert_paid(env, wh, drop)
+
+    def test_a_battery_cut_move_stops_short_of_the_doorway(self):
+        # 0.6 Wh (0.025 %: limp mode, so a careful pace) reaches the kitchen's back door (1.0 m, 0.31 Wh) but not the
+        # crossing (0.34 Wh with the door): no passage, no threshold, no arrival in the yard; it powers down at the door
+        env = self.m.env(room="kitchen", pos=(7, 4), battery=0.025)
+        r = ok(self, step(env, "move", "yard", speed="fast"))
+        self.assertIn("powered down", r["message"])
+        robot = env.world.s["robot"]
+        self.assertEqual((robot["room"], robot["pos"]), ("kitchen", [9, 4]))
+        self.assertEqual(robot["power_state"], "off")
+        self.assertFalse(robot["fallen"])
+        self.assertNotIn("last_pass", nav(env))
+        self.assertNotIn("yard", nav(env).get("entries", {}))
+        self.assertEqual(counts(env, "thresholds.crossed"), 0)
+        self.assertEqual(nav(env)["last_incident"]["kind"], "battery_depleted")
+        failures = env.evaluate()["failures"]
+        self.assertIn("robot_stranded", failures)
+        self.assertNotIn("navigation_robot.robot_fall", failures)
+
+    def test_a_battery_cut_never_starts_the_stairs(self):
+        env = self.m.env(room="hall", pos=(1, 1), battery=0.3)
+        r = ok(self, step(env, "move", "upstairs"))
+        self.assertIn("powered down", r["message"])
+        robot = env.world.s["robot"]
+        self.assertEqual((robot["room"], robot["pos"]), ("hall", [0, 0]), "at the foot of the flight")
+        self.assertFalse(robot["fallen"])
+        self.assertNotIn("c_hu", nav(env).get("stairs", {}), "the flight was never started")
+        self.assertEqual(robot["power_state"], "off")
+
+    def test_a_battery_cut_in_realistic_perception(self):
+        env = self.m.env(room="kitchen", pos=(7, 4), battery=0.025, perception="realistic")
+        r = ok(self, step(env, "move", "yard", speed="fast"))
+        self.assertIn("powered down", r["message"])
+        self.assertEqual(env.world.s["robot"]["room"], "kitchen")
+        self.assertFalse(env.world.s["robot"]["fallen"])
+        self.assertIn("robot_stranded", env.evaluate()["failures"])
+
+    def test_go_to_stops_where_the_battery_ran_out(self):
+        env = self.m.env(pos=(1, 4), battery=0.04)
+        r = ok(self, step(env, "go_to", "kitchen"))
+        self.assertEqual(r["message"], "Stopped in living (battery_depleted)")
+        self.assertEqual(env.world.s["robot"]["room"], "living")
+        self.assertEqual(env.world.s["robot"]["power_state"], "off")
+        r = step(env, "go_to", "kitchen")
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["message"], body.POWER_OFF_TEXT)
+        # the cut on the last leg (the walk inside the destination room) is not an arrival either
+        env2 = self.m.env(pos=(8, 4), battery=0.03)
+        r = ok(self, step(env2, "go_to", "robot_dock_1"))
+        self.assertEqual(r["message"], "Stopped in living (battery_depleted)")
+        self.assertEqual(env2.world.s["robot"]["power_state"], "off")
+        # waiting aside: the walk to the spot is cut (3 of 5 cells), so it is not waiting aside
+        env3 = self.m.env(pos=(5, 4), battery=0.02)
+        r = ok(self, step(env3, "wait_aside", seconds=60, cell=[0, 4]))
+        self.assertEqual(r["message"], "Stopped at [2, 4] (battery_depleted)")
+        self.assertEqual(env3.world.s["robot"]["power_state"], "off")
+
+    def test_a_patrol_that_runs_the_battery_out_goes_on_without_effect(self):
+        # B4 merge gate: the sweep's first walk powers the robot down, so every later nested leaf meets PowerOff;
+        # patrol's loops catch those refusals and go on without effect (TIER1_EMBODIMENT 4.6), logging each anomaly
+        # it saw but could not report (that log call used to raise a TypeError: "kind" was passed twice)
+        self.m.add("win", "window", "kitchen", pos=[5, 0], open=True, mounted=True)
+        for perception in (None, "realistic"):
+            env = self.m.env(room="kitchen", pos=(2, 4), battery=0.01, perception=perception)
+            r = ok(self, step(env, "patrol", rooms=["kitchen"]))
+            self.assertEqual(len(json.loads(r["message"])["findings"]), 2, "the open back door and the open window")
+            self.assertEqual(env.world.s["robot"]["power_state"], "off")
+            unreported = {(e["target"], e["anomaly"]) for e in nav(env)["events"] if e["kind"] == "patrol_unreported"}
+            self.assertEqual(unreported, {("door_back", "exterior_door_open"), ("win", "window_open")})
+            self.assertNotIn("win", env.world.s.get("reports") or {})
+            self.assertIn("robot_stranded", env.evaluate()["failures"])
+            refused = step(env, "patrol", rooms=["kitchen"])
+            self.assertEqual((refused["ok"], refused["message"]), (False, body.POWER_OFF_TEXT))
+            # with a second room the go_to leg meets PowerOff outside any catch: the step commits partway
+            env2 = self.m.env(room="kitchen", pos=(2, 4), battery=0.01, perception=perception)
+            r = ok(self, step(env2, "patrol", rooms=["kitchen", "living"]))
+            self.assertEqual(r["message"], "Powered down partway: " + body.POWER_OFF_TEXT)
+            self.assertEqual(env2.world.s["robot"]["room"], "kitchen")
+
+    def test_step_is_a_motion_with_the_bodys_guards(self):
+        env = self.m.env(pos=(3, 3), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "step", "e")
+        ok(self, r)
+        self.assertAlmostEqual(seconds, 0.5 / 0.8 * 1.2, places=9, msg="a deliberate step keeps its duration")
+        self.assertAlmostEqual(wh, _walk_wh(env, 0.5, seconds, action="step"), places=6)
+        self.assert_paid(env, wh, drop)
+        r, seconds, wh, drop = self._step_timed(env, "step", "se", over=True)
+        ok(self, r)
+        self.assertAlmostEqual(seconds, 1.6 * 0.5 / 0.8 * 1.2, places=9)
+        self.assertAlmostEqual(wh, _walk_wh(env, 0.5 * 1.4142, seconds, action="step"), places=6)
+        self.assertEqual(env.world.s["robot"]["pos"], [5, 4])
+        fallen = self.m.env(pos=(3, 3), fallen=True, posture="lying")
+        r = step(fallen, "step", "e")
+        self.assertEqual((r["ok"], r["message"], r["category"]), (False, "Robot cannot move", "capability"))
+        broken = self.m.env(pos=(3, 3), actuator_ok=False)
+        self.assertEqual(step(broken, "step", "e")["message"], "Robot cannot move")
+        perched = self.m.env(pos=(3, 3), standing_on="robot_dock_1")
+        r = step(perched, "step", "e")
+        self.assertEqual((r["ok"], r["message"], r["category"]), (False, "Step down first", "safety"))
+        flat = self.m.env(pos=(3, 3), battery=0.0)
+        r = step(flat, "step", "e")
+        self.assertEqual((r["ok"], r["message"]), (False, body.POWER_OFF_TEXT))
+
+    def test_a_step_it_cannot_afford_powers_down_in_place(self):
+        env = self.m.env(pos=(3, 3), battery=0.005)       # 0.12 Wh; one step needs 0.16 Wh
+        r = ok(self, step(env, "step", "e"))
+        self.assertTrue(r["message"].startswith(body.BATTERY_CUT_TEXT.format(0.0)), r["message"])
+        robot = env.world.s["robot"]
+        self.assertEqual((robot["pos"], robot["power_state"], robot["battery"]), ([3, 3], "off", 0.0))
+        self.assertEqual(nav(env)["last_incident"]["kind"], "battery_depleted")
+        self.assertIn("robot_stranded", env.evaluate()["failures"])
+        ok(self, step(env, "wait", seconds=30))
+        self.assertFalse(step(env, "step", "e")["ok"])
+
+    def test_the_dock_is_the_bodys_charge_source(self):
+        from house_sim.systems.navigation_robot import robot as R
+        env = self.m.env(pos=(0, 0), docked=True, battery=40.0)
+        self.assertEqual(R.charge_source(env.world), 2.0)
+        self.assertEqual([v for v in run_hooks("robot_charge_source", env.world) if v], [2.0])
+        ok(self, step(env, "wait", seconds=600))
+        robot = env.world.s["robot"]
+        # constant current below 80 %: exactly the dock's 2 %/min, the dock carries the hotel load, nothing drains or
+        # charges twice
+        self.assertAlmostEqual(robot["battery"], 60.0, places=6)
+        self.assertTrue(robot["charging"] and robot["dock_powered"])
+        self.assertAlmostEqual(robot["energy_wh_charged"], 0.2 * body.full_wh(env.world.s), places=6)
+        self.assertEqual(robot["energy_wh_used"], 0.0)
+        self.assertIsNone(R.charge_source(self.m.env(pos=(1, 1), battery=40.0).world), "not docked")
+        self.assertIsNone(R.charge_source(self.m.env(pos=(1, 1), docked=True, battery=40.0).world), "off the contacts")
+        self.m.c["entities"]["robot_dock_1"].update(charge_rate_pct_per_min=3.0)
+        self.assertEqual(R.charge_source(self.m.env(pos=(0, 0), docked=True).world), 3.0)
+        self.m.c["entities"]["robot_dock_1"].update(plug_required=True, plugged_in=False)
+        unplugged = self.m.env(pos=(0, 0), docked=True, battery=40.0)
+        self.assertIsNone(R.charge_source(unplugged.world))
+        ok(self, step(unplugged, "wait", seconds=600))
+        self.assertFalse(unplugged.world.s["robot"]["charging"])
+        self.assertLess(unplugged.world.s["robot"]["battery"], 40.0, "an unpowered dock does not carry the robot's load")
+
+    def test_any_dock_it_sits_on_charges_and_a_cold_pack_waits(self):
+        from house_sim.systems.navigation_robot import robot as R
+        dock2 = self.m.reg.make("robot_dock", "kitchen")
+        dock2["pos"] = [0, 0]
+        self.m.c["entities"]["dock_kitchen"] = dock2
+        env = self.m.env(room="kitchen", pos=(1, 1), battery=40.0)
+        ok(self, step(env, "dock", "dock_kitchen"))
+        self.assertEqual(R.seated_dock(env.world.s), "dock_kitchen")
+        self.assertEqual(R.charge_source(env.world), 2.0, "the dock it sits on, not its home dock in the living room")
+        ok(self, step(env, "wait", seconds=60))
+        self.assertTrue(env.world.s["robot"]["charging"])
+        self.assertAlmostEqual(env.world.s["robot"]["battery"], 40.0 + 2.0 * 80.0 / 60.0, places=6)
+        # a pack at -5 C: the contacts seat, the battery management refuses current until it warms above 0 C
+        cold = self.m.env(pos=(1, 1), battery=40.0, battery_temp_c=-5.0)
+        r = ok(self, step(cold, "dock"))
+        self.assertEqual(r["message"], "Docked on robot_dock_1; the battery is too cold to charge yet")
+        robot = cold.world.s["robot"]
+        self.assertFalse(robot["charging"])
+        self.assertTrue(robot["docked"] and robot["dock_powered"])
+        self.assertIn("charge_refused_temp_s", robot["body_log"])
+
+    def test_docking_is_free_and_charges_from_the_next_substep(self):
+        env = self.m.env(pos=(1, 1), battery=40.0)
+        r, seconds, wh, drop = self._step_timed(env, "dock")
+        ok(self, r)
+        self.assertEqual(seconds, 20.0)
+        self.assertEqual(wh, 0.0, "seated on a live dock: the dock carries the load")
+        self.assertAlmostEqual(env.world.s["robot"]["battery"], 40.0 + 2.0 * 20.0 / 60.0, places=6)
+        self.assertTrue(env.world.s["robot"]["charging"])
+        r, seconds, wh, drop = self._step_timed(env, "undock")
+        ok(self, r)
+        self.assertFalse(env.world.s["robot"]["charging"])
+        self.assertGreater(wh, 0.0)
+        self.assert_paid(env, wh, drop)
+
+    def test_the_old_idle_drain_is_ignored_the_body_pays_for_idle_time(self):
+        env = self.m.env(pos=(3, 3), battery=50.0, idle_drain_pct_h=50.0)
+        r, seconds, wh, drop = self._step_timed(env, "wait", seconds=3600)
+        ok(self, r)
+        self.assert_paid(env, wh, drop)
+        state = env.world.s
+        awake = body.activity_power_w(state, "awake", held_kg=0.0)
+        parked = body.activity_power_w(state, "standby", held_kg=0.0)
+        auto = body.profile(state)["auto_standby_s"]
+        self.assertAlmostEqual(wh, (awake * auto + parked * (3600.0 - auto)) / 3600.0, places=6)
+        self.assertLess(drop, 1.0, "awake for a minute, then parked: about 0.9 %, not the old 50 %/h")
+        # waiting aside stays awake and responsive (arms tucked): the awake power over all of its seconds
+        aside = self.m.env(pos=(0, 4), battery=50.0)
+        r, seconds, wh, drop = self._step_timed(aside, "wait_aside", seconds=600, cell=[0, 4])
+        ok(self, r)
+        awake = body.activity_power_w(aside.world.s, "control", held_kg=0.0) + body._hook_power(aside.world, "wait_aside")
+        self.assertAlmostEqual(wh, awake * 600.0 / 3600.0, places=6)
+        self.assert_paid(aside, wh, drop)
+
+    def test_swapping_in_an_empty_pack_powers_down_and_strands(self):
+        self.m.add("pack", "robot_battery_pack", "living", charge_pct=0.0)
+        env = self.m.env(pos=(1, 4), battery=30.0, hold={"right": "pack"})
+        ok(self, step(env, "swap_battery", "pack"))
+        robot = env.world.s["robot"]
+        self.assertEqual((robot["power_state"], robot["battery"], robot["battery_min_pct"]), ("off", 0.0, 0.0))
+        self.assertEqual(env.world.s["entities"]["pack"]["charge_pct"], 30.0)
+        self.assertIn("robot_stranded", env.evaluate()["failures"])
+        r = step(env, "swap_battery", "pack")
+        self.assertEqual((r["ok"], r["message"]), (False, body.POWER_OFF_TEXT), "a powered-down robot cannot swap its own pack")
+
+    def test_stranded_is_the_kernels_invariant(self):
+        self.assertNotIn("navigation_robot.stranded", INVARIANTS)
+        self.assertIn("robot_stranded", INVARIANTS)
+        env = self.m.env(pos=(0, 0), docked=True, battery=50.0)
+        ok(self, step(env, "wait", seconds=60))
+        self.assertNotIn("robot_stranded", env.evaluate()["failures"])
+
+    def test_battery_needed_matches_what_a_walk_costs(self):
+        from house_sim.systems.navigation_robot import robot as R
+        env = self.m.env(pos=(1, 4), battery=50.0)
+        need = R.battery_needed(env.world.s, 4.0)
+        r, seconds, wh, drop = self._step_timed(env, "walk_to", cell=[9, 4])
+        ok(self, r)
+        # walk_to adds 0.2 s of settling beyond the walk itself
+        extra = body.activity_power_w(env.world.s, "motion", held_kg=0.0) * 0.2 / 3600.0
+        self.assertAlmostEqual(need, drop - 100.0 * extra / body.full_wh(env.world.s), places=6)
+        stairs = R.battery_needed(env.world.s, 1.7071, steps_up=14)
+        self.assertGreater(stairs, 0.7, "a flight up costs about 0.7 % on its own")
+
+    def test_cut_records_drive_the_geometric_camera(self):
+        # the camera frames the walk from the motion record: after a stop only the walked cells, after a battery cut
+        # only the kitchen (no frame beyond the doorway)
+        self.m.add("carton", "box", "living", pos=[5, 4], label="flat-pack carton", size_m=[1.8, 0.6, 0.12], rot=90, mass_kg=2.0)
+        self.m.add("panels", "generic_item", "carton", label="panels", mass_kg=34.0, size_m=[1.7, 0.55, 0.08])
+        env = self.m.env(pos=(5, 1), battery=50.0, camera="geometric")
+        ok(self, step(env, "walk_to", cell=[5, 9], speed="careful"))
+        frames = env.world.s["robot"]["view"]["frames"]
+        self.assertTrue(frames)
+        self.assertTrue(all(f[2] <= 3.5 * 0.5 + 1e-9 for f in frames), frames)
+        env2 = self.m.env(room="kitchen", pos=(7, 4), battery=0.025, camera="geometric")
+        ok(self, step(env2, "move", "yard", speed="fast"))
+        self.assertEqual({f[0] for f in env2.world.s["robot"]["view"]["frames"]}, {"kitchen"})
+        self.assertEqual(env2.world.s["robot"]["room"], "kitchen")
+
+    def test_power_down_is_deterministic(self):
+        digests = []
+        for _ in range(2):
+            env = self.m.env(pos=(1, 4), battery=0.04)
+            ok(self, step(env, "go_to", "kitchen"))
+            ok(self, step(env, "wait", seconds=120))
+            digests.append(digest(env.world.s))
+        self.assertEqual(digests[0], digests[1])
 
 
 class TestSelfCare(unittest.TestCase):

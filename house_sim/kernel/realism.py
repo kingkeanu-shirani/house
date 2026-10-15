@@ -21,8 +21,26 @@ module; perception="oracle" (the default, used by the verification pipeline) is 
     inspected or read; "novel" objects are described only by visual attributes; mirrors look like doorways until
     inspected.
 
-This is symbolic perception: no pixels, no learned detector, no camera geometry. Everything here is a pure
-function of (seed, true id, observation context, knowledge level); it never mutates world state.
+This is symbolic perception: no pixels, no learned detector. Everything here is a pure function of (seed, true id,
+observation context, knowledge level); it never mutates world state.
+
+Geometric camera (kernel v3.0; docs/design/TIER1_CAMERA.md 10.6 and 11, TIER1_INTEGRATION 1.12 and 1.14). With
+HouseEnv(camera="geometric") the camera's step view decides what is rendered and how much of it: a thing a current
+frame shows only as a depth shape is a "dark shape"; at "detect" an "object" with its size class, shape and place
+(colour in good light); at "recognize" its category word plus the large-scale states of RECOGNIZE_FIELDS (and a
+fill bucket for a container seen at 48 px or more); at "identify" today's full glance rendering. Things in the
+10-24 px band are detected by a fixed draw per viewpoint (seed, eye cell, 45-degree frame sector, camera), never
+when absent from every frame. Per-target context (light at the target, pixels, occlusion, glare) replaces the
+room-wide one; a type's perception "acuity" block raises what a glance field needs; face-gated fields need their
+face seen this step. Tracked identity (Knowledge entries' "ident": [level, placement signature]) is updated once
+per step by note_step(view) and keeps a thing's identity -- never its condition -- while it has not moved; people and
+pets the camera cannot identify are shapes keyed by a handle per sighting. Room mode renders exactly as before.
+
+Robot body (kernel v3.0; TIER1_INTEGRATION 1.3, TIER1_EMBODIMENT 6): the lens clarity in the observation context is
+the body's (body.clarity, the sensors_view clarity: camera_clean capped by lens scratches); with imaging off (privacy
+mode, cameras off or failed, a room privacy policy, powered down) the robot's room is dark for the cameras whatever
+its light, so people and pets there are dark-spell shapes and no hazard is avoided from sight (Perception.seen_dark).
+obs.robot arrives already rendered by kernel/proprio.py (integer gauge, estimates, buckets, detected faults only).
 """
 import copy
 import hashlib
@@ -31,7 +49,7 @@ import math
 import random
 import re
 
-from . import geometry
+from . import body, geometry, sight
 from .errors import ActionError
 
 GLANCE, INSPECT, TOUCH, READ, MEASURE = 0, 1, 2, 3, 4
@@ -49,6 +67,9 @@ ID_WORD_RE = re.compile(r"^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$")
 ID_NUMBER_RE = re.compile(r"_[0-9]+(?:_|$)")
 # in the dark nobody can tell who a shape is: a person or pet named by id is refused (address the shape's handle)
 DARK_WHO = "It is too dark to tell who is who here: turn on a light, or address the shape you see"
+# the same with imaging off (the depth camera shows shapes only)
+BLIND_WHO = "With the cameras off it is too dark to tell who is who: address the shape you see"
+FAR_WHO = "You cannot tell who that is from here; get closer or address the shape you see"   # lit room, unidentified
 # hazard kinds of a lying agent (asleep and awake look the same: realistic observations show "lying"; fallen stays
 # person_down) and the postures that look like lying down
 AGENT_LYING_KINDS = ("sleeping", "person_down", "lying")
@@ -124,7 +145,10 @@ DEFAULT_TIERS = {
                "heat_w", "thermal_r_free", "thermal_r_blocked", "thermal_tau_s", "max_touch_temp_c", "fuel_kg", "peak_kw",
                "heat_load_w", "ua_w_k", "air_heat_capacity_j_k", "heat_coupling", "contamination", "cont_faces",
                "stream_ok", "in_stream", "relined_dirty", "filled_s", "stale", "potable", "derived_from",
-               "contents_from", "liquid_from"],
+               "contents_from", "liquid_from",
+               # the geometric camera's placement inside a container (TIER1_INTEGRATION 1.14); its per-entity view
+               # properties (a "view" dict) are hidden by Realism.tier (outdoor_plants' roof_face keeps a "view" word)
+               "inner_spos"],
 }
 # name patterns of simulation internals (hidden unless a type/domain table says otherwise)
 HIDDEN_SUFFIXES = ("_until_s", "_since_s", "_at_s", "_tau_s", "_w_k", "_j_k", "_coeff", "_rate_s")
@@ -183,6 +207,27 @@ UNIT_FIELDS = {"remaining", "shine", "wrinkled", "pilling", "faded", "dye_damage
 # JSON message lists under keys naming an order keep their order (others in true-id order are re-sorted by handle)
 ORDERED_KEY_WORDS = ("order", "sequence", "path", "route", "stack", "queue", "steps", "history", "trail", "rank")
 ID_KEYS = ("id", "object", "item", "entity", "eid", "target")
+
+# ----- geometric camera (TIER1_CAMERA 10.6 and 11; TIER1_INTEGRATION 1.12, 1.14) -----------------------------------
+# acuity levels of the step view, and what a glance field may need ("inspect": a head view of 160 px in light 0.2, the
+# wrist, or an inspect grant)
+VIEW_LEVELS = {"shape": 0, "detect": 1, "recognize": 2, "identify": 3}
+ACUITY_NEED = {"detect": 1, "recognize": 2, "identify": 3, "inspect": 4}
+# large-scale glance states a camera tells at "recognize" (11.1, with the physics cues of TIER1_INTEGRATION 1.12)
+RECOGNIZE_FIELDS = frozenset(("open", "lit", "on_fire", "smoking", "steaming", "overflowing", "leaking", "flooded",
+                              "tipped_over", "toppled", "fallen", "shattered", "spilled", "covered", "posture",
+                              "fell", "collapsed_shelves", "in_motion", "blown_away"))
+# what "detect" shows besides the generic identity ("object", "unknown") and the view (11.1): never type-dependent
+DETECT_FIELDS = ("size_class", "shape", "location", "relation", "pos", "spos")
+FILL_FIELDS = ("fill_level", "level", "liquid_l")
+COLOR_LIGHT = 0.15          # colour is seen at detect from this light at the target (not backlit)
+FILL_PX = 48.0              # a container's fill shows at recognize from this many pixels across
+RANGE_DEPTH_M = tuple(sight.HW["depth"]["range_m"])  # the depth camera ranges (0.2-6 m, 10.6) ...
+RANGE_PX = sight.PX["detect_sure"]                     # ... targets at least 24 px across
+VIEW_ANGLE_STEP = 5.0       # realistic bearings and elevations, degrees
+LIGHT5 = ((0.05, 0.2, 0.5, 0.8), ("dark", "dim", "moderate", "bright", "very bright"))
+GLARE_M = {"frame": 1.0, "sun": 1.0, "backlit": 1.5}
+VIEW_DIST = ((0.8, "within reach"), (1.5, "near"), (3.0, "mid"), (6.0, "far"))
 
 
 def _h(*parts):
@@ -297,7 +342,9 @@ class Handles:
 
 
 class Knowledge:
-    """What the robot has learned: {eid: {"sig": placement signature, "fields": {field: [level, value digest]}}}."""
+    """What the robot has learned: {eid: {"sig": placement signature, "fields": {field: [level, value digest]}}}.
+    Geometric camera mode adds "ident": [view level, placement signature] (tracked identity, TIER1_CAMERA 11.2): the
+    best acuity level (1 detect, 2 recognize, 3 identify) at which the robot saw the thing since it last moved."""
 
     def __init__(self):
         self.data = {}
@@ -310,7 +357,10 @@ class Knowledge:
         entry = self.data.get(eid)
         sig = self.signature(record)
         if entry is None or entry["sig"] != sig:
+            old = entry
             entry = self.data[eid] = {"sig": sig, "fields": {}, "level": GLANCE}
+            if old is not None and "ident" in old:
+                entry["ident"] = old["ident"]       # checked against its own signature
         names = list(fields) if fields is not None else [k for k in record if not k.startswith("_")]
         for name in names:
             old = entry["fields"].get(name)
@@ -352,6 +402,40 @@ class Knowledge:
             return GLANCE
         return entry.get("level", GLANCE)
 
+    def note_ident(self, eid, record, level):
+        """Tracked identity (geometric camera): the robot saw eid at view level `level` (1-3) where it is now."""
+        sig = self.signature(record)
+        entry = self.data.get(eid)
+        if entry is None:
+            entry = self.data[eid] = {"sig": sig, "fields": {}, "level": GLANCE}
+        old = entry.get("ident")
+        if old is not None and old[1] == sig:
+            if old[0] >= level:
+                return
+            level = max(level, old[0])
+        entry["ident"] = [int(level), sig]
+
+    def ident_level(self, eid, record):
+        """The tracked identity level of eid (0 none, 1 detect, 2 recognize, 3 identify): what it was seen at while it
+        has not moved since; 3 when an inspection or reading of it still holds (entity knowledge at inspect or more)."""
+        entry = self.data.get(eid)
+        if entry is None:
+            return 0
+        sig = self.signature(record)
+        if entry["sig"] == sig and entry.get("level", GLANCE) >= INSPECT:
+            return VIEW_LEVELS["identify"]
+        ident = entry.get("ident")
+        return int(ident[0]) if ident and ident[1] == sig else 0
+
+    def holds(self, eid, record, field):
+        """True when a grant of `field` (at any level) still matches its current value."""
+        entry = self.data.get(eid)
+        if entry is None or entry["sig"] != self.signature(record) or field not in entry["fields"]:
+            return False
+        known = entry["fields"][field]
+        current = record[field] if field in record else _field_value(record, field)
+        return known[1] == _digest(current)
+
     def dump(self):
         return copy.deepcopy(self.data)
 
@@ -389,6 +473,12 @@ class Realism:
         self._last_view = None
         self._dark_now = None
         self._plain_now = None
+        # geometric camera: people and pets the last step's view could not identify (keyed by a shape handle per
+        # sighting: _geo_spell counts each one's sightings), and the step view's ViewInfos while one observe() runs
+        self._geo_spell = {}
+        self._geo_keyed = set()
+        self._geo_infos = None
+        self._geo_view = None
 
     # ----- registry-driven tables ------------------------------------------------------------------------
     def groups(self):
@@ -564,6 +654,13 @@ class Realism:
             if field not in named:
                 table[field] = "glance"
                 named.add(field)
+        acuity = spec.get("acuity")
+        if isinstance(acuity, dict):
+            # geometric camera (TIER1_CAMERA 11.2): the view level a glance field needs ("recognize", "identify" or
+            # "inspect"); room mode ignores it
+            for field, need in acuity.items():
+                if need in ACUITY_NEED:
+                    table["_acuity:" + field] = need
         table.pop("_sub", None)
         return named
 
@@ -571,6 +668,8 @@ class Realism:
         table = self.tiers(record)
         if field.startswith("_"):
             return "never"
+        if field == "view" and isinstance(record.get("view"), dict):
+            return "never"          # the geometric camera's view properties (TIER1_INTEGRATION 1.14)
         own = record.get("_perception")
         if isinstance(own, dict):
             # per-entity tiers (a domain marking fields it wrote onto this particular entity)
@@ -644,6 +743,8 @@ class Realism:
         if getattr(self, "_room_ctx", None) is not None:
             return self._room_ctx          # inside one observe()/filter call
         robot = state["robot"]
+        if isinstance(robot.get("view"), dict):
+            return self._geo_room_context(state)
         rid = robot["room"]
         light = light_level(state, rid)
         if flashlight_on(state):
@@ -654,7 +755,7 @@ class Realism:
             m += 1.5
         elif light < 0.35:
             m += 0.5
-        clean = _num(robot.get("camera_clean"), 1.0)
+        clean = _lens(state)
         if clean < 0.7:
             m += 1.5 * (0.7 - clean) / 0.3
         if robot.get("speed_mode") == "fast":
@@ -667,6 +768,10 @@ class Realism:
         return {"light": light, "m": m, "key": key, "rid": rid, "pos": tuple(robot.get("pos") or (0, 0))}
 
     def context(self, state, eid=None, record=None):
+        if record is not None and isinstance(state["robot"].get("view"), dict):
+            info = self._view_info(eid)
+            if info is not None:
+                return self.view_context(state, info)     # geometric camera: the target's own view (11.2)
         base = self.room_context(state)
         dist = 0
         if record is not None:
@@ -676,6 +781,121 @@ class Realism:
             elif room != base["rid"]:
                 dist = 6
         return {"dist": dist, "light": base["light"], "m": base["m"] + 0.12 * max(0, dist - 1), "key": base["key"]}
+
+    # ----- geometric camera: per-target context (TIER1_CAMERA 11.2) -------------------------------------------
+    @staticmethod
+    def _geo_global_m(state):
+        """The viewpoint-wide part of the uncertainty in geometric mode: today's lens, fast-motion and steam / smoke
+        terms (light, distance and glare are per target)."""
+        robot = state["robot"]
+        room = state["rooms"].get(robot.get("room"), {})
+        m = 1.0
+        clean = _lens(state)
+        if clean < 0.7:
+            m += 1.5 * (0.7 - clean) / 0.3
+        if robot.get("speed_mode") == "fast":
+            m += 1.0
+        if _num(room.get("steam"), 0) > 0.3 or _num(room.get("smoke"), 0) > 0.2 or _num(room.get("smoke_density"), 0) > 0.2:
+            m += 1.0
+        return m
+
+    def _geo_room_context(self, state):
+        """room_context in geometric mode: the ambient light at the robot's eye (a lit flashlight or headlamp: at least
+        0.5), m = the viewpoint terms plus the light term."""
+        from . import camera
+        from .perception import flashlight_on
+        robot = state["robot"]
+        rid = robot["room"]
+        world = self.env.world if getattr(self.env.world, "s", None) is state else None
+        light = camera.ambient_light(state, rid, world) if rid in state["rooms"] else 0.0
+        if flashlight_on(state):
+            light = max(light, 0.5)
+        m = self._geo_global_m(state) + _light_m(light)
+        pos = tuple(robot.get("pos") or (0, 0))
+        key = "{}:{}:{}:{}".format(pos, int(light * 4), int(_lens(state) * 4), robot.get("speed_mode", "normal"))
+        return {"light": light, "m": m, "key": key, "rid": rid, "pos": pos}
+
+    def view_context(self, state, info):
+        """The observation context of one target from its ViewInfo (TIER1_CAMERA 11.2): light = the light at the
+        target; dist = range / 0.5 m (cells, kept for compatibility); m = the viewpoint terms + 0.6 log2(128 / px)
+        when fewer than 128 px + 0.8 x occluded + 1.5 below light 0.3 (0.5 below 0.45) + glare (frame or sun 1.0,
+        backlit 1.5)."""
+        m = self._geo_m if getattr(self, "_geo_m", None) is not None else self._geo_global_m(state)
+        light = _num(info.get("light"), 0.0)
+        px = max(_num(info.get("px"), 0.0), 1e-3)
+        occluded = max(0.0, 1.0 - _num(info.get("visible"), 1.0))
+        m += 0.6 * max(0.0, math.log(128.0 / px, 2)) + 0.8 * occluded + _light_m(light) + GLARE_M.get(info.get("glare"), 0.0)
+        return {"dist": _num(info.get("range_m"), 0.0) / 0.5, "light": light, "m": m, "key": "view"}
+
+    def _view_info(self, eid):
+        """The ViewInfo of eid in this step's stationary frames at the current eye (geometric mode): the observation's
+        own while one observe() runs, else camera.acuity (memoized per World write); None when not seen."""
+        if self._geo_infos is not None:
+            return self._geo_infos.get(eid)
+        from . import camera
+        w = self.env.world
+        key = (w.s.get("steps", 0), w.s.get("time_s", 0.0), getattr(w, "mutation_count", None))
+        memo = getattr(self, "_acuity_memo", None)
+        if memo is None or memo[0] != key:
+            memo = self._acuity_memo = (key, {})
+        if eid not in memo[1]:
+            found = camera.acuity(self.env, eid) if eid in w.s["entities"] else None
+            memo[1][eid] = found["view"] if found else None
+        return memo[1][eid]
+
+    def geo_detected(self, state, eid, record, info):
+        """Whether a ViewInfo becomes a perception (TIER1_CAMERA 11.2): shapes, recognize and identify always; detect
+        at 24 px or more; in the 10-24 px band by a fixed draw keyed by (seed, eid, the robot's cell, the frame's
+        45-degree yaw sector, the camera) with p = (px - 10) / 14 - 0.05 x max(0, siblings - 3). A thing the robot
+        inspected (and has not seen move) or found by inspecting what holds it is always detected."""
+        level = info.get("level")
+        if level != "detect":
+            return level in ("shape", "recognize", "identify")
+        px = _num(info.get("px"), 0.0)
+        if px >= sight.PX["detect_sure"] - 1e-9 or info.get("via") == "held":
+            return True
+        clutter = 0
+        if record is not None:
+            if self.knowledge.entity_level(eid, record) >= INSPECT:
+                return True
+            parent = record.get("location")
+            prec = state["entities"].get(parent)
+            if prec is not None:
+                children = self._children(state, parent)
+                if self.knowledge.entity_level(parent, prec) >= INSPECT:
+                    entry = self.knowledge.data.get(parent, {})
+                    if entry.get("fields", {}).get("_contents") == [INSPECT, _digest(sorted(children))]:
+                        return True
+                clutter = max(0, len(children) - 1)
+        p = sight.detect_probability(px, clutter)
+        if p <= 0.0:
+            return False
+        if p >= 1.0:
+            return True
+        pos = tuple(state["robot"].get("pos") or (0, 0))
+        sector = int((_num(info.get("frame_yaw"), 0.0) % 360.0) // 45.0)
+        return self._rng("detect", eid, pos, sector, info.get("via") or "head").random() < p
+
+    def view_dict(self, aid, info, depth=True):
+        """The realistic "view" of a ViewInfo (TIER1_CAMERA 10.6): bearing and elevation to 5 degrees, a distance
+        bucket, range_m only within the depth camera's 0.2-6 m for targets of 24 px or more (a fixed draw per target
+        with sigma 0.01 + 0.005 d^2, to 0.1 m), pixels to 2 significant figures, occlusion in quarters, the camera that
+        saw it and the light at it as a word (not for the depth camera's dark shapes: it measures no light)."""
+        d = _num(info.get("range_m"), 0.0)
+        px = _num(info.get("px"), 0.0)
+        out = {"bearing_deg": _step_round(_num(info.get("bearing_deg"), 0.0), VIEW_ANGLE_STEP),
+               "elev_deg": _step_round(_num(info.get("elev_deg"), 0.0), VIEW_ANGLE_STEP),
+               "px": _sig2(px), "occluded": round(max(0.0, 1.0 - _num(info.get("visible"), 1.0)), 2),
+               "via": info.get("via")}
+        if info.get("via") != "depth":
+            out["light"] = _bucket(_num(info.get("light"), 0.0), *LIGHT5)
+        estimate = None
+        if depth and RANGE_DEPTH_M[0] - 1e-9 <= d <= RANGE_DEPTH_M[1] + 1e-9 and px >= RANGE_PX - 1e-9:
+            sigma = 0.01 + 0.005 * d * d
+            estimate = max(0.1, round((d + self._rng("range_m", aid).gauss(0.0, sigma)) * 10.0) / 10.0)
+            out["range_m"] = estimate
+        out["dist"] = _view_dist(estimate if estimate is not None else d)
+        return out
 
     def _glare(self, state, rid):
         from . import clock
@@ -993,7 +1213,11 @@ class Realism:
         return "unidentified " + what
 
     # ----- records ---------------------------------------------------------------------------------------
-    def perceive_record(self, state, eid, record, ctx=None, level_floor=GLANCE, dark=False):
+    def perceive_record(self, state, eid, record, ctx=None, level_floor=GLANCE, dark=False, geo=None):
+        """The perceived record of a visible entity. geo (geometric camera, identify level): {"faces": faces seen
+        this step, "inspect": the view resolves it for a close look, "decl": its declared faces} -- glance fields that
+        need inspect acuity (a type's perception "acuity") and face-gated fields whose face was not seen are dropped
+        unless a grant of them still holds."""
         ctx = ctx or self.context(state, eid, record)
         out = {}
         if dark:
@@ -1017,7 +1241,9 @@ class Realism:
                 tier = table.get(field)
                 if tier is None:
                     tier = "never" if field.endswith(HIDDEN_SUFFIXES) or field.startswith(HIDDEN_PREFIXES) else "inspect"
-            if tier == "never":
+            if tier == "never" or (field == "view" and isinstance(value, dict)):
+                continue
+            if geo is not None and self._geo_drops(state, eid, record, field, tier, geo):
                 continue
             if hooks is not None:
                 alt = self._hooked(hooks, state, eid, record, field)
@@ -1061,6 +1287,110 @@ class Realism:
             if group is not None and not portion:
                 self._group_values(eid, record, out, gname, group, ctx, felt, always=True)
         return dict(sorted(out.items()))     # field order must not reveal the type
+
+    # ----- geometric camera: rendering by view level (TIER1_CAMERA 11.1) --------------------------------------
+    def acuity_need(self, record, field):
+        """The view level a glance field needs in geometric mode: the entity's own _perception "acuity", else its
+        type's perception "acuity" ({field: "recognize" | "identify" | "inspect"}), else "recognize" for
+        RECOGNIZE_FIELDS and "identify" for every other glance field."""
+        own = record.get("_perception")
+        if isinstance(own, dict) and isinstance(own.get("acuity"), dict) and own["acuity"].get(field) in ACUITY_NEED:
+            return own["acuity"][field]
+        found = self.tiers(record).get("_acuity:" + field)
+        if found:
+            return found
+        return "recognize" if field in RECOGNIZE_FIELDS else "identify"
+
+    def _geo_drops(self, state, eid, record, field, tier, geo):
+        """Identify-level rendering in geometric mode: True to leave `field` out -- a glance field that needs inspect
+        acuity when the view does not resolve the thing that well, or a field gated by a declared face (4.6) that no
+        current frame saw -- unless a grant of it still holds (the robot read or examined it before)."""
+        if tier == "glance" and not geo["inspect"] and self.acuity_need(record, field) == "inspect" \
+                and not self.knowledge.holds(eid, record, field):
+            return True
+        decl = geo["decl"]
+        if decl:
+            face = sight.gated_face(state, eid, field)
+            if face is not None and face in decl and face not in geo["faces"] and \
+                    not self.knowledge.holds(eid, record, field):
+                return True
+        return False
+
+    def perceive_view(self, state, eid, record, info, ctx=None):
+        """The perceived record of an entity the camera's step view detected (TIER1_CAMERA 11.1), at the view level
+        of its best current frame and its tracked identity: "shape" a dark shape; "detect" an object (size class,
+        shape, place; colour in light 0.15 when not backlit); "recognize" adds its category word (a look-alike its
+        group descriptor, a novel thing "unfamiliar object") and the large-scale states of RECOGNIZE_FIELDS (and
+        fields whose acuity is "recognize"), and a container's fill bucket from 48 px; "identify" the full glance
+        rendering. Below identify, identity fields follow the tracked identity (the best level the thing was seen at
+        since it last moved) and fields whose grant still holds stay; the field set never depends on the type
+        beyond the record's own large-scale states (unresolved look-alikes: LOOKALIKE_FIELDS only). Adds "view"."""
+        ctx = ctx or self.view_context(state, info)
+        level = VIEW_LEVELS.get(info.get("level"), 0)
+        sv_depth = self._geo_view.depth if self._geo_view is not None else True
+        if level <= 0:
+            out = self.perceive_record(state, eid, record, ctx, dark=True)
+        elif level >= VIEW_LEVELS["identify"]:
+            decl = _declared_faces(state, eid)
+            geo = {"faces": set(info.get("faces") or ()), "decl": decl,
+                   "inspect": info.get("via") == "held" or sight.inspect_capable(_num(info.get("px"), 0.0),
+                                                                                  _num(info.get("light"), 0.0))}
+            out = self.perceive_record(state, eid, record, ctx, geo=geo)
+        else:
+            out = self._perceive_below(state, eid, record, info, ctx, level)
+        out["view"] = self.view_dict(eid, info, depth=sv_depth)
+        return dict(sorted(out.items()))
+
+    def _perceive_below(self, state, eid, record, info, ctx, level):
+        full = self.perceive_record(state, eid, record, ctx)
+        has_knowledge = eid in self.knowledge.data
+        ident_level = max(level, self.knowledge.ident_level(eid, record)) if has_knowledge else level
+        ident, gname, group, portion = self._identify(eid, record, self.knowledge.entity_level(eid, record))
+        unresolved = _unidentified(ident, record)
+        if ident_level >= VIEW_LEVELS["identify"]:
+            out = {k: copy.deepcopy(v) for k, v in ident.items()}        # tracked: who it is, not how it is
+        elif ident_level == VIEW_LEVELS["recognize"]:
+            out = self._recognized_identity(record, ident, unresolved)
+        else:
+            out = {"label": "object", "kind": "unknown"}
+        keep = set(DETECT_FIELDS)
+        light = _num(info.get("light"), 0.0)
+        if light >= COLOR_LIGHT - 1e-9 and info.get("glare") != "backlit":
+            keep.add("color")
+        if level >= VIEW_LEVELS["recognize"]:
+            keep |= {k for k in full if k in RECOGNIZE_FIELDS or self.acuity_need(record, k) == "recognize"}
+            if _num(info.get("px"), 0.0) >= FILL_PX - 1e-9:
+                keep.update(FILL_FIELDS)
+        if has_knowledge:
+            # what an action let the robot learn about it (an inspection, a reading, a measurement) and still holds
+            keep |= {k for k in full if k not in IDENTITY_KEYS and self.knowledge.level(eid, record, k) >= INSPECT}
+        if unresolved:
+            keep &= LOOKALIKE_FIELDS | {k for k in full if self.knowledge.level(eid, record, k) >= TOUCH}
+        for key in sorted(keep):
+            if key in full and key not in out:
+                out[key] = full[key]
+        out["size_class"] = full.get("size_class") or size_class(record)
+        out["shape"] = self._shape_shown(record, gname, group, unresolved and not portion)
+        return out
+
+    @staticmethod
+    def _recognized_identity(record, ident, unresolved):
+        """Identity at recognize: an unresolved look-alike's or portion's group identity, "unfamiliar object" for a
+        novel thing, else the category word."""
+        if record.get("novel") or (ident.get("kind") == "unknown" and "shape" in ident):
+            return {"label": "unfamiliar object", "kind": "unknown"}
+        if unresolved:
+            return {k: copy.deepcopy(v) for k, v in ident.items() if k in IDENTITY_KEYS}
+        category = str(record.get("category") or "object")
+        return {"label": category.replace("_", " "), "kind": category}
+
+    def _shape_shown(self, record, gname, group, by_group):
+        """The coarse shape word of a thing (from its group's typical size for an unresolved look-alike)."""
+        if by_group and group is not None:
+            size = self.group_glance(gname, group)["size_m"]
+            if size is not MISSING and size:
+                return _shape({"size_m": size})
+        return _shape(record)
 
     def _group_values(self, eid, record, out, name, group, ctx, felt=(), always=False):
         """An unresolved look-alike shows its group's color and size (group keys, else the common member values)
@@ -1239,6 +1569,10 @@ class Realism:
     def missed(self, state, eid, record, ctx):
         if record.get("location") == "robot" or record.get("relation") == "held":
             return False
+        if isinstance(state["robot"].get("view"), dict):
+            # geometric camera: the detection band replaces this rule (11.2); a thing in no current frame is missed
+            info = self._view_info(eid)
+            return info is None or not self.geo_detected(state, eid, record, info)
         size = record.get("size_m") or [0.1, 0.1, 0.1]
         try:
             largest = max(float(v) for v in size[:3])
@@ -1319,6 +1653,9 @@ class Realism:
                 entry = self.knowledge.data.get(eid)
                 if entry is not None and entry["sig"] == self.knowledge.signature(before):
                     entry["sig"] = self.knowledge.signature(after)      # the robot knows it pushed it there
+                    ident = entry.get("ident")
+                    if ident and ident[1] == self.knowledge.signature(before):
+                        entry["ident"] = [ident[0], entry["sig"]]       # ... and still knows what it is
 
     def commit_grants(self, ok):
         grants, self.pending = self.pending, []
@@ -1329,6 +1666,9 @@ class Realism:
                 record = state["entities"].get(eid)
                 entry = self.knowledge.data.get(eid)
                 if record is not None and entry is not None:
+                    ident = entry.get("ident")
+                    if ident and ident[1] == entry["sig"]:
+                        entry["ident"] = [ident[0], self.knowledge.signature(record)]
                     entry["sig"] = self.knowledge.signature(record)     # it moved with the robot, not unseen
         self._held_before = set()
         self._step_changes(ok)
@@ -1376,18 +1716,24 @@ class Realism:
             return self._dark_now
         robot = state.get("robot") or {}
         rid = robot.get("room")
-        dark = bool(rid in state.get("rooms", {}) and not self.env.perception.lit(state, rid))
+        dark = bool(rid in state.get("rooms", {}) and self.env.perception.seen_dark(state, rid))
         view = (rid, dark)
         if dark and self._last_view != view:
             self._spell += 1
         self._last_view = view
-        if not dark:
+        # geometric camera: people and pets the last step's view saw but could not identify (a depth shape, too far,
+        # too dim or hazy) are shapes too, each keyed per sighting (note_step)
+        keyed = self._geo_keyed if isinstance(robot.get("view"), dict) else ()
+        if not dark and not keyed:
             return {}
         out = {}
         for group in ("people", "pets"):
             for aid, agent in sorted((state.get(group) or {}).items()):
                 if agent.get("location") == rid and aid not in out:
-                    out[aid] = self.handles.handle("shape:{}:{}".format(aid, self._spell))
+                    if dark:
+                        out[aid] = self.handles.handle("shape:{}:{}".format(aid, self._spell))
+                    elif aid in keyed:
+                        out[aid] = self.handles.handle("shape:{}:g{}".format(aid, self._geo_spell.get(aid, 0)))
         return out
 
     def _type_stems(self):
@@ -1422,6 +1768,9 @@ class Realism:
         state = self.env.world.s
         dark = self._dark_agents(state)
         agents = {a.lower() for group in ("people", "pets") for a in (state.get(group) or {})}
+        # who cannot be named by id: everyone while the robot's room is dark; in a lit room (geometric camera) the
+        # people and pets the camera could not identify
+        unnamed = agents if (self._last_view and self._last_view[1]) else {a.lower() for a in dark}
         public = {r.lower() for r in state.get("rooms", {})} | agents | {"robot"}
         lowered = getattr(self, "_lower_ids", None)
         if lowered is None or lowered[0] != (len(state["entities"]), len(self._ever)):
@@ -1437,8 +1786,11 @@ class Realism:
                 low_value = value.strip().lower()
                 if HANDLE_RE.match(value.lower()):
                     return self._resolve_handle(value.lower(), state, dark)
-                if entity_param and dark and low_value in agents:
-                    raise ActionError(DARK_WHO, "perception")
+                if entity_param and dark and low_value in unnamed:
+                    if not (self._last_view and self._last_view[1]):
+                        # a lit room: the geometric camera saw them too far, backlit or too dim to tell who it is
+                        raise ActionError(FAR_WHO, "perception")
+                    raise ActionError(DARK_WHO if body.imaging(state) else BLIND_WHO, "perception")
                 if entity_param and low_value in entities and low_value not in public:
                     raise ActionError("That is not visible here", "perception")
 
@@ -1836,7 +2188,14 @@ class Realism:
     # ----- observation -----------------------------------------------------------------------------------
     def observe(self):
         self._room_ctx = self._plain_now = self._dark_now = None
+        self._geo_infos = self._geo_view = self._geo_m = None
         state = self.env.world.s
+        if isinstance(state["robot"].get("view"), dict):
+            # geometric camera: this step's view (cached by camera.end_step; computed now after reset or an edit)
+            from . import camera
+            self._geo_view = camera.step_view(self.env)
+            self._geo_infos = self._view_infos(self._geo_view)
+            self._geo_m = self._geo_global_m(state)
         self._room_ctx = self.room_context(state)
         self._dark_now = self._dark_agents(state)
         self._plain_now = self._plain_ids(state)
@@ -1844,6 +2203,15 @@ class Realism:
             return self._observe()
         finally:
             self._room_ctx = self._plain_now = self._dark_now = None
+            self._geo_infos = self._geo_view = self._geo_m = None
+
+    @staticmethod
+    def _view_infos(view):
+        out = {}
+        if view is not None:
+            for table in (view.pets, view.people, view.entities):
+                out.update(table)
+        return out
 
     def _observe(self):
         env = self.env
@@ -1853,22 +2221,35 @@ class Realism:
         visible = {}
         perceived_ids = set()
         dark = base.get("dark")
+        geo = self._geo_view is not None
         missed, phantoms = set(), []
         for eid in sorted(base["visible_entities"], key=lambda e: len(self._chain(state, e))):
             record = state["entities"].get(eid)
             if record is None:
                 continue
-            ctx = self.context(state, eid, record)
-            if record.get("location") in missed or (not dark and self.missed(state, eid, record, ctx)):
-                missed.add(eid)
-                continue
             base_rec = base["visible_entities"][eid]
-            is_dark_shape = base_rec.get("label") == "dark shape"
-            perceived_ids.add(eid)
-            visible[eid] = self.perceive_record(state, eid, record, ctx, dark=is_dark_shape)
-            for key, value in base_rec.items():
-                if key != "label" and key not in visible[eid]:
-                    visible[eid][key] = value      # observers' percepts (added to the record) are kept
+            if geo:
+                # geometric camera: what a current frame detected, at its view level (11.1), after the detection band
+                info = base_rec.get("_view")
+                if not isinstance(info, dict) or not self.geo_detected(state, eid, record, info):
+                    continue
+                perceived_ids.add(eid)
+                visible[eid] = self.perceive_view(state, eid, record, info)
+                if VIEW_LEVELS.get(info.get("level"), 0) >= VIEW_LEVELS["identify"]:
+                    for key, value in base_rec.items():
+                        if key not in ("label", "_view") and key not in visible[eid]:
+                            visible[eid][key] = value      # observers' percepts are kept for what is identified
+            else:
+                ctx = self.context(state, eid, record)
+                if record.get("location") in missed or (not dark and self.missed(state, eid, record, ctx)):
+                    missed.add(eid)
+                    continue
+                is_dark_shape = base_rec.get("label") == "dark shape"
+                perceived_ids.add(eid)
+                visible[eid] = self.perceive_record(state, eid, record, ctx, dark=is_dark_shape)
+                for key, value in base_rec.items():
+                    if key != "label" and key not in visible[eid]:
+                        visible[eid][key] = value      # observers' percepts (added to the record) are kept
             if record.get("category") == "mirror" or record.get("reflective"):
                 if self.knowledge.entity_level(eid, record) < INSPECT and not dark:
                     # an un-inspected mirror looks like an opening onto this same room: listed with the room's
@@ -1878,6 +2259,15 @@ class Realism:
                                      "width_m": round(float((record.get("size_m") or [0.8])[0]), 1), "cell": record.get("pos"),
                                      "door": eid})
         obs = base
+        missed_agents = set()
+        if geo:
+            # people and pets in the detection band are detected by the same fixed draw as things
+            for group_name in ("people", "pets"):
+                for aid, rec in list((obs.get(group_name) or {}).items()):
+                    info = rec.get("_view") if isinstance(rec, dict) else None
+                    if not isinstance(info, dict) or not self.geo_detected(state, aid, None, info):
+                        obs[group_name].pop(aid, None)
+                        missed_agents.add(aid)
         # doors: whether a door is locked is learned by trying it or looking closely, not from across the room
         for conn in obs.get("connections", []):
             door = conn.get("door")
@@ -1902,7 +2292,7 @@ class Realism:
                 item = dict(item, kind=shown)
             elif item.get("kind") == "sleeping":
                 item = dict(item, kind="lying")      # asleep vs resting is not visible from a distance
-            if src in state["entities"] and src not in perceived_ids:
+            if src in state["entities"] and src not in perceived_ids or src in missed_agents:
                 continue
             srec = state["entities"].get(src) or {}
             if (srec.get("category") == "mirror" or srec.get("reflective")) and self.knowledge.entity_level(src, srec) < INSPECT:
@@ -1935,8 +2325,27 @@ class Realism:
             # and listed in handle order
             shapes = self._dark_now or {}
             for group_name, word in (("people", "person"), ("pets", "animal")):
-                found = {shapes.get(pid, pid): {"label": word, "location": p.get("location"), "pos": p.get("pos")}
-                         for pid, p in obs.get(group_name, {}).items()}
+                found = {}
+                for pid, p in obs.get(group_name, {}).items():
+                    shown = {"label": word, "location": p.get("location"), "pos": p.get("pos")}
+                    if geo and isinstance(p.get("_view"), dict):
+                        shown["view"] = self.view_dict(pid, p["_view"], self._geo_view.depth)
+                    found[shapes.get(pid, pid)] = shown
+                obs[group_name] = {k: found[k] for k in sorted(found)}
+        elif geo:
+            # geometric camera, lit room: the people and pets the view could not identify are shapes keyed by their
+            # sighting handle; everyone listed gets the realistic view
+            shapes = self._dark_now or {}
+            for group_name, word in (("people", "person"), ("pets", "animal")):
+                found = {}
+                for pid, p in obs.get(group_name, {}).items():
+                    info = p.pop("_view", None)
+                    shown = p
+                    if pid in shapes:
+                        shown = {"label": word, "location": p.get("location"), "pos": copy.deepcopy(p.get("pos"))}
+                    if isinstance(info, dict):
+                        shown["view"] = self.view_dict(pid, info, self._geo_view.depth)
+                    found[shapes.get(pid, pid)] = shown
                 obs[group_name] = {k: found[k] for k in sorted(found)}
         for pid, person in list(obs.get("people", {}).items()) if not dark else []:
             true = state["people"].get(pid, {})
@@ -1967,7 +2376,9 @@ class Realism:
             elif pet.get("activity") in ("sleeping", "resting"):
                 pet.pop("activity", None)             # a pet dozing sitting up keeps its posture; sleep is not visible
         obs["holding"] = list(obs.get("holding", []))
-        # channels and messages: ids of things not perceived become 'something'
+        if geo and isinstance(obs.get("camera"), dict):
+            obs["camera"] = self._camera_channel(obs["camera"])
+        # channels and messages: ids of things not perceived become 'something' (the camera and lidar blocks too)
         channels = {k: v for k, v in obs.items() if k not in ("visible_entities", "room", "connections", "robot", "holding",
                                                                "grid", "people", "pets", "room_id")}
         for key, value in channels.items():
@@ -1982,6 +2393,26 @@ class Realism:
         if self.record_observations:
             self.observed.append(copy.deepcopy(obs))
         return obs
+
+    @staticmethod
+    def _camera_channel(block):
+        """obs.camera as the robot knows it (TIER1_CAMERA 10.6): its own pose exactly (proprioception), the light at
+        its eye as a word, the room's coverage to 2 decimals, seen events with bearings to 5 degrees (their ids are
+        translated like any channel: unperceived things become "something")."""
+        out = copy.deepcopy(block)
+        if _num(out.get("light")) is not None:
+            out["light"] = _bucket(_num(out["light"]), *LIGHT5)
+        if _num(out.get("coverage")) is not None:
+            out["coverage"] = round(_num(out["coverage"]), 2)
+        events = []
+        for event in out.get("events") or []:
+            if isinstance(event, dict):
+                event = dict(event)
+                if _num(event.get("bearing_deg")) is not None:
+                    event["bearing_deg"] = _step_round(event["bearing_deg"], VIEW_ANGLE_STEP)
+            events.append(event)
+        out["events"] = events
+        return out
 
     @staticmethod
     def _agent_hazard_kind(group, agent):
@@ -2015,7 +2446,7 @@ class Realism:
         hook_kinds = tuple(k for k in kinds if k not in AGENT_LYING_KINDS)
         cells = set()
         rooms = state.get("rooms", {})
-        if not kinds or rid not in rooms or not self.env.perception.lit(state, rid):
+        if not kinds or rid not in rooms or self.env.perception.seen_dark(state, rid):
             return hook_kinds, cells
         room = rooms[rid]
         # the approach target's own sources, plus sources a motion in progress plans without (navigation_robot's
@@ -2095,6 +2526,48 @@ class Realism:
     def invalidate(self):
         self._room_ctx = None
 
+    # ----- geometric camera: once per step (TIER1_INTEGRATION 1.9 rule 5) -------------------------------------
+    def note_step(self, view):
+        """The engine's once-per-step update from the camera's step view (after camera.end_step; also after reset and
+        at the start of a replay), so nothing here depends on how often observe() runs (C5): tracked identity --
+        each perceived entity's view level where it is now (Knowledge.note_ident) -- and which people and pets the
+        view saw without identifying them (each such sighting gets a new shape handle). No-op in room mode (view
+        None)."""
+        if view is None:
+            return
+        state = self.env.world.s
+        for eid in sorted(view.entities):
+            info = view.entities[eid]
+            record = state["entities"].get(eid)
+            level = VIEW_LEVELS.get(info.get("level"), 0)
+            if record is None or level < VIEW_LEVELS["detect"] or not self.geo_detected(state, eid, record, info):
+                continue
+            self.knowledge.note_ident(eid, record, level)
+        keyed = set()
+        for table in (view.people, view.pets):
+            for aid in sorted(table):
+                info = table[aid]
+                if VIEW_LEVELS.get(info.get("level"), 0) < VIEW_LEVELS["identify"] and \
+                        self.geo_detected(state, aid, None, info):
+                    keyed.add(aid)
+        for aid in sorted(keyed - self._geo_keyed):
+            self._geo_spell[aid] = self._geo_spell.get(aid, 0) + 1
+        self._geo_keyed = keyed
+
+    def perceived_in(self, view):
+        """Ids of the entities, people and pets a realistic observation of `view` lists (the step view's ViewInfos
+        after the detection band): for the sweep's perception.perceived_ids (TIER1_INTEGRATION 1.12)."""
+        if view is None:
+            return set()
+        state = self.env.world.s
+        out = set()
+        for table, entity in ((view.entities, True), (view.people, False), (view.pets, False)):
+            for aid, info in table.items():
+                record = state["entities"].get(aid) if entity else None
+                if (not entity or record is not None) and self.geo_detected(state, aid, record, info):
+                    out.add(aid)
+        return out
+
     # ----- persistence -----------------------------------------------------------------------------------
     def dump(self):
         out = {"handles": self.handles.dump(), "knowledge": self.knowledge.dump()}
@@ -2104,6 +2577,8 @@ class Realism:
             out["dark"] = {"spell": self._spell, "view": list(self._last_view) if self._last_view is not None else None}
         if getattr(self, "_agent_said", None):
             out["said"] = list(self._agent_said)
+        if self._geo_spell or self._geo_keyed:
+            out["geo"] = {"spell": dict(sorted(self._geo_spell.items())), "keyed": sorted(self._geo_keyed)}
         return out
 
     def load(self, data):
@@ -2114,6 +2589,9 @@ class Realism:
         self._spell = int(dark.get("spell") or 0)
         self._last_view = tuple(dark["view"]) if dark.get("view") else None
         self._agent_said = list((data or {}).get("said") or [])
+        geo = (data or {}).get("geo") or {}
+        self._geo_spell = {str(k): int(v) for k, v in (geo.get("spell") or {}).items()}
+        self._geo_keyed = set(geo.get("keyed") or ())
         self._ever = set(self.env.world.s["entities"]) | {e for e in self.handles.by_id if not e.startswith("shape:")} | set(self.gone)
         self.invalidate()
 
@@ -2136,6 +2614,12 @@ class _FastRng:
         return mu + sigma * math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
 
 
+def _lens(state):
+    """Lens clarity as the body reports it (body.sensors_view(state)["clarity"]: camera_clean capped by lens
+    scratches)."""
+    return body.clarity(state)
+
+
 def read_tier_fields(registry, record):
     """Fields legible by reading for this record (kernel defaults, domain field_tiers and the type's perception
     blocks), usable in both perception modes."""
@@ -2150,6 +2634,38 @@ def read_tier_fields(registry, record):
     if isinstance(own, dict):
         fields |= {f for f in own.get("read") or () if isinstance(f, str) and "." not in f}
     return fields
+
+
+def _declared_faces(state, eid):
+    """Names of an entity's declared faces (view.faces and label_facing; sight 4.6): face gating applies only to
+    these."""
+    faces = getattr(sight, "_faces", None)
+    try:
+        return frozenset(faces(state, eid)) if faces is not None else frozenset()
+    except Exception:  # noqa: BLE001 -- a malformed view block gates nothing
+        return frozenset()
+
+
+def _light_m(light):
+    """The light term of the uncertainty m (TIER1_CAMERA 11.2): 1.5 below 0.3, 0.5 below 0.45, else 0."""
+    return 1.5 if light < 0.3 else 0.5 if light < 0.45 else 0.0
+
+
+def _step_round(value, step):
+    """value rounded to a multiple of step (never -0.0)."""
+    return float(round(float(value) / step) * step) + 0.0
+
+
+def _sig2(value):
+    """value to 2 significant figures."""
+    return float("{:.2g}".format(float(value))) + 0.0
+
+
+def _view_dist(d):
+    for limit, word in VIEW_DIST:
+        if d <= limit + 1e-9:
+            return word
+    return "very far"
 
 
 def _visual_estimate(value, rng):

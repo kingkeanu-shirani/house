@@ -32,12 +32,9 @@ import math
 
 from .. import geometry
 from ..plugins import run_hooks
-from . import processes, thermal
-from .processes import blame, dims, finite, num, sibling, top_area_m2
+from . import impact, processes, props, support, thermal
+from .processes import blame, dims, finite, num, top_area_m2
 
-props = sibling("props")
-support = sibling("support")
-impact = sibling("impact")
 
 SURFACE_FILM_MM = 1.5           # water film a flat non-absorbent top holds before it runs off (5.7)
 SOAKED_FLOOR_FILM_MM = 3.0      # an absorbent floor without its own film_mm (grass, soil) soaks a puddle to 3 mm
@@ -906,6 +903,26 @@ def law_open_spill(w, eid, env=None, cmap=None):
     _drain(w, eid, lost)
     tipped = rec.get("orientation") in SIDE_ORIENTATIONS + INVERTED_ORIENTATIONS
     deposit_below(w, eid, lost, liquid, source=eid, cause="tip" if tipped else "tilt")
+    return impact.consequences(w)[start:]
+
+
+def orientation_spill(w, eid, by="robot"):
+    """The open-spill rule for a deliberate orientation (core place's orientation argument): an open container set
+    down on its side or upside down loses what that orientation cannot hold onto what it stands on (tip_spill_l: a
+    wide mouth everything, a narrow neck keeps the volume below it). Core place is the kernel's own verb and no domain
+    handles its orientation, so this applies whatever the open_spill law's state (that law, tilts included, stays
+    deferred for the domains' orientation verbs). Returns the consequence records."""
+    state = w.s
+    rec = state["entities"].get(eid)
+    if rec is None or free_liquid_l(rec) <= 0 or container_closed(rec):
+        return []
+    lost = tip_spill_l(rec, rec.get("orientation"), props.props(state, eid).mouth_frac)
+    if lost < 1e-6:
+        return []
+    start = len(impact.consequences(w))
+    liquid = rec.get("liquid") or "water"
+    _drain(w, eid, lost)
+    deposit_below(w, eid, lost, liquid, source=eid, by=by, cause="tip")
     return impact.consequences(w)[start:]
 
 

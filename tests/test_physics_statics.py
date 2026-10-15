@@ -1304,13 +1304,18 @@ class AttributionAndLedgerTests(PhysCase):
             self.assertEqual(s["stats"]["phys_breaks"], 1)
             self.assertEqual({e["by"] for e in s["event_log"]}, {"robot" if robot_placed else "exogenous"})
 
-    def test_robot_moved_anywhere_under_the_top_support_counts(self):
+    def test_the_robot_arranged_it_its_supports_or_the_failing_load(self):
+        # TIER1_DECISIONS (stage-B review): a sibling the robot moved under the same furniture does not count; the
+        # item itself, a support it rests on, or (for a support failure) the load that made it fail does
         s = self.glass_at_edge()
         put(s, "book", "book", "table", relation="on", spos=[0.1, 0.1], _robot_moved=True)
         w = self.world(s)
-        self.assertTrue(impact.robot_caused(w, "glass"))
+        self.assertFalse(impact.robot_caused(w, "glass"))
+        self.assertTrue(impact.robot_caused(w, "table", load=["book"]))
         self.assertFalse(impact.robot_caused(w, "floor_room"))
         self.assertFalse(impact.robot_caused(w, "ghost"))
+        w.mut("table")["_robot_moved"] = True                            # the robot moved the table it stands on
+        self.assertTrue(impact.robot_caused(w, "glass"))
         clean = self.glass_at_edge()
         w2 = self.world(clean)
         self.assertFalse(impact.robot_caused(w2, "glass"))

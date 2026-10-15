@@ -14,8 +14,9 @@ Falls and drops: fall() owns the robot's own fall (fallen, posture lying, one st
 hook) and drops what it holds through drop_held(), which releases the hands, counts stats.robot_drops and hands the
 item to physics (impact.fall, by="robot") for breakage, spills and the landing cell.
 
-Stage-A library: the fault-kind table is a plain dict; BODY-ENGINE registers ev_fault / ev_clear_fault as the event
-effects "robot.fault" and "robot.clear_fault".
+Registration: importing this module registers nothing in kernel.plugins (the fault-kind table is a plain dict);
+register_plugins(), called through body.register_plugins() by kernel/engine.py, registers ev_fault / ev_clear_fault
+as the event effects "robot.fault" and "robot.clear_fault".
 """
 import random
 
@@ -32,6 +33,7 @@ MAX_SCRATCH = 0.5
 CLEAN_AFTER_WIPE = 0.95     # clarity that stays below this after a clean reveals scratches
 FALL_DAMAGE_HEIGHT_M = 0.4  # a fall from a stool or the stairs damages the actuators
 FALL_DAMAGE_LOAD_KG = 5.0   # so does falling onto a carried load of 5 kg or more (navigation_robot's rule)
+SLIP_REF_M = 10.0          # fault_p.gripper_slip is the chance over 10 m carried (a profile may set gripper_slip_ref_m)
 WATER_KINDS = ("rain", "splash", "spray", "jet", "immersion")
 LEGACY_LOG_KINDS = {
     # log_fault kind -> (fault kinds it names, a condition of the robot's own state that makes it founded)
@@ -247,10 +249,24 @@ def log_fault(w, kind, text=""):
 # ----------------------------------------------------------------------
 # intermittent faults, falls, drops
 
-def slip_check(w, hand, ctx):
-    """After a motion: a hand with an active gripper_slip fault carrying 1 kg or more loses its item with the
-    profile's probability. The draw is seeded by (episode seed, fault id, robot._slips) and _slips counts every
-    draw, so a plan slips at the same moments in every run and replay. Returns the dropped item or None."""
+def slip_probability(state, meters=None):
+    """The chance that a slipping gripper loses its load over one carried walk: the profile's fault_p.gripper_slip
+    per fault_p.gripper_slip_ref_m metres carried (a constant hazard per metre: 1 - (1 - p) ** (meters / ref)), so
+    the same route walked in one go or in ten steps drops the item equally often; meters None (no walk length
+    known): the profile's probability itself."""
+    table = body.profile(state)["fault_p"]
+    p = float(table["gripper_slip"])
+    if meters is None:
+        return p
+    ref = float(table.get("gripper_slip_ref_m", SLIP_REF_M))
+    return 1.0 - (1.0 - p) ** (max(0.0, float(meters)) / ref) if ref > 0 else p
+
+
+def slip_check(w, hand, ctx, meters=None):
+    """After a motion: a hand with an active gripper_slip fault carrying 1 kg or more loses its item with
+    slip_probability (per metre walked when `meters` is given: settle_energy passes the motion record's). The draw is
+    seeded by (episode seed, fault id, robot._slips) and _slips counts every draw, so a plan slips at the same moments
+    in every run and replay. Returns the dropped item or None."""
     state = w.s
     fid = "gripper_slip_" + hand
     eid = (body.get(state, "hands") or {}).get(hand)
@@ -262,10 +278,10 @@ def slip_check(w, hand, ctx):
     draws = int(body.get(state, "_slips"))
     w.robot_m()["_slips"] = draws + 1
     rng = random.Random("body|{}|{}|{}".format(getattr(ctx.env, "seed", 0), fid, draws))
-    if rng.random() >= body.profile(state)["fault_p"]["gripper_slip"]:
+    if rng.random() >= slip_probability(state, meters):
         return None
     detect_fault(w, fid, "slip")
-    drop_held(w, eid, body.profile(state)["carry"]["hand_z_m"], "slip")
+    drop_held(w, eid, body.hand_drop_m(state), "slip")
     ctx.note("{} slipped out of the {} gripper".format(eid, hand))
     return eid
 
@@ -295,16 +311,21 @@ def fall(w, cause, room=None, cell=None, height_m=0.0, damage=None, water=False)
     """The robot falls (at room / cell when given): fallen, posture lying, off any dock or aid; held items drop from
     the carry height plus height_m. Damage (actuator_failed) when the fall is from 0.4 m or more, onto a carried
     load of 5 kg or more, or damage=True (damage=False: never); water=True adds water ingress. Counts stats.falls
-    once, logs it, emits robot_fell and runs the robot_fell hooks. Returns the fall info (empty if already down)."""
+    once, logs it, emits robot_fell and runs the robot_fell hooks. Returns the fall info (empty if already down).
+    A fall off a climbing aid (no cell given) lands beside it -- the cell it was climbed from when that is free, else
+    the nearest free floor cell -- and the aid is no longer occupied by the robot."""
     state = w.s
     if body.get(state, "fallen"):
         return {}
     carried = body.carried_kg(w)
+    aid = body.get(state, "standing_on")
     r = w.robot_m()
     if room is not None:
         r["room"] = room
     if cell is not None:
         r["pos"] = list(cell)
+    elif aid and room is None:
+        _off_the_aid(w, aid)
     r.update(fallen=True, posture="lying", docked=False, charging=False, standing_on=None)
     now = _now(w)
     damaged = damage if damage is not None else (height_m >= FALL_DAMAGE_HEIGHT_M or carried >= FALL_DAMAGE_LOAD_KG)
@@ -324,6 +345,29 @@ def fall(w, cause, room=None, cell=None, height_m=0.0, damage=None, water=False)
     w.emit("robot_fell", cause=cause, room=info["room"], cell=info["cell"], damage=info["damage"])
     run_hooks("robot_fell", w, info)
     return info
+
+
+def _off_the_aid(w, aid):
+    """A robot that falls off a climbing aid lies beside it, and the aid is free again (navigation's climb_on marks it
+    occupied_by the robot; its step_down clears that)."""
+    from . import geometry
+    state = w.s
+    record = state["entities"].get(aid)
+    if record is not None and record.get("occupied_by") == "robot":
+        m = w.mut(aid)
+        m.pop("occupied_by", None)
+        m.pop("occupied_step", None)
+    robot = state["robot"]
+    rid, here = robot.get("room"), robot.get("pos")
+    if rid not in state.get("rooms", {}) or not here:
+        return
+    back = robot.get("nav_climbed_from")
+    blocked = geometry.blocked_cells(state, rid, include_agents=False)
+    if not (isinstance(back, (list, tuple)) and len(back) == 2 and geometry.in_grid(state["rooms"][rid], back) and
+            tuple(int(v) for v in back) not in blocked and list(back) != list(here)):
+        back = geometry.free_floor_cell(state, rid, near=tuple(here), ignore=(aid,))
+    if back is not None and list(back) != list(here):
+        w.robot_m()["pos"] = [int(back[0]), int(back[1])]
 
 
 def self_right_problem(state):
@@ -395,9 +439,14 @@ def normalize_faults(robot, now=0.0):
         raw = states[key]
         if not isinstance(raw, dict):
             raise ValueError("robot.fault_state.{} must be a record".format(key))
-        kind = raw.get("kind") or key
+        kind, side = raw.get("kind"), raw.get("part")
+        if not kind:
+            # the record names its fault by its id alone: "network_down", or a sided id such as "arm_weak_left"
+            kind = key
+            stem, _, hand = key.rpartition("_")
+            if key not in FAULT_KINDS and hand in body.HANDS and stem in FAULT_KINDS:
+                kind, side = stem, side or hand
         spec = _spec(kind)
-        side = raw.get("part")
         fid = fault_id(kind, side)
         latent = bool(raw.get("latent", False))
         record = _new_record(kind, side if spec["part"] in SIDED_PARTS else spec["part"],
@@ -425,6 +474,55 @@ def ev_fault(w, args, env=None):
 def ev_clear_fault(w, args, env=None):
     """Event effect robot.clear_fault {kind, part}."""
     clear_fault(w, fault_id(args["kind"], args.get("part")), args.get("how", "event"))
+    return True
+
+
+# severity ranges of the random fault events (sample_fault_events): the effect's own scale per kind
+SAMPLE_SEVERITY = {"camera_dirty": (0.1, 0.7), "camera_scratched": (0.05, MAX_SCRATCH), "arm_weak": (0.2, 0.9),
+                   "legs_weak": (0.0, 0.6), "battery_degraded": (0.5, 0.95)}
+
+
+def sample_fault_events(rng, count=3, horizon_s=3600.0, kinds=None):
+    """Random robot fault events for fuzzing and robustness runs (tools/fuzz.py --faults random,
+    tools/perception_audit.py --faults random): `count` robot.fault events, the first at 0 s and the others at random
+    times within horizon_s, each of a random registered kind (or one of `kinds`) with a random side, a severity in
+    the kind's SAMPLE_SEVERITY range and, for kinds that can be latent, a random latent flag; about half of the
+    clearable faults also get a robot.clear_fault event later. rng: a random.Random the caller seeds (a replay draws
+    the same events). Returns event dicts for a config's "events" list."""
+    names = sorted(kinds or FAULT_KINDS)
+    events = []
+    for i in range(int(count)):
+        kind = rng.choice(names)
+        spec = _spec(kind)
+        args = {"kind": kind}
+        if spec["part"] in SIDED_PARTS:
+            args["part"] = rng.choice(body.HANDS)
+        if kind in SAMPLE_SEVERITY:
+            lo, hi = SAMPLE_SEVERITY[kind]
+            args["severity"] = round(rng.uniform(lo, hi), 2)
+        if spec["detect"] == LATENT:
+            args["latent"] = rng.random() < 0.5
+        at = 0.0 if i == 0 else round(rng.uniform(0.0, float(horizon_s)), 1)
+        events.append({"at_s": at, "effect": "robot.fault", "args": args})
+        if spec["clear"] is not None and rng.random() < 0.5:
+            clear = {k: args[k] for k in ("kind", "part") if k in args}
+            events.append({"at_s": round(at + rng.uniform(60.0, float(horizon_s)), 1), "effect": "robot.clear_fault",
+                           "args": clear})
+    return events
+
+
+_REGISTERED = []
+
+
+def register_plugins():
+    """Register the event effects "robot.fault" and "robot.clear_fault" (idempotent; called by
+    body.register_plugins, which kernel/engine.py calls once)."""
+    if _REGISTERED:
+        return False
+    from .plugins import hook
+    hook("event:robot.fault")(ev_fault)
+    hook("event:robot.clear_fault")(ev_clear_fault)
+    _REGISTERED.append(True)
     return True
 
 
@@ -504,7 +602,7 @@ def _arm_failed_onset(w, record):
             r["hands"] = dict(r["hands"], **{side: None})
             w.mut(eid)["held_hand"] = other
         else:
-            drop_held(w, eid, body.profile(state)["carry"]["hand_z_m"], "arm_failed")
+            drop_held(w, eid, body.hand_drop_m(state), "arm_failed")
 
 
 def _scratch_lens(robot, record):

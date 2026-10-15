@@ -457,8 +457,9 @@ class HandOverTests(unittest.TestCase):
         self.assertEqual(ent(e, "bag")["held_hand"], "both")
         m.add("ball", "ball", "living")
         e = m.env(hold={"left": "ball"})
-        ok(self, e.step("receive", "bag"))
-        self.assertEqual(ent(e, "bag")["location"], "living")
+        refused = e.step("receive", "bag")                            # BODY-CORE: refused at lift-off, not dropped
+        self.assertEqual((refused["ok"], refused["message"]), (False, "Both hands must be free for this item"))
+        self.assertEqual(ent(e, "bag")["location"], "ana")
 
 
 class ThrowCatchTests(unittest.TestCase):

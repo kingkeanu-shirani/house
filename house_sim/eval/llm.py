@@ -496,8 +496,18 @@ def catalog_text(catalog, doc_chars=120):
     return "\n".join(lines)
 
 
+# the geometric camera (kernel v3.0): only episodes whose catalog offers the camera verbs get this paragraph
+CAMERA_PROMPT = """
+- Cameras: you see only what the robot's head camera frames from where it stands, in the direction it faces (things behind you, under or behind furniture or too far away are not listed). A far or small thing shows only as an "object" with its size class, then its category, and its full description once you are close; each listed thing has a "view": bearing_deg relative to your heading (positive is to your right), elev_deg, a distance word and range_m when the depth camera measures it, px (how large it looks), occluded and the light at it. Turn with face; look around (target "around"; rows 2 adds a lower row for the floor), look up, down, left, right or at something; peek under, behind, inside or on top of something within reach, or closely at something you hold. obs.camera gives your pose (facing, pan, tilt, eye height), the frames taken this step, glare, the light and how much of this room's floor you have seen (coverage); obs.lidar gives the free distance in 24 sectors around you."""
+CAMERA_VERBS = ("face", "peek")
+
+
 def system_prompt(catalog, tool_mode=True, doc_chars=120):
-    return SYSTEM_PROMPT.format(format=TOOL_FORMAT if tool_mode else JSON_FORMAT, catalog=catalog_text(catalog, doc_chars))
+    text = SYSTEM_PROMPT.format(format=TOOL_FORMAT if tool_mode else JSON_FORMAT, catalog=catalog_text(catalog, doc_chars))
+    if any(item.get("name") in CAMERA_VERBS for item in catalog or ()):
+        anchor = "\n- Every command, including a refused one"
+        text = text.replace(anchor, CAMERA_PROMPT + anchor, 1)
+    return text
 
 
 BORING = {"soil": {"overall": "clean"}, "wetness": "looks dry", "temperature_c": "room temperature"}

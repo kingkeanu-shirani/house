@@ -12,11 +12,23 @@
 
 These are approximate physical models (fidelity label "P-approx"), not rigid-body,
 fluid or deformable simulation.
+
+Kernel v3.0 (tier-1 physics, docs/PHYSICS.md): this module is the facade and the one place the physics layer
+(house_sim/kernel/phys/) is wired into the engine. It registers the systems physics.environment (47, wind and rain on
+objects) and physics.processes (48, timed checks and continuous processes), runs the kernel thermal system through
+phys.thermal.thermal_step (the active-set optimisation; temperature writes through World.set_quiet), the physics.*
+perturbation event effects (phys/events.py), the observer physics.sounds and the inspector physics (phys/observe.py),
+and registers the settle laws with the lawbook (register_laws, on the first settle). It re-exports the layer's public
+functions (physics.fall, physics.spill, physics.lift_plan, ...). Owners: thermal_owner (or the older
+fixed_temperature) makes the kernel thermal system leave an entity to its domain; tau_s follows the deferred
+thermal_tau law.
 """
+import hashlib
 import math
+from pathlib import Path
 
 from .errors import ActionError, require
-from .plugins import run_hooks, system
+from .plugins import hook, inspector, observer, run_hooks, system
 
 
 def room_temperature(state, rid):
@@ -92,11 +104,19 @@ def ambient(state, eid):
     return room_temperature(state, rid), 1.0
 
 
-def tau_s(entity):
+def legacy_tau_s(entity):
+    """The kernel's pre-v3.0 time constant: an explicit thermal_tau_s, else 300 sqrt(mass + liquid) + 60 s."""
     if entity.get("thermal_tau_s"):
         return float(entity["thermal_tau_s"])
     mass = max(0.01, float(entity.get("mass_kg", 0.4)) + float(entity.get("liquid_l", 0.0)))
     return 300.0 * math.sqrt(mass) + 60.0
+
+
+def tau_s(entity):
+    """Thermal time constant (s) the kernel uses: the lumped m c / (h A) of the thermal_tau law once it is active
+    (phys.thermal.tau_s), until then legacy_tau_s."""
+    from .phys import thermal
+    return thermal.kernel_tau_s(entity)
 
 
 def _room_map(state):
@@ -133,8 +153,9 @@ def _room_map(state):
     return memo
 
 
-@system("thermal", order=50, max_dt=120.0, period=120.0)
 def thermal_system(w, dt, tick):
+    """The pre-v3.0 kernel thermal step (kept as the reference phys.thermal.thermal_step is proven identical to; the
+    registered system is thermal_kernel below)."""
     state = w.s
     entities = state["entities"]
     temps = {rid: room_temperature(state, rid) for rid in state["rooms"]}
@@ -153,7 +174,7 @@ def thermal_system(w, dt, tick):
         current = float(entity["temperature_c"])
         if abs(target - current) < 0.05:
             continue
-        k = 1.0 - math.exp(-dt * coupling / tau_s(entity))
+        k = 1.0 - math.exp(-dt * coupling / legacy_tau_s(entity))
         w.mut(eid)["temperature_c"] = round(current + (target - current) * k, 3)
 
 
@@ -232,3 +253,86 @@ def appliance_system(w, dt, tick):
             m["state"] = "done"
             run_hooks_typed("cycle_complete", w, eid, w.ent(eid))
             w.emit("cycle_complete", target=eid)
+
+
+# ----- the tier-1 physics layer (kernel v3.0): registrations and the facade --------------------------------------------
+# Wired here and nowhere else (TIER1_INTEGRATION 1.16): the library modules under kernel/phys/ register nothing.
+
+PHYSICS_DATA = Path(__file__).resolve().parent.parent / "data" / "physics"
+_VERSION = []
+
+
+def physics_version():
+    """Digest of the physics data (data/physics/*.json, line endings normalized), recorded in replays
+    (metadata.physics_version): a replay recorded under other physics data may diverge."""
+    if not _VERSION:
+        sha = hashlib.sha256()
+        for path in sorted(PHYSICS_DATA.glob("*.json")):
+            sha.update(path.name.encode("utf-8") + b"\0")
+            sha.update(path.read_bytes().replace(b"\r\n", b"\n") + b"\0")
+        _VERSION.append(sha.hexdigest()[:16])
+    return _VERSION[0]
+
+
+def register_laws():
+    """Register the kernel's settle laws (phys impact, liquids and thermal LAWS) with the lawbook. Called by the
+    settle pass before it reads lawbook.laws(); idempotent (the lawbook ignores a function registered again), so the
+    lawbook's own table stays empty in processes that never settle."""
+    from .phys import impact as _impact_laws, lawbook as _lawbook, liquids as _liquid_laws, thermal as _thermal_laws
+    if len(_lawbook.laws()) >= _LAW_COUNT[0]:
+        return
+    tables = _impact_laws.LAWS + _liquid_laws.LAWS + _thermal_laws.LAWS
+    for law_id, order, fn in tables:
+        _lawbook.law(law_id, order)(fn)
+    _LAW_COUNT[0] = len(tables)
+
+
+_LAW_COUNT = [1 << 30]       # set to the number of kernel laws once registered
+
+
+from .phys import environment as _environment, events as _events, observe as _observe  # noqa: E402
+from .phys import processes as _processes, thermal as _thermal  # noqa: E402
+
+
+@system("physics.environment", order=47, max_dt=30.0)
+def physics_environment(w, dt, tick):
+    """Wind and rain on objects while the wind / rain laws are active (phys/environment.py)."""
+    _environment.run(w, dt, tick)
+
+
+@system("physics.processes", order=48, max_dt=30.0)
+def physics_processes(w, dt, tick):
+    """Timed physics checks and continuous processes (phys/processes.py): creep, rolling, drips, leaks, contact heat,
+    freezing and melting."""
+    _processes.run(w, dt, tick)
+
+
+@system("thermal", order=50, max_dt=120.0, period=120.0)
+def thermal_kernel(w, dt, tick):
+    """The kernel thermal system: phys.thermal.thermal_step (Newton relaxation toward each entity's ambient with the
+    active-set optimisation; thermal_owner entities and phase plateaus are left to their owners). Temperature writes go
+    through World.set_quiet (journaled per field, no record copy), so they are no touches for the settle pass."""
+    _thermal.thermal_step(w, dt, tick, setter=w.set_quiet)
+
+
+observer("physics.sounds", order=125)(_observe.sounds)
+inspector("physics", order=150)(_observe.inspect)
+for _name, _fn in _events.EFFECTS:
+    hook("event:" + _name)(_fn)
+
+
+# public names of the layer (from house_sim.kernel import physics; physics.fall(...))
+from .phys.contain import choking_hazard, fits, opening_ok  # noqa: E402,F401
+from .phys.environment import exposed, rain_wet, wind_effect, wind_force_n  # noqa: E402,F401
+from .phys.forces import friction, lift_plan, max_push_n, push_needed_n, robot_caps, scratch, tips_when_pushed  # noqa: E402,F401
+from .phys.impact import (break_entity, collapse, crush, damage, fall, knock, landing_cell, robot_caused,  # noqa: E402,F401
+                          setdown, slide, tear, tip_over)
+from .phys.lawbook import active as law_active  # noqa: E402,F401
+from .phys.liquids import absorb, drip_start, drip_stop, evaporation_mm_s, overflow, spill, transfer, wet  # noqa: E402,F401
+from .phys.observe import emit_consequence  # noqa: E402,F401
+from .phys.props import floor_props, liquid_props, material_class, props, vary  # noqa: E402,F401
+from .phys.settle import settle, travel_of  # noqa: E402,F401
+from .phys.statics import edge_margin_m, stability, tip_accel_g, tip_margin_nm  # noqa: E402,F401
+from .phys.support import children_map, held_envelope, resting_size, subtree_mass, support_of, top_support  # noqa: E402,F401
+from .phys.thermal import (burn_seconds, contact_check, dew_point_c, freeze_burst_check, heat_content_j,  # noqa: E402,F401
+                           heat_limit_c, shock_check)

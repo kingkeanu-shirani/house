@@ -39,13 +39,9 @@ import weakref
 from .. import geometry
 from ..plugins import run_hooks
 from ..predicates import root_room
-from . import liquids, processes
-from .processes import blame, dims, finite, num, sibling, top_area_m2
+from . import impact, lawbook, liquids, processes, props, support
+from .processes import blame, dims, finite, num, top_area_m2
 
-props = sibling("props")
-lawbook = sibling("lawbook")
-support = sibling("support")
-impact = sibling("impact")
 
 G = 9.81
 RHO_AIR = 1.2                   # kg/m3 (5.10; 1.225 at 15 degC sea level)
@@ -56,6 +52,8 @@ FLAT_RATIO = 0.1                # a sheet: height at most 10 % of its smaller fo
 FLEXIBLE_M = 0.005              # sheets thinner than 5 mm flex (napkins, paper, cloth); thicker ones are rigid
 SECURED_N = 400.0               # a tie-down, clip or strap without a stated rating (outdoor_plants' default)
 MU_LOWEST = 0.1                 # no resting contact grips less (furniture sliders, 0.08, are feet, not items)
+CASTER_CRR_LOWEST = 0.005       # free-rolling casters on the smoothest floor (the cheap bound for things on casters)
+TYRE_FOOT = "rubber"            # floors.json feet kind of a wheel's tyre: rubber grips (floor mu x 2, capped at 1.0)
 CALM_MPS = 2.5                  # below this wind nothing outdoors moves (6.3)
 GROUND_EXPOSURE = (0.4, 0.6)    # (mean, gust) at about 1 m in a suburban yard, of the weather's 10 m open values
 ROOM_EXPOSURE = {"balcony": (0.6, 0.75)}      # elevated, on the building's face
@@ -256,6 +254,24 @@ def _downwind_cell(state, rid, cell, direction_deg, distance_m):
     return [min(cols - 1, max(0, col)), min(rows - 1, max(0, row))]
 
 
+def contact_mu(state, eid):
+    """Friction the wind has to overcome to slide eid. Something on wheels standing on a floor grips with its tyres:
+    two-wheel bins and carts, barrows and hand trucks stand on rubber tyres plus feet or legs, so they skid only at
+    rubber's friction on that floor (floors.json mu x the rubber foot factor, capped at 1.0) and a tall one blows over
+    in a gust long before it would skid (wheelie bins blow over, they do not slide away); free-rolling casters (not
+    chocked or braked) roll at the floor's c_rr. Anything else slides at its own material's friction (props mu)."""
+    rec = state["entities"][eid]
+    loc = rec.get("location")
+    if loc in state["rooms"] and (rec.get("wheeled") or rec.get("casters")):
+        floor = props.floor_props(state, loc, rec.get("pos"))
+        if rec.get("casters") and not (rec.get("chocked") or rec.get("brakes_on") or rec.get("secured")):
+            return max(CASTER_CRR_LOWEST, num(floor.get("c_rr"), 0.01))
+        kinds = (props.FLOORS.get("feet") or {}).get("kinds") or {}
+        factor = num((kinds.get(TYRE_FOOT) or {}).get("mu_factor"), 2.0)
+        return min(1.0, num(floor.get("mu"), 0.5) * factor)
+    return num(props.props(state, eid).mu, 0.5)
+
+
 def _cannot_move(rec, v, gust=None):
     """A cheap bound before any property lookup: with its own mass only (the load on it can only add), the lowest
     friction and the largest drag coefficient it can have (supports.json rows only lower Cd below CD_DEFAULT),
@@ -269,7 +285,8 @@ def _cannot_move(rec, v, gust=None):
     area = 0.5 * RHO_AIR * cd * frontal_area_m2(rec)
     w_, d_, h_ = _resting_dims(rec)
     tip = weight * min(w_, d_) / h_ if h_ > 0 else math.inf
-    return area * v * v <= MU_LOWEST * (weight - lift_force_n(rec, v)) and area * gust * gust <= tip
+    lowest = CASTER_CRR_LOWEST if rec.get("casters") else MU_LOWEST
+    return area * v * v <= lowest * (weight - lift_force_n(rec, v)) and area * gust * gust <= tip
 
 
 def wind_effect(w, eid, v, direction_deg, by=None, cmap=None, gust_mps=None):
@@ -293,7 +310,7 @@ def wind_effect(w, eid, v, direction_deg, by=None, cmap=None, gust_mps=None):
     lift = lift_force_n(rec, v)
     gust_drag, gust_lift = wind_force_n(rec, gust), lift_force_n(rec, gust)
     hold = secured_n(rec)
-    mu = num(props.props(state, eid).mu, 0.5)
+    mu = contact_mu(state, eid)
     slide_resist = mu * max(0.0, weight - lift) + hold
     gust_resist = mu * max(0.0, weight - gust_lift) + hold
     w_, d_, h_ = _resting_dims(rec)

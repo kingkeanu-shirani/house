@@ -142,8 +142,20 @@ prefixes in a deterministic simulator they never should.
 
 **meta** (all formats): `catalog_id, section, kind, domain, family, title, risk_level, fidelity, spec_hash,
 code_fingerprint, harness_fingerprint, perception_fingerprint, split, seed_tag, seed (train/dev only), variant,
-perception ("realistic"), obs, schema ("house-dataset-v2"), source ("reference" | "wrong")` and, for wrong-plan
-records, `wrong_plan, wrong_index`. (v2 added the two fingerprints; v1 datasets no longer validate: re-export them.)
+perception ("realistic"), camera ("room" | "geometric"), obs, schema ("house-dataset-v3"), source ("reference" |
+"wrong")` and, for wrong-plan records, `wrong_plan, wrong_index`. `camera` is the camera mode the episode ran in (the
+spec's own, else the kernel default, "room" until the geometric camera becomes the realistic default).
+
+### Format versions
+
+The validator accepts only the current `schema`; a dataset of an older version does not validate and is re-exported
+(the export is deterministic, so nothing is lost but time).
+
+| schema | what changed |
+|---|---|
+| `house-dataset-v1` | the first exporter's format |
+| `house-dataset-v2` | `harness_fingerprint` and `perception_fingerprint` in every manifest and record |
+| `house-dataset-v3` | kernel v3.0 (tier-1 physics, camera and robot body): the observations an agent sees changed: realistic `obs.robot` is the robot's proprioception (an integer `battery` gauge equal to the top-level `obs.battery`, `battery_state`, `runtime_min_est`, `range_m_est`, `battery_temp`, `camera`, `hearing`, `network`, `arms`, `legs`, `load`, `grip`, `hand_soil`, detected `faults`; `pos` null while the robot is lost), physics sounds are `{kind, source_hint, loudness[, count]}` with words only, sensor gates empty what a powered-down, blind or deaf robot cannot perceive, and geometric-camera episodes add `obs.camera`, `obs.lidar` and per-record `view` blocks (docs/PERCEPTION.md); `meta.camera` is required (v2 records could omit it) |
 
 ### Observations
 
@@ -152,6 +164,10 @@ records, `wrong_plan, wrong_index`. (v2 added the two fingerprints; v1 datasets 
   empty), as are top-level keys that duplicate others (`instruction` when equal to the record's instruction,
   `battery` / `stopped` when equal to the robot's, `weather_now` when equal to `weather`). List elements and all other
   values are kept, so nothing an agent could perceive is lost. About 15-20 KB per observation in a typical room.
+  Battery rule (v3): in realistic perception the top-level `battery` and `obs.robot.battery` are the same integer
+  gauge (also while the robot is powered down), so a compact observation never repeats the top-level `battery`; read
+  `robot.battery`. Only an environment built without the `proprioception` sensor (its `obs.robot` keeps `pos`,
+  `posture` and `hands`) keeps the top-level value.
 
 ## Dedup, ordering, determinism
 
@@ -242,10 +258,10 @@ gift_for, truth, answer`), which stay errors in every case.
 
 `datasets/sample/` is a small committed export: four entries from different kinds and domains (electrical task,
 navigation task, safety appendix entry, mechanisms adaptability entry), one train seed each, all four formats,
-verified with `--verify-now` (31 records, schema `house-dataset-v2`; last regenerated 2026-10-09 at code fingerprint
-`315f4ee753cf`, harness `265f37ca7402`, perception `8b7b8ff00b32`, so `--validate-dataset` reports `stale` /
-`stale_harness` warnings, not errors, once the simulator or the evaluation tooling changes; a change of the type
-perception tiers adds `stale_perception`). Regenerate with:
+verified with `--verify-now`. Its `manifest.json` records the schema and the three fingerprints of the code that made
+it; `--validate-dataset` reports `stale` / `stale_harness` warnings, not errors, once the simulator or the evaluation
+tooling changes, and a change of the type perception tiers adds `stale_perception`. A new format version (above)
+makes the old sample fail validation, so it is regenerated whenever `SCHEMA` changes. Regenerate with:
 
 ```
 python tools/export_dataset.py datasets/sample --catalog-ids T-5ad61b6881821b-01,T-e780c9db18b3bf-01,X-d734ea3e299b16-01,A-8910a09f802fbf-01 --seeds-per-entry 1 --verify-now --overwrite

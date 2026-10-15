@@ -8,7 +8,8 @@ An agent sees only what a deployed robot policy would see:
 `last_result` is None on the first step and afterwards contains ONLY {"ok", "message", "category"} of the previous
 step. The harness never passes evaluation, reward, terminated/truncated, raw (untranslated) messages, the spec, the
 seed or privileged state to an agent. The one exception is ScriptedOracle (privileged = True, labelled in every
-result): the harness calls its prepare(spec, episode, perception) so it can expand the spec's reference plan.
+result): the harness calls its prepare(spec, episode, perception, camera) so it can expand the spec's reference plan
+(camera is passed only to a prepare that accepts it).
 
 Budgets: the harness hands every agent a Budget (bind_budget) with the per-episode token/cost caps and the run-wide
 CostLedger; agents that spend tokens call budget.check(...) before a request and budget.record(...) after it.
@@ -327,8 +328,8 @@ class SearchAgentAdapter(Agent):
 
 # ----------------------------------------------------------------------------------------------------------------
 class ScriptedOracle(Agent):
-    """PRIVILEGED. Runs the spec's reference plan in a shadow environment (same config, task, seed and perception
-    mode, with trace) through the task runner, which expands skills into primitive commands, then replays the
+    """PRIVILEGED. Runs the spec's reference plan in a shadow environment (same config, task, seed, perception and
+    camera mode, with trace) through the task runner, which expands skills into primitive commands, then replays the
     shadow environment's command history (handles as issued) through the normal harness episode, and declares done.
     Scored like any other agent, but labelled privileged=True everywhere."""
     name = "oracle"
@@ -338,15 +339,16 @@ class ScriptedOracle(Agent):
         self.strict = bool(strict)
         self.commands, self.index, self._info = [], 0, {}
 
-    def prepare(self, spec, episode, perception="realistic"):
+    def prepare(self, spec, episode, perception="realistic", camera=None):
         from ..kernel.engine import HouseEnv
         from ..tasks.runner import PlanError, build, run_plan
         seed = episode["seed"]
-        config, task, oracle = build(spec, seed)
+        config, task, oracle = build(spec, seed, camera=camera, perception=perception)   # the episode's own build
         if episode.get("phrasing"):
             from ..tasks.spec import substitute
             task["instruction"] = substitute(episode["phrasing"], oracle["bindings"])
-        shadow = HouseEnv(copy.deepcopy(config), copy.deepcopy(task), seed, perception=perception, trace=True, observe_on_step=True)
+        shadow = HouseEnv(copy.deepcopy(config), copy.deepcopy(task), seed, perception=perception, camera=camera, trace=True,
+                          observe_on_step=True)
         shadow.observe()        # the harness observes once before the first act
         info = {"plan_error": None, "plan_refusals": [], "shadow_success": None, "shadow_steps": 0}
         try:

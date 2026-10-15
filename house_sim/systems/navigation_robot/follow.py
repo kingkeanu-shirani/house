@@ -97,6 +97,7 @@ def _behind_cell(state, rid, person_pos, distance_m, robot_pos):
 
 @action("follow", params={"target": "person", "distance_m": {"type": "number", "default": 1.5, "min": 0.3, "max": 5.0}},
         duration=lambda ctx: max(0.5, ctx.data.get("seconds", 5.0) - ctx.extra_time), energy=0.0, category="physical",
+        timing="speed",
         doc="Follow a person (who asked to be followed) wherever they walk, keeping distance_m behind them (comfortable: "
             "1-2.5 m) through doors and stairs, stopping where they stop. Waits outside if they go into a private room.")
 def follow(ctx):
@@ -200,6 +201,7 @@ def follow(ctx):
                         "pace": {"type": "str", "default": "match", "choices": ["match", "careful", "normal", "fast"]},
                         "avoid_stairs": {"type": "bool", "default": False}, "avoid": "?list", "warn": {"type": "bool", "default": False}},
         duration=lambda ctx: max(0.5, ctx.data.get("seconds", 5.0) - ctx.extra_time), energy=0.0, category="physical",
+        timing="speed",
         doc="Guide a person to a room: open doors for them, walk at a pace (match = their speed), check they keep up. "
             "avoid_stairs takes a step-free route (elevator/ramps); avoid routes around hazard kinds; warn calls out hazards on "
             "the way.")

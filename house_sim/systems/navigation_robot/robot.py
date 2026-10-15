@@ -1,15 +1,17 @@
-"""The robot itself: battery and charging, docking, battery swaps, camera cleaning, getting up
-after a fall, privacy mode, remote help, the fault log, the onboard headlamp, and light/noise
-side effects on sleepers and people on calls.
+"""The robot itself: docking and the dock as a charge source, battery swaps, camera cleaning,
+getting up after a fall, privacy mode, remote help, the fault log, the onboard headlamp, and
+light/noise side effects on sleepers and people on calls.
 
-Battery: walking drains 0.012 %/m (more with load, 0.05 % per stair step up); docking on a
-powered dock charges at the dock's rate (robot_dock 2 %/min, about 50 min from empty). An
-optional idle drain (robot.idle_drain_pct_h) models standby consumption for battery tasks.
-Battery 0 strands the robot (core refuses motion) and is a global failure (invariant).
+Battery (kernel v3.0): the kernel body owns the pack (kernel/body.py, TIER1_EMBODIMENT 4): every
+action and every metre walked is paid for, idle time drains in awake/standby, charging is CC/CV
+with a temperature window, and running out powers the robot down (the kernel invariant
+`robot_stranded`). This domain supplies the dock: `charge_source` (hook robot_charge_source)
+returns the dock's rate (robot_dock 2 %/min) while the robot is seated on its live dock, and
+`robot.dock_powered` follows the dock's power. robot.idle_drain_pct_h is deprecated and ignored.
 """
 import math
 
-from ...kernel import geometry, physics
+from ...kernel import body, geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook, system
@@ -75,6 +77,34 @@ def dock_reachable(state, dock_id):
     return min(geometry.chebyshev(pos, b) for b in body) <= 1
 
 
+def seated_dock(state):
+    """The dock whose contacts the robot sits on (docked, in the dock's room, on its cell): the last dock it used or
+    its home dock, else None."""
+    robot = state["robot"]
+    if not robot.get("docked"):
+        return None
+    rid, pos = robot.get("room"), C.cell(robot.get("pos") or [0, 0])
+    keys = [robot.get(k) for k in ("dock", "home") if robot.get(k) in state["entities"]]
+    for eid in keys or [dock_of(state)]:
+        rec = state["entities"].get(eid or "", {})
+        if rec.get("pos") and rec.get("location") == rid and C.cell(rec["pos"]) == pos:
+            return eid
+    return None
+
+
+@hook("robot_charge_source")
+def charge_source(w):
+    """The body's charge source (TIER1_EMBODIMENT 4.4): the dock's rate in % of the pack per minute (robot_dock
+    2 %/min, about 2.9 kW into 2.4 kWh) while the robot is seated on a live dock, else None. The body applies the
+    pack-temperature window and the CC/CV taper; a seated robot draws its hotel load from the dock. The dock's power
+    is judged now (an outage or a tripped breaker stops the current at once), not from robot.dock_powered."""
+    state = w.s
+    dock_id = seated_dock(state)
+    if dock_id is None or not dock_powered(w, dock_id):
+        return None
+    return C.num(state["entities"][dock_id].get("charge_rate_pct_per_min"), 2.0)
+
+
 @action("dock", params={"target": "?entity"}, duration=lambda ctx: ctx.data.get("seconds", 20.0), energy=0.0, category="physical",
         doc="Back onto a charging dock so the contacts seat and charging starts: the robot's own dock by default; with "
             "target=<robot vacuum or mower> seat that household robot on its dock. The approach must be clear; an unpowered "
@@ -102,14 +132,17 @@ def dock(ctx):
     r = w.robot_m()
     r["pos"] = [d[0], d[1]]
     r["docked"] = True
-    r["charging"] = bool(powered) and C.num(r.get("battery"), 100.0) < 100.0
-    r["dock_powered"] = bool(powered)
+    r["dock_powered"] = bool(powered)       # the body starts charging from the next substep (charge_source)
     r["posture"] = "standing"
     if robot.get("home") != dock_id:
         r["dock"] = dock_id
     C.log(w, "docked", dock=dock_id, powered=bool(powered))
     from . import paths
     paths.update_robot_spot(w)
+    if powered and C.num(r.get("battery"), 100.0) < 100.0 and body.charge_rate(w) <= 0:
+        # the battery management refuses current outside the pack's temperature window (TIER1_EMBODIMENT 4.4)
+        cold = C.num(body.get(state, "battery_temp_c"), 20.0) < body.profile(state)["charge"]["min_c"]
+        return "Docked on {}; the battery is too {} to charge yet".format(dock_id, "cold" if cold else "hot")
     return "Docked on {}{}".format(dock_id, "; charging" if powered else "; no charging current (the dock has no power)")
 
 
@@ -128,8 +161,7 @@ def undock(ctx):
     if cell is None:
         cell = geometry.free_floor_cell(state, rid, near=start)
     r = w.robot_m()
-    r["docked"] = False
-    r["charging"] = False
+    r["docked"] = False                     # no charge source any more: the body stops charging
     if cell:
         r["pos"] = [int(cell[0]), int(cell[1])]
     C.log(w, "undocked")
@@ -149,10 +181,10 @@ def swap_battery(ctx):
     require(C.num(rec.get("temperature_c"), 21.0) <= 45.0, "The pack is too hot to install; let it cool", "safety")
     robot = w.robot
     require(robot.get("hot_swap", True) or robot.get("docked"), "This robot must be on dock power to swap packs; dock first", "capability")
-    old = C.num(robot.get("battery"), 0.0)
     new = C.num(rec.get("charge_pct"), 0.0)
-    r = w.robot_m()
-    r["battery"] = round(new, 3)
+    # the body owns the pack: the new charge, the lowest gauge, a power-down on an empty pack (TIER1_EMBODIMENT 5.1)
+    temp = rec.get("temperature_c")
+    old = body.swap_pack(w, new, temp_c=C.num(temp) if temp is not None else None)["charge_pct"]
     m = w.mut(pack)
     m["charge_pct"] = round(old, 3)
     # the removed pack holds what the robot's own battery gauge read: its charge is now known (a measurement)
@@ -351,37 +383,17 @@ def _spoke(ctx, entry):
 
 
 # ----------------------------------------------------------------------
-# time: charging, standby drain, camera grime, remote help
+# time: dock power, camera grime, remote help (charging and idle drain are the kernel body's, order 72)
 
 @system("navigation_robot.robot", order=70, max_dt=30.0)
 def robot_system(w, dt, tick):
     state = w.s
     robot = state["robot"]
     if robot.get("docked"):
-        dock_id = dock_of(state)
-        rec = state["entities"].get(dock_id or "", {})
-        on_dock = rec.get("pos") and rec.get("location") == robot.get("room") and C.cell(rec["pos"]) == C.cell(robot.get("pos") or [0, 0])
-        powered = bool(on_dock) and dock_powered(w, dock_id)
-        battery = C.num(robot.get("battery"), 100.0)
-        if powered and battery < 100.0:
-            rate = C.num(rec.get("charge_rate_pct_per_min"), 2.0)
-            r = w.robot_m()
-            r["battery"] = round(min(100.0, battery + rate * dt / 60.0), 4)
-            r["charging"] = r["battery"] < 100.0
-            r["dock_powered"] = True
-        elif robot.get("charging") or bool(robot.get("dock_powered")) != bool(powered):
-            r = w.robot_m()
-            r["charging"] = False
-            r["dock_powered"] = bool(powered)
-    else:
-        drain = C.num(robot.get("idle_drain_pct_h"))
-        if drain > 0 and C.num(robot.get("battery"), 0.0) > 0:
-            r = w.robot_m()
-            before_pct = C.num(r.get("battery"), 100.0)
-            r["battery"] = round(max(0.0, before_pct - drain * dt / 3600.0), 4)
-            if r["battery"] <= 0.0 < before_pct:
-                w.stat("nav_stranded")
-                C.incident(w, "battery_depleted", room=robot.get("room"))
+        dock_id = seated_dock(state)
+        powered = dock_id is not None and dock_powered(w, dock_id)
+        if bool(robot.get("dock_powered")) != powered:
+            w.robot_m()["dock_powered"] = powered
     rid = robot.get("room")
     room = state["rooms"].get(rid or "", {})
     weather = (state.get("weather") or {}).get("condition", "clear")
@@ -436,5 +448,14 @@ def spare_packs_system(w, dt, tick):
             w.mut(eid)["charge_pct"] = round(min(100.0, C.num(rec.get("charge_pct")) + C.num(station.get("charge_rate_pct_per_min"), 1.0) * dt / 60.0), 3)
 
 
-def battery_needed(state, meters, steps_up=0):
-    return C.BATTERY_PCT_PER_M * meters + C.BATTERY_PCT_PER_STEP_UP * steps_up
+def battery_needed(state, meters, steps_up=0, steps_down=0, speed=None, load_kg=0.0):
+    """Gauge points (%) a walk needs by the body's rules (TIER1_EMBODIMENT 4.1, 4.2, 4.6): the walking work at the
+    effective speed with the load, the stair work and the hotel load over the walking and climbing time, against the
+    energy the pack can deliver at its temperature. Compare it with body.gauge(state) minus the reserve to keep."""
+    mode = body.effective_speed(state, speed)[0]
+    p = body.profile(state)
+    seconds = float(meters) / p["speeds_mps"][mode] + p["stair_s_per_step"] * (int(steps_up) + int(steps_down))
+    wh = body.walk_wh(state, meters, mode, load_kg) + body.stairs_wh(state, steps_up, steps_down) + \
+        body.activity_power_w(state, "motion", held_kg=load_kg) * seconds / 3600.0
+    usable = body.full_wh(state) * (100.0 - body.cutoff_soc(state)) / 100.0
+    return 100.0 * wh / usable if usable > 0 else float("inf")

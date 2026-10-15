@@ -16,6 +16,17 @@ receive env.step's positional arguments.
 duration: seconds, or fn(ctx) -> seconds evaluated after the handler ran.
 Handlers may add time with ctx.spend(seconds).
 inverse: fn(ctx_before_args, before_state) -> command dict or None, for undo.
+
+Robot body (kernel v3.0, docs/design/TIER1_EMBODIMENT.md 5.5; kernel/body.py pays for every action):
+energy: None (default: the action costs its activity power over its seconds plus the walking work of its motion
+record) or a number, extra mechanical work in the old % units (value x 24 Wh). arms: arms counted in the activity
+power (default 1 for physical actions, 2 when the target is held in both hands). idle: the body system integrates
+the time (wait only). power_off_ok: allowed while the robot is powered down (wait only). noise_db: sound pressure at
+1 m, a number or fn(ctx) (quiet mode refuses actions louder than the profile's quiet limit; the robot_sound hook
+reports it). timing: "fixed", "speed" (a duration derived from the walking speed) or "commanded" (a duration the
+command states: hold_s, seconds, minutes of a hold, a game, a blend; careful speed slows motions, not a commanded
+time); the careful-speed rule of BODY-CORE skips "speed" and "commanded". None of these is part of the action
+fingerprint.
 """
 import math
 import random
@@ -126,19 +137,36 @@ def _parse_param(name, spec):
     return result
 
 
+TIMINGS = ("fixed", "speed", "commanded")
+
+
 class ActionSpec:
-    def __init__(self, name, fn, params, duration, energy, noise, category, reversible, inverse, stopped_ok, doc, irreversible):
+    def __init__(self, name, fn, params, duration, energy, noise, category, reversible, inverse, stopped_ok, doc, irreversible,
+                 arms=None, idle=False, power_off_ok=False, noise_db=None, timing="fixed"):
         self.name, self.fn = name, fn
         self.params = {k: _parse_param(k, v) for k, v in (params or {}).items()}
         self.duration, self.energy, self.noise = duration, energy, noise
         self.category, self.reversible, self.inverse = category, reversible, inverse
         self.stopped_ok, self.doc, self.irreversible = stopped_ok, doc or (fn.__doc__ or "").strip(), irreversible
+        # robot body attributes (TIER1_EMBODIMENT 5.5): not part of describe()["params"], so not of the fingerprint
+        if arms is not None and (isinstance(arms, bool) or arms not in (0, 1, 2)):
+            raise ValueError("Action {!r}: arms must be 0, 1 or 2".format(name))
+        if noise_db is not None and not callable(noise_db) and (isinstance(noise_db, bool) or
+                                                                not isinstance(noise_db, (int, float))):
+            raise ValueError("Action {!r}: noise_db must be a number or fn(ctx)".format(name))
+        if timing not in TIMINGS:
+            raise ValueError("Action {!r}: timing must be one of {}".format(name, ", ".join(TIMINGS)))
+        self.arms, self.idle, self.power_off_ok = arms, bool(idle), bool(power_off_ok)
+        self.noise_db, self.timing = noise_db, timing
 
     def describe(self):
-        return {"name": self.name, "category": self.category, "doc": self.doc,
+        info = {"name": self.name, "category": self.category, "doc": self.doc,
                 "params": {k: {kk: vv for kk, vv in v.items()} for k, v in self.params.items()},
                 "reversible": bool(self.reversible), "noise": self.noise,
                 "duration_s": self.duration if isinstance(self.duration, (int, float)) else "depends on arguments"}
+        if self.noise_db is not None:      # informative (dB at 1 m); not in the action fingerprint
+            info["noise_db"] = "depends on arguments" if callable(self.noise_db) else float(self.noise_db)
+        return info
 
     def validate(self, raw):
         """Empty strings and None mean "not supplied"."""
@@ -186,16 +214,137 @@ class ActionSpec:
         return value
 
 
-def action(name, params=None, duration=1.0, energy=0.01, noise=0.0, category="physical", reversible=False,
-           inverse=None, stopped_ok=False, doc="", irreversible=False):
+CONNECTION_CROSSING_M = 1.0     # walking through a doorway, gate or stair landing (core move's +1.0 m)
+
+
+def synth_motion(state, from_room, start, path, connection=None, seconds=0.0, speed=None):
+    """A motion record (TIER1_INTEGRATION 1.4) from today's ctx.data keys: the walked cells after `start` in
+    from_room, the connection crossed at the end (+1.0 m; a stairs connection gives its flight up or down), the action
+    seconds, the requested speed (None: robot.speed_mode) made effective (body.effective_speed) and the carried load
+    (phys.support.subtree_mass of what the hands hold). The robot's current room is to_room."""
+    robot = state["robot"]
+    to_room = robot.get("room")
+    cells = ([tuple(start)] if start else []) + [tuple(c) for c in path or ()]
+    meters = geometry.path_length_m(cells) if len(cells) > 1 else 0.0
+    up = down = 0
+    conn = (state.get("connections") or {}).get(connection) if connection else None
+    if conn is not None:
+        meters += CONNECTION_CROSSING_M
+        if from_room != to_room and from_room in state["rooms"] and to_room in state["rooms"]:
+            from . import body
+            way = body.stairs_direction(state, conn, from_room, to_room)
+            steps = int(conn.get("steps", 12)) if way else 0
+            up, down = (steps, 0) if way == "up" else (0, steps)
+    from . import body
+    try:
+        mode = body.effective_speed(state, speed)[0]
+    except ValueError:
+        mode = speed or robot.get("speed_mode") or "normal"
+    held = sorted({e for e in (robot.get("hands") or {}).values() if e and e in state["entities"]})
+    load = 0.0
+    if held:
+        from .phys import support
+        cmap = support.children_map(state)
+        load = sum(support.subtree_mass(state, eid, cmap) for eid in held)
+    return {"path": [list(c) for c in path or ()], "start": list(start) if start else [], "from_room": from_room,
+            "to_room": to_room, "connection": connection if conn is not None else None, "meters": round(meters, 4),
+            "planned_m": round(meters, 4), "seconds": float(seconds or 0.0), "speed": mode, "load_kg": round(load, 4),
+            "stairs_up": up, "stairs_down": down, "cut": None, "exhausts": False}
+
+
+def motion_record(ctx):
+    """The motion record of one action (TIER1_INTEGRATION 1.4): ctx.data["motion"] when the action wrote one
+    (ctx.motion, from BODY-ENGINE on), else one synthesized from ctx.data's path / from_room / connection / seconds
+    and where the robot stood when the action began and stands now; None when the robot did not move."""
+    if ctx is None:
+        return None
+    record = ctx.data.get("motion")
+    if record is not None:
+        return record
+    state = ctx.w.s
+    robot = state["robot"]
+    room0, pos0 = getattr(ctx, "_robot_start", (robot.get("room"), list(robot.get("pos") or [])))
+    path = ctx.data.get("path")
+    pos = list(robot.get("pos") or [])
+    if not path:
+        if (robot.get("room") == room0 and pos == list(pos0)) or ctx.data.get("motions"):
+            return None         # it did not move, or its nested leaves did the walking and report it themselves
+        path = [pos] if pos and robot.get("room") == room0 else []
+    return synth_motion(state, ctx.data.get("from_room", room0), pos0, path, ctx.data.get("connection"),
+                        ctx.data.get("seconds", 0.0), ctx.args.get("speed") if isinstance(ctx.args, dict) else None)
+
+
+def motion_records(ctx):
+    """The step's motion records: the action's own (motion_record) followed by those of its nested leaves
+    (ctx.data["motions"], appended by engine.perform)."""
+    if ctx is None:
+        return []
+    own = motion_record(ctx)
+    return ([own] if own is not None else []) + list(ctx.data.get("motions") or [])
+
+
+def action(name, params=None, duration=1.0, energy=None, noise=0.0, category="physical", reversible=False,
+           inverse=None, stopped_ok=False, doc="", irreversible=False, arms=None, idle=False, power_off_ok=False,
+           noise_db=None, timing="fixed"):
+    """Register an action. energy=None (kernel v3.0): the body charges the action's activity power over its seconds
+    and its walking work; a number is extra work in the old % units (see the module docstring)."""
     def deco(fn):
-        spec = ActionSpec(name, fn, params, duration, energy, noise, category, reversible, inverse, stopped_ok, doc, irreversible)
+        spec = ActionSpec(name, fn, params, duration, energy, noise, category, reversible, inverse, stopped_ok, doc, irreversible,
+                          arms=arms, idle=idle, power_off_ok=power_off_ok, noise_db=noise_db, timing=timing)
         if name in ACTIONS:
             raise ValueError("Action {!r} registered twice ({} and {})".format(name, OWNERS.get(("action", name)), _owner(fn)))
         ACTIONS[name] = spec
         OWNERS[("action", name)] = _owner(fn)
         return fn
     return deco
+
+
+class BodyView:
+    """ctx.body: the read-only queries of kernel/body.py bound to the live state (TIER1_EMBODIMENT 5.4), e.g.
+    ctx.body.capacity_kg("left", eid), ctx.body.gauge(), ctx.body.can_hear(), ctx.body.carried_kg(). Writes go
+    through body / body_faults functions or the ctx.require_* helpers, never through this view."""
+
+    # body functions whose first argument is the state
+    STATE_QUERIES = frozenset((
+        "profile", "gripper", "get", "fault", "is_latent", "full_wh", "cutoff_soc", "gauge", "threshold_pct",
+        "battery_state", "available_wh", "is_on", "limp", "posture_key", "activity_power_w", "walk_wh", "stairs_wh",
+        "stairs_direction", "motion_work_wh", "affordable_prefix", "held_hands", "held_loads", "arm_health",
+        "capacity_kg", "stability_margin", "grip_limit_n", "limit", "slippery", "grip_mu", "clarity", "precision_mm",
+        "grasp_problem", "speed_mps", "effective_speed", "stopping_distance_m", "noise_db", "quiet_limit_db",
+        "aid_height_m", "eye_height_m", "policy_off", "imaging", "depth_ok", "can_hear", "hears", "can_speak",
+        "sensors_view", "manip_problem", "arm_problem", "mobile_problem", "hold_capacity_kg", "hand_drop_m"))
+    # body functions whose first argument is the World but that only read it
+    WORLD_QUERIES = frozenset(("carried_kg", "total_mass_kg", "hold_capacity_left", "charge_rate"))
+
+    def __init__(self, w):
+        self._w = w
+
+    def __getattr__(self, name):
+        from . import body
+        if name in BodyView.STATE_QUERIES:
+            fn, first = getattr(body, name), self._w.s
+        elif name in BodyView.WORLD_QUERIES:
+            fn, first = getattr(body, name), self._w
+        else:
+            raise AttributeError("ctx.body has no query {!r} (read-only body queries only)".format(name))
+
+        def bound(*args, **kwargs):
+            return fn(first, *args, **kwargs)
+        bound.__name__ = name
+        bound.__doc__ = fn.__doc__
+        return bound
+
+    def __dir__(self):
+        return sorted(BodyView.STATE_QUERIES | BodyView.WORLD_QUERIES)
+
+
+IMAGING_OFF_TEXT = "Cameras are off; turn privacy mode off to look closely"
+CAMERA_FAULT_TEXT = "Camera fault: request help"
+MIC_OFF_TEXT = "Microphone is off"
+MIC_FAULT_TEXT = "Microphone fault: request help"
+MIC_PRIVACY_TEXT = "Privacy mode is on: only speech addressed to the robot is heard"
+MIC_POLICY_TEXT = "A privacy policy limits the microphones here to speech addressed to the robot"
+PRECISION_TEXT = "Cannot position precisely enough for {} right now"
 
 
 class Ctx:
@@ -208,9 +357,16 @@ class Ctx:
         self.given = dict(args) if isinstance(args, dict) else {}
         self.w = env.world
         self.extra_time = 0.0
+        self.nested_s = 0.0             # seconds of nested leaves (env.perform), each settled by its own leaf
         self.notes = []
         self.data = {}
         self._violations = set()
+        robot = self.w.s.get("robot") or {}
+        # where the robot stood when this action began (motion_record synthesizes a leg from it), and whether it was
+        # down then (body.unrecorded_motion: a fallen robot cannot be walked anywhere)
+        self._robot_start = (robot.get("room"), list(robot.get("pos") or []))
+        self._robot_down = bool(robot.get("fallen"))
+        self._robot_aid = robot.get("standing_on")
 
     # ----- convenience ----------------------------------------------
     @property
@@ -243,43 +399,248 @@ class Ctx:
         return self.hand_of(eid) is not None
 
     def free_hand(self, prefer=None):
+        """An empty hand on a working arm (body.arm_health > 0), the preferred one first, else right before left."""
+        from . import body
+        state = self.w.s
         hands = self.robot.get("hands", {})
-        arms = self.robot.get("arms_ok", {"left": True, "right": True})
         order = [prefer] if prefer in ("left", "right") else []
         order += [h for h in ("right", "left") if h not in order]
         for hand in order:
-            if hand in hands and hands[hand] is None and arms.get(hand, True):
+            if hand in hands and hands[hand] is None and body.arm_health(state, hand) > 0:
                 return hand
         return None
 
     def visible(self, eid):
         return self.env.perception.visible(self.w.s, eid)
 
+    # ----- the robot's cameras (kernel v3.0 camera; kernel/camera.py) ---------------------------------------------
+    @property
+    def camera_mode(self):
+        """"room" or "geometric" (camera.mode of the state)."""
+        from . import camera
+        return camera.mode(self.w.s)
+
+    def can_see(self, eid):
+        """Geometric mode: camera.can_see (line of sight, light and resolution from the current eye, wrist access,
+        map fixtures with imaging off). Room mode: the room-wide rule (ctx.visible)."""
+        from . import camera
+        if camera.mode(self.w.s) != "geometric":
+            return self.visible(eid)
+        return camera.can_see(self.w.s, eid, self.w, self.env.perception)
+
+    def in_frame(self, eid):
+        """Geometric mode: the entity, person or pet is in a frame of this step at the current eye with line of sight
+        (the gate of passive visual cues). Room mode: in the robot's room and visible."""
+        from . import camera
+        return camera.in_frame(self.w.s, eid, self.w)
+
+    def gaze_to(self, target):
+        """Turn the head (and beyond its pan limit the body) to an entity, person, pet, cell [c, r] or point; charges
+        the turning time and returns it (0.0 in room mode)."""
+        from . import camera
+        return camera.gaze_to(self, target)
+
+    def acuity(self, eid):
+        """{"level", "px", "view"} of eid in this step's frames at the current eye, or None (always None in room
+        mode)."""
+        from . import camera
+        return camera.acuity(self.env, eid)
+
+    def read_check(self, eid, fields):
+        """(ok, reason, via, readable_fields) of reading eid's printed fields with the cameras (geometric mode, 9.2);
+        room mode: (True, None, "room", fields)."""
+        from . import camera
+        return camera.read_check(self.w.s, eid, fields, self.w)
+
+    def inspect_check(self, eid):
+        """(ok, reason, via) of a close look at eid with the cameras (geometric mode, 9.2); room mode: (True, None,
+        "room")."""
+        from . import camera
+        return camera.inspect_check(self.w.s, eid, self.w)
+
     def person_here(self, pid):
         people = self.w.s.get("people", {})
         return pid in people and people[pid].get("location") == self.robot["room"]
 
+    # ----- physics (kernel v3.0; docs/PHYSICS.md) -------------------------------------------------
+    def phys(self, eid):
+        """Resolved physical properties of an entity (phys.props.Phys, per-instance variation applied)."""
+        from .phys import props
+        return props.props(self.w.s, eid)
+
+    def fall(self, eid, **kw):
+        """An OBJECT falls (phys.impact.fall), attributed to the robot. The robot's own fall is body_faults.fall."""
+        from .phys import impact
+        kw.setdefault("by", "robot")
+        return impact.fall(self.w, eid, **kw)
+
+    def spill(self, liters, liquid="water", **kw):
+        """Liquid leaves where it was (phys.liquids.spill: at=, onto=, source=), attributed to the robot."""
+        from .phys import liquids
+        kw.setdefault("by", "robot")
+        return liquids.spill(self.w, liters, liquid, **kw)
+
+    def knock(self, eid, accel_g, **kw):
+        """A horizontal jolt of accel_g on an item (phys.impact.knock: direction=, cause=), attributed to the robot."""
+        from .phys import impact
+        kw.setdefault("by", "robot")
+        return impact.knock(self.w, eid, accel_g, **kw)
+
+    def lift_plan(self, eid, hands=None, helpers=()):
+        """How the robot would lift eid (phys.forces.lift_plan): {"ok", "hands", "mass_kg", "reason", "helpers"}; it
+        never raises (the caller turns the reason into a refusal)."""
+        from .phys import forces
+        return forces.lift_plan(self.w, eid, hands, helpers)
+
+    def settle_physics(self):
+        """Settle the physics of what the action did so far, now (a verb that wants its consequences in its own
+        message). The engine's own settle after the handler then sees only what changed after this call."""
+        from .phys import settle
+        return settle.settle(self.env, "action", self, final=False)
+
+    # ----- the robot body (kernel v3.0; kernel/body.py, TIER1_EMBODIMENT 5.4) -------------------------------------
+    # Refusals are body.BodyRefusal (an ActionError with kernel_access True: they reveal only the robot's own state or
+    # what a touch revealed). Each guard keeps a verb's existing wording where one exists (legacy_message).
+    @property
+    def body(self):
+        """Read-only body queries bound to the live state (BodyView)."""
+        return BodyView(self.w)
+
+    def _refuse(self, problem):
+        from . import body
+        if problem is not None:
+            raise body.BodyRefusal(*problem)
+
+    def require_powered(self):
+        """PowerOff unless the robot is powered on."""
+        from . import body
+        if not body.is_on(self.w.s):
+            raise body.PowerOff()
+
+    def require_mobile(self, legacy_message=None, stairs=False):
+        """The robot can walk: powered, no actuator fault, not fallen, legs working, no overheating pack, not standing
+        on a climbing aid ("Step down first", safety), localized; stairs=True also needs a profile that climbs stairs
+        and legs above half strength. legacy_message keeps a verb's wording for the power, actuator and fallen cases
+        (core move: "Robot cannot move; dock, recover or hand off")."""
+        from . import body
+        self._refuse(body.mobile_problem(self.w.s, legacy_message, stairs))
+
+    def require_arm(self, hand=None):
+        """The robot can use an arm: body.manip_problem (Ctx.obj's wording), then a failed arm (hand None: both
+        failed)."""
+        from . import body
+        self._refuse(body.arm_problem(self.w.s, hand))
+
+    def require_imaging(self, message=None):
+        """Colour imaging is available (TIER1_INTEGRATION 1.3, 1.15): PowerOff while powered down; "Camera fault:
+        request help" (capability) when the camera hardware failed; otherwise, with the cameras switched off, privacy
+        mode on or a room policy, `message` or "Cameras are off; turn privacy mode off to look closely"
+        (perception)."""
+        from . import body
+        state = self.w.s
+        if body.imaging(state):
+            return
+        if not body.is_on(state):
+            raise body.PowerOff()
+        if not (body.get(state, "sensors") or {}).get("camera", True):
+            raise body.BodyRefusal(CAMERA_FAULT_TEXT, "capability")
+        raise body.BodyRefusal(message or IMAGING_OFF_TEXT, "perception")
+
+    def require_hearing(self, addressed_ok=True):
+        """The microphones hear (TIER1_INTEGRATION 1.3, 1.15): PowerOff while powered down; "Microphone fault: request
+        help" (hardware) or "Microphone is off" (switch), both capability, when hearing is "none". With
+        addressed_ok=False (ambient listening) hearing limited to addressed speech (privacy mode, a room policy) is
+        refused too (perception). Returns the hearing level ("full" or "addressed")."""
+        from . import body
+        state = self.w.s
+        level = body.can_hear(state)
+        if level == "none":
+            if not body.is_on(state):
+                raise body.PowerOff()
+            if not (body.get(state, "sensors") or {}).get("mics", True):
+                raise body.BodyRefusal(MIC_FAULT_TEXT, "capability")
+            raise body.BodyRefusal(MIC_OFF_TEXT, "capability")
+        if level == "addressed" and not addressed_ok:
+            raise body.BodyRefusal(MIC_PRIVACY_TEXT if body.get(state, "privacy_mode") else MIC_POLICY_TEXT,
+                                   "perception")
+        return level
+
+    def require_grasp(self, eid, hand, grip):
+        """The gripper can take eid (TIER1_EMBODIMENT 4.8): too small for any grasp, or for the power grip asked for,
+        or too thin to lift flat, is refused (capability; the attempt reveals the size: a touch grant on size_m in
+        realistic mode). Returns the grip to store: `grip`, or the one the grasp planner chose ("pinch" for a small
+        item without a grip given, "edges" when a hand slides a thin item to the edge: a note and its extra
+        seconds)."""
+        from . import body
+        record = self.w.s["entities"][eid]
+        problem, auto = body.grasp_problem(self.w.s, record, hand, grip)
+        if problem is not None:
+            raise body.BodyRefusal(problem, "capability", grants=((eid, "touch", ("size_m",)),))
+        if auto is None:
+            return grip
+        note, extra_s = body.GRASP_AUTO[auto]
+        self.note(note)
+        if extra_s:
+            self.spend(extra_s)
+        return auto
+
+    def require_precision(self, hand, tolerance_mm, what=""):
+        """Refuse (capability) when the hand cannot position within tolerance_mm now (body.precision_mm: gripper,
+        arm health, slippery fingers, a dirty lens, darkness, fast speed)."""
+        from . import body
+        if body.precision_mm(self.w.s, hand) > float(tolerance_mm) + 1e-9:
+            raise body.BodyRefusal(PRECISION_TEXT.format(what or "that"), "capability")
+
+    def check_lift(self, eid, hands, mass=None):
+        """Enforce a lift (body.check_lift): derated capacity of the hands used and the total carried load; an
+        overload is refused with today's text, counted and felt (it survives the step's rollback)."""
+        from . import body
+        return body.check_lift(self.w, eid, hands, mass)
+
+    def motion(self, path, start, speed=None, stairs=(0, 0), extra_s=0.0, connection=None):
+        """Plan a walk of `path` (the cells after `start`) against the battery and write the motion record
+        (TIER1_INTEGRATION 1.4; ctx.data motion, path, from_room, connection, seconds). Returns the cells actually
+        walked: the whole path, or the affordable prefix when the battery cannot finish it (record cut "battery",
+        connection None; the handler leaves the robot at the prefix's last cell in its own room and settlement then
+        powers it down). connection: the connection crossed at the end (+1.0 m; a stairs connection adds its flight,
+        all or nothing); extra_s: handling time (a door 1.5 s, approach 0.3 s, walk_to 0.2 s)."""
+        from . import body
+        return body.motion(self, path, start, speed, stairs, extra_s, connection)
+
+    def cut_motion(self, meters_done, reason, stairs_done=(0, 0)):
+        """A domain stopped this action's motion early (a blocker, a fall, the stairs): the record keeps what was
+        walked, so the robot pays only for that (body.cut_motion). Returns the record, or None without one."""
+        from . import body
+        return body.cut_motion(self, meters_done, reason, stairs_done)
+
     # ----- the standard object guard ------------------------------------
-    def obj(self, eid, touch=False, grasp=False, reach=True, action=None, mutable=False):
+    def obj(self, eid, touch=False, grasp=False, reach=True, action=None, mutable=False, gaze=True):
         """Visibility, reach, privacy, approval and robot-capability checks.
 
         touch: the robot physically contacts the entity.
         grasp: the robot takes it in a hand (adds low-height posture checks).
         reach: requires the entity within arm's reach (skip for remote controls).
+        gaze: False for a verb whose own camera does the looking (the wrist camera's peek): the head does not turn.
+
+        Order (TIER1_INTEGRATION 1.10): existence and visibility (camera.can_see in geometric mode) -> robot
+        capability (body.manip_problem: actuator fault, powered down, fallen, overheating pack; today's wording) ->
+        reach -> permissions -> in geometric mode the auto-gaze (camera.auto_gaze: a target in no frame of this step
+        gets the head turned to it, charged once per target per step).
         """
         state = self.w.s
         require_access(isinstance(eid, str) and eid in state["entities"] and self.visible(eid), "That is not visible here", "perception")
         record = state["entities"][eid]
         action = action or self.spec.name
         if touch or grasp:
-            robot = self.robot
-            require_access(robot.get("actuator_ok", True), "Actuator fault; request human assistance", "capability")
-            require_access(robot.get("battery", 100) > 0, "Battery depleted; dock or request assistance", "capability")
-            require_access(not robot.get("fallen"), "The robot has fallen; recover first", "capability")
+            from . import body
+            self._refuse(body.manip_problem(state))
             if reach:
                 problem = geometry.reach_problem(state, eid, grasp=grasp)
                 require_access(problem is None, problem or "", "capability" if problem and "reach" in problem.lower() else "precondition")
             self.check_permission(eid, record, action)
+        if gaze and "view" in state["robot"]:
+            from . import camera
+            camera.auto_gaze(self, eid)
         return self.w.mut(eid) if mutable else record
 
     def mobj(self, eid, **kwargs):

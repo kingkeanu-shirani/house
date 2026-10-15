@@ -432,7 +432,7 @@
 {"catalog_id": "T-954f0fa3af60ac-01", "family": null, "source_file": "appliances_cooking__examples.json", "status": "CANDIDATE", "title": "Reheat leftover soup in the microwave"}
 {"catalog_id": "T-50c78da60ad2a8-01", "family": null, "source_file": "appliances_cooking__examples.json", "status": "CANDIDATE", "title": "Make two slices of toast"}
 {"catalog_id": "T-e6481bfc33b4df-01", "family": null, "source_file": null, "status": "TODO", "title": null}
-{"catalog_id": "T-b1456a2d293d2f-01", "family": null, "source_file": null, "status": "TODO", "title": null}
+{"catalog_id": "T-b1456a2d293d2f-01", "family": null, "source_file": "appliances_cooking__perception.json", "status": "CANDIDATE", "title": "Use the electric kettle: a cordless kettle on its base and a stovetop kettle look alike from across the kitchen - look closely, then boil the cordless one on its powered base (never on the hob)"}
 {"catalog_id": "T-d770b5d40b58ba-01", "family": null, "source_file": null, "status": "TODO", "title": null}
 {"catalog_id": "T-0012e4da613644-01", "family": null, "source_file": null, "status": "TODO", "title": null}
 {"catalog_id": "T-777159584bf85a-01", "family": null, "source_file": null, "status": "TODO", "title": null}

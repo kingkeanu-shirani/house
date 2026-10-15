@@ -20,7 +20,13 @@ Formats (one JSONL file per format plus manifest.json):
 
 Every record also has "format", "id" (sha256 of the content without id/meta, used for dedup) and "meta"
 (catalog_id, section, kind, domain, risk_level, fidelity, spec_hash, code_fingerprint, harness_fingerprint,
-perception_fingerprint, split, seed_tag, seed, ...).
+perception_fingerprint, split, seed_tag, seed, camera, ...). camera (kernel v3.0) is the camera mode the episode ran in
+("room" or "geometric": the spec's own, else camera.default_mode).
+
+Format house-dataset-v3 (kernel v3.0, tier 1): the observation schema changed with the physics, camera and robot-body
+layers (realistic obs.robot is the robot's proprioception with an integer battery gauge equal to obs.battery, physics
+sounds carry loudness words, geometric-camera episodes add obs.camera and obs.lidar), so meta.camera is required and
+v2 datasets no longer validate: re-export them (docs/DATASET.md "Format versions").
 
 validate() checks schema, splits (no test seeds, seeds on the split's schedule), leaks (true entity ids, underscore /
 secret / never-tier fields), content hashes, duplicates, the manifest and that the directory holds nothing the
@@ -44,7 +50,7 @@ FORMATS = ("sft", "pairs_trajectory", "pairs_step", "critique")
 PAIR_FORMATS = ("pairs_trajectory", "pairs_step")
 OBS_MODES = ("compact", "full")
 EXPORT_SPLITS = ("train", "dev")
-SCHEMA = "house-dataset-v2"
+SCHEMA = "house-dataset-v3"       # v3: kernel v3.0 observations and a required meta.camera (docs/DATASET.md)
 MANIFEST = "manifest.json"
 DONE = {"action": "done"}
 DROP_LEAKS = frozenset(("id", "secret", "hidden"))
@@ -55,7 +61,7 @@ NUMBER_PART_RE = re.compile(r"_\d+(?=_|$)")
 ROOM_LIKE_RE = re.compile(r"^[a-z][a-z_]*_\d+$")
 MAX_REPORTED = 200
 META_KEYS = ("catalog_id", "section", "kind", "domain", "risk_level", "fidelity", "spec_hash", "code_fingerprint",
-             "harness_fingerprint", "perception_fingerprint", "split", "seed_tag", "perception", "obs", "schema")
+             "harness_fingerprint", "perception_fingerprint", "split", "seed_tag", "perception", "camera", "obs", "schema")
 FINGERPRINT_KEYS = ("code_fingerprint", "harness_fingerprint", "perception_fingerprint")
 # never-tier names that are privacy / ground truth: a leak of one of these is an error even for a dataset whose
 # perception fingerprint differs from the current one (a type's tiers changing never makes them perceivable)
@@ -373,7 +379,9 @@ def _prune(value):
 def shape_observation(obs, mode="compact", instruction=None):
     """full: the observation verbatim. compact: omit null, false and empty ([] / {}) values inside dicts (recursively;
     an absent key means null / false / empty) and top-level keys that duplicate others (instruction == the record's
-    instruction, battery/stopped == robot's, weather_now == weather). List elements and all other values are kept."""
+    instruction, battery/stopped == robot's, weather_now == weather). List elements and all other values are kept.
+    Kernel v3.0: in realistic perception obs.battery and obs.robot.battery are both the integer gauge (powered down
+    too), so the top-level battery is always dropped there and the robot's value stays."""
     if mode == "full":
         return obs
     robot = obs.get("robot") if isinstance(obs.get("robot"), dict) else {}
@@ -781,6 +789,7 @@ def _record_episode(config, task, seed, plan, bindings, strict, obs_mode, percei
     if perceivability and outcome["success"] and not (error or plan_error):
         gaps = perceivability_gaps(env, task)
     return {"steps": recorder.steps, "initial": recorder.initial, "final": recorder.current, "instruction": recorder.instruction,
+            "camera": getattr(env, "camera_mode", "room"),
             "success": bool(outcome["success"]), "goal_fraction": outcome["goal_fraction"],
             "failures": env.realism.out_obj(list(outcome["failures"])), "unmet_success": unmet,
             "steps_count": outcome["steps"], "time_s": outcome["time_s"], "score": outcome["score"],
@@ -845,7 +854,7 @@ def _run_job(job):
         out["skipped"].append(item)
 
     try:
-        config, task, oracle = build(record["spec"], seed)
+        config, task, oracle = build(record["spec"], seed, perception="realistic")   # the run's mode, as verify
     except Exception as exc:  # noqa: BLE001
         skip("build failed: {}: {}".format(type(exc).__name__, exc))
         return out
@@ -883,7 +892,7 @@ def _run_job(job):
             "fidelity": record.get("fidelity"), "spec_hash": job["spec_hash"], "code_fingerprint": job["fingerprint"],
             "harness_fingerprint": job["harness_fingerprint"], "perception_fingerprint": job["perception_fingerprint"],
             "split": job["split"], "seed_tag": tag, "seed": seed, "variant": oracle.get("variant"),
-            "perception": "realistic", "obs": obs_mode, "schema": SCHEMA}
+            "perception": "realistic", "camera": ref.get("camera") or "room", "obs": obs_mode, "schema": SCHEMA}
 
     def result_of(step):
         return dict(step["result"])
@@ -1258,7 +1267,7 @@ class _DeepContext(object):
                 from ..tasks.runner import build, make_env
                 from ..tasks.verify import spec_hash
                 spec = self._spec(record, wanted_hash)
-                config, task, _ = build(spec, seed)
+                config, task, _ = build(spec, seed, perception="realistic")
                 env = make_env(config, task, seed, perception="realistic")
                 state = env.world.s
                 plain = plain_ids(state)
@@ -1646,6 +1655,8 @@ def validate(path_or_dir, deep=True, root=None, allow_static=False):
                     error("test_seed", where, str(exc))
             if meta.get("perception") != "realistic":
                 error("perception", where, "records must come from realistic perception")
+            if "camera" in meta and meta.get("camera") not in ("room", "geometric"):     # absent: META_KEYS reports it
+                error("schema", where, "meta.camera is {!r}, expected room or geometric".format(meta.get("camera")))
             if listed and isinstance(cid, str):
                 entry = entry_seen.setdefault(cid, {"seed_tags": set(), "records": Counter()})
                 entry["seed_tags"].add(tag)

@@ -8,9 +8,9 @@ is now defined in this module. engine.py imports this module (which registers th
 re-exports every public name for domains and tests (`core.OBSERVABLE_FIELDS` is the same set object, so a domain that
 extends it still extends the rule used here).
 
-Ownership: BODY-ENGINE gives `wait` its body attributes in B4; TIME-EVAL owns the module in stage C (interruptible
-waits, auto standing orders, notice kinds and `perceivable`, sweep 6.3-6.5). The stage C names of TIER1_SWEEP 16.1
-are defined below as stubs marked TIER1-STUB(TIME-EVAL); nothing calls them yet.
+Ownership: BODY-ENGINE gave `wait` its body attributes in B4 (idle, power_off_ok); TIME-EVAL owns the module in
+stage C (interruptible waits, auto standing orders, notice kinds and `perceivable`, sweep 6.3-6.5). The stage C names
+of TIER1_SWEEP 16.1 are defined below as stubs marked TIER1-STUB(TIME-EVAL); nothing calls them yet.
 """
 import copy
 
@@ -75,8 +75,11 @@ def _visible(w, eid):
 # ----------------------------------------------------------------------
 # time verbs and standing orders (registration names, parameters and texts as they were in systems/core.py)
 
+# idle / power_off_ok (BODY-ENGINE, TIER1_EMBODIMENT 5.5): the body system integrates a wait's idle drain (awake for
+# the profile's auto_standby_s, then parked standby), and wait is the one action a powered-down robot can take
 @action("wait", params={"seconds": {"type": "int", "default": 1, "min": 1, "max": 604800}}, energy=0.0,
-        duration=lambda ctx: float(ctx.args["seconds"]), category="control", stopped_ok=True,
+        duration=lambda ctx: float(ctx.args["seconds"]), category="control", stopped_ok=True, idle=True,
+        power_off_ok=True,
         doc="Let simulated time pass (no real sleeping). Appliances, people, pets and weather keep running.")
 def wait(ctx):
     return "Waited {} s".format(ctx.args["seconds"])

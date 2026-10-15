@@ -57,8 +57,11 @@ logged commands that never reached the environment, and true ids masked out of p
 
 ## The page
 
-* **Header**: catalog id and title, perception mode, split / seed tag (raw seed only for public splits), agent,
-  step budget, task variant, spec verification status, source; warnings; the instruction.
+* **Header**: catalog id and title, perception mode, camera mode (room or geometric, kernel v3.0), the physics data
+  version the frames were computed with (`physics_version()`, kernel v3.0; when a replay was recorded with other
+  physics data, or before v3.0, the badge also names the recorded one and a warning says the physical outcomes may not
+  match the recording), split / seed tag (raw seed only for public splits), agent, step budget, task variant, spec
+  verification status, source; warnings; the instruction.
 * **Floor plan** (minimap): one tab per floor. The house layout is computed in Python: for each floor, the
   same-floor connection graph is laid out in BFS layers from the start room, ordered by neighbour barycentres,
   with room rectangles sized from `size_m`; the layer direction (columns or rows) is chosen to fit the panel.
@@ -71,26 +74,44 @@ logged commands that never reached the environment, and true ids masked out of p
   outlets as wall dots, ceiling lights (lit when on), doors and doorways on the walls coloured open / closed /
   locked with the room they lead to, hazards and wet cells, people, pets, the robot (smaller when crouching or
   kneeling) and its trail since entering the room, and a dark overlay when the room is dark. Hover anything for a
-  tooltip with its fields (and the contents of furniture and containers).
+  tooltip with its fields (and the contents of furniture and containers). Geometric-camera episodes add the camera:
+  a line for the body's facing, a wedge for the head camera's field of view now and dashed wedges for the other
+  frames of the step (6 m long, clipped to the room), and, in the oracle view, a tint on the floor cells the camera
+  log counts as surveyed; the robot line and tooltip give the facing, head yaw, frame count and the room's coverage.
+  The perceived view draws only what `obs.camera` told the agent (facing, head yaw, frame count, coverage): the
+  seen-cells overlay is privileged.
+  Physics and the robot body (kernel v3.0): in the oracle view a thing that shows a physics cue (sagging, wobbly,
+  rolling, fell, tipped over, blown away, torn, collapsed shelves) gets a dashed amber outline and its tooltip lists
+  the cues and its damage levels; a powered-down robot is drawn grey. The robot line and tooltip add the power state
+  (when not on), the battery state (when not ok) and the fault kinds: in the oracle view the detected faults and,
+  separately, the latent ones; in the perceived view only what `obs.robot` reported (`power_state`, `battery_state`,
+  the kinds in `faults`).
 * **Timeline**: scrubber, first / previous / play-pause / next / last, speed 0.25x to 8x; keys Left/Right,
-  Home/End, Space.
+  Home/End, Space. In the oracle view a strip under the scrubber marks the steps with physics consequences (amber)
+  and robot body events (red); hover a tick for the events, click it to jump there.
 * **Step list**: step number, action, target/destination and parameters, ok or the refusal category, the message,
-  sim time. Refused steps are highlighted, diverged steps marked; click a row to jump there.
+  sim time. Refused steps are highlighted, diverged steps marked; click a row to jump there. In the oracle view each
+  step also lists its markers from the event log: every physics consequence (`phys.*` event kinds: fall, break, chip,
+  crush, collapse, pullout, tear, tip, slide, roll, spill, overflow, scorch, ring, melt, shock, burst, blown, scratch,
+  dent, budget; with the thing and whether the robot or something else caused it) and the body events `power_down`,
+  `power_up`, `robot_fell`, `overload`, `fault_onset`, `fault_detected`, `fault_logged`, `fault_cleared`,
+  `battery_low` and `battery_reserve` (at most 12 per step, then "+N").
 * **Evaluation at this step**: success / in progress / not successful, goal fraction, score, failures, milestones
   (reached ones with step and sim time, pending ones greyed), harm flags, safety/privacy/social/authority blocks,
   invalid steps, questions, budget; the success criteria in the oracle view.
-* **Changes**: the state diff of the step (oracle view: the recorded changes, most relevant first; bookkeeping such
-  as action logs, battery, time, underscore-internal fields is dropped, small temperature/wetness drift ranked last,
-  24 rows per step with an "N more" count) or, in the perceived view, what changed in the agent's observation
-  (things that appeared, disappeared or changed, holding, posture, channels).
+* **Changes**: the state diff of the step (oracle view: the step's event markers first, then the recorded changes,
+  most relevant first; bookkeeping such as action logs, the event log, battery and the body's energy counters, pack
+  temperature, lowest gauge and first-time log, time, underscore-internal fields is dropped, small
+  temperature/wetness drift ranked last, 24 rows per step with an "N more" count) or, in the perceived view, what
+  changed in the agent's observation (things that appeared, disappeared or changed, holding, posture, channels).
 * **View toggle** for realistic-perception episodes: **oracle view (true state)** and **agent's perceived view**
   (the observation contents: opaque handles, buckets, noisy size estimates, blocked cells, perceived hazards,
   people's cues, sounds/smells/messages channels). Oracle-perception episodes have only the oracle view.
 * Light and dark themes (system preference, toggle remembered in the browser when storage is available).
 
 `--view oracle` exports only the true state. `--view perceived` exports only the agent's view (realistic episodes):
-no oracle frames, no state diffs, no success criteria; evaluation failure labels and messages use handles, so the
-file contains nothing the agent could not see apart from the evaluation outcome.
+no oracle frames, no state diffs, no event markers, no success criteria; evaluation failure labels and messages use
+handles, so the file contains nothing the agent could not see apart from the evaluation outcome.
 
 That includes the floor plan: a perceived-only page never ships the true layout. Its plan is built
 (`viewer.PerceivedMap`) only from the observations the agent was given during the re-run: the rooms it observed
@@ -137,9 +158,10 @@ verification now"); it takes as long as `--check` for that one spec.
 restores every character.
 
 ```
-meta     {title, catalog_id, instruction, perception, view, views, source_kind, source, split, seed_tag, seed?,
+meta     {title, catalog_id, instruction, perception, camera, view, views, source_kind, source, split, seed_tag, seed?,
           agent, privileged, private, steps, step_budget, time_budget_s, risk_level, fidelity, variant,
-          milestones: [names], success_rules?, warnings: [...], done_declared, end_reason, spec_status, diverged_at?}
+          milestones: [names], success_rules?, warnings: [...], done_declared, end_reason, spec_status, diverged_at?,
+          physics_version?, physics_recorded?}
 layout   {rooms: {rid: {l, ty, f, o, cols, rows, w, h}},
           floors: [{f, name, W, H, rooms: [[rid, x, y, w, h], ...]}],      # meters
           links: [{id, a, ax, ay, b, bx?, by?, k}],                        # doorway cells in rooms a and b
@@ -149,7 +171,18 @@ frames   N+1 oracle frames, delta-encoded                                  # "bo
 pframes  N+1 perceived frames, delta-encoded                               # realistic, "both"/"perceived"
 evals    N+1 evaluations, delta-encoded {s, g, sc, f, bx, m: {name: [step, t]}, hf, bl, iv, q, rs?} or {na}
 diffs    N per-step diffs {c: [[path, before, after, rank?], ...], n?}    # "both"/"oracle"
+marks?   {frame index: [[event kind, detail], ...]}                       # "both"/"oracle", frames with events only
 ```
+
+`physics_version` is the physics data digest (`kernel/physics.py` `physics_version()`) of the code that computed the
+frames (the recording's when the current simulator cannot load a replay); `physics_recorded` appears only when a
+replay was recorded with different physics data ("before kernel v3.0" for replays without `metadata.physics_version`).
+
+Marks: for frame k (the state after step k; key "0" is the reset), the event-log entries of that step whose kind is
+`phys.*` or one of the body events listed under "Step list", in log order, as `[kind, detail]` with a short detail
+(the thing and `robot` / `exogenous` for physics, the cause for power and falls, `kind part (source)` for a fault
+onset, `fault (how)` for detection and clearing, `kind: status` for a logged fault, the gauge for battery
+thresholds); at most 12, then `["more", "+N"]`.
 
 Layout: on pages with the oracle view, the true plan (every room and connection); on perceived-only pages, the
 agent's plan (`viewer.PerceivedMap`): only rooms it observed, the links it saw (`bx`/`by` absent when the far side is
@@ -166,15 +199,23 @@ the step, `wl` wall seconds (harness logs), `dv` divergence note.
 
 Oracle frame: `r` room, `rp` robot cell, `po` posture, `bat`, `h` {hand: entity}, `H` held entities' records, `t`
 sim seconds, `clk` simulated date-time, `dk`/`sp`/`fl`/`so`/`sm` docked / stopped / fallen / standing on / speed mode,
-and `R` {room: room state} for every room visited so far. Only the current room's state is refreshed (other rooms
+`pw` power state when not "on", `bs` battery state (`body.battery_state`) when not "ok", `ft` / `lf` the kinds of the
+active detected / latent faults (kernel v3.0 robot body),
+`cam` (geometric camera only) {`fd` body facing, `hy` head yaw (grid degrees: 0 east, 90 south), `hf` horizontal field
+of view, `fc` frames this step, `fy` [frame headings in this room], `sc` the room's surveyed cells (row-major "0"/"1"
+from `camera_log.seen_cells`), `cv` its coverage}, and `R` {room: room state} for every room visited so far. Only the current room's state is refreshed (other rooms
 keep their state from the robot's last visit), so moving around costs one room state the first time and small
 patches afterwards. Room state: `e` {entity id: record} (direct children of the room with cell `x`, `y`, footprint
 `w`×`d`, class `k` furn/fix/item/rug/wall/dot/win/ceil, `b` blocks path; nested items with `in`/`rel`; `l` label,
-`ty`, `ca`, `sz`, `rot`, `mh`, `op`, `lk`, `on`, `br`, `st`, `so` soil, `we` wetness, `tc` temperature (0.5 C),
-`ma`, `co`, `xf` extra fields, `ch` children ids), `p`/`a` people and pets (`l`, `x`, `y`, `po`, `ac`, `mo`, ...),
+`ty`, `ca`, `sz`, `rot`, `mh`, `op`, `lk`, `on`, `br`, `st`, `ph` physics cues {sagging, wobbly, in_motion,
+collapsed_shelves, fell, tipped_over, blown_away, torn: the values present}, `dm` damage levels {kind: 0-1}, `so`
+soil, `we` wetness, `tc` temperature (0.5 C), `ma`, `co`, `xf` extra fields, `ch` children ids), `p`/`a` people and
+pets (`l`, `x`, `y`, `po`, `ac`, `mo`, ...),
 `z` hazards `[x, y, kind, source]`, `wc` wet cells, `c` connections `{id, to, k, x, y, dr?, op?, lk?}`, `lt` light.
 
-Perceived frame: `r`, `rp`, `po`, `bat`, `h` held handles, `dark`, `so`, `ch` channels (sounds, smells, messages,
+Perceived frame: `r`, `rp`, `po`, `bat`, `h` held handles, `dark`, `so`, `pw` / `bs` / `ft` (from realistic
+`obs.robot`: `power_state` when not "on", `battery_state` when not "ok", the fault kinds `faults` lists), `cam`
+(geometric camera only: `fd`, `hy`, `fc`, `cv` from `obs.camera`), `ch` channels (sounds, smells, messages,
 last_answer, pending, weather_now, illuminance_lux; truncated JSON), and `R` {room: {e: {handle: observation
 record (+ `_w`, `_d`, `_k` drawing hints from perceived size and kind)}, p, a, z (perceived hazards), b (blocked
 cells), c, lt}}. Perceived frames never contain a true entity id: they are built only from `env.observe()` output,
@@ -189,11 +230,14 @@ characters and channels to 240. The test suite checks a 300-step episode stays u
 
 ## Not done
 
-* No pixels or camera geometry: the room view is the symbolic grid the simulator uses.
+* No pixels: the room view is the symbolic grid the simulator uses; the camera overlay shows poses, fields of view
+  and surveyed cells, not what a frame looked like (occlusion is in the step's perceived records, not drawn).
 * Items on surfaces are listed in their furniture's tooltip (and counted on its badge) rather than drawn at their
   surface position.
 * The floor-plan layout is schematic (graph layers), not the house's real geometry, which the simulator does not
   model beyond per-room grids and doorway cells.
 * `house-replay-v1` (legacy) replays are not supported.
+* Replays, logs and records from before kernel v3.0 carry no camera mode: they re-run in room mode (the spec's own
+  mode, as they ran).
 
 Tests: `python -m unittest tests/test_eval_viewer.py` (offline; builds episodes locally).

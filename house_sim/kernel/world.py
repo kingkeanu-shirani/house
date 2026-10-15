@@ -15,6 +15,21 @@ action rolls back exactly and per-step changes can be diffed cheaply:
 
 Strict mode (env HOUSE_SIM_STRICT=1) compares a full copy after each step and raises
 if anything changed without being journaled.
+
+Transient bookkeeping for the physics settle pass and the camera (kernel v3.0, TIER1_INTEGRATION 1.8). None of it is
+part of the state, none is saved, and strict mode is unaffected:
+
+    w._touched              entity ids, appended on EVERY mut, create and destroy call (not only the first
+                            journaling); append-only within a step (begin() and rollback() clear it)
+    w.touched_since(cursor, consumer=None) -> (ids, cursor)
+                            the ids appended since an absolute cursor; a named consumer's cursor is remembered so
+    w.trim_touched()        can drop the prefix every consumer has read (the engine trims after each substep)
+    w.mut_quiet(eid)        journals like mut but is not a touch (writes that change nothing structural)
+    w.set_quiet(eid, f, v)  one field, journaled at field level and not a touch (kernel thermal's temperatures)
+    w.phys_scratch          the settle pass's transient dict (signatures, ledger, phase, cursor); cleared by begin()
+                            and rollback()
+    w.mutation_count        +1 on every journaled write call and every rollback; never decreases (camera memos)
+    w._power_down_step      None; body.power_down stamps the step (the engine's partial-commit rule)
 """
 import marshal
 
@@ -34,21 +49,82 @@ class World:
         self.s = state
         self.reg = registry
         self._journal = {}
+        self._quiet = {}                # eid -> {field: value at step start}: field-level journal of set_quiet
         self._index = None
         self._version = 0
         self._static = {}
+        self._touched = []              # entity ids written this step, in order (append-only within a step)
+        self._touched_base = 0          # absolute position of _touched[0] (trim_touched drops read prefixes)
+        self._touch_readers = {}        # consumer -> absolute cursor it has read up to
+        self.phys_scratch = {}
+        self.mutation_count = 0
+        self._power_down_step = None
 
     # ----- journaling -------------------------------------------------
     def begin(self):
         self._journal = {}
+        self._quiet = {}
+        self._reset_transient()
+
+    def _reset_transient(self):
+        """Start a step's transient bookkeeping: an empty touch log (every consumer back at cursor 0), an empty
+        physics scratch and no power-down stamp."""
+        self._touched = []
+        self._touched_base = 0
+        if self._touch_readers:
+            self._touch_readers = dict.fromkeys(self._touch_readers, 0)
+        self.phys_scratch = {}
+        self._power_down_step = None
 
     def _snap(self, key, value):
         if key not in self._journal:
             self._journal[key] = MISSING if value is MISSING else clone(value)
-        self._index = None if key[0] == "entities" else self._index
+        self.mutation_count += 1
+        if key[0] == "entities":
+            self._index = None
+            self._touched.append(key[1])
 
     def journal_keys(self):
-        return list(self._journal)
+        return list(self._journal) + [("entities", eid) for eid in self._quiet if ("entities", eid) not in self._journal]
+
+    def _with_quiet(self, record, eid):
+        """A record as it was at step start: its quiet fields put back to their journaled values."""
+        out = dict(record)
+        for field, value in self._quiet[eid].items():
+            if value is MISSING:
+                out.pop(field, None)
+            else:
+                out[field] = value
+        return out
+
+    def journal_before(self, kind, name):
+        """The value a journaled key had when the step began (its first snapshot): MISSING for a key created this
+        step, None when the key was not journaled (it is unchanged since begin())."""
+        before = self._journal.get((kind, name))
+        if kind == "entities" and name in self._quiet and before is not MISSING:
+            base = before if before is not None else self.s["entities"].get(name)
+            return None if base is None else self._with_quiet(base, name)
+        return before
+
+    def touched_since(self, cursor, consumer=None):
+        """(entity ids written since the absolute `cursor`, in order and with repeats, new cursor). A named consumer's
+        new cursor is remembered for trim_touched. Cursors restart at 0 with every begin() and rollback()."""
+        start = max(0, int(cursor) - self._touched_base)
+        ids = self._touched[start:]
+        end = self._touched_base + len(self._touched)
+        if consumer is not None:
+            self._touch_readers[consumer] = end
+        return ids, end
+
+    def trim_touched(self):
+        """Drop the prefix of the touch log every named consumer has read (all of it when nobody reads it), so a
+        week-long wait keeps the log bounded. Cursors stay valid (they are absolute)."""
+        end = self._touched_base + len(self._touched)
+        upto = min(self._touch_readers.values()) if self._touch_readers else end
+        drop = min(upto, end) - self._touched_base
+        if drop > 0:
+            del self._touched[:drop]
+            self._touched_base += drop
 
     def rollback(self):
         for key, value in self._journal.items():
@@ -58,17 +134,41 @@ class World:
                 container.pop(name, None)
             else:
                 container[name] = value
+        for eid, fields in self._quiet.items():        # after the records: a record journaled after a quiet write
+            record = self.s["entities"].get(eid)       # holds the new value, its field journal the old one
+            if record is None:
+                continue
+            for field, value in fields.items():
+                if value is MISSING:
+                    record.pop(field, None)
+                else:
+                    record[field] = value
         self._journal = {}
+        self._quiet = {}
         self._index = None
         self._version += 1
+        self.mutation_count += 1
+        self._reset_transient()
 
     def changes(self):
-        """Leaf-level diffs for everything journaled since begin()."""
+        """Leaf-level diffs for everything journaled since begin() (field-level quiet writes included, in the same
+        order and shape a record journal gives them)."""
         result = []
-        for (kind, name), before in sorted(self._journal.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
+        keys = set(self._journal) | {("entities", eid) for eid in self._quiet}
+        for kind, name in sorted(keys, key=lambda k: (k[0], str(k[1]))):
             container = self.s if kind in ("section", "scalar") else self.s[kind]
             after = container.get(name, MISSING)
             prefix = name if kind in ("section", "scalar") else kind + "." + name
+            before = self._journal[(kind, name)] if (kind, name) in self._journal else None
+            if kind == "entities" and name in self._quiet:
+                if before is None:          # only quiet writes: diff those fields
+                    fields = self._quiet[name]
+                    current = {f: after.get(f, MISSING) for f in fields} if after is not MISSING else {}
+                    old = {f: v for f, v in fields.items() if v is not MISSING}
+                    result.extend(differences(old, {f: v for f, v in current.items() if v is not MISSING}, prefix))
+                    continue
+                if before is not MISSING:
+                    before = self._with_quiet(before, name)
             if before is MISSING or after is MISSING:
                 if before is not after:
                     result.append({"path": prefix, "before": None if before is MISSING else before,
@@ -81,6 +181,7 @@ class World:
     def commit(self):
         changed = self.changes()
         self._journal = {}
+        self._quiet = {}
         return changed
 
     # ----- entities ---------------------------------------------------
@@ -100,6 +201,31 @@ class World:
     def mut(self, eid):
         record = self.ent(eid)
         self._snap(("entities", eid), record)
+        return record
+
+    def set_quiet(self, eid, field, value):
+        """Set one field of an entity, journaled at field level (no copy of the record) and not a touch: the kernel
+        thermal system's temperature writes, hundreds per run. Rollback, changes() and strict mode treat it like a
+        journaled write; mutation_count counts it."""
+        record = self.ent(eid)
+        if ("entities", eid) not in self._journal:
+            fields = self._quiet.setdefault(eid, {})
+            if field not in fields:
+                old = record.get(field, MISSING)
+                fields[field] = old if old is MISSING or isinstance(old, (int, float, str, bool, type(None))) \
+                    else clone(old)
+        record[field] = value
+        self.mutation_count += 1
+
+    def mut_quiet(self, eid):
+        """Like mut (journaled, counted in mutation_count) but not a touch: the settle pass does not look at it. Only
+        for writes that cannot change anything structural (the kernel thermal system's temperatures)."""
+        record = self.ent(eid)
+        key = ("entities", eid)
+        if key not in self._journal:
+            self._journal[key] = clone(record)
+        self.mutation_count += 1
+        self._index = None
         return record
 
     def create(self, eid, record):

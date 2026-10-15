@@ -15,10 +15,18 @@ NOT get these; they compose primitives themselves (or use their own planners).
   use(action, target, tool=None, approach_target=True, **params)
   drop_all(dest=None)             set everything held down (floor of current room by default)
   wait(seconds)
+
+Geometric camera (kernel v3.0, TIER1_CAMERA 15; the room camera keeps the plans above unchanged): approach first
+walks to a viewpoint (sight.best_viewpoints) when the target is not in sight; reveal looks under or behind a support
+with the wrist camera (peek: kneeling beside it, or lifting a light cushion, rug or mat) instead of a room-wide
+inspect, and fetch stands up again after picking up what reveal knelt for; fetch crouches for low items as before.
+
+Robot body (kernel v3.0, TIER1_EMBODIMENT KB-3): a skill whose robot powered down (its battery ran out on the way)
+stops with PlanError("robot powered down") instead of retrying actions the body would refuse.
 """
 from collections import deque
 
-from ..kernel import geometry
+from ..kernel import body, camera, geometry, sight
 from ..kernel.plugins import skill
 from ..kernel.predicates import root_room
 
@@ -49,6 +57,16 @@ def safe_avoid(state, room, start, goals, requested=None, ignore_sources=(), str
 def _plan_error(message):
     from .runner import PlanError
     return PlanError(message)
+
+
+POWERED_DOWN = "robot powered down"
+
+
+def _powered(r):
+    """A powered-down robot refuses every action but wait (body.PowerOff), so a skill stops at once with
+    PlanError("robot powered down") instead of retrying (TIER1_EMBODIMENT KB-3)."""
+    if not body.is_on(r.state):
+        raise _plan_error(POWERED_DOWN)
 
 
 def room_route(state, start, goal, allow_hatch=False):
@@ -111,6 +129,7 @@ def go_room(r, room, avoid=None, speed=None):
     if route is None:
         raise _plan_error("No route to " + room)
     for nxt, cid in route:
+        _powered(r)
         state = r.state
         conn = state["connections"][cid]
         here = state["robot"]["room"]
@@ -145,6 +164,7 @@ def go_room(r, room, avoid=None, speed=None):
         elif door_id and float(r.state["entities"][door_id].get("open_angle_deg", 90) or 90) < 75:
             args["speed"] = "careful"   # a door held partly open by something in its swing: pass slowly
         r.do("move", **args)
+        _powered(r)                     # the battery ran out on the way: the walk stopped where it was cut
         if r.state["robot"]["room"] != nxt:
             raise _plan_error("Could not move from {} to {}: {}".format(here, nxt, (r.last or {}).get("message")))
 
@@ -161,6 +181,37 @@ def locate(state, target):
     return _entity_room(state, target)
 
 
+def _geometric(r):
+    return camera.mode(r.state) == "geometric"
+
+
+def _in_sight(r, target):
+    return r.env.perception.visible(r.state, target)
+
+
+def _to_viewpoint(r, target, avoid=None):
+    """Geometric camera: when the target is out of sight from here, walk to the nearest viewpoint that sees it
+    (sight.best_viewpoints), else next to it (privileged routing; the wrist may reach what the head cannot see)."""
+    state = r.state
+    rid = state["robot"]["room"]
+    start = tuple(state["robot"].get("pos") or (0, 0))
+    goals = [tuple(c) for c in sight.best_viewpoints(state, rid, target, k=3)]
+    if not goals:
+        anchor_room, cells = geometry.anchor(state, target)
+        if anchor_room != rid or not cells:
+            return
+        goals = sorted(geometry.near_cells(cells, state["rooms"][rid], geometry.REACH_CELLS) - set(cells))
+    kinds = safe_avoid(state, rid, start, goals, avoid, ignore_sources=geometry.target_sources(state, target))
+    path = geometry.find_path(state, rid, start, goals, avoid_kinds=tuple(kinds or ()),
+                              ignore_sources=geometry.target_sources(state, target))
+    if not path:
+        return
+    args = {"cell": list(path[-1])}
+    if kinds:
+        args["avoid"] = kinds
+    r.do("walk_to", **args)
+
+
 @skill("approach")
 def approach(r, target, avoid=None, speed=None):
     state = r.state
@@ -171,6 +222,10 @@ def approach(r, target, avoid=None, speed=None):
         go_room(r, room, avoid=avoid, speed=speed)
     if target in r.state["entities"] and geometry.reach_problem(r.state, target) is None:
         return
+    if _geometric(r) and target in r.state["entities"] and not _in_sight(r, target):
+        _to_viewpoint(r, target, avoid)
+        if geometry.reach_problem(r.state, target) is None:
+            return
     args = {"target": target}
     state = r.state
     anchor_room, cells = geometry.anchor(state, target)
@@ -186,10 +241,14 @@ def approach(r, target, avoid=None, speed=None):
     if speed:
         args["speed"] = speed
     r.do("approach", **args)
+    _powered(r)
 
 
 @skill("reveal")
 def reveal(r, obj):
+    """Open the closed containers around obj; for a thing under or behind a support, look there (room camera: inspect
+    the support where=under/behind; geometric camera: approach the support and peek with the wrist camera, kneeling
+    for under unless the support is light enough to lift). Returns True when it left the robot kneeling."""
     state = r.state
     chain, location = [], state["entities"][obj].get("location")
     while location in state["entities"]:
@@ -203,9 +262,31 @@ def reveal(r, obj):
                 r.do("unlock", target=parent)
             r.do("open", target=parent)
     record = r.state["entities"][obj]
+    if _geometric(r):
+        return _peek_reveal(r, obj, record)
     if record.get("relation") in ("under", "behind") and not record.get("revealed"):
         approach(r, record["location"])
         r.do("inspect", target=record["location"], where=record["relation"])
+    return False
+
+
+def _peek_reveal(r, obj, record):
+    """reveal in geometric camera mode (TIER1_CAMERA 15): a thing under or behind a support that is out of sight is
+    looked for with the wrist camera from beside the support (kneeling to look under it, unless the support is a
+    light one to lift). Returns True when the robot was made to kneel."""
+    where, support = record.get("relation"), record.get("location")
+    if where not in ("under", "behind") or support not in r.state["entities"]:
+        return False
+    approach(r, support)
+    if _in_sight(r, obj):
+        return False
+    lowered = False
+    if where == "under" and not camera.peek_access(r.state, support, "under")[0] and \
+            r.state["robot"].get("posture") == "standing":
+        r.do("kneel")
+        lowered = True
+    r.do("peek", target=support, where=where)
+    return lowered
 
 
 def _crouch_if_low(r, eid):
@@ -230,7 +311,7 @@ def fetch(r, obj, hand=None, grip=None, auto_grip=True, avoid=None):
         raise _plan_error("No such entity " + obj)
     if entity.get("location") in state.get("people", {}):
         raise _plan_error("{} is held by a person; use receive".format(obj))
-    reveal(r, obj)
+    lowered = reveal(r, obj)
     approach(r, obj, avoid=avoid)
     crouched = _crouch_if_low(r, obj)
     args = {"target": obj}
@@ -241,7 +322,7 @@ def fetch(r, obj, hand=None, grip=None, auto_grip=True, avoid=None):
     if grip:
         args["grip"] = grip
     r.do("pick_up", **args)
-    if crouched:
+    if crouched or lowered:
         _stand(r)
     return obj
 

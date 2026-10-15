@@ -12,18 +12,23 @@ docs/design/TIER1_EMBODIMENT.md sections 3-5, with the binding changes of TIER1_
   battery_wh x battery_health; the gauge is what the BMS shows, lowered by the cold (temperature cutoff). Every
   threshold compares the gauge. Actions are settled per leaf (settle_energy); idle time, charging, the pack
   temperature and the network window are integrated in closed form by system_tick.
-* Limits: derated lift capacity (check_lift), grasp size classes, positioning precision, force caps, hand soil.
-* Sensors (TIER1_INTEGRATION 1.3): imaging, depth, hearing and speech are derived on every call, never stored.
+* Limits: derated lift capacity (check_lift), grasp size classes, positioning precision, force caps, hand soil. The
+  hands bear a held item's subtree mass times its load_share (a co-carried end, a towed cart); a load that outgrows
+  the hand's capacity after the lift strains it and above 1.5 x slips out at settlement (the safety net).
+* Speed: effective_speed (quiet, limp), speed_problem (set_speed), careful_seconds (the careful-timing rule).
+* Sensors (TIER1_INTEGRATION 1.3): imaging, depth, hearing and speech are derived on every call, never stored;
+  relocalize() is how a lost pose comes back.
 
 Refusals the body raises are BodyRefusal (kernel_access). Bookkeeping that must survive the step's rollback (an
 overload attempt, a detected weak arm, an energy refusal) is applied before raising and carried on the exception:
 the engine calls exc.apply(env) after it rolls the step back (never on the partial-commit path, where nothing is
 rolled back).
 
-Stage-A library (TIER1_INTEGRATION 1.16): importing it registers nothing in kernel.plugins; the robot field
-declarations below are a plain dict. BODY-ENGINE registers system_tick as the system "kernel.body" (order 72,
-max_dt 30), robot_stranded as an invariant, ev_battery / ev_network as the event effects "robot.battery" /
-"robot.network", and calls power_guard, quiet_guard and settle_energy from the engine.
+Registration (TIER1_INTEGRATION 1.16): importing this module registers nothing in kernel.plugins (the robot field
+declarations below are a plain dict). kernel/engine.py calls register_plugins() once, which registers system_tick as
+the system "kernel.body" (order 72, max_dt 30), robot_stranded as the invariant "robot_stranded", ev_battery /
+ev_network as the event effects "robot.battery" / "robot.network" and body_faults' "robot.fault" /
+"robot.clear_fault"; the engine calls power_guard, quiet_guard and settle_energy per TIER1_INTEGRATION 1.9.
 """
 import copy
 import json
@@ -56,6 +61,13 @@ ABOVE_HEAD_M = 0.1              # hands above the head: an item higher than heig
 DERATE = {"overhead": 0.6, "above_head": 0.6, "platform": 0.5, "limp": 0.5}
 LEGS_LIMP = 0.5                 # legs_health at or below this: careful speed only, no stairs, no climbing
 OVERLOAD_DROP = 1.5             # a held load above 1.5 x the hand's capacity slips out at settlement
+# The held-load safety net at settlement (TIER1_EMBODIMENT 4.7, stage M3: drop above 1.5 x, "straining" above 1.0 x),
+# switched on by BODY-CORE together with the lift rules: core pick_up, receive and uninstall lift through check_lift,
+# and a load the hands do not bear alone counts only the robot's share (load_share: a co-carried end, a towed cart).
+# The engine passes this switch to settle_energy (the library's own default is True as well).
+HOLD_SAFETY_NET = True
+TOWED_SHARE = 0.15              # a towed (tipped-back, wheeled) load rests on its wheels: the handle bears about 15 %
+CAREFUL_FACTOR = 1.5            # careful speed: a physical action of fixed duration takes 1.5 x its own seconds
 SLIPPERY = {"grease": 1.0, "oil": 1.0, "soap": 1.0, "food": 1.0, "flour": 1.0, "water": 0.5, "mud": 0.5}
 SLIP_FAULT_AT = 0.5             # hand soil this slippery starts a (latent) gripper_slip fault
 SLIP_MIN_KG = 1.0               # a gripper_slip fault only drops loads of at least 1 kg
@@ -74,10 +86,17 @@ LIMP_LIFT_TEXT = "The battery is too low for a lift this heavy; charge first"
 QUIET_TEXT = "Quiet mode is on: that is too loud now"
 OVERHEAT_TEXT = "Battery overheating; let it cool"
 LOCALIZATION_TEXT = "Localization lost: look around in a lit room or request remote help"
+LEGS_FAILED_TEXT = "The legs have failed; request help"
 TOO_SMALL_TEXT = "Too small to grasp; sweep it up, use tape or a tool"
 POWER_TOO_SMALL_TEXT = "Too small for a power grasp: use grip=pinch"
 THIN_FLAT_TEXT = "Too thin to grip lying flat: use grip=edges or grip=scoop"
+QUIET_FAST_TEXT = "Quiet mode is on: fast walking is too loud; turn quiet mode off first"
+LIMP_FAST_TEXT = "Battery critical: fast walking is not available; charge first"
+LEGS_FAST_TEXT = "Weak legs: fast walking is not safe now"
+NO_STAIRS_TEXT = "This robot cannot climb stairs"
+WEAK_LEGS_STAIRS_TEXT = "Weak legs: stairs are not safe now"
 BATTERY_CUT_TEXT = "Battery depleted after {:.1f} m; the robot powered down"
+STOPPED_FIRST_TEXT = "Walked {:.1f} m"       # a battery-cut walk that a domain stopped (or a fall ended) first
 POWERED_DOWN_NOTE = "Battery depleted as it finished; the robot powered down"
 GASP_TEXT = {"battery": "Robot powered down: battery depleted"}
 
@@ -366,6 +385,12 @@ def is_on(state):
     return get(state, "power_state") == "on"
 
 
+def depleted(state):
+    """Powered down, or the gauge at the cutoff (a pack the BMS cuts off at the next substep: a cold snap or a battery
+    level written directly): what the "battery depleted" refusals test."""
+    return not is_on(state) or gauge(state) <= threshold_pct(state, "cutoff") + EPS
+
+
 def battery_state(state):
     """ok | low | reserve | critical | depleted (powered down or at the cutoff), from the gauge."""
     level = gauge(state)
@@ -542,6 +567,15 @@ def spend_wh(w, wh, at_s=None):
     return pct
 
 
+def _cut_off(w, at_s=None):
+    """The BMS cuts the power when the gauge sits at the cutoff while the robot is on (an empty pack drawn on, a cold
+    pack whose extractable charge is gone, a level written directly). True when it powered the robot down."""
+    state = w.s
+    if is_on(state) and gauge(state) <= threshold_pct(state, "cutoff") + EPS:
+        return power_down(w, "battery", at_s)
+    return False
+
+
 def power_down(w, cause, at_s=None):
     """The robot powers down: a controlled crouch before the motors lose power (held items stay gripped), or a fall
     when it stands on an aid. Counts power_downs (and power_downs_off_dock unless seated on a dock), logs it, sends
@@ -557,8 +591,8 @@ def power_down(w, cause, at_s=None):
     if r.get("standing_on"):
         from . import body_faults
         body_faults.fall(w, "power_down", height_m=aid_height_m(state))
-    else:
-        r["posture"] = "crouching"
+    elif not r.get("fallen") and r.get("posture", "standing") not in ("crouching", "kneeling", "sitting", "lying"):
+        r["posture"] = "crouching"      # a controlled crouch from standing; already lower (or lying) it stays put
     w.stat("power_downs")
     if not r.get("docked"):
         w.stat("power_downs_off_dock")
@@ -661,14 +695,29 @@ def held_hands(state):
     return items
 
 
+def load_share(state, eid):
+    """The share of a held item's mass the robot's hands bear: 1, except for the robot's end of a load carried
+    together with people (manipulation's co-carry: co_held_by lists the robot and its partners; an equal share each)
+    and a load rolling on its own wheels (towed, admin_inventory's wheel_cart: the handle bears TOWED_SHARE of a
+    tipped-back two-wheeled cart)."""
+    record = state.get("entities", {}).get(eid) or {}
+    if record.get("towed"):
+        return TOWED_SHARE
+    holders = record.get("co_held_by")
+    if isinstance(holders, list) and "robot" in holders and len(set(holders)) > 1:
+        return 1.0 / len(set(holders))
+    return 1.0
+
+
 def held_loads(state, cmap=None):
-    """[(eid, hands, kg)] for each distinct held item, kg being its subtree mass (contents and liquid included).
-    One physics children map serves all items (cmap: one the caller already built)."""
+    """[(eid, hands, kg)] for each distinct held item, kg being the load the robot bears: its subtree mass (contents
+    and liquid included) times its load_share. One physics children map serves all items (cmap: one the caller
+    already built)."""
     items = held_hands(state)
     if not items:
         return []
     cmap = _children_map(state) if cmap is None else cmap
-    return [(eid, hands, _subtree_mass(state, eid, cmap)) for eid, hands in items]
+    return [(eid, hands, _subtree_mass(state, eid, cmap) * load_share(state, eid)) for eid, hands in items]
 
 
 def carried_kg(w, cmap=None):
@@ -702,7 +751,10 @@ def refresh_held(w):
 # lift capacity
 
 def arm_health(state, hand, believed=False):
-    """Strength of an arm (0 = failed); believed=True reads an undetected (latent) weak arm as nominal."""
+    """Strength of an arm (0 = failed); believed=True reads an undetected (latent) weak arm as nominal. An arm the
+    arms_ok mirror marks out of order (a domain that still writes only arms_ok) counts as failed."""
+    if (state["robot"].get("arms_ok") or {}).get(hand, True) is False:
+        return 0.0
     if believed and is_latent(state, "arm_weak_" + hand):
         return 1.0
     return float((get(state, "arm_health") or {}).get(hand, 1.0))
@@ -716,16 +768,20 @@ def _reach_cells(state, eid):
     return min(geometry.chebyshev(pos, c) for c in cells)
 
 
-def _derate(state, hand, eid):
+def _derate(state, hand, eid, hold=False):
+    """The capacity factor of a lift (TIER1_EMBODIMENT 4.7). hold=True: of keeping hold of what the hands already
+    carry, close to the body -- the lift-off derates (reached overhead or above the head, standing on a climbing
+    aid, limp mode's lift limit) are about raising a load and do not apply; the lift_capacity hooks (motor heating)
+    do."""
     factor = 1.0
-    if eid is not None and eid in state.get("entities", {}):
+    if not hold and eid is not None and eid in state.get("entities", {}):
         if geometry.mounted_overhead(state, eid) and _reach_cells(state, eid) > geometry.REACH_CELLS:
             factor *= DERATE["overhead"]       # reached over a counter: the lever grows from about 0.45 to 0.75 m
         if geometry.height_m(state, eid) > float(get(state, "height_m")) + ABOVE_HEAD_M:
             factor *= DERATE["above_head"]     # hands above the head, arms extended
-    if get(state, "standing_on"):
+    if not hold and get(state, "standing_on"):
         factor *= DERATE["platform"]
-    if limp(state):
+    if not hold and limp(state):
         factor *= DERATE["limp"]
     for value in run_hooks("lift_capacity", state, hand, eid):
         if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -733,13 +789,32 @@ def _derate(state, hand, eid):
     return factor
 
 
-def _capacity(state, hand, eid=None, believed=False):
+def _capacity(state, hand, eid=None, believed=False, hold=False):
     if hand == "both":
         health = min(arm_health(state, h, believed) for h in HANDS)
-        return float(get(state, "max_mass_kg")) * health * _derate(state, "both", eid)
+        return float(get(state, "max_mass_kg")) * health * _derate(state, "both", eid, hold)
     if hand in HANDS:
-        return float(get(state, "max_hand_kg")) * arm_health(state, hand, believed) * _derate(state, hand, eid)
-    return max(_capacity(state, h, eid, believed) for h in HANDS)
+        return float(get(state, "max_hand_kg")) * arm_health(state, hand, believed) * _derate(state, hand, eid, hold)
+    return max(_capacity(state, h, eid, believed, hold) for h in HANDS)
+
+
+def hold_capacity_kg(state, hand):
+    """What a hand ("left" | "right") or both hands ("both") can keep holding once the load is up: the rated
+    capacity times arm health and the lift_capacity hooks, without the lift-off derates (a gauge crossing into limp
+    mode or a step onto a stool limits new lifts, it does not loosen a grip already closed)."""
+    return _capacity(state, hand, None, False, True)
+
+
+def hand_drop_m(state):
+    """Height (m) a held item falls from when the hands let go: the profile's carry hand height scaled with the
+    posture's eye height (crouching, kneeling and sitting hold things lower; lying, after a fall, lowest), plus the
+    standing height of the climbing aid the robot stands on."""
+    table = profile(state)["eye_height_m"]
+    key = "lying" if get(state, "fallen") else (get(state, "posture") if get(state, "posture") in table else "standing")
+    hand = float(profile(state)["carry"]["hand_z_m"]) * float(table[key]) / float(table["standing"])
+    if get(state, "standing_on"):
+        hand += aid_height_m(state)
+    return round(hand, 3)
 
 
 def capacity_kg(state, hand=None, eid=None, believed=False):
@@ -1051,7 +1126,9 @@ def sensors_view(state):
             "network": bool(get(state, "network"))}
 
 
-def _check_policy(policy):
+def check_policy(policy):
+    """A validated copy of a room privacy policy {"camera_off": [room types], "mic_off": [room types], "when":
+    "occupied" | "always"}; ValueError otherwise (set_sensors and the setup robot op)."""
     if not isinstance(policy, dict) or set(policy) - {"camera_off", "mic_off", "when"}:
         raise ValueError("privacy_policy is {\"camera_off\": [room types], \"mic_off\": [room types], \"when\"}")
     for key in ("camera_off", "mic_off"):
@@ -1073,7 +1150,7 @@ def set_sensors(w, camera=None, mic=None, policy=None):
         if mic is not None:
             r["mic_on"] = bool(mic)
         if policy is not None:
-            r["privacy_policy"] = _check_policy(policy) if policy else None
+            r["privacy_policy"] = check_policy(policy) if policy else None
     state = w.s
     return {"camera_on": get(state, "camera_on"), "mic_on": get(state, "mic_on"),
             "privacy_policy": get(state, "privacy_policy")}
@@ -1086,7 +1163,7 @@ def manip_problem(state):
     """Why the robot cannot touch or grasp now, with Ctx.obj's wording."""
     if not get(state, "actuator_ok"):
         return "Actuator fault; request human assistance", "capability"
-    if not is_on(state):
+    if depleted(state):
         return "Battery depleted; dock or request assistance", "capability"
     if get(state, "fallen"):
         return "The robot has fallen; recover first", "capability"
@@ -1108,11 +1185,12 @@ def arm_problem(state, hand=None):
     return None
 
 
-def mobile_problem(state, legacy_message=None, stairs=False):
+def mobile_problem(state, legacy_message=None, stairs=False, localized=True):
     """Why the robot cannot walk now. legacy_message keeps a verb's existing wording for the power, actuator and
     fallen cases (core move: "Robot cannot move; dock, recover or hand off"). stairs=True also needs a profile that
-    climbs stairs and legs above half strength."""
-    if not is_on(state):
+    climbs stairs and legs above half strength. localized=False drops the localization check (turning in place,
+    core face: a robot that lost its pose turns to look around and find it again)."""
+    if depleted(state):
         return legacy_message or POWER_OFF_TEXT, "capability"
     if not get(state, "actuator_ok"):
         return legacy_message or "Actuator fault; request human assistance", "capability"
@@ -1120,19 +1198,131 @@ def mobile_problem(state, legacy_message=None, stairs=False):
         return legacy_message or "The robot has fallen; recover first", "capability"
     legs = float(get(state, "legs_health"))
     if legs <= 0:
-        return "The legs have failed; request help", "capability"
+        return LEGS_FAILED_TEXT, "capability"
     if fault(state, "battery_overheat") is not None:
         return OVERHEAT_TEXT, "capability"
     if get(state, "standing_on"):
         return "Step down first", "safety"
-    if not get(state, "localized"):
+    if localized and not get(state, "localized"):
         return LOCALIZATION_TEXT, "capability"
     if stairs:
         if not profile(state)["stairs"]:
-            return "This robot cannot climb stairs", "capability"
+            return NO_STAIRS_TEXT, "capability"
         if legs <= LEGS_LIMP + EPS:
-            return "Weak legs: stairs are not safe now", "capability"
+            return WEAK_LEGS_STAIRS_TEXT, "capability"
     return None
+
+
+NO_CLIMB_TEXT = "This robot cannot climb onto things"
+
+
+def climb_problem(state):
+    """Why the robot cannot step up onto a climbing aid (a stool, a ladder): (message, "capability") for a body
+    profile without legs to climb with (profile "climb": false, the wheeled base), else None."""
+    if not profile(state).get("climb", True):
+        return NO_CLIMB_TEXT, "capability"
+    return None
+
+
+def unrecorded_motion(ctx):
+    """Kernel backstop for verbs that move the robot without ctx.motion (TIER1_INTEGRATION 1.4; stage-B review):
+    a domain's guide, mow, drag or follow that writes the robot's room or cell itself still walked. Its walk becomes
+    the action's motion record -- from where the robot stood when the action began, through the connection to a new
+    room (its stairs included) and on to where it stands -- so the body pays the walking and stair work on top of the action's own activity power (a verb that escorts,
+    mows or drags is more than a walk; the record is marked "synthesized") and the camera frames it; and a body that could not have walked refuses the action (rolled back): fallen when it began,
+    actuators or legs failed, an overheating pack, its position lost, a stairs crossing its profile or legs cannot
+    climb (core move's ctx.require_mobile rules). A fall during
+    the action is not a walk; an action whose nested leaves walked reports their records instead. The engine calls it
+    after every leaf's AFTER hooks (step and perform). A verb that put the robot on a climbing aid (navigation's
+    climb_on) needs a body that climbs (climb_problem: the wheeled base does not)."""
+    state = ctx.w.s
+    robot = state["robot"]
+    if robot.get("standing_on") and robot.get("standing_on") != getattr(ctx, "_robot_aid", None):
+        problem = climb_problem(state)
+        if problem is not None:
+            raise BodyRefusal(problem[0], problem[1])
+    if "motion" in ctx.data or ctx.data.get("motions"):
+        return None
+    from . import actions
+    room0, pos0 = getattr(ctx, "_robot_start", (robot.get("room"), list(robot.get("pos") or [])))
+    room, pos = robot.get("room"), list(robot.get("pos") or [])
+    if (room == room0 and pos == list(pos0)) or not pos or room0 not in state.get("rooms", {}):
+        return None
+    down = bool(getattr(ctx, "_robot_down", False))
+    if get(state, "fallen") and not down:
+        return None                     # it fell (a stumble, a collapse): not a walk
+    speed = ctx.args.get("speed") if isinstance(ctx.args, dict) else None
+
+    def straight(a, b):                 # the walk between two cells as the crow flies (no route is known)
+        return math.hypot(float(b[0]) - float(a[0]), float(b[1]) - float(a[1])) * geometry.CELL
+    if room == room0:
+        record = actions.synth_motion(state, room0, pos0, [pos], None, ctx.data.get("seconds", 0.0), speed)
+        meters = straight(pos0, pos)
+    else:
+        cid, conn = None, None
+        for key, value in sorted((state.get("connections") or {}).items()):
+            if set(value.get("rooms") or ()) == {room0, room} and room0 in (value.get("cells") or {}):
+                cid, conn = key, value
+                break
+        door0 = list(conn["cells"][room0]) if conn is not None else None
+        record = actions.synth_motion(state, room0, pos0, [door0] if door0 else [], cid,
+                                      ctx.data.get("seconds", 0.0), speed)
+        door1 = (conn or {}).get("cells", {}).get(room)
+        meters = (straight(pos0, door0) if door0 else 0.0) + (CONNECTION_CROSSING_M if conn is not None else 0.0) +             (straight(door1, pos) if door1 else 0.0)
+    record["meters"] = record["planned_m"] = round(meters, 4)
+    stairs = bool(record.get("stairs_up") or record.get("stairs_down"))
+    view = dict(state, robot=dict(robot, fallen=down, standing_on=None))
+    problem = mobile_problem(view, None, stairs=stairs)
+    if problem is not None:
+        raise BodyRefusal(problem[0], problem[1])
+    record["synthesized"] = True
+    ctx.data["motion"] = record
+    return record
+
+
+def speed_problem(state, mode):
+    """Why set_speed may not select `mode` now (TIER1_EMBODIMENT 4.9): fast is refused while quiet mode is on or in
+    limp mode (weak legs, or the gauge at or below critical). (message, "precondition") or None. Slower modes are
+    always allowed; the effective speed of a walk is still effective_speed's."""
+    if mode != "fast":
+        return None
+    if get(state, "quiet"):
+        return QUIET_FAST_TEXT, "precondition"
+    if float(get(state, "legs_health")) <= LEGS_LIMP + EPS:
+        return LEGS_FAST_TEXT, "precondition"
+    if limp(state):
+        return LIMP_FAST_TEXT, "precondition"
+    return None
+
+
+def relocalize(w, how="look"):
+    """The robot finds its pose again (TIER1_EMBODIMENT 4.10: core look with imaging in a lit room, navigation's
+    remote help): a localization_lost fault is cleared, else the localized flag is set; body_log.relocalized_s keeps
+    the first time. False when it was not lost."""
+    from . import body_faults
+    state = w.s
+    if get(state, "localized"):
+        return False
+    if fault(state, "localization_lost") is None or not body_faults.clear_fault(w, "localization_lost", how):
+        w.robot_m()["localized"] = True
+    log_first(w, "relocalized_s", _now(state))
+    return True
+
+
+def careful_seconds(state, spec, seconds, nested_s=0.0):
+    """The careful-speed rule (TIER1_EMBODIMENT 4.9, migration M5): with robot.speed_mode careful a physical action's
+    own seconds -- its duration less the seconds of its nested leaves, each of which already took its own -- last
+    CAREFUL_FACTOR times longer. Actions whose duration already comes from the walking speed (ActionSpec.timing
+    "speed": core move, approach and walk_to, navigation's step, go_to, follow, lead and patrol) are skipped, so a
+    careful walk takes 2x the normal time, not 3x. The engine applies it to every leaf (top level and nested), so no
+    second is multiplied twice. A duration the command states (timing "commanded": a 30 s hold, a 10 min game, a
+    30 s blend) is not stretched either: careful speed slows motions, not the time the user asked for."""
+    seconds = float(seconds)
+    if getattr(spec, "category", None) != "physical" or \
+            getattr(spec, "timing", "fixed") in ("speed", "commanded") or get(state, "speed_mode") != "careful":
+        return seconds
+    nested = min(seconds, max(0.0, float(nested_s)))
+    return nested + (seconds - nested) * CAREFUL_FACTOR
 
 
 # ----------------------------------------------------------------------
@@ -1214,14 +1404,16 @@ def motion(ctx, path, start, speed=None, stairs=(0, 0), extra_s=0.0, connection=
     complete = k == len(segments) and finish_ok
     p = profile(state)
     v = p["speeds_mps"][mode]
-    planned = sum(segments) + crossing
+    # geometry.path_length_m's left-to-right sum, not sum() (Neumaier-compensated from Python 3.12): the same floats
+    # as core's durations and the same results on every Python version
+    planned = geometry.path_length_m(cells) + crossing
     if complete:
         meters = planned
         seconds = meters / v
         seconds += extra_s
         seconds += p["stair_s_per_step"] * (up + down)
     else:
-        meters = sum(segments[:k])
+        meters = geometry.path_length_m(cells[:k + 1])
         seconds = meters / v
         up = down = 0
     walked = [list(c) for c in cells[1:k + 1]]
@@ -1242,6 +1434,10 @@ def cut_motion(ctx, meters_done, reason, stairs_done=(0, 0)):
     record = ctx.data.get("motion")
     if record is None:
         return None
+    if record.get("cut") == "battery" and record.get("exhausts"):
+        # the stop or the fall came before the battery ran out: the robot will not power down, so the verb's
+        # battery-cut message, written before its after-hooks ran, no longer holds (motion_result replaces it)
+        ctx.data.setdefault("motion_battery_cut_m", record["meters"])
     state = ctx.w.s
     done = max(0.0, min(float(meters_done), float(record["meters"])))
     cells = [tuple(record["start"])] + [tuple(c) for c in record["path"]]
@@ -1258,6 +1454,20 @@ def cut_motion(ctx, meters_done, reason, stairs_done=(0, 0)):
                   connection=record["connection"] if room != record["from_room"] else None, cut=reason, exhausts=False,
                   seconds=done / p["speeds_mps"][record["speed"]] + p["stair_s_per_step"] * (int(up) + int(down)))
     return record
+
+
+def motion_result(ctx, result):
+    """A leaf's result once its after-hooks ran (the engine calls it in step and perform). A verb returns
+    BATTERY_CUT_TEXT when ctx.motion cut its walk; when a domain then stopped the walk first (cut_motion: a blocker, a
+    fall), the robot pays only what it walked and stays on, so that text would be false: it becomes STOPPED_FIRST_TEXT
+    with the meters actually walked (the domain's notes say why). Every other result is returned unchanged."""
+    planned = ctx.data.get("motion_battery_cut_m")
+    record = ctx.data.get("motion")
+    if planned is None or record is None or record.get("exhausts") or not isinstance(result, str):
+        return result
+    if result != BATTERY_CUT_TEXT.format(planned):
+        return result
+    return STOPPED_FIRST_TEXT.format(record["meters"])
 
 
 # ----------------------------------------------------------------------
@@ -1300,16 +1510,17 @@ def _energy_effect(w):
 
 
 def _hold_check(w, ctx, loads):
-    """Safety net for loads that grew after the lift (a filled container, limp mode): above 1.5 x the hand's
-    capacity the item slips out, above 1.0 x the robot strains. Returns True when something was dropped."""
+    """Safety net for loads that grew after the lift (a filled container, a weakening arm): above 1.5 x what the
+    hand can hold (hold_capacity_kg: no lift-off derates) the item slips out, above 1.0 x the robot strains. Returns
+    True when something was dropped."""
     from . import body_faults
     state = w.s
     dropped = False
     for eid, hands, kg in loads:
-        cap = _capacity(state, "both" if len(hands) == 2 else hands[0])
+        cap = hold_capacity_kg(state, "both" if len(hands) == 2 else hands[0])
         ratio = kg / cap if cap > 0 else float("inf")
         if ratio > OVERLOAD_DROP:
-            body_faults.drop_held(w, eid, profile(state)["carry"]["hand_z_m"], "overload")
+            body_faults.drop_held(w, eid, hand_drop_m(state), "overload")
             ctx.note("Lost hold of {}: too heavy to keep holding".format(eid))
             dropped = True
         elif ratio > 1.0 + EPS:
@@ -1317,13 +1528,14 @@ def _hold_check(w, ctx, loads):
     return dropped
 
 
-def settle_energy(w, ctx, own_s):
+def settle_energy(w, ctx, own_s, hold_check=True):
     """Pay for one leaf action (TIER1_EMBODIMENT 4.3) after its handler and after-hooks succeeded: the activity's
     power over own_s (its own seconds, nested leaves excluded) plus the walking work of its motion record, or the
     legacy ActionSpec.energy as work. Nothing while powered down or for idle actions (wait: the body system pays
     for idle time); nothing while seated on a live dock (it carries the load). A record that exhausts the pack
     drains it to the cutoff; a shortfall within the hidden buffer completes and powers down; a larger one raises
-    the energy refusal (BodyRefusal, counted in stats.energy_refusals after the rollback)."""
+    the energy refusal (BodyRefusal, counted in stats.energy_refusals after the rollback). hold_check: run the
+    held-load safety net (the engine passes HOLD_SAFETY_NET)."""
     state = w.s
     spec = ctx.spec
     loads = refresh_held(w)                      # also for waits: the body system's idle drain reads the cache
@@ -1333,21 +1545,26 @@ def settle_energy(w, ctx, own_s):
     record = ctx.data.get("motion")
     if _source_rate(w) > 0:
         need = 0.0
-    elif record is not None:
+    elif record is not None and not record.get("synthesized"):
         power = activity_power_w(state, "motion", held_kg=load) + _hook_power(w, spec.name)
         need = power * float(own_s) / 3600.0 + motion_work_wh(state, record)
     else:
+        # an action's own activity (a synthesized record, unrecorded_motion: a domain verb that also moved the robot
+        # pays its activity over its seconds plus the walking and stair work of the move it made)
         kind, arms = _activity(state, spec, ctx)
         power = activity_power_w(state, kind, arms=arms, held_kg=load) + _hook_power(w, spec.name)
         legacy = getattr(spec, "energy", None)
-        need = power * float(own_s) / 3600.0 + (float(legacy) * LEGACY_WH_PER_PCT if legacy else 0.0)
+        need = power * float(own_s) / 3600.0 + (float(legacy) * LEGACY_WH_PER_PCT if legacy else 0.0) + \
+            (motion_work_wh(state, record) if record is not None else 0.0)
     avail = available_wh(state)
     if record is not None and record.get("exhausts"):
         spend_wh(w, avail)
+        _cut_off(w)
     elif need <= avail + EPS:
         spend_wh(w, need)
     elif need - avail <= profile(state)["energy_buffer_pct"] * full_wh(state) / 100.0:
         spend_wh(w, avail)
+        _cut_off(w)
         ctx.note(POWERED_DOWN_NOTE)
     else:
         raise _refuse(w, ENERGY_TEXT, "capability", (_energy_effect,))
@@ -1356,12 +1573,12 @@ def settle_energy(w, ctx, own_s):
     r["standby"] = False
     r["_activity"] = "active" if record is not None or spec.category == "physical" else "idle"
     if is_on(state):
-        dropped = _hold_check(w, ctx, loads)
+        dropped = _hold_check(w, ctx, loads) if hold_check else False
         if record is not None and record.get("meters", 0) > 0:
             from . import body_faults
             for hand in HANDS:
                 if fault(state, "gripper_slip_" + hand) is not None:
-                    dropped = bool(body_faults.slip_check(w, hand, ctx)) or dropped
+                    dropped = bool(body_faults.slip_check(w, hand, ctx, record["meters"])) or dropped
         if dropped:
             refresh_held(w)
     return None
@@ -1470,11 +1687,16 @@ def system_tick(w, dt, tick):
     state = w.s
     mode = getattr(getattr(tick, "env", None), "_advance_mode", "covered")
     now = float(state.get("time_s", 0.0))
-    raw = _source_rate(w)
-    if mode == "idle" and raw <= 0 and is_on(state):
+    on = is_on(state)
+    full = float(get(state, "battery")) >= 100.0
+    # the charge source matters for charging (a pack below full or a powered-down robot) and for the idle drain (a
+    # live dock carries the load); a full, switched-on robot whose time is covered needs neither
+    raw = _source_rate(w) if (not full or not on or mode == "idle") else 0.0
+    if mode == "idle" and raw <= 0 and on:
         _idle_drain(w, dt, now - dt)
+    _cut_off(w, now - dt)                   # on at the cutoff (cold pack, a level written directly): the BMS cuts off
     rate = _window_rate(state, raw)
-    if raw > 0 and rate <= 0 and fault(state, "battery_overheat") is None:
+    if raw > 0 and rate <= 0 and not full and fault(state, "battery_overheat") is None:
         log_first(w, "charge_refused_temp_s", now)
     charging = rate > 0 and float(get(state, "battery")) < 100.0
     if charging:
@@ -1535,6 +1757,31 @@ def ev_network(w, args, env=None):
         body_faults.clear_fault(w, "network_down", "event")
     else:
         body_faults.add_fault(w, "network_down", until_s=args.get("until_s"), source="event")
+    return True
+
+
+# ----------------------------------------------------------------------
+# registration block (TIER1_INTEGRATION 1.16): called once by kernel/engine.py, never at import
+
+SYSTEM_NAME, SYSTEM_ORDER, SYSTEM_MAX_DT = "kernel.body", 72, 30.0
+_REGISTERED = []
+
+
+def register_plugins():
+    """Register the body with the kernel (idempotent): the system "kernel.body" (order 72, max_dt 30: idle drain,
+    charging, pack temperature, network window), the invariant "robot_stranded" (it replaces navigation_robot's
+    stranded label), the event effects "robot.battery" and "robot.network", and body_faults' "robot.fault" and
+    "robot.clear_fault". The robot_keep_awake consumer is the idle drain itself (run_hooks in _idle_drain)."""
+    if _REGISTERED:
+        return False
+    from . import body_faults
+    from .plugins import hook, invariant, system
+    system(SYSTEM_NAME, order=SYSTEM_ORDER, max_dt=SYSTEM_MAX_DT)(system_tick)
+    invariant("robot_stranded")(robot_stranded)
+    hook("event:robot.battery")(ev_battery)
+    hook("event:robot.network")(ev_network)
+    body_faults.register_plugins()
+    _REGISTERED.append(True)
     return True
 
 

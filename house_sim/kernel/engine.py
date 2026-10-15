@@ -5,6 +5,13 @@ action is a registered ActionSpec with validated parameters, guard hooks and eff
 hooks. Failed actions are atomic (journal rollback) but still consume a step and one
 simulated second, during which exogenous processes continue. Task goals are read
 only by the evaluator; no action can mark a task complete or set arbitrary fields.
+
+The robot body (kernel v3.0, kernel/body.py) pays for every leaf action once it succeeded
+(body.settle_energy: activity power over the action's own seconds plus the walking work of
+its motion record); idle time (wait, a refused step's second) is integrated by the body
+system. While the robot is powered down every action except wait is refused (PowerOff). A
+power-down partway through a step is a consequence, not a refusal: the step commits what
+happened, ok=True, "Powered down partway: ..." (TIER1_INTEGRATION 1.9).
 """
 import copy
 import json
@@ -12,15 +19,19 @@ import os
 import random
 from pathlib import Path
 
-from . import evaluation, physics, timeline  # noqa: F401  (physics registers shared systems; timeline the time verbs)
-from .actions import Ctx
+from . import body, evaluation, physics, timeline  # noqa: F401  (physics registers shared systems; timeline the time verbs)
+from . import camera as camera_mod      # the camera runtime: its system, after-hooks and hooks; begin/end of step
+from .actions import Ctx, motion_records
 from .errors import ActionError
+from .phys import settle
 from .perception import Perception
 from .plugins import ACTIONS, AFTER, BEFORE, SYSTEM_PERIODS, SYSTEMS, load_domains, run_hooks
 from .predicates import check, digest, validate_predicate
 from .registry import default_registry
 from .schema import normalize, validate
 from .world import World, clone
+
+body.register_plugins()                 # the robot body's system, invariant and event effects (TIER1_INTEGRATION 1.16)
 
 STRICT = os.environ.get("HOUSE_SIM_STRICT") == "1"
 # HOUSE_SIM_SAFE=1 (for evaluating external agents): a defect inside a handler, hook or system becomes a refused
@@ -101,10 +112,14 @@ class Tick:
 
 class HouseEnv:
     def __init__(self, config=None, task=None, seed=0, sensors=None, action_file=None, registry=None,
-                 trace=True, observe_on_step=True, perception=None):
+                 trace=True, observe_on_step=True, perception=None, camera=None):
         """perception: "oracle" (exact records of everything visible; the verification default) or "realistic"
         (opaque handles, field tiers, knowledge levels, noise and look-alikes; see kernel/realism.py). Defaults to
-        the task's "perception" field, else "oracle"."""
+        the task's "perception" field, else "oracle".
+
+        camera: "room" (room-wide visibility, the default) or "geometric" (the robot's posed cameras: line of sight,
+        light and resolution; kernel/camera.py). Precedence (TIER1_INTEGRATION 1.13): this argument (the CLI passes
+        --camera here), then the task's "camera", then camera.default_mode(perception)."""
         load_domains()
         self.registry = registry or default_registry()
         if config is None:
@@ -132,6 +147,11 @@ class HouseEnv:
         if mode not in ("oracle", "realistic"):
             raise ValueError("perception must be 'oracle' or 'realistic'")
         self.perception_mode = mode
+        self.camera_mode = camera_mod.resolve_mode(camera, task, mode)
+        self._camera_view = None
+        # transient (never saved): "idle" while the body system integrates the robot's idle drain (a wait, a refused
+        # step's second), "covered" while the time was already paid by the action's settlement (TIER1_INTEGRATION 1.9)
+        self._advance_mode = "covered"
         self.realism = None
         self.raw_results = False   # the task runner sets this to also receive untranslated messages
         self.action_file = action_file
@@ -163,6 +183,12 @@ class HouseEnv:
             state.update(steps=0, time_s=float(state.get("time_s", 0.0)), stats=empty_stats(), facts={}, reports={},
                          approvals=list(state.get("approvals", [])), memory=copy.deepcopy(state.get("memory", {})),
                          orders=[], pending=[], event_log=[], messages=[], logs={"moves": []})
+        # the camera mode is the env's: install or strip the camera state before the episode starts (1.9)
+        if self.camera_mode == "geometric":
+            camera_mod.install(state)
+        else:
+            camera_mod.strip(state)
+        self._camera_view = None
         self.world = World(state, self.registry)
         if self.perception_mode == "realistic":
             from .realism import Realism
@@ -171,12 +197,23 @@ class HouseEnv:
             self.world.begin()
             run_hooks("episode_start", self.world, self)
             self.world.commit()
+        if self.camera_mode == "geometric":
+            self.world.begin()
+            camera_mod.note_start(self)         # the reset view's sightings (geometric camera only)
+            self.world.commit()
         self._baseline = clone(state)
         self._known_map, self._history, self._undo, self._snapshots = {}, [], [], {}
         self._milestones = {}
         self._replay_start = clone(state)
+        self._note_view()
         self._last_score = self.evaluate()["score"]
         return self.observe()
+
+    def _note_view(self):
+        """Realistic perception with the geometric camera: what the cameras see at the start of an episode counts like
+        a step's view (tracked identity, unidentified people; realism.note_step). No-op otherwise."""
+        if self.realism is not None and self.camera_mode == "geometric" and hasattr(self.realism, "note_step"):
+            self.realism.note_step(camera_mod.step_view(self))
 
     def privileged_state(self):
         """Oracle/debug API. Never give this to an evaluated agent."""
@@ -217,7 +254,11 @@ class HouseEnv:
 
     # ------------------------------------------------------------------
     def action_names(self):
-        return set(ACTIONS)
+        """The actions an agent is offered: every registered action, without the camera-control verbs in room mode
+        (camera.GEOMETRIC_ONLY; actions_fingerprint() still covers them)."""
+        if self.camera_mode == "geometric":
+            return set(ACTIONS)
+        return set(ACTIONS) - camera_mod.GEOMETRIC_ONLY
 
     def describe_action(self, name):
         spec = ACTIONS.get(name)
@@ -229,23 +270,63 @@ class HouseEnv:
         return info
 
     def perform(self, command, parent_ctx=None):
-        """Run one action inside the current step (used by undo and scheduled commands)."""
+        """Run one action inside the current step: a nested leaf (undo, scheduled commands, domain chains). The leaf
+        takes its own careful-speed time (body.careful_seconds) and pays its own energy (body.settle_energy over its
+        own seconds; refused while powered down); the parent gets its time, its nested_s (so the parent neither pays
+        for nor slows down those seconds again) and its motion records. Physics settle and the camera's step are the
+        enclosing step's (TIER1_INTEGRATION 1.9)."""
         command = dict(command)
         name = command.pop("action")
         spec = ACTIONS.get(name)
         if spec is None:
             raise ActionError("Unknown action: " + str(name), "argument")
         args = spec.validate(command)
-        ctx = Ctx(self, spec, args, random.Random("{}:{}:nested:{}".format(self.seed, self.world.s["steps"], name)))
+        w = self.world
+        body.power_guard(w.s, spec)
+        body.quiet_guard(w.s, spec)
+        ctx = Ctx(self, spec, args, random.Random("{}:{}:nested:{}".format(self.seed, w.s["steps"], name)))
         for _, _, fn in BEFORE.get(name, []):
             fn(ctx)
         result = spec.fn(ctx)
         for _, _, fn in AFTER.get(name, []):
             fn(ctx, result)
+        result = body.motion_result(ctx, result)    # a battery-cut message a domain's stop made false
+        body.unrecorded_motion(ctx)     # a domain verb that moved the robot without ctx.motion still walked
+        camera_mod.note_action(ctx)     # motion frames of a leaf that moved the robot (geometric mode)
         seconds = spec.duration(ctx) if callable(spec.duration) else float(spec.duration)
+        body.quiet_guard(w.s, spec, ctx)
+        # a nested leaf at careful speed takes longer for its own seconds too (body.careful_seconds); its parent adds
+        # the result as nested time and never multiplies it again
+        spent = body.careful_seconds(w.s, spec, seconds + ctx.extra_time, ctx.nested_s)
+        body.settle_energy(w, ctx, max(0.0, spent - ctx.nested_s), hold_check=body.HOLD_SAFETY_NET)
+        self._robot_sound(ctx)
         if parent_ctx is not None:
-            parent_ctx.spend(seconds + ctx.extra_time)
+            parent_ctx.spend(spent)
+            parent_ctx.nested_s += spent
+            # no physics settle here: the enclosing step's settle covers nested leaves, and its carry law reads
+            # their motion records
+            parent_ctx.data.setdefault("motions", []).extend(motion_records(ctx))
         return result
+
+    def _note_facts(self, action, args, seconds):
+        """facts.action_times (when the action on its target ends) and facts.last_action of a step that did something
+        (ok, or committed partway)."""
+        state = self.world.s
+        facts = self.world.sec("facts")
+        facts.setdefault("action_times", {}).setdefault(args.get("target") or "robot", {})[action] = state["time_s"] + seconds
+        facts["last_action"] = {"action": action, "target": args.get("target", ""), "step": state["steps"]}
+
+    def _robot_sound(self, ctx):
+        """run_hooks("robot_sound", w, db, action, room, cell) for an action that declares noise_db (dB at 1 m; a
+        callable is evaluated on the action's ctx, None for silence): people and pets hear it (domain follow-ups)."""
+        level = ctx.spec.noise_db
+        if callable(level):
+            level = level(ctx)
+        if level is None:
+            return
+        robot = self.world.s["robot"]
+        run_hooks("robot_sound", self.world, float(level), ctx.spec.name, robot.get("room"),
+                  list(robot.get("pos") or []))
 
     def step(self, action, target="", destination="", **kwargs):
         if not all(isinstance(v, str) for v in (action, target, destination)):
@@ -261,7 +342,8 @@ class HouseEnv:
         action = action.strip().lower()
         command = {"action": action, "target": target, "destination": destination}
         command.update(kwargs)
-        w.begin()
+        w.begin()                       # also clears the touch log, the physics scratch and the power-down stamp
+        settle.begin_action(w)          # consequences until the action-phase settle ends are the robot's (6.4)
         scheduled = action == "run_pending" and bool(state.get("pending"))
         if scheduled:
             queued = copy.deepcopy(state["pending"][0])
@@ -269,10 +351,13 @@ class HouseEnv:
             target, destination = queued.pop("target", ""), queued.pop("destination", "")
             kwargs = queued
         w.set_scalar("steps", state["steps"] + 1)
+        camera_mod.begin_step(w)        # this step's frames and seen events start empty (no-op in room mode)
+        self._advance_mode = "covered"  # the action pays for its own seconds at settlement
         spec = ACTIONS.get(action)
         ok, category, message, seconds = False, "", "", 1.0
         rng = random.Random("{}:{}:{}".format(self.seed, state["steps"], action))
         undo_record = None
+        ctx, popped = None, False
         try:
             if spec is None:
                 raise ActionError("Unknown action: " + action, "argument")
@@ -287,6 +372,8 @@ class HouseEnv:
             robot = state["robot"]
             if robot.get("stopped") and not spec.stopped_ok:
                 raise ActionError("Robot is stopped; resume first", "precondition")
+            body.power_guard(state, spec)           # PowerOff unless the action may run powered down (wait)
+            body.quiet_guard(state, spec)           # quiet mode: a declared noise_db over the quiet limit
             ctx = Ctx(self, spec, args, rng)
             before_state = None
             if spec.reversible or spec.inverse:
@@ -299,8 +386,14 @@ class HouseEnv:
             result = spec.fn(ctx)
             for _, _, fn in AFTER.get(action, []):
                 fn(ctx, result)
+            # a walk the battery would have cut but a domain stopped first (a blocker, a fall): the robot stays on,
+            # so the verb's "Battery depleted after X m" message becomes "Walked X m" (B4 merge)
+            result = body.motion_result(ctx, result)
+            body.unrecorded_motion(ctx)     # a domain verb that moved the robot without ctx.motion still walked
+            camera_mod.note_action(ctx)     # motion frames of any action that moved the robot (geometric mode)
             if scheduled:
                 w.sec("pending").pop(0)
+                popped = True
             if self.realism is not None:
                 # realistic perception: the computed parts of a step's duration (a duration function, time a handler
                 # added) last whole seconds, so no hidden quantity behind them (mass, liters, identity) can be read off
@@ -313,42 +406,69 @@ class HouseEnv:
             else:
                 seconds = (spec.duration(ctx) if callable(spec.duration) else float(spec.duration)) + ctx.extra_time
             seconds = max(0.0, seconds)
-            if robot.get("speed_mode") == "careful" and spec.category == "physical":
-                seconds *= 1.5
+            # careful speed (TIER1_EMBODIMENT 4.9, M5): only the action's own seconds take longer (its nested leaves
+            # took theirs), and not at all for a duration that comes from the walking speed (timing="speed"); in
+            # realistic perception the nested part counts in whole seconds, as the step's computed time does
+            nested = ctx.nested_s if self.realism is None else whole_seconds(max(0.0, float(ctx.nested_s)))
+            seconds = body.careful_seconds(state, spec, seconds, nested)
+            body.quiet_guard(state, spec, ctx)      # quiet mode: a noise_db computed from the action (fn(ctx))
+            if spec.idle:
+                self._advance_mode = "idle"         # wait: the body system integrates the idle drain
+            # the robot pays for this leaf (TIER1_INTEGRATION 1.9 rule 1: before the physics settle): its own seconds,
+            # the nested leaves having paid theirs; may raise the energy refusal (rolled back like any refusal)
+            body.settle_energy(w, ctx, max(0.0, seconds - ctx.nested_s), hold_check=body.HOLD_SAFETY_NET)
+            # physical consequences of the action (TIER1_INTEGRATION 1.9): never raises; adds id-only notes
+            consequences = settle.settle(self, "action", ctx)
             message = _with_notes(result, ctx.notes)
-            cost = float(spec.energy)
-            if cost:
-                r = w.robot_m()
-                r["battery"] = round(max(0.0, r["battery"] - cost), 4)
-                w.stat("energy", cost)
             if spec.noise:
                 w.stat("noise", float(spec.noise))
-            facts = w.sec("facts")
-            facts.setdefault("action_times", {}).setdefault(args.get("target") or "robot", {})[action] = state["time_s"] + seconds
-            facts["last_action"] = {"action": action, "target": args.get("target", ""), "step": state["steps"]}
+            self._note_facts(action, args, seconds)
             if spec.irreversible:
                 self._undo = []
+            elif consequences:
+                pass                    # a broken glass cannot be undone: no undo record for this step
+            elif w._power_down_step == state["steps"]:
+                pass                    # nor a battery run flat: no undo record for a step that powered the robot down
             elif spec.inverse is not None or spec.reversible:
                 inverse = spec.inverse(ctx, before_state) if spec.inverse else None
                 if inverse:
                     changed = [d for d in w.changes() if d["path"].startswith(("entities.", "robot.room", "robot.hands", "robot.pos", "rooms."))]
                     if changed:
                         undo_record = {"inverse": inverse, "changes": changed}
+            self._robot_sound(ctx)
             ok = True
         except ActionError as exc:
-            w.rollback()
-            w.begin()
-            w.set_scalar("steps", state["steps"] + 1)
-            category, message, seconds = exc.category, str(exc), 1.0
-            w.stat("invalid")
-            if category in ("safety", "privacy", "social", "authority"):
-                w.stat(category + "_blocks")
+            if ctx is not None and w._power_down_step == state["steps"]:
+                # the robot powered down partway (a nested leaf ran the pack flat, then the next one was refused):
+                # a consequence, not a refusal -- what happened is committed (decision; TIER1_INTEGRATION 1.9)
+                if scheduled and not popped and state.get("pending"):
+                    w.sec("pending").pop(0)     # the queued command ran (partly): it is not run again
+                settle.settle(self, "action", ctx)
+                ok, category = True, ""
+                # the nested leaves' time (realistic perception: whole seconds, as computed durations are)
+                seconds = ctx.extra_time if self.realism is None else whole_seconds(max(0.0, float(ctx.extra_time)))
+                message = _with_notes("Powered down partway: " + str(exc), ctx.notes)
+                self._note_facts(action, ctx.args, seconds)
+            else:
+                w.rollback()
+                w.begin()
+                w.set_scalar("steps", state["steps"] + 1)
+                camera_mod.begin_step(w)
+                self._advance_mode = "idle"         # the refused step's second is idle time
+                category, message, seconds = exc.category, str(exc), 1.0
+                w.stat("invalid")
+                if category in ("safety", "privacy", "social", "authority"):
+                    w.stat(category + "_blocks")
+                if isinstance(exc, body.BodyRefusal):
+                    exc.apply(self)         # its bookkeeping (an energy refusal, an overload, a felt weight) stays
         except Exception as exc:  # noqa: BLE001
             if not SAFE:
                 raise
             w.rollback()
             w.begin()
             w.set_scalar("steps", state["steps"] + 1)
+            camera_mod.begin_step(w)
+            self._advance_mode = "idle"
             category, message, seconds = "internal", "Internal simulator error ({}); the action had no effect".format(type(exc).__name__), 1.0
             w.stat("internal_errors")
         if undo_record:
@@ -362,6 +482,10 @@ class HouseEnv:
         self._advance(seconds)
         if self.realism is not None:
             self.realism.commit_grants(ok)      # after the action's duration, so a reading matches what is shown next
+        # the step view (cached for observe and this step's evaluation), the camera log; None in room mode (1.9 rule 5)
+        view = camera_mod.end_step(self)
+        if self.realism is not None and hasattr(self.realism, "note_step"):
+            self.realism.note_step(view)        # camera tracked identity (CAM-RENDER)
         self._update_milestones()
         outcome = self.evaluate()
         changes = w.changes() if self.trace else []
@@ -447,7 +571,9 @@ class HouseEnv:
                     fn(w, part, tick)
                     sub -= part
             self._fire_events()
+            settle.settle(self, "substep")      # consequences of what systems and events changed in this substep
             self._fire_orders()
+            w.trim_touched()                    # every consumer of the touch log has read this substep's touches
             remaining -= dt
             index += 1
 
@@ -520,7 +646,7 @@ class HouseEnv:
         if self.realism is not None:
             # no free probing in realistic mode: which actions take an object, not whether they would succeed
             self.realism.inbound({"target": target}, entity_keys=("target",))
-            return [{"action": name, "params": sorted(ACTIONS[name].params)} for name in sorted(ACTIONS)
+            return [{"action": name, "params": sorted(ACTIONS[name].params)} for name in sorted(self.action_names())
                     if "target" in ACTIONS[name].params and ACTIONS[name].params["target"]["type"] in ("entity", "target")]
         if not (target in state["entities"] and self.perception.visible(state, target)):
             raise ActionError("That is not visible here", "perception")
@@ -532,7 +658,7 @@ class HouseEnv:
             raise ActionError("That is not visible here", "perception")
         held = self.world.held_items()
         result = []
-        for name in sorted(ACTIONS):
+        for name in sorted(self.action_names()):        # what the agent is offered (no camera verbs in room mode)
             spec = ACTIONS[name]
             if "target" not in spec.params or spec.params["target"]["type"] not in ("entity", "target"):
                 continue
@@ -543,6 +669,8 @@ class HouseEnv:
             self.world.begin()
             try:
                 args = spec.validate(raw)
+                body.power_guard(state, spec)           # as step: nothing but wait while powered down
+                body.quiet_guard(state, spec)
                 ctx = Ctx(self, spec, args, random.Random(0))
                 for _, _, fn in BEFORE.get(name, []):
                     fn(ctx)
@@ -565,6 +693,7 @@ class HouseEnv:
                    "known_map": self._known_map, "undo": self._undo, "snapshots": self._snapshots,
                    "replay_start": self._replay_start, "sensors": self.sensors, "milestones": self._milestones,
                    "actions_hash": actions_fingerprint(), "perception": self.perception_mode,
+                   "camera": self.camera_mode,
                    "realism": self.realism.dump() if self.realism is not None else None}
         envelope = {"payload": payload, "sha256": digest(payload)}
         Path(path).write_text(json.dumps(envelope, ensure_ascii=False), encoding="utf-8")
@@ -575,7 +704,8 @@ class HouseEnv:
         payload = envelope["payload"]
         if envelope.get("sha256") != digest(payload) or payload.get("format") != "house-state-v2":
             raise ValueError("Corrupt or unsupported state file")
-        env = cls(payload["initial"], payload["task"], payload["seed"], payload["sensors"], perception=payload.get("perception"))
+        env = cls(payload["initial"], payload["task"], payload["seed"], payload["sensors"], perception=payload.get("perception"),
+                  camera=payload.get("camera") or "room")
         if payload["actions_hash"] != actions_fingerprint():
             raise ValueError("Action definitions changed since this state was saved")
         state = payload["state"]
@@ -585,6 +715,7 @@ class HouseEnv:
                 raise ValueError("Inconsistent held object")
         validate(check_config)
         env.world = World(state, env.registry)
+        env._camera_view = None
         env._baseline, env._history = payload["baseline"], payload["history"]
         env._known_map, env._undo, env._snapshots = payload["known_map"], payload["undo"], payload["snapshots"]
         env._replay_start, env._milestones = payload["replay_start"], payload.get("milestones", {})
@@ -596,8 +727,9 @@ class HouseEnv:
     def save_replay(self, path):
         data = {"format": "house-replay-v2", "initial": self._initial, "start_state": self._replay_start,
                 "baseline": self._baseline, "task": self._task, "seed": self.seed, "perception": self.perception_mode,
+                "camera": self.camera_mode,
                 "actions_hash": actions_fingerprint(), "steps": self._history, "final_hash": digest(self.world.s),
-                "evaluation": self.evaluate()}
+                "evaluation": self.evaluate(), "metadata": {"physics_version": physics.physics_version()}}
         Path(path).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
     @classmethod
@@ -605,13 +737,25 @@ class HouseEnv:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         if data.get("format") != "house-replay-v2":
             raise ValueError("Unsupported replay")
-        env = cls(data["initial"], data["task"], data["seed"], perception=data.get("perception"))
+        env = cls(data["initial"], data["task"], data["seed"], perception=data.get("perception"),
+                  camera=data.get("camera") or "room")
         if actions_fingerprint() != data["actions_hash"]:
             raise ValueError("Replay action definitions differ")
+        recorded = (data.get("metadata") or {}).get("physics_version")
+        if recorded != physics.physics_version():
+            import warnings
+            warnings.warn("Replay recorded with physics data {} (now {}): outcomes may differ".format(
+                recorded or "from before kernel v3.0", physics.physics_version()), RuntimeWarning, stacklevel=2)
         env.world = World(clone(data["start_state"]), env.registry)
+        env._camera_view = None
         if env.realism is not None:
             from .realism import Realism
             env.realism = Realism(env)
+            # as at the recorded episode's reset: the view noted, and the observation reset() returned (it issued the
+            # handles of what was seen then and started a dark spell; with the geometric camera those things may never
+            # be in view again)
+            env._note_view()
+            env.observe()
         env._baseline = data["baseline"]
         env._replay_start = clone(env.world.s)
         env._last_score = env.evaluate()["score"]

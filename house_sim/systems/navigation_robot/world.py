@@ -240,12 +240,8 @@ def _inv_trampled(state, baseline, world=None):
     return "navigation_robot.trampled" if _grew(state, baseline, "nav_trampled") else None
 
 
-@invariant("navigation_robot.stranded")
-def _inv_stranded(state, baseline, world=None):
-    robot = state.get("robot") or {}
-    if _grew(state, baseline, "nav_stranded") or (C.num(robot.get("battery"), 100.0) <= 0.0 and not robot.get("docked")):
-        return "navigation_robot.stranded"
-    return None
+# A robot that runs out of battery away from a dock is the kernel body's global failure `robot_stranded` (kernel
+# v3.0, TIER1_EMBODIMENT 4.5); it replaced navigation_robot.stranded with the same "ever stranded" meaning.
 
 
 @invariant("navigation_robot.trapped")

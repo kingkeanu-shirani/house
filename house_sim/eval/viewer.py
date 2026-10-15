@@ -34,6 +34,20 @@ int, or a str/float that represents one exactly; anything else is refused), so a
 900000123.0 is checked like 900000123; a replay with a start state but no seed cannot be shown to be public and is
 treated as private.
 
+Geometric camera (kernel v3.0): the episode's camera mode is a header badge; in geometric mode the oracle frames add
+the robot's camera ("cam": facing, head yaw, field of view, this step's frame count and frame headings, the current
+room's surveyed floor cells and coverage from camera_log) and the perceived frames add only what obs.camera told the
+agent (facing, head yaw, frame count, coverage): the page draws a facing arrow, the field-of-view wedges and, in the
+oracle view, the seen-cells overlay.
+
+Physics and the robot body (kernel v3.0): the header names the physics data version the frames were computed with
+(and the one a replay was recorded with, when they differ); oracle entity records add the physics cues ("ph":
+sagging, wobbly, in_motion, collapsed_shelves, fell, tipped_over, blown_away, torn) and damage levels ("dm"); frames
+add the robot's power state ("pw", when not "on"), battery state ("bs", when not "ok") and detected fault kinds
+("ft"; oracle frames also "lf", the latent ones), the perceived frames from obs.robot only; and the oracle view gets
+per-step markers ("marks") for the step's physics consequences (phys.* events) and body events (power down and up,
+falls, overloads, faults, battery thresholds) from the event log, shown in the step list and on the timeline.
+
 Perceived-only pages (view="perceived") carry a floor plan built only from the observations the agent was given
 (perceived_layout): rooms it was in, laid out from their observed size and floor, doorways it saw, and the rooms its
 exits named shown as bare ids ("stubs", no label, type, size or floor). The true floor plan is shipped only on pages
@@ -81,7 +95,17 @@ KEY_FIELDS = {"location", "relation", "pos", "spos", "shelf", "open", "on", "loc
               "shattered", "on_fire", "smoking", "overflowing", "leaking", "soil", "settings", "appliance",
               "liquid", "liquid_l", "fill_level", "covered", "plugged_in", "revealed", "contents", "rot"}
 DROP_TOP = {"action_log", "event_log", "people_log", "logs", "steps", "time_s"}
-DROP_PATHS = ("robot.battery", "stats.energy", "stats.noise", "facts.last_action", "facts.action_times")
+DROP_PATHS = ("robot.battery", "stats.energy", "stats.noise", "facts.last_action", "facts.action_times",
+              # robot body bookkeeping (kernel v3.0; TIER1_EMBODIMENT 8.4): energy counters, pack temperature, the
+              # lowest gauge, first-time log and the settlement caches (power state, faults and falls stay)
+              "robot.energy_wh_used", "robot.energy_wh_charged", "robot.battery_temp_c", "robot.battery_min_pct",
+              "robot.body_log", "robot._idle_s", "robot._activity", "robot._held_kg")
+# physics consequence cues shown in oracle entity panels ("ph"; TIER1_PHYSICS 10.4) and damage levels ("dm")
+PHYS_CUES = ("sagging", "wobbly", "in_motion", "collapsed_shelves", "fell", "tipped_over", "blown_away", "torn")
+# event-log kinds marked on the oracle timeline: every phys.* consequence plus these body events (TIER1_EMBODIMENT 8.4)
+BODY_MARKS = ("power_down", "power_up", "robot_fell", "overload", "fault_onset", "fault_detected", "fault_logged",
+              "fault_cleared", "battery_low", "battery_reserve")
+MAX_MARKS = 12              # markers kept per step (a shelf cascade can emit dozens of phys.* events)
 
 
 class ViewerError(ValueError):
@@ -327,7 +351,8 @@ def _read_jsonl(path):
     return rows
 
 
-META_KEYS = ("catalog_id", "split", "seed_tag", "seed", "agent", "privileged", "perception", "instruction", "phrasing",
+META_KEYS = ("catalog_id", "split", "seed_tag", "seed", "agent", "privileged", "perception", "camera", "instruction",
+             "phrasing",
              "spec_hash", "success", "end_reason", "done_declared", "require_done", "kind", "section", "domain",
              "risk_level", "run_id", "instruction_sha256", "instruction_hmac", "private_digest_scheme")
 
@@ -520,8 +545,8 @@ def _from_log(data, items, name, path, record, private=None):
         meta.setdefault("done_declared", True)
     episode = {"kind": "log", "name": name, "path": str(path) if path else None, "meta": meta, "records": records,
                "initial": None, "start_state": None, "baseline": None, "task": None, "seed": meta.get("seed"),
-               "perception": meta.get("perception"), "final_evaluation": None, "final_hash": None, "actions_hash": None,
-               "skipped": skipped}
+               "perception": meta.get("perception"), "camera": meta.get("camera"), "final_evaluation": None,
+               "final_hash": None, "actions_hash": None, "skipped": skipped}
     _guard(meta, meta.get("seed"), meta.get("catalog_id"), private)
     replay = _log_replay(data, path)
     if replay is not None:
@@ -538,6 +563,8 @@ def _from_log(data, items, name, path, record, private=None):
             rich.update(meta=rich_meta, kind="log", skipped=skipped, path=str(path) if path else None)
             if not rich.get("perception") and meta.get("perception"):
                 rich["perception"] = meta["perception"]
+            if not rich.get("camera") and meta.get("camera"):
+                rich["camera"] = meta["camera"]
             return rich
     return episode
 
@@ -571,8 +598,11 @@ def _from_replay(data, name, path):
     return {"kind": "replay", "name": name, "path": str(path) if path else None, "meta": meta, "records": records,
             "initial": data.get("initial"), "start_state": data.get("start_state"), "baseline": data.get("baseline"),
             "task": data.get("task"), "seed": normalize_seed(data.get("seed")), "perception": perception,
+            "camera": data.get("camera"),
             "final_evaluation": data.get("evaluation"), "final_hash": data.get("final_hash"),
-            "actions_hash": data.get("actions_hash")}
+            "actions_hash": data.get("actions_hash"),
+            # kernel v3.0 replays record the physics data version (None: recorded before v3.0)
+            "physics_recorded": (data.get("metadata") or {}).get("physics_version"), "physics_known": True}
 
 
 def _find_spec(catalog_id):
@@ -608,7 +638,8 @@ def _prepare_log(episode, warnings):
                 seed = int(tag.split(":", 1)[1])
     if seed is None:
         raise ViewerError("the log records no seed (and its seed tag does not give one)")
-    config, task, oracle = build(spec, int(seed))
+    # the episode's modes, as the harness built it (None: the spec's own)
+    config, task, oracle = build(spec, int(seed), camera=meta.get("camera"), perception=meta.get("perception"))
     instruction = meta.get("instruction")
     phrasing = meta.get("phrasing")
     if phrasing is None and test and not instruction:
@@ -634,6 +665,7 @@ def _prepare_log(episode, warnings):
         warnings.append("The episode's private instruction phrasing could not be recovered; the simulation is unaffected.")
     episode.update(initial=config, task=task, seed=int(seed), start_state=None, baseline=None)
     episode["perception"] = meta.get("perception") or task.get("perception") or "oracle"
+    episode["camera"] = meta.get("camera")       # None: the spec's own (logs from before kernel v3.0)
     episode["spec"] = spec
 
 
@@ -926,6 +958,14 @@ def _oracle_entity(eid, rec, rooms, kids, geometry):
     states = [w for w in STATE_WORDS if rec.get(w) is True]
     if states:
         out["st"] = states
+    cues = {cue: _round_any(rec[cue]) for cue in PHYS_CUES if rec.get(cue) not in (None, False, "", [], {})}
+    if cues:
+        out["ph"] = cues
+    damage = rec.get("damage")
+    if isinstance(damage, dict):
+        levels = {k: _num(_float(v), 2) for k, v in sorted(damage.items()) if isinstance(v, (int, float)) and _float(v) > 0}
+        if levels:
+            out["dm"] = levels
     soil = rec.get("soil")
     if isinstance(soil, dict):
         dirt = {k: _num(_float(v), 2) for k, v in sorted(soil.items()) if isinstance(v, (int, float)) and _float(v) >= 0.005}
@@ -1070,9 +1110,131 @@ def oracle_frame(state, prev=None):
             frame[short] = robot[key]
     if robot.get("speed_mode") not in (None, "normal"):
         frame["sm"] = robot["speed_mode"]
+    frame.update(oracle_body(state))
+    cam = oracle_camera(state)
+    if cam is not None:
+        frame["cam"] = cam
     frame = _clean({k: v for k, v in frame.items() if k != "R"})
     frame["R"] = rooms            # other rooms are shared with the previous frame (already clean)
     return frame
+
+
+def oracle_body(state):
+    """The robot body markers of a true state (kernel v3.0, TIER1_EMBODIMENT 8.4): "pw" the power state when it is not
+    "on", "bs" the battery state when it is not "ok", "ft" the kinds of the active faults the robot has detected and
+    "lf" those still latent (privileged). Empty for states the body cannot read."""
+    out = {}
+    try:
+        from ..kernel import body, body_faults
+        power = body.get(state, "power_state")
+        if power not in (None, "on"):
+            out["pw"] = power
+        level = body.battery_state(state)
+        if level != "ok":
+            out["bs"] = level
+        active = body_faults.active_faults(state)
+    except Exception:  # noqa: BLE001 - a legacy or partial state still renders without body markers
+        return out
+    detected = sorted({str(r.get("kind")) for r in active if r.get("detected")})
+    latent = sorted({str(r.get("kind")) for r in active if not r.get("detected")})
+    if detected:
+        out["ft"] = detected
+    if latent:
+        out["lf"] = latent
+    return out
+
+
+def perceived_body(obs):
+    """The body markers the observation gave the agent (realistic obs.robot): "pw" power state when not "on", "bs"
+    battery state when not "ok", "ft" the fault kinds obs.robot.faults lists (detected faults and the robot's own log
+    notes and falls)."""
+    robot = obs.get("robot") if isinstance(obs.get("robot"), dict) else {}
+    out = {}
+    if robot.get("power_state") not in (None, "on"):
+        out["pw"] = robot["power_state"]
+    if robot.get("battery_state") not in (None, "ok"):
+        out["bs"] = robot["battery_state"]
+    kinds = sorted({str(f.get("kind")) for f in robot.get("faults") or [] if isinstance(f, dict) and f.get("kind")})
+    if kinds:
+        out["ft"] = kinds
+    return out
+
+
+def _mark_detail(entry):
+    """A short text for one marked event-log entry (oracle view: ids are true ids)."""
+    kind = entry.get("kind")
+    if str(kind).startswith("phys."):
+        target = entry.get("target")
+        text = target if isinstance(target, str) else ""
+        by = entry.get("by")
+        if by in ("robot", "exogenous"):
+            text = "{} ({})".format(text, by).strip()
+        return text
+    if kind == "overload":
+        return "{} ({})".format(entry.get("target"), entry.get("ratio_bucket")) if entry.get("ratio_bucket") else str(entry.get("target") or "")
+    if kind in ("power_down", "power_up", "robot_fell"):
+        return str(entry.get("cause") or "")
+    if kind == "fault_onset":
+        part = entry.get("part")
+        return "{}{} ({})".format(entry.get("fault_kind"), " " + str(part) if part else "", entry.get("source") or "event")
+    if kind in ("fault_detected", "fault_cleared"):
+        return "{} ({})".format(entry.get("fault"), entry.get("how") or "")
+    if kind == "fault_logged":
+        return "{}: {}".format(entry.get("fault_kind"), entry.get("status"))
+    if kind in ("battery_low", "battery_reserve"):
+        return "gauge {}%".format(_num(_float(entry.get("gauge")), 1))
+    return ""
+
+
+def step_marks(state):
+    """[[kind, detail], ...] for the physics consequences (phys.* events) and body events (BODY_MARKS) the event log
+    holds for the state's current step (at most MAX_MARKS, then ["more", "+N"])."""
+    step = state.get("steps", 0)
+    found = [entry for entry in state.get("event_log") or [] if isinstance(entry, dict) and entry.get("step") == step
+             and (str(entry.get("kind", "")).startswith("phys.") or entry.get("kind") in BODY_MARKS)]
+    marks = [[str(entry.get("kind")), _short(_mark_detail(entry), 80)] for entry in found[:MAX_MARKS]]
+    if len(found) > MAX_MARKS:
+        marks.append(["more", "+{}".format(len(found) - MAX_MARKS)])
+    return marks
+
+
+def oracle_camera(state):
+    """The geometric camera of a true state (None in room mode): "fd" body facing and "hy" head yaw (grid degrees: 0
+    east, 90 south), "hf" horizontal field of view, "fc" this step's frame count and "fy" the headings of its frames
+    taken in the current room, "sc" the room's floor cells camera_log counts as seen (row-major, "1" = seen) and "cv"
+    its coverage."""
+    robot = state["robot"]
+    view = robot.get("view")
+    if not isinstance(view, dict):
+        return None
+    from ..kernel import camera as camera_mod
+    rid = robot.get("room")
+    facing = _float(robot.get("facing_deg"), 90.0)
+    frames = view.get("frames") if view.get("step") == state.get("steps", 0) else []
+    log = state.get("camera_log") or {}
+    try:
+        hfov = float(camera_mod.hw(state)["head"]["hfov_deg"])
+    except Exception:  # noqa: BLE001
+        hfov = 69.0
+    out = {"fd": _num(facing, 1), "hy": _num((facing + _float(view.get("pan_deg"), 0.0)) % 360.0, 1), "hf": _num(hfov, 1),
+           "fc": len(frames or []),
+           "fy": sorted({_num(_float(f[4]) % 360.0, 1) for f in frames or [] if isinstance(f, list) and len(f) > 4
+                         and f[0] == rid}),
+           "sc": (log.get("seen_cells") or {}).get(rid), "cv": (log.get("coverage") or {}).get(rid)}
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def perceived_camera(obs):
+    """What obs.camera told the agent (None without a camera block): facing, head yaw, frame count and coverage (the
+    seen-cells overlay is privileged and only on oracle frames)."""
+    block = obs.get("camera")
+    if not isinstance(block, dict):
+        return None
+    pose = block.get("pose") or {}
+    facing = _float(pose.get("facing_deg"), 90.0)
+    out = {"fd": _num(facing, 1), "hy": _num((facing + _float(pose.get("pan_deg"), 0.0)) % 360.0, 1),
+           "fc": block.get("frames"), "cv": block.get("coverage")}
+    return {k: v for k, v in out.items() if v is not None}
 
 
 def _perceived_entity(rec, rooms):
@@ -1143,6 +1305,10 @@ def perceived_frame(obs, rooms, prev=None, mask=None):
              "h": list(obs.get("holding") or []), "dark": bool(obs.get("dark")), "R": all_rooms, "ch": channels}
     if robot.get("standing_on"):
         frame["so"] = robot["standing_on"]
+    frame.update(perceived_body(obs))
+    cam = perceived_camera(obs)
+    if cam is not None:
+        frame["cam"] = cam
     frame = mask(_clean({k: v for k, v in frame.items() if k != "R"}))
     frame["R"] = all_rooms
     return frame
@@ -1352,20 +1518,37 @@ def _live_env(episode, warnings, trace=True):
     from ..kernel.world import World, clone
     # observe_on_step=True like the harness and HouseEnv.replay: some actions read the known map that observing builds
     env = HouseEnv(episode["initial"], episode["task"], episode["seed"], trace=trace, observe_on_step=True,
-                   perception=episode["perception"])
+                   perception=episode["perception"], camera=episode.get("camera"))
     env.raw_results = True     # like the task runner: step results keep the raw message and the evaluation
     if episode.get("start_state") is not None:
         env.world = World(clone(episode["start_state"]), env.registry)
+        env._camera_view = None
         if env.realism is not None:
             from ..kernel.realism import Realism
             env.realism = Realism(env)
+            if hasattr(env, "_note_view"):
+                env._note_view()       # what the cameras saw at the start, as HouseEnv.replay does ...
+            env.observe()              # ... and the observation reset() returned (the handles it issued)
         if episode.get("baseline") is not None:
             env._baseline = episode["baseline"]
         env._replay_start = clone(env.world.s)
         env._last_score = env.evaluate()["score"]
     if episode.get("actions_hash") and episode["actions_hash"] != actions_fingerprint():
         warnings.append("Action definitions changed since this episode was recorded; the re-run may diverge.")
+    current = _physics_version()
+    if episode.get("physics_known") and current is not None and episode.get("physics_recorded") != current:
+        warnings.append("Recorded with physics data {}; the re-run uses {}, so physical outcomes may not match the "
+                        "recording.".format(episode.get("physics_recorded") or "from before kernel v3.0", current))
     return env
+
+
+def _physics_version():
+    """The current physics data version (kernel/physics.py physics_version), None when unavailable."""
+    try:
+        from ..kernel.physics import physics_version
+        return physics_version()
+    except Exception:  # noqa: BLE001 - an older kernel without the physics layer
+        return None
 
 
 def build_viewer_data(source, view="both", private=False, verify_spec=False):
@@ -1421,7 +1604,7 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
     pmap, seen_rooms = PerceivedMap(), set()
     room_ids = set(state.get("rooms", {}))
     oracle_frames, perceived_frames, evals = _DeltaStream(), _DeltaStream(), _DeltaStream()
-    steps, diffs = [], []
+    steps, diffs, marks = [], [], {}
     true_ids = set(state["entities"])
     leaks = [0]
     descriptive = _descriptive_keys()
@@ -1436,6 +1619,9 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
         nonlocal prev_oracle, prev_perceived
         true_ids.update(current_state["entities"])
         if want_oracle:
+            found = step_marks(current_state)
+            if found:
+                marks[str(len(oracle_frames.items))] = found      # keyed by the frame the step led to
             prev_oracle = oracle_frame(current_state, prev_oracle)
             oracle_frames.add(prev_oracle, clean=False)
         if want_perceived:
@@ -1579,7 +1765,8 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
         title, source_name = (_hide_seeds(text, (episode.get("seed"), meta.get("seed"))) for text in (title, source_name))
     out_meta = {"title": title, "catalog_id": catalog_id,
                 "instruction": meta.get("phrasing") or task.get("instruction") or meta.get("instruction") or "",
-                "perception": episode.get("perception") or "oracle", "view": view,
+                "perception": episode.get("perception") or "oracle",
+                "camera": (env.camera_mode if env is not None else None) or episode.get("camera") or "room", "view": view,
                 "views": (["oracle"] if want_oracle else []) + (["perceived"] if want_perceived else []),
                 "source_kind": episode["kind"], "source": source_name,
                 "split": "test" if test else meta.get("split"), "seed_tag": seed_tag,
@@ -1588,7 +1775,12 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
                 "risk_level": task.get("risk_level"), "fidelity": task.get("fidelity"), "variant": task.get("variant"),
                 "milestones": sorted((task.get("milestones") or {}).keys()), "warnings": warnings,
                 "done_declared": meta.get("done_declared"), "end_reason": meta.get("end_reason"),
-                "spec_status": _spec_status(spec, verify_spec) if spec is not None else {"state": "n/a"}}
+                "spec_status": _spec_status(spec, verify_spec) if spec is not None else {"state": "n/a"},
+                # the physics data the frames come from: the current code's when it re-ran the episode, else the
+                # recording's (a replay the current simulator cannot load)
+                "physics_version": _physics_version() if env is not None else episode.get("physics_recorded")}
+    if episode.get("physics_known") and episode.get("physics_recorded") != out_meta["physics_version"]:
+        out_meta["physics_recorded"] = episode.get("physics_recorded") or "before kernel v3.0"
     if not test and episode.get("seed") is not None:
         out_meta["seed"] = normalize_seed(episode["seed"])
     if want_oracle:
@@ -1601,6 +1793,8 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
     if want_oracle:
         data["frames"] = oracle_frames.items
         data["diffs"] = diffs
+        if marks:
+            data["marks"] = marks
     if want_perceived:
         data["pframes"] = perceived_frames.items
     return data

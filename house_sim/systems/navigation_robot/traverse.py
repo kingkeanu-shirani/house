@@ -14,12 +14,18 @@ Per path cell (fidelity G with P-approx traction):
   social      close passes, contacts in crowds, cutting through conversations, TV sightlines,
               video-call camera frames
 After the path: doorway clearance with payload, thresholds, stairs (stairs.py), sudden
-encounters at doorways, sloshing, long-load swing, tracking dirt indoors, battery drain,
-docking state, line-of-sight room coverage, no-go zones and the robot's resting spot.
+encounters at doorways, sloshing, long-load swing, tracking dirt indoors, odometry, docking
+state, line-of-sight room coverage, no-go zones and the robot's resting spot.
+
+Energy is the kernel body's (kernel v3.0, TIER1_EMBODIMENT 4.3 / 4.6): the motion verbs write one
+motion record (ctx.motion) and the engine charges what it says. This module never touches the
+battery; it only corrects the record when the walk ends early: a stop or a fall cuts it to what the
+robot actually walked (ctx.cut_motion, see `walked`). A walk the battery cut short (record cut
+"battery") is an in-room trip: no doorway passage, no stairs, no arrival effects.
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.errors import ActionError
 from ...kernel.plugins import ACTIONS, after, before
 from . import common as C
@@ -37,6 +43,8 @@ class Trip:
         self.stepping_over = stepping_over
         self.stopped_at = None
         self.fell = False
+        self.crossed = False     # it reached the doorway or the stairs (the passage started)
+        self.arrival_fell = False   # it fell on the landing cell beyond the doorway
         self.stumbled = False
         self.events = []
         self.kicked = set()      # items already kicked during this motion (a kick moves a thing once, not along the route)
@@ -74,7 +82,7 @@ def _pre_motion(ctx):
                 w.room_m(rid)["floor_hazards"] = [h for h in entries if h not in stash]
                 w.robot_m()[H.PLAN_HIDDEN] = sorted(hidden)
                 ctx.data["nav_hidden_glass"] = (rid, stash)
-    speed = C.speed_of(ctx)
+    speed = pace(ctx)
     level = C.light_level(w.s, rid)
     if speed != "careful" and level < LOW_LIGHT and not C.robot_has_light(w.s):
         # low light at walking pace: low-contrast obstacles are not detected in time to plan around
@@ -1032,11 +1040,16 @@ def _after_motion(ctx, kind):
         if state["robot"].get("room") in state["rooms"]:
             H.refresh(w, state["robot"]["room"])
     path = ctx.data.get("path") or []
-    speed = C.speed_of(ctx)
+    speed = pace(ctx)
+    cut = battery_cut(ctx)
     if kind == "move":
         rid = ctx.data.get("from_room")
         dest = state["robot"]["room"]
         cid = ctx.data.get("connection")
+        if cut or dest == rid:
+            # the battery stopped it short of the doorway (TIER1_EMBODIMENT 4.6): an in-room trip over the walked
+            # prefix, without the passage, the stairs or the arrival on the far side
+            dest, cid = None, None
         start = _start_cell(ctx, rid)
     else:
         rid = state["robot"]["room"]
@@ -1047,9 +1060,29 @@ def _after_motion(ctx, kind):
     trip = Trip(ctx, kind, rid, start, path, speed, conn=cid, dest=dest, target=ctx.args.get("target"),
                 stepping_over=bool(ctx.data.get("nav_step_over")))
     traverse(trip)
-    if kind == "approach" and not trip.fell and trip.stopped_at is None:
+    if kind == "approach" and not cut and not trip.fell and trip.stopped_at is None:
         _approach_manner(trip)
     finish_motion(ctx, trip)
+
+
+def battery_cut(ctx):
+    """The action's motion record says the battery ran out partway (body.motion: cut "battery")."""
+    record = ctx.data.get("motion") if ctx is not None else None
+    return bool(record) and record.get("cut") == "battery"
+
+
+def pace(ctx):
+    """The pace the robot actually walks at (TIER1_INTEGRATION 1.7): the speed of the action's motion record when it
+    wrote one, else body.effective_speed of the requested speed (limp mode and weak legs walk careful, quiet mode turns
+    fast into normal)."""
+    record = ctx.data.get("motion")
+    if record and record.get("speed") in C.SPEED_MPS:
+        return record["speed"]
+    requested = C.speed_of(ctx)
+    try:
+        return body.effective_speed(ctx.w.s, requested)[0]
+    except ValueError:
+        return requested
 
 
 def _approach_manner(trip):
@@ -1136,6 +1169,7 @@ def finish_motion(ctx, trip):
     state = w.s
     if trip.kind in ("move", "go_hop") and trip.dest and trip.stopped_at is None and not trip.fell:
         conn = state["connections"].get(trip.conn or "", {})
+        trip.crossed = bool(conn)
         if conn.get("kind") == "stairs":
             S.cross_stairs(trip)
         else:
@@ -1146,6 +1180,7 @@ def finish_motion(ctx, trip):
             H.refresh(w, trip.dest)
             arrive = Trip(ctx, "arrive", trip.dest, arrival, [], trip.speed, target=None)
             _arrival_cell(arrive, arrival)
+            trip.arrival_fell = arrive.fell
             if not arrive.fell:
                 _sudden_encounter(trip, arrival)
             entered_room(ctx, trip.dest, trip.rid)
@@ -1418,36 +1453,57 @@ def _hm(text):
 # ----------------------------------------------------------------------
 # bookkeeping shared by all motions
 
+def walked(trip):
+    """(meters, (steps up, steps down)) the robot actually walked on this trip, measured as body.motion measures
+    its record: the in-room path up to the cell where it stopped or fell; once the passage started, the whole path
+    plus the doorway crossing and the flight of stairs (half of it when it fell on the stairs: the fall's drop
+    height assumes mid-flight too)."""
+    cells = [trip.start] + trip.path
+    if trip.crossed:
+        up = down = 0
+        for ev in trip.events:
+            if ev[0] == "stairs":
+                steps = int(ev[2]) // 2 if trip.fell else int(ev[2])
+                if ev[1] == "up":
+                    up += steps
+                else:
+                    down += steps
+        return geometry.path_length_m(cells) + body.CONNECTION_CROSSING_M, (up, down)
+    if trip.stopped_at is None:
+        return geometry.path_length_m(cells), (0, 0)
+    stop = C.cell(trip.stopped_at)
+    k = cells.index(stop) if stop in cells else len(cells) - 1
+    return geometry.path_length_m(cells[:k + 1]), (0, 0)
+
+
 def bookkeeping(ctx, trip):
+    """Odometry, the end of the motion record, docking state, room coverage and the robot's resting spot.
+
+    The battery is the kernel body's: the engine charges the action's motion record (ctx.motion) once its after-hooks
+    are done. A walk that stopped or fell is cut here to what the robot actually walked, so it pays only for that and
+    does not power down at a battery cut it never reached; a walk that still ends where the battery runs out logs the
+    incident (the engine's settlement then powers the robot down there)."""
     w = ctx.w
     state = w.s
     robot = state["robot"]
     meters = trip.meters
-    steps = 0
-    drain = C.BATTERY_PCT_PER_M * meters * (1.0 + C.held_mass(w) / 40.0)
-    for ev in trip.events:
-        if ev[0] == "stairs":
-            steps += int(ev[2])
-            drain += (C.BATTERY_PCT_PER_STEP_UP if ev[1] == "up" else C.BATTERY_PCT_PER_STEP_DOWN) * int(ev[2])
-    if drain > 0:
-        r = w.robot_m()
-        before_pct = C.num(r.get("battery"), 100.0)
-        r["battery"] = round(max(0.0, before_pct - drain), 4)
+    steps = sum(int(ev[2]) for ev in trip.events if ev[0] == "stairs")
+    if meters > 0 or steps > 0:
         nav = C.nav(w)
         nav["odometry_m"] = round(C.num(nav.get("odometry_m")) + meters, 3)
-        if r["battery"] <= 0.0 and before_pct > 0.0:
-            r["faults"] = (list(r.get("faults") or []) + [{"kind": "battery_depleted", "time_s": C.now(state)}])[-50:]
-            w.stat("nav_stranded")
+    record = ctx.data.get("motion")
+    if record is not None:
+        fell = trip.fell or trip.arrival_fell
+        if fell or trip.stopped_at is not None:
+            done, stairs_done = walked(trip)
+            ctx.cut_motion(done, "fell" if fell else "stopped", stairs_done=stairs_done)
+        if record.get("exhausts"):
             C.incident(w, "battery_depleted", room=robot["room"], cell=list(robot.get("pos") or [0, 0]))
-        elif r["battery"] < C.num(r.get("battery_reserve_pct"), C.BATTERY_RESERVE_PCT) <= before_pct:
-            C.log(w, "battery_below_reserve", battery=r["battery"])
     if robot.get("docked"):
-        dock = robot.get("home") or robot.get("dock")
-        drec = state["entities"].get(dock or "", {})
-        if not drec.get("pos") or C.cell(drec["pos"]) != C.cell(robot.get("pos") or [0, 0]) or drec.get("location") != robot["room"]:
-            r = w.robot_m()
-            r["docked"] = False
-            r["charging"] = False
+        from .robot import seated_dock
+        if seated_dock(state) is None:
+            # off the dock's contacts: the body stops charging at its next substep (no live charge source)
+            w.robot_m()["docked"] = False
     from . import paths as P
     P.update_coverage(w, robot["room"], C.cell(state["robot"].get("pos") or [0, 0]))
     P.update_robot_spot(w)

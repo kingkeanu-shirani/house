@@ -33,10 +33,10 @@ from bisect import insort
 
 from .. import geometry
 
-# Carry geometry of humanoid_v1 (TIER1_INTEGRATION 1.2): one-hand loads hang from the hand at 1.0 m, two-hand bulky
-# loads ride on the hips with their bottom at 0.85 m, 0.35 m in front of the body axis (half the torso depth plus
-# forearm clearance).
-# TIER1-STUB(BODY-ENGINE): body.profile(state)["carry"] replaces these local humanoid_v1 defaults.
+# Carry geometry (TIER1_INTEGRATION 1.2) comes from the robot's body profile: carry_geometry(state). These are
+# humanoid_v1's values (one-hand loads hang from the hand at 1.0 m, two-hand bulky loads ride on the hips with their
+# bottom at 0.85 m, 0.35 m in front of the body axis: half the torso depth plus forearm clearance), the fallback for a
+# state without a robot and for callers that have no state at hand.
 CARRY = {"hand_z_m": 1.0, "hip_z_m": 0.85, "front_m": 0.35}
 # camera 5.6: a two-hand load at least this big (horizontal x horizontal x height, m) blocks the forward view
 VIEW_BLOCK_W_M, VIEW_BLOCK_D_M, VIEW_BLOCK_H_M = 0.35, 0.25, 0.25
@@ -44,6 +44,15 @@ INNER_FLOOR_M = 0.05        # base of contents in a container without shelves (g
 BASELINE_MARGIN_KG = 0.5    # a slot holds what it held at episode start plus this, before its own rating applies
 DEFAULT_SIZE_M = (0.1, 0.1, 0.1)
 HOLDER_RELATIONS_RIGID = ("worn",)
+
+
+def carry_geometry(state):
+    """{"hand_z_m", "hip_z_m", "front_m"} of the robot's carry geometry: its body profile's carry block (profile
+    overrides applied; kernel/body.py, imported at call time), or CARRY (humanoid_v1) for a state without a robot."""
+    if not isinstance(state, dict) or not isinstance(state.get("robot"), dict):
+        return CARRY
+    from .. import body
+    return body.profile(state)["carry"]
 
 
 # ----- accessors to the data layer (lazily imported; tests replace these four functions) ----------------------------
@@ -161,11 +170,20 @@ def support_of(state, eid):
 
 def children_map(state):
     """{location: [entity ids, sorted]} for every entity (one O(N) pass). Settle builds one per phase and passes it
-    down; consequences keep it current through ``move_child``."""
-    entities = state["entities"]
+    down; consequences keep it current through ``move_child``. The body builds one per settlement while the robot
+    carries something, so the pass sorts only the child lists, not every id (about a quarter faster)."""
     cmap = {}
-    for eid in sorted(entities):
-        cmap.setdefault(entities[eid].get("location"), []).append(eid)
+    get = cmap.get
+    for eid, rec in state["entities"].items():
+        location = rec.get("location")
+        siblings = get(location)
+        if siblings is None:
+            cmap[location] = [eid]
+        else:
+            siblings.append(eid)
+    for siblings in cmap.values():
+        if len(siblings) > 1:
+            siblings.sort()
     return cmap
 
 
@@ -474,11 +492,11 @@ def held_envelope(state, cmap=None):
     "com_m", "blocks_view"}. Heights are above the floor; front_m is the distance from the body axis to the load's
     front face; com_m is the height of the carried mass's centre.
 
-    Two-hand loads (other than level-carried trays) ride on the hips with their bottom at CARRY hip_z_m; other loads
-    hang centred on the hand at CARRY hand_z_m. A load is carried with its longer horizontal side across the body (its
-    smaller side is the depth), its front at front_m + depth / 2; loads in the two hands sit side by side, so their
-    widths add. blocks_view follows the camera rule (5.6): a two-hand load at least 0.35 x 0.25 x 0.25 m, or anything
-    declaring blocks_view, except a level-carried tray."""
+    Two-hand loads (other than level-carried trays) ride on the hips with their bottom at the carry geometry's hip_z_m
+    (carry_geometry: the body profile); other loads hang centred on the hand at hand_z_m. A load is carried with its
+    longer horizontal side across the body (its smaller side is the depth), its front at front_m + depth / 2; loads in
+    the two hands sit side by side, so their widths add. blocks_view follows the camera rule (5.6): a two-hand load at
+    least 0.35 x 0.25 x 0.25 m, or anything declaring blocks_view, except a level-carried tray."""
     entities = state["entities"]
     robot = state.get("robot") or {}
     hands = robot.get("hands") or {}
@@ -486,6 +504,7 @@ def held_envelope(state, cmap=None):
     if not held:
         return None
     cmap = _map(state, cmap)
+    carry = carry_geometry(state)
     items, loads = [], []
     for eid in held:
         rec = entities[eid]
@@ -493,14 +512,14 @@ def held_envelope(state, cmap=None):
         w, d, h = resting_size(state, eid)
         width, depth = max(w, d), min(w, d)
         tray = bool(rec.get("carry_level"))
-        bottom = CARRY["hip_z_m"] if both and not tray else CARRY["hand_z_m"] - h / 2.0
+        bottom = carry["hip_z_m"] if both and not tray else carry["hand_z_m"] - h / 2.0
         top = _load_top(state, eid, bottom, cmap)
         weighed, moment = _load_moment(state, eid, bottom, cmap)
         blocks = not tray and (bool(rec.get("blocks_view")) or (both and width >= VIEW_BLOCK_W_M - 1e-9 and
                                                               depth >= VIEW_BLOCK_D_M - 1e-9 and
                                                               top - bottom >= VIEW_BLOCK_H_M - 1e-9))
         loads.append({"both": both, "bottom": bottom, "top": top, "width": width, "depth": depth,
-                      "front": CARRY["front_m"] + depth / 2.0, "mass": subtree_mass(state, eid, cmap),
+                      "front": carry["front_m"] + depth / 2.0, "mass": subtree_mass(state, eid, cmap),
                       "weighed": weighed, "moment": moment, "blocks": blocks})
         items.append(eid)
         items.extend(descendants(state, eid, cmap))

@@ -25,22 +25,29 @@ rule under furniture and the line over the back edge for things behind it all fo
 the ray segment that lies between the eye and the point. Items inside containers must enter through the front or top
 opening and pass their neighbours.
 
-Stage A bridges. Eye heights come from body.eye_height_m and the carried load from phys.support.held_envelope when
-those modules exist; until then local copies of the frozen contracts (TIER1_INTEGRATION 1.2 and 1.6) stand in.
+Robot numbers. Eye heights come from body.eye_height_m, the carry geometry of held items from the body profile's
+"carry" block, the carried load from phys.support.held_envelope and resting sizes from phys.support.resting_size
+(TIER1_INTEGRATION 1.2 and 1.6: one source for each). Tests may replace those siblings through _BRIDGES.
+
+Caches. Room geometry is keyed by its occlusion signature (occ_sig), which a World memoizes per geometry epoch: the
+epoch changes when an entity that can occlude (an occluder or container candidate, a thing it rests on, a door) was
+written, created or destroyed, read from the World's touch log, and with every mutation when a view_occluders hook
+(which may read room fields) is registered. Caches are keyed by content and never change results.
 
 Fidelity: G for line of sight and occlusion at cell-and-box resolution; P-approx for light, glare and acuity (closed
-forms, not calibrated against a real detector). Caches are keyed by content and never change results.
+forms, not calibrated against a real detector).
 """
 import collections
 import hashlib
 import heapq
 import importlib
 import json
+import marshal
 import math
 import weakref
 
 from . import clock, geometry
-from .plugins import run_hooks
+from .plugins import HOOKS, run_hooks
 from .predicates import root_room
 from .registry import default_registry
 
@@ -85,23 +92,6 @@ READ_MIN_CLEAN = 0.4        # perception's dirty-lens limit: below it no text is
 K_MOTION = {"careful": 1.0, "normal": 0.8, "fast": 0.55}    # motion-blur factor of frames taken while walking
 SIZE_IR_MIN_M = 0.4         # IR "dark shape" size floor (C11: today's darkness rule)
 
-# Head-camera eye height by body profile and posture key (TIER1_INTEGRATION 1.2: a head camera at 94 % of a 1.6 m
-# humanoid's height; "kneeling" is the low look-under posture). Stands in for body.eye_height_m until kernel/body.py
-# lands. TIER1-STUB(CAM-RUNTIME): drop with the bridge once body.eye_height_m exists.
-EYE_HEIGHT_M = {
-    "humanoid_v1": {"standing": 1.50, "crouching": 0.95, "kneeling": 0.60, "sitting": 0.95, "lying": 0.30},
-    "humanoid_compact": {"standing": 1.20, "crouching": 0.75, "kneeling": 0.50, "sitting": 0.75, "lying": 0.25},
-    "mobile_manipulator": {"standing": 1.30, "crouching": 0.90, "kneeling": 0.90, "sitting": 0.90, "lying": 0.30},
-}
-AID_STANDING_M = 0.4        # step-stool top when the aid record has no standing_height_m (TIER1_INTEGRATION 1.2)
-# humanoid_v1 carry geometry (TIER1_INTEGRATION 1.2 / 1.6): one-hand loads hang centred on a 1.0 m hand, two-hand
-# loads sit on the hips at 0.85 m, 0.35 m in front of the body axis. Stands in for phys.support.held_envelope.
-# TIER1-STUB(CAM-RUNTIME): drop with the bridge once phys.support.held_envelope exists.
-CARRY = {"hand_z_m": 1.0, "hip_z_m": 0.85, "front_m": 0.35}
-# A carried load hides the view when held in both hands and at least 0.35 x 0.25 m across and 0.25 m tall (5.6;
-# navigation's and manipulation's heuristics, unified); trays carried level are excluded.
-CARRIED_MIN_M = {"wide": 0.35, "deep": 0.25, "tall": 0.25}
-
 OCCLUDER_MIN_M = 0.25       # largest dimension (and, on surfaces, height and width) of anything that occludes
 FLAT_MAX_M = 0.03           # flat things (mats, puddles, papers) never occlude
 WEDGE_MARGIN_DEG = 15.0     # a single-frame viewshed also computes cells this far outside the frame (cell width)
@@ -112,6 +102,8 @@ FACE_UP_MARGIN_M = 0.05     # the "up" face needs the eye this far above the top
 FACE_BLOCK_M = 0.05         # a face this close to a wall or a neighbour is blocked for every camera
 FACE_COVER_FRAC = 0.5       # things covering half the top hide the "up" face (stacked boxes)
 BEHIND_SLOT_M = 0.3         # a space up to a hand's width between a piece and the wall is a shaded slot
+SEAT_BACK_M = 0.2           # a seat's back (sofa, armchair) stands this deep along its back side above the seat ...
+SEAT_MIN_DROP_M = 0.1       # ... when its surface (surface_height_m) lies at least this far under its top
 GEOM_CACHE_SIZE = 64        # rooms
 VIEWSHED_CACHE_SIZE = 2048  # 64 rooms x 32 eyes
 
@@ -234,8 +226,9 @@ Viewer = collections.namedtuple("Viewer", "rid x y z yaw tilt hfov vfov range_m 
 Eye = collections.namedtuple("Eye", "rid x y z ignore")
 Eye.__new__.__defaults__ = ((),)
 Beam = collections.namedtuple("Beam", "x y z ux uy uz power half_deg")
-# how a point relates to the geometry around it: kind, the ids that never occlude it, its support (x0, y0, x1, y1,
-# spans) tested exactly, and for things in a container its _Container and its neighbours' boxes
+# how a point relates to the geometry around it: kind, the ids that never occlude it, its support tested exactly as
+# parts ((x0, y0, x1, y1, spans), ...) (a seat's back strip, the furniture under a thing it rests on), and for things
+# in a container its _Container and its neighbours' boxes
 # ((x0, y0, z0, x1, y1, z1, porosity), ...) for the opening rule
 _Rel = collections.namedtuple("_Rel", "kind eid skip support container siblings")
 _Rel.__new__.__defaults__ = (None, None, ())
@@ -294,19 +287,25 @@ class _LRU(object):
             self.data.popitem(last=False)
 
 
+# Test overrides of the sibling functions sight reads robot and load numbers from ("body.eye_height_m",
+# "phys.support.held_envelope", "phys.support.resting_size"): a callable here replaces the sibling; None or no entry
+# means the sibling itself.
 _BRIDGES = {}
+_SIBLINGS = {}
 
 
 def _bridge(module, attr):
-    """attr of house_sim.kernel.<module> when that stage-A sibling exists, else None (cached per process)."""
+    """house_sim.kernel.<module>.<attr> (imported lazily: body and phys.support import nothing of sight), or the
+    callable a test put into _BRIDGES under "<module>.<attr>"."""
     key = module + "." + attr
-    if key not in _BRIDGES:
-        try:
-            found = getattr(importlib.import_module("." + module, __package__), attr, None)
-        except ImportError:
-            found = None
-        _BRIDGES[key] = found
-    return _BRIDGES[key]
+    override = _BRIDGES.get(key)
+    if override is not None:
+        return override
+    found = _SIBLINGS.get(key)
+    if found is None:
+        found = getattr(importlib.import_module("." + module, __package__), attr)
+        _SIBLINGS[key] = found
+    return found
 
 
 def _eye_of(eye):
@@ -320,89 +319,28 @@ def _robot_viewer(ignore):
     return "robot" in ignore
 
 
-# ----- body and physics bridges ----------------------------------------------------------------------------------------
+# ----- body and physics numbers ------------------------------------------------------------------------------------------
 def eye_height_m(state, posture=None):
-    """Height of the robot's head camera above its floor: the body profile's eye height for the posture ("lying" when
-    fallen) plus the standing height of the aid it stands on. posture: the height for that posture on the floor
-    instead of the current one. Delegates to body.eye_height_m when kernel/body.py exists."""
-    robot = state["robot"]
+    """Height of the robot's head camera above its floor (body.eye_height_m: the body profile's eye height for the
+    posture, "lying" when fallen, plus the standing height of the aid it stands on). posture: the height for that
+    posture on the floor instead of the current one."""
     if posture is not None:
-        robot = dict(robot, posture=posture, fallen=False, standing_on=None)
-        state = dict(state, robot=robot)
-    fn = _bridge("body", "eye_height_m")
-    if fn is not None:
-        return round(float(fn(state)), 3)
-    table = EYE_HEIGHT_M.get(robot.get("body_profile") or "humanoid_v1", EYE_HEIGHT_M["humanoid_v1"])
-    key = "lying" if robot.get("fallen") else (robot.get("posture") or "standing")
-    z = table.get(key, table["standing"])
-    aid = robot.get("standing_on")
-    if aid:
-        z += _num((state["entities"].get(aid) or {}).get("standing_height_m"), AID_STANDING_M)
-    return round(z, 3)
+        state = dict(state, robot=dict(state["robot"], posture=posture, fallen=False, standing_on=None))
+    return round(float(_bridge("body", "eye_height_m")(state)), 3)
 
 
-def _held_envelope(state):
+def carry_geometry(state):
+    """The body profile's carry geometry {"hand_z_m", "hip_z_m", "front_m"} (TIER1_INTEGRATION 1.2): where held
+    items ride. One-hand loads hang centred on the hand, two-hand loads (not level-carried trays) sit on the hips,
+    front_m ahead of the body axis."""
+    return _bridge("body", "profile")(state)["carry"]
+
+
+def _held_envelope(state, cmap=None):
+    """phys.support.held_envelope: the box of everything the robot carries, with blocks_view following the camera
+    rule (5.6), or None with empty hands."""
     fn = _bridge("phys.support", "held_envelope")
-    return fn(state) if fn is not None else _local_held_envelope(state)
-
-
-def _local_held_envelope(state):
-    """The fields of phys.support.held_envelope (TIER1_INTEGRATION 1.6) sight reads, with the same rules and the
-    humanoid_v1 carry constants: items, two_handed, bottom_m, top_m, front_m, width_m, depth_m, height_m,
-    blocks_view. A two-hand load (not a level-carried tray) rides on the hips, others hang centred on the hand; a load
-    is carried with its smaller horizontal side as its depth and loads in the two hands sit side by side (their widths
-    add); blocks_view is the camera rule (5.6): a two-hand load at least 0.35 x 0.25 x 0.25 m or anything declaring
-    blocks_view, except a tray. TIER1-STUB(CAM-RUNTIME): delete once phys.support.held_envelope exists."""
-    entities = state["entities"]
-    hands = state["robot"].get("hands") or {}
-    held = sorted(set(v for v in hands.values() if v and v in entities))
-    if not held:
-        return None
-    cmap = children_map(state)
-    items, loads = [], []
-    for eid in held:
-        rec = entities[eid]
-        both = _two_handed(state, eid)
-        w, d, h = _dims(state, eid, rec)
-        tray = bool(rec.get("carry_level"))
-        bottom = CARRY["hip_z_m"] if both and not tray else CARRY["hand_z_m"] - h / 2.0
-        top = _load_top(state, eid, bottom, cmap, items)
-        width, depth = max(w, d), min(w, d)
-        blocks = not tray and (bool(rec.get("blocks_view")) or (
-            both and width >= CARRIED_MIN_M["wide"] - EPS and depth >= CARRIED_MIN_M["deep"] - EPS
-            and top - bottom >= CARRIED_MIN_M["tall"] - EPS))
-        loads.append((bottom, top, width, depth, both, blocks))
-    bottom, top = min(load[0] for load in loads), max(load[1] for load in loads)
-    depth = max(load[3] for load in loads)
-    return {"items": sorted(set(items)), "two_handed": any(load[4] for load in loads), "bottom_m": round(bottom, 4),
-            "top_m": round(top, 4), "front_m": round(CARRY["front_m"] + depth / 2.0, 4),
-            "width_m": round(sum(load[2] for load in loads), 4), "depth_m": round(depth, 4),
-            "height_m": round(top - bottom, 4), "blocks_view": any(load[5] for load in loads)}
-
-
-def _load_top(state, eid, base_z, cmap, items):
-    """Highest point of eid and what rests on, in or hangs from it, eid's base at base_z (collects the ids)."""
-    entities = state["entities"]
-    rec = entities[eid]
-    items.append(eid)
-    h = _dims(state, eid, rec)[2]
-    top = base_z + h
-    for child in cmap.get(eid, ()):
-        crec = entities[child]
-        child_h = _dims(state, child, crec)[2]
-        relation = crec.get("relation", "on")
-        if relation == "on":
-            offset = _num(rec.get("surface_height_m"), h)
-        elif relation == "in":
-            shelves, k = rec.get("shelf_heights"), int(_num(crec.get("shelf"), 0))
-            offset = _num(shelves[k]) if shelves and 0 <= k < len(shelves) else _num(rec.get("inner_floor_m"), 0.05)
-        elif relation == "hung":
-            offset = max(0.0, _num(rec.get("hang_height_m"), h) - child_h)
-        else:
-            items.append(child)
-            continue
-        top = max(top, _load_top(state, child, base_z + offset, cmap, items))
-    return top
+    return fn(state) if cmap is None or _BRIDGES.get("phys.support.held_envelope") is not None else fn(state, cmap)
 
 
 def _two_handed(state, eid):
@@ -411,23 +349,10 @@ def _two_handed(state, eid):
 
 
 def _dims(state, eid, rec):
-    """(w, d, h) of an entity as it rests, in its own frame (phys.support.resting_size when it exists: orientation
-    applied, rot not). Locally the same rule: lying on its side swaps the height with the longer footprint side."""
-    fn = _bridge("phys.support", "resting_size")
-    if fn is not None:
-        size = fn(state, eid)
-        return float(size[0]), float(size[1]), float(size[2])
-    # TIER1-STUB(CAM-RUNTIME): the local rule below goes once phys.support.resting_size exists
-    size = rec.get("size_m") or (0.1, 0.1, 0.1)
-    w = max(0.0, _num(size[0], 0.1)) if len(size) > 0 else 0.1
-    d = max(0.0, _num(size[1], w)) if len(size) > 1 else w
-    h = max(0.0, _num(size[2], 0.1)) if len(size) > 2 else 0.1
-    if rec.get("orientation") == "on_side":
-        if w >= d:
-            w, h = h, w
-        else:
-            d, h = h, d
-    return w, d, h
+    """(w, d, h) of an entity as it rests, in its own frame (phys.support.resting_size: orientation applied, rot
+    not)."""
+    size = _bridge("phys.support", "resting_size")(state, eid)
+    return float(size[0]), float(size[1]), float(size[2])
 
 
 class _Snapshot(dict):
@@ -440,7 +365,7 @@ def children_map(state):
     """{parent id: [child ids, sorted]} over every entity: pass it as `cmap` to share one scan (and the placements and
     container layouts it memoizes) across many sight calls on an unchanged state; build a new one after any change."""
     out = _Snapshot()
-    out.state_id, out.memo = id(state), {"place": {}, "layout": {}}
+    out.state_id, out.memo = id(state), {"place": {}, "layout": {}, "parts": {}, "carried": {}}
     for eid in sorted(state["entities"]):
         loc = state["entities"][eid].get("location")
         if loc is not None:
@@ -599,6 +524,37 @@ def _place(state, eid, cmap=None, _depth=0):
     return memo[eid]
 
 
+CEILING_MOUNT_M = 2.3       # a fixture mounted this high or higher hangs from the ceiling (lights, detectors)
+
+
+def _wall_mounted(rec):
+    """True for a room-located fixture fastened to a wall (switches, outlets, vents, hooks, blinds, curtains, valves,
+    thermostats, windows, wall cabinets, sinks), not hanging from the ceiling."""
+    if not (rec.get("mounted") or rec.get("wall_mounted")):
+        return False
+    words = " ".join(str(v) for v in [rec.get("type"), rec.get("category")] + list(rec.get("is_a") or []))
+    if "ceiling" in words or "detector" in words:
+        return False
+    return _num(rec.get("mount_height_m"), 0.0) < CEILING_MOUNT_M
+
+
+def _wall_snap(room, rec, x0, y0, fw, fd):
+    """(x0, y0) of a wall-mounted fixture on the room's south or east wall moved flush against that wall. The grid
+    keeps a fixture in its perimeter cell(s) and a box starts at the cell's corner, which is the wall on the north and
+    west walls but up to a cell short of it on the south and east ones (a switch floating 0.47 m out in the room).
+    At a corner the wall along the longer footprint side wins (both for a square one: it sits in the corner)."""
+    cols, rows = geometry.grid_size(room)
+    cw, ch = geometry.footprint_size(rec)
+    px, py = int(rec["pos"][0]), int(rec["pos"][1])
+    east, south = px + cw >= cols, py + ch >= rows
+    west, north = px <= 0, py <= 0
+    if east and not west and (fd >= fw or not (north or south)):
+        x0 = max(x0, cols * CELL - fw)
+    if south and not north and (fw >= fd or not (east or west)):
+        y0 = max(y0, rows * CELL - fd)
+    return x0, y0
+
+
 def _place_new(state, eid, cmap, _depth):
     if eid in state.get("people", {}) or eid in state.get("pets", {}):
         return _agent_place(state, eid)
@@ -619,6 +575,8 @@ def _place_new(state, eid, cmap, _depth):
         else:
             return None
         fw, fd = (d, w) if int(rec.get("rot", 0) or 0) % 180 == 90 else (w, d)
+        if rec.get("pos") is not None and _wall_mounted(rec):
+            x0, y0 = _wall_snap(state["rooms"][loc], rec, x0, y0, fw, fd)
         z0 = geometry.height_m(state, eid)
         box = Box(loc, _r3(x0), _r3(y0), _r3(x0 + fw), _r3(y0 + fd), _r3(z0), _r3(z0 + h), yaw)
         return box, _Rel("room", eid, frozenset([eid]))
@@ -626,12 +584,14 @@ def _place_new(state, eid, cmap, _depth):
         robot = state["robot"]
         if not robot.get("pos") or robot.get("room") not in state["rooms"]:
             return None
-        env = _held_envelope(state) or {}
-        reach = _num(env.get("front_m"), CARRY["front_m"]) - _num(env.get("depth_m"), 0.0) / 2.0
+        carry = carry_geometry(state)
+        env = _held_envelope(state, cmap) or {}
+        reach = _num(env.get("front_m"), carry["front_m"]) - _num(env.get("depth_m"), 0.0) / 2.0
         rad = math.radians(_robot_facing(state))
         cx = (robot["pos"][0] + 0.5) * CELL + math.cos(rad) * reach
         cy = (robot["pos"][1] + 0.5) * CELL + math.sin(rad) * reach
-        z0 = CARRY["hip_z_m"] if _two_handed(state, eid) else CARRY["hand_z_m"] - h / 2.0
+        tray = bool(rec.get("carry_level"))
+        z0 = carry["hip_z_m"] if _two_handed(state, eid) and not tray else carry["hand_z_m"] - h / 2.0
         box = _centred_box(robot["room"], cx, cy, max(w, d), min(w, d), z0, h, yaw)
         return box, _Rel("held", eid, frozenset([eid, "robot"]))
     for group in ("people", "pets"):
@@ -652,6 +612,14 @@ def _place_new(state, eid, cmap, _depth):
     pbox, prel = placed
     relation = rec.get("relation", "on")
     skip = frozenset([eid, loc])
+    chain = ()
+    if prel.kind == "on" and relation in ("on", "under", "behind"):
+        # resting on (or under) something that itself rests on furniture -- a cushion on a sofa, a tray on a table --
+        # the furniture below is tested exactly (its seat, back or top, as the parent's support test) instead of
+        # cell by cell: a sofa's back strip hides the cushion's things from behind, never from the front (C9)
+        skip = skip | prel.skip
+        if prel.support is not None:
+            chain = prel.support
     if prel.kind in ("held", "carried"):
         # things on or in a carried load travel with it: always in the carrier's hands
         cx, cy = (pbox.x0 + pbox.x1) / 2.0, (pbox.y0 + pbox.y1) / 2.0
@@ -663,7 +631,14 @@ def _place_new(state, eid, cmap, _depth):
         x0, y0, z0, x1, y1, z1, _ = boxes[eid]
         siblings = tuple(b for k, b in sorted(boxes.items()) if k != eid)
         return Box(pbox.rid, x0, y0, x1, y1, z0, z1, yaw), _Rel("in", eid, skip, None, info, siblings)
-    support = (pbox.x0, pbox.y0, pbox.x1, pbox.y1, _spans(view_props(state, loc), pbox))
+    props = view_props(state, loc)
+    memo = _memo(state, cmap, "parts")
+    parts = memo.get(loc) if memo is not None else None
+    if parts is None:
+        parts = _body_parts(state, loc, parent, props, pbox)
+        if memo is not None:
+            memo[loc] = parts
+    support = tuple(parts) + chain
     fw, fd = (d, w) if int(rec.get("rot", 0) or 0) % 180 == 90 else (w, d)
     if relation == "under":
         cx, cy = _surface_point(rec, parent, pbox, fw, fd)
@@ -675,7 +650,7 @@ def _place_new(state, eid, cmap, _depth):
         gap = max(_num(view_props(state, loc)["behind_gap_m"], 0.0), fd if back_y else fw)
         x0, y0, x1, y1, gx, gy = _behind_gap(state, loc, pbox, gap)
         box = _centred_box(pbox.rid, gx, gy, fw, fd, geometry.height_m(state, eid), h, yaw)
-        return box, _Rel("behind", eid, skip, (x0, y0, x1, y1, support[4]), None)
+        return box, _Rel("behind", eid, skip, ((x0, y0, x1, y1, _spans(props, pbox)),) + chain, None)
     if relation == "hung":
         cx, cy = (pbox.x0 + pbox.x1) / 2.0, (pbox.y0 + pbox.y1) / 2.0
         hook_z = geometry.height_m(state, eid)
@@ -794,6 +769,45 @@ def _container_info(state, cid, cbox):
                       dep_d, props["porosity"], opened, shelves)
 
 
+INTERIOR_INSET_M = 0.03     # interior test points sit this far inside the walls and above the inner floor or board
+
+
+def interior_points(state, info):
+    """The points that show a container's interior (TIER1_CAMERA 4.7 "interior framed"), in groups that must each be
+    seen: a top opening's inner floor on a 3 x 3 grid (one group); a front opening's back wall just above each place
+    things stand (every shelf board, else the inner floor), at three places across (one group per band). Seeing the
+    opening's rim says nothing about what lies inside; seeing these does."""
+    rec = state["entities"][info.cid]
+    inset = INTERIOR_INSET_M
+    floor = info.z0 + max(0.0, _num(rec.get("inner_floor_m"), 0.0)) + inset
+    if info.opening == "top":
+        grid = []
+        for fx in (1.0 / 6.0, 0.5, 5.0 / 6.0):
+            for fy in (1.0 / 6.0, 0.5, 5.0 / 6.0):
+                grid.append((info.x0 + (info.x1 - info.x0) * fx, info.y0 + (info.y1 - info.y0) * fy, floor))
+        return [grid]
+    boards = [s + inset for s in info.shelves if s < info.z1 - inset]
+    out = []
+    for z in boards or [floor]:
+        band = []
+        for fu in (1.0 / 6.0, 0.5, 5.0 / 6.0):
+            x, y = _container_point(info, info.lat_w * fu, max(inset, info.dep_d - inset))
+            band.append((x, y, z))
+        out.append(band)
+    return out
+
+
+def interior_transmission(state, geom, vs, eye, info, p):
+    """Fraction of the view from an eye that reaches a point inside a container: through its opening (or its porous
+    walls) and past every occluder of the room, the container's own body excepted (its walls are the opening rule)."""
+    rid, ex, ey, ez, ignore = _eye_of(eye)
+    factor = _opening_factor(info, ex, ey, ez, p)
+    if factor <= 0.0:
+        return 0.0
+    skip = frozenset(ignore) | {info.cid}
+    return factor * _transmission(geom, vs, ex, ey, ez, p[0], p[1], p[2], skip, None, _occluders(state, eye, skip))
+
+
 def _container_point(info, u, v):
     """Room point at lateral offset u (from the left edge as seen from the front) and depth v (from the opening)."""
     if info.front == 90:
@@ -862,6 +876,91 @@ def _inner_layout(state, info, cmap):
     if memo is not None:
         memo[info] = found
     return found
+
+
+def _container_uv(info, x0, y0, x1, y1):
+    """(u0, u1, v0, v1) of a room-frame rectangle in a container's frame (u across from the left edge as seen from
+    the front, v back from the opening): the inverse of _container_point."""
+    if info.front == 90:
+        return x0 - info.x0, x1 - info.x0, info.y1 - y1, info.y1 - y0
+    if info.front == 270:
+        return info.x1 - x1, info.x1 - x0, y0 - info.y0, y1 - info.y0
+    if info.front == 0:
+        return info.y1 - y1, info.y1 - y0, info.x1 - x1, info.x1 - x0
+    return y0 - info.y0, y1 - info.y0, x0 - info.x0, x1 - info.x0
+
+
+def row_spos(state, cid, eid, row):
+    """inner_spos [u, v] that puts eid (already "in" container cid) in its shelf's front row (v = 0, at the opening)
+    or back row (against the back wall): the leftmost lateral place in that row where it overlaps none of the other
+    things on the same shelf as they are laid out now (explicit inner_spos and the automatic packing alike); None when
+    the container is not placed or the row is full. Setup's spawn "row" (CAM-ACTIONS) writes the result."""
+    entities = state["entities"]
+    rec = entities.get(eid)
+    placed = _place(state, cid)
+    if rec is None or placed is None or row not in ("front", "back"):
+        return None
+    info = _container_info(state, cid, placed[0])
+    w, d, _ = _dims(state, eid, rec)
+    fw, fd = (d, w) if int(rec.get("rot", 0) or 0) % 180 == 90 else (w, d)
+    iw, idp = (fw, fd) if info.front in (90, 270) else (fd, fw)
+    if iw > info.lat_w + 1e-9 or idp > info.dep_d + 1e-9:
+        return None
+    v0 = 0.0 if row == "front" else max(0.0, info.dep_d - idp)
+    # lay the shelf out with eid out of the automatic packing (an explicit place never moves the others)
+    probe = dict(state, entities=dict(entities))
+    probe["entities"][eid] = dict(rec, inner_spos=[0.0, v0])
+    boxes = _inner_layout(probe, info, None)
+    taken = []
+    for k, box in sorted(boxes.items()):
+        if k == eid or repr(entities[k].get("shelf")) != repr(rec.get("shelf")):
+            continue
+        u0, u1, b0, b1 = _container_uv(info, box[0], box[1], box[3], box[4])
+        if b0 < v0 + idp - 1e-9 and b1 > v0 + 1e-9:
+            taken.append((u0, u1))
+    for u in sorted(set([0.0] + [max(0.0, u1) for _, u1 in taken])):
+        if u + iw > info.lat_w + 1e-9:
+            continue
+        if not any(a < u + iw - 1e-9 and b > u + 1e-9 for a, b in taken):
+            return [_r3(u), _r3(v0)]
+    return None
+
+
+def _seat_back(state, eid, rec, props, box):
+    """(x0, y0, x1, y1, seat_z) of the back of a seat, or None: a solid entity that holds nothing inside and whose
+    surface (surface_height_m) lies at least SEAT_MIN_DROP_M under its top -- a sofa, an armchair -- is solid only up
+    to its seat, and above the seat only along a SEAT_BACK_M strip on its back side (opposite its front). Porous seats
+    (open-frame chairs) keep their attenuating box."""
+    seat = rec.get("surface_height_m")
+    if seat is None or _holds_inside(rec) or _num(props.get("porosity"), 0.0) >= 0.5:
+        return None
+    seat_z = box.z0 + _num(seat)
+    if seat_z <= box.z0 + EPS or box.z1 - seat_z < SEAT_MIN_DROP_M - EPS:
+        return None
+    back = (_axis_front(front_deg(state, eid)) + 180) % 360
+    x0, y0, x1, y1 = box.x0, box.y0, box.x1, box.y1
+    depth = min(SEAT_BACK_M, 0.5 * ((x1 - x0) if back in (0, 180) else (y1 - y0)))
+    if back == 0:
+        x0 = x1 - depth
+    elif back == 180:
+        x1 = x0 + depth
+    elif back == 90:
+        y0 = y1 - depth
+    else:
+        y1 = y0 + depth
+    return _r3(x0), _r3(y0), _r3(x1), _r3(y1), _r3(seat_z)
+
+
+def _body_parts(state, eid, rec, props, box):
+    """[(x0, y0, x1, y1, spans)] of an entity's occluding body: its box with its spans; a seat with a back (_seat_back)
+    is its box up to the seat plus the back strip above it."""
+    seat = _seat_back(state, eid, rec, props, box)
+    if seat is None:
+        return [(box.x0, box.y0, box.x1, box.y1, _spans(props, box))]
+    x0, y0, x1, y1, seat_z = seat
+    porosity = _num(props.get("porosity"), 0.0)
+    back = ((seat_z, round(box.z1, 3), porosity),) if porosity < 0.999 and box.z1 - seat_z > 1e-6 else ()
+    return [(box.x0, box.y0, box.x1, box.y1, _spans(props, box._replace(z1=seat_z))), (x0, y0, x1, y1, back)]
 
 
 def _spans(props, box):
@@ -953,6 +1052,59 @@ def agent_top(state, aid):
     return height
 
 
+def _occluders(state, eye, skip, cmap=None):
+    """_agents plus, for a frame of the robot's own head camera taken where the robot stands (a Viewer of kind "head"
+    that ignores the robot, at its current head eye), the load it carries in front of it (carried_occluder, 5.6;
+    TIER1_INTEGRATION 1.6): an entry (None, view, ...) that _transmission tests by bearing and slope from the eye, so
+    the floor the load hides is hidden in those frames. Bare Eyes (the any-direction line of sight of can_see: the
+    robot can turn its body and look past the load) and wrist, motion and other viewers are unaffected."""
+    out = _agents(state, _eye_of(eye)[0], skip)
+    view = _carried_view(state, eye, cmap)
+    if view is not None:
+        out.append((None, view, None, None, None, None, "carried"))
+    return out
+
+
+def carried_view(state, cmap=None):
+    """{"occ", "eye_z", "yaw", "items"} of the robot's carried load as its head camera sees it from where it stands
+    (carried_occluder; yaw: the body's facing, which the load sits in front of; items: the load's own ids, never
+    hidden by it), or None when it carries nothing that blocks the view."""
+    robot = state.get("robot") or {}
+    if not any((robot.get("hands") or {}).values()):
+        return None
+    memo = _memo(state, cmap, "carried")
+    if memo is not None and "view" in memo:
+        return memo["view"]
+    occ = carried_occluder(state)
+    found = None if occ is None else {"occ": occ, "eye_z": eye_height_m(state), "items": frozenset(occ["items"]),
+                                      "yaw": _num(robot.get("facing_deg"), 0.0)}
+    if memo is not None:
+        memo["view"] = found
+    return found
+
+
+def _carried_view(state, eye, cmap=None):
+    rid, ex, ey, ez, ignore = _eye_of(eye)
+    robot = state.get("robot") or {}
+    if getattr(eye, "kind", None) != "head" or not _robot_viewer(ignore) or robot.get("room") != rid:
+        return None
+    pos = robot.get("pos")
+    if not pos or abs(ex - (int(pos[0]) + 0.5) * CELL) > 1e-3 or abs(ey - (int(pos[1]) + 0.5) * CELL) > 1e-3:
+        return None
+    found = carried_view(state, cmap)
+    if found is None or abs(ez - found["eye_z"]) > 0.011:
+        return None
+    return found
+
+
+def carried_blocks(view, ex, ey, ez, px, py, pz):
+    """True when the robot's carried load (carried_view) hides point p from its head eye at (ex, ey, ez):
+    carried_hides at the point's bearing from the body's facing and its horizontal distance."""
+    d = math.hypot(px - ex, py - ey)
+    rel = (math.degrees(math.atan2(py - ey, px - ex)) - view["yaw"] + 180.0) % 360.0 - 180.0
+    return carried_hides(view["occ"], ez, rel, d, pz)
+
+
 def _agents(state, rid, skip):
     """Dynamic occluders of a room: (x0, y0, x1, y1, top, porosity, id) for people, pets and the robot."""
     out = []
@@ -1020,8 +1172,10 @@ def _box_samples(box, vx, vy):
 # ----- room geometry ---------------------------------------------------------------------------------------------------
 class RoomGeom(object):
     """Static occluders of one room: per-cell spans (z_lo, z_hi, porosity, source, key), the same spans with their
-    exact boxes (x0, y0, x1, y1, z_lo, z_hi, porosity, source, key) for segment tests, and per-cell shade regions."""
-    __slots__ = ("rid", "sig", "cols", "rows", "spans", "boxes", "rects", "shade")
+    exact boxes (x0, y0, x1, y1, z_lo, z_hi, porosity, source, key) for segment tests, per-cell shade regions, and the
+    thin occluders tested exactly on every ray instead of per cell (``leaves``: open door leaves, (x0, y0, x1, y1,
+    z_lo, z_hi, porosity, source); a 4 cm slab registered in its cells would block the whole 0.5 m cell)."""
+    __slots__ = ("rid", "sig", "cols", "rows", "spans", "boxes", "rects", "shade", "leaves")
 
     def __init__(self, rid, sig, cols, rows):
         self.rid, self.sig, self.cols, self.rows = rid, sig, cols, rows
@@ -1029,6 +1183,7 @@ class RoomGeom(object):
         self.boxes = []
         self.rects = {}
         self.shade = [()] * (cols * rows)
+        self.leaves = ()
 
     def cell_index(self, x, y):
         c = min(self.cols - 1, max(0, int(math.floor(x / CELL))))
@@ -1079,12 +1234,117 @@ def _on_chain(state, eid):
     return False
 
 
+class _Epoch(object):
+    """Geometry epoch of one World: the touch log it last read (the list object, the absolute position, the list
+    index and the last id read there) and the World's version then; the epoch number; the ids the current occlusion
+    signatures depend on (deps: id -> _dep_sig when the epoch began; None: unknown); the distinct ids touched since
+    the last judgement (pending) and whether track of the log was lost (dirty)."""
+    __slots__ = ("log", "pos", "idx", "last", "version", "n", "deps", "pending", "dirty")
+
+    def __init__(self, log, n, version):
+        self.log, self.pos, self.idx, self.last, self.version, self.n = log, 0, 0, None, version, n
+        self.deps, self.pending, self.dirty = None, set(), False
+
+
+_EPOCHS = weakref.WeakKeyDictionary()
+
+
+def _dep_sig(rec):
+    """A snapshot of the fields of an entity occlusion depends on (a door's door fields)."""
+    values = tuple(rec.get(f) for f in (DOOR_FIELDS if "connects" in rec else GEOM_FIELDS))
+    try:
+        return marshal.dumps(values)
+    except ValueError:              # a value marshal cannot take (records are JSON-like; never in practice)
+        return repr(values)
+
+
+def _geom_relevant(state, eid, deps):
+    """True if a write to eid may have changed occlusion: it no longer exists, the fields occlusion reads changed on
+    an occluder or container source, a thing one rests on or a door (deps: id -> _dep_sig when the epoch began), or
+    it was none of those and is a source (a candidate reaching its room through "on" relations) or a door now."""
+    rec = state["entities"].get(eid)
+    if rec is None:
+        return True
+    sig = deps.get(eid)
+    if sig is not None:
+        return _dep_sig(rec) != sig
+    return "connects" in rec or (_source_candidate(rec) and _on_chain(state, eid))
+
+
+TOUCH_CONSUMER = "sight"     # the touch-log consumer name of the geometry epoch (geometric camera mode only)
+
+
+def _read_touches(world):
+    """Read the World's touch log up to now into its _Epoch (the distinct ids touched, or dirty when track was
+    lost), as the "sight" consumer in geometric camera mode; returns the _Epoch, or None when the World keeps no
+    touch log."""
+    log = getattr(world, "_touched", None)
+    if log is None or not hasattr(world, "touched_since"):
+        return None
+    state = world.s
+    version = getattr(world, "_version", 0)
+    end = world.touched_since(1 << 62)[1]
+    ep = _EPOCHS.get(world)
+    if ep is None:
+        ep = _EPOCHS[world] = _Epoch(log, 0, version)
+        ep.pos = end - len(log)
+    elif ep.log is not log:
+        # a begin() (the step committed: nothing rolled back) or a rollback (the version moved) replaced the log
+        old, i = ep.log, ep.idx
+        if version != ep.version or i > len(old) or (i and old[i - 1] != ep.last):
+            ep.dirty = True
+        else:
+            ep.pending.update(old[i:])
+        ep.log, ep.version, ep.pos = log, version, end - len(log)
+    if end != ep.pos:
+        if end < ep.pos or ep.pos < end - len(log):
+            ep.dirty = True             # a savepoint rollback shrank the log, or a trim passed the last read
+        else:
+            ep.pending.update(world.touched_since(ep.pos)[0])
+        ep.pos = end
+    if isinstance(state["robot"].get("view"), dict):
+        world.touched_since(end, TOUCH_CONSUMER)    # read up to here: the trim may drop it
+    ep.version = version
+    ep.idx, ep.last = len(log), (log[-1] if log else None)
+    return ep
+
+
+def _geom_epoch(world):
+    """A token that stays equal while nothing that can change occlusion changed in a World, or None without one.
+    Entity writes, creations and destructions come from the World's touch log (TIER1_INTEGRATION 1.8): a write that
+    changed what occlusion reads (_geom_relevant), a rollback (the World's version moved), a log that shrank (a
+    savepoint rollback) or was trimmed past the last read start a new epoch; temperature-only quiet writes, section
+    writes and writes to other fields never do. While a view_occluders hook is registered (it may read room fields)
+    every mutation counts. In geometric camera mode the reads are a named touch-log consumer ("sight"), so the
+    engine's trim keeps what has not been read; the camera's watch system reads every substep (geometry_epoch), which
+    keeps the log bounded. Elsewhere the reads are anonymous and a trim past the last read starts a new epoch."""
+    count = getattr(world, "mutation_count", None)
+    if count is None:
+        return None
+    ep = _read_touches(world)
+    if ep is None or HOOKS.get("view_occluders"):
+        return ("count", count)
+    if ep.dirty or (ep.pending and (ep.deps is None or
+                                    any(_geom_relevant(world.s, eid, ep.deps) for eid in ep.pending))):
+        ep.n += 1
+        ep.deps = None
+    ep.pending.clear()
+    ep.dirty = False
+    return ("epoch", ep.n)
+
+
+def geometry_epoch(world):
+    """Read the World's touch log up to now (the geometric camera's watch system calls it every substep, so the log
+    stays bounded); the epoch itself is judged when a room's occlusion signature is next needed."""
+    _read_touches(world)
+
+
 def _sources(state, rid, world=None):
     """Ids of a room's occluder and container candidates that reach it through "on" relations, sorted. One pass sorts
-    every candidate into its room; with a World it uses the static index and keeps the pass per mutation_count."""
-    count = getattr(world, "mutation_count", None) if world is not None else None
-    memo = _SOURCES_MEMO.get(world) if count is not None else None
-    if memo is not None and memo[0] == count:
+    every candidate into its room; with a World it uses the static index and keeps the pass per geometry epoch."""
+    epoch = _geom_epoch(world) if world is not None else None
+    memo = _SOURCES_MEMO.get(world) if epoch is not None else None
+    if memo is not None and memo[0] == epoch:
         return memo[1].get(rid, [])
     entities = state["entities"]
     if world is not None and hasattr(world, "static_index"):
@@ -1092,12 +1352,26 @@ def _sources(state, rid, world=None):
     else:
         ids = sorted(eid for eid, rec in entities.items() if _source_candidate(rec))
     by_room = {}
+    chain = set()
     for eid in ids:
         room = root_room(state, eid)
         if room is not None and _on_chain(state, eid):
             by_room.setdefault(room, []).append(eid)
-    if count is not None:
-        _SOURCES_MEMO[world] = (count, by_room)
+            # a source and what it rests on: their fields are what occ_sig digests (_geom_key)
+            cur, depth = eid, 0
+            while cur in entities and cur not in chain and depth < 20:
+                chain.add(cur)
+                cur, depth = entities[cur].get("location"), depth + 1
+    if epoch is not None:
+        _SOURCES_MEMO[world] = (epoch, by_room)
+        ep = _EPOCHS.get(world)
+        if ep is not None and epoch[0] == "epoch" and epoch[1] == ep.n:
+            deps = {eid: _dep_sig(entities[eid]) for eid in chain}
+            for _, conn in state.get("connections", {}).items():
+                door = conn.get("door")
+                if door in entities:
+                    deps[door] = _dep_sig(entities[door])
+            ep.deps = deps
     return by_room.get(rid, [])
 
 
@@ -1114,9 +1388,9 @@ def _geom_key(state, eid):
 
 def occ_sig(state, rid, world=None):
     """Occlusion signature of a room: a digest of the room grid, the geometry of every occluder and container source
-    (and the chain it rests on), the doors of its doorways and the @hook("view_occluders") output. With a World that
-    has a mutation_count it is memoized per (room, count)."""
-    count = getattr(world, "mutation_count", None) if world is not None else None
+    (and the chain it rests on), the doors of its doorways and the @hook("view_occluders") output. With a World it is
+    memoized per (room, geometry epoch)."""
+    count = _geom_epoch(world) if world is not None else None
     if count is not None:
         memo = _SIG_MEMO.get(world)
         hit = memo.get(rid) if memo is not None else None
@@ -1197,6 +1471,7 @@ def _build_geom(state, rid, sig, world):
     geom = RoomGeom(rid, sig, cols, rows)
     cell_spans = [[] for _ in range(cols * rows)]
     cell_shade = [[] for _ in range(cols * rows)]
+    leaves = []
     cmap = children_map(state)
 
     def add(src, k, x0, y0, x1, y1, z_lo, z_hi, porosity, cells=None):
@@ -1219,10 +1494,13 @@ def _build_geom(state, rid, sig, world):
         rec = entities[eid]
         props = view_props(state, eid)
         if _occludes(state, eid, rec, rel, box):
-            for k, (z_lo, z_hi, porosity) in enumerate(_spans(props, box)):
-                add(eid, k, box.x0, box.y0, box.x1, box.y1, z_lo, z_hi, porosity)
-                if porosity < 0.5 and z_lo > FLAT_MAX_M:
-                    shade(box.x0, box.y0, box.x1, box.y1, 0.0, z_lo, "under", 1)
+            k = 0
+            for part, (x0, y0, x1, y1, spans) in enumerate(_body_parts(state, eid, rec, props, box)):
+                for z_lo, z_hi, porosity in spans:
+                    add(eid, k, x0, y0, x1, y1, z_lo, z_hi, porosity)
+                    k += 1
+                    if part == 0 and porosity < 0.5 and z_lo > FLAT_MAX_M:
+                        shade(box.x0, box.y0, box.x1, box.y1, 0.0, z_lo, "under", 1)
             if rel.kind == "room" and geometry.floor_standing(rec):
                 gap = _num(props.get("behind_gap_m"), 0.0)
                 if gap > 0:
@@ -1241,9 +1519,10 @@ def _build_geom(state, rid, sig, world):
             continue
         porosity = min(view_props(state, door_id)["porosity"], 0.6)    # a glazed leaf keeps its frame and rails
         height = _num((door.get("size_m") or [0.9, 0.05, 2.0])[2], 2.0)
-        idx = [int(c[1]) * cols + int(c[0]) for c in cells]
-        add(door_id, 0, min(c[0] for c in cells) * CELL, min(c[1] for c in cells) * CELL,
-            (max(c[0] for c in cells) + 1) * CELL, (max(c[1] for c in cells) + 1) * CELL, 0.0, height, porosity, idx)
+        for k, (x0, y0, x1, y1) in enumerate(_open_leaves(door, conn["cells"][rid], cells, cols, rows)):
+            geom.boxes.append((x0, y0, x1, y1, 0.0, height, porosity, door_id, (door_id, k)))
+            geom.rects[(door_id, k)] = (x0, y0, x1, y1)
+            leaves.append((x0, y0, x1, y1, 0.0, height, porosity, door_id))
     for k, (cells, z_lo, z_hi, porosity, source) in enumerate(_hook_occluders(state, rid)):
         inside = [c for c in cells if 0 <= c[0] < cols and 0 <= c[1] < rows]
         if not inside or z_hi - z_lo < 1e-6 or porosity >= 0.999:
@@ -1253,7 +1532,58 @@ def _build_geom(state, rid, sig, world):
                 [c[1] * cols + c[0]])
     geom.spans = [tuple(s) for s in cell_spans]
     geom.shade = [tuple(sorted(s, key=lambda r: -r[7])) for s in cell_shade]
+    geom.leaves = tuple(leaves)
     return geom
+
+
+LEAF_T_M = 0.04             # an interior door leaf is about 35-45 mm thick
+
+
+def _open_leaves(door, doorway, cells, cols, rows):
+    """The rectangles (x0, y0, x1, y1) of an open hinged door's leaves in the swing room. geometry.door_swing sweeps
+    the inward cell and the diagonal on the lateral side, so the hinge is on the opposite (-lateral) jamb of the
+    doorway cell ("far" mirrors it), unless the doorway is the last cell of its wall on the lateral side (the closed
+    leaf could not reach across the opening that way: it then hangs at that corner); the leaf stands open at 90
+    degrees at its hinge jamb, perpendicular to the wall,
+    LEAF_T_M thick, reaching its width into the room (a double door: two half-width leaves, one at each jamb). A leaf
+    whose hinge jamb is a corner lies flat against the side wall. door_swing's cells stay the navigation rule; the
+    camera sees the leaf where it stands, not a solid block over its swept area."""
+    x, y = int(doorway[0]), int(doorway[1])
+    inward, lateral = geometry.wall_inward({"size_m": [cols * CELL, rows * CELL]}, (x, y))
+    if door.get("hinge") == "far":
+        lateral = (-lateral[0], -lateral[1])
+    double = (x + inward[0] - lateral[0], y + inward[1] - lateral[1]) in [tuple(c) for c in cells]
+    if double:
+        sides = [(-lateral[0], -lateral[1]), lateral]
+    elif 0 <= x + lateral[0] < cols and 0 <= y + lateral[1] < rows:
+        sides = [(-lateral[0], -lateral[1])]
+    else:
+        sides = [lateral]           # the doorway ends the wall on that side: the leaf can only open from that corner
+    width = _num((door.get("size_m") or [0.85])[0], 0.85)
+    reach = max(LEAF_T_M, width / len(sides))
+    limit_x, limit_y = cols * CELL, rows * CELL
+    out = []
+    for side in sides:
+        along_x = inward[0] != 0                 # the leaf runs along x (west / east wall), its thickness along y
+        if along_x:
+            wall = x * CELL if inward[0] > 0 else (x + 1) * CELL
+            a0, a1 = (wall, wall + reach) if inward[0] > 0 else (wall - reach, wall)
+            jamb, limit, step = ((y + 1) * CELL if side[1] > 0 else y * CELL), limit_y, side[1]
+        else:
+            wall = y * CELL if inward[1] > 0 else (y + 1) * CELL
+            a0, a1 = (wall, wall + reach) if inward[1] > 0 else (wall - reach, wall)
+            jamb, limit, step = ((x + 1) * CELL if side[0] > 0 else x * CELL), limit_x, side[0]
+        b0, b1 = (jamb, jamb + LEAF_T_M) if step > 0 else (jamb - LEAF_T_M, jamb)
+        if b0 < 0.0:                             # a corner: the leaf lies against the side wall, inside the room
+            b0, b1 = 0.0, LEAF_T_M
+        elif b1 > limit:
+            b0, b1 = limit - LEAF_T_M, limit
+        a0, a1 = max(0.0, a0), min(limit_x if along_x else limit_y, a1)
+        if a1 - a0 <= 1e-6:
+            continue
+        rect = (a0, b0, a1, b1) if along_x else (b0, a0, b1, a1)
+        out.append(tuple(_r3(v) for v in rect))
+    return out
 
 
 def _behind_slot(state, eid, box, gap):
@@ -1468,16 +1798,30 @@ def _transmission(geom, vs, ex, ey, ez, px, py, pz, skip, support, agents):
                 t *= porosity
     ux, uy = dx / d, dy / d
     if support is not None:
-        hit = _ray_rect(ex, ey, ux, uy, support[0], support[1], support[2], support[3])
+        for x0, y0, x1, y1, spans in support:
+            hit = _ray_rect(ex, ey, ux, uy, x0, y0, x1, y1)
+            if hit is not None and hit[1] > 0.0 and hit[0] < d - 1e-9:
+                d_in, d_out = max(1e-3, hit[0]), min(hit[1], d)
+                for z_lo, z_hi, porosity in spans:
+                    if _blocks(z_lo, z_hi, d_in, d_out, ez, s):
+                        if porosity < 0.5:
+                            return 0.0
+                        t *= porosity
+    for x0, y0, x1, y1, z_lo, z_hi, porosity, src in geom.leaves:
+        if src in skip:
+            continue
+        hit = _ray_rect(ex, ey, ux, uy, x0, y0, x1, y1)
         if hit is not None and hit[1] > 0.0 and hit[0] < d - 1e-9:
-            d_in, d_out = max(1e-3, hit[0]), min(hit[1], d)
-            for z_lo, z_hi, porosity in support[4]:
-                if _blocks(z_lo, z_hi, d_in, d_out, ez, s):
-                    if porosity < 0.5:
-                        return 0.0
-                    t *= porosity
+            if _blocks(z_lo, z_hi, max(1e-3, hit[0]), min(hit[1], d), ez, s):
+                if porosity < 0.5:
+                    return 0.0
+                t *= porosity
     for x0, y0, x1, y1, top, porosity, aid in agents:
         if aid in skip:
+            continue
+        if x0 is None:                  # the robot's carried load, from its own head camera (_occluders)
+            if skip.isdisjoint(y0["items"]) and carried_blocks(y0, ex, ey, ez, px, py, pz):
+                return 0.0
             continue
         hit = _ray_rect(ex, ey, ux, uy, x0, y0, x1, y1)
         if hit is not None and hit[1] > 0.0 and hit[0] < d - 1e-9:
@@ -1512,6 +1856,11 @@ def _sample_transmission(geom, vs, p, rel, agents):
         for x0, y0, z0, x1, y1, z1, porosity in rel.siblings:
             if factor <= 0.0:
                 break
+            if x0 + EPS < p[0] < x1 - EPS and y0 + EPS < p[1] < y1 - EPS and z0 + EPS < p[2] < z1 - EPS:
+                # the sample lies inside this neighbour's box: an overfull container's packing overlaps them (rows
+                # past the back stay at the back), and a thing cannot be in front of a point inside itself; without
+                # this, two things packed into one box would hide each other from every eye (B3 merge)
+                continue
             if _segment_box((ex, ey, ez), p, x0, y0, x1, y1, z0, z1):
                 factor = factor * porosity if porosity >= 0.5 else 0.0
         if factor <= 0.0:
@@ -1560,6 +1909,18 @@ def _opening_factor(info, ex, ey, ez, p):
     return through
 
 
+def _with_ignore(state, eid, rel, ignore):
+    """An entity's placement relation as seen by an eye that ignores `ignore`: those ids never occlude it, and when its
+    support is among them (a light cushion the wrist lifts to look under, kernel v3.0 CAM-ACTIONS) the support's exact
+    test is dropped too."""
+    if not ignore:
+        return rel
+    skip = rel.skip | frozenset(ignore)
+    if rel.support is not None and (state["entities"].get(eid) or {}).get("location") in ignore:
+        return rel._replace(skip=skip, support=None)
+    return rel._replace(skip=skip)
+
+
 def point_transmission(state, geom, vs, eye, p, rel=None, cmap=None):
     """Fraction of the view from an eye that reaches point p (5.2, 5.4): 0 when a solid span blocks it, else the
     product of the porous spans and agents it passes. rel: None for a free point (a floor cell, an event), or the id of
@@ -1576,8 +1937,8 @@ def point_transmission(state, geom, vs, eye, p, rel=None, cmap=None):
         info = placed[1]
         if info.kind == "held" and _robot_viewer(ignore):
             return 1.0
-        info = info._replace(skip=info.skip | skip)
-    return _sample_transmission(geom, vs, p, info, _agents(state, rid, info.skip))
+        info = _with_ignore(state, rel, info, ignore)
+    return _sample_transmission(geom, vs, p, info, _occluders(state, eye, info.skip, cmap))
 
 
 def visible_fraction(state, eid, eye, geom=None, vs=None, cmap=None):
@@ -1593,8 +1954,8 @@ def visible_fraction(state, eid, eye, geom=None, vs=None, cmap=None):
         return 1.0, (_r3((box.x0 + box.x1) / 2.0), _r3((box.y0 + box.y1) / 2.0), _r3((box.z0 + box.z1) / 2.0))
     geom = geom or room_geom(state, rid)
     vs = vs or viewshed(geom, eye)
-    rel = rel._replace(skip=rel.skip | frozenset(ignore))
-    agents = _agents(state, rid, rel.skip)
+    rel = _with_ignore(state, eid, rel, ignore)
+    agents = _occluders(state, eye, rel.skip, cmap)
     points = _samples(state, eid, box, rel, eye)
     best, best_t, total = None, 0.0, 0.0
     for p in points:
@@ -1680,8 +2041,8 @@ def sees_entity(state, viewer, eid, geom=None, cmap=None):
         return 1.0
     geom = geom or room_geom(state, viewer.rid)
     vs = viewshed(geom, viewer, (viewer.yaw, viewer.hfov / 2.0))
-    rel = rel._replace(skip=rel.skip | frozenset(ignore))
-    agents = _agents(state, viewer.rid, rel.skip)
+    rel = _with_ignore(state, eid, rel, ignore)
+    agents = _occluders(state, viewer, rel.skip, cmap)
     points = _samples(state, eid, box, rel, viewer)
     total = 0.0
     for p in points:
@@ -1696,7 +2057,7 @@ def view_cells(state, viewer, z=0.02, geom=None):
     geom = geom or room_geom(state, viewer.rid)
     vs = viewshed(geom, viewer, (viewer.yaw, viewer.hfov / 2.0))
     skip = frozenset(viewer.ignore or ())
-    agents = _agents(state, viewer.rid, skip)
+    agents = _occluders(state, viewer, skip)
     out = set()
     for r in range(geom.rows):
         for c in range(geom.cols):
@@ -1704,6 +2065,67 @@ def view_cells(state, viewer, z=0.02, geom=None):
             if in_frame(viewer, p) and _transmission(geom, vs, vs.x, vs.y, vs.z, p[0], p[1], p[2], skip, None,
                                                      agents) > 0.0:
                 out.add((c, r))
+    return out
+
+
+def sample_transmissions(state, eid, eye, geom=None, vs=None, cmap=None, only=None):
+    """(box, [(point, transmission), ...]): the sample points of an entity, person or pet (5.3) with the transmission
+    from an eye in any direction to each under its relation rule (5.4), or (None, []) when it is not placed in the
+    eye's room. A held item seen by the robot's own cameras is one fully visible sample at its centre. The visible
+    fraction in one frame is quarter(sum of the in-frame transmissions / number of samples); visible_fraction and
+    sees_entity are this with every sample, or the frame's, counted. only: fn(point) -> bool; samples it rejects get
+    transmission 0.0 without being traced (a caller that counts only in-frame samples)."""
+    placed = _place(state, eid, cmap)
+    rid, _, _, _, ignore = _eye_of(eye)
+    if placed is None or placed[0].rid != rid:
+        return None, []
+    box, rel = placed
+    if rel.kind == "held" and _robot_viewer(ignore):
+        return box, [((_r3((box.x0 + box.x1) / 2.0), _r3((box.y0 + box.y1) / 2.0), _r3((box.z0 + box.z1) / 2.0)), 1.0)]
+    points = _samples(state, eid, box, rel, eye)
+    if only is not None:
+        keep = [only(p) for p in points]
+        if not any(keep):
+            return box, [(p, 0.0) for p in points]
+    geom = geom or room_geom(state, rid)
+    vs = vs or viewshed(geom, eye)
+    rel = _with_ignore(state, eid, rel, ignore)
+    agents = _occluders(state, eye, rel.skip, cmap)
+    if only is not None:
+        return box, [(p, _sample_transmission(geom, vs, p, rel, agents) if k else 0.0) for p, k in zip(points, keep)]
+    return box, [(p, _sample_transmission(geom, vs, p, rel, agents)) for p in points]
+
+
+def seen_floor_cells(state, viewer, geom=None, max_m=None, min_light=None, ambient=None, beams=(), vs=None):
+    """Floor cells (c, r) of a viewer's room that one frame surveys: the cell centre at 2 cm in frame, within max_m
+    (3D; default the viewer's range) and in line of sight (any transmission), and, when min_light is given, lit to at
+    least min_light there (light_at with `beams`; `ambient`: the room's light_level when the caller has it). vs: a
+    viewshed from the viewer's eye when the caller has one (full or with this frame's wedge)."""
+    geom = geom or room_geom(state, viewer.rid)
+    vs = vs or viewshed(geom, viewer, (viewer.yaw, viewer.hfov / 2.0))
+    skip = frozenset(viewer.ignore or ())
+    agents = _occluders(state, viewer, skip)
+    reach = viewer.range_m if max_m is None else min(float(max_m), viewer.range_m)
+    reach2 = reach * reach
+    check_light = min_light is not None
+    if check_light:
+        ambient = _ambient(state, viewer.rid) if ambient is None else float(ambient)
+        # every place is lit enough when even the deepest shade keeps the ambient above the bar (hooks and beams only
+        # add light)
+        check_light = ambient * min(SHADE.values()) < float(min_light) - EPS
+    out = set()
+    for r in range(geom.rows):
+        y = (r + 0.5) * CELL
+        for c in range(geom.cols):
+            p = ((c + 0.5) * CELL, y, 0.02)
+            dx, dy, dz = p[0] - viewer.x, p[1] - viewer.y, p[2] - viewer.z
+            if dx * dx + dy * dy + dz * dz > reach2 or not in_frame(viewer, p):
+                continue
+            if _transmission(geom, vs, vs.x, vs.y, vs.z, p[0], p[1], p[2], skip, None, agents) <= 0.0:
+                continue
+            if check_light and light_at(state, viewer.rid, p, beams, ambient, geom) < float(min_light) - EPS:
+                continue
+            out.add((c, r))
     return out
 
 
@@ -1854,12 +2276,12 @@ def _angle_deg(a, b):
     return math.degrees(math.acos(max(-1.0, min(1.0, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))))
 
 
-def glare(state, viewer, p, radius_m=0.0, light=None):
+def glare(state, viewer, p, radius_m=0.0, light=None, sources=None):
     """Directional glare at a target point (6.2): "sun" (the sun, from @hook("sun_beam") at the eye, within hfov/2 +
     10 degrees, + 20 x lens_scratch for the robot's cameras, of the camera axis), "sun_cone" (the target within 20
     degrees of the sun while the sun is in frame) and "backlit" (a source of level >= 0.5 behind the target overlapping
     it by angular radius, with the target's light <= 0.6 x level). radius_m: the target's radius; light: its light
-    (computed when None)."""
+    (computed when None); sources: the room's bright_sources when the caller already has them."""
     out = {"sun": False, "sun_cone": False, "backlit": False}
     eye = (viewer.x, viewer.y, viewer.z)
     to_p = (p[0] - eye[0], p[1] - eye[1], p[2] - eye[2])
@@ -1876,7 +2298,7 @@ def glare(state, viewer, p, radius_m=0.0, light=None):
             out["sun_cone"] = _angle_deg(dir_p, sun) <= SUN_CONE_DEG
     if light is None:
         light = light_at(state, viewer.rid, p)
-    for src in bright_sources(state, viewer.rid):
+    for src in bright_sources(state, viewer.rid) if sources is None else sources:
         level = _num(src.get("level"))
         if level < BACKLIGHT_LEVEL or light > BACKLIGHT_RATIO * level + EPS:
             continue
@@ -1914,13 +2336,14 @@ def _faces(state, eid):
     return faces
 
 
-def specular(state, viewer, eid, face=None):
+def specular(state, viewer, eid, face=None, sources=None, cmap=None):
     """True if a glossy entity mirrors a bright source into the viewer (6.2): the view ray reflected about the face
     normal passes within 10 degrees (plus the source's angular radius) of a source in front of the face. face: a face
-    name; default the "label" face, else "up" for flat things (height <= 0.3 x width), else the front."""
+    name; default the "label" face, else "up" for flat things (height <= 0.3 x width), else the front. sources: the
+    room's bright_sources when the caller already has them."""
     if not view_props(state, eid).get("glossy"):
         return False
-    placed = _place(state, eid)
+    placed = _place(state, eid, cmap)
     if placed is None or placed[0].rid != viewer.rid:
         return False
     box = placed[0]
@@ -1942,7 +2365,7 @@ def specular(state, viewer, eid, face=None):
     if dot >= 0.0:
         return False        # the viewer is behind the face
     r = (v[0] - 2 * dot * normal[0], v[1] - 2 * dot * normal[1], v[2] - 2 * dot * normal[2])
-    for src in bright_sources(state, viewer.rid):
+    for src in bright_sources(state, viewer.rid) if sources is None else sources:
         to_s = (src["x"] - point[0], src["y"] - point[1], src["z"] - point[2])
         dist = math.sqrt(sum(c * c for c in to_s))
         if dist < 1e-6 or sum(a * b for a, b in zip(to_s, normal)) <= 0.0:
@@ -2207,8 +2630,13 @@ def lidar_ring(state, eye, facing_deg, geom=None):
     out = []
     for k in range(lid["sectors"]):
         rad = math.radians(float(facing_deg) + k * 360.0 / lid["sectors"])
-        hit = _lidar_ray(geom, ex, ey, math.cos(rad), math.sin(rad), lid["height_m"], lid["range_m"], agent_cells,
-                         openings)
+        ux, uy = math.cos(rad), math.sin(rad)
+        hit = _lidar_ray(geom, ex, ey, ux, uy, lid["height_m"], lid["range_m"], agent_cells, openings)
+        for x0, y0, x1, y1, z_lo, z_hi, porosity, src in geom.leaves:      # thin occluders: exact (RoomGeom.leaves)
+            if porosity < 0.5 and src not in ignore and z_lo - 1e-9 <= lid["height_m"] <= z_hi + 1e-9:
+                span = _ray_rect(ex, ey, ux, uy, x0, y0, x1, y1)
+                if span is not None and span[1] > 0.0:
+                    hit = min(hit, max(0.0, span[0]))
         out.append(None if hit > lid["range_m"] + EPS else math.floor(hit / lid["step_m"] + 0.5) * lid["step_m"])
     return out
 

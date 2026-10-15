@@ -1,0 +1,843 @@
+{
+ "packages": {
+  "B0": {
+   "not_done": [
+    {
+     "what": "No room-mode golden, physics_audit, camera-tool or sweep_bench baselines were recorded at B0.",
+     "why": "Those tools and tests do not exist yet. PHYS-INT (B1), CAM-RENDER (B3) and TIME-EVAL (stage C) create them and record the first baselines."
+    },
+    {
+     "what": "The B0 gate record, including the body baseline BODY-CORE checks against, is not committed to git.",
+     "why": "catalog/analysis/tier1/gate/ is git-ignored by the repository's .gitignore, and B0 may not commit. The record is deterministic and can be regenerated from ccb8b87; the handoff notes this."
+    }
+   ],
+   "requests": [
+    "Main session, before B1 hands over: PHYS-INT's G7 budget of 1.0 x A0 (4.38 ms, 1.102 s) is inside the measurement noise. Eight records of the unchanged simulation path range +0.0% to +3.7% (substep) and +0.0% to +3.2% (1 h wait) over A0, and B0 itself is 1.1029 s against 1.102 s. Please decide how to judge it, for example `record --only G7` on the B0 commit and the B1 tree alternately in one quiet window, or accepting PHYS-INT when it is at or below min(A0, same-window B0). Ask PHYS-INT to report the change of the kernel `thermal` system, the claimed saving.",
+    "Main session: the gate folders are git-ignored. If they may be cleaned, archive gate/B0/ (at least meta.json, summary.txt, bench.json, body_audit.json): B1 uses it as its previous gate and BODY-CORE runs `body_audit.py --against catalog/analysis/tier1/gate/B0/body_audit.json`.",
+    "For BODY-CORE (B5): TIER1_EMBODIMENT 8.3 says careful speed is in 7 files, but body_audit lists 14, and the M5 re-check needs all 14. Five specs pick at 90% or more of the derated capacity. T-151f6733397156-01's utility_bucket is exactly 8.0/8.0 kg; the others are T-7e93003b0dcefa-01, A-b6bf8052cc5211-01 (seed 97), T-3c114c8e4796ec-01 and T-fa2552570f7b6f-01. Posture, reach or arm derates could push these over capacity.",
+    "For BODY-ENGINE (B4): 17 specs (81 trials) wait more than 1 h undocked; the per-spec table is in the handoff. They are the ones whose battery trajectories change under B-R2."
+   ],
+   "deviations": [
+    {
+     "what": "Ran the gate with `--extras body,gen`, although the B0 row of the gate's package table lists no extras.",
+     "why": "Plan 2.4 asks B0 to run `body_audit --baseline`, and the gate handoff (deviation 13) and the BODY-MODEL handoff (deviation 21) put the body baseline in gate/B0/body_audit.json, which only G9 with the body extra writes. The gen extra adds a stage-B reference for GEN's checks. The physics, camera and sweep extras were not requested because their tools do not exist yet."
+    },
+    {
+     "what": "Ran `body_audit.py --baseline` a second time standalone, with `--out` in my scratch folder instead of the default <temp>/house_ai_tier1/body_audit/baseline.json.",
+     "why": "The default path is shared with other sessions. The second run cross-checks determinism, and it matched the gate record exactly."
+    },
+    {
+     "what": "G1c is SKIP in the B0 record. I checked it separately into scratch with `--package A0+PHYS-DATA+PHYS-STATICS+PHYS-FLUIDS+CAM-SIGHT+BODY-MODEL --only G1c` (PASS, 22 modules).",
+     "why": "B0 lists no import-inert modules, but B1 relies on stage-A modules staying import-inert on the committed tree."
+    },
+    {
+     "what": "Set the gate's `--work` to my private scratch folder, so meta.json's human_check names a scratch path for all_specs.json.",
+     "why": "The default <tmp>/house_ai_tier1/B0 folder is shared, and the gate deletes its work folder at start."
+    }
+   ]
+  },
+  "PHYS-INT": {
+   "not_done": [
+    {
+     "what": "tests/test_textiles_laundry.py full-jug bound (3.0 kg) still fails for chlorine bleach (3.23 kg) in G1 and G1b",
+     "why": "R7 reviewed change; the test file is outside PHYS-INT's list (request 1). Probe: the look-alike/heft assertions of that test still pass"
+    },
+    {
+     "what": "Ceramic vase still breaks 100% from 0.75 m onto carpet",
+     "why": "Caused by manipulation.json drop_tolerance_m 0.15 (and vase 0.12) overriding the ceramic class 0.45, plus PHYS-STATICS' footprint-independent 3 J cushion pinned by its tests; both outside PHYS-INT's files (requests 2, 3)"
+    },
+    {
+     "what": "Gust-driven sliding of light low outdoor objects",
+     "why": "Two stage-A tests pin sustained-only sliding; law change left to the main session (request 4)"
+    },
+    {
+     "what": "G10 of the record fails on catalog/analysis/tier1/handoff_B0.md",
+     "why": "The main session's untracked B0 handoff predates this package; not a PHYS-INT file"
+    },
+    {
+     "what": "liquids.json c_p column, unification of core.mark_contents_from with liquids._mark_provenance, physics_audit listing of absorption caps/upholstery",
+     "why": "Optional stage-A follow-ups not needed for the gate; listed as known gaps"
+    },
+    {
+     "what": "physics.environment windy bench 0.35-0.38 ms vs 0.3 ms budget",
+     "why": "Law is deferred (0 ms today); O(N) outdoor fingerprint and children map per substep should be cached on the touch log by the law's owner before the D1 flip"
+    }
+   ],
+   "requests": [
+    "tests/test_textiles_laundry.py line 2518: raise the full-jug bound from 3.0 to 3.3 kg (or derive it from the liquid's liquids.json density); R7 makes the 2.8 L chlorine bleach jug 3.23 kg. The rest of that test passes (all jugs still look and heft alike).",
+    "house_sim/data/types/manipulation.json: remove drop_tolerance_m from vase (0.12) and ceramic_vase (0.15) so the material class applies (ceramic 0.45: survives carpet from table height, breaks on tile), or calibrate them to that anchor; adoption round for manipulation.",
+    "tests/test_physics_statics.py (~line 795, 'carpet cushion: 3 J'): if footprint-scaled cushion energy is wanted, update this PHYS-STATICS pin in a physics fix round.",
+    "Gust-driven sliding: tests/test_physics_fluids.py::test_a_gust_lifts_or_tips_but_only_a_sustained_wind_slides and tests/test_physics_data.py::test_light_outdoor_things_stay_put_on_most_daytime_hours pin sustained-only sliding; decide with outdoor_plants' wind-law adoption.",
+    "tests/test_eval_viewer.py line 455 compares viewer messages with message[:600] while the viewer marks longer messages differently; any inspect message over 600 chars fails it (CAM-RENDER owns the viewer).",
+    "Commit catalog/analysis/tier1/handoff_B0.md (untracked; it is the only file outside PHYS-INT's list in this record's G10)."
+   ],
+   "deviations": [
+    {
+     "what": "Laws registered lazily by physics.register_laws() on the first settle with work, not at import",
+     "why": "Stage-A test_registration_order_and_duplicates expects an empty lawbook table in a process that only imported the kernel; behaviour is otherwise identical"
+    },
+    {
+     "what": "Inspector looks only on inspect where=\"closely\"; a domain inspector's own feel (laundry damp/dry) wins over physics feel",
+     "why": "Keeps plain inspect messages unchanged (viewer test pins 600 chars) and avoids clobbering a more specific domain percept"
+    },
+    {
+     "what": "dripping keeps the default inspect tier; wheeled and the top-level torn flag are glance (beyond 7.6 lists)",
+     "why": "Plumbing's drip is an inspect-tier percept today; wheels are as visible as casters; torn glance follows PHYS-STATICS' follow-up"
+    },
+    {
+     "what": "World.set_quiet field-level quiet journal added beside mut_quiet; kernel thermal uses it",
+     "why": "mut_quiet copied whole records and ate the thermal active-set saving; thermal now 0.216 ms vs 1.688 ms in A0"
+    },
+    {
+     "what": "settle(env, phase, ctx=None, final=True): ctx.settle_physics passes final=False",
+     "why": "An early settle inside a handler must keep the action phase (attribution) open"
+    },
+    {
+     "what": "motion_record(ctx) returns None when ctx.data has \"motions\" (perform's leaves)",
+     "why": "Avoid counting a composite verb's travel twice"
+    },
+    {
+     "what": "place refuses only collapsed shelves, damage.collapsed supports and shattered supports; merely broken appliances still hold things",
+     "why": "Domains put items into broken machines today"
+    },
+    {
+     "what": "Setup lint checks only entities the setup created/changed and their supports",
+     "why": "Generated-house staging is not the spec's responsibility"
+    },
+    {
+     "what": "Wheeled things use tyre (rubber) friction on floors and casters roll at c_rr; gust-driven sliding not added",
+     "why": "Realism observation 2; sustained-only sliding is pinned by stage-A wind tests (documented in KNOWN_LIMITS)"
+    },
+    {
+     "what": "physics_audit worst case times only the settle pass and reports its 354 consequences (10.1 ms)",
+     "why": "A collapse cascading through four shelves is one call; the 64-consequence budget lets it finish"
+    },
+    {
+     "what": "phys/thermal.py imports kernel.physics lazily",
+     "why": "Circular import between the facade and the layer"
+    }
+   ]
+  },
+  "CAM-RUNTIME": {
+   "not_done": [
+    {
+     "what": "camera.watch with people in the robot's room costs 0.15-0.19 ms per substep vs the 0.05 ms budget (idle 0.006 ms, room mode 0.0005 ms)",
+     "why": "per-substep eye scene, ambient light, per-agent LOS/acuity, capture checks and the log write; reducing it needs less-than-every-substep sampling or per-agent caching (a design change for TIME-EVAL's idle probes); documented in handoff 7"
+    },
+    {
+     "what": "face/peek/extended look, geometric inspect/read rules, setup ops, --camera CLI (CAM-ACTIONS); realistic rendering, detection band, tracked identity, camera leak audits/tool flags (CAM-RENDER); doorway/window apertures and doorway captures (phase 3)",
+     "why": "outside CAM-RUNTIME's row in TIER1_INTEGRATION 2.4"
+    },
+    {
+     "what": "near_connection controls in an adjacent room are actionable through wrist access but not listed in the geometric observation",
+     "why": "views end at the room's walls until phase 3 apertures"
+    },
+    {
+     "what": "gate G1 FAIL (test_textiles_laundry jug bound) and shared-tree G10 FAIL",
+     "why": "G1: PHYS-INT's known R7 test bound (its request 1), identical in the PHYS-INT record; G10: PHYS-INT's uncommitted B1 files on the shared tree. From an isolated copy G10 PASSes: 9 changed files, 0 outside the CAM-RUNTIME list"
+    }
+   ],
+   "requests": [
+    "Main session: commit PHYS-INT (B1) before merging CAM-RUNTIME so G10 passes on the shared tree (isolated-copy G10 already PASS).",
+    "tests/test_textiles_laundry.py line ~2518: raise the full-jug bound (PHYS-INT request 1, R7); it is the only G1 failure.",
+    "tests/test_sight.py: update the module docstring and setUpModule comment -- the stage-A stand-ins are gone and None in sight._BRIDGES now means the real sibling (body.eye_height_m, phys.support.held_envelope / resting_size); all 59 tests pass unchanged, only the wording is stale (or drop setUpModule)."
+   ],
+   "deviations": [
+    {
+     "what": "approach ends facing its target with the head aimed (C19) via the camera's own approach after-hook, also when already within reach",
+     "why": "the camera registers the approach after-hook anyway (10.2); doing it there costs no time and leaves CAM-ACTIONS nothing to change in core approach"
+    },
+    {
+     "what": "the arrival pose of a walk is a stationary idle/gaze frame, not a motion frame",
+     "why": "the robot has stopped; it is the frame observe() renders after a walk (motion frames are never rendered, C4)"
+    },
+    {
+     "what": "engine calls camera.note_action(ctx) after every action's AFTER hooks (top level and nested leaves) in addition to the core motion after-hooks",
+     "why": "1.4 requires domain verbs that set ctx.data['path'] (or ctx.motion) to get camera motion frames; composite verbs have no own record, so nothing is framed twice"
+    },
+    {
+     "what": "auto-gaze and in_frame treat the current head pose as a frame; with no frame yet the implicit frame at the current pose is used",
+     "why": "a target already in view needs no head turn; observe right after reset needs a view"
+    },
+    {
+     "what": "ViewInfo px is effective pixels; via 'held' for held/worn items; oracle view light and obs.camera.light are exact numbers; obs.camera.frames counts all frames",
+     "why": "10.6 says oracle values are exact; CAM-RENDER buckets for realistic"
+    },
+    {
+     "what": "captures: one per person per private moment whichever sensor first (key pid:activity:episode, episode = activity_start_s / activity_until / '-'); kernel fallback also emits a camera_capture event-log entry",
+     "why": "people records carry no activity start; spec key has no sensor"
+    },
+    {
+     "what": "occlusion signature memo keyed by a touch-log geometry epoch (named consumer 'sight' in geometric mode, read every substep by camera.watch) instead of mutation_count",
+     "why": "kernel thermal quiet writes bump mutation_count every substep, so the per-count memo recomputed occ_sig (0.25-0.45 ms) on every query; the epoch changes only when what occ_sig digests changes; results identical (tested)"
+    },
+    {
+     "what": "perception.light_level gained an optional ids list (window/light ids in state order)",
+     "why": "per-substep ambient light without scanning every entity, bit-identical sums"
+    },
+    {
+     "what": "sight stand-ins deleted but _BRIDGES kept as test overrides (None = real sibling); held-item boxes use the profile carry and trays ride at hand height",
+     "why": "the TIER1-STUB(CAM-RUNTIME) markers must go; test_sight.py (not in this package) sets the keys to None and now tests the real siblings (59/59 pass)"
+    },
+    {
+     "what": "watch accounting details (monitored = agents in the room + track + track_ids; ties rotate every 30 s; body turns only in idle actions), view_watch keeps last_s, looked_in only for frames in the current room, visual-event point prefers an explicit cell over the source box, physics events at least 0.3 m, step-view frame cull + lazy glare (result-identical)",
+     "why": "spec silent or ambiguous; chose the simpler realistic option, each recorded in handoff section 4"
+    }
+   ]
+  },
+  "CAM-RENDER": {
+   "not_done": [
+    {
+     "what": "tests/test_camera.py ModeTests.test_realistic_perception_with_the_geometric_camera_waits_for_cam_render still expects the removed guard, so G1/G1b report one failure.",
+     "why": "The file is CAM-RUNTIME's and on no B3 list. A replacement test is given in handoff request 1."
+    },
+    {
+     "what": "The SearchAgent still fails test_kernel's cup-in-a-cabinet fetch houses in geometric mode.",
+     "why": "Their cabinets are 10 cm cubes; sight packs two contents into one identical box and each hides the other from the wrist camera. This is a sight follow-up (request 2). The agent passes the cup-in-the-open houses on the shared tree with CAM-ACTIONS."
+    },
+    {
+     "what": "The SearchAgent geometric test skips in the isolated gate tree.",
+     "why": "It needs CAM-ACTIONS' look rows, which ran in parallel. It was verified passing on the shared tree."
+    },
+    {
+     "what": "perception.perceived_ids is not implemented.",
+     "why": "It belongs to PEOPLE-IO (stage C). Realism.perceived_in(view) is provided for it."
+    }
+   ],
+   "requests": [
+    "tests/test_camera.py: replace ModeTests.test_realistic_perception_with_the_geometric_camera_waits_for_cam_render, which pins the removed TIER1-STUB guard, with a test that realistic + geometric observes (text in handoff section 9, request 1). CAM-ACTIONS raised the same request.",
+    "house_sim/kernel/sight.py (sight owner): contents of an overfull container are packed into one identical box and occlude each other completely. A thing should not be occluded by a coincident sibling, or the packing should spread them. This affects test_kernel's 10 cm cabinets and the geometric SearchAgent.",
+    "outdoor_plants (adoption round): rename roof_face's 'view' word field (clear/partial/blocked) so it cannot be confused with the camera's per-entity view properties.",
+    "B-CLOSE: docs/DATASET.md format bump (records now carry meta.camera); regenerate replays, since realistic replays now observe their start state."
+   ],
+   "deviations": [
+    {
+     "what": "People and pets below identify level (including imaging-off depth shapes) are shapes keyed by a handle per sighting, and naming them by id is refused with the dark-room text.",
+     "why": "11.1 covers entities only. Keying by id would reveal who is there with cameras off or at long range, and a per-sighting handle cannot be linked across sightings."
+    },
+    {
+     "what": "Tracked identity also counts entity knowledge >= inspect as identify, and follows knowledge through the robot's own moves.",
+     "why": "An examined, unmoved thing should keep its identity; this matches the existing knowledge semantics."
+    },
+    {
+     "what": "note_step also runs at reset and replay start (HouseEnv._note_view), which is not in the 1.9 reset list.",
+     "why": "This makes the reset view count without making observe() stateful (C5)."
+    },
+    {
+     "what": "Replays and the viewer re-run observe their start state once after re-creating realism.",
+     "why": "The original reset observation issued handles and dark spells. Without it the replay's handle table diverges for things seen only at the start, which is common with the geometric camera."
+    },
+    {
+     "what": "'view' is hidden only when it is a dict; 'inner_spos' is in DEFAULT_TIERS hidden.",
+     "why": "outdoor_plants roof_face has a string 'view' field, and a name-based hidden tier would change room-mode realistic observations."
+    },
+    {
+     "what": "Below identify, fields whose inspect/read/measure grants still hold stay in the record; unresolved look-alikes keep only LOOKALIKE_FIELDS plus felt fields.",
+     "why": "11.1 says inspect, read and measure tiers are unchanged and granted by actions."
+    },
+    {
+     "what": "Clutter counts siblings excluding the thing itself. There is no miss cascade to children. Observer percepts are kept only at identify. Depth-shape views carry no light word. The dist word comes from the noisy range when it is measured.",
+     "why": "These are the simpler and more realistic readings of 11.1, 11.2 and 10.6."
+    },
+    {
+     "what": "Dataset 'camera' is added to the record meta but not to the required META_KEYS.",
+     "why": "Datasets exported earlier stay valid; B6 bumps the format version."
+    },
+    {
+     "what": "fuzz --camera geometric defaults to perception 'mixed' (odd seeds realistic, observed every step, observation included in the digest), and replay temp files carry the camera mode and pid.",
+     "why": "This also fuzzes the realistic renderer, and it avoids a file race when the gate runs the room and geometric fuzz concurrently."
+    },
+    {
+     "what": "SearchAgent gained survey viewpoints, a crouch after approaching small or low detections, a peek inside opened containers, and no forgetting of out-of-frame things, beyond section 4's list.",
+     "why": "Without these it could not find a 10 cm cup in test_kernel's fetch houses: identify needs 64 px, so a lower eye or a closer viewpoint is required."
+    },
+    {
+     "what": "Leaderboard: rows are split by camera, and the non-default mode is labelled but neither privileged nor moved to another track.",
+     "why": "The geometric camera only ever shows less, and the two modes must not be merged."
+    }
+   ]
+  },
+  "CAM-ACTIONS": {
+   "not_done": [
+    {
+     "what": "Mic gating of ask / listen",
+     "why": "BODY-CORE's per TIER1_INTEGRATION 2.4"
+    },
+    {
+     "what": "Phase-3 aperture viewers for view_watch",
+     "why": "phase 3; rejected explicitly rather than silently never seeing"
+    },
+    {
+     "what": "Schema-3 camera lint rule active",
+     "why": "needs 'schema' in spec.ALLOWED (TIME-EVAL)"
+    },
+    {
+     "what": "python -m house_sim --verify --camera geometric",
+     "why": "needs audit.verify(camera=) in house_sim/audit.py, outside this package (request)"
+    },
+    {
+     "what": "Domain inspectors (manipulation.details label_text) gated by read_check; navigation_robot _no_camera hooks replaced by ctx.require_imaging",
+     "why": "domain files outside this package (adoption round)"
+    },
+    {
+     "what": "tests/test_camera.py guard test update",
+     "why": "file not on the CAM-ACTIONS list; the failure comes from CAM-RENDER removing the guard"
+    }
+   ],
+   "requests": [
+    "tests/test_camera.py: update ModeTests.test_realistic_perception_with_the_geometric_camera_waits_for_cam_render (expects the interim realistic+geometric NotImplementedError guard CAM-RENDER removed) when CAM-RENDER lands",
+    "house_sim/audit.py: verify(..., camera=None) forwarding to verify_many(..., camera=camera) so `python -m house_sim --verify --camera geometric` works (the CLI already passes it when the signature takes it)",
+    "docs/KERNEL_API.md (v3.0 camera, BODY-ENGINE next): a paragraph on the camera verbs' API - camera.look / face / peek / peek_access / peek_poses / set_track / agents_in_frames / agent_visible / view_target / direction_deg / parse_cell, the peek frames' 10th element, read_check's head+wrist union, sight.row_spos, the seat model and _with_ignore (handoff section 3)",
+    "house_sim/kernel/engine.py: affordances() in realistic mode lists peek / face in room mode; filter by action_names() to match what agents are offered",
+    "Domains (adoption round): manipulation.details should gate printed fields through ctx.read_check in geometric mode; navigation_robot _no_camera before-hooks should give way to ctx.require_imaging (and cover peek); seat types whose back is not opposite their front set view.front_deg; pantry/fridge specs can stage rows with spawn ... \"row\"",
+    "BODY-CORE: replace the interim guards of face (require_mobile), peek / core.wrist_peek (require_arm) and the look / peek / inspect / read camera-off checks (require_imaging, same text)"
+   ],
+   "deviations": [
+    {
+     "what": "look around pans -150, -90, -30, 30, 90, 150 instead of offsets 0..300",
+     "why": "an offset of 180 needs a pan beyond the 150-degree head limit; these six cover 369 degrees with the 69-degree FOV without a body turn; times stay 5.4 s / 8.3 s"
+    },
+    {
+     "what": "plain look forward records an 'idle' frame, not a 'look' frame",
+     "why": "CAM-RUNTIME's test pins that a plain look step ends with the idle frame end_step would record"
+    },
+    {
+     "what": "directional looks keep the other axis; behind turns the body 180 (or pans to the limit when it cannot turn); explicit pan beyond the limit turns the body",
+     "why": "spec silent; more realistic head/body split"
+    },
+    {
+     "what": "face deg is the absolute grid heading (as obs.camera.pose.facing_deg), relative turns use words; targets also take cells, people, pets",
+     "why": "consistent with the observation's pose; relative degrees ambiguous"
+    },
+    {
+     "what": "peek where is required; peeking under/behind a held thing and inside a non-container are refused (new texts 'Put it down first', 'There is nothing to look inside')",
+     "why": "spec gives no default; physically meaningless cases"
+    },
+    {
+     "what": "concrete wrist poses per where (under 15 cm outside near edge at half clearance; behind slid into the gap; inside 0.35 m standoff per band x bay, max 12 frames; top 0.25 m above; lift 0.15 m above support); wrist range deep_m + standoff (1.15 m)",
+     "why": "9.1 only says 'from the reachable edge'; the old 1.0 m cap fell short of '1.0 m past the reachable edge'"
+    },
+    {
+     "what": "wrist_access depth rule (things deeper than deep_m from the near edge are not wrist-accessible) and free-floor-behind rule",
+     "why": "so can_see agrees with 'deeper items stay hidden' and 9.1's free floor cell on the back side"
+    },
+    {
+     "what": "read_check returns the union of head and wrist reads instead of the first that passes",
+     "why": "'first that passes' would return a display and never the 4 mm label next to it"
+    },
+    {
+     "what": "geometric read needs no reach; held items +1 s; read reads only legible fields",
+     "why": "a big display or sign reads from across the room (9.2)"
+    },
+    {
+     "what": "held items' ViewInfo faces are the faces the head sees (all faces after a peek closely)",
+     "why": "4.6 'held items show all faces' after close inspection; none was unrealistic"
+    },
+    {
+     "what": "sight.py seat model, exact-part support chains and _with_ignore; _Rel.support became a tuple of parts",
+     "why": "CAM-SIGHT's full box hid everything on a sofa seat from every eye; needed for peeks/lifts"
+    },
+    {
+     "what": "camera setup ops validated always but applied only in geometric runs; view_watch rejects aperture viewers and every_s < 10 s; sensor keys rejected with a pointer to the robot op",
+     "why": "a geometric spec forced to --camera room must still run; aperture viewers would silently never see (TIER1_INTEGRATION 1.13)"
+    },
+    {
+     "what": "schema-3 lint marker \"camera\": true for the camera-wrong plan, dormant until TIME-EVAL adds 'schema' to spec.ALLOWED",
+     "why": "spec gives no marker; schema key not yet allowed"
+    },
+    {
+     "what": "CLI: --camera with --load-state/--replay is an error; --verify --camera requires audit.verify(camera=)",
+     "why": "saved files record their mode; audit.py is outside this package"
+    }
+   ]
+  },
+  "B3-MERGE": {
+   "not_done": [
+    {
+     "what": "tests/test_camera.py ModeTests.test_realistic_perception_with_the_geometric_camera_waits_for_cam_render fails in normal, strict and core-only runs (G1 and G1b).",
+     "why": "The test pins the TIER1-STUB guard that CAM-RENDER was required to remove. The file is CAM-RUNTIME's and is outside the B3 union, so the merge gate may not edit it. It is request 1 in both handoffs, and CAM-RENDER's handoff contains replacement test code."
+    },
+    {
+     "what": "tests/test_textiles_laundry.py PerceptionHardeningTests jug bound fails in normal and strict runs (G1 and G1b).",
+     "why": "This is PHYS-INT's known R7, request 1 in the PHYS-INT handoff. The file is a domain test outside the union."
+    },
+    {
+     "what": "The open-door leaf occluder blocks most of a room from the doorway cell in geometric mode. Example: A-c83efc7adcd8f5-01 seed 2, where 61 of 81 cells are hidden. This also accounts for many 'That is not visible here' refusals in the geometric G3 preview.",
+     "why": "This is TIER1_CAMERA 4.4/5.1 as designed and implemented by CAM-SIGHT and CAM-RUNTIME (a solid block over the door_swing cells). It existed before B3, so it is not a fit problem between the two B3 packages. I recorded it as a D3/camera-owner follow-up in both handoffs."
+    },
+    {
+     "what": "Geometric G3 preview (D3): 55 specs fail only with the geometric camera. 54 fail because their reference plan is refused, mostly by approach / 'not visible here'. There were 0 exceptions.",
+     "why": "Per TIER1_INTEGRATION section 4 this triage belongs to D3 (CAM-FLIP), not B3. The list is in the merge gate's scratch record and summarized in the handoffs."
+    },
+    {
+     "what": "Realistic SearchAgent on test_kernel's 10 cm toy cabinets (the cup is taller than its cabinet and stays at 'recognize'). Seed 7 in realistic mode also needs more than 600 steps.",
+     "why": "Toy geometry and step budget, not a defect in either package. The oracle case and the realistic case with real-size cabinets pass."
+    }
+   ],
+   "requests": [
+    "Main session: update tests/test_camera.py, replacing ModeTests.test_realistic_perception_with_the_geometric_camera_waits_for_cam_render with a check that realistic + geometric runs. CAM-RENDER's handoff section 9 request 1 has the code. This is the last B3-related G1/G1b failure.",
+    "Main session: raise tests/test_textiles_laundry.py's full-jug bound (PHYS-INT request 1, R7).",
+    "Main session / camera owner for D3: re-think the open-door leaf occluder (TIER1_CAMERA 4.4/5.1, sight._build_geom over geometry.door_swing cells). A 0.5 x 1.0 m solid block next to the doorway hides most of the room from a robot that has just walked through an open hinged door. Use a thin leaf at its open position instead. Evidence: A-c83efc7adcd8f5-01 seed 2, and many 'That is not visible here' refusals in the geometric G3 preview.",
+    "Still open from CAM-ACTIONS: house_sim/audit.py verify(camera=) forwarding (request 2), and the docs/KERNEL_API.md camera-verbs paragraph for BODY-ENGINE (request 3).",
+    "Commit note: the merge-gate edits are inside the B3 union (sight.py, eval/*, the two camera test files, EVAL_HARNESS.md, KNOWN_LIMITS.md, perception.py EOL) and both handoffs record them. The gate record catalog/analysis/tier1/gate/B3-MERGE/ is git-ignored."
+   ],
+   "deviations": [
+    {
+     "what": "The full gate record ran with --root on an isolated copy in the merge gate's scratch folder, not directly on the shared tree. The copy's base commit is the B2 hand-over snapshot (CAM-RENDER's 12:38 snapshot, cross-checked against CAM-ACTIONS' pre-package copies) and its working tree is byte-identical to the project.",
+     "why": "B1 and B2 are still uncommitted on the shared tree. On the shared tree G10 would list PHYS-INT's and CAM-RUNTIME's files as outside the union. On the isolated copy G10 sees exactly B3's 34 files, all inside the union."
+    },
+    {
+     "what": "The sight fix answers CAM-RENDER's request 2 (two contents packed into one box hide each other). That request was addressed to the sight owner, and CAM-ACTIONS owns sight.py in B3.",
+     "why": "This is the seam between the two B3 packages: CAM-RENDER's SearchAgent combined with CAM-ACTIONS' peek inside failed on test_kernel's cabinet houses. The camera spec's phase-2 gate lists the SearchAgent, so the merge was the place to fix it."
+    },
+    {
+     "what": "dataset.py's builds now pass perception='realistic' to runner.build. This has no effect today.",
+     "why": "It keeps the same build contract as the verifier. After D3, camera.default_mode depends on perception, and this stops the setup's camera resolution from disagreeing with the realistic env."
+    },
+    {
+     "what": "I tried a SearchAgent change that remembered identified containers, then reverted it. agent.py ends identical to the B3 hand-over.",
+     "why": "It fixed no failing check. With real-size cabinets the original agent already opens them. The remaining realistic failure on 10 cm toy cabinets is a geometry artefact: the cup is taller than the cabinet."
+    }
+   ]
+  },
+  "BODY-ENGINE": {
+   "not_done": [
+    {
+     "what": "BODY-CORE scope: derated lifts via check_lift/require_grasp in pick_up/receive/uninstall, switching on the held-load safety net, stairs capability in move (require_mobile stairs=True), look/inspect/read/listen/ask sensor guards, say() audibility, set_speed/set_quiet rules, setup ops robot/robot_fault, careful-speed fix (engine still applies x1.5), replacing CAM-ACTIONS' interim face/wrist_peek battery checks",
+     "why": "assigned to BODY-CORE (B5) by TIER1_INTEGRATION 2.4"
+    },
+    {
+     "what": "BODY-FAULTS scope: perception power/imaging gates, hearing filters, realistic obs.robot via proprio (realistic battery still an exact float)",
+     "why": "assigned to BODY-FAULTS (B5)"
+    },
+    {
+     "what": "G1/G1b green in five test files outside the BODY-ENGINE list (test_body_model x2, test_physics_forces x1, test_camera_actions x1 caused by this package; test_camera and test_textiles_laundry pre-existing)",
+     "why": "files not on BODY-ENGINE's list; verified patches given in requests"
+    },
+    {
+     "what": "Domain after-hooks on core move/approach/walk_to are not written for a battery-cut move; a domain loop catching ActionError around env.perform keeps a nested leaf's effects when its energy refusal fires",
+     "why": "domain files / rare edge cases (nearly flat pack); documented as known gaps and adoption follow-ups"
+    }
+   ],
+   "requests": [
+    "tests/test_body_model.py: in world(materialize=False) keep only legacy robot keys after normalize (set(ROBOT_DEFAULTS) | {room, pos, hands} | set(cfg)); fixes Registry.test_get_falls_back_to_declared_defaults_on_legacy_states and Proprioception.test_oracle_shows_today_keys_plus_registered_visible_fields_exactly (exact patch in handoff_BODY-ENGINE.md section 9, verified on a scratch copy)",
+    "tests/test_physics_forces.py: replace RobotCapsTests.test_robot_fields_override_and_bad_values_fall_back with a profile_overrides test (robot_caps now delegates to the body profile per TIER1_INTEGRATION 1.2; exact patch in the handoff, verified)",
+    "tests/test_camera_actions.py: FaceTests.test_arguments_and_guards should expect the PowerOff text for a robot that starts with battery 0.0 (powered down at reset; TIER1_INTEGRATION 1.15); exact patch in the handoff, verified",
+    "house_sim/kernel/phys/liquids.py carry_hand_z_m(state) and house_sim/kernel/phys/impact.py tear: read support.carry_geometry(state)['hand_z_m'] instead of support.CARRY so non-default profiles drop from their own hand height",
+    "docs/domains/navigation_robot.md was edited by NAV-M2 and is on neither package's file list (G10): accept or revert at merge",
+    "Still open from earlier packages: tests/test_camera.py pins CAM-RENDER's removed guard; tests/test_textiles_laundry.py pins the pre-R7 jug mass (PHYS-INT request 1)"
+   ],
+   "deviations": [
+    {
+     "what": "Held-load safety net (drop above 1.5x capacity, straining note) is not run by the engine in B4: body.HOLD_SAFETY_NET=False passed as settle_energy(..., hold_check=) (new keyword, library default True), marked TIER1-STUB(BODY-CORE)",
+     "why": "It is TIER1_EMBODIMENT 8.1 stage M3 (BODY-CORE). Running it broke manipulation's co-carry job (robot holding its end of a 40 kg dresser dropped it) and core uninstall of a 17 kg propane tank into one hand; those domain changes are not among B-R1..B-R6"
+    },
+    {
+     "what": "Posture verbs use core.posture_guard (today's standing_on/fallen checks in today's order, then body.manip_problem and failed legs) instead of ctx.require_mobile(legacy_message)",
+     "why": "require_mobile would refuse 'stand' on a climbing aid and refuse posture changes while unlocalized, neither realistic"
+    },
+    {
+     "what": "Registration is body.register_plugins() called once by engine.py (body_faults.register_plugins through it), not an import-time block in body.py",
+     "why": "test_body_model pins that importing the body registers nothing (the 1.16 reason); test_kernel reloads the engine, so it is idempotent"
+    },
+    {
+     "what": "perform also runs both quiet guards and robot_sound for nested leaves",
+     "why": "a loud verb inside a chain must not bypass quiet mode; no action declares noise_db yet, so no current change"
+    },
+    {
+     "what": "Core travel time follows the effective speed from B4 (motion verbs take seconds from ctx.motion), not from BODY-CORE",
+     "why": "planning energy at one speed and timing at another would be inconsistent; no verified spec uses quiet mode or reaches limp mode"
+    },
+    {
+     "what": "body.depleted(): battery-depleted guards also hold when the robot is on with the gauge at the cutoff; system_tick and settlement power such a robot down (BMS cutoff)",
+     "why": "a domain writing battery=0 or a cold pack otherwise left a robot 'on' at 0 % that the old guards refused but the body did not"
+    },
+    {
+     "what": "body.motion lengths via geometry.path_length_m instead of sum()",
+     "why": "Python 3.12+ sum() is compensated, which made diagonal-walk durations differ by ULPs from core's and drifted the 3-decimal clock by 1-3 ms; now bit-identical on every Python version"
+    },
+    {
+     "what": "body.arm_health counts an arms_ok mirror marked False as a failed arm",
+     "why": "navigation_robot's ev_robot_fault still writes only arms_ok; keeps free_hand and capacities consistent with today's arm checks"
+    },
+    {
+     "what": "Partial commit also pops a partly-run scheduled command, records facts, attaches notes and keeps whole seconds in realistic mode; no undo record after a power-down; _affordances applies the power and quiet guards",
+     "why": "commit what happened consistently with an ok step; the probe must agree with step"
+    },
+    {
+     "what": "support.CARRY kept as the humanoid_v1 fallback; carry_geometry(state) added; impact.tear and liquids.carry_hand_z_m still read the constant",
+     "why": "those files are not BODY-ENGINE's (request filed); same numbers for the default profile"
+    },
+    {
+     "what": "robot_caps max_hand_kg = stronger single hand; grip_n/pinch_n = stronger working hand; support.children_map rebuilt faster with identical output; body system reads charge sources only when needed (no refused-charge log at full)",
+     "why": "frozen signature names no hand; settlement while carrying was at the 0.1 ms budget; halves body-system cost on docked robots"
+    }
+   ]
+  },
+  "NAV-M2": {
+   "not_done": [
+    {
+     "what": "obs.nav.battery_pct still shows the true state of charge, not the gauge (they differ only below 15 C)",
+     "why": "Adoption-round item (obs.nav through proprio); kept consistent with oracle obs.robot.battery until BODY-FAULTS"
+    },
+    {
+     "what": "doors.ev_robot_fault kind 'battery', common.robot_falls (charging write, legacy fault), scenarios.dock_setup(idle_drain=), unused common.BATTERY_PCT_* constants",
+     "why": "Files outside NAV-M2's list; filed as requests 2-4"
+    },
+    {
+     "what": "step duration still uses common.SPEED_MPS (humanoid_v1 speeds) and an orthogonal-step time for diagonals",
+     "why": "Durations kept to avoid unreviewed time changes; belongs with NAV-M5's timing='speed'"
+    },
+    {
+     "what": "wait_aside priced as an awake control action (115 W over its seconds)",
+     "why": "It 'stays responsive'; a parked variant needs idle=True plus a kernel rule excluding nested walk seconds from idle integration"
+    },
+    {
+     "what": "Gate summary is FAIL: G1/G1b fail on test pins outside NAV-M2 (test_body_model, test_physics_forces, test_camera_actions: BODY-ENGINE requests 1-3; test_camera: CAM-RENDER guard since B3; test_textiles_laundry: PHYS-INT R7 since B1) and G10 lists the domain doc",
+     "why": "Those files are outside NAV-M2's list; compare passes and test_navigation_robot is green normal and strict"
+    }
+   ],
+   "requests": [
+    "Add docs/domains/navigation_robot.md to NAV-M2's file list in tools/orchestration/tier1_gate.py PACKAGES and TIER1_INTEGRATION 2.4 (G10 currently lists it as the only file outside)",
+    "house_sim/systems/navigation_robot/doors.py ev_robot_fault: kind 'battery' writes robot.battery directly; route it through body.ev_battery / the kernel robot.battery event (adoption round)",
+    "house_sim/systems/navigation_robot/common.py: robot_falls writes body-owned 'charging' and a legacy fault dict (later: body_faults.fall); BATTERY_PCT_PER_M / BATTERY_PCT_PER_STEP_UP/DOWN / BATTERY_RESERVE_PCT are unused; module docstring's 0.012 %/m line is stale (adoption round)",
+    "house_sim/systems/navigation_robot/scenarios.py dock_setup(idle_drain=...) writes the deprecated, now ignored idle_drain_pct_h; drop it or map it to a standby-power profile override",
+    "BODY-ENGINE's first gate record (G7 3.22 ms, over budget) overlapped NAV-M2's earlier gate run; its second record (taken alone) and NAV-M2's final record both pass G7 (3.03 / 3.04 ms)"
+   ],
+   "deviations": [
+    {
+     "what": "Edited docs/domains/navigation_robot.md, which is not on NAV-M2's section 2.4 file list (G10 lists it as the one file outside)",
+     "why": "The task told the navigation_robot domain agent to update its domain doc for what changes; the ADOPT rows already give domain docs to their domains; requested adding it to the list"
+    },
+    {
+     "what": "swap_battery goes through body.swap_pack now (TIER1_EMBODIMENT 12 lists it under 'later')",
+     "why": "After BODY-ENGINE the body is the battery's only writer (TIER1_INTEGRATION 1.1); a raw write left battery_min_pct, power state and threshold crossings wrong (an empty pack left the robot on at 0 %)"
+    },
+    {
+     "what": "dock/undock/bookkeeping no longer write 'charging'",
+     "why": "TIER1_INTEGRATION 1.1 makes the body the writer; the body system sets it within the same step, so observations and evaluations see the same value"
+    },
+    {
+     "what": "Trip pace (and step duration) uses the effective speed from the motion record / body.effective_speed",
+     "why": "TIER1_INTEGRATION 1.7 (every speed consumer); BODY-ENGINE's core travel time already follows the record; differs only in limp/quiet-fast, which no reference run reaches"
+    },
+    {
+     "what": "Charge source is the dock the robot actually sits on (seated_dock) and judges the dock's power on every call, not robot.dock_powered",
+     "why": "Docking on a non-home dock never charged (pre-existing bug); fresh power makes outages stop current at once and a robot docked at reset is on its source from its first action"
+    },
+    {
+     "what": "walked(trip) rules for cuts: crossing included once the passage started, half the flight for a stairs fall, arrival falls cut too; reasons 'stopped'/'fell'; durations of stopped/fallen walks unchanged",
+     "why": "The spec only says 'call cut_motion on early stops and falls'; this measures what was walked the same way body.motion measures the record and matches the stairs-fall drop height"
+    },
+    {
+     "what": "go_to and wait_aside return 'Stopped in <room> (battery_depleted)' / 'Stopped at [c, r] (battery_depleted)' after a last-leg battery cut; bookkeeping keeps the battery_depleted incident; nav_stranded stat, the battery_depleted fault entry and battery_below_reserve log dropped",
+     "why": "Messages said 'Arrived'/'Waiting aside' for a powered-down robot; the body's power_down/battery_reserve events and stats replace the dropped bookkeeping"
+    },
+    {
+     "what": "Any core move that ends in its own room is an in-room trip (not only a battery cut)",
+     "why": "TIER1_EMBODIMENT 0.1 found _after_motion treated every move as a doorway passage"
+    },
+    {
+     "what": "battery_needed returns gauge points from the body's formulas with new optional params; dock message for a pack outside the charging window",
+     "why": "The old 0.012 %/m helper no longer matched the battery model (it had no caller); the BMS refusing current deserves a truthful message"
+    }
+   ]
+  },
+  "B4-MERGE": {
+   "not_done": [
+    {
+     "what": "G1, G1b and G10 still fail.",
+     "why": "The causes are in files outside the B4 union, so the merge gate may not edit them; they go to the main session. They are tests/test_body_model.py, test_physics_forces.py and test_camera_actions.py (BODY-ENGINE requests 1-3; the patches were applied to copies and pass), test_camera.py and test_textiles_laundry.py (earlier requests), and docs/domains/navigation_robot.md, which is missing from NAV-M2's list in tools/orchestration/tier1_gate.py PACKAGES and TIER1_INTEGRATION 2.4."
+    },
+    {
+     "what": "Two misleading navigation messages are left as they are. (1) After a fall on the way during a core move, the message still says 'Moved to X'. (2) patrol's result does not say that it ended early when a go_to leg stopped short.",
+     "why": "Both behave the same on the B3 tree, so they are not B4 fit problems. They are written up as adoption-round follow-ups in section 10."
+    },
+    {
+     "what": "BODY-ENGINE request 4 (liquids.carry_hand_z_m and impact.tear reading support.carry_geometry) and NAV-M2 requests 2-4 (doors.ev_robot_fault, common.robot_falls, scenarios.dock_setup) are not done.",
+     "why": "Those files are outside the B4 union; the requests stay with the main session."
+    }
+   ],
+   "requests": [
+    "Main session: apply BODY-ENGINE's test patches 1-3 (handoff_BODY-ENGINE section 9; checked green on the merged tree in normal, strict and core-only runs) and the earlier test_camera.py and test_textiles_laundry.py updates. With them G1 and the core-only part of G1b pass.",
+    "Main session: add docs/domains/navigation_robot.md to NAV-M2's file list in tools/orchestration/tier1_gate.py PACKAGES and in TIER1_INTEGRATION 2.4. It is the only G10 failure.",
+    "Main session: BODY-ENGINE request 4 (liquids.carry_hand_z_m and impact.tear through support.carry_geometry) and NAV-M2 requests 2-4 (doors.ev_robot_fault battery through body.ev_battery, common.robot_falls, scenarios.dock_setup idle_drain).",
+    "Adoption round, navigation_robot: (1) a fall on the way during a core move leaves the message 'Moved to X'; (2) patrol's result does not say that it ended early. Both pre-date B4.",
+    "Commit note for the main session: the B4 merge changed three B4 source files after both packages handed over: navigation_robot/paths.py, kernel/body.py and kernel/engine.py. It also added three tests and one sentence each to KERNEL_API.md and CONVENTIONS.md."
+   ],
+   "deviations": [
+    {
+     "what": "The gate was recorded on an isolated copy (scratch t1_merge_B4/iso), not on the shared tree. Its base is NAV-M2's B3 base commit 115bcb9, BODY-ENGINE's B3 snapshot, with the project's working tree on top and CRLF checkouts written as LF.",
+     "why": "B1-B3 are still uncommitted, so G10 on the shared tree would list every earlier package's file. This is the same method B3-MERGE, BODY-ENGINE and NAV-M2 used. All 22 B4 files, the handoffs included, were checked byte-identical between the iso copy and the project."
+    },
+    {
+     "what": "G7 was re-run alone with --only G7 after the full record.",
+     "why": "My own cross-package checks were still running during the record's benchmark phase. The overlapped reading was 3.10 ms / 1.107 s, also within budget; the quiet re-run gave 3.01 ms / 1.083 s."
+    },
+    {
+     "what": "Fix 2 adds a small engine rule and a body API: body.motion_result, body.STOPPED_FIRST_TEXT and the reserved ctx.data key motion_battery_cut_m.",
+     "why": "TIER1_EMBODIMENT 4.6 makes cut_motion supersede a battery cut for energy but says nothing about the message, which the verb writes before its after-hooks run. Only code that runs after the after-hooks can make the message true. The replacement matches only the body's own text, so every other result is untouched."
+    }
+   ]
+  },
+  "BODY-CORE": {
+   "not_done": [
+    {
+     "what": "Re-recording tests/data/room_golden.json",
+     "why": "Owned by BODY-FAULTS in B5 (it records once for both packages, B-R11). The diff classes are in the handoff"
+    },
+    {
+     "what": "Updating tests/test_camera_actions.py, tests/test_manipulation.py, docs/KERNEL_API.md, docs/domains/navigation_robot.md and phys/forces.py lift_plan (believed capacity)",
+     "why": "These files are outside the BODY-CORE / NAV-M5 list; exact patches are given as requests"
+    },
+    {
+     "what": "Domain adoption items: manipulation _after_receive and held_grip, navigation _no_camera hooks, people addressed speech, check_lift in domain verbs that put items in the robot's hands, timing='speed' on domain walking verbs",
+     "why": "Domain files; listed as follow-ups in the handoff"
+    }
+   ],
+   "requests": [
+    "tests/test_camera_actions.py LookTests.test_cameras_off_refuse_look_in_geometric_mode_only (line 270): room-mode look with privacy mode on now refuses with camera.CAMERA_OFF_TEXT (perception), per conflict 20. The patch is in handoff section 9, request 1",
+    "tests/test_manipulation.py HandOverTests.test_receiving_heavy_bag_uses_both_hands (lines 458-461): with the left hand busy, receive now refuses with 'Both hands must be free for this item' and the bag stays with ana. The patch is in handoff request 2",
+    "tests/data/room_golden.json: BODY-FAULTS re-records it once for both B5 packages, using the B-R11 classes in handoff section 6",
+    "house_sim/kernel/phys/forces.py lift_plan: decide two hands from the believed capacity (body.capacity_kg(..., believed=True)), so a latent weak arm is found by check_lift and not revealed by the plan",
+    "docs/KERNEL_API.md 'v3.0 robot body': lines 992 and 1029 are stale (the careful factor and the safety net). Add body.load_share, speed_problem, relocalize, careful_seconds, check_policy, core.take_hold, addressed_to_robot and the robot / robot_fault setup ops. Replacement text is in handoff request 5",
+    "docs/domains/navigation_robot.md: step, go_to, follow, lead and patrol are now timing='speed'. The file is on no package list; it is the same file as NAV-M2's request 1",
+    "Still open from earlier packages: tests/test_body_model.py and tests/test_physics_forces.py (BODY-ENGINE requests 1-2), FaceTests in tests/test_camera_actions.py (BODY-ENGINE request 3), tests/test_camera.py (CAM-RENDER), tests/test_textiles_laundry.py (PHYS-INT R7), liquids.carry_hand_z_m / impact.tear (BODY-ENGINE request 4)"
+   ],
+   "deviations": [
+    {
+     "what": "The careful factor is applied to every leaf, including nested leaves in engine.perform, not only to the top-level action's own seconds",
+     "why": "Otherwise a careful pick_up is slow at the top level but fast inside a domain chain or an undo, and physical chains lose the slowdown they have today. No second is multiplied twice"
+    },
+    {
+     "what": "The careful trigger stays robot.speed_mode == 'careful' (the user's setting), not the effective speed or a per-action speed argument",
+     "why": "Limp mode should slow the walk, not the arms. A verb whose duration comes from its own speed argument should declare timing='speed'"
+    },
+    {
+     "what": "face uses body.mobile_problem(..., localized=False) instead of ctx.require_mobile",
+     "why": "A robot that lost its pose must be able to turn in place to look around and find it again. Same reasoning as BODY-ENGINE's posture-guard deviation"
+    },
+    {
+     "what": "receive takes the item with the free hand; a core after-hook (order 990) closes the second hand when the item needs both. receive also gains ctx.require_arm",
+     "why": "manipulation's _after_receive drops any heavy item already held in both hands. This keeps both domains working, and capacity is still checked before anything moves"
+    },
+    {
+     "what": "New body.load_share: a co-carried end counts an equal share and a towed cart counts TOWED_SHARE (0.15)",
+     "why": "This had to exist before the safety net could be switched on (manipulation's co-carry, admin_inventory's wheel_cart). The 0.15 tongue load is an assumption"
+    },
+    {
+     "what": "say() stores audible on every speech entry and detects a latent speaker_failed fault when the speech is inaudible and the microphones work. The robot_spoke hooks still run",
+     "why": "This is the spec's 'no echo heard' detection. Listeners ignoring inaudible speech is a domain follow-up"
+    },
+    {
+     "what": "The grasp planner's grip is stored in held_grip but does not satisfy a hazard's safe_grips in check_handling",
+     "why": "check_handling deliberately reads the command's grip, which the realistic look-alike rules depend on"
+    },
+    {
+     "what": "Setup ops are validated strictly: unknown robot-op keys, bad profiles, overrides and sensors; robot_fault latent only for latent-capable kinds; arm_failed on a held hand. Of the reset-time onsets, only water_ingress's implied faults are expanded",
+     "why": "Catches authoring mistakes. No authored spec uses other keys, and the other onsets cannot apply at reset"
+    },
+    {
+     "what": "look relocalizes on any look in a lit room, in both camera modes. set_speed has three refusal texts (quiet, weak legs, battery)",
+     "why": "This is the simpler rule. The texts carry no hidden numbers"
+    },
+    {
+     "what": "NAV-M5 step takes its duration from body.speed_mps at the effective pace",
+     "why": "NAV-M2's suggestion: a mobile manipulator steps at its own speed. The numbers are identical for humanoid_v1"
+    }
+   ]
+  },
+  "BODY-FAULTS": {
+   "not_done": [
+    {
+     "what": "navigation_robot's obs.nav still shows exact battery_pct and camera_clean.",
+     "why": "Domain file: adoption round (route obs.nav through proprio buckets)."
+    },
+    {
+     "what": "Observers that do not check obs.dark still add visual percepts while the cameras are off.",
+     "why": "Domain observers: adoption round (gate them on body.imaging / ctx.in_frame)."
+    },
+    {
+     "what": "tests/test_body_engine.py: the affordance-probe pin and the in-process golden pollution are not fixed.",
+     "why": "Not on the BODY-FAULTS file list. Requested with a patch verified on a copy of the merged tree."
+    },
+    {
+     "what": "Room fields (temperature, light word) are still listed while powered down.",
+     "why": "The room record mixes the robot's map with its own sensors; recorded as a known gap."
+    }
+   ],
+   "requests": [
+    "tests/test_body_engine.py: replace the three lines from `probes = env.affordances(\"hall_light\")` with `with self.assertRaises(ActionError) as caught: env.affordances(\"hall_light\")` followed by `self.assertEqual(str(caught.exception), \"That is not visible here\")`, adding `from house_sim.kernel.errors import ActionError`. Also call `load_domains()` at module import (import it from house_sim.kernel.plugins): its mock.patch.dict of HOOKS/AFTER drops domain registrations when a patched test is the first to build an env, which breaks a later test_room_golden in the same process. Verified on a copy of the merged tree: normal, strict, core-only, and together with test_room_golden in one process.",
+    "docs/KERNEL_API.md 'v3.0 robot body': add a paragraph pointing to PERCEPTION.md 'Proprioception and the robot's sensors' (heard_messages, drop_sounds, Perception.senses/lens/seen_dark, obs.dark with imaging off, body_faults.sample_fault_events, realism.BLIND_WHO).",
+    "Still open from earlier packages: BODY-ENGINE requests 1-4, BODY-CORE requests 1-2 and 4-6, CAM-RENDER request 1, PHYS-INT request 1, NAV-M2 request 1."
+   ],
+   "deviations": [
+    {
+     "what": "obs.dark is true whenever imaging is off, in both camera modes. In geometric mode, people seen with imaging off are keyed per dark spell instead of per sighting.",
+     "why": "Observers and realism key visual percepts on obs.dark. With imaging off, room mode applies the darkness rule to the whole room, and keeping both camera modes consistent stops visual cues leaking while the cameras are off."
+    },
+    {
+     "what": "Room mode with imaging off: map fixtures (non-portable things standing in the room, and its doors) stay targetable but are listed only if they are 0.4 m or larger.",
+     "why": "TIER1_INTEGRATION 1.3 lists this among the rules that are identical in both camera modes; this matches camera.map_fixture."
+    },
+    {
+     "what": "Powered down: in both perception modes, nothing but held or worn items is visible; all observer channels are skipped and weather is dropped. The robot's map and its proprioception stay. The oracle affordance probe on a non-held target now raises 'That is not visible here'.",
+     "why": "Per 1.3, no sensor works while powered down. The geometric camera already behaved this way."
+    },
+    {
+     "what": "Weather needs power, and through a window it also needs imaging.",
+     "why": "Weather seen through a window is a colour percept."
+    },
+    {
+     "what": "Hearing 'none' removes the sounds channels rather than leaving empty lists.",
+     "why": "An absent channel is what a silent room gives; obs.robot.hearing tells the agent why."
+    },
+    {
+     "what": "Clarity is read via body.clarity rather than the whole sensors_view.",
+     "why": "Same value, cheaper."
+    },
+    {
+     "what": "Realistic obs.robot.faults also lists the robot's own fault-log entries and its falls.",
+     "why": "These are the robot's own writing or felt events. Nothing latent is shown."
+    },
+    {
+     "what": "fuzz --battery PCT starts houses at PCT x 1, 1/4 or 1/20 % by seed (even seeds undocked), defaults to mixed perception, and --faults random uses a shared generator in body_faults.",
+     "why": "At a flat 5 %, 0 of 6 houses powered down within 300 commands; with the shares, 4 of 6 do."
+    },
+    {
+     "what": "perception_audit also takes --battery/--faults, and normalize_faults accepts setup records named only by their fault id.",
+     "why": "The audit exercises powered-down, deaf, blind and faulty robots; the normalize change is a convenience for spec authors."
+    }
+   ]
+  },
+  "B5-MERGE": {
+   "not_done": [
+    {
+     "what": "Fixes to the 7 test files that G1/G1b report as failing: test_camera_actions LookTests and FaceTests, test_manipulation HandOverTests, test_body_engine TruncationTests, test_body_model, test_physics_forces, test_camera, test_textiles_laundry.",
+     "why": "All are outside the union of the B5 packages' files, and each pins behaviour a package deliberately changed. They are open main-session requests (BODY-CORE 1-2, BODY-FAULTS 1, BODY-ENGINE 1-3, CAM-RENDER 1, PHYS-INT 1). The patches for the first five files were verified on a copy of the merged tree."
+    },
+    {
+     "what": "docs/KERNEL_API.md and docs/domains/navigation_robot.md updates, and forces.lift_plan deciding two hands from the believed capacity.",
+     "why": "These files belong to no B5 package (BODY-CORE requests 4-6, BODY-FAULTS request 2)."
+    }
+   ],
+   "requests": [
+    "Apply BODY-CORE request 1 (tests/test_camera_actions.py LookTests: look refused in both camera modes) and request 2 (tests/test_manipulation.py HandOverTests: receive refused at lift-off). The patches are verified on the merged tree; the script is scratchpad/t1_merge_B5/patch_requests.py.",
+    "Apply BODY-FAULTS request 1 (tests/test_body_engine.py: the powered-down affordance probe raises 'That is not visible here', plus load_domains() at import). Verified normal, strict and core-only, and together with test_room_golden in one process.",
+    "Apply the still-open BODY-ENGINE requests 1-3 (test_body_model.py, test_physics_forces.py, test_camera_actions.py FaceTests), re-verified on the merged tree, and the older test_camera.py (CAM-RENDER) and test_textiles_laundry.py (PHYS-INT R7) requests. With all of them G1 and the core-only part of G1b would pass.",
+    "docs/KERNEL_API.md 'v3.0 robot body': BODY-CORE request 5 and BODY-FAULTS request 2. docs/domains/navigation_robot.md: BODY-CORE request 6 / NAV-M2 request 1. house_sim/kernel/phys/forces.py lift_plan believed capacity: BODY-CORE request 4."
+   ],
+   "deviations": [
+    {
+     "what": "The only fix is to documentation (docs/PERCEPTION.md); no code was changed.",
+     "why": "No behaviour misfit between BODY-CORE/NAV-M5 and BODY-FAULTS was found by the gate, the seam probes or the cross-package fuzz. The only place the two did not fit was the BODY-FAULTS doc describing a shape inspection that BODY-CORE refuses with the cameras off."
+    },
+    {
+     "what": "The regression tests added for the doc fix also pass on the tree as the packages handed it over.",
+     "why": "The behaviour was already right; the tests guard the seams (setup op to verb to observation) that neither package's tests covered end to end."
+    },
+    {
+     "what": "G7 recorded from a quiet re-run (--only G7), and G10 refreshed (--only G10) after the handoff sections were written.",
+     "why": "Same practice as the B4 merge. The full run's G7 (3.13 ms, +4.0 %) was also within budget."
+    }
+   ]
+  },
+  "B6": {
+   "not_done": [
+    {
+     "what": "Archive snapshot (tools/orchestration/snapshot.py tier1_B) and any commit",
+     "why": "Instructed: the main session does these."
+    },
+    {
+     "what": "Regenerating datasets/sample in v3",
+     "why": "datasets/* is C-CLOSE's file. A validated v3 export is in scratch (t1_B6/sample_v3) and the exact command is in request 1."
+    },
+    {
+     "what": "indoor_mat core type (GEN's second type request)",
+     "why": "The B6 row names only the ottoman."
+    },
+    {
+     "what": "Fixing the demo failure of T-94a0a940224c22-01 on held-out seed 701 (its reference closes a gate that is already closed), which leaves section 'Fence and gate' without a demo",
+     "why": "The spec belongs to the mechanisms domain and is outside B6."
+    },
+    {
+     "what": "Updating stale README.md, FINAL_REPORT.md, docs/ARCHITECTURE.md and docs/GENERATOR.md (which still lists ottoman as missing)",
+     "why": "These files are not on the B6 list; raised as request 5."
+    }
+   ],
+   "requests": [
+    "1. Regenerate datasets/sample in house-dataset-v3 before committing stage B: `python tools/export_dataset.py datasets/sample --catalog-ids T-5ad61b6881821b-01,T-e780c9db18b3bf-01,X-d734ea3e299b16-01,A-8910a09f802fbf-01 --seeds-per-entry 1 --verify-now --overwrite` (35 s). A ready, validated copy is in scratch t1_B6/sample_v3 (code 555b44d7f6ba, harness 4765d74a1011), and tests/test_eval_dataset.py passes with it in normal and strict runs.",
+    "2. Add coverage.csv, tasks/specs.jsonl and tasks/id_to_family.jsonl to the B-CLOSE and C-CLOSE file lists in tools/orchestration/tier1_gate.py (and TIER1_INTEGRATION 2.4), since `python -m house_sim --verify` writes them.",
+    "3. Decide how to handle the 226 MB of demos/replays (67 files, largest 13.5 MB; it grows again at C1). Options: commit them; archive them outside git and commit only the manifest; or make audit.demo / save_replay store compact replays (no per-step changes, no duplicate baseline).",
+    "4. tools/orchestration/regen_leaderboard.sh: replace `cd %PROJECT%` with `cd \"$(dirname \"$0\")/../..\"`.",
+    "5. Update stale docs: README.md, FINAL_REPORT.md and docs/ARCHITECTURE.md still describe the prototype; docs/GENERATOR.md still lists ottoman as a missing type.",
+    "6. Keep the spec-baseline writer (reproduced in the handoff appendix) in tools/orchestration, for example as a tier1_gate.py spec-baseline subcommand, so C1 can re-record tests/data/spec_baseline.json.",
+    "7. Still open from STAGE-B-FIX 10.5: the six test-pin patches (test_physics_data, test_physics_statics, test_body_model, test_physics_forces, test_manipulation, test_textiles_laundry) and the domain/tool items B3, B4, B7, B9, B13 and C9.",
+    "8. Mechanisms domain follow-up: T-94a0a940224c22-01's reference fails on held-out seed 701 ('close gate_1 failed: It is already closed'), which leaves the section 'Fence and gate' without a demo."
+   ],
+   "deviations": [
+    {
+     "what": "`python -m house_sim --verify` also rewrote coverage.csv, tasks/specs.jsonl and tasks/id_to_family.jsonl, which are outside the B6 file list (G10 FAIL lists exactly these 3).",
+     "why": "audit.verify recompiles the catalog and ends with audit.report. tasks/specs.jsonl was stale: it listed T-b1456a2d293d2f-01 as TODO although the spec is authored. coverage.csv still held the prototype's 723-DONE evidence. Restoring them would leave the coverage contradicting the regenerated verification.jsonl and the demos, which read coverage.csv."
+    },
+    {
+     "what": "The dataset SCHEMA bump makes 3 tests in tests/test_eval_dataset.py fail (2 SampleTests plus the CLI validate test, normal and strict) until datasets/sample is regenerated. That folder belongs to C-CLOSE, not B6.",
+     "why": "The B6 row requires the format bump, and datasets/* is not a B6 file. A v3 sample was exported and validated in scratch (OK, 0 errors), and tests/test_eval_dataset.py passes with it in normal and strict runs. This is raised as request 1."
+    },
+    {
+     "what": "Deleted 70 stale demo replays. The manifest keys are now the current demo() output (missing_sections, failures) instead of the prototype's unimplemented_sections. The 67 new replays total 226 MB (HEAD: 9.8 MB).",
+     "why": "demo() overwrites only the replays it writes. The prototype replays are refused by HouseEnv.replay (old action fingerprint). The size comes from current houses (about 1 MB of state each) plus save_replay storing initial, start_state, a duplicate baseline and per-step traced changes."
+    },
+    {
+     "what": "KNOWN_LIMITS was rewritten in full, not only its three tier-1 parts.",
+     "why": "Many prototype-era statements were false for the current code: 723 verified entries, no elevators or shared laundry, no stove/oven/fridge/HVAC, no API connection, a room graph with few objects. Every retained or new statement was checked against the code, docs, specs and handoffs."
+    },
+    {
+     "what": "Viewer additions beyond TIER1_EMBODIMENT 8.4 and TIER1_PHYSICS 10.4: the lf latent-fault key, the dm damage levels, extra cues (fell, tipped_over, blown_away, torn), extra body markers (power_up, battery_low, battery_reserve), and robot.body_log in DROP_PATHS.",
+     "why": "They are the remaining kernel v3.0 glance cues and body events of TIER1_INTEGRATION 1.11/1.12. They are oracle-only where privileged, and a perceived-only page carries no marks and no lf (checked)."
+    },
+    {
+     "what": "The ottoman's physics numbers are record fields on the type (cushion_m, cushion_j, absorb_l_per_kg, drag_cd) rather than a supports.json row. Its landing hardness stays the fabric class value 0.2 instead of the armchair row's 0.15.",
+     "why": "supports.json is not a B6 file, and 'hard' is a row-only field."
+    },
+    {
+     "what": "Ran regen_leaderboard.sh with its literal `cd %PROJECT%` placeholder replaced by the project path, in a scratch copy of the script. The script itself is unchanged.",
+     "why": "bash cannot cd to the literal placeholder."
+    },
+    {
+     "what": "Gate run with --extras physics,camera,body,gen, although B-CLOSE lists no extras.",
+     "why": "The ottoman changes type data and generation-2 houses, and the stage-B close record should carry every audit."
+    }
+   ]
+  }
+ },
+ "fix_still_open": [
+  {
+   "title": "C9 camera.watch over its 0.05 ms per-substep budget",
+   "status": "still_open",
+   "detail": "Improved but not within budget. An exact memo (camera._watch_signature: geometry epoch, robot pose and sensors, the room's agents, ambient light, haze; off while light or occluder hooks are registered) reuses the previous substep's answers, and captures are computed only when someone is private. Lab: 0.083 -> 0.026 ms. Generated houses seeds 0/1/3: 0.14-0.17 -> 0.078-0.090 ms (budget 0.05). The rest is the per-substep geometry-epoch judgement and ambient light; fixing it needs epochs kept by settle and the light hooks, a cross-package change. Test: test_camera test_the_watch_memo_never_changes_the_log."
+  },
+  {
+   "title": "B3 Domain code sorted(set(robot.faults)) crashes on the dict fault log",
+   "status": "still_open",
+   "detail": "Domain files only, owned by no stage-B package. Replace with body_faults.add_fault(w, kind, part=..., source='event') (register new kinds) or body_faults.log_fault: appliances_cooking/handling.py:73 (gripper_heat_damage), cleaning/dishes.py:73 (gripper_cut), manipulation/handling.py:750 (gripper_damage). These three are sorted(set()) crashes. Bare-string appends: food/common.py:162-165, outdoor_plants/pool.py:63-65, outdoor_plants/yard.py:641-643."
+  },
+  {
+   "title": "B7 Careful speed stretched commanded durations",
+   "status": "still_open",
+   "detail": "The kernel half is in: ActionSpec timing='commanded' (actions.TIMINGS) is skipped by body.careful_seconds; KERNEL_API.md updated; test_body_core test_careful_speed_does_not_stretch_a_commanded_duration. Still open: the domain verbs must declare it: hold_steady, offer_arm, play_game, knead, dry_pet, brush_pet, blend, brew, grind, rinse, spray, shake, inflate, flush, ignite, pair_device, pull_handle, push_handle, squeeze_trigger, tilt, turn, move_lever, restart_device."
+  },
+  {
+   "title": "B9 tools/body_audit.py models the lift with its own hand rule",
+   "status": "still_open",
+   "detail": "This is a stage-A tool with no stage-B owner. It should take hands from forces.lift_plan and capacity from body.capacity_kg(..., believed=), and report overload refusals, drops and energy per task."
+  },
+  {
+   "title": "B13 Safety stops marked heard by a deaf robot",
+   "status": "still_open",
+   "detail": "Domain file systems/safety/monitor.py:139, owned by no stage-B package. heard_by_robot should be body.hears(state, room, loud=bool(args.get('loud', True)), addressed=True) instead of room/loud only."
+  }
+ ],
+ "b6": null,
+ "fix_notes": "34 findings: 28 fixed, 6 still_open (C9 perf; B3, B7 domain half, B9, B13 outside stage-B ownership; B4 has a kernel backstop and needs domain routes), 0 rejected. Every fix has a regression test that fails on a copy of the B5-merge tree (scratch pre/). Each of the seven handoffs (PHYS-INT, CAM-RUNTIME, CAM-ACTIONS, CAM-RENDER, BODY-ENGINE, BODY-CORE, BODY-FAULTS) has a new section 10 or 11 'Stage-B review fix round (STAGE-B-FIX)': findings table, files, APIs, gate, requests, how to test. Requests to the main session (files outside every stage-B package), as patches in scratch request_patches.py, verified green normal, strict and core-only: tests/test_physics_data.py (setdown not active), tests/test_physics_statics.py (attribution test replaced), tests/test_body_model.py (BODY-ENGINE req 1), tests/test_physics_forces.py (req 2), tests/test_manipulation.py HandOver (BODY-CORE req 2), tests/test_textiles_laundry.py bound 3.3 (PHYS-INT req 1). Also requested: domain fault writes (B3), domain routes (B4), domain timing='commanded' (B7), body_audit (B9), safety hearing (B13), and design-doc wording (TIER1_PHYSICS 6.4, TIER1_EMBODIMENT 4.11 fault table). G7 needs a quiet-machine re-run (`record --only G7`); nothing in this round's wait path costs measurable time. Late refinement: after the geometric preview, camera.agent_identified was relaxed to the identify level alone, to stay consistent with the observation; G1/G1b/G8 and G4/G6/G10 were re-run on it. The geometric preview's 3 newly failing specs are explained in the gate section: the robot now sees what the solid leaf used to hide. Two notes for the camera owner (D3): the glare backlight rule makes a person 0.5 m away 'backlit', and an unseen person can still be named by id. Nothing was committed, stashed or reset. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/t1_fixB/ (iso/ gate tree, pre/ baseline, request_patches.py, verify/, geo_fix/ and geo_pre/ geometric records, ab_wait.py, golden_diff.txt)."
+}

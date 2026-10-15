@@ -5,23 +5,40 @@ stop/resume, undo and snapshots.
 The time verbs and standing orders (wait, watch, cancel_watch, run_pending) and the rule for what an order may watch
 live in kernel/timeline.py since the sweep's Phase 0 (tier-1 A0); this module re-exports those names unchanged.
 
+Geometric camera mode (kernel v3.0, docs/design/TIER1_CAMERA.md 9): look takes frames (around, up, at a thing, ...),
+face turns the body, peek looks with the wrist camera, and inspect / read follow the cameras' acuity, faces and
+reach; the camera mechanics are kernel/camera.py's. In room mode look is unchanged and face / peek refuse.
+
+Robot body (kernel v3.0, docs/design/TIER1_EMBODIMENT.md 4.7-4.10; kernel/body.py): pick_up, receive and uninstall
+plan the lift (ctx.lift_plan), take the item with a grasp its size allows (ctx.require_grasp: a pinch for small
+things, too small refused) and enforce the derated capacity (ctx.check_lift: an overload is refused, counted and felt);
+look, peek, inspect and read need the colour cameras (ctx.require_imaging) and look in a lit room finds a lost pose
+again; listen and ask need the microphones (ctx.require_hearing: privacy mode hears only speech addressed to the
+robot); speech through a failed speaker is inaudible; set_speed fast is refused while quiet or limp; stairs need a
+robot that climbs them; the motion verbs time themselves from the walking speed (timing="speed", so careful speed
+slows them once).
+
 Domain modules refine these with @before/@after hooks rather than replacing them.
 """
 import copy
 import json
+import math
 import re
 
-from ..kernel import geometry, physics
+from ..kernel import body, camera, geometry, physics
 from ..kernel.actions import action, require_access
+from ..kernel.phys import contain, impact, lawbook, liquids, support
 from ..kernel.errors import ActionError, require
-from ..kernel.plugins import ANSWERERS, INSPECTORS, run_hooks
+from ..kernel.plugins import ANSWERERS, INSPECTORS, after, run_hooks
 from ..kernel.predicates import MISSING, differences, get_path, validate_predicate
 # re-exported for domains and tests (the same objects: extending core.OBSERVABLE_FIELDS extends the timeline rule)
 from ..kernel.timeline import (AGENT_OBSERVABLE_FIELDS, NUMERIC_OPS, OBSERVABLE_FIELDS,  # noqa: F401
                                REALISTIC_WATCH_AGENT_FIELDS, cancel_watch, run_pending, wait, watch,
                                watch_condition_visible)
 
-SPEEDS = {"careful": 0.4, "normal": 0.8, "fast": 1.2}
+# walking speeds (m/s) of the default body profile, for compatibility; a robot walks at body.speed_mps of its own
+# profile and effective speed (body.effective_speed)
+SPEEDS = {mode: body.speed_mps({"robot": {}}, mode) for mode in body.SPEED_MODES}
 FIELD_RE = re.compile(r"[a-z][a-z0-9_.]*\Z")
 
 
@@ -51,11 +68,11 @@ def held_width(w):
 
 
 def subtree_mass(w, eid):
-    total = 0.0
-    for item in [eid] + w.descendants(eid):
-        record = w.ent(item)
-        total += float(record.get("mass_kg", 0.0)) + float(record.get("liquid_l", 0.0)) * float(record.get("liquid_density", 1.0))
-    return total
+    """Mass (kg) of eid and everything in, on or attached to it, liquids at their density (kernel v3.0: delegates to
+    phys.support.subtree_mass, the kernel's single implementation; a liquid without liquid_density takes its
+    liquids.json density)."""
+    w.ent(eid)                      # an unknown id refuses as before ("Unknown entity")
+    return support.subtree_mass(w.s, eid)
 
 
 HANDLING_HAZARDS = {"sharp", "biohazard", "live_wire", "toxic", "corrosive"}
@@ -349,22 +366,190 @@ def answer_from_simulator(w, pid, topic):
 # ----------------------------------------------------------------------
 # perception
 
-@action("look", params={"target": "?str"}, duration=1.0, energy=0.0, category="perception", stopped_ok=True,
-        doc="Observe the current room. Optional target 'around' is accepted for readability.")
+@action("look", params={"target": "?str", "pan": {"type": "number", "optional": True, "min": -180, "max": 180},
+                        "tilt": {"type": "number", "optional": True, "min": -90, "max": 90},
+                        "rows": {"type": "int", "default": 1, "min": 1, "max": 2}, "track": "?bool"},
+        duration=lambda ctx: ctx.data.get("seconds", 1.0), energy=0.0, category="perception", stopped_ok=True,
+        doc="Observe the current room. Geometric camera: target forward (default), around (six frames; rows=2 adds a "
+            "low row for the floor), up, down, left, right, behind, a thing, person or pet in the room or a cell "
+            "[c, r] (aims the head at it), or pan/tilt degrees for the head; track=true keeps the named person or "
+            "pet, or everyone in view, in frame (track=false stops). In room mode the target is only for "
+            "readability. Needs the colour cameras; in a lit room a robot that lost its pose finds it again.")
 def look(ctx):
-    return "You look around"
+    # the colour cameras (TIER1_INTEGRATION 1.3, 1.15; conflict 20: both camera modes)
+    ctx.require_imaging()
+    message = "You look around" if ctx.camera_mode != "geometric" else _geometric_look(ctx)
+    _relocalize(ctx)
+    return message
+
+
+def _relocalize(ctx):
+    """look relocalizes (TIER1_EMBODIMENT 4.10): a robot that lost its pose finds it again by looking around a lit
+    room (body.relocalize); in the dark it cannot, and says so."""
+    state = ctx.state
+    if body.get(state, "localized"):
+        return
+    if ctx.env.perception.lit(state, state["robot"]["room"]):
+        body.relocalize(ctx.w, "look")
+        ctx.note("Relocalized: the robot knows where it is again")
+    else:
+        ctx.note("Too dark to relocalize; turn on a light or use a flashlight")
+
+
+LOOK_MESSAGES = {"forward": "You look ahead", "around": "You look around", "up": "You look up",
+                 "down": "You look down", "left": "You look left", "right": "You look right",
+                 "behind": "You look behind you"}
+
+
+def _geometric_look(ctx):
+    """look in geometric camera mode (TIER1_CAMERA 9.1): frames and their time through camera.look, tracking."""
+    w = ctx.w
+    state = w.s
+    target = ctx.args.get("target") or ""
+    pan, tilt, rows, track = ctx.args.get("pan"), ctx.args.get("tilt"), ctx.args.get("rows", 1), ctx.args.get("track")
+    if target and (pan is not None or tilt is not None):
+        raise ActionError("Give look a target or pan/tilt, not both", "argument")
+    if rows != 1 and target != "around":
+        raise ActionError("rows applies to look around", "argument")
+    point, kind, named = None, None, None
+    if target and target not in camera.LOOK_WORDS:
+        found = camera.view_target(state, target, ctx.env.perception)
+        require_access(found is not None, "That is not visible here", "perception")
+        kind, named, point = found
+    ctx.data["seconds"] = camera.look(ctx, target=target or None, point=point, pan=pan, tilt=tilt, rows=rows)
+    if point is not None:
+        if kind == "entity":
+            message = "You look at it"
+        elif kind == "agent":
+            message = "You look at {}".format(named)
+        else:
+            message = "You look at cell {}".format(camera.parse_cell(target))
+    elif pan is not None or tilt is not None:
+        view = w.s["robot"]["view"]
+        message = "You look with the head at pan {:.0f}, tilt {:.0f}".format(view["pan_deg"], view["tilt_deg"])
+    else:
+        message = LOOK_MESSAGES[target or "forward"]
+    if track is True:
+        ids = [named] if kind == "agent" else [] if kind is not None else camera.agents_in_frames(w.s, w)
+        tracked = camera.set_track(w, ids)
+        message += "; keeping {} in view".format(", ".join(tracked)) if tracked else "; nobody to track in view"
+    elif track is False:
+        camera.set_track(w, [])
+        message += "; tracking stopped"
+    return message
+
+
+def _camera_category(reason):
+    """Failure category of a camera refusal: perception for what the cameras cannot make out, capability for reach,
+    precondition for where the robot or the thing has to be first (approach, crouch, open, put down)."""
+    if reason in (camera.CAMERA_OFF_TEXT, camera.NOT_SEEN_TEXT, camera.TOO_DARK_TEXT, camera.GLARE_TEXT,
+                  camera.DIRTY_TEXT, "That is not visible here"):
+        return "perception"
+    return "capability" if reason and "reach" in reason.lower() else "precondition"
+
+
+@action("face", params={"target": "?str", "deg": {"type": "number", "optional": True, "min": -360, "max": 360}},
+        duration=lambda ctx: ctx.data.get("seconds", camera.FACE_SETTLE_S), energy=0.005, category="physical",
+        doc="Turn the body in place (geometric camera): target north, east, south, west, left, right or back, a thing, "
+            "person or pet in the room, or a cell [c, r]; or deg, the grid heading (0 east, 90 south, as "
+            "camera.pose.facing_deg). The head turns back to straight ahead (aimed at a target). Works with the "
+            "cameras off.")
+def face(ctx):
+    w = ctx.w
+    state = w.s
+    require_access(ctx.camera_mode == "geometric", camera.ROOM_MODE_TEXT, "capability")
+    target, deg = ctx.args.get("target"), ctx.args.get("deg")
+    if bool(target) == (deg is not None):
+        raise ActionError("face needs a target or deg (one of them)", "argument")
+    # the body's mobility guard (TIER1_INTEGRATION conflict 19) with the motion verbs' wording: power, actuators,
+    # fallen, failed legs, an overheating pack, "Step down first" (safety) on a climbing aid; turning in place needs
+    # no localization (a robot that lost its pose turns to look around and find it again)
+    problem = body.mobile_problem(state, CANNOT_MOVE, localized=False)
+    if problem is not None:
+        raise body.BodyRefusal(*problem)
+    point = None
+    if deg is not None:
+        yaw = float(deg)
+    else:
+        yaw = camera.direction_deg(state, target)
+        if yaw is None:
+            found = camera.view_target(state, target, ctx.env.perception)
+            require_access(found is not None, "That is not visible here", "perception")
+            point = found[2]
+            _, x, y, _ = camera.eye(state)
+            if math.hypot(point[0] - x, point[1] - y) > 1e-9:
+                yaw = math.degrees(math.atan2(point[1] - y, point[0] - x))
+            else:
+                yaw = camera.facing(state)
+    ctx.data["seconds"] = camera.face(ctx, yaw, point)
+    heading = w.s["robot"]["facing_deg"]
+    return "Facing {} ({:.0f} degrees)".format(camera.compass(heading), heading)
+
+
+PEEK_MESSAGES = {"under": "You look under it", "behind": "You look behind it", "inside": "You look inside it",
+                 "top": "You look on top of it", "closely": "You look at it closely"}
+
+
+@action("peek", params={"target": "entity", "where": "str:under|behind|inside|top|closely"},
+        duration=lambda ctx: ctx.data.get("seconds", camera.PEEK_S), energy=0.005, category="perception",
+        doc="Look with the wrist camera at a reachable thing (geometric camera): under it (crouch or kneel first; a "
+            "light cushion, rug or mat is lifted instead), behind it, inside it (open), on top of it, or closely (a "
+            "held thing: every side). Things it sees under or behind are revealed; 6 s, +2 s under or behind, +1 s "
+            "lifting.")
+def peek(ctx):
+    require_access(ctx.camera_mode == "geometric", camera.ROOM_MODE_TEXT, "capability")
+    where = ctx.args["where"]
+    _, lift = wrist_peek(ctx, ctx.args["target"], where)
+    ctx.data["seconds"] = camera.PEEK_S + (camera.PEEK_DEEP_EXTRA_S if where in ("under", "behind") else 0.0) + \
+        (camera.PEEK_LIFT_EXTRA_S if lift else 0.0)
+    return PEEK_MESSAGES[where]
+
+
+def wrist_peek(ctx, target, where):
+    """The wrist-camera look of peek and of inspect where=under/behind/inside in geometric camera mode (TIER1_CAMERA
+    9.1, 9.2): the arm's guards (ctx.require_arm, conflict 19: Ctx.obj's wording, then both arms failed), the colour
+    cameras (ctx.require_imaging), the target visible and within reach, its privacy rule, the peek rules
+    (camera.peek_access); lifting a light support needs a free hand and the permission to touch it. Then camera.peek:
+    the wrist frames, revealed, camera_log.peeked. Returns (ids seen, lifted)."""
+    w = ctx.w
+    state = w.s
+    ctx.require_arm()
+    ctx.require_imaging()
+    record = ctx.obj(target, gaze=False)        # the wrist camera looks: the head does not turn (peek keeps its 9.1 times)
+    problem = geometry.reach_problem(state, target)
+    require_access(problem is None, problem or "", _camera_category(problem))
+    if record.get("private") and "touch:" + target not in state.get("approvals", []):
+        _forbid(ctx, target, record, "private", "Private inspection requires permission", "privacy")
+    ok, reason, lift = camera.peek_access(state, target, where)
+    require_access(ok, reason or "", _camera_category(reason))
+    if lift:
+        require_access(ctx.holding(target) or ctx.free_hand() is not None, LIFT_NO_HAND, "capability")
+        ctx.check_permission(target, record, ctx.spec.name)
+    return camera.peek(ctx, target, where, lift), lift
 
 
 @action("inspect", params={"target": "target", "where": "?str:inside|under|behind|label|closely"}, duration=3.0,
         energy=0.005, category="perception",
-        doc="Examine an entity, person or pet closely; where=under/behind reveals concealed items.")
+        doc="Examine an entity, person or pet closely; where=under/behind reveals concealed items. Needs the colour "
+            "cameras.")
 def inspect(ctx):
     w, target = ctx.w, ctx.args["target"]
     state = w.s
+    geometric = ctx.camera_mode == "geometric"
+    ctx.require_imaging()           # a close look needs the colour cameras (both camera modes, TIER1_INTEGRATION 1.15)
     if target in state.get("people", {}) or target in state.get("pets", {}):
         group = "people" if target in state.get("people", {}) else "pets"
         agent = state[group][target]
         require(agent.get("location") == w.robot["room"], "They are not here", "perception")
+        if geometric:
+            # the cameras must make them out from where the robot stands; the head turns to them (charged once)
+            require_access(camera.agent_visible(state, target, w), camera.NOT_SEEN_TEXT, "perception")
+            camera.auto_gaze(ctx, target)
+            if ctx.realistic and not camera.agent_identified(ctx.env, target):
+                # seen but not identified (too far, backlit, dim): a shape, as in the dark -- no name, role, activity
+                # or mood, no domain extras and no record of an inspection (stage-B review, TIER1_CAMERA 7 / 11.1)
+                return json.dumps({"agent": target, "label": "person" if group == "people" else "animal",
+                                   "note": camera.WHO_TEXT}, sort_keys=True)
         if ctx.realistic and not ctx.env.perception.lit(state, w.robot["room"]):
             # people and pets in the dark are shapes (v2.8): no name, role, wakefulness, activity or breathing, no
             # domain inspector extras, and no record of an inspection (nothing was seen to report on)
@@ -387,13 +572,30 @@ def inspect(ctx):
                 details["cues"] = [cue]
         return json.dumps(details, sort_keys=True, default=str)
     where = ctx.args.get("where")
-    record = ctx.obj(target)
-    problem = geometry.reach_problem(state, target)
-    if problem and "Approach" in problem:
-        # Large fixtures can be examined from anywhere in the room; small items need proximity. A close look
-        # (behind/under/closely) needs arm's reach in realistic perception.
-        size = max((record.get("size_m") or [0.1, 0.1, 0.1])[:3])
-        require_access(size >= 1.0 or where is None and record.get("inspect_from_afar"), problem, "precondition")
+    # a look under, behind or inside is the wrist camera's (geometric): the head does not turn to it
+    record = ctx.obj(target, gaze=not (geometric and where in ("under", "behind", "inside")))
+    seen = None
+    if geometric:
+        # TIER1_CAMERA 9.2: the head camera resolving it (160 px, lit) or the wrist (+2 s); under / behind / inside
+        # are wrist peeks (+2 s, +1 s lifting a light support); closely on a held item turns it in the hand (+3 s)
+        if where in ("under", "behind", "inside"):
+            seen, lift = wrist_peek(ctx, target, where)
+            ctx.spend(camera.INSPECT_WRIST_S + (camera.PEEK_LIFT_EXTRA_S if lift else 0.0))
+        else:
+            ok, reason, via = ctx.inspect_check(target)
+            require_access(ok, reason or "", _camera_category(reason))
+            if where == "closely" and ctx.holding(target):
+                camera.peek(ctx, target, "closely")
+                ctx.spend(camera.INSPECT_HELD_CLOSELY_S)
+            elif via == "wrist" and not ctx.holding(target):
+                ctx.spend(camera.INSPECT_WRIST_S)
+    else:
+        problem = geometry.reach_problem(state, target)
+        if problem and "Approach" in problem:
+            # Large fixtures can be examined from anywhere in the room; small items need proximity. A close look
+            # (behind/under/closely) needs arm's reach in realistic perception.
+            size = max((record.get("size_m") or [0.1, 0.1, 0.1])[:3])
+            require_access(size >= 1.0 or where is None and record.get("inspect_from_afar"), problem, "precondition")
     if record.get("private") and "touch:" + target not in state.get("approvals", []):
         # realistic: a rule the robot cannot perceive does not refuse; the close look counts as a privacy violation
         # and shows what it would show for anything else
@@ -405,26 +607,47 @@ def inspect(ctx):
             details[key] = copy.deepcopy(record[key])
     if "thermal" in ctx.env.sensors:
         details["temperature_c"] = round(float(record.get("temperature_c", 21.0)), 1)
-    lit = ctx.env.perception.lit(state, w.robot["room"])
-    readable = lit and w.robot.get("camera_clean", 1.0) >= 0.4
-    for key in ("text", "label_text", "expiration", "care_label", "instructions", "recipient", "address"):
-        if key in record and readable:
+    text_keys = ("text", "label_text", "expiration", "care_label", "instructions", "recipient", "address")
+    if geometric:
+        # printed text the cameras can read from here, through the face it is printed on (face-gated, 4.6)
+        present = [key for key in text_keys if key in record]
+        ok, _, _, readable_keys = ctx.read_check(target, present) if present else (False, None, None, [])
+        readable_keys = set(readable_keys) if ok else set()
+    else:
+        lit = ctx.env.perception.lit(state, w.robot["room"])
+        readable = lit and w.robot.get("camera_clean", 1.0) >= 0.4
+        readable_keys = set(text_keys) if readable else set()
+    for key in text_keys:
+        if key in record and key in readable_keys:
             details[key] = copy.deepcopy(record[key])
     if not record.get("openable") or record.get("open") or record.get("transparent"):
-        details["contents"] = [c for c in w.children(target) if (state["entities"][c].get("relation") not in ("under", "behind")
-                                                                  or state["entities"][c].get("revealed"))
-                               and (not ctx.realistic or ctx.env.perception.visible(state, c))]
+        if geometric:
+            # what a frame of this step framed (the head's, or the wrist's peek) or an earlier look revealed under or
+            # behind it: never what only the wrist could reach, which nobody has seen (stage-B review, 9.2)
+            peeked = set(seen or ())
+            details["contents"] = [c for c in w.children(target)
+                                   if ctx.env.perception.visible(state, c) and
+                                   (c in peeked or camera.in_frame(state, c, w) or
+                                    (state["entities"][c].get("relation") in ("under", "behind") and
+                                     state["entities"][c].get("revealed")))]
+        else:
+            details["contents"] = [c for c in w.children(target) if (state["entities"][c].get("relation") not in ("under", "behind")
+                                                                      or state["entities"][c].get("revealed"))
+                                   and (not ctx.realistic or ctx.env.perception.visible(state, c))]
         if ctx.realistic:
             details["contents"] = sorted(details["contents"], key=lambda c: ctx.env.realism.handles.handle(c))
     else:
         details["contents"] = "hidden"
     if where in ("under", "behind"):
-        revealed = []
-        for child in w.children(target):
-            if state["entities"][child].get("relation") == where:
-                w.mut(child)["revealed"] = True
-                revealed.append(child)
-        details[where] = revealed
+        if geometric:
+            details[where] = list(seen or [])       # revealed by the wrist: deeper ones stay hidden (9.1)
+        else:
+            revealed = []
+            for child in w.children(target):
+                if state["entities"][child].get("relation") == where:
+                    w.mut(child)["revealed"] = True
+                    revealed.append(child)
+            details[where] = revealed
     for _, _, fn in INSPECTORS:
         fn(w, target, record, details, ctx)
     w.sec("facts").setdefault("inspected", {})[target] = state["time_s"]
@@ -439,24 +662,17 @@ CONTENT_FIELDS = {"liquid", "contents", "product", "chemical", "substance", "ing
 
 
 @action("read", params={"target": "entity"}, duration=4.0, energy=0.0, category="perception",
-        doc="Read printed text: labels, recipes, mail, manuals, displays.")
+        doc="Read printed text: labels, recipes, mail, manuals, displays. Needs the colour cameras.")
 def read(ctx):
     w, target = ctx.w, ctx.args["target"]
+    geometric = ctx.camera_mode == "geometric"
+    ctx.require_imaging()           # reading needs the colour cameras (both camera modes, TIER1_INTEGRATION 1.15)
     record = ctx.obj(target)
-    require(ctx.env.perception.lit(w.s, w.robot["room"]), "Too dark to read", "perception")
-    require(w.robot.get("camera_clean", 1.0) >= 0.4, "Camera too dirty to read text; clean the camera", "perception")
-    problem = geometry.reach_problem(w.s, target)
-    require_access(problem is None or "Crouch" in problem, problem or "", "precondition")
-    approvals = w.s.get("approvals", [])
-    if record.get("private") and not ("touch:" + target in approvals or "read:" + target in approvals):
-        # reading someone's private papers needs their permission. Oracle mode refuses; realistic mode refuses only
-        # when the robot can tell the thing is private (ctx.forbid), else the read goes ahead and counts as a privacy
-        # violation -- what it shows is the same as for anything else (a refusal or a hidden text would mark it).
-        # A printed "PRIVATE" / "do not open" cue is meant to be read: reading it is no violation (it shows the rule)
-        from ..kernel.actions import PERMISSION_CUE_FIELDS, _has_cue
-        signed = any(isinstance(record.get(f), str) and _has_cue(record.get(f)) for f in PERMISSION_CUE_FIELDS)
-        if not ctx.realistic or not signed or ctx.rule_perceived(target, record, "private"):
-            _forbid(ctx, target, record, "private", "Owner permission is required to read that", "privacy")
+    if not geometric:
+        require(ctx.env.perception.lit(w.s, w.robot["room"]), "Too dark to read", "perception")
+        require(w.robot.get("camera_clean", 1.0) >= 0.4, "Camera too dirty to read text; clean the camera", "perception")
+        problem = geometry.reach_problem(w.s, target)
+        require_access(problem is None or "Crouch" in problem, problem or "", "precondition")
     legible = ("text", "label_text", "expiration", "care_label", "instructions", "recipient", "address", "display", "steps", "date_label")
     from ..kernel.realism import read_tier_fields
     text = {k: copy.deepcopy(record[k]) for k in legible if k in record}      # an empty label still reads as blank
@@ -468,10 +684,30 @@ def read(ctx):
             continue
         if k in record and record[k] not in (None, "", [], {}):
             text[k] = copy.deepcopy(record[k])
+    if geometric:
+        # TIER1_CAMERA 9.2: the head camera (10 px a character, the face seen, lit, no glare, a clean lens) or the
+        # wrist within reach (+2 s; a held item turned to a free angle, +1 s); only what that camera can read
+        ok, reason, via, readable = ctx.read_check(target, sorted(text) or ["label_text"])
+        require_access(ok, reason or "", _camera_category(reason))
+        text = {k: v for k, v in text.items() if k in readable}
+        if ctx.holding(target):
+            ctx.spend(camera.READ_HELD_S)
+        elif via == "wrist":
+            ctx.spend(camera.INSPECT_WRIST_S)
+    approvals = w.s.get("approvals", [])
+    if record.get("private") and not ("touch:" + target in approvals or "read:" + target in approvals):
+        # reading someone's private papers needs their permission. Oracle mode refuses; realistic mode refuses only
+        # when the robot can tell the thing is private (ctx.forbid), else the read goes ahead and counts as a privacy
+        # violation -- what it shows is the same as for anything else (a refusal or a hidden text would mark it).
+        # A printed "PRIVATE" / "do not open" cue is meant to be read: reading it is no violation (it shows the rule)
+        from ..kernel.actions import PERMISSION_CUE_FIELDS, _has_cue
+        signed = any(isinstance(record.get(f), str) and _has_cue(record.get(f)) for f in PERMISSION_CUE_FIELDS)
+        if not ctx.realistic or not signed or ctx.rule_perceived(target, record, "private"):
+            _forbid(ctx, target, record, "private", "Owner permission is required to read that", "privacy")
     require(bool(text), "There is nothing legible to read on it", "perception")
     w.sec("facts").setdefault("read", {})[target] = w.s["time_s"]
     w.sec("facts").setdefault("inspected", {})[target] = w.s["time_s"]
-    ctx.grant(target, "read")
+    ctx.grant(target, "read", sorted(text) if geometric else None)
     return json.dumps(text, sort_keys=True)
 
 
@@ -502,12 +738,23 @@ def _move_inverse(ctx, before):
 
 
 def _travel_seconds(ctx, meters):
-    speed = SPEEDS.get(ctx.args.get("speed") or ctx.robot.get("speed_mode", "normal"), 0.8)
-    return meters / speed
+    """Seconds to walk `meters` at the effective speed (body.effective_speed of the action's speed, else
+    robot.speed_mode) of the robot's own profile. The motion verbs take their time from ctx.motion (the walk the
+    battery affords, at the same speed); kept for domains."""
+    state = ctx.w.s
+    mode = body.effective_speed(state, ctx.args.get("speed") if isinstance(ctx.args, dict) else None)[0]
+    return meters / body.speed_mps(state, mode)
+
+
+MOVE_BLOCKED = "Robot cannot move; dock, recover or hand off"     # move's wording of the body's mobility refusals
+CANNOT_MOVE = "Robot cannot move"                                 # approach's and walk_to's
+DOOR_S = 1.5                # opening the connecting door on the way through (core move)
+APPROACH_SETTLE_S = 0.3     # stopping and squaring up at the end of an approach
+WALK_TO_SETTLE_S = 0.2      # stopping at a cell
 
 
 @action("move", params={"target": "room", "avoid": "?list", "speed": "?str:careful|normal|fast"},
-        duration=lambda ctx: ctx.data.get("seconds", 2.0), category="physical", inverse=_move_inverse,
+        duration=lambda ctx: ctx.data.get("seconds", 2.0), category="physical", inverse=_move_inverse, timing="speed",
         doc="Walk to an adjacent room through a connecting doorway, door, gate or stairs. avoid lists hazard kinds to route around (wet, trip, sharp, fragile, slip, sleeping, ...).")
 def move(ctx):
     w = ctx.w
@@ -515,8 +762,9 @@ def move(ctx):
     robot = state["robot"]
     dest, here = ctx.args["target"], robot["room"]
     require(dest in state["rooms"] and dest in state["rooms"][here].get("exits", []), "Move to a listed exit")
-    require(robot.get("battery", 0) > 0 and robot.get("actuator_ok", True) and not robot.get("fallen"), "Robot cannot move; dock, recover or hand off", "capability")
-    require(not robot.get("standing_on"), "Step down first", "safety")
+    # the body's mobility guard (power, actuator, fallen, legs, pack heat, "Step down first", localization) with
+    # move's own wording for the power, actuator and fallen cases
+    ctx.require_mobile(MOVE_BLOCKED)
     room = state["rooms"][dest]
     require(not room.get("blocked"), "Passage is blocked", "safety")
     approvals = state.get("approvals", [])
@@ -526,6 +774,9 @@ def move(ctx):
     cid = connection_between(w, here, dest)
     require(cid is not None, "No connection to that room")
     conn = state["connections"][cid]
+    if conn.get("kind") == "stairs":
+        # a flight of stairs needs a body that climbs them and legs above half strength (TIER1_EMBODIMENT 4.5)
+        ctx.require_mobile(MOVE_BLOCKED, stairs=True)
     door_id = conn.get("door")
     if door_id:
         door = state["entities"][door_id]
@@ -538,15 +789,19 @@ def move(ctx):
     avoid = tuple(ctx.args.get("avoid") or ())
     path = geometry.find_path(state, here, start, [goal], avoid_kinds=avoid, hazard_filter=ctx.route_filter)
     require(path is not None, "No clear path to the {} (blocked{})".format(conn.get("kind", "doorway"), " or hazards to avoid" if avoid else ""))
-    seconds = _travel_seconds(ctx, geometry.path_length_m([tuple(start)] + path) + 1.0)
-    if door_id:
-        seconds += 1.5
-    if conn.get("kind") == "stairs":
-        seconds += 0.8 * float(conn.get("steps", 12))
+    # the walk against the battery (kernel v3.0): the doorway crossing (+1.0 m), the door (1.5 s) and a flight of
+    # stairs are walked all or nothing; ctx.motion writes ctx.data path / from_room / connection / seconds and the
+    # motion record
+    walked = ctx.motion(path, start, extra_s=DOOR_S if door_id else 0.0, connection=cid)
+    record = ctx.data["motion"]
     r = w.robot_m()
+    if record["cut"] is not None:
+        # the battery ran out on the way: the robot stops at the last cell it reached, in this room, and powers down
+        # at settlement (an in-room trip: no doorway passage, no stairs)
+        r["pos"] = list(walked[-1]) if walked else list(start)
+        return body.BATTERY_CUT_TEXT.format(record["meters"])
     r["room"] = dest
     r["pos"] = list(conn.get("cells", {}).get(dest, [0, 0]))
-    ctx.data.update(path=[list(c) for c in path], from_room=here, connection=cid, seconds=seconds)
     w.sec("facts").setdefault("visited", {})[dest] = state["time_s"]
     return "Moved to " + dest
 
@@ -557,15 +812,14 @@ def _approach_cells(state, target):
 
 
 @action("approach", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast"},
-        duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical", timing="speed",
         doc="Walk within the current room to within arm's reach of an entity, person or pet.")
 def approach(ctx):
     w = ctx.w
     state = w.s
     target = ctx.args["target"]
     robot = state["robot"]
-    require(robot.get("battery", 0) > 0 and robot.get("actuator_ok", True) and not robot.get("fallen"), "Robot cannot move", "capability")
-    require(not robot.get("standing_on"), "Step down first", "safety")
+    ctx.require_mobile(CANNOT_MOVE)
     if target in state["entities"]:
         require(ctx.visible(target), "That is not visible here", "perception")
     elif target in state.get("people", {}) or target in state.get("pets", {}):
@@ -592,21 +846,22 @@ def approach(ctx):
                               target in state.get("people", {}) or target in state.get("pets", {}) else (),
                               hazard_filter=ctx.route_filter)
     require(path is not None, "No clear path to it")
-    ctx.data.update(path=[list(c) for c in path], seconds=_travel_seconds(ctx, geometry.path_length_m([start] + path)) + 0.3)
-    w.robot_m()["pos"] = list(path[-1]) if path else list(start)
+    walked = ctx.motion(path, start, extra_s=APPROACH_SETTLE_S)
+    w.robot_m()["pos"] = list(walked[-1]) if walked else list(start)
+    if ctx.data["motion"]["cut"] is not None:
+        return body.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
     return "Approached " + target
 
 
 @action("walk_to", params={"cell": "cell", "adjacent": {"type": "bool", "default": False}, "avoid": "?list",
                            "speed": "?str:careful|normal|fast"},
-        duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 0.5), category="physical", timing="speed",
         doc="Walk to a floor cell [col,row] in the current room (adjacent=true stops next to it).")
 def walk_to(ctx):
     w = ctx.w
     state = w.s
     robot = state["robot"]
-    require(robot.get("battery", 0) > 0 and robot.get("actuator_ok", True) and not robot.get("fallen"), "Robot cannot move", "capability")
-    require(not robot.get("standing_on"), "Step down first", "safety")
+    ctx.require_mobile(CANNOT_MOVE)
     room = state["rooms"][robot["room"]]
     cell = tuple(ctx.args["cell"])
     require(geometry.in_grid(room, cell), "That cell is outside this room", "argument")
@@ -618,18 +873,34 @@ def walk_to(ctx):
     path = geometry.find_path(state, robot["room"], start, goals, avoid_kinds=tuple(ctx.args.get("avoid") or ()),
                               hazard_filter=ctx.route_filter)
     require(path is not None, "No clear path there")
-    w.robot_m()["pos"] = list(path[-1])
-    ctx.data.update(path=[list(c) for c in path], seconds=_travel_seconds(ctx, geometry.path_length_m([start] + path)) + 0.2)
+    walked = ctx.motion(path, start, extra_s=WALK_TO_SETTLE_S)
+    w.robot_m()["pos"] = list(walked[-1]) if walked else list(start)
+    if ctx.data["motion"]["cut"] is not None:
+        return body.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
     return "Walked to {}".format(list(path[-1]))
+
+
+def posture_guard(ctx, posture):
+    """A posture change is a whole-body motion without walking: on a climbing aid only `stand` ("Step down first"),
+    and a fallen robot must recover first (today's wording, in today's order); then the body's guards for moving at
+    all (body.manip_problem's wording: actuator fault, flat battery, overheating pack; and failed legs). Changing
+    posture needs no localization."""
+    robot = ctx.robot
+    require(not robot.get("standing_on") or posture == "standing", "Step down first", "safety")
+    require(not robot.get("fallen"), "The robot has fallen; recover first", "capability")
+    state = ctx.state
+    problem = body.manip_problem(state)
+    if problem is None and float(body.get(state, "legs_health")) <= 0:
+        problem = (body.LEGS_FAILED_TEXT, "capability")
+    if problem is not None:
+        raise body.BodyRefusal(*problem)
 
 
 def _posture_action(name, posture):
     @action(name, duration=1.5, category="physical", reversible=False,
             doc="Change posture to {} (needed to grasp low items, look under furniture or kneel by a person).".format(posture))
     def change(ctx):
-        robot = ctx.robot
-        require(not robot.get("standing_on") or posture == "standing", "Step down first", "safety")
-        require(not robot.get("fallen"), "The robot has fallen; recover first", "capability")
+        posture_guard(ctx, posture)
         ctx.w.robot_m()["posture"] = posture
         return "Posture: " + posture
     return change
@@ -642,6 +913,47 @@ stand = _posture_action("stand", "standing")
 
 # ----------------------------------------------------------------------
 # grasp, place, hand-over
+
+LIFT_OVER_CAPACITY = "Object and contents exceed carrying capacity; get help or slide it"
+LIFT_BOTH_HANDS = "Both hands must be free for this item"
+LIFT_NO_HAND = "No free hand; place something first"
+SHELF_BROKEN = "That shelf is broken"
+SUPPORT_BROKEN = "It is broken and cannot hold anything"
+
+
+def support_failed(parent, relation, shelf=None):
+    """The message refusing to set something onto / into a support that has given way (kernel v3.0, TIER1_PHYSICS
+    5.2): a collapsed shelf (collapsed_shelves) of shelved furniture, a support or container that collapsed
+    (damage.collapsed), or one broken to pieces (shattered); None when it can hold things. A merely broken appliance
+    or device (broken without shattered) still holds what is put on or in it."""
+    if relation not in ("on", "in", "hung"):
+        return None
+    if parent.get("broken") and parent.get("shattered"):
+        return SUPPORT_BROKEN
+    collapsed_shelves = parent.get("collapsed_shelves") or []
+    if relation == "in" and parent.get("shelf_heights"):
+        return SHELF_BROKEN if int(shelf or 0) in [int(k) for k in collapsed_shelves] else None
+    if impact.damage_map(parent.get("damage")).get("collapsed", 0.0) >= 1.0 and not collapsed_shelves:
+        return SUPPORT_BROKEN
+    return None
+
+
+def take_hold(ctx, eid, plan, no_hand_text, grip=None):
+    """The body's part of taking eid into the hands (TIER1_INTEGRATION 1.5), shared by pick_up, receive and
+    uninstall: the lift plan's hand refusals in today's words (two hands busy or failed: "Both hands must be free for
+    this item"; one hand: no_hand_text), the grasp its size allows (ctx.require_grasp: a pinch for a small item when
+    no grip was given, too small or a power grip on a small item refused, the size felt) and the derated capacity of
+    the hands used (ctx.check_lift: an overload is refused with today's text, counted and felt, a latent weak arm is
+    found). plan: ctx.lift_plan's. Returns (hands, the grip to store or None)."""
+    if not plan["ok"] and plan["reason"] != "over_capacity":
+        raise ActionError(LIFT_BOTH_HANDS if len(plan["hands"]) == 2 else no_hand_text, "capability")
+    hands = list(plan["hands"])
+    grip = ctx.require_grasp(eid, hands[0] if len(hands) == 1 else "both", grip)
+    ctx.check_lift(eid, hands, plan["mass_kg"])
+    if not plan["ok"]:
+        raise ActionError(LIFT_OVER_CAPACITY, "safety")     # check_lift refuses such a load first (a backstop)
+    return hands, grip
+
 
 def _pickup_inverse(ctx, before):
     entity = before.get("entity") or {}
@@ -667,18 +979,10 @@ def pick_up(ctx):
     require(not ctx.holding(target), "Already holding it")
     require(record.get("portable"), "It is fixed in place or too large to lift")
     require(record.get("relation") not in ("attached", "part"), "Detach it first")
-    mass = subtree_mass(w, target)
-    two = ctx.args.get("hand") == "both" or ctx.args.get("grip") == "two_hand" or record.get("two_handed") or \
-        mass > float(w.robot.get("max_hand_kg", 8.0)) or max((record.get("size_m") or [0.1])[:2]) > 0.7
-    if two:
-        require(hands_free_count(w) == 2 and all(w.robot.get("arms_ok", {}).get(h, True) for h in ("left", "right")),
-                "Both hands must be free for this item", "capability")
-        require(mass <= float(w.robot.get("max_mass_kg", 20.0)) + 1e-9, "Object and contents exceed carrying capacity; get help or slide it", "safety")
-        hands = ["left", "right"]
-    else:
-        hand = ctx.free_hand(ctx.args.get("hand"))
-        require(hand is not None and (ctx.args.get("hand") in (None, hand)), "No free hand; place something first", "capability")
-        hands = [hand]
+    # TIER1_INTEGRATION 1.5: phys.forces.lift_plan says how it would be lifted (it never raises), the grasp planner
+    # what its size allows, and the body enforces the derated capacity (an overload is refused, counted and felt)
+    plan = ctx.lift_plan(target, hands="both" if ctx.args.get("grip") == "two_hand" else ctx.args.get("hand"))
+    hands, grip = take_hold(ctx, target, plan, LIFT_NO_HAND, ctx.args.get("grip"))
     check_handling(ctx, target)
     m = w.mut(target)
     before = m.get("location")
@@ -686,8 +990,8 @@ def pick_up(ctx):
         m.pop(key, None)
     m["location"], m["relation"] = "robot", "held"
     m["held_hand"] = "both" if len(hands) == 2 else hands[0]
-    if ctx.args.get("grip"):
-        m["held_grip"] = ctx.args["grip"]
+    if grip:
+        m["held_grip"] = grip
     robot = w.robot_m()
     for hand in hands:
         robot["hands"][hand] = target
@@ -770,6 +1074,8 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
         parent = ctx.obj(dest, touch=True, action="place")
         require(dest != target and dest not in w.descendants(target), "Cannot place an object inside itself")
         relation = relation or ("in" if parent.get("container") else "on")
+        broken = support_failed(parent, relation, shelf if shelf is not None else 0)
+        require(broken is None, broken or "")
         if relation == "hung":
             slots = int(parent.get("hang_slots", 0))
             require(slots > 0, "Nothing to hang it on there")
@@ -783,11 +1089,9 @@ def place_item(ctx, target, dest, relation=None, spos=None, cell=None, shelf=Non
             if relation == "in":
                 require(parent.get("container") or parent.get("openable") or parent.get("accepts_in"), "Put it on that, not in it")
                 require(not parent.get("openable") or parent.get("open"), "Open it first")
-                inner = parent.get("inner_size_m")
-                require(geometry.fits_inside(record.get("size_m") or [0.1, 0.1, 0.1], inner), "It does not fit inside")
-                if float(parent.get("capacity_l", 0) or 0) > 0:
-                    used = sum(float(state["entities"][c].get("volume_l", 0)) for c in w.children(dest) if state["entities"][c].get("relation") == "in")
-                    require(used + float(record.get("volume_l", 0)) <= float(parent["capacity_l"]) + 1e-9, "Not enough room inside")
+                # box (with diagonal fits), opening and volume (nest groups, compressible textiles): phys.contain
+                fits, reason = contain.fits(state, target, dest)
+                require(fits, reason or "")
                 heights = parent.get("shelf_heights")
                 if heights:
                     if shelf is None:
@@ -831,6 +1135,13 @@ def place(ctx):
     dest = place_item(ctx, target, ctx.args.get("destination"), ctx.args.get("relation"), ctx.args.get("spos"),
                       ctx.args.get("cell"), ctx.args.get("shelf"), ctx.args.get("orientation"))
     w.log_move(target, before, dest)
+    if lawbook.active("setdown") and w.ent(target).get("relation", "on") in ("on", "in"):
+        # setting it down is a small drop at the robot's effective speed onto what it now rests on (TIER1_PHYSICS 5.5)
+        impact.setdown(w, target, None, by="robot")
+    if ctx.args.get("orientation") and target in w.s["entities"]:
+        # an open container set down on its side or upside down pours out what it cannot hold (the kernel's open-spill
+        # rule; core place's orientation is no domain's, so it applies whatever the open_spill law's state)
+        liquids.orientation_spill(w, target, by="robot")
     return "Placed {} {} {}".format(target, w.ent(target).get("relation", "on"), dest)
 
 
@@ -887,17 +1198,46 @@ def receive(ctx):
     require(record.get("offered") or person.get("offering") == target, "They are not offering it; ask first", "social")
     room, cells = geometry.anchor(w.s, pid)
     require(min(geometry.chebyshev(w.robot.get("pos") or [0, 0], c) for c in cells) <= geometry.REACH_CELLS, "Approach the person first")
+    ctx.require_arm()               # the body can take it (Ctx.obj's wording: actuators, power, fallen, both arms)
     hand = ctx.free_hand()
     require(hand is not None, "No free hand", "capability")
+    # the grasp and the derated capacity of the hands the item needs, as for pick_up (TIER1_INTEGRATION 1.5): a large
+    # or heavy item needs both hands free and within their capacity, else the hand-over is refused at lift-off; one
+    # hand: the free hand the robot believes can take it (lift_plan)
+    plan = ctx.lift_plan(target)
+    if len(plan["hands"]) == 1:
+        hand = plan["hands"][0]
+    hands, grip = take_hold(ctx, target, plan, "No free hand")
     check_handling(ctx, target)
     m = w.mut(target)
     m["location"], m["relation"], m["held_hand"] = "robot", "held", hand
+    if grip:
+        m["held_grip"] = grip
     m.pop("offered", None)
     if person.get("offering") == target:
         w.person_m(pid)["offering"] = None
     w.robot_m()["hands"][hand] = target
+    if len(hands) == 2:
+        # taken by the free hand first, the second hand closes on it at the end of the step (_second_hand), so a
+        # domain's own "it turned out heavy" after-hook sees the hand-over as it always did
+        ctx.data["second_hand"] = target
     w.log_move(target, pid, "robot")
     return "Received " + target
+
+
+@after("receive", order=990)
+def _second_hand(ctx, result):
+    """The second hand of a two-hand hand-over (receive): the item ends in both hands unless a domain hook already
+    put it there (or let go of it)."""
+    w = ctx.w
+    eid = ctx.data.get("second_hand")
+    if not eid or not ctx.holding(eid) or w.s["entities"][eid].get("held_hand") == "both":
+        return
+    hands = w.robot_m()["hands"]
+    for hand in body.HANDS:
+        if hands.get(hand) is None:
+            hands[hand] = eid
+    w.mut(eid)["held_hand"] = "both" if all(hands.get(h) == eid for h in body.HANDS) else w.ent(eid)["held_hand"]
 
 
 # ----------------------------------------------------------------------
@@ -979,12 +1319,22 @@ def uninstall(ctx):
     part_id = info["item"]
     hand = ctx.free_hand(ctx.args.get("hand"))
     require(hand is not None, "No free hand", "capability")
+    # the part comes out into the hand(s) it needs (a 17 kg propane tank takes both), with the grasp and the derated
+    # capacity of pick_up (TIER1_INTEGRATION 1.5); without a hand named, the free hand the robot believes can take it
+    plan = ctx.lift_plan(part_id, hands=hand if ctx.args.get("hand") else None)
+    if len(plan["hands"]) == 1:
+        hand = plan["hands"][0]
+    hands, grip = take_hold(ctx, part_id, plan, "No free hand")
     check_handling(ctx, part_id)
     w.mut(device_id)["slots"][slot]["item"] = None
     m = w.mut(part_id)
-    m.update(location="robot", relation="held", held_hand=hand)
+    m.update(location="robot", relation="held", held_hand="both" if len(hands) == 2 else hands[0])
+    if grip:
+        m["held_grip"] = grip
     m.pop("slot", None)
-    w.robot_m()["hands"][hand] = part_id
+    robot = w.robot_m()
+    for h in hands:
+        robot["hands"][h] = part_id
     run_hooks("part_removed", ctx, device_id, slot, part_id)
     w.log_move(part_id, device_id, "robot")
     return "Removed {} from {}".format(part_id, device_id)
@@ -1335,13 +1685,22 @@ def set_mode(ctx):
 # communication
 
 def say(ctx, kind, text, to=None, house_wide=False):
+    """The robot speaks: a message entry with its audience (the people in the room, or everyone house-wide) and
+    audible (TIER1_EMBODIMENT 4.10). Through a failed speaker nobody hears it (audible False, empty audience): the
+    action still succeeds, since the robot cannot tell beforehand; hearing no echo is how it notices the fault
+    (speaker_failed detected, when its microphones work)."""
     w = ctx.w
     require(isinstance(text, str) and text.strip(), "Supply a message", "argument")
     messages = w.sec("messages")
     room = w.robot["room"]
-    audience = sorted(pid for pid, p in w.s.get("people", {}).items() if house_wide or p.get("location") == room)
+    audible = body.can_speak(w.s)
+    audience = sorted(pid for pid, p in w.s.get("people", {}).items() if house_wide or p.get("location") == room) \
+        if audible else []
     entry = {"step": w.s["steps"], "time_s": w.s["time_s"], "speaker": "robot", "kind": kind, "text": text.strip(),
-             "to": to, "room": room, "audience": audience}
+             "to": to, "room": room, "audience": audience, "audible": audible}
+    if not audible and body.is_latent(w.s, "speaker_failed") and body.can_hear(w.s) != "none":
+        from ..kernel import body_faults
+        body_faults.detect_fault(w, "speaker_failed", "speech")
     messages.append(entry)
     del messages[:-200]
     facts = w.sec("facts")
@@ -1375,11 +1734,20 @@ confirm = _speech_action("confirm", "Confirm an instruction or a result back to 
 handoff = _speech_action("handoff", "Hand the task off to a human and say why (counts as a handoff).")
 
 
+def addressed_to_robot(message):
+    """Speech addressed to the robot (to "robot", or marked addressed_robot): what an on-device wake word still hears
+    in privacy mode or under a microphone policy (TIER1_INTEGRATION 1.3)."""
+    return message.get("to") == "robot" or bool(message.get("addressed_robot"))
+
+
 @action("listen", duration=2.0, energy=0.0, category="perception", stopped_ok=True,
-        doc="Listen for speech and sounds; returns recent messages addressed to or heard by the robot.")
+        doc="Listen for speech and sounds; returns recent messages addressed to or heard by the robot. Needs the "
+            "microphones; in privacy mode only speech addressed to the robot is heard.")
 def listen(ctx):
     w = ctx.w
-    heard = [m for m in w.s.get("messages", []) if m.get("speaker") != "robot" and (m.get("room") == w.robot["room"] or m.get("loud"))][-5:]
+    hearing = ctx.require_hearing()         # "none" refuses; "addressed": the wake word only (1.3)
+    heard = [m for m in w.s.get("messages", []) if m.get("speaker") != "robot" and (m.get("room") == w.robot["room"] or m.get("loud"))
+             and (hearing == "full" or addressed_to_robot(m))][-5:]
     return json.dumps(heard if heard else "No new message", sort_keys=True)
 
 
@@ -1391,6 +1759,9 @@ def ask(ctx):
     pid = ctx.args["target"]
     topic = ctx.args.get("topic") or ctx.args.get("destination")
     require(topic, "Name a topic", "argument")
+    # the answer has to be heard: refused with the microphones off or failed; an answer is speech addressed to the
+    # robot, so privacy mode still hears it (TIER1_INTEGRATION 1.3)
+    ctx.require_hearing(addressed_ok=True)
     people = w.s.get("people", {})
     reachable = pid in people and (people[pid].get("location") == w.robot["room"] or
                                     (w.robot.get("network", True) and people[pid].get("reachable_by_phone")))
@@ -1445,15 +1816,23 @@ def resume(ctx):
 
 
 @action("set_quiet", params={"target": "str:on|off"}, duration=0.5, energy=0.0, category="control", stopped_ok=True,
-        doc="Quiet mode: noisy tools and loud announcements are refused.")
+        doc="Quiet mode: noisy tools and loud announcements are refused; fast walking slows to normal.")
 def set_quiet(ctx):
-    ctx.w.robot_m()["quiet"] = ctx.args["target"] == "on"
+    on = ctx.args["target"] == "on"
+    ctx.w.robot_m()["quiet"] = on
+    if on and body.get(ctx.state, "speed_mode") == "fast":
+        # the speed setting stays the user's; walks go at normal speed while quiet (body.effective_speed)
+        ctx.note("Fast walking is too loud: the robot walks at normal speed while quiet")
     return "Quiet mode " + ctx.args["target"]
 
 
 @action("set_speed", params={"target": "str:careful|normal|fast"}, duration=0.5, energy=0.0, category="control",
-        doc="Motion profile: careful halves speed and is required around fragile items, wet floors and people.")
+        doc="Motion profile: careful halves speed and is required around fragile items, wet floors and people. Fast "
+            "is refused while quiet mode is on or in limp mode (battery critical, weak legs).")
 def set_speed(ctx):
+    problem = body.speed_problem(ctx.state, ctx.args["target"])
+    if problem is not None:
+        raise body.BodyRefusal(*problem)
     ctx.w.robot_m()["speed_mode"] = ctx.args["target"]
     return "Speed mode " + ctx.args["target"]
 

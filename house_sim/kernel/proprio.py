@@ -15,7 +15,9 @@ sensors and BMS report, field by field according to the registry tier:
 plus load (joint effort per hand relative to its believed capacity; not a scale), grip, hearing and network.
 Domains add their own channels with the proprio hook, fn(state, out, realistic), respecting the tiers.
 
-Stage-A library: BODY-FAULTS calls render() from perception.observe.
+perception.observe builds obs.robot and the top-level obs.battery with render() in both perception modes (BODY-FAULTS,
+TIER1_INTEGRATION 1.12); REALISTIC_KEYS lists the keys the realistic view renders itself (the perception audit's robot
+check accepts them besides the registered non-hidden fields).
 """
 import copy
 import math
@@ -29,6 +31,12 @@ BASIC_KEYS = ("pos", "posture", "hands")
 # kernel fields the realistic view renders itself (the rest of the exact tier passes through)
 RENDERED = {"pos", "battery", "battery_temp_c", "camera_clean", "network", "arm_health", "legs_health", "sensors",
             "fault_state", "faults", "hand_soil"}
+# keys of the realistic view that are not robot fields (or render one under its own name)
+REALISTIC_KEYS = ("pos", "battery", "battery_state", "runtime_min_est", "range_m_est", "battery_temp", "camera",
+                  "hearing", "network", "arms", "legs", "load", "grip", "hand_soil", "faults")
+# fault-log events the robot knows about without a fault record: its own notes (and legacy domain entries, which
+# have no event) and its falls (it felt them)
+SHOWN_LOG_EVENTS = (None, "logged", "fall")
 RUNTIME_STEP_MIN = 5
 RANGE_STEP_M = 50
 TEMP_BUCKETS = ((5.0, "cold"), (40.0, "normal"), (55.0, "warm"))
@@ -95,12 +103,16 @@ def render(env, state, realistic):
     return out, battery
 
 
+def _copy(value):
+    return copy.deepcopy(value) if isinstance(value, (dict, list)) else value
+
+
 def _oracle(state):
     robot = state["robot"]
-    out = {k: copy.deepcopy(robot[k]) for k in LEGACY_KEYS if k in robot}
+    out = {k: _copy(robot[k]) for k in LEGACY_KEYS if k in robot}
     for name, entry in body.ROBOT_FIELDS.items():
         if name in robot and name not in out and entry["tier"] != "hidden" and not name.startswith("_"):
-            out[name] = copy.deepcopy(robot[name])
+            out[name] = _copy(robot[name])
     return out, round(float(body.get(state, "battery")), 3)
 
 
@@ -158,10 +170,10 @@ def _load(state):
 
 def _faults(state):
     """Detected faults: the active detected records and the robot's own log entries that name no record (legacy
-    domain entries, plain notes), each {"kind", "part", "time_s", "logged"}."""
+    domain entries, plain notes, its falls), each {"kind", "part", "time_s", "logged"}."""
     shown = []
     for entry in body.get(state, "faults") or []:
-        if isinstance(entry, dict) and entry.get("event") in (None, "logged") and not entry.get("fault_ids"):
+        if isinstance(entry, dict) and entry.get("event") in SHOWN_LOG_EVENTS and not entry.get("fault_ids"):
             shown.append({"kind": entry.get("kind"), "part": entry.get("part"), "time_s": entry.get("time_s"),
                           "logged": bool(entry.get("logged"))})
     states = body.get(state, "fault_state") or {}
@@ -173,23 +185,35 @@ def _faults(state):
     return shown
 
 
+def estimates(state, level=None):
+    """(runtime_min_est, range_m_est) the robot's battery management reports for its gauge `level` (default
+    body.gauge): minutes awake and idle, and metres of normal walking above the reserve, both at the nominal
+    empty-handed power and in coarse steps. They follow the gauge and the robot's belief about its pack, never the
+    load it carries: an estimate that moved with a held item's mass would weigh it to about 0.2 kg, finer than the
+    touch tier's mass bucket (stage-B review; TIER1_EMBODIMENT 4.14 "not a scale")."""
+    level = body.gauge(state) if level is None else float(level)
+    believed = _believed_full_wh(state)
+    p = body.profile(state)
+    awake = body.activity_power_w(state, "awake", held_kg=0.0)
+    per_m = body.walk_wh(state, 1.0, "normal", 0.0) + p["power_w"]["hotel_awake"] / p["speeds_mps"]["normal"] / 3600.0
+    runtime = _floor(level / 100.0 * believed / awake * 60.0, RUNTIME_STEP_MIN)
+    reach = _floor((level - body.threshold_pct(state, "reserve")) / 100.0 * believed / per_m, RANGE_STEP_M)
+    return runtime, reach
+
+
 def _realistic(state):
     robot = state["robot"]
     level = body.gauge(state)
     shown = int(level + 0.5)
-    believed = _believed_full_wh(state)
-    held = float(body.get(state, "_held_kg"))
-    p = body.profile(state)
-    awake = body.activity_power_w(state, "awake", held_kg=held)
-    per_m = body.walk_wh(state, 1.0, "normal", held) + p["power_w"]["hotel_awake"] / p["speeds_mps"]["normal"] / 3600.0
+    runtime, reach = estimates(state, level)
     legs = float(body.get(state, "legs_health"))
-    out = {name: copy.deepcopy(robot[name]) for name in _exact_fields() if name in robot}
+    out = {name: _copy(robot[name]) for name in _exact_fields() if name in robot}
     out.update({
         "pos": copy.deepcopy(robot.get("pos")) if body.get(state, "localized") else None,
         "battery": shown,
         "battery_state": body.battery_state(state),
-        "runtime_min_est": _floor(level / 100.0 * believed / awake * 60.0, RUNTIME_STEP_MIN),
-        "range_m_est": _floor((level - body.threshold_pct(state, "reserve")) / 100.0 * believed / per_m, RANGE_STEP_M),
+        "runtime_min_est": runtime,
+        "range_m_est": reach,
         "battery_temp": bucket_temp(float(body.get(state, "battery_temp_c"))),
         "camera": bucket_camera(body.clarity(state)) if body.imaging(state) else "off",
         "hearing": HEARING_WORDS[body.can_hear(state)],

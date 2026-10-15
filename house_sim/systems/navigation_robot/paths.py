@@ -21,7 +21,7 @@ import copy
 import math
 from collections import deque
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, system
@@ -637,7 +637,7 @@ def _social_walk(ctx, goal_cells, avoid, speed):
 
 @action("go_to", params={"target": "target", "avoid": "?list", "speed": "?str:careful|normal|fast",
                          "restore_doors": {"type": "bool", "default": False}, "social": {"type": "bool", "default": False}},
-        duration=lambda ctx: 0.5, energy=0.0, category="physical",
+        duration=lambda ctx: 0.5, energy=0.0, category="physical", timing="speed",
         doc="Walk to a room, an object (stopping within reach), a person in sight, 'home' (the configured park pose), 'dock', "
             "or a learned alias (memory room_alias:<name>) across rooms with the robot's map. Opens unlocked doors on the way; "
             "restore_doors closes the ones it opened. avoid lists hazard kinds; social=true also keeps out of people's personal "
@@ -707,6 +707,9 @@ def go_to(ctx):
             if speed:
                 args["speed"] = speed
             ctx.env.perform(args, ctx)
+    if not body.is_on(w.s):
+        # the battery ran out on the last leg (its settlement powered the robot down where the walk was cut)
+        return "Stopped in {} (battery_depleted)".format(w.robot["room"])
     return "Arrived at {}".format(target)
 
 
@@ -715,7 +718,7 @@ DIRS = {"n": (0, -1), "s": (0, 1), "e": (1, 0), "w": (-1, 0), "ne": (1, -1), "nw
 
 @action("step", params={"target": "?str:n|s|e|w|ne|nw|se|sw", "cell": "?cell", "over": {"type": "bool", "default": False},
                         "speed": "?str:careful|normal|fast"},
-        duration=lambda ctx: ctx.data.get("seconds", 1.0), energy=0.002, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 1.0), energy=0.002, category="physical", timing="speed",
         doc="Take one deliberate step to an adjacent cell (direction n/s/e/w/ne/nw/se/sw or cell). over=true lifts the foot high "
             "to step over a small object (<= 0.2 m: cord, toy, threshold strip) without touching it.")
 def step(ctx):
@@ -723,8 +726,9 @@ def step(ctx):
     w = ctx.w
     state = w.s
     robot = state["robot"]
-    require(robot.get("battery", 0) > 0 and robot.get("actuator_ok", True) and not robot.get("fallen"), "Robot cannot move", "capability")
-    require(not robot.get("standing_on"), "Step down first", "safety")
+    # the body's mobility check (power, actuators, fallen, legs, standing on an aid, localization) with this verb's
+    # wording for the cases it always refused
+    ctx.require_mobile(legacy_message="Robot cannot move")
     require(not robot.get("stuck"), "The robot is stuck ({}); request help".format(robot.get("stuck")), "capability")
     rid = robot["room"]
     room = state["rooms"][rid]
@@ -742,13 +746,26 @@ def step(ctx):
     require(c not in blocked, "Something is in the way there", "precondition")
     if c[0] != start[0] and c[1] != start[1]:
         require((c[0], start[1]) not in blocked and (start[0], c[1]) not in blocked, "Cannot cut the corner", "precondition")
-    w.robot_m()["pos"] = [c[0], c[1]]
-    speed = C.speed_of(ctx)
-    trip = T.Trip(ctx, "step", rid, start, [c], speed, stepping_over=ctx.args["over"])
+    speed = T.pace(ctx)             # the effective pace: limp mode and weak legs step carefully
+    # a deliberate step at the body profile's walking speed for that pace (timing="speed": careful speed slows it
+    # once, through the pace, not again in the engine; NAV-M5)
+    mps = body.speed_mps(state, speed)
+    seconds = (1.6 if ctx.args["over"] else 1.0) * C.CELL / mps * 1.2
+    # the motion record the body charges and the physics carry law and the camera read (TIER1_INTEGRATION 1.4); the
+    # deliberate step's time beyond plain walking is handling time. An empty walk: not even this step is affordable.
+    walk_s = geometry.path_length_m([start, c]) / mps
+    walked = ctx.motion([c], start, speed=C.speed_of(ctx), extra_s=max(0.0, seconds - walk_s))
+    if walked:
+        w.robot_m()["pos"] = [c[0], c[1]]
+    trip = T.Trip(ctx, "step", rid, start, walked, speed, stepping_over=ctx.args["over"])
     T.traverse(trip)
     T._restore_hidden(ctx)
     T.finish_motion(ctx, trip)
-    ctx.data["seconds"] = (1.6 if ctx.args["over"] else 1.0) * C.CELL / C.SPEED_MPS[speed] * 1.2
+    if walked:
+        ctx.data["seconds"] = seconds
+    if T.battery_cut(ctx):
+        # the battery runs out on this step: the engine's settlement powers the robot down (an ok step, 4.6)
+        return body.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
     return "Stepped to {}".format([c[0], c[1]])
 
 
@@ -889,7 +906,7 @@ def viewpoints(state, rid):
 @action("patrol", params={"rooms": "list", "report": {"type": "bool", "default": True}, "speed": "?str:careful|normal",
                           "skip_occupied": {"type": "bool", "default": True}, "dock_after": {"type": "bool", "default": False},
                           "restore_doors": {"type": "bool", "default": True}},
-        duration=lambda ctx: 0.5, energy=0.0, category="physical",
+        duration=lambda ctx: 0.5, energy=0.0, category="physical", timing="speed",
         doc="Walk a list of rooms in order, sweeping each from viewpoints that cover the floor, and (report=true) inspect and "
             "report every observable anomaly (open or unlocked exterior doors, open windows, appliances left on, water on the "
             "floor, smoke, unexpected people) as report <target>.anomaly. Occupied bathrooms/bedrooms are skipped and logged "
@@ -957,7 +974,9 @@ def patrol(ctx):
                     ctx.env.perform({"action": "inspect", "target": eid}, ctx)
                     ctx.env.perform({"action": "report", "target": eid, "field": "anomaly", "value": kind}, ctx)
                 except ActionError:
-                    C.log(w, "patrol_unreported", target=eid, kind=kind)
+                    # e.g. PowerOff once the battery ran out on the sweep (TIER1_EMBODIMENT 4.6: the loop goes on
+                    # without effect); C.log's own first argument is the event kind, so the anomaly has its own key
+                    C.log(w, "patrol_unreported", target=eid, anomaly=kind)
     nav = C.nav(w)
     nav["patrol"] = {"time_s": C.now(w.s), "rooms": list(rooms), "skipped": skipped, "findings": copy.deepcopy(findings)}
     if ctx.args["dock_after"] and not w.robot.get("fallen"):
@@ -1006,6 +1025,10 @@ def wait_aside(ctx):
         if ctx.args.get("speed"):
             args["speed"] = ctx.args["speed"]
         ctx.env.perform(args, ctx)
+        if not body.is_on(w.s):
+            # the battery ran out on the way: it powered down where the walk was cut, not waiting aside
+            update_robot_spot(w)
+            return "Stopped at {} (battery_depleted)".format(list(w.robot.get("pos") or [0, 0]))
     update_robot_spot(w)
     nav = C.nav(w)
     nav["waits"] = (nav.get("waits") or [])[-20:] + [{"time_s": C.now(w.s), "room": rid, "cell": list(w.robot.get("pos") or [0, 0]),
