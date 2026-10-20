@@ -80,36 +80,41 @@
     "mobility_aid": {
       "is_a": "portable_object",
       "props": {"category": "mobility_aid", "mobility_aid": true, "material": "aluminum", "personal": true, "orientation": "upright",
-                "value": 80.0, "affordances": ["hand_over", "place_within_reach"]},
-      "doc": "Canes, walkers, rollators, crutches and wheelchairs. aid_ready is computed for the owner by the people.reach system.",
-      "perception": {"glance": ["aid_kind", "mobility_aid", "orientation", "leaning_on", "folded", "tip", "wheel_count"], "inspect": ["height_setting_cm", "freestanding", "rolls_when_released", "two_handed"], "read": ["height_range_cm"], "measure": {"seat_height_m": "tape_measure", "width_m": "tape_measure", "folded_size_m": "tape_measure"}}
+                "value": 80.0, "mass_kg": 3.0, "size_m": [0.6, 0.45, 0.85], "volume_l": 30.0, "affordances": ["hand_over", "place_within_reach"]},
+      "doc": "Canes, walkers, rollators, crutches and wheelchairs. aid_ready is computed for the owner by the people.reach system. The base type's mass and size are a standard folding walker's (3 kg, 0.6 x 0.45 x 0.85 m); every concrete aid sets its own.",
+      "perception": {"glance": ["aid_kind", "mobility_aid", "orientation", "leaning_on", "folded", "tip", "wheel_count"], "inspect": ["height_setting_cm", "freestanding", "rolls_when_released"], "read": ["height_range_cm"], "measure": {"seat_height_m": "tape_measure", "width_m": "tape_measure", "folded_size_m": "tape_measure"}}
     },
     "cane": {
       "is_a": "mobility_aid",
       "props": {"label": "cane", "aid_kind": "cane", "tip": "single", "height_setting_cm": 86, "height_range_cm": [79, 97],
                 "mass_kg": 0.45, "size_m": [0.05, 0.05, 0.9], "volume_l": 1.0, "freestanding": false},
+      "view": {"porosity": 0.8, "doc": "A cane is a 2-3 cm shaft with a handle: it hides almost nothing of what is behind its box."},
       "doc": "Single-tip offset cane. Upright on the floor it only stays up leaning on furniture/wall on a high-friction floor; otherwise it slides down (trip hazard)."
     },
     "quad_cane": {
       "is_a": "cane",
-      "props": {"label": "quad cane", "tip": "quad", "mass_kg": 0.9, "size_m": [0.2, 0.15, 0.9], "volume_l": 2.0, "freestanding": true}
+      "props": {"label": "quad cane", "tip": "quad", "mass_kg": 0.9, "size_m": [0.2, 0.15, 0.9], "volume_l": 2.0, "freestanding": true},
+      "view": {"porosity": 0.8, "doc": "A shaft on a small four-footed base: open almost everywhere."}
     },
     "walker": {
       "is_a": "mobility_aid",
       "props": {"label": "walker", "aid_kind": "walker", "wheel_count": 2, "foldable": true, "folded": false, "height_setting_cm": 84,
                 "mass_kg": 3.0, "size_m": [0.6, 0.45, 0.84], "volume_l": 30.0, "two_handed": true, "freestanding": true,
-                "settings": {"folded": false}, "setting_options": {"folded": [true, false]}}
+                "settings": {"folded": false}, "setting_options": {"folded": [true, false]}},
+      "view": {"porosity": 0.8, "doc": "A walker is an open frame of 2.5 cm aluminium tubes: about four fifths of the view passes its box."}
     },
     "rollator": {
       "is_a": "walker",
       "props": {"label": "rollator", "aid_kind": "rollator", "wheel_count": 4, "mass_kg": 7.5, "size_m": [0.62, 0.65, 0.9], "volume_l": 60.0,
                 "settings": {"brakes": "released", "folded": false}, "setting_options": {"brakes": ["locked", "released"], "folded": [true, false]},
                 "rolls_when_released": true, "seat_height_m": 0.55},
+      "view": {"porosity": 0.6, "doc": "A rollator's frame carries a seat and a basket below it: more of the view is blocked than by a plain walker."},
       "doc": "Four-wheeled walker with loop brakes; with brakes released it rolls away when someone leans on it."
     },
     "crutches": {
       "is_a": "mobility_aid",
-      "props": {"label": "pair of crutches", "aid_kind": "crutches", "mass_kg": 1.3, "size_m": [0.3, 0.12, 1.3], "volume_l": 6.0, "two_handed": true, "freestanding": false}
+      "props": {"label": "pair of crutches", "aid_kind": "crutches", "mass_kg": 1.3, "size_m": [0.3, 0.12, 1.3], "volume_l": 6.0, "two_handed": true, "freestanding": false},
+      "view": {"porosity": 0.8, "doc": "Two thin crutches: open almost everywhere."}
     },
     "wheelchair": {
       "is_a": "mobility_aid",
@@ -117,6 +122,7 @@
                 "volume_l": 300.0, "two_handed": true, "seat": true, "seat_height_m": 0.5, "surface_height_m": 0.5, "armrests": true,
                 "settings": {"brakes": "locked", "folded": false}, "setting_options": {"brakes": ["locked", "released"], "folded": [true, false]},
                 "rolls_when_released": true, "width_m": 0.65, "freestanding": true},
+      "view": {"porosity": 0.5, "doc": "Spoked wheels, a sling seat and back on an open frame: about half of what is behind passes it."},
       "doc": "Manual folding wheelchair (seat 0.5 m, 0.65 m wide). Folding needs it empty; transfers need brakes locked."
     },
     "transfer_board": {
@@ -199,6 +205,7 @@
     "storybook": {
       "is_a": "book",
       "props": {"label": "storybook", "category": "book", "story_minutes": 8, "age_range": [2, 8], "mass_kg": 0.35, "size_m": [0.25, 0.25, 0.012], "volume_l": 0.8},
+      "view": {"text_m": {"text": 0.02}, "doc": "Its text is the title on the cover, printed about 2 cm tall (body text is the kernel's 3 mm)."},
       "perception": {"inspect": ["story_minutes"], "read": ["age_range"]}
     },
     "night_light": {
@@ -241,11 +248,13 @@
                                                        "size_m": [0.3, 0.2, 0.03], "spread_size_m": [1.4, 1.0], "mass_kg": 0.3}},
     "place_card": {
       "is_a": "portable_object",
-      "props": {"label": "place card", "category": "place_card", "material": "paper", "mass_kg": 0.004, "size_m": [0.09, 0.05, 0.05], "volume_l": 0.02, "text": ""}
+      "props": {"label": "place card", "category": "place_card", "material": "paper", "mass_kg": 0.004, "size_m": [0.09, 0.05, 0.05], "volume_l": 0.02, "text": ""},
+      "view": {"text_m": {"text": 0.012}, "doc": "A guest's name on a tent card, written about 12 mm tall."}
     },
     "bassinet": {
       "is_a": "crib",
-      "props": {"label": "bassinet", "size_m": [0.5, 0.9, 0.85], "surface_height_m": 0.7, "mass_kg": 8.0, "sleep_space": true, "movable": true, "portable": false}
+      "props": {"label": "bassinet", "size_m": [0.5, 0.9, 0.85], "surface_height_m": 0.7, "mass_kg": 8.0, "sleep_space": true, "movable": true, "portable": false},
+      "view": {"porosity": 0.6, "clear_below_m": 0.45, "below_porosity": 0.8, "doc": "Mesh sides (about 60 % open) on a basket that hangs from a stand: the space under the basket is open apart from the stand's legs."}
     },
     "doorbell": {
       "is_a": "fixture",
@@ -256,7 +265,9 @@
     },
     "video_doorbell": {
       "is_a": "doorbell",
-      "props": {"label": "video doorbell", "camera": true, "remote_status": true, "two_way_audio": true, "field_of_view_deg": 160}
+      "props": {"label": "video doorbell", "camera": true, "remote_status": true, "two_way_audio": true, "field_of_view_deg": 160},
+      "view": {"camera": {"hfov_deg": 160.0, "vfov_deg": 90.0, "range_m": 6.0, "ir": true},
+               "doc": "A wide-angle doorbell lens (160 x 90 degrees, 1080p) with infrared night vision, looking out from beside the door at its mounting height: camera.device_frame gives what its feed shows."}
     },
     "intercom": {
       "is_a": "fixture",
@@ -273,7 +284,8 @@
     },
     "smart_bulb_lamp": {
       "is_a": "lamp",
-      "props": {"label": "smart lamp", "smart": true, "visual_alert": true, "remote": null, "settings": {"dim": 1.0}, "setting_options": {"dim": {"min": 0.0, "max": 1.0}}}
+      "props": {"label": "smart lamp", "smart": true, "visual_alert": true, "remote": null, "mass_kg": 1.5, "settings": {"dim": 1.0}, "setting_options": {"dim": {"min": 0.0, "max": 1.0}}},
+      "doc": "A table lamp with a connected bulb (1.5 kg, a ceramic base and a shade) that flashes for visual alerts."
     },
     "photo_print": {
       "is_a": "portable_object",
@@ -282,8 +294,66 @@
     },
     "named_water_bottle": {
       "is_a": "personal_item", "props": {"label": "kids' water bottle", "category": "drink_bottle", "color": "blue", "material": "plastic", "mass_kg": 0.15, "size_m": [0.07, 0.07, 0.22], "volume_l": 0.6},
+      "view": {"text_m": {"label_text": 0.008}, "doc": "The owner's name on the sticker is printed about 8 mm tall (school name labels)."},
       "doc": "Identical school water bottles; whose is whose is only on the name sticker (label_text).",
       "perception": {"looks_like": "kids_water_bottle"}
+    },
+    "stroller": {
+      "is_a": "portable_object",
+      "props": {"label": "stroller", "category": "stroller", "material": "aluminum", "mass_kg": 9.0, "size_m": [0.6, 0.85, 1.05],
+                "folded_size_m": [0.6, 0.35, 0.85], "volume_l": 120.0, "foldable": true, "folded": false, "two_handed": true, "wheeled": true,
+                "wheel_count": 4, "rolls_when_released": true, "personal": true, "value": 300.0,
+                "settings": {"brakes": "locked", "folded": false}, "setting_options": {"brakes": ["locked", "released"], "folded": [true, false]}},
+      "view": {"porosity": 0.5, "doc": "A frame of tubes with a fabric seat and canopy and a basket underneath: about half of the view passes it."},
+      "doc": "Standard folding baby stroller (8-12 kg, 0.6 m wide unfolded, about 0.35 m deep folded). Generation 2 parks one at the entry or in the garage for an infant or toddler (GEN belongings). With the brakes released it rolls when pushed.",
+      "perception": {"glance": ["folded"], "inspect": ["settings"], "measure": {"folded_size_m": "tape_measure"}}
+    },
+    "diaper_bag": {
+      "is_a": "bag",
+      "props": {"label": "diaper bag", "category": "bag", "material": "polyester", "mass_kg": 0.8, "size_m": [0.4, 0.18, 0.3],
+                "inner_size_m": [0.38, 0.16, 0.28], "capacity_l": 17.0, "soft_sided": true, "personal": true, "value": 60.0},
+      "doc": "Tote-style diaper bag (about 0.8 kg empty, 17 L): a parent's carry bag for an infant or toddler (GEN belongings: on the entry coat hooks or on the floor of the child's room)."
+    },
+    "wall_calendar": {
+      "is_a": "fixture",
+      "props": {"label": "wall calendar", "category": "calendar", "material": "paper", "mass_kg": 0.3, "size_m": [0.3, 0.01, 0.6],
+                "mount_height_m": 1.4, "mounted": true, "blocks_path": false, "text": ""},
+      "view": {"text_m": {"text": 0.006}, "doc": "Entries are handwritten in the day boxes, about 6 mm tall: read from close by (or zoomed)."},
+      "doc": "A month-to-a-page family calendar on the kitchen or hall wall. The people domain writes the visible household.calendar entries of the displayed month (displayed_month YYYY-MM, default the current month) into its text.",
+      "perception": {"glance": ["displayed_month"], "read": ["text"]}
+    },
+    "whiteboard": {
+      "is_a": "fixture",
+      "props": {"label": "whiteboard", "category": "whiteboard", "material": "melamine", "mass_kg": 3.0, "size_m": [0.9, 0.02, 0.6],
+                "mount_height_m": 1.3, "mounted": true, "blocks_path": false, "writable": true, "inspect_from_afar": true, "text": ""},
+      "view": {"text_m": {"text": 0.03}, "doc": "Marker writing about 3 cm tall: readable from across a room."},
+      "doc": "A family planner whiteboard. The people domain writes this week's visible household.calendar entries into its text; a note written on it (report channel note) goes below them.",
+      "perception": {"read": ["text"]}
+    },
+    "toiletry_bag": {
+      "is_a": "bag",
+      "props": {"label": "toiletry bag", "category": "bag", "material": "nylon", "mass_kg": 0.6, "size_m": [0.25, 0.12, 0.13],
+                "inner_size_m": [0.24, 0.11, 0.12], "capacity_l": 3.5, "soft_sided": true, "personal": true, "value": 25.0},
+      "doc": "A packed wash bag (toothbrush, toothpaste, travel bottles; about 0.6 kg): what a traveller needs for a trip (calendar event needs)."
+    },
+    "library_book": {
+      "is_a": "book",
+      "props": {"label": "library book", "category": "book", "mass_kg": 0.45, "size_m": [0.2, 0.14, 0.02], "volume_l": 0.6,
+                "label_text": "PUBLIC LIBRARY - DUE BACK", "value": 20.0},
+      "view": {"text_m": {"label_text": 0.005}, "doc": "The library's barcode sticker and due-date slip, printed about 5 mm tall."},
+      "doc": "A borrowed library book with the library's sticker on the spine (school library day: calendar event needs)."
+    },
+    "swim_goggles": {
+      "is_a": "personal_item",
+      "props": {"label": "swim goggles", "category": "goggles", "material": "silicone", "mass_kg": 0.05, "size_m": [0.16, 0.05, 0.04],
+                "volume_l": 0.1, "value": 12.0},
+      "doc": "Swimming goggles (swim lessons and school swim days)."
+    },
+    "wrapped_gift": {
+      "is_a": "portable_object",
+      "props": {"label": "wrapped present", "category": "gift", "material": "paper", "mass_kg": 0.5, "size_m": [0.25, 0.2, 0.1],
+                "volume_l": 5.0, "fragile": false, "value": 30.0},
+      "doc": "A present wrapped for a party; what is inside is not visible."
     }
   }
 }

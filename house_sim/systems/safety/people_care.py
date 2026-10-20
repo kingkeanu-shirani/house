@@ -16,7 +16,7 @@ fires, stop gas and ventilate; paramedics attend the patient; police remove a th
 """
 import json
 
-from ...kernel import geometry
+from ...kernel import dialogue, geometry
 from ...kernel.plugins import after, answerer, inspector, system
 from . import air as A
 from . import common as C
@@ -105,6 +105,53 @@ def safety_answers(env, w, pid, topic, ctx):
         w.stat("necessary_questions")
         return {"topic": topic, "value": intent, "by": pid}
     return None
+
+
+# canonical questions (kernel v3.1 ask: aspect / about / detail) routed to the safety answerer (docs/DIALOGUE.md
+# "Routes"); tried after the kernel's people routes, in this order
+CONTACT_WORDS = {"contact", "emergency", "phone", "number", "call", "doctor", "neighbor", "neighbour"}
+COOKING_WORDS = {"cooking", "stove", "burner", "cooktop", "pan", "pot", "oven", "hob"}
+COOKING_CATEGORIES = ("burner", "stove", "cooktop", "range", "oven", "pan", "pot", "skillet", "saucepan", "wok")
+
+
+def _route_condition(state, pid, subject, aspect, detail, act):
+    """status about the asked person (or nobody named) while that person is hurt, fallen, pinned or unwell: the
+    safety condition answer (complaint, pain, whether to help them up)."""
+    if subject is not None and not (subject.kind == "person" and subject.id == pid):
+        return None
+    person = (state.get("people") or {}).get(pid) or {}
+    if person.get("_condition") or person.get("posture") in ("fallen", "pinned"):
+        return "safety.condition"
+    return None
+
+
+def _route_contacts(state, pid, subject, aspect, detail, act):
+    """who / how / where / status about the household's emergency contacts (words or detail naming a contact, a phone
+    number, someone to call)."""
+    words = set(dialogue.words_of(detail)) if detail else set()
+    if subject is not None and subject.kind in ("word", "house"):
+        words |= set(subject.words)
+    return "safety.contacts" if words & CONTACT_WORDS else None
+
+
+def _route_cooking(state, pid, subject, aspect, detail, act):
+    """intended / ok / why about a stove, burner, pan or oven (or words naming the cooking): whether the cooking was
+    left on purpose."""
+    if subject is None:
+        return None
+    if subject.kind == "entity":
+        rec = (state.get("entities") or {}).get(subject.id) or {}
+        if rec.get("safety_burner") or rec.get("category") in COOKING_CATEGORIES:
+            return "safety.cooking_intentional"
+        return None
+    if subject.kind == "word" and set(subject.words) & COOKING_WORDS:
+        return "safety.cooking_intentional"
+    return None
+
+
+dialogue.route("safety.condition", ("status",), _route_condition)
+dialogue.route("safety.contacts", ("who", "how", "where", "status", "which"), _route_contacts)
+dialogue.route("safety.cooking", ("intended", "ok", "why"), _route_cooking)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -400,7 +447,7 @@ def responder_system(w, dt, tick):
             C.log(w, "responders_arrived", service=r["service"])
             from . import alarms as AL
             AL.record_sound(w, "knocking", outside, conn["cells"].get(outside), db=75.0, lasts_s=60.0,
-                            description="loud knocking: '{}! Open the door!'".format(label.title()))
+                            description="loud knocking: '{}! Open the door!'".format(label.title()), source=pid)
             continue
         if status == "waiting":
             conn = state["connections"].get(r.get("door_conn"))

@@ -9,7 +9,7 @@ Falls happen for real reasons: compliant joints under load, pulling/lifting, rus
 wheelchair brakes off during a transfer, the robot's base on a loose rug or wet floor, a wobble
 with nobody steadying, the stairs without an arm on the handrail-free side.
 """
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before
@@ -281,9 +281,10 @@ def _arrival_cells(state, rid, target_cells, start, pid):
     return None, None
 
 
-def _guide_segment(state, rid, start, goal, formation, side, ignore):
-    """Robot path in one room and the guided person's cells; returns (path, person_cells, contacts, single_file_cells)."""
-    path = geometry.find_path(state, rid, start, [goal], ignore=ignore)
+def _guide_segment(state, rid, start, goal, formation, side, ignore, hazard_filter=None):
+    """Robot path in one room and the guided person's cells; returns (path, person_cells, contacts, single_file_cells).
+    hazard_filter: ctx.route_filter (realistic perception plans only around hazards the robot perceives)."""
+    path = geometry.find_path(state, rid, start, [goal], ignore=ignore, hazard_filter=hazard_filter)
     if path is None:
         return None, [], [], []
     blocked = geometry.blocked_cells(state, rid, ignore=ignore)
@@ -348,11 +349,47 @@ def _announcements(state, rid, path, person_cells, narrows, env=None):
     return notes
 
 
+def _walk_guide(ctx, walks, speed):
+    """The robot's walk of a guide, leg by leg against the battery (body.motion, as core move walks: each room's cells,
+    the connection crossed at its end, stairs all or nothing), merged into the action's one motion record so the body
+    pays the whole walk, physics' carry law sees it and the camera frames it (earlier rooms' legs are framed as they
+    are walked). Returns None when the whole walk was affordable, else (room, cell) where the battery cut it."""
+    from ...kernel import camera
+    w = ctx.w
+    state = w.s
+    records = []
+    stop = None
+    for i, (rid, start, path, cid) in enumerate(walks):
+        r = w.robot_m()
+        r["room"], r["pos"] = rid, [int(start[0]), int(start[1])]
+        cells = body.motion(ctx, path, start, speed=speed, connection=cid)
+        record = ctx.data["motion"]
+        records.append(record)
+        if record["cut"] is not None:
+            last = cells[-1] if cells else list(start)
+            r = w.robot_m()
+            r["room"], r["pos"] = rid, [int(last[0]), int(last[1])]
+            stop = (rid, tuple(last))
+            break
+        if i < len(walks) - 1 and camera.mode(state) == "geometric":
+            camera.note_motion(w, rid, record["path"], record["speed"], start=record["start"])
+    last = records[-1]
+    merged = dict(last)
+    for key in ("meters", "planned_m", "seconds"):
+        merged[key] = round(sum(float(rec[key]) for rec in records), 6)
+    for key in ("stairs_up", "stairs_down"):
+        merged[key] = sum(int(rec[key]) for rec in records)
+    merged["legs"] = len(records)
+    ctx.data["motion"] = merged
+    ctx.data.update(path=[list(c) for c in last["path"]], from_room=last["from_room"], connection=last["connection"])
+    return stop
+
+
 @action("guide", params={"target": "person", "destination": "str", "method": {"type": "str", "default": "sighted_guide", "choices": ["sighted_guide", "arm", "escort", "wheelchair"]},
                          "formation": {"type": "str", "default": "auto", "choices": ["auto", "side_by_side", "single_file"]},
                          "announce": {"type": "bool", "default": True}, "pace": {"type": "str", "default": "person", "choices": ["person", "robot"]},
                          "side": {"type": "str", "default": "left", "choices": ["left", "right"]}, "orient_to": "?entity", "sit": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.03, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 5.0), category="physical", timing="speed",
         doc="Walk a person to a room/entity/cell together: sighted_guide (they hold the robot's elbow half a step behind), arm, "
             "escort (visitors/contractors) or wheelchair (push; brakes released, no stairs). formation auto drops to single "
             "file through gaps too narrow for two; announce describes obstacles, turns, doorways and steps ahead; "
@@ -389,6 +426,9 @@ def guide(ctx):
     here = state["robot"]["room"]
     route = room_route(state, here, dest_room) if dest_room != here else []
     require(route is not None, "No route there")
+    # the robot walks the guide (TIER1_INTEGRATION 1.4): the body's mobility guard first (power, actuators, a fall, the
+    # legs, a climbing aid, its position; a flight of stairs needs a body that climbs them)
+    ctx.require_mobile(stairs=any(state["connections"][cid].get("kind") == "stairs" for _, cid in route))
     legs, room, cell = [], here, tuple(state["robot"].get("pos") or (0, 0))
     for nxt, cid in route:
         conn = state["connections"][cid]
@@ -397,7 +437,7 @@ def guide(ctx):
         if method == "wheelchair":
             require(conn.get("kind") not in ("stairs", "hatch"), "A wheelchair cannot use stairs; take another route", "capability")
             require(float(conn.get("width_m", 0.9)) >= float(seat.get("width_m", 0.65)) + 0.05, "The passage is too narrow for the wheelchair", "capability")
-        legs.append((room, cell, tuple(conn["cells"].get(room, cell)), conn))
+        legs.append((room, cell, tuple(conn["cells"].get(room, cell)), dict(conn, _cid=cid)))
         room, cell = nxt, tuple(conn["cells"].get(nxt, (0, 0)))
     if dest_cells:
         dest_cell, person_goal = _arrival_cells(state, dest_room, dest_cells, cell, pid)
@@ -412,9 +452,13 @@ def guide(ctx):
     announce = bool(ctx.args["announce"])
     low_vision = C.abilities(p)["vision"] in ("low", "blind")
     total_m, contacts, needed, made, stairs_unsupported, unannounced_steps = 0.0, [], 0, 0, False, False
+    walks = []
+    voice = None
     for rid, start, goal, conn in legs:
-        path, person_cells, seg_contacts, narrows = _guide_segment(state, rid, start, goal, formation, side, ignore=(pid,))
+        path, person_cells, seg_contacts, narrows = _guide_segment(state, rid, start, goal, formation, side, ignore=(pid,),
+                                                                   hazard_filter=ctx.route_filter)
         require(path is not None, "No clear path in " + rid + " for the two of you")
+        walks.append((rid, tuple(start), [tuple(c) for c in path], conn.get("_cid") if conn is not None else None))
         total_m += geometry.path_length_m([start] + [tuple(c) for c in path])
         contacts.extend(dict(c, room=rid) for c in seg_contacts)
         notes = _announcements(state, rid, path, person_cells, narrows, env=ctx.env if ctx.realistic else None)
@@ -432,7 +476,9 @@ def guide(ctx):
         if low_vision:
             needed += len(notes)
             if announce:
-                made += len(notes)
+                if voice is None:
+                    voice = C.robot_voice(w)    # through a failed speaker the announcements make no sound
+                made += len(notes) if voice else 0
                 for kind, what, _ in notes[:6]:
                     say(ctx, "speak", {"hazard": "Careful, {} on the floor ahead.", "obstacle": "{} beside us.", "narrow": "Narrow gap: step behind me.",
                                        "doorway": "Doorway ahead.", "stairs": "Stairs ahead, handrail on your side.", "turns": "We turn soon."}[kind].format(what), to=pid)
@@ -441,7 +487,8 @@ def guide(ctx):
                 if any(n[0] == "stairs" or n[0] == "hazard" and n[1] in M.TRIP_KINDS for n in notes):
                     unannounced_steps = True
     speed_person = C.walk_speed(p) if method != "wheelchair" else 0.9
-    robot_speed = {"careful": 0.4, "normal": 0.8, "fast": 1.2}.get(state["robot"].get("speed_mode", "normal"), 0.8)
+    mode = body.effective_speed(state, None)[0]          # the robot's speed mode as its body walks it
+    robot_speed = body.speed_mps(state, mode)
     pace = ctx.args["pace"]
     speed = min(speed_person, robot_speed) if pace == "person" else robot_speed
     fell = False
@@ -459,7 +506,16 @@ def guide(ctx):
     if stairs_unsupported:
         fell = True
     seconds = total_m / max(0.1, speed) + 2.0 * made + 3.0
+    walked = _walk_guide(ctx, walks, "careful" if speed < body.speed_mps(state, "normal") - 1e-9 else mode)
     ctx.data["seconds"] = seconds
+    if walked is not None:
+        # the battery ran out on the way: the robot stopped where it was (it powers down at settlement); the person
+        # stops beside it
+        stop_room, stop_cell = walked
+        M.relocate(w, pid, stop_room, M.free_cell_near(state, stop_room, near=stop_cell, pid=pid))
+        C.log_event(w, "guides", person=pid, ok=False, needed=needed, announced=made, contacts=len(contacts),
+                    cut="battery")
+        return body.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
     final_room, final_cell = legs[-1][0], legs[-1][2]
     r = w.robot_m()
     r["room"], r["pos"] = final_room, [int(final_cell[0]), int(final_cell[1])]

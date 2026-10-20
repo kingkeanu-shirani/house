@@ -20,7 +20,7 @@ Rules with consequences:
 """
 import random
 
-from ...kernel import clock, geometry
+from ...kernel import camera, clock, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.perception import light_level, flashlight_on
@@ -31,6 +31,12 @@ from . import common as C
 
 def is_pest(rec):
     return bool(rec.get("pest"))
+
+
+def sighting(w, eid, kind, what, size_m):
+    """A pest sighting as a visual occurrence (TIER1_INTEGRATION 6, camera): the geometric camera logs whether its
+    current pose saw it (camera_log.events and a "visual" notice when seen); nothing changes in room mode."""
+    camera.visual_event(w, kind, source=eid, size_m=size_m, visual=what, emit=False)
 
 
 def is_trap(rec):
@@ -139,6 +145,7 @@ def relocate_pest(ctx):
         m = w.mut(eid)
         m["agitated"] = True
         C.harm(w, "disturbed_stinging_insect_nest", stat="safety_violations", nest=eid)
+        sighting(w, eid, "insects_swarming", "wasps swarming", 0.6)
         return "The nest was disturbed: wasps are swarming"
     if rec.get("species") in ("pavement_ant", "ant", "fruit_fly", "pantry_moth", "house_mouse") or rec.get("count", 1) > 3:
         raise ActionError("A colony/infestation cannot be carried out; use traps, cleaning and reporting", "argument")
@@ -172,6 +179,7 @@ def relocate_pest(ctx):
             m["pos"] = list(w.robot.get("pos") or [0, 0])
             m["location"] = w.robot["room"]
             m["escaped_handling"] = True
+            sighting(w, eid, "pest_escaped", "spider", 0.05)
             return "The spider escaped during the catch" if ctx.realistic else "The venomous spider escaped during the catch"
     m = w.mut(eid)
     for key in ("pos", "spos", "shelf"):
@@ -271,6 +279,9 @@ def _is_trap(rec):
     return bool(rec.get("trap")) and not rec.get("pest")
 
 
+ANTS_SEEN = 10          # a few stray ants go unnoticed; a trail of ten or more is a sighting
+
+
 def _holds_water(rec):
     return bool(rec.get("liquid_container"))
 
@@ -313,7 +324,8 @@ def pest_system(w, dt, tick):
                         C.log(w, "mouse_caught", trap=tid)
                 if rng.random() < dt / 1800.0:
                     from . import alarms as AL
-                    AL.record_sound(w, "scratching", rid, None, db=38.0, lasts_s=120.0, description="faint scratching inside the wall")
+                    AL.record_sound(w, "scratching", rid, None, db=38.0, lasts_s=120.0, description="faint scratching inside the wall",
+                                    source=pid)
         elif rec.get("type") == "ant_trail":
             pher = float(rec.get("pheromone", 1.0))
             count = int(rec.get("count", 0))
@@ -329,6 +341,8 @@ def pest_system(w, dt, tick):
                 m = w.mut(pid)
                 m["count"] = new
                 m["pheromone"] = round(new_pher, 4)
+                if count < ANTS_SEEN <= new:
+                    sighting(w, pid, "ants_appeared", "a trail of ants", 0.3)
         elif rec.get("type") == "fruit_fly_swarm":
             count = int(rec.get("count", 0))
             catch = 0

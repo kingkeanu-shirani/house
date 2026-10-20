@@ -182,8 +182,6 @@ def check_abrasion(w, eid, abrasion, force="normal", direction=None):
         effective *= 1.6
     if M.material_key(rec) in ("wood_deck", "teak", "cedar", "sealed_wood", "wood") and direction == "against_grain" and abrasion >= 0.3:
         S.damage(w, eid, "raised_grain", 0.25, "scrubbed across the grain")
-    if M.material_key(rec) in ("wood_deck", "teak", "cedar", "sealed_wood", "wood") and direction == "against_grain" and abrasion >= 0.3:
-        S.damage(w, eid, "raised_grain", 0.25, "scrubbed across the grain")
     if rec.get("coating") == "nonstick":
         tolerance = min(tolerance, 0.18)
     if rec.get("coating") in ("enamel", "porcelain_enamel"):
@@ -352,40 +350,41 @@ def accidental_input(w, eid, presses=1):
 # ----------------------------------------------------------------------
 # the pass
 
-def topple_risk(w, surface_id, tool_spec, around):
-    """Sweeping a duster/cloth across a crowded surface knocks over the tippiest fragile item."""
-    if around:
-        return None
+KNOCK_G = 0.15        # a duster or cloth swept across a crowded surface brushes what stands there (TIER1_PHYSICS 13)
+CROWDED = 0.3         # share of a surface's top that standing items cover before a sweeping tool cannot miss them
+
+
+def crowded(w, surface_id):
+    """True when the items standing on a surface cover more than CROWDED of its top."""
     items = S.items_on(w, surface_id)
     if not items:
-        return None
+        return False
     rec = w.ent(surface_id)
     sw, sd = (rec.get("surface_size_m") or (rec.get("size_m") or [1, 1])[:2])[:2]
     used = 0.0
-    tipsy = []
     for item in items:
-        irec = w.ent(item)
-        size = irec.get("size_m") or [0.1, 0.1, 0.1]
+        size = w.ent(item).get("size_m") or [0.1, 0.1, 0.1]
         used += float(size[0]) * float(size[1])
-        slender = float(size[2]) / max(0.01, min(float(size[0]), float(size[1])))
-        if (irec.get("fragile") or "fragile" in irec.get("hazards", [])) and slender >= 2.0:
-            tipsy.append((-slender, item))
-    crowded = used / max(0.01, float(sw) * float(sd)) > 0.3
-    if crowded and tipsy and tool_spec.get("kind") in ("duster", "cloth", "brush"):
-        return sorted(tipsy)[0][1]
-    return None
+    return used / max(0.01, float(sw) * float(sd)) > CROWDED
 
 
-def knock_over(w, item, surface_id):
-    m = w.mut(item)
-    m["orientation"] = "on_side"
-    height = geometry.height_m(w.s, surface_id)
-    S.glog(w, "knocked_over", target=item, surface=surface_id)
-    w.emit("knocked_over", target=item)
-    if m.get("fragile") or "fragile" in m.get("hazards", []):
-        S.break_item(w, item, "knocked over while cleaning around it")
-    w.stat("collisions")
-    return height
+def brush_past(ctx, surface_id, tool_spec, around):
+    """A duster, cloth or brush swept across a crowded surface without working around what stands there jolts every
+    item on it (ctx.knock, KNOCK_G, toward the nearest edge): the kernel decides what tips over, slides or falls and
+    what breaks (slender bud vases and candlesticks topple; a mug does not move). around=True works around them.
+    Returns the items that tipped over or fell (each counts a collision)."""
+    if around or tool_spec.get("kind") not in ("duster", "cloth", "brush") or not crowded(ctx.w, surface_id):
+        return []
+    moved = []
+    for item in S.items_on(ctx.w, surface_id):
+        if item not in ctx.w.s["entities"] or ctx.w.ent(item).get("location") != surface_id:
+            continue
+        result = ctx.knock(item, KNOCK_G, cause="brushed")
+        if result.get("tipped") or result.get("fell"):
+            moved.append(item)
+            ctx.w.stat("collisions")        # the tool hit it (a break is the kernel's breakage on top)
+            S.glog(ctx.w, "knocked_over", target=item, surface=surface_id)
+    return moved
 
 
 def clean_face(ctx, eid, face, action, tool=None, wetness=0.0, force="normal", direction=None, liquid=None,

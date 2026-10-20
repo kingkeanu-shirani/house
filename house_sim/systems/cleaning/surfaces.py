@@ -4,6 +4,8 @@ squeegee, rinse, dry, disinfect, descale, treat_upholstery, scrape.
 Every action works on any entity with a soil dict (counters, tables, doors, windows, appliances,
 fixtures, upholstery, dishes, tools...) using its material/finish, faces and current state.
 """
+import math
+
 from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
@@ -133,22 +135,78 @@ def _tool_classes(w, tool):
     return classes
 
 
+# ----------------------------------------------------------------------
+# the robot's own grippers (TIER1_INTEGRATION 6, body: hand soil is the body's; domains clean it through body.clean_hand)
+
+ROBOT_HANDS = {"robot_hand": "both", "robot_hands": "both", "robot_hand_left": "left", "robot_hand_right": "right"}
+
+
+def robot_hand_target(target):
+    """"left" / "right" / "both" when the target names the robot's own grippers, else None."""
+    return ROBOT_HANDS.get(str(target or "").strip().lower())
+
+
+def clean_robot_hand(ctx, verb, target, tool=None, sink=None):
+    """Wipe, wash or dry the robot's grippers (target robot_hand / robot_hand_left / robot_hand_right). The body owns
+    the coating (body.clean_hand / body.soil_hand): a cloth or sponge wipes every coating off (a damp one leaves a film
+    of water, one carrying cleaner a little soap); washing at a sink's running water rinses everything off and leaves
+    the fingers wet; drying with a towel takes the water off. A hand that holds anything but the tool is refused."""
+    from ...kernel import body
+    w = ctx.w
+    side = robot_hand_target(target)
+    ctx.require_powered()
+    hands = body.HANDS if side == "both" else (side,)
+    held = w.s["robot"].get("hands") or {}
+    for hand in hands:
+        require(held.get(hand) in (None, tool), "Put down what that hand holds first", "precondition")
+    if verb == "wash":
+        require(sink is not None, "Stand at a sink (destination) to wash the grippers", "precondition")
+        for hand in hands:
+            body.clean_hand(w, hand)
+            body.soil_hand(w, hand, "water", 0.6)
+        water_use(w, 1.0 * len(hands))
+        ctx.data["seconds"] = 10.0 + 5.0 * len(hands)
+        return "Washed the robot's {} under the tap (wet)".format(_hand_words(side))
+    if verb == "dry":
+        for hand in hands:
+            body.clean_hand(w, hand, kinds=("water",))
+        if tool:
+            tm = w.mut(tool)
+            tm["wetness"] = S.rnd(M.clamp(float(tm.get("wetness", 0.0) or 0.0) + 0.05 * len(hands)))
+        ctx.data["seconds"] = 4.0 * len(hands)
+        return "Dried the robot's {}".format(_hand_words(side))
+    trec = w.ent(tool)
+    wet = tool_wetness(w, tool)
+    for hand in hands:
+        body.clean_hand(w, hand)
+        if wet >= 0.3:
+            body.soil_hand(w, hand, "water", 0.3)
+        if trec.get("cl_chem"):
+            body.soil_hand(w, hand, "soap", 0.2)
+    S.load_tool(w, tool, 0.05 * len(hands))
+    ctx.data["seconds"] = 6.0 * len(hands)
+    return "{} the robot's {}".format("Scrubbed" if verb == "scrub" else "Wiped", _hand_words(side))
+
+
+def _hand_words(side):
+    return "grippers" if side == "both" else "{} gripper".format(side)
+
+
 def _items_on_check(ctx, target, face, tool, around):
     w = ctx.w
     rec = w.ent(target)
     if face != S.primary_face(rec) and S.faces_of(rec):
         return None
     S.ensure_shadows(w, target, face)
-    victim = E.topple_risk(w, target, S.tool_spec(w.ent(tool)) if tool else {}, around)
-    if victim:
-        E.knock_over(w, victim, target)
-    return victim
+    return E.brush_past(ctx, target, S.tool_spec(w.ent(tool)) if tool else {}, around)
 
 
 def _surface_pass(ctx, verb, kinds_allowed, contact=E.CONTACT_S):
     w = ctx.w
     target = ctx.args["target"]
     tool = S.held_tool(ctx, kinds=kinds_allowed, message="Hold a {}-capable cloth, sponge, pad or brush".format(verb))
+    if robot_hand_target(target):
+        return clean_robot_hand(ctx, verb, target, tool)
     special = apply_floor_or_spill(ctx, target, verb)
     if special is not None:
         return special
@@ -299,7 +357,6 @@ def dose_container(ctx, target, product, amount, strength, classes, bottle=None)
     w = ctx.w
     rec = w.ent(target)
     S.log_product(w, product, target)
-    S.log_product(w, product, target)
     rid = w.root_room(target) or w.robot["room"]
     present = S.solution_classes(rec)
     hazard = M.incompatibility(classes, present) or M.incompatibility(classes, S.residue_of(rec))
@@ -323,15 +380,13 @@ def dose_container(ctx, target, product, amount, strength, classes, bottle=None)
         m["liquid_l"] = capacity
         m["_cl_ref_l"] = capacity
         from . import floors
-        floors.make_spill(w, w.root_room(target), product if product != "water" else "water", over, near=target)
+        floors.make_spill(w, w.root_room(target), product if product != "water" else "water", over, near=target, origin=target)
         w.stat("spills")
     if rec.get("max_fill_l") and float(m["liquid_l"]) > float(rec["max_fill_l"]) + 1e-9:
         m["cl_overfilled"] = True
     if not rec.get("label_text") and S.is_a(rec, "spray_bottle") and product not in ("water",):
         m["cl_unlabeled_contents"] = True
     strength_now = S.strength_of(w.ent(target), product) if product not in ("water", "distilled_water") else 0.0
-    m = w.mut(target)
-    m["cl_strength"] = {p: S.rnd(S.strength_of(m, p), 3) for p in sorted(m.get("cl_chem") or {})}
     m = w.mut(target)
     m["cl_strength"] = {p: S.rnd(S.strength_of(m, p), 3) for p in sorted(m.get("cl_chem") or {})}
     ctx.data["seconds"] = 6.0 + amount / 100.0
@@ -440,7 +495,8 @@ def oily_overspray(ctx, target):
         duration=lambda ctx: ctx.data.get("seconds", 6.0), energy=0.01, noise=0.02, category="physical",
         doc="Wipe a surface face with a held cloth, sponge, paper towel or wipe (damp/dry as the tool is). Loose crumbs go "
             "into `into` (a held dustpan, bin or sink) or fall to the floor. Products on the face act according to how long "
-            "they dwelt. Also wipes up spills and spot-cleans floor cells (cells=[[c,r],...]).")
+            "they dwelt. Also wipes up spills, spot-cleans floor cells (cells=[[c,r],...]) and wipes the robot's own grippers "
+            "(target robot_hand, robot_hand_left or robot_hand_right).")
 def wipe(ctx):
     return _surface_pass(ctx, "wipe", WIPE_TOOLS)
 
@@ -869,13 +925,24 @@ def water_use(w, liters):
     w.stat("water_used_l", liters)
 
 
+def _rinse_time(ctx, default_s):
+    """(seconds, share of a standard rinse): the commanded `seconds` when given (timing "commanded": careful speed does
+    not stretch the time the command states), else the standard rinse of `default_s`."""
+    asked = ctx.args.get("seconds")
+    if asked is None:
+        return float(default_s), 1.0
+    return float(asked), max(0.1, float(asked) / max(1.0, float(default_s)))
+
+
 @action("rinse", params={"target": "entity", "destination": "?entity", "tool": "?entity", "face": FACE_PARAM, "cells": "?list",
                          "temp": "?str:cold|warm|hot", "seconds": {"type": "number", "min": 2, "max": 600, "optional": True},
                          "method": "?str:running|dip"},
-        duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.005, noise=0.05, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.005, noise=0.05, category="physical", timing="commanded",
         doc="Rinse cleaner residue, suds and loosened soil off: a held item under a faucet (destination=sink), a held mop/"
             "cloth/brush/bucket in a sink, a fixed surface with a clean water-damp cloth (tool), a toilet bowl by flushing, a "
-            "tub with its own shower, or outdoor surfaces with a hose nozzle. Uses water; kitchen sinks are for food items only.")
+            "tub with its own shower, outdoor surfaces with a hose nozzle, or the robot's own grippers (robot_hand) at a sink. "
+            "seconds: how long to rinse (default a standard rinse; a shorter one leaves residue). Uses water; kitchen sinks "
+            "are for food items only.")
 def rinse(ctx):
     w = ctx.w
     target = ctx.args["target"]
@@ -883,6 +950,12 @@ def rinse(ctx):
     dest = ctx.args.get("destination")
     tool = ctx.args.get("tool")
     temp = ctx.args.get("temp") or "warm"
+    if robot_hand_target(target):
+        require(dest, "Rinse the grippers at a sink (destination)", "argument")
+        drec = ctx.obj(dest, touch=True)
+        require(drec.get("water_source"), "That has no running water", "precondition")
+        require(physics.water_available(w, dest), "No water at that tap", "resource")
+        return clean_robot_hand(ctx, "wash", target, tool=None, sink=dest)
     trec = w.ent(target) if target in w.s["entities"] else None
     require(trec is not None, "That is not visible here", "perception")
     out = []
@@ -905,9 +978,10 @@ def rinse(ctx):
         dip = ctx.args.get("method") == "dip"
         basin_soapy = dip and S.solution_classes(drec).get("surfactant", 0.0) > 0.15
         faces = E.parse_faces(ctx, trec, ctx.args.get("face"), "rinse_item", held=True)
+        seconds, share = _rinse_time(ctx, 8.0 + 4.0 * len(faces))
         for face in faces:
             if not basin_soapy:
-                E.clean_face(ctx, target, face, "rinse", wetness=1.0, mech=0.25, temp=temp, contact_s=10.0,
+                E.clean_face(ctx, target, face, "rinse", wetness=1.0, mech=0.25, temp=temp, contact_s=10.0 * share,
                              extra_sources=[("surfactant", 0.0, 0.0)])
             out.append(face)
         m = w.mut(target)
@@ -915,9 +989,13 @@ def rinse(ctx):
         if basin_soapy:
             m["cl_suds"] = max(float(m.get("cl_suds", 0.0) or 0.0), 0.5)
             out.append("still soapy (dipped in the wash water)")
-        else:
+        elif share >= 0.5:
             m["cl_suds"] = 0.0
-            S.scale_residue(w, target, 0.1)
+            S.scale_residue(w, target, 0.1 ** min(2.0, share))
+        else:
+            # a quick splash takes only part of the suds and residue off
+            m["cl_suds"] = S.rnd(float(m.get("cl_suds", 0.0) or 0.0) * (1.0 - share))
+            S.scale_residue(w, target, 1.0 - 0.9 * share / 0.5)
         if trec.get("soil_load") is not None or S.tool_spec(trec).get("kind") in ("cloth", "sponge", "mop", "brush", "towel"):
             m["soil_load"] = S.rnd(float(m.get("soil_load", 0.0) or 0.0) * 0.25)
             m["cl_carried"] = {}
@@ -932,25 +1010,27 @@ def rinse(ctx):
         if trec.get("cl_chem") and S.is_liquid_container(trec):
             w.mut(target)["cl_chem"] = {}
         drain_debris(w, dest, trec)
-        if abs(E.hot_surface(w, target)[1] - {"cold": 12.0, "warm": 38.0, "hot": 55.0}[temp]) > float(trec.get("thermal_shock_c") or M.material(trec).get("thermal_shock_c", 999)):
-            thermal_shock(w, target, "rinsed in {} water".format(temp))
+        water_shock(w, target, WATER_C[temp], "rinsed in {} water".format(temp))
         if trec.get("food") and S.residue_of(w.ent(target)).get("surfactant", 0.0) > 0.05:
             S.add_contamination(w, target, "chemical", 0.3)
         liters = 1.5 if trec.get("size_m", [0.2])[0] < 0.4 else 4.0
-        water_use(w, liters * (2.0 if temp == "hot" else 1.0))
-        ctx.data["seconds"] = 8.0 + 4.0 * len(faces)
+        water_use(w, liters * (2.0 if temp == "hot" else 1.0) * share)
+        ctx.data["seconds"] = seconds
         return "Rinsed {} at {} ({})".format(target, dest, ", ".join(out))
-    if S.label_has(trec, "toilet") and not S.label_has(trec, "brush") or trec.get("toilet"):
+    if trec.get("toilet") or trec.get("category") == "toilet":
+        # a toilet is rinsed by flushing: decided by what it is, never by words in a label (a bottle of bowl cleaner or
+        # a plunger is not flushed, and the routing must not tell unread look-alikes apart)
         return flush_rinse(ctx, target)
     if trec.get("water_source") and trec.get("drain"):
         ctx.obj(target, touch=True)
         faces = E.parse_faces(ctx, trec, ctx.args.get("face") or "all", "rinse")
+        seconds, share = _rinse_time(ctx, 20.0 + 5.0 * len(faces))
         for face in faces:
-            E.clean_face(ctx, target, face, "rinse", wetness=1.0, mech=0.3, contact_s=10.0)
-        S.scale_residue(w, target, 0.1)
+            E.clean_face(ctx, target, face, "rinse", wetness=1.0, mech=0.3, contact_s=10.0 * share)
+        S.scale_residue(w, target, 0.1 ** min(2.0, share))
         w.mut(target)["wetness"] = 0.8
-        water_use(w, 8.0)
-        ctx.data["seconds"] = 20.0 + 5.0 * len(faces)
+        water_use(w, 8.0 * share)
+        ctx.data["seconds"] = seconds
         return "Rinsed {} with its own tap/shower".format(target)
     tool = S.held_tool(ctx, kinds=("cloth", "towel", "sponge", "hose"), predicate=lambda r: bool(r.get("spray_water")),
                        message="Rinse at a sink (destination), or hold a cloth dampened with clean water or a hose nozzle")
@@ -978,25 +1058,27 @@ def rinse(ctx):
         require(S.realistic(ctx) or not soapy, "That cloth still holds cleaner; rinse it out first", "precondition")
     cloth_classes = _tool_classes(w, tool) if soapy else {}
     faces = E.parse_faces(ctx, rec, ctx.args.get("face"), "rinse")
+    seconds, share = _rinse_time(ctx, 5.0 + len(faces) * E.area_of(rec) / (0.3 if not hose else 0.6))
     for face in faces:
         E.check_face_access(ctx, target, face, tool)
-        E.clean_face(ctx, target, face, "rinse", tool=tool, wetness=1.0 if hose else 0.5, mech=0.3 if not hose else 0.45, contact_s=10.0)
+        E.clean_face(ctx, target, face, "rinse", tool=tool, wetness=1.0 if hose else 0.5, mech=0.3 if not hose else 0.45,
+                     contact_s=10.0 * share)
         if soapy:
             S.add_residue(w, target, cloth_classes, 0.2)
             S.add_face_soil(w, target, face, "streaks", 0.15)
         else:
-            S.scale_residue(w, target, 0.1)
+            S.scale_residue(w, target, 0.1 ** min(2.0, share))
         if hose:
             E.check_water(w, target, 0.85, "hose")
     if hose:
         from . import floors
         floors.hose_runoff(ctx, target)
-        water_use(w, 15.0)
+        water_use(w, 15.0 * share)
         w.mut(target)["wetness"] = 0.9
     else:
         E.check_water(w, target, float(trec_tool.get("wetness", 0.0) or 0.0), "rinse cloth")
         S.load_tool(w, tool, 0.05)
-    ctx.data["seconds"] = 5.0 + len(faces) * E.area_of(rec) / (0.3 if not hose else 0.6)
+    ctx.data["seconds"] = seconds
     return "Rinsed {} ({})".format(target, ", ".join(faces))
 
 
@@ -1006,13 +1088,30 @@ def drain_debris(w, sink, item_rec):
         deposit_waste(w, sink, {"hair": hair})
 
 
-def thermal_shock(w, eid, note):
+WATER_C = {"cold": 12.0, "warm": 38.0, "hot": 55.0}
+WARP_METALS = ("aluminum", "burnished_aluminum", "nonstick", "stainless", "stainless_steel", "carbon_steel", "metal",
+               "copper")
+WARP_LIMIT_K = 150.0     # a thin metal pan plunged hot into water warps (the kernel rates no thermal shock for metals)
+
+
+def water_shock(w, eid, water_c, note):
+    """An item meeting tap or basin water at water_c degC (TIER1_PHYSICS 10.3: the thermal shock is the kernel's).
+    Anything with a thermal-shock tolerance (glass, ceramics, stoneware, crystal, cast iron, enamel; a record's own
+    thermal_shock_c) goes through physics.shock_check: the materials.json tolerance with per-instance variation and the
+    immersion coupling (1.0 into colder water, 0.6 into hotter); it cracks (or chips, enamel) as a kernel break. Thin
+    metal cookware, which the kernel does not rate, warps when it meets water more than WARP_LIMIT_K away from its own
+    temperature (cleaning-owned: plastic deformation, not cracking). Returns True when it failed."""
+    from ...kernel.phys import thermal
     rec = w.ent(eid)
+    item_c = float(rec.get("temperature_c", 21.0) or 21.0)
+    limit = physics.props(w.s, eid).shock_k
+    if isinstance(limit, (int, float)) and math.isfinite(limit):
+        return thermal.shock_check(w, eid, water_c, thermal.liquid_coupling(item_c, water_c), by="robot")
     key = M.material_key(rec)
-    if key in ("glass", "tempered_glass", "crystal", "china", "ceramic", "gold_rim_china") or rec.get("fragile"):
-        S.break_item(w, eid, "thermal shock: " + note)
-    else:
+    if (key in WARP_METALS or rec.get("coating") == "nonstick") and abs(item_c - float(water_c)) > WARP_LIMIT_K:
         S.damage(w, eid, "warped", 0.5, "thermal shock: " + note)
+        return True
+    return False
 
 
 def flush_rinse(ctx, toilet):
@@ -1050,13 +1149,16 @@ def toilet_flushed(w, toilet):
 
 @action("dry", params={"target": "entity", "tool": "?entity", "face": FACE_PARAM, "cells": "?list", "method": "?str:towel|buff|heat"},
         duration=lambda ctx: ctx.data.get("seconds", 8.0), energy=0.005, category="physical",
-        doc="Towel-dry (or buff dry) an item, surface face or floor cells with a clean, dry towel/cloth; prevents water spots "
-            "and rust and lets things be stored. A saturated or dirty towel just moves water and dirt around. method=heat "
+        doc="Towel-dry (or buff dry) an item, surface face, floor cells or the robot's own grippers (robot_hand) with a clean, "
+            "dry towel/cloth; prevents water spots and rust and lets things be stored. A saturated or dirty towel just moves water and dirt around. method=heat "
             "dries by a heat source (fine for cast iron/ceramic; cracks leather, warps plastic).")
 def dry(ctx):
     w = ctx.w
     target = ctx.args["target"]
     method = ctx.args.get("method") or "towel"
+    if robot_hand_target(target):
+        tool = S.held_tool(ctx, kinds=("cloth", "towel", "paper"), message="Hold a clean, dry towel or cloth")
+        return clean_robot_hand(ctx, "dry", target, tool)
     trec = w.ent(target) if target in w.s["entities"] else None
     require(trec is not None, "That is not visible here", "perception")
     if method == "heat":
@@ -1129,7 +1231,8 @@ def disinfect(ctx):
     if S.realistic(ctx) and product is not None and (product not in M.DISINFECTANTS or
                                                      (product == "bleach" and S.is_liquid_container(trec) and strength < 0.5)):
         # realistic perception: the robot cannot tell what an unread or unlabeled bottle holds, and a refusal would tell
-        # it; it sprays (or wipes on) whatever is in it - the product dwells and reacts as it would, but kills nothing
+        # it; it sprays (or wipes on) whatever is in it - the product dwells and reacts as it would, but kills nothing,
+        # and the message and the time are those of a real disinfection (they must not tell the bottles apart either)
         return _disinfect_with_other(ctx, target, tool, trec, product, strength)
     require(product in M.DISINFECTANTS, "{} is not a registered disinfectant".format((product or "That").replace("_", " ")), "precondition")
     if product == "bleach" and S.is_liquid_container(trec):
@@ -1138,16 +1241,18 @@ def disinfect(ctx):
     require(rec is not None, "That is not visible here", "perception")
     if S.is_floor(rec) or S.is_stairs(rec) or rec.get("category") == "spill":
         from . import floors
-        return floors.disinfect_floor(ctx, target, product, strength, tool, bottle=tool)
+        result = floors.disinfect_floor(ctx, target, product, strength, tool, bottle=tool)
+        _use_disinfectant(w, tool, trec, 1)
+        return result
     E.reach_target(ctx, target, tool)
     wipe_like = S.tool_spec(trec).get("kind") in ("wipe", "cloth", "towel", "sponge", "paper") or ctx.args.get("method") == "wipe"
     method = "wipe" if wipe_like else "spray"
     faces = E.parse_faces(ctx, rec, ctx.args.get("face"), "disinfect", held=target in w.held_items())
+    _use_disinfectant(w, tool, trec, len(faces))
     classes = {c: p * min(1.5, strength) for c, p in M.product_classes(product).items()}
     pinfo = M.PRODUCTS[product]
     t = S.now(w)
     rid = w.root_room(target) or w.robot["room"]
-    S.log_product(w, product, target)
     S.log_product(w, product, target)
     for face in faces:
         E.check_face_access(ctx, target, face, tool)
@@ -1174,19 +1279,33 @@ def disinfect(ctx):
         m.setdefault("cl_applied", []).append({"p": product, "face": face, "t": t, "wet_until": t + wet_s, "s": S.rnd(strength, 3),
                                                "ml": 10.0, "method": method, "kill_s": pinfo["kill_s"]})
         E.check_face_liquid(w, target, face, 0.6 if method == "spray" else 0.3, classes, product)
-        E.check_face_liquid(w, target, face, 0.6 if method == "spray" else 0.3, classes, product)
         S.add_residue(w, target, classes, 0.4)
     if S.tool_spec(trec).get("kind") == "wipe" and trec.get("count") is not None:
         w.mut(tool)["count"] = max(0, int(trec["count"]) - max(1, len(faces)))
     if method == "spray":
         overspray(ctx, target, product, 10.0, classes)
     S.add_fumes(w, rid, float(pinfo.get("fumes", 0.0)) * 0.1 * len(faces))
-    ctx.data["seconds"] = 3.0 + 3.0 * len(faces)
+    ctx.data["seconds"] = disinfect_seconds(len(faces))
     if S.realistic(ctx):
         # the contact time is on the label: known only from a label the robot has read
         contact = "; contact time {} s".format(pinfo["kill_s"]) if trec.get("label_text") and S.knows(ctx, tool, "read") else ""
         return "Applied {} to {} ({}){}".format(S.product_text(ctx, product, tool), target, ", ".join(faces), contact)
     return "Applied {} to {} ({}); contact time {} s".format(product.replace("_", " "), target, ", ".join(faces), pinfo["kill_s"])
+
+
+def disinfect_seconds(faces):
+    """Time of a disinfection pass over `faces` faces: the same whatever the bottle held (realistic perception)."""
+    return 3.0 + 3.0 * faces
+
+
+DISINFECT_ML = 10.0      # what one wetting of a face (or a floor patch) takes from a bottle
+
+
+def _use_disinfectant(w, tool, trec, applications):
+    """Take what the applications used out of a bottle or a refill (wipes count their sheets instead; a loaded cloth
+    carries its own)."""
+    if (trec.get("product") or S.is_liquid_container(trec)) and S.tool_spec(trec).get("kind") != "wipe":
+        take_from_bottle(w, tool, DISINFECT_ML * max(1, applications))
 
 
 def _disinfect_with_other(ctx, target, tool, trec, product, strength):
@@ -1200,15 +1319,25 @@ def _disinfect_with_other(ctx, target, tool, trec, product, strength):
         from . import floors
         if rec.get("category") == "spill":
             ctx.obj(target, touch=True)
-            return "Sprayed {} onto {}".format(S.product_text(ctx, product, tool), target)
-        if trec.get("product") or S.is_liquid_container(trec):
-            take_from_bottle(w, tool, 10.0)
-        return floors.apply_to_floor(ctx, target, product, 10.0, strength, classes, bottle=tool)
+            _use_disinfectant(w, tool, trec, 1)
+            m = w.mut(target)
+            m.setdefault("cl_applied", []).append({"p": product, "face": "main", "t": S.now(w), "wet_until": S.now(w) + 600,
+                                                   "s": S.rnd(strength, 3)})
+            S.watch(w, "chem", target)
+            ctx.data["seconds"] = floors.SPILL_DISINFECT_S
+            return floors.spill_disinfect_text(ctx, product, tool)
+        keys = floors.disinfect_cells(ctx, target)
+        _use_disinfectant(w, tool, trec, 1)
+        message = floors.apply_to_floor(ctx, target, product, DISINFECT_ML, strength, classes, bottle=tool, keys=keys)
+        ctx.data["seconds"] = floors.floor_disinfect_seconds(len(keys))
+        return message
     E.reach_target(ctx, target, tool)
     wipe_like = S.tool_spec(trec).get("kind") in ("wipe", "cloth", "towel", "sponge", "paper") or ctx.args.get("method") == "wipe"
-    if trec.get("product") or S.is_liquid_container(trec):
-        take_from_bottle(w, tool, 10.0)
-    return apply_to_face(ctx, target, product, 10.0, strength, classes, "squeeze" if wipe_like else "spray", bottle=tool)
+    faces = E.parse_faces(ctx, rec, ctx.args.get("face"), "disinfect", held=target in w.held_items())
+    _use_disinfectant(w, tool, trec, len(faces))
+    apply_to_face(ctx, target, product, DISINFECT_ML, strength, classes, "squeeze" if wipe_like else "spray", bottle=tool)
+    ctx.data["seconds"] = disinfect_seconds(len(faces))
+    return "Applied {} to {} ({})".format(S.product_text(ctx, product, tool), target, ", ".join(faces))
 
 
 @action("descale", params={"target": "entity", "tool": "?entity", "method": "?str:fill|wrap|spray|paste",
@@ -1343,23 +1472,6 @@ def scrape(ctx):
     if S.is_floor(rec):
         from . import floors
         return floors.scrape_floor(ctx, target, tool)
-    if part == "sticker":
-        require(rec.get("has_sticker"), "There is no sticker on it", "argument")
-        m = w.mut(target)
-        m["has_sticker"] = False
-        sticker = w.spawn("waste_item", w.robot["room"], label="produce sticker", waste_kind="plastic", form="film", size_m=[0.02, 0.015, 0.001], volume_l=0.001)
-        sm = w.mut(sticker)
-        sm["pos"] = list(w.robot.get("pos") or [0, 0])
-        dest = ctx.args.get("destination")
-        if dest:
-            ctx.obj(dest, touch=True)
-            sm["location"], sm["relation"] = dest, "in"
-            sm.pop("pos", None)
-            from . import waste
-            if S.is_waste_container(w.ent(dest)):
-                waste.judge(w, sticker, dest)
-        ctx.data["seconds"] = 6.0
-        return "Peeled the sticker off {}".format(target)
     if part == "sticker":
         require(rec.get("has_sticker"), "There is no sticker on it", "argument")
         m = w.mut(target)

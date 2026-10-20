@@ -10,7 +10,7 @@ alerts {issue: {...}}, received {message key: {...}}, inbox (phone texts).
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import require
 from ...kernel.plugins import hook
@@ -26,6 +26,7 @@ SERVICES = {"emergency": "911", "poison_control": "poison control", "non_emergen
             "doctor": "family doctor", "pharmacy": "pharmacy", "plumber": "plumber", "electrician": "electrician",
             "locksmith": "locksmith", "building_manager": "building manager"}
 EMERGENCY_RESPONSE_S = 480.0
+PHONE_RING_DB = 62.0          # a ringing phone at 1 m
 
 
 # ----------------------------------------------------------------------
@@ -152,6 +153,8 @@ def _invited(state, pid):
 def _robot_spoke(ctx, entry):
     w = ctx.w
     state = w.s
+    if entry.get("audible") is False:
+        return          # through a failed speaker (core say(): audible False) the robot made no sound: nobody heard it
     kind = entry.get("kind")
     text = entry.get("text", "")
     house_wide = kind == "announce"
@@ -168,6 +171,25 @@ def _robot_spoke(ctx, entry):
     for pid in listeners:
         if to in (None, pid) or house_wide:
             deliver_content(w, pid, text, "announce" if house_wide else "voice")
+
+
+@hook("report_delivered")
+def _report_delivered(w, record, pid, channel):
+    """Who heard a typed report told in person (kernel reports.deliver; DIALOGUE.md "Delivery"): the robot's voice
+    reaches them by people's own hearing model (senses.registers_speech: awake, hearing, the distance in the room, a
+    hearing aid, the robot's quiet voice), through a working speaker; telling someone on a call or in an argument is an
+    interruption, as for any robot speech. The other channels keep the kernel's rules (None)."""
+    state = w.s
+    if channel != "in_person" or pid not in state.get("people", {}):
+        return None
+    heard = body.can_speak(state) and S.registers_speech(state, pid)
+    if body.can_speak(state):
+        S.robot_sound(w, C.speech_level(state), "report")
+    if heard:
+        text = " ".join(str(record.get(k)) for k in ("kind", "issue", "state", "detail") if record.get(k))
+        _record_heard(w, pid, "report", text, pid)
+        _interruptions(w, "report", [pid], pid)
+    return {"heard": bool(heard), "how": "voice"}
 
 
 # ----------------------------------------------------------------------
@@ -346,9 +368,14 @@ def alert(ctx):
     text = ctx.args.get("text") or "{}: {}{}".format(urgency, issue, " in " + where if where else "")
     where_ok = None if room is None else (where is not None and (where == room or C.room_mentioned(state, where, room)))
     if channel in ("in_person", "intercom"):
-        S.robot_sound(w, C.speech_level(state) if channel == "in_person" else C.INTERCOM_DB, "alert_" + channel)
-        if channel == "intercom" and reaches:
-            S.add_sound(w, p.get("location"), C.person_xy(p), C.INTERCOM_DB, "intercom", robot_caused=True)
+        # the robot's own voice (in person, or into the intercom's microphone): through a failed speaker nobody hears
+        # it, and the robot cannot tell beforehand (the alert still "goes out"; the missing answer is the cue)
+        if C.robot_voice(w):
+            S.robot_sound(w, C.speech_level(state) if channel == "in_person" else C.INTERCOM_DB, "alert_" + channel)
+            if channel == "intercom" and reaches:
+                S.add_sound(w, p.get("location"), C.person_xy(p), C.INTERCOM_DB, "intercom", robot_caused=True)
+        else:
+            reaches = False
     received, content_ok, woke = perceive(w, pid, channel, urgency) if reaches else (False, False, False)
     audience = _audience_for(state, pid, channel) if reaches else []
     if sensitive:
@@ -409,7 +436,10 @@ def relay_message(ctx):
     messages = C.user_sim(state).get("messages") or {}
     urgent = bool(messages.get(key, {}).get("urgent")) if key else False
     if channel in ("in_person", "intercom"):
-        S.robot_sound(w, C.speech_level(state) if channel == "in_person" else C.INTERCOM_DB, "relay")
+        if C.robot_voice(w):
+            S.robot_sound(w, C.speech_level(state) if channel == "in_person" else C.INTERCOM_DB, "relay")
+        else:
+            reaches = False         # a failed speaker: the relayed words make no sound
     if channel == "phone":
         m = w.person_m(pid)
         inbox = list(m.get("inbox") or [])
@@ -466,8 +496,11 @@ def call(ctx):
         handset = next((e for e in sorted(state["entities"]) if state["entities"][e].get("phone_of") == target), None)
         if handset and state["entities"][handset].get("location") != target:
             room, x, y = C.entity_xy(state, handset)
-            S.add_sound(w, room, (x, y), 62.0 if not state["entities"][handset].get("silent") else 0.0, "phone_ringing", robot_caused=True)
+            silent = bool(state["entities"][handset].get("silent"))
+            S.add_sound(w, room, (x, y), PHONE_RING_DB if not silent else 0.0, "phone_ringing", robot_caused=True)
             C.plog(w)["ringing"] = {"phone": handset, "room": room, "time_s": C.now_s(state)}
+            if not silent and room in state.get("rooms", {}):
+                w.notice("phone", room=room, db=PHONE_RING_DB, source=handset)    # "which one rings" is heard
             C.log_event(w, "calls", target=target, rang=handset, answered=False)
             ctx.data["seconds"] = 20.0
             return {"called": target, "answered": False, "ringing": True}
@@ -602,6 +635,12 @@ def wake(ctx):
     if method == "light":
         require(_room_light_control(state) is not None, "No light you can switch on in this room", "precondition")
     if method in ("voice", "alarm"):
+        if not C.robot_voice(w):
+            # the robot's speaker failed: no voice, no alarm tone, nobody wakes (the robot cannot tell beforehand)
+            C.log_event(w, "wake_attempts", person=pid, method=method, audible=False)
+            if ctx.realistic:
+                return {"wake": pid, "method": method}
+            return {"woken": None, "method": method, "audible": False}
         S.robot_sound(w, 62.0 if method == "voice" else 75.0, "wake_" + method)
     request = p.get("wake_request") or {}
     window_ok = False
@@ -629,4 +668,7 @@ def wake(ctx):
             for controlled in w.ent(control).get("controls") or []:
                 if controlled in state["entities"]:
                     w.mut(controlled)["on"] = True
+    if ctx.realistic:
+        # whether the wake was wanted is the person's hidden request (and whether they woke shows in how they respond)
+        return {"wake": pid, "method": method}
     return {"woken": pid, "method": method, "wanted": wanted}

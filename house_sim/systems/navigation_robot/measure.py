@@ -221,8 +221,9 @@ def measure(ctx):
         require(state["robot"]["room"] in state["connections"][target]["rooms"], "Go to that doorway first", "precondition")
     else:
         raise ActionError("Unknown thing to measure", "argument")
+    # reading the tape needs the cameras (the body's imaging: switched on, no privacy mode, no room policy, working)
+    ctx.require_imaging()
     require(C.light_level(state, state["robot"]["room"]) >= 0.2 or C.robot_has_light(state), "Too dark to read a measurement", "perception")
-    require(not state["robot"].get("privacy_mode"), "Cameras are off (privacy mode)", "perception")
     tool_id, trec = instrument(ctx, ctx.args.get("tool"))
     method = ctx.args.get("method")
     if method in (None, "tape", "laser"):
@@ -320,7 +321,7 @@ def check_level(ctx):
     state = w.s
     target = ctx.args["target"]
     rec = ctx.obj(target, touch=True)
-    require(not state["robot"].get("privacy_mode"), "Cameras are off (privacy mode)", "perception")
+    ctx.require_imaging()       # the bubble (or the eyeballed tilt) is read with the cameras
     tool = None
     for eid in ([ctx.args["tool"]] if ctx.args.get("tool") else w.held_items()):
         if eid and ctx.holding(eid) and (w.ent(eid).get("tool_kind") == "spirit_level" or "check_level" in (w.ent(eid).get("affordances") or [])):
@@ -385,17 +386,33 @@ def mark(ctx):
     return "Marked {} at {:.3f} m".format(target, height)
 
 
-@system("navigation_robot.leveling", order=118, max_dt=30.0)
+def _is_leveled(rec):
+    return bool(rec.get("leveling"))
+
+
+def _walks(rec):
+    """A running appliance on leveling feet that is out of level, rocks or has loose lock nuts walks."""
+    if (rec.get("appliance") or {}).get("state") != "running":
+        return False
+    tilt, wobble = compute_level(rec)
+    loose = (rec.get("settings") or {}).get("lock_nuts", "locked") != "locked"
+    return not (max(abs(tilt[0]), abs(tilt[1])) <= 1.0 and wobble <= 1.0 and not loose)
+
+
+def leveling_idle(w):
+    """Exact idle probe of navigation_robot.leveling (kernel v3.1): no running appliance on leveling feet walks."""
+    entities = w.s["entities"]
+    return not any(_walks(entities[eid]) for eid in C.ids_with(w, "leveled", _is_leveled))
+
+
+@system("navigation_robot.leveling", order=118, max_dt=30.0, idle=leveling_idle)
 def leveling_system(w, dt, tick):
     state = w.s
-    for eid in C.ids_with(w, "leveled", lambda r: bool(r.get("leveling"))):
+    for eid in C.ids_with(w, "leveled", _is_leveled):
         rec = state["entities"][eid]
-        if (rec.get("appliance") or {}).get("state") != "running":
+        if not _walks(rec):
             continue
-        tilt, wobble = compute_level(rec)
-        loose = (rec.get("settings") or {}).get("lock_nuts", "locked") != "locked"
-        if max(abs(tilt[0]), abs(tilt[1])) <= 1.0 and wobble <= 1.0 and not loose:
-            continue
+        _, wobble = compute_level(rec)
         m = w.mut(eid)
         before_mm = C.num(m.get("_walked_mm"))
         m["_walked_mm"] = round(before_mm + 2.0 * dt / 30.0 * (1.0 + wobble / 3.0), 2)

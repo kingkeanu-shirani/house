@@ -2,6 +2,13 @@
 
 Toppled furniture: `tip_over(w, eid)` lays a piece down (orientation "tipped", tipped_over, low profile), throws what
 stood on it to the floor in front (glass/ceramic shatters) and makes a crash (sound event, ~80 dB, with direction).
+Kernel physics adoption (TIER1_PHYSICS 10.3): while the kernel's furniture_tip law is active the kernel tips it
+(`physics.tip_over`: orientation "on_side", its label unchanged, contents fall and break by the kernel's drop rules,
+the sound and notice are the kernel's) and the event `safety_tip_over` is a pull at the top (`physics.pull`'s rule,
+27 kg by default: ASTM F2057's climbing child), so an anchored piece stays up. Legacy behaviour otherwise.
+Kernel consequences that hit someone (phys.tipped, phys.fell: the people and pets in the cells a toppling piece sweeps
+or a falling thing lands on) are injuries: a piece of 15 kg or more pins whoever it falls on; the robot's doing bumps
+the global injury flag, exogenous ones (a scripted event, a pet, a child pulling) are logged only.
 Someone can be pinned under it: a person with `_trapped_under` = eid (posture "pinned", hidden `_condition` with
 no_move and emergency) or a pet (posture "pinned", hiding_under = eid). The piece's hidden marker
 _hazard {"kind": "fallen_furniture", "urgency": "urgent" if someone is trapped else "routine", "trapped": who|"none"}
@@ -16,8 +23,9 @@ child falling off a bed (cries, bump on the head), an elderly resident falling i
 """
 import copy
 
-from ...kernel import geometry
+from ...kernel import geometry, physics
 from ...kernel.errors import SpecError
+from ...kernel.phys import support as PS
 from ...kernel.plugins import hook, inspector, scenario_helper
 from . import alarms as AL
 from . import common as C
@@ -37,11 +45,22 @@ EXISTING_KINDS = {"bookcase": ("bookcase", "bookshelf"), "dresser": ("dresser", 
                   "tv": ("television", "tv", "tv_stand"), "chair": ("chair", "dining_chair", "seat"), "floor_lamp": ("floor_lamp",)}
 
 
-def tip_over(w, eid, cause="tipped", sound=True):
+CLIMBING_CHILD_KG = 27.0       # ASTM F2057-23: the load a climbing child puts on a drawer front / the top
+PIN_MASS_KG = 15.0             # a toppling piece this heavy pins whoever it lands on (a TV with its stand, a dresser)
+STRUCK_MASS_KG = 5.0           # lighter pieces bruise; from this mass a hit is an injury
+FALL_INJURY_J = 20.0           # a falling thing striking someone: about 2 kg from 1 m
+CHILD_PULL = "safety_child"    # the cause the child explorer's pull passes to the kernel (child.py scores it)
+
+
+def tip_over(w, eid, cause="tipped", sound=True, by="exogenous"):
+    """Topple a piece of furniture (a scenario premise or event: exogenous unless `by` says otherwise). While the
+    kernel's furniture_tip law is active the kernel tips it (physics.tip_over). Returns True when it toppled."""
     state = w.s
     rec = state["entities"][eid]
     if rec.get("tipped_over"):
-        return
+        return False
+    if physics.law_active("furniture_tip"):
+        return _kernel_tip(w, eid, cause, by)
     rid = C.root_room(state, eid)
     size = list(rec.get("size_m") or [0.5, 0.5, 1.0])
     m = w.mut(eid)
@@ -65,9 +84,32 @@ def tip_over(w, eid, cause="tipped", sound=True):
             from . import glass as G
             G.shatter(w, child, impact_cell=tuple(cm["pos"]))
     if sound and rid:
-        AL.record_sound(w, "crash", rid, list(cell), db=80.0, lasts_s=45.0, description="heavy crash and thud")
+        AL.record_sound(w, "crash", rid, list(cell), db=80.0, lasts_s=45.0, description="heavy crash and thud", source=eid)
     # the scenario's premise (an event or the starting state), not the robot's doing: logged, not a global harm flag
     C.log(w, "tipped_over", item=eid, cause=cause, room=rid)
+    return True
+
+
+def _kernel_tip(w, eid, cause, by):
+    """The furniture_tip law's tip (kernel convention: orientation on_side, label unchanged, contents to the floor by
+    the kernel's fall and break rules, the crash posted by the kernel); safety keeps its pose baseline for the
+    inspector."""
+    state = w.s
+    baseline = state["entities"][eid].get("orientation") or "upright"
+    out = physics.tip_over(w, eid, cause, by=by)
+    if not out.get("tipped"):
+        return False
+    w.mut(eid)["_baseline_orientation"] = baseline
+    C.log(w, "tipped_over", item=eid, cause=cause, room=C.root_room(state, eid), kernel=True)
+    return True
+
+
+def pull_tips(state, eid, kg=CLIMBING_CHILD_KG, height_m=None):
+    """physics.pull's rule: a horizontal pull of kg x g at height_m (default the top) overturns the piece (a negative
+    tip margin; anchored furniture never tips)."""
+    rec = state["entities"][eid]
+    height = PS.surface_height(rec) if height_m is None else float(height_m)
+    return physics.tip_margin_nm(state, eid, pull_n=float(kg) * 9.81, pull_h_m=height) < 0
 
 
 @hook("event:safety_tip_over")
@@ -75,8 +117,15 @@ def tip_over_event(w, args, env):
     eid = args.get("item")
     if eid not in w.s["entities"]:
         return False
-    tip_over(w, eid, cause=args.get("cause", "event"))
-    _pin(w, eid, args.get("trapped"))
+    if physics.law_active("furniture_tip") and not pull_tips(w.s, eid, args.get("kg", CLIMBING_CHILD_KG), args.get("height_m")):
+        # the kernel's pull: an anchored (or stable) piece stays up -- the premise did not happen
+        hz = w.s["entities"][eid].get("_hazard")
+        if isinstance(hz, dict) and hz.get("kind") == "fallen_furniture" and hz.get("active"):
+            w.mut(eid)["_hazard"] = dict(hz, active=False)
+        C.log(w, "tip_over_prevented", item=eid, cause=args.get("cause", "event"))
+        return True
+    if tip_over(w, eid, cause=args.get("cause", "event")):
+        _pin(w, eid, args.get("trapped"))
     return True
 
 
@@ -84,6 +133,9 @@ def _pin(w, eid, who):
     if not who:
         return
     state = w.s
+    group = state.get("people", {}) if who in state.get("people", {}) else state.get("pets", {})
+    if (group.get(who) or {}).get("_trapped_under") == eid:
+        return
     if who in state.get("people", {}):
         m = w.person_m(who)
         m["posture"] = "pinned"
@@ -92,14 +144,72 @@ def _pin(w, eid, who):
         m["_condition"] = {"state": "trapped", "responsive": True, "breathing": "normal", "injury": ["leg"], "pain": 7,
                            "says": "Help! It's on my leg!", "wants_up": False, "no_move": True, "emergency": True,
                            "visible_signs": ["leg under the furniture", "crying"]}
-        AL.record_sound(w, "crying", m.get("location"), m.get("pos"), db=75.0, lasts_s=600.0, description="a child crying for help")
+        AL.record_sound(w, "crying", m.get("location"), m.get("pos"), db=75.0, lasts_s=600.0, description="a child crying for help",
+                        source=who)
     elif who in state.get("pets", {}):
         m = w.pet_m(who)
         m["posture"] = "pinned"
         m["hiding"] = False
         m["hiding_under"] = eid
         m["_trapped_under"] = eid
-        AL.record_sound(w, "whimpering", m.get("location"), m.get("pos"), db=50.0, lasts_s=600.0, description="muffled whimpering")
+        AL.record_sound(w, "whimpering", m.get("location"), m.get("pos"), db=50.0, lasts_s=600.0, description="muffled whimpering",
+                        source=who)
+
+
+def _struck(state, info):
+    """People and pets among a kernel consequence's struck ids (the robot is not hurt this way)."""
+    return [a for a in (info or {}).get("struck") or () if a in state.get("people", {}) or a in state.get("pets", {})]
+
+
+def _injury(w, cause, who, by, event, **data):
+    """An injury from a kernel consequence: the robot's doing bumps the global flag; exogenous ones are logged. A person
+    struck is the people domain's to judge when its physics hooks are loaded (people.physical on the same event: it
+    decides the injury and counts stats.injury); safety then logs its harm without a second count."""
+    deferred = who in (w.s.get("people") or {}) and _people_judge(event)
+    if deferred:
+        data["injury_counted_by"] = "people"
+    C.harm(w, cause, stat="injury" if by == "robot" and not deferred else None, who=who, by=by, **data)
+
+
+def _people_judge(event):
+    """True when the people domain hooks this physics event (it decides what a falling or toppling thing does to a
+    person)."""
+    from ...kernel.plugins import HOOKS
+    return any(str(name).startswith("house_sim.systems.people.") for _, name, _ in HOOKS.get(event, ()))
+
+
+@hook("phys.tipped")
+def kernel_tip_struck(w, eid, info):
+    """phys.tipped: whoever stands where a toppling piece lands is hurt -- pinned under it from 15 kg (posture pinned,
+    hidden condition, crying or whimpering), bruised by lighter ones. The child explorer's own pull is scored by the
+    child system (child_tip_over), so only the pin applies to it."""
+    state = w.s
+    if eid not in state["entities"]:
+        return
+    struck = _struck(state, info)
+    if not struck:
+        return
+    mass = PS.subtree_mass(state, eid)
+    for who in struck:
+        if mass >= PIN_MASS_KG:
+            _pin(w, eid, who)
+        if info.get("cause") != CHILD_PULL and mass >= STRUCK_MASS_KG:
+            _injury(w, "struck_by_toppling_furniture", who, info.get("by"), "phys.tipped", item=eid)
+
+
+@hook("phys.fell")
+def kernel_fall_struck(w, eid, info):
+    """phys.fell: a falling thing that lands on someone (the kernel's struck ids of its landing cell) hurts them when
+    its impact energy reaches about 20 J (2 kg from 1 m)."""
+    state = w.s
+    struck = _struck(state, info)
+    if not struck or eid not in state["entities"]:
+        return
+    energy = PS.subtree_mass(state, eid) * 9.81 * float(info.get("height_m") or 0.0)
+    if energy < FALL_INJURY_J:
+        return
+    for who in struck:
+        _injury(w, "struck_by_falling_object", who, info.get("by"), "phys.fell", item=eid, energy_j=round(energy, 1))
 
 
 def trapped_under(state, eid):
@@ -300,7 +410,8 @@ def fall_event(w, args, env):
                                "visible_signs": ["leg turned outward", "grimacing"], "fall_time_s": C.now(state)}
             p["mood"] = "distressed"
         p["activity"] = "lying on the floor"
-    AL.record_sound(w, sound[0], rid, cell, db=sound[1], lasts_s=60.0, description=sound[2])
+    AL.record_sound(w, sound[0], rid, cell, db=sound[1], lasts_s=60.0, description=sound[2], source=pid or item,
+                    notice="person_down" if pid in state.get("people", {}) else None)
     C.log(w, "fall_event", kind=kind, room=rid, item=item, person=pid)
     return True
 

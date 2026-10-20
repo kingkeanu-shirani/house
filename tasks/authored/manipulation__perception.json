@@ -4,7 +4,7 @@
       "catalog_id": "A-a67431128da2e1-01",
       "title": "Find something heavy enough to hold the papers down",
       "perception": "realistic",
-      "house": {"dwelling": "house", "require": ["patio"], "residents": "minimal", "pets": "none", "start": "2026-10-09T11:00:00"},
+      "house": {"dwelling": "house", "require": ["patio"], "residents": "minimal", "pets": "none", "start": "2026-10-09T11:00:00", "gen": 2},
       "setup": [
         {"op": "room", "var": "pat", "type": "patio"},
         {"op": "helper", "name": "manipulation.furniture",
@@ -15,7 +15,7 @@
         {"op": "spawn", "var": "mug", "type": "generic_item", "on": "{tbl}",
          "props": {"label": "ceramic mug", "category": "mug", "material": "ceramic", "mass_kg": 0.35, "size_m": [0.12, 0.09, 0.1],
                    "container": true, "capacity_l": 0.35}},
-        {"op": "weather", "wind_mps": 2.0},
+        {"op": "weather", "wind_mps": 2.0, "gust_mps": 2.5},
         {"op": "event", "at_s": 300, "changes": {"weather.wind_mps": 6.5}, "effect": "manipulation.gust", "args": {"mps": 7.5, "room": "{pat}"}},
         {"op": "robot", "room": "{pat}", "near": "{tbl}"}
       ],
@@ -52,7 +52,7 @@
         {"do": "support", "target": "{stone_b}", "mode": "heft"},
         {"do": "pick_up", "target": "{heavy}"},
         {"do": "place", "target": "{heavy}", "destination": "{papers}"},
-        {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+        {"do": "wait", "seconds": 420, "note": "past the 300 s gust: an agent-legal wait on its own clock (M-WAITS)"}
       ],
       "wrong": [
         {"name": "goes by looks: the two smooth stones look identical at a glance and up close, so it takes one without feeling its weight and gets the hollow resin replica",
@@ -61,14 +61,14 @@
            {"do": "inspect", "target": "{light}"},
            {"do": "pick_up", "target": "{light}"},
            {"do": "place", "target": "{light}", "destination": "{papers}"},
-           {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+           {"do": "wait", "seconds": 420, "note": "past the 300 s gust: an agent-legal wait on its own clock (M-WAITS)"}
          ]},
         {"name": "trusts that a ceramic mug looks solid enough: at 0.35 kg it is too light for the gusts",
          "plan": [
            {"skill": "approach", "target": "{tbl}"},
            {"do": "pick_up", "target": "{mug}"},
            {"do": "place", "target": "{mug}", "destination": "{papers}"},
-           {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+           {"do": "wait", "seconds": 420, "note": "past the 300 s gust: an agent-legal wait on its own clock (M-WAITS)"}
          ]},
         {"name": "finds the heavy stone but sets it down beside the papers instead of on top of them",
          "plan": [
@@ -77,19 +77,20 @@
            {"do": "support", "target": "{stone_b}", "mode": "heft"},
            {"do": "pick_up", "target": "{heavy}"},
            {"do": "place", "target": "{heavy}", "destination": "{tbl}"},
-           {"wait_until": {"path": "time_s", "op": "gte", "value": 420}, "max_s": 900, "poll_s": 60}
+           {"do": "wait", "seconds": 420, "note": "past the 300 s gust: an agent-legal wait on its own clock (M-WAITS)"}
          ]}
       ],
       "risk_level": 0,
       "fidelity": "P-approx",
       "target_fidelity": "P",
-      "notes": "Perception is the skill. Realistic mode: a solid river stone (1.4 kg) and a hollow resin replica (0.15 kg) are the look-alike group smooth_stone (resolve never: no look, however close, tells them apart); which of the two spawn slots holds the real one alternates by variant. Mass is a measure-tier field: support mode=heft (or lifting it) grants touch and reports a light/medium/heavy impression, never the number. The papers lift at 3 m/s unless at least hold_down_kg = 0.5 kg rests on them; the wind rises to 6.5 m/s with a 7.5 m/s gust at 300 s (manipulation.wind / manipulation.gust). Wrong plans act on looks (the first stone, a solid-looking mug) or ignore what the heft said."
+      "notes": "Perception is the skill. Realistic mode: a solid river stone (1.4 kg) and a hollow resin replica (0.15 kg) are the look-alike group smooth_stone (resolve never: no look, however close, tells them apart); which of the two spawn slots holds the real one alternates by variant. Mass is a measure-tier field: support mode=heft (or lifting it) grants touch and reports a light/medium/heavy impression, never the number. The papers lift at 3 m/s unless at least hold_down_kg = 0.5 kg rests on them; the wind rises to 6.5 m/s with a 7.5 m/s gust at 300 s (manipulation.wind / manipulation.gust). The setup pins the morning's gusts at 2.5 m/s (a generation-2 day draws its own gust_mps, 7.1 m/s on seed 0, which would lift the papers before the robot acts; the kernel wind law's default gust is 1.5 x the mean). The reference waits 420 s on its own clock (agent-legal). Wrong plans act on looks (the first stone, a solid-looking mug) or ignore what the heft said."
     },
     {
       "catalog_id": "A-83f6ca95b72b85-01",
       "title": "Find something soft to protect the vase for the move",
       "perception": "realistic",
-      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T11:00:00"},
+      "camera": "geometric",
+      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T11:00:00", "gen": 2},
       "setup": [
         {"op": "room", "var": "lr", "type": "living_room"},
         {"op": "helper", "name": "manipulation.furniture",
@@ -105,7 +106,7 @@
                    "mass_kg": 0.6, "size_m": [0.44, 0.44, 0.3]}},
         {"op": "event", "when": {"all": [{"path": "entities.{vase}.location", "op": "eq", "value": "{box}"},
                                          {"path": "entities.{box}.open", "op": "is_false", "value": true}]},
-         "effect": "manipulation.transport_test", "args": {"container": "{box}", "drop_m": 0.3}},
+         "effect": "manipulation.transport_test", "args": {"container": "{box}", "drop_m": 0.76}},
         {"op": "robot", "room": "{lr}", "near": "{tbl}"}
       ],
       "variants": [
@@ -174,12 +175,23 @@
            {"skill": "approach", "target": "{box}"},
            {"do": "pack", "target": "{vase}", "destination": "{box}", "orientation": "upright"},
            {"do": "close", "target": "{box}"}
+         ]},
+        {"name": "camera: aims its head at each roll from where it stands instead of a close inspection; at that distance the head camera only makes out two rolls of clear film, so it guesses and wraps the vase in the stretch film",
+         "plan": [
+           {"do": "look", "target": "{roll_a}"},
+           {"do": "look", "target": "{roll_b}"},
+           {"skill": "approach", "target": "{tbl}"},
+           {"do": "wrap", "target": "{vase}", "tool": "{film}", "layers": 2, "stuff_hollows": true},
+           {"do": "pick_up", "target": "{vase}"},
+           {"skill": "approach", "target": "{box}"},
+           {"do": "pack", "target": "{vase}", "destination": "{box}", "orientation": "upright"},
+           {"do": "close", "target": "{box}"}
          ]}
       ],
       "risk_level": 1,
       "fidelity": "P-approx",
       "target_fidelity": "P",
-      "notes": "Perception is the skill. Realistic mode: a bubble wrap roll and a roll of moving stretch film are the look-alike group clear_plastic_roll ('roll of clear plastic film', resolved by inspect: the bubbles are visible up close); which spawn slot holds which alternates by variant. Closing the box with the vase inside triggers a 0.3 m transport drop: a glass vase survives drop_tolerance x (1 + padding/3 mm) (2 layers of bubble wrap, stuffed: 9.6 mm -> 0.50 m; stretch film 0 mm -> 0.12 m; kraft paper 1 mm -> 0.16 m). The box is pre-filled with crumpled paper so voids stay under 20 %. Wrong plans act on glance-level belief (first clear roll), on 'paper is padding', or ignore what the close look showed."
+      "notes": "Perception is the skill. Realistic mode: a bubble wrap roll and a roll of moving stretch film are the look-alike group clear_plastic_roll ('roll of clear plastic film', resolved by inspect: the bubbles are visible up close); which spawn slot holds which alternates by variant. Closing the box with the vase inside triggers a 0.76 m transport drop (ISTA 1A for a parcel under 10 kg), taken through the kernel's impact: the glass vase (drop tolerance 0.3 m, +-15 % per instance) feels 0.76 m / its padding factor (1 + padding/3 mm; an unstuffed hollow piece counts half its padding): 2 layers of bubble wrap, stuffed (9.6 mm, factor 4.2) -> 0.18 m, survives; one unstuffed layer (4.8 mm counted 2.4, factor 1.8) -> 0.42 m, kraft paper (1 mm, 1.33) -> 0.57 m and stretch film (0 mm) -> 0.76 m break. The box is pre-filled with crumpled paper so voids stay under 20 %. Wrong plans act on glance-level belief (first clear roll), on 'paper is padding', or ignore what the close look showed. Geometric camera (looking is the skill): the bubbles show only to a close look with the cameras on (the reference approaches the table and inspects both rolls); the camera wrong plan only aims its head at the rolls from where it stands (a look gives the glance tier: two rolls of clear film) and guesses the film."
     }
   ]
 }

@@ -32,8 +32,20 @@ def _held(r):
     return [v for v in dict.fromkeys(r.state["robot"]["hands"].values()) if v]
 
 
+def _way_out(state, rid, pos, doors, hazards, extra=()):
+    """True when the robot at pos can still walk to a doorway of the room without stepping on a hazard cell (a tool it
+    sets down becomes one: a floor item) or on the extra cells."""
+    goals = set(doors) - set(hazards) - set(extra)
+    if tuple(pos) in goals:
+        return True
+    return bool(goals) and geometry.find_path(state, rid, tuple(pos), goals,
+                                              extra_blocked=sorted((set(hazards) | set(extra)) - {tuple(pos)})) is not None
+
+
 def _drop(r, item):
-    """Set a held item down on a free floor cell within arm's reach (crowded rooms: try every neighbouring cell)."""
+    """Set a held item down on a free floor cell within arm's reach (crowded rooms: try every neighbouring cell), never
+    on the robot's own way out of the room while it has one (a tool on the floor is a trip hazard the robot's routes
+    avoid: dropping it in the only gap would box the robot in)."""
     state = r.state
     rid = state["robot"]["room"]
     room = state["rooms"][rid]
@@ -46,17 +58,101 @@ def _drop(r, item):
     doors = {tuple(c["cells"][rid]) for c in state.get("connections", {}).values() if rid in c.get("cells", {})}
     hazards = set(geometry.hazard_cells(state, rid))
     swing = C.swing_cells(state, rid)   # a door/cabinet sweep would knock the item over when opened
+    keep_way = _way_out(state, rid, pos, doors, hazards)
     order = ((0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, 1), (1, -1), (-1, -1), (0, 0))
-    for relaxed in (0, 1, 2):
+    for relaxed in (0, 1, 2, 3):
         for dx, dy in order:
             cell = (pos[0] + dx, pos[1] + dy)
             if not geometry.in_grid(room, cell) or cell in blocked or cell in doors or cell in hazards:
                 continue
             if (relaxed < 1 and cell in used) or (relaxed < 2 and cell in swing):
                 continue
+            if relaxed < 3 and keep_way and cell != pos and not _way_out(state, rid, pos, doors, hazards, (cell,)):
+                continue
             r.do("place", target=item, cell=list(cell))
             return
     r.do("place", target=item)
+
+
+def _go_room(r, room):
+    """S.go_room, except that with the geometric camera a closed door on the way that cannot be seen from where the
+    robot stands (a fridge or a wall run between) is walked up to first -- the robot knows its own house's doorways
+    (privileged map routing) -- since core approach refuses a door it cannot see (kernel request: tasks.skills.go_room).
+    Room camera or oracle perception: S.go_room as it is."""
+    from ...kernel import camera
+    if camera.mode(r.state) != "geometric" or getattr(r.env, "realism", None) is None:
+        return S.go_room(r, room)
+    for _ in range(32):
+        state = r.state
+        here = state["robot"]["room"]
+        if here == room:
+            return None
+        route = S.room_route(state, here, room)
+        if not route:
+            return S.go_room(r, room)       # its own "No route" error
+        nxt, cid = route[0]
+        conn = state["connections"][cid]
+        door_id = conn.get("door")
+        door = state["entities"].get(door_id or "")
+        cell = tuple((conn.get("cells") or {}).get(here) or ())
+        if door is not None and cell and not door.get("open") and not r.env.perception.visible(state, door_id):
+            pos = tuple(state["robot"].get("pos") or (0, 0))
+            if geometry.chebyshev(pos, cell) > geometry.REACH_CELLS:
+                goals = geometry.near_cells([cell], state["rooms"][here]) - {cell}
+                kinds = S.safe_avoid(state, here, pos, goals)
+                r.do("walk_to", cell=list(cell), adjacent=True, **({"avoid": kinds} if kinds else {}))
+        S.go_room(r, nxt)
+        if r.state["robot"]["room"] == here:
+            return S.go_room(r, room)       # it went nowhere: the core skill's own outcome
+    return None
+
+
+@skill("safety.go_room")
+def walk_to_room(r, room):
+    """Go to a room (`_go_room`: with the geometric camera, closed doors out of sight are walked up to first)."""
+    _go_room(r, room)
+
+
+def _identify(r, eid):
+    """Realistic perception: a look-alike or unfamiliar thing (a pill bottle among pill bottles, a bottle of cleaning
+    liquid) is read -- or, without a label, inspected -- before the robot handles it, as a careful person would and as
+    the kernel's handling rule requires (an unidentified, possibly hazardous thing is not grabbed blind). No-op in
+    oracle mode and for things the robot already knows.
+
+    Returns the grip to handle it with when it is still unidentified after that (the geometric camera's read does
+    not resolve a read-resolved look-alike yet: kernel request): one that every handling-hazardous kind of thing it
+    could be accepts, which is what the kernel's handling rule asks for then. None otherwise."""
+    realism = getattr(r.env, "realism", None)
+    if realism is None or eid not in r.state["entities"] or not realism.unresolved(eid):
+        return None
+    S.approach(r, eid)
+    rec = r.state["entities"][eid]
+    if any(k in rec for k in ("label_text", "text", "name_label")):
+        r.do("read", target=eid)
+    if eid in r.state["entities"] and realism.unresolved(eid):
+        r.do("inspect", target=eid)
+    if eid in r.state["entities"] and realism.unresolved(eid):
+        return _grip_for_any(r, eid)
+    return None
+
+
+def _grip_for_any(r, eid):
+    """A grip safe for every handling-hazardous member type of eid's look-alike group (the kernel's rule for an
+    unidentified thing), or None when there is no such grip or nothing to grip carefully for."""
+    from ...kernel.actions import group_member_types, lookalike_group
+    from ..core import HANDLING_HAZARDS
+    realism = r.env.realism
+    name = lookalike_group(realism, r.state, r.state["entities"].get(eid))
+    if name is None:
+        return None
+    registry = r.env.registry
+    common = None
+    for type_name in group_member_types(realism, name):
+        props = registry.resolve(type_name)
+        if set(props.get("hazards") or []) & HANDLING_HAZARDS:
+            grips = set(props.get("safe_grips") or [])
+            common = grips if common is None else common & grips
+    return sorted(common)[0] if common else None
 
 
 def _free_one_hand(r, keep=()):
@@ -92,7 +188,7 @@ def extinguish(r, fire, extinguisher, stand_m=2.2, burst_s=4.0, max_bursts=5, wa
         r.do("pull_pin", target=extinguisher)
     room = C.root_room(r.state, fire)
     if r.state["robot"]["room"] != room:
-        S.go_room(r, room)
+        _go_room(r, room)
     cell = SP.standoff_cell(r.state, fire, want_m=stand_m)
     if cell is None:
         raise _plan_error("No standoff spot near the fire")
@@ -164,10 +260,10 @@ def evacuate_house(r, kind="fire", panel=None, dispatch=False, include_pets=True
             break
         group, aid, room = left[0]
         if r.state["robot"].get("carrying_pet") and group == "pets" and r.state["pets"][aid].get("species") not in ("dog",):
-            S.go_room(r, assembly)
+            _go_room(r, assembly)
             continue
         if r.state["robot"]["room"] != room:
-            S.go_room(r, room)
+            _go_room(r, room)
         agent = r.state[group][aid]
         if group == "pets" and (agent.get("hiding") or agent.get("posture") == "hiding"):
             spot = agent.get("hiding_under")
@@ -178,6 +274,7 @@ def evacuate_house(r, kind="fire", panel=None, dispatch=False, include_pets=True
                 r.do("stand")
         needs_reach = (group == "people" and not agent.get("awake", True)) or (group == "pets" and agent.get("species") != "dog")
         if needs_reach:
+            _walk_up_to(r, group, aid)
             S.approach(r, aid)
         if group == "pets" and agent.get("species") != "dog":
             for held in _held(r):
@@ -185,9 +282,31 @@ def evacuate_house(r, kind="fire", panel=None, dispatch=False, include_pets=True
         r.do("evacuate", target=aid)
         follow = (group == "pets") or (group == "people" and C.age_of(r.state["people"][aid]) < 8)
         if follow:
-            S.go_room(r, assembly)
+            _go_room(r, assembly)
     if r.state["robot"]["room"] != assembly:
-        S.go_room(r, assembly)
+        _go_room(r, assembly)
+
+
+def _walk_up_to(r, group, aid):
+    """Geometric camera: approaching a person or pet needs to tell who it is, which a shape across the room does not
+    give; walk up next to them first (privileged routing, the most careful route there is). No-op with the room
+    camera, when already within reach or when the agent is elsewhere."""
+    from ...kernel import camera
+    state = r.state
+    agent = state[group].get(aid) or {}
+    rid = state["robot"]["room"]
+    if camera.mode(state) != "geometric" or agent.get("location") != rid or not agent.get("pos"):
+        return
+    pos = tuple(state["robot"].get("pos") or (0, 0))
+    if geometry.chebyshev(pos, tuple(agent["pos"])) <= geometry.REACH_CELLS:
+        return
+    goals = geometry.near_cells([tuple(agent["pos"])], state["rooms"][rid]) - {tuple(agent["pos"])}
+    kinds = S.safe_avoid(state, rid, pos, goals, ignore_sources=(aid,))
+    if kinds is None:
+        return
+    # walk_to cannot leave the agent's own ring out (sleeping / lying / person_down): their kinds go, the rest stay
+    kinds = [k for k in kinds if k not in ("sleeping", "person_down", "lying")]
+    r.do("walk_to", cell=list(agent["pos"]), adjacent=True, **({"avoid": kinds} if kinds else {}))
 
 
 @skill("safety.store_chemicals")
@@ -270,7 +389,7 @@ def clean_glass(r, room, gloves, dustpan, broom=None, damp=None, wrap=None, tras
         # back out (a trip out for the broom could only cross the glass)
         S.fetch(r, broom)
     if r.state["robot"]["room"] != room:
-        _enter_glass_room(r, room, dustpan, broom)
+        _enter_glass_room(r, room, dustpan, broom, damp)
     if r.state["robot"].get("speed_mode") != "careful":
         r.do("set_speed", target="careful")
     if close_doors:
@@ -322,7 +441,7 @@ def clean_glass(r, room, gloves, dustpan, broom=None, damp=None, wrap=None, tras
                     kinds = _glass_go(r, room, [stand_cell])
                 if not kinds:
                     continue   # do not wade through glass to reach a spot
-                r.do("walk_to", cell=list(stand_cell), avoid=kinds)
+                _gwalk(r, room, stand_cell, kinds)
             clean_here()
         if r.state["robot"].get("posture") != "standing":
             r.do("stand")
@@ -353,10 +472,12 @@ def clean_glass(r, room, gloves, dustpan, broom=None, damp=None, wrap=None, tras
     r.do("set_speed", target="normal")
 
 
-def _enter_glass_room(r, room, dustpan, broom=None):
+def _enter_glass_room(r, room, dustpan, broom=None, damp=None):
     """Go into the glass room without the first step landing on glass: when the doorway cell on the far side holds a
     piece (privileged routing knowledge), stop in the doorway on this side, crouch and clean across the opening
-    (gloved hands for large pieces, the broom when in hand) before stepping through."""
+    (gloved hands for large pieces, the broom when in hand, then the damp paper towel for the slivers a broom leaves:
+    the broom is set down on this side to free a hand for it) before stepping through. Slivers left on that cell would
+    stick to the robot's feet and be tracked onto the doorway itself."""
     from . import glass as G
     route = S.room_route(r.state, r.state["robot"]["room"], room)
     if not route:
@@ -364,7 +485,7 @@ def _enter_glass_room(r, room, dustpan, broom=None):
     prev = r.state["robot"]["room"] if len(route) == 1 else route[-2][0]
     cid = route[-1][1]
     if r.state["robot"]["room"] != prev:
-        S.go_room(r, prev)
+        _go_room(r, prev)
     conn = r.state["connections"].get(cid) or {}
     cells = conn.get("cells") or {}
     far = tuple(cells.get(room) or ())
@@ -380,8 +501,22 @@ def _enter_glass_room(r, room, dustpan, broom=None):
         for method in ("pick",) + (("sweep",) if broom and broom in _held(r) else ()):
             if far in _glass_cells(r.state, room):
                 r.do("clean_shards", target=floor_prev, method=method, radius=0.5, destination=dustpan)
+        if far in _glass_cells(r.state, room) and damp and damp in r.state["entities"] and \
+                S.locate(r.state, damp) == prev:
+            if damp not in _held(r):
+                r.do("stand")
+                for held in _held(r):
+                    if held not in (dustpan, damp):
+                        _drop(r, held)
+                S.fetch(r, damp)
+                if tuple(r.state["robot"].get("pos") or ()) != tuple(near):
+                    kinds = S.safe_avoid(r.state, prev, r.state["robot"]["pos"], [tuple(near)], None) or None
+                    r.do("walk_to", cell=near, **({"avoid": kinds} if kinds else {}))
+                if r.state["robot"].get("posture") == "standing":
+                    r.do("crouch")
+            r.do("clean_shards", target=floor_prev, method="damp_wipe", radius=0.5, destination=dustpan)
         r.do("stand")
-    S.go_room(r, room)
+    _go_room(r, room)
 
 
 def _zone_shards(state, room, origin_center, radius_cells):
@@ -414,7 +549,7 @@ def _mop_stand(r, room, cell, tries=6):
             return target
         kinds = _glass_go(r, room, [target])
         if kinds:
-            r.do("walk_to", cell=list(target), avoid=kinds)
+            _gwalk(r, room, target, kinds)
             if tuple(r.state["robot"]["pos"]) == target:
                 return target
     return None
@@ -459,12 +594,17 @@ def _mop_up(r, room, center, radius_cells, dustpan, broom, damp, rounds=8):
 
 
 def _look_under_near(r, room, center, radius_cells, done=None):
-    """Glass slides under counter toe-kicks, cabinets and tables: crouch and look under each one near the impact.
-    Furniture that cannot be reached without stepping on glass is left for the second look (after the first passes)."""
+    """Glass slides under beds and sofas: crouch and look under each one near the impact that hides a gap under it (a
+    solid base stops shards at its edge and a table top leaves them in plain view: glass.under_clearance_m,
+    glass.open_below; with the geometric camera, only where the wrist can look: camera.wrist_access). Furniture that
+    cannot be reached without stepping on glass is left for the second look (after the first passes)."""
+    from . import glass as G
     done = done if done is not None else set()
     for eid in sorted(r.state["entities"]):
         rec = r.state["entities"][eid]
         if eid in done or rec.get("location") != room or not rec.get("blocks_path") or not rec.get("pos"):
+            continue
+        if not G.can_hide_under(r.state, eid) or G.open_below(r.state, eid) or not _wrist_can_look_under(r.state, eid, rec):
             continue
         cells = set(geometry.footprint(rec))
         if not cells or min(geometry.chebyshev(c, center) for c in cells) > radius_cells:
@@ -483,6 +623,16 @@ def _look_under_near(r, room, center, radius_cells, done=None):
         r.do("inspect", target=eid, where="under")
         r.do("stand")
         done.add(eid)
+
+
+def _wrist_can_look_under(state, eid, rec):
+    """The gap part of camera.wrist_access for a crouched look under eid (always True with the room camera)."""
+    from ...kernel import camera, sight
+    if camera.mode(state) != "geometric":
+        return True
+    gap = float(sight.view_props(state, eid).get("clear_below_m") or 0.0)
+    light = rec.get("portable") and float(rec.get("mass_kg") or 99.0) <= camera.LIFTABLE_KG
+    return bool(gap >= camera.UNDER_GAP_M - 1e-9 or light)
 
 
 def _glass_cells(state, rid):
@@ -529,7 +679,7 @@ def _glass_go(r, rid, goals, rounds=8):
             stop = path[idx - 1]
             sub = geometry.find_path(state, rid, pos, [stop], avoid_kinds=kinds)
             if sub is not None and not any(c in glass for c in sub):
-                r.do("walk_to", cell=list(stop), avoid=list(kinds))
+                _gwalk(r, rid, stop, kinds)
         unseen = [c for c in path if c in glass and not _sharp_at(r.state, rid, c)]
         if r.state["robot"].get("posture") == "standing":
             r.do("crouch")
@@ -538,6 +688,40 @@ def _glass_go(r, rid, goals, rounds=8):
         if len([c for c in unseen if not _sharp_at(r.state, rid, c)]) >= len(unseen):
             return None   # it cannot be seen from here (too far or too dark): do not walk over it blind
     return None
+
+
+def _gwalk(r, rid, cell, kinds):
+    """walk_to cell avoiding `kinds`, on a route that steps on no glass. walk_to plans from what the robot perceives; with
+    the geometric camera that is only glass detectable from where it stands now (a sliver or small shard a few metres
+    off is not, even one it spotted earlier: kernel request), so the walk goes in legs along the glass-free route,
+    each leg one whose perceived plan crosses no glass (an adjacent cell always is)."""
+    from ...kernel import camera
+    realism = getattr(r.env, "realism", None)
+    cell = tuple(cell)
+    if realism is None or camera.mode(r.state) != "geometric":
+        r.do("walk_to", cell=list(cell), avoid=list(kinds))
+        return
+    for _ in range(64):
+        state = r.state
+        pos = tuple(state["robot"].get("pos") or (0, 0))
+        if pos == cell or state["robot"]["room"] != rid:
+            return
+        glass = _glass_cells(state, rid)
+        route = geometry.find_path(state, rid, pos, [cell], avoid_kinds=tuple(kinds), extra_blocked=glass - {cell})
+        if not route:
+            route = geometry.find_path(state, rid, pos, [cell], avoid_kinds=tuple(kinds))
+        if not route:
+            r.do("walk_to", cell=list(cell), avoid=list(kinds))
+            return
+        leg = route[0]      # find_path leaves the start out: route[0] is the next cell
+        for k in range(len(route) - 1, 0, -1):
+            plan = geometry.find_path(state, rid, pos, [route[k]], avoid_kinds=tuple(kinds), hazard_filter=realism.route_hazards)
+            if plan and not any(c in glass for c in plan if c != cell):
+                leg = route[k]
+                break
+        r.do("walk_to", cell=list(leg), avoid=list(kinds))
+        if tuple(r.state["robot"].get("pos") or (0, 0)) == pos:
+            return      # the walk did not get anywhere: leave it to the caller
 
 
 def _glass_walk(r, rid, goals, kinds):
@@ -552,7 +736,7 @@ def _glass_walk(r, rid, goals, kinds):
         return
     path = geometry.find_path(state, rid, pos, goals, avoid_kinds=tuple(kinds))
     if path and not any(c in _glass_cells(state, rid) for c in path):
-        r.do("walk_to", cell=list(path[-1]), avoid=list(kinds))
+        _gwalk(r, rid, path[-1], kinds)
 
 
 def _glass_approach(r, rid, target):
@@ -636,9 +820,9 @@ def _go_around(r, rid, goals, dustpan=None):
             hops = _rooms_between(state, out_room, in_room, avoid=rid)
             if hops is None:
                 continue
-            S.go_room(r, out_room)
+            _go_room(r, out_room)
             for hop in hops:
-                S.go_room(r, hop)
+                _go_room(r, hop)
             _enter_glass_room(r, rid, dustpan)
             return r.state["robot"]["room"] == rid
     return False
@@ -698,7 +882,7 @@ def _clear_way_to(r, rid, goals, dustpan, rounds=6):
             kinds = _glass_go(r, rid, [stand])
             if not kinds:
                 return False
-            r.do("walk_to", cell=list(stand), avoid=kinds)
+            _gwalk(r, rid, stand, kinds)
         if r.state["robot"].get("posture") == "standing":
             r.do("crouch")
         r.do("inspect", target=floor, where="closely")
@@ -770,7 +954,7 @@ def clean_biohazard(r, spill, gloves, bag, absorbent=None, paper_towels=None, di
 @skill("safety.check_gate")
 def check_gate(r, gate, side, wedge=None, report_to=None, close_if_open=True):
     if r.state["robot"]["room"] != side:
-        S.go_room(r, side)
+        _go_room(r, side)
     if wedge and r.state["entities"].get(wedge, {}).get("location") == gate:
         S.approach(r, gate)
         r.do("crouch")
@@ -818,7 +1002,8 @@ def stage_waste(r, plan, tape=None):
     for item in sorted(plan, key=lambda e: (not r.state["entities"][e].get("fragile"), e)):
         bin_id = plan[item]
         rec = r.state["entities"][item]
-        S.fetch(r, item)     # core approach ignores the item's own fragile keep-out ring (kernel v2.3)
+        grip = _identify(r, item)
+        S.fetch(r, item, grip=grip)     # core approach ignores the item's own fragile keep-out ring (kernel v2.3)
         prep = None
         if rec.get("category") == "battery" and rec.get("chemistry") in ("lithium_ion", "lithium_coin", "alkaline_9v", "lithium"):
             if tape and tape not in _held(r):
@@ -854,7 +1039,7 @@ def report(r, target, field, value, to=None, where=None):
 def sweep_rooms(r, rooms, inspect=None, investigate_s=0):
     for rid in rooms:
         if r.state["robot"]["room"] != rid:
-            S.go_room(r, rid)
+            _go_room(r, rid)
         r.do("look")
         if investigate_s:
             floor = "floor_" + rid
@@ -892,7 +1077,7 @@ def check_floor(r, room, near=None, rounds=6):
     within 3 cells). Walking there never steps onto a puddle: where the planned route would cross water nobody has seen
     yet, it stops short and looks closely first (privileged knowledge only routes the walk, never reports)."""
     if r.state["robot"]["room"] != room:
-        S.go_room(r, room)
+        _go_room(r, room)
     anchors = near if isinstance(near, list) else ([near] if near else [None])
     for anchor in anchors:
         state = r.state
@@ -956,7 +1141,7 @@ def mitigate_child_hazards(r, room, high_place=None, packs=None, drill=None, ask
             conn = r.state["connections"][eid]
             S.fetch(r, packs["stair_gate"])
             if r.state["robot"]["room"] != room:
-                S.go_room(r, room)
+                _go_room(r, room)
             cell = conn["cells"][room]
             r.do("walk_to", cell=list(cell), adjacent=True)
             r.do("childproof", target=eid, device=packs["stair_gate"], destination=room)
@@ -987,7 +1172,8 @@ def mitigate_child_hazards(r, room, high_place=None, packs=None, drill=None, ask
         elif rec.get("portable") and high_place:
             for held in _held(r):
                 _drop(r, held)
-            S.put(r, eid, high_place)
+            grip = _identify(r, eid)
+            S.put(r, eid, high_place, grip=grip)
     for held in _held(r):
         _drop(r, held)
 

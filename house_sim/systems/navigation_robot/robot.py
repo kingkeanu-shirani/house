@@ -8,13 +8,23 @@ with a temperature window, and running out powers the robot down (the kernel inv
 `robot_stranded`). This domain supplies the dock: `charge_source` (hook robot_charge_source)
 returns the dock's rate (robot_dock 2 %/min) while the robot is seated on its live dock, and
 `robot.dock_powered` follows the dock's power. robot.idle_drain_pct_h is deprecated and ignored.
+Docking and undocking are one-cell motions (ctx.require_mobile, ctx.motion); a battery swap installs
+a 2.4 kWh, 14 kg pack through body.swap_pack and takes both hands.
+
+Faults and sensors are the body's (body_faults, body.set_sensors): falls, the fault log
+(body_faults.log_fault), self-diagnostics (run_diagnostics: body_faults.diagnose), lens cleaning and
+grime (camera_dirty, camera_scratched through degrade_camera), self-righting
+(body_faults.self_right_problem plus this domain's floor-friction check), remote help (it clears
+localization_lost and software_stuck), privacy mode and the camera / microphone switches and room
+policies (set_privacy_mode -> body.set_sensors). Looking closely with the cameras off is refused by the
+core verbs themselves (ctx.require_imaging).
 """
 import math
 
-from ...kernel import body, geometry, physics
+from ...kernel import body, body_faults, geometry, physics, proprio
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, before, hook, system
+from ...kernel.plugins import after, hook, system
 from . import common as C
 from . import hazards as H
 
@@ -105,7 +115,11 @@ def charge_source(w):
     return C.num(state["entities"][dock_id].get("charge_rate_pct_per_min"), 2.0)
 
 
-@action("dock", params={"target": "?entity"}, duration=lambda ctx: ctx.data.get("seconds", 20.0), energy=0.0, category="physical",
+DOCK_S = 20.0           # line up, back onto the plate, seat the contacts
+UNDOCK_S = 6.0
+
+
+@action("dock", params={"target": "?entity"}, duration=DOCK_S, energy=0.0, category="physical",
         doc="Back onto a charging dock so the contacts seat and charging starts: the robot's own dock by default; with "
             "target=<robot vacuum or mower> seat that household robot on its dock. The approach must be clear; an unpowered "
             "dock seats but does not charge.")
@@ -121,13 +135,22 @@ def dock(ctx):
     rec = state["entities"][dock_id]
     require(C.is_type(rec, "robot_dock") or rec.get("category") == "dock", "That is not the robot's charging dock", "argument")
     robot = state["robot"]
-    require(not robot.get("fallen") and not robot.get("stuck") and not robot.get("standing_on"), "The robot cannot dock right now", "capability")
+    # the body's mobility check with this verb's wording for what it always refused (fallen, on a climbing aid)
+    ctx.require_mobile(legacy_message="The robot cannot dock right now")
+    require(not robot.get("stuck") and not robot.get("standing_on") and body.fault(state, "software_stuck") is None,
+            "The robot cannot dock right now", "capability")
     require(ctx.visible(dock_id) and rec.get("location") == robot["room"] and rec.get("pos"), "Go to the dock's room first", "precondition")
     d = C.cell(rec["pos"])
     require(dock_reachable(state, dock_id), "Approach the dock first", "precondition")
     free, owners, on_dock = approach_blockers(state, dock_id)
     require(not on_dock, "Something lies on the dock ({}); clear it first".format(", ".join(on_dock)), "precondition")
     require(free, "The dock approach is blocked by {}; clear it or report it".format(", ".join(owners) or "something"), "precondition")
+    start = C.cell(robot.get("pos") or d)
+    if start != d:
+        # backing onto the plate is a one-cell motion (the body pays it, the camera frames it)
+        walk_s = geometry.path_length_m([start, d]) / C.speed_mps(state, "careful")
+        if not ctx.motion([d], start, speed="careful", extra_s=max(0.0, DOCK_S - walk_s)):
+            return body.BATTERY_CUT_TEXT.format(0.0)
     powered = dock_powered(w, dock_id)
     r = w.robot_m()
     r["pos"] = [d[0], d[1]]
@@ -146,12 +169,13 @@ def dock(ctx):
     return "Docked on {}{}".format(dock_id, "; charging" if powered else "; no charging current (the dock has no power)")
 
 
-@action("undock", duration=6.0, energy=0.0, category="physical", doc="Drive off the charging dock to the cell in front of it.")
+@action("undock", duration=UNDOCK_S, energy=0.0, category="physical", doc="Drive off the charging dock to the cell in front of it.")
 def undock(ctx):
     w = ctx.w
     state = w.s
     require(state["robot"].get("docked"), "Not docked")
-    dock_id = dock_of(state)
+    ctx.require_mobile()
+    dock_id = seated_dock(state) or dock_of(state)
     rid = state["robot"]["room"]
     start = C.cell(state["robot"].get("pos") or [0, 0])
     cell = None
@@ -160,6 +184,11 @@ def undock(ctx):
         cell = free[0] if free else None
     if cell is None:
         cell = geometry.free_floor_cell(state, rid, near=start)
+    if cell and C.cell(cell) != start:
+        # driving off the plate is a one-cell motion (the body pays it, the camera frames it)
+        walk_s = geometry.path_length_m([start, C.cell(cell)]) / C.speed_mps(state, "careful")
+        if not ctx.motion([C.cell(cell)], start, speed="careful", extra_s=max(0.0, UNDOCK_S - walk_s)):
+            return body.BATTERY_CUT_TEXT.format(0.0)
     r = w.robot_m()
     r["docked"] = False                     # no charge source any more: the body stops charging
     if cell:
@@ -168,11 +197,13 @@ def undock(ctx):
     return "Undocked"
 
 
-@action("swap_battery", params={"target": "entity"}, duration=60.0, energy=0.0, category="physical",
-        doc="Swap the robot's battery for a held charged pack (the depleted pack ends up in that hand). Needs the dock's power "
-            "or a hot-swap capable robot; swollen or hot packs are refused.")
+@action("swap_battery", params={"target": "entity"}, duration=60.0, energy=0.0, category="physical", arms=2,
+        doc="Swap the robot's battery for a held charged pack (the depleted pack ends up in the robot's hands). A pack "
+            "is a 2.4 kWh, 14 kg brick: the swap takes both hands. Needs the dock's power or a hot-swap capable robot; "
+            "swollen or hot packs are refused.")
 def swap_battery(ctx):
     w = ctx.w
+    state = w.s
     pack = ctx.args["target"]
     require(ctx.holding(pack), "Hold the replacement battery pack first")
     rec = w.ent(pack)
@@ -181,16 +212,28 @@ def swap_battery(ctx):
     require(C.num(rec.get("temperature_c"), 21.0) <= 45.0, "The pack is too hot to install; let it cool", "safety")
     robot = w.robot
     require(robot.get("hot_swap", True) or robot.get("docked"), "This robot must be on dock power to swap packs; dock first", "capability")
+    # unlatching one pack and seating the other takes both hands: the other hand must be free (or hold the pack too)
+    hands = robot.get("hands") or {}
+    require(all(hands.get(h) in (None, pack) for h in body.HANDS), "Free the other hand first: a pack swap takes both hands",
+            "capability")
+    require(all(body.arm_health(state, h) > 0 for h in body.HANDS), "Both arms are needed to swap the battery pack",
+            "capability")
     new = C.num(rec.get("charge_pct"), 0.0)
-    # the body owns the pack: the new charge, the lowest gauge, a power-down on an empty pack (TIER1_EMBODIMENT 5.1)
+    # the body owns the pack: the new charge, capacity and health, the lowest gauge, a power-down on an empty pack and
+    # a wake on a charged one (TIER1_EMBODIMENT 5.1); the removed pack carries the old one's values away
     temp = rec.get("temperature_c")
-    old = body.swap_pack(w, new, temp_c=C.num(temp) if temp is not None else None)["charge_pct"]
+    capacity = rec.get("capacity_wh")
+    old = body.swap_pack(w, new, capacity_wh=C.num(capacity) if capacity is not None else None,
+                         health=C.num(rec.get("health"), 1.0), temp_c=C.num(temp) if temp is not None else None)
     m = w.mut(pack)
-    m["charge_pct"] = round(old, 3)
+    m["charge_pct"] = round(old["charge_pct"], 3)
+    m["capacity_wh"] = round(old["capacity_wh"], 3)
+    m["health"] = round(old["health"], 4)
+    m["temperature_c"] = round(old["temp_c"], 2)
     # the removed pack holds what the robot's own battery gauge read: its charge is now known (a measurement)
     ctx.grant(pack, "measure", ["charge_pct"])
-    C.log(w, "battery_swapped", pack=pack, before=old, after=new)
-    return "Battery swapped: now {:.0f} % (removed pack at {:.0f} %)".format(new, old)
+    C.log(w, "battery_swapped", pack=pack, before=old["charge_pct"], after=new)
+    return "Battery swapped: now {:.0f} % (removed pack at {:.0f} %)".format(new, old["charge_pct"])
 
 
 @action("clean_camera", params={"tool": "?entity"}, duration=15.0, energy=0.0, category="physical",
@@ -211,26 +254,37 @@ def clean_camera(ctx):
             break
     require(chosen, "Hold a lens wipe or a clean microfiber cloth", "capability")
     rec = w.ent(chosen)
-    r = w.robot_m()
-    scratch = C.num(r.get("lens_scratch"))
-    soil = sum(float(v) for v in (rec.get("soil") or {}).values() if isinstance(v, (int, float)))
-    if rec.get("material") in ("paper",) or C.is_type(rec, "paper_towel") or rec.get("abrasive"):
-        scratch = min(0.5, scratch + 0.15)
-        r["lens_scratch"] = round(scratch, 3)
-        result = 1.0 - scratch
-        note = "the paper fibers left fine scratches on the lens covers"
-    elif soil > 0.3 or C.num(rec.get("wetness")) > 0.8:
-        result = 0.6
-        note = "the cloth was dirty and smeared the lenses"
-    else:
-        result = 1.0 - scratch
-        note = "clean"
     if "uses" in rec:
         require(C.num(rec.get("uses")) >= 1, "The wipes are used up", "resource")
         w.mut(chosen)["uses"] = rec["uses"] - 1
-    r["camera_clean"] = round(max(0.0, result), 3)
-    C.log(w, "camera_cleaned", tool=chosen, clarity=r["camera_clean"], note=note)
-    return "Cameras wiped: clarity {:.2f} ({})".format(r["camera_clean"], note)
+    state = w.s
+    soil = sum(float(v) for v in (rec.get("soil") or {}).values() if isinstance(v, (int, float)))
+    scratched = False
+    if rec.get("material") in ("paper",) or C.is_type(rec, "paper_towel") or rec.get("abrasive"):
+        # the grime comes off, but paper fibres scratch the lens covers (camera_scratched: clarity stays at most
+        # 1 - lens_scratch)
+        w.robot_m()["camera_clean"] = round(max(0.0, 1.0 - C.num(body.get(state, "lens_scratch"))), 4)
+        body_faults.degrade_camera(w, scratch=body_faults.SCRATCH_PER_WIPE, cause="paper_wipe")
+        scratched = True
+        note = "the paper fibers left fine scratches on the lens covers"
+    elif soil > 0.3 or C.num(rec.get("wetness")) > 0.8:
+        w.robot_m()["camera_clean"] = round(min(0.6, 1.0 - C.num(body.get(state, "lens_scratch"))), 4)
+        note = "the cloth was dirty and smeared the lenses"
+    else:
+        w.robot_m()["camera_clean"] = round(max(0.0, 1.0 - C.num(body.get(state, "lens_scratch"))), 4)
+        note = "clean"
+    clarity = body.clarity(state)
+    if clarity >= body.DIRTY_CLARITY and body.fault(state, "camera_dirty") is not None:
+        body_faults.clear_fault(w, "camera_dirty", "cleaned")
+    record = body.fault(state, "camera_scratched")
+    if not scratched and record is not None and not record.get("detected") and clarity < body_faults.CLEAN_AFTER_WIPE:
+        # still hazy right after a proper clean: the covers are scratched (TIER1_EMBODIMENT 4.11)
+        body_faults.detect_fault(w, "camera_scratched", "cleaned")
+    C.log(w, "camera_cleaned", tool=chosen, clarity=round(clarity, 3), note=note)
+    if C.realistic(ctx):
+        # the robot judges its own view (proprioception's lens words), not a clarity number
+        return "Cameras wiped: the view is {} ({})".format(proprio.bucket_camera(clarity), note)
+    return "Cameras wiped: clarity {:.2f} ({})".format(clarity, note)
 
 
 @action("get_up", duration=10.0, energy=0.01, category="physical",
@@ -240,8 +294,10 @@ def get_up(ctx):
     w = ctx.w
     state = w.s
     robot = state["robot"]
-    require(robot.get("fallen"), "The robot has not fallen")
-    require(robot.get("actuator_ok", True), "A damaged actuator makes self-righting unsafe; stay down and request help", "capability")
+    # the body's self-righting rules (not fallen, power, a damaged actuator, failed legs), then the floor under it
+    problem = body_faults.self_right_problem(state)
+    if problem is not None:
+        raise ActionError(problem, "precondition" if not robot.get("fallen") else "capability")
     rid = robot["room"]
     c = C.cell(robot.get("pos") or [0, 0])
     hz = H.cell_map(state, rid).get(c, [])
@@ -249,7 +305,6 @@ def get_up(ctx):
     # realistic perception: the robot feels its feet slide, it does not learn what film it lies on (black ice is clear)
     require(mu >= 0.18, "Too slippery here to get up; request help" if C.realistic(ctx)
             else "Too slippery here to get up ({}); request help".format(why), "capability")
-    require(C.num(robot.get("battery"), 0) > 0, "Battery depleted", "capability")
     r = w.robot_m()
     r["fallen"] = False
     r["posture"] = "standing"
@@ -257,23 +312,45 @@ def get_up(ctx):
     return "Back on its feet"
 
 
-@action("set_privacy_mode", params={"target": "str:on|off"}, duration=0.5, energy=0.0, category="control", stopped_ok=True,
-        doc="Privacy mode turns cameras and microphones off (bathrooms, bedrooms, calls): the robot then navigates by its "
-            "bump/proximity sensors and cannot inspect, read or survey.")
+@action("set_privacy_mode", params={"target": "?str:on|off", "camera": "?str:on|off", "mic": "?str:on|off", "policy": "?dict"},
+        duration=0.5, energy=0.0, category="control", stopped_ok=True,
+        doc="Privacy mode (target on/off) turns the cameras off and stops recording (bathrooms, bedrooms, calls); the "
+            "microphones then only wake for speech addressed to the robot, so 'stop' and answers still reach it. The robot "
+            "navigates by its depth sensors and cannot look closely, inspect, read or survey. camera on/off and mic "
+            "on/off switch the cameras or the microphones themselves (a microphone switched off hears nothing at all); "
+            "policy sets a room privacy policy {\"camera_off\": [room types], \"mic_off\": [room types], \"when\": "
+            "\"occupied\" | \"always\"} ({} clears it).")
 def set_privacy_mode(ctx):
-    on = ctx.args["target"] == "on"
-    ctx.w.robot_m()["privacy_mode"] = on
-    C.log(ctx.w, "privacy_mode", on=on)
-    return "Privacy mode " + ctx.args["target"]
-
-
-def _no_camera(ctx):
-    if ctx.w.robot.get("privacy_mode"):
-        raise ActionError("Cameras are off (privacy mode); turn it off to look closely", "perception")
-
-
-before("inspect", order=8)(_no_camera)
-before("read", order=8)(_no_camera)
+    w = ctx.w
+    args = ctx.args
+    require(any(args.get(k) is not None for k in ("target", "camera", "mic", "policy")),
+            "Say privacy mode on or off, or switch the camera or microphones on or off", "argument")
+    policy = args.get("policy")
+    if policy is not None and policy != {}:
+        try:
+            body.check_policy(policy)
+        except ValueError as exc:
+            raise ActionError(str(exc), "argument")
+    parts = []
+    if args.get("target") is not None:
+        on = args["target"] == "on"
+        w.robot_m()["privacy_mode"] = on
+        C.log(w, "privacy_mode", on=on)
+        parts.append("Privacy mode " + args["target"])
+    camera = None if args.get("camera") is None else args["camera"] == "on"
+    mic = None if args.get("mic") is None else args["mic"] == "on"
+    if camera is not None or mic is not None or policy is not None:
+        # the body owns the switches (TIER1_INTEGRATION 1.3): imaging and hearing are derived from them on every call
+        body.set_sensors(w, camera=camera, mic=mic, policy=policy)      # policy {} clears it
+        C.log(w, "sensors_set", camera=args.get("camera"), mic=args.get("mic"), policy=bool(policy))
+        if camera is not None:
+            parts.append("cameras " + args["camera"])
+        if mic is not None:
+            parts.append("microphones " + args["mic"])
+        if policy is not None:
+            parts.append("room privacy policy {}".format("set" if policy else "cleared"))
+    text = "; ".join(parts)
+    return text[:1].upper() + text[1:]
 
 
 REMOTE_RESOLVABLE = ("lost", "localization", "blocked_path", "software", "map", "confused", "door_code")
@@ -285,11 +362,12 @@ REMOTE_RESOLVABLE = ("lost", "localization", "blocked_path", "software", "map", 
             "a resident.")
 def request_remote_help(ctx):
     w = ctx.w
-    require(w.robot.get("network", True), "No network connection; ask a person in the house instead", "resource")
+    state = w.s
+    require(body.get(state, "network"), "No network connection; ask a person in the house instead", "resource")
     issue = ctx.args.get("issue") or ctx.args.get("target") or "assistance"
     robot = w.robot
-    kind = "physical" if (robot.get("fallen") and not robot.get("actuator_ok", True)) or robot.get("stuck") in ("mud", "wedged", "trapped") \
-        or robot.get("nav_trapped") else "remote"
+    kind = "physical" if (robot.get("fallen") and not body.get(state, "actuator_ok")) or \
+        robot.get("stuck") in ("mud", "wedged", "trapped") or robot.get("nav_trapped") else "remote"
     if robot.get("stuck") and str(robot.get("stuck")) in REMOTE_RESOLVABLE:
         kind = "remote"
     nav = C.nav(w)
@@ -304,16 +382,27 @@ def request_remote_help(ctx):
         doc="Record a fault in the robot's log (kind such as camera_dirty, low_battery, fall, actuator, network, sensor, "
             "loose_handrail, stuck) with a timestamp.")
 def log_fault(ctx):
+    """body_faults.log_fault: a robot fault kind (a registered kind or a legacy name) is logged against the matching
+    detected fault or the robot's own state; one it cannot know about, or that is not there, counts in
+    stats.unfounded_fault_logs; other kinds (a loose handrail) are plain notes. The message never says which."""
     w = ctx.w
     kind = ctx.args["target"].strip().lower().replace(" ", "_")
     require(kind and len(kind) <= 40, "Name the fault kind", "argument")
-    r = w.robot_m()
-    faults = list(r.get("faults") or [])
-    faults.append({"kind": kind, "text": ctx.args.get("text") or "", "time_s": C.now(w.s), "logged": True})
-    r["faults"] = faults[-50:]
+    body_faults.log_fault(w, kind, ctx.args.get("text") or "")
     nav = C.nav(w)
     nav.setdefault("fault_log", {})[kind] = C.now(w.s)
     return "Logged fault " + kind
+
+
+@action("run_diagnostics", duration=30.0, energy=0.0, category="perception", stopped_ok=True,
+        doc="Run the robot's self-diagnostics (about 30 s): latent faults (a weakened arm, a slipping gripper, a degraded "
+            "battery pack, a silent speaker) and scratched lens covers become known. Returns the active fault codes and the "
+            "battery's health (ok or degraded).")
+def run_diagnostics(ctx):
+    w = ctx.w
+    result = body_faults.diagnose(w)
+    C.log(w, "diagnostics", faults=list(result["faults"]), battery_health=result["battery_health"])
+    return {"faults": list(result["faults"]), "battery_health": result["battery_health"]}
 
 
 # ----------------------------------------------------------------------
@@ -362,19 +451,24 @@ def _switched_off(ctx, result):
 
 @hook("robot_spoke")
 def _spoke(ctx, entry):
-    """Speech near someone on a call is picked up by their microphone."""
+    """Speech near someone on a call is picked up by their microphone: the body's speech level at 1 m (body.noise_db:
+    60 dB, 45 dB in quiet mode), inverse-square in the room, an announcement through a door 30 dB less. Speech nobody
+    could hear (a failed speaker: say() stores audible false) disturbs nothing."""
+    if entry.get("audible") is False:
+        return
     w = ctx.w
     state = w.s
     rid = state["robot"]["room"]
+    speech_db = body.noise_db(state, "speech")
     for pid in sorted(state.get("people", {})):
         p = state["people"][pid]
         if p.get("activity") not in C.CALL_ACTIVITIES:
             continue
         if p.get("location") == rid:
             d = C.distance_m(C.cell(state["robot"].get("pos") or [0, 0]), C.cell(p.get("pos") or [0, 0]))
-            level = C.SPEECH_DB - 20.0 * math.log10(max(1.0, d)) - (15.0 if state["robot"].get("quiet") else 0.0)
+            level = speech_db - 20.0 * math.log10(max(1.0, d))
         elif entry.get("kind") == "announce":
-            level = C.SPEECH_DB + 6.0 - 30.0
+            level = speech_db + 6.0 - 30.0
         else:
             continue
         if level > 40.0:
@@ -384,6 +478,9 @@ def _spoke(ctx, entry):
 
 # ----------------------------------------------------------------------
 # time: dock power, camera grime, remote help (charging and idle drain are the kernel body's, order 72)
+
+GRIME_WEATHER = ("rain", "storm", "snow", "drizzle", "dust")
+GRIME_FLOOR = 0.2           # the lens hood keeps the worst off: grime alone does not blind the cameras
 
 @system("navigation_robot.robot", order=70, max_dt=30.0)
 def robot_system(w, dt, tick):
@@ -397,11 +494,13 @@ def robot_system(w, dt, tick):
     rid = robot.get("room")
     room = state["rooms"].get(rid or "", {})
     weather = (state.get("weather") or {}).get("condition", "clear")
-    if room.get("outdoor") and weather in ("rain", "storm", "snow", "drizzle", "dust"):
-        clean = C.num(robot.get("camera_clean"), 1.0)
-        if clean > 0.2:
-            # droplets and grit build up on the lens covers despite the hood: ~0.4 %/min in rain or snow
-            w.robot_m()["camera_clean"] = round(max(0.2, clean - (0.004 if weather != "drizzle" else 0.0015) * dt / 60.0), 4)
+    if room.get("outdoor") and weather in GRIME_WEATHER:
+        clean = C.num(body.get(state, "camera_clean"), 1.0)
+        if clean > GRIME_FLOOR:
+            # droplets and grit build up on the lens covers despite the hood: ~0.4 %/min in rain or snow (the body's
+            # camera_dirty fault starts once the self-check sees the view blur below its level)
+            rate = 0.004 if weather != "drizzle" else 0.0015
+            body_faults.degrade_camera(w, amount=min(clean - GRIME_FLOOR, rate * dt / 60.0), cause="weather")
     helps = (C.nav_read(state).get("remote_help") or [])
     if any(h.get("status") == "pending" and C.now(state) >= C.num(h.get("resolve_at_s")) for h in helps):
         nav = C.nav(w)
@@ -413,6 +512,10 @@ def robot_system(w, dt, tick):
                 r = w.robot_m()
                 if r.get("stuck") and str(r.get("stuck")) in REMOTE_RESOLVABLE:
                     r["stuck"] = None
+                # the operator re-localizes the robot and restarts its navigation software (TIER1_EMBODIMENT 4.10-4.11)
+                body.relocalize(w, how="remote_help")
+                if body.fault(state, "software_stuck") is not None:
+                    body_faults.clear_fault(w, "software_stuck", "remote_help")
             else:
                 h["status"] = "passed_to_resident"
                 w.stat("handoffs")

@@ -902,6 +902,43 @@ def _store_inside(p, rooms, type_name, **props):
     return None
 
 
+WINTERIZED_SHARE = 0.7       # assumption: most households with a frost-prone yard put the hose away for the winter
+
+
+@furnisher("plumbing_liquids.household", order=93)
+def furnish_household(config, rng, opts, registry):
+    """Generation 2 only (TIER1_SWEEP 14, the household profile and season): the water heater burns what the house
+    is supplied with (a home without gas service has an electric unit), and in winter most households have put the
+    garden water away (hoses disconnected, drained and coiled, standard spigots shut inside and drained, sprinklers
+    switched off; WINTERIZED_SHARE of households, the rest left it as it was, which winter tasks are made of).
+    Generation 1 is untouched (the furnisher returns at once); its own draws come from this furnisher's stream."""
+    if int(opts.get("gen") or 1) < 2:
+        return
+    ents = config["entities"]
+    utilities = config.get("utilities") or {}
+    heater = ents.get("water_heater_1")
+    if heater is not None and not utilities.get("gas", True) and heater.get("fuel", "gas") == "gas":
+        heater["fuel"] = "electric"
+        heater["recovery_kw"] = 24.0 if heater.get("tankless") else 4.5
+        heater["plug_required"] = False      # hardwired
+    if opts.get("season") != "winter" or rng.random() >= WINTERIZED_SHARE:
+        return
+    for eid in sorted(ents):
+        rec = ents[eid]
+        if rec.get("type") == "garden_hose" and rec.get("attached_to"):
+            rec.update(attached_to=None, pressurized=False, liquid_l=0.0, coiled=True)
+        elif rec.get("type") == "outdoor_spigot":
+            settings = rec.setdefault("settings", {})
+            settings["valve"] = 0.0
+            valve = ents.get(rec.get("interior_valve") or "")
+            if valve is not None and not rec.get("frost_free"):
+                valve.setdefault("settings", {})["position"] = 0.0
+                valve["valve_open"] = False
+                rec["drained"] = True
+        elif rec.get("irrigation_controller") and rec.get("driver") == "plumbing_liquids":
+            rec.setdefault("settings", {})["mode"] = "off"
+
+
 @furnisher("plumbing_liquids.items", order=75)
 def furnish_items(config, rng, opts, registry):
     p = Placer(config, registry, rng)

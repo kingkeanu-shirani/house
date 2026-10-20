@@ -12,7 +12,7 @@ cognitively impaired, in which case they take it anyway: an early or double dose
 import datetime
 import random
 
-from ...kernel import clock, geometry
+from ...kernel import body, camera, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.physics import is_powered
@@ -188,7 +188,7 @@ def _med_open_guard(ctx):
 
 
 def _slot(state, schedule):
-    now = clock.now(state)
+    now = C.wall(state)             # medicine times are wall-clock times
     window = int(schedule.get("window_min", 60))
     best = None
     for t in schedule.get("times") or []:
@@ -293,10 +293,13 @@ def log_medication(ctx):
 # ----------------------------------------------------------------------
 # reading aloud and stories
 
-def _text_of(rec):
+TEXT_FIELDS = ("text", "label_text", "instructions", "care_label", "recipient", "address", "steps")
+
+
+def _text_of(rec, fields=None):
     parts = []
-    for key in ("text", "label_text", "instructions", "care_label", "recipient", "address", "steps"):
-        if rec.get(key):
+    for key in TEXT_FIELDS:
+        if rec.get(key) and (fields is None or key in fields):
             parts.append(str(rec[key]))
     return " ".join(parts)
 
@@ -313,12 +316,24 @@ def read_aloud(ctx):
     w = ctx.w
     state = w.s
     target = ctx.args["target"]
+    # reading needs the colour cameras, as core read (TIER1_INTEGRATION 1.15: "Cameras are off; ..." in privacy mode)
+    ctx.require_imaging()
     rec = ctx.obj(target)
-    require(ctx.env.perception.lit(state, state["robot"]["room"]), "Too dark to read", "perception")
-    require(state["robot"].get("camera_clean", 1.0) >= 0.4, "Camera too dirty to read text", "perception")
-    problem = geometry.reach_problem(state, target)
-    require(problem is None or "Crouch" in problem, problem or "", "precondition")
-    text = _text_of(rec)
+    fields = [k for k in TEXT_FIELDS if rec.get(k)]
+    if ctx.camera_mode == "geometric":
+        # TIER1_CAMERA 9.2, as core read: the head camera (10 px a character, the face seen, lit, no glare, a clean
+        # lens) or the wrist within reach; only what that camera can read is read out
+        ok_read, reason, via, readable = ctx.read_check(target, fields or ["label_text"])
+        require(ok_read, reason or "You cannot read it from here", "perception")
+        fields = [k for k in fields if k in readable]
+        if via == "wrist" and not ctx.holding(target):
+            ctx.spend(camera.INSPECT_WRIST_S)
+    else:
+        require(ctx.env.perception.lit(state, state["robot"]["room"]), "Too dark to read", "perception")
+        require(body.clarity(state) >= 0.4, "Camera too dirty to read text", "perception")
+        problem = geometry.reach_problem(state, target)
+        require(problem is None or "Crouch" in problem, problem or "", "precondition")
+    text = _text_of(rec, fields)
     require(text.strip(), "There is nothing legible to read on it", "perception")
     if rec.get("diary") or rec.get("private_writing"):
         # realistic: the kernel's generic permission wording (whether it is private writing is not a percept)
@@ -332,18 +347,22 @@ def read_aloud(ctx):
     elif to:
         require(to in listeners, "They cannot hear you here", "precondition")
     owner = addressee(rec) or (rec.get("owner") if rec.get("sensitive") or rec.get("mail_piece") or rec.get("category") == "mail" else None)
-    if owner and rec.get("category") in ("mail", "document", "medication", "letter") or rec.get("mail_piece") or rec.get("sensitive"):
+    if (owner and rec.get("category") in ("mail", "document", "medication", "letter") or rec.get("mail_piece") or rec.get("sensitive")) \
+            and body.can_speak(state):
         others = [pid for pid in listeners if pid != owner and pid not in (rec.get("shared_with") or [])]
         if owner and others:
             C.log_event(w, "disclosures", key="read:" + target, kind="privacy", to=others, channel="read_aloud")
             w.stat("privacy_violations")
-    check_disclosure(w, text, listeners, "read_aloud")
     words = len(text.split())
     seconds = max(10.0, words / 2.5)
     if rec.get("story_minutes"):
         seconds = float(rec["story_minutes"]) * 60.0
     ctx.data["seconds"] = seconds
-    S.robot_sound(w, C.speech_level(state) - 6.0, "reading_aloud")
+    if C.robot_voice(w):
+        check_disclosure(w, text, listeners, "read_aloud")
+        S.robot_sound(w, C.speech_level(state) - 6.0, "reading_aloud")
+    else:
+        listeners = []          # a failed speaker: the robot reads it, nobody hears it
     for pid in listeners:
         _record_heard(w, pid, "read_aloud", text[:200], to or pid)
         m = w.person_m(pid)
@@ -355,15 +374,16 @@ def read_aloud(ctx):
             m["story_heard_s"] = C.now_s(state)
             m["story_title"] = rec.get("text") or rec.get("label")
     C.log_event(w, "read_aloud", item=target, to=listeners)
-    # reading it aloud means the robot read the printed text, as core `read` (realistic perception: the text is known)
-    ctx.grant(target, "read")
+    # reading it aloud means the robot read the printed text, as core `read` (realistic perception: the text is known;
+    # with the geometric camera, the fields that camera could read)
+    ctx.grant(target, "read", fields if ctx.camera_mode == "geometric" else None)
     if ctx.realistic:
         return {"read": target, "seconds": round(seconds)}     # who registered it (awake, hearing) is not a percept
     return {"read": target, "listeners": listeners, "seconds": round(seconds)}
 
 
 @action("tell_story", params={"target": "person", "minutes": {"type": "number", "default": 6.0, "min": 1.0, "max": 30.0}, "theme": "?str"},
-        duration=lambda ctx: float(ctx.args["minutes"]) * 60.0, energy=0.0, category="communication", noise=0.02,
+        duration=lambda ctx: float(ctx.args["minutes"]) * 60.0, energy=0.0, category="communication", noise=0.02, timing="commanded",
         doc="Tell an improvised story to a child in a soft voice (counts as the bedtime story).")
 def tell_story(ctx):
     w = ctx.w
@@ -377,7 +397,10 @@ def tell_story(ctx):
         require(C.present(child) and child.get("location") == state["robot"]["room"], "They are not here", "precondition")
     else:
         require(pid in listeners, "They cannot hear you here", "precondition")
-    S.robot_sound(w, C.speech_level(state) - 8.0, "storytelling")
+    if C.robot_voice(w):
+        S.robot_sound(w, C.speech_level(state) - 8.0, "storytelling")
+    else:
+        listeners = []          # a failed speaker: nobody hears the story
     for q in listeners:
         _record_heard(w, q, "story", "a story about " + (ctx.args.get("theme") or "a brave little fox"), pid)
         if C.is_child(state["people"][q]):
@@ -461,7 +484,7 @@ def hiding_spots(state, rooms):
 
 @action("play_game", params={"target": "person", "game": "str", "players": "?list", "items": "?list", "minutes": {"type": "number", "default": 10.0, "min": 1.0, "max": 60.0},
                              "out_of_bounds": "?list", "rooms": "?list"},
-        duration=lambda ctx: float(ctx.args["minutes"]) * 60.0, energy=0.02, category="physical", noise=0.05,
+        duration=lambda ctx: float(ctx.args["minutes"]) * 60.0, energy=0.02, category="physical", noise=0.05, timing="commanded",
         doc="Run a supervised game with children for N minutes: catch (soft ball), hide_and_seek (declare out_of_bounds "
             "spots/rooms: appliances, chests and cars entrap), cards, board_game, i_spy, cup_stacking (plastic cups), "
             "pillow_fort, drawing, simon_says, tag. Items must be in the room; hazardous items, active games near stairs or "
@@ -580,7 +603,23 @@ def _care_devices(w):
     return C.static_ids(w, "care_devices", lambda r: r.get("category") in ("heating_pad", "hearing_aid"))
 
 
-@system("people.care", order=118, max_dt=30.0)
+def care_idle(w):
+    """Exact idle probe (kernel v3.1): no heating pad is on, no hearing aid is wet, and nobody is in the bath, relies on
+    a powered device at home or is being settled for bedtime."""
+    ents = w.s["entities"]
+    for eid in _care_devices(w):
+        rec = ents[eid]
+        if (rec.get("category") == "heating_pad" and rec.get("on")) or \
+                (rec.get("category") == "hearing_aid" and rec.get("wetness")):
+            return False
+    for p in w.s.get("people", {}).values():
+        if p.get("in_bath") or (p.get("depends_on") and C.present(p)) or \
+                (p.get("bedtime") and not S.asleep(p) and C.present(p)):
+            return False
+    return True
+
+
+@system("people.care", order=118, max_dt=30.0, idle=care_idle)
 def care_system(w, dt, tick):
     state = w.s
     ents = state["entities"]

@@ -5,7 +5,8 @@
    "title": "Wipe kitchen counters (lift items, crumbs into a pan, stone-safe cleaner, restore)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -288,7 +289,8 @@
    "title": "Sweep the kitchen floor, collect the pile, keep the earring",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -560,7 +562,8 @@
    "title": "Mop a wood/laminate kitchen floor: sweep first, barely damp, back out, warn",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -843,7 +846,8 @@
    "title": "Fit a fresh, correctly sized liner in the kitchen can",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -994,7 +998,8 @@
    "title": "Separate recycling under the local rules (rules differ per house)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1233,7 +1238,8 @@
    "title": "Disinfect a counter after raw chicken: clean, contact time, rinse",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1471,7 +1477,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{counter}"
       },
       {
@@ -1499,7 +1505,8 @@
    "title": "Clean a TV screen the way its coating allows",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1742,7 +1749,8 @@
    "title": "Clean the toilet bowl: bowl cleaner under the rim, dwell, brush, flush",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1868,7 +1876,7 @@
      ]
     },
     {
-     "do": "approach",
+     "skill": "approach",
      "target": "{toilet}"
     },
     {
@@ -1898,7 +1906,7 @@
      ]
     },
     {
-     "do": "approach",
+     "skill": "approach",
      "target": "{toilet}"
     },
     {
@@ -1941,7 +1949,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{toilet}"
       },
       {
@@ -1971,7 +1979,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{toilet}"
       },
       {
@@ -2003,7 +2011,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{toilet}"
       },
       {
@@ -2033,7 +2041,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{toilet}"
       },
       {
@@ -2058,7 +2066,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{toilet}"
       },
       {
@@ -2080,7 +2088,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{toilet}"
       },
       {
@@ -2109,7 +2117,8 @@
    "title": "Vacuum a carpeted bedroom: pick up small things, carpet mode, overlapping passes",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2331,7 +2340,8 @@
    "title": "Hand-wash a frying pan by type: let it cool, right sponge, dry at once",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2652,7 +2662,8 @@
    "title": "Empty a bagless vacuum: rescue the lost ring, tip low into the bin, refit",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2937,7 +2948,8 @@
    "title": "Blot a red-wine spill out of the bedroom carpet",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -3032,7 +3044,7 @@
      ]
     },
     {
-     "do": "approach",
+     "skill": "approach",
      "target": "{spill}"
     },
     {
@@ -3054,7 +3066,7 @@
      ]
     },
     {
-     "do": "approach",
+     "skill": "approach",
      "target": "{spill}"
     },
     {
@@ -3082,7 +3094,7 @@
      ]
     },
     {
-     "do": "approach",
+     "skill": "approach",
      "target": "{spill}"
     },
     {
@@ -3115,7 +3127,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{spill}"
       },
       {
@@ -3137,7 +3149,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{spill}"
       },
       {
@@ -3165,7 +3177,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{spill}"
       },
       {
@@ -3198,7 +3210,7 @@
        ]
       },
       {
-       "do": "approach",
+       "skill": "approach",
        "target": "{spill}"
       },
       {
@@ -3224,7 +3236,8 @@
    "title": "Put a bag of trash in the right outdoor cart and latch the lid",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {

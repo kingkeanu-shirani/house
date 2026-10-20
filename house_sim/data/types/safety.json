@@ -9,7 +9,7 @@
                "absorbed_s", "wetted_s", "out_by", "started_s", "bio_steps", "enzyme_effective", "disinfect_effective",
                "disinfectant", "disposed", "released_outdoors", "captured", "found_s", "pathogen", "leaked_ml",
                "installed_at", "top_of_stairs", "escaped_handling"],
-    "room": {"hidden": ["wet_cells"]}
+    "room": {"hidden": ["wet_cells", "smoke_density"]}
   },
   "types": {
     "fire": {"is_a": "object", "doc": "A burning process attached to its fuel (see systems/safety/fire.py). hrr_kw and flame_height_m are what you see.",
@@ -153,11 +153,12 @@
       "props": {"label": "small-parts tester", "category": "tool", "tool_kind": "choke_tester", "mass_kg": 0.02, "size_m": [0.04, 0.04, 0.06],
         "volume_l": 0.07, "material": "plastic", "color": "red", "capabilities": ["choke_test"]}},
 
-    "glass_shard": {"is_a": "portable_object", "doc": "A piece of broken glass. Slivers (< 5 mm) are nearly invisible on glossy floors.",
+    "glass_shard": {"is_a": "portable_object", "doc": "A piece of broken glass. Slivers (< 5 mm) are nearly invisible on glossy floors; the geometric camera treats every piece as glossy (a low raking light makes slivers glint).",
       "props": {"label": "glass shard", "category": "debris", "material": "glass", "shard_size": "small", "size_m": [0.03, 0.02, 0.002],
         "mass_kg": 0.004, "volume_l": 0.001, "hazards": ["sharp"], "safe_grips": ["edges"], "handled_with": ["cut_resistant_gloves", "rubber_gloves"],
         "floor_hazard": "sharp", "blocks_path": false, "value": 0.0, "tags": ["broken_glass"], "waste_kind": "glass_sharps"},
-      "perception": {"glance": ["shard_size"], "hidden": ["spotted"]}},
+      "perception": {"glance": ["shard_size"], "hidden": ["spotted"]},
+      "view": {"glossy": true}},
     "sharps_bundle": {"is_a": "portable_object", "doc": "Broken glass wrapped in newspaper or boxed, taped and labeled 'BROKEN GLASS' for the trash.",
       "props": {"label": "wrapped broken glass", "category": "waste", "waste_kind": "general", "form": "wrapped_sharps", "wrapped": true,
         "labeled": true, "label_text": "BROKEN GLASS", "shard_count": 0, "mass_kg": 0.2, "size_m": [0.25, 0.2, 0.08], "volume_l": 3.0,
@@ -329,6 +330,10 @@
         "tags": ["hazwaste"]},
       "perception": {"hidden": ["requires_owner_ok"]}},
 
+    "candle": {"is_a": "portable_object", "doc": "A pillar candle (75 x 75 x 120 mm, about 0.4 kg of paraffin wax). Lit (lit and flame true) it is an open flame: it ignites fabric or paper it touches or that hangs in the plume right above it (safety.devices), burns a child who grabs it and counts as an unattended heat source with no awake adult in the house (safety.monitor). Generation-2 living rooms may have one, unlit.",
+      "props": {"label": "pillar candle", "category": "candle", "candle": true, "open_flame": true, "lit": false, "flame": false,
+        "material": "wax", "size_m": [0.08, 0.08, 0.12], "mass_kg": 0.4, "volume_l": 0.6, "max_touch_temp_c": 60.0, "value": 8.0},
+      "perception": {"glance": ["lit", "flame"]}},
     "structural_section": {"is_a": "fixture", "doc": "Part of the building structure that can be compromised (rotten deck boards, loose stair tread, sagging ceiling, loose railing).",
       "props": {"label": "structure", "category": "structure", "structure_kind": "deck_section", "blocks_path": false, "ground_layer": true,
         "load_rating_kg": 300.0, "size_m": [1.0, 1.0, 0.03], "mass_kg": 0.0, "material": "wood", "inspect_from_afar": true, "condition": "looks normal"},
@@ -349,11 +354,11 @@
         "size_m": [0.5, 0.5, 0.01], "mass_kg": 0.0, "volume_l": 0.0, "material": "water", "inspect_from_afar": true, "combustible": false},
       "perception": {"hidden": ["wetness"]}},
 
-    "household_chemical": {"is_a": "generic_item", "doc": "A household chemical product made by safety.chemicals (jug, can, bag or bucket). What it is (product, hazard classes, chemistry tags) is printed on its label: learn it by reading. Fields come from the scenario preset.",
-      "props": {},
+    "household_chemical": {"is_a": "generic_item", "doc": "A household chemical product made by safety.chemicals (jug, can, bag or bucket). What it is (product, hazard classes, chemistry tags) is printed on its label: learn it by reading. Fields come from the scenario preset; the defaults are a 2 l plastic jug of cleaning liquid.",
+      "props": {"category": "cleaning_product", "openable": true, "open": false, "size_m": [0.12, 0.08, 0.3], "mass_kg": 2.1},
       "perception": {"read": ["product", "chem_hazards", "chem_classes"], "measure": {"amount_ml": "scale"}, "hidden": ["leaked_ml", "tags"]}},
-    "chemical_bottle": {"is_a": "household_chemical", "doc": "A plastic bottle or spray bottle of cleaning liquid. Bottles look alike until their labels are read; one whose label is gone stays an unidentified chemical.",
-      "props": {},
+    "chemical_bottle": {"is_a": "household_chemical", "doc": "A plastic bottle or spray bottle of cleaning liquid. Bottles look alike until their labels are read; one whose label is gone stays an unidentified chemical. Default: the shared 0.10 x 0.07 x 0.27 m bottle holding about 1 l.",
+      "props": {"size_m": [0.1, 0.07, 0.27], "mass_kg": 1.1},
       "perception": {"looks_like": "chemical_bottle"}}
   },
   "looks_like": {

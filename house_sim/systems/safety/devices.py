@@ -29,7 +29,7 @@ import math
 
 from ...kernel import geometry, physics
 from ...kernel.errors import SpecError
-from ...kernel.plugins import after, inspector, scenario_helper, system
+from ...kernel.plugins import after, hook, inspector, scenario_helper, system
 from . import air as A
 from . import common as C
 from . import fire as F
@@ -215,6 +215,44 @@ def _candle(w, eid, rec, dt):
             if isinstance(orec.get("mech"), dict):
                 m["burnt"] = True
             F.ignite(w, other, hrr_kw=3.0, cause="candle_ignited", harm=not already)
+
+
+# ---------------------------------------------------------------------------------------------- hot-surface ignition
+
+# Hot-surface ignition temperatures (degC) of fuels a hot item can rest on: the contact temperature at which the fuel
+# ignites rather than only scorching (P-approx, after Babrauskas, Ignition Handbook, 2003: paper ~230, cotton and
+# similar fabrics ~260, wood ~300 for minutes of contact, polyurethane foam and plastics ~350, wool ~500;
+# thermoplastics such as polyester melt well before they ignite). Keys are fire.MATERIALS keys.
+CONTACT_IGNITION_C = {"paper": 230.0, "cardboard": 260.0, "lint": 250.0, "fabric": 260.0, "cotton": 260.0, "wicker": 260.0,
+                      "wax": 240.0, "fuel": 260.0, "wood": 300.0, "food": 300.0, "foam": 350.0, "plastic": 350.0,
+                      "polyester": 430.0, "wool": 500.0}
+
+
+def contact_ignition_c(rec):
+    """The contact temperature (degC) at which a combustible support ignites, or None (not combustible / unknown)."""
+    if not F.combustible(rec):
+        return None
+    return CONTACT_IGNITION_C.get(F.material_key(rec) or "")
+
+
+@hook("phys.contact_heat")
+def hot_contact_ignites(w, hot, support_id, temp, severity):
+    """Kernel physics adoption (phys.contact_heat, the contact_heat law): a hot item resting on a combustible support
+    at or above the support's hot-surface ignition temperature sets it alight (a pan of 400 C oil on a paper towel, a
+    glowing element on a wooden board) instead of only scorching it; the fire is the robot's when the kernel
+    attributes the contact to it (physics.robot_caused). Returns True to claim the contact; below the ignition
+    temperature the kernel's scorch / melt / ring mark applies."""
+    state = w.s
+    support = state["entities"].get(support_id)
+    if support is None or support.get("burning") or F.fire_on(state, support_id):
+        return None
+    limit = contact_ignition_c(support)
+    if limit is None or float(temp) < limit:
+        return None
+    caused = physics.robot_caused(w, hot)
+    F.ignite(w, support_id, hrr_kw=1.0, cause="contact_ignition", harm=caused)
+    C.log(w, "contact_ignition", hot=hot, support=support_id, robot=caused)
+    return True
 
 
 # ---------------------------------------------------------------------------------------------- cords and live gear
@@ -448,16 +486,14 @@ def candle_helper(ctx, room="living_room", near=None, lit=True, var="candle"):
     """A lit pillar candle on a surface; near=<entity> puts it right against that entity (curtain, paper stack)."""
     from . import helpers as HP
     rid = HP._room(ctx, room)
-    spec = {"label": "pillar candle", "category": "candle", "candle": True, "open_flame": True, "lit": bool(lit), "flame": bool(lit),
-            "material": "wax", "size_m": [0.08, 0.08, 0.12], "mass_kg": 0.4, "portable": True, "heat_source": True,
-            "max_touch_temp_c": 60.0}
+    spec = {"lit": bool(lit), "flame": bool(lit)}          # the rest is the candle type's (pillar candle, wax, 0.4 kg)
     if near and near in ctx.config["entities"]:
         target = ctx.config["entities"][near]
-        eid = ctx.placer.make("generic_item", target.get("location") if target.get("location") in ctx.config["rooms"] else rid, **spec)
+        eid = ctx.placer.make("candle", target.get("location") if target.get("location") in ctx.config["rooms"] else rid, **spec)
         rec = ctx.config["entities"][eid]
         rec["pos"] = list(target.get("pos") or [0, 0])
         rec["relation"] = "on"
         rec["mount_height_m"] = max(0.0, float(target.get("mount_height_m", 0.0)) + 0.6)   # on the sill/stand beside it
     else:
-        eid = HP._on_or_floor(ctx, rid, "generic_item", **spec)
+        eid = HP._on_or_floor(ctx, rid, "candle", **spec)
     return {var: eid}

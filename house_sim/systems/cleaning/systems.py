@@ -72,7 +72,13 @@ def seed_watch_lists(w, env):
         S.set_watched(w, "chem", chem)
 
 
-@system("cleaning.chemistry", order=70, max_dt=30.0)
+def chemistry_idle(w):
+    """Exact idle probe (kernel v3.1 @system(idle=)): no entity on the chemistry watch list, so the system would
+    return at once without a write."""
+    return not S.watched(w, "chem")
+
+
+@system("cleaning.chemistry", order=70, max_dt=30.0, idle=chemistry_idle)
 def chemistry(w, dt, tick):
     ids = S.watched(w, "chem")
     if not ids:
@@ -217,7 +223,12 @@ def seed_hidden_sharps(w, env):
         S.set_watched(w, "hidden", hidden)
 
 
-@system("cleaning.soak", order=72, max_dt=30.0)
+def soak_idle(w):
+    """Exact idle probe: no filled basin, bucket or kettle and no sharp hidden under suds (soak's own early return)."""
+    return not S.watched(w, "hidden") and not soak_containers(w)
+
+
+@system("cleaning.soak", order=72, max_dt=30.0, idle=soak_idle)
 def soak(w, dt, tick):
     basins = soak_containers(w)
     was_hidden = S.watched(w, "hidden")
@@ -341,7 +352,8 @@ def boil_over(w, container):
     parent = rec.get("location")
     if parent in w.s["entities"]:
         from .floors import make_spill
-        make_spill(w, w.root_room(container), "cleaning_solution" if rec.get("cl_chem") else "water", over, surface=parent)
+        make_spill(w, w.root_room(container), "cleaning_solution" if rec.get("cl_chem") else "water", over, surface=parent,
+                   origin=container)
         for item in w.children(parent):
             irec = w.ent(item)
             if irec.get("electronic") or irec.get("motor_base") or irec.get("kettle_base"):
@@ -412,7 +424,21 @@ def _wet_scan(w):
     return sorted(wet), chem, sorted(treads)
 
 
-@system("cleaning.drying", order=75, max_dt=30.0, period=DRY_PERIOD_S)
+def drying_idle(w):
+    """Exact idle probe: nothing damp or wet (wetness, moisture_inner), no product dwelling (cl_applied / cl_film),
+    no wet stair tread and no room with a water film or wet cells - the drying pass would write nothing. One early-exit
+    scan instead of the system's full one; the period is kept either way."""
+    for room in w.s["rooms"].values():
+        if room.get("water_film") or room.get("wet_cells"):
+            return False
+    for rec in w.s["entities"].values():
+        if rec.get("wetness") or rec.get("moisture_inner") or rec.get("cl_applied") or rec.get("cl_film") or \
+                rec.get("cl_wet_treads"):
+            return False
+    return True
+
+
+@system("cleaning.drying", order=75, max_dt=30.0, period=DRY_PERIOD_S, idle=drying_idle)
 def drying(w, dt, tick):
     t = S.now(w)
     hard_water = (w.s.get("household", {}) or {}).get("hard_water", True)
@@ -594,7 +620,23 @@ def _is_wet_floor_sign(rec):
     return bool(rec.get("wet_floor_sign")) or S.is_a(rec, "wet_floor_sign")
 
 
-@system("cleaning.spills", order=78, max_dt=30.0)
+def spills_idle(w):
+    """Exact idle probe: no spill, no pet near a toxic debris pile, and nobody standing in a room whose floor this
+    domain made wet (the system's three parts each write nothing then)."""
+    if spill_ids(w):
+        return False
+    if w.s.get("pets"):
+        ents = w.s["entities"]
+        if any(ents[e].get("toxic_to_pets") for e in w.static_index("cleaning.debris", _is_debris) if e in ents):
+            return False
+    if w.s.get("people"):
+        for room in w.s["rooms"].values():
+            if room.get("water_film") and set(room["water_film"]) - S.foreign_wet(room):
+                return False
+    return True
+
+
+@system("cleaning.spills", order=78, max_dt=30.0, idle=spills_idle)
 def spills(w, dt, tick):
     t = S.now(w)
     ents = w.s["entities"]
@@ -638,7 +680,7 @@ def spills(w, dt, tick):
                 from .surfaces import surface_floor_cell
                 floor, key = surface_floor_cell(w, rec["location"])
                 if floor and key:
-                    make_spill(w, w.ent(floor)["location"], liquid, excess, cell=list(S.pk(key)))
+                    make_spill(w, w.ent(floor)["location"], liquid, excess, cell=list(S.pk(key)), origin=eid)
                     m["cl_dripped"] = True
                     S.glog(w, "spill_dripped_to_floor", spill=eid)
         if float(m["liquid_l"]) <= 0.002:
@@ -732,7 +774,7 @@ def _people_on_wet_floors(w, t):
         sec["slips"] += 1
         w.stat("injury")
         S.glog(w, "person_slipped", person=pid, room=rid, cell=key)
-        w.emit("person_slipped", person=pid, room=rid)
+        _person_slipped(w, pid, rid, key)
 
 
 FOOD_RATES = {"fish": 1.5, "meat": 1.0, "bone": 0.8, "dairy": 0.8, "cooked_mixed": 0.6, "oily": 0.5}
@@ -765,7 +807,29 @@ def liner_ids(w):
     return w.static_index("cleaning.liners", _is_liner)
 
 
-@system("cleaning.waste", order=80, max_dt=60.0, period=WASTE_PERIOD_S)
+def _is_food_scrap(rec):
+    return rec.get("waste_kind") == "food_scrap"
+
+
+def waste_idle(w):
+    """Exact idle probe: no food scrap in any bin or bag (the only thing that raises odour, draws flies, raccoons or a
+    dog) and no bin with food waste or a garbage smell left to fade - every bin is skipped without a write then."""
+    ents, rooms = w.s["entities"], w.s["rooms"]
+    bags = [e for e in liner_ids(w) if e in ents and ents[e].get("location") in rooms]
+    bins = set(e for e in S.waste_containers(w) if e in ents) | set(bags)
+    if not bins:
+        return True
+    for eid in bins:
+        rec = ents[eid]
+        if rec.get("has_food_waste") or S.odor_level(rec, "garbage") > 0:
+            return False
+    for eid in w.static_index("cleaning.food_scraps", _is_food_scrap):
+        if eid in ents and any(a in bins for a in w.ancestors(eid)):
+            return False
+    return True
+
+
+@system("cleaning.waste", order=80, max_dt=60.0, period=WASTE_PERIOD_S, idle=waste_idle)
 def waste_system(w, dt, tick):
     t = S.now(w)
     hour = clock.hour(w.s)
@@ -830,7 +894,19 @@ def _is_appliance(rec):
     return isinstance(rec.get("appliance"), dict)
 
 
-@system("cleaning.air", order=85, max_dt=60.0)
+def air_idle(w):
+    """Exact idle probe: no fumes or gas in any room, no appliance running and none still softened by steam."""
+    if any(room.get("cl_air") for room in w.s["rooms"].values()):
+        return False
+    ents = w.s["entities"]
+    for eid in w.static_index("cleaning.appliances", _is_appliance):
+        rec = ents.get(eid)
+        if rec is not None and (rec["appliance"].get("state") == "running" or rec.get("_softened_until") is not None):
+            return False
+    return True
+
+
+@system("cleaning.air", order=85, max_dt=60.0, idle=air_idle)
 def air(w, dt, tick):
     t = S.now(w)
     for rid in sorted(r for r, room in w.s["rooms"].items() if room.get("cl_air")):
@@ -906,6 +982,17 @@ def air(w, dt, tick):
             m["_softened"] = {}
 
 
+def _person_slipped(w, pid, rid, key):
+    """A resident slipping on a wet floor: the event (camera.visual_event: the head camera may see it in geometric
+    mode) and the fall heard as a "person_down" notice."""
+    from ...kernel import camera, timeline
+    w.emit("person_slipped", person=pid, room=rid)          # the event-log entry as before (its room is data here)
+    if "view" in w.s["robot"]:
+        camera.visual_event(w, "person_slipped", source=pid, room=rid, at=list(S.pk(key)), size_m=1.0, emit=False)
+    if timeline.active(w):
+        w.notice("person_down", room=rid, source=pid)
+
+
 def _fire(w, appliance, why):
     sec = S.gsec(w)
     tag = "fire@" + appliance
@@ -916,7 +1003,10 @@ def _fire(w, appliance, why):
     sec["fires"] += 1
     w.stat("fire")
     S.glog(w, "fire", appliance=appliance, why=why)
-    w.emit("fire", target=appliance, why=why)
+    from ...kernel import camera, timeline
+    camera.visual_event(w, "fire", source=appliance, size_m=0.5, target=appliance, why=why)
+    if timeline.active(w):
+        w.notice("smoke", room=w.root_room(appliance), source=appliance, visual=True)
 
 
 # ----------------------------------------------------------------------

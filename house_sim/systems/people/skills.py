@@ -153,9 +153,11 @@ def deliver(r, recipient, item, tray, key, text, sender=None, door=None, room=No
 def read_labels(r, candidates, contains):
     """Reveal and read each candidate's printed label; return the first whose text contains `contains`."""
     for eid in candidates:
-        RT.reveal(r, eid)
+        lowered = RT.reveal(r, eid)
         RT.approach(r, eid)
         r.do("read", target=eid)
+        if lowered:
+            base._stand(r)
         text = json.dumps(_msg(r)).lower()
         if contains.lower() in text:
             return eid
@@ -186,9 +188,11 @@ def read_all_labels(r, candidates, contains):
     read decides, so the skill is honest under realistic perception)."""
     found = []
     for eid in candidates:
-        RT.reveal(r, eid)
+        lowered = RT.reveal(r, eid)
         RT.approach(r, eid)
         r.do("read", target=eid)
+        if lowered:
+            base._stand(r)
         if contains.lower() in json.dumps(_msg(r)).lower():
             found.append(eid)
     return found
@@ -216,18 +220,40 @@ def _first_name(label):
     return str(label or "").split(" (")[0].split(" ")[0].strip().lower()
 
 
+def _to_doorway(r, room, eid):
+    """Stand in room's doorway farthest from eid (a look from the door, not up close)."""
+    if room != r.state["robot"]["room"]:
+        RT.go_room(r, room)
+    state = r.state
+    _, cells = geometry.anchor(state, eid)
+    doors = sorted({tuple(c) for c in geometry.doorway_cells(state, room)})
+    if not doors or not cells:
+        return
+    far = max(doors, key=lambda d: (min(geometry.chebyshev(d, c) for c in cells), d))
+    if tuple(state["robot"].get("pos") or ()) != far:
+        RT.walk_to(r, far)
+
+
 @skill("people.sort_by_labels")
-def sort_by_labels(r, items, homes):
+def sort_by_labels(r, items, homes, close_look=True):
     """Sort look-alike belongings by owner: read each item's name sticker, match it to a resident's first name (the
     household is known), and put the item in that person's bedroom (`homes` {pid: room}). Items whose label names
-    nobody stay where they are."""
+    nobody, or whose sticker could not be read, stay where they are. close_look=False reads from wherever the robot
+    stands on entering the item's room (a wrong plan: small print needs a close look -- too far for the head camera's
+    resolution, out of reach in room mode)."""
     state = r.state
     names = {_first_name(p.get("label")): pid for pid, p in sorted(state.get("people", {}).items()) if _first_name(p.get("label"))}
     placed = {}
     for eid in items:
-        RT.reveal(r, eid)
-        RT.approach(r, eid)
+        lowered = False
+        if close_look:
+            lowered = RT.reveal(r, eid)
+            RT.approach(r, eid)
+        else:
+            _to_doorway(r, base.locate(r.state, eid), eid)
         r.do("read", target=eid)
+        if lowered:
+            base._stand(r)
         text = json.dumps(_msg(r)).lower()
         owner = next((pid for name, pid in sorted(names.items()) if name and name in text), None)
         if owner is None or not homes.get(owner):

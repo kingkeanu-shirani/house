@@ -35,10 +35,21 @@ def bedroom_owners(config):
 
 
 def _home_rooms(config):
+    """{pid: their bedroom}. Generation-2 houses (household.profile from the generator's composition) already decided
+    who sleeps where -- roommates apart, siblings sharing, an infant in the nursery or the parents' room, elderly
+    partners together -- and wrote it to profile.members.<pid>.home_room: that wins. Otherwise (generation 1, explicit
+    resident lists) the textiles-compatible rule of bedroom_owners."""
     result = {}
     for rid, pids in sorted(bedroom_owners(config).items()):
         for pid in pids:
             result.setdefault(pid, rid)
+    profile = (config.get("household") or {}).get("profile") or {}
+    if profile.get("gen") == 2:
+        rooms = config.get("rooms") or {}
+        for pid, member in sorted((profile.get("members") or {}).items()):
+            home = (member or {}).get("home_room")
+            if pid in (config.get("people") or {}) and home in rooms:
+                result[pid] = home
     return result
 
 

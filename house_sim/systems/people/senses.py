@@ -12,6 +12,12 @@ Arousal (fidelity S/P-approx): a sleeper wakes when the peak level reaches their
 (adults ~55 dB, infants ~48 dB, light sleepers 5 dB lower); sub-threshold sounds within 10 dB
 accumulate arousal that decays with a 4-minute time constant. Sudden light (room light level
 rising by > 0.25, or > 0.12 for light-sensitive sleepers) and moving a sleep space also arouse.
+
+Tier-1 adoption: the robot's footsteps are its body's (body.noise_db at the walk's effective speed, from the motion
+record), every action that declares noise_db reaches the listeners through the kernel's robot_sound hook, robot
+speech through a failed speaker makes no sound (core say() marks it inaudible), and the system has an exact idle probe
+(senses_idle: no queued sound, no new robot noise, no new manipulation noise and nobody listening); its bookkeeping
+cursors move only when there is something to process, so a skipped substep changes nothing.
 """
 import math
 
@@ -54,6 +60,16 @@ def robot_sound(w, db, kind):
     add_sound(w, state["robot"].get("room"), C.robot_xy(state), db, kind, robot_caused=True)
 
 
+@hook("robot_sound")
+def _kernel_robot_sound(w, db, action, room, cell):
+    """The kernel's robot_sound hook (TIER1_INTEGRATION 1.11): an action that declares noise_db (a vacuum, a drill, a
+    blender started by the robot's own verb) is a robot-caused sound at the robot's cell for the listeners here."""
+    if room not in w.s.get("rooms", {}):
+        return
+    xy = C.cell_center(cell) if cell else C.robot_xy(w.s)
+    add_sound(w, room, xy, float(db), action or "robot_action", robot_caused=True)
+
+
 @hook("noise_event")
 def _cleaning_noise(w, rid, db):
     """Cleaning's loud tools (vacuums, carpet beaters...) report their level here."""
@@ -72,7 +88,13 @@ def _room_center(state, rid):
 # robot movement and doors make noise
 
 def _speed(ctx):
-    return ctx.args.get("speed") or ctx.w.robot.get("speed_mode", "normal")
+    """The speed the robot actually walked: the motion record's effective speed (body.effective_speed: quiet mode
+    turns fast into normal, limp mode or weak legs walk careful), else the requested speed or the robot's mode."""
+    record = ctx.data.get("motion")
+    if isinstance(record, dict) and record.get("speed") in C.FOOTSTEP_DB:
+        return record["speed"]
+    from ...kernel import body
+    return body.effective_speed(ctx.w.s, ctx.args.get("speed") or ctx.w.robot.get("speed_mode", "normal"))[0]
 
 
 def _path_sounds(ctx, room):
@@ -81,9 +103,7 @@ def _path_sounds(ctx, room):
     speed = _speed(ctx)
     path = ctx.data.get("path") or []
     creaks = {tuple(c) for c in state["rooms"].get(room, {}).get("creak_cells", [])}
-    db = C.FOOTSTEP_DB.get(speed, 36.0)
-    if w.robot.get("quiet"):
-        db -= 4.0
+    db = C.footstep_level(state, speed)        # the body's footsteps (quiet mode: a softer footfall)
     hit = [tuple(c) for c in path if tuple(c) in creaks]
     if hit:
         add_sound(w, room, C.cell_center(hit[-1]), C.CREAK_DB.get(speed, 48.0), "floor_creak", path=hit)
@@ -109,13 +129,14 @@ def _walk_sounds(ctx, result):
 
 @after("close", order=175)
 def _door_close_sound(ctx, result):
+    from ...kernel import body
     w = ctx.w
     rec = w.s["entities"].get(ctx.args.get("target"), {})
     if rec.get("category") in ("door", "gate", "hatch") or rec.get("openable") and rec.get("slams"):
-        speed = w.robot.get("speed_mode", "normal")
+        speed = body.effective_speed(w.s, None)[0]      # quiet mode eases doors shut like it walks: never "fast"
         robot_sound(w, C.DOOR_CLOSE_DB.get(speed, 50.0), "door_close")
     elif rec.get("openable") and rec.get("category") in ("drawer", "cabinet") or "cabinet" in rec.get("is_a", []):
-        speed = w.robot.get("speed_mode", "normal")
+        speed = body.effective_speed(w.s, None)[0]
         robot_sound(w, C.DRAWER_CLOSE_DB.get(speed, 52.0), "drawer_close")
 
 
@@ -174,6 +195,8 @@ def wake_person(w, pid, cause, robot_caused, wanted=False, db=None, method=None)
         m["mood"] = "grumpy" if not C.is_child(p) else "crying"
         if C.is_child(p) and C.age_of(p) < 3:
             m["crying_until"] = C.now_s(w.s) + 900.0
+            if p.get("location") in w.s.get("rooms", {}):
+                w.notice("crying", room=p.get("location"), db=CRY_DB, source=pid)   # a woken baby cries (heard)
     elif wanted:
         m["mood"] = m.get("mood") if m.get("mood") not in ("asleep", None) else "neutral"
     C.log_event(w, "wakes", person=pid, cause=cause, robot_caused=bool(robot_caused), wanted=bool(wanted),
@@ -215,10 +238,19 @@ def _sleepers_at_start(w, env):
 # ----------------------------------------------------------------------
 # the senses system
 
-def _effective_light(state, rid, w=None):
+def _effective_light(state, rid, w=None, memo=None):
     """Light reaching a sleeper: the room's level plus what leaks in from lit neighbouring rooms (a quarter through
-    an open doorway, 3 % under a closed door). With the World, uses the static-index light level (no entity scan)."""
-    level_of = (lambda r: C.light_level(w, r)) if w is not None else (lambda r: light_level(state, r))
+    an open doorway, 3 % under a closed door). With the World, uses the static-index light level (no entity scan);
+    memo ({room: level}) shares the room levels of one senses tick between its sleepers."""
+    if w is not None and memo is not None:
+        def level_of(r):
+            if r not in memo:
+                memo[r] = C.light_level(w, r)
+            return memo[r]
+    elif w is not None:
+        level_of = (lambda r: C.light_level(w, r))
+    else:
+        level_of = (lambda r: light_level(state, r))
     level = level_of(rid)
     for conn in sorted(state.get("connections", {}).values(), key=lambda c: tuple(c["rooms"])):
         if rid not in conn["rooms"]:
@@ -289,7 +321,29 @@ def _sleepers_or_sensitive(state, quiet=None):
     return result
 
 
-@system("people.senses", order=110, max_dt=30.0)
+def _new_log_entries(state, since):
+    """True when the event log holds an entry at or after `since` (manipulation's noise events are read from there)."""
+    log = state.get("event_log") or []
+    return bool(log) and float(log[-1].get("time_s", 0) or 0) >= since
+
+
+def senses_idle(w):
+    """Exact idle probe of people.senses (kernel v3.1 @system(idle=)): True when the system would change nothing this
+    substep -- no queued sound, no new robot action noise (stats.noise), no event-log entry since the last scan (so no
+    new manipulation noise) and nobody listening (no sleeper, nobody busy, upset, noise-sensitive or settling for
+    bedtime, no quiet hours in force)."""
+    state = w.s
+    log = state.get("people_log") or {}
+    if log.get("_sounds"):
+        return False
+    if float((state.get("stats") or {}).get("noise", 0.0)) > float(log.get("_noise_seen", 0.0)) + 1e-9:
+        return False
+    if _new_log_entries(state, float(log.get("_manip_seen_s", -1.0))):
+        return False
+    return not _sleepers_or_sensitive(state, quiet_rule(state))
+
+
+@system("people.senses", order=110, max_dt=30.0, idle=senses_idle)
 def senses_system(w, dt, tick):
     state = w.s
     log = state.get("people_log", {}) or {}
@@ -301,8 +355,12 @@ def senses_system(w, dt, tick):
     if stats_noise > seen + 1e-9:
         sources.append({"room": state["robot"].get("room"), "xy": list(C.robot_xy(state)), "db": C.noise_units_to_db(stats_noise - seen),
                         "kind": "robot_action", "robot": True})
-    sources.extend(_new_manip_sounds(state, since))
-    if pending or stats_noise > seen + 1e-9 or since < C.now_s(state) - 1e-6:
+    new_entries = _new_log_entries(state, since)
+    if new_entries:
+        sources.extend(_new_manip_sounds(state, since))
+    # the cursors move only when there was something to read (a skipped idle substep must change nothing): the event
+    # log's entries are time-stamped in order, so an entry the next scan reads again is one read at the same instant
+    if pending or stats_noise > seen + 1e-9 or new_entries:
         lm = C.plog(w)
         lm["_sounds"] = []
         lm["_noise_seen"] = round(stats_noise, 4)
@@ -315,6 +373,7 @@ def senses_system(w, dt, tick):
         return
     sources.extend(_continuous_sources(w))
     losses_cache = {}
+    lights = {}
     for pid in listeners:
         p = state["people"][pid]
         room, xy = p.get("location"), C.person_xy(p)
@@ -337,7 +396,7 @@ def senses_system(w, dt, tick):
             if peak > float(peaks.get(pid, 0.0)) + 0.05:
                 C.plog(w).setdefault("peak_at", {})[pid] = round(peak, 1)
         if asleep(p):
-            _arousal(w, pid, p, peak, peak_src, dt)
+            _arousal(w, pid, p, peak, peak_src, dt, lights)
         elif peak_src is not None:
             _disturb(w, pid, p, peak, peak_src)
             if p.get("bedtime") and peak_src.get("robot") and peak >= 42.0 and p.get("_settling_s"):
@@ -363,7 +422,7 @@ def _record_peaks(w, sources):
         peaks[room] = round(float(top["db"]), 1)
 
 
-def _arousal(w, pid, p, peak, src, dt):
+def _arousal(w, pid, p, peak, src, dt, lights=None):
     state = w.s
     threshold = wake_threshold(p)
     current = float(p.get("_arousal", 0.0) or 0.0)
@@ -377,7 +436,7 @@ def _arousal(w, pid, p, peak, src, dt):
         new += 0.35 * (peak - (threshold - 10.0)) / 10.0 + 0.1
     # light: compared with the darkest level the sleeper has adapted to; slow natural changes (dawn, clouds) between
     # ticks move the reference with them, sudden ones (a switch, opened curtains) do not
-    light = _effective_light(state, p.get("location"), w)
+    light = _effective_light(state, p.get("location"), w, lights)
     ref, last = p.get("_sleep_light_ref"), p.get("_light_last")
     new_ref = light if ref is None else float(ref)
     if ref is not None and last is not None:

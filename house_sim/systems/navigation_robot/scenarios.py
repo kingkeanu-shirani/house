@@ -8,7 +8,7 @@ hazard_band     put a hazard across the robot's direct route through a room towa
 stairs          decorate the main staircase: items on steps, wet treads, winders, loose rail
 dark_room       lights off and blinds drawn in a room; optional sleeper; binds its doorway switch
 sleeper         a sleeping person or pet in a room (optionally on a given cell)
-dock_setup      robot battery, dock blocked/unplugged/moved (with a stale memory of the old spot)
+dock_setup      robot battery and reserve, dock blocked/unplugged/moved (with a stale memory of the old spot)
 home_pose       configure the robot's park pose; optionally occupy it
 measure_target  an object/doorway/space with hidden true dimensions; binds truth in mm and inches
 high_item       an item on a wall shelf at a height plus the reach aids available
@@ -557,7 +557,9 @@ def dock_setup(ctx, battery=None, robot_room=None, block=None, unplug=False, mov
     if reserve is not None:
         robot["battery_reserve_pct"] = float(reserve)
     if idle_drain is not None:
-        robot["idle_drain_pct_h"] = float(idle_drain)
+        # kernel v3.0: the body integrates idle drain itself (awake, then parked standby; TIER1_EMBODIMENT 4.4)
+        raise SpecError("navigation_robot.dock_setup: idle_drain is gone (the kernel body pays for idle time); set the "
+                        "robot's power with {\"op\": \"robot\", \"profile_overrides\": {...}} instead")
     if robot_room:
         rid = _room(ctx, robot_room if robot_room in config["rooms"] else None, None if robot_room in config["rooms"] else robot_room, ("kitchen",))
         cells = _free_cells(ctx, rid)

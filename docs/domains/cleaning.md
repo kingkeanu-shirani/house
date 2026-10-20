@@ -8,13 +8,15 @@ local waste-stream rules (trash / recycling / compost / yard waste / hazardous),
 (toxic gas, slips, cross-contamination, scratched or etched finishes, liquid in electronics, noise at night).
 
 Code: `house_sim/systems/cleaning/` (package: `model`, `state`, `engine`, `surfaces`, `floors`, `dishes`, `waste`,
-`systems`, `perception`, `helpers`, `skills`, `furnish`). Types: `house_sim/data/types/cleaning.json` (192 types, 21
-perception blocks, 14 look-alike groups, file-level `field_tiers`). Tests: `tests/test_cleaning.py` (175 tests, 26 of
-them realistic perception; pass with every domain loaded, normally and with `HOUSE_SIM_STRICT=1`). Examples:
-`tasks/authored/cleaning__examples.json` (13 specs, all pass `--check` with every domain loaded on seeds 0, 1, 2, 41,
-97, and on seeds 3-30 as a layout-robustness sweep) and `tasks/authored/cleaning__perception.json` (3 realistic-mode
-specs, section 13). Layout: `python tools/layout_audit.py 20 --domain cleaning` reports 0 problems on 120 houses.
-Perception: `python tools/perception_audit.py 30 80` reports no line attributed to cleaning (sections 13-14).
+`systems`, `perception`, `helpers`, `skills`, `furnish`, `routes`, `history`). Types:
+`house_sim/data/types/cleaning.json` (192 types, 21 perception blocks, 13 look-alike groups, file-level `field_tiers`).
+Tests: `tests/test_cleaning.py` (193 tests, 26 of them realistic perception and 15 for the tier-1 adoption; pass with
+every domain loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,cleaning`). Examples:
+`tasks/authored/cleaning__examples.json` (13 specs) and `tasks/authored/cleaning__perception.json` (3 realistic-mode
+specs with the geometric camera, sections 13 and 15); all 16 run on generation-2 houses (`"house": {"gen": 2}`) and
+pass `--check` with every domain loaded on seeds 0, 1, 2, 41, 97. Layout: `python tools/layout_audit.py 20 --domain
+cleaning` reports 0 problems on 120 houses (220 with `--gen 2`). Perception: `python tools/perception_audit.py 20 80
+--verbose` reports no line attributed to cleaning (sections 13-15).
 
 Fidelity: P-approx for the lumped physics (soil removal per pass = tool mechanics x wetness x chemistry x dwell;
 liquid films and evaporation; spill spread and wicking; dust fallout; heat transfer for thermal shock), G for
@@ -114,7 +116,7 @@ consequences (stats), so a plan can make the mistake and the spec can fail on it
 | `polish` | target, tool (cloth with polish), face?, direction? | polish loaded [precondition] | finished wood/stainless/metal: `polished`, fingerprints and spots gone; over dust -> `scratched`; on fabric/leather -> stained; on floors/handrails/steps -> `slippery` | 4 + area s |
 | `condition` | target, tool (cloth with conditioner/oil), face?, amount light/normal/heavy | conditioner loaded [precondition] | leather `conditioned`; dry cast iron `seasoned`; suede/nubuck -> `dark_stain`; over dirt -> `sealed_dirt`; heavy -> sticky | 8 + area s |
 | `squeegee` | target, tool, face?, direction top_down/bottom_up/horizontal, toward? floor | squeegee [capability] | wet glass top-down: dry, no streaks; other directions leave streaks/spots; dry or gritty glass: streaks / `scratched`; `toward` pushes the water onto a floor (film) | 6 + area s |
-| `rinse` | target, destination? (sink/tub/toilet), tool?, face?, cells?, temp cold/warm/hot, seconds?, method running/dip | running water [precondition/resource]; rinse cloth damp with clean water and not holding cleaner [precondition] | held item under a tap: residue and suds off (dip in soapy basin water: still soapy); fixed surface with a damp cloth: residue off; toilet: flush rinse; outdoor: hose (cushions left on get soaked); toilet gear in a kitchen/bathroom basin -> sink contamination + `zone_violations`; non-washable filters break; electronics ingress; thermal shock (glass 45 C, crystal 35 C, china 60 C, cast iron 150 C difference); soap left on food items -> contamination | 4-30 s, 0.05 |
+| `rinse` | target, destination? (sink/tub/toilet), tool?, face?, cells?, temp cold/warm/hot, seconds?, method running/dip | running water [precondition/resource]; rinse cloth damp with clean water and not holding cleaner [precondition] | held item under a tap: residue and suds off (dip in soapy basin water: still soapy); fixed surface with a damp cloth: residue off; toilet: flush rinse; outdoor: hose (cushions left on get soaked); the robot's own grippers (`robot_hand`) at a sink; toilet gear in a kitchen/bathroom basin -> sink contamination + `zone_violations`; non-washable filters break; electronics ingress; thermal shock through the kernel (`physics.shock_check`: the material's rated difference, water at cold 12 / warm 38 / hot 55 C); a hot thin metal pan more than 150 K from the water warps (the kernel rates no shock for metals); soap left on food items -> contamination | `timing="commanded"`: the `seconds` asked for (default a standard rinse by item), 0.05 |
 | `dry` | target, tool (dry towel/cloth), face?, cells?, method towel/buff/heat | | wetness 0 (no spots, no rust); saturated/dirty towel smears; heat dries cast iron, cracks leather, warps plastic | 4 + area s |
 | `disinfect` | target, tool (disinfectant / wipes / bleach solution / alcohol), face?, cells?, method spray/wipe | registered disinfectant [precondition]; bleach solution at >= label strength [precondition] | face kept wet; germs killed only after the product's `kill_s` with the face still wet and not wiped; visible soil (>= 0.15 organic) shields them; leaves `_chem_residue` (rinse food-contact surfaces) | 5 + area s |
 | `descale` | target, tool, method fill/wrap/spray/paste, amount_ml?, face? | acid descaler [precondition] | limescale/water spots dissolve over the dwell (4x hot); plated/matte/brass finishes damaged by long soaks (`acid_limit_s`); rinse before use | 5 s |
@@ -122,14 +124,15 @@ consequences (stats), so a plan can make the mistake and the spec can fail on it
 | `scrape` | target, tool (scraper/spatula/utensil/knife/scissors), destination?, face?, angle low/steep, part? (brushroll, sticker), cells? | edged tool [capability] | food off plates/pans into the destination (judged against its stream); burnt-on/gum/wax/paint drips; razor at steep angle or metal on soft finishes gouges; `part=brushroll` cuts hair off a vacuum brush roll (do it unplugged); `part=sticker` peels produce stickers | 6-12 s, 0.05 |
 | `sweep` | target floor/stairs, tool (broom), zone all/open/edges/corners/under/under:<id>, cells?, toward [c,r], out_to? room/'edge', face?, order?, into? | broom [capability]; hard floor or stairs (grass refused) [capability]; something reachable [precondition] | loose soil moves into a `debris_pile` at `toward` (small objects pushed in with it); edges x0.6, corners x0.5 for straight brooms (angled better); carpet barely moves; wet cells smear into mud; oil spreads; fine dust partly airborne (resettles); outdoors upwind blows back; `out_to` a storm drain/pool -> `pollution`; dry-sweeping biohazard -> `safety_violations` | 10 + 1.25 s/cell, 0.05 |
 | `collect_debris` | target pile (or cells), tool (dustpan), passes 1-5 | dustpan in hand + broom/brush [capability]; crouch (or long-handled pan) [precondition] | pile into the pan (85 % per pass with a brush, a fine line stays at the lip), small objects too | 5 + 4 s/pass |
-| `vacuum` | target floor/rug/upholstery/mattress/curtains/stairs/vehicle/vent, tool (vacuum), zone?, cells?, face?, passes 1-4, vacuum_on landing/tread, order? | not jammed / overheated / broken / flat / unpowered [precondition/resource/capability]; quiet mode needs suction low [precondition]; head fits the gap (13 cm upright head vs low-profile) | removal per pass by mode (carpet: brush roll; hard_floor), suction and head; brush roll on hardwood scatters grit and `scratched`; suction-only on fringe; small objects sucked into the bin (`ingested`), socks/cords jam (`jammed`, item `chewed`); full bin/clogged filter lose suction; noise event 62-78 dB (wakes sleepers in quiet hours, `noise`) | 15 + 1 s/cell/pass (62-78 dB) |
+| `vacuum` | target floor/rug/upholstery/mattress/curtains/stairs/vehicle/vent, tool (vacuum), zone?, cells?, face?, passes 1-4, vacuum_on landing/tread, order? | not jammed / overheated / broken / flat / unpowered [precondition/resource/capability]; quiet mode refuses it at any suction (the body's quiet guard: `noise_db` 62 / 68 / 74 dB at 1 m by suction, +6 for a shop vac, over the 55 dB limit) [social]; head fits the gap (13 cm upright head vs low-profile) | removal per pass by mode (carpet: brush roll; hard_floor), suction and head; brush roll on hardwood scatters grit and `scratched`; suction-only on fringe; small objects sucked into the bin (`ingested`), socks/cords jam (`jammed`, item `chewed`); full bin/clogged filter lose suction; noise event 62-78 dB (wakes sleepers in quiet hours, `noise`) | 15 + 1 s/cell/pass (62-78 dB) |
 | `mop` | target floor/stairs, tool (mop), zone?, cells?, bucket?, wetness dry/barely_damp/damp/wet, face?, order?, parked_s? | wet mops need a bucket with water in reach (or a wet head) [resource]; steam mop powered and filled [resource] | film/sticky soils removed with the solution's chemistry; loose debris turns to paste/mud (sweep first); dirty bucket water redeposits (change it); overdosed solution leaves sticky film; leaves a `water_film` per cell (dries over 10-40 min: under tables slower, under low furniture much slower); wet mop on wood/laminate -> `water_damage` while standing; steam parked or on unsealed floors -> damage; the cell you stand on is skipped (finish it from the doorway) | 15 + 1.25 s/cell + 8 s per 4 m2 of dipping, 0.03 |
 | `absorb` | target spill (or floor cells/upholstery), tool (towel, rag, paper towels, sponge, mop, or granules), method blot/rub, sheets?, cells? | | blot takes 92 % of what the tool can hold (75 % rubbing; less on carpet); saturated tools push liquid around (spread); rubbing spreads and drives it into carpet (bigger, darker stain when the spill finishes); granules on oil/antifreeze make a sweepable pile; `protected` towels used -> `rule_violations` (stained) | 6 + 25 s/l |
-| `shake_out` | target (held rug, mat, mop head, tablecloth, cushion cover, new liner), method shake/beat, tool? (rug beater), against?, force? | hold it [precondition]; <= 6 kg and <= 1.6 m to shake [capability]; beat needs a beater or a surface [argument] | loose soil released where you stand: indoors it re-soils the room, outdoors downwind it is gone (upwind / near an open door it blows back in); beating against walls marks them, against cars scratches; coir beaten hard frays; shaking a folded liner opens it | 6-15 s, 0.2 |
+| `shake_out` | target (held rug, mat, mop head, tablecloth, cushion cover, new liner), method shake/beat, tool? (rug beater), against?, force? | hold it [precondition]; to shake: at most the body's two-hand capacity / 3.33 (`floors.shake_limits`: 6 kg for the default humanoid) and no longer than the robot is tall [capability]; beat needs a beater or a surface [argument] | loose soil released where you stand: indoors it re-soils the room, outdoors downwind it is gone (upwind / near an open door it blows back in); beating against walls marks them, against cars scratches; coir beaten hard frays; shaking a folded liner opens it | 6-15 s, 0.2 |
 | `wash` | target (held, or in a filled basin), destination sink, tool (sponge/brush/cloth), face?, temp cold/warm/hot, stroke spine_first/along_edge, side?, force? | water at the sink [resource]; item held or in the basin [precondition]; a tool in the other hand [capability] | food/grease/protein off by temperature (hot sets egg/dairy/protein; cold first); stays soapy until rinsed (`cl_suds`); knives along the edge -> `gripper_cut` + `safety_violations`; thermal shock (fridge-cold glass in hot water breaks); fragile items knocked against heavy pots in the basin break; greasy water films glass; electronics/motor bases ingress; stemware under hard force snaps; soap on food -> contamination | 15 + 10 s/face (x1.4 hard), 0.05 |
 | `empty_into` | target (dustpan, vacuum bin/bag, caddy, wastebasket, bucket, held bag), destination, height low/high | destination not itself [argument]; vacuum bin must be taken out first [precondition] | everything inside goes too (valuables lost); judged against the destination stream; high dumps billow dust; liquids to sink/toilet/drain/lawn (storm drain, kitchen sink with chemicals -> `pollution`/contamination) | 5-10 s, 0.05 |
 
-Also `set_quiet on|off` (quiet mode: loud tools refused unless set low). Core verbs used constantly: `pick_up` (with
+Also `set_quiet on|off` (core: the body's quiet guard refuses any verb whose `noise_db` is over 55 dB - the vacuum, the
+steam mop at 64 dB - and a broom or a flat mop stays allowed). Core verbs used constantly: `pick_up` (with
 `grip` for safe grips), `place` (judged when the destination is a waste container), `open`/`close` (bins; `close` is
 refused when `lid_blocked`), `install`/`uninstall` (liners, vacuum bins/bags/filters/attachments: liner fit is judged on
 install, the bag is formed on uninstall), `set` (vacuum mode/suction), `crouch`, `announce` (warn about wet floors),
@@ -500,7 +503,7 @@ the file-level `"field_tiers"` for fields this domain writes onto anyone's entit
 | `moisture_inner` (upholstery, mattresses, rugs) | measure (moisture meter; field_tiers) | blotting reports the padding as dry / damp / soaked |
 | bookkeeping written on others' entities: `conditioned_t`, `oiled_t`, `washed_t`, `moisture_since`, `spinning_until`, `discarded_t`, `thermal_cutoff_until`, `stain_area_m2`, `internal_dust`, `drain_debris_g`, `installed_wet`, `mould_risk`, `superheated`, `bag_seal`, `chem_conflict`, `sharp_hazard`, `has_meat_waste`, `stream_errors`, `spread_factor`, `soaked_l`; every `cl_*` and `_*` field | hidden (field_tiers / kernel patterns) | `inspect` words `internal_dust` as `dust_inside` light / moderate / heavy |
 | `fill_level` (bins, vacuum bins) | glance | kernel buckets empty / low / half / full / overflowing; `inspect` to 5 %; a closed lid hides it |
-| products: `label_text`, `product`, `chem_hazards`, `hazards` | read | what is in a bottle is learned by reading it |
+| products: `label_text`, `product`, `chem_hazards`, `hazards` | read | what is in a bottle is learned by reading it; with the geometric camera all four are printed on the label face (`cleaning_product` / `disinfecting_wipes` perception `"faces"`), so a label turned to a wall or against the next bottle (`label_facing`) reads only once the bottle is held |
 | products: `amount_ml` | measure (scale) | `inspect` gives `fill_estimate` (empty / nearly empty / about a third left / about half full / mostly full / full) |
 | `spray_bottle`: `product`, `liquid`, `cl_chem`, `cl_strength`, `liquid_l`, `fill_level` | hidden | a refill shows the same `fill_estimate` words as a labelled spray (from its litres) and no litres, murkiness or suds; it is known only from its own (hand-written) `label_text` or by asking (`cleaning.product:<id>`) |
 | tools: `soil_load`, `wear`, `sheets`, `brushroll_wrap`, `clog`, `washable` | inspect | `sheets` estimated to 10 |
@@ -530,7 +533,7 @@ descriptive `candidates` list whose wordings never repeat a member's own label o
 | `grill_brush` | grill brush | inspect | wire vs nylon |
 | `rolled_trash_bag` | rolled-up trash bag (trash bag) | inspect | 4 / 8 / 13 gal liners, cart liner |
 | `wheeled_cart` | wheeled waste cart (waste cart) | read | trash / recycling / yard waste / organics carts |
-| `slip_of_paper`, `gift_wrap`, `plastic_food_tub` | ... | inspect | thermal receipt vs paper scrap; foil vs paper wrapping; yogurt cup vs takeout tub |
+| `slip_of_paper`, `gift_wrap` | ... | inspect | thermal receipt vs paper scrap; foil vs paper wrapping (the former `plastic_food_tub` group is gone: a 8 cm yogurt cup and a 20 cm takeout tub do not look alike at a glance) |
 | `puddle` | puddle of liquid (puddle) | inspect | every `spill` (its label names the liquid: water, wine, oil and bleach puddles look alike from across the room) |
 
 **Actions and what they reveal.** `inspect` (`cleaning.details`): visible soil per kind, `face_soil`, `dirty_cells` /
@@ -561,13 +564,19 @@ emptying a container takes 8 s whatever was in it, cutting hair off a brush roll
 message names, and `disinfect` on a floor without cells works the visible soiled cells (not ones under rugs). Every
 other duration follows what the robot does (area, faces, cells, passes) or what it asked for (`amount_ml`).
 
-**Perception-centric specs** (`tasks/authored/cleaning__perception.json`, `"perception": "realistic"`, all 5 seeds):
-`T-3fb8a84f20876c-01` pick the glass cleaner out of four blue look-alike sprays (one a blank refill bottle; wrong
-plans take the first bottle or the unlabeled one); `T-edec597b980b74-01` dose a mop bucket from a concentrate standing
-among look-alikes at its label dilution (variants: ammonia 120 ml / 4 l, floor cleaner 30 ml / 4 l, bleach 20 ml / l;
-wrong plans pour the look-alike or glug 250 ml without reading); `T-c49fadcea69182-01` report how full the kitchen
-can and the recycling bin are (open, inspect: 5 %; levels near the edges of the glance bucket "half", so the bucket word
-or its middle is wrong; the verifier's perceivability check sees the reported numbers in the observations).
+**Perception-centric specs** (`tasks/authored/cleaning__perception.json`, `"perception": "realistic"`, `"camera":
+"geometric"`, generation-2 houses, all 5 seeds): `T-3fb8a84f20876c-01` pick the glass cleaner out of four blue
+look-alike sprays (one a blank refill bottle; the glass cleaner stands 2 cm between two others with its label turned
+against a neighbour, so the reference lifts it to read it; success needs `facts.read` of it; wrong plans take the
+first bottle, the unlabeled one, or - the camera wrong plan - read in place and take the bottle whose label they never
+saw); `T-edec597b980b74-01` dose a mop bucket from a concentrate standing among look-alikes at its label dilution
+(variants: ammonia 120 ml / 4 l, floor cleaner 30 ml / 4 l, bleach 20 ml / l; the concentrate's label is turned
+against a neighbour; wrong plans pour the look-alike, glug 250 ml without reading, or dose from the bottle unread);
+`T-c49fadcea69182-01` report how full the kitchen can and the recycling bin are (open, look inside with the wrist -
+`inspect where=inside`, which records `camera_log.looked_in` - and report: 5 %; levels near the edges of the glance
+bucket "half", so the bucket word or its middle is wrong; success needs both looks; the camera wrong plan crouches
+below the rims). Forced to the room camera the camera wrong plans pass (reading ignores faces, nothing is logged as
+looked in), which is why the specs declare the geometric camera.
 
 **Known limits (kernel requests filed):** the kernel renders `soil` from the true aggregate, so shadows under items
 and soil under rugs/furniture count toward the glance bucket and the per-kind buckets after an inspection (the
@@ -597,3 +606,105 @@ wordings that avoid it); touch renders `mass_kg` without the liquid a container 
   narrow kitchen aisle) on a reachable counter or table of the room instead of raising SpecError.
 * Nothing in the domain relied on `env.step` returning `evaluation` / `reward` (tests use `env.evaluate()` through
   the task runner), raised privacy/authority refusals, or worked around the old knowledge lapse of carried bottles.
+
+## 15. Tier-1 adoption round (kernel v3.0-v3.1: physics, camera, body, sweep)
+
+**Physics** (TIER1_PHYSICS 10.3 protocol; `python tools/physics_audit.py --data` attributes no gap to cleaning):
+
+* Breakage goes through the kernel: `state.break_item(w, eid, note, cause, by)` calls `physics.break_entity` (debris,
+  the break event and camera sighting, attribution) and returns whether it broke; knife cuts, dropped glass in the
+  basin, stemware snapping under hard force and thermal-shock cracks all use it.
+* Thermal shock: the `thermal_shock_c` column is gone from `model.MATERIALS`; `surfaces.water_shock` asks
+  `physics.shock_check` with the item's own temperature against the water (cold 12 / warm 38 / hot 55 C) for any
+  material the kernel rates, and keeps only what the kernel does not model: a hot thin metal pan (aluminium, nonstick,
+  stainless, carbon steel) more than 150 K from the water warps (`damage.warped`).
+* Knock: `engine.brush_past` - a duster, cloth or brush swept across a crowded surface (standing items cover more than
+  30 % of its top) without `around=true` jolts every item there with `ctx.knock` at 0.15 g toward the nearest edge;
+  the kernel decides what tips (a 3 cm-wide candlestick) and what stays (a mug, a bread board); each tip or fall is a
+  `collisions` stat. This replaces the domain's own topple-risk test.
+* Spills: `@hook("phys.spill_sink")` turns every floor spill the kernel makes (overflow, tip and tilt spills, carry
+  slosh, drips, leaks, broken containers) into a cleaning `spill` that dries, wicks, stains and leaves residue; more of
+  the same liquid on the same cell grows the spill there. Physical columns (film thickness, floor hazard, toxic /
+  flammable / corrosive) come from `liquids.json` through `floors.spill_record`; `SPILL_PROPS` keeps only residue,
+  germs, odour, pet toxicity and disposal. `make_spill(..., origin=, quiet=)` records the source (`contents_from`) and
+  announces a spill this domain caused (a visual event and a `splash` notice) unless the kernel already did.
+  Evaporation is the kernel's (`model.evaporation_mm_s` is `phys.liquids.evaporation_mm_s`).
+* Handle law (deferred in laws.json; cleaning is listed in `duplicated_by`): with `lawbook.active("handle")` a liner
+  lifted out by its handle tears by the kernel's handle rating (`@hook("phys.props") liner_props`: the bag's
+  `max_load_kg`, half of it when the liner slipped off the rim) and `@hook("phys.settle_extra") torn_bag_juice` lets a
+  leaking bag's juice out; without the law the old `liner_removed` overload check runs unchanged. The liner's own mass
+  is the empty bag (the kernel adds its contents through `subtree_mass`).
+* Materials: a material string without a chemistry row falls back through `phys.props.material_class`
+  (`model.CLASS_MATERIAL`: bamboo -> wood, pyrex -> glass, tin -> metal); an own row always wins.
+* Type data fixed for the audit (densities, a cleaning-tool mass and size, the screen cleaner and oil absorbent bottles,
+  spray-bottle group colours, cart colours left to the instance).
+* Ready to flip, verified with `lawbook.forced(handle=True, thermal_shock=True)` on all 193 tests and on every spec
+  (16 x 5 seeds): `thermal_shock` and `handle`.
+
+**Camera** (geometric mode only; room mode outputs are unchanged):
+
+* Floor soil (`cleaning.visible_soil`, `floor_soil`) and the wet-floor cues (`obs.room.wet_patches`,
+  `@hook("visible_floor_hazard") wet_floor_seen`) show only floor cells this step's frames surveyed
+  (`camera.step_view(...).seen` / `camera.seen_floor`, memoised per step and pose).
+* `@hook("perceivable_value") perceivable_soil` (fields `soil`): soil under standing items, rugs and low furniture is
+  never perceivable; thin films (fingerprints, streaks, hairspray, sunscreen) show only where a glossy finish mirrors
+  a light into the camera (`camera.specular`, raking light).
+* Visual events: spills (`spill`), a resident slipping (`person_slipped`), a fire (`fire`) and raided bins
+  (`trash_scattered`) go through `camera.visual_event`.
+* Label faces: product, chemical hazards and hazards are gated by the label face (perception `"faces"`), so
+  `label_facing` on a bottle matters to `read` and `inspect`.
+* Cleaning owns no cushion, pillow, rug or mat types: the kernel's C9 lift-and-look rule covers them.
+
+**Body:**
+
+* The vacuum (62-74 dB by suction, +6 shop vac) and the steam mop (64 dB) declare `noise_db`; the quiet check in
+  `floors.py` is gone - the body's quiet guard refuses them at any suction, and listeners hear the level
+  (`robot_sound`).
+* The robot's grippers: `wipe` / `scrub` / `wash` / `rinse` / `dry` with target `robot_hand`, `robot_hand_left` or
+  `robot_hand_right` call `body.clean_hand` / `body.soil_hand` (a damp cloth leaves water, one with cleaner a little
+  soap; washing leaves the fingers wet; a hand holding anything but the tool is refused).
+* A knife wiped toward its edge cuts the gripper pad through `body_faults` (registered fault kind `gripper_cut`,
+  onset: a `gripper_slip` fault on that hand).
+* `rinse` is `timing="commanded"` (its `seconds`); footprint and drip trails use the motion record's effective speed;
+  what the robot can shake out follows `body.capacity_kg` and its height.
+
+**Sweep:**
+
+* Notices: `person_down` (a resident slipped), `smoke` (a microwave fire), `clatter` (scattered trash), `splash` (a
+  spill this domain made), through `w.notice` when the bus is on.
+* Dialogue routes (`routes.py`, after the people routes): `cleaning.keep` (keep: waste items),
+  `cleaning.product` (which / status: bottles and refills), `cleaning.how` (how: finishes, bins, the guide, and the
+  words recycling / trash / compost, quiet / vacuum, cloth / colour).
+* Exact idle probes on all six systems (`chemistry_idle`, `soak_idle`, `drying_idle`, `spills_idle`, `waste_idle`,
+  `air_idle`); the state digests with probes on and off are identical (test).
+* `history.settle_dust(target, eid, days)` / `dust_after(days, enclosed)`: dust on things left untouched for the
+  people domain's history synthesizer (3 mg/m2/day in the open, a tenth shut away).
+* Generation 2: the furnisher hangs long tools on an along-wall rail (`furnish.py`, only under `opts["gen"] == 2`;
+  generation-1 houses are byte-identical).
+* Report vocabulary: cleaning's issue and state words (streaky, water spots, fingerprints, crumbs, rusty, etched,
+  wrong bin, lid blocked, hair wrapped, cross-contaminated, fruit flies; soapy, rinsed, sanitized, air dried) are drafted
+  for `data/vocab/cleaning.json`, which is kernel-owned (requested).
+* No privileged waits in the cleaning specs (M-WAITS); every spec passes on generation-2 houses and declares it.
+  The examples' reference and wrong plans approach through the `approach` skill (it walks to a viewpoint that sees
+  the target in geometric mode) instead of the raw verb.
+
+**Residual fixes:** round-5 red team: `disinfect`, `rinse` and `absorb` no longer branch on an unread target's true
+product (same words, outcome and seconds for every unread look-alike; `rinse` routes a toilet by its `toilet` flag);
+the gripper cut goes through `body_faults` (the stage-B `sorted(set(robot.faults))` crash). Round 4: a closed
+product of another domain shows `fill_estimate` from its `amount_l` (against its type's full amount) or its `amount`
+fraction, and nothing when it carries no amount (it read "empty" before); `cleaning.smells` halves the smell of a
+thing in a closed drawer, cupboard or lidded bin, drops it when something around it is sealed or airtight, and leaves
+a soured textile to textiles_laundry's `musty_laundry`. The kernel-rendered leaks listed in round 4 (soil from the
+true aggregate, exact damage / odor after an inspection, a look-alike's label rewritten inside JSON, touch mass
+without the liquid) no longer reproduce.
+
+**Kernel requests filed this round:** content fields read off a label (`product`...) are not gated by the label face
+unless a type maps them (cleaning maps its own); `phys.spill_sink` cannot report "grew an existing spill", so the
+kernel counts every portion as a new spill (`phys_spills`); a geometric `inspect` renders an open bin's `fill_level`
+without any look inside (`camera_log.looked_in`); a whole-room floor slab is in `visible_entities` only when a sampled
+point of its box is in frame, so floor soil is often unobservable in geometric mode even when the frames surveyed its
+cells; `sight.gated_face` returns a type-mapped face even for an entity that declares none (realism's
+`_declared_faces` does not), so the head camera cannot read `product` on a bottle without a label face (the wrist
+can); `tasks/skills.go_room` approaches a closed door or gate on the route with the raw `approach` verb, which the
+geometric camera refuses when the door is out of sight (`T-6d6bf8555c9b98-01` forced to realistic + geometric, seeds
+2 and 41); the report vocabulary file.

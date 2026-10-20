@@ -20,7 +20,7 @@ Hidden ground truth is always in underscore keys or `secret_fields`.
 import math
 import weakref
 
-from ...kernel import geometry
+from ...kernel import geometry, timeline
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
@@ -160,6 +160,30 @@ def harm(w, cause, stat=None, amount=1, **data):
 
 def now(state):
     return float(state.get("time_s", 0.0))
+
+
+# ---------------------------------------------------------------------------------------------
+# notices (kernel v3.1 notice bus, TIER1_SWEEP 6.1): what the robot can perceive happening
+
+# safety's notice kinds beyond the kernel's built-ins: (kind, doc, implies, db at 1 m, visual)
+SAFETY_NOTICE_KINDS = (
+    ("whimpering", "an animal whimpers or whines (hurt, trapped or frightened)", ("any_sound",), 50.0, False),
+    ("scratching", "scratching or gnawing inside a wall, ceiling or cupboard", ("any_sound",), 38.0, False),
+    ("entry_beeps", "an alarm keypad beeps its entry delay (disarm it or the siren sounds)", ("any_sound",), 70.0, False),
+    ("chirp", "a smoke or CO alarm chirps (low battery or end of life)", ("any_sound",), 85.0, False),
+    ("fire", "flames are seen (a fire starts where the robot can see it)", ("smoke",), None, True))
+for _kind, _doc, _implies, _db, _visual in SAFETY_NOTICE_KINDS:
+    timeline.register_notice_kind(_kind, _doc, implies=_implies, db=_db, visual=_visual)
+
+
+def post_notice(w, kind, room, db=None, source=None, description=None, visual=False):
+    """Post a perceivable occurrence on the kernel notice bus (w.notice: the timeline decides whether the robot hears
+    or sees it and stores it only while someone listens). No-op for an unknown room or no kind."""
+    if not kind or room not in w.s.get("rooms", {}) or not hasattr(w, "notice"):
+        return None
+    data = {"sound": description} if description else None
+    return w.notice(kind, room=room, db=db, source=source if isinstance(source, str) else None, visual=bool(visual),
+                    data=data)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -743,8 +767,13 @@ def is_medication(rec):
     return bool(rec.get("medication")) or rec.get("category") == "medication"
 
 
+def is_candle(rec):
+    return bool(rec.get("candle")) or rec.get("category") == "candle"
+
+
 def is_heat_source(rec):
-    if rec.get("heat_source"):
+    """Static superset of heat sources (index predicate): flagged ones, heating appliances by category and candles."""
+    if rec.get("heat_source") or is_candle(rec):
         return True
     return rec.get("category") in ("water_heater", "furnace", "stove", "cooktop", "burner", "oven", "space_heater", "fireplace",
                                    "grill", "fire_pit", "dryer", "boiler")
@@ -755,14 +784,13 @@ def heat_source_now(rec):
     cooker stored in a cabinet) do not count while they are off."""
     if not is_heat_source(rec):
         return False
+    if is_candle(rec):
+        return bool(rec.get("lit"))         # an unlit candle heats nothing
     return not (rec.get("relation") == "in" and rec.get("portable", True) is not False and not rec.get("on"))
 
 
 # ---------------------------------------------------------------------------------------------
 # small parts / child hazards
-
-SMALL_PARTS_DIAMETER_M = 0.0317   # 16 CFR 1501 test cylinder: 31.7 mm diameter
-SMALL_PARTS_DEPTH_M = 0.057       # 25.4-57.1 mm deep (slanted bottom); use the deep side
 
 
 def is_outlet(rec):
@@ -785,10 +813,13 @@ def free_receptacles(state, eid, rec):
 
 
 def fits_small_parts_cylinder(rec):
-    size = sorted(float(v) for v in (rec.get("size_m") or [0.1, 0.1, 0.1])[:3])
+    """The CPSC small-parts test (16 CFR 1501) through the kernel's one rule (physics.choking_hazard: the cross-section
+    passes the 31.7 mm bore -- round items by their diameter, others by the diagonal of their two smallest sides --
+    and the length is at most 57.1 mm); `choke_safe` exempts an item."""
     if rec.get("choke_safe"):
         return False
-    return size[0] <= SMALL_PARTS_DIAMETER_M + 1e-9 and size[1] <= SMALL_PARTS_DIAMETER_M + 1e-9 and size[2] <= SMALL_PARTS_DEPTH_M + 1e-9
+    from ...kernel import physics
+    return physics.choking_hazard(rec)
 
 
 def child_hazard_kinds(state, eid, rec, age):

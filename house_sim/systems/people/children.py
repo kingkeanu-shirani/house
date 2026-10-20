@@ -11,7 +11,7 @@ age 4; craft items whose requires_adult/age_min exceed the child when no adult i
 """
 import random
 
-from ...kernel import geometry
+from ...kernel import camera, geometry
 from ...kernel.plugins import hook, system
 from ...kernel.predicates import root_room  # noqa: F401
 from . import common as C
@@ -21,6 +21,42 @@ from . import senses as S
 GRAB_S_TODDLER = 45.0
 GRAB_S_CHILD = 90.0
 DANGER_HAZARDS = ("sharp", "hot", "toxic", "corrosive", "live_wire", "flammable", "biohazard")
+SIGHTING_S = 30.0       # a child the camera's watch had in view at the previous substep boundary counts as watched
+
+
+def child_incident(w, pid, kind, **data):
+    """Log a child incident (people.child_safety) and offer it to the geometric camera as a visual event
+    (camera.visual_event: the head camera's current pose may witness it; room mode: nothing more)."""
+    entry = C.log_event(w, "child_incidents", person=pid, kind=kind, **data)
+    camera.visual_event(w, "people.child_incident", source=pid, emit=False, size_m=0.5)
+    return entry
+
+
+def child_mass_kg(child):
+    """A child's body mass from their age (the Weech estimate used for children without a weight: 2 x age + 8 kg to
+    6 years, (7 x age - 5) / 2 to 12 years; about 4 kg at birth): a climbing child's load on furniture."""
+    if child.get("mass_kg") is not None:
+        return float(child["mass_kg"])
+    age = C.age_of(child)
+    if age < 1.0:
+        return round(4.0 + 6.0 * max(0.0, age), 1)
+    if age <= 6.0:
+        return round(2.0 * age + 8.0, 1)
+    return round(min(45.0, (7.0 * age - 5.0) / 2.0), 1)
+
+
+def watched_by_robot(w, pid, child):
+    """Whether the robot is watching a child: in room mode, being in the child's room; with the geometric camera, its
+    watch had the child in view at the last substep boundary (camera_log.sightings), so a robot facing the wall does
+    not count as supervision."""
+    state = w.s
+    if state["robot"].get("room") != child.get("location"):
+        return False
+    if camera.mode(state) != "geometric":
+        return True
+    sighting = ((state.get("camera_log") or {}).get("sightings") or {}).get(pid) or {}
+    last = sighting.get("last_s")
+    return isinstance(last, (int, float)) and float(last) >= C.now_s(state) - SIGHTING_S - 1e-6
 
 
 def _protected(state, eid):
@@ -93,7 +129,17 @@ def adult_in_room(state, room, exclude=None):
                for q, p in state.get("people", {}).items() if q != exclude)
 
 
-@system("people.children", order=112, max_dt=30.0)
+def children_idle(w):
+    """Exact idle probe (kernel v3.1): no child at home and awake is curious, roaming, in a scripted risky moment or
+    to be watched (the system looks at nothing else)."""
+    for child in w.s.get("people", {}).values():
+        if C.present(child) and not S.asleep(child) and C.is_child(child) and \
+                (child.get("curious") or child.get("roaming") or child.get("risky") or child.get("needs_watch")):
+            return False
+    return True
+
+
+@system("people.children", order=112, max_dt=30.0, idle=children_idle)
 def children_system(w, dt, tick):
     state = w.s
     for pid in sorted(state.get("people", {})):
@@ -109,7 +155,7 @@ def children_system(w, dt, tick):
             _risky(w, pid, child, risky)
         if child.get("needs_watch"):
             room = child.get("location")
-            watched = state["robot"]["room"] == room or adult_in_room(state, room, exclude=pid)
+            watched = watched_by_robot(w, pid, child) or adult_in_room(state, room, exclude=pid)
             m = w.person_m(pid)
             m["watch_s"] = round(float(child.get("watch_s", 0.0)) + dt, 1)
             if not watched:
@@ -149,7 +195,7 @@ def _exposure(w, pid, child, dt):
             grabbed = list(m.get("_grabbed") or [])
             grabbed.append(eid)
             m["_grabbed"] = grabbed
-            C.log_event(w, "child_incidents", person=pid, item=eid, kind=kind)
+            child_incident(w, pid, kind, item=eid)
             w.stat("injury")
     for eid in list(exposure):
         if eid not in current:
@@ -204,12 +250,12 @@ def _roam(w, pid, child, tick):
         return
     cid, other, conn = options[int(rng.random() * len(options)) % len(options)]
     if conn.get("kind") == "stairs" and C.age_of(child) < 4:
-        C.log_event(w, "child_incidents", person=pid, kind="stairs", room=room)
+        child_incident(w, pid, "stairs", room=room)
         M.person_falls(w, pid, "fell on ungated stairs", robot_caused=False)
         w.stat("injury")
         return
     if state["rooms"][other].get("outdoor"):
-        C.log_event(w, "child_incidents", person=pid, kind="left_house", room=other)
+        child_incident(w, pid, "left_house", room=other)
         w.stat("safety_violations")
     M.relocate(w, pid, other)
 
@@ -271,10 +317,26 @@ def _risky(w, pid, child, risky):
     if now - float(risky["since_s"]) >= window:
         m = w.person_m(pid)
         m["risky"] = None
-        C.log_event(w, "child_incidents", person=pid, kind=risky["kind"])
+        child_incident(w, pid, risky["kind"])
         w.stat("injury")
+        tipped = risky["kind"] == "climbing" and _climb_tips(w, pid, child, risky)
         if risky["kind"] in ("stairs", "climbing"):
-            M.person_falls(w, pid, risky["kind"], robot_caused=False)
+            M.person_falls(w, pid, "climbing: the furniture tipped over" if tipped else risky["kind"], robot_caused=False)
+
+
+def _climb_tips(w, pid, child, risky):
+    """A child who climbed furniture (a bookcase, a dresser's drawers) loads its top with their whole weight: the
+    kernel's physics.pull (statics.tip_margin with the climber's weight at the top; anchored furniture never tips)
+    decides whether it tips over. Returns True when it did (the struck child's injury is phys.tipped's)."""
+    state = w.s
+    target = risky.get("target")
+    rec = state["entities"].get(target or "")
+    if rec is None or rec.get("portable") or C.room_of(state, target) != child.get("location"):
+        return False
+    from ...kernel.phys import events as phys_events
+    before = bool(rec.get("tipped_over"))
+    phys_events.pull(w, {"target": target, "kg": child_mass_kg(child)})
+    return not before and bool(state["entities"].get(target, {}).get("tipped_over"))
 
 
 # ----------------------------------------------------------------------

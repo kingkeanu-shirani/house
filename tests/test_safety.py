@@ -1345,7 +1345,8 @@ class FallsAndFurniture(unittest.TestCase):
         lab.edit(lambda w: (E.tip_over(w, "bookcase", sound=False), E._pin(w, "bookcase", "cat")))
         lab.ok("approach", "bookcase")
         res = json.loads(lab.ok("inspect", "bookcase", where="under")["message"])
-        self.assertIn("tipped", res["orientation"])
+        # legacy pose text, or the kernel's on_side once the furniture_tip law is on (TIER1_PHYSICS 10.3)
+        self.assertTrue("tipped" in res["orientation"] or res["orientation"] == "on_side", res["orientation"])
         self.assertIn("under_note", res)
         lab.ok("crouch")
         res = json.loads(lab.ok("inspect", "bookcase", where="under")["message"])
@@ -1379,11 +1380,17 @@ class FallsAndFurniture(unittest.TestCase):
         rebuild(lab)
         lab.ok("wait", seconds=30)
         self.assertTrue(lab.ent("bookcase")["tipped_over"])
-        self.assertTrue(lab.ent("orn")["shattered"])
+        from house_sim.kernel import physics
+        if physics.law_active("furniture_tip"):
+            # the kernel throws it down and its drop rules decide (onto this carpet a small ornament may survive)
+            self.assertTrue(lab.ent("orn")["fell"])
+        else:
+            self.assertTrue(lab.ent("orn")["shattered"])
         obs = lab.env.observe()
         crash = [s for s in obs.get("sounds", []) if s["kind"] == "crash"]
         self.assertTrue(crash)
-        self.assertIn("living", json.dumps(crash[0]["direction"]).lower() + "living")
+        # safety's own sound names the direction; the kernel's physics sound (furniture_tip law) a source hint
+        self.assertTrue("direction" in crash[0] or "source_hint" in crash[0], crash[0])
 
     def test_elder_fall_event_leaves_a_hidden_condition(self):
         people = {"gramps": {"label": "Grandpa", "role": "elderly", "age": 84, "location": "bedroom", "pos": [3, 3], "awake": True,
@@ -2738,6 +2745,502 @@ def C_coarse(v):
 
 
 # ---------------------------------------------------------------------------------------------- determinism & specs
+
+
+# ---------------------------------------------------------------------------------------------- tier-1 adoption
+
+
+def lab_with(lab, camera=None, perception=None, notices=False):
+    """Rebuild a Lab's env with a camera mode, perception and (notices) the kernel notice bus on."""
+    if notices:
+        lab.config["notices"] = []
+    lab.env = HouseEnv(copy.deepcopy(lab.config), None, 0, trace=False, observe_on_step=False, camera=camera,
+                       perception=perception)
+    lab.r = Runner(lab.env, {}, strict=True)
+    return lab
+
+
+def notice_kinds(lab):
+    return [n["kind"] for n in lab.s.get("notices") or []]
+
+
+GLASS = {"label": "drinking glass", "material": "glass", "size_m": [0.08, 0.08, 0.12], "mass_kg": 0.3}
+
+
+class Tier1PhysicsAdoption(unittest.TestCase):
+    """TIER1_PHYSICS 10.3 / TIER1_INTEGRATION 6 (safety): kernel breaks, tips, falls, small parts and hot contact."""
+
+    def test_a_glass_the_kernel_breaks_on_the_floor_becomes_a_shard_field(self):
+        from house_sim.kernel import physics
+        lab = Lab(extra={"glass": ("generic_item", "kitchen", dict(GLASS, pos=[2, 2]))})
+        out = lab.edit(lambda w: physics.fall(lab.w, "glass", height_m=1.0, at=("kitchen", (2, 2)), by="robot"))
+        self.assertEqual(out["outcome"], "broke")
+        glass = lab.ent("glass")
+        self.assertTrue(glass["shattered"] and glass["broken"])
+        self.assertEqual(glass["shard_size"], "large")
+        shards = [e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard"]
+        self.assertGreaterEqual(len(shards), 8)
+        self.assertIn("glass:glass", lab.ledger()["zones"])
+        self.assertFalse(lab.ledger().get("sounds"), "the kernel already made the breaking sound")
+        self.assertEqual(lab.stat("breakages"), 1, "attribution stays the kernel's")
+        # a second break call changes nothing (idempotent field)
+        lab.edit(lambda w: physics.break_entity(lab.w, "glass", "again"))
+        self.assertEqual(len([e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard"]), len(shards))
+
+    def test_plastic_and_breaks_off_the_floor_leave_no_shard_field(self):
+        from house_sim.kernel import physics
+        extra = {"cup": ("generic_item", "kitchen", {"pos": [2, 2], "label": "plastic cup", "material": "plastic", "mass_kg": 0.1,
+                                                     "size_m": [0.08, 0.08, 0.1]}),
+                 "jar": ("generic_item", "counter", dict(GLASS, spos=[0.2, 0.1], label="glass jar"))}
+        lab = Lab(extra=extra)
+        lab.edit(lambda w: (physics.fall(lab.w, "cup", height_m=1.5, at=("kitchen", (2, 2))),
+                            physics.break_entity(lab.w, "jar", "test", by="exogenous")))
+        self.assertTrue(lab.ent("jar")["broken"])
+        self.assertFalse([e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard"])
+
+    def test_small_parts_follow_the_kernel_cylinder_rule(self):
+        from house_sim.systems.safety import common as C
+        coin = REG.make("generic_item", "living", size_m=[0.024, 0.024, 0.002])
+        block = REG.make("generic_item", "living", size_m=[0.03, 0.03, 0.02])      # 42 mm diagonal: does not pass the bore
+        safe = REG.make("generic_item", "living", size_m=[0.02, 0.02, 0.02], choke_safe=True)
+        self.assertTrue(C.fits_small_parts_cylinder(coin))
+        self.assertFalse(C.fits_small_parts_cylinder(block))
+        self.assertFalse(C.fits_small_parts_cylinder(safe))
+
+    def test_tip_over_stays_legacy_while_the_law_is_deferred(self):
+        from house_sim.kernel import physics
+        from house_sim.systems.safety import events as E
+        if physics.law_active("furniture_tip"):
+            self.skipTest("the furniture_tip law is active: the kernel tips furniture (covered by the next test)")
+        lab = Lab(extra={"bookcase": ("generic_item", "living", dict(BOOKCASE, pos=[2, 0]))})
+        lab.edit(lambda w: E.tip_over_event(w, {"item": "bookcase"}, lab.env))
+        self.assertEqual(lab.ent("bookcase")["orientation"], "tipped")
+        self.assertTrue(lab.ent("bookcase")["label"].startswith("toppled"))
+
+    def test_with_the_furniture_tip_law_the_kernel_tips_and_an_anchor_holds(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.safety import events as E
+        marker = {"kind": "fallen_furniture", "urgency": "routine", "trapped": "none", "aliases": ["fallen_furniture"], "active": True}
+        extra = {"bookcase": ("generic_item", "living", dict(BOOKCASE, pos=[2, 0], _hazard=marker)),
+                 "vase": ("generic_item", "bookcase", dict(GLASS, relation="on", spos=[0.3, 0.1], label="vase"))}
+        with lawbook.forced(furniture_tip=True):
+            lab = Lab(extra=extra, people={"kid": {"label": "Kid", "role": "child", "age": 4, "location": "living", "pos": [2, 1],
+                                                   "awake": True}})
+            lab.edit(lambda w: E.tip_over_event(w, {"item": "bookcase"}, lab.env))
+            rec = lab.ent("bookcase")
+            self.assertEqual(rec["orientation"], "on_side")
+            self.assertEqual(rec["label"], "bookcase", "no 'toppled' relabel under the kernel")
+            self.assertEqual(rec["_baseline_orientation"], "upright")
+            self.assertTrue(lab.ent("vase")["fell"])
+            self.assertEqual(lab.s["people"]["kid"]["posture"], "pinned", "35 kg falling on a child pins her")
+            self.assertEqual(lab.harms().get("struck_by_toppling_furniture"), 1)
+            self.assertEqual(lab.stat("injury"), 0, "a scripted event is exogenous: logged, never the robot's harm")
+            anchored = dict(extra, bookcase=("generic_item", "living", dict(BOOKCASE, pos=[2, 0], anchored=True, _hazard=marker)))
+            lab = Lab(extra=anchored)
+            lab.edit(lambda w: E.tip_over_event(w, {"item": "bookcase"}, lab.env))
+            self.assertFalse(lab.ent("bookcase").get("tipped_over"))
+            self.assertFalse(lab.ent("bookcase")["_hazard"]["active"])
+            self.assertTrue(any(e["event"] == "tip_over_prevented" for e in lab.ledger()["log"]))
+
+    def test_a_person_struck_is_counted_once_when_the_people_domain_judges_it(self):
+        from house_sim.kernel import physics
+        from house_sim.kernel.plugins import HOOKS
+        extra = {"box": ("generic_item", "counter", {"spos": [0.2, 0.1], "label": "box of tiles", "mass_kg": 3.0,
+                                                     "size_m": [0.3, 0.2, 0.15]})}
+        kid = {"kid": {"label": "Kid", "role": "child", "age": 5, "location": "kitchen", "pos": [3, 3], "awake": True}}
+        stand_in = (100, "house_sim.systems.people.test_stand_in", lambda *a, **k: None)
+        HOOKS["phys.fell"].append(stand_in)
+        try:
+            lab = Lab(extra=extra, people=kid)
+            before = lab.stat("injury")
+            lab.edit(lambda w: physics.fall(lab.w, "box", height_m=1.5, at=("kitchen", (3, 3)), by="robot"))
+            entry = [e for e in lab.ledger()["log"] if e.get("event") == "harm" and e.get("cause") == "struck_by_falling_object"]
+            self.assertEqual(len(entry), 1)
+            self.assertEqual(entry[0].get("injury_counted_by"), "people")
+            self.assertIsNone(entry[0].get("stat"), "safety logs the harm; the people domain counts the injury")
+            real = [n for _, n, _ in HOOKS["phys.fell"] if n.startswith("house_sim.systems.people.") and n != stand_in[1]]
+            if not real:
+                self.assertEqual(lab.stat("injury"), before)
+        finally:
+            HOOKS["phys.fell"].remove(stand_in)
+
+    def test_a_robot_caused_fall_onto_someone_is_an_injury(self):
+        from house_sim.kernel import physics
+        extra = {"box": ("generic_item", "counter", {"spos": [0.2, 0.1], "label": "box of tiles", "mass_kg": 3.0,
+                                                     "size_m": [0.3, 0.2, 0.15]})}
+        kid = {"kid": {"label": "Kid", "role": "child", "age": 5, "location": "kitchen", "pos": [3, 3], "awake": True}}
+        lab = Lab(extra=extra, people=kid)
+        lab.edit(lambda w: physics.fall(lab.w, "box", height_m=1.5, at=("kitchen", (3, 3)), by="robot"))
+        self.assertEqual(lab.harms().get("struck_by_falling_object"), 1)
+        self.assertEqual(lab.stat("injury"), 1)
+        lab = Lab(extra=extra, people=kid)
+        lab.edit(lambda w: physics.fall(lab.w, "box", height_m=1.5, at=("kitchen", (3, 3)), by="exogenous"))
+        self.assertEqual(lab.harms().get("struck_by_falling_object"), 1)
+        self.assertEqual(lab.stat("injury"), 0)
+        light = {"box": ("generic_item", "counter", {"spos": [0.2, 0.1], "label": "napkin", "mass_kg": 0.05, "size_m": [0.2, 0.2, 0.01]})}
+        lab = Lab(extra=light, people=kid)
+        lab.edit(lambda w: physics.fall(lab.w, "box", height_m=1.5, at=("kitchen", (3, 3)), by="robot"))
+        self.assertFalse(lab.harms().get("struck_by_falling_object"), "a napkin landing on someone hurts nobody")
+
+    def test_hot_contact_ignites_a_combustible_support_above_its_ignition_temperature(self):
+        from house_sim.kernel import physics
+        def scene(temp):
+            return Lab(extra={"towels": ("generic_item", "counter", {"spos": [0.3, 0.2], "label": "stack of paper towels", "material": "paper",
+                                                                      "size_m": [0.25, 0.25, 0.03], "mass_kg": 0.2, "surface": True,
+                                                                      "accepts_items": True}),
+                              "pan": ("generic_item", "towels", {"relation": "on", "spos": [0.0, 0.0], "label": "frying pan",
+                                                                 "material": "steel", "size_m": [0.25, 0.25, 0.05], "mass_kg": 1.2,
+                                                                 "temperature_c": temp, "fixed_temperature": True})})
+        lab = scene(400.0)
+        lab.edit(lambda w: physics.contact_check(lab.w, "pan", "towels"))
+        self.assertTrue(lab.ent("towels").get("burning"))
+        self.assertFalse(lab.harms(), "not the robot's: nobody arranged that pan")
+        lab = scene(150.0)
+        from house_sim.systems.safety import devices as D
+        self.assertIsNone(lab.edit(lambda w: D.hot_contact_ignites(lab.w, "pan", "towels", 150.0, 0.5)))
+        self.assertFalse(lab.ent("towels").get("burning"))
+
+    def test_a_shut_cabinet_shields_its_contents_from_a_fire_next_to_it(self):
+        extra = fx(BASKET)
+        extra["basket"][2]["peak_kw"] = 120.0
+        extra["cab"] = ("cabinet", "kitchen", {"pos": [3, 5], "openable": True, "open": False, "label": "metal cabinet", "material": "steel"})
+        extra["napkins"] = ("generic_item", "cab", {"relation": "in", "label": "paper napkins", "material": "paper",
+                                                    "size_m": [0.2, 0.2, 0.05], "mass_kg": 0.2})
+        extra["mail"] = ("generic_item", "kitchen", {"pos": [1, 5], "label": "pile of mail", "material": "paper", "size_m": [0.3, 0.2, 0.05],
+                                                     "mass_kg": 0.3})
+        lab = Lab(extra=extra)
+        ignite(lab, "basket", 60.0)
+        lab.wait(180)
+        from house_sim.systems.safety import fire as F
+        self.assertTrue(lab.ent("mail").get("_preheat") or F.fire_on(lab.s, "mail"), "the open pile next to the fire heats up")
+        self.assertFalse(lab.ent("napkins").get("_preheat"))
+        self.assertIsNone(F.fire_on(lab.s, "napkins"))
+        self.assertEqual(F.enclosure(lab.s, "napkins"), "cab")
+        lab.edit(lambda w: w.mut("cab").update(open=True))
+        self.assertIsNone(F.enclosure(lab.s, "napkins"))
+
+    def test_a_burned_out_oil_fire_does_not_relight_forever(self):
+        extra = {"pan": ("generic_item", "counter", {"spos": [0.3, 0.2], "label": "pan of oil", "material": "steel", "liquid": "oil",
+                                                     "liquid_l": 0.5, "liquid_container": True, "size_m": [0.28, 0.28, 0.06],
+                                                     "temperature_c": 380.0, "fixed_temperature": True, "conducts_heat": True})}
+        lab = Lab(extra=extra)
+        lab.wait(600)
+        ignitions = [e for e in lab.ledger()["log"] if e["event"] == "ignition"]
+        self.assertEqual(len(ignitions), 1)
+        self.assertEqual(lab.ent("pan")["liquid_l"], 0.0, "the oil burned off")
+        self.assertFalse(lab.ent("pan").get("broken"), "a steel pan is not burnt through")
+
+    def test_type_data_has_real_masses_and_the_candle_type(self):
+        bottle = REG.make("chemical_bottle", "kitchen")
+        jug = REG.make("household_chemical", "kitchen")
+        self.assertEqual(bottle["size_m"], [0.1, 0.07, 0.27])
+        self.assertGreater(bottle["mass_kg"], 0.9)
+        self.assertGreater(jug["mass_kg"], 1.5)
+        candle = REG.make("candle", "living")
+        self.assertEqual(candle["category"], "candle")
+        self.assertFalse(candle["lit"])
+        from house_sim.systems.safety import common as C
+        self.assertFalse(C.heat_source_now(candle))
+        self.assertTrue(C.heat_source_now(dict(candle, lit=True, flame=True)))
+        self.assertEqual(REG.view_props("glass_shard").get("glossy"), True)
+
+
+class Tier1BodyAdoption(unittest.TestCase):
+    """TIER1_EMBODIMENT 12 / TIER1_INTEGRATION 6 (safety): falls, faults, hearing, arms, commanded time, robot fields."""
+
+    def test_the_robot_and_its_load_break_through_a_rotten_deck_where_it_gives_way(self):
+        extra = {"deck": ("structural_section", "yard", {"pos": [3, 3], "_load_limit_kg": 70.0, "size_m": [1.0, 1.0, 0.03]}),
+                 "box": ("generic_item", "yard", {"pos": [2, 1], "label": "box of tiles", "mass_kg": 15.0, "size_m": [0.4, 0.3, 0.2]})}
+        lab = Lab(extra=extra, robot={"room": "yard", "pos": [3, 0]})
+        lab.ok("walk_to", cell=[3, 5])
+        self.assertFalse(lab.ent("deck").get("collapsed"), "60 kg alone is within its 70 kg limit")
+        lab = Lab(extra=extra, robot={"room": "yard", "pos": [3, 1]})
+        lab.ok("crouch")
+        lab.ok("pick_up", "box")
+        lab.ok("stand")
+        res = lab.ok("walk_to", cell=[3, 5])
+        robot = lab.s["robot"]
+        self.assertTrue(lab.ent("deck")["collapsed"])
+        self.assertTrue(robot["fallen"])
+        self.assertEqual(robot["posture"], "lying")
+        self.assertEqual(robot["pos"], [3, 3], "it lies where the deck gave way, not at the destination")
+        self.assertEqual(lab.stat("falls"), 1)
+        self.assertEqual(lab.ent("box")["location"], "yard", "the load is dropped in the fall")
+        self.assertIn("gave way", res["message"])
+
+    def test_energized_flood_water_damages_the_robot(self):
+        lab = Lab(room_props={"util": {"_flood_cm": 6.0, "_energized_water": True}}, robot={"room": "hall", "pos": [0, 10]})
+        lab.ok("move", "util")
+        self.assertGreater(lab.stat("electrical_hazard"), 0)
+        self.assertIn("actuator_failed", [f.get("kind") for f in lab.s["robot"].get("faults") or []])
+
+    def test_a_stop_request_reaches_only_a_robot_that_can_hear(self):
+        def heard(robot):
+            lab = Lab(robot=robot)
+            lab.config["events"] = [{"at_s": 5.0, "effect": "safety_stop_request", "args": {"by": "nobody", "text": "Stop!"}}]
+            rebuild(lab)
+            lab.ok("wait", seconds=10)
+            return [m["heard_by_robot"] for m in lab.s.get("messages") or [] if m.get("text") == "Stop!"]
+        self.assertEqual(heard({"room": "kitchen", "pos": [1, 1]}), [True])
+        self.assertEqual(heard({"room": "kitchen", "pos": [1, 1], "mic_on": False}), [False])
+
+    def test_pulling_the_pin_needs_a_working_second_arm(self):
+        from house_sim.kernel import body_faults
+        lab = Lab(extra=fx(EXT), robot={"room": "kitchen", "pos": [1, 1]})
+        held(lab, "ext", "right")
+        rebuild(lab)
+        lab.edit(lambda w: body_faults.add_fault(w, "arm_failed", part="left"))
+        res = lab.do("pull_pin", "ext")
+        self.assertFalse(res["ok"])
+        self.assertIn("free hand", res["message"])
+
+    def test_a_discharge_lasts_the_seconds_commanded_even_at_careful_speed(self):
+        lab = Lab(extra=fx(EXT, BASKET), robot={"room": "kitchen", "pos": [1, 1]})
+        held(lab, "ext", "right")
+        rebuild(lab)
+        fid = ignite(lab, "basket", 3.0)
+        lab.ok("pull_pin", "ext")
+        lab.ok("set_speed", target="careful")
+        lab.ok("aim", fid, point="base")
+        t0 = lab.s["time_s"]
+        lab.ok("discharge", "ext", seconds=4.0)
+        self.assertAlmostEqual(lab.s["time_s"] - t0, 4.0, places=3)
+
+    def test_soot_dirties_the_camera_in_thick_smoke(self):
+        thick = {"kitchen": {"_air": {"smoke": 2.0, "co": 0.0, "gas": 0.0, "odor": {}, "toxic": {}, "dT": 0.0}}}
+        lab = Lab(room_props=thick)
+        lab.ok("wait", seconds=300)
+        self.assertLess(lab.s["robot"]["camera_clean"], 0.95)
+        clean = Lab()
+        clean.ok("wait", seconds=300)
+        self.assertEqual(clean.s["robot"].get("camera_clean", 1.0), 1.0)
+
+    def test_safety_declares_its_robot_fields(self):
+        from house_sim.kernel import body
+        fields = body.robot_fields()
+        self.assertEqual(fields["carrying_pet"]["owner"], "safety")
+        self.assertEqual(fields["gloves_contaminated"]["owner"], "safety")
+
+
+class Tier1CameraAndSweepAdoption(unittest.TestCase):
+    """TIER1_CAMERA 19 / TIER1_SWEEP 22.3 (safety): haze, visual cues, notices, routes and idle probes."""
+
+    def test_room_smoke_feeds_the_geometric_haze_and_never_room_mode(self):
+        lab = lab_with(Lab(extra=fx(BASKET)), camera="geometric")
+        ignite(lab, "basket", 30.0)
+        lab.ok("wait", seconds=120)
+        k = lab.air("kitchen")["smoke"]
+        self.assertAlmostEqual(lab.s["rooms"]["kitchen"]["smoke_density"], round(round(k / 0.05) * 0.05, 3))
+        room = Lab(extra=fx(BASKET))
+        ignite(room, "basket", 30.0)
+        room.ok("wait", seconds=120)
+        self.assertNotIn("smoke_density", room.s["rooms"]["kitchen"])
+        rlab = lab_with(Lab(extra=fx(BASKET)), camera="geometric", perception="realistic")
+        ignite(rlab, "basket", 30.0)
+        rlab.ok("wait", seconds=120)
+        self.assertNotIn("smoke_density", rlab.env.observe().get("room", {}), "realistic: smoke shows through obs.air only")
+
+    def test_geometric_smoke_cues_need_imaging(self):
+        thick = {"kitchen": {"_air": {"smoke": 0.5, "co": 0.0, "gas": 0.0, "odor": {}, "toxic": {}, "dT": 0.0}}}
+        lab = lab_with(Lab(room_props=thick, robot={"room": "kitchen", "pos": [1, 1], "privacy_mode": True}), camera="geometric")
+        self.assertNotIn("smoke", lab.env.observe().get("air", {}))
+        lab = lab_with(Lab(room_props=thick, robot={"room": "kitchen", "pos": [1, 1], "privacy_mode": True}))
+        self.assertIn("smoke", lab.env.observe().get("air", {}), "room mode keeps its outputs")
+
+    def test_fire_smoke_chirps_knocks_and_sirens_are_notices(self):
+        lab = lab_with(Lab(extra=fx(BASKET)), notices=True)
+        ignite(lab, "basket", 3.0, seeded=False)
+        self.assertEqual(notice_kinds(lab), ["fire"])
+        lab.ok("wait", seconds=600)
+        self.assertIn("smoke", notice_kinds(lab))
+        self.assertEqual(notice_kinds(lab).count("fire"), 1, "spread inside a burning room adds no fire notice")
+        det = {"det": ("fixture", "kitchen", dict(detector(), pos=[2, 2], battery_level=0.05, slots={}))}
+        lab = lab_with(Lab(extra=det), notices=True)
+        lab.ok("wait", seconds=60)
+        self.assertEqual(notice_kinds(lab), ["chirp"])
+        panel = {"panel": ("fixture", "hall", {"label": "alarm keypad", "category": "alarm_panel", "pos": [0, 2], "siren_db": 105.0,
+                                               "monitored": False, "remote_status": True})}
+        lab = lab_with(Lab(extra=panel, people={"res": {"label": "Res", "role": "adult", "age": 40, "location": "bedroom",
+                                                        "pos": [2, 2], "awake": True}}), notices=True)
+        lab.ok("sound_alarm", "panel", kind="general")
+        self.assertIn("alarm", notice_kinds(lab))
+
+    def test_notices_stay_silent_without_the_bus(self):
+        lab = Lab(extra=fx(BASKET))
+        ignite(lab, "basket", 3.0, seeded=False)
+        lab.ok("wait", seconds=120)
+        self.assertNotIn("notices", lab.s)
+
+    def test_canonical_questions_route_to_the_safety_answerer(self):
+        from house_sim.kernel import dialogue
+        from house_sim.systems.safety import people_care as P
+        state = {"people": {"gran": {"_condition": {"state": "fallen_hip"}, "posture": "fallen"}, "dad": {"posture": "standing"}},
+                 "entities": {"pan_1": {"category": "pan"}}}
+        Subject = dialogue.Subject
+        self.assertEqual(P._route_condition(state, "gran", None, "status", None, None), "safety.condition")
+        self.assertIsNone(P._route_condition(state, "dad", None, "status", None, None))
+        self.assertEqual(P._route_contacts(state, "dad", Subject("word", None, ("emergency", "contact")), "who", None, None),
+                         "safety.contacts")
+        self.assertEqual(P._route_cooking(state, "dad", Subject("entity", "pan_1", ()), "intended", None, None),
+                         "safety.cooking_intentional")
+        found = dialogue.find_route(state, "dad", Subject("word", None, ("emergency", "contact")), "who", None, None)
+        self.assertEqual(found, ("safety.contacts", "safety.contacts"))
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        quiet = Lab(with_detectors=True)
+        quiet.ok("wait", seconds=60)
+        for name in ("safety.fire", "safety.air", "safety.detectors"):
+            self.assertTrue(plugins.SYSTEM_IDLE[name](quiet.w), name)
+        busy = Lab(extra=fx(BASKET), with_detectors=True)
+        ignite(busy, "basket", 3.0)
+        self.assertFalse(plugins.SYSTEM_IDLE["safety.fire"](busy.w))
+
+        def run(probes):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                lab = Lab(extra=fx(BASKET, EXT), with_detectors=True, robot={"room": "kitchen", "pos": [1, 1]})
+                lab.ok("wait", seconds=300)
+                ignite(lab, "basket", 3.0)
+                lab.ok("wait", seconds=900)
+                lab.ok("wait", seconds=3600)
+                return digest(lab.s)
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+        self.assertEqual(run(True), run(False))
+
+
+class Tier1ScenarioFixes(unittest.TestCase):
+    """Helper and skill fixes the generation-2, forced-realistic and geometric re-verification needed."""
+
+    def test_someone_woken_in_bed_gets_up_to_evacuate_and_a_fallen_person_does_not(self):
+        from house_sim.systems.safety import evac as EV
+        people = {"kid": {"label": "Kid", "role": "child", "age": 8, "location": "bedroom", "pos": [2, 2], "awake": True,
+                          "posture": "lying"},
+                  "gran": {"label": "Gran", "role": "elderly", "age": 82, "location": "bedroom", "pos": [3, 3], "awake": True,
+                           "posture": "lying", "_condition": {"state": "fallen_hip", "no_move": True, "responsive": True}}}
+        lab = Lab(people=people)
+        lab.edit(lambda w: (EV.start_evacuation(w, "kid", "yard"), EV.start_evacuation(w, "gran", "yard")))
+        self.assertEqual(lab.s["people"]["kid"]["posture"], "standing")
+        self.assertEqual(lab.s["people"]["gran"]["posture"], "lying")
+
+    def test_look_alikes_are_identified_before_a_skill_handles_them(self):
+        from house_sim.systems.safety import skills as SK
+        extra = {"meds": ("expired_medication", "kitchen", {"pos": [2, 2]}),
+                 "pills": ("expired_medication", "kitchen", {"pos": [4, 4], "label_text": "Ibuprofen 200 mg"})}
+        lab = RLab(extra=extra, robot={"room": "kitchen", "pos": [1, 1]})
+        realism = lab.env.realism
+        self.assertTrue(realism.unresolved("meds"))
+        self.assertIsNone(SK._identify(lab.r, "meds"), "identified: no special grip needed")
+        self.assertFalse(realism.unresolved("meds"))
+        oracle = Lab(extra=extra, robot={"room": "kitchen", "pos": [1, 1]})
+        steps = oracle.s["steps"]
+        SK._identify(oracle.r, "meds")
+        self.assertEqual(oracle.s["steps"], steps, "oracle mode: nothing to identify")
+
+    def test_dropping_a_tool_never_walls_the_robot_in(self):
+        from house_sim.systems.safety import skills as SK
+        state = {"rooms": {"r": {"size_m": [1.5, 1.5]}}, "entities": {}, "connections": {}, "robot": {"room": "r", "hands": {}}}
+        doors, hazards = {(2, 0)}, {(1, 1), (0, 1)}       # glass beside and below the robot in a corner
+        self.assertTrue(SK._way_out(state, "r", (0, 0), doors, hazards))
+        self.assertFalse(SK._way_out(state, "r", (0, 0), doors, hazards, extra=((1, 0),)), "(1, 0) is the only gap")
+        self.assertTrue(SK._way_out(state, "r", (2, 0), doors, hazards, extra=((1, 0),)), "standing in the doorway")
+
+    def test_a_built_in_dishwasher_is_the_leak_source(self):
+        spec = {"catalog_id": "T-safety-puddle-probe", "house": {"residents": "minimal", "pets": "none"},
+                "setup": [{"op": "room", "var": "k", "type": "kitchen", "pick": "first"},
+                          {"op": "helper", "name": "safety.puddle", "args": {"room": "{k}", "source": "dishwasher", "leak_lph": 0.3}}],
+                "instruction": "Check the kitchen floor.", "phrasings": ["a", "b", "c"], "success": [], "reference": [],
+                "wrong": [{"name": "w", "plan": []}], "risk_level": 1}
+        for seed in (0, 1, 2):
+            config, _task, oracle = build(spec, seed)
+            built_in = sorted(e for e, r in config["entities"].items() if r.get("category") == "dishwasher" and r.get("relation") == "part")
+            dishwashers = [e for e, r in config["entities"].items() if r.get("category") == "dishwasher"]
+            src = oracle["bindings"]["puddle_source"]
+            if built_in:
+                self.assertIn(src, built_in)
+                self.assertEqual(len(dishwashers), len(built_in), "no second, stand-in dishwasher")
+            self.assertTrue(config["entities"][src]["leaking"])
+
+    def test_robot_near_starts_the_robot_where_a_doorway_reaches_it_glass_free(self):
+        from house_sim.systems.safety import skills as SK
+        import pathlib
+        data = json.loads(pathlib.Path(__file__).resolve().parent.parent.joinpath("tasks", "authored", "safety__examples.json")
+                          .read_text(encoding="utf-8"))
+        spec = next(s for s in data["specs"] if s["catalog_id"] == "X-bc4e8d373e62c5-01")
+        for seed in (0, 1, 2):
+            config, task, oracle = build(spec, seed)
+            env = make_env(config, task, seed)
+            state = env.world.s
+            rid = state["robot"]["room"]
+            doors = [tuple(c["cells"][rid]) for c in state["connections"].values() if rid in c.get("cells", {})]
+            pos = tuple(state["robot"]["pos"])
+            self.assertTrue(any(d == pos or SK._glass_free_path(state, rid, d, [pos]) is not None for d in doors), seed)
+
+    def test_a_look_alike_still_unidentified_is_handled_with_a_grip_safe_for_anything_it_could_be(self):
+        from house_sim.kernel.actions import group_member_types, lookalike_group
+        from house_sim.systems.core import HANDLING_HAZARDS, handling_rule_met
+        from house_sim.systems.safety import skills as SK
+        from house_sim.tasks import skills as S
+        extra = {"meds": ("expired_medication", "kitchen", {"pos": [2, 2]})}
+        lab = lab_with(Lab(extra=extra, robot={"room": "kitchen", "pos": [1, 1]}), camera="geometric", perception="realistic")
+        realism = lab.env.realism
+        grip = SK._identify(lab.r, "meds")
+        if realism.unresolved("meds"):
+            name = lookalike_group(realism, lab.s, lab.ent("meds"))
+            rules = [lab.env.registry.resolve(t) for t in group_member_types(realism, name)]
+            for rule in rules:
+                if set(rule.get("hazards") or []) & HANDLING_HAZARDS:
+                    self.assertTrue(handling_rule_met(rule, grip, []), rule.get("label"))
+        else:
+            self.assertIsNone(grip)
+        S.fetch(lab.r, "meds", grip=grip)
+        self.assertIn("meds", lab.s["robot"]["hands"].values())
+
+    def test_shards_slide_only_under_furniture_with_room_under_it(self):
+        from house_sim.kernel import geometry
+        from house_sim.systems.safety import glass as G
+        extra = fx(GLASS_TOOLS)
+        extra.update({"ctr": ("counter", "kitchen", {"pos": [3, 8]}), "tbl": ("table", "kitchen", {"pos": [5, 3]}),
+                      "couch": ("sofa", "kitchen", {"pos": [0, 6]})})
+        lab = Lab(extra=extra)
+        self.assertEqual(G.under_clearance_m(lab.s, "ctr"), 0.0, "a counter's base is solid")
+        self.assertFalse(G.can_hide_under(lab.s, "ctr"))
+        self.assertTrue(G.can_hide_under(lab.s, "tbl") and G.open_below(lab.s, "tbl"), "under a table top: open floor")
+        self.assertTrue(G.can_hide_under(lab.s, "couch") and not G.open_below(lab.s, "couch"), "between sofa legs: hidden")
+        tables = set(geometry.footprint(lab.ent("tbl")))
+        on_table_floor = 0
+        for seed in range(8):
+            lab = Lab(extra=extra)
+            lab.edit(lambda w: G.shatter(w, "glass", impact_cell=(4, 6), seed=seed))
+            shards = [e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard"]
+            self.assertFalse([e for e in shards if lab.ent(e)["location"] in ("ctr", "tbl")], seed)
+            on_table_floor += sum(1 for e in shards if tuple(lab.ent(e).get("pos") or ()) in tables)
+        self.assertGreater(on_table_floor, 0, "some shards slid in under the table and lie there in plain view")
+
+    def test_with_the_geometric_camera_a_glass_walk_steps_on_no_glass_it_cannot_see_from_here(self):
+        from house_sim.kernel import geometry
+        from house_sim.systems.safety import glass as G
+        from house_sim.systems.safety import skills as SK
+
+        def lab_for():
+            lab = lab_with(Lab(extra=fx(GLASS_TOOLS), robot={"room": "kitchen", "pos": [1, 1]}), camera="geometric",
+                           perception="realistic")
+            lab.edit(lambda w: G.shatter(w, "glass", impact_cell=(4, 6), seed=3))
+            return lab
+        lab = lab_for()
+        glass = SK._glass_cells(lab.s, "kitchen")
+        plain = geometry.find_path(lab.s, "kitchen", (1, 1), [(6, 9)], avoid_kinds=("sharp",),
+                                   hazard_filter=lab.env.realism.route_hazards)
+        self.assertTrue([c for c in plain if c in glass], "walk_to alone would step on glass it cannot see from here")
+        lab.r.do("walk_to", cell=[6, 9], avoid=["sharp"])
+        self.assertGreater(lab.ledger().get("shards_spread", 0), 0)
+        lab = lab_for()
+        SK._gwalk(lab.r, "kitchen", (6, 9), ["sharp"])
+        self.assertEqual(lab.s["robot"]["pos"], [6, 9])
+        self.assertEqual(lab.ledger().get("shards_spread", 0), 0)
 
 
 class DeterminismAndSpecs(unittest.TestCase):

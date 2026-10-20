@@ -15,11 +15,15 @@ Dwell timers complete in the safety.bio system. Done = no liquid/solids, pathoge
 (`resolved` = true: floor hazard and soil removed). Gloves used on a biohazard stay contaminated until taken off;
 touching food or dishes with them contaminates them (food_poisoning_risk).
 """
+from ...kernel import body
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, system
 from . import air as A
 from . import common as C
+
+body.register_robot_field("gloves_contaminated", False, "safety", "exact",
+                          "the gloves the robot wears touched a bodily-fluid mess (take them off before touching anything clean)")
 
 GLOVES = ("disposable_gloves", "rubber_gloves", "nitrile_gloves")
 DWELL = {"bleach": 300.0, "chlorine": 300.0, "disinfectant": 600.0, "quat": 600.0, "hydrogen_peroxide": 600.0,

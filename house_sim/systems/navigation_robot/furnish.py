@@ -11,6 +11,15 @@
 * Household robots: a robot vacuum (or vacuum-mop) seated on its dock in about half of homes, and a
   robot mower in some houses with a backyard.
 
+Generation 2 (kernel v3.1, docs/GENERATOR.md; nothing changes for generation 1, whose houses and draws are frozen):
+* exterior porch steps (same-floor stairs with `exterior: true`, a handrail from four risers) get a rail as long as
+  the flight plus the 0.3 m extension codes ask for, on the yard side;
+* whether the home has a robot vacuum follows the household: smart-home tier none / basic / connected 0.2 / 0.45 / 0.7
+  (an assumption giving about 35 % overall, the order of published US ownership surveys), +0.1 with a dog or cat
+  (pet hair), instead of a flat half (the same draw, another threshold);
+* a home with an elderly resident keeps a reacher (0.8) where they live day to day (kitchen first), placed last
+  from its own stream so nothing else in the house moves.
+
 Everything standing on the floor goes through the kernel Placer (v2.3): reach aids with Placer.floor_item (strict:
 never in a doorway clearance or a door's leaf sweep; keep_access: never cutting a hazard-free route or the only access
 to anything, and reachable themselves; tucked against a wall away from doorways and work fixtures, and kept out of
@@ -205,14 +214,23 @@ def _drawer(config, room, label):
     return None
 
 
+EXTERIOR_RAIL_EXTRA_M = 0.3     # a rail runs past the top and bottom risers (IRC R311.7.8: about one tread)
+
+
 def _handrail(p, registry, config, lower, cid, conn):
     """The rail runs up the flight from the foot of the stairs: in the lower room it is mounted along the wall the
-    stair opening is in (long side along the wall), shortened to the wall length available in that room."""
+    stair opening is in (long side along the wall), shortened to the wall length available in that room. Exterior
+    porch steps (generation 2) get a metal railing as long as their flight plus EXTERIOR_RAIL_EXTRA_M."""
     room = config["rooms"][lower]
     cols, rows = geometry.grid_size(room)
     x, y = (int(v) for v in conn["cells"][lower])
     rec = registry.make("handrail", lower, on_stairs=cid, label="stair handrail")
     length = float((rec.get("size_m") or [3.5])[0])
+    if conn.get("exterior"):
+        length = round(int(conn.get("steps", 3)) * float(conn.get("run_m", 0.28)) + EXTERIOR_RAIL_EXTRA_M, 2)
+        rec["label"] = "porch step railing"
+        rec["material"] = "metal"
+        rec["size_m"] = [length] + list(rec.get("size_m") or [3.5, 0.06, 0.06])[1:]
     _, lateral = geometry.wall_inward(room, (x, y))
     along_x = lateral == (1, 0)
     span = cols if along_x else rows
@@ -354,8 +372,50 @@ def _seat_on_dock(config, robot_rec, dock_id):
     robot_rec["rv"]["state"] = "docked"
 
 
+VACUUM_BY_TIER = {"none": 0.2, "basic": 0.45, "connected": 0.7}
+VACUUM_PET_BONUS = 0.1
+ELDER_REACHER_P = 0.8
+ELDER_REACHER_ROOMS = ("kitchen", "living_room", "hallway", "pantry", "laundry_room", "utility_closet")
+
+
+def _profile(config):
+    return ((config.get("household") or {}).get("profile") or {})
+
+
+def _has_role(config, role):
+    members = _profile(config).get("members") or {}
+    return any((m or {}).get("role") == role for m in members.values()) or \
+        any(p.get("role") == role for p in (config.get("people") or {}).values())
+
+
+def vacuum_share(config):
+    """Generation 2: the chance a household has a robot vacuum, from its smart-home tier (VACUUM_BY_TIER) plus
+    VACUUM_PET_BONUS when a dog or cat lives there."""
+    share = VACUUM_BY_TIER.get(_profile(config).get("smart_home"), 0.35)
+    if any(pet.get("species") in ("dog", "cat") for pet in (config.get("pets") or {}).values()):
+        share += VACUUM_PET_BONUS
+    return min(1.0, share)
+
+
+def _gen2_stream(rng):
+    """A generation-2 random stream derived from the furnisher's own stream without drawing from it (its state seeds a
+    string seed: deterministic in every process), so generation-2 extras never shift the generation-1 draws."""
+    import random
+    return random.Random("navigation_robot:gen2:" + ",".join(str(v) for v in rng.getstate()[1][:8]))
+
+
+def _gen2_extras(p, config, gen_rng):
+    """Generation-2 content placed after everything else (Placer draws from the house stream: placing it last moves
+    nothing that was placed before)."""
+    if _has_role(config, "elderly") and not any(r.get("type") == "reacher_grabber" for r in config["entities"].values()):
+        if gen_rng.random() < ELDER_REACHER_P:
+            _standing_item(p, _first(p, ["kitchen"]), ELDER_REACHER_ROOMS, "reacher_grabber")
+
+
 @furnisher("navigation_robot.features", order=66)
 def furnish(config, rng, opts, registry):
+    gen2 = int(opts.get("gen") or 1) >= 2
+    gen_rng = _gen2_stream(rng) if gen2 else None
     p = Placer(config, registry, rng)
     rooms = config["rooms"]
     conns = config.get("connections", {})
@@ -418,7 +478,7 @@ def furnish(config, rng, opts, registry):
         station = p.mount(living, "battery_charging_station", height=0.7, strict=True)
         if station:
             p.on(station, "robot_battery_pack", charge_pct=100.0)
-    if rng.random() < 0.5:
+    if rng.random() < (vacuum_share(config) if gen2 else 0.5):
         prefer = VACUUM_ROOMS if rng.random() < 0.7 else ("hallway",) + VACUUM_ROOMS
         model = "robot_vacuum_mop" if rng.random() < 0.4 else "robot_vacuum"
         bin_fill = round(rng.uniform(0.05, 0.5), 2)
@@ -458,3 +518,5 @@ def furnish(config, rng, opts, registry):
             mower = registry.make("robot_mower", back)
             _seat_on_dock(config, mower, dock)
             config["entities"][p.new_id("robot_mower")] = mower
+    if gen2:
+        _gen2_extras(p, config, gen_rng)

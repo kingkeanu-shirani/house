@@ -2326,6 +2326,15 @@ def _jugs():
     return m
 
 
+def _without_candidates(value):
+    """An observation without the look-alike groups' candidate lists (the same words for every member of a group)."""
+    if isinstance(value, dict):
+        return {k: _without_candidates(v) for k, v in value.items() if k != "candidates"}
+    if isinstance(value, list):
+        return [_without_candidates(v) for v in value]
+    return value
+
+
 class PerceptionHardening(unittest.TestCase):
     def pour(self, jug, perception="realistic", **args):
         e = _jugs().env(room="kitchen", pos=[3, 1], hold={"right": jug}, perception=perception)
@@ -2352,7 +2361,9 @@ class PerceptionHardening(unittest.TestCase):
             self.assertNotIn("liquid", e.observe()["visible_entities"][h("bucket_1")])
             # nor a puddle of it on the floor
             ok(self, e.step("pour", h(jug), "kitchen", amount_l=0.2))
-            text = json.dumps(e.observe())
+            # (the look-alike group's candidate list names every member alike, so it is no clue: with the cleaning
+            # domain loaded the spray_bottle group lists other products than the kernel's default group does)
+            text = json.dumps(_without_candidates(e.observe()))
             for word in ("bleach", "softener"):
                 self.assertNotIn(word, text)
             puddles = [k for k, v in e.observe()["visible_entities"].items() if v.get("kind") in ("puddle", "spill")]
@@ -2651,3 +2662,401 @@ class CounterSpaceAndPipes(unittest.TestCase):
                     seen += 1
                     self.assertTrue(self._along_wall_on_grid(config["rooms"][rec["location"]], rec), (seed, opts, eid, rec["pos"]))
         self.assertGreater(seen, 0)
+
+
+# ======================================================================================
+# tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep): docs/design/TIER1_INTEGRATION.md section 6
+
+class Tier1Physics(unittest.TestCase):
+    """The physics adoption protocol (TIER1_PHYSICS 10.3): the domain's copies of the carry, open_spill, phase and
+    thermal_tau laws step aside once the kernel's law is active (lawbook.forced stands in for the D1 flip), and pours
+    use the kernel's transfer rules."""
+
+    def kitchen(self):
+        m = freezer_kitchen()
+        m.add("bucket", "utility_bucket", "kitchen", pos=[2, 1])
+        return m
+
+    def test_carry_law_owns_slosh_once_active(self):
+        from house_sim.kernel.phys import lawbook
+        m = Transfers().kitchen()
+        glass(m, "g", "counter", spos=[0.0, 0.0])
+        for active in (False, True):
+            with lawbook.forced(carry=active):
+                e = m.env(room="kitchen", pos=[4, 1])
+                ok(self, e.step("pick_up", "g"))
+                ok(self, e.step("fill", "g", source="ksink", until="brim"))
+                ok(self, e.step("move", "living"))
+                own = [x for x in psec(e).get("log", []) if x.get("event") == "carry_slosh"]
+                if active:
+                    self.assertEqual(own, [])                      # the kernel's carry law sloshed it, not this domain
+                self.assertTrue(spills(e), active)                 # either way the brimful glass slopped
+                self.assertLess(L.liters(ent(e, "g")), 0.35)
+
+    def test_the_legacy_slosh_is_the_kernel_model(self):
+        from house_sim.kernel.phys import liquids as PL
+        from house_sim.systems.plumbing_liquids import leaks as K
+        cup = {"liquid": "water", "liquid_l": 0.34, "capacity_l": 0.35, "size_m": [0.08, 0.08, 0.13], "open": True}
+        for motion in (0.5, 1.0, 1.7):
+            self.assertEqual(K.slosh_spill_l(cup, motion), PL.slosh_spill_l(cup, motion))
+        tray = {"ice_tray": True, "cells": 14, "cell_ml": 28.0, "liquid": "water", "liquid_l": 0.37, "capacity_l": 0.42,
+                "size_m": [0.28, 0.11, 0.04], "open": True, "openable": True}
+        # cell by cell: a 3.5 cm cell under 2.5 cm walls sloshes less than one tray-wide pool would
+        self.assertLess(K.slosh_spill_l(tray, 1.0), PL.slosh_spill_l(tray, 1.0))
+        self.assertGreater(K.slosh_spill_l(tray, 1.7), 0.0)
+        self.assertEqual(K.slosh_spill_l(dict(tray, open=False), 1.7), 0.0)        # the snap-on lid holds it
+
+    def test_kernel_slosh_and_tilt_keep_an_ice_tray_consistent(self):
+        from house_sim.kernel.phys import lawbook
+        m = freezer_kitchen()
+        m.add("tray", "ice_cube_tray", "counter", spos=[0.0, 0.0])
+        cap = 14 * 0.028
+        with lawbook.forced(carry=True, open_spill=True):
+            e = m.env(room="kitchen", pos=[4, 1])
+            ok(self, e.step("pick_up", "tray"))
+            ok(self, e.step("fill", "tray", source="ksink", to_frac=0.95))
+            ok(self, e.step("set_speed", "fast"))
+            ok(self, e.step("approach", "freezer"))
+            tray = ent(e, "tray")
+            self.assertLess(L.liters(tray), 0.9 * cap)              # the kernel's carry law sloshed it...
+            self.assertAlmostEqual(tray["cell_fill"], L.liters(tray) / cap, places=3)   # ...and the cells follow
+            e = m.env(room="kitchen", pos=[4, 1])
+            ok(self, e.step("pick_up", "tray"))
+            ok(self, e.step("fill", "tray", source="ksink", to_frac=0.95))
+            ok(self, e.step("close", "tray"))                       # the snap-on lid for the walk
+            ok(self, e.step("approach", "freezer"))
+            ok(self, e.step("open", "tray"))
+            ok(self, e.step("open", "freezer"))
+            before = L.liters(ent(e, "tray"))
+            self.assertGreater(before, 0.9 * cap)
+            r = ok(self, e.step("place", "tray", "peas"))
+            tray = ent(e, "tray")
+            self.assertEqual(tray["tilt_deg"], 8.0)
+            self.assertLess(L.liters(tray), before)                 # the open_spill law ran the low cells over
+            self.assertAlmostEqual(tray["cell_fill"], L.liters(tray) / cap, places=3)
+            self.assertAlmostEqual(ent(e, "freezer").get("frozen_spill_l", 0.0), before - L.liters(tray), places=3)
+            self.assertIn("tilted", r["message"])
+
+    def test_phase_law_freezes_a_glass_and_leaves_trays_to_the_domain(self):
+        from house_sim.kernel.phys import lawbook
+        m = freezer_kitchen()
+        glass(m, "g", "freezer", relation="in", shelf=1, liquid="water", liquid_l=0.25, _mix={"water": 0.25}, temperature_c=12.0)
+        m.add("tray", "ice_cube_tray", "freezer", relation="in", shelf=2, liquid="water", liquid_l=0.35, _mix={"water": 0.35},
+              cell_fill=0.893, temperature_c=12.0)
+        for active in (False, True):
+            with lawbook.forced(phase=active):
+                e = m.env(room="kitchen", pos=[4, 1])
+                wait(self, e, 1800)
+                self.assertEqual(ent(e, "tray").get("thermal_owner"), "plumbing_liquids")   # its freezing plateau
+                self.assertEqual(ent(e, "tray")["temperature_c"], 0.0)
+                wait(self, e, 4 * 3600)
+                g, tray = ent(e, "g"), ent(e, "tray")
+                self.assertEqual(tray["frozen_frac"], 1.0)
+                self.assertEqual(tray["ice_cubes"], 14)
+                self.assertNotIn("thermal_owner", tray)                # handed back once frozen through
+                if active:
+                    self.assertGreater(g.get("ice_frac", 0.0), 0.5)     # the kernel froze the glass (ice_frac)...
+                    self.assertFalse(g.get("ice_g"))                    # ...and the domain left it alone
+                    self.assertAlmostEqual(L.liters(g), 0.25, places=4)
+                else:
+                    self.assertGreater(g.get("frozen_frac", 0.0), 0.2)  # the domain's own model (law deferred)
+                    self.assertNotIn("ice_frac", g)
+
+    def test_only_unfrozen_liquid_pours_and_the_ice_stays(self):
+        m = Transfers().kitchen()
+        jug(m, "bottle", "counter", liquid="water", liters=0.8, spos=[0.0, 0.0], open=True, ice_frac=0.5)
+        glass(m, "g", "counter", spos=[0.5, 0.0], capacity_l=1.0)
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("pick_up", "bottle"))
+        ok(self, e.step("pour", "bottle", "g"))
+        bottle = ent(e, "bottle")
+        self.assertAlmostEqual(L.liters(ent(e, "g")), 0.4, places=3)
+        self.assertAlmostEqual(L.liters(bottle), 0.4, places=3)
+        self.assertAlmostEqual(bottle["ice_frac"], 1.0, delta=0.01)          # 0.4 L of ice left (with the phase law
+        # active it starts to thaw on the counter at once: a few drops of melt do not pour either)
+        result = e.step("pour", "bottle", "g")
+        refused(self, result, "resource")
+        self.assertIn("frozen", result["message"])
+
+    def test_ice_tau_follows_the_thermal_tau_law(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.plumbing_liquids import ice as I
+        m = Transfers().kitchen()
+        glass(m, "g", "counter", spos=[0.0, 0.0], liquid="water", liquid_l=0.2, _mix={"water": 0.2}, temperature_c=8.0,
+              ice_g=75.0, ice_cubes=3)
+        glass(m, "tumbler", "counter", spos=[0.5, 0.0], liquid="water", liquid_l=0.2, _mix={"water": 0.2}, temperature_c=8.0,
+              ice_g=75.0, ice_cubes=3, thermal_tau_s=7200.0, label="insulated tumbler")
+        taus = {}
+        for active in (False, True):
+            with lawbook.forced(thermal_tau=active):
+                e = m.env(room="kitchen", pos=[5, 1])
+                wait(self, e, 30)
+                g = ent(e, "g")
+                self.assertTrue(g.get("_tau_by_plumbing"))
+                self.assertAlmostEqual(g["thermal_tau_s"], I.ice_tau_s(g), delta=5.0)
+                self.assertEqual(ent(e, "tumbler")["thermal_tau_s"], 7200.0)      # its own time constant stays
+                taus[active] = g["thermal_tau_s"]
+                wait(self, e, 6 * 3600)
+                self.assertFalse(ent(e, "g").get("ice_g"))
+                self.assertNotIn("thermal_tau_s", ent(e, "g"))                    # the override goes with the ice
+                self.assertNotIn("_tau_by_plumbing", ent(e, "g"))
+        self.assertNotAlmostEqual(taus[False], taus[True], delta=30.0)
+
+    def test_pour_rate_follows_the_opening_and_the_viscosity(self):
+        def pour_s(**props):
+            m = Transfers().kitchen()
+            jug(m, "src", "counter", spos=[0.0, 0.0], open=True, **props)
+            m.add("bowl", "generic_item", "counter", spos=[0.6, 0.0], label="mixing bowl", category="dish", liquid_container=True,
+                  liquid=None, liquid_l=0.0, capacity_l=3.0, material="glass", portable=True, size_m=[0.3, 0.3, 0.15])
+            e = m.env(room="kitchen", pos=[5, 1])
+            ok(self, e.step("pick_up", "src"))
+            t0 = e.world.s["time_s"]
+            ok(self, e.step("pour", "src", "bowl", rate="fast"))
+            return e.world.s["time_s"] - t0
+        narrow = pour_s(liquid="water", liters=0.5)                                       # a 32 mm neck: 0.25 L/s
+        wide = pour_s(liquid="water", liters=0.5, neck_mm=None, package=None)            # a wide mouth: the commanded 0.5
+        soap = pour_s(liquid="dish_soap", liters=0.5, neck_mm=None, package=None)         # 300 cP: sqrt(20/300) of it
+        self.assertAlmostEqual(narrow, 2.0 + 0.5 / 0.25, delta=0.6)
+        self.assertAlmostEqual(wide, 2.0 + 0.5 / 0.5, delta=0.6)
+        self.assertAlmostEqual(soap, 2.0 + 0.5 / (0.5 * (20.0 / 300.0) ** 0.5), delta=0.6)
+
+    def test_hot_liquid_mixes_by_heat_capacity(self):
+        m = Transfers().kitchen()
+        jug(m, "pot", "counter", liquid="coffee", liters=0.6, spos=[0.0, 0.0], open=True, temperature_c=85.0, neck_mm=None,
+            package=None, label="coffee pot")
+        m.add("mug", "generic_item", "counter", spos=[0.5, 0.0], label="mug", category="dish", liquid_container=True, liquid=None,
+              liquid_l=0.0, capacity_l=0.35, material="ceramic", mass_kg=0.35, temperature_c=21.0, portable=True,
+              size_m=[0.09, 0.09, 0.1])
+        e = m.env(room="kitchen", pos=[5, 1], hold={"right": "pot"})
+        ok(self, e.step("pour", "pot", "mug", amount_l=0.25, rate="slow"))
+        temp = ent(e, "mug")["temperature_c"]
+        self.assertLess(temp, 80.0)                     # a cold mug takes heat from the coffee...
+        self.assertGreater(temp, 65.0)                  # ...about 300 J/K against 1 kJ/K of coffee
+
+    def test_pour_runs_the_kernel_thermal_shock_check_once_the_law_is_active(self):
+        from house_sim.kernel.phys import lawbook
+        m = Transfers().kitchen()
+        jug(m, "kettle", "counter", liquid="water", liters=0.8, spos=[0.0, 0.0], open=True, temperature_c=100.0, neck_mm=None,
+            package=None, label="kettle")
+        glass(m, "g", "counter", spos=[0.5, 0.0], temperature_c=4.0, phys_exact=True)
+        for active in (False, True):
+            with lawbook.forced(thermal_shock=active):
+                e = m.env(room="kitchen", pos=[5, 1], hold={"right": "kettle"})
+                r = ok(self, e.step("pour", "kettle", "g", amount_l=0.25, rate="slow"))
+                self.assertEqual(bool(ent(e, "g").get("broken")), active, r["message"])
+                if active:
+                    self.assertIn("cracked", r["message"])
+                    self.assertLess(L.liters(ent(e, "g")), 0.01)
+
+    def test_wringing_gives_back_what_the_kernel_absorbed(self):
+        from house_sim.kernel.phys import liquids as PL
+        from house_sim.kernel.phys import props as PP
+        m = Mini()
+        m.add("towel", "bath_towel" if default_registry().known("bath_towel") else "generic_item", "kitchen", pos=[2, 2],
+              wetness=1.0, material="fabric", mass_kg=0.55, portable=True, label="bath towel")
+        m.add("bucket", "utility_bucket", "kitchen", pos=[3, 2])
+        e = m.env(room="kitchen", pos=[2, 1])
+        grab(self, e, "towel")
+        cap = PL.absorb_capacity_l(PP.props(e.world.s, "towel"))
+        self.assertGreater(cap, 0.6)                    # a 0.55 kg towel holds more than this domain's old 0.6 L
+        ok(self, e.step("wring", "towel", "bucket"))
+        self.assertAlmostEqual(L.liters(ent(e, "bucket")), 0.7 * cap, delta=0.01)
+        self.assertAlmostEqual(ent(e, "towel")["wetness"], 0.3, places=3)
+
+
+class Tier1Body(unittest.TestCase):
+    """Body items (TIER1_EMBODIMENT 12): holding limits, water on the robot, commanded durations."""
+
+    def test_filling_a_held_bucket_stops_at_what_the_hand_holds(self):
+        m = Mini()
+        m.add("utub", "utility_sink", "basement", pos=[2, 0])
+        m.add("bucket", "utility_bucket", "basement", pos=[3, 1])
+        e = m.env(room="basement", pos=[2, 1])
+        grab(self, e, "bucket")
+        r = ok(self, e.step("fill", "bucket", source="utub", amount_l=15.0))
+        self.assertIn("stopped where the hand could hold no more", r["message"])
+        held = L.liters(ent(e, "bucket"))
+        self.assertLess(held, 8.0)                       # one hand holds about 8 kg: the bucket and 7 L
+        self.assertGreater(held, 6.5)
+        # set in the sink, it fills to the asked level
+        e2 = m.env(room="basement", pos=[2, 1])
+        grab(self, e2, "bucket")
+        ok(self, e2.step("place", "bucket", "utub", relation="in"))
+        ok(self, e2.step("fill", "bucket", source="utub", amount_l=15.0))
+        self.assertGreater(L.liters(ent(e2, "bucket")), 14.0)
+
+    def test_water_sprayed_over_the_robot_goes_through_the_body(self):
+        m = Mini()
+        m.add("spigot", "outdoor_spigot", "yard", pos=[0, 1], mounted=True, mount_height_m=0.45, settings={"valve": 1.0})
+        m.add("hose", "garden_hose", "yard", pos=[1, 1], attached_to="spigot", liquid_l=3.0, liquid="hose_water", pressurized=True)
+        m.add("nozzle", "hose_nozzle", "hose", relation="attached", settings={"pattern": "jet", "trigger": "closed"})
+        m.c["entities"]["hose"]["nozzle"] = "nozzle"
+        e = m.env(room="yard", pos=[1, 2])
+        before = e.world.s["robot"]["camera_clean"]
+        ok(self, e.step("disconnect_hose", "nozzle"))
+        robot = e.world.s["robot"]
+        self.assertAlmostEqual(robot["camera_clean"], before - 0.35, places=3)
+        self.assertGreater((robot.get("water_exposure_s") or {}).get("spray", 0.0), 0.0)
+
+    def test_standing_in_the_sprinklers_soaks_the_robot(self):
+        m = Mini()
+        m.add("head", "sprinkler_head", "yard", pos=[4, 4], on=True, radius_m=4.0, irrigation_emitter=True)
+        e = m.env(room="yard", pos=[5, 4])
+        wait(self, e, 300)
+        self.assertGreaterEqual((e.world.s["robot"].get("water_exposure_s") or {}).get("spray", 0.0), 300.0)
+        wait(self, e, 600)
+        self.assertIsNotNone(e.world.s["robot"].get("fault_state", {}).get("water_ingress"))
+        far = m.env(room="yard", pos=[19, 15])
+        wait(self, far, 600)
+        self.assertFalse((far.world.s["robot"].get("water_exposure_s") or {}).get("spray"))
+
+    def test_commanded_durations_are_not_stretched_by_careful_speed(self):
+        self.assertEqual(ACTIONS["spray"].timing, "commanded")
+        self.assertEqual(ACTIONS["flush"].timing, "commanded")
+
+
+class Tier1Sweep(unittest.TestCase):
+    """Notices, visual events, routes, view blocks and the water system's idle probe (TIER1_SWEEP 6, 22.3)."""
+
+    def test_leaks_drips_and_overflows_post_notices(self):
+        m = Mini()
+        m.kitchen_sink()
+        m.c["notices"] = []
+        m.c["utilities"] = {"main_water_open": False}
+        m.c["entities"]["k_cold"]["_leak"] = {"component": "valve_stem", "rate_lpm": 8.0, "when": "pressurized", "line": "cold",
+                                             "fixture": "ksink", "to": {"room": "kitchen", "cell": [3, 1]}}
+        m.add("main", "main_shutoff_valve", "basement", pos=[0, 2], mounted=True, mount_height_m=0.6, settings={"position": 0.0},
+              valve_open=False)
+        e = m.env(room="kitchen", pos=[2, 2])
+        w = e.world
+        w.begin()
+        w.mut("main").update(settings={"position": 1.0}, valve_open=True)
+        w.sec("utilities")["main_water_open"] = True
+        w.commit()
+        wait(self, e, 60)
+        kinds = [n["kind"] for n in e.world.s["notices"]]
+        self.assertEqual(kinds.count("water_spray"), 1)            # the stem starts spraying once, heard in the room
+        stored = next(n for n in e.world.s["notices"] if n["kind"] == "water_spray")
+        self.assertEqual(stored.get("room"), "kitchen")
+        # the robot's own actions tell their outcome in their message: no notice for them
+        before = len(e.world.s["notices"])
+        ok(self, e.step("turn_on_water", "ksink"))
+        self.assertEqual(len(e.world.s["notices"]), before)
+
+    def test_a_basin_left_running_is_heard_running_over_once(self):
+        m = Mini()
+        m.kitchen_sink(plug="closed")
+        m.c["notices"] = []
+        m.c["entities"]["ksink"]["settings"] = {"flow": 1.0, "mix": -1.0}
+        e = m.env(room="kitchen", pos=[2, 2])
+        wait(self, e, 900)
+        self.assertGreater(ent(e, "ksink").get("overflowed_l", 0.0), 1.0)
+        self.assertEqual([n["kind"] for n in e.world.s["notices"]].count("splash"), 1)
+
+    def test_visual_events_are_witnessed_only_in_geometric_mode(self):
+        m = Mini()
+        m.kitchen_sink(plug="closed")
+        m.c["entities"]["ksink"]["settings"] = {"flow": 1.0, "mix": -1.0}
+        logs = {}
+        for mode in ("room", "geometric"):
+            c = copy.deepcopy(m.c)
+            c["robot"] = {"room": "kitchen", "pos": [3, 3]}
+            e = HouseEnv(c, None, seed=0, camera=mode)
+            ok(self, e.step("face", "ksink") if mode == "geometric" else e.step("look"))
+            wait(self, e, 900)
+            logs[mode] = sorted(set(x["kind"] for x in e.world.s["event_log"] if x["kind"].startswith("plumbing_")))
+            if mode == "geometric":
+                seen = [x for x in e.world.s["camera_log"]["events"] if x["kind"] == "plumbing_overflow"]
+                self.assertTrue(seen)
+            else:
+                self.assertNotIn("camera_log", e.world.s)
+        self.assertEqual(logs["room"], logs["geometric"])               # the event log is the same in both modes
+
+    def test_canonical_questions_reach_the_plumbing_answerer(self):
+        from house_sim.kernel import dialogue
+        state = {"entities": {"main": {"type": "main_shutoff_valve", "label": "main water shutoff", "main": True}},
+                 "plumbing": {"hints": {"anna": {"where_noticed": "under the kitchen sink"}}}, "people": {"anna": {}}}
+        word = dialogue.Subject("word", None, ("main", "water", "shutoff"))
+        self.assertEqual(dialogue.find_route(state, "anna", word, "where", None, None)[1], "plumbing.main_shutoff")
+        leak = dialogue.Subject("word", None, ("leak",))
+        self.assertEqual(dialogue.find_route(state, "anna", leak, "where", None, None)[1], "plumbing.where_noticed")
+        self.assertIsNone(dialogue.find_route(state, "ben", leak, "where", None, None)[1])
+        hose = dialogue.Subject("word", None, ("hose",))
+        self.assertEqual(dialogue.find_route(state, "anna", hose, "how", None, None)[1], "plumbing.watering_rules")
+
+    def test_view_blocks_where_the_category_defaults_mislead(self):
+        reg = default_registry()
+        self.assertEqual(reg.view_props("toilet")["opening"], "top")
+        self.assertEqual(reg.view_props("water_heater")["behind_gap_m"], 0.1)
+        self.assertEqual(reg.view_props("water_meter")["text_m"]["display"], 0.005)
+        self.assertEqual(reg.view_props("shower_stall")["porosity"], 0.6)
+
+    def busy_house(self):
+        """Something in every one of the water system's steps: a recovering heater, a refilling toilet, an irrigation
+        program, a dripping umbrella, ice melting in a drink, a filling pitcher, foam, fizz and a tray freezing; all of
+        it ends within the day, so the probe sees busy and idle substeps."""
+        m = freezer_kitchen()
+        m.bath_sink()
+        m.add("heater", "water_heater", "basement", pos=[3, 3], tank_temp_c=30.0, settings={"temp_c": 49.0})
+        m.add("meter", "water_meter", "basement", pos=[0, 4], mounted=True, mount_height_m=0.5)
+        m.add("wc", "toilet", "bath", pos=[2, 0], tank_level_l=2.0, bowl_l=3.0)
+        m.add("ctrl", "irrigation_controller", "garage", pos=[0, 3], mounted=True, mount_height_m=1.2,
+              zones={"zone_1": ["head"]}, program=[{"zone": "zone_1", "start_h": 14.0, "minutes": 20, "days": ["daily"]}])
+        m.c["entities"]["ctrl"]["settings"] = {"mode": "auto", "rain_delay_h": 24}
+        m.add("head", "sprinkler_head", "yard", pos=[4, 4])
+        m.add("umbrella", "generic_item", "living", pos=[3, 3], label="umbrella", portable=True, drip_lpm=0.02, drip_left_l=0.3)
+        glass(m, "drink", "counter", spos=[0.0, 0.0], liquid="water", liquid_l=0.2, _mix={"water": 0.2}, temperature_c=6.0,
+              ice_g=50.0, ice_cubes=2, foam_l=0.02)
+        jug(m, "soda", "counter", liquid="soda", liters=0.33, spos=[0.5, 0.0], fizz=1.0)
+        m.add("pitcher", "filter_pitcher", "counter", spos=[1.0, 0.0], reservoir_l=0.8, open=True)
+        m.add("tray", "ice_cube_tray", "freezer", relation="in", shelf=2, liquid="water", liquid_l=0.35, _mix={"water": 0.35},
+              cell_fill=0.893, temperature_c=12.0)
+        return m
+
+    def test_the_water_idle_probe_is_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.plumbing_liquids import systems as Y
+
+        def run(probes, config_of):
+            old = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                e = config_of()
+                skipped = 0
+                for seconds in (600, 2 * 3600, 30, 9 * 3600, 3 * 3600):
+                    skipped += int(Y.water_idle(e.world))
+                    ok(self, e.step("wait", seconds=seconds))
+                return digest(e.world.s), skipped
+            finally:
+                plugins.IDLE_PROBES[0] = old
+
+        from house_sim.generator import generate_house
+        cases = [lambda: self.busy_house().env(room="kitchen", pos=[4, 1])]
+        cases += [lambda s=s: HouseEnv(generate_house(s), seed=s) for s in (0, 2)]
+        idle_seen = 0
+        for case in cases:
+            on, skipped = run(True, case)
+            off, _ = run(False, case)
+            self.assertEqual(on, off)
+            idle_seen += skipped
+        self.assertGreater(idle_seen, 0)                    # the probe does skip quiet substeps
+
+    def test_the_idle_probe_sees_each_kind_of_work(self):
+        from house_sim.systems.plumbing_liquids import systems as Y
+        quiet = Mini()
+        quiet.kitchen_sink()
+        self.assertTrue(Y.water_idle(quiet.env(room="kitchen", pos=[3, 1]).world))
+        busy = [lambda m: m.c["entities"]["ksink"].update(_worn={"drip_lpm": 0.01}, dripping=True, drip_lpm=0.01),
+                lambda m: m.c["entities"]["ksink"].update(liquid="water", liquid_l=5.0, _mix={"water": 5.0}),
+                lambda m: m.add("umbrella", "generic_item", "living", pos=[3, 3], portable=True, drip_lpm=0.02),
+                lambda m: glass(m, "drink", "kitchen", pos=[2, 2], liquid="water", liquid_l=0.2, _mix={"water": 0.2},
+                                temperature_c=6.0, ice_g=50.0),
+                lambda m: m.add("heater", "water_heater", "basement", pos=[3, 3], tank_temp_c=30.0, settings={"temp_c": 49.0}),
+                lambda m: m.add("head", "sprinkler_head", "yard", pos=[4, 4], on=True)]
+        for change in busy:
+            m = Mini()
+            m.kitchen_sink()
+            change(m)
+            e = m.env(room="kitchen", pos=[3, 1])
+            self.assertFalse(Y.water_idle(e.world), change)

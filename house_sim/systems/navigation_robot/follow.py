@@ -221,7 +221,7 @@ def lead(ctx):
     v_p = person_speed(p)
     require(v_p > 0, "They cannot walk; a transfer needs a caregiver", "capability")
     pace = ctx.args["pace"]
-    v_r = v_p if pace == "match" else C.SPEED_MPS[pace]
+    v_r = v_p if pace == "match" else C.speed_mps(state, pace)
     speed = "careful" if v_r <= 0.6 else ("normal" if v_r <= 1.0 else "fast")
     avoid = ctx.args.get("avoid") or []
     gap, seconds, status = 0.0, 0.0, "arrived"
@@ -244,13 +244,18 @@ def lead(ctx):
                 status = "person_fell"
                 with_robot = False
                 break
-        path = geometry.find_path(state, here, C.cell(state["robot"].get("pos") or [0, 0]), [C.cell(conn["cells"][here])], avoid_kinds=tuple(avoid)) or []
+        # the route the robot plans with what it perceives (ctx.route_filter in realistic mode); a frail person still
+        # trips on what lies on it
+        path = geometry.find_path(state, here, C.cell(state["robot"].get("pos") or [0, 0]), [C.cell(conn["cells"][here])],
+                                  avoid_kinds=tuple(avoid), hazard_filter=ctx.route_filter) or []
         hz = H.cell_map(state, here)
         risky = sorted({h["kind"] for c in path for h in hz.get(C.cell(c), []) if h.get("kind") in TRIP_FOR_PEOPLE})
         # the robot can only call out what it sees (realistic perception: no black ice, no damp film from afar, nothing
         # in the dark); an unseen hazard still trips a frail person it leads
+        frames = H.seen_cells(state, here, w) if C.realistic(ctx) else None
         seen = risky if not C.realistic(ctx) else sorted({h["kind"] for c in path for h in hz.get(C.cell(c), [])
-                                                          if h.get("kind") in TRIP_FOR_PEOPLE and H.visible_hazard(state, here, C.cell(c), h)})
+                                                          if h.get("kind") in TRIP_FOR_PEOPLE and
+                                                          H.visible_hazard(state, here, C.cell(c), h, frames)})
         if with_robot and risky:
             if ctx.args["warn"] and seen:
                 say(ctx, "speak", "Careful, {} ahead.".format(" and ".join(k.replace("_", " ") for k in seen)), to=pid)

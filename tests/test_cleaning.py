@@ -37,7 +37,7 @@ class Lab:
 
     def __init__(self, kitchen_floor="tile", hall_floor="sealed_wood", living_floor="carpet", counter="granite",
                  extra=None, props=None, people=None, household=None, floor_cells=None, clock="2026-10-09T10:00:00", seed=0,
-                 robot=None, build=None, room_props=None, perception="oracle"):
+                 robot=None, build=None, room_props=None, perception="oracle", camera=None, notices=False):
         load_domains()
         reg = default_registry()
         set_props = props
@@ -113,7 +113,10 @@ class Lab:
         self.config = {"schema_version": 2, "start_room": "kitchen", "rooms": rooms, "clock": {"start": clock},
                        "connections": connections, "entities": ents, "people": copy.deepcopy(people or {}), "pets": {},
                        "robot": copy.deepcopy(robot or {"room": "kitchen", "pos": [1, 1]}), "household": hh}
-        self.env = HouseEnv(copy.deepcopy(self.config), None, seed, trace=False, observe_on_step=False, perception=perception)
+        if notices:
+            self.config["notices"] = []          # the tier-1 notice bus (kernel/timeline.py), on as for a schema-3 spec
+        self.env = HouseEnv(copy.deepcopy(self.config), None, seed, trace=False, observe_on_step=False, perception=perception,
+                            camera=camera)
         self.r = Runner(self.env, {}, strict=True)
 
     # ----- shortcuts
@@ -934,15 +937,44 @@ class Liners(unittest.TestCase):
         self.assertTrue(lab.ent("new")["slipped"])
         self.assertFalse(lab.ent("new")["seated"])
 
+    TILES = {"brick%d" % i: ("waste_item", "can", {"relation": "in", "label": "broken tile", "mass_kg": 2.95, "volume_l": 2.0,
+                                                   "waste_kind": "construction"}) for i in range(4)}
+
     def test_overloaded_bag_tears_when_lifted_out(self):
-        extra = {"brick%d" % i: ("waste_item", "can", {"relation": "in", "label": "broken tile", "mass_kg": 4.0, "volume_l": 2.0,
-                                                       "waste_kind": "construction"}) for i in range(4)}
-        lab = Lab(extra=extra)
-        lab.go("can")
-        lab.do("open", target="can")
-        lab.do("uninstall", target="can", slot="liner")
-        self.assertTrue(lab.ent("liner1")["torn"])
-        self.assertTrue(any(lab.ent("brick%d" % i)["location"] == "kitchen" for i in range(4)))
+        """11.8 kg of broken tile in a 13-gal kitchen bag (max_load_kg 10): over the bag's rating at either end of the
+        kernel's +-15 % band, under the body's hold safety net (1.5 x the 8 kg a hand holds), so the bag gives way
+        whoever decides it: cleaning's legacy rule while the handle law is deferred, the kernel's handle law once it is
+        active (both checked: TIER1_PHYSICS 10.3)."""
+        from house_sim.kernel.phys import lawbook
+        for active in (False, True):
+            with lawbook.forced(handle=active):
+                lab = Lab(extra=copy.deepcopy(self.TILES))
+                lab.go("can")
+                lab.do("open", target="can")
+                lab.do("uninstall", target="can", slot="liner")
+                self.assertTrue(lab.ent("liner1")["torn"], active)
+                self.assertTrue(any(lab.ent("brick%d" % i)["location"] == "kitchen" for i in range(4)), active)
+
+    def test_under_the_handle_law_a_leaking_bag_lets_its_juice_out_and_a_slipped_liner_bears_half(self):
+        from house_sim.kernel.phys import lawbook, props
+        with lawbook.forced(handle=True):
+            extra = copy.deepcopy(self.TILES)
+            del extra["brick3"]          # 3 x 2.95 kg of tile and a 2.8 kg leaking food bag: 11.65 kg, still under 12
+            extra["juice"] = ("waste_item", "can", {"relation": "in", "label": "leaking food bag", "leaks": True,
+                                                    "mass_kg": 2.8, "volume_l": 3.0})
+            lab = Lab(extra=extra)
+            lab.go("can")
+            lab.do("open", target="can")
+            lab.do("uninstall", target="can", slot="liner")
+            self.assertTrue(lab.ent("liner1")["torn"])
+            spills = [r for r in lab.w.s["entities"].values() if r.get("category") == "spill" and r.get("liquid") == "garbage_juice"]
+            self.assertEqual(len(spills), 1)
+            self.assertGreaterEqual(lab.stat("spills"), 1)
+            # the slipped-liner refinement (phys.props): half the bag's handle rating
+            m = lab.w.ent("liner1")
+            nominal = props.props_of(dict(m, phys_exact=True, slipped=False)).handle_kg
+            slipped = props.props_of(dict(m, phys_exact=True, slipped=True)).handle_kg
+            self.assertAlmostEqual(slipped, nominal * 0.5)
 
     def test_normal_bag_lifts_out_intact_with_its_contents(self):
         extra = {"t%d" % i: ("food_wrapper", "can", {"relation": "in"}) for i in range(5)}
@@ -1007,31 +1039,55 @@ class Dishes(unittest.TestCase):
         bad.r.skill("fetch", obj="knife", grip="handle")
         bad.go("sink")
         bad.do("wash", target="knife", destination="sink", tool="sponge", stroke="along_edge")
-        self.assertIn("gripper_cut", bad.w.s["robot"].get("faults", []))
+        # the cut is a robot fault written through the body (TIER1_INTEGRATION 6, body: body_faults.add_fault): an
+        # active, detected record on the sponge hand, its log entries, and a gashed pad that grips worse (gripper_slip)
+        from house_sim.kernel import body
+        hand = next(h for h, e in bad.w.s["robot"]["hands"].items() if e == "sponge")
+        record = body.fault(bad.w.s, "gripper_cut_" + hand)
+        self.assertIsNotNone(record)
+        self.assertTrue(record["detected"])
+        self.assertIn("gripper_cut", [f.get("kind") for f in bad.w.s["robot"]["faults"]])
+        self.assertIsNotNone(body.fault(bad.w.s, "gripper_slip_" + hand))
         self.assertGreater(bad.stat("safety_violations"), 0)
         good = Lab(extra={"knife": ("generic_item", "kitchen", dict(KNIFE, pos=[1, 2]))})
         good.hold("sponge")
         good.r.skill("fetch", obj="knife", grip="handle")
         good.go("sink")
         good.do("wash", target="knife", destination="sink", tool="sponge", stroke="spine_first")
-        self.assertNotIn("gripper_cut", good.w.s["robot"].get("faults", []))
+        self.assertNotIn("gripper_cut", [f.get("kind") for f in good.w.s["robot"].get("faults", [])])
         self.assertLess(good.soil("knife", "food"), 0.4)
 
-    def test_fridge_cold_glass_cracks_in_hot_water(self):
+    def test_a_hot_glass_dish_cracks_in_cold_water_through_the_kernels_thermal_shock(self):
+        """TIER1_PHYSICS 5.9 / 10.3: the thermal shock is the kernel's (physics.shock_check: soda-lime glass 45 K with the
+        immersion coupling, 1.0 into colder water and 0.6 into hotter). A dish straight from a 180 C oven plunged into
+        cold tap water (168 K) cracks: a kernel break (shattered, sharp, counted as a breakage). Updated from cleaning's
+        own column, under which a fridge-cold dish (4 C) also cracked in hot water: 51 K x 0.6 = 31 K < 45 K now."""
         dish = {"label": "glass baking dish", "material": "glass", "size_m": [0.33, 0.23, 0.06], "mass_kg": 1.5, "pos": [1, 2],
                 "soil": {"grease": 0.3}}
-        cold = Lab(extra={"dish": ("generic_item", "kitchen", dict(dish, temperature_c=4.0))})
-        cold.hold("sponge")
-        cold.r.skill("fetch", obj="dish")
-        cold.go("sink")
-        cold.do("wash", target="dish", destination="sink", tool="sponge", temp="hot")
-        self.assertTrue(cold.ent("dish").get("broken"))
-        warm = Lab(extra={"dish": ("generic_item", "kitchen", dict(dish, temperature_c=21.0))})
-        warm.hold("sponge")
-        warm.r.skill("fetch", obj="dish")
-        warm.go("sink")
-        warm.do("wash", target="dish", destination="sink", tool="sponge", temp="hot")
-        self.assertFalse(warm.ent("dish").get("broken"))
+        results = {}
+        for name, temp_c, water in (("oven_hot_in_cold", 180.0, "cold"), ("room_in_hot", 21.0, "hot"), ("fridge_in_hot", 4.0, "hot")):
+            lab = Lab(extra={"dish": ("generic_item", "kitchen", dict(dish, temperature_c=temp_c, thermal_owner="test"))},
+                      robot={"room": "kitchen", "pos": [1, 1], "wearing": ["oven_mitts"]})
+            lab.hold("sponge")
+            lab.r.skill("fetch", obj="dish")
+            lab.go("sink")
+            lab.do("wash", target="dish", destination="sink", tool="sponge", temp=water)
+            results[name] = (bool(lab.ent("dish").get("broken")), bool(lab.ent("dish").get("shattered")), lab.stat("breakages"))
+        self.assertEqual(results["oven_hot_in_cold"], (True, True, 1))
+        self.assertEqual(results["room_in_hot"], (False, False, 0))
+        self.assertEqual(results["fridge_in_hot"], (False, False, 0))
+
+    def test_a_hot_metal_pan_warps_in_cold_water_where_the_kernel_rates_no_thermal_shock(self):
+        pan = {"label": "frying pan", "material": "aluminum", "coating": "nonstick", "size_m": [0.28, 0.28, 0.05],
+               "mass_kg": 1.0, "pos": [1, 2], "soil": {"grease": 0.3}, "thermal_owner": "test"}
+        hot = Lab(extra={"pan": ("generic_item", "kitchen", dict(pan, temperature_c=220.0))},
+                  robot={"room": "kitchen", "pos": [1, 1], "wearing": ["oven_mitts"]})
+        hot.hold("sponge")
+        hot.r.skill("fetch", obj="pan")
+        hot.go("sink")
+        hot.do("wash", target="pan", destination="sink", tool="sponge", temp="cold")
+        self.assertIn("warped", hot.damage("pan"))
+        self.assertFalse(hot.ent("pan").get("broken"))
 
     def test_soaking_loosens_burnt_food(self):
         pot = {"label": "stainless saucepan", "material": "stainless", "size_m": [0.2, 0.2, 0.12], "mass_kg": 1.0, "pos": [1, 2],
@@ -1502,16 +1558,32 @@ class LiveMachinesAndInputs(unittest.TestCase):
 
 
 class Refusals(unittest.TestCase):
-    def test_quiet_mode_refuses_a_loud_vacuum_but_allows_low_suction(self):
+    def test_quiet_mode_refuses_any_vacuuming_through_the_body_but_not_a_broom(self):
+        """TIER1_INTEGRATION 6 (body): the vacuum declares noise_db (62-74 dB at 1 m by suction) and the body's quiet
+        guard refuses everything above quiet_limit_db (55 dB) - even low suction, which cleaning's own check used to
+        allow. A broom is quiet."""
         lab = Lab(build=with_vacuum(), floor_cells={"living": {"3,3": {"crumbs": 0.5}}})
         lab.do("set_quiet", target="on")
         lab.hold("vac")
         lab.r.skill("go_room", room="living")
-        res = lab.step("vacuum", "floor_living", tool="vac", zone="all")
-        self.assertFalse(res["ok"])
-        self.assertIn("Quiet", res["message"])
-        lab.do("set", target="vac", setting="suction", value="low")
+        for suction in ("high", "low"):
+            lab.do("set", target="vac", setting="suction", value=suction)
+            res = lab.step("vacuum", "floor_living", tool="vac", zone="all")
+            self.assertFalse(res["ok"], suction)
+            self.assertEqual((res["message"], res["category"]), ("Quiet mode is on: that is too loud now", "social"))
+        self.assertGreater(lab.soil("floor_living", "crumbs"), 0.4)       # refused: nothing happened
+        lab.do("set_quiet", target="off")
         self.assertTrue(lab.step("vacuum", "floor_living", tool="vac", zone="all")["ok"])
+
+    def test_the_vacuum_and_the_steam_mop_tell_listeners_their_level(self):
+        from house_sim.kernel.actions import ACTIONS
+        lab = Lab(build=with_vacuum())
+        lab.hold("vac")
+        ctx = type("C", (), {"w": lab.w, "args": {"tool": "vac"}})()
+        self.assertEqual(ACTIONS["vacuum"].noise_db(ctx), 74.0)
+        lab.do("set", target="vac", setting="suction", value="low")
+        self.assertEqual(ACTIONS["vacuum"].noise_db(ctx), 62.0)
+        self.assertIsNone(ACTIONS["mop"].noise_db(type("C", (), {"w": lab.w, "args": {}})()))
 
     def test_dustpan_needs_a_crouch(self):
         lab = Lab(floor_cells={"kitchen": {"4,3": {"crumbs": 0.5}}})
@@ -2450,6 +2522,267 @@ class RealisticPerception(unittest.TestCase):
             details = _json.loads(lab.do("inspect", target="cell_7")["message"])
             for key in ("fill_level", "lid_blocked", "stream_label", "waste_stream", "liner"):
                 self.assertNotIn(key, details, mode)
+
+
+# ----------------------------------------------------------------------------------------------- tier-1 adoption
+
+BOARD = ("generic_item", "counter", {"relation": "on", "spos": [0.0, 0.0], "label": "bread board", "size_m": [1.0, 0.5, 0.03],
+                                     "mass_kg": 2.0, "material": "wood"})
+CANDLESTICK = ("generic_item", "counter", {"relation": "on", "spos": [1.3, 0.2], "label": "glass candlestick",
+                                           "size_m": [0.03, 0.03, 0.3], "mass_kg": 0.2, "material": "glass"})
+
+
+class Tier1Adoption(unittest.TestCase):
+    """TIER1_INTEGRATION 6 (cleaning): physics, camera, body and sweep integration."""
+
+    def test_kernel_floor_spills_become_cleaning_spills_that_grow_per_cell_and_dry(self):
+        from house_sim.kernel.phys import liquids
+        lab = Lab()
+        sid = liquids.spill(lab.w, 0.3, "juice", at=("kitchen", [3, 3]), cause="spill")
+        rec = lab.ent(sid)
+        self.assertEqual((rec["type"], rec["liquid"], rec["pos"]), ("spill", "juice", [3, 3]))
+        self.assertEqual(liquids.spill(lab.w, 0.2, "juice", at=("kitchen", [3, 3]), cause="spill"), sid)   # grows there
+        self.assertAlmostEqual(lab.ent(sid)["liquid_l"], 0.5)
+        other = liquids.spill(lab.w, 0.2, "milk", at=("kitchen", [3, 3]), cause="spill")
+        self.assertNotEqual(other, sid)
+        lab.wait(3600)
+        self.assertLess(lab.ent(sid)["liquid_l"], 0.5)          # cleaning's spill system dries it like any other
+
+    def test_a_cloth_swept_across_a_crowded_counter_knocks_over_what_stands_slender_unless_it_works_around(self):
+        from house_sim.systems.cleaning import engine as E
+        for around in (False, True):
+            lab = Lab(extra={"board": BOARD, "candle": CANDLESTICK}, props={"counter": {"soil": {"dust": 0.4}}})
+            self.assertTrue(E.crowded(lab.w, "counter"))
+            lab.hold("cloth")
+            lab.go("counter")
+            res = lab.step("wipe", "counter", tool="cloth", around=around)
+            self.assertTrue(res["ok"], res["message"])
+            if around:
+                self.assertIsNone(lab.ent("candle").get("orientation"))
+                self.assertEqual(lab.stat("collisions"), 0)
+            else:
+                self.assertEqual(lab.ent("candle").get("orientation"), "on_side")      # the kernel's knock tipped it
+                self.assertIn("candle tipped over", res["message"])
+                self.assertEqual(lab.stat("collisions"), 1)
+            self.assertEqual(lab.ent("board").get("location"), "counter")              # a heavy flat board does not move
+
+    def test_canonical_questions_reach_the_cleaning_answerer(self):
+        from house_sim.kernel import dialogue
+        peel = ("generic_item", "counter", {"relation": "on", "spos": [0.5, 0.1], "label": "banana peel", "waste_kind": "food",
+                                            "size_m": [0.15, 0.05, 0.03], "mass_kg": 0.1})
+        lab = Lab(people={"adult_1": ADULT}, household={"waste_rules": {"glass": False, "caps": "on"}},
+                  extra={"bleach": ("bleach", "kitchen", {"pos": [1, 4]}), "peel": peel})
+        S, st = dialogue.Subject, lab.w.s
+        cases = {(S("word", None, ("recycling",)), "how"): ("cleaning.how", "cleaning.rules"),
+                 (S("word", None, ("vacuum",)), "how"): ("cleaning.how", "cleaning.quiet_hours"),
+                 (S("word", None, ("cloth",)), "how"): ("cleaning.how", "cleaning.cloth_colors"),
+                 (S("entity", "bleach"), "which"): ("cleaning.product", "cleaning.product:bleach"),
+                 (S("entity", "counter"), "how"): ("cleaning.how", "cleaning.finish:counter"),
+                 (S("entity", "can"), "how"): ("cleaning.how", "cleaning.rules"),
+                 (S("entity", "peel"), "keep"): ("cleaning.keep", "cleaning.keep:peel")}
+        for (subject, aspect), expected in cases.items():
+            self.assertEqual(dialogue.find_route(st, "adult_1", subject, aspect, None, None), expected, subject)
+        res = lab.step("ask", "adult_1", aspect="how", about="recycling")
+        self.assertTrue(res["ok"], res["message"])
+        self.assertFalse(lab.w.s["facts"]["cleaning.rules"]["glass"])
+        self.assertEqual(lab.stat("necessary_questions"), 1)
+
+    def test_the_robots_grippers_are_wiped_washed_and_dried_through_the_body(self):
+        from house_sim.kernel import body
+        lab = Lab()
+        body.soil_hand(lab.w, "left", "grease", 0.5)
+        lab.hold("cloth")
+        hand = next(h for h, item in lab.w.s["robot"]["hands"].items() if item == "cloth")
+        other = "left" if hand == "right" else "right"
+        body.soil_hand(lab.w, other, "grease", 0.5)
+        res = lab.step("wipe", "robot_hand_" + other, tool="cloth")
+        self.assertTrue(res["ok"], res["message"])
+        self.assertNotIn(other, lab.w.s["robot"].get("hand_soil") or {})
+        lab.hold("cloth", "plate")
+        res = lab.step("wipe", "robot_hand", tool="cloth")          # both grippers: one holds a plate
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["message"], "Put down what that hand holds first")
+        lab.go("counter")
+        lab.do("place", target="plate", destination="counter")
+        lab.do("place", target="cloth", destination="counter")
+        lab.go("sink")
+        self.assertTrue(lab.step("wash", "robot_hand", destination="sink")["ok"])
+        self.assertEqual(lab.w.s["robot"]["hand_soil"], {"left": {"water": 0.6}, "right": {"water": 0.6}})
+        lab.hold("cloth2")
+        self.assertTrue(lab.step("dry", "robot_hand", tool="cloth2")["ok"])
+        self.assertEqual(lab.w.s["robot"].get("hand_soil") or {}, {})
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.cleaning import make_spill
+        from house_sim.systems.cleaning import systems as Y
+        probes = (Y.chemistry_idle, Y.soak_idle, Y.drying_idle, Y.spills_idle, Y.waste_idle, Y.air_idle)
+
+        def busy():
+            lab = Lab(people={"adult_1": PERSON}, props={"cloth": {"wetness": 0.8}},
+                      extra={"scrap": ("generic_item", "can", {"relation": "in", "label": "chicken bones", "waste_kind": "food",
+                                                              "food": True, "size_m": [0.1, 0.1, 0.05], "mass_kg": 0.2})})
+            make_spill(lab.w, "kitchen", "milk", 0.2, cell=[4, 4])
+            return lab.env
+
+        def run(on, make):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = on
+            try:
+                env = make()
+                skipped = 0
+                for seconds in (600, 2 * 3600, 30, 9 * 3600, 3 * 3600):
+                    skipped += sum(int(p(env.world)) for p in probes)
+                    self.assertTrue(env.step("wait", seconds=seconds)["ok"])
+                return digest(env.world.s), skipped
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+
+        cases = [busy, lambda: Lab().env] + [lambda s=s: HouseEnv(generate_house(s), seed=s, trace=False) for s in (0, 2)]
+        skipped_total = 0
+        for make in cases:
+            on, skipped = run(True, make)
+            off, _ = run(False, make)
+            self.assertEqual(on, off)
+            skipped_total += skipped
+        self.assertGreater(skipped_total, 0)
+
+    def test_dust_settles_on_things_left_untouched_faster_in_the_open_than_shut_away(self):
+        from house_sim.systems.cleaning import history
+        self.assertAlmostEqual(history.dust_after(60), 0.045)
+        self.assertLess(history.dust_after(60, enclosed=True), history.dust_after(60) / 5.0)
+        vase = ("generic_item", "counter", {"relation": "on", "spos": [0.5, 0.1], "label": "vase", "size_m": [0.1, 0.1, 0.2],
+                                            "mass_kg": 0.4, "material": "ceramic"})
+        lab = Lab(extra={"vase": vase})
+        self.assertAlmostEqual(history.settle_dust(lab.w, "vase", 90), 0.0675)
+        self.assertAlmostEqual(lab.soil("vase", "dust"), 0.0675)
+        config = {"entities": {"a": {"soil": {}}, "box": {"openable": True, "open": False}, "b": {"location": "box"}}}
+        self.assertGreater(history.settle_dust(config, "a", 30), 5 * history.settle_dust(config, "b", 30))
+
+    def test_what_the_robot_can_shake_out_follows_its_body(self):
+        from house_sim.kernel import body
+        from house_sim.systems.cleaning import floors
+        lab = Lab()
+        kg, length = floors.shake_limits(lab.w.s)
+        self.assertAlmostEqual(kg, body.capacity_kg(lab.w.s, "both") * 0.3)
+        self.assertAlmostEqual(length, float(body.get(lab.w.s, "height_m")))
+        heavy = dict(RUG, mass_kg=round(kg + 1.0, 2))
+        lab = Lab(extra={"rug": ("generic_item", "living", heavy)}, robot={"room": "living", "pos": [1, 1]})
+        lab.hold("rug")
+        res = lab.step("shake_out", "rug")
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["category"], "capability")
+
+    def test_a_resident_slipping_is_heard_as_a_person_down_notice(self):
+        lab = Lab(room_props=WetFloorSafety.FILM, people={"adult_1": PERSON}, notices=True)
+        lab.wait(120)
+        self.assertGreater(lab.sec()["slips"], 0)
+        self.assertIn(("person_down", "kitchen"), [(n["kind"], n.get("room")) for n in lab.w.s["notices"]])
+        quiet = Lab(room_props=WetFloorSafety.FILM, people={"adult_1": PERSON})          # no notice bus: nothing stored
+        quiet.wait(120)
+        self.assertIsNone(quiet.w.s.get("notices"))
+
+    def test_a_microwave_fire_is_noticed_as_smoke_and_scattered_trash_as_a_clatter(self):
+        from house_sim.systems.cleaning import waste
+        lab = Lab(extra={"mw": ("generic_item", "counter", MICROWAVE), "sp": ("sponge", "mw", {"relation": "in", "wetness": 0.0}),
+                         "tin": ("generic_item", "can", {"relation": "in", "label": "tin can", "size_m": [0.08, 0.08, 0.1],
+                                                         "mass_kg": 0.05, "material": "steel"})}, notices=True)
+        lab.wait(60)
+        self.assertGreater(lab.stat("fire"), 0)
+        kinds = [n["kind"] for n in lab.w.s["notices"]]
+        self.assertIn("smoke", kinds)
+        waste.scatter(lab.w, "can", "dog")
+        self.assertIn("clatter", [n["kind"] for n in lab.w.s["notices"]])
+        self.assertEqual(lab.ent("tin")["location"], "kitchen")
+
+    def test_materials_without_a_cleaning_row_use_the_kernels_material_class(self):
+        from house_sim.systems.cleaning import model as M
+        self.assertEqual(M.material_key({"material": "bamboo"}), "wood")
+        self.assertEqual(M.material_key({"material": "pyrex"}), "glass")
+        self.assertEqual(M.material_key({"material": "tin"}), "metal")
+        self.assertEqual(M.material_key({"material": "marble"}), "marble")       # an own row wins
+
+    def test_geometric_camera_a_label_turned_against_its_neighbour_reads_only_once_lifted(self):
+        """Cleaning products print product and hazards on the label face (perception "faces"): with the label pressed
+        against the next bottle neither the head nor the wrist reads it until the bottle is held; in room mode reading
+        ignores faces."""
+        extra = {"jug_a": _on_counter("bleach", 0.3), "jug_b": _on_counter("ammonia_cleaner", 0.44, label_facing="left"),
+                 "jug_c": _on_counter("cleaning_vinegar", 0.58)}
+        lab = Lab(extra=extra, camera="geometric")
+        lab.go("counter")
+        res = lab.step("read", "jug_a")
+        self.assertTrue(res["ok"], res["message"])
+        self.assertIn("chem_hazards", _json.loads(res["message"]))         # an ordinary bottle: product and hazards read
+        res = lab.step("read", "jug_b")
+        self.assertFalse(res["ok"])
+        self.assertNotIn("jug_b", lab.w.s.get("facts", {}).get("read", {}))
+        lab.hold("jug_b")
+        res = lab.step("read", "jug_b")
+        self.assertTrue(res["ok"], res["message"])
+        self.assertIn("120 ml per 4 litres", _json.loads(res["message"])["label_text"])
+        room = Lab(extra=extra)
+        room.go("counter")
+        self.assertTrue(room.step("read", "jug_b")["ok"])
+
+    def test_unread_look_alikes_disinfect_with_the_same_words_and_time(self):
+        """Round-5 red team: the disinfect branch must not tell an unread bottle by its true product."""
+        import re
+        rp = RealisticPerception()
+        seen = set()
+        for bottle in ("glass_7", "apc_7", "refill_7", "vinegar_7"):
+            lab = rp.lab()
+            lab.go("counter")
+            lab.hold(bottle)
+            start = lab.w.s["time_s"]
+            res = lab.env.step("disinfect", rp.h(lab, "counter"), tool=rp.h(lab, bottle))
+            self.assertTrue(res["ok"], res["message"])
+            seen.add((re.sub(r"obj_[0-9a-f]+", "H", res.get("agent_message") or res["message"]),
+                      round(lab.w.s["time_s"] - start, 3)))
+        self.assertEqual(len(seen), 1, seen)
+
+    def test_other_domains_products_show_how_full_they_are_from_their_own_amounts(self):
+        """Round-4: a closed product without amount_ml or litres used to inspect as "empty" whatever it held."""
+        extra = {"paint_7": ("generic_item", "kitchen", {"label": "paint can", "product": "paint", "amount_l": 0.5,
+                                                          "pos": [1, 2], "size_m": [0.17, 0.17, 0.19], "mass_kg": 1.3}),
+                 "lube_7": ("generic_item", "kitchen", {"label": "lubricant can", "product": "lubricant", "amount": 0.3,
+                                                         "pos": [1, 2], "size_m": [0.06, 0.06, 0.2], "mass_kg": 0.3}),
+                 "seed_7": ("generic_item", "kitchen", {"label": "grass seed bag", "product": "grass_seed",
+                                                         "pos": [1, 2], "size_m": [0.3, 0.1, 0.4], "mass_kg": 2.0})}
+        rp = RealisticPerception()
+        lab = rp.lab(extra=extra)
+        lab.go("paint_7")
+        words = {e: rp.details(lab, e).get("fill_estimate") for e in extra}
+        self.assertEqual(words, {"paint_7": "full", "lube_7": "about a third left", "seed_7": None})
+
+    def test_smells_inside_closed_or_sealed_containers_are_weaker_and_textiles_keep_their_own(self):
+        """Round-4: a musty thing shut in a drawer smells half as strong, sealed away not at all, and a soured towel is
+        textiles_laundry's musty_laundry smell, not a second mildew smell from this observer."""
+        def smells(**where):
+            drawer = {"label": "drawer", "container": True, "accepts_items": True, "openable": True, "open": False,
+                      "portable": False, "pos": [6, 1], "size_m": [0.5, 0.5, 0.2], "inner_size_m": [0.45, 0.45, 0.15]}
+            drawer.update(where.pop("drawer", {}))
+            rag = {"label": "musty rag", "relation": "in", "odor": {"mildew": 0.8}, "size_m": [0.3, 0.3, 0.01], "mass_kg": 0.05}
+            rag.update(where)
+            lab = Lab(extra={"drawer_7": ("generic_item", "kitchen", drawer), "rag_7": ("generic_item", "drawer_7", rag)})
+            return {s["kind"]: s["intensity"] for s in lab.env.observe().get("smells", [])}
+        self.assertEqual(smells(drawer={"open": True}).get("mildew"), 0.8)
+        self.assertEqual(smells().get("mildew"), 0.4)
+        self.assertNotIn("mildew", smells(drawer={"sealed": True}))
+        self.assertNotIn("mildew", smells(drawer={"open": True}, textile=True))
+
+    def test_geometric_camera_shows_a_wet_floor_hazard_only_where_a_frame_looked(self):
+        film = {"kitchen": {"water_film": {"5,5": 1.5}, "wet_cells": [[5, 5]]}}
+        seen = {}
+        for facing in (180.0, 45.0):
+            lab = Lab(room_props=film, perception="realistic", camera="geometric",
+                      robot={"room": "kitchen", "pos": [1, 1], "facing_deg": facing})
+            lab.do("look", target="forward")
+            seen[facing] = [h["cell"] for h in lab.env.observe()["grid"]["hazards"] if h.get("kind") == "wet"]
+        self.assertEqual(seen, {180.0: [], 45.0: [[5, 5]]})
+        room = Lab(room_props=film, perception="realistic", robot={"room": "kitchen", "pos": [1, 1], "facing_deg": 180.0})
+        self.assertIn([5, 5], [h["cell"] for h in room.env.observe()["grid"]["hazards"] if h.get("kind") == "wet"])
 
 
 if __name__ == "__main__":

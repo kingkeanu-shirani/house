@@ -9,11 +9,17 @@ State owned by this domain:
   user_simulator.intent / .messages / .secrets   hidden ground truth behind ambiguous requests
 
 Nothing here mutates state except through the World passed in (journaled).
+
+Tier-1 adoption (kernel v3.0/v3.1): the robot's own sounds come from its body (body.noise_db: footsteps by the
+effective speed, speech, quiet mode), whether a person's speech reaches the robot follows the body's hearing
+(robot_hears_speech: body.can_hear, privacy mode keeps addressed speech), the robot's voice needs a working speaker
+(robot_voice), and times of day are the household's wall clock (clock.wall: daylight saving time once the generator
+sets clock.dst).
 """
 import math
 import re
 
-from ...kernel import clock, geometry
+from ...kernel import body, clock, geometry
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
@@ -33,7 +39,9 @@ CHILD_REACH_BY_AGE = ((1, 0.55), (2, 0.85), (3, 1.05), (5, 1.25), (8, 1.5), (12,
 WALK_SPEED_MPS = {"full": 1.2, "cane": 0.6, "walker": 0.45, "rollator": 0.55, "wheelchair": 0.9, "bedbound": 0.0, "crutches": 0.5}
 EDGE_MARGIN_M = 0.03
 
-# Sound (dB(A) at 1 m) for robot behaviour and common household sources.
+# Sound (dB(A) at 1 m) for robot behaviour and common household sources. The robot's own footsteps and speech are its
+# body's (body.noise_db; humanoid_v1: footsteps 30 / 36 / 44, speech 60, quiet speech 45 -- the values below, kept as
+# the reference the profile reproduces and for states without a body profile).
 SPEECH_DB = 60.0
 QUIET_SPEECH_DB = 45.0
 ANNOUNCE_DB = 66.0
@@ -252,8 +260,15 @@ def now_s(state):
     return float(state.get("time_s", 0.0))
 
 
+def wall(state):
+    """The household's wall-clock datetime (clock.wall: standard time plus daylight saving time while the clock follows
+    it). People keep their schedules, quiet hours, wake requests and medicine times by the wall clock."""
+    return clock.wall(state)
+
+
 def hour(state):
-    return clock.hour(state)
+    current = wall(state)
+    return current.hour + current.minute / 60.0 + current.second / 3600.0
 
 
 def hm(text):
@@ -263,18 +278,19 @@ def hm(text):
 
 
 def minute_of_day(state):
-    return int(clock.hour(state) * 60) % 1440
+    return int(hour(state) * 60) % 1440
 
 
-def in_window(state, start, end):
-    """True when the current clock time lies in [start, end) (handles windows over midnight)."""
-    now = minute_of_day(state)
+def in_window(state, start, end, now=None):
+    """True when the current clock time lies in [start, end) (handles windows over midnight). now: the minute of the
+    day when the caller already has it (one tick of a system asks many times)."""
+    now = minute_of_day(state) if now is None else now
     a, b = hm(start), hm(end)
     return a <= now < b if a <= b else (now >= a or now < b)
 
 
 def weekday(state):
-    return clock.now(state).strftime("%A")
+    return wall(state).strftime("%A")
 
 
 # ----------------------------------------------------------------------
@@ -554,8 +570,46 @@ def hearing_threshold(p):
 
 
 def speech_level(state):
-    robot = state["robot"]
-    return QUIET_SPEECH_DB if robot.get("quiet") else SPEECH_DB
+    """The robot's speaking level at 1 m: its body profile's speech (quiet mode: its quiet speech)."""
+    return body.noise_db(state, "speech")
+
+
+def footstep_level(state, speed=None):
+    """The robot's footsteps at 1 m for a requested speed (None: its speed mode) as its body walks it: the effective
+    speed (quiet mode turns fast into normal; limp mode or weak legs walk careful) and quiet mode's softer footfall."""
+    return body.noise_db(state, "footsteps", speed)
+
+
+def robot_voice(w, detect=True):
+    """True when the robot's speaker works (body.can_speak). Through a failed speaker nobody hears the robot; like core
+    say(), hearing no echo of its own voice is how the robot notices a latent speaker fault (detected when its
+    microphones work). People's own voice channels (alerts, relays, reading aloud, stories, guiding announcements, a
+    voice wake) call this before anyone may register what was said."""
+    state = w.s
+    if body.can_speak(state):
+        return True
+    if detect and body.is_latent(state, "speaker_failed") and body.can_hear(state) != "none":
+        from ...kernel import body_faults
+        body_faults.detect_fault(w, "speaker_failed", "speech")
+    return False
+
+
+def addressed_to_robot(to, extra=None):
+    """Speech addressed to the robot (the kernel's wake-word rule: to == "robot" or marked addressed_robot)."""
+    return to == "robot" or bool((extra or {}).get("addressed_robot"))
+
+
+def robot_hears_speech(state, room, channel="voice", loud=False, addressed=False):
+    """Whether a person's speech reaches the robot (TIER1_INTEGRATION 1.3): it carries -- spoken in the robot's room, a
+    raised voice, or over the phone or the intercom with the robot's network -- and the robot's hearing lets it through
+    (body.can_hear: "none" with the microphones off or failed or the robot powered down; "addressed" in privacy mode or
+    under a microphone policy, which still hears speech addressed to the robot)."""
+    carries = room == state["robot"].get("room") or bool(loud) or \
+        (channel in ("phone", "intercom") and bool(state["robot"].get("network", True)))
+    if not carries:
+        return False
+    level = body.can_hear(state)
+    return level == "full" or (level == "addressed" and bool(addressed))
 
 
 # ----------------------------------------------------------------------
@@ -608,11 +662,12 @@ def intent(state):
 # messages from people (heard by the robot when in the same room, by phone or intercom)
 
 def person_says(w, pid, text, to="robot", loud=False, channel="voice", **extra):
+    """A person speaks: a messages entry with heard_by_robot decided by robot_hears_speech (the body's hearing: privacy
+    mode hears only what is addressed to the robot, to "robot" by default)."""
     state = w.s
     p = person(state, pid) or {}
     room = p.get("location")
-    robot_room = state["robot"].get("room")
-    heard = room == robot_room or loud or channel in ("phone", "intercom") and state["robot"].get("network", True)
+    heard = robot_hears_speech(state, room, channel=channel, loud=loud, addressed=addressed_to_robot(to, extra))
     entry = {"step": state.get("steps", 0), "time_s": now_s(state), "speaker": pid, "kind": "speech", "text": str(text),
              "to": to, "room": room, "heard_by_robot": bool(heard), "channel": channel}
     if loud:

@@ -11,6 +11,12 @@ plumbing_liquids.slow (order 101, period 120 s, dt = the accumulated time): drin
   fallback drying (only without the cleaning domain).
 plumbing_liquids.census (order 102, period 600 s): finds liquid that other domains put into things whose type does
   not mark them as liquid holders (runtime extras for the holder index).
+
+The water system has an exact idle probe (kernel v3.1, TIER1_SWEEP 6.7): water_idle(w) is True when no step would
+change anything (the heater at its setpoint, every tap shut and not dripping, basins empty, toilets full and calm,
+spigots and hoses slack, controllers not watering, no leak running, nothing freezing, melting, foaming, fizzing or
+cooling past the hot-hazard line, nothing dripping, no sprinkler on, the meter current), so the engine skips the call;
+tests/test_plumbing_liquids.py checks that states are identical with probes on and off.
 """
 from ...kernel.plugins import hook, system
 from . import common as C
@@ -69,6 +75,63 @@ def _freshness(w, eid, dt):
         w.mut(eid)["stale"] = True
 
 
+def _hot_hazard_current(rec):
+    """True when _hot_hazard would write nothing. Pure."""
+    if not isinstance(rec.get("_mix"), dict) or L.liters(rec) <= 0.01:
+        return True
+    temp = C.num(rec.get("temperature_c"), 21.0)
+    hazards = rec.get("hazards") or []
+    if temp > 50.0:
+        return "hot" in hazards
+    return not ("hot" in hazards and rec.get("_hot_by_plumbing") and temp < 45.0)
+
+
+def _holder_active(rec):
+    """A holder the water system steps: liquid, ice or a pitcher reservoir in it, or a freezing plateau to hand back."""
+    return L.holding(rec) or rec.get("thermal_owner") == I.OWNER
+
+
+def _holder_idle(w, eid, rec):
+    if C.num(rec.get("reservoir_l")) > 1e-6 or C.num(rec.get("foam_l")) > 0 or C.num(rec.get("fizz")) > 0.01:
+        return False
+    if not rec.get("food") and not I.freeze_idle(w, eid):
+        return False
+    return _hot_hazard_current(rec)
+
+
+def water_idle(w):
+    """The water system's idle probe: True when _water would change nothing this substep (every step's own pure
+    check; one step writing nothing leaves the next one's input unchanged). Writes nothing."""
+    entities = w.s["entities"]
+    cache = S.tick_cache(w)
+    if not S.heater_idle(w, cache):
+        return False
+    for eid in C.index(w, "active", _active_kind):
+        rec = entities.get(eid)
+        if rec is None:
+            continue
+        kind = C.kind(rec)
+        if kind in ("sink", "tub", "shower", "dispenser"):
+            if not F.outlet_idle(w, eid, cache) or (L.is_basin(rec) and not F.basin_idle(w, eid)):
+                return False
+        elif kind == "toilet":
+            if not T.toilet_idle(w, eid, cache):
+                return False
+        elif kind == "spigot":
+            if not O.spigot_idle(w, eid, cache):
+                return False
+        elif kind == "controller":
+            if not O.controller_idle(w, eid):
+                return False
+    if not K.leaks_idle(w, cache):
+        return False
+    for eid in L.holder_ids(w):
+        rec = entities.get(eid)
+        if rec is not None and _holder_active(rec) and not _holder_idle(w, eid, rec):
+            return False
+    return K.drips_idle(w) and O.sprinklers_idle(w) and S.meter_idle(w)
+
+
 def _hot_hazard(w, eid):
     """A container of hot liquid (> 50 C) is a burn hazard (core hand-over refuses it for children)."""
     if eid not in w.s["entities"]:
@@ -95,7 +158,7 @@ def _active_kind(rec):
 ACTIVE_KINDS = ("sink", "tub", "shower", "dispenser", "toilet", "spigot", "controller")
 
 
-@system("plumbing_liquids.water", order=100, max_dt=30.0)
+@system("plumbing_liquids.water", order=100, max_dt=30.0, idle=water_idle)
 def water_system(w, dt, tick):
     with C.system_context():
         _water(w, dt)
@@ -125,10 +188,11 @@ def _water(w, dt):
             meter += O.spigot_step(w, eid, dt, cache)
         elif kind == "controller":
             O.controller_step(w, eid, dt)
+    O.sprinkler_spray(w, dt)
     meter += K.leak_step(w, dt, cache)
     for eid in L.holder_ids(w):
         rec = entities.get(eid)
-        if rec is None or not L.holding(rec):
+        if rec is None or not _holder_active(rec):
             continue
         if rec.get("reservoir_l"):
             I.pitcher_step(w, eid, dt)

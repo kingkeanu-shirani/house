@@ -124,7 +124,12 @@ def _redirected(state, pid, p):
     return (heard and guided) or alerted
 
 
-@system("people.wandering", order=107, max_dt=30.0)
+def wandering_idle(w):
+    """Exact idle probe (kernel v3.1): nobody at home is wandering."""
+    return not any(p.get("wandering") and C.present(p) for p in w.s.get("people", {}).values())
+
+
+@system("people.wandering", order=107, max_dt=30.0, idle=wandering_idle)
 def wandering_system(w, dt, tick):
     state = w.s
     now = C.now_s(state)

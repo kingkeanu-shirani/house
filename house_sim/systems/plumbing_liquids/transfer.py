@@ -17,9 +17,21 @@ Destination rules (consequences, not refusals): grease/oil into any drain grows 
 into a storm drain or onto a garden is pollution; dirty/mop/toilet water into a kitchen sink contaminates the
 basin and any dishes in it; non-potable water in a drinking vessel or pet bowl, and alcohol in a minor's cup,
 are global failures (invariants); liquid on an indoor floor is a spill (and a flood beyond 4 L).
+
+Tier-1 physics and body (kernel v3.0; TIER1_PHYSICS 5.7, TIER1_EMBODIMENT 12): do_pour stays the verb and uses the
+kernel's transfer rules: the pour rate is capped by the source's opening and slowed by the liquid's viscosity
+(phys.liquids.pour_rate_lps from liquids.json: narrow neck 0.25, spout 0.5, wide mouth 2 L/s), only unfrozen liquid
+pours, temperatures mix by heat capacity (liquids.add), and a pour or a tap fill runs the kernel's thermal-shock
+check of the receiving vessel (law-gated: it acts once the thermal_shock law is active). Filling or pouring into a
+container the robot holds stops where its hand reaches its holding limit (body.hold_capacity_left). Wringing uses
+the kernel's absorption capacity (absorb_l = absorption x dry mass) where it has one.
 """
+from ...kernel import body as KB
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import liquids as PL
+from ...kernel.phys import props as PP
+from ...kernel.phys import thermal as PT
 from ...kernel.plugins import ACTIONS, after, before
 from . import common as C
 from . import fixtures as F
@@ -84,11 +96,68 @@ def source_parcel(w, eid, amount, carry_chem=True):
 
 
 def available_l(rec):
+    """Liters that can come out of a source: its unfrozen liquid (L.free_l), else a product's amount."""
     if L.liters(rec) > 0:
-        return L.liters(rec)
+        return L.free_l(rec)
     if rec.get("product"):
         return C.num(rec.get("amount_ml")) / 1000.0
     return 0.0
+
+
+def pour_opening(rec):
+    """How liquid leaves a source (phys.liquids.OPENING_LPS): its pour_opening, a spout (pitchers, teapots, kettles,
+    a watering can's rose), a narrow neck (bottles, jugs and cartons, or a neck under 60 % of the container's width),
+    else a wide mouth (cups, bowls, buckets, trays)."""
+    kind = rec.get("pour_opening")
+    if kind in PL.OPENING_LPS:
+        return kind
+    if rec.get("spout") or rec.get("rose") or rec.get("pour_spout_open") or \
+            rec.get("category") in ("pitcher", "teapot", "kettle", "watering_can", "gravy_boat"):
+        return "spout"
+    neck = C.num(rec.get("neck_mm"))
+    if neck > 0:
+        size = rec.get("size_m") or [0.1, 0.1, 0.1]
+        width = max(0.03, min(C.num(size[0], 0.1), C.num(size[1], 0.1)))
+        return "narrow" if neck / 1000.0 < PL.WIDE_MOUTH * width else "wide"
+    if rec.get("package") in ("bottle", "jug", "carton"):
+        return "narrow"
+    return "narrow" if PL.mouth_frac(rec) < PL.WIDE_MOUTH else "wide"
+
+
+def pour_lps(rec, rate, liquid, known=True):
+    """Pour rate (L/s): the commanded rate (slow 0.06 / normal 0.2 / fast 0.5) capped by the opening's, times the
+    liquid's viscosity factor (C.flow_factor; known=False: the generic factor 1, for a liquid the robot has not
+    identified, whose viscosity would give it away)."""
+    return min(RATE_LPS[rate], PL.OPENING_LPS[pour_opening(rec)]) * (C.flow_factor(liquid) if known else 1.0)
+
+
+def hand_room_l(w, eid, liquid, source=None):
+    """Liters more a container the robot holds can take before its hand (or both hands) reach their holding limit
+    (body.hold_capacity_left: what fill and pour verbs may add to a held container); None when it is not held.
+    Poured from another container the robot also holds, only the receiving hand counts: the total load stays."""
+    state = w.s
+    loads = KB.held_loads(state)
+    mine = next(((hands, kg) for e, hands, kg in loads if e == eid), None)
+    if mine is None:
+        return None
+    hands, kg = mine
+    if source is not None and any(e == source for e, _, _ in loads):
+        left = KB.capacity_kg(state, "both" if len(hands) == 2 else hands[0]) - kg
+    else:
+        left = KB.hold_capacity_left(w, hands[0])
+    return max(0.0, left) / max(1e-6, C.density_kg_l(liquid))
+
+
+HAND_FULL_NOTE = "stopped where the hand could hold no more"
+
+
+def shock_cracked(w, vessel, temp_c):
+    """The kernel's thermal-shock check of liquid at temp_c poured into a vessel (phys.thermal.pour_shock_check; it
+    acts only while the thermal_shock law is active). True when the vessel cracked (the kernel breaks it and lets
+    what it held run out); the caller spills the pour."""
+    if vessel not in w.s["entities"]:
+        return False
+    return bool(PT.pour_shock_check(w, vessel, temp_c, by="robot"))
 
 
 def support_of(w, eid):
@@ -208,6 +277,8 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
         _kitchen_sink_rule(w, dest, rec, name, liters_, source)
         _log_disposal(w, dest, name, liters_, source, ok=True)
         if C.is_mine(rec):
+            if shock_cracked(w, dest, C.num(parcel.get("temp_c"), 21.0)):
+                return dict(parcel, cracked=True)
             over = L.add(w, dest, parcel)
             if over:
                 F.overflow(w, dest, over)
@@ -221,6 +292,8 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
             from . import ice
             return ice.pitcher_receive(ctx, dest, parcel)
         product_checks(w, dest, rec, name, parcel)
+        if shock_cracked(w, dest, C.num(parcel.get("temp_c"), 21.0)):
+            return dict(parcel, cracked=True)        # it cracked: what was poured runs out where it stood
         over = L.add(w, dest, parcel)
         return over
     # a surface or appliance that cannot hold liquid
@@ -333,18 +406,24 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
     w = ctx.w
     srec = w.ent(src)
     have = available_l(srec)
+    require(have > 0.0005 or L.liters(srec) <= 0, "What is in it is frozen: nothing pours out", "resource")
     require(have > 0, "It is empty", "resource")
     want = _target_amount(w, dest, amount, to_frac, until, have)
     require(want > 0.0005, "Nothing to pour: the destination is already at that level", "precondition")
     name = srec.get("liquid") if L.liters(srec) > 0 else srec.get("product")
     data = C.info(name)
-    flow = RATE_LPS[rate] * C.num(data.get("flow"), 1.0)
+    flow = pour_lps(srec, rate, name)
     sigma = SIGMA[rate]
     drec = w.ent(dest) if dest in w.s["entities"] else {}
     if drec.get("graduated") or drec.get("measure_kind") == "liquid":
         sigma *= 0.5
     actual = want * (1.0 + _clipped_error(ctx, sigma)) if amount is not None or to_frac is not None or until else want
     actual = C.clamp(actual, 0.0, have)
+    room = hand_room_l(w, dest, name, source=src) if dest in w.s["entities"] else None
+    hand_full = room is not None and actual > room
+    if hand_full:
+        require(room > 0.0005, "It is as heavy as the hand can hold: set it down to pour more into it", "capability")
+        actual = room
     # realistic perception: what the robot can call the liquid (before the pour changes the source record); out of
     # an unidentified jug it is just "liquid", wherever it ends up (see common.UNIDENTIFIED)
     shown_name = V.liquid_word(ctx, src, name)
@@ -357,7 +436,7 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
     ctx.data["poured_l"] = C.rnd(parcel["liters"], 4)
     if ctx.args.get("amount_l") is None:
         ctx.args["amount_l"] = round(parcel["liters"], 4)
-    notes = []
+    notes = [HAND_FULL_NOTE] if hand_full else []
     spilled = 0.0
     fill_before = (have / max(1e-6, L.cap_l(srec))) if L.cap_l(srec) > 0 else 0.5
     # glugging: rigid narrow-necked containers poured from full, or cartons poured with the spout down
@@ -437,7 +516,10 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
             spill_near(w, dest, take, "foam")
             notes.append("the foam head ran over the rim")
         w.mut(dest)["foam_l"] = C.rnd(min(foam_l, max(0.0, room_left)), 4)
-    if over and over.get("liters", 0.0) > 1e-5:
+    if over and over.get("cracked"):
+        spill_near(w, dest, over, "cracked")
+        notes.append("it cracked and the liquid ran out")
+    elif over and over.get("liters", 0.0) > 1e-5:
         spill_near(w, dest, over, "overflow")
         notes.append("it overflowed" if V.realistic(ctx) else "it overflowed ({:.2f} L)".format(over["liters"]))
         if holder and C.num(srec.get("temperature_c"), 21.0) >= 50.0:
@@ -446,7 +528,7 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
     if V.realistic(ctx):
         # the clock must not tell more than the message: the estimated amount at the pour rate the robot can know
         # (an unidentified liquid's viscosity would identify it, so the generic rate)
-        seen_flow = RATE_LPS[rate] * (1.0 if unknown else C.num(data.get("flow"), 1.0))
+        seen_flow = pour_lps(srec, rate, name, known=not unknown)
         seconds = V.seconds(ctx, 2.0 + V.amount_value(parcel["liters"]) / max(0.01, seen_flow))
     ctx.data["seconds"] = ctx.data.get("seconds", 0.0) + seconds
     # the robot watched both levels while pouring (a close look: inspect-level estimates, not measurements); the
@@ -532,6 +614,7 @@ def empty(ctx):
         require("transfer" in ACTIONS, "Food liquids are moved with the food domain's transfer", "capability")
         return ctx.env.perform({"action": "transfer", "target": src, "destination": dest, "method": "pour", "fraction": 1.0}, ctx)
     have = available_l(srec)
+    require(have > 0.0005 or L.liters(srec) <= 0, "What is in it is frozen: nothing pours out", "resource")
     require(have > 0, "It is already empty", "precondition")
     msg = do_pour(ctx, src, dest, amount=None, rate="fast" if have > 2.0 else "normal", verb="empty")
     if C.info(srec.get("liquid")).get("grease") or C.info(srec.get("liquid")).get("product"):
@@ -712,6 +795,11 @@ def fill_from_fixture(ctx, target, fixture):
     if ctx.args.get("until") == "brim" and ctx.args.get("amount_l") is None and ctx.args.get("to_frac") is None:
         err = abs(err)      # filling "to the brim" stops when the water reaches the rim: reaction time only overshoots
     actual = max(0.0, want * (1.0 + err))
+    room = hand_room_l(w, target, "water")
+    hand_full = room is not None and actual > room
+    if hand_full:
+        require(room > 0.0005, "It is as heavy as the hand can hold: set it in the sink to fill it", "capability")
+        actual = room
     seconds = actual / max(0.05, flow_lpm) * 60.0
     name, flags = water_identity(w, fixture)
     if F.fkind(frec) == "spigot":
@@ -728,7 +816,7 @@ def fill_from_fixture(ctx, target, fixture):
     m = w.mut(fixture)
     m["_hot_run_s"] = C.rnd(min(C.num(F.faucet(frec).get("warm_up_s"), 20.0) * 2, C.num(frec.get("_hot_run_s")) + seconds) if hot_l > 0 else C.num(frec.get("_hot_run_s")), 2)
     parcel = L.make_parcel(name, actual, temp_c=temp_c, flags=flags, source=fixture)
-    notes = []
+    notes = [HAND_FULL_NOTE] if hand_full else []
     if not L.is_basin(target_rec):
         C.wet(w, target, 0.3)            # the stream splashes the outside of what is being filled
     if target_rec.get("ice_tray"):
@@ -738,10 +826,15 @@ def fill_from_fixture(ctx, target, fixture):
     elif reservoir:
         from . import ice
         over = ice.pitcher_receive(ctx, target, parcel)
+    elif shock_cracked(w, target, temp_c):
+        over = dict(parcel, cracked=True)        # the kernel broke it; the water runs out where it is held
     else:
         over = L.add(w, target, parcel)
     if over and over.get("liters", 0.0) > 1e-5:
-        notes.append("it overflowed" if V.realistic(ctx) else "it overflowed ({:.2f} L)".format(over["liters"]))
+        if over.get("cracked"):
+            notes.append("it cracked and the water ran out")
+        else:
+            notes.append("it overflowed" if V.realistic(ctx) else "it overflowed ({:.2f} L)".format(over["liters"]))
         if L.is_basin(frec) and C.is_mine(frec):
             F.basin_inflow(w, fixture, over)
         else:
@@ -814,14 +907,20 @@ def fill_from_container(ctx, target, source):
             amount = (ctx.args.get("to_frac") or 0.75) * cap - L.liters(trec)
         require(amount > 0.0005, "It is already filled to that level", "precondition")
         amount = min(float(amount) * (1.0 + _clipped_error(ctx, 0.03)), available_l(srec))
+        room = hand_room_l(w, target, srec.get("liquid"), source=source)
+        hand_full = room is not None and amount > room
+        if hand_full:
+            require(room > 0.0005, "It is as heavy as the hand can hold: set it down to fill it", "capability")
+            amount = room
         parcel = source_parcel(w, source, amount)
         over = deliver(ctx, target, parcel, source=source, how="fill")
         if over:
             spill_near(w, target, over, "dispenser_overflow")
         ctx.data["seconds"] = 3.0 + amount / 0.1 if not V.realistic(ctx) else V.seconds(ctx, 3.0 + V.amount_value(amount) / 0.1)
+        tail = ": " + HAND_FULL_NOTE if hand_full else ""
         if V.realistic(ctx):
-            return "Filled {} with {} from {}".format(target, V.amount(amount), source)
-        return "Filled {} with {:.3f} L from {}".format(target, amount, source)
+            return "Filled {} with {} from {}{}".format(target, V.amount(amount), source, tail)
+        return "Filled {} with {:.3f} L from {}{}".format(target, amount, source, tail)
     require(ctx.holding(source), "Hold the container you are pouring from", "precondition")
     return do_pour(ctx, source, target, ctx.args.get("amount_l"), "slow" if L.cap_l(trec) < 1.0 else "normal", ctx.args.get("to_frac"),
                    ctx.args.get("until"), verb="fill")
@@ -868,9 +967,18 @@ def fill(ctx):
 ABSORB_L = {"cloth": 0.15, "rag": 0.2, "towel": 0.6, "sponge": 0.1, "mop": 1.0, "mop_head": 1.0, "chamois": 0.3}
 
 
-def absorb_capacity(rec):
+def absorb_capacity(rec, state=None, eid=None):
+    """Liters a soaking item holds when saturated (wetness 1): the kernel's absorption capacity (phys props absorb_l:
+    absorption per kg x dry mass, phys.liquids.absorb_capacity_l; a 0.55 kg bath towel about 1.4 L, a 20 g cellulose
+    sponge about 0.28 L), so wringing gives back what the kernel's absorb and wet put in. A mop, whose record
+    describes its plastic handle (the kernel finds no absorption), and items without a record in a state fall back
+    to this domain's table by name."""
     if rec.get("absorb_l") is not None:
         return C.num(rec.get("absorb_l"))
+    if state is not None and eid in state.get("entities", {}):
+        cap = PL.absorb_capacity_l(PP.props(state, eid))
+        if cap > 0:
+            return cap
     text = " ".join([str(rec.get("type", "")), str(rec.get("category", "")), str(rec.get("tool_kind", "")), str(rec.get("label", ""))]).lower()
     for key in ("mop", "towel", "chamois", "rag", "sponge", "cloth"):
         if key in text:
@@ -894,7 +1002,7 @@ def wring(ctx):
     if ctx.args["method"] == "wringer":
         require(dest in w.s["entities"] and w.ent(dest).get("wringer"), "Use a bucket with a wringer as destination", "precondition")
     residual = 0.15 if ctx.args["method"] == "wringer" else 0.3
-    cap = absorb_capacity(rec)
+    cap = absorb_capacity(rec, w.s, target)
     liters_ = max(0.0, (wetness - residual) * cap)
     soil = C.num(rec.get("soil_load"))
     chem = dict(rec.get("cl_carried") or rec.get("cl_chem") or {})

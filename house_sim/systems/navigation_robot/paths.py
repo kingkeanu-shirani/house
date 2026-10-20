@@ -2,7 +2,10 @@
 
 * Line-of-sight room coverage: every robot motion (and look) marks the floor cells visible from
   where the robot stands; tall furniture (>= 1.2 m) and partitions occlude; darkness limits range
-  to the robot's own light; privacy mode (cameras off) sees nothing. nav.visits[room].coverage.
+  to the robot's own light; with the cameras off (privacy mode, switched off, a room policy:
+  body.imaging) it sees nothing. nav.visits[room].coverage. With the geometric camera the coverage
+  is the camera's own (camera_log.coverage: what its frames surveyed, in line of sight and lit), and
+  a patrol looks around at each viewpoint and reports what its frames caught.
 * Resting spot: whether the robot stands in a doorway, its approach ring, a declared traffic lane,
   or a cell whose occupation disconnects the room's doorways (nav.robot_spot).
 * Clear width: a route is clear for width W when a k x k block (k = ceil(W / 0.5)) can slide from
@@ -47,13 +50,13 @@ def view_blockers(state, rid):
 
 def see_from(state, rid, vp):
     room = state["rooms"][rid]
-    if state["robot"].get("privacy_mode"):
+    if not body.imaging(state):
         return set()
     cols, rows = geometry.grid_size(room)
     level = C.light_level(state, rid)
     own = C.robot_has_light(state)
     max_m = 8.0 if level >= 0.2 else (4.0 if own else 0.75)
-    if state["robot"].get("camera_clean", 1.0) < 0.4:
+    if body.clarity(state) < 0.4:
         max_m = min(max_m, 2.0)
     blockers = view_blockers(state, rid)
     seen = set()
@@ -67,9 +70,36 @@ def see_from(state, rid, vp):
     return seen
 
 
+def camera_coverage(state, rid):
+    """Geometric camera: the share of a room's floor the camera's frames have surveyed (camera_log.coverage), 0.0
+    before any."""
+    return round(C.num(((state.get("camera_log") or {}).get("coverage") or {}).get(rid), 0.0), 3)
+
+
+def coverage(state, rid):
+    """How much of a room's floor the robot has seen: the camera log's share with the geometric camera, else this
+    domain's line-of-sight record (nav.visits)."""
+    if C.geometric(state):
+        return camera_coverage(state, rid)
+    return ((C.nav_read(state).get("visits") or {}).get(rid) or {}).get("coverage", 0.0)
+
+
 def update_coverage(w, rid, vp):
     state = w.s
     if rid not in state["rooms"]:
+        return
+    if C.geometric(state):
+        # the camera's frames are the record (camera_log, written as each step ends): the visit keeps its times and
+        # the camera's coverage so far
+        prev = (C.nav_read(state).get("visits") or {}).get(rid) or {}
+        value = camera_coverage(state, rid)
+        if prev.get("coverage") == value and prev.get("last_s") == C.now(state):
+            return
+        visit = dict(prev)
+        visit.setdefault("first_s", C.now(state))
+        visit["last_s"] = C.now(state)
+        visit["coverage"] = value
+        C.nav(w).setdefault("visits", {})[rid] = visit
         return
     room = state["rooms"][rid]
     cols, rows = geometry.grid_size(room)
@@ -460,12 +490,34 @@ def evaluate_area(state, spec):
     return {"clear": not blockers, "blockers": blockers}
 
 
+SIGHTLINE_MIN_T = 0.5    # a seat sees the screen when at least half of the light from its middle gets through
+
+
+def _sightline_blocked(state, room, seat, tv):
+    """Geometric camera: whether furniture hides the screen from a seat -- the seated eye above the seat's middle
+    (sight.PERSON_EYE sitting, 1.15 m) to the middle of the screen (sight.entity_box), tested exactly against every
+    occluder box (sight.los, porous ones such as a ladder let part through); people and pets passing by are left out
+    (the watch is about how the room is arranged)."""
+    from ...kernel import sight
+    sb, tb = sight.entity_box(state, seat), sight.entity_box(state, tv)
+    if sb is None or tb is None or sb.rid != room or tb.rid != room:
+        return True
+    agents = [a for group in ("people", "pets") for a, rec in sorted(state.get(group, {}).items()) if rec.get("location") == room]
+    eye = ((sb.x0 + sb.x1) / 2.0, (sb.y0 + sb.y1) / 2.0, sight.PERSON_EYE["sitting"])
+    screen = ((tb.x0 + tb.x1) / 2.0, (tb.y0 + tb.y1) / 2.0, (tb.z0 + tb.z1) / 2.0)
+    return sight.los(state, room, eye, screen, ignore=[seat, tv] + agents) < SIGHTLINE_MIN_T
+
+
 def evaluate_sightlines(state, spec):
+    """A watched TV sightline: which seats cannot see the screen. Room camera: a thing 1 m or taller (or blocks_view)
+    on a cell of the line between the seat's and the TV's first cells; geometric camera: the exact line from the
+    seated eye to the screen (_sightline_blocked)."""
     tv = spec.get("tv")
     if tv not in state["entities"]:
         return {"clear": False, "blocked_seats": list(spec.get("seats", []))}
     room, tv_cells = geometry.anchor(state, tv)
     blocked, distances = [], {}
+    exact = C.geometric(state)
     for seat in spec.get("seats", []):
         if seat not in state["entities"]:
             blocked.append(seat)
@@ -476,6 +528,10 @@ def evaluate_sightlines(state, spec):
             continue
         a, b = seat_cells[0], tv_cells[0]
         distances[seat] = round(C.distance_m(a, b), 2)
+        if exact:
+            if _sightline_blocked(state, room, seat, tv):
+                blocked.append(seat)
+            continue
         for c in C.line_cells(a, b):
             if c in seat_cells or c in tv_cells:
                 continue
@@ -493,7 +549,13 @@ def evaluate_sightlines(state, spec):
     return {"clear": not blocked, "blocked_seats": sorted(blocked), "distances_m": distances}
 
 
-@system("navigation_robot.watch", order=190, max_dt=30.0)
+def watch_idle(w):
+    """Exact idle probe of navigation_robot.watch (kernel v3.1): no watched route, door, area or sightline (the
+    system returns at once then)."""
+    return not (w.s.get("household") or {}).get("nav_watch")
+
+
+@system("navigation_robot.watch", order=190, max_dt=30.0, idle=watch_idle)
 def watch_system(w, dt, tick):
     state = w.s
     watch = (state.get("household") or {}).get("nav_watch")
@@ -567,14 +629,28 @@ def _resolve(ctx, target):
     raise ActionError("Unknown destination: " + target, "argument")
 
 
+def known_rooms(env):
+    """The rooms on the robot's map and the exits it saw from them: its memory's map (env.mind.map, kernel v3.1: rooms
+    it has been in and prior knowledge) together with the environment's known map of observed rooms."""
+    tables = []
+    mind = getattr(env, "mind", None)
+    if isinstance(getattr(mind, "map", None), dict):
+        tables.append(mind.map)
+    tables.append(getattr(env, "_known_map", None) or {})
+    known = set()
+    for table in tables:
+        for rid, entry in table.items():
+            known.add(rid)
+            known.update((entry or {}).get("exits") or [])
+    return known
+
+
 def route(ctx, start, goal):
     state = ctx.w.s
     from ...tasks.skills import room_route
     known = None
     if state["robot"].get("map_known", True) is False:
-        known = set(ctx.env._known_map)
-        for rid in list(known):
-            known.update(ctx.env._known_map[rid].get("exits", []))
+        known = known_rooms(ctx.env)
     # realistic perception: plan with the locks the robot knows about (an untried door counts as passable)
     path = room_route(C.perceived_locks(ctx.env, state), start, goal)
     if path is None:
@@ -630,7 +706,9 @@ def _social_walk(ctx, goal_cells, avoid, speed):
     rid = state["robot"]["room"]
     start = C.cell(state["robot"].get("pos") or [0, 0])
     extra = social_cells(state, rid, realistic=C.realistic(ctx)) - {C.cell(g) for g in goal_cells} - {start}
-    path = geometry.find_path(state, rid, start, goal_cells, avoid_kinds=tuple(avoid or ()), extra_blocked=sorted(extra))
+    # realistic perception: plan around the hazards the robot perceives (ctx.route_filter), as core motion does
+    path = geometry.find_path(state, rid, start, goal_cells, avoid_kinds=tuple(avoid or ()), extra_blocked=sorted(extra),
+                              hazard_filter=ctx.route_filter)
     require(path is not None, "No socially acceptable path; wait for people to move or ask them", "precondition")
     return _walk_cells(ctx, path, avoid, speed)
 
@@ -730,6 +808,7 @@ def step(ctx):
     # wording for the cases it always refused
     ctx.require_mobile(legacy_message="Robot cannot move")
     require(not robot.get("stuck"), "The robot is stuck ({}); request help".format(robot.get("stuck")), "capability")
+    require(body.fault(state, "software_stuck") is None, T.SOFTWARE_STUCK_TEXT, "capability")
     rid = robot["room"]
     room = state["rooms"][rid]
     start = C.cell(robot.get("pos") or [0, 0])
@@ -809,14 +888,18 @@ def anomalies(state, rid):
     return out
 
 
-def noticed(ctx, rid, eid, kind, seen_from=()):
-    """Would the sweep notice this anomaly? Always in oracle mode. Realistic perception: people in the room are seen;
-    things need light (or the robot's own light) and must not be missed by the small-object model from where the sweep
-    ended; smoke is noticed in any light; a damp film with no puddle (the floor's wet cells) only shows its sheen within
-    a couple of cells of a viewpoint the sweep stood on."""
+def noticed(ctx, rid, eid, kind, seen_from=(), caught=None):
+    """Would the sweep notice this anomaly? Geometric camera (both perception modes): its frames caught it at one of
+    the sweep's viewpoints (`caught`, filled by _sweep_look), smoke is noticed in any light. Room camera, oracle mode:
+    always. Room camera, realistic perception: people in the room are seen; things need light (or the robot's own
+    light) and must not be missed by the small-object model from where the sweep ended; smoke is noticed in any light;
+    a damp film with no puddle (the floor's wet cells) only shows its sheen within a couple of cells of a viewpoint the
+    sweep stood on."""
+    state = ctx.w.s
+    if C.geometric(state):
+        return kind == "smoke" or eid in (caught or ())
     if not C.realistic(ctx):
         return True
-    state = ctx.w.s
     if eid in state.get("people", {}):
         return state["people"][eid].get("location") == rid
     if kind == "smoke":
@@ -878,6 +961,35 @@ def exterior_doors(state, rid):
     return out
 
 
+def _sweep_look(ctx, rid, caught):
+    """Geometric camera: look all around from where the robot stands (core look around with the low row: frames on
+    every side, the floor included) and add to `caught` the anomalies its frames caught -- a thing, person or pet in
+    frame (camera.in_frame), a damp film whose wet cells a frame surveyed within FILM_SEEN_CELLS of here (its sheen
+    shows only close by, at a low angle). No-op in room mode and with the cameras off."""
+    w = ctx.w
+    if not C.geometric(w.s) or not body.imaging(w.s):
+        return
+    try:
+        ctx.env.perform({"action": "look", "target": "around", "rows": 2}, ctx)
+    except ActionError:
+        return
+    from ...kernel import camera
+    state = w.s
+    here = C.cell(state["robot"].get("pos") or [0, 0])
+    floor_seen = None
+    for eid, kind in anomalies(state, rid):
+        if eid in caught or kind == "smoke":
+            continue
+        if kind == "water_on_floor" and (state["entities"].get(eid) or {}).get("category") == "floor":
+            if floor_seen is None:
+                floor_seen = {c for r, c in camera.seen_floor(state, w) if r == rid}
+            wet = [C.cell(c) for c in state["rooms"][rid].get("wet_cells") or []]
+            if any(c in floor_seen and geometry.chebyshev(here, c) <= H.FILM_SEEN_CELLS for c in wet):
+                caught.add(eid)
+        elif C.camera_sees(ctx.env, state, eid):
+            caught.add(eid)
+
+
 def viewpoints(state, rid):
     """Up to three cells that together see most of the room (greedy cover)."""
     room = state["rooms"][rid]
@@ -907,10 +1019,11 @@ def viewpoints(state, rid):
                           "skip_occupied": {"type": "bool", "default": True}, "dock_after": {"type": "bool", "default": False},
                           "restore_doors": {"type": "bool", "default": True}},
         duration=lambda ctx: 0.5, energy=0.0, category="physical", timing="speed",
-        doc="Walk a list of rooms in order, sweeping each from viewpoints that cover the floor, and (report=true) inspect and "
-            "report every observable anomaly (open or unlocked exterior doors, open windows, appliances left on, water on the "
-            "floor, smoke, unexpected people) as report <target>.anomaly. Occupied bathrooms/bedrooms are skipped and logged "
-            "unless skip_occupied=false. dock_after returns to the charging dock.")
+        doc="Walk a list of rooms in order, sweeping each from viewpoints that cover the floor (with the geometric camera it "
+            "looks all around at each), and (report=true) inspect and report every observable anomaly (open or unlocked "
+            "exterior doors, open windows, appliances left on, water on the floor, smoke, unexpected people) as report "
+            "<target>.anomaly. Occupied bathrooms/bedrooms are skipped and logged unless skip_occupied=false. dock_after "
+            "returns to the charging dock. The result says where and why the patrol ended early (ended_early).")
 def patrol(ctx):
     w = ctx.w
     rooms = ctx.args["rooms"]
@@ -918,6 +1031,7 @@ def patrol(ctx):
     speed = ctx.args.get("speed")
     real = C.realistic(ctx)
     findings, skipped = [], []
+    ended = None
     for rid in rooms:
         if ctx.args["skip_occupied"]:
             pid = looks_occupied(w.s, rid) if real else occupied_private(w.s, rid)
@@ -931,8 +1045,11 @@ def patrol(ctx):
                 args["speed"] = speed
             ctx.env.perform(args, ctx)
             if w.robot["room"] != rid:
+                ended = _ended_early(w, rid)
                 break
         seen_from = [C.cell(w.robot.get("pos") or [0, 0])]
+        caught = set()
+        _sweep_look(ctx, rid, caught)
         for vp in viewpoints(w.s, rid):
             args = {"action": "walk_to", "cell": [vp[0], vp[1]]}
             if speed:
@@ -944,7 +1061,9 @@ def patrol(ctx):
             seen_from.append(C.cell(w.robot.get("pos") or [0, 0]))
             if w.robot.get("fallen"):
                 break
+            _sweep_look(ctx, rid, caught)
         if w.robot.get("fallen"):
+            ended = _ended_early(w, rid)
             break
         found = anomalies(w.s, rid)
         if real:
@@ -962,7 +1081,7 @@ def patrol(ctx):
             # the sweep reports what it noticed in handle order (true-id order would hint at identities)
             found.sort(key=lambda f: (ctx.env.realism.handles.handle(f[0]) if f[0] in w.s["entities"] else f[0], f[1]))
         for eid, kind in found:
-            if not noticed(ctx, rid, eid, kind, seen_from) and not (real and kind == "exterior_door_unlocked"):
+            if not noticed(ctx, rid, eid, kind, seen_from, caught) and not (real and kind == "exterior_door_unlocked"):
                 continue
             findings.append({"room": rid, "target": eid, "kind": kind})
             if ctx.args["report"] and eid in w.s["entities"]:
@@ -978,11 +1097,28 @@ def patrol(ctx):
                     # without effect); C.log's own first argument is the event kind, so the anomaly has its own key
                     C.log(w, "patrol_unreported", target=eid, anomaly=kind)
     nav = C.nav(w)
-    nav["patrol"] = {"time_s": C.now(w.s), "rooms": list(rooms), "skipped": skipped, "findings": copy.deepcopy(findings)}
-    if ctx.args["dock_after"] and not w.robot.get("fallen"):
+    nav["patrol"] = {"time_s": C.now(w.s), "rooms": list(rooms), "skipped": skipped, "findings": copy.deepcopy(findings),
+                     "ended_early": copy.deepcopy(ended)}
+    if ctx.args["dock_after"] and not w.robot.get("fallen") and body.is_on(w.s):
         ctx.env.perform({"action": "go_to", "target": "dock"}, ctx)
         ctx.env.perform({"action": "dock"}, ctx)
-    return {"findings": findings, "skipped_occupied": skipped}
+    out = {"findings": findings, "skipped_occupied": skipped}
+    if ended is not None:
+        out["ended_early"] = ended
+    return out
+
+
+def _ended_early(w, rid):
+    """Where and why a patrol stopped before covering `rid`: the robot's room and the reason -- powered down (the
+    battery ran out), it fell, or the incident that stopped its walk (blocked when none was logged)."""
+    state = w.s
+    if not body.is_on(state):
+        reason = "battery_depleted"
+    elif state["robot"].get("fallen"):
+        reason = "robot_fell"
+    else:
+        reason = (C.nav_read(state).get("last_incident") or {}).get("kind", "blocked")
+    return {"room": state["robot"].get("room"), "before": rid, "reason": reason}
 
 
 def unobtrusive_cell(state, rid, near=None):
@@ -1009,7 +1145,7 @@ def unobtrusive_cell(state, rid, near=None):
 
 @action("wait_aside", params={"seconds": {"type": "int", "default": 60, "min": 1, "max": 86400}, "cell": "?cell",
                               "speed": "?str:careful|normal"},
-        duration=lambda ctx: float(ctx.args["seconds"]), energy=0.0, category="control",
+        duration=lambda ctx: float(ctx.args["seconds"]), energy=0.0, category="control", timing="commanded",
         doc="Step to an unobtrusive spot (against a wall, out of doorways, traffic lanes and anything that would cut the room's "
             "doorways apart; or the given cell), tuck the arms and wait the given seconds while staying responsive.")
 def wait_aside(ctx):

@@ -6,30 +6,31 @@ Magnitudes (cited where not obvious):
 * Available friction: dry hard floors 0.5-0.7; wet glazed tile about 0.2 (ANSI A326.3 wet DCOF
   threshold is 0.42 for level interior floors expected to be walked on wet); wet polished stone 0.15;
   oil/grease films about 0.12; wet ice 0.05-0.1.
-* The robot is a 60 kg, 1.6 m humanoid (comparable to current general-purpose humanoids) walking at
-  0.4 (careful), 0.8 (normal) or 1.2 (fast) m/s on 0.5 m grid cells.
-* Battery: about 2.4 kWh, roughly 2.5 h of continuous walking; 0.012 % per meter on level floor.
+* The robot is the kernel body (kernel/body.py, data/robot/profiles.json; humanoid_v1 by default: 60 kg,
+  1.6 m, 0.5 m shoulders, 0.4 / 0.8 / 1.2 m/s careful / normal / fast on 0.5 m grid cells). Its mass,
+  width, speeds, carried load, footstep and speech levels are read from the body, never from constants
+  here, so a compact humanoid or a mobile manipulator walks, squeezes and is heard as itself.
+* Energy is the body's too (TIER1_EMBODIMENT 4): every metre walked and every second is paid from the
+  2.4 kWh pack through the motion record (ctx.motion); this domain never writes the battery.
+* Consequences go through the kernel (TIER1_PHYSICS 10.3): breaks (impact.break_entity), things falling
+  (impact.fall) or tipping over (impact.tip_over), spills (liquids.spill), and the robot's own fall and the
+  drops it causes (body_faults.fall, body_faults.drop_held). The carry law (sloshing and toppling what the
+  robot carries) is the kernel's once it is active; until then traverse's legacy slosh stays, guarded by
+  lawbook.active("carry").
 """
 import copy
 import math
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.errors import ActionError, require  # noqa: F401  (re-exported)
 from ...kernel.plugins import ACTIONS
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
-SPEED_MPS = {"careful": 0.4, "normal": 0.8, "fast": 1.2}
+SPEED_MODES = body.SPEED_MODES
 RCOF = {"careful": 0.15, "normal": 0.21, "fast": 0.28}
 RCOF_LOAD_PER_KG = 0.004          # carried mass shifts the center of mass and raises required friction
 STUMBLE_MARGIN = 0.04             # friction shortfall a recovering step can absorb (stumble, no fall)
-ROBOT_MASS_KG = 60.0
-ROBOT_BODY_WIDTH_M = 0.5          # shoulder width, arms in
-ROBOT_SIDEWAYS_WIDTH_M = 0.36     # turned sideways with arms tucked (careful motion profile)
-BATTERY_PCT_PER_M = 0.012
-BATTERY_PCT_PER_STEP_UP = 0.05
-BATTERY_PCT_PER_STEP_DOWN = 0.02
-BATTERY_RESERVE_PCT = 15.0
 
 DRY_MU = {"tile": 0.6, "stone": 0.55, "marble": 0.5, "hardwood": 0.55, "laminate": 0.5, "vinyl": 0.6, "carpet": 0.8,
           "rubber": 0.9, "concrete": 0.7, "plywood": 0.6, "wood": 0.6, "grass": 0.6, "soil": 0.55, "gravel": 0.45,
@@ -43,15 +44,15 @@ TRIP_KINDS = ("trip", "toy", "cord", "rug_curl", "threshold", "slab_edge", "curb
 HARD_FLOORS = ("tile", "stone", "marble", "hardwood", "laminate", "vinyl", "concrete", "plywood", "wood")
 PRIVATE_ACTIVITIES = ("bathing", "showering", "toilet", "dressing", "changing", "intimate")
 CALL_ACTIVITIES = ("call", "video_call", "phone_call", "meeting")
-SOUND_AT_1M_DB = {"careful": 30.0, "normal": 36.0, "fast": 44.0}   # robot footsteps (same scale as the people domain)
 SLEEP_WAKE_DB = {"adult": 55.0, "elderly": 52.0, "teen": 58.0, "child": 55.0, "toddler": 50.0, "infant": 48.0}
 
 
-def footstep_db_at(speed, cells_away, carrying_kg=0.0):
-    """Footstep level at a sleeper: inverse-square from 1 m, +3 dB with a heavy load (heavier footfalls)."""
-    import math as _m
+def footstep_db_at(state, speed, cells_away, carrying_kg=0.0):
+    """Footstep level at a sleeper: the body's footstep level at 1 m for the pace (body.noise_db: the profile's
+    30 / 36 / 44 dB careful / normal / fast for humanoid_v1, 4 dB less in quiet mode), inverse-square from 1 m (at
+    least half a metre away), +3 dB with a heavy load (heavier footfalls)."""
     d = max(0.5, cells_away * CELL)
-    return SOUND_AT_1M_DB.get(speed, 36.0) - 20.0 * _m.log10(d) + (3.0 if carrying_kg > 10.0 else 0.0)
+    return body.noise_db(state, "footsteps", speed) - 20.0 * math.log10(d) + (3.0 if carrying_kg > 10.0 else 0.0)
 
 
 def wake_threshold_db(person):
@@ -61,7 +62,21 @@ def wake_threshold_db(person):
     if person.get("light_sleeper"):
         base -= 12.0
     return base
-SPEECH_DB = 60.0
+
+
+def robot_width_m(state):
+    """Shoulder width with the arms in (the body: humanoid_v1 0.5 m)."""
+    return float(body.get(state, "width_m"))
+
+
+def sideways_width_m(state):
+    """Width turned sideways with the arms tucked (the careful motion profile; humanoid_v1 0.36 m)."""
+    return float(body.profile(state)["sideways_width_m"])
+
+
+def speed_mps(state, speed):
+    """Walking speed (m/s) of a pace for this body (its profile's speeds)."""
+    return body.speed_mps(state, speed)
 
 
 # ----------------------------------------------------------------------
@@ -183,13 +198,33 @@ def known_value(ctx, eid, field, value):
     return ctx.percept_value(eid, field, value, "glance")
 
 
+def geometric(state):
+    """The run uses the posed geometric camera (kernel v3.0: robot.view exists; camera.mode)."""
+    return isinstance((state.get("robot") or {}).get("view"), dict)
+
+
+def camera_sees(env, state, eid):
+    """Geometric camera: the robot's cameras framed eid this step from where the robot stands (camera.in_frame: line
+    of sight, light and resolution of a stationary frame at the current eye; held things always), so a passive visual
+    cue needs the robot to look. Room camera: perception's room-wide rule."""
+    from ...kernel import camera
+    try:
+        return camera.in_frame(state, eid, getattr(env, "world", None))
+    except Exception:  # noqa: BLE001  (perception helpers must never break an action)
+        return False
+
+
 def perceives(env, state, eid):
-    """Realistic mode: eid is in the robot's room, the room is lit (or the robot's own light is on) and the small-object
-    model does not miss it from the robot's current viewpoint. Always True in oracle mode."""
+    """What the robot can tell is there from where it stands. Geometric camera (both perception modes): eid is in the
+    robot's room and its cameras framed it this step (camera_sees). Room camera, realistic mode: eid is in the robot's
+    room, the room is lit (or the robot's own light is on) and the small-object model does not miss it from the robot's
+    current viewpoint. Room camera, oracle mode: always True."""
+    rec = state["entities"].get(eid)
+    if geometric(state):
+        return rec is not None and room_of(state, eid) == state["robot"].get("room") and camera_sees(env, state, eid)
     realism = getattr(env, "realism", None)
     if realism is None:
         return True
-    rec = state["entities"].get(eid)
     if rec is None:
         return False
     robot = state["robot"]
@@ -260,8 +295,9 @@ def robot_has_light(state):
 
 
 def held_mass(w):
-    from ..core import subtree_mass
-    return sum(subtree_mass(w, eid) for eid in w.held_items())
+    """The load the robot's hands bear (body.carried_kg: every held item with its contents and liquid, at its load
+    share: the robot's end of a co-carried load, a towed cart's handle)."""
+    return body.carried_kg(w)
 
 
 def held_width(w):
@@ -270,17 +306,25 @@ def held_width(w):
 
 
 def robot_mass(w):
-    return num(w.robot.get("mass_kg"), ROBOT_MASS_KG) + held_mass(w)
+    """The robot and everything it carries (body.total_mass_kg): the load on a floor, a stair, a stool or a ladder."""
+    return body.total_mass_kg(w)
 
 
 def free_hand(w):
+    """A hand that holds nothing and whose arm works (Ctx.free_hand's rule: body.arm_health > 0)."""
     hands = w.robot.get("hands", {})
-    arms = w.robot.get("arms_ok", {"left": True, "right": True})
-    return any(hands.get(h) is None and arms.get(h, True) for h in ("left", "right"))
+    return any(hands.get(h) is None and body.arm_health(w.s, h) > 0 for h in body.HANDS)
 
 
 def view_blocking_items(w):
-    """Held loads carried in front that hide the floor/treads: two-handed boxes, baskets, bins."""
+    """Held loads carried in front that hide the floor and the treads. Geometric camera: the camera's carried-load
+    occluder (sight.carried_occluder over phys.support.held_envelope: two-hand loads at least 0.35 x 0.25 x 0.25 m
+    or declaring blocks_view, never a tray carried level). Room camera: two-handed boxes, baskets and bins at least
+    0.35 m across and 0.25 m tall, or anything declaring blocks_view, as before."""
+    if geometric(w.s):
+        from ...kernel import sight
+        occ = sight.carried_occluder(w.s)
+        return sorted(e for e in w.held_items() if occ is not None and e in occ["items"])
     result = []
     for eid in w.held_items():
         rec = w.ent(eid)
@@ -320,7 +364,11 @@ def nav_read(state):
     return state.get("nav") or {}
 
 
-def log(w, kind, **data):
+def log(w, kind, *, witness=None, **data):
+    """Log a domain event (nav.events, nav.counts) and emit it as "nav.<kind>". witness: a visual occurrence (a car
+    reversing, a pet slipping out, a garage door moving, a household robot stuck) -- {"source", "room", "at",
+    "size_m"} -- is emitted through camera.visual_event, so in geometric mode the head camera's current pose witnesses
+    it (camera_log.events, obs.camera.events, a "visual" notice); the event log entry is the same either way."""
     sec = nav(w)
     entry = {"time_s": now(w.s), "step": w.s.get("steps", 0), "kind": kind}
     entry.update(data)
@@ -328,7 +376,55 @@ def log(w, kind, **data):
     del sec["events"][:-200]
     sec["counts"][kind] = sec["counts"].get(kind, 0) + 1
     w.emit("nav." + kind, **{k: v for k, v in data.items() if isinstance(v, (str, int, float, bool, list)) or v is None})
+    if witness is not None and geometric(w.s):
+        from ...kernel import camera
+        # the event was emitted above, unchanged; the camera only witnesses it (its geometry is never logged)
+        camera.visual_event(w, "nav." + kind, emit=False, **{k: witness[k] for k in ("source", "room", "at", "z", "size_m")
+                                                              if witness.get(k) is not None})
     return entry
+
+
+# notices this domain posts (TIER1_SWEEP 6.1-6.3; w.notice: stored only when the notice bus is on or a wait listens)
+NOTICE_KINDS = (
+    ("elevator", "an elevator chimes at a landing as its doors open", 65.0),
+    ("garage_door", "a garage door motor runs (the door opening or closing)", 70.0),
+    ("vehicle", "a car starts, moves or reverses nearby (engine, reversing beeper)", 70.0),
+    ("household_robot", "a household robot (robot vacuum, mower) beeps or announces its status", 60.0),
+)
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind, doc, db in NOTICE_KINDS:
+        timeline.register_notice_kind(kind, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
+
+# robot fault kinds this domain raises (body_faults: typed records, the fault log, detection; the table is a plain dict)
+HEAT_DAMAGE = "heat_damage"
+
+
+def _register_fault_kinds():
+    from ...kernel import body_faults
+    if HEAT_DAMAGE not in body_faults.FAULT_KINDS:
+        body_faults.register_fault_kind(
+            HEAT_DAMAGE, "body", lambda robot, record: None,
+            doc="The robot brushed a hot surface at speed or with a wide load: its cover is scorched (cosmetic, felt "
+                "at once; navigation_robot)")
+
+
+_register_fault_kinds()
+
+
+def notice(w, kind, source=None, room=None, db=None, text=None, data=None, remote=False):
+    """Post something perceivable (w.notice): the timeline decides whether the robot hears it (sound propagation from
+    `room`, the body's hearing; remote: the network) and stores it when the notice bus is on or a wait listens.
+    Cheap when nobody listens. Returns the stored record or None."""
+    from ...kernel import timeline
+    if not timeline.active(w):
+        return None
+    return w.notice(kind, room=room, db=db, source=source, remote=remote, text=text, data=data)
 
 
 def count(state, kind):
@@ -346,19 +442,17 @@ def bump(w, path, amount=1):
     return node[parts[-1]]
 
 
-def incident(w, kind, **data):
-    """A physical incident: logged and shown to the robot as last_incident."""
-    entry = log(w, kind, **data)
+def incident(w, kind, *, witness=None, **data):
+    """A physical incident: logged and shown to the robot as last_incident (witness: see log)."""
+    entry = log(w, kind, witness=witness, **data)
     nav(w)["last_incident"] = copy.deepcopy(entry)
     return entry
 
 
 # ----------------------------------------------------------------------
-# consequences shared by several mechanics
+# consequences shared by several mechanics: the kernel's physics and body (TIER1_PHYSICS 10.3, TIER1_EMBODIMENT 4.12)
 
-SPILL_MIN_L = 0.005                  # a few drops (< 5 ml) make no puddle and are not a spill
 FILM_FOOTPRINT_MM = 0.03             # water film left by a wet sole (below the damage limit of wood floors)
-SLIPPERY_LIQUIDS = ("oil", "cooking_oil", "motor_oil", "vomit", "raw_egg", "soap", "lotion")
 
 
 def system_present(name):
@@ -412,116 +506,119 @@ def spill_label(liquid):
     return "{} spill".format(name.replace("_", " "))
 
 
-def spawn_spill(w, rid, at, liters, liquid="water", source=None):
-    """Spilled liquid becomes a spill entity on the floor (cleaning's `spill` type with `liquid_l` when registered, so
-    cleaning evaporates/absorbs it and leaves the drying film) plus, without cleaning, room wet_cells. A few drops
-    (< 5 ml) are not a spill (no global harm). Its label says what it looks like (spill_label)."""
+def spawn_spill(w, rid, at, liters, liquid="water", source=None, cause="spill"):
+    """Liquid that left a container (already drained by the caller) lands on the floor at cell `at` of room `rid`
+    through the kernel's single spill entry point (liquids.spill, by the robot: a phys.spill_sink hook's entity --
+    cleaning's -- or a kernel puddle that grows when the same liquid lands on the same cell, room wet_cells, the
+    splash sound and visual event, phys_spills and the global spills flag). Less than the droplet limit (5 ml) is
+    droplets: nothing happens. A kernel puddle of a clear liquid looks like any clear puddle (spill_label: water,
+    vinegar and bleach are told apart only up close or by the bottle's label). Returns the floor spill's id or None."""
+    from ...kernel.phys import liquids
     liters = round(max(0.0, float(liters)), 4)
-    if liters < SPILL_MIN_L or rid not in w.s["rooms"]:
+    if rid not in w.s["rooms"]:
         return None
-    if cleaning_owns_floor_water() and w.reg is not None and w.reg.known("spill"):
-        thickness_mm = 2.5 if liquid in SLIPPERY_LIQUIDS else 1.5
-        area = max(0.01, liters / thickness_mm)
-        side = round(min(3.0, max(0.05, math.sqrt(area))), 3)
-        props = {"label": spill_label(liquid), "category": "spill", "pos": list(cell(at)), "relation": "on",
-                 "liquid": liquid, "liquid_l": liters, "area_m2": round(area, 4), "size_m": [side, side, 0.002],
-                 "floor_hazard": "slip" if liquid in SLIPPERY_LIQUIDS else "wet", "portable": False, "blocks_path": False,
-                 "mass_kg": 0.0, "volume_l": 0.0, "source": source}
-        if liquid not in ("water",):
-            props["residue"] = {"sticky": 0.4}
-        if floor_material(w.s, rid) == "carpet":
-            props["on_carpet"] = True
-        eid = w.spawn("spill", rid, **props)
-        w.stat("spills")
-        return eid
-    room = w.room_m(rid)
-    wet = room.setdefault("wet_cells", [])
-    cells = [list(cell(at))]
-    if liters > 0.3:
-        cols, rows = geometry.grid_size(room)
-        for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
-            c = [at[0] + dx, at[1] + dy]
-            if 0 <= c[0] < cols and 0 <= c[1] < rows:
-                cells.append(c)
-            if len(cells) >= 1 + int(liters / 0.3):
-                break
-    for c in cells:
-        if c not in wet:
-            wet.append(c)
-    type_name = "spill" if w.reg is not None and w.reg.known("spill") else "generic_item"
-    eid = w.spawn(type_name, rid, label=spill_label(liquid), category="spill", pos=list(cell(at)),
-                  liquid=liquid, liquid_l=liters, volume_l=0.0, spill_l=liters, portable=False, relation="on",
-                  floor_hazard="slip" if liquid in SLIPPERY_LIQUIDS else "wet",
-                  soil={"sticky": 0.4} if liquid not in ("water",) else {}, size_m=[0.5, 0.5, 0.005], ground_layer=True,
-                  source=source)
-    w.stat("spills")
-    return eid
+    liquid = liquid or "water"
+    src = source if isinstance(source, str) and source in w.s["entities"] else None
+    return _looks(w, liquids.spill(w, liters, liquid, at=(rid, list(cell(at))), source=src, by="robot", cause=cause),
+                  liquid)
 
 
-def drop_item(w, eid, height_m, rid, at, cause):
-    """A held item falls to the floor: fragile items break, open liquids spill."""
-    from ..core import release_from_hands
-    rec = w.ent(eid)
-    release_from_hands(w, eid)
-    m = w.mut(eid)
-    m["location"], m["relation"], m["pos"] = rid, "on", list(cell(at))
-    for key in ("spos", "shelf", "held_hand"):
-        m.pop(key, None)
-    w.log_move(eid, "robot", rid)
-    broke = []
-    tolerance = num(rec.get("drop_tolerance_m"), 0.3 if rec.get("fragile") else 1.5)
-    for item in [eid] + w.descendants(eid):
-        irec = w.ent(item)
-        if irec.get("fragile") and not irec.get("broken") and height_m > num(irec.get("drop_tolerance_m"), 0.3):
-            w.mut(item)["broken"] = True
-            broke.append(item)
-        if num(irec.get("liquid_l")) > 0 and not irec.get("sealed") and not irec.get("lidded") and not (irec.get("cap") or {}).get("on"):
-            liters = num(irec.get("liquid_l"))
-            w.mut(item)["liquid_l"] = 0.0
-            spawn_spill(w, rid, at, liters, irec.get("liquid", "water"), source=item)
-    if height_m > tolerance and not rec.get("fragile") and num(rec.get("mass_kg")) >= 5.0:
-        w.stat("damage")
-        log(w, "heavy_drop", item=eid)
-    if broke:
-        w.stat("breakages", len(broke))
-        w.stat("damage")
-    log(w, "dropped", item=eid, room=rid, cell=list(cell(at)), cause=cause, broke=broke)
-    return broke
+def _looks(w, sid, liquid):
+    """A kernel puddle of a clear liquid is labelled by what it looks like (spill_label), not by what it is."""
+    rec = w.s["entities"].get(sid or "")
+    if rec is not None and rec.get("_phys_spill") and liquid in CLEAR_LIQUIDS and rec.get("label") != spill_label(liquid):
+        w.mut(sid)["label"] = spill_label(liquid)
+    return sid
 
 
-def robot_falls(w, cause, rid=None, at=None, damage=False, drop_height=1.0):
-    """The robot loses balance: it lies on the floor, held items drop, and the fall is a global harm."""
-    robot = w.robot_m()
+def drain(w, item, liters=None):
+    """Take `liters` (default all) out of a container's liquid_l; an emptied container forgets where its contents came
+    from (contents_from), as the kernel's own drain does. Returns the litres taken (put them somewhere: spawn_spill)."""
+    rec = w.s["entities"].get(item)
+    if rec is None:
+        return 0.0
+    have = num(rec.get("liquid_l"))
+    lost = round(have if liters is None else min(have, max(0.0, float(liters))), 4)
+    if lost <= 0:
+        return 0.0
+    left = round(have - lost, 4)
+    m = w.mut(item)
+    m["liquid_l"] = left
+    if left <= 0:
+        m.pop("contents_from", None)
+    return lost
+
+
+def slop(w, item, liters, cause="slosh"):
+    """`liters` of an open container's liquid slop out of it (a stumble, a hard stop, a sloshing walk) and run down to
+    what it rests on -- a held tray's rim catches some -- or to the floor under it (liquids.deposit_below, by the
+    robot: puddle, splash, spills flag). Returns the litres that left it."""
+    from ...kernel.phys import liquids
+    rec = w.s["entities"].get(item)
+    if rec is None:
+        return 0.0
+    liquid = rec.get("liquid") or "water"
+    lost = drain(w, item, liters)
+    if lost > 0:
+        _looks(w, liquids.deposit_below(w, item, lost, liquid, source=item, by="robot", cause=cause), liquid)
+    return lost
+
+
+def break_entity(w, eid, why, by="robot"):
+    """Break a thing (impact.break_entity: broken, condition broken, damage.broken; glass and ceramic shatter, show it
+    at a glance and become a sharp floor hazard; any liquid runs out; phys.broke hooks; the breakages and damage flags
+    when the robot caused it). Logs nav.broke. False when it was already broken or is gone. by: "robot" for what the
+    robot's own motion did; a household robot the robot runs is the robot's responsibility too."""
+    from ...kernel.phys import impact
+    if eid not in w.s["entities"] or w.s["entities"][eid].get("broken"):
+        return False
+    impact.break_entity(w, eid, why, by=by)
+    log(w, "broke", target=eid, why=why)
+    return True
+
+
+def knock_off(w, item, rid, at, why, cause="knocked", height_m=None):
+    """A thing comes off what it rests on (or out of the robot's grip) and falls to the floor at cell `at` of room
+    `rid` (impact.fall, by the robot: from its height above the floor or `height_m`; breakage by its drop tolerance on
+    that floor, an open container's liquid runs out, what it carried scatters, floor dents, the fall's sound and
+    visual event). Logs nav.knocked_off. Returns the fall info."""
+    from ...kernel.phys import impact
+    if item not in w.s["entities"]:
+        return {"fell": False}
+    before = w.s["entities"][item].get("location")
+    info = impact.fall(w, item, height_m=height_m, cause=cause, at=(rid, list(cell(at))), by="robot")
+    log(w, "knocked_off", item=item, surface=before, why=why, broke=info.get("outcome") == "broke")
+    return info
+
+
+def robot_falls(w, cause, rid=None, at=None, damage=False, height_m=0.0):
+    """The robot loses balance and falls at cell `at` of room `rid` (default where it stands): body_faults.fall owns
+    the fall (fallen, posture lying, off any dock or climbing aid, one stats.falls, the robot_fell event and hooks;
+    held items drop through body_faults.drop_held -- impact.fall from the carry height plus height_m -- and damage
+    raises actuator_failed). height_m: how far the robot itself fell (a stair flight's half, a stool's step).
+    damage: True / False whether the fall damages the actuators; None lets the body decide (a fall from 0.4 m or
+    more, or onto a carried load of 5 kg or more). This domain adds its own fall statistic and the incident the robot
+    perceives."""
+    from ...kernel import body_faults
+    robot = w.robot
     rid = rid or robot["room"]
     at = list(cell(at if at is not None else (robot.get("pos") or [0, 0])))
-    robot["room"], robot["pos"] = rid, at
-    robot["fallen"] = True
-    robot["posture"] = "lying"
-    robot["docked"] = False
-    robot["charging"] = False
-    robot["standing_on"] = None
-    if damage:
-        robot["actuator_ok"] = False
-    faults = list(robot.get("faults") or [])
-    faults.append({"kind": "fall", "cause": cause, "time_s": now(w.s), "room": rid})
-    robot["faults"] = faults[-50:]
-    for eid in list(w.held_items()):
-        drop_item(w, eid, drop_height, rid, at, cause="robot_fell")
-    w.stat("falls")
+    info = body_faults.fall(w, cause, room=rid, cell=at, height_m=float(height_m),
+                            damage=None if damage is None else bool(damage))
+    if not info:
+        return info                     # already lying on the floor: no second fall
     w.stat("nav_robot_falls")
-    incident(w, "robot_fell", cause=cause, room=rid, cell=at, damaged=bool(damage))
+    incident(w, "robot_fell", cause=cause, room=rid, cell=at, damaged=bool(info.get("damage")),
+             dropped=list(info.get("dropped") or []))
+    return info
 
 
 def stumble(w, cause, rid, at):
-    """A recovered stumble: no fall, but open liquids slop over and the jolt is logged."""
+    """A recovered stumble: no fall, but a quarter of every open container's liquid slops out (slop) and the jolt is
+    logged."""
     spilled = 0.0
     for item in open_liquids(w):
-        rec = w.ent(item)
-        lost = round(num(rec.get("liquid_l")) * 0.25, 4)
-        if lost > 0:
-            w.mut(item)["liquid_l"] = round(num(rec.get("liquid_l")) - lost, 4)
-            spilled += lost
-            spawn_spill(w, rid, at, lost, rec.get("liquid", "water"), source=item)
+        spilled += slop(w, item, round(num(w.s["entities"][item].get("liquid_l")) * 0.25, 4))
     w.stat("nav_stumbles")
     incident(w, "stumble", cause=cause, room=rid, cell=list(cell(at)), spilled_l=round(spilled, 4))
 
@@ -546,19 +643,6 @@ def damage_entity(w, eid, kind, severity):
     if damage.get(kind) != level or not isinstance(old, dict):
         damage[kind] = level
         w.mut(eid)["damage"] = damage
-
-
-def break_entity(w, eid, why):
-    rec = w.ent(eid)
-    if rec.get("broken"):
-        return False
-    w.mut(eid)["broken"] = True
-    damage_entity(w, eid, "broken", 1.0)
-    if rec.get("fragile") or rec.get("crushable"):
-        w.stat("breakages")
-    w.stat("damage")
-    log(w, "broke", target=eid, why=why)
-    return True
 
 
 def hurt_person(w, pid, why, fall=False):

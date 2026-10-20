@@ -96,7 +96,8 @@
     "plain water or a homemade mix",
     "stone-safe spray",
     "window spray"
-   ]
+   ],
+   "color": null
   },
   "plastic_jug": {
    "descriptor": "white plastic jug of liquid",
@@ -150,7 +151,8 @@
    "members": [
     "sponge",
     "non_scratch_sponge"
-   ]
+   ],
+   "color": "yellow"
   },
   "grill_brush": {
    "descriptor": "grill brush",
@@ -213,14 +215,6 @@
    "members": [
     "wrapping_paper",
     "foil_wrapping_paper"
-   ]
-  },
-  "plastic_food_tub": {
-   "descriptor": "plastic food tub",
-   "resolve": "inspect",
-   "members": [
-    "yogurt_cup",
-    "takeout_container"
    ]
   },
   "puddle": {
@@ -297,6 +291,12 @@
     ],
     "tags": [
      "cleaning_tool"
+    ],
+    "mass_kg": 0.15,
+    "size_m": [
+     0.25,
+     0.08,
+     0.05
     ]
    },
    "doc": "Base of hand cleaning tools; tracks soil_load, wetness, wear, zone use and carried contamination.",
@@ -428,7 +428,11 @@
     "read": [
      "product",
      "chem_hazards"
-    ]
+    ],
+    "faces": {
+     "product": "label",
+     "chem_hazards": "label"
+    }
    }
   },
   "sponge": {
@@ -1728,6 +1732,11 @@
      "chem_hazards",
      "hazards"
     ],
+    "faces": {
+     "product": "label",
+     "chem_hazards": "label",
+     "hazards": "label"
+    },
     "measure": {
      "amount_ml": "scale"
     },
@@ -1817,16 +1826,17 @@
     "label": "screen cleaner",
     "product": "screen_cleaner",
     "label_text": "Screen Cleaner. Spray onto microfiber cloth, never directly on screen. Safe for anti-glare coatings.",
-    "amount_ml": 200.0,
+    "amount_ml": 500.0,
     "size_m": [
+     0.08,
      0.05,
-     0.04,
-     0.15
+     0.23
     ],
     "+tags": [
      "chem:solvent_light",
      "chem:surfactant"
-    ]
+    ],
+    "mass_kg": 0.56
    },
    "doc": "Screen Cleaner. Spray onto microfiber cloth, never directly on screen. Safe for anti-glare coatings."
   },
@@ -2303,12 +2313,12 @@
     "label": "oil absorbent granules",
     "product": "oil_absorbent",
     "label_text": "Oil Absorbent Granules. Spread over oil/antifreeze, wait 15 min, sweep up, bag, dispose as hazardous waste.",
-    "amount_ml": 4000.0,
-    "mass_kg": 2.2,
+    "amount_ml": 1500.0,
+    "mass_kg": 0.95,
     "size_m": [
-     0.2,
-     0.12,
-     0.3
+     0.1,
+     0.07,
+     0.26
     ],
     "absorbent": true,
     "+tags": [
@@ -2586,7 +2596,6 @@
     ],
     "mass_kg": 14.0,
     "material": "hdpe",
-    "color": "black",
     "movable": true,
     "wheeled": true
    },
@@ -2614,8 +2623,7 @@
     "label": "recycling cart",
     "waste_stream": "recycling",
     "stream_label": "RECYCLING",
-    "label_text": "RECYCLING ONLY - loose, no bags",
-    "color": "blue"
+    "label_text": "RECYCLING ONLY - loose, no bags"
    },
    "doc": "Curbside recycling cart."
   },
@@ -2625,8 +2633,7 @@
     "label": "yard waste cart",
     "waste_stream": "yard_waste",
     "stream_label": "YARD WASTE",
-    "label_text": "YARD WASTE - no bags, rocks or pet waste",
-    "color": "brown"
+    "label_text": "YARD WASTE - no bags, rocks or pet waste"
    },
    "doc": "Yard waste cart."
   },
@@ -2636,8 +2643,7 @@
     "label": "organics cart",
     "waste_stream": "compost",
     "stream_label": "ORGANICS",
-    "label_text": "FOOD & YARD SCRAPS",
-    "color": "green"
+    "label_text": "FOOD & YARD SCRAPS"
    },
    "doc": "Municipal organics (green) cart."
   },
@@ -3261,7 +3267,8 @@
      0.05
     ],
     "volume_l": 2.0,
-    "label": "bubble wrap"
+    "label": "bubble wrap",
+    "mass_kg": 0.03
    },
    "doc": "bubble wrap"
   },
@@ -3277,7 +3284,8 @@
      0.08
     ],
     "volume_l": 4.8,
-    "label": "styrofoam packing block"
+    "label": "styrofoam packing block",
+    "mass_kg": 0.08
    },
    "doc": "styrofoam packing block"
   },
@@ -3394,7 +3402,9 @@
      0.008,
      0.008
     ],
-    "label": "cigarette butt"
+    "label": "cigarette butt",
+    "mass_kg": 0.0003,
+    "volume_l": 0.002
    },
    "doc": "cigarette butt"
   },
@@ -3638,7 +3648,8 @@
      0.3
     ],
     "volume_l": 1.0,
-    "label": "gift bag"
+    "label": "gift bag",
+    "mass_kg": 0.06
    },
    "doc": "gift bag"
   },
@@ -3652,7 +3663,9 @@
      0.005,
      0.002
     ],
-    "label": "twist tie"
+    "label": "twist tie",
+    "mass_kg": 0.0005,
+    "volume_l": 0.001
    },
    "doc": "twist tie"
   },

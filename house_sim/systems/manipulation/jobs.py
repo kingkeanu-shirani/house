@@ -11,10 +11,11 @@ braced. Hidden targets (underscore keys) are never observed.
 """
 import math
 
+from ...kernel import body as kbody, camera, sight
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import impact as kimpact
 from ...kernel.plugins import after, system
-from ..core import release_from_hands
 from . import common as C
 
 ADJUST = {"up": ("z", 1.0), "down": ("z", -1.0), "right": ("x", 1.0), "left": ("x", -1.0), "forward": ("y", 1.0), "back": ("y", -1.0)}
@@ -32,10 +33,14 @@ def job_for_item(w, eid, kinds=None):
 
 
 def say_as(w, pid, text, loud=False):
+    """The partner speaks to the robot (addressed speech: heard in privacy mode too, body.hears); the timeline posts
+    it as an addressed notice."""
     person = w.s["people"].get(pid, {})
+    room = person.get("location")
     messages = w.sec("messages")
     messages.append({"step": w.s["steps"], "time_s": w.s["time_s"], "speaker": pid, "kind": "speech", "text": text,
-                     "room": person.get("location"), "heard_by_robot": person.get("location") == w.robot["room"] or loud, "loud": loud})
+                     "room": room, "to": "robot", "addressed_robot": True,
+                     "heard_by_robot": kbody.hears(w.s, room, loud=loud, addressed=True), "loud": loud})
     del messages[:-200]
 
 
@@ -48,7 +53,7 @@ def _mjob(w, jid):
 
 @action("support", params={"target": "entity", "mode": {"type": "str", "default": "heft", "choices": ["heft", "end", "lift", "lower", "follow", "release", "below"]},
                            "height_m": {"type": "number", "optional": True, "min": 0.0, "max": 2.2}, "speed": "?str:careful|normal|fast"},
-        duration=lambda ctx: ctx.data.get("seconds", 3.0), energy=0.02, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 3.0), energy=0.02, category="physical",
         doc="Take weight without carrying it away: mode=heft lifts a few cm to measure the load (no risk; reports 'too heavy' instead of trying), "
             "end grips the robot's end of an object a person is co-carrying, lift raises that end to height_m (match the person's end), "
             "follow moves with the person to the next room on their route, lower sets it down, release lets go of the robot's end.")
@@ -57,13 +62,15 @@ def support(ctx):
     eid = ctx.args["target"]
     mode = ctx.args["mode"]
     if mode in ("heft", "below"):
+        # the safe probe (TIER1_INTEGRATION 6): a few centimetres up and straight back down, judged against the body's
+        # derated capacity (both hands, and the lift plan's one-or-two hands); it is never an overload attempt
         rec = ctx.obj(eid, touch=True)
         mass = C.subtree_mass(w, eid)
         w.sec("facts").setdefault("hefted", {})[eid] = round(mass, 2)
-        limit = C.num(w.robot.get("max_mass_kg", 20.0), 20.0)
-        hand_limit = C.num(w.robot.get("max_hand_kg", 8.0), 8.0)
-        ctx.data["seconds"] = 3.0
-        hands = "one hand is enough" if mass <= hand_limit and max(C.dims(rec)[:2]) <= 0.7 else "needs both hands"
+        limit = kbody.capacity_kg(w.s, "both", eid)
+        ctx.data["manip_s"] = 3.0
+        one_hand = len(ctx.lift_plan(eid)["hands"]) == 1 and mass <= kbody.capacity_kg(w.s, None, eid) + 1e-9
+        hands = "one hand is enough" if one_hand else "needs both hands"
         if C.realistic(ctx):
             # the arm's load sense gives a coarse impression (light/medium/heavy/very heavy), never a scale reading;
             # whether it is within the robot's own payload is known to its controller
@@ -83,7 +90,7 @@ def support(ctx):
     rec = w.ent(eid)
     mass = C.subtree_mass(w, eid)
     j = _mjob(w, jid)
-    ctx.data["seconds"] = 3.0
+    ctx.data["manip_s"] = 3.0
     if mode == "end":
         require(job.get("state") == "waiting", "You are already holding your end")
         require(len(C.free_hands(w)) == 2, "Both hands must be free to take your end", "capability")
@@ -141,18 +148,21 @@ def support(ctx):
         door = w.s["entities"].get(conn.get("door") or "")
         if door is not None and not door.get("open"):
             raise ActionError("The {} is closed; your partner waits for you to get it opened".format(C.name_of(ctx, conn.get("door"), door.get("label", "door"))))
+        entry = list(conn.get("cells", {}).get(nxt, [0, 0]))
+        # the robot walks its end through the doorway (the body's guard, the walk paid and framed: common.walk_robot);
+        # its partner keeps pace at the other end
+        if not C.walk_robot(ctx, entry, room=nxt, connection=cid):
+            say_as(w, job["person"], "Hey, why did you stop?")
+            return kbody.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
         if min(C.footprint_wd(rec)) > C.num(conn.get("width_m"), 0.85) + 0.05:
             C.mark_damage(w, eid, "scraped_frame", "jammed in the doorway", broken=False)
             w.stat("collisions")
-        robot = w.robot_m()
-        robot["room"] = nxt
-        robot["pos"] = list(conn.get("cells", {}).get(nxt, [0, 0]))
         pm = w.person_m(job["person"])
         pm["location"] = nxt
-        cell = C.landing_cell(w, nxt, robot["pos"])
+        cell = C.landing_cell(w, nxt, entry)
         pm["pos"] = list(cell)
         j["leg"] = leg + 1
-        ctx.data["seconds"] = 6.0 + (4.0 if conn.get("kind") == "stairs" else 0.0)
+        ctx.data["manip_s"] = 6.0 + (4.0 if conn.get("kind") == "stairs" else 0.0)
         if speed == "fast":
             w.stat("collisions")
             say_as(w, job["person"], "Slow down, you're pulling me!")
@@ -167,18 +177,21 @@ def support(ctx):
             if robot["hands"].get(hand) == eid:
                 robot["hands"][hand] = None
         rid = w.robot["room"]
+        if mode == "release" and C.num(job.get("robot_height_m")) > 0.2:
+            # let go of a lifted end: it crashes down from about 0.7 of its height (the kernel's fall)
+            w.mut(eid).pop("co_held_by", None)
+            kimpact.fall(w, eid, height_m=C.num(job.get("robot_height_m")) * 0.7, cause="released_its_end",
+                         at=(rid, list(C.landing_cell(w, rid, w.robot.get("pos")))), by="robot")
+            if mass / 2.0 > C.num(person.get("max_lift_kg"), 25.0) * 0.6:
+                w.stat("injury")
+            j["state"] = "failed"
+            return "Let go of your end; it crashed down"
         m = w.mut(eid)
         m["location"], m["relation"] = rid, "on"
         m.pop("co_held_by", None)
         m.pop("held_hand", None)
         m["pos"] = C.landing_cell(w, rid, w.robot.get("pos"))
         m["xy_m"] = [m["pos"][0] * C.CELL, m["pos"][1] * C.CELL]
-        if mode == "release" and C.num(job.get("robot_height_m")) > 0.2:
-            C.impact(w, eid, C.num(job.get("robot_height_m")) * 0.7, 1.0, cause="released_its_end")
-            if mass / 2.0 > C.num(person.get("max_lift_kg"), 25.0) * 0.6:
-                w.stat("injury")
-            j["state"] = "failed"
-            return "Let go of your end; it crashed down"
         done = rid == job.get("dest")
         j["state"] = "done" if done else "set_down"
         w.log_move(eid, "robot", rid)
@@ -187,15 +200,11 @@ def support(ctx):
 
 
 def _drop_joint(w, eid):
-    robot = w.robot_m()
-    for hand in ("left", "right"):
-        if robot["hands"].get(hand) == eid:
-            robot["hands"][hand] = None
+    """A jointly carried load drops from about 0.6 m where the robot stands (the kernel's fall: out of the robot's
+    hands, breakage and floor marks)."""
+    w.mut(eid).pop("co_held_by", None)
     rid = w.robot["room"]
-    m = w.mut(eid)
-    m.pop("co_held_by", None)
-    C.move_to_floor(w, eid, rid)
-    C.impact(w, eid, 0.6, 1.0, cause="joint_carry_dropped")
+    kimpact.fall(w, eid, height_m=0.6, cause="joint_carry_dropped", at=(rid, list(w.robot.get("pos") or [0, 0])), by="robot")
 
 
 @after("move", order=30)
@@ -223,6 +232,7 @@ def _co_carry_yank(ctx, result):
                                "frame": {"type": "str", "default": "person", "choices": ["person", "robot"]}, "aim_at": "?target",
                                "brace": {"type": "bool", "default": False}},
         duration=lambda ctx: C.num(ctx.args.get("duration_s"), 30.0) + 1.0, energy=0.02, category="physical",
+        timing="commanded",
         doc="Hold a held object steady for duration_s while a person works (a shelf or frame against the wall, the end of a board, a flashlight). "
             "adjust nudges it by amount_m in the person's frame (frame=robot uses the robot's own left/right); aim_at points a light at a work "
             "point (never at a face); brace=true leans on a support so heavy items do not sag.")
@@ -242,7 +252,7 @@ def hold_steady(ctx):
     adjust = ctx.args.get("adjust")
     if adjust:
         axis, sign = ADJUST[adjust]
-        if ctx.args.get("frame") == "robot" and job.get("faces_person", True) and axis in ("x", "y"):
+        if ctx.args.get("frame") == "robot" and faces_person(w, job) and axis in ("x", "y"):
             sign = -sign
         pose = dict(job.get("pose") or {})
         pose[axis] = round(C.num(pose.get(axis)) + sign * C.num(ctx.args.get("amount_m"), 0.02), 4)
@@ -256,6 +266,22 @@ def hold_steady(ctx):
             say_as(w, job["person"], "Argh, not in my eyes!")
     w.mut(eid)["held_for_job"] = jid
     return "Holding {} steady{}".format(eid, " ({} {})".format(adjust, ctx.args.get("frame")) if adjust else "")
+
+
+def faces_person(w, job):
+    """Whether the robot faces the person it helps (its left is their right). Geometric camera mode: the body's yaw
+    (robot.facing_deg) is within 90 degrees of the person's bearing; room mode: the job's faces_person (default yes)."""
+    if not C.geometric(w):
+        return job.get("faces_person", True)
+    box = sight.entity_box(w.s, job.get("person"))
+    rid, x, y = camera.eye(w.s)[:3]
+    if box is None or box.rid != rid:
+        return job.get("faces_person", True)
+    px, py = (box.x0 + box.x1) / 2.0, (box.y0 + box.y1) / 2.0
+    if math.hypot(px - x, py - y) < 1e-6:
+        return job.get("faces_person", True)
+    bearing = math.degrees(math.atan2(py - y, px - x)) % 360.0
+    return abs(C.ang_diff(bearing, camera.facing(w.s))) < 90.0
 
 
 def _pose_error(job):
@@ -281,7 +307,15 @@ def _correction(job):
     return "{} {}".format(words[0] if d > 0 else words[1], size).capitalize()
 
 
-@system("manipulation.jobs", order=400, max_dt=30.0)
+PASSIVE_STATES = ("done", "failed", None, "waiting", "gripped", "lifted", "set_down")
+
+
+def _jobs_idle(w):
+    """Exact idle probe of manipulation.jobs: no job is in a running state (holding, lighting)."""
+    return not any(job.get("state") not in PASSIVE_STATES for job in (C.section(w).get("jobs") or {}).values())
+
+
+@system("manipulation.jobs", order=400, max_dt=30.0, idle=_jobs_idle)
 def jobs_system(w, dt, tick):
     sec = C.section(w)
     all_jobs = sec.get("jobs") or {}
@@ -289,7 +323,7 @@ def jobs_system(w, dt, tick):
         return
     for jid in sorted(all_jobs):
         job = all_jobs[jid]
-        if job.get("state") in ("done", "failed", None, "waiting", "gripped", "lifted", "set_down"):
+        if job.get("state") in PASSIVE_STATES:
             continue
         item = job.get("item")
         person = w.s["people"].get(job.get("person"), {})

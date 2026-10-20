@@ -14,9 +14,35 @@ from ...kernel.errors import ActionError, require
 from . import engine as E
 from . import model as M
 from . import state as S
-from .surfaces import sink_contamination, thermal_shock, water_use
+from .surfaces import WATER_C, clean_robot_hand, robot_hand_target, sink_contamination, water_shock, water_use
 
-WATER_TEMP = {"cold": 12.0, "warm": 38.0, "hot": 55.0}
+WATER_TEMP = WATER_C
+
+
+def _register_faults():
+    """The robot fault this domain causes (TIER1_INTEGRATION 6, body: fault writes through body_faults)."""
+    from ...kernel import body_faults
+    if "gripper_cut" not in body_faults.FAULT_KINDS:
+        body_faults.register_fault_kind(
+            "gripper_cut", "gripper", lambda robot, record: None, onset=_cut_pad_slips,
+            doc="A blade cut a gripper pad (a knife wiped toward its edge): the gashed pad grips worse (a gripper_slip "
+                "fault on that hand) until service replaces it")
+
+
+def _cut_pad_slips(w, record):
+    from ...kernel import body, body_faults
+    if body.fault(w.s, "gripper_slip_" + record["part"]) is None:
+        body_faults.add_fault(w, "gripper_slip", part=record["part"], source="gripper_cut")
+
+
+def gripper_cut(w, hand):
+    """Cut the pad of the robot's `hand` gripper (body_faults.add_fault: a detected fault record, the fault log, the
+    fault_onset event and hooks, and a gripper_slip on that hand). Returns the fault id."""
+    from ...kernel import body_faults
+    return body_faults.add_fault(w, "gripper_cut", part=hand, source="cleaning")
+
+
+_register_faults()
 
 
 def find_sink(ctx, explicit=None):
@@ -39,13 +65,16 @@ def find_sink(ctx, explicit=None):
         duration=lambda ctx: ctx.data.get("seconds", 25.0), energy=0.015, noise=0.05, category="physical",
         doc="Hand-wash an item at a sink (destination) under running water with a held sponge, brush or cloth and soap "
             "(on the tool or in the basin water). Washes all faces unless face is given. temp cold|warm|hot (cold first for "
-            "egg, dairy and raw dough). Knives: hold by the handle and wipe spine-first. Leaves the item wet and soapy: rinse it.")
+            "egg, dairy and raw dough). Knives: hold by the handle and wipe spine-first. Leaves the item wet and soapy: rinse it. "
+            "target robot_hand (or robot_hand_left / robot_hand_right) washes the robot's own grippers under the tap.")
 def wash(ctx):
     w = ctx.w
     target = ctx.args["target"]
     temp = ctx.args.get("temp") or "warm"
     sink = find_sink(ctx, ctx.args.get("destination"))
     require(physics.water_available(w, sink), "No water at that sink", "resource")
+    if robot_hand_target(target):
+        return clean_robot_hand(ctx, "wash", target, tool=None, sink=sink)
     rec = w.s["entities"].get(target)
     require(rec is not None, "That is not visible here", "perception")
     held = target in w.held_items()
@@ -69,21 +98,20 @@ def wash(ctx):
         consequences.append("water got into it")
     if "sharp" in rec.get("hazards", []):
         if ctx.args.get("stroke") == "along_edge":
-            robot = w.robot_m()
-            robot["faults"] = sorted(set(robot.get("faults", [])) | {"gripper_cut"})
+            # the hand wiping toward the edge is the tool hand: its pad is cut (a robot fault through the body)
+            hand = S.hand_of(w, tool) or "right"
+            gripper_cut(w, hand)
             w.stat("safety_violations")
-            S.glog(w, "knife_edge_toward_hand", item=target)
+            S.glog(w, "knife_edge_toward_hand", item=target, hand=hand)
             consequences.append("wiped toward the edge and cut the gripper pad")
     water_c = WATER_TEMP[temp]
     item_c = float(rec.get("temperature_c", 21.0))
-    limit = float(rec.get("thermal_shock_c") or M.material(rec).get("thermal_shock_c") or (150.0 if M.material_key(rec) in ("aluminum", "nonstick", "stainless", "carbon_steel") else 999.0))
-    if abs(item_c - water_c) > limit:
-        thermal_shock(w, target, "{} C item in {} water".format(round(item_c), temp))
+    if water_shock(w, target, water_c, "{} C item in {} water".format(round(item_c), temp)):
         consequences.append("thermal shock")
     if basin and (rec.get("fragile") or M.material_key(rec) in ("glass", "crystal", "china")):
         heavy = [c for c in w.children(basin) if c != target and float(w.ent(c).get("mass_kg", 0.0)) > 1.2]
         if heavy and in_basin:
-            S.break_item(w, target, "knocked against {} in the basin".format(heavy[0]))
+            S.break_item(w, target, "knocked against {} in the basin".format(heavy[0]), cause="knocked")
             consequences.append("broke against a heavy pot in the basin")
     if basin and S.turbidity(w.ent(basin)) > 8.0 and (M.material(rec).get("glossy") or M.material_key(rec) in ("glass", "crystal")):
         for face in faces:
@@ -95,7 +123,7 @@ def wash(ctx):
     sink_contamination(ctx, sink, target)
     force_arg = ctx.args.get("force") or "normal"
     if force_arg == "hard" and (rec.get("fragile") or rec.get("stemware") or M.material_key(rec) in ("crystal",)):
-        S.break_item(w, target, "twisted/pressed too hard while washing")
+        S.break_item(w, target, "twisted/pressed too hard while washing", cause="overstressed")
         consequences.append("snapped under too much force")
     if rec.get("food") or rec.get("category") in ("food", "produce"):
         S.add_contamination(w, target, "chemical", 0.4)

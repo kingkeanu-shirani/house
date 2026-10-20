@@ -15,7 +15,7 @@ stairs add 0.7 s per step (x2 elderly). People route around rooms with a develop
 Pets left loose in an unfenced front yard/street with nobody watching for 2 minutes escape (when the pets domain is
 not loaded; otherwise pets own escape behaviour).
 """
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, system
@@ -23,6 +23,10 @@ from . import air as A
 from . import common as C
 from . import fire as F
 from . import hazards as H
+
+# the robot knows what it holds in its arms (TIER1_INTEGRATION 1.1: declared domain robot fields)
+body.register_robot_field("carrying_pet", None, "safety", "exact",
+                          "the pet the robot carries in its arms during an evacuation (both hands busy), else None")
 
 SPEED = {"full": 1.2, "cane": 0.6, "walker": 0.45, "rollator": 0.55, "wheelchair": 0.9, "crutches": 0.5, "bedbound": 0.0}
 UNFENCED = ("front_yard", "sidewalk", "driveway", "porch")
@@ -111,6 +115,9 @@ def start_evacuation(w, pid, dest=None, mode="self", leader=None, kind="evacuate
                   "kind": kind, "done": C.safe_area(state, p.get("location")) if kind != "shelter" else p.get("location") == dest}
     if m["_evac"]["done"]:
         m["evacuated"] = True
+    if m.get("posture") in ("lying", "sleeping") and m.get("awake", True) and \
+            not (m.get("_condition") or {}).get("no_move") and (m.get("_condition") or {}).get("responsive") is not False:
+        m["posture"] = "standing"       # someone woken in bed gets up to walk out (not a person lying on the floor)
     m["activity"] = "evacuating" if kind != "shelter" else "sheltering"
     sec = C.ledger(w)
     ev = sec.setdefault("evac", {})

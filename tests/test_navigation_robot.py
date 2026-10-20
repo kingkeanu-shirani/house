@@ -20,6 +20,12 @@ from house_sim.kernel.registry import default_registry
 load_domains()
 
 
+def plugin_domains():
+    """The domains loaded in this process (HOUSE_SIM_DOMAINS may restrict them)."""
+    import sys
+    return {name.split(".")[2] for name in sys.modules if name.startswith("house_sim.systems.") and name.count(".") >= 2}
+
+
 class Mini:
     """Explicit test house:
     living 6x5 m (hardwood) -- kitchen 5x4 m (tile) -- yard 8x6 m (grass, outdoor) via a back door
@@ -232,14 +238,30 @@ class TestFloorContacts(unittest.TestCase):
                    size_m=[0.5, 0.02, 0.01], low_contrast=low_contrast)
 
     def test_cord_snag_yanks_laptop(self):
+        # tier 1: the yanked device falls through the kernel (impact.fall: breakage by its drop tolerance on that
+        # floor, TIER1_PHYSICS 5.5); a laptop survives a 0.6 m drop, a ceramic lamp on the same table does not
         self._cord()
         env = self.m.env(pos=(1, 4))
         ok(self, step(env, "walk_to", cell=[10, 4]))
         laptop = env.world.s["entities"]["laptop"]
         self.assertEqual(laptop["location"], "living")
-        self.assertTrue(laptop["broken"])
+        self.assertTrue(laptop.get("fell"), "it fell off the table")
         self.assertFalse(laptop["plugged_in"])
         self.assertGreaterEqual(counts(env, "contacts.cords"), 1)
+        self.assertGreaterEqual(stat(env, "phys_falls"), 1)
+        m2 = Mini()
+        m2.add("table", "side_table", "living", pos=[6, 6])
+        m2.add("clamp", "generic_item", "table", label="ceramic table lamp", material="ceramic", plug_required=True,
+               plugged_in=True, size_m=[0.2, 0.2, 0.45], mass_kg=2.0)
+        m2.add("cord", "generic_item", "living", pos=[6, 4], category="cord", floor_hazard="cord", cord_to=["clamp"],
+               size_m=[0.5, 0.02, 0.01])
+        env2 = m2.env(pos=(1, 4))
+        ok(self, step(env2, "walk_to", cell=[10, 4]))
+        lamp = env2.world.s["entities"]["clamp"]
+        self.assertEqual(lamp["location"], "living")
+        self.assertTrue(lamp["broken"], "ceramic breaks falling 0.6 m onto hardwood")
+        self.assertTrue(lamp.get("shattered"), "a ceramic break shows at a glance")
+        self.assertGreaterEqual(stat(env2, "breakages"), 1)
 
     def test_flat_cord_is_trodden_not_snagged(self):
         self.m.add("heater", "generic_item", "living", pos=[6, 7], label="space heater", plug_required=True, plugged_in=True, size_m=[0.3, 0.3, 0.5])
@@ -263,7 +285,8 @@ class TestFloorContacts(unittest.TestCase):
         env2 = self.m.env(pos=(1, 4))
         ok(self, step(env2, "walk_to", cell=[10, 4], speed="fast"))
         self.assertEqual(env2.world.s["entities"]["lamp2"]["location"], "living")
-        self.assertTrue(env2.world.s["entities"]["lamp2"]["broken"])
+        self.assertTrue(env2.world.s["entities"]["lamp2"].get("fell"), "yanked off the table (impact.fall)")
+        self.assertFalse(env2.world.s["entities"]["lamp2"]["plugged_in"])
         env3 = self.m.env(pos=(1, 4))
         ok(self, step(env3, "walk_to", cell=[10, 4], avoid=["trip"]))
         self.assertEqual(counts(env3, "contacts.cords"), 0)
@@ -467,11 +490,16 @@ class TestMarginsAndSocial(unittest.TestCase):
         self.assertFalse(env2.world.s["pets"]["cat"].get("injured"))
 
     def test_topple_prone_lamp_brushed_at_speed(self):
+        # tier 1: the brushed lamp tips over through the kernel (impact.tip_over, by the robot): on its side, and a
+        # ceramic one breaks from its centre of mass dropping to the floor
         self.m.add("flamp", "generic_item", "living", pos=[6, 5], label="floor lamp", topple_prone=True, fragile=True, blocks_path=True,
-                   size_m=[0.4, 0.4, 1.6])
+                   size_m=[0.4, 0.4, 1.6], material="ceramic")
         env = self.m.env(pos=(1, 4))
         ok(self, step(env, "walk_to", cell=[10, 4], speed="fast"))
-        self.assertTrue(env.world.s["entities"]["flamp"]["broken"])
+        lamp = env.world.s["entities"]["flamp"]
+        self.assertEqual((lamp.get("orientation"), lamp.get("tipped_over"), lamp.get("toppled")), ("on_side", True, True))
+        self.assertTrue(lamp["broken"])
+        self.assertGreaterEqual(stat(env, "breakages"), 1)
         env2 = self.m.env(pos=(1, 4))
         ok(self, step(env2, "walk_to", cell=[10, 4]))
         self.assertFalse(env2.world.s["entities"]["flamp"]["broken"])
@@ -852,8 +880,9 @@ class TestDockBattery(unittest.TestCase):
         ok(self, step(env, "wait", seconds=60))
 
     def test_swap_battery(self):
+        # tier 1 (TIER1_DECISIONS): a pack is the profile's 2.4 kWh, 14 kg brick, carried and swapped with both hands
         self.m.add("pack", "robot_battery_pack", "living", charge_pct=95.0)
-        env = self.m.env(pos=(1, 4), battery=12.0, hold={"right": "pack"})
+        env = self.m.env(pos=(1, 4), battery=12.0, hold={"both": "pack"})
         ok(self, step(env, "swap_battery", "pack"))
         robot = env.world.s["robot"]
         # kernel v3.0: the 60 s swap itself is paid from the new pack (body settlement after the handler)
@@ -862,7 +891,7 @@ class TestDockBattery(unittest.TestCase):
         self.assertEqual(env.world.s["entities"]["pack"]["charge_pct"], 12.0)
         m2 = Mini()
         m2.add("pack", "robot_battery_pack", "living", charge_pct=95.0, swollen=True)
-        env2 = m2.env(pos=(1, 4), battery=12.0, hold={"right": "pack"})
+        env2 = m2.env(pos=(1, 4), battery=12.0, hold={"both": "pack"})
         r = step(env2, "swap_battery", "pack")
         self.assertFalse(r["ok"])
         self.assertEqual(r["category"], "safety")
@@ -1213,7 +1242,7 @@ class TestBodyEnergy(unittest.TestCase):
 
     def test_swapping_in_an_empty_pack_powers_down_and_strands(self):
         self.m.add("pack", "robot_battery_pack", "living", charge_pct=0.0)
-        env = self.m.env(pos=(1, 4), battery=30.0, hold={"right": "pack"})
+        env = self.m.env(pos=(1, 4), battery=30.0, hold={"both": "pack"})
         ok(self, step(env, "swap_battery", "pack"))
         robot = env.world.s["robot"]
         self.assertEqual((robot["power_state"], robot["battery"], robot["battery_min_pct"]), ("off", 0.0, 0.0))
@@ -1940,11 +1969,14 @@ class TestAuditAdditions(unittest.TestCase):
 
     def test_wall_picture_knocked_by_wide_load(self):
         self.m.add("frame", "generic_item", "hall", pos=[0, 4], mounted=True, mount_height_m=1.5, fragile=True, wall_decor=True,
-                   size_m=[0.5, 0.05, 0.4], label="framed photo")
+                   size_m=[0.5, 0.05, 0.4], label="framed photo", material="glass")
         self.m.add("board", "generic_item", "hall", size_m=[0.7, 0.62, 0.05], label="ironing board", carry_level=True, mass_kg=4.0)
         env = self.m.env(room="hall", pos=(0, 7), hold={"both": "board"})
         ok(self, step(env, "walk_to", cell=[0, 1]))
-        self.assertTrue(env.world.s["entities"]["frame"]["broken"])
+        frame = env.world.s["entities"]["frame"]
+        self.assertTrue(frame["broken"], "knocked off the wall: a 1.5 m fall breaks the glass")
+        self.assertFalse(frame.get("mounted"), "it lies on the floor now")
+        self.assertEqual(frame["location"], "hall")
         env2 = self.m.env(room="hall", pos=(0, 7), hold={"both": "board"})
         ok(self, step(env2, "walk_to", cell=[0, 1], avoid=["fragile"]))
         self.assertFalse(env2.world.s["entities"]["frame"]["broken"])
@@ -2004,12 +2036,24 @@ class TestAuditAdditions(unittest.TestCase):
         self.assertIn("navigation_robot.collision", env3.evaluate()["failures"])
 
     def test_toppled_fuel_can_spills(self):
+        # tier 1: impact.tip_over -- an open can on its side loses what its narrow spout cannot hold back
+        # (liquids.tip_spill_l: capacity x (1 - mouth_frac) / 2 stays), a capped one loses nothing
         self.m.add("can", "generic_item", "yard", pos=[4, 4], topple_prone=True, blocks_path=True, liquid_l=4.0, liquid="gasoline",
-                   size_m=[0.3, 0.2, 0.35], label="fuel can")
+                   capacity_l=5.0, mouth_frac=0.15, cap={"on": False}, size_m=[0.3, 0.2, 0.35], label="fuel can")
         env = self.m.env(room="yard", pos=(1, 3))
         ok(self, step(env, "walk_to", cell=[8, 3], speed="fast"))
-        self.assertEqual(env.world.s["entities"]["can"]["liquid_l"], 0.0)
+        can = env.world.s["entities"]["can"]
+        self.assertEqual(can.get("orientation"), "on_side")
+        self.assertAlmostEqual(can["liquid_l"], 5.0 * (1 - 0.15) / 2, places=3)
         self.assertGreaterEqual(stat(env, "spills"), 1)
+        self.m = Mini()
+        self.m.add("can", "generic_item", "yard", pos=[4, 4], topple_prone=True, blocks_path=True, liquid_l=4.0, liquid="gasoline",
+                   capacity_l=5.0, mouth_frac=0.15, cap={"on": True}, size_m=[0.3, 0.2, 0.35], label="fuel can")
+        env2 = self.m.env(room="yard", pos=(1, 3))
+        ok(self, step(env2, "walk_to", cell=[8, 3], speed="fast"))
+        self.assertEqual(env2.world.s["entities"]["can"].get("orientation"), "on_side")
+        self.assertEqual(env2.world.s["entities"]["can"]["liquid_l"], 4.0, "a capped can keeps its fuel")
+        self.assertEqual(stat(env2, "spills"), 0)
 
     def test_baby_gate_helper_and_relatch(self):
         from house_sim.tasks.runner import build
@@ -2416,7 +2460,9 @@ class TestKernelV23Layout(unittest.TestCase):
                         self.assertTrue(rec.get("plugged_in") and outlet, "{} plugged straight into a wall outlet".format(eid))
                         self.assertLessEqual(min(geometry.chebyshev(outlet["pos"], c) for c in geometry.footprint(rec)), 1)
                         self.assertFalse(any(h.get("source") == eid for h in room.get("floor_hazards", [])), "no cord across the floor")
-        self.assertGreater(docked, 2)
+        if "electrical" in plugin_domains():
+            # robot vacuum docks stand at wall outlets (electrical furnishes them): without it few houses get one
+            self.assertGreater(docked, 2)
         self.assertGreater(rails, 2)
 
     def test_agent_helpers_raise_instead_of_dropping_at_origin(self):
@@ -2840,6 +2886,387 @@ class TestRealisticPerception(unittest.TestCase):
         oracle = self.m.env(pos=(1, 4))
         r = json.loads(ok(self, step(oracle, "patrol", rooms=["living", "hall", "bath"]))["message"])
         self.assertNotIn("bath", r["skipped_occupied"], "oracle mode: it knows the bathroom is empty")
+
+
+class TestTier1Adoption(unittest.TestCase):
+    """Tier-1 adoption (docs/design/TIER1_INTEGRATION.md section 6): consequences through the kernel's physics, the
+    body's numbers, switches and faults, the geometric camera, notices, answerer routes and exact idle probes."""
+
+    def setUp(self):
+        self.m = Mini()
+
+    # ---- physics ----------------------------------------------------------------------------------------------------
+
+    def test_carry_motion_gait_factors(self):
+        from house_sim.kernel.phys import liquids
+        from house_sim.systems.navigation_robot import traverse as T
+        w = self.m.env(pos=(1, 4)).world
+        self.assertEqual(T.carry_motion(w, None), 1.0)
+        self.assertEqual(T.carry_motion(w, {"legs": [{"from_room": "living", "to_room": "living"}]}), 1.0, "a level indoor walk")
+        stairs = {"speed": "normal", "legs": [{"from_room": "hall", "to_room": "upstairs", "connection": "c_hu", "stairs_up": 14}]}
+        self.assertAlmostEqual(T.carry_motion(w, stairs), T.CARRY_STAIRS)
+        lawn = {"legs": [{"from_room": "kitchen", "to_room": "yard", "connection": "c_ky"}]}
+        self.assertAlmostEqual(T.carry_motion(w, lawn), T.CARRY_THRESHOLD * T.CARRY_UNEVEN, msg="a 3 cm sill, then the lawn")
+        # the kernel multiplies the hook's factor into its own pace factor
+        self.assertAlmostEqual(liquids.carry_motion(w, dict(stairs, speed="fast")), liquids.SPEED_FACTOR["fast"] * T.CARRY_STAIRS)
+
+    def test_carry_law_owns_slosh_once_active(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.navigation_robot import common as C
+        self.m.add("tea", "generic_item", "living", liquid_l=0.33, capacity_l=0.35, liquid="tea", size_m=[0.08, 0.08, 0.1])
+        with lawbook.forced(carry=True):
+            env = self.m.env(pos=(1, 4), hold={"right": "tea"})
+            ok(self, step(env, "walk_to", cell=[10, 4], speed="fast"))
+        self.assertEqual(C.count(env.world.s, "sloshed"), 0, "the legacy slosh stands down")
+        self.assertLess(env.world.s["entities"]["tea"]["liquid_l"], 0.33, "the kernel's carry law sloshed the brim-full cup")
+        self.assertGreaterEqual(stat(env, "spills"), 1)
+
+    def test_robot_fall_goes_through_the_body(self):
+        self.m.add("puddle", "generic_item", "living", pos=[6, 4], category="spill", floor_hazard="wet", ground_layer=True, portable=False,
+                   size_m=[0.5, 0.5, 0.005])
+        self.m.add("glass", "generic_item", "living", label="drinking glass", material="glass", liquid_l=0.2, capacity_l=0.3, liquid="water",
+                   size_m=[0.08, 0.08, 0.12], mass_kg=0.3)
+        env = self.m.env(pos=(1, 4), hold={"right": "glass"})
+        r = ok(self, step(env, "walk_to", cell=[10, 4]))
+        self.assertIn("it stopped short", r["message"], "the note keeps the walk's message true")
+        robot = env.world.s["robot"]
+        self.assertEqual((robot["fallen"], robot["posture"], robot["hands"]["right"]), (True, "lying", None))
+        glass = env.world.s["entities"]["glass"]
+        self.assertEqual(glass["location"], "living", "dropped where the robot fell (body_faults.drop_held)")
+        self.assertTrue(glass.get("fell"))
+        self.assertTrue(glass["broken"], "a glass dropped from the hand onto hardwood breaks (impact.fall)")
+        self.assertEqual(stat(env, "nav_robot_falls"), 1)
+        self.assertEqual(stat(env, "falls"), 1, "one fall, counted once")
+        self.assertEqual(nav(env)["last_incident"]["dropped"], ["glass"])
+        self.assertFalse(step(env, "move", "kitchen")["ok"], "a fallen robot does not walk on")
+
+    def test_move_fall_note_says_where_the_robot_ended(self):
+        self.m.add("puddle", "generic_item", "living", pos=[9, 4], category="spill", floor_hazard="wet", ground_layer=True, portable=False,
+                   size_m=[0.5, 0.5, 0.005])
+        env = self.m.env(pos=(1, 4))
+        r = ok(self, step(env, "move", "kitchen"))
+        self.assertIn("it did not reach kitchen", r["message"])
+        self.assertEqual(env.world.s["robot"]["room"], "living")
+        self.m.add("box", "generic_item", "upstairs", label="box of books", mass_kg=19.0, size_m=[0.4, 0.3, 0.3])
+        env2 = self.m.env(room="upstairs", pos=(0, 6), hold={"both": "box"}, perception="realistic")
+        r = ok(self, step(env2, "move", "hall"))
+        self.assertIn("Fell on the stairs", r["message"])
+        cause = nav(env2)["last_incident"]["cause"]
+        self.assertIn("carried more than it could balance", cause)
+        self.assertNotIn("kg", cause, "realistic: what it felt, never the load's mass or the hidden limit")
+        self.assertTrue(env2.world.s["robot"]["fallen"])
+
+    def test_porch_steps_are_wet_in_the_rain(self):
+        # generation-2 porch steps: same-floor stairs with exterior true, open to the sky
+        self.m.c["rooms"]["porch"] = {"type": "porch", "size_m": [3.0, 2.0], "floor_material": "wood", "outdoor": True, "floor": 0,
+                                      "exits": []}
+        self.m.c["connections"]["c_fp"] = {"rooms": ["front", "porch"], "cells": {"front": [4, 0], "porch": [2, 3]}, "width_m": 1.0,
+                                           "kind": "stairs", "steps": 3, "rise_m": 0.17, "run_m": 0.28, "exterior": True,
+                                           "upper": "porch", "handrail": False, "tread_material": "wood"}
+        self.m.add("crate", "generic_item", "porch", label="crate of jars", mass_kg=6.0, size_m=[0.3, 0.2, 0.2])
+        env = self.m.env(room="porch", pos=(2, 2), hold={"right": "crate"})
+        self.assertFalse(env.observe()["stairs"][0]["tread_wet"])
+        ok(self, step(env, "move", "front"))
+        self.assertFalse(env.world.s["robot"]["fallen"], "dry wood treads hold a loaded descent")
+        self.m.c["weather"] = {"condition": "rain", "temperature_c": 12.0, "wind_mps": 2.0}
+        env = self.m.env(room="porch", pos=(2, 2), hold={"right": "crate"})
+        self.assertTrue(env.observe()["stairs"][0]["tread_wet"])
+        r = ok(self, step(env, "move", "front"))
+        self.assertTrue(env.world.s["robot"]["fallen"], "wet wood (0.30) is short of a loaded heel strike going down")
+        self.assertIn("wet wood tread", r["message"])
+        env = self.m.env(room="porch", pos=(2, 2), hold={"right": "crate"})
+        ok(self, step(env, "move", "front", speed="careful"))
+        self.assertFalse(env.world.s["robot"]["fallen"], "a careful descent keeps its footing")
+
+    def test_clear_liquid_spills_look_alike(self):
+        from house_sim.systems.navigation_robot import common as C
+        self.assertEqual(C.spill_label("white_vinegar"), "clear liquid spill")
+        self.assertEqual(C.spill_label("coffee"), "coffee spill")
+        env = self.m.env(pos=(1, 4))
+        w = env.world
+        w.begin()
+        sid = C.spawn_spill(w, "kitchen", [2, 2], 0.3, "white_vinegar")
+        again = C.spawn_spill(w, "kitchen", [2, 2], 0.2, "white_vinegar")
+        drops = C.spawn_spill(w, "kitchen", [3, 3], 0.002, "water")
+        w.commit()
+        self.assertIsNone(drops, "a few millilitres are droplets")
+        rec = env.world.s["entities"][sid]
+        self.assertEqual(rec["location"], "kitchen")
+        if rec.get("_phys_spill"):          # a kernel puddle (no phys.spill_sink domain loaded)
+            self.assertEqual(again, sid, "the same liquid on the same cell grows one puddle")
+            self.assertEqual(rec["label"], "clear liquid spill")
+            self.assertAlmostEqual(rec["liquid_l"], 0.5)
+
+    # ---- body ---------------------------------------------------------------------------------------------------------
+
+    def test_encounter_is_the_body_stopping_distance(self):
+        from house_sim.systems.navigation_robot import traverse as T
+        s = self.m.env(pos=(1, 4)).world.s
+        self.assertEqual([T.encounter(s, pace, T.REVEAL_M) for pace in ("careful", "normal", "fast")], ["yield", "hard_stop", "collision"])
+        self.assertEqual(T.encounter(s, "fast", T.REVEAL_M + 0.5), "hard_stop", "two cells away a fast robot still stops")
+        self.assertGreater(body.stopping_distance_m(s, "normal", 0.24), body.stopping_distance_m(s, "normal"), "wet tile stretches the stop")
+
+    def test_footsteps_come_from_the_body(self):
+        from house_sim.systems.navigation_robot import common as C
+        s = self.m.env(pos=(1, 4)).world.s
+        loud = [C.footstep_db_at(s, pace, 2) for pace in ("careful", "normal", "fast")]
+        self.assertEqual(loud, sorted(loud))
+        self.assertLess(loud[0], loud[2])
+        quiet = self.m.env(pos=(1, 4), quiet=True).world.s
+        self.assertLess(C.footstep_db_at(quiet, "normal", 2), loud[1], "quiet mode is quieter (body.noise_db)")
+
+    def test_software_stuck_until_remote_help(self):
+        from house_sim.systems.navigation_robot import traverse as T
+        env = self.m.env(pos=(1, 4), fault_state={"software_stuck": {"kind": "software_stuck", "severity": 1.0}})
+        r = step(env, "walk_to", cell=[5, 4])
+        self.assertEqual((r["ok"], r["message"]), (False, T.SOFTWARE_STUCK_TEXT))
+        self.assertFalse(step(env, "dock")["ok"])
+        ok(self, step(env, "request_remote_help", issue="software"))
+        ok(self, step(env, "wait", seconds=150))
+        self.assertIsNone(body.fault(env.world.s, "software_stuck"), "the operator restarted the navigation software")
+        self.assertTrue(env.world.s["robot"]["localized"])
+        ok(self, step(env, "walk_to", cell=[5, 4]))
+
+    def test_climbing_refusals_come_from_the_body(self):
+        from house_sim.systems.navigation_robot import reach as R
+        self.m.add("stool", "step_stool", "kitchen", pos=[2, 1], open=True)
+        for robot, text in (({"legs_health": 0.4}, R.LIMP_LEGS_TEXT), ({"battery": 3.0}, R.LIMP_BATTERY_TEXT),
+                            ({"body_profile": "mobile_manipulator"}, body.NO_CLIMB_TEXT)):
+            env = self.m.env(room="kitchen", pos=(3, 1), **robot)
+            r = step(env, "climb_on", "stool")
+            self.assertEqual((r["ok"], r["message"]), (False, text), robot)
+            self.assertIsNone(env.world.s["robot"].get("standing_on"))
+        ok(self, step(self.m.env(room="kitchen", pos=(3, 1)), "climb_on", "stool"))
+
+    def test_dock_and_get_up_follow_the_body(self):
+        r = step(self.m.env(pos=(1, 1), actuator_ok=False), "dock")
+        self.assertEqual((r["ok"], r["category"]), (False, "capability"))
+        self.assertFalse(step(self.m.env(pos=(1, 4)), "get_up")["ok"], "it has not fallen")
+        r = step(self.m.env(pos=(1, 4), fallen=True, posture="lying", actuator_ok=False), "get_up")
+        self.assertFalse(r["ok"])
+        self.assertIn("damaged actuator", r["message"])
+        env = self.m.env(pos=(1, 4), fallen=True, posture="lying")
+        ok(self, step(env, "get_up"))
+        self.assertFalse(env.world.s["robot"]["fallen"])
+
+    def test_battery_pack_is_the_body_pack(self):
+        pack = default_registry().make("robot_battery_pack", "living")
+        self.assertEqual((pack["capacity_wh"], pack["mass_kg"], pack["two_handed"]), (2400.0, 14.0, True))
+        self.m.add("pack", "robot_battery_pack", "living", charge_pct=95.0, capacity_wh=2200.0, health=0.9)
+        self.m.add("cup", "generic_item", "living", label="cup", size_m=[0.08, 0.08, 0.1])
+        r = step(self.m.env(pos=(1, 4), battery=12.0, hold={"right": "pack", "left": "cup"}), "swap_battery", "pack")
+        self.assertFalse(r["ok"])
+        self.assertIn("both hands", r["message"])
+        env = self.m.env(pos=(1, 4), battery=12.0, hold={"both": "pack"})
+        ok(self, step(env, "swap_battery", "pack"))
+        s = env.world.s
+        self.assertEqual((body.get(s, "battery_wh"), body.get(s, "battery_health")), (2200.0, 0.9), "the installed pack's capacity and health")
+        removed = s["entities"]["pack"]
+        self.assertEqual((removed["capacity_wh"], removed["health"], removed["charge_pct"]), (2400.0, 1.0, 12.0), "the old pack's values")
+
+    def test_sensor_switches_go_through_the_body(self):
+        env = self.m.env(room="hall", pos=(1, 1))
+        self.assertFalse(step(env, "set_privacy_mode")["ok"])
+        ok(self, step(env, "set_privacy_mode", camera="off"))
+        self.assertEqual(body.imaging(env.world.s), False)
+        self.assertFalse(step(env, "inspect", "rail_1")["ok"], "no close look with the cameras off")
+        ok(self, step(env, "set_privacy_mode", mic="off", policy={"camera_off": ["bathroom"], "when": "always"}))
+        self.assertEqual(body.can_hear(env.world.s), "none")
+        self.assertEqual(env.world.s["robot"]["privacy_policy"], {"camera_off": ["bathroom"], "when": "always"})
+        self.assertFalse(step(env, "set_privacy_mode", policy={"camera_off": ["bathroom"], "when": "sometimes"})["ok"], "a bad policy")
+        ok(self, step(env, "set_privacy_mode", camera="on", mic="on", policy={}))
+        self.assertTrue(body.imaging(env.world.s))
+        self.assertEqual(body.can_hear(env.world.s), "full")
+
+    def test_faults_diagnostics_and_fault_log(self):
+        from house_sim.systems.navigation_robot import doors as D
+        env = self.m.env(pos=(1, 4))
+        w = env.world
+        w.begin()
+        D.ev_robot_fault(w, {"kind": "arm", "side": "right"}, env)
+        D.ev_robot_fault(w, {"kind": "camera", "clean": 0.3}, env)
+        w.commit()
+        self.assertEqual(sorted(env.world.s["robot"]["fault_state"]), ["arm_failed_right", "camera_dirty"])
+        self.assertEqual(body.arm_health(env.world.s, "right"), 0.0)
+        latent = {"arm_weak_left": {"kind": "arm_weak", "part": "left", "severity": 0.4, "latent": True}}
+        env = self.m.env(pos=(1, 4), fault_state=latent)
+        self.assertTrue(body.is_latent(env.world.s, "arm_weak_left"))
+        r = json.loads(ok(self, step(env, "run_diagnostics"))["message"])
+        self.assertEqual(r, {"battery_health": "ok", "faults": ["arm_weak_left"]})
+        self.assertFalse(body.is_latent(env.world.s, "arm_weak_left"))
+        env = self.m.env(pos=(1, 4))
+        ok(self, step(env, "log_fault", "camera_dirty"))
+        ok(self, step(env, "log_fault", "loose handrail"))
+        self.assertEqual(stat(env, "unfounded_fault_logs"), 1, "a clean camera logged as dirty is unfounded; a handrail is a note")
+
+    def test_paper_towel_scratches_the_lens(self):
+        self.m.add("towel", "generic_item", "living", label="paper towel", material="paper", size_m=[0.2, 0.2, 0.01])
+        env = self.m.env(pos=(1, 4), hold={"right": "towel"}, camera_clean=0.4)
+        ok(self, step(env, "clean_camera"))
+        self.assertIn("camera_scratched", env.world.s["robot"]["fault_state"])
+        self.assertLess(body.clarity(env.world.s), 1.0)
+        self.assertGreater(body.clarity(env.world.s), 0.4, "the grime came off")
+
+    # ---- camera -------------------------------------------------------------------------------------------------------
+
+    def test_view_blocks(self):
+        from house_sim.kernel import sight
+        reg = default_registry()
+        self.assertEqual(reg.view_props("robot_headlamp")["beam"], sight.BEAMS["headlamp"], "the worn headlamp is the kernel's beam")
+        self.assertEqual([reg.view_props(t)["porosity"] for t in ("step_stool", "kitchen_step_stool", "step_ladder")], [0.5, 0.0, 0.75])
+
+    def test_geometric_camera_frames_robot_motion(self):
+        env = self.m.env(pos=(1, 1), camera="geometric", battery=60.0)
+        for verb, target in (("step", "e"), ("dock", ""), ("undock", "")):
+            ok(self, step(env, verb, target))
+            view = env.world.s["robot"]["view"]
+            self.assertEqual(view.get("step"), env.world.s["steps"], verb)
+            self.assertTrue(view.get("frames"), verb + ": the head camera framed the motion")
+
+    def test_reversing_car_is_heard_and_seen(self):
+        self.m.add("car", "furniture", "front", pos=[6, 0], size_m=[1.0, 1.0, 1.5], label="car", vehicle={"state": "parked"})
+        self.m.c["events"] = [{"at_s": 1.0, "effect": "navigation_robot.vehicle", "args": {"vehicle": "car", "state": "reversing",
+                                                                                           "reverse_dir": "south"}}]
+        logs = []
+        for camera in ("geometric", None):
+            env = self.m.env(room="front", pos=(6, 6), camera=camera)
+            r = ok(self, step(env, "wait", seconds=60, interrupt_on=["vehicle"]))
+            self.assertIn("interrupted: vehicle", r["message"])
+            logs.append([e["kind"] for e in nav(env)["events"]])
+            events = (env.world.s.get("camera_log") or {}).get("events") or []
+            if camera:
+                self.assertEqual([(e["kind"], e["source"], e["seen"]) for e in events], [("nav.vehicle_reversing", "car", True)])
+            else:
+                self.assertEqual(events, [], "room mode: no camera witness")
+        self.assertEqual(logs[0], logs[1], "the event log is the same in both camera modes")
+
+    def test_geometric_tv_sightline_is_the_exact_line(self):
+        # room camera: anything 1 m or taller on a line cell blocks; geometric: the seated eye to the screen (sight.los)
+        def sightline(blocker, camera):
+            m = Mini()
+            m.add("tv", "generic_item", "living", pos=[6, 0], label="TV", category="tv", blocks_path=True, size_m=[0.5, 0.2, 0.6])
+            m.add("sofa", "sofa", "living", pos=[5, 8])
+            if blocker == "ladder":
+                m.add("lad", "step_ladder", "living", pos=[6, 2], open=True)
+            elif blocker == "table":
+                m.add("table", "coffee_table", "living", pos=[6, 1], size_m=[1.0, 0.5, 0.45])
+            elif blocker == "shelf":
+                m.add("shelf", "bookshelf", "living", pos=[6, 4], size_m=[0.5, 0.35, 1.8])
+            m.c["household"] = {"nav_watch": {"sightlines": {"tv": {"tv": "tv", "seats": ["sofa"]}}}}
+            env = m.env(pos=(1, 1), camera=camera)
+            ok(self, step(env, "wait", seconds=30))
+            return nav(env)["sightlines"]["tv"]["clear"]
+        self.assertEqual([sightline(b, None) for b in (None, "shelf", "ladder", "table")], [True, False, False, True])
+        self.assertEqual([sightline(b, "geometric") for b in (None, "shelf", "ladder", "table")], [True, False, True, False],
+                         "an open ladder is seen through; a low table right in front of a floor-standing TV hides the screen")
+
+    def test_geometric_patrol_records_camera_coverage(self):
+        self.m.add("win", "window", "living", pos=[3, 0], open=True, mounted=True)
+        env = self.m.env(pos=(1, 4), camera="geometric")
+        r = json.loads(ok(self, step(env, "patrol", rooms=["living"]))["message"])
+        self.assertIn("window_open", {f["kind"] for f in r["findings"]})
+        self.assertGreater(env.world.s["camera_log"]["coverage"]["living"], 0.9, "it looked around the room")
+
+    # ---- sweep: notices, routes, idle probes ---------------------------------------------------------------------------
+
+    def test_elevator_chime_ends_a_listening_wait(self):
+        env = HouseEnv(building(), seed=1)
+        ok(self, step(env, "call_elevator"))
+        r = ok(self, step(env, "wait", seconds=120, interrupt_on=["elevator"]))
+        self.assertIn("interrupted: elevator", r["message"])
+        self.assertLess(env.world.s["time_s"], 60)
+        self.assertEqual(env.world.s["rooms"]["car"]["elevator"]["doors"], "open")
+        ok(self, step(env, "move", "car"))
+
+    def test_garage_door_and_household_robot_notices(self):
+        self.m.c["entities"]["door_front"].update(open=True, label="garage door")
+        self.m.c["events"] = [{"at_s": 10.0, "effect": "navigation_robot.garage_door", "args": {"door": "door_front", "action": "close",
+                                                                                                "duration_s": 13}}]
+        r = ok(self, step(self.m.env(pos=(1, 4)), "wait", seconds=60, interrupt_on=["garage_door"]))
+        self.assertIn("interrupted: garage_door", r["message"])
+        m = Mini()
+        m.add("rvdock", "robot_vacuum_dock", "living", pos=[11, 9])
+        m.add("rv", "robot_vacuum", "living", pos=[11, 9], rv={"dock": "rvdock", "state": "docked", "docked": True, "bin_fill": 0.9})
+        m.c["entities"]["floor_living"]["soil"] = {"dust": 0.4}
+        env = m.env(pos=(10, 8))
+        ok(self, step(env, "start", "rv", program="clean"))
+        r = ok(self, step(env, "wait", seconds=1800, interrupt_on=["household_robot"]))
+        self.assertIn("Please empty the bin", r["message"])
+        self.assertLess(env.world.s["time_s"], 1800)
+
+    def test_overhead_garage_door_has_no_swing(self):
+        self.m.c["entities"]["door_front"].update(open=True, label="garage door")
+        hinged = json.loads(ok(self, step(self.m.env(pos=(1, 4)), "inspect", "door_front"))["message"])
+        self.assertEqual(hinged["open_angle_deg"], 90.0)
+        self.m.c["connections"]["c_lf"]["kind"] = "garage"
+        overhead = json.loads(ok(self, step(self.m.env(pos=(1, 4)), "inspect", "door_front"))["message"])
+        self.assertNotIn("open_angle_deg", overhead, "an overhead door rolls up: no leaf sweep, no opening angle")
+        self.assertNotIn("swing_blockers", overhead)
+
+    def test_where_question_routes_room_aliases(self):
+        self.m.person("dad", "living", [4, 4])
+        self.m.c["user_simulator"] = {"nav": {"room_aliases": {"den": "bedroom"}, "necessary": ["nav:where:den"]}}
+        env = self.m.env(pos=(1, 4))
+        r = json.loads(ok(self, step(env, "ask", "dad", about="the den", aspect="where"))["message"])
+        self.assertEqual((r["value"], r["known"]), ("bedroom", True))
+
+    def test_planning_around_lying_people_reveals_no_hidden_sleep(self):
+        # round-5 red team (G2): avoid lying / sleeping plans only on what can be seen -- posture in the light, nothing
+        # in the dark or behind concealment -- never on whether someone is asleep
+        def plans(props, avoid, dark=False):
+            m = Mini()
+            m.person("p1", "living", [0, 0], **props)
+            if dark:
+                m.c["entities"]["light_living"]["on"] = False
+                m.c["clock"]["start"] = "2026-10-09T23:30:00"
+            return step(m.env(pos=(4, 4), perception="realistic"), "walk_to", cell=[1, 1], avoid=avoid)["ok"]
+        seated = [dict(posture="seated", awake=True, activity="resting"), dict(posture="seated", awake=False, activity="sleeping")]
+        lying = [dict(posture="lying", awake=True, activity="resting"), dict(posture="sleeping", awake=False, activity="sleeping")]
+        for avoid in (["lying"], ["sleeping"]):
+            self.assertEqual([plans(p, avoid) for p in seated], [True, True], avoid)
+            self.assertEqual([plans(p, avoid) for p in lying], [False, False], avoid)
+            self.assertEqual([plans(p, avoid, dark=True) for p in seated + lying], [True] * 4, avoid)
+            self.assertTrue(plans(dict(lying[1], concealed=True), avoid))
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        self.m.c["entities"]["door_front"].update(open=True, label="garage door")
+        self.m.add("car", "furniture", "front", pos=[6, 0], size_m=[1.0, 1.0, 1.5], label="car", vehicle={"state": "parked"})
+        self.m.add("rvdock", "robot_vacuum_dock", "living", pos=[11, 9])
+        self.m.add("rv", "robot_vacuum", "living", pos=[11, 9], rv={"dock": "rvdock", "state": "docked", "docked": True})
+        self.m.c["events"] = [
+            {"at_s": 20.0, "effect": "navigation_robot.garage_door", "args": {"door": "door_front", "action": "close", "duration_s": 13}},
+            {"at_s": 40.0, "effect": "navigation_robot.vehicle", "args": {"vehicle": "car", "state": "reversing", "duration_s": 30}}]
+
+        def run(probes):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                env = self.m.env(pos=(1, 4))
+                step(env, "wait", seconds=120)
+                step(env, "start", "rv", program="clean")
+                step(env, "wait", seconds=300)
+                lift = HouseEnv(building(), seed=1)
+                step(lift, "call_elevator")
+                step(lift, "wait", seconds=120)
+                return digest(env.world.s), digest(lift.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+        self.assertEqual(run(True), run(False))
+
+    # ---- types and gen 2 ------------------------------------------------------------------------------------------------
+
+    def test_spirit_levels_have_no_lookalike_conflict(self):
+        conflicts = default_registry().lookalike_conflicts()
+        self.assertFalse([c for c in conflicts if "bubble_level" in str(c) or "spirit_level" in str(c)], conflicts)
+
+    def test_gen2_vacuum_share_follows_the_household(self):
+        from house_sim.systems.navigation_robot import furnish as F
+        home = {"household": {"profile": {"smart_home": "connected"}}, "pets": {}}
+        self.assertAlmostEqual(F.vacuum_share(home), 0.7)
+        home["pets"] = {"rex": {"species": "dog"}}
+        self.assertAlmostEqual(F.vacuum_share(home), 0.8)
+        self.assertAlmostEqual(F.vacuum_share({"household": {"profile": {"smart_home": "none"}}}), 0.2)
 
 
 class TestDeterminism(unittest.TestCase):

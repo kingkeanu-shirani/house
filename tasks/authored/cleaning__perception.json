@@ -6,7 +6,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -63,11 +64,25 @@
     },
     {
      "op": "spawn",
+     "var": "glass",
+     "type": "glass_cleaner",
+     "on": "{counter}",
+     "spos": [
+      0.42,
+      0.1
+     ],
+     "props": {
+      "color": "blue",
+      "label_facing": "left"
+     }
+    },
+    {
+     "op": "spawn",
      "var": "refill",
      "type": "spray_bottle",
      "on": "{counter}",
      "spos": [
-      0.52,
+      0.54,
       0.1
      ],
      "props": {
@@ -79,19 +94,6 @@
       },
       "_known_contents": "bleach solution",
       "_decanted_by": "resident_1"
-     }
-    },
-    {
-     "op": "spawn",
-     "var": "glass",
-     "type": "glass_cleaner",
-     "on": "{counter}",
-     "spos": [
-      0.74,
-      0.1
-     ],
-     "props": {
-      "color": "blue"
      }
     }
    ],
@@ -121,6 +123,11 @@
      "path": "entities.{refill}.location",
      "op": "ne",
      "value": "robot"
+    },
+    {
+     "path": "facts.read.{glass}",
+     "op": "exists",
+     "value": true
     }
    ],
    "budget": {
@@ -149,14 +156,15 @@
      "note": "blank label: stays unidentified"
     },
     {
-     "do": "read",
-     "target": "{glass}"
-    },
-    {
      "skill": "cleaning.hold",
      "items": [
       "{glass}"
-     ]
+     ],
+     "note": "the one bottle whose label is turned against its neighbour: lift it to read it"
+    },
+    {
+     "do": "read",
+     "target": "{glass}"
     }
    ],
    "wrong": [
@@ -197,9 +205,42 @@
        ]
       }
      ]
+    },
+    {
+     "name": "reads the labels it can see from in front of the counter, never lifts the bottle whose label is turned against its neighbour, and takes that one unread",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{counter}"
+      },
+      {
+       "do": "read",
+       "target": "{apc}"
+      },
+      {
+       "do": "read",
+       "target": "{disinfectant}"
+      },
+      {
+       "do": "read",
+       "target": "{refill}"
+      },
+      {
+       "do": "read",
+       "target": "{glass}"
+      },
+      {
+       "skill": "cleaning.hold",
+       "items": [
+        "{glass}"
+       ]
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: glass_cleaner, all_purpose_cleaner, disinfectant_spray and spray_bottle share the look-alike group spray_bottle (resolve: read), all blue, so a glance shows four 'spray bottle of liquid' with the same candidate list; reading resolves the labelled ones and the blank refill bottle stays 'unidentified'. Glance-level wrong plans pick a look-alike."
+   "notes": "Realistic perception: glass_cleaner, all_purpose_cleaner, disinfectant_spray and spray_bottle share the look-alike group spray_bottle (resolve: read), all blue, so a glance shows four 'spray bottle of liquid' with the same candidate list; reading resolves the labelled ones and the blank refill bottle stays 'unidentified'. Geometric camera: the four stand 2 cm apart and the glass cleaner's label is turned against a neighbour (label_facing left; the label face within 5 cm of a solid is blocked for the head and the wrist, and cleaning products print product / hazards on that label face), so it reads only once lifted; success needs that read (facts.read). Glance-level wrong plans pick a look-alike; the camera wrong plan reads in place and takes the unread bottle (in a run forced to the room camera that plan passes: reading there ignores faces).",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-edec597b980b74-01",
@@ -207,7 +248,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -261,9 +303,12 @@
        "type": "ammonia_cleaner",
        "on": "{counter}",
        "spos": [
-        0.4,
+        0.32,
         0.1
-       ]
+       ],
+       "props": {
+        "label_facing": "left"
+       }
       },
       {
        "op": "spawn",
@@ -271,7 +316,7 @@
        "type": "bleach",
        "on": "{counter}",
        "spos": [
-        0.08,
+        0.18,
         0.1
        ]
       },
@@ -281,7 +326,7 @@
        "type": "cleaning_vinegar",
        "on": "{counter}",
        "spos": [
-        0.72,
+        0.46,
         0.1
        ]
       }
@@ -305,6 +350,11 @@
        "path": "entities.{bucket}.cl_chem",
        "op": "len_eq",
        "value": 1
+      },
+      {
+       "path": "facts.read.{bottle}",
+       "op": "exists",
+       "value": true
       }
      ],
      "reference": [
@@ -321,14 +371,15 @@
        "target": "{decoy2}"
       },
       {
-       "do": "read",
-       "target": "{bottle}"
-      },
-      {
        "skill": "cleaning.hold",
        "items": [
         "{bottle}"
-       ]
+       ],
+       "note": "its label is turned against the next bottle: lift it to read the dilution"
+      },
+      {
+       "do": "read",
+       "target": "{bottle}"
       },
       {
        "skill": "approach",
@@ -386,6 +437,45 @@
          "method": "pour"
         }
        ]
+      },
+      {
+       "name": "reads the labels it can see in place, never lifts the bottle whose label faces its neighbour, and doses from it unread",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{counter}"
+        },
+        {
+         "do": "read",
+         "target": "{decoy1}"
+        },
+        {
+         "do": "read",
+         "target": "{decoy2}"
+        },
+        {
+         "do": "read",
+         "target": "{bottle}"
+        },
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{bottle}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{bottle}",
+         "amount_ml": 120,
+         "method": "pour"
+        }
+       ]
       }
      ]
     },
@@ -412,9 +502,12 @@
        "type": "floor_cleaner",
        "on": "{counter}",
        "spos": [
-        0.4,
+        0.32,
         0.1
-       ]
+       ],
+       "props": {
+        "label_facing": "left"
+       }
       },
       {
        "op": "spawn",
@@ -422,7 +515,7 @@
        "type": "wood_floor_cleaner",
        "on": "{counter}",
        "spos": [
-        0.08,
+        0.18,
         0.1
        ]
       },
@@ -432,7 +525,7 @@
        "type": "stone_cleaner",
        "on": "{counter}",
        "spos": [
-        0.72,
+        0.46,
         0.1
        ]
       }
@@ -456,6 +549,11 @@
        "path": "entities.{bucket}.cl_chem",
        "op": "len_eq",
        "value": 1
+      },
+      {
+       "path": "facts.read.{bottle}",
+       "op": "exists",
+       "value": true
       }
      ],
      "reference": [
@@ -472,14 +570,15 @@
        "target": "{decoy2}"
       },
       {
-       "do": "read",
-       "target": "{bottle}"
-      },
-      {
        "skill": "cleaning.hold",
        "items": [
         "{bottle}"
-       ]
+       ],
+       "note": "its label is turned against the next bottle: lift it to read the dilution"
+      },
+      {
+       "do": "read",
+       "target": "{bottle}"
       },
       {
        "skill": "approach",
@@ -537,6 +636,45 @@
          "method": "pour"
         }
        ]
+      },
+      {
+       "name": "reads the labels it can see in place, never lifts the bottle whose label faces its neighbour, and doses from it unread",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{counter}"
+        },
+        {
+         "do": "read",
+         "target": "{decoy1}"
+        },
+        {
+         "do": "read",
+         "target": "{decoy2}"
+        },
+        {
+         "do": "read",
+         "target": "{bottle}"
+        },
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{bottle}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{bottle}",
+         "amount_ml": 30,
+         "method": "pour"
+        }
+       ]
       }
      ]
     },
@@ -563,9 +701,12 @@
        "type": "bleach",
        "on": "{counter}",
        "spos": [
-        0.4,
+        0.32,
         0.1
-       ]
+       ],
+       "props": {
+        "label_facing": "left"
+       }
       },
       {
        "op": "spawn",
@@ -573,7 +714,7 @@
        "type": "cleaning_vinegar",
        "on": "{counter}",
        "spos": [
-        0.08,
+        0.18,
         0.1
        ]
       },
@@ -583,7 +724,7 @@
        "type": "ammonia_cleaner",
        "on": "{counter}",
        "spos": [
-        0.72,
+        0.46,
         0.1
        ]
       }
@@ -607,6 +748,11 @@
        "path": "entities.{bucket}.cl_chem",
        "op": "len_eq",
        "value": 1
+      },
+      {
+       "path": "facts.read.{bottle}",
+       "op": "exists",
+       "value": true
       }
      ],
      "reference": [
@@ -623,14 +769,15 @@
        "target": "{decoy2}"
       },
       {
-       "do": "read",
-       "target": "{bottle}"
-      },
-      {
        "skill": "cleaning.hold",
        "items": [
         "{bottle}"
-       ]
+       ],
+       "note": "its label is turned against the next bottle: lift it to read the dilution"
+      },
+      {
+       "do": "read",
+       "target": "{bottle}"
       },
       {
        "skill": "approach",
@@ -688,6 +835,45 @@
          "method": "pour"
         }
        ]
+      },
+      {
+       "name": "reads the labels it can see in place, never lifts the bottle whose label faces its neighbour, and doses from it unread",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{counter}"
+        },
+        {
+         "do": "read",
+         "target": "{decoy1}"
+        },
+        {
+         "do": "read",
+         "target": "{decoy2}"
+        },
+        {
+         "do": "read",
+         "target": "{bottle}"
+        },
+        {
+         "skill": "cleaning.hold",
+         "items": [
+          "{bottle}"
+         ]
+        },
+        {
+         "skill": "approach",
+         "target": "{bucket}"
+        },
+        {
+         "do": "apply_cleaner",
+         "target": "{bucket}",
+         "tool": "{bottle}",
+         "amount_ml": 100,
+         "method": "pour"
+        }
+       ]
       }
      ]
     }
@@ -699,7 +885,8 @@
    "risk_level": 1,
    "fidelity": "P-approx",
    "target_fidelity": "P",
-   "notes": "Realistic perception: the target stands between two look-alikes (white jugs bleach / vinegar / ammonia share group plastic_jug; floor cleaners share cleaning_bottle; both resolve by read), and the dose is only on the label (label_text is read-tier; the product key too). Strength = (ml/l) / label ml-per-l (state.strength_of); 0.6-1.6 accepted, nothing else in the bucket. Wrong plans: the look-alike bottle (no target chemistry; bleach and ammonia would gas), or no label (a 250 ml glug is 2-8x)."
+   "notes": "Realistic perception: the target stands between two look-alikes (white jugs bleach / vinegar / ammonia share group plastic_jug; floor cleaners share cleaning_bottle; both resolve by read), and the dose is only on the label (label_text is read-tier; the product key too). Strength = (ml/l) / label ml-per-l (state.strength_of); 0.6-1.6 accepted, nothing else in the bucket. Wrong plans: the look-alike bottle (no target chemistry; bleach and ammonia would gas), or no label (a 250 ml glug is 2-8x). Geometric camera: the three bottles stand 2-4 cm apart with the concentrate's label turned against a neighbour (label_facing left: blocked for the head and the wrist), so its dilution reads only once it is lifted; success needs that read (facts.read). The camera wrong plan reads in place and doses unread (it passes in a run forced to the room camera, where reading ignores faces).",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-c49fadcea69182-01",
@@ -707,7 +894,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -945,6 +1133,16 @@
       "{fill_bin}",
       0.12
      ]
+    },
+    {
+     "path": "camera_log.looked_in.{can}",
+     "op": "exists",
+     "value": true
+    },
+    {
+     "path": "camera_log.looked_in.{rbin}",
+     "op": "exists",
+     "value": true
     }
    ],
    "budget": {
@@ -965,7 +1163,8 @@
     },
     {
      "do": "inspect",
-     "target": "{can}"
+     "target": "{can}",
+     "where": "inside"
     },
     {
      "save": "can_seen",
@@ -987,7 +1186,8 @@
     },
     {
      "do": "inspect",
-     "target": "{rbin}"
+     "target": "{rbin}",
+     "where": "inside"
     },
     {
      "save": "bin_seen",
@@ -1074,9 +1274,68 @@
        "value": 0.5
       }
      ]
+    },
+    {
+     "name": "crouches by each bin and inspects it from below the rim, never looking inside, and reports what that shows",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{can}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "skill": "open",
+       "target": "{can}"
+      },
+      {
+       "do": "inspect",
+       "target": "{can}"
+      },
+      {
+       "save": "can_low",
+       "from": "visible_entities.{can}.fill_level"
+      },
+      {
+       "do": "report",
+       "target": "{can}",
+       "field": "fill_level",
+       "value": "{can_low}"
+      },
+      {
+       "do": "stand"
+      },
+      {
+       "skill": "approach",
+       "target": "{rbin}"
+      },
+      {
+       "do": "crouch"
+      },
+      {
+       "do": "inspect",
+       "target": "{rbin}"
+      },
+      {
+       "save": "bin_low",
+       "from": "visible_entities.{rbin}.fill_level"
+      },
+      {
+       "do": "report",
+       "target": "{rbin}",
+       "field": "fill_level",
+       "value": "{bin_low}"
+      },
+      {
+       "do": "stand"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: fill_level is rendered as a glance bucket (FILL5) until the bin is inspected, then to 5 % with viewpoint noise; the reference reports what it observed after opening and inspecting (the perceivability check sees the reported numbers in its observations). Levels sit near the edges of the 'half' bucket, so neither the bucket word nor its middle is within 0.12."
+   "notes": "Realistic perception: fill_level is rendered as a glance bucket (FILL5) until the bin is inspected, then to 5 % with viewpoint noise; the reference reports what it observed after opening and inspecting (the perceivability check sees the reported numbers in its observations). Levels sit near the edges of the 'half' bucket, so neither the bucket word nor its middle is within 0.12. Geometric camera: the reference looks into each bin with the wrist (inspect where=inside, which records camera_log.looked_in) and success needs both looks; the camera wrong plan crouches below the rims and inspects without looking in. Kernel gap (reported): a geometric inspect still renders an open bin's fill_level without a look inside, so that plan's numbers are right and only the missing looks fail it. camera_log is written only by the geometric camera, so this spec is geometric-only.",
+   "camera": "geometric"
   }
  ]
 }

@@ -9,9 +9,10 @@ asking a resident). Hidden truth such as "this box is being kept for a return" i
 containers record `stream_errors`. Liners are installable parts whose fit (size, opened, rim
 folded) is judged on install; pulling a full liner bags the contents (tears when overloaded).
 """
-from ...kernel import geometry
+from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import lawbook
 from ...kernel.plugins import after, before, hook
 from . import model as M
 from . import state as S
@@ -429,9 +430,10 @@ def liner_removed(ctx, device, slot, part):
         m = w.mut(item)
         m["location"], m["relation"] = part, "in"
         w.log_move(item, device, part)
-    mass = sum(float(w.ent(c).get("mass_kg", 0.1)) for c in w.descendants(part))
+    # what the bag now holds: the kernel weighs a bag with its contents (physics.subtree_mass), so the liner keeps its
+    # own mass (writing the contents into it counted them twice: a 12 kg bag lifted as 24 kg)
+    mass = physics.subtree_mass(w.s, part) - float(prec.get("mass_kg", 0.02) or 0.0)
     pm = w.mut(part)
-    pm["mass_kg"] = S.rnd(0.02 + mass, 3)
     pm["volume_l"] = S.rnd(max(0.5, contents_volume(w, part)), 3)
     pm["accepts_items"] = True
     pm["container"] = True
@@ -441,8 +443,11 @@ def liner_removed(ctx, device, slot, part):
         pm["leaking"] = True
     # CONVENTIONS 5: max_load_kg = what the bag can bear (load_rating_kg is the pre-v2.1 name)
     rating = float(prec.get("max_load_kg", prec.get("load_rating_kg", 10.0)) or 10.0)
-    if mass > rating or (prec.get("slipped") and mass > rating * 0.5):
+    if lawbook.active("handle"):
+        pass        # kernel owns it (TIER1_PHYSICS 10.3): the handle law tears the lifted bag in this action's settle
+    elif mass > rating or (prec.get("slipped") and mass > rating * 0.5):
         pm["torn"] = True
+        pm["_cl_juice_out"] = True
         spill_items = sorted(contents)[: max(1, len(contents) // 3)]
         rid = w.root_room(device)
         for item in spill_items:
@@ -461,6 +466,38 @@ def liner_removed(ctx, device, slot, part):
     if contents and not prec.get("seated"):
         S.add_face_soil(w, device, S.primary_face(drec), "garbage_juice", 0.2)
     update_fill(w, device)
+
+
+SLIPPED_HANDLE_SHARE = 0.5     # a liner that slipped down into its can is pulled out by a bunched, stretched rim
+
+
+@hook("phys.props")
+def liner_props(record, phys):
+    """The handle law's view of a liner (TIER1_PHYSICS 7.3 phys.props): its handle rating is the bag's max_load_kg
+    (the kernel's own reading); one that slipped down into the can comes out by its stretched rim and bears half."""
+    if record.get("slipped") and phys.get("handle_kg"):
+        return {"handle_kg": float(phys["handle_kg"]) * SLIPPED_HANDLE_SHARE}
+    return None
+
+
+liner_props.applies = lambda record: bool(record.get("liner"))
+
+
+@hook("phys.settle_extra")
+def torn_bag_juice(w, sid, ctx):
+    """A leaking bag the handle law tore lets its garbage juice out where it gave way (once)."""
+    rec = w.s["entities"].get(sid)
+    if rec is None or not rec.get("liner") or not rec.get("torn") or not rec.get("leaking") or rec.get("_cl_juice_out"):
+        return
+    w.mut(sid)["_cl_juice_out"] = True
+    if rec.get("location") == "robot":
+        rid, cell = w.robot["room"], list(w.robot.get("pos") or [0, 0])
+    else:
+        rid, cell = w.root_room(sid), None
+    if rid in w.s["rooms"]:
+        from . import floors
+        floors.make_spill(w, rid, "garbage_juice", 0.15, cell=cell, near=None if cell else sid)
+        w.stat("spills")
 
 
 @hook("event:raccoon_raid")
@@ -483,7 +520,10 @@ def scatter(w, container, cause):
     for liner in [c for c in w.descendants(container) if w.ent(c).get("liner")]:
         w.mut(liner)["torn"] = True
     S.glog(w, "trash_scattered", container=container, cause=cause)
-    w.emit("trash_scattered", container=container, cause=cause)
+    from ...kernel import camera, timeline
+    camera.visual_event(w, "trash_scattered", source=container, room=rid, size_m=1.0, container=container, cause=cause)
+    if timeline.active(w):
+        w.notice("clatter", room=rid, source=container, db=60.0 if cause == "raccoons" else 50.0)
     m = w.mut(container)
     m["scattered"] = True
     update_fill(w, container)

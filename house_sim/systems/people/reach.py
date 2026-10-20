@@ -179,7 +179,13 @@ def comfort(state, pid, w=None):
             "temp_c": round(temp, 1)}
 
 
-@system("people.reach", order=115, max_dt=30.0)
+def reach_idle(w):
+    """Exact idle probe (kernel v3.1): nobody at home has reach or comfort tracked."""
+    return not any((p.get("track_reach") or p.get("track_comfort")) and C.present(p)
+                   for p in w.s.get("people", {}).values())
+
+
+@system("people.reach", order=115, max_dt=30.0, idle=reach_idle)
 def reach_system(w, dt, tick):
     """Derived reach/comfort fields for tracked people, recomputed only when something new was touched this step (or
     every 60 s of a long wait): see common.needs_refresh."""

@@ -5,6 +5,15 @@ stack geometry) and P-approx (lumped models for grip friction/crush, drop impact
 liquid slosh, floor abrasion, stack load and tipping). Nothing here is a boolean
 shortcut: every outcome is derived from masses, sizes, materials, forces and speeds.
 
+Tier-1 adoption (docs/design/TIER1_PHYSICS.md 10.3, TIER1_INTEGRATION.md 6): the physical consequences are the
+kernel's. Breaking, falling, spilling, impacts, padding, slosh, carried-load toppling, floor scratches, friction,
+masses and crush limits are thin wrappers over kernel/phys (props, impact, liquids, statics, forces, support), so a
+glass dropped by a manipulation verb breaks exactly as one knocked off a shelf by a physics law. Where a kernel law
+duplicates one of this domain's own rules (crush, stack, edge, slope, carry, wind, hang, handle, contact_heat,
+wet_contact, open_spill, furniture_tip, setdown), the domain's copy runs only while the law is deferred
+(``kernel_owns(law)`` false) and steps aside once it is active. Robot capabilities (lift capacity, push, pull, wrist
+torque, grip force, precision, gripper friction) come from the body (kernel/body.py), never from local constants.
+
 Coordinate conventions
 ----------------------
 * Room frame: x = column direction (east), y = row direction (south, down the grid),
@@ -18,16 +27,30 @@ Coordinate conventions
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body as kbody, geometry
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import forces as kforces, impact as kimpact, lawbook, liquids as kliquids, props as kprops
+from ...kernel.phys import statics as kstatics, support as ksupport
 
 G = 9.81
 CELL = geometry.CELL
 SECTION = "manipulation"
-HAND_HEIGHT_M = 1.0
+HAND_HEIGHT_M = 1.0          # the legacy carry hand height; drops now use body.hand_drop_m (the profile's carry block)
+
+
+def kernel_owns(law):
+    """True while the kernel applies a physics law itself (laws.json state, or lawbook.forced in tests): this
+    domain's own copy of that rule then steps aside (TIER1_PHYSICS 10.3 step 2)."""
+    return lawbook.active(law)
+
 
 # ----------------------------------------------------------------------------------
 # materials
+#
+# The tables below are the rows the tier-1 kernel tables were copied from (tests/test_physics_data.py checks they
+# stay equal: materials.json mu and surface-state factors, floors.json hardness, scratch and friction, the feet
+# kinds). The domain reads the kernel through the wrappers further down; FRAGILE_DEFAULTS keeps only its grip column
+# (the squeeze force a two-point grasp crushes at), which the kernel does not model.
 
 FRAGILE_DEFAULTS = {   # material -> (drop_tolerance_m onto a hard floor, crush_force_n, crush_kg load on top)
     "glass": (0.10, 40.0, 3.0), "crystal": (0.05, 25.0, 1.5), "porcelain": (0.12, 60.0, 6.0),
@@ -60,10 +83,53 @@ FOOT_SCRATCH = {"metal": 1.0, "steel": 1.0, "cast_iron": 1.0, "stone": 1.0, "gla
                 "rubber": 0.15, "fabric": 0.1, "foam": 0.05, "felt": 0.0, "slider": 0.0, "caster": 0.0}
 FLOOR_FRICTION = {"hardwood": 0.3, "laminate": 0.3, "vinyl": 0.35, "tile": 0.35, "stone": 0.4, "concrete": 0.55,
                   "carpet": 0.6, "rubber": 0.8, "grass": 0.7, "soil": 0.7, "wood": 0.35, "plywood": 0.4}
-SPEED_FACTOR = {"careful": 0.5, "normal": 1.0, "fast": 1.7}
-ROBOT_PUSH_N = 220.0          # sustained horizontal force a humanoid can apply safely
-ROBOT_WRIST_TORQUE_NM = 6.0   # torque available for twisting caps and screw parts
+SPEED_FACTOR = kliquids.SPEED_FACTOR     # gait factor by effective speed (the kernel's carry table: 0.5 / 1.0 / 1.7)
 SEATED_HEIGHT_M = 0.45
+
+
+def push_limit_n(w):
+    """Sustained horizontal push the robot can apply (body profile push_n: 220 N for humanoid_v1)."""
+    return kbody.limit(w.s, "push_n")
+
+
+def pull_limit_n(w):
+    """Sustained pull while backing up (body profile pull_n: 180 N for humanoid_v1)."""
+    return kbody.limit(w.s, "pull_n")
+
+
+def wrist_limit_nm(w):
+    """Wrist torque for twisting caps and screw parts (body profile wrist_nm: 6 N m for humanoid_v1)."""
+    return kbody.limit(w.s, "wrist_nm")
+
+
+def grip_hand(w, eid=None):
+    """The hand a grip on eid uses: the hand holding it (the stronger working one when both do), else the first free
+    working hand (Ctx.free_hand's order: right, then left), else "right"."""
+    hands = w.robot.get("hands") or {}
+    holding = [h for h in ("right", "left") if eid is not None and hands.get(h) == eid]
+    pool = holding or [h for h in ("right", "left") if hands.get(h) is None and kbody.arm_health(w.s, h) > 0] or ["right"]
+    return max(pool, key=lambda h: (kbody.arm_health(w.s, h), h == "right"))
+
+
+def clamp_force(w, wanted, limit, what):
+    """(force applied, note or None): a commanded force above a body limit is clamped to it (TIER1_INTEGRATION 6
+    manipulation: force parameters clamped with a note)."""
+    wanted = num(wanted)
+    if wanted > limit + 1e-9:
+        return limit, "{} limited to what the robot can apply".format(what)
+    return wanted, None
+
+
+def commanded_force(ctx, key="force_n", default=30.0, limit="push_n"):
+    """The force a command asks for (its force_n), clamped to the body (body.limit push_n for pressing and pulling;
+    limit="grip": the hand's power grip force, body.grip_limit_n), with a note when the robot cannot apply it all."""
+    w = ctx.w
+    wanted = num(ctx.args.get(key), default) if ctx.args.get(key) is not None else default
+    cap = kbody.grip_limit_n(w.s, grip_hand(w), "power") if limit == "grip" else kbody.limit(w.s, limit)
+    force, note = clamp_force(w, wanted, cap, "Force")
+    if note:
+        ctx.note(note)
+    return force
 
 
 # ----------------------------------------------------------------------------------
@@ -122,11 +188,9 @@ def is_kind(rec, *names):
 
 
 def subtree_mass(w, eid):
-    total = 0.0
-    for item in [eid] + w.descendants(eid):
-        record = w.ent(item)
-        total += num(record.get("mass_kg", 0.0)) + num(record.get("liquid_l", 0.0)) * num(record.get("liquid_density", 1.0), 1.0)
-    return total
+    """Mass of eid and everything on or in it, liquids at their density: the kernel's one subtree mass
+    (phys.support.subtree_mass, TIER1_INTEGRATION 1.5)."""
+    return ksupport.subtree_mass(w.s, eid)
 
 
 def room_of(w, eid):
@@ -147,8 +211,15 @@ def floor_material(w, rid):
 
 
 def robot_speed(ctx):
+    """The speed the robot really moves at (TIER1_INTEGRATION 1.7): body.effective_speed of the command's speed, else
+    the robot's speed mode (quiet mode turns fast into normal; limp mode or weak legs force careful)."""
     speed = ctx.args.get("speed") if isinstance(ctx.args.get("speed"), str) else None
-    return speed or ctx.w.robot.get("speed_mode", "normal")
+    return effective_speed(ctx.w, speed)
+
+
+def effective_speed(w, requested=None):
+    """body.effective_speed's mode for a requested speed (None: the robot's speed_mode)."""
+    return kimpact.effective_speed(w.s, requested or w.robot.get("speed_mode", "normal")) or "normal"
 
 
 def section(w):
@@ -205,13 +276,43 @@ def prune_watch(w):
         w.sec(SECTION)["watch"] = keep
 
 
+# Domain occurrences a camera can watch happen (TIER1_INTEGRATION 6, camera: visual occurrences through
+# camera.visual_event): in geometric mode the head camera's current pose witnesses them (robot.view.events,
+# camera_log.events and, when seen, a "visual" notice); in room mode nothing but the event log entry is written.
+# Falls, breaks, tips, tears and spills are kernel consequences and are witnessed by phys/observe.py already.
+VISUAL_KINDS = frozenset(("falling", "rolling", "runaway", "slid_off", "stack_toppled", "prop_failed", "case_swung_open",
+                          "closure_failed", "handle_tore", "box_bottom_failed", "rack_tipped", "rug_rippled", "blown_away",
+                          "recipient_dropped", "hit_person", "struck_person", "contact", "collision", "partner_strained",
+                          "partner_yanked", "chains_tangled", "papers_scattered"))
+# Domain sounds posted as notices (TIER1_SWEEP 6.1): the clink of hard ware set down or carried in a stack, tape or
+# paper ripping, a pushed load banging into something. Levels are dB(A) at 1 m.
+NOTICE_KINDS = {"clink": ("hard dishes or glass clink together or on a hard surface", 50.0),
+                "rip": ("tape, paper or fabric rips", 55.0),
+                "bang": ("something being moved bangs into furniture or a wall", 65.0)}
+SOUND_NOTICE = {"set_down": "clink", "clink": "clink", "tape": "rip", "rip": "rip", "collision": "bang"}
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind, (doc, db) in sorted(NOTICE_KINDS.items()):
+        timeline.register_notice_kind(kind, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
+
+
 def note_event(w, kind, eid=None, room=None, **data):
     data.pop("kind", None)
     entry = {"room": room or (room_of(w, eid) if eid and eid in w.s["entities"] else w.robot.get("room"))}
     if eid:
         entry["target"] = eid
     entry.update(data)
-    return w.emit("manip." + kind, **entry)
+    logged = w.emit("manip." + kind, **entry)
+    if kind in VISUAL_KINDS:
+        from ...kernel import camera
+        camera.visual_event(w, "manip." + kind, source=eid if eid in w.s["entities"] else None, room=entry["room"],
+                            emit=False)
+    return logged
 
 
 def add_noise(w, amount):
@@ -239,6 +340,10 @@ def sound_db(w, eid, db, source_kind, room=None, stat=0.0):
         noise["peak_db"] = db
     add_noise(w, stat)
     note_event(w, "noise", eid, room=room, db=db, source_kind=source_kind)
+    kind = SOUND_NOTICE.get(source_kind)
+    if kind is not None:
+        # a perceivable sound (TIER1_SWEEP 6.1): the timeline decides whether the robot hears it from where it is
+        w.notice(kind, room=room, db=db, source=eid if eid in w.s["entities"] else None)
 
 
 # ----------------------------------------------------------------------------------
@@ -370,59 +475,57 @@ def is_fragile(rec):
     return bool(rec.get("fragile")) or "fragile" in (rec.get("hazards") or [])
 
 
-def fragile_params(rec):
-    defaults = FRAGILE_DEFAULTS.get(material(rec), DEFAULT_FRAGILE)
-    return (num(rec.get("drop_tolerance_m"), defaults[0]) if rec.get("drop_tolerance_m") is not None else defaults[0],
-            num(rec.get("crush_force_n"), defaults[1]) if rec.get("crush_force_n") is not None else defaults[1],
-            num(rec.get("crush_kg"), defaults[2]) if rec.get("crush_kg") is not None else
-            num(rec.get("max_load_kg"), defaults[2]) if rec.get("max_load_kg") is not None else defaults[2])
+def phys(w, eid):
+    """The kernel's physical properties of an entity (phys.props: record, rows, material class, per-instance
+    variation)."""
+    return kprops.props(w.s, eid)
 
 
-def drop_tolerance(rec):
-    """Height (m) the object survives onto a hard floor; None means it does not break."""
-    if rec.get("drop_tolerance_m") is not None:
-        return num(rec["drop_tolerance_m"], 1.0)
-    if is_fragile(rec):
-        return fragile_params(rec)[0]
-    return None
+def drop_tolerance(w, eid):
+    """Height (m) eid survives dropped onto a hard (tile) floor, the kernel's per-instance value; None when it never
+    breaks or chips."""
+    p = phys(w, eid)
+    if kimpact.break_mode(p) is None:
+        return None
+    return ksupport.finite(p.drop_tol_m)
 
 
-def crush_force(rec):
+def crush_force(w_or_rec, eid=None):
+    """Squeeze force (N) at which a two-point grasp crushes or cracks the item, None when grip force cannot hurt it.
+    This is grasp mechanics, which the kernel does not model: the record's crush_force_n, else for a fragile item the
+    grip column of FRAGILE_DEFAULTS by its kernel material class (glass 40 N, crystal 25 N, porcelain 60 N, eggshell
+    25 N...). Accepts (w, eid) or a record."""
+    rec = w_or_rec.ent(eid) if eid is not None else w_or_rec
     if rec.get("crush_force_n") is not None:
         return num(rec["crush_force_n"], 1e9)
-    if is_fragile(rec):
-        return fragile_params(rec)[1]
-    return None
-
-
-def max_load(rec):
-    """Load (kg) an item can bear on top of it before it is crushed (None = unlimited).
-
-    Conventions: `crush_kg` is the crush limit and wins; `max_load_kg` (the load a surface, shelf,
-    box or container can bear) is the fallback, then the material defaults for fragile/crushable items."""
-    if rec.get("crush_kg") is not None:
-        base = num(rec["crush_kg"], 1e9)
-    elif rec.get("max_load_kg") is not None:
-        base = num(rec["max_load_kg"], 1e9)
-    elif is_fragile(rec) or rec.get("crushable"):
-        base = fragile_params(rec)[2]
-    else:
+    if not is_fragile(rec):
         return None
-    wrapped = rec.get("wrapped") or {}
-    if wrapped.get("coverage", 0) >= 0.99:
-        base *= 1.0 + min(1.5, num(wrapped.get("padding_mm")) / 10.0)
-    if rec.get("in_divider") or rec.get("pack_orientation") == "on_edge" and is_kind(rec, "plate", "dish", "platter"):
-        base *= 3.0
-    return base
+    cls = kprops.material_class(None, rec)
+    return (FRAGILE_DEFAULTS.get(cls) or FRAGILE_DEFAULTS.get(material(rec)) or DEFAULT_FRAGILE)[1]
+
+
+def crush_limit(w, eid):
+    """Load (kg) eid bears on top before it is crushed, None when nothing on it can crush it: the kernel's crush
+    limit (phys.statics.crush_limit_kg: crush_kg, else a box's max_load_kg, else its material; x(1 + padding) for a
+    full wrap, x3 for plates on edge or in dividers, x5 under a stack of its own kind, wet cardboard 0.4)."""
+    return kstatics.crush_limit_kg(w.s, eid)
 
 
 def friction(rec):
-    mu = num(rec.get("friction_mu"), FRICTION.get(material(rec), 0.5)) if rec.get("friction_mu") is not None else FRICTION.get(material(rec), 0.5)
-    state = rec.get("surface_state")
-    if state is None:
-        wet = num(rec.get("wetness"))
-        state = "wet" if wet >= 0.3 else "damp" if wet >= 0.1 else "dry"
-    return max(0.02, mu * SURFACE_STATE_MU.get(state, 1.0))
+    """Sliding friction of an item on a finished reference surface, wet or soapy states included: the kernel's
+    (phys.forces.friction; record friction_mu wins)."""
+    return kforces.friction(rec)
+
+
+REF_PAD_MU = 0.8     # the humanoid hand's pad friction (profiles.json grippers.hand.mu): the GRIP_MODES caps' calibration
+
+
+def grasp_mu(w, eid, hand=None):
+    """Friction of the robot's grasp on eid: the item's surface friction scaled by the hand's grasp friction against a
+    clean, healthy humanoid hand (body.grip_mu: the pads' mu, lowered by slippery soil on the fingers and by a
+    gripper_slip fault; a parallel gripper's pads grip less than a hand's)."""
+    hand = hand if hand in ("left", "right") else grip_hand(w, eid)
+    return max(0.02, friction(w.ent(eid)) * kbody.grip_mu(w.s, hand) / REF_PAD_MU)
 
 
 def supportable_from_below(rec):
@@ -430,18 +533,25 @@ def supportable_from_below(rec):
     return min(w, d) <= 0.45 and rec.get("supportable", True)
 
 
+PINCH_GRIPS = ("pinch", "edges")
+
+
 def grip_outcome(w, eid, grip, hands):
     """Grip physics for lifting eid with a grip mode.
 
     Returns dict(slip, crush, applied_n, required_n, damage_part). The required squeeze force
-    follows F = m g s / (n mu) (friction grasp with n effective contacts); support grips
-    (handle / from below / two hands under the base) do not rely on friction.
+    follows F = m g s / (n mu) (friction grasp with n effective contacts; mu the grasp friction, grasp_mu); support
+    grips (handle / from below / two hands under the base) do not rely on friction. A grip mode's force is a commanded
+    level clamped to the hand's hardware limit (body.grip_limit_n: power 150 N, pinch 30 N for a humanoid hand).
     """
     rec = w.ent(eid)
-    grip = grip or ("two_hand" if hands == 2 and rec.get("two_handed") and not rec.get("has_handle") else "normal")
+    # no grip named: both hands cradle it from below (the "two_hand" grip the pick_up hook records as held_grip),
+    # one hand squeezes it ("normal")
+    grip = grip or ("two_hand" if hands == 2 else "normal")
     cap, adaptive, contacts, support = GRIP_MODES.get(grip, GRIP_MODES["normal"])
     mass = subtree_mass(w, eid)
-    mu = friction(rec)
+    hand = grip_hand(w, eid)
+    mu = grasp_mu(w, eid, hand)
     supported = False
     if support == "handle":
         supported = bool(rec.get("has_handle") or rec.get("handles") or rec.get("handle_rating_kg") is not None)
@@ -450,6 +560,7 @@ def grip_outcome(w, eid, grip, hands):
     if hands == 2 and grip not in ("pinch", "gentle"):
         contacts = max(contacts, 8)
         cap = max(cap, 60.0)
+    cap = min(cap, kbody.grip_limit_n(w.s, hand, "pinch" if grip in PINCH_GRIPS else "power"))
     required = 0.0 if supported else mass * G * GRIP_SAFETY / (contacts * mu)
     if adaptive:
         applied = min(cap, max(2.0, required * 1.3))
@@ -515,14 +626,14 @@ def mark_damage(w, eid, kind, detail="", stat=True, broken=None, severity=None):
 
 
 BRITTLE = ("glass", "crystal", "ceramic", "porcelain", "terracotta", "stoneware")    # break into sharp pieces
-SEE_THROUGH_WRAPS = ("bubble_wrap", "plastic_wrap", "stretch_wrap", "cling_film", "cellophane")
-SHARD_GEAR = ("cut_resistant_gloves", "rubber_gloves")     # what makes handling broken pieces safe (as safety's shards)
+SEE_THROUGH_WRAPS = kimpact.SEE_THROUGH_WRAPS
+SHARD_GEAR = kimpact.SHARD_GEAR            # what makes handling broken pieces safe (as safety's shards)
 
 
 def break_shows(rec):
     """Whether the break of a brittle item shows on it at a glance: its pieces are in view unless a full opaque wrap
-    (paper, cloth, foil, a blanket) or its factory packaging hides them. A closed opaque box hides the whole item,
-    which kernel visibility handles already: the pieces show once the box is open."""
+    (paper, cloth, foil, a blanket) or its factory packaging hides them (the kernel's rule, phys.impact). A closed
+    opaque box hides the whole item, which kernel visibility handles already: the pieces show once the box is open."""
     wrapped = rec.get("wrapped")
     if isinstance(wrapped, dict):
         if num(wrapped.get("coverage")) >= 0.95 and wrapped.get("material") not in SEE_THROUGH_WRAPS:
@@ -533,11 +644,18 @@ def break_shows(rec):
 
 
 def show_break(w, eid):
-    """The glance-visible cue of a brittle break: `smashed` (kernel glance tier; core.hazards_known then counts the
-    item's own sharp hazard as perceived). `shattered` is left to the safety domain, which sets it when it turns a
-    broken glass item into a shard field and skips anything already marked."""
-    if not w.ent(eid).get("smashed"):
-        w.mut(eid)["smashed"] = True
+    """The glance-visible cue of a brittle break: the kernel's `shattered` (phys.impact.break_entity writes it when the
+    break shows; core.hazards_known then counts the item's own sharp hazard as perceived)."""
+    if not w.ent(eid).get("shattered"):
+        w.mut(eid)["shattered"] = True
+
+
+def note_hidden_break(w, eid):
+    """A shattering break an opaque wrap or the packaging hides is remembered (state.manipulation.unseen_breaks) until
+    that comes off (reveal_breaks, run by the manipulation.breaks system)."""
+    ids = section(w).get("unseen_breaks") or ()
+    if eid not in ids:
+        w.sec(SECTION)["unseen_breaks"] = sorted(set(ids) | {eid})
 
 
 def reveal_breaks(w):
@@ -557,100 +675,47 @@ def reveal_breaks(w):
         w.sec(SECTION)["unseen_breaks"] = keep
 
 
-def break_item(w, eid, cause):
-    """An object breaks: broken flag, damage + breakage stats, contents released, shards hazard. A brittle item's
-    break shows at a glance (`smashed`) unless an opaque wrap or its packaging hides it, in which case it shows once
-    that comes off (reveal_breaks): the robot then perceives the sharp hazard (and refusals follow it) instead of
-    being exposed to a hazard it could not see."""
+def break_item(w, eid, cause, by=None):
+    """An object breaks: the kernel's break (phys.impact.break_entity: broken, damage.broken, its liquid run down to
+    the floor, a shattering item `shattered` unless a wrap or its packaging hides it, glass and ceramics sharp, the
+    phys.broke hooks, the breakage counted when the robot caused it). A hidden break shows once unwrapped
+    (the phys.broke hook in world.py remembers it). Returns True when it broke now."""
     rec = w.ent(eid)
     if rec.get("broken"):
         return False
-    m = w.mut(eid)
-    m["broken"] = True
-    m["condition"] = "broken"
-    if material(rec) in BRITTLE:
-        hazards = list(m.get("hazards") or [])
-        if "sharp" not in hazards:
-            hazards.append("sharp")
-        m["hazards"] = hazards
-        gear = list(m.get("handled_with") or [])
-        m["handled_with"] = gear + [g for g in SHARD_GEAR if g not in gear]
-        if m.get("location") in w.s["rooms"]:
-            m["floor_hazard"] = "sharp"
-        if break_shows(m):
-            show_break(w, eid)
-        else:
-            ids = section(w).get("unseen_breaks") or ()
-            if eid not in ids:
-                w.sec(SECTION)["unseen_breaks"] = sorted(set(ids) | {eid})
-    w.stat("breakages")
-    w.stat("damage")
-    note_event(w, "break", eid, cause=cause)
-    add_noise(w, 0.4)
-    if num(rec.get("liquid_l")) > 0 and rec.get("location") in w.s["rooms"]:
-        spill_liquid(w, eid, num(rec.get("liquid_l")), rec["location"], rec.get("pos"))
-    return True
+    broke = kimpact.break_entity(w, eid, cause, by=by)
+    if broke:
+        add_noise(w, 0.4)
+    return broke
 
 
-def make_spill(w, rid, cell, liquid, liters):
-    """Liquid on the floor: a spill entity (cleaning owns the 'spill' type after integration)."""
-    if liters <= 0.0005:
-        return None
-    type_name = "spill" if w.reg is not None and w.reg.known("spill") else "generic_item"
-    if cell:
-        cell = list(cell)
-    elif rid == w.robot["room"] and w.robot.get("pos"):
+def make_spill(w, rid, cell, liquid, liters, source=None, by=None):
+    """Liquid on the floor of rid at cell (default the robot's cell when it is there): the kernel spill
+    (phys.liquids.spill: below 5 ml droplets and nothing else; a phys.spill_sink entity, cleaning's, else a kernel
+    puddle of area V / film thickness that joins the room's wet cells). Returns the spill's id or None."""
+    if cell is None and rid == w.robot.get("room") and w.robot.get("pos"):
         cell = list(w.robot["pos"])
-    else:
-        cell = geometry.free_floor_cell(w.s, rid, clearance=False, reachable=False) or [0, 0]
-    # a puddle spreads to ~1.5 mm on hard floors (2.5 mm for oils, 3 mm soaking into carpet): area = V / t,
-    # the same law cleaning uses for its own spills (0.2 L -> 0.13 m2; a 5 ml slosh -> a 6 cm splash)
-    carpet = floor_material(w, rid) in ("carpet", "wool_carpet", "rug") or bool(rug_at(w, rid, cell))
-    thickness_mm = 3.0 if carpet else 2.5 if liquid in ("oil", "cooking_oil", "motor_oil", "paint", "syrup") else 1.5
-    area = max(0.0025, liters / thickness_mm)
-    side = round(min(3.0, math.sqrt(area)), 3)
-    props = {"label": "spilled " + str(liquid or "liquid"), "category": "spill", "portable": False, "liquid": liquid or "water",
-             "liquid_l": round(liters, 4), "volume_l": round(liters, 4), "spill_l": round(liters, 4), "area_m2": round(area, 4),
-             "floor_hazard": "slip" if liquid in ("oil", "cooking_oil", "motor_oil") else "wet", "pos": cell, "relation": "on",
-             "size_m": [max(0.05, side), max(0.05, side), 0.002], "mass_kg": 0.0, "wetness": 1.0, "blocks_path": False}
-    if carpet:
-        props["on_carpet"] = True
-    if liquid not in (None, "water"):
-        residue = {"sticky": 0.4} if liquid in ("juice", "soda", "syrup", "milk", "soup", "dressing", "tea", "coffee") else {"stain_food": 0.3}
-        if liquid in ("tea", "coffee"):
-            residue = {"stain_coffee": 0.5, "sticky": 0.1}
-        props["soil"] = dict(residue)
-        props["residue"] = dict(residue)
-    sid = w.spawn(type_name, rid, **props)
-    w.stat("spills")
-    w.stat("manip_spills")
-    note_event(w, "spill", sid, room=rid, liquid=liquid, liters=round(liters, 4))
-    return sid
+    at = (rid, list(cell)) if cell is not None else rid
+    return kliquids.spill(w, liters, liquid or "water", at=at, source=source, by=by)
 
 
-def spill_liquid(w, eid, liters, rid=None, cell=None, onto_surface=None):
+def spill_liquid(w, eid, liters, rid=None, cell=None, onto_surface=None, by=None):
+    """liters of eid's liquid leave it: onto a surface (it and the supports under it catch what they can, the rest runs
+    to the floor) or onto the floor of rid at cell (phys.liquids.spill). Returns the litres that left."""
     rec = w.ent(eid)
-    have = num(rec.get("liquid_l"))
-    liters = max(0.0, min(have, liters))
+    have = kliquids.free_liquid_l(rec)
+    liters = max(0.0, min(have, num(liters)))
     if liters <= 0:
         return 0.0
-    m = w.mut(eid)
-    m["liquid_l"] = round(have - liters, 4)
-    liquid = rec.get("liquid", "water")
+    w.mut(eid)["liquid_l"] = round(num(rec.get("liquid_l")) - liters, 4)
+    liquid = rec.get("liquid") or "water"
     if onto_surface and onto_surface in w.s["entities"]:
-        surface = w.mut(onto_surface)
-        surface["wetness"] = round(min(1.0, num(surface.get("wetness")) + 0.3), 3)
-        if liquid not in (None, "water"):
-            soil = dict(surface.get("soil") or {}) if isinstance(surface.get("soil"), dict) else {}
-            key = "sticky" if liquid in ("juice", "soda", "syrup", "milk", "soup", "dressing") else "stain_food"
-            soil[key] = round(min(1.0, num(soil.get(key)) + 0.3), 3)
-            surface["soil"] = soil
-        w.stat("spills")
-        w.stat("manip_spills")
-        note_event(w, "spill", onto_surface, liquid=liquid, liters=round(liters, 4))
+        kliquids.spill(w, liters, liquid, onto=onto_surface, source=eid, by=by)
     else:
         rid = rid or room_of(w, eid) or w.robot["room"]
-        make_spill(w, rid, cell, liquid, liters)
+        if cell is None and rid == w.robot.get("room") and w.robot.get("pos"):
+            cell = list(w.robot["pos"])
+        kliquids.spill(w, liters, liquid, at=(rid, list(cell)) if cell is not None else rid, source=eid, by=by)
     return liters
 
 
@@ -660,7 +725,17 @@ def landing_cell(w, rid, near=None):
     return cell or list(near or (0, 0))
 
 
+def mark_floor_hazard(w, eid):
+    """A loose toy, ball or game piece left on a floor is a trip hazard (a broken brittle item already got the kernel's
+    sharp floor hazard)."""
+    rec = w.ent(eid)
+    if rec.get("location") in w.s["rooms"] and not rec.get("ground_layer") and not rec.get("floor_hazard") and \
+            is_kind(rec, "toy", "ball", "game_piece", "small_parts"):
+        w.mut(eid)["floor_hazard"] = "trip"
+
+
 def move_to_floor(w, eid, rid, cell=None):
+    """Put eid down on the floor of rid without a fall (a cover the wind took, a scenario relocation)."""
     m = w.mut(eid)
     for key in ("spos", "shelf", "held_hand", "xy_m", "pack_seq", "pack_z_m", "pack_on"):
         m.pop(key, None)
@@ -668,72 +743,45 @@ def move_to_floor(w, eid, rid, cell=None):
     m["pos"] = list(cell) if cell else landing_cell(w, rid)
     if m.get("broken") and material(m) in BRITTLE:
         m["floor_hazard"] = "sharp"
-    elif not m.get("ground_layer") and is_kind(m, "toy", "ball", "game_piece", "small_parts"):
-        m.setdefault("floor_hazard", "trip")
+    mark_floor_hazard(w, eid)
 
 
-def impact(w, eid, height_m, hardness=1.0, cause="drop"):
-    """Apply a fall of height_m onto a surface of the given hardness. Returns True if it broke."""
+def impact(w, eid, height_m, hardness=1.0, cause="drop", by=None):
+    """An impact where eid is, equal to a drop of height_m onto a surface of the given hardness (its own padding
+    applied): the kernel's impact (phys.impact.impact: it breaks, chips or bruises above its per-instance drop
+    tolerance). A fall that moves the item is drop_item. Returns True if it broke."""
     rec = w.ent(eid)
     add_noise(w, min(0.8, num(rec.get("mass_kg"), 0.3) * G * max(0.0, height_m) / 25.0))
-    broke = False
-    tol = drop_tolerance(rec)
-    if tol is not None and height_m > 0:
-        tol_eff = tol * padding_factor(rec)
-        if height_m * hardness > tol_eff + 1e-9:
-            broke = break_item(w, eid, cause)
-    # open liquid containers empty themselves when they fall
-    if num(rec.get("liquid_l")) > 0 and not container_closed(rec):
-        rid = room_of(w, eid)
-        spill_liquid(w, eid, num(rec.get("liquid_l")), rid, rec.get("pos"))
-    # contents of an open, falling container scatter (fragile ones may break)
-    if rec.get("container") and not container_closed(rec) and height_m > 0.2:
-        rid = room_of(w, eid)
-        for child in w.children(eid):
-            crec = w.ent(child)
-            if crec.get("relation") in ("in", "on") and not crec.get("fixed_in_place"):
-                move_to_floor(w, child, rid, landing_cell(w, rid, rec.get("pos")))
-                impact(w, child, min(height_m, 0.6), hardness, cause="contents_fell")
-                note_event(w, "scatter", child, room=rid)
-    return broke
+    h_eff = max(0.0, num(height_m)) * num(hardness, 1.0) / padding_factor(rec)
+    return kimpact.impact(w, eid, h_eff, cause, by=by)
 
 
 def padding_mm(rec):
-    """Effective cushioning thickness around an object (full wraps only; hollows must be stuffed)."""
-    wrapped = rec.get("wrapped") or {}
-    padding = num(wrapped.get("padding_mm")) if num(wrapped.get("coverage")) >= 0.95 else 0.0
-    if rec.get("hollow") and not wrapped.get("stuffed"):
-        padding *= 0.5
-    if rec.get("in_divider"):
-        padding += 6.0
-    return padding
+    """Effective cushioning thickness around an object (full wraps only; hollows must be stuffed; +6 mm in a cell
+    divider): the kernel's phys.statics.padding_mm."""
+    return kstatics.padding_mm(rec)
 
 
 def padding_factor(rec):
-    """Cushioning lengthens the stopping distance: the survivable drop scales with (1 + t / 3 mm)."""
-    return 1.0 + padding_mm(rec) / 3.0
+    """Cushioning lengthens the stopping distance: the survivable drop scales with (1 + t / 3 mm)
+    (phys.statics.padding_factor)."""
+    return kstatics.padding_factor(rec)
 
 
-def drop_item(w, eid, height_m, rid=None, cell=None, cause="drop"):
-    """Release an item so it falls to the floor of rid (default: robot's room)."""
-    from ..core import release_from_hands
+def drop_item(w, eid, height_m, rid=None, cell=None, cause="drop", by=None):
+    """eid falls height_m to the floor of rid (default: its room, else the robot's), landing at or next to cell: the
+    kernel's fall (phys.impact.fall: out of the hands, a free floor cell, the landing's hardness and cushion and the
+    item's padding, breakage, floor dents, an open container's liquid and contents, phys.fall and the phys.fell
+    hooks; attributed to the robot in its action or when it arranged the item). Returns True if it broke."""
     rid = rid or room_of(w, eid) or w.robot["room"]
-    release_from_hands(w, eid)
-    before = w.ent(eid).get("location")
-    move_to_floor(w, eid, rid, cell or landing_cell(w, rid))
-    hardness = FLOOR_HARDNESS.get(floor_material(w, rid), 0.9)
-    rug = rug_at(w, rid, w.ent(eid).get("pos"))
-    if rug:
-        hardness = min(hardness, FLOOR_HARDNESS["rug"])
-    note_event(w, "drop", eid, room=rid, height_m=round(height_m, 2), cause=cause)
-    w.log_move(eid, before, rid, by="gravity")
-    broke = impact(w, eid, height_m, hardness, cause)
-    mass = subtree_mass(w, eid)
-    if mass >= 3.0 and height_m >= 0.3 and not rug and FLOOR_SCRATCH.get(floor_material(w, rid), 0) >= 0.2:
-        fid = floor_id(w, rid)
-        if fid:
-            mark_damage(w, fid, "dent", "{} dropped from {:.1f} m".format(eid, height_m))
-    return broke
+    if rid not in w.s["rooms"]:
+        rid = w.robot["room"]
+    add_noise(w, min(0.8, num(w.ent(eid).get("mass_kg"), 0.3) * G * max(0.0, num(height_m)) / 25.0))
+    info = kimpact.fall(w, eid, height_m=max(0.0, num(height_m)), cause=cause,
+                        at=(rid, list(cell) if cell is not None else None), by=by)
+    if eid in w.s["entities"]:
+        mark_floor_hazard(w, eid)
+    return (info or {}).get("outcome") == "broke"
 
 
 def rug_at(w, rid, cell):
@@ -748,70 +796,78 @@ def rug_at(w, rid, cell):
 
 
 def container_closed(rec):
-    """True if a container's contents (liquid or loose) cannot come out."""
-    if rec.get("sealed") or rec.get("lid_on") or rec.get("covered") and rec.get("cover_sealed"):
-        return True
-    if isinstance(rec.get("trigger"), dict) or isinstance(rec.get("pump"), dict):
-        return True        # a trigger sprayer or pump head is shut unless it is worked
-    cap = rec.get("cap") or {}
-    if isinstance(cap, dict) and cap.get("on") and not cap.get("loose"):
-        return True
-    if rec.get("openable") and not rec.get("open"):
-        return True
-    zipper = rec.get("zipper") or {}
-    if isinstance(zipper, dict) and zipper and num(zipper.get("closed_frac")) >= 0.98:
-        return True
-    closure = rec.get("closure") or {}
-    if isinstance(closure, dict) and closure.get("holds"):
-        return True
-    return False
+    """True if a container's contents (liquid or loose) cannot come out (phys.liquids.container_closed, the rule this
+    domain wrote)."""
+    return kliquids.container_closed(rec)
 
 
 def liquid_headroom_m(rec):
-    cap = num(rec.get("capacity_l"))
-    if cap <= 0:
+    """Empty wall above the liquid (phys.liquids.headroom_m); 1 m for something with no capacity (it holds no liquid)."""
+    if num(rec.get("capacity_l")) <= 0:
         return 1.0
-    _, _, h = dims(rec)
-    inner_h = num((rec.get("inner_size_m") or [0, 0, h])[2], h) if rec.get("inner_size_m") else h * 0.9
-    fill = min(1.0, num(rec.get("liquid_l")) / cap)
-    return max(0.0, (1.0 - fill) * inner_h)
+    return kliquids.headroom_m(rec)
 
 
 def slosh_spill_l(rec, motion):
-    """Liters spilled from an open liquid container for a motion factor (P-approx slosh model).
-
-    Slosh amplitude grows with acceleration (motion factor) and the free-surface diameter;
-    liquid above the rim leaves the container.
-    """
-    liters = num(rec.get("liquid_l"))
-    cap = num(rec.get("capacity_l"))
-    if liters <= 0 or cap <= 0 or container_closed(rec):
-        return 0.0
-    w, d, h = dims(rec)
-    diameter = max(0.03, min(w, d))
-    amplitude = 0.010 * motion * math.sqrt(diameter / 0.08)
-    headroom = liquid_headroom_m(rec)
-    if amplitude <= headroom:
-        return 0.0
-    area = cap * 1e-3 / max(0.02, h * 0.9)
-    return min(liters, round((amplitude - headroom) * area * 1000.0 * 0.6, 4))
+    """Liters sloshed out of an open liquid container for a motion factor: the kernel's carry model
+    (phys.liquids.slosh_spill_l, this domain's P-approx model moved to the kernel unchanged)."""
+    return kliquids.slosh_spill_l(rec, motion)
 
 
 def topple_threshold(rec):
-    """Motion factor above which an unsecured upright object on a carried tray tips over."""
-    w, d, h = dims(rec)
-    if rec.get("orientation") in ("on_side", "flat"):
-        return 99.0
-    return 2.8 * max(0.01, min(w, d)) / max(0.01, h)
+    """Motion factor above which an unsecured upright object riding on a carried load tips over
+    (phys.liquids.topple_threshold: 2.8 x min(w, d) / h)."""
+    return kliquids.topple_threshold(rec)
+
+
+def tip_spill_l(rec, orientation):
+    """Litres an open container loses lying on its side or upside down (phys.liquids.tip_spill_l: a wide mouth loses
+    everything on its side, a narrow neck keeps what lies below it; upside down everything)."""
+    return kliquids.tip_spill_l(rec, orientation)
+
+
+def tilt_spill_l(rec, deg):
+    """Litres an open container loses tilted by deg from upright (phys.liquids.tilt_spill_l: spill starts at
+    tan(a) = 2 headroom / D)."""
+    return kliquids.tilt_spill_l(rec, deg)
 
 
 def scratch_risk(floor_mat, foot_mat, mass_kg, grit=0.0):
-    floor_s = FLOOR_SCRATCH.get(floor_mat, 0.5)
-    foot_s = FOOT_SCRATCH.get(foot_mat, 0.6)
-    risk = floor_s * foot_s * min(1.0, mass_kg / 4.0)
-    if grit >= 0.2 and floor_s > 0:
+    """Floor abrasion risk of a dragged foot (the kernel's floors.json scratch columns: floor x foot x min(1, m / 4 kg),
+    plus half the floor's when grit lies under it); 0.3 or more leaves a visible scratch."""
+    floor_row = kprops.FLOORS["floors"][kprops.floor_kind(floor_mat)]
+    floor_s = num(floor_row.get("scratch"), 0.5)
+    feet = kprops.FLOORS["feet"]
+    foot_s = num((feet["kinds"].get(FOOT_KIND.get(foot_mat, foot_mat)) or {}).get("scratch"), feet["default_scratch"])
+    risk = floor_s * foot_s * min(1.0, num(mass_kg) / 4.0)
+    if grit >= kforces.GRIT_SCRATCH and floor_s > 0:
         risk += 0.5 * floor_s
     return risk
+
+
+# sliding aids and legacy foot words -> floors.json feet kinds
+FOOT_KIND = {"towel": "cotton", "blanket": "cotton", "fabric": "cotton", "metal": "steel", "slider": "slider",
+             "felt": "felt", "caster": "caster"}
+
+
+def scratch_floor(w, rid, eid, distance_m, aid_kind=None, by=None):
+    """Drag eid distance_m over the floor of rid: the kernel's floor scratch (phys.forces.scratch: risk >= 0.3 adds
+    risk x 0.1 per metre to the floor's damage.scratch and emits phys.scratch). With a sliding aid under it (a towel,
+    blanket or sliders) the aid's foot kind replaces the item's own feet. Returns the severity added."""
+    fid = floor_id(w, rid)
+    if not fid or distance_m <= 0:
+        return 0.0
+    if aid_kind is None:
+        return kforces.scratch(w, fid, eid, distance_m, by=by)
+    risk = scratch_risk(floor_material(w, rid), aid_kind, subtree_mass(w, eid), floor_grit(w, rid))
+    if risk < kforces.SCRATCH_VISIBLE_RISK:
+        return 0.0
+    severity = round(risk * kforces.SCRATCH_SEVERITY_PER_M * num(distance_m), 4)
+    level = kimpact.damage_map(w.ent(fid).get("damage")).get("scratch", 0.0) + severity
+    kimpact.damage(w, fid, "scratch", min(1.0, level), detail="{} dragged {:.1f} m on {}".format(eid, distance_m, aid_kind),
+                   by=by, event="phys.scratch", note="{} was scratched".format(fid), ids=[eid], mover=eid,
+                   distance_m=round(float(distance_m), 4), foot=aid_kind, added=severity)
+    return severity
 
 
 def floor_grit(w, rid):
@@ -890,11 +946,17 @@ def tool_of(ctx, capability, tool_id=None, consume=False):
 
 
 def free_hands(w):
-    return [h for h in ("right", "left") if w.robot.get("hands", {}).get(h) is None and w.robot.get("arms_ok", {}).get(h, True)]
+    """Free hands with a working arm (body.arm_health > 0; an arm the arms_ok mirror marks out counts as failed)."""
+    held = w.robot.get("hands") or {}
+    return [h for h in ("right", "left") if held.get(h) is None and kbody.arm_health(w.s, h) > 0]
 
 
-def take_into_hand(ctx, eid, hand=None, both=False):
-    """Move eid into the robot's free hand(s) (used by unstack/unpack/extract/untwist...)."""
+def take_into_hand(ctx, eid, hand=None, both=False, grip=None):
+    """Move eid into the robot's free hand(s) (used by unstack/unpack/extract/untwist...), through the body like core
+    pick_up (TIER1_INTEGRATION 1.5): the grasp its size allows (ctx.require_grasp: a pinch for a small item unless a
+    grip was given; too small or a power grip on a small item refused) and the derated capacity of the hands used and
+    the total carried load (ctx.check_lift: an overload is refused at lift-off, counted and felt; nothing drops).
+    Returns the hands used."""
     w = ctx.w
     hands = free_hands(w)
     if both:
@@ -907,12 +969,16 @@ def take_into_hand(ctx, eid, hand=None, both=False):
         else:
             require(hands, "No free hand; put something down first", "capability")
             use = [hands[0]]
+    grip = ctx.require_grasp(eid, use[0] if len(use) == 1 else "both", grip)
+    ctx.check_lift(eid, use, subtree_mass(w, eid))
     before = w.ent(eid).get("location")
     m = w.mut(eid)
     for key in ("spos", "pos", "shelf", "revealed", "xy_m", "pack_seq", "pack_z_m", "pack_on"):
         m.pop(key, None)
     m["location"], m["relation"] = "robot", "held"
     m["held_hand"] = "both" if len(use) == 2 else use[0]
+    if grip:
+        m["held_grip"] = grip
     robot = w.robot_m()
     for h in use:
         robot["hands"][h] = eid
@@ -921,19 +987,85 @@ def take_into_hand(ctx, eid, hand=None, both=False):
     return use
 
 
-def needs_two_hands(w, eid):
-    rec = w.ent(eid)
-    return bool(rec.get("two_handed")) or subtree_mass(w, eid) > num(w.robot.get("max_hand_kg", 8.0), 8.0) or max(dims(rec)[:2]) > 0.7
-
-
-def require_payload(w, eid):
-    require(subtree_mass(w, eid) <= num(w.robot.get("max_mass_kg", 20.0), 20.0) + 1e-9,
-            "Object and contents exceed carrying capacity; get help or use a dolly", "safety")
+def needs_two_hands(ctx, eid):
+    """Whether lifting eid takes both hands: the kernel's lift plan (phys.forces.lift_plan: heavier than one hand's
+    derated capacity, wider than 0.7 m or two_handed)."""
+    return len(ctx.lift_plan(eid)["hands"]) == 2
 
 
 def bump_room_children(w, eid):
     """Return entities resting on eid or inside it (used for cascades)."""
     return w.descendants(eid)
+
+
+# where a label stuck on a face points, as a geometric-camera face (sight 4.6: "up", "down" or degrees from the front)
+# apply_label face= -> the kernel's label_facing word (sight.LABEL_FACING: the "label" face a camera must see to read
+# label_text, TIER1_CAMERA 4.6); flips and lay-downs carry it round
+LABEL_FACE_SPEC = {"front": "front", "side": "right", "back": "back", "end": "left", "top": "top", "lid": "top",
+                   "bottom": "bottom"}
+FLIP_FACE = {"top": "bottom", "bottom": "top", "up": "down", "down": "up"}
+SIDE_FACE = {"top": "right", "up": "right", "bottom": "left", "down": "left"}
+
+
+def geometric(w):
+    """True in the geometric camera mode (robot.view exists): camera-only bookkeeping is written then and only then,
+    so room-mode states and observations stay exactly as they were."""
+    return isinstance(w.robot.get("view"), dict)
+
+
+def label_face(w, eid):
+    """The face a label on eid points at (the kernel's label_facing word), or None."""
+    return w.ent(eid).get("label_facing")
+
+
+def set_label_face(w, eid, face):
+    """Geometric camera mode: the label on eid faces `face` (label_facing: "top", "bottom", "front", ...; the camera
+    reads label_text only from that side) or the label is gone (None). Room mode: nothing is written."""
+    if not geometric(w):
+        return
+    rec = w.ent(eid)
+    if face is None:
+        if "label_facing" in rec:
+            w.mut(eid).pop("label_facing", None)
+    elif rec.get("label_facing") != face:
+        w.mut(eid)["label_facing"] = face
+
+
+def turn_label(w, eid, mapping):
+    """An orientation change carries the label's face with it (FLIP_FACE: turned over; SIDE_FACE: laid on its side)."""
+    face = label_face(w, eid)
+    if face in mapping:
+        set_label_face(w, eid, mapping[face])
+
+
+def walk_robot(ctx, cell, room=None, connection=None, extra_s=0.0):
+    """The robot walks as part of a verb (pushing a chair, wheeling a bin into the next room, following a co-carry
+    partner): the body's mobility guard (ctx.require_mobile; a stairs crossing needs a body that climbs stairs), a
+    route in the current room to `cell` -- or, crossing `connection` into `room`, to that connection's doorway cell --
+    and ctx.motion (the walk paid against the battery, the camera's motion frames, TIER1_INTEGRATION 1.4). The robot
+    ends on `cell` (in `room` after a crossing). Returns True, or False when the battery cut the walk: the robot then
+    stopped at the last cell it reached in its own room and powers down at settlement."""
+    w = ctx.w
+    state = w.s
+    here = state["robot"]["room"]
+    start = list(state["robot"].get("pos") or [0, 0])
+    stairs = connection is not None and (state["connections"].get(connection) or {}).get("kind") == "stairs"
+    ctx.require_mobile(stairs=stairs)
+    goal = list((state["connections"][connection].get("cells") or {}).get(here, cell)) if connection else list(cell)
+    if goal == start and connection is None:
+        return True
+    path = geometry.find_path(state, here, start, [tuple(goal)], hazard_filter=ctx.route_filter) if goal != start else []
+    if path is None:
+        path = [goal]               # hemmed in by what it moves: the last step is alongside the load itself
+    walked = ctx.motion(path, start, extra_s=extra_s, connection=connection)
+    robot = w.robot_m()
+    if ctx.data["motion"]["cut"] is not None:
+        robot["pos"] = list(walked[-1]) if walked else start
+        return False
+    if connection is not None:
+        robot["room"] = room
+    robot["pos"] = list(cell)
+    return True
 
 
 def person_reachable(w, pid):
@@ -1064,7 +1196,7 @@ def robj(ctx, eid, touch=False, grasp=False, reach=True):
 
 def perceived_hazards(ctx, eid):
     """The hazards the robot can tell eid has (oracle: its own). Realistic: for an identified thing, core.perceived_rule
-    (its type's hazards, or its own once known: inspected, or visibly smashed); for an unresolved look-alike, every
+    (its type's hazards, or its own once known: inspected, or visibly shattered); for an unresolved look-alike, every
     hazard any member type of its group has (the same list for every member); for a novel thing, none it can name."""
     rec = ctx.w.ent(eid)
     if not realistic(ctx):

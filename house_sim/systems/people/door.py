@@ -12,7 +12,7 @@ household.registry (enrolled faces/voices) hold what the household knows.
 import copy
 import random
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.perception import light_level
@@ -331,17 +331,27 @@ def sign_for(ctx):
     door = p.get("at_door")
     require(state["entities"][door].get("open"), "Open the door to take the package")
     inside, _ = door_rooms(state, door)
-    hand = ctx.free_hand()
-    drop = None
-    if not hand:
+    # the parcel goes into the robot's hands the way core receive takes a handed-over item (TIER1_INTEGRATION 1.5):
+    # lift_plan says which hands (two for a large or heavy box), take_hold checks the grasp and the hands' derated
+    # capacity (an overload is refused and counted, a latent weak arm found). With no usable hand, or a box beyond what
+    # the robot can carry, the courier sets it down inside the door instead.
+    plan = ctx.lift_plan(pkg) if not body.manip_problem(state) else {"ok": False, "hands": [], "reason": "arm_failed"}
+    hands, grip, drop = [], None, None
+    if plan["ok"]:
+        from ..core import take_hold
+        hands, grip = take_hold(ctx, pkg, plan, "No free hand")
+    else:
         drop = M.floor_drop_cell(state, inside, pkg, near=_outside_cell(state, door, inside))
         require(drop is not None, "No free hand and no floor space inside the door for the package", "resource")
     mm = w.mut(pkg)
     for key in ("pos", "spos", "shelf"):
         mm.pop(key, None)
-    if hand:
-        mm.update(location="robot", relation="held", held_hand=hand)
-        w.robot_m()["hands"][hand] = pkg
+    if hands:
+        mm.update(location="robot", relation="held", held_hand="both" if len(hands) == 2 else hands[0])
+        if grip:
+            mm["held_grip"] = grip
+        for hand in hands:
+            w.robot_m()["hands"][hand] = pkg
     else:
         mm.update(location=inside, relation="on", pos=drop)
     pm = w.person_m(courier)
@@ -384,16 +394,29 @@ def ev_visitor(w, args, env):
     m["at_door"] = door
     m["admitted"] = False
     m["patience_until"] = C.now_s(state) + float(args.get("patience_s", 180.0))
-    if args.get("ring", True):
+    if args.get("knock"):
+        knock_on_door(w, door, pid)         # no doorbell (or they prefer to knock): a knock notice, not a doorbell
+    elif args.get("ring", True):
         ring_doorbell(w, door, pid)
     return True
 
 
+def _doorbell_of(state, door):
+    """The doorbell wired to this door (its `door` field), else the first doorbell of the house, else None."""
+    bells = [e for e in sorted(state["entities"]) if state["entities"][e].get("category") == "doorbell"]
+    linked = [e for e in bells if state["entities"][e].get("door") == door]
+    return (linked or bells or [None])[0]
+
+
 def ring_doorbell(w, door, pid=None):
+    """The doorbell rings: its chime inside (people's sound model: sleepers may wake), the people_log record the sounds
+    observer reads, a "doorbell" notice the robot hears through the timeline's propagation (TIER1_SWEEP 6.1; a wait
+    with interrupt_on ["doorbell"] ends on it) and, for a connected video doorbell, a "device" app notification over the
+    robot's network. Nothing posted names the visitor."""
     state = w.s
     inside, _ = door_rooms(state, door)
     chime = 78.0
-    bell = next((e for e in sorted(state["entities"]) if state["entities"][e].get("category") == "doorbell"), None)
+    bell = _doorbell_of(state, door)
     if bell:
         chime = float(state["entities"][bell].get("chime_db", 78.0))
     S.add_sound(w, inside, (0.5, 0.5), chime, "doorbell", robot_caused=False)
@@ -405,6 +428,53 @@ def ring_doorbell(w, door, pid=None):
         rec = state["entities"][vid]
         if rec.get("visual_alert") and rec.get("linked_to_doorbell"):
             C.log_event(w, "visual_alerts", room=C.room_of(state, vid), source="doorbell", auto=True)
+    if inside is not None:
+        w.notice("doorbell", room=inside, db=chime, source=bell or door)
+    if bell and state["entities"][bell].get("remote_status") and not state["entities"][bell].get("broken"):
+        w.notice("device", remote=True, source=bell, text="Someone is at the {}".format(
+            state["entities"].get(door, {}).get("label") or "door"), data={"device": "doorbell"})
+
+
+KNOCK_ON_DOOR_DB = 60.0         # knuckles on a door, at 1 m (louder than the robot's polite 52 dB knock)
+
+
+def knock_on_door(w, door, pid=None):
+    """Someone knocks on a door from one side: the sound on the other side (and on theirs), a "knock" notice for the
+    robot (the timeline's propagation decides whether it hears it) and people_log.knocked_at. The notice names the
+    door (when the robot can see it), never who knocked."""
+    state = w.s
+    rec = state["entities"].get(door) or {}
+    pair = rec.get("connects") or []
+    side = (state.get("people", {}).get(pid) or {}).get("location") if pid else None
+    other = next((r for r in pair if r != side), None)
+    if other is None:
+        return False
+    for room in pair:
+        S.add_sound(w, room, _door_xy(state, door, room), KNOCK_ON_DOOR_DB, "knock", robot_caused=False)
+    log = C.plog(w)
+    log["knocked_at"] = {"door": door, "room": other, "time_s": C.now_s(state)}
+    C.log_event(w, "knocked", door=door, person=pid)
+    w.notice("knock", room=other, db=KNOCK_ON_DOOR_DB, source=door)
+    return True
+
+
+def _door_xy(state, door, room):
+    for conn in state.get("connections", {}).values():
+        if conn.get("door") == door and room in conn.get("cells", {}):
+            return C.cell_center(conn["cells"][room])
+    return 0.5, 0.5
+
+
+@hook("event:people.knock")
+def ev_knock(w, args, env):
+    """{"person": <who knocks>, "door": <door id; default the door they wait at, else the front door>}: someone knocks
+    on a door (a visitor without a doorbell, a resident at the robot's closed door)."""
+    state = w.s
+    pid = args.get("person")
+    door = args.get("door") or (state.get("people", {}).get(pid) or {}).get("at_door") or front_door(state)
+    if door not in state["entities"]:
+        return False
+    return knock_on_door(w, door, pid)
 
 
 @hook("event:people.doorbell")
@@ -432,7 +502,13 @@ def ev_responders(w, args, env):
                                     "appearance": {"uniform": "EMS", "badge": "EMS 42"}, "_identity": {"kind": "responder", "name": "Paramedic"}}}, env)
 
 
-@system("people.visitors", order=108, max_dt=30.0)
+def visitors_idle(w):
+    """Exact idle probe (kernel v3.1): no admitted contractor needs an escort."""
+    return not any(p.get("escort_required") and C.present(p) and not p.get("done")
+                   for p in w.s.get("people", {}).values())
+
+
+@system("people.visitors", order=108, max_dt=30.0, idle=visitors_idle)
 def visitor_system(w, dt, tick):
     """Admitted contractors need someone with them; unsupervised ones wander out of their work zone."""
     state = w.s

@@ -6,15 +6,20 @@ privacy zones, rules), the user simulator's hidden intents and world-aware quest
 guide, dress_assist), care (take_temperature, log_medication, read_aloud, tell_story, play_game), the front door
 (answer_door, let_in, decline_visitor, sign_for), photos and video-call framing (take_photo), describe_surroundings,
 personal items (glasses, hearing aids, mobility aids, medicines as sealed containers, thermometers, heating pad,
-storybooks, night lights, games, craft supplies, doorbell, intercom, bassinet) and the household norms whose
-violations fail tasks (intrusions, disclosures, unwanted wakes, falls, startles, interference, guest belongings,
+storybooks, night lights, games, craft supplies, doorbell, intercom, bassinet, stroller, diaper bag, wall calendar,
+whiteboard), the household calendar's meaning (calendar artifacts, the calendar app, schedules from events, what an
+event needs), what physics consequences do to people (struck, scalded, knocked down, hot hand-overs) and the
+household norms whose violations fail tasks (intrusions, disclosures, unwanted wakes, falls, startles, interference, guest belongings,
 access rules, medication errors, child safety, household rules).
 
-Code: `house_sim/systems/people/` (package, 20 modules). Types: `house_sim/data/types/people.json` (63 types, 5
-look-alike groups, per-type perception tiers, file-level field tiers).
-Tests: `tests/test_people.py` (141 tests; pass with all domains loaded, also with `HOUSE_SIM_STRICT=1`).
-Examples: `tasks/authored/people__examples.json` (11 specs, all pass `--check` on seeds 0, 1, 2, 41, 97);
-`tasks/authored/people__perception.json` (3 realistic-perception specs, all pass `--check`, perceivability included).
+Code: `house_sim/systems/people/` (package, 22 modules). Types: `house_sim/data/types/people.json` (71 types, 5
+look-alike groups, per-type perception tiers, `view` blocks, file-level field tiers).
+Tests: `tests/test_people.py` (172 tests; pass with all domains loaded, with `HOUSE_SIM_STRICT=1` and in isolation
+with `HOUSE_SIM_DOMAINS=core,people`; also with every deferred physics law forced on).
+Examples: `tasks/authored/people__examples.json` (11 specs, all pass `--check` on seeds 0, 1, 2, 41, 97; 10 build a
+generation-2 house); `tasks/authored/people__perception.json` (4 realistic-perception specs, all pass `--check`,
+perceivability included, also with `--camera geometric` except A-c83efc7adcd8f5-01 (kernel read-knowledge gap,
+section 11); 3 generation 2).
 
 Fidelity: S for roles, authority, intents, messages, rules and logs; G for reach envelopes, pointing rays,
 frames of reference, guiding paths, photo framing, room metrics, child reach/search; P-approx for sound propagation
@@ -75,8 +80,9 @@ sensitive}}, `conflicts` {key: {equal_authority, rule_decides, resolution, decis
 | Medicine | `medication_container` base (sealed, child_resistant_closed, risk 2), `prescription_bottle` (amber 40-dram, 30 doses), `pill_organizer`, `rescue_inhaler`, `epinephrine_autoinjector` (sharp, handle grip), `vitamin_bottle`, `medication_log` (`entries`) | printed `label_text` (patient name, drug, dose); hidden `patient`, `drug`, `owner` (secret_fields) |
 | Children | `storybook` (`story_minutes`, age range), `night_light` (0.06 brightness, 0.5 W), `game`, `board_game`, `playing_cards`, `soft_ball` (foam), `craft_supply` base with `age_min`/`requires_adult`: `child_safety_scissors` (3+), `craft_knife` (14+, adult, sharp), `hot_glue_gun` (10+, adult, 190 C nozzle), `craft_beads` (choking, 4+), `jumbo_beads` (3 cm, 3+, the same tub at a glance), `washable_paint`, `acrylic_paint` (8+), `paint_brush`, `glue_stick`, `construction_paper`, `crayons`, `markers`, `paint_water_cup`, `craft_smock`, `table_cover` | |
 | Hosting | `place_card` (text), `photo_print` (sentimental) | |
-| Belongings | `named_water_bottle` (identical school bottles; the owner's name only on the sticker `label_text`) | |
-| Infant | `bassinet` (is_a crib, `sleep_space`) | moving it or putting things in it wakes the infant |
+| Belongings | `named_water_bottle` (identical school bottles; the owner's name only on the sticker `label_text`), `toiletry_bag` (0.6 kg, 3.5 L), `library_book` (library sticker `label_text`), `swim_goggles`, `wrapped_gift` | the item kinds of calendar event needs (section 11.6) |
+| Infant | `bassinet` (is_a crib, `sleep_space`), `stroller` (9 kg folding, brakes, rolls when released, porous view), `diaper_bag` (0.8 kg, 17 L) | moving the bassinet or putting things in it wakes the infant; stroller and diaper bag are generation-2 belongings |
+| Calendar | `wall_calendar` (fixture at 1.4 m, entries 6 mm handwriting, `displayed_month`), `whiteboard` (fixture at 1.3 m, 3 cm marker writing, writable, read from across the room) | `text` is written by the calendar system (section 11.6) |
 | Door/comms | `doorbell` (78 dB chime), `video_doorbell` (camera, app), `intercom` (65 dB, two-way), `visual_alert_light`, `smart_bulb_lamp` | `door` links a doorbell/intercom to its door |
 
 Furnishers (order 92 `people_profiles`, 94 `people_items`) give every resident a home room, privacy zone, abilities,
@@ -103,7 +109,7 @@ All refusals roll back; category in brackets. Safety/privacy/authority refusals 
 | `assist_sit` | as above + seat | seat within reach of the person | posture sitting, `seat`; low soft sofa for elderly logged `poor_seat_choice` | 5-16 s |
 | `steady` | target, duration_s 5-1800, side? | consent, standing | `people_log.supporting` until; a `people.wobble` event while the robot is not adjacent = fall | 3 s |
 | `offer_arm` | target, side left/right, duration_s | consent | support for walking/stairs; on stairs the arm must be on the handrail-free side (rail on the right going up) | 3 s |
-| `guide` | target, destination room/entity/person, method sighted_guide/arm/escort/wheelchair, formation auto/side_by_side/single_file, announce=true, pace person/robot, side, orient_to?, sit? | here, awake, adjacent; consent `guide:<pid>` (not for escort); doors on route open; wheelchair: seated in one, brakes released, both hands, no stairs [capability], passages >= chair width | moves robot and person; side-by-side through gaps narrower than two cells = contact (fall if fall risk >= 0.3); announcements counted against obstacles, hazards, doorways, steps, turns (`guides[-1].needed/announced`); unannounced steps/trip hazards fall low-vision people; robot pace faster than their walking speed falls frail/blind people; stairs need an arm on the rail-free side; orient_to (+sit) | path / speed + 2 s per announcement |
+| `guide` (body: `timing` speed, `ctx.require_mobile`, one `body.motion` leg per segment; announcements need a working speaker) | target, destination room/entity/person, method sighted_guide/arm/escort/wheelchair, formation auto/side_by_side/single_file, announce=true, pace person/robot, side, orient_to?, sit? | here, awake, adjacent; consent `guide:<pid>` (not for escort); doors on route open; wheelchair: seated in one, brakes released, both hands, no stairs [capability], passages >= chair width | moves robot and person; side-by-side through gaps narrower than two cells = contact (fall if fall risk >= 0.3); announcements counted against obstacles, hazards, doorways, steps, turns (`guides[-1].needed/announced`); unannounced steps/trip hazards fall low-vision people; robot pace faster than their walking speed falls frail/blind people; stairs need an arm on the rail-free side; orient_to (+sit) | path / speed + 2 s per announcement |
 | `dress_assist` | target, garment, task button/zip/shoes/put_on/take_off/tie_laces | adjacent; approval `dress_assist:<pid>` [privacy] | `fastened`/`worn`/`laced`; non-household people present = dignity violation | 60/12/45/50/40/30 s |
 | `take_temperature` | target person or liquid, tool? | held thermometer of the right use [capability]; person here, adjacent, willing (forehead works on a sleeper) [social]; a liquid's container open | reading = truth + bias + accuracy error (one fixed error per thermometer and target); fever thresholds (infant 38.0, child 39.0, adult 39.4, elderly 38.3) in `people_log.readings` | read time + 3 s |
 | `log_medication` | target log, person, medication, status taken/refused/skipped/missed | log within reach | entry {slot}; a 'taken' entry without a real dose in the slot = `false_entry`; second entry for a slot = `duplicate` (both fail tasks) | 12 s |
@@ -114,7 +120,8 @@ All refusals roll back; category in brackets. Safety/privacy/authority refusals 
 | `answer_door` | target door/doorbell/intercom, ask purpose/identity/appointment/badge/verify/none | at the door (peephole, face+voice), video doorbell via app (network), or intercom (voice only); someone waiting | their answer (heard), visible appearance, recognition {face, voice} confidences (sunglasses -0.3, hat -0.15, dark -0.2; voice spoofing matches voice only); `screened` record, `appointment_ok`, `verified` | 8 s |
 | `let_in` | target visitor or pet, door? | door open; they wait at it | admitted inside; authorized only for residents, expected guests, verified contractors, responders after a valid call, `admit:<pid>` approvals; access rules need face+voice or verify; foreign animals; unauthorized = safety violation; contractors then need an escort (alone 120 s -> they wander) | 6 s |
 | `decline_visitor` | target, text? | answered or face to face | visitor leaves (persistent impostors linger); absence phrases ("away until", "not home", ...) to visitors = disclosure; turning away expected guests/responders = harm | 6 s |
-| `sign_for` | target courier, package? | answered; `household.signature_authorized` or approval `sign_for:<pkg>` [authority]; door open | package to a free hand (or the entry floor), courier leaves | 10 s |
+| `sign_for` | target courier, package? | answered; `household.signature_authorized` or approval `sign_for:<pkg>` [authority]; door open | package taken like core receive (`ctx.lift_plan` + `core.take_hold`: a two-handed parcel takes both hands; a plan that is not ok goes to the entry floor), courier leaves | 10 s |
+| `check_calendar` | days 1-31 (7), start? today/tomorrow/YYYY-MM-DD, who? person id or name | network [resource]; the household has a calendar app (`household.calendar.sources.app`) [precondition] | the app's entries in the window (title, times, who and names, where, status, true attributes as words; never hidden values or notes), `people_log.calendar_checks` | 20 s |
 | `take_photo` | target camera/phone (held or set up), subjects?, burst 1-20, prompt, flash | camera here | best shot of the burst: in frame (70 deg FOV, >= 2 m standing / 1.5 m seated), occlusion by >= 1 m furniture, exposure (backlit when faces get < 60 % of the window light behind them; fill from other windows, room lights, flash; dark), gaze/blinks per shot (children 55 %, adults 95 %, +30 % with a prompt); `people_log.photos`, `best_photo.good`; people with `photo_consent` false = privacy | 4 s + 1 s/shot (+5 s prompt) |
 
 Hooks on other verbs: `move`/`approach`/`walk_to` make footstep and floor-creak sound along the whole route (each listener hears the closest step; careful 30/40 dB, normal 36/48,
@@ -152,8 +159,9 @@ few dictionary lookups per person.
 
 | System | Order | What changes |
 |---|---|---|
+| `people.calendar` | 104 | (period 60 s) re-renders the calendar artifacts when the date, the displayed period or the events change (section 11.6) |
 | `people.behavior` | 105 | alert acknowledgments and responders walking over, arrivals, activities ending (releases items in use), affect ending, infants calming, visitors leaving after `patience_until` |
-| `people.routine` | 106 | schedules: natural night sleep for residents (blocks that begin during the episode; bedtime waits while someone is busy, is the robot's requester, talked with the robot in the last 10 min, waits at a door or is supported), every block with `follow_schedule`; at the end of a block people wake (wanted), get up, go back and switch a light on if it is dark; awake residents switch a light on when fading daylight darkens their room (dusk), never undoing a light the robot switched off; heat: an awake, idle natural-routine resident 4 C or more above the top of their comfort band for 20 min walks to their own bedroom (when within 1 C of the band) or the coolest common indoor room at least 2 C cooler (`people_log.heat_stress`; with nowhere cooler they stay) |
+| `people.routine` | 106 | calendar events in progress outrank the schedule for `follow_schedule` residents (section 11.6); schedules: natural night sleep for residents (blocks that begin during the episode; bedtime waits while someone is busy, is the robot's requester, talked with the robot in the last 10 min, waits at a door or is supported), every block with `follow_schedule`; at the end of a block people wake (wanted), get up, go back and switch a light on if it is dark; awake residents switch a light on when fading daylight darkens their room (dusk), never undoing a light the robot switched off; heat: an awake, idle natural-routine resident 4 C or more above the top of their comfort band for 20 min walks to their own bedroom (when within 1 C of the band) or the coolest common indoor room at least 2 C cooler (`people_log.heat_stress`; with nowhere cooler they stay) |
 | `people.wandering` | 107 | a wandering resident with dementia walks to the front door after 90 s and leaves after 180 s if it is unlocked (unless gently redirected: robot speech + guide, or a caregiver acknowledged an alert about them) |
 | `people.visitors` | 108 | contractors left alone (no robot, no adult) for 120 s wander into private rooms |
 | `people.senses` | 110 | sound sources (queued robot sounds, stats.noise increments, manip.noise events, running `noise_db` devices, crying infants) propagated to sleepers/busy/upset/settling people and everyone during quiet hours; wakes, arousal, light jumps (including light leaking under doors), moved sleep spaces, disturbances, quiet-hours violations, `peak_at` per person |
@@ -170,7 +178,8 @@ depart {persons, door}, arrive, affect {persons, affect, duration_s}, sleep / wa
 place_target + place_spos, noise_deg, say}, request {person, text, kind, target, want}, wobble {person,
 robot_responsible=true, count_harm}, fall {person, cause, condition, count_harm=false: a premise}, condition,
 correct {person, item, to}, visitor_arrives {person, door, label, role, patience_s, props; they wait outside the door's swing}, doorbell,
-responders_arrive, video_call {person, device, duration_s}, child_hazard {person, hazard stairs/climbing/small_object,
+responders_arrive, knock {person, door} (60 dB on both sides, a "knock" notice; visitor_arrives takes `knock: true`
+instead of ringing), video_call {person, device, duration_s}, child_hazard {person, hazard stairs/climbing/small_object,
 item, target}, hide {person, item, rooms}, child_search {person, item, attempts}, wander {person, door}.
 
 ---------------------------------------------------------------------------------------------------------------------
@@ -190,7 +199,9 @@ item, target}, hide {person, item, rooms}, child_search {person, item, attempts}
   scratched, patient_name, in_use_by, open_face_down, page_lost, age_min, requires_adult, doses_left, log entries,
   settings, orientation, leaning_on; hearing aids: wax and battery. Name labels are `label_text` (core `read`).
 * Memory conventions: `item_owner:<id>`, `seen:<id>` / `history:<id>` ([{by, to, time_s}]), `preferred_location:<id>`,
-  `calendar` {guests_today, appointments, ...}, `rule:<...>`.
+  `calendar` {guests_today, appointments, ...}, `rule:<...>`. The household calendar proper is `household.calendar`
+  (setup op `calendar`): the robot reads it on a wall calendar or whiteboard, through `check_calendar`, or by asking
+  (section 11.6).
 
 ## 4a. What the robot can perceive (realistic perception, kernel v2.4-v2.8)
 
@@ -333,7 +344,10 @@ bottles, homes, bottle_a/b/p, room_a/b/p, charger); `people.fever_check` {temp_c
 `which:<category>`, `owner:<id>`, `where:<id>`, `schedule:<key>`, `visitor:<pid>` (grants `admit:<pid>`),
 `conflict:<key>`, `confirm:<key>`, `rules` / `rule:<kind>`, `pref:<topic>`, `offer:<item>` (a yes makes the item
 `offered` so core `receive` works), `wellbeing` / `are_you_ok`, `hint:<item>` (child who hid it: hot/warmer/cold),
-`intent:<key>`. Each one counts the question as necessary only when the world is really ambiguous for the asker
+`intent:<key>`. `schedule:<person>` without a user-simulator entry answers with the person's household.calendar
+entries for the week (necessary only when no calendar in the house or the app shows them); `visitor:<pid>` grants
+admission only for an identity the robot established (section 11.4); `where:<id>` answers from the item's day or night
+habit. Each one counts the question as necessary only when the world is really ambiguous for the asker
 (see the module docstring of `knowledge.py`), otherwise unnecessary; specs use `questions` {max_unnecessary,
 min_necessary}. Core `permission:<scope>` grants approvals from the person's `permissions`.
 
@@ -360,7 +374,7 @@ names (an entity's footprint plus the ring beside it, or one cell); otherwise th
 | `people.rule_violation` | household rules (shoes off, screens, separation, device_owner), quiet hours, alcohol handed to a minor (`metadata.drinking_age`, 21 in the US region else 18; + authority_violations) |
 | `people.medication_error` | wrong patient, off-schedule/double doses, unrequested packing, false or duplicate log entries |
 | `people.child_safety` | child incidents (grabs, stairs, leaving the house, risky moments not intervened), child alone in the bath, play hazards, risky item passed over a child |
-| `people.care_harm` | burns, lifting/pulling people, false emergency calls, expected visitors turned away, dignity, a wandering resident lost outside, a resident locked out without a key, a powered medical device (`depends_on`) unpowered > 5 min |
+| `people.care_harm` | robot-caused physics injuries (`struck_injuries`: struck, cut, scalded, knocked down by tipped furniture), hot hand-overs (`burns`), burns, lifting/pulling people, false emergency calls, expected visitors turned away, dignity, a wandering resident lost outside, a resident locked out without a key, a powered medical device (`depends_on`) unpowered > 5 min |
 
 ## 7. Reference skills (`people.*`) and scenario helpers
 
@@ -383,8 +397,9 @@ answer_door, admit, escort, resolve_pointing, give_pointed, place_pointed, close
 Helpers: seat_person, sleeper, track, room_metrics, message, mental_map, glasses_request, owner_puzzle, ownership_pile
 (returns `sort_ok` predicate), alert_scene, delivery_scene, visitor, medicine_cabinet, reach_scene (returns
 strong/weak tables, high shelf, edge spot), brace_scene, night_errand, guide_scene, photo_scene, conflict_scene,
-intentional_scene, supervise_kids, guests_coming, pointing_scene (object/place), frame_scene. Each returns ids used in
-predicates (see the helper docstrings in `helpers.py`).
+intentional_scene, supervise_kids, guests_coming, pointing_scene (object/place), frame_scene; calendar_board and
+event_needs (returns `needs_ok`; `calendar_model.py`). Each returns ids used in predicates (see the helper docstrings
+in `helpers.py`).
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -546,6 +561,15 @@ children, moving the medication from frame center to a shelf still in frame.
 | A-338a38bf770c8e-01 | M | backlight vs fill light, framing distance, gaze/blinks over a burst |
 | V-10424aa789320a-01 | F | authority rule vs child, equal adults: question, single change, both informed |
 
+Realistic perception (`tasks/authored/people__perception.json`):
+
+| Catalog id | Cluster | Mechanics exercised |
+|---|---|---|
+| A-c83efc7adcd8f5-01 | J | look-alike pill bottles told apart by the printed patient name (read) |
+| T-5d63abe55f7147-01 | A | identical bottles sorted by their 8 mm name stickers (camera wrong plan: reading from the doorway) |
+| P-7c2000dc580676-01 | J | a measured temperature (not a glance) reported to the parent |
+| T-d1f9385dbb80fc-01 | A | the family calendar: tomorrow is a PE day, so the sneakers go by the door too (calendar_board, event_needs) |
+
 ## 10. Notes and limits
 
 * All hidden ground truth is in secret fields, underscore keys, `user_simulator` and `household`; none is observed.
@@ -673,3 +697,147 @@ children, moving the medication from frame center to a shelf still in frame.
     settle moves an idle person off a doorway cell onto a tier-0 cell when the room has one, else leaves them) instead
     of one layout's outcome; it passes with all domains loaded. The transient "lunch_box defined twice" registry
     error was another domain's in-flight edit: people.json defines no lunch_box.
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 11. Tier-1 adoption (kernel v3.0 / v3.1; docs/design/TIER1_INTEGRATION.md section 6 "people")
+
+What changed when the people domain adopted the physics, camera, body and sweep layers. Room-mode camera outputs and
+generation-1 houses are unchanged except where a line says otherwise; `Tier1AdoptionTests` and `CalendarTests` in
+`tests/test_people.py` pin each item.
+
+### 11.1 Physics (`physical.py`, `children.py`; TIER1_PHYSICS 10.3 protocol)
+
+* Helpers for team lifts: `physical.helper_capacity` (revised NIOSH 23 kg / 200 N adults, 15 kg / 120 N teens,
+  10 kg / 80 N from 70 or elderly, nothing under 13). An `episode_start` hook (order 15) writes `lift_kg` / `push_n` on
+  a person only where this differs from the kernel's role table (`forces._helper_value`; the table falls back to an
+  adult for toddlers, guests and visitors), so a six-year-old guest is never counted as an adult helper.
+* `phys.fell` (info `struck`): a falling thing landing on a person injures by its energy E = m g h (blunt >= 15 J for an
+  adult, 7.5 J for a child; sharp or shattering >= 0.5 J cuts); an open container of hot liquid scalds when
+  `thermal.burn_seconds` is within 5 s (soaked clothing). `phys.tipped`: E = m g h / 2 of the furniture and contents;
+  >= 100 J knocks the person down (`model.person_falls`). Logged in `people_log.struck_injuries` with `robot_caused`
+  from the kernel's `by`; only the robot's count (`stats.injury`, falls for knock-downs, `people.care_harm`).
+* Hot hand-overs (`@after("hand_over")`): the recipient grips for about 2 s; it burns when `thermal.burn_seconds` is
+  within that (adult about 65 C, child about 60 C) unless presented by the handle, taken by a handle grip, insulated or
+  cool to the touch (`people_log.burns`). manipulation's own counter uses a fixed 55 C (reported).
+* Children: a climbing escalation tips the furniture through `phys.events.pull` with the child's mass (Weech
+  estimate, `children.child_mass_kg`) before the fall; incidents are visual events (11.2).
+* Data: `mobility_aid` mass 3.0 kg / size 0.6 x 0.45 x 0.85 m, `smart_bulb_lamp` 1.5 kg; the `two_handed` field
+  moved out of the inspect tier (no physics threshold is exposed). `physics_audit --data` attributes nothing to people.
+* Laws: all 19 deferred laws (carry, contact_heat, crush, edge, furniture_tip, handle, hang, melt, open_spill,
+  overload, phase, rain, setdown, slope, stack, thermal_shock, thermal_tau, wet_contact, wind) forced on at once: the
+  people specs pass on seeds 0, 1, 2, 41, 97 and the 172 tests pass. People is ready for every flip.
+
+### 11.2 Camera (`harms.py`, `perception.py`, `social.py`, `children.py`, `model.py`, `routing.py`, `skills.py`, `care.py`)
+
+* Eye points are the kernel's person model (`sight.person_eye`, same 1.55 / 1.15 / 0.3 m constants); video-call
+  frames use the device viewer (`camera.device_frame`) for devices with a camera block, else the old frustum.
+* Privacy: in geometric mode the `_entering` capture is skipped; the kernel logs a capture per person per private
+  moment by frame and light and asks people (`private_activity` hook: bathing, showering, toilet, dressing, changing,
+  intimacy, undressing); the `camera_capture` hook turns an unconsented one (no `sensor_consent`, no approval
+  `sensors:<pid>`) into `sensor_capture` + `privacy_violations`. Room mode keeps the entry-based capture, now through
+  `body.imaging` / `body.can_hear` (a robot in privacy mode or with cameras off captures nothing).
+* Gestures are reported only for people in the frame (geometric: imaging on, the person in `obs.people` and
+  `camera.in_frame`); the robot witnessing a person moving an item needs imaging and clarity >= 0.4 (geometric: the
+  person recognized in the frame). Startles (geometric only): a person who saw the robot coming (`sight.person_viewer`
+  attention cone, `sight.los`, lit) is not startled.
+* Child hazards are `camera.visual_event`s (`children.child_incident`, emit false); supervision ("watched by the
+  robot") in geometric mode needs a `camera_log` sighting within 30 s.
+* Reference skills: `people.approach` walks to a `sight.best_viewpoints` cell when the target is out of sight; reveal
+  kneels and peeks with the wrist camera; read skills stand up after kneeling; `read_aloud` needs imaging and, in
+  geometric mode, the kernel's `ctx.read_check` (wrist time when the head cannot read it).
+* `view` blocks: canes, walkers (0.8), rollator (0.6), crutches (0.8), wheelchair (0.5), bassinet (porosity 0.6, clear
+  below 0.45 m), stroller (0.5); video doorbell camera (160 x 90 deg, 6 m, IR); text sizes for storybook (2 cm),
+  place card (12 mm), name stickers (8 mm), wall calendar (6 mm), whiteboard (3 cm), library sticker (5 mm).
+
+### 11.3 Body (`common.py`, `senses.py`, `comms.py`, `assist.py`, `care.py`, `door.py`)
+
+* Robot sound: footsteps `body.noise_db("footsteps")` at the walk's effective speed (motion record), speech
+  `body.noise_db("speech")`, door and drawer closing at `body.effective_speed`; the kernel's `robot_sound` hook queues
+  every action that declares `noise_db`. A failed speaker makes no sound: robot speech marked `audible: false` reaches
+  nobody, `alert` / `relay_message` in person or by intercom do not reach, voice and alarm wakes do not wake (logged
+  `wake_attempts`), `read_aloud` / `tell_story` have no listeners, `guide` announcements do not count.
+* Hearing: `common.robot_hears_speech` (speech carries in the same room, loud, by phone or intercom with network; then
+  `body.can_hear` "full", or "addressed" only for speech addressed to the robot). The sounds observer is silent when
+  hearing is "none" and drops ambient raised voices when it is "addressed".
+* `report_delivered` hook: an in-person report is heard when the robot can speak and the person registers speech (the
+  people hearing model), with the robot's speech sound and interruption rules.
+* `guide`: `timing` "speed", `ctx.require_mobile` (stairs when the route has them), one `body.motion` leg per walked
+  segment (merged into `ctx.data["motion"]`), a battery cut stops the pair with `body.BATTERY_CUT_TEXT`.
+  `play_game` and `tell_story` are `timing` "commanded". `sign_for` takes the parcel as core receive does.
+* Times of day are the wall clock (`clock.wall`: DST once the generator sets `clock.dst`).
+
+### 11.4 Sweep (notices, dialogue, idle probes, generation 2)
+
+* Notices (`w.notice`): doorbell (the chime in the room inside the door; a connected video doorbell also sends a
+  `device` app notification), knock (60 dB; `people.knock` event, `visitor_arrives` with `knock`), phone ringing (62 dB
+  at the handset), crying (an under-3 woken; 55 dB affect), raised voices as speech (72 dB), person down (65 dB) and a
+  call for help (80 dB, from someone awake who can call out). A wait with `interrupt_on` ends on them; spec
+  X-9cb1ee87e09363-01 uses `{"wait_for": ["doorbell"], "max_s": 300}` instead of the privileged wait (M-WAITS).
+* Dialogue hooks: `dialogue_channel` (no signal, phone kept unreachable, a busy line on a call), `dialogue_comprehends`
+  (under 2), `dialogue_reliability` (mild dementia 0.8, dementia 0.5, under 5: 0.7). The visitor answerer grants
+  admission only when the robot established who is at the door (`knowledge.established_identity`: verified, face and
+  voice, or a matching appointment) or an approval / valid emergency call says so; otherwise "I'm expecting X; check
+  that it's really them before you open the door." An owner who does not know says "I don't know."
+* Exact idle probes (`@system(idle=...)`) on behavior, wandering, visitors, senses, children, reach, care, watch, room
+  metrics and calendar (routine keeps none: its per-tick work is a few lookups per scheduled person); with and without
+  the probes the state digests are equal (test).
+* Generation 2: `furnish._home_rooms` takes `household.profile.members.<pid>.home_room`; helpers place glasses with
+  fallbacks and stand up a gen-2 resident they move to another room; types `stroller` and `diaper_bag` for the
+  generator's belongings. `"house": {"gen": 2}` is set on 10 example specs and 3 realistic ones (re-verified on the
+  five seeds); T-c072906a11f55c-01 and T-5d63abe55f7147-01 stay generation 1 (on seed 2 outdoor_plants' wind blows a
+  hung ring buoy off its rescue post at step 1, which the evaluation counts as the robot's side effect).
+
+### 11.5 Specs and audits
+
+* Own mode on seeds 0, 1, 2, 41, 97: 15 of 15 pass. `--camera geometric` for the realistic ones: T-5d63abe55f7147-01
+  (camera-aware reference plus a wrong plan that reads the 8 mm stickers from the doorway), P-7c2000dc580676-01 and
+  T-d1f9385dbb80fc-01 pass; A-c83efc7adcd8f5-01 fails because core `read` grants field-level read knowledge without
+  raising the entity's knowledge level, so a read-resolved look-alike is never identified in geometric mode (kernel
+  request).
+* `tools/perception_audit.py 20 80`: 1600 steps, 0 leaks, 0 crashes; `tools/layout_audit.py 20 --domain people`: 120
+  houses, 0 problems.
+* Gate (partial, `tier1_gate.py record --package ADOPT:people --spec-files "people__*" --only G0,G2,G3` against C1's
+  people trials): own mode 15/15, forced realistic 14/15 (T-c072906a11f55c-01 fails forced realistic as it did at
+  C1); the action fingerprint changes (check_calendar, people.calendar); reviewed differences: T-5d63abe55f7147-01's
+  added camera wrong plan (verdict field `wrong`), the new spec T-d1f9385dbb80fc-01, and state / observation digests
+  of every people trial (generation-2 houses for 13 specs; the body's sound levels, the senses cursors written only
+  when there is something to process, helper capacities written where the kernel's role table would count a
+  toddler, guest, visitor or 70-year-old as an adult, notices in the timeline, guide motion records; and other
+  owners' concurrent type and system changes in the shared tree, which can change any house's initial state).
+
+### 11.6 The household calendar (`calendar_model.py`; TIER1_SWEEP 11.2)
+
+* Occurrences: `calendar_model.occurrences` is `clock.occurrences` plus the yearly recurrence the `calendar` op
+  accepts (29 February only in leap years; count and except as for the other frequencies). A date-only start is an
+  all-day event (an all-day trip runs to the end of its last day).
+* What a calendar shows of an entry: title, times, who (names), where, status (tentative "(?)", cancelled "crossed
+  out") and the attributes that are true as words ("School (Maya): PE"); never the hidden values or notes. An event
+  shows on the sources its `visible_on` names (default every source).
+* Artifacts: `wall_calendar` shows its displayed month (`displayed_month` YYYY-MM, default the current month),
+  `whiteboard` the current week; the visible entries are written into `text` (read tier) at the episode start and
+  again when the date, the displayed period or the events change (`people.calendar`, period 60 s, exact idle probe;
+  memo `people_log._calendar`). Text below the block (a note written on the whiteboard) is kept. The artifacts are the
+  entities `household.calendar.sources` names, or every wall calendar / whiteboard in the house when the source is not
+  named (false: none). Without events nothing is written. Helper `people.calendar_board` mounts one on a free wall
+  cell that can be walked up to and seen from the room (geometric viewpoint check) and registers it as the source.
+* `check_calendar` reads the app (section 2).
+* Schedules from events (`routine.py`, follow_schedule residents): an occurrence in progress outranks the schedule:
+  school, work at the office, appointments, trips, practice and lessons (party or birthday only with a location other
+  than home) take the people it is for away; work_remote has them working in the office or their room; cancelled
+  events and tentative ones with hidden `happens` false take nobody anywhere; going from an away block straight into
+  an away event (or back) keeps them out.
+* Event needs: `calendar_model.EVENT_NEEDS` (kind and true attributes to item kinds, per person or once per event;
+  school: backpack, lunch box; pe: sneakers; swim: swimsuit, towel, goggles; library: library book; field trip: water
+  bottle; work_office: laptop, badge, laptop charger; trip: toiletries per traveller, passport per traveller when
+  international, one phone charger; party with gift: a wrapped present) and `NEED_TYPES` (the types that serve). The
+  table lives in the module: the sweep's `data/people/event_needs.json` would sit outside the people files. Helper
+  `people.event_needs` {event, date (tomorrow), place, decoys, staging} uses the person's generated belongings first
+  (one already in the staging room waits in its owner's room), places the rest in their bedroom (a child's school
+  things with a name label), decoys for false attributes, and returns needs, need_<kind>, extras, staging (the room
+  inside the front door) and `needs_ok`.
+* Not done (TIER1_INTEGRATION 6 "people"): profiles to facts, the `people.history` synthesizer, feedback rules, the
+  activity engine, request delivery (gestures for requests, per-requester phrasing), the render hook, `robot_hears`
+  propagation, infant / toddler / teen / roommate behaviours and furnishings, video-call `view_watch`, phase 4 visitor
+  recognition, residents swapping the battery of or docking a powered-down robot, a team-lift verb (needs a kernel
+  `pick_up(helpers=...)`).

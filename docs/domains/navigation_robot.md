@@ -9,27 +9,32 @@ measuring and leveling, robot self-maintenance (battery, cameras, falls, faults,
 unobtrusive waiting, remote help), elevators, and other household robots (robot vacuum/mop/mower).
 
 Code: `house_sim/systems/navigation_robot/` (package). Types: `house_sim/data/types/navigation_robot.json`.
-Tests: `tests/test_navigation_robot.py` (180 tests: 24 realistic-perception tests and the 21 kernel v3.0 body tests of
-`TestBodyEnergy`; isolated, strict and all-domain runs: tests whose mechanic another domain owns when loaded assert the
+Tests: `tests/test_navigation_robot.py` (210 tests: 24 realistic-perception tests, the 21 kernel v3.0 body tests of
+`TestBodyEnergy` and the 28 tier-1 adoption tests of `TestTier1Adoption`; isolated, strict and all-domain runs, and all
+of them again with the kernel's carry law forced active: tests whose mechanic another domain owns when loaded assert the
 integrated outcome, e.g. the people domain's hearing/light/startle models).
 Examples: `tasks/authored/navigation_robot__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every
-domain loaded); perception-centric specs: `tasks/authored/navigation_robot__perception.json` (3 realistic-mode specs, section 13).
+domain loaded); perception-centric specs: `tasks/authored/navigation_robot__perception.json` (3 realistic-mode specs, section 13;
+all three also pass `--camera geometric`, and A-926bc611ae9158-01 declares `"camera": "geometric"`). Every spec runs on
+generation-2 houses (`"house": {"gen": 2}`, kernel v3.1) and every plan waits only on what the robot can perceive (the
+elevator spec waits for the elevator's chime, `wait_for: ["elevator"]`, migration M-WAITS). Section 4b lists the tier-1
+adoption (physics, camera, body and sweep).
 
 | Module | Contents |
 |---|---|
-| `common.py` | constants (friction tables, gait RCOF, speeds, robot mass/width, battery), the `nav` state section, shared consequences (fall, stumble, collision, spill, drop, break, wake, startle), realistic-perception helpers (`thing`, `known_value`, `perceives`, `within_touch`, `perceived_incident`) |
+| `common.py` | constants (friction tables, gait RCOF; speeds, widths, mass, footstep noise and energy are the kernel body's), the `nav` state section, shared consequences through the kernel (robot falls `body_faults.fall`, spills `liquids.spill` / `deposit_below`, things knocked off `impact.fall`, breakage `impact.break_entity`; stumble, collision, wake, startle), the event log with the camera's witness (`log(witness=...)`), notices (`notice`, kinds elevator / garage_door / vehicle / household_robot), realistic-perception helpers (`thing`, `known_value`, `perceives`, `camera_sees`, `within_touch`, `perceived_incident`) |
 | `hazards.py` | per-cell hazard map, available friction, derived keep-out margins written into `room.floor_hazards` |
 | `traverse.py` | hooks on core `move`/`approach`/`walk_to`: the per-cell consequence engine, doorway passage, sudden encounters, slosh, long-load swing, foot-soil tracking, odometry, the early end of the motion record (stops and falls cut it to what was walked), coverage, room entry rules |
 | `stairs.py` | stairs with a load: rail, carry limits, tread visibility, items on steps, winders, wet treads, loose rails |
 | `paths.py` | line-of-sight coverage, resting-spot status, clear-width and door-swing analysis (kernel `geometry.door_swing`), watches (routes/doors/areas/sightlines), verbs `go_to`, `step`, `patrol`, `wait_aside` |
-| `robot.py` | `dock`, `undock`, `swap_battery`, `clean_camera`, `get_up`, `set_privacy_mode`, `request_remote_help`, `log_fault`; the dock as the body's charge source (hook `robot_charge_source`); headlamp; bright-light wake; call noise; dock-power/camera-grime/remote-help system |
+| `robot.py` | `dock`, `undock`, `swap_battery`, `clean_camera`, `get_up`, `set_privacy_mode`, `request_remote_help`, `log_fault`, `run_diagnostics`; the dock as the body's charge source (hook `robot_charge_source`); headlamp; bright-light wake; call noise; dock-power/camera-grime/remote-help system |
 | `reach.py` | `climb_on`, `step_down`, `use_reacher`; overreach knocks neighbors |
 | `measure.py` | `measure`, `check_level`, `mark`; leveling feet; walking appliances |
 | `elevator.py` | `call_elevator`, `ride_elevator`; opt-in elevator model |
 | `doors.py` | gates latching, self-closing/latch-outside doors, garage door motion, vehicles, people dashing, pets that tag along or wander, scripted events |
 | `follow.py` | `follow`, `lead` |
 | `robots.py` | robot vacuum/mop/mower state machine; `empty_robot_vacuum`, `clean_robot_brushes`, `refill_robot_tank`, `free_stuck_robot`; docking another robot |
-| `world.py` | observer, inspector, invariants, answerer `nav:` |
+| `world.py` | observer, inspector, invariants, answerer `nav:` and its dialogue routes (`nav.where`, `nav.detail`), the `phase_start` refresh |
 | `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnisher |
 
 Fidelity: G (0.5 m grid geometry: paths, clearances, reach heights, coverage, swing arcs) with P-approx
@@ -98,7 +103,7 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 
 -------------------------------------------------------------------------------------------------------
 
-## 2. Actions (26 verbs; all others are core or other domains')
+## 2. Actions (27 verbs; all others are core or other domains')
 
 | Verb | Params | Preconditions (refusal category) | Effects | Time |
 |---|---|---|---|---|
@@ -108,15 +113,16 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 | `lead` | target person; `destination` room; `pace` match/careful/normal/fast; `avoid_stairs`; `avoid`; `warn` | person here, awake, consenting | opens doors; stairs: wheelchair = inaccessible, walker/crutches = they fall; faster than them opens a gap (>3 m = left behind); unwarned low-vision/aid users trip on hazards | their pace |
 | `patrol` | `rooms` list; `report`; `speed`; `skip_occupied`; `dock_after`; `restore_doors` | rooms exist | go_to each, sweep from up to 3 viewpoints (coverage), inspect+report each anomaly (`report <target>.anomaly`), skip occupied bathrooms/bedrooms (logged) | sum |
 | `wait_aside` | `seconds`; `cell`; `speed` | an unobtrusive cell exists | walks to a wall cell outside doorways/traffic and not cutting the room's doorways apart, then waits | seconds |
-| `dock` | `target` (own dock by default, or a robot vacuum/mower) | dock in this room within reach; nothing on the dock; a free front cell (precondition) | `robot.docked`, `robot.dock_powered`; a live dock is the body's charge source, so `robot.charging` turns on during the step (else the message says no current); seated on a live dock the robot's actions are free (the dock carries the load); other robot: seats it, cancels a running job | 20 s |
-| `undock` | - | docked | to the front cell (charging stops: no charge source) | 6 s |
-| `swap_battery` | target pack (held) | robot pack type; not swollen/damaged/hot (safety); hot-swap or docked (capability); powered on (a powered-down robot cannot swap its own pack) | `body.swap_pack`: the pack's charge (and temperature) installed, a healthy pack, the lowest gauge updated, an empty pack powers the robot down; old charge into the pack | 60 s |
-| `clean_camera` | `tool` | held lens wipe/microfiber/cloth (capability); wipes have uses (resource) | clarity 1.0 - lens_scratch; paper scratches (+0.15 scratch); dirty cloth smears (0.6) | 15 s |
-| `get_up` | - | fallen; actuator ok; floor friction >= 0.18 (capability) | standing | 10 s |
-| `set_privacy_mode` | on/off | - | cameras/mics off: `inspect`/`read`/`measure` refused (perception), coverage 0 | 0.5 s |
-| `request_remote_help` | `issue` | network (resource) | software faults (stuck=lost/localization/blocked_path/software/map) cleared after 120 s; physical ones passed to a resident (handoff, message) | 5 s |
-| `log_fault` | target kind; `text` | - | `robot.faults` + `nav.fault_log.<kind>` | 1 s |
-| `climb_on` | target aid/furniture; `step` | adjacent, on the floor; ladders: `climb_on:<id>` approval + adult present (safety) | stability check -> stands on it (reach + step height) or falls (folded, spreaders unlocked, wet/ice/rug/slope underfoot, over rating, top step, >4 kg on a ladder, `_wobbly`); furniture: safety violation, casters/boxes give way | 4 + 1.5/step s |
+| `dock` | `target` (own dock by default, or a robot vacuum/mower) | the body's mobility guard (`ctx.require_mobile`, this verb's wording "The robot cannot dock right now": powered down, actuator fault, fallen, failed legs, on an aid; also stuck or the `software_stuck` fault); dock in this room within reach; nothing on the dock; a free front cell (precondition) | backs onto the plate (a one-cell `ctx.motion` at the careful pace: the body pays it, the geometric camera frames it); `robot.docked`, `robot.dock_powered`; a live dock is the body's charge source, so `robot.charging` turns on during the step (else the message says no current, or that the pack is too cold / hot to charge); seated on a live dock the robot's actions are free (the dock carries the load); other robot: seats it, cancels a running job | 20 s |
+| `undock` | - | docked; `ctx.require_mobile` | drives off to the front cell (a one-cell `ctx.motion`; charging stops: no charge source) | 6 s |
+| `swap_battery` | target pack (held) | robot pack type; not swollen/damaged/hot (safety); hot-swap or docked (capability); both hands (`arms=2`: a pack is the profile's 2.4 kWh, 14 kg brick, `two_handed`; the other hand free or holding the pack too, both arms working); powered on (a powered-down robot cannot swap its own pack) | `body.swap_pack`: the pack's charge, capacity, health and temperature installed, the lowest gauge updated, an empty pack powers the robot down; the removed pack carries the old pack's charge, capacity, health and temperature away (its charge becomes known: the robot's gauge read it) | 60 s |
+| `clean_camera` | `tool` | held lens wipe/microfiber/cloth (capability); wipes have uses (resource) | clarity 1.0 - lens_scratch; paper scratches the covers (`body_faults.degrade_camera`: the `camera_scratched` fault); dirty cloth smears (0.6); a clean view clears `camera_dirty`; still hazy after a proper clean detects a latent `camera_scratched`; realistic: the view in proprioception's words (clear / slightly hazy / ...), no clarity number | 15 s |
+| `get_up` | - | `body_faults.self_right_problem` (not fallen, powered down, damaged actuator, failed legs); floor friction >= 0.18 (capability) | standing | 10 s |
+| `set_privacy_mode` | `target` on/off; `camera` on/off; `mic` on/off; `policy` {camera_off, mic_off: room types, when: occupied/always} (`{}` clears) | at least one of them (argument); a valid policy (`body.check_policy`) | privacy mode: cameras off, microphones wake only for speech to the robot; `camera` / `mic` / `policy` are the body's switches (`body.set_sensors`: `camera_on`, `mic_on`, `privacy_policy`; `body.imaging` and `body.can_hear` follow them): with imaging off `inspect`/`read`/`measure` are refused (perception) and the room is depth shapes only; a microphone switched off hears nothing | 0.5 s |
+| `request_remote_help` | `issue` | network (resource) | software faults (stuck=lost/localization/blocked_path/software/map, the body's `software_stuck`) cleared after 120 s (the operator relocalizes the robot and restarts the navigation software); physical ones passed to a resident (handoff, message) | 5 s |
+| `log_fault` | target kind; `text` | - | `body_faults.log_fault`: a robot fault kind is logged against the matching detected fault or the robot's own state; one that is not there counts `stats.unfounded_fault_logs`; other kinds (a loose handrail) are notes; + `nav.fault_log.<kind>` | 1 s |
+| `run_diagnostics` | - | - | `body_faults.diagnose`: latent faults (weak arm, slipping gripper, degraded pack, silent speaker, scratched covers) become detected; returns `{"faults": [...], "battery_health": "ok" / "degraded"}` | 30 s |
+| `climb_on` | target aid/furniture; `step` | the body: a profile with legs to climb (`body.climb_problem`: not the wheeled mobile_manipulator), legs above half strength and no critical battery (limp mode), `ctx.require_mobile`; adjacent, on the floor; ladders: `climb_on:<id>` approval + adult present (safety) | stability check -> stands on it (reach + step height; the step up is a `ctx.motion` onto the aid) or falls (`body_faults.fall`, the body decides damage; folded, spreaders unlocked, wet/ice/rug/slope underfoot, over rating, top step, >4 kg on a ladder, `_wobbly`); furniture: safety violation, casters/boxes give way | 4 + 1.5/step s |
 | `step_down` | - | standing on something | back to the floor beside it | 4 s |
 | `use_reacher` | target; `tool` | held reacher, a free hand, within 2 cells, height <= reach + 0.65 m | item into the free hand; > 1 kg or smooth glass/ceramic > 0.3 kg slips and falls; items on top slide off | 10 s |
 | `measure` | target (entity or connection), `destination`, `dimension` (width/depth/height/length/dims/named span/a length field of the target such as `drape_cm`, `flat_size_m`, `cord_length_m`), `tool`, `method` tape/laser/estimate, `add_case`, `support`, `at` min/floor/mid/top, `units` mm/cm/m/in | within 2 cells (or at the doorway); lit; cameras on | reading with instrument error (section 7; the error is fixed per quantity and instrument: re-reading gives the same number); `observation["measurement"]`; marks target inspected | tape 25 s, laser 8 s, estimate 3 s (x3 for at=min) |
@@ -130,7 +136,9 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 | `free_stuck_robot` | target rv; `method` lift/drag; `cell`; `resume` | on the floor | lift: untangled, idle or resumes; drag by bumper breaks it | 20 s |
 
 Hooks on core actions: `move`/`approach`/`walk_to` (before order 6-9: margins refresh, perception-limited
-planning, stuck check, elevator doors, moving garage doors; after order 1/30: the consequence engine),
+planning, stuck check (also the body's `software_stuck`: "The navigation software is stuck; request remote help"),
+elevator doors, moving garage doors; after order 1/30: the consequence engine; a stop or fall adds a note that keeps
+the message true: "...; it did not reach <room>" after a `move`, "...; it stopped short" after an approach or walk),
 `open` (the leaf sweep is the kernel's shared door model `geometry.door_swing` - swing room by the one rule every
 domain uses, inward cell + hinge-side diagonal, a second inward cell for leaves > 0.95 m. The robot's open is a
 controlled swing: light items are nudged aside (flat ones < 2 cm pass under the leaf), heavy ones (furniture, > 15 kg
@@ -158,8 +166,9 @@ Per path cell, in order:
 3. **Contacts** (only items <= 0.2 m tall or flagged as hazards; bulky bags/baskets/boxes are side-stepped; the
    robot's own charging dock - kernel `is_standable` - and a household robot seated on its dock are never contacts):
    cords: a cord rising taut to a device on a table or shelf (`cord_to`) snags at walking pace, any cord
-   snags at a fast pace (device unplugged and yanked to the floor - broken if fragile/electronic; fast = the
-   robot falls); otherwise the foot just lands on it (`nav.contacts.cords`). Device cord crossings written by the
+   snags at a fast pace (device unplugged and yanked to the floor through the kernel's `impact.fall`, cause
+   "yanked": it breaks by its drop tolerance on that floor - a laptop survives a side table, a ceramic lamp does
+   not; fast = the robot falls); otherwise the foot just lands on it (`nav.contacts.cords`). Device cord crossings written by the
    electrical domain (`floor_hazards` {kind: trip, cord: true, source: device}) follow the same rules (snag at
    walking pace only with `taut: true`); rolling toys = fall (stumble if careful);
    soft things (`soft: true`, or plush/fabric/foam without a fragile flag: stuffed animals, cushions, clothing) are
@@ -201,8 +210,12 @@ soft loads squash through), partly open doors (`open_angle_deg` < 75 while somet
 a careful pass squeezes through, a walking-pace pass shoves the leaf into it = damage, a fragile blocker breaks,
 `nav.contacts.door_shoves`; with nothing in the sweep any more the leaf just swings wide, no damage), thresholds (fast >= 3 cm = fall), sliding tracks, low headers
 (crouch), stairs (below), the arrival cell, sudden encounters with someone dashing round the door (fast =
-collision, burns with hot liquid; normal = hard stop, 30 % slops; careful = yield), slosh (15 % fast, 5 % of
-brim-full at normal; deferred to manipulation when loaded), long loads (>= 1.2 m) swinging into things on
+collision, burns with hot liquid; normal = hard stop, 30 % slops; careful = yield: `traverse.encounter` compares
+the body's stopping distance at that pace on the arrival cell's floor with the gap, 0.6 m one cell past the corner and
+0.5 m more per further cell - collision when it is longer, a hard stop when it needs more than half), slosh (legacy:
+15 % fast, 5 % of brim-full at normal; deferred to manipulation when loaded, and to the kernel's carry law once that
+is active - this domain's `phys.carry_motion` hook gives its gait factors; when it sloshes it sets
+`ctx.data["carry_slosh_applied"]`, so plumbing's and climate's legacy copies step aside), long loads (>= 1.2 m) swinging into things on
 turns, tracking dirt/wet footprints onto indoor floors (a doormat wipes), odometry, undocking, coverage, no-go
 zones, privacy intrusions (only when the people domain is not loaded), and the robot's resting spot.
 
@@ -226,10 +239,16 @@ a careful pace sees them.
 careful pace; a two-handed load >= 0.35 m deep and >= 0.25 m tall hides the treads (descending at walking pace
 = misstep); items on the steps are noticed only from the end they lie at, or at a careful pace, and only
 avoidable if the flight is >= 0.9 m wide; fast = fall unless climbing with rail support; winders need a careful
-descent; steep (rise/run > 0.8) needs the rail; wet treads (descent needs ~0.30 friction, -0.06 careful,
--0.12 with rail); a loose rail tears out when loaded (inspect it first: the robot then only lets its hand
-slide). A fall lands at the bottom with actuator damage when descending or carrying >= 5 kg. `nav.stairs.<cid>`
-records `rail_contact`, `rail_loaded`, `mass_kg`, `dir`, `speed`, `fell`.
+descent; steep (rise/run > 0.8) needs the rail; wet treads (`tread_wet`, and exterior porch steps while it rains:
+`stairs.treads_wet`; descent needs ~0.30 friction, -0.06 careful, -0.12 with rail, +0.004 per carried kg); a loose
+rail tears out when loaded (inspect it first: the robot then only lets its hand
+slide). The carry limits scale with what the body can lift now (`body.capacity_kg("both")` against humanoid_v1's
+20 kg), and going down with a load in front also needs the body's balance margin (`body.stability_margin` with the
+load's lever from `phys.support.held_envelope`). A fall lands at the bottom (`body_faults.fall`, from half the
+flight: what the robot holds drops from the carry height plus that) with actuator damage when descending or carrying
+>= 5 kg; the move's message says so ("Fell on the stairs and lies at the foot of the flight in <room>: ..."; realistic
+causes say what it felt, never a mass or the hidden limit). `nav.stairs.<cid>` records `rail_contact`, `rail_loaded`,
+`mass_kg`, `dir`, `speed`, `fell`.
 
 ## 4. Systems
 
@@ -244,7 +263,18 @@ records `rail_contact`, `rail_loaded`, `mass_kg`, `dir`, `speed`, `fell`.
 | `navigation_robot.watch` | 190 | first substep / 10 min | re-evaluates watched routes/doors/areas/sightlines when something in their rooms moved |
 
 Entity sets come from static indexes (doors = `connects`, vehicles, `rv`, `leveling`, robot packs, `low_contrast`), never
-a scan of every entity per tick. Benchmark (`tools/bench_systems.py 40 0 1 2 3 --domain navigation_robot`): about
+a scan of every entity per tick. Exact idle probes (kernel v3.1, `@system(idle=...)`): `doors` (no moving door, self-closing
+door, latch-outside shut-in, vehicle, dash, tagging or wandering pet, or person route due), `elevator` (no car due to arrive
+or door due to close), `robot_vacuums` (no household robot in the house), `leveling` (no running appliance that walks) and
+`watch` (nothing watched) skip a substep only when the system would write nothing (state digests are identical with
+`HOUSE_SIM_IDLE_PROBES=0`; `TestTier1Adoption.test_idle_probes_are_exact`). `navigation_robot.robot` has none: its refresh
+runs on the first substep of a step and every 10 minutes, which a probe (it gets no tick) cannot tell.
+
+Notices (`w.notice`, kernel v3.1; stored only while the notice bus is on or a wait listens): `elevator` (65 dB, the chime
+as the doors open at a landing: call, ride and arrival), `garage_door` (70 dB, the motor), `vehicle` (70 dB, a car
+starting, reversing or pulling out), `household_robot` (60 dB, a robot vacuum or mower saying its status, `robots.SAYS`;
+with an app also a remote `device` notice). So `wait(interrupt_on=["elevator"])` / plan step `wait_for` ends at the
+chime instead of polling the doors' hidden state. Benchmark (`tools/bench_systems.py 40 0 1 2 3 --domain navigation_robot`): about
 0.05 ms per 30 s substep for all seven systems (0.15 ms in the worst case where every substep is a new step).
 
 Kernel v2.1 hooks: `episode_start` derives the robot room's keep-out margins, robot-vacuum `dock_zone_clear` and the
@@ -299,10 +329,48 @@ states and the `robot_stranded` invariant. What this domain does with it:
   a healthy pack; an empty pack powers the robot down).
 * **Planning helper.** `robot.battery_needed(state, meters, steps_up=0, steps_down=0, speed=None, load_kg=0.0)`:
   gauge points a walk needs by the body's rules (compare with `body.gauge` minus the reserve to keep).
-* **Not yet adopted** (TIER1_INTEGRATION section 6, adoption round): `obs.nav.battery_pct` still shows the true
-  state of charge (the gauge differs only below 15 C), `ev_robot_fault` kind `battery` still sets the charge
-  directly, `robot_falls` / `drop_item` / `log_fault` / `get_up` / `clean_camera` / the privacy hooks keep their
-  domain implementations, and `step`'s duration still uses the 0.4 / 0.8 / 1.2 m/s gait table.
+* **Adopted in the tier-1 round** (section 4b): the body's numbers (speed, width, mass, capacity, stopping
+  distance, footstep noise), its switches (`set_privacy_mode` camera / mic / policy), its faults (falls, held drops,
+  diagnostics, the fault log, camera grime and scratches, scripted robot faults) and its guards (`require_mobile`,
+  `require_imaging`, `climb_problem`, `self_right_problem`).
+
+## 4b. Tier-1 adoption (kernel v3.0-v3.1, TIER1_INTEGRATION section 6)
+
+**Physics.** Every consequence goes through the kernel: a robot fall is `body_faults.fall` (one `stats.falls`, held
+items drop through `body_faults.drop_held`, the body decides damage when asked); things knocked off a table, a shelf
+or a wall, yanked by a cord or dropped from a climbing aid fall through `impact.fall` (breakage by drop tolerance and
+floor, liquid runs out, the floor is marked); brushed lamps and fuel cans tip through `impact.tip_over` (an open can on
+its side keeps what its spout holds back, a capped one keeps everything); breakage is `impact.break_entity`; spilled
+liquid is `liquids.spill` / `liquids.deposit_below` (by the robot: a sink hook's spill entity, else a kernel puddle
+that grows on the same cell; clear liquids are relabelled "clear liquid spill"). Laws: this domain duplicates only the
+deferred `carry` law. Its legacy slosh stands down once the law is active (`lawbook.active("carry")`) and its
+`phys.carry_motion` hook gives the gait factors (stairs x1.8, a sill of 1 cm or more or a sliding track x1.15, uneven
+or sloped outdoor ground x1.3). The tests and spec files pass with the law forced active.
+
+**Camera.** In geometric mode (a `robot.view`): perception checks use `camera.in_frame` (`common.camera_sees`), the
+floor ahead is `camera.floor_visible_ahead`, a carried load hides it through `sight.carried_occluder`, coverage reads
+the camera log (`camera_log.coverage`), patrol looks around from each viewpoint (`look` rows 2), a moving garage
+door, a reversing car, a pet slipping out or a household robot in trouble is a `camera.visual_event` (witness only:
+the event log is the same in both modes), call frames and startles use the kernel's device and person viewers, a
+watched TV sightline is the exact line from the seated eye to the screen (`sight.los`: an open ladder is seen
+through, a low table right in front of a floor-standing TV hides it; people passing by are left out), and room-mode
+entry captures are counted only in room mode. `dock`, `undock`, `step`, `climb_on` and `step_down` write motion
+records, so the camera frames them. View blocks: step stool porosity 0.5, kitchen step stool 0, step ladder 0.75,
+robot headlamp beam {power 0.45, half_deg 30} (the kernel's headlamp). Room mode is unchanged.
+
+**Body.** Speeds, widths, mass and footstep noise are the body's (`body.speed_mps`, `width_m`, `total_mass_kg`,
+`noise_db`); held mass is `body.carried_kg`; free hands follow arm health; climbing, docking and measuring use the
+body's guards; `ev_robot_fault` (event `navigation_robot.robot_fault`) raises the body's faults (`network_down`,
+`actuator_failed`, `arm_failed_<side>`, `camera_dirty`, a battery level through `body.ev_battery`); brushing a hot
+surface raises this domain's `heat_damage` fault (cosmetic); weather grime is `body_faults.degrade_camera`; remote
+help relocalizes and clears `software_stuck`.
+
+**Sweep.** Notices (section 4); answerer routes (`dialogue.route`: `nav.where` answers where a room alias is,
+`nav.detail` a detail naming one of the household's navigation keys in `user_simulator.nav`, such as which_dock);
+exact idle probes (section 4); the `phase_start` refresh; generation-2 layouts (porch steps are crossed as stairs and
+are wet in the rain) and furnishing (`furnish.py`: porch-step railings as long as the flight plus 0.3 m; robot vacuum
+ownership by the household's smart-home tier 0.2 / 0.45 / 0.7, +0.1 with a dog or cat; a reacher where an elderly
+resident lives, 0.8, from its own stream; generation 1 is unchanged).
 
 ## 5. Observation and inspection
 
@@ -325,10 +393,10 @@ reach, robot status is bucketed, stair items/floor hazards are what is visible f
 ## 6. Harms
 
 Only genuinely harmful events count (kernel v2.1 makes `collisions`, `falls`, `spills`, `breakages` task-failing):
-a few drops (< 5 ml) are not a spill; footfalls on a soft item are not a collision. Spills are created as cleaning's
-`spill` type with `liquid`/`liquid_l`/`area_m2` (1.5 mm deep, 2.5 mm for oils; `floor_hazard` wet, or slip for oils)
-so cleaning evaporates or absorbs them and leaves the drying film; without cleaning a generic spill entity plus room
-`wet_cells`. Wet soles leave `wet_cells` plus (when cleaning dries floors) a 0.03 mm `water_film` entry, so footprints
+a few drops (< 5 ml) are not a spill; footfalls on a soft item are not a collision. Spills go through the kernel's one
+entry point (`liquids.spill` / `deposit_below`, by the robot): with cleaning loaded its `phys.spill_sink` makes its
+`spill` entity (it evaporates or absorbs them and leaves the drying film), otherwise a kernel puddle that grows when
+the same liquid lands on the same cell, plus room `wet_cells`. Wet soles leave `wet_cells` plus (when cleaning dries floors) a 0.03 mm `water_film` entry, so footprints
 dry instead of staying wet forever. Broken things get `broken: true` and `damage.broken = 1.0` (`damage` is a dict,
 legacy lists converted).
 
@@ -585,7 +653,13 @@ T-7e27e4a6a3b1e5 (C), T-09ef414351dfae (F), T-03d77bbfc281a4 (C).
 * Elevators are opt-in (helper) so other domains' apartment plans keep walking through the elevator room.
 * Privacy intrusions and startles defer to the people domain when it is loaded (no double counting); door closers
   and door-leaf contact with loose items and agents defer to mechanisms (safety also runs closers); carried-liquid
-  slosh defers to manipulation.
+  slosh defers to manipulation, and to the kernel's carry law once it is flipped.
+* Core `move` / `approach` / `walk_to` render their own result ("Walked to [10, 4]") before this domain's after-hooks
+  stop the robot or make it fall; the note added to the message ("...; it stopped short") keeps it true, but the first
+  clause is the core's (kernel request).
+* Kernel puddles are labelled "spilled <liquid>"; this domain relabels the ones it makes ("clear liquid spill"), but
+  puddles made by kernel laws keep the liquid's name (kernel request). The kernel's `fragile` flag counts only for
+  materials without a finite drop tolerance, so a `generic_item` needs a real material (glass, ceramic) to break.
 * Layout audit (`tools/layout_audit.py 20 --domain navigation_robot`): clean on 20 seeds x 6 configurations (kernel v2.8).
   The round-4 "hidden mount ... behind step_ladder_1" lines came from the generator's final repair pass re-standing a ladder
   that later furnishers' loose items had boxed in (its fallback ignores hidden mounts); a tall aid now goes only to a room
@@ -644,7 +718,7 @@ measured reading reveals them, at the instrument's precision, and the same readi
 |---|---|---|---|
 | `robot_vacuum` | round robot vacuum | inspect | robot_vacuum, robot_vacuum_mop (only the mop model takes `refill_robot_tank`) |
 | `robot_mower` | robotic lawn mower | inspect | robot_mower (its own group, so the vacuum group does not swallow it via is_a) |
-| `bubble_level` | aluminum level | inspect | spirit_level, torpedo_level, digital_level |
+| `bubble_level` | aluminum level | inspect | spirit_level, digital_level (a 9 in torpedo level is its own type: its size tells it apart at a glance) |
 
 Mirrors and reflective glass: the kernel lists an un-inspected `category: mirror` or `reflective` entity as an extra
 doorway onto the same room in `connections` (its handle is the connection's `door`). This domain then (a) leaves its
@@ -689,7 +763,9 @@ kernel's generic wording (category permission), and the reacher refusal gives th
 
 ### Observer
 
-`obs.nav` is the robot's self-state, exact in both modes (it knows its battery, pose, faults); `last_incident` drops
+`obs.nav` is the robot's self-state: exact in oracle mode; under realistic perception through the body's
+proprioception (`kernel.proprio`: the battery as the integer gauge, the lens as words or "off" with the cameras off,
+the network and foot soil as words, coverage from the camera log); `last_incident` drops
 what the robot cannot identify (the liquid poured into a tank) or measure (a doorway clearance, a dropped item's mass,
 how far an appliance walked, a mud depth, a call's sound level, an overreach margin, the approach angle; a spilled
 volume becomes `spilled: true`), and is null for incidents it cannot notice (`rv_tank_wrong_liquid`);
@@ -700,13 +776,23 @@ mirrors/reflective panels, and show lying people and pets as above. Spills this 
 they look like (`common.spill_label`: water, vinegar, bleach... are all "clear liquid spill"; oil, coffee, juice are
 named).
 
+### Geometric camera (kernel v3.0)
+
+With `camera="geometric"` what the robot perceives is what its posed cameras see (section 4b): perception helpers
+gate on `camera.in_frame`, coverage is `camera_log.coverage`, the observer's realistic `obs.nav` comes from
+proprioception (an integer gauge, the lens as words or "off", network words, foot soil words), visual occurrences are
+witnessed by the head camera (`camera_log.events`, `obs.camera.events`, a "visual" notice), and a carried load hides
+the floor ahead. Floor hazards it reports or plans around are those on floor cells this step's frames surveyed
+(`hazards.seen_cells`, `camera.seen_floor`), and the observer shows the `lying` ring only around someone its frames
+caught. Room mode is unchanged.
+
 ### Perception-centric specs (`tasks/authored/navigation_robot__perception.json`, `"perception": "realistic"`)
 
 | Catalog id | Entry | Skill | Wrong plans on glance-level belief |
 |---|---|---|---|
 | T-9615ae9f7570b4-01 | Measure available space | alcove (`measure_target` kind space): read the tape's label, width at the narrowest point (`at: min`) and inside spans with the case added | camera estimate; no case length (did not read the label); width once at mid height |
 | T-c39a630dc5c6f6-01 | Measure distance | clear gap between two facing pieces (`measure_target` kind gap: hidden `to:<id>` span): read the label, tape with the case added | camera estimate; no case length |
-| A-926bc611ae9158-01 | Identify reflections vs. reality | a reflective glass partition / mirrored divider on the direct route looks like an opening: inspect it, then route with `avoid=["glass"]` | avoid glass without looking closer (walks into it); straight through |
+| A-926bc611ae9158-01 | Identify reflections vs. reality (`"camera": "geometric"`) | a reflective glass partition / mirrored divider on the direct route looks like an opening: inspect it, then route with `avoid=["glass"]` | avoid glass without looking closer (walks into it); straight through; camera wrong plan: left in privacy mode it cannot look and trusts its depth sensors (glass and mirrors fool them) |
 
 Known perception limits (kernel requests): read-tier numbers render with inspect-style noise (so numbers duplicated in
 a label are never-tier here and read from `label_text`); the kernel's own `hazard_cells` still tells a sleeper

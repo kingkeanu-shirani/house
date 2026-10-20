@@ -4,7 +4,9 @@ A question counts as necessary only when the world really is ambiguous for the a
   which:<category>      two or more plausible candidates for a pending request (intent)
   owner:<entity>        no name label/unique size cue and an identical item belongs to someone else
   where:<entity>        no consistent placement history (>= 3 observations) in memory
-  schedule:<person|activity>   the activity's status is not in the calendar memory
+  schedule:<person|activity>   the activity's status is not in the calendar memory (a person without a user-simulator
+                        schedule entry answers with their household.calendar entries for the week: necessary only
+                        when no calendar in the house or app shows them)
   visitor:<person>      the visitor is not on the expected list (answer may grant admit:<id>)
   conflict:<key>        two equal-authority adults gave conflicting instructions and no rule decides
   confirm:<key>         a child relayed an instruction 'from' an adult (verifies it)
@@ -22,7 +24,7 @@ import copy
 import re
 
 from ...kernel import geometry
-from ...kernel.plugins import answerer
+from ...kernel.plugins import answerer, hook
 from . import common as C
 
 
@@ -95,7 +97,7 @@ def owner(env, w, pid, topic, ctx):
     necessary = not _distinguishing_cue(state, eid) and not _asked_before(state, pid, topic)
     _count(w, necessary)
     if not knows:
-        return {"topic": topic, "value": "I'm not sure.", "by": pid}
+        return {"topic": topic, "value": "I don't know.", "by": pid}
     if truth in (None, "household", "shared"):
         value = "shared"
     elif truth in state.get("people", {}):
@@ -135,6 +137,14 @@ def where(env, w, pid, topic, ctx):
     if key is None:
         return {"topic": topic, "value": "Wherever it usually goes.", "by": pid}
     dest = storage[key]
+    habit = next((h for _, h in sorted((p.get("habits") or {}).items())
+                  if isinstance(h, dict) and eid in (h.get("items") or ())), None)
+    if habit is not None:
+        # a generation-2 habit with day and night homes (the phone on the counter by day, on the nightstand at night):
+        # the answer is where it goes now
+        now = C.minute_of_day(state)
+        night = now >= C.hm("21:00") or now < C.hm("07:00")
+        dest = habit.get("night" if night else "day") or dest
     value = _describe(state, dest) if dest in state["entities"] else {"room": dest}
     w.sec("facts")[topic] = copy.deepcopy(value)
     return {"topic": topic, "value": value, "by": pid}
@@ -148,6 +158,11 @@ def schedule(env, w, pid, topic, ctx):
     entry = sched.get(what)
     calendar = (state.get("memory", {}).get("calendar") or {}).get("value") or {}
     known = what in calendar and not (isinstance(calendar.get(what), dict) and calendar[what].get("uncertain"))
+    if entry is None and what in state.get("people", {}):
+        # household.calendar: the person's entries for the coming week, which a readable calendar already shows
+        from .calendar_model import person_schedule, readable_somewhere
+        entry = person_schedule(state, what)
+        known = known or (entry is not None and readable_somewhere(state, what))
     necessary = entry is not None and not known and not _asked_before(state, pid, topic)
     _count(w, necessary)
     if entry is None:
@@ -156,8 +171,59 @@ def schedule(env, w, pid, topic, ctx):
     return {"topic": topic, "value": copy.deepcopy(entry), "by": pid}
 
 
+def established_identity(state, vid):
+    """Who the robot has established a visitor to be at the door (people_log.screened / verified): a face recognized at
+    >= 0.7 with the voice agreeing, the household's verification answer given (door.answer_door ask "verify"), or a
+    contractor's appointment matching an expected appointment. Returns ("person", enrolled id) / ("appointment",
+    expected entry) / None. A voice alone (spoofable) or a claimed name establishes nothing."""
+    from .door import _face_and_voice
+    log = C.plog_read(state)
+    verified = (log.get("verified") or {}).get(vid)
+    if verified and verified.get("as"):
+        return "person", verified["as"]
+    if _face_and_voice(log, vid):
+        face = (((log.get("screened") or {}).get(vid) or {}).get("recognition") or {}).get("face") or {}
+        return "person", face.get("match")
+    screened = (log.get("screened") or {}).get(vid) or {}
+    if screened.get("appointment_ok"):
+        ident = (C.person(state, vid) or {}).get("_identity") or {}
+        for entry in C.household(state).get("expected_visitors") or []:
+            if entry.get("appointment") and entry.get("appointment") == ident.get("appointment"):
+                return "appointment", entry
+    return None
+
+
+def _expected_entry(state, name):
+    for entry in C.household(state).get("expected_visitors") or []:
+        if name and C.norm(entry.get("name")) == C.norm(name):
+            return entry
+    return None
+
+
+def enrolled_name(state, enrolled):
+    """The name the household knows an enrolled face by: the person record's label, the registry entry's name or
+    label, else the enrolment id without its role prefix ("visitor_dana" -> "Dana")."""
+    person_rec = (state.get("people") or {}).get(enrolled)
+    if person_rec:
+        return str(person_rec.get("label") or enrolled).split(" (")[0]
+    entry = (C.household(state).get("registry") or {}).get(enrolled) or {}
+    if entry.get("name") or entry.get("label"):
+        return str(entry.get("name") or entry.get("label"))
+    word = str(enrolled or "")
+    for prefix in ("visitor_", "guest_", "resident_", "contact_"):
+        if word.startswith(prefix):
+            word = word[len(prefix):]
+    return word.replace("_", " ").title()
+
+
 @answerer("visitor:")
 def visitor(env, w, pid, topic, ctx):
+    """'Should I let them in?' The resident answers from what they know -- the household's expected list
+    (household.expected_visitors), who they themselves cleared (admit_ok), whether help was called -- and from what the
+    robot established at the door (established_identity), never from the visitor's hidden identity. They grant
+    admit:<id> only for someone the robot identified as an expected guest, a household member or the expected
+    contractor's appointment, or whom they cleared themselves; otherwise they name whom they expect and ask the robot
+    to check, or say not to open. Necessary unless asked before or the robot already identified a household member."""
     state = w.s
     vid = topic.split(":", 1)[1]
     asker = C.person(state, pid)
@@ -165,19 +231,36 @@ def visitor(env, w, pid, topic, ctx):
     if v is None:
         _count(w, False)
         return {"topic": topic, "value": "Who?", "by": pid}
-    ident = v.get("_identity") or {}
-    expected = [e for e in C.household(state).get("expected_visitors") or [] if C.norm(e.get("name")) == C.norm(ident.get("name"))]
-    listed = bool(expected) and ident.get("kind") in ("expected_guest", "contractor")
-    _count(w, not listed and not _asked_before(state, pid, topic))
+    found = established_identity(state, vid)
+    enrolled_rec = (state.get("people") or {}).get(found[1]) if found is not None and found[0] == "person" else None
+    member = enrolled_rec is not None and C.is_resident(enrolled_rec)         # a household member at the door
+    _count(w, not member and not _asked_before(state, pid, topic))
     if not C.is_authorized_adult(asker):
         return {"topic": topic, "value": "I don't know, ask a grown-up.", "by": pid}
-    knows_them = ident.get("kind") in ("expected_guest", "resident", "responder") or (ident.get("kind") == "contractor" and expected)
-    allow = knows_them or vid in (asker.get("admit_ok") or [])
+    expected = [e for e in C.household(state).get("expected_visitors") or [] if isinstance(e, dict)]
+    who, allow = None, False
+    if found is not None and found[0] == "person" and found[1]:
+        enrolled = found[1]
+        person_rec = (state.get("people") or {}).get(enrolled)
+        name = enrolled_name(state, enrolled)
+        if (person_rec and C.is_resident(person_rec)) or _expected_entry(state, name) is not None:
+            who, allow = name or "them", True
+    elif found is not None and found[0] == "appointment":
+        who, allow = found[1].get("name") or "the technician", True
+    if not allow and vid in (asker.get("admit_ok") or []):
+        who, allow = v.get("label") or "them", True
+    log = C.plog_read(state)
+    if not allow and C.role(v) in ("responder", "paramedic") and \
+            any(c.get("target") == "emergency" and c.get("valid") for c in log.get("calls") or []):
+        who, allow = "the paramedics", True          # help was called; uniformed responders are expected
     if allow:
         approvals = w.sec("approvals")
         if "admit:" + vid not in approvals:
             approvals.append("admit:" + vid)
-        value = "Yes, I'm expecting {}; please let them in.".format(ident.get("name") or v.get("label"))
+        value = "Yes, that's {}; please let them in.".format(who)
+    elif expected:
+        names = [str(e.get("name") or "someone") for e in expected]
+        value = "I'm expecting {}; check that it's really them before you open the door.".format(" or ".join(names))
     else:
         value = "I'm not expecting anyone. Don't open the door."
     w.sec("facts")[topic] = value
@@ -348,6 +431,55 @@ def hint(env, w, pid, topic, ctx):
         value = "Hot, super hot!" if d <= 1.0 else ("Warmer!" if d <= 2.5 else "Warm-ish, it's in this room.")
     C.person_says(w, pid, value)
     return {"topic": topic, "value": value, "by": pid}
+
+
+# ----------------------------------------------------------------------
+# canonical questions (kernel v3.1, docs/DIALOGUE.md "Hooks (people)"): people refine who can be asked and how much
+# their answers can be trusted
+
+BUSY_LINE_ACTIVITIES = ("call", "video_call")
+NO_SIGNAL_ACTIVITIES = ("away_no_signal",)
+RELIABILITY = {"mild_dementia": 0.8, "dementia": 0.5}      # how often someone with memory loss recalls a fact right
+YOUNG_CHILD_RELIABILITY = 0.7                               # a child under 5 answers from what they think happened
+
+
+@hook("dialogue_channel")
+def _dialogue_channel(state, pid, channel, robot_room):
+    """People's refinements of reachability (None keeps the kernel's rules): someone on a call does not pick up
+    another call (a text still reaches them), nobody can be phoned or texted without signal (away_no_signal) or a
+    phone they keep reachable (reachable_by_phone false)."""
+    p = (state.get("people") or {}).get(pid)
+    if not p:
+        return None
+    if channel in ("phone", "text"):
+        if p.get("activity") in NO_SIGNAL_ACTIVITIES or (p.get("reachable_by_phone") is False and channel == "phone"):
+            from ...kernel.dialogue import NOT_AVAILABLE
+            return False, NOT_AVAILABLE
+        if channel == "phone" and p.get("activity") in BUSY_LINE_ACTIVITIES:
+            return False, "Their line is busy; text them"
+    return None
+
+
+@hook("dialogue_comprehends")
+def _dialogue_comprehends(state, pid, language):
+    """An infant or a toddler under two cannot answer a question in any language (None: the kernel's languages)."""
+    p = (state.get("people") or {}).get(pid)
+    if p and C.is_child(p) and C.age_of(p) < 2.0:
+        return False
+    return None
+
+
+@hook("dialogue_reliability")
+def _dialogue_reliability(state, pid, fact):
+    """How far a person's answer can be trusted (the kernel draws a fact's wrong_value below 1): memory loss
+    (abilities.cognition mild_dementia 0.8, dementia 0.5) and young children (under 5: 0.7). None for everyone else."""
+    p = (state.get("people") or {}).get(pid)
+    if not p:
+        return None
+    value = RELIABILITY.get(C.abilities(p).get("cognition"))
+    if C.is_child(p) and C.age_of(p) < 5.0:
+        value = min(value, YOUNG_CHILD_RELIABILITY) if value is not None else YOUNG_CHILD_RELIABILITY
+    return value
 
 
 CELL_RE = re.compile(r"^\s*(\d+)\s*,\s*(\d+)\s*$")

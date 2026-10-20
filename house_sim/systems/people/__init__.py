@@ -3,7 +3,8 @@ schedules, sleep, moods, privacy), the user simulator's hidden intents and world
 scoring, communication (alerts, relays, calls, knocking, waking), physical assistance (bracing,
 steadying, guiding, dressing), care (temperatures, medication fetching/logging without dosing,
 heating pads, hearing aids, stories, bedtime, supervised play), the front door (screening,
-recognition, letting in, declining, signing), photos and video-call framing, and the household
+recognition, letting in, declining, signing), the household calendar (artifacts, the app, schedules
+from events, what an event needs), photos and video-call framing, and the household
 norms and invariants that make wrong behaviour fail for real reasons.
 
 Importing this package registers everything (see docs/domains/people.md).
@@ -20,10 +21,12 @@ from . import children  # noqa: F401
 from . import door  # noqa: F401
 from . import social  # noqa: F401
 from . import harms  # noqa: F401
+from . import physical  # noqa: F401
 from . import knowledge  # noqa: F401
 from . import perception  # noqa: F401
 from . import metrics  # noqa: F401
 from . import memory  # noqa: F401
+from . import calendar_model  # noqa: F401
 from . import furnish  # noqa: F401
 from . import helpers  # noqa: F401
 from . import skills  # noqa: F401

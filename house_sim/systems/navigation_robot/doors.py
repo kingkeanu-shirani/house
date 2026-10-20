@@ -92,11 +92,59 @@ def shut(w, door_id, why):
     C.log(w, "door_swung_shut", door=door_id, why=why)
 
 
-@system("navigation_robot.doors", order=84, max_dt=30.0)
+def _is_passage(rec):
+    return bool(rec.get("connects"))
+
+
+def _is_vehicle(rec):
+    return isinstance(rec.get("vehicle"), dict)
+
+
+MOVING_VEHICLE = ("reversing", "moving", "pulling_out")
+
+
+def doors_idle(w):
+    """Exact idle probe of navigation_robot.doors (kernel v3.1, TIER1_SWEEP 6.7): True only when the system would write
+    nothing this substep -- no moving door due to stop, no self-closing door due to swing shut (while this domain owns
+    the closers), no door latching the robot in, no vehicle or dashing person due to stop, and no pet that follows the
+    robot through a fresh passage, wanders through open doors or a person walking a route (those always run)."""
+    state = w.s
+    now = C.now(state)
+    closer = closer_owned_here()
+    robot = state["robot"]
+    entities = state["entities"]
+    for eid in C.ids_with(w, "passage_doors", _is_passage):
+        rec = entities[eid]
+        if rec.get("moving") and now >= C.num(rec.get("_motion_end_s")):
+            return False
+        if closer and rec.get("self_closing") and rec.get("open") and not held_open(rec) \
+                and now - C.num(rec.get("_opened_at_s"), now) >= C.num(rec.get("close_delay_s"), 15.0):
+            return False
+        if rec.get("latch_outside") and not rec.get("open") and robot.get("room") == rec.get("inside_room") \
+                and robot.get("nav_trapped") != eid:
+            return False
+    for eid in C.ids_with(w, "vehicles", _is_vehicle):
+        veh = entities[eid].get("vehicle")
+        if isinstance(veh, dict) and veh.get("state") in MOVING_VEHICLE and now >= C.num(veh.get("_until_s"), 1e18):
+            return False
+    for p in state.get("people", {}).values():
+        if p.get("nav_route_cells") or (p.get("moving") and p.get("_moving_until_s") is not None
+                                        and now >= C.num(p["_moving_until_s"])):
+            return False
+    pets = state.get("pets", {}).values()
+    if any(pet.get("nav_wanders") for pet in pets):
+        return False
+    last = C.nav_read(state).get("last_pass")
+    if last and 5.0 <= now - C.num(last.get("time_s")) <= 900.0 and any(pet.get("follows_robot") for pet in pets):
+        return False
+    return True
+
+
+@system("navigation_robot.doors", order=84, max_dt=30.0, idle=doors_idle)
 def doors_system(w, dt, tick):
     state = w.s
     now = C.now(state)
-    for eid in C.ids_with(w, "passage_doors", lambda r: bool(r.get("connects"))):
+    for eid in C.ids_with(w, "passage_doors", _is_passage):
         rec = state["entities"][eid]
         if rec.get("moving") and now >= C.num(rec.get("_motion_end_s")):
             m = w.mut(eid)
@@ -112,10 +160,10 @@ def doors_system(w, dt, tick):
                 and state["robot"].get("nav_trapped") != eid:
             w.robot_m()["nav_trapped"] = eid
             C.incident(w, "shut_in", door=eid, room=rec.get("inside_room"))
-    for eid in C.ids_with(w, "vehicles", lambda r: isinstance(r.get("vehicle"), dict)):
+    for eid in C.ids_with(w, "vehicles", _is_vehicle):
         rec = state["entities"][eid]
         veh = rec.get("vehicle")
-        if isinstance(veh, dict) and veh.get("state") in ("reversing", "moving", "pulling_out") and now >= C.num(veh.get("_until_s"), 1e18):
+        if isinstance(veh, dict) and veh.get("state") in MOVING_VEHICLE and now >= C.num(veh.get("_until_s"), 1e18):
             m = w.mut(eid)
             nxt = veh.get("then", "parked")
             m["vehicle"]["state"] = nxt
@@ -169,13 +217,13 @@ def _pets_wander(w):
                 m["location"], m["pos"] = other, list(cell or near)
                 m.pop("_door_open_since", None)
                 m.pop("_door_watch", None)
-                C.log(w, "pet_wandered", pet=pid, to=other, through=cid)
+                C.log(w, "pet_wandered", pet=pid, to=other, through=cid, witness={"source": pid})
                 room = state["rooms"][other]
                 if room.get("outdoor") and (room.get("fenced") is False or (room.get("fenced") is None and room.get("type") in UNFENCED)) \
                         and not pet.get("allowed_outside"):
                     m["escaped"] = True
                     w.stat("pet_escape")
-                    C.incident(w, "pet_escaped", pet=pid, room=other)
+                    C.incident(w, "pet_escaped", pet=pid, room=other, witness={"source": pid})
                 break
 
 
@@ -251,13 +299,13 @@ def _pets_follow(w):
         m = w.pet_m(pid)
         m["location"] = dest
         m["pos"] = list(cell or near)
-        C.log(w, "pet_followed", pet=pid, to=dest)
+        C.log(w, "pet_followed", pet=pid, to=dest, witness={"source": pid})
         room = state["rooms"][dest]
         if room.get("outdoor") and (room.get("fenced") is False or (room.get("fenced") is None and room.get("type") in UNFENCED)) \
                 and not pet.get("allowed_outside"):
             m["escaped"] = True
             w.stat("pet_escape")
-            C.incident(w, "pet_escaped", pet=pid, room=dest)
+            C.incident(w, "pet_escaped", pet=pid, room=dest, witness={"source": pid})
 
 
 # ----------------------------------------------------------------------
@@ -265,17 +313,23 @@ def _pets_follow(w):
 
 @hook("event:navigation_robot.garage_door")
 def ev_garage_door(w, args, env):
+    """A motorized garage door starts to move (about 13 s): its motor is heard (a garage_door notice from the door's
+    room) and the moving leaf is a visual occurrence (the geometric camera may witness it)."""
     door = args.get("door")
     if door not in w.s["entities"]:
         return
     m = w.mut(door)
     m["moving"] = "closing" if args.get("action", "close") == "close" else "opening"
     m["_motion_end_s"] = C.now(w.s) + C.num(args.get("duration_s"), 13.0)
-    C.log(w, "door_moving", door=door, direction=m["moving"])
+    rid = C.room_of(w.s, door)
+    C.log(w, "door_moving", door=door, direction=m["moving"], witness={"source": door, "size_m": 2.4})
+    C.notice(w, "garage_door", source=door, room=rid, data={"direction": m["moving"]})
 
 
 @hook("event:navigation_robot.vehicle")
 def ev_vehicle(w, args, env):
+    """A car starts to reverse, move or pull out (or parks): its engine and reversing beeper are heard (a vehicle
+    notice from its room) and the moving car is a visual occurrence."""
     vid = args.get("vehicle")
     if vid not in w.s["entities"]:
         return
@@ -287,7 +341,9 @@ def ev_vehicle(w, args, env):
     if args.get("reverse_dir"):
         veh["reverse_dir"] = args["reverse_dir"]
     m["vehicle"] = veh
-    C.log(w, "vehicle_" + veh["state"], vehicle=vid)
+    C.log(w, "vehicle_" + veh["state"], vehicle=vid, witness={"source": vid, "size_m": 1.8})
+    if veh["state"] in ("reversing", "moving", "pulling_out"):
+        C.notice(w, "vehicle", source=vid, room=C.room_of(w.s, vid), data={"state": veh["state"]})
 
 
 @hook("event:navigation_robot.person_dash")
@@ -304,23 +360,31 @@ def ev_person_dash(w, args, env):
 
 @hook("event:navigation_robot.robot_fault")
 def ev_robot_fault(w, args, env):
-    r = w.robot_m()
+    """Legacy event alias (kept for older specs): delegates to the kernel body's typed faults and events
+    (TIER1_EMBODIMENT 5.8) -- network {ok, until_s} -> robot.network; actuator {ok} -> actuator_failed (raised or
+    cleared); arm {side, ok} -> arm_failed on that side; camera {clean} -> grime to that clarity (degrade_camera, the
+    camera_dirty self-check); battery {level} -> robot.battery (the gauge, its thresholds and a power-down at the
+    cutoff). The body logs each fault itself."""
+    from ...kernel import body, body_faults
     kind = args.get("kind", "network")
+    ok = bool(args.get("ok", False))
     if kind == "network":
-        r["network"] = bool(args.get("ok", False))
+        body.ev_network(w, {"ok": ok, "until_s": args.get("until_s")}, env)
     elif kind == "actuator":
-        r["actuator_ok"] = bool(args.get("ok", False))
+        if ok:
+            body_faults.clear_fault(w, "actuator_failed", "event")
+        else:
+            body_faults.add_fault(w, "actuator_failed", source="event")
     elif kind == "arm":
-        arms = dict(r.get("arms_ok") or {"left": True, "right": True})
-        arms[args.get("side", "left")] = bool(args.get("ok", False))
-        r["arms_ok"] = arms
+        side = args.get("side", "left") if args.get("side") in body.HANDS else "left"
+        if ok:
+            body_faults.clear_fault(w, body_faults.fault_id("arm_failed", side), "event")
+        else:
+            body_faults.add_fault(w, "arm_failed", part=side, source="event")
     elif kind == "camera":
-        r["camera_clean"] = C.num(args.get("clean"), 0.3)
+        body_faults.degrade_camera(w, clarity=C.num(args.get("clean"), 0.3), cause="event")
     elif kind == "battery":
-        r["battery"] = C.num(args.get("level"), 10.0)
-    faults = list(r.get("faults") or [])
-    faults.append({"kind": kind, "time_s": C.now(w.s), "event": True})
-    r["faults"] = faults[-50:]
+        body.ev_battery(w, {"level": C.num(args.get("level"), 10.0)}, env)
 
 
 @hook("event:navigation_robot.no_go")

@@ -24,7 +24,7 @@ infiltration 0.35 air changes per hour, running exhaust fans (`exhaust_m3s`). Ou
 """
 import math
 
-from ...kernel import clock
+from ...kernel import body_faults, camera, clock, geometry
 from ...kernel.plugins import system
 from . import common as C
 
@@ -398,10 +398,19 @@ def expose(w, dt):
             m["_exposure"] = exp
 
 
+SOOT_MIN_K = 0.2                 # smoke below this (visibility over ~15 m) leaves no noticeable film on a lens
+SOOT_PER_K_S = 2e-4              # lens clarity lost per second per 1/m of smoke: thick smoke (K 3) dirties it in ~10 min
+
+
 def robot_exposure(w, dt):
     state = w.s
     rid = state["robot"].get("room")
     a = air(state, rid)
+    k = float(a.get("smoke", 0.0))
+    if k >= SOOT_MIN_K:
+        # soot settles on the camera covers (body_faults.degrade_camera; the robot notices a dirty camera below the
+        # self-check level and clean_camera restores it)
+        body_faults.degrade_camera(w, amount=round(SOOT_PER_K_S * k * dt, 4), cause="smoke")
     dT = float(a.get("dT", 0.0))
     if dT >= 150.0:
         sec = C.ledger(w)
@@ -410,13 +419,84 @@ def robot_exposure(w, dt):
             C.harm(w, "robot_heat_damage", stat="damage")
 
 
-@system("safety.air", order=310, max_dt=30.0)
+HAZE_STEP_K = 0.05               # smoke_density written in 0.05 1/m steps (a write only when the step changes)
+
+
+def haze_level(state, rid):
+    """The room's smoke as the geometric camera's haze: its extinction coefficient K (1/m) in HAZE_STEP_K steps, or
+    None below one step."""
+    k = float(air(state, rid).get("smoke", 0.0))
+    level = round(round(k / HAZE_STEP_K) * HAZE_STEP_K, 3)
+    return level if level >= HAZE_STEP_K - 1e-9 else None
+
+
+def feed_haze(w):
+    """Geometric camera only (TIER1_INTEGRATION 6, camera: room smoke feeds k_haze): each room's smoke as its
+    `smoke_density` field, which sight.k_haze (images fade with distance through smoke) and the realistic uncertainty
+    read. Room mode never writes it, so room-mode outputs stay identical; realistic observations never show it (an
+    unlisted room field; the robot perceives smoke through obs.air)."""
+    state = w.s
+    for rid in sorted(state["rooms"]):
+        level = haze_level(state, rid)
+        if state["rooms"][rid].get("smoke_density") == level:
+            continue
+        room = w.room_m(rid)
+        if level is None:
+            room.pop("smoke_density", None)
+        else:
+            room["smoke_density"] = level
+
+
+def haze_stale(state):
+    """True when feed_haze would change a room (geometric mode only)."""
+    return "view" in state["robot"] and any(state["rooms"][rid].get("smoke_density") != haze_level(state, rid)
+                                            for rid in state["rooms"])
+
+
+SMOKE_SEEN_K = 0.1               # smoke becomes a visible haze (visibility ~30 m): a "smoke" notice in that room
+SMOKE_GONE_K = 0.05              # ... and the room counts as clear again below this (hysteresis)
+
+
+def smoke_sightings(w, rooms):
+    """Rooms whose smoke just became visible post a "smoke" notice (seen in the robot's lit room with imaging; the
+    geometric camera logs whether its current pose saw the haze, camera_log.events / a "visual" notice). The hidden
+    `_air.seen` flag keeps one notice per smoky spell."""
+    from . import fire as F
+    state = w.s
+    for rid in sorted(rooms):
+        a = air(state, rid)
+        k = float(a.get("smoke", 0.0))
+        if k >= SMOKE_SEEN_K and not a.get("seen"):
+            air_m(w, rid)["seen"] = True
+            fires = F.fires(state, room=rid)
+            room = state["rooms"][rid]
+            cols, rows = geometry.grid_size(room)
+            camera.visual_event(w, "smoke_seen", source=fires[0] if fires else None, room=rid,
+                                at=None if fires else [cols // 2, rows // 2],
+                                z=max(1.5, float(room.get("ceiling_m", 2.5)) - 0.3), size_m=1.0, visual="smoke", emit=False)
+            C.post_notice(w, "smoke", rid, source=fires[0] if fires else None, visual=True)
+        elif a.get("seen") and k < SMOKE_GONE_K:
+            air_m(w, rid)["seen"] = False
+
+
+def air_idle(w):
+    """Exact idle probe (kernel v3.1 @system idle): the air system would write nothing this substep -- no source
+    entity (gas leak, CO source, odour), every room's air clean (no smoke, CO, gas, odour, vapour or hot layer to
+    exchange or decay), no smoky spell left to close and, with the geometric camera, no haze to update. Writes
+    nothing."""
+    state = C.bind_world(w).s
+    if source_ids(state) or _active_rooms(state):
+        return False
+    if any(air(state, rid).get("seen") for rid in state["rooms"]):
+        return False
+    return not haze_stale(state)
+
+
+@system("safety.air", order=310, max_dt=30.0, idle=air_idle)
 def air_system(w, dt, tick):
     state = C.bind_world(w).s
     sources = source_ids(state)
     active = _active_rooms(state)
-    if not sources and not active:
-        return
     if sources:
         apply_sources(w, dt, sources)
         active = _active_rooms(state)
@@ -424,6 +504,9 @@ def air_system(w, dt, tick):
         exchange(w, dt, active)
         expose(w, dt)
         robot_exposure(w, dt)
+    smoke_sightings(w, [rid for rid in state["rooms"] if rid in active or air(state, rid).get("seen")])
+    if "view" in state["robot"]:
+        feed_haze(w)
 
 
 def describe_smoke(k):

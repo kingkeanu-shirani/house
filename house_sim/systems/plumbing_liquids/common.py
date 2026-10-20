@@ -11,10 +11,19 @@ Domain bookkeeping lives in the top-level state section ``plumbing`` (never obse
   plumbing.hints          per-person hints (where they noticed water ...), read by the plumbing answerer
 
 Magnitudes are cited where not obvious; fidelity is P-approx (lumped volumes and flows) unless noted.
+
+Tier-1 physics (kernel v3.0, docs/PHYSICS.md): densities, viscosities and freezing points come from
+house_sim/data/physics/liquids.json (density_kg_l, flow_factor); the table below keeps only what liquids.json has no
+column for (potability, drinkability, alcohol, foam, residues, contamination rank) and a pour factor for the few
+liquids liquids.json has no row for yet. Perceivable occurrences of the time systems are posted as notices
+(notice(); kinds "drip" and "water_spray" registered here) and visual ones go through camera.visual_event (plog's
+`see`), so the geometric camera logs whether the robot saw them; room-mode outputs are unchanged.
 """
 import math
 
-from ...kernel import geometry, physics
+from ...kernel import camera, geometry, physics, timeline
+from ...kernel.phys import liquids as PL
+from ...kernel.phys import props as PP
 from ...kernel.plugins import AFTER, SYSTEMS
 
 SECTION = "plumbing"
@@ -30,52 +39,61 @@ WATERLIKE = ("water", "filtered_water", "distilled_water", "ice_water", "tap_wat
 UNIDENTIFIED = "_unidentified_liquid"
 UNIDENTIFIED_HIDES = ("liquid", "product", "hazards")
 
-# name: density kg/L, viscosity class (pour-rate factor), potable, drinkable, alcohol, foam factor (straight pour),
-# rank (contamination severity), soil left behind when it dries (soil kind: level per mm), floor hazard of a spill.
+# name: potable, drinkable, alcohol, foam factor (straight pour), rank (contamination severity), soil left behind when
+# it dries (soil kind: level per mm), floor hazard of a spill. Densities and viscosities are liquids.json's
+# (density_kg_l, flow_factor); `flow` is the pour factor of a liquid liquids.json has no row for (drain-cleaner gel,
+# grease, fertilizer concentrate, sewage, ...) and is ignored for the others.
 LIQUIDS = {
-    "water": dict(density=1.0, flow=1.0, potable=True, drink=True),
-    "filtered_water": dict(density=1.0, flow=1.0, potable=True, drink=True),
-    "distilled_water": dict(density=1.0, flow=1.0, potable=True, drink=True),
-    "ice_water": dict(density=1.0, flow=1.0, potable=True, drink=True),
-    "soapy_water": dict(density=1.0, flow=1.0, potable=False, rank=2, residue={"streaks": 0.2}),
-    "dirty_water": dict(density=1.01, flow=1.0, potable=False, rank=4, residue={"dirt": 0.3, "streaks": 0.3}),
-    "mop_water": dict(density=1.01, flow=1.0, potable=False, rank=5, chemical=True, residue={"dirt": 0.3, "streaks": 0.3}),
-    "condensate": dict(density=1.0, flow=1.0, potable=False, rank=3),
-    "hose_water": dict(density=1.0, flow=1.0, potable=False, rank=1),
-    "rainwater": dict(density=1.0, flow=1.0, potable=False, rank=1),
-    "toilet_water": dict(density=1.0, flow=1.0, potable=False, rank=8, biohazard=True, residue={"biohazard": 0.6}),
-    "sewage": dict(density=1.02, flow=0.9, potable=False, rank=9, biohazard=True, residue={"biohazard": 0.9, "dirt": 0.5}),
-    "milk": dict(density=1.03, flow=0.9, potable=True, drink=True, residue={"food": 0.3, "sticky": 0.2}, perishable=True),
-    "oat_milk": dict(density=1.02, flow=0.9, potable=True, drink=True, residue={"food": 0.3}, perishable=True),
-    "juice": dict(density=1.04, flow=0.9, potable=True, drink=True, sugary=True, residue={"sticky": 0.7}),
-    "orange_juice": dict(density=1.04, flow=0.85, potable=True, drink=True, sugary=True, residue={"sticky": 0.7}, solids="pulp"),
-    "apple_juice": dict(density=1.04, flow=0.9, potable=True, drink=True, sugary=True, residue={"sticky": 0.7}),
-    "lemonade": dict(density=1.04, flow=0.9, potable=True, drink=True, sugary=True, residue={"sticky": 0.6}),
-    "iced_tea": dict(density=1.01, flow=1.0, potable=True, drink=True, sugary=True, residue={"sticky": 0.3, "stain_coffee": 0.2}),
-    "tea": dict(density=1.0, flow=1.0, potable=True, drink=True, residue={"stain_coffee": 0.3}, solids="leaves"),
-    "coffee": dict(density=1.0, flow=1.0, potable=True, drink=True, residue={"stain_coffee": 0.6}),
-    "soda": dict(density=1.04, flow=1.0, potable=True, drink=True, sugary=True, foam=0.6, residue={"sticky": 0.8}),
-    "sparkling_water": dict(density=1.0, flow=1.0, potable=True, drink=True, foam=0.3),
-    "beer": dict(density=1.01, flow=1.0, potable=True, drink=True, alcohol=True, foam=1.0, residue={"sticky": 0.3}),
-    "wine": dict(density=0.99, flow=1.0, potable=True, drink=True, alcohol=True, residue={"stain_wine": 0.8, "sticky": 0.2}),
-    "sparkling_wine": dict(density=0.99, flow=1.0, potable=True, drink=True, alcohol=True, foam=1.5, residue={"sticky": 0.3}),
-    "sangria": dict(density=1.02, flow=1.0, potable=True, drink=True, alcohol=True, sugary=True, residue={"stain_wine": 0.6, "sticky": 0.5}),
-    "broth": dict(density=1.01, flow=1.0, potable=True, residue={"food": 0.3, "grease": 0.2}),
-    "cooking_oil": dict(density=0.92, flow=0.35, potable=False, grease=True, residue={"grease": 0.9}, hazard="slip"),
-    "grease": dict(density=0.9, flow=0.3, potable=False, grease=True, residue={"grease": 1.0}, hazard="slip"),
-    "dish_soap": dict(density=1.03, flow=0.15, potable=False, product=True, surfactant=True, residue={"sticky": 0.4}),
-    "hand_soap": dict(density=1.02, flow=0.12, potable=False, product=True, surfactant=True, residue={"sticky": 0.4}),
-    "foaming_hand_soap": dict(density=1.0, flow=0.9, potable=False, product=True, surfactant=True, residue={"sticky": 0.2}),
-    "laundry_detergent": dict(density=1.05, flow=0.2, potable=False, product=True, surfactant=True, residue={"sticky": 0.5}),
-    "fabric_softener": dict(density=1.0, flow=0.25, potable=False, product=True, residue={"sticky": 0.4}),
-    "bleach": dict(density=1.1, flow=1.0, potable=False, product=True, chemical=True, rank=6, hazard="wet"),
-    "drain_cleaner": dict(density=1.3, flow=0.6, potable=False, product=True, chemical=True, rank=7, caustic=True),
-    "liquid_fertilizer": dict(density=1.2, flow=0.5, potable=False, product=True, fertilizer=True, rank=3),
-    "fertilizer_solution": dict(density=1.0, flow=1.0, potable=False, fertilizer=True, rank=2),
-    "vinegar": dict(density=1.01, flow=1.0, potable=True, product=True),
-    "rinse_aid": dict(density=1.0, flow=0.5, potable=False, product=True),
-    "mixed": dict(density=1.02, flow=0.9, potable=False, rank=1, residue={"sticky": 0.3}),
+    "water": dict(flow=1.0, potable=True, drink=True),
+    "filtered_water": dict(flow=1.0, potable=True, drink=True),
+    "distilled_water": dict(flow=1.0, potable=True, drink=True),
+    "ice_water": dict(flow=1.0, potable=True, drink=True),
+    "soapy_water": dict(flow=1.0, potable=False, rank=2, residue={"streaks": 0.2}),
+    "dirty_water": dict(flow=1.0, potable=False, rank=4, residue={"dirt": 0.3, "streaks": 0.3}),
+    "mop_water": dict(flow=1.0, potable=False, rank=5, chemical=True, residue={"dirt": 0.3, "streaks": 0.3}),
+    "condensate": dict(flow=1.0, potable=False, rank=3),
+    "hose_water": dict(flow=1.0, potable=False, rank=1),
+    "rainwater": dict(flow=1.0, potable=False, rank=1),
+    "toilet_water": dict(flow=1.0, potable=False, rank=8, biohazard=True, residue={"biohazard": 0.6}),
+    "sewage": dict(flow=0.9, potable=False, rank=9, biohazard=True, residue={"biohazard": 0.9, "dirt": 0.5}),
+    "milk": dict(flow=0.9, potable=True, drink=True, residue={"food": 0.3, "sticky": 0.2}, perishable=True),
+    "oat_milk": dict(flow=0.9, potable=True, drink=True, residue={"food": 0.3}, perishable=True),
+    "juice": dict(flow=0.9, potable=True, drink=True, sugary=True, residue={"sticky": 0.7}),
+    "orange_juice": dict(flow=0.85, potable=True, drink=True, sugary=True, residue={"sticky": 0.7}, solids="pulp"),
+    "apple_juice": dict(flow=0.9, potable=True, drink=True, sugary=True, residue={"sticky": 0.7}),
+    "lemonade": dict(flow=0.9, potable=True, drink=True, sugary=True, residue={"sticky": 0.6}),
+    "iced_tea": dict(flow=1.0, potable=True, drink=True, sugary=True, residue={"sticky": 0.3, "stain_coffee": 0.2}),
+    "tea": dict(flow=1.0, potable=True, drink=True, residue={"stain_coffee": 0.3}, solids="leaves"),
+    "coffee": dict(flow=1.0, potable=True, drink=True, residue={"stain_coffee": 0.6}),
+    "soda": dict(flow=1.0, potable=True, drink=True, sugary=True, foam=0.6, residue={"sticky": 0.8}),
+    "sparkling_water": dict(flow=1.0, potable=True, drink=True, foam=0.3),
+    "beer": dict(flow=1.0, potable=True, drink=True, alcohol=True, foam=1.0, residue={"sticky": 0.3}),
+    "wine": dict(flow=1.0, potable=True, drink=True, alcohol=True, residue={"stain_wine": 0.8, "sticky": 0.2}),
+    "sparkling_wine": dict(flow=1.0, potable=True, drink=True, alcohol=True, foam=1.5, residue={"sticky": 0.3}),
+    "sangria": dict(flow=1.0, potable=True, drink=True, alcohol=True, sugary=True, residue={"stain_wine": 0.6, "sticky": 0.5}),
+    "broth": dict(flow=1.0, potable=True, residue={"food": 0.3, "grease": 0.2}),
+    "cooking_oil": dict(flow=0.35, potable=False, grease=True, residue={"grease": 0.9}, hazard="slip"),
+    "grease": dict(flow=0.3, potable=False, grease=True, residue={"grease": 1.0}, hazard="slip"),
+    "dish_soap": dict(flow=0.15, potable=False, product=True, surfactant=True, residue={"sticky": 0.4}),
+    "hand_soap": dict(flow=0.12, potable=False, product=True, surfactant=True, residue={"sticky": 0.4}),
+    "foaming_hand_soap": dict(flow=0.9, potable=False, product=True, surfactant=True, residue={"sticky": 0.2}),
+    "laundry_detergent": dict(flow=0.2, potable=False, product=True, surfactant=True, residue={"sticky": 0.5}),
+    "fabric_softener": dict(flow=0.25, potable=False, product=True, residue={"sticky": 0.4}),
+    "bleach": dict(flow=1.0, potable=False, product=True, chemical=True, rank=6, hazard="wet"),
+    "drain_cleaner": dict(flow=0.6, potable=False, product=True, chemical=True, rank=7, caustic=True),
+    "liquid_fertilizer": dict(flow=0.5, potable=False, product=True, fertilizer=True, rank=3),
+    "fertilizer_solution": dict(flow=1.0, potable=False, fertilizer=True, rank=2),
+    "vinegar": dict(flow=1.0, potable=True, product=True),
+    "rinse_aid": dict(flow=0.5, potable=False, product=True),
+    "mixed": dict(flow=0.9, potable=False, rank=1, residue={"sticky": 0.3}),
 }
+
+# notice kinds this domain posts (TIER1_SWEEP 6.1-6.3; wait(interrupt_on=[...]) accepts them). Levels at 1 m: a tap
+# dripping into a basin or onto a cabinet floor is 40-50 dB (45); a burst pipe, a snapped stem or a split hose hisses
+# at 60-70 dB (65). The kernel's "splash" (45 dB) is used for a basin or toilet running over onto the floor.
+timeline.register_notice_kind("drip", "water starts dripping (a tap, a leak, a ceiling stain)", ("any_sound",), 45.0)
+timeline.register_notice_kind("water_spray", "water sprays or hisses out (a burst pipe, a snapped stem, a split hose)",
+                              ("any_sound",), 65.0)
 CONTAMINANTS = ("sewage", "toilet_water", "mop_water", "dirty_water", "condensate", "hose_water", "rainwater", "soapy_water")
 DRINK_VESSEL_CATEGORIES = ("dish",)
 
@@ -101,6 +119,27 @@ def info(liquid):
     return LIQUIDS.get(liquid or "", LIQUIDS["mixed"] if liquid else {})
 
 
+def liquid_row(liquid):
+    """The liquids.json row of a liquid (aliases resolved), or None when liquids.json has no row for it."""
+    row = PP.liquid_props(liquid or "water")
+    return None if row.get("name") == "default" else row
+
+
+def density_kg_l(liquid):
+    """kg per litre (liquids.json; unknown liquids weigh as water, the kernel's default row)."""
+    return num(PP.liquid_props(liquid or "water").get("rho"), 1000.0) / 1000.0
+
+
+def flow_factor(liquid):
+    """Pour-rate factor of a liquid's viscosity: the kernel's min(1, sqrt(20 cP / viscosity)) from liquids.json
+    (TIER1_PHYSICS 5.7: honey about 22x slower than water, oil about 1.7x, dish soap about 4x); a liquid liquids.json
+    has no row for keeps this domain's factor (LIQUIDS `flow`)."""
+    row = liquid_row(liquid)
+    if row is not None:
+        return min(1.0, math.sqrt(PL.REFERENCE_VISC_CP / max(1e-6, num(row.get("visc_cp"), 1.0))))
+    return num(info(liquid).get("flow"), 1.0)
+
+
 def now(w):
     return float(w.s.get("time_s", 0.0))
 
@@ -119,14 +158,28 @@ def pget(w, key, default=None):
     return (w.s.get(SECTION) or {}).get(key, default)
 
 
-def plog(w, event, limit=300, **data):
+def plog(w, event, limit=300, see=None, **data):
+    """Log a domain event (plumbing.log) and emit it as "plumbing_<event>". see: where a visual occurrence happened
+    ({"source", "room", "at", "z", "size_m"}, camera.visual_event's geometry): the geometric camera then logs whether
+    the robot saw it (and a seen one becomes a "visual" notice); room mode is unchanged (the event log is the same)."""
     sec = psec(w)
     entry = {"t": now(w), "event": event}
     entry.update(data)
     sec["log"].append(entry)
     del sec["log"][:-limit]
     w.emit("plumbing_" + event, **{k: v for k, v in data.items() if (isinstance(v, (str, int, float, bool)) or v is None) and k != "kind"})
+    if see:
+        camera.visual_event(w, "plumbing_" + event, emit=False, **see)
     return entry
+
+
+def notice(w, kind, source=None, room=None, db=None, data=None):
+    """A perceivable occurrence of the time systems (a tap starts dripping, a pipe bursts, a basin runs over) as a
+    notice (TIER1_SWEEP 6.1): the timeline decides whether the robot hears it and stores it when someone listens.
+    Only from the systems (in_system()): an action's own outcome is in its message."""
+    if not in_system():
+        return None
+    return w.notice(kind, room=room, db=db, source=source, data=data)
 
 
 def pcount(w, key, amount=1.0):
@@ -426,7 +479,9 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
         m = w.mut(existing)
         m["liquid_l"] = rnd(num(m.get("liquid_l")) + liters, 4)
         spill = existing
+        new = False
     else:
+        new = True
         label = "spill" if unidentified else "{} spill".format(str(liquid).replace("_", " "))
         props = {"liquid": liquid, "liquid_l": rnd(liters, 4), "label": label,
                  "category": "spill", "portable": False, "blocks_path": False, "mass_kg": 0.0, "volume_l": 0.0,
@@ -455,7 +510,8 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
         wet_cell(w, target, cell)
     if count and not in_system():
         w.stat("spills")
-    plog(w, "spill", liquid=liquid, liters=rnd(liters, 3), where=target, source=source)
+    see = {"source": spill, "size_m": max(0.05, num((w.ent(spill).get("size_m") or [0.1])[0], 0.1))} if new else None
+    plog(w, "spill", see=see, liquid=liquid, liters=rnd(liters, 3), where=target, source=source)
     return spill
 
 

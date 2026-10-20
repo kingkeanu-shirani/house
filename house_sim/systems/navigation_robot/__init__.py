@@ -29,4 +29,4 @@ from . import furnish  # noqa: F401
 VERBS = ("step", "go_to", "follow", "lead", "patrol", "dock", "undock", "swap_battery", "clean_camera", "get_up", "climb_on",
          "step_down", "use_reacher", "measure", "check_level", "mark", "call_elevator", "ride_elevator", "set_privacy_mode",
          "wait_aside", "request_remote_help", "log_fault", "empty_robot_vacuum", "clean_robot_brushes", "refill_robot_tank",
-         "free_stuck_robot")
+         "free_stuck_robot", "run_diagnostics")

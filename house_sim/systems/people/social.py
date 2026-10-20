@@ -5,7 +5,7 @@ group photos (framing, backlight, gaze and blinks over a burst) and video-call f
 import math
 import random
 
-from ...kernel import clock, geometry
+from ...kernel import camera, clock, geometry, sight
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.perception import light_level
@@ -13,20 +13,20 @@ from ...kernel.plugins import hook
 from . import common as C
 from . import senses as S
 
-EYE_STANDING_M = 1.55
-EYE_SEATED_M = 1.15
+EYE_STANDING_M = sight.PERSON_EYE["standing"]       # 1.55 m (the camera's person model: the same constants)
+EYE_SEATED_M = sight.PERSON_EYE["sitting"]          # 1.15 m
 
 
 def eye_point(state, pid):
+    """(x, y, z) of a person's eyes: the kernel's person model (sight.person_eye, TIER1_CAMERA C7) -- 1.55 m standing,
+    1.15 m seated (kneeling and crouching too), 0.2 m above the bed or floor lying down, a child's standing eye
+    0.6 + 0.07 x age m with the seated one scaled alike -- so pointing rays, the camera's person viewers and its
+    occluders agree."""
     p = C.person(state, pid)
-    x, y = C.person_xy(p)
-    if p.get("posture") in ("sitting",):
-        z = EYE_SEATED_M
-    elif p.get("posture") in ("lying", "sleeping"):
-        z = 0.8
-    else:
-        z = EYE_STANDING_M if not C.is_child(p) else 0.6 + 0.07 * C.age_of(p)
-    return x, y, z
+    if p.get("pos") is None:
+        x, y = C.person_xy(p)
+        return x, y, EYE_STANDING_M
+    return sight.person_eye(state, pid)
 
 
 def aim_at(state, pid, target, spos=None):
@@ -413,9 +413,18 @@ def frustum_items(state, device, fov=None, max_m=4.0):
     return found
 
 
+def call_frame_items(state, device):
+    """What a video call's camera shows: a device with a camera block ("view": {"camera": {...}}: a webcam, a tablet
+    or a doorbell lens) is the kernel's device viewer (camera.device_frame: its frame, line of sight, light and
+    resolution); anything else keeps the flat frustum estimate (fov_deg, 4 m, closed containers hide things)."""
+    if isinstance(sight.view_props(state, device).get("camera"), dict):
+        return [eid for eid in camera.device_frame(state, device) if eid in state["entities"]]
+    return frustum_items(state, device)
+
+
 def private_in_frame(state, device):
     out = []
-    for eid in frustum_items(state, device):
+    for eid in call_frame_items(state, device):
         rec = state["entities"][eid]
         if rec.get("private") or rec.get("sensitive") or rec.get("category") in PRIVATE_CATEGORIES or rec.get("mail_piece") or rec.get("_private_in_frame"):
             if rec.get("portable"):

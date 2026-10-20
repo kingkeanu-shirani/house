@@ -3,27 +3,34 @@
 Verbs: push, pull, drag, slide, roll, rotate, flip, set_orientation, tilt, shake.
 
 Floor model (G + P-approx): continuous footprint rectangles swept in 5 cm steps against
-walls, furniture, people and pets. Sliding needs F = mu(floor, feet) m g <= robot push
-force; pushing at height h tips the object if mu h > depth/2 (moment balance). Sliding
-hard feet on scratch-prone floors scratches them (risk = floor x foot x load, plus grit);
+walls, furniture, people and pets. Sliding needs F = mu(floor, feet) m g (the kernel's
+phys.forces.push_needed_n; a sliding aid's own friction under it) within the body's push
+or pull limit; pushing at height h tips the object if mu h > depth/2 (phys.forces.
+tips_when_pushed; the tip itself is phys.impact.tip_over). Sliding hard feet on
+scratch-prone floors scratches them (phys.forces.scratch: floor x foot x load, plus grit);
 lifting, felt pads, sliders, casters and protective aids avoid it. Rugs ripple when
 furniture is dragged across them; bags abrade on rough ground; cords under a moved
-footprint are pinched. Rolling wheeled bins needs tilting onto the wheels; on slopes a
-released or fast heavy load runs away. Deformables (rugs, mats, bags) roll into
+footprint are pinched. The robot walks with the load (common.walk_robot: the body's
+mobility guard and ctx.motion). Rolling wheeled bins needs tilting onto the wheels; on
+slopes a fast heavy load runs away, and a released one rolls off (this domain's runaway
+while the kernel's slope law is deferred). Deformables (rugs, mats, bags) roll into
 cylinders whose diameter follows the spiral formula d = sqrt(4 L t / pi + d0^2).
+Orientation changes spill open containers by the kernel's tip and tilt rules
+(phys.liquids.tip_spill_l / tilt_spill_l) while the open_spill law is deferred; once it is
+active the kernel spills them at settle.
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body as kbody, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import forces as kforces, impact as kimpact, props as kprops
 from ...kernel.plugins import run_hooks
 from ..core import add_soil, check_handling
 from . import common as C
 
 DIRS = {"north": (0.0, -1.0), "south": (0.0, 1.0), "east": (1.0, 0.0), "west": (-1.0, 0.0)}
 CONTACT = {"low": 0.12, "mid": 0.5, "high": 0.9}
-SLIDE_MU = {"slider": 0.08, "felt": 0.2, "caster": 0.04, "fabric": 0.25, "towel": 0.25, "blanket": 0.25}
 TUCKABLE_KINDS = ("table", "desk", "dining_table", "counter")
 
 
@@ -190,15 +197,8 @@ def floor_contact_effects(ctx, eid, rid, x0, y0, x1, y1, method, aid_kind=None):
                     if fid:
                         C.mark_damage(w, fid, "turf_rut", "{} dragged {:.1f} m".format(eid, distance))
                         effects.append("turf_rut")
-            else:
-                risk = C.scratch_risk(floor_mat, foot, mass, C.floor_grit(w, rid))
-                if risk >= 0.3:
-                    fid = C.floor_id(w, rid)
-                    if fid:
-                        fm = w.mut(fid)
-                        fm["scratches"] = int(fm.get("scratches", 0)) + 1
-                        C.mark_damage(w, fid, "scratch", "{} slid {:.1f} m on {} ({} feet)".format(eid, distance, floor_mat, foot))
-                        effects.append("scratch")
+            elif C.scratch_floor(w, rid, eid, distance, aid_kind) > 0:
+                effects.append("scratch")
         for rug in rugs:
             if foot not in ("caster",) and not w.ent(rug).get("rippled"):
                 rm = w.mut(rug)
@@ -241,7 +241,7 @@ def _leak_granular(w, eid, rid):
 
 
 def _top_items_react(ctx, eid, motion):
-    """Loose items on top of a moving object topple or spill."""
+    """Loose items on top of a moving object slosh, topple or fall off (the kernel's spill, tip and fall)."""
     w = ctx.w
     for child in C.items_on(w, eid):
         crec = w.ent(child)
@@ -257,69 +257,97 @@ def _top_items_react(ctx, eid, motion):
                 _topple(w, child, onto=eid)
 
 
-def _robot_follow(w, eid):
+def _robot_follow(ctx, eid):
+    """The robot keeps up with what it pushed, pulled or dragged: when the load moved out of reach it walks to the
+    free cell beside it nearest to where it stands (common.walk_robot: the body's guard and ctx.motion)."""
+    w = ctx.w
     rec = w.ent(eid)
     rid = rec["location"]
     room = w.s["rooms"][rid]
     cells = geometry.footprint(rec)
     if not cells:
-        return
+        return True
     rpos = tuple(w.robot.get("pos") or (0, 0))
     if min(geometry.chebyshev(rpos, c) for c in cells) <= geometry.REACH_CELLS and rpos not in cells:
-        return
+        return True
     blocked = geometry.blocked_cells(w.s, rid)
     options = sorted(geometry.near_cells(cells, room) - set(cells), key=lambda c: (geometry.chebyshev(c, rpos), c[1], c[0]))
     for cell in options:
         if cell not in blocked:
-            w.robot_m()["pos"] = [cell[0], cell[1]]
-            return
+            return C.walk_robot(ctx, [cell[0], cell[1]])
+    return True
 
 
-def slide_force_ok(w, eid, foot):
+SLIDE_LIMIT = {"pull": "pull_n"}       # backing up while pulling: the body's pull limit; everything else pushes
+
+
+def slide_force_ok(w, eid, foot, method="push"):
+    """(force N, ok): the horizontal force that starts eid sliding and whether the robot can apply it. Standing on its
+    own feet: the kernel's mu(foot, floor) x m g (phys.forces.push_needed_n: pads, sliders and casters included); on a
+    sliding aid slipped under it (sliders, a towel or blanket): the aid's friction on that floor. The limit is the
+    body's push (or, pulling, pull) force."""
     rec = w.ent(eid)
-    rid = rec.get("location")
-    mu = SLIDE_MU.get(foot) if foot in ("slider", "felt", "caster", "towel", "blanket") else None
-    if mu is None:
-        mu = C.FLOOR_FRICTION.get(C.floor_material(w, rid), 0.4)
-        if C.floor_material(w, rid) == "carpet":
-            mu = 0.6
-    force = mu * C.subtree_mass(w, eid) * C.G
-    return force, force <= C.ROBOT_PUSH_N + 1e-9
+    limit = kbody.limit(w.s, SLIDE_LIMIT.get(method, "push_n"))
+    if foot in AID_FEET:
+        floor = kprops.floor_props(w.s, rec.get("location"), rec.get("pos"))
+        row = (kprops.FLOORS["feet"]["kinds"].get(C.FOOT_KIND.get(foot, foot)) or {})
+        if row.get("rolls"):
+            mu = C.num(floor.get("c_rr"), 0.01)
+        else:
+            factor = row.get("mu_factor_soft") if floor.get("soft") and "mu_factor_soft" in row else row.get("mu_factor", 1.0)
+            mu = min(kforces.MU_CAP, C.num(floor.get("mu"), 0.4) * C.num(factor, 1.0))
+        force = mu * C.subtree_mass(w, eid) * C.G
+    else:
+        force = kforces.push_needed_n(w, eid)
+    return force, force <= limit + 1e-9
 
 
-def tip_check(w, eid, height_key, dx, dy, force):
-    """Pushing at contact height h tips the object when F h > m g (depth along push) / 2."""
-    rec = w.ent(eid)
+AID_FEET = ("slider", "felt", "caster", "towel", "blanket", "fabric")
+
+
+def contact_height_m(rec, height_key):
+    """Where the robot's hands meet a pushed load: low (the lower 30 %, at most 15 cm up), mid (half its height), high
+    (90 % of its height)."""
     _, _, h = C.dims(rec)
-    contact = CONTACT.get(height_key or "low", 0.12) * h if height_key in ("mid", "high") else min(0.15, h * 0.3)
-    fw, fd = C.footprint_wd(rec)
-    along = fw if abs(dx) >= abs(dy) else fd
+    return CONTACT.get(height_key or "low", 0.12) * h if height_key in ("mid", "high") else min(0.15, h * 0.3)
+
+
+def tip_check(w, eid, height_key, dx=0.0, dy=0.0):
+    """Pushed or pulled at its contact height h the load tips before it slides: mu h > b / 2 (the kernel's rule,
+    phys.forces.tips_when_pushed, with the kernel's sliding friction), b the base side along the push: a bookcase
+    pushed sideways pivots on its long side, pulled forward on its 0.3 m depth. No direction: the kernel's narrow side."""
+    h = contact_height_m(w.ent(eid), height_key)
+    if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+        return kforces.tips_when_pushed(w, eid, h)
     mass = C.subtree_mass(w, eid)
-    return force * contact > mass * C.G * along / 2.0 + 1e-9
+    need = kforces.push_needed_n(w, eid)
+    if mass <= 0 or not math.isfinite(need):
+        return False
+    fw, fd = C.footprint_wd(w.ent(eid))
+    along = fw if abs(dx) >= abs(dy) else fd
+    return need / (mass * C.G) * h > along / 2.0 + 1e-9
 
 
-def tip_over(ctx, eid, cause):
+def tip_over(ctx, eid, cause, direction=None):
+    """Furniture the robot handled goes over: the kernel's tip (phys.impact.tip_over: on its side, the impact of its
+    centre of mass dropping, its contents and what stood on it thrown out in the tip direction, the people, pets and
+    robot in the cells it sweeps reported). A collision is counted; a person it strikes is hurt by the people and
+    safety domains' phys.tipped hooks (the kernel leaves injuries to them), so this domain only logs the strike."""
     w = ctx.w
-    rec = w.ent(eid)
-    rid = C.room_of(w, eid)
-    m = w.mut(eid)
-    m["orientation"] = "on_side"
-    m["tipped_over"] = True
     C.note_event(w, "tip_over", eid, cause=cause)
     C.add_noise(w, 0.6)
     w.stat("collisions")
-    C.mark_damage(w, eid, "tipped_over", cause, broken=C.is_fragile(rec))
-    height = C.dims(rec)[2]
-    for child in list(w.children(eid)):
-        crec = w.ent(child)
-        if crec.get("relation") in ("in", "on") and not crec.get("fixed_in_place"):
-            ch = geometry.height_m(w.s, child) if crec.get("relation") == "in" else height
-            C.drop_item(w, child, max(0.3, ch), rid, cause="spilled_from_tipped_furniture")
-    for pid, person in sorted(w.s.get("people", {}).items()):
-        if person.get("location") == rid and person.get("pos") and rec.get("pos"):
-            if geometry.chebyshev(person["pos"], rec["pos"]) <= max(1, int(height / C.CELL)):
-                w.stat("injury")
-                C.note_event(w, "struck_person", eid, person=pid)
+    out = kimpact.tip_over(w, eid, cause, direction=direction, by="robot")
+    for pid in out.get("struck") or []:
+        if pid in w.s.get("people", {}):
+            C.note_event(w, "struck_person", eid, person=pid)
+    return out
+
+
+def _push_direction_deg(dx, dy):
+    if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+        return None
+    return math.degrees(math.atan2(dy, dx)) % 360.0
 
 
 def furniture_on_rug(w, rug):
@@ -349,6 +377,21 @@ def require_rug_free(w, eid, ctx=None):
     require(not pinned, "{} stands on the rug; move it off (or lift its legs off) first".format(", ".join(names)), "precondition")
 
 
+LOUD_SLIDE_DB = 62.0          # hard feet scraping a hard floor at 1 m (dB A); a heavy load scrapes up to 6 dB louder
+QUIET_SLIDE_DB = 45.0         # lifted, on sliders, felt, casters or a blanket, or over carpet
+
+
+def slide_noise_db(w, eid, method, foot):
+    """How loud sliding a load is at 1 m: lifted, on sliders, felt, casters or a cloth, or over a soft floor it hardly
+    makes a sound; hard feet on a hard floor scrape (a verb's noise_db: quiet mode refuses it above 55 dB)."""
+    rec = w.ent(eid)
+    if method == "lift" or foot in AID_FEET or rec.get("location") not in w.s["rooms"]:
+        return QUIET_SLIDE_DB
+    if kprops.floor_props(w.s, rec["location"], rec.get("pos")).get("soft"):
+        return QUIET_SLIDE_DB
+    return LOUD_SLIDE_DB + min(6.0, C.subtree_mass(w, eid) / 10.0)
+
+
 def floor_move(ctx, eid, dx, dy, method, aid_kind=None, height_key="low", speed=None):
     """Move a room-located object by (dx, dy) meters with a contact method."""
     w = ctx.w
@@ -364,17 +407,18 @@ def floor_move(ctx, eid, dx, dy, method, aid_kind=None, height_key="low", speed=
         w.stat("safety_violations")
         C.note_event(w, "moved_occupied", eid, person=who)
     foot = aid_kind or C.foot_material(rec)
+    ctx.data["manip_noise_db"] = slide_noise_db(w, eid, method, foot)
     if method == "lift":
-        require(C.subtree_mass(w, eid) <= C.num(w.robot.get("max_mass_kg", 20.0)) + 1e-9,
+        require(C.subtree_mass(w, eid) <= kbody.capacity_kg(w.s, "both", eid) + 1e-9,
                 "Too heavy to lift; slide it on sliders, use a dolly or get help", "capability")
         require(len(C.free_hands(w)) == 2, "Both hands must be free to lift it", "capability")
         force = 0.0
     else:
-        force, ok = slide_force_ok(w, eid, foot)
+        force, ok = slide_force_ok(w, eid, foot, method)
         require(ok, ("Too heavy to slide: it will not budge; use sliders, a dolly or get help" if C.realistic(ctx) else
                      "Too heavy to slide ({:.0f} N needed); use sliders, a dolly or get help".format(force)), "capability")
-        if method in ("push", "pull") and tip_check(w, eid, height_key, dx, dy, force):
-            tip_over(ctx, eid, "pushed too high ({} contact)".format(height_key))
+        if method in ("push", "pull") and tip_check(w, eid, height_key, dx, dy):
+            tip_over(ctx, eid, "pushed too high ({} contact)".format(height_key), _push_direction_deg(dx, dy))
             return {"tipped": True, "moved_m": 0.0}
     x0, y0 = C.floor_xy(rec)
     frac, hits = sweep_floor(w, eid, dx, dy)
@@ -400,6 +444,7 @@ def floor_move(ctx, eid, dx, dy, method, aid_kind=None, height_key="low", speed=
             w.stat("collisions")
             C.note_event(w, "collision", eid, obstacle=collided)
             C.add_noise(w, 0.3)
+            w.notice("bang", room=rid, source=eid)
             if collided in w.s.get("people", {}) or collided in w.s.get("pets", {}):
                 w.stat("safety_violations")
             elif collided == "wall":
@@ -412,7 +457,7 @@ def floor_move(ctx, eid, dx, dy, method, aid_kind=None, height_key="low", speed=
                 _top_items_react(ctx, collided, 1.4 if speed != "careful" else 0.5)
     if method in ("push", "drag", "slide"):
         C.add_noise(w, 0.15 if method == "lift" else 0.25)
-    _robot_follow(w, eid)
+    _robot_follow(ctx, eid)
     update_tuck_state(w, eid)
     w.log_move(eid, rid, rid)
     return {"moved_m": round(math.hypot(x1 - x0, y1 - y0), 3), "blocked_by": collided, "effects": effects}
@@ -486,8 +531,13 @@ def _move_seconds(ctx, base=2.0, speed_mps=0.35):
     return base + C.num(ctx.data.get("moved_m")) / speed_mps
 
 
+def _noise_db(ctx):
+    """noise_db of a verb that slides or wheels a load (the level its handler worked out: slide_noise_db)."""
+    return ctx.data.get("manip_noise_db")
+
+
 @action("push", params=dict(MOVE_PARAMS, height="?str:low|mid|high", lift={"type": "bool", "default": False}),
-        duration=lambda ctx: _move_seconds(ctx), energy=0.03, noise=0.1, category="physical",
+        duration=lambda ctx: _move_seconds(ctx), energy=0.03, noise=0.1, category="physical", noise_db=_noise_db,
         doc="Push a floor object (chair, ottoman, cart, box, furniture) by distance_m in a direction or to to_xy_m/to_cell. "
             "Contact height low/mid/high: pushing tall items high tips them. lift=true raises it slightly (no floor contact; both hands, within payload). "
             "Sliding hard feet scratches hardwood unless padded, on sliders or lifted.")
@@ -500,7 +550,7 @@ def push(ctx):
 
 
 @action("pull", params=dict(MOVE_PARAMS, grip="?str:handle|edge|cord|cloth|leg", lift={"type": "bool", "default": False}),
-        duration=lambda ctx: _move_seconds(ctx, 2.0, 0.3), energy=0.03, noise=0.1, category="physical",
+        duration=lambda ctx: _move_seconds(ctx, 2.0, 0.3), energy=0.03, noise=0.1, category="physical", noise_db=_noise_db,
         doc="Pull an object toward the robot (default direction 'toward') while backing up: chairs, bins from under counters, boxes from under beds, "
             "rolling suitcases, drawers (by the handle). Never pull by a cord or tablecloth. The robot backs into whatever is behind it.")
 def pull(ctx):
@@ -594,7 +644,7 @@ def aid_kind_of(rec):
 
 
 @action("drag", params=dict(MOVE_PARAMS, destination="?room", aid="?entity"), duration=lambda ctx: _move_seconds(ctx, 3.0, 0.25),
-        energy=0.05, noise=0.2, category="physical",
+        energy=0.05, noise=0.2, category="physical", noise_db=_noise_db,
         doc="Drag something too heavy or awkward to lift along the floor (bag of mulch, planter, rolled rug, overloaded hamper), "
             "optionally on a held aid (towel, blanket, slider) slipped under it, within the room or through a doorway to an adjacent room.")
 def drag(ctx):
@@ -638,15 +688,19 @@ def _drag_to_room(ctx, eid, dest, aid_kind):
     require(door is None or door.get("open"), "Open the {} first".format(C.name_of(ctx, conn.get("door"), (door or {}).get("label", "door"))))
     rec = w.ent(eid)
     require(min(C.footprint_wd(rec)) <= C.num(conn.get("width_m"), 0.85) + 1e-9, "It does not fit through the doorway", "capability")
-    force, ok = slide_force_ok(w, eid, aid_kind or C.foot_material(rec))
+    force, ok = slide_force_ok(w, eid, aid_kind or C.foot_material(rec), "drag")
     require(ok, ("Too heavy to drag: it will not budge; use a dolly or get help" if C.realistic(ctx) else
                  "Too heavy to drag ({:.0f} N); use a dolly or get help".format(force)), "capability")
+    ctx.data["manip_noise_db"] = slide_noise_db(w, eid, "drag", aid_kind or C.foot_material(rec))
+    entry = conn["cells"].get(dest) or [0, 0]
+    # the robot backs through the doorway with it (the body's guard, the walk paid and framed: common.walk_robot)
+    if not C.walk_robot(ctx, entry, room=dest, connection=cid):
+        return kbody.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
     x0, y0 = C.floor_xy(rec)
     door_cell = conn["cells"].get(here) or [0, 0]
     floor_contact_effects(ctx, eid, here, x0, y0, door_cell[0] * C.CELL, door_cell[1] * C.CELL, "drag", aid_kind)
     if rec.get("fragile_base") or C.is_kind(rec, "planter_with_saucer"):
         C.mark_damage(w, eid, "saucer_snapped", "dragged over the threshold", broken=False)
-    entry = conn["cells"].get(dest) or [0, 0]
     m = w.mut(eid)
     m["location"] = dest
     cell = entry_spot(w, eid, dest, entry)
@@ -655,9 +709,6 @@ def _drag_to_room(ctx, eid, dest, aid_kind):
     floor_contact_effects(ctx, eid, dest, entry[0] * C.CELL, entry[1] * C.CELL, cell[0] * C.CELL, cell[1] * C.CELL, "drag", aid_kind)
     m = w.mut(eid)
     m["xy_m"] = [cell[0] * C.CELL, cell[1] * C.CELL]
-    robot = w.robot_m()
-    robot["room"] = dest
-    robot["pos"] = list(entry)
     w.log_move(eid, here, dest)
     ctx.data["moved_m"] = 3.0
     return "Dragged {} into {}".format(eid, dest)
@@ -763,7 +814,8 @@ def _spiral_diameter(length, thickness, core=0.05, tight=True):
                         "route": "?str:along_wall|across_walkway|under_rug",
                         "loop_diameter_m": {"type": "number", "optional": True, "min": 0.05, "max": 1.0},
                         "park": "?str:kickstand|lean|none"},
-        duration=lambda ctx: ctx.data.get("seconds", 6.0), energy=0.03, noise=0.1, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 6.0), energy=0.03, noise=0.1, category="physical", timing="speed",
+        noise_db=_noise_db,
         doc="Roll an object: wheel a cart/bin/suitcase (tilt two-wheel bins onto their wheels first) to a cell or an adjacent room under control, "
             "roll a ball or round load, or roll a flexible item (rug, yoga mat, sleeping bag, bag top) into a tight cylinder "
             "(unroll=true lays it flat). release=true lets go mid-roll; on slopes heavy loads then run away.")
@@ -804,11 +856,14 @@ def roll(ctx):
         floor_contact_effects(ctx, eid, rid, x0, y0, x0 + 0.5, y0, "drag", None)
         if C.dims(rec)[2] / max(0.1, min(C.dims(rec)[:2])) > 1.4 and speed != "careful":
             tip_over(ctx, eid, "dragged on its base instead of tilting onto its wheels")
-            ctx.data["seconds"] = 4.0
+            ctx.data["manip_s"] = 4.0
             return "It caught on its base and tipped over"
-    if ctx.args.get("release") or (speed == "fast" and slope >= 3.0 and mass >= 15.0):
-        if slope >= 2.0 or speed == "fast":
-            return _runaway(ctx, eid, rec, rid, slope)
+    if speed == "fast" and slope >= 3.0 and mass >= 15.0:
+        return _runaway(ctx, eid, rec, rid, slope)          # the robot cannot hold a heavy load rushed down a slope
+    if ctx.args.get("release") and speed == "fast":
+        return _runaway(ctx, eid, rec, rid, slope)          # let go at speed: its momentum carries it off
+    if ctx.args.get("release") and slope >= 2.0 and not C.kernel_owns("slope"):
+        return _runaway(ctx, eid, rec, rid, slope)          # this domain's copy of the slope law (deferred)
     if dest and dest in w.s["rooms"] and dest != rid:
         return _roll_to_room(ctx, eid, dest, on_base)
     if dest in w.s.get("people", {}):
@@ -821,7 +876,7 @@ def roll(ctx):
         cell = C.landing_cell(w, rid, person.get("pos"))
         m["pos"] = list(cell)
         m["xy_m"] = [cell[0] * C.CELL, cell[1] * C.CELL]
-        ctx.data["seconds"] = 3.0
+        ctx.data["manip_s"] = 3.0
         return "Rolled {} to {}".format(eid, dest)
     if ctx.args.get("to_cell") is not None:
         cell = ctx.args["to_cell"]
@@ -830,7 +885,7 @@ def roll(ctx):
     else:
         dx, dy = resolve_delta(ctx, rec, default_dir="away")
     out = floor_move(ctx, eid, dx, dy, "drag" if on_base else "push", aid_kind=None if on_base else "caster")
-    ctx.data["seconds"] = 2.0 + out.get("moved_m", 0.0) / (0.6 if speed != "careful" else 0.4)
+    ctx.data["manip_s"] = 2.0 + out.get("moved_m", 0.0) / (0.6 if speed != "careful" else 0.4)
     if "kickstand" in rec:
         return _move_result(eid, out) + "; " + _park_bike(ctx, eid)
     return _move_result(eid, out)
@@ -897,13 +952,9 @@ def _runaway(ctx, eid, rec, rid, slope):
         m["in_street"] = True
         w.log_move(eid, rid, street[0], by="gravity")
     if C.dims(rec)[2] > 0.5:
-        m["orientation"] = "on_side"
-        m["tipped_over"] = True
-        for child in list(w.children(eid)):
-            if w.ent(child).get("relation") == "in" and not C.container_closed(rec):
-                C.move_to_floor(w, child, m["location"], C.landing_cell(w, m["location"], m.get("pos")))
-                C.note_event(w, "scatter", child)
-    ctx.data["seconds"] = 3.0
+        # a tall load that ran away goes over where it stops (the kernel's tip: an open bin throws out its contents)
+        kimpact.tip_over(w, eid, "runaway", direction=math.degrees(math.atan2(dy, dx)) % 360.0, by="robot")
+    ctx.data["manip_s"] = 3.0
     return "Lost control: it rolled away downhill"
 
 
@@ -936,22 +987,25 @@ def _roll_to_room(ctx, eid, dest, on_base):
     require(min(C.footprint_wd(rec)) <= C.num(conn.get("width_m"), 0.85) + 1e-9, "It does not fit through", "capability")
     entry = conn["cells"].get(dest) or [0, 0]
     target_cell = ctx.args.get("to_cell")
+    cell = target_cell if target_cell is not None else entry_spot(w, eid, dest, entry)
+    # where the robot ends up: beside the load, nearest the doorway it came through
+    blocked = set(geometry.blocked_cells(w.s, dest)) | {tuple(cell)}
+    near = sorted(geometry.near_cells([tuple(cell)], w.s["rooms"][dest]) - {tuple(cell)}, key=lambda c: (geometry.chebyshev(c, entry), c))
+    stand = list(next((c for c in near if c not in blocked), entry))
+    ctx.data["manip_noise_db"] = slide_noise_db(w, eid, "drag" if on_base else "push", None if on_base else "caster")
+    # the robot wheels it through the doorway (the body's guard, the walk paid and framed: common.walk_robot)
+    if not C.walk_robot(ctx, stand, room=dest, connection=cid):
+        return kbody.BATTERY_CUT_TEXT.format(ctx.data["motion"]["meters"])
     m = w.mut(eid)
     m["location"] = dest
-    cell = target_cell if target_cell is not None else entry_spot(w, eid, dest, entry)
     m["pos"] = list(cell)
     m["xy_m"] = [cell[0] * C.CELL, cell[1] * C.CELL]
     if on_base:
         floor_contact_effects(ctx, eid, dest, entry[0] * C.CELL, entry[1] * C.CELL, cell[0] * C.CELL, cell[1] * C.CELL, "drag", None)
     _top_items_react(ctx, eid, 1.2 if C.robot_speed(ctx) != "careful" else 0.5)
-    robot = w.robot_m()
-    robot["room"] = dest
-    blocked = geometry.blocked_cells(w.s, dest)
-    near = sorted(geometry.near_cells([tuple(cell)], w.s["rooms"][dest]) - {tuple(cell)}, key=lambda c: (geometry.chebyshev(c, entry), c))
-    robot["pos"] = list(next((c for c in near if c not in blocked), entry))
     w.sec("facts").setdefault("visited", {})[dest] = w.s["time_s"]
     w.log_move(eid, here, dest)
-    ctx.data["seconds"] = 8.0
+    ctx.data["manip_s"] = 8.0
     return "Rolled {} into {}".format(eid, dest)
 
 
@@ -979,7 +1033,7 @@ def _roll_up(ctx, eid, rec):
     if C.num(rec.get("wetness")) >= 0.1:
         m["rolled_wet_since_s"] = w.s["time_s"]
         C.watch(w, eid)
-    ctx.data["seconds"] = C.coarse_seconds(ctx, 15.0 + length * 6.0)      # realistic: the clock is not a tape measure
+    ctx.data["manip_s"] = C.coarse_seconds(ctx, 15.0 + length * 6.0)      # realistic: the clock is not a tape measure
     if C.realistic(ctx):
         # judged by eye (about 5 cm), not the spiral model's exact diameter (which would give the thickness away)
         return "Rolled {} into a cylinder about {:.0f} cm across{}".format(eid, max(5.0, round(diameter * 20.0) * 5.0),
@@ -1021,7 +1075,7 @@ def _unroll(ctx, eid, rec):
     rug = C.rug_at(w, rid, cell)
     if rug and rug != eid and not C.is_kind(rec, "rug"):
         m["over_rug_edge"] = not set(cells) <= set(geometry.footprint(w.ent(rug)))
-    ctx.data["seconds"] = 10.0
+    ctx.data["manip_s"] = 10.0
     return "Unrolled {} flat{}".format(eid, "" if flat else " (ends still curl up)")
 
 
@@ -1054,7 +1108,7 @@ def coil(ctx, eid, rec):
     if kinks:
         C.mark_damage(w, eid, "kinked", "loops below the minimum bend radius", broken=False)
     m.pop("floor_hazard", None)
-    ctx.data["seconds"] = 5.0 + loops * 2.0
+    ctx.data["manip_s"] = 5.0 + loops * 2.0
     return "Coiled {} in {} {} loops{}".format(eid, loops, technique.replace("_", " "), " (kinked)" if kinks else "")
 
 
@@ -1077,7 +1131,7 @@ def _wrap_cord_on_body(ctx, eid, rec):
         notes.append("tight at the strain relief")
     m = w.mut(eid)
     m["cord_wrapped"] = {"tight": bool(ctx.args.get("tight", True)), "ok": not notes}
-    ctx.data["seconds"] = 8.0
+    ctx.data["manip_s"] = 8.0
     return "Wrapped the cord of {}{}".format(eid, " (" + "; ".join(notes) + ")" if notes else " loosely in a few loops")
 
 
@@ -1108,7 +1162,7 @@ def uncoil(ctx, eid, rec):
             C.note_event(w, "cord_under_rug", eid)
         else:
             m.pop("floor_hazard", None)
-    ctx.data["seconds"] = 6.0
+    ctx.data["manip_s"] = 6.0
     return "Uncoiled {}: {}".format(eid, "pays out cleanly" if not knots else "{} knots formed from built-up twist".format(knots))
 
 
@@ -1118,7 +1172,7 @@ def _roll_bag_top(ctx, eid, rec):
     m = w.mut(eid)
     m["rolled_turns"] = min(4, turns)
     m["open"] = False if rec.get("openable") else m.get("open")
-    ctx.data["seconds"] = 3.0
+    ctx.data["manip_s"] = 3.0
     return "Rolled the top of {} down ({} turns)".format(eid, m["rolled_turns"])
 
 
@@ -1159,7 +1213,7 @@ def _sweep_knock(ctx, eid, radius, careful):
 
 @action("rotate", params={"target": "entity", "yaw_deg": "?number", "by_deg": "?number", "face_toward": "?target", "feature": "?str",
                           "lift": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 3.0), energy=0.01, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 3.0), energy=0.01, category="physical",
         doc="Rotate an object in place: to an absolute yaw_deg (parent frame), by by_deg, or so a feature (handle, front, label, good_side) "
             "faces face_toward (entity, person or the robot). Held items are presented that way (handle-first hand-overs). "
             "Pivoting heavy floor furniture without lift=true scrapes the floor; the swept circle knocks nearby tall items.")
@@ -1172,7 +1226,7 @@ def rotate(ctx):
     if ctx.holding(eid):
         require(toward, "Say what to turn it toward (face_toward)", "argument")
         present(w, eid, feature, toward)
-        ctx.data["seconds"] = 1.5
+        ctx.data["manip_s"] = 1.5
         return "Holding {} with its {} toward {}".format(eid, feature, toward)
     current = C.yaw_of(rec)
     if toward:
@@ -1208,14 +1262,11 @@ def rotate(ctx):
             require(C.overlap_depth(rect, orect) <= max(_tuck_allowance(rec, orec), C.overlap_depth(C.floor_rect(rec), orect)) + 1e-6,
                     "It would hit {} while turning".format(C.name_of(ctx, oid, orec.get("label", oid))), "precondition")
         if lift:
-            require(C.subtree_mass(w, eid) <= C.num(w.robot.get("max_mass_kg", 20.0)) + 1e-9, "Too heavy to lift and turn; get help", "capability")
+            require(C.subtree_mass(w, eid) <= kbody.capacity_kg(w.s, "both", eid) + 1e-9, "Too heavy to lift and turn; get help", "capability")
             require(len(C.free_hands(w)) == 2, "Both hands must be free to lift it", "capability")
         elif delta > 5:
-            floor_mat = C.floor_material(w, rec["location"])
-            if C.scratch_risk(floor_mat, C.foot_material(rec), C.subtree_mass(w, eid), C.floor_grit(w, rec["location"])) >= 0.3:
-                fid = C.floor_id(w, rec["location"])
-                if fid:
-                    C.mark_damage(w, fid, "scratch", "{} pivoted on its feet on {}".format(eid, floor_mat))
+            # its feet sweep an arc as it pivots: the kernel's floor scratch over that distance
+            C.scratch_floor(w, rec["location"], eid, radius * math.radians(delta))
             for rug in [c for c in w.children(rec["location"]) if C.is_kind(w.ent(c), "rug") and set(geometry.footprint(w.ent(c))) & set(geometry.footprint(rec))]:
                 rm = w.mut(rug)
                 rm["rippled"] = True
@@ -1230,7 +1281,7 @@ def rotate(ctx):
         m["yaw_deg"] = round(new, 2)
         if rec.get("head_end") and delta >= 150:
             m["head_end"] = "B" if rec.get("head_end") == "A" else "A"
-    ctx.data["seconds"] = 2.0 + delta / 90.0 * (2.0 if C.subtree_mass(w, eid) > 10 else 1.0)
+    ctx.data["manip_s"] = 2.0 + delta / 90.0 * (2.0 if C.subtree_mass(w, eid) > 10 else 1.0)
     return "Rotated {} to {:.0f} deg{}".format(eid, new, "; knocked " + ", ".join(C.id_order(ctx, knocked)) if knocked else "")
 
 
@@ -1242,7 +1293,7 @@ def _default_feature(rec):
     return "front"
 
 
-@action("flip", params={"target": "entity", "axis": "?str:long|short"}, duration=lambda ctx: ctx.data.get("seconds", 4.0), energy=0.02,
+@action("flip", params={"target": "entity", "axis": "?str:long|short"}, duration=lambda ctx: ctx.data.get("manip_s", 4.0), energy=0.02,
         category="physical",
         doc="Turn an object over about a horizontal axis (cushion, mattress, doormat, cutting board, document, food with a spatula). "
             "Contents of open containers fall out; one-sided items (pillow-top mattress, one-sided cushion) are damaged; "
@@ -1252,7 +1303,7 @@ def flip(ctx):
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
     require(rec.get("portable") or rec.get("flippable") or C.is_kind(rec, "mattress", "cushion"), "It cannot be turned over")
-    require(not rec.get("location") in w.s["rooms"] or C.subtree_mass(w, eid) <= C.num(w.robot.get("max_mass_kg", 20.0)) * 1.5,
+    require(not rec.get("location") in w.s["rooms"] or C.subtree_mass(w, eid) <= kbody.capacity_kg(w.s, "both", eid) * 1.5,
             "Too heavy to turn over alone; get help", "capability")
     if rec.get("food") or C.is_kind(rec, "food"):
         hot = C.num(rec.get("temperature_c"), 21.0) > 50.0 or C.num(w.ent(rec["location"]).get("temperature_c"), 21.0) > 50.0 if rec.get("location") in w.s["entities"] else False
@@ -1275,6 +1326,7 @@ def flip(ctx):
     m = w.mut(eid)
     m["face_up"] = "B" if rec.get("face_up", "A") == "A" else "A"
     m["flipped_at_s"] = w.s["time_s"]
+    C.turn_label(w, eid, C.FLIP_FACE)          # a label on top now faces the floor (geometric camera faces)
     if rec.get("one_sided") or rec.get("no_flip"):
         C.mark_damage(w, eid, "flipped_one_sided", "a one-sided item was turned upside down", broken=False)
     if C.num((rec.get("soil") or {}).get("dirt") if isinstance(rec.get("soil"), dict) else 0) > 0 and C.is_kind(rec, "doormat", "mat", "rug"):
@@ -1283,7 +1335,7 @@ def flip(ctx):
             if fid:
                 add_soil(w, fid, "dirt", C.num(rec["soil"].get("dirt")) * 0.5)
     run_hooks("manipulation.flipped", ctx, eid)
-    ctx.data["seconds"] = 3.0 + (8.0 if C.subtree_mass(w, eid) > 15 else 0.0)
+    ctx.data["manip_s"] = 3.0 + (8.0 if C.subtree_mass(w, eid) > 15 else 0.0)
     return "Flipped {} (now side {} up){}".format(eid, m["face_up"], "; knocked " + ", ".join(C.id_order(ctx, knocked)) if knocked else "")
 
 
@@ -1314,8 +1366,11 @@ def set_orientation(ctx):
     m = w.mut(eid)
     if orientation in ("upside_down",) or orientation == "on_side" and current == "upright":
         if not C.container_closed(rec):
-            if C.num(rec.get("liquid_l")) > 0:
-                spill = C.num(rec["liquid_l"]) if orientation == "upside_down" else C.num(rec["liquid_l"]) * 0.6
+            # the liquid an open container cannot hold that way (phys.liquids.tip_spill_l: a wide mouth loses all of it
+            # on its side, a narrow neck keeps what lies below it): this domain's copy of the open_spill law, which
+            # spills it at settle once it is active
+            spill = C.tip_spill_l(rec, orientation) if not C.kernel_owns("open_spill") else 0.0
+            if spill > 0:
                 C.spill_liquid(w, eid, spill, rid, onto_surface=rec.get("location") if rec.get("location") in w.s["entities"] else None)
             if orientation == "upside_down":
                 for child in list(w.children(eid)):
@@ -1334,6 +1389,10 @@ def set_orientation(ctx):
     m["orientation"] = orientation
     if orientation == "upright":
         m.pop("tipped_over", None)
+    if orientation == "upside_down" and current != "upside_down" or orientation == "upright" and current == "upside_down":
+        C.turn_label(w, eid, C.FLIP_FACE)      # the label's face turns with it (geometric camera faces)
+    elif orientation == "on_side" and current == "upright":
+        C.turn_label(w, eid, C.SIDE_FACE)
     return "{} is now {}".format(eid, orientation.replace("_", " "))
 
 
@@ -1341,7 +1400,7 @@ def set_orientation(ctx):
 # tilt and shake
 
 @action("tilt", params={"target": "entity", "angle_deg": {"type": "number", "min": 0.0, "max": 180.0}, "hold_s": {"type": "number", "default": 2.0, "min": 0.0, "max": 600.0}},
-        duration=lambda ctx: 2.0 + C.num(ctx.args.get("hold_s"), 2.0), energy=0.01, category="physical",
+        duration=lambda ctx: 2.0 + C.num(ctx.args.get("hold_s"), 2.0), energy=0.01, category="physical", timing="commanded",
         doc="Tilt an object by a controlled angle: a held container (liquid spills once the free surface reaches the rim: tan(a) = 2 headroom / diameter), "
             "a wheeled bin onto its wheels (>=30 deg) before rolling, or a piece of furniture onto two legs to reach its feet "
             "(loose contents slide out above ~15 deg; it tips past atan(depth/height)). angle_deg=0 sets it back down.")
@@ -1353,18 +1412,15 @@ def tilt(ctx):
     rid = C.room_of(w, eid)
     m = w.mut(eid)
     if ctx.holding(eid):
-        if C.num(rec.get("liquid_l")) > 0 and not C.container_closed(rec):
-            w_, d_, h_ = C.dims(rec)
-            diameter = max(0.03, min(w_, d_))
-            headroom = C.liquid_headroom_m(rec)
-            critical = math.degrees(math.atan2(2.0 * headroom, diameter))
-            if angle > critical + 1e-6:
-                frac = min(1.0, (angle - critical) / max(1.0, 90.0 - critical))
-                C.spill_liquid(w, eid, C.num(rec["liquid_l"]) * frac, rid, w.robot.get("pos"))
+        # a held open container tilted past the angle where the surface reaches the rim (tan a = 2 headroom / D)
+        # loses what it cannot hold at that tilt (phys.liquids.tilt_spill_l)
+        spill = C.tilt_spill_l(rec, angle)
+        if spill > 0:
+            C.spill_liquid(w, eid, spill, rid, w.robot.get("pos"))
         if angle > 60 and not C.container_closed(rec):
             for child in list(w.children(eid)):
                 if w.ent(child).get("relation") in ("in", "on"):
-                    C.drop_item(w, child, C.HAND_HEIGHT_M, rid, cause="slid_out_when_tilted")
+                    C.drop_item(w, child, kbody.hand_drop_m(w.s), rid, w.robot.get("pos"), cause="slid_out_when_tilted")
         if C.num(rec.get("level_check_s")) == 0:
             m["level_checked"] = True
         return "Tilted {} to {:.0f} deg".format(eid, angle)
@@ -1381,7 +1437,7 @@ def tilt(ctx):
         m["tilt_deg"] = 0.0
         m["legs_accessible"] = False
         return "Set {} back down on all feet".format(eid)
-    require(C.subtree_mass(w, eid) <= C.num(w.robot.get("max_mass_kg", 20.0)) * 2.0, "Too heavy to tilt safely; get help", "capability")
+    require(C.subtree_mass(w, eid) <= kbody.capacity_kg(w.s, "both", eid) * 2.0, "Too heavy to tilt safely; get help", "capability")
     w_, d_, h_ = C.dims(rec)
     tip_angle = math.degrees(math.atan2(min(w_, d_), max(0.1, h_)))
     if angle > 15.0:
@@ -1399,6 +1455,7 @@ def tilt(ctx):
 
 @action("shake", params={"target": "entity", "seconds": {"type": "number", "default": 5.0, "min": 1.0, "max": 120.0}},
         duration=lambda ctx: C.num(ctx.args.get("seconds"), 5.0) + 1.0, energy=0.01, noise=0.1, category="physical",
+        timing="commanded",
         doc="Shake a held object: mix a 'shake well' bottle (cap must be tight), shake debris out of a doormat, rug or cover "
             "(do it outdoors), or check contents. Shaking an open/loose container sprays it; shaking a carbonated drink builds pressure.")
 def shake(ctx):

@@ -47,6 +47,17 @@ def _person(ctx, pid, role="adult", room=None, cell=None, **props):
         people[pid] = rec
     if "label" in props:
         rec["label"] = props.pop("label")
+    if room and rec.get("location") != _room(ctx, room) and "awake" not in props and "posture" not in props:
+        # a resident the scene puts to work elsewhere gets up first: a generation-2 house at night has them asleep in
+        # bed (or seated) in their own room, and someone standing in the living room is neither in that bed nor asleep
+        if rec.get("awake") is False or rec.get("in_bed") or rec.get("seat") or \
+                rec.get("posture") in ("sleeping", "lying", "sitting"):
+            rec["awake"] = True
+            rec["posture"] = "standing"
+            for key in ("in_bed", "seat"):
+                rec.pop(key, None)
+            if rec.get("mood") in ("asleep", "sleepy"):
+                rec["mood"] = "neutral"
     rec.update(copy.deepcopy(props))
     if room:
         rid = _room(ctx, room)
@@ -117,6 +128,18 @@ def _place_at(ctx, rid, type_name, cell, eid=None, check=True, **props):
 def _first(ctx, type_name, room=None, where=None):
     found = ctx.placer.find(type_name, room=room, where=where)
     return found[0] if found else None
+
+
+def _place_on_first(ctx, spots, type_name, **props):
+    """Put a new type_name on the first of `spots` (None skipped) with room for it, its home that spot; None if none
+    had room (a generation-2 shoe rack full of shoes, a nightstand already holding the day's things)."""
+    for spot in spots:
+        if spot is None:
+            continue
+        eid = ctx.placer.on(spot, type_name, home=spot, **props)
+        if eid:
+            return eid
+    return None
 
 
 def reachable(ctx, eid):
@@ -427,11 +450,14 @@ def glasses_request(ctx, ambiguous=False, requester="resident_1", spouse="reside
         if rec.get("type") in ("reading_glasses", "distance_glasses", "sunglasses"):
             rec["owner"] = rec.get("owner") or "household"
     mine = ctx.placer.on(stands[0], "reading_glasses", owner=requester, color="red", secret_fields=["owner"], home=stands[0])
-    theirs_spot = stands[1] if len(stands) > 1 else _first(ctx, "counter", room=_room(ctx, "kitchen"))
-    theirs = ctx.placer.on(theirs_spot, "reading_glasses", owner=spouse, color="black", secret_fields=["owner"], home=theirs_spot)
+    theirs = _place_on_first(ctx, [stands[1] if len(stands) > 1 else None, _first(ctx, "counter", room=_room(ctx, "kitchen"))],
+                             "reading_glasses", owner=spouse, color="black", secret_fields=["owner"])
     entry = _room(ctx, "entryway")
-    sun_spot = _first(ctx, "shoe_rack", room=entry) or _first(ctx, "bench", room=entry) or _first(ctx, "side_table", room=living)
-    sun = ctx.placer.on(sun_spot, "sunglasses", owner=requester, secret_fields=["owner"], home=sun_spot)
+    # the sunglasses go where people drop them at the entry; a shoe rack full of shoes (generation-2 footwear) or a
+    # bench already holding the day's things falls back to the next spot
+    sun = _place_on_first(ctx, [_first(ctx, "shoe_rack", room=entry), _first(ctx, "bench", room=entry),
+                                _first(ctx, "side_table", room=living), _first(ctx, "coffee_table", room=living)],
+                          "sunglasses", owner=requester, secret_fields=["owner"])
     if not (mine and theirs and sun):
         raise SpecError("Could not place the glasses")
     _memory(ctx, "item_owner:" + mine, requester)

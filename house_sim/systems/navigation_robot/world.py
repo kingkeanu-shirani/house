@@ -4,18 +4,25 @@ harms this domain adds (invariants) and what residents can tell it (answerer `na
 Observation additions (current room only):
   obs["nav"]: battery_pct, charging, docked, dock, fallen, stuck, trapped, standing_on, reach_m,
               camera_clean, privacy_mode, headlamp_on, network, home_pose, units, coverage of this
-              room, robot_spot, last_incident, follow/lead/patrol status, odometry_m
+              room, robot_spot, last_incident, follow/lead/patrol status, odometry_m. Realistic
+              perception shows the robot's self-state the way proprioception does (kernel/proprio.py):
+              the battery as the integer gauge, the lens as a word (clear / smudged / dirty / obscured /
+              off), the network as connected / offline, foot soil as words. Geometric camera: coverage
+              is the camera log's, items on the stairs are those its frames caught.
   obs["stairs"]: staircases leaving this room (steps, rise/run, winders, rail, items visible on
               the steps from this end)
   obs["elevator"]: car state when standing at a landing or in the car
   obs["measurement"]: the last measure/check_level result
 Inspect adds: handrail looseness (marks the rail as checked), rug pad/curl, door swing clearance
-and opening angle, climbing aid state, household robot status, leveling lock nuts and rocking,
-the floor's hazard list.
+and opening angle (hinged doors and gates only), climbing aid state, household robot status,
+leveling lock nuts and rocking, the floor's hazard list.
+Questions (kernel v3.1, docs/DIALOGUE.md "Routes"): ask(aspect=where, about="the den") reaches the
+`nav:where:<alias>` answerer through the route nav.where; a detail naming one of the household's
+navigation keys (user_simulator.nav) reaches `nav:<key>[:<sub>]` through nav.detail.
 """
 import copy
 
-from ...kernel import geometry
+from ...kernel import body, dialogue, geometry, proprio
 from ...kernel.plugins import answerer, hook, inspector, invariant, observer
 from . import common as C
 
@@ -54,17 +61,27 @@ def _observe(env, w, obs):
     nav = C.nav_read(state)
     rid = robot["room"]
     real = getattr(env, "realism", None) is not None
+    geometric = C.geometric(state)
     from .robot import dock_of
+    from . import paths as P
     out = {"battery_pct": round(C.num(robot.get("battery"), 100.0), 2), "charging": bool(robot.get("charging")),
            "docked": bool(robot.get("docked")), "dock": dock_of(state), "fallen": bool(robot.get("fallen")),
            "stuck": robot.get("stuck"), "trapped": robot.get("nav_trapped"), "standing_on": robot.get("standing_on"),
            "reach_m": round(geometry.robot_reach_m(state), 3), "camera_clean": robot.get("camera_clean", 1.0),
            "privacy_mode": bool(robot.get("privacy_mode")), "headlamp_on": bool(robot.get("headlamp_on")),
            "network": robot.get("network", True), "home_pose": copy.deepcopy(robot.get("home_pose") or (state.get("household") or {}).get("robot_home")),
-           "units": C.units_of(state), "coverage": ((nav.get("visits") or {}).get(rid) or {}).get("coverage", 0.0),
+           "units": C.units_of(state), "coverage": P.coverage(state, rid),
            "robot_spot": copy.deepcopy(nav.get("robot_spot")),
            "last_incident": C.perceived_incident(nav.get("last_incident")) if real else copy.deepcopy(nav.get("last_incident")),
            "odometry_m": nav.get("odometry_m", 0.0), "foot_soil": copy.deepcopy(robot.get("nav_foot_soil") or {})}
+    if real:
+        # what the robot's own sensors and battery management report (proprioception's tiers, TIER1_EMBODIMENT 4.14):
+        # the gauge, the lens word, the link state; never the true state of charge or clarity
+        out["battery_pct"] = int(body.gauge(state) + 0.5)
+        out["camera_clean"] = proprio.bucket_camera(body.clarity(state)) if body.imaging(state) else "off"
+        out["network"] = "connected" if body.get(state, "network") else "offline"
+        out["foot_soil"] = {kind: soil_word(amount) for kind, amount in sorted((robot.get("nav_foot_soil") or {}).items())
+                            if C.num(amount) >= SOIL_SHOWN}
     for key in ("follow", "lead", "patrol"):
         if nav.get(key):
             out[key] = copy.deepcopy(nav[key])
@@ -79,7 +96,7 @@ def _observe(env, w, obs):
     if measurement:
         obs["measurement"] = copy.deepcopy(measurement)
     from . import stairs as S
-    flights = [S.describe(state, cid, rid, env=env if real else None) for cid in S.stairs_from(state, rid)]
+    flights = [S.describe(state, cid, rid, env=env if (real or geometric) else None) for cid in S.stairs_from(state, rid)]
     if flights:
         obs["stairs"] = flights
     from . import elevator as E
@@ -88,6 +105,18 @@ def _observe(env, w, obs):
         el = E.model(state, car)
         obs["elevator"] = {"car": car, "car_floor": el.get("car_floor"), "doors": el.get("doors"), "moving_to": el.get("moving_to"),
                            "landings": copy.deepcopy(el.get("landings")), "inside": car == rid}
+
+
+SOIL_SHOWN = 0.05          # less on the feet than this is nothing to speak of
+SOIL_WORDS = ((0.2, "traces"), (0.5, "soiled"))
+
+
+def soil_word(amount):
+    """How much soil the robot feels and sees on its feet: traces, soiled, caked."""
+    for limit, word in SOIL_WORDS:
+        if C.num(amount) < limit:
+            return word
+    return "caked"
 
 
 @inspector("navigation_robot.details", order=80)
@@ -110,7 +139,8 @@ def _inspect(w, eid, rec, details, ctx):
         details["non_slip_pad"] = bool(rec.get("non_slip_pad", False))
         details["curled"] = bool(rec.get("curled") or rec.get("curled_corner"))
         details["fringe"] = bool(rec.get("fringe"))
-    if rec.get("connects") and rec.get("category") in ("door", "gate"):
+    if rec.get("connects") and rec.get("category") in ("door", "gate") and geometry.door_swing(state, eid)[0] is not None:
+        # hinged doors and gates only: an overhead garage door or a sliding door has no leaf sweep or opening angle
         from . import paths
         _, blockers, agents = paths.swing_blockers(state, eid)
         if real:
@@ -118,6 +148,7 @@ def _inspect(w, eid, rec, details, ctx):
             agents = [a for a in agents if (state.get("people", {}).get(a) or state.get("pets", {}).get(a) or {}).get("location") == state["robot"]["room"]]
         details["swing_blockers"] = blockers + agents
         details["open_angle_deg"] = rec.get("open_angle_deg", 90.0 if rec.get("open") else 0.0)
+    if rec.get("connects") and rec.get("category") in ("door", "gate"):
         if "latched" in rec:
             details["latched"] = rec.get("latched")
         if rec.get("self_closing"):
@@ -173,8 +204,10 @@ def _inspect(w, eid, rec, details, ctx):
             from . import hazards as H
             hz = H.cell_map(state, rid)
             if real:
+                frames = H.seen_cells(state, rid, w)
                 details["floor_hazards"] = sorted({(h.get("kind"), c[0], c[1]) for c, items in hz.items() for h in items
-                                                   if not h.get("nav_derived") and H.visible_hazard(state, rid, c, h)})[:60]
+                                                   if not h.get("nav_derived") and
+                                                   H.visible_hazard(state, rid, c, h, frames)})[:60]
             else:
                 details["floor_hazards"] = sorted({(h.get("kind"), c[0], c[1]) for c, items in hz.items() for h in items if not h.get("nav_derived")})[:60]
     if C.is_type(rec, "robot_dock"):
@@ -285,3 +318,70 @@ def _answer(env, w, pid, topic, ctx):
     w.stat("necessary_questions" if necessary else "unnecessary_questions")
     w.sec("facts")[topic] = copy.deepcopy(value)
     return {"topic": topic, "value": copy.deepcopy(value), "by": pid}
+
+
+# routes from canonical questions (ask about / aspect / detail, kernel v3.1) to the nav: answerer (docs/DIALOGUE.md)
+SIM_RESERVED = ("room_aliases", "necessary", "restricted", "where")
+
+
+def _aliases(state):
+    sim = (state.get("user_simulator") or {}).get("nav") or {}
+    aliases = dict((state.get("household") or {}).get("room_aliases") or {})
+    aliases.update(sim.get("room_aliases") or {})
+    return aliases
+
+
+def _route_where(state, pid, subject, aspect, detail, act):
+    """nav.where (aspect where): words naming a household's name for a room ("where is the den?") -> nav:where:<name>,
+    when the household's or the resident's room aliases, or the names the simulator marks as worth asking about, know
+    that name."""
+    if subject is None or subject.kind != "word" or not subject.words:
+        return None
+    said = dialogue.phrase(" ".join(subject.words))
+    sim = (state.get("user_simulator") or {}).get("nav") or {}
+    names = sorted(_aliases(state)) + sorted(str(t)[len("nav:where:"):] for t in sim.get("necessary") or ()
+                                             if str(t).startswith("nav:where:"))
+    for name in names:
+        if name and dialogue.phrase(name.replace("_", " ")) == said:
+            return "nav:where:" + name
+    return None
+
+
+def _route_detail(state, pid, subject, aspect, detail, act):
+    """nav.detail (any aspect): a detail naming one of the household's navigation keys (user_simulator.nav, e.g.
+    which_dock, quiet_hours) -> nav:<key>, or nav:<key>:<sub> when that key holds a table and the subject names one of
+    its entries (by id or by words)."""
+    sim = (state.get("user_simulator") or {}).get("nav") or {}
+    if not sim or not detail:
+        return None
+    wanted = dialogue.phrase(str(detail).replace("_", " "), stop=False)
+    for key in sorted(k for k in sim if k not in SIM_RESERVED):
+        if dialogue.phrase(key.replace("_", " "), stop=False) != wanted and dialogue.canonical_detail(key) != detail:
+            continue
+        table = sim[key]
+        if isinstance(table, dict) and subject is not None:
+            words = dialogue.phrase(" ".join(subject.words)) if subject.words else None
+            for sub in sorted(table):
+                if sub == subject.id or (words and dialogue.phrase(str(sub).replace("_", " ")) == words):
+                    return "nav:{}:{}".format(key, sub)
+        return "nav:" + key
+    return None
+
+
+dialogue.route("nav.where", ("where",), _route_where)
+dialogue.route("nav.detail", None, _route_detail)
+
+
+@hook("phase_start")
+def _phase_start(w, env, phase):
+    """A new phase may have relocated the robot (TIME-EVAL's phase relocation docks it without walking): refresh the
+    derived margins of its room, its coverage there and its resting spot, as a motion's bookkeeping would."""
+    from . import hazards as H
+    from . import paths as P
+    state = w.s
+    rid = state["robot"].get("room")
+    if rid not in state.get("rooms", {}):
+        return
+    H.refresh(w, rid)
+    P.update_coverage(w, rid, C.cell(state["robot"].get("pos") or [0, 0]))
+    P.update_robot_spot(w)

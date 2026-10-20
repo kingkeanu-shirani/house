@@ -4,7 +4,7 @@
       "catalog_id": "A-c83efc7adcd8f5-01",
       "title": "Find me my prescribed medicines: read whose name is on each look-alike pill bottle",
       "perception": "realistic",
-      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T10:00:00"},
+      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T10:00:00", "gen": 2},
       "variants": [
         {
           "+setup": [{"op": "helper", "name": "people.medicine_cabinet", "args": {"requester": "patient"}}],
@@ -136,15 +136,17 @@
           {"foreach": "{bottles}", "as": "b", "steps": [{"skill": "people.put", "obj": "{b}", "dest": "{room_a}"}]}]},
         {"name": "sorts the bottles by reading them but takes the shared charger to a bedroom too", "plan": [
           {"skill": "people.sort_by_labels", "items": "{bottles}", "homes": "{homes}"},
-          {"skill": "people.put", "obj": "{charger}", "dest": "{room_a}"}]}
+          {"skill": "people.put", "obj": "{charger}", "dest": "{room_a}"}]},
+        {"name": "reads the name stickers from the doorway instead of up close (too small to read from there: nothing is sorted)", "plan": [
+          {"skill": "people.sort_by_labels", "items": "{bottles}", "homes": "{homes}", "close_look": false}]}
       ],
-      "notes": "Realistic perception: the school water bottles are one look-alike group ('blue plastic water bottle' at a glance and on inspection); whose is whose is only on the name sticker (label_text, read tier) and the true owner is hidden (owner in secret_fields). Which child's bottle is which, and where in the basket, is shuffled per seed; one variant adds the parent's identical bottle. A shared phone charger lies with them and belongs in no bedroom. Asking is not needed (every bottle is labelled), so questions cost. Wrong plans sort on glance-level belief (swapped or lumped look-alikes) or move the shared charger."
+      "notes": "Realistic perception: the school water bottles are one look-alike group ('blue plastic water bottle' at a glance and on inspection); whose is whose is only on the name sticker (label_text, read tier) and the true owner is hidden (owner in secret_fields). Which child's bottle is which, and where in the basket, is shuffled per seed; one variant adds the parent's identical bottle. A shared phone charger lies with them and belongs in no bedroom. Asking is not needed (every bottle is labelled), so questions cost. Wrong plans sort on glance-level belief (swapped or lumped look-alikes) or move the shared charger. Camera: the stickers' 8 mm print needs a close look (the geometric camera's 10 px per character; within reach in room mode), so reading them from the doorway sorts nothing."
     },
     {
       "catalog_id": "P-7c2000dc580676-01",
       "title": "Report: take a feverish child's temperature with a thermometer and tell the parent the reading",
       "perception": "realistic",
-      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T16:00:00"},
+      "house": {"residents": "minimal", "pets": "none", "start": "2026-10-09T16:00:00", "gen": 2},
       "variants": [
         {"+setup": [{"op": "helper", "name": "people.fever_check", "args": {"temp_c": 37.9}}],
          "success": [
@@ -186,6 +188,49 @@
           {"skill": "people.measure_and_report", "person": "{child}", "thermometer": "{thermometer}"}]}
       ],
       "notes": "Realistic perception: a person's body temperature is never shown at a glance or on inspection (only cues: 'flushed and sweaty' above 38.5 C); the number comes from take_temperature with a held body thermometer (forehead: about -0.2 C bias, +-0.3 C accuracy, 2 s). The reported value must be within 0.5 C of the hidden true temperature (37.9, 38.8 or 39.6 by seed) and reported to the parent sitting with her. A floating bath thermometer (liquids only) sits beside the forehead thermometer."
+    },
+    {
+      "catalog_id": "T-d1f9385dbb80fc-01",
+      "title": "Gather school supplies: what tomorrow needs is on the family calendar",
+      "perception": "realistic",
+      "house": {"bedrooms": 2, "pets": "none", "start": "2026-10-14T19:00:00", "gen": 2,
+                "residents": [{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 41},
+                              {"id": "child_1", "role": "child", "label": "Maya", "age": 9}]},
+      "setup": [
+        {"op": "room", "var": "kitchen", "type": "kitchen"},
+        {"op": "helper", "name": "people.calendar_board", "args": {"kind": "wall_calendar", "room": "kitchen"}},
+        {"op": "calendar", "events": [
+          {"id": "ev_school", "who": ["child_1"], "kind": "school", "title": "School", "start": "2026-10-12T08:15", "end": "2026-10-12T15:00",
+           "recurrence": {"freq": "weekly", "byday": ["MO", "TU", "WE", "FR"], "until": "2026-12-18"}, "visible_on": ["wall_calendar"]},
+          {"id": "ev_school_pe", "who": ["child_1"], "kind": "school", "title": "School", "start": "2026-10-15T08:15", "end": "2026-10-15T15:00",
+           "attributes": {"pe": true}, "recurrence": {"freq": "weekly", "byday": ["TH"], "until": "2026-12-18"}, "visible_on": ["wall_calendar"]}]},
+        {"op": "helper", "name": "people.event_needs", "args": {"event": "ev_school_pe", "date": "tomorrow", "decoys": false}}
+      ],
+      "instruction": "Can you get Maya's things for school tomorrow ready by the front door?",
+      "phrasings": [
+        "Gather school supplies.",
+        "Put everything Maya needs for school tomorrow by the front door, please.",
+        "Get Maya's school stuff together for the morning - check the calendar."
+      ],
+      "success": ["{needs_ok}"],
+      "side_effects": {"no_moves_except": "{needs}", "no_damage": true},
+      "budget": {"steps": 120, "time_s": 2400},
+      "risk_level": 0,
+      "fidelity": "G",
+      "target_fidelity": "G",
+      "reference": [
+        {"skill": "people.approach", "target": "{board}"},
+        {"do": "read", "target": "{board}"},
+        {"foreach": "{needs}", "as": "item", "steps": [{"skill": "people.put", "obj": "{item}", "dest": "{staging}"}]}
+      ],
+      "wrong": [
+        {"name": "packs only the everyday school things without checking the calendar (no PE sneakers on a PE day)", "plan": [
+          {"skill": "people.put", "obj": "{need_backpack}", "dest": "{staging}"},
+          {"skill": "people.put", "obj": "{need_lunch_box}", "dest": "{staging}"}]},
+        {"name": "gathers the right things but leaves them in the kitchen", "plan": [
+          {"foreach": "{needs}", "as": "item", "steps": [{"skill": "people.put", "obj": "{item}", "dest": "{kitchen}"}]}]}
+      ],
+      "notes": "Calendar (TIER1_SWEEP 11.2; docs/domains/people.md section 11): household.calendar holds Maya's school days and Thursday is a PE day (attribute pe), written on the kitchen wall calendar as 'School (Maya): PE' (people.calendar_board mounts it where it can be walked up to and seen; the entries are 6 mm handwriting, read up close). people.event_needs maps school to her backpack and lunch box and PE to her sneakers (her generated belongings when the house has them, a pair already on the entry rack waiting in her room; otherwise placed in her bedroom with a name label) and binds needs_ok: every needed item in the room inside the front door. Wrong plans skip the PE kit (packing without the calendar) or stage the things in the kitchen. Generation 2 (re-verified on seeds 0, 1, 2, 41, 97, also with --camera geometric)."
     }
   ]
 }

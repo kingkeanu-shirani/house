@@ -6,9 +6,17 @@
       "perception": "realistic",
       "house": {
         "residents": "minimal",
-        "pets": "none"
+        "pets": "none",
+        "gen": 2
       },
       "setup": [
+        {
+          "op": "person",
+          "id": "resident_1",
+          "props": {
+            "has_phone": true
+          }
+        },
         {
           "op": "room",
           "var": "k",
@@ -154,7 +162,8 @@
                 "{chem_glass_cleaner}": 3
               }
             }
-          ]
+          ],
+          "camera": true
         },
         {
           "name": "opens the unlabeled bottle to sniff what it is",
@@ -232,7 +241,8 @@
       "perception": "realistic",
       "house": {
         "residents": "minimal",
-        "pets": "none"
+        "pets": "none",
+        "gen": 2
       },
       "setup": [
         {
@@ -295,6 +305,10 @@
           ]
         },
         {
+          "skill": "approach",
+          "target": "{puddle}"
+        },
+        {
           "do": "inspect",
           "target": "{puddle}"
         },
@@ -332,7 +346,8 @@
               "field": "hazard",
               "value": "none"
             }
-          ]
+          ],
+          "camera": true
         },
         {
           "name": "finds the water but blames the usual suspect (the sink) instead of where it is seeping from",
@@ -343,6 +358,10 @@
               "near": [
                 "{puddle_source}"
               ]
+            },
+            {
+              "skill": "approach",
+              "target": "{puddle}"
             },
             {
               "do": "inspect",
@@ -380,7 +399,8 @@
               "field": "hazard",
               "value": "water_on_floor"
             }
-          ]
+          ],
+          "camera": true
         }
       ],
       "instruction": "Check the kitchen floor for water and tell me where it's coming from.",
@@ -400,7 +420,8 @@
       "perception": "realistic",
       "house": {
         "residents": "minimal",
-        "pets": "none"
+        "pets": "none",
+        "gen": 2
       },
       "setup": [
         {
@@ -493,7 +514,8 @@
                   "field": "defect",
                   "value": "none"
                 }
-              ]
+              ],
+              "camera": true
             },
             {
               "name": "finds the crack but calls every crack structural without judging its width",
@@ -592,7 +614,8 @@
                   "field": "defect",
                   "value": "none"
                 }
-              ]
+              ],
+              "camera": true
             },
             {
               "name": "finds the crack but plays it down as cosmetic",

@@ -19,6 +19,7 @@ the robot or property are hit). A scenario fire that is put out while incipient 
 """
 import math
 
+from ...kernel import camera
 from ...kernel.plugins import system
 from . import air as A
 from . import common as C
@@ -57,6 +58,9 @@ STAGE_DEVELOPED_KW = 400.0
 REIGNITE_OIL_C = 300.0           # keep the lid on until the oil is below this (fire point ~315-340 C)
 OIL_AUTOIGNITION_C = 370.0       # an unattended pan of oil ignites on its own (cooking oils ~370-435 C)
 OIL_SMOKE_C = 230.0
+OIL_MJ_PER_L = 37.0 * 0.92      # cooking oil: 37 MJ/kg at 0.92 kg/l
+FUEL_GONE_MJ = 0.01             # a fire whose fuel is down to this has nothing left to relight
+SCORCH_C = 200.0                 # food or empty cookware on a burner scorches above this
 
 # extinguishing agents: class effectiveness (negative = dangerous), kg needed per kW of fire (dry chemical basis)
 AGENTS = {
@@ -166,9 +170,9 @@ def ignite(w, fuel_id, hrr_kw=2.0, seeded=False, cause="ignition", fire_class=No
     props = fuel_props(fuel)
     existing = fire_on(state, fuel_id)
     if existing:
+        if state["entities"][existing].get("stage") != "out" or float(state["entities"][existing].get("_fuel_mj", 1.0)) <= FUEL_GONE_MJ:
+            return existing         # already burning, or burned out: nothing left to burn
         m = w.mut(existing)
-        if m.get("stage") != "out":
-            return existing
         m["hrr_kw"] = round(max(hrr_kw, 1.0), 3)
         m["stage"] = "incipient"
         m["smothered"] = False
@@ -196,7 +200,16 @@ def ignite(w, fuel_id, hrr_kw=2.0, seeded=False, cause="ignition", fire_class=No
     m["burning"] = True
     m["temperature_c"] = max(float(m.get("temperature_c", 21.0)), 350.0 if props["key"] == "oil" else 300.0)
     C.log(w, "ignition", fire=fid, fuel=fuel_id, cause=cause, seeded=seeded)
-    w.emit("fire_started", room=C.root_room(state, fuel_id), cause=cause)
+    rid = C.root_room(state, fuel_id)
+    w.emit("fire_started", room=rid, cause=cause)
+    if not any(f != fid for f in fires(state, room=rid)):
+        # flames break out in a room that had none: a visual occurrence -- the geometric camera logs whether its
+        # current pose saw it (camera_log.events, a "visual" notice) -- and a "fire" notice, seen in the robot's lit
+        # room (room camera) or by the camera's event rule. Spread within a burning room adds no new notice.
+        flames = w.s["entities"][fid]
+        size = max(float(flames.get("_diameter_m", 0.3)), float(flames.get("flame_height_m", 0.1)))
+        camera.visual_event(w, "fire_started", source=fid, size_m=size, visual="fire", emit=False)
+        C.post_notice(w, "fire", rid, source=fid, visual=True)
     if harm and not seeded:
         C.harm(w, cause if cause != "ignition" else "fire_ignition", stat="fire", fire=fid, fuel=fuel_id)
     return fid
@@ -396,9 +409,33 @@ def _room_fuels(state, rid):
     return rooms[rid]
 
 
+def enclosure(state, eid):
+    """The innermost closed container that shuts eid in (relation "in" a closed openable thing: a shut drawer,
+    cabinet, chest, oven), or None. A container that is burning or already fire-damaged no longer shields what is
+    inside it."""
+    entities = state["entities"]
+    child = entities.get(eid)
+    seen = {eid}
+    while child is not None:
+        loc = child.get("location")
+        parent = entities.get(loc) if isinstance(loc, str) else None
+        if parent is None or loc in seen:
+            return None
+        seen.add(loc)
+        if child.get("relation") == "in" and parent.get("openable") and not parent.get("open", False) and \
+                not parent.get("burning") and not parent.get("fire_damaged"):
+            return loc
+        child = parent
+    return None
+
+
 def _candidates(state, rid, fuel_id):
+    """Combustibles a fire on fuel_id (or a candle) can heat: in its room, not burning, not carried, and on the same
+    side of any closed enclosure -- radiant heat and flames do not reach into a shut drawer or cabinet, and a fire
+    inside a shut oven or cabinet stays inside until the enclosure itself burns."""
     out = []
     burning_fuels = {state["entities"][f]["location"] for f in fires(state)}
+    shut = enclosure(state, fuel_id) if fuel_id in state["entities"] else None
     for eid in _room_fuels(state, rid):
         if eid == fuel_id or eid in burning_fuels or eid not in state["entities"]:
             continue
@@ -408,6 +445,8 @@ def _candidates(state, rid, fuel_id):
         if rec.get("location") == "robot" or rec.get("location") in state.get("people", {}):
             continue
         if C.root_room(state, eid) != rid:
+            continue
+        if enclosure(state, eid) != shut:
             continue
         out.append(eid)
     return out
@@ -497,12 +536,17 @@ def _tick_fire(w, fid, dt):
         # a fire on the burner keeps getting heat; an oil fire keeps burning while there is oil
         if fuel_mj <= 0.08 * float(m.get("_fuel_mj0", fuel_mj or 1.0)):
             hrr *= math.exp(-dt / 20.0)
-    fuel_mj = max(0.0, fuel_mj - hrr * dt / 1000.0)
+    burned_mj = min(fuel_mj, hrr * dt / 1000.0)
+    fuel_mj = max(0.0, fuel_mj - burned_mj)
     m["_fuel_mj"] = round(fuel_mj, 4)
+    if m.get("_fuel_key") == "oil" and float(fuel.get("liquid_l", 0.0) or 0.0) > 0.0:
+        # burning oil is consumed: the pan holds less (and nothing once the fire has burned out)
+        left = 0.0 if fuel_mj <= 0.0 else max(0.0, float(fuel["liquid_l"]) - burned_mj / OIL_MJ_PER_L)
+        w.mut(fuel_id)["liquid_l"] = round(left, 4)
     m["age_s"] = round(float(m.get("age_s", 0.0)) + dt, 2)
     if hrr < 0.3 or fuel_mj <= 0.0:
-        if fuel_mj <= 0.0:
-            fm = w.mut(fuel_id)
+        if fuel_mj <= 0.0 and m.get("_fuel_key") != "oil":
+            fm = w.mut(fuel_id)         # a solid fuel is burnt through (a pan whose oil burned off is not)
             fm["burnt"] = True
             fm["broken"] = True
         _put_out(w, fid, method="burned_out" if fuel_mj <= 0.0 else ("smothered" if m.get("smothered") else "burned_out"),
@@ -672,13 +716,13 @@ def _scorching(w, dt, pans):
         if rec is None or rec.get("burning"):
             continue
         temp = float(rec.get("temperature_c", 21.0))
-        if temp < 200.0:
+        if temp < SCORCH_C:
             continue
         rid = C.root_room(state, eid)
         if rid is None:
             continue
         has_food = rec.get("_scorch_food") or any(C.is_food(state["entities"][c]) for c in _children(state, eid))
-        rate = (0.02 if has_food else 0.006) * (temp - 200.0) / 100.0
+        rate = (0.02 if has_food else 0.006) * (temp - SCORCH_C) / 100.0
         A.add_odor(w, rid, "burning_food", rate * dt)
         A.add(w, rid, "smoke", rate * 2.0 * dt / C.room_volume_m3(state, rid))
         if has_food and not rec.get("scorched"):
@@ -697,7 +741,36 @@ def fire_ids(state):
     return C.sindex(state, "fires", _is_fire)
 
 
-@system("safety.fire", order=300, max_dt=5.0)
+def fire_idle(w):
+    """Exact idle probe (kernel v3.1 @system idle): the fire system would write nothing this substep -- every known fire
+    is out on fuel that still exists, with no embers left and, if smothered, still under its cover; no pan of oil is
+    at its smoke point and no cookware is hot enough to scorch. Writes nothing."""
+    state = C.bind_world(w).s
+    entities = state["entities"]
+    for fid in set(fire_ids(state)) | set(C.ledger_r(state).get("fire_ids", [])):
+        rec = entities.get(fid)
+        if rec is None:
+            continue
+        fuel = rec.get("location")
+        if fuel not in entities or rec.get("stage") != "out" or float(rec.get("_ember", 0.0) or 0.0) > 0.0:
+            return False
+        if rec.get("smothered"):
+            cover = rec.get("covered_by")
+            if not (cover in entities and entities[cover].get("location") == fuel):
+                return False
+    oil, pans = _hot_candidates(state)
+    for eid in oil:
+        rec = entities[eid]
+        if not rec.get("burning") and float(rec.get("temperature_c", 21.0)) >= OIL_SMOKE_C:
+            return False
+    for eid in pans:
+        rec = entities[eid]
+        if not rec.get("burning") and float(rec.get("temperature_c", 21.0)) >= SCORCH_C:
+            return False
+    return True
+
+
+@system("safety.fire", order=300, max_dt=5.0, idle=fire_idle)
 def fire_system(w, dt, tick):
     state = C.bind_world(w).s
     cache = getattr(tick, "_safety_fire", None)

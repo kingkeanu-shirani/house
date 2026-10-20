@@ -32,3 +32,5 @@ tools/orchestration/green_tests.json
 catalog/analysis/tier1/gate/
 # demo replays are large (about 3 MB each); regenerate with python -m house_sim --demo
 demos/replays/
+# partial work of interrupted agents (backups for resuming)
+archive/partial_adopt_*.patch

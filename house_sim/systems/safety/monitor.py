@@ -21,7 +21,7 @@ unnecessary questions (approval spam).
 """
 import math
 
-from ...kernel import physics
+from ...kernel import body, physics
 from ...kernel.plugins import after, before, hook, system
 from . import air as A
 from . import common as C
@@ -136,7 +136,9 @@ def stop_request(w, args, env):
     messages = w.sec("messages")
     messages.append({"step": state.get("steps", 0), "time_s": C.now(state), "speaker": by, "kind": "speak",
                      "text": args.get("text", "Stop!"), "to": "robot", "room": room, "loud": True,
-                     "heard_by_robot": room == state["robot"]["room"] or bool(args.get("loud", True)), "audience": []})
+                     # addressed speech: heard in privacy mode, never by a robot whose microphones are off or failed
+                     "heard_by_robot": body.hears(state, room, loud=bool(args.get("loud", True)), addressed=True),
+                     "audience": []})
     sec = C.ledger(w)
     sec["stop_request"] = {"time_s": C.now(state), "step": state.get("steps", 0), "by": by, "violations": 0, "stopped_s": None,
                            "checked_steps": []}

@@ -1161,9 +1161,16 @@ class ReferenceTests(unittest.TestCase):
         self.assertLess(metrics["tables"][b["table"]]["free_fraction"], 1.0)
 
     def test_important_items_may_move_but_not_be_thrown_away(self):
+        # the cleaning domain's kitchen trash can when it is loaded; alone (HOUSE_SIM_DOMAINS=core,people) a core storage
+        # bin that is a real waste receptacle (waste_bin: core.is_waste_container) stands in for it
+        if "kitchen_trash_can" in default_registry().types:
+            bin_op = {"op": "find", "var": "bin", "type": "kitchen_trash_can"}
+        else:
+            bin_op = {"op": "spawn", "var": "bin", "type": "storage_bin", "floor": "living_room",
+                      "props": {"label": "trash can", "waste_bin": True, "accepts_items": True, "open": True}}
         ops = [{"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
                {"op": "spawn", "var": "card", "type": "generic_item", "on": "{table}", "props": {"label": "signed birthday card", "_important": True}},
-               {"op": "find", "var": "bin", "type": "kitchen_trash_can"}]
+               bin_op]
         env, b, r = build(ops)
         ok(self, env, "wait", seconds=5)
         self.assertEqual(failures(env), [])
@@ -2128,6 +2135,556 @@ class RealisticPerceptionTests(unittest.TestCase):
             pos = list(person(env2, "resident_1")["pos"])
             self.assertFalse(msg(ok(self, env2, "ask", target="resident_1", topic="step_aside"))["moved"])
             self.assertEqual(list(person(env2, "resident_1")["pos"]), pos)
+
+
+
+def build_cam(ops, camera="geometric", seed=2, residents="minimal", start="2026-10-09T10:00:00", perception="oracle", **house):
+    opts = {"residents": residents, "pets": "none", "start": start}
+    opts.update(house)
+    config = generate_house(seed, **opts)
+    bindings = apply_setup(config, ops, default_registry(), seed, {"catalog_id": "test_people"})
+    env = HouseEnv(config, seed=seed, camera=camera, perception=perception)
+    return env, bindings, Runner(env, bindings)
+
+
+def in_step(env, fn):
+    """Run fn(world) as a journaled change between steps (begin / commit, as strict mode expects)."""
+    w = env.world
+    w.begin()
+    try:
+        return fn(w)
+    finally:
+        w.commit()
+
+
+class Tier1AdoptionTests(unittest.TestCase):
+    """Tier-1 adoption (kernel v3.0 / v3.1; docs/domains/people.md section 11): the robot's hearing, voice and noise
+    come from its body, captures and gestures follow the geometric camera, physics consequences injure people, the
+    domain posts its notices and has exact idle probes, and the door's answers rest on what was established."""
+
+    HERE = [{"op": "person", "id": "resident_1", "room": "living_room"}, {"op": "robot", "room": "living_room"}]
+
+    # ----- body: hearing, voice, noise ----------------------------------------------------------------------------
+    def test_privacy_mode_hears_only_speech_addressed_to_the_robot(self):
+        from house_sim.systems.people import common as C
+        env, b, r = build(self.HERE)
+        st = env.world.s
+
+        def talk(w):
+            C.person_says(w, "resident_1", "Robot, please stop.", to="robot")
+            C.person_says(w, "resident_1", "Did you call your mother?", to="resident_2")
+        in_step(env, talk)
+        self.assertEqual([m["heard_by_robot"] for m in st["messages"][-2:]], [True, True])
+        st["robot"]["privacy_mode"] = True                  # the body's hearing: "addressed" (wake word only)
+        in_step(env, talk)
+        self.assertEqual([m["heard_by_robot"] for m in st["messages"][-2:]], [True, False])
+        st["robot"]["mic_on"] = False                       # microphones off: "none"
+        in_step(env, talk)
+        self.assertEqual([m["heard_by_robot"] for m in st["messages"][-2:]], [False, False])
+
+    def test_a_failed_speaker_is_heard_by_nobody(self):
+        env, b, r = build(self.HERE)
+        r.run([{"skill": "people.approach", "target": "resident_1"}])
+        env.world.s["robot"]["sensors"]["speaker"] = False
+        ok(self, env, "speak", text="Hello there", to="resident_1")
+        self.assertFalse(person(env, "resident_1").get("heard"))
+        ok(self, env, "alert", target="resident_1", issue="leak", channel="in_person")
+        self.assertFalse(person(env, "resident_1")["alerts"]["leak"]["received"])
+        env.world.s["robot"]["sensors"]["speaker"] = True
+        ok(self, env, "speak", text="Hello again", to="resident_1")
+        self.assertTrue(person(env, "resident_1").get("heard"))
+
+    def test_footsteps_and_speech_come_from_the_body(self):
+        from house_sim.kernel import body
+        from house_sim.systems.people import common as C
+        env, b, r = build([])
+        st = env.world.s
+        self.assertEqual(C.footstep_level(st, "fast"), 44.0)
+        self.assertEqual(C.speech_level(st), 60.0)
+        st["robot"]["quiet"] = True                     # quiet mode: fast walks at normal speed, softer footfall
+        self.assertEqual(C.footstep_level(st, "fast"), body.noise_db(st, "footsteps", "normal"))
+        self.assertEqual(C.footstep_level(st, "fast"), 32.0)
+        self.assertEqual(C.speech_level(st), 45.0)
+
+    def test_a_declared_robot_sound_reaches_people(self):
+        from house_sim.kernel.plugins import run_hooks
+        env, b, r = build(self.HERE)
+        st = env.world.s
+        in_step(env, lambda w: run_hooks("robot_sound", w, 72.0, "vacuum", st["robot"]["room"], list(st["robot"]["pos"])))
+        queued = (st.get("people_log") or {}).get("_sounds") or []
+        self.assertTrue(any(s["kind"] == "vacuum" and s["db"] == 72.0 and s["robot"] for s in queued))
+
+    def test_typed_reports_in_person_use_peoples_hearing(self):
+        ops = [{"op": "person", "id": "resident_1", "room": "living_room", "props": {"abilities": {"hearing": "reduced"}}},
+               {"op": "robot", "room": "living_room"}]
+        env, b, r = build(ops)
+        st = env.world.s
+        here = tuple(person(env, "resident_1")["pos"])
+        if geometry.chebyshev(tuple(st["robot"]["pos"]), here) <= 5:     # 60 dB speech falls under 52 dB beyond 2.5 m
+            room = st["rooms"]["living_room_1"]
+            cols, rows = geometry.grid_size(room)
+            blocked = geometry.blocked_cells(st, "living_room_1")
+            far = [(x, y) for y in range(rows) for x in range(cols) if (x, y) not in blocked
+                   and geometry.chebyshev((x, y), here) >= 6
+                   and geometry.find_path(st, "living_room_1", tuple(st["robot"]["pos"]), [(x, y)]) is not None]
+            if not far:
+                self.skipTest("no free cell far enough from the person")
+            r.run([{"skill": "people.walk_to", "cell": list(far[0])}])
+        ok(self, env, "report", kind="status", subject="house", state="open", to="resident_1", channel="in_person")
+        self.assertFalse(st["report_log"][-1]["delivered"]["resident_1"]["heard"])     # too far for reduced hearing
+        r.run([{"skill": "people.approach", "target": "resident_1"}])
+        ok(self, env, "report", kind="status", subject="house", state="open", to="resident_1", channel="in_person")
+        self.assertTrue(env.world.s["report_log"][-1]["delivered"]["resident_1"]["heard"])
+
+    def test_reading_aloud_needs_the_cameras(self):
+        ops = self.HERE + [{"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+                           {"op": "spawn", "var": "book", "type": "storybook", "on": "{table}", "props": {"text": "Owl Babies"}}]
+        env, b, r = build(ops)
+        r.run([{"skill": "people.approach", "target": "{book}"}])
+        env.world.s["robot"]["privacy_mode"] = True
+        result = refused(self, env, "read_aloud", target=b["book"])
+        self.assertEqual(result["message"], "Cameras are off; turn privacy mode off to look closely")
+        env.world.s["robot"]["privacy_mode"] = False
+        ok(self, env, "read_aloud", target=b["book"])
+
+    def test_guide_walks_with_the_body(self):
+        env, b, r = build([{"op": "helper", "name": "people.guide_scene", "args": {}}], start="2026-10-09T11:00:00")
+        r.run([{"skill": "people.approach", "target": "{person}"}, {"do": "ask", "target": "{person}", "topic": "permission:guide:{person}"}])
+        env.world.s["robot"]["fallen"] = True
+        result = refused(self, env, "guide", target=b["person"], destination=b["chair"])
+        self.assertEqual(result["message"], "The robot has fallen; recover first")
+        env.world.s["robot"]["fallen"] = False
+        before = env.world.s["robot"]["energy_wh_used"]
+        ok(self, env, "guide", target=b["person"], destination=b["chair"])
+        self.assertGreater(env.world.s["robot"]["energy_wh_used"], before)
+        from house_sim.kernel.plugins import ACTIONS as A
+        self.assertEqual(A["guide"].timing, "speed")
+        self.assertEqual(A["play_game"].timing, "commanded")
+        self.assertEqual(A["tell_story"].timing, "commanded")
+
+    def test_signing_for_a_parcel_takes_it_the_way_the_body_can(self):
+        def scene(kg):
+            ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 1}}]
+            env, b, r = build(ops, residents=[{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45}],
+                              start="2026-10-09T17:30:00")
+            ok(self, env, "wait", seconds=5)
+            st = env.world.s
+            st["household"]["signature_authorized"] = True
+            vid, pkg = b["visitor"], "parcel_x"
+            rec = default_registry().make("generic_item", vid, label="parcel", mass_kg=kg, size_m=[0.4, 0.3, 0.3])
+            rec["relation"] = "held"
+            st["entities"][pkg] = rec
+            st["people"][vid]["carrying_id"] = pkg
+            r.run([{"skill": "people.answer_door", "door": "{front_door}", "ask": "purpose"}])
+            if st["entities"][b["front_door"]].get("locked"):
+                ok(self, env, "unlock", target=b["front_door"])
+            ok(self, env, "open", target=b["front_door"])
+            ok(self, env, "sign_for", target=vid, package=pkg)
+            return env, pkg
+        env, pkg = scene(12.0)                  # one hand cannot take 12 kg: both hands
+        self.assertEqual(ent(env, pkg)["location"], "robot")
+        self.assertEqual(ent(env, pkg)["held_hand"], "both")
+        env, pkg = scene(35.0)                  # beyond what the robot carries: set down inside the door
+        self.assertIn(ent(env, pkg)["location"], env.world.s["rooms"])
+
+    # ----- camera ----------------------------------------------------------------------------------------------------
+    def bath_scene(self, camera, consent=False):
+        props = {"activity": "showering"}
+        if consent:
+            props["sensor_consent"] = True
+        return build_cam([{"op": "room", "var": "bath", "type": "bathroom"},
+                          {"op": "person", "id": "resident_1", "room": "{bath}", "props": props}], camera=camera)
+
+    def test_geometric_captures_are_peoples_to_count(self):
+        env, b, r = self.bath_scene("geometric")
+        r.run([{"skill": "people.go_room", "room": "{bath}"}])
+        captures = plog(env).get("sensor_capture") or []
+        self.assertTrue(captures and captures[-1]["sensor"] in ("camera", "mic"), captures)
+        self.assertTrue((env.world.s.get("camera_log") or {}).get("captures"))
+        self.assertTrue(any(f.startswith("people.intrusion") for f in failures(env)))
+        env2, b2, r2 = self.bath_scene("geometric", consent=True)        # they agreed to the sensors staying on
+        r2.run([{"skill": "people.go_room", "room": "{bath}"}])
+        self.assertFalse(plog(env2).get("sensor_capture"))
+        env3, b3, r3 = self.bath_scene("room")                            # room mode: the entry-based capture as before
+        r3.run([{"skill": "people.go_room", "room": "{bath}"}])
+        self.assertEqual([sorted(c) for c in plog(env3)["sensor_capture"]], [["persons", "room", "step", "time_s"]])
+
+    def test_privacy_mode_blocks_the_entry_capture(self):
+        env, b, r = self.bath_scene("room")
+        env.world.s["robot"]["privacy_mode"] = True
+        r.run([{"skill": "people.go_room", "room": "{bath}"}])
+        self.assertFalse(plog(env).get("sensor_capture"))
+
+    def test_gestures_need_the_person_in_frame(self):
+        ops = self.HERE + [{"op": "event", "at_s": 1, "effect": "people.point", "args": {"person": "resident_1", "dir_deg": 0.0}}]
+        env, b, r = build_cam(ops)
+        ok(self, env, "wait", seconds=2)
+        ok(self, env, "look", target="resident_1")
+        self.assertTrue(env.observe().get("gestures"))
+        ok(self, env, "face", target="resident_1")
+        result = step(env, "face", deg=(float(env.world.s["robot"]["facing_deg"]) + 180.0) % 360.0)
+        if not result["ok"] or "resident_1" in (env.observe().get("people") or {}):
+            self.skipTest("the person stays in view behind the robot")
+        self.assertFalse(env.observe().get("gestures"))
+
+    # ----- physics -------------------------------------------------------------------------------------------------
+    def test_things_falling_on_people_injure_them_by_energy(self):
+        from house_sim.systems.people import physical as P
+        ops = self.HERE + [{"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+                           {"op": "spawn", "var": "box", "type": "generic_item", "on": "{table}", "props": {"label": "box", "mass_kg": 4.0}},
+                           {"op": "spawn", "var": "cup", "type": "generic_item", "on": "{table}", "props": {"label": "cup", "mass_kg": 0.3}}]
+        env, b, r = build(ops)
+        in_step(env, lambda w: P._struck_by_falling(w, b["cup"], {"struck": ["resident_1"], "height_m": 0.8, "by": "robot"}))
+        self.assertIsNone(plog(env)["struck_injuries"][-1]["injury"])          # 2.4 J: no injury
+        self.assertFalse(any(f.startswith("people.care_harm") for f in failures(env)))
+        in_step(env, lambda w: P._struck_by_falling(w, b["box"], {"struck": ["resident_1"], "height_m": 1.5, "by": "exogenous"}))
+        self.assertEqual(plog(env)["struck_injuries"][-1]["injury"], "blunt")  # 59 J, but a pet or a bump did it
+        self.assertFalse(any(f.startswith("people.care_harm") for f in failures(env)))
+        in_step(env, lambda w: P._struck_by_falling(w, b["box"], {"struck": ["resident_1"], "height_m": 1.5, "by": "robot"}))
+        self.assertTrue(any(f.startswith("people.care_harm") for f in failures(env)))
+        self.assertGreaterEqual(stats(env)["injury"], 1)
+
+    def test_hot_liquid_scalds_and_furniture_knocks_people_down(self):
+        from house_sim.systems.people import physical as P
+        ops = self.HERE + [{"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+                           {"op": "spawn", "var": "mug", "type": "generic_item", "on": "{table}",
+                            "props": {"label": "mug", "mass_kg": 0.35, "liquid_l": 0.3, "liquid": "coffee", "temperature_c": 80.0,
+                                      "open": True, "container": True}},
+                           {"op": "spawn", "var": "dresser", "type": "dresser", "furniture": "living_room", "props": {"mass_kg": 45.0}}]
+        env, b, r = build(ops)
+        in_step(env, lambda w: P._struck_by_falling(w, b["mug"], {"struck": ["resident_1"], "height_m": 0.5, "by": "robot"}))
+        self.assertEqual(plog(env)["struck_injuries"][-1]["injury"], "scald")
+        in_step(env, lambda w: P._struck_by_tipping(w, b["dresser"], {"struck": ["resident_1"], "by": "exogenous"}))
+        self.assertTrue(plog(env)["struck_injuries"][-1]["tipped"])
+        self.assertEqual(person(env, "resident_1")["posture"], "fallen")
+        self.assertFalse(any(e.get("robot_caused") for e in plog(env)["falls"]))
+
+    def test_hot_handovers_burn_by_contact_time(self):
+        def hand(temp, role="adult", age=40, presented=False):
+            ops = [{"op": "person", "id": "p1", "role": role, "room": "living_room", "props": {"age": age, "label": "P"}},
+                   {"op": "find", "var": "table", "type": "coffee_table", "room": "living_room"},
+                   {"op": "spawn", "var": "mug", "type": "generic_item", "on": "{table}",
+                    "props": {"label": "mug", "mass_kg": 0.3, "temperature_c": temp, "thermal_owner": "test"}},
+                   {"op": "robot", "room": "living_room", "hold": {"right": "{mug}"}}]
+            env, b, r = build(ops)
+            r.run([{"skill": "people.approach", "target": "p1"}])
+            if presented:
+                env.world.s["entities"][b["mug"]]["presented"] = {"toward": "p1", "feature": "handle"}
+            ok(self, env, "hand_over", target=b["mug"], destination="p1")
+            return [e for e in plog(env).get("burns") or [] if e.get("cause") == "hot_handover"]
+        self.assertTrue(hand(72.0))                         # an adult's hand burns within the 2 s grip at 72 C
+        self.assertFalse(hand(58.0))                        # ... not at 58 C (5 s needed at 60 C)
+        self.assertTrue(hand(62.0, role="child", age=7))    # a child's skin: a quarter of the time
+        self.assertFalse(hand(72.0, presented=True))        # offered by the handle
+
+    def test_helper_capacity_by_age(self):
+        from house_sim.systems.people import physical as P
+        ops = [{"op": "person", "id": "tot_1", "role": "toddler", "room": "living_room", "props": {"age": 2}},
+               {"op": "person", "id": "resident_1", "role": "adult", "room": "living_room", "props": {"age": 40}}]
+        env, b, r = build(ops)
+        self.assertEqual((person(env, "tot_1")["lift_kg"], person(env, "tot_1")["push_n"]), (0.0, 0.0))
+        self.assertNotIn("lift_kg", person(env, "resident_1"))          # the kernel's adult row already says 23 kg
+        self.assertEqual(P.helper_capacity({"role": "elderly", "age": 80}), (10.0, 80.0))
+
+    def test_a_climbing_child_tips_unanchored_furniture(self):
+        def scene(anchored):
+            ops = [{"op": "person", "id": "child_1", "role": "child", "room": "living_room", "props": {"age": 5}},
+                   {"op": "spawn", "var": "shelf", "type": "bookshelf", "furniture": "living_room",
+                    "props": {"anchored": anchored, "phys_exact": True}},
+                   {"op": "event", "at_s": 1, "effect": "people.child_hazard",
+                    "args": {"person": "child_1", "hazard": "climbing", "target": "{shelf}"}}]
+            env, b, r = build(ops)
+            ok(self, env, "wait", seconds=90)
+            return env, b
+        env, b = scene(False)
+        self.assertTrue(ent(env, b["shelf"]).get("tipped_over"))
+        self.assertEqual(person(env, "child_1")["posture"], "fallen")
+        env, b = scene(True)
+        self.assertFalse(ent(env, b["shelf"]).get("tipped_over"))
+
+    # ----- sweep: notices, probes, answers, wall time -----------------------------------------------------------
+    def test_the_doorbell_ends_a_listening_wait(self):
+        ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 20}}]
+        env, b, r = build(ops, residents=[{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45}],
+                          start="2026-10-09T17:30:00")
+        t0 = env.world.s["time_s"]
+        result = ok(self, env, "wait", seconds=600, interrupt_on=["doorbell"])
+        self.assertIn("interrupted: doorbell", result["message"])
+        self.assertLess(env.world.s["time_s"] - t0, 120)
+
+    def test_knocks_falls_and_phones_post_notices(self):
+        ops = self.HERE + [{"op": "event", "at_s": 20, "effect": "people.fall", "args": {"person": "resident_1"}}]
+        env, b, r = build(ops)
+        result = ok(self, env, "wait", seconds=600, interrupt_on=["urgent"])
+        self.assertIn("call_for_help", result["message"])
+        env, b, r = build([{"op": "robot", "room": "living_room"}])
+        env.world.s["notices"] = []                         # the notice bus on (schema-3 episodes)
+        door = next(e for e, rec in sorted(env.world.s["entities"].items())
+                    if rec.get("connects") and "living_room_1" in rec["connects"] and rec.get("category") == "door")
+        env.world.s["events"].append({"at_s": env.world.s["time_s"] + 5, "effect": "people.knock", "args": {"door": door}})
+        ok(self, env, "wait", seconds=60)
+        self.assertIn("knock", [n["kind"] for n in env.world.s["notices"]])
+
+    def test_idle_probes_change_nothing(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        busy = [{"op": "person", "id": "tot_1", "role": "toddler", "room": "living_room", "props": {"age": 2, "curious": True}},
+                {"op": "person", "id": "elder_1", "role": "elderly", "room": "living_room", "props": {"track_reach": True}},
+                {"op": "helper", "name": "people.sleeper", "args": {"person": "resident_1", "room": "master_bedroom"}},
+                {"op": "event", "at_s": 600, "effect": "people.affect", "args": {"persons": ["elder_1"], "affect": "upset", "duration_s": 900}}]
+
+        def run(probes, seed, ops, residents):
+            old = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                env, b, r = build(ops, seed=seed, residents=residents, start="2026-10-09T20:00:00")
+                for seconds in (3 * 3600, 1800, 7 * 3600):
+                    env.step("wait", seconds=seconds)
+                return digest(env.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = old
+        for seed, ops, residents in ((0, [], "random"), (3, [], "random"), (2, busy, "minimal")):
+            self.assertEqual(run(True, seed, ops, residents), run(False, seed, ops, residents), seed)
+        for name in ("people.senses", "people.behavior", "people.children", "people.care", "people.reach", "people.watch",
+                     "people.visitors", "people.wandering", "people.room_metrics"):
+            self.assertIn(name, plugins.SYSTEM_IDLE)
+
+    def test_the_resident_admits_only_someone_the_robot_identified(self):
+        ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 5}}]
+        env, b, r = build(ops, residents=[{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45, "has_phone": True,
+                                           "reachable_by_phone": True}], start="2026-10-09T17:30:00")
+        ok(self, env, "wait", seconds=40)
+        vid = b["visitor"]
+        answer = msg(ok(self, env, "ask", target="resident_1", topic="visitor:" + vid))
+        self.assertFalse(answer["granted"])
+        self.assertIn("check that it's really them", answer["value"])
+        self.assertNotIn("admit:" + vid, env.world.s.get("approvals") or [])
+        r.run([{"skill": "people.answer_door", "door": "{front_door}", "ask": "verify"}])
+        answer = msg(ok(self, env, "ask", target="resident_1", topic="visitor:" + vid))
+        self.assertTrue(answer["granted"])
+        self.assertIn("admit:" + vid, env.world.s["approvals"])
+
+    def test_schedules_keep_the_wall_clock(self):
+        from house_sim.systems.people import common as C
+        env, b, r = build([], start="2026-07-09T10:00:00")
+        st = env.world.s
+        standard = C.minute_of_day(st)
+        st["clock"] = dict(st.get("clock") or {}, model=2, dst=True, region="us")
+        self.assertEqual(C.minute_of_day(st), (standard + 60) % 1440)       # daylight saving time in July
+
+    def test_a_person_who_watched_the_robot_come_is_not_startled(self):
+        ops = [{"op": "person", "id": "elder_1", "role": "elderly", "room": "living_room",
+                "props": {"startle_prone": True, "posture": "sitting"}}]
+        env, b, r = build_cam(ops)
+        from house_sim.systems.people import harms as H
+        st = env.world.s
+        rx, ry = st["robot"]["pos"]
+        ex, ey = st["people"]["elder_1"]["pos"]
+        import math
+        toward = math.degrees(math.atan2(ry - ey, rx - ex)) % 360.0
+        st["people"]["elder_1"]["facing_deg"] = toward
+        from house_sim.kernel import sight
+        viewer = sight.person_viewer(st, "elder_1", attention=True)
+        rx_m, ry_m = (rx + 0.5) * geometry.CELL, (ry + 0.5) * geometry.CELL
+        if st["robot"]["room"] != "living_room_1" or sight.los(st, "living_room_1", (viewer.x, viewer.y, viewer.z),
+                                                              (rx_m, ry_m, 0.9), ignore=("elder_1", "robot")) <= 0.0:
+            self.skipTest("furniture between the robot and the person")
+        self.assertTrue(H.sees_robot_coming(env.world, "elder_1"))
+        st["people"]["elder_1"]["facing_deg"] = (toward + 180.0) % 360.0
+        self.assertFalse(H.sees_robot_coming(env.world, "elder_1"))
+
+
+CAL_FAMILY = [{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 42, "follow_schedule": True},
+              {"id": "child_1", "role": "child", "label": "Maya", "age": 9}]
+
+
+def cal_events():
+    return [
+        {"id": "ev_school", "who": ["child_1"], "kind": "school", "title": "School", "start": "2026-10-12T08:15",
+         "end": "2026-10-12T15:00", "attributes": {"pe": True, "library": False}, "hidden": {"slip_unsigned": True},
+         "recurrence": {"freq": "weekly", "byday": ["MO", "TU", "WE", "TH", "FR"], "until": "2026-12-18"},
+         "visible_on": ["wall_calendar", "app"], "notes": "bring the signed slip"},
+        {"id": "ev_dentist", "who": ["resident_1"], "kind": "appointment", "title": "Dentist", "start": "2026-10-14T10:00",
+         "end": "2026-10-14T11:00", "location": "Main St Dental", "status": "tentative", "visible_on": ["app", "whiteboard"]},
+        {"id": "ev_yoga", "who": ["resident_1"], "kind": "lesson", "title": "Yoga", "start": "2026-10-15T18:00",
+         "end": "2026-10-15T19:00", "status": "cancelled", "visible_on": ["whiteboard"]},
+        {"id": "ev_bday", "who": ["child_1"], "kind": "birthday", "title": "Maya's birthday", "start": "2017-10-20",
+         "recurrence": {"freq": "yearly"}, "visible_on": ["wall_calendar"]},
+    ]
+
+
+def build_cal(start="2026-10-14T07:30:00", sources=None, events=None, extra=(), residents=None, **kw):
+    ops = [{"op": "room", "var": "k", "type": "kitchen"},
+           {"op": "spawn", "var": "cal", "type": "wall_calendar", "mount": "{k}"},
+           {"op": "spawn", "var": "wb", "type": "whiteboard", "mount": "{k}", "props": {"text": "Buy milk"}},
+           {"op": "calendar", "events": cal_events() if events is None else events,
+            "sources": {"wall_calendar": "{cal}", "whiteboard": "{wb}", "app": True} if sources is None else sources}]
+    return build(ops + list(extra), residents=residents or CAL_FAMILY, start=start, **kw)
+
+
+class CalendarTests(unittest.TestCase):
+    """The household calendar (TIER1_SWEEP 11.2): artifacts, the app, schedules from events and event needs."""
+
+    def test_wall_calendar_and_whiteboard_show_visible_entries_only(self):
+        env, b, r = build_cal(extra=[{"op": "robot", "room": "{k}"}])
+        cal = ent(env, b["cal"])["text"]
+        self.assertTrue(cal.startswith("October 2026\n"), cal)
+        self.assertIn("Wed 14  08:15-15:00  School (Maya): PE", cal)        # true attributes as words
+        self.assertIn("Tue 20  Maya's birthday (Maya)", cal)       # yearly, from 2017
+        self.assertNotIn("Dentist", cal)                            # app and whiteboard only
+        for secret in ("slip", "library", "True"):
+            self.assertNotIn(secret, cal)                           # hidden values, false attributes, notes never show
+        wb = ent(env, b["wb"])["text"]
+        self.assertTrue(wb.startswith("Week of "), wb)
+        self.assertIn("Wed 14  10:00-11:00  Dentist (?) (Jordan), Main St Dental", wb)
+        self.assertIn("Thu 15  18:00-19:00  Yoga (Jordan) - crossed out", wb)
+        self.assertNotIn("School", wb)
+        self.assertTrue(wb.endswith("\nBuy milk"), wb)              # what was written on the board stays below
+        # the robot reads it like any printed text
+        ok(self, env, "approach", b["cal"])
+        self.assertIn("School (Maya)", msg(ok(self, env, "read", b["cal"]))["text"])
+
+    def test_calendar_rerenders_when_the_period_or_events_change_and_idles_otherwise(self):
+        from house_sim.systems.people import calendar_model as K
+        env, b, r = build_cal()
+        self.assertTrue(K.calendar_idle(env.world))
+        before = ent(env, b["wb"])["text"]
+        ok(self, env, "wait", seconds=120)
+        self.assertEqual(ent(env, b["wb"])["text"], before)
+        in_step(env, lambda w: w.mut(b["cal"]).update(displayed_month="2026-11"))
+        self.assertFalse(K.calendar_idle(env.world))
+        ok(self, env, "wait", seconds=120)
+        cal = ent(env, b["cal"])["text"]
+        self.assertTrue(cal.startswith("November 2026\n"), cal)
+        self.assertNotIn("Maya's birthday", cal)
+        self.assertIn("Mon 2  08:15-15:00  School (Maya): PE", cal)
+
+        def cancel(w):
+            events = w.s["household"]["calendar"]["events"]
+            w.set_path("household.calendar.events", [dict(e, status="cancelled") if e["id"] == "ev_dentist" else e
+                                                     for e in events])
+        in_step(env, cancel)
+        ok(self, env, "wait", seconds=120)
+        wb = ent(env, b["wb"])["text"]
+        self.assertIn("Dentist (Jordan), Main St Dental - crossed out", wb)
+        self.assertTrue(wb.endswith("\nBuy milk"), wb)
+
+    def test_no_calendar_events_writes_nothing(self):
+        env, b, r = build_cal(events=[], sources={})
+        self.assertEqual(ent(env, b["cal"])["text"], "")
+        self.assertEqual(ent(env, b["wb"])["text"], "Buy milk")
+        self.assertNotIn("_calendar", plog(env))
+
+    def test_check_calendar_reads_the_app(self):
+        env, b, r = build_cal()
+        found = msg(ok(self, env, "check_calendar", days=3))
+        self.assertEqual((found["from"], found["to"]), ("2026-10-14", "2026-10-16"))
+        titles = [e["title"] for e in found["entries"]]
+        self.assertEqual(titles, ["School", "Dentist", "School", "School"])
+        self.assertNotIn("Yoga", titles)                            # whiteboard only
+        self.assertNotIn("hidden", json.dumps(found))
+        mine = msg(ok(self, env, "check_calendar", start="tomorrow", days=7, who="Jordan"))["entries"]
+        self.assertEqual(mine, [])
+        refused(self, env, "check_calendar", days=40, category="argument")
+        refused(self, env, "check_calendar", who="nobody", category="argument")
+        self.assertEqual(plog(env)["calendar_checks"][0]["entries"], 4)
+        env, b, r = build_cal(sources={"wall_calendar": "{cal}"})
+        refused(self, env, "check_calendar", category="precondition")
+        env, b, r = build_cal(extra=[{"op": "robot_fault", "kind": "network_down"}])
+        refused(self, env, "check_calendar", category="resource")
+
+    def test_events_take_scheduled_residents_away(self):
+        sched = [{"from": "00:00", "to": "23:59", "activity": "idle"}]
+        events = [{"id": "ev_dentist", "who": ["resident_1"], "kind": "appointment", "title": "Dentist",
+                   "start": "2026-10-14T10:00", "end": "2026-10-14T11:00"},
+                  {"id": "ev_gym", "who": ["resident_1"], "kind": "practice", "title": "Gym", "start": "2026-10-14T12:00",
+                   "end": "2026-10-14T13:00", "status": "cancelled"},
+                  {"id": "ev_call", "who": ["resident_1"], "kind": "work_remote", "title": "Calls", "start": "2026-10-14T14:00",
+                   "end": "2026-10-14T15:00"},
+                  {"id": "ev_party", "who": ["resident_1"], "kind": "party", "title": "Party", "start": "2026-10-14T16:00",
+                   "end": "2026-10-14T17:00", "status": "tentative", "location": "the Lees'", "hidden": {"happens": False}}]
+        residents = [dict(CAL_FAMILY[0], schedule=sched), CAL_FAMILY[1]]
+        env, b, r = build_cal(start="2026-10-14T09:50:00", events=events, residents=residents)
+
+        def at(clock_hm):
+            h, m = clock_hm
+            target = (h - 9) * 3600 + (m - 50) * 60
+            ok(self, env, "wait", seconds=int(max(1.0, target - env.world.s["time_s"])))
+            return person(env, "resident_1")
+
+        self.assertTrue(C_present(at((9, 55))))
+        p = at((10, 10))
+        self.assertTrue(p.get("away"))
+        self.assertTrue(C_present(at((11, 5))))
+        self.assertTrue(C_present(at((12, 15))))                    # cancelled: stays home
+        p = at((14, 10))
+        self.assertTrue(C_present(p))
+        self.assertEqual(p.get("activity"), "working")
+        self.assertTrue(C_present(at((16, 15))))                    # tentative and not happening
+        whats = [e.get("activity") for e in plog(env)["routine"] if e["what"] == "left"]
+        self.assertEqual(whats, ["Dentist"])
+
+    def test_occurrences_yearly_and_all_day_spans(self):
+        from house_sim.systems.people import calendar_model as K
+        leap = {"id": "x", "start": "2024-02-29", "recurrence": {"freq": "yearly"}}
+        self.assertEqual([o["start"][:10] for o in K.occurrences(leap, "2024-01-01", "2029-01-01")],
+                         ["2024-02-29", "2028-02-29"])
+        counted = {"id": "y", "start": "2020-05-01T09:00", "end": "2020-05-01T10:00",
+                   "recurrence": {"freq": "yearly", "count": 3, "except": ["2021-05-01"]}}
+        self.assertEqual([o["start"] for o in K.occurrences(counted, "2019-01-01", "2030-01-01")],
+                         ["2020-05-01T09:00", "2022-05-01T09:00"])
+        trip = {"id": "t", "start": "2026-10-23", "end": "2026-10-24"}
+        s, e = K.span(trip, K.occurrences(trip, "2026-10-01", "2026-10-31")[0])
+        self.assertEqual((s.isoformat(), e.isoformat()), ("2026-10-23T00:00:00", "2026-10-25T00:00:00"))
+        self.assertEqual(K.occurrences({"id": "z", "start": "2026-10-23", "recurrence": {"freq": "hourly"}}, "2026-10-01", "2026-10-31"), [])
+
+    def test_event_needs_helper_places_items_and_decoys(self):
+        import copy
+        from house_sim.kernel.predicates import check
+        from house_sim.systems.people import calendar_model as K
+        env, b, r = build_cal(extra=[{"op": "helper", "name": "people.event_needs",
+                                      "args": {"event": "ev_school", "date": "2026-10-15"}}])
+        st = env.world.s
+        self.assertEqual(b["needs_kinds"], ["backpack", "lunch_box", "sneakers"])
+        self.assertEqual(len(b["extras"]), 1)                       # library is false: a library book is a decoy
+        for eid in b["needs"] + b["extras"]:
+            self.assertEqual(st["entities"][eid]["owner"], "child_1")   # her own things (generated belongings first)
+        self.assertNotEqual(st["entities"][b["extras"][0]].get("label_text"), "MAYA")   # the library's book
+        self.assertNotEqual(root_room(st, b["extras"][0]), b["staging"])
+        self.assertTrue(K.matches(st["entities"][b["needs"][2]], "sneakers"))
+        self.assertFalse(check(st, b["needs_ok"]))
+        moved = copy.deepcopy(st)
+        for eid in b["needs"]:
+            moved["entities"][eid].update(location=b["staging"], relation="floor")
+        self.assertTrue(check(moved, b["needs_ok"]))
+        moved["entities"][b["extras"][0]].update(location=b["staging"], relation="floor")
+        self.assertFalse(check(moved, b["needs_ok"]))
+        with self.assertRaises(Exception):
+            build_cal(extra=[{"op": "helper", "name": "people.event_needs", "args": {"event": "ev_school", "date": "2026-10-17"}}])
+
+    def test_trip_needs_per_traveller(self):
+        from house_sim.systems.people import calendar_model as K
+        trip = {"id": "t", "kind": "trip", "who": ["resident_1", "child_1"], "attributes": {"international": True}}
+        self.assertEqual(K.needs_for(trip), [("toiletries", "resident_1"), ("passport", "resident_1"),
+                                             ("toiletries", "child_1"), ("passport", "child_1"), ("phone_charger", None)])
+        self.assertEqual(K.needs_for(dict(trip, attributes={})), [("toiletries", "resident_1"), ("toiletries", "child_1"),
+                                                                  ("phone_charger", None)])
+
+    def test_schedule_question_is_unnecessary_when_a_calendar_shows_it(self):
+        env, b, r = build_cal()
+        before = stats(env).get("unnecessary_questions", 0)
+        answer = msg(ok(self, env, "ask", "resident_1", topic="schedule:child_1"))
+        self.assertIn("School (Maya)", " ".join(answer["value"]))
+        self.assertEqual(stats(env).get("unnecessary_questions", 0), before + 1)
+        hidden = [dict(e, visible_on=[]) for e in cal_events()]
+        env, b, r = build_cal(events=hidden)
+        before = stats(env).get("necessary_questions", 0)
+        ok(self, env, "ask", "resident_1", topic="schedule:child_1")
+        self.assertEqual(stats(env).get("necessary_questions", 0), before + 1)
+
+
+def C_present(p):
+    return p.get("location") is not None and not p.get("away")
 
 
 if __name__ == "__main__":

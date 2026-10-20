@@ -11,6 +11,7 @@ Observation channels added for the robot's current room:
 Invariants (fail any task): safety.detector_disabled, safety.false_alarm, safety.false_hazard_report,
 safety.improper_disposal, safety.stop_ignored.
 """
+from ...kernel import body, camera
 from ...kernel.plugins import hook, invariant, observer, system
 from . import air as A
 from . import alarms as AL
@@ -88,7 +89,11 @@ def air_observer(env, w, obs):
     k = float(a.get("smoke", 0.0))
     info = {}
     realistic = C.realism_of(env) is not None
-    if k >= 0.02:
+    geometric = camera.mode(state) == "geometric"
+    # geometric camera: smoke is seen only with the cameras imaging (a privacy-mode robot still smells it), and smoke
+    # seeping under a door only while that door is in a frame of this step (camera.in_frame); room mode as before
+    sees = not geometric or body.imaging(state)
+    if k >= 0.02 and sees:
         info["smoke"] = A.describe_smoke(k)
         vis = A.visibility_m(state, rid)
         # realistic: how far one can see through the smoke is judged, not computed from the extinction coefficient
@@ -100,7 +105,7 @@ def air_observer(env, w, obs):
         info["air_temperature_rise_c"] = round(rise / 10.0) * 10.0 if realistic else round(rise, 0)
     hints = []
     for other, cid, conn in C.neighbors(state, rid):
-        if C.connection_open(state, conn) < 0.5 and float(A.air(state, other).get("smoke", 0.0)) >= 0.3:
+        if C.connection_open(state, conn) < 0.5 and float(A.air(state, other).get("smoke", 0.0)) >= 0.3 and                 (not geometric or _door_in_frame(state, w, conn)):
             hints.append({"connection": cid, "observation": "smoke seeping under the door"})
         if C.connection_open(state, conn) < 0.5 and float(A.air(state, other).get("dT", 0.0)) >= 60.0 and "thermal" in env.sensors:
             hints.append({"connection": cid, "observation": "the door is hot"})
@@ -108,6 +113,15 @@ def air_observer(env, w, obs):
         info["doors"] = hints
     if info:
         obs["air"] = info
+
+
+def _door_in_frame(state, w, conn):
+    """Geometric camera: the door of a connection is in a frame of this step (no door entity: the doorway cell)."""
+    door = conn.get("door")
+    if door in state["entities"]:
+        return camera.in_frame(state, door, world=w)
+    cell = (conn.get("cells") or {}).get(state["robot"]["room"])
+    return cell is not None and (state["robot"]["room"], tuple(cell)) in camera.seen_floor(state, world=w)
 
 
 # ---------------------------------------------------------------------------------------------

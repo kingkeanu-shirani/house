@@ -20,6 +20,7 @@ Realistic perception (env.realism is not None; oracle output is unchanged):
 """
 import copy
 
+from ...kernel import body, camera
 from ...kernel.plugins import inspector, observer
 from . import common as C
 from . import senses as S
@@ -144,12 +145,18 @@ def gestures(env, w, obs):
     now = C.now_s(state)
     if realistic(env) and obs.get("dark"):
         return                                   # a pointing hand is not seen in the dark
+    geometric = camera.mode(state) == "geometric"
+    if geometric and not body.imaging(state):
+        return                                   # depth shapes show no hand
+    shown = obs.get("people") or {}
     found = []
     for pid in sorted(state.get("people", {})):
         p = state["people"][pid]
         g = p.get("gesture")
         if not g or p.get("location") != room or now - float(g.get("time_s", -1e9)) > GESTURE_TTL_S:
             continue
+        if geometric and (pid not in shown or not camera.in_frame(state, pid, world=w)):
+            continue                             # the geometric camera sees a gesture only of someone in frame now
         from .social import eye_point
         found.append({"person": pid, "kind": g.get("kind", "point"), "origin_m": [round(v, 2) for v in eye_point(state, pid)],
                       "heading_deg": g.get("dir_deg"), "elevation_deg": g.get("elev_deg"), "time_s": g.get("time_s")})
@@ -157,11 +164,17 @@ def gestures(env, w, obs):
         obs["gestures"] = found
 
 
+AMBIENT_SPEECH_SOUNDS = ("raised_voices",)    # what people say to each other: speech the robot is not addressed in
+
+
 @observer("people.sounds", order=92)
 def sounds(env, w, obs):
     state = w.s
     room = obs.get("room_id")
     now = C.now_s(state)
+    hearing = body.can_hear(state)
+    if hearing == "none":
+        return                  # microphones off or failed (the kernel also drops the sounds channel)
     out = []
     log = C.plog_read(state)
     rang = log.get("doorbell_s")
@@ -194,6 +207,11 @@ def sounds(env, w, obs):
             kinds = sorted({AUDIBLE_SIGNS[s] for s in signs_of(p, close=False, now=now) if s in AUDIBLE_SIGNS})
             for kind in kinds:
                 out.append({"kind": kind, "source_hint": "this room", "loudness": 0.7})
+    if hearing == "addressed":
+        # privacy mode or a microphone policy: the on-device wake word listens only for speech addressed to the robot,
+        # so people's conversations (raised voices) are not picked up; doorbells, phones, crying and calls for help are
+        # not conversation and stay (TIER1_INTEGRATION 1.3)
+        out = [s for s in out if s["kind"] not in AMBIENT_SPEECH_SOUNDS]
     if out:
         obs.setdefault("sounds", []).extend(out)
 

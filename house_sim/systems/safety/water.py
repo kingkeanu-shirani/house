@@ -27,7 +27,7 @@ Flooding (room fields set by safety.flood): _flood_cm depth, _flood_rate_cm_h (+
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import camera, geometry
 from ...kernel.perception import flashlight_on, light_level
 from ...kernel.plugins import after, inspector, observer, scenario_helper, system
 from . import common as C
@@ -187,10 +187,20 @@ def puddle_view(env, w, obs):
     rid = state["robot"].get("room")
     room = state["rooms"].get(rid, {})
     depth = float(room.get("_flood_cm", 0.0))
-    if depth >= 0.3 and isinstance(obs.get("room"), dict) and light_level(state, rid) + (1.0 if flashlight_on(state) else 0.0) >= 0.2:
+    seen = None
+    if camera.mode(state) == "geometric" and depth >= 0.3:
+        # geometric camera: standing water shows only on the floor cells this step's frames surveyed
+        seen = {cell for r, cell in camera.seen_floor(state, world=w) if r == rid}
+        wet_cells = {tuple(c) for c in room.get("wet_cells") or []}
+        if not (seen & wet_cells if wet_cells else seen):
+            seen = set()
+    if depth >= 0.3 and isinstance(obs.get("room"), dict) and light_level(state, rid) + (1.0 if flashlight_on(state) else 0.0) >= 0.2             and seen != set():
         cols, rows = geometry.grid_size(room)
         wet = len(room.get("wet_cells") or [])
         share = wet / float(max(1, cols * rows))
+        if seen and wet:
+            # geometric camera: the extent is judged from the floor in view
+            share = len(seen & {tuple(c) for c in room.get("wet_cells") or []}) / float(len(seen))
         extent = "whole floor" if share >= 0.9 or not wet else ("most of the floor" if share >= 0.5 else "part of the floor")
         if C.realism_of(env) is not None:
             # realistic: depth judged by eye against baseboards and furniture legs (about +-15 %, whole cm): one fixed
@@ -198,8 +208,8 @@ def puddle_view(env, w, obs):
             shown = C.percept_estimate(env, depth, 0.08, "flood_depth:" + rid, step=1.0, lo=0.5, max_rel=0.15)
         else:
             shown = round(depth * 2.0) / 2.0
-        obs["room"]["standing_water"] = {"depth_cm": shown, "extent": extent,
-                                         "wet_cells": [list(c) for c in (room.get("wet_cells") or [])][:60]}
+        cells = [list(c) for c in (room.get("wet_cells") or []) if seen is None or tuple(c) in seen]
+        obs["room"]["standing_water"] = {"depth_cm": shown, "extent": extent, "wet_cells": cells[:60]}
     for item in obs.get("connections", []) or []:
         other = item.get("to")
         if other in state["rooms"] and float(state["rooms"][other].get("_flood_cm", 0.0)) >= 1.0 and item.get("open", True):
@@ -387,11 +397,14 @@ SOURCES = {"dishwasher": {"label": "dishwasher", "category": "dishwasher", "size
 
 
 def _source(ctx, rid, kind):
+    """The room's own appliance of that kind -- a free-standing one or one built into a counter run (a part with no
+    pos of its own, anchored where its run stands) -- else a stand-in."""
     from . import helpers as HP
     ents = ctx.config["entities"]
+    state = ctx.placer.state()
     for eid in sorted(ents):
         rec = ents[eid]
-        if C.root_room(ctx.placer.state(), eid) == rid and kind in (rec.get("category"), rec.get("type")) and rec.get("pos"):
+        if C.root_room(state, eid) == rid and kind in (rec.get("category"), rec.get("type")) and                 (rec.get("pos") or (rec.get("relation") == "part" and _anchor_cell(state, eid) is not None)):
             return eid
     props = dict(SOURCES.get(kind) or {"label": kind.replace("_", " "), "category": kind, "size_m": [0.6, 0.6, 0.85]})
     props.setdefault("portable", False)
@@ -410,6 +423,15 @@ def _source(ctx, rid, kind):
                 any(geometry.chebyshev(c, r) <= 1 for c in geometry.footprint(rec) for r in reach):
             return eid
     raise HP.SpecError("No place for a leak source in " + rid)
+
+
+def _anchor_cell(state, eid):
+    """The cell of an entity's footprint (its own or, for a built-in part, its host's) nearest its centre, or None."""
+    rid, cells = geometry.anchor(dict(state, robot=dict(state.get("robot") or {}, hands={})), eid)
+    if not cells or rid not in state["rooms"]:
+        return None
+    _, x, y, _ = C.entity_xyz(state, eid)
+    return min(cells, key=lambda c: ((c[0] + 0.5) * C.CELL - x) ** 2 + ((c[1] + 0.5) * C.CELL - y) ** 2)
 
 
 @scenario_helper("safety.puddle")
@@ -437,6 +459,9 @@ def puddle_helper(ctx, room="kitchen", liquid="water", liters=0.4, source=None, 
     near_cell = None
     if anchor and (ctx.config["entities"].get(anchor) or {}).get("pos"):
         near_cell = list(ctx.config["entities"][anchor]["pos"])
+    elif anchor in ctx.config["entities"]:
+        found = _anchor_cell(ctx.placer.state(), anchor)       # a built-in appliance: where its counter run stands
+        near_cell = list(found) if found is not None else None
     eid = HP._floor(ctx, rid, "floor_puddle", near=near_cell, **props)
     _resize(ctx.config["entities"][eid])
     out[var] = eid

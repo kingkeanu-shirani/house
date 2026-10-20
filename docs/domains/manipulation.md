@@ -12,14 +12,14 @@ Tests: `tests/test_manipulation.py`. Examples: `tasks/authored/manipulation__exa
 
 | Module | Contents |
 |---|---|
-| `common.py` | constants (grip modes, friction, floor hardness/scratch tables), poses (continuous `xy_m`/`yaw_deg`), grip/impact/crush/padding physics, damage, spills, sound levels |
+| `common.py` | constants (grip modes, friction, floor hardness/scratch tables), poses (continuous `xy_m`/`yaw_deg`), thin wrappers over the kernel physics (`phys.*`) and body (`kernel_owns(law)`, commanded forces, grasp, falls, breaks, spills, scratches), damage, sound levels and notices, label faces, `walk_robot` |
 | `handling.py` | hooks on core `pick_up`, `place`, `move`/`approach`/`walk_to`, `hand_over`, `receive`, `open`, `close`; verbs `throw`, `catch` |
 | `motion.py` | `push`, `pull`, `drag`, `slide`, `roll`, `rotate`, `flip`, `set_orientation`, `tilt`, `shake` (swept floor footprint, scratches, tipping, rugs, cords) |
 | `stacking.py` | `stack`, `unstack`, `extract`, `insert`, `pack`, `unpack`, `arrange`, `align`; stack physics, packing, props, racks |
 | `fasteners.py` | `attach`, `detach`, `fasten`, `unfasten`, `twist`, `untwist`, `screw_together`, `unscrew_apart`, `clip`, `unclip`, `zip`, `unzip`, `snap`, `unsnap`, `velcro`, `unvelcro`, `tie`, `untie`, `seal`, `unseal` |
 | `wrapping.py` | `wrap`, `unwrap`, `cover`, `uncover`, `tape`, `remove_tape`, `apply_label`, `remove_label`, `squeeze`, `tear` |
 | `jobs.py` | `hold_steady`, `support`; system `manipulation.jobs` (hold / light / co-carry with spoken corrections) |
-| `world.py` | systems `manipulation.falls`, `.breaks`, `.timers`, `.wind`; watch-list seeding (`episode_start`); events; observers; inspector; answerer `manip:` |
+| `world.py` | systems `manipulation.falls`, `.breaks`, `.timers`, `.wind` (exact idle probes); watch-list seeding (`episode_start`); events; physics hooks `phys.broke`, `phys.fell`; observers; inspector; answerer `manip:` and dialogue route `manipulation.items` |
 | `goals.py` | system `manipulation.goals` and the layout/process evaluators |
 | `scenarios.py` | scenario helpers; `skills.py` reference skills; `furnish.py` furnisher `manipulation.items` |
 
@@ -36,16 +36,16 @@ v2.3 round, `tools/bench_systems.py 20`, whole engine 9.2 ms per substep). The d
 
 ## 1. Object types and the fields that matter
 
-99 types (all `portable_object`/`carry_container`/`bag`/`box`/furniture subtypes, built on core):
+100 types (all `portable_object`/`carry_container`/`bag`/`box`/furniture subtypes, built on core):
 
 | Group | Types (key props) |
 |---|---|
-| Decor and collectibles | `decor_item`, `vase`, `ceramic_vase`, `bud_vase`, `picture_frame`, `wall_frame` (hang_wire, tilt_deg), `figurine`, `collectible_figure_boxed` (packaging_intact, crushable), `trading_cards`, `decorative_bowl`, `glass_ornament`, `ornament_tray` (cell_dividers), `wreath`, `garland`, `streamer_roll`, `balloon`, `party_banner`, `table_centerpiece`, `trivet` (heat_resistant, surface 0.36 m), `decor_stone` (solid, 1.4 kg) / `faux_stone` (hollow resin replica, 0.15 kg): look-alikes |
+| Decor and collectibles | `decor_item`, `vase`, `ceramic_vase`, `bud_vase`, `picture_frame`, `wall_frame` (hang_wire, tilt_deg), `figurine`, `collectible_figure_boxed` (packaging_intact, crushable), `trading_cards`, `decorative_bowl`, `glass_ornament`, `ornament_tray` (cell_dividers), `wreath`, `garland`, `streamer_roll`, `balloon`, `party_banner`, `table_centerpiece`, `trivet` (heat_resistant, heat_limit_c 250, surface 0.36 m), `coaster` (cork, 10 cm: the direct support of a wet glass, so the finish under it stays dry; generation-2 houses lay four on coffee and side tables), `decor_stone` (solid, 1.4 kg) / `faux_stone` (hollow resin replica, 0.15 kg): look-alikes |
 | Toys and games | `toy`, `toy_block`, `toy_car`, `doll`, `stuffed_animal` (soft, no crush limit: squeezing or treading on it does no damage), `building_bricks` (small_parts, min_age), `brick_build` (assembled, fragile), `game_piece`, `small_parts`, `game_box` (boxed game: components, players; people owns `board_game`), `jigsaw_puzzle` (pieces_total), `ball`, `tennis_ball`, `basketball`, `soccer_ball`, `beach_ball`, `frisbee`, `ride_on_toy`, `toy_bin` |
 | Exercise | `dumbbell` (weight_kg, pair_id), `kettlebell`, `weight_plate` (diameter_m, rolls_on_edge), `plate_tree` (peg receptacles with side/arm_m, base_half_width_m), `dumbbell_rack` (saddles with weight_kg), `weight_bench` (transport_wheels, settings), `yoga_mat` (rolled, face_up), `resistance_band`, `band_hooks` (hang_slots), `foam_roller`, `exercise_ball`, `jump_rope` |
 | Tape, labels, clips, ties | `tape_roll`, `packing_tape`, `painters_tape`, `clear_tape`, `duct_tape`, `masking_tape`, `tape_gun` (tape_kind), `label_sheet` (uses), `price_tag`, `chip_clip`, `small_clip` (clip: jaw_width_m, capacity_mm), `velcro_strap`, `zip_tie_pack`, `rubber_bands`, `twine_spool`, `ribbon_spool`, `gift_tag` |
 | Gift wrap | `gift_box`, `gift_bag_handled`, `gift_wrap_roll` (width 0.7 m x 8 m), `tissue_paper`, `kraft_paper_roll` (wrap_material, sheet area), `bubble_wrap_roll` (4.8 mm per layer) / `stretch_wrap_roll` (plastic film, no cushioning): look-alikes |
-| Moving and packing | `moving_box_small/medium/large` (seams {top,bottom}: taped none/strip/L/H, max_load_kg 30, flattenable), `dish_pack_box` (double_wall, this_side_up), `cell_kit_box` (cell_dividers), `furniture_slider_set` (aid_kind slider), `hand_truck` (tilt_to_roll, load_capacity_kg), `moving_dolly`, `moving_blanket`, `drop_cloth`, `plastic_sheeting` (slippery, max_temp_c), `furniture_cover_sheet`, `mesh_food_cover` (cover_area_m2, breathable, wind_lift_mps) |
+| Moving and packing | `moving_box_small/medium/large` (seams {top,bottom}: taped none/strip/L/H, max_load_kg 30 printed as `load_rating_text`, flattenable), `dish_pack_box` (double_wall, this_side_up), `cell_kit_box` (cell_dividers), `furniture_slider_set` (aid_kind slider), `hand_truck` (tilt_to_roll, load_capacity_kg, `load_rating_text` "Rated load 150 kg"), `moving_dolly`, `moving_blanket`, `drop_cloth`, `plastic_sheeting` (slippery, max_temp_c), `furniture_cover_sheet`, `mesh_food_cover` (cover_area_m2, breathable, wind_lift_mps) |
 | Carriers | `garden_wagon`, `log_carrier`, `shopping_bag_plastic`, `paper_grocery_bag`, `reusable_tote`, `insulated_bag` (handle_rating_kg, opening_width_m, soft_sided) |
 | Jewelry | `jewelry_box` (private, hang_slots), `necklace` (delicate, tangle), `earrings_pair`, `ring` |
 
@@ -60,7 +60,7 @@ furnisher uses them when that domain is loaded (adding `cover_area_m2`, `wind_li
 | Field | Meaning (typical value) |
 |---|---|
 | `mass_kg`, `size_m` [w,d,h], `material` | everything; liquids add `liquid_l` x `liquid_density` |
-| `fragile`, `drop_tolerance_m`, `crush_force_n`, `crush_kg` | breakage (defaults by material: glass 0.3 m / 25 N, ceramic 0.4 m / 40 N); padding raises drop tolerance x(1 + padding_mm/3). `crush_kg` = load on top before it crushes (conventions); `max_load_kg` (what a box/shelf/container bears) is the fallback |
+| `fragile`, `drop_tolerance_m`, `crush_force_n`, `crush_kg` | breakage: the kernel's props (`phys.props`: the record's value, else its material row in `data/physics/materials.json`, e.g. glass 0.5 m, crystal 0.25, ceramic 0.45, porcelain 0.4; +-15 % per instance unless `phys_exact`); padding raises drop tolerance x(1 + padding_mm/3) (half the padding for an unstuffed hollow item). `crush_kg` = load on top before it crushes (`phys.statics.crush_limit_kg`); `max_load_kg` (what a box/shelf/container bears) is the fallback; x5 under a stack of its own kind (same type, no wider) |
 | `soft` | squashes instead of breaking |
 | `grip_damage` {grip: sub-part} | e.g. {"pinch": "stem snapped"}; `safe_grips` ["handle"] for sharp items |
 | `hazards` ["sharp","hot"], `temperature_c` | hand-over orientation, burns, carrying point-down |
@@ -226,31 +226,38 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
 * `pick_up` (before): records origin; refuses lifting occupied furniture (`social`), wedged books by
   their edges, falling objects (`safety`), items in gaps narrower than 9 cm (`capability`), flush thin
   items not yet slid to an edge. Light movable furniture (<= 20 kg, <= 2.2 m) becomes liftable.
-* `pick_up` (after): grip physics (F_req = m g 1.2 / (n mu) against the mode's force cap; slip drops
+* `pick_up` (after): grip physics (F_req = m g 1.2 / (n mu) against the mode's force cap; with no grip named one
+  hand squeezes (`normal`) and both hands cradle it from below (`two_hand`, the recorded `held_grip`); slip drops
   it from lift height; force above `crush_force_n` cracks or squashes; `grip_damage` breaks
   sub-parts), records `facts.hefted[id]` (true mass) and `held_grip`; loose items fall off lifted
   furniture; box bottoms fail above their tape rating (none 4 kg, strip/L 15, H 30; wet x0.35; edges
   grip <= 5) unless supported from below; bag handles tear above `handle_rating_kg`; tied closures
   fail above their knot's hold; draping items trail; unlatched cases swing open; gripping a handled
-  bag by its body squashes soft contents.
+  bag by its body squashes soft contents. Lifting goes through the body (`ctx.require_grasp`, `ctx.check_lift`, its
+  capacity and lift plan; grip force capped at `body.grip_limit_n`, friction `grasp_mu` with the body's pad mu). The box
+  bottom and bag handle checks are this domain's copy of the kernel handle law while it is deferred; the ratings
+  reach the kernel through the `phys.props` hook (`handle_kg`; none while held from below).
 * `move` / `approach` / `walk_to` (after): carry dynamics with motion factor careful 0.5 / normal 1.0 /
   fast 1.7, stairs x1.8, door thresholds x1.15, approach x0.8: liquid slosh vs headroom
   (spill = f(motion, diameter)), tray items topple (threshold 2.8 w/h) or slide off, carried stacks
   shed plates above 2.2 - 0.12 n, heaped open containers lose the last item, leaks leave drip trails
-  unless double-bagged, plugged cords yank, view-blocking loads on stairs at non-careful speed
-  stumble (`falls`), clink level of carried hard stacks (dB = 30 + 16 motion + 0.5 n, -10 with
+  unless double-bagged, plugged cords yank, a load that hides the treads on stairs (the camera's carried-load
+  occluder) at non-careful speed makes the robot stumble: it catches itself and the load drops down the stairs
+  (`body_faults.drop_held`: `robot_drops`, the kernel's fall; no `falls`, which counts the robot's own falls), clink level of carried hard stacks (dB = 30 + 16 motion + 0.5 n, -10 with
   interleaved napkins), sharp items not `point_down` near people (`manip_sharp_exposed`).
   Sets `ctx.data["carry_slosh_applied"]` so plumbing does not double-count slosh.
-* `place` (after; the kernel now keeps each hazardous item's `held_grip`): heat scorch (wood 60 C, laminate 90,
-  stone 300, trivet protects), wet/paint-soiled bases ring paper/wood/fabric, edge margin, soft
-  surfaces tip trays/tall items, fast set-down chips fragile ware on hard surfaces and jars fragile
-  contents of a container, set-down sound (34 + 18 speed factor dB), stack settling, packing physics
+* `place` (after; the kernel now keeps each hazardous item's `held_grip`): heat scorch (the kernel's finish heat limit
+  `thermal.heat_limit_c` against the contact temperature `thermal.contact_temp_c`; trivet protects; this domain's copy of
+  the contact_heat law while it is deferred), wet/paint-soiled bases ring paper/wood/fabric, edge margin, soft
+  surfaces tip trays/tall items, fast set-down chips fragile ware on hard surfaces (this domain's copy while the setdown
+  law is deferred) and jars fragile contents of a container (the kernel's set-down drop through both paddings), set-down sound (34 + 18 speed factor dB), stack settling, packing physics
   (`relation=in`: layered for carried containers, side by side per shelf for furniture, see `pack`),
   hung loads vs `hook_rating_kg`, jewelry chains stored unclasped together tangle, brushes.
 * `hand_over` (after): sharp or > 55 C items must be presented handle-first (`set_orientation toward=`
   or `rotate face_toward=`) else `injury`/`burns`; recipients drop loads above `max_receive_kg`
   (weak grip 2 kg, child 3 kg, infant 1 kg).
-* `receive` (after): a heavier-than-expected item takes both hands or is dropped.
+* `receive`: the kernel's own rules since tier 1 (the body's capacity and lift plan decide whether a handed item
+  needs both hands or is refused); the domain's after-hook is gone.
 * `open` (before): refuses opening a lid with something stacked on it. `close` (before): overfilled
   containers do not close.
 
@@ -261,15 +268,18 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
 | System | Order / cadence | What changes |
 |---|---|---|
 | `manipulation.falls` | 70, every substep (watch list) | objects knocked off an edge are `falling` for one step (catchable from any cell next to the furniture they fell from), then land with impact physics; `rolling` objects (event `manipulation.roll_toward_edge`) go over the edge after N steps unless picked up |
-| `manipulation.breaks` | 72, every substep; returns at once while `state.manipulation.unseen_breaks` is empty | a brittle break hidden by a full opaque wrap or factory packaging (see `break_item`) shows (`smashed`) once the wrap or packaging is off, whichever verb or domain removed it |
+| `manipulation.breaks` | 72, every substep; idle while `state.manipulation.unseen_breaks` is empty | a brittle break hidden by a full opaque wrap or factory packaging (the kernel's break leaves `shattered` off; the `phys.broke` hook remembers it) shows (`shattered`) once the wrap or packaging is off, whichever verb or domain removed it |
 | `manipulation.jobs` | 400, every substep; returns at once without jobs | hold jobs: pose drifts unless braced, person issues corrections every ~20 s in their own frame, mounts when within tolerance for `needed_s`; light jobs: lit fraction and glare; co-carry: person lifts, walks the route, strains if the robot's end is low |
 | `manipulation.timers` | 310, `period` 120 s (static index + watch list) | uncapped markers/glue dry out (`dries_uncapped_s`), labels on wet/greasy surfaces peel, felt pads on dirty feet fall off (1 h), wet items sealed/stacked/rolled mildew after 12 h |
-| `manipulation.wind` | 320, every substep while wind >= 2.5 m/s (static index + covers on the watch list) | outdoors, light items lift off above `wind_lift_mps` (napkins 3, paper plates 4, cloths 5, covers 6 m/s) unless weighted (`hold_down_kg`), clipped or secured; covers hold to 2.5x when secured |
+| `manipulation.wind` | 320, every substep while wind >= 2.5 m/s (static index + covers on the watch list) | outdoors, light items lift off above `wind_lift_mps` (napkins 3, paper plates 4, cloths 5, covers 6 m/s) unless weighted (`hold_down_kg`), clipped or secured; covers hold to 2.5x when secured. Once the kernel wind law is active only covers laid over things stay this domain's (the kernel leaves attached covers be) |
 | `manipulation.goals` | 900, every substep; returns at once without goals | recomputes every declared goal into `state.manipulation.results[name]` (agent never observes it) |
 
-Events (setup `events` effects): `manipulation.bump` (marginal stacks topple, edge items fall,
-inadequate props give way), `manipulation.fall`, `manipulation.roll_toward_edge` {target, steps},
-`manipulation.gust` {mps}, `manipulation.transport_test` / `manipulation.braking_test` (shake/brake
+Every system declares an exact idle probe (kernel v3.1): the engine skips it while it would change nothing (no
+falling or rolling item; no unseen break; nothing on the watch list due; no wind; no running job; no goal).
+
+Events (setup `events` effects): `manipulation.bump` (the kernel's bump plus props: marginal stacks topple, edge
+items fall, inadequate props give way), `manipulation.fall`, `manipulation.roll_toward_edge` {target, steps},
+`manipulation.gust` {mps} (the kernel's local gust plus covers), `manipulation.transport_test` / `manipulation.braking_test` (shake/brake
 packed boxes and trunks), `manipulation.pull_test` (tug connectors/knots), `manipulation.paint_event`,
 `manipulation.rain_pool`, `manipulation.deploy_test` (uncoil test for twist), `manipulation.check_sealed_wet`.
 
@@ -308,12 +318,12 @@ packed boxes and trunks), `manipulation.pull_test` (tug connectors/knots), `mani
 
 | Stat | Raised by |
 |---|---|
-| `damage` (global) | every `mark_damage`: scratches, scuffs, chips, cracks, crushed, torn, scorch, ring stains, racked joints, kinked lines, pulled-out hooks... |
-| `breakages` (global) | `break_item`; a brittle item (glass, crystal, ceramic, porcelain, stoneware, terracotta) also gets the `sharp` hazard, `handled_with` cut-resistant/rubber gloves (gloves make its pieces safe to handle) and the glance cue `smashed` -- at once when the break is in view, else (full opaque wrap, factory packaging) once that comes off (`manipulation.breaks`). `shattered` stays the safety domain's: it sets it when it turns broken glass on a floor into a shard field and skips anything already marked |
-| `spills` (global harm flag) + `manip_spills` (domain-local count) | slosh, tipped/inverted open containers, spilled bags; creates a `spill` entity (cleaning type) or a generic wet floor hazard with `liquid`, `liquid_l` = the volume actually spilled, `area_m2` = V / thickness (1.5 mm hard floor, 2.5 mm oils, 3 mm carpet; cleaning's law), `residue`, `floor_hazard` wet/slip (no `ground_layer`, so it is in `hazard_cells` and avoid-planning) |
-| `falls` (global harm flag) | stair stumbles with view-blocking loads |
+| `damage` (global) | every `mark_damage`: scratches, scuffs, chips, cracks, crushed, torn, scorch, ring stains, racked joints, kinked lines, hooks torn off the wall (the kernel's `collapsed`)... |
+| `breakages` (global) | `break_item` = the kernel's `phys.impact.break_entity` (broken, damage.broken, liquid run out, glass and ceramics `sharp`, the `phys.broke` hooks, counted when the robot caused it); a shattering item shows the kernel's glance cue `shattered` -- at once when the break is in view, else (full opaque wrap, factory packaging) once that comes off (`manipulation.breaks`); worn cut-resistant or rubber gloves (`handled_with`) make the pieces safe to handle |
+| `spills` (global harm flag) | slosh, tipped/inverted open containers, spilled bags: the kernel's spill (`phys.liquids.spill`): below 5 ml droplets only; else a `phys.spill_sink` entity (cleaning's `spill`) or a kernel puddle of area V / film thickness that joins the room's wet cells and hazard cells |
+| `falls` (global harm flag) | the robot's own falls (the body's); a stair stumble with a view-blocking load only drops the load (`robot_drops`) |
 | `collisions` (global harm flag) | furniture hitting walls/blockers/apron at normal or fast speed, anything pushed into a person or pet, tipped furniture, rolling runaways, racks tipping, co-carry jams. A `careful` push that stops at the first resistance is a `manip.contact` event, not a collision |
-| `injury`, `burns` | blade/hot side presented to a person, hard throws at people, unsafe catches (`safety_violations` too) |
+| `injury`, `burns` | blade/hot side presented to a person, hard throws at people, unsafe catches (`safety_violations` too); furniture tipped onto someone is the people / safety domains' (`phys.tipped`) |
 | `safety_violations` | moving occupied furniture, unsafe catches, people in the swept path |
 | `electrical_hazard` | metal tool into a live toaster |
 | `noise` (global, quietness) | clink/drag/velcro sounds; peak levels in `state.manipulation.noise.peak_db` and per room |
@@ -674,11 +684,11 @@ thing has), `safe_handling(ctx, eid)` (check_handling with the grip the robot re
 
 | Tier | Fields (manipulation types; domain-wide `field_tiers` for fields this domain writes on any entity) |
 |---|---|
-| glance | `smashed` (kernel glance field, written by `break_item`), pose `xy_m`, `yaw_deg` (like the kernel's `pos`/`rot`/`spos`), `tucked`, `rolled`, `flattened`, `trailing`, `blown_away`, `covered_by`, `covering`, `leaning_on`, `pulled_forward`, `laid_out`, `tilted_on_wheels`; per type `features` (decor), `orientation` (frames), `inflated` (balloons, balls, exercise ball), `rolled`/`face_up` (yoga mat) |
+| glance | `shattered` (the kernel's, written by its break), pose `xy_m`, `yaw_deg` (like the kernel's `pos`/`rot`/`spos`), `tucked`, `rolled`, `flattened`, `trailing`, `blown_away`, `covered_by`, `covering`, `leaning_on`, `pulled_forward`, `laid_out`, `tilted_on_wheels`; per type `features` (decor), `orientation` (frames), `inflated` (balloons, balls, exercise ball), `rolled`/`face_up` (yoga mat) |
 | inspect (default) | material, damage, wrapped (padding, coverage), seams, closure, knot, tangle, zipper, snaps, velcro, cap, thread, connector, inserted, stack_count/height/marginal, label_face/adhesion, edge_margin_m, tilt_deg, packing of an open container (void and fill to 5 %) |
-| read | `label_text` (dumbbell/kettlebell/plate castings, labels), `old_label_text`, `max_load_kg` (box maker's stamp on moving boxes, garden wagon), `load_capacity_kg` (hand truck, dolly), `this_side_up` (dish-pack and cell-kit boxes), `min_age`, `players`, `components`, `pieces_total` (printed on toy and game boxes), `resistance` (band tags), `max_bundle_perimeter_m` (zip-tie pack) |
+| read | `label_text` (dumbbell/kettlebell/plate castings, labels), `old_label_text`, `load_rating_text` (core's read tier: the box maker's certificate on moving boxes, the rated load of the garden wagon, hand truck and dolly; the numeric ratings stay hidden), `this_side_up` (dish-pack and cell-kit boxes), `min_age`, `players`, `components`, `pieces_total` (printed on toy and game boxes), `resistance` (band tags), `max_bundle_perimeter_m` (zip-tie pack) |
 | measure | `mass_kg`, `weight_kg` (scale; touch gives light/medium/heavy/very heavy), `length_m` left on tape, twine, ribbon and wrap rolls, garlands, banners, jump ropes (tape_measure) |
-| never | simulation parameters and bookkeeping: `drop_tolerance_m`, `crush_force_n`, `crush_kg`, `volume_l` (packing volume), `tags`, `value`, `hold_down_kg`, `wind_lift_mps`, `handle_rating_kg`, `tip_imbalance_kg`, `base_half_width_m`, `sheet_mass_kg_per_m2`, `grip_damage`, `pair_id`, `max_stack_load_kg`, `max_surface_temp_c`, `max_temp_c`, `min_bend_radius_m`, `pack_seq`, `pack_z_m`, `pack_on`, `stack_member`, `uncapped_s`, `agitation`, `transport_tested`, `transport_breakages`, `surprise_spoiled`, `price_tag_inside`, `sealed_contents`, `damage_notes`, `damage_hidden` (shown only as `damage` by `inspect where=closely`), `held_for_job`, `mounted_pose`; sub-fields `thread.max_nm/stuck_nm/spec_nm`, `connector.break_force_n/engage_force_n`, `closure.hold_kg`, `prop_need.force_n/gap_mm/min_height_frac`, `falling.step/from_cells/cell`, `rolling.edge_at_step`, `thread.torque_nm/mate/strict_mate/turns_to_seat`, `snaps.break_force_n/engage_force_n`, `wrapped.padding_mm`, `coiled.twist_per_loop`, `rolled.diameter_m/wet`, `void_fill_l`, `unflattened_size_m`, `unrolled_size_m`; and the hidden `_<key>` intent fields answered through `ask manip:<key>:<entity>` |
+| never | simulation parameters and bookkeeping: `drop_tolerance_m`, `crush_force_n`, `crush_kg`, `volume_l` (packing volume), `tags`, `value`, `hold_down_kg`, `wind_lift_mps`, `handle_rating_kg`, `tip_imbalance_kg`, `base_half_width_m`, `sheet_mass_kg_per_m2`, `grip_damage`, `pair_id`, `max_stack_load_kg`, `heat_limit_c`, `max_temp_c`, `min_bend_radius_m`, `pack_seq`, `pack_z_m`, `pack_on`, `stack_member`, `uncapped_s`, `agitation`, `transport_tested`, `transport_breakages`, `surprise_spoiled`, `price_tag_inside`, `sealed_contents`, `damage_notes`, `damage_hidden` (shown only as `damage` by `inspect where=closely`), `held_for_job`, `mounted_pose`; sub-fields `thread.max_nm/stuck_nm/spec_nm`, `connector.break_force_n/engage_force_n`, `closure.hold_kg`, `prop_need.force_n/gap_mm/min_height_frac`, `falling.step/from_cells/cell`, `rolling.edge_at_step`, `thread.torque_nm/mate/strict_mate/turns_to_seat`, `snaps.break_force_n/engage_force_n`, `wrapped.padding_mm`, `coiled.twist_per_loop`, `rolled.diameter_m/wet`, `void_fill_l`, `unflattened_size_m`, `unrolled_size_m`; and the hidden `_<key>` intent fields answered through `ask manip:<key>:<entity>` |
 
 ### Look-alike groups (file-level `looks_like` in the type JSON)
 
@@ -780,15 +790,14 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
   (`C.perceived_hazards`: its type's hazards or its own once known; for an unresolved look-alike any member type's),
   never because of a hidden instance hazard (a hidden sharp edge on one `smooth_stone` member no longer changes the
   answer).
-* `break_item` marks a visible brittle break `smashed` (glance tier). `core.hazards_known` then counts the item's own
+* The kernel's break marks a visible brittle break `shattered` (glance tier). `core.hazards_known` then counts the item's own
   `sharp` hazard as perceived, so in realistic mode picking up or placing the pieces bare-handed is refused (generic
   `core.PERCEIVED_HAZARD`) exactly where oracle mode refuses, instead of going ahead as an unseen exposure
   (`safety_violations`); worn cut-resistant or rubber gloves (`handled_with`) make it safe in both modes. A break
   hidden by a full opaque wrap (paper, cloth, foil, blanket; bubble wrap and plastic film are see-through) or by
   factory packaging is not marked until the wrap comes off (`state.manipulation.unseen_breaks`, system
-  `manipulation.breaks`): the robot is not refused on a break it cannot see. The cue is `smashed`, not `shattered`,
-  because the safety domain's glass system treats `shattered` as "already turned into a shard field" and would skip
-  a glass broken by this domain. Tests: `KernelRound5AdoptionTests`.
+  `manipulation.breaks`, fed by the `phys.broke` hook): the robot is not refused on a break it cannot see. Since the
+  tier-1 adoption the cue is the kernel's `shattered` (the round-5 `smashed` is gone). Tests: `KernelRound5AdoptionTests`.
 
 ### Perception-centric specs (`tasks/authored/manipulation__perception.json`)
 
@@ -798,8 +807,9 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
   medium. Wrong: the replica taken on looks, the solid-looking mug, the heavy stone set beside the papers.
 * `A-83f6ca95b72b85-01` "Find something soft to protect this": a glass vase, a bubble wrap roll and a stretch film
   roll (`clear_plastic_roll`) that swap slots by variant, a kraft paper roll, and a medium moving box pre-filled with
-  crumpled paper; closing the box triggers a 0.3 m transport drop. Reference inspects both rolls and wraps two
-  stuffed layers of bubble wrap. Wrong: the stretch film taken on looks, kraft paper as padding, one unstuffed layer.
+  crumpled paper; closing the box triggers a 0.76 m transport drop (ISTA 1A). Reference inspects both rolls and wraps
+  two stuffed layers of bubble wrap. Wrong: the stretch film taken on looks, kraft paper as padding, one unstuffed
+  layer, and (camera) only aiming the head at the rolls from where it stands. `"camera": "geometric"`.
 
 ---------------------------------------------------------------------------------------------
 
@@ -822,3 +832,68 @@ sealed"; `tear` on a thermal receipt vs a paper scrap and on foil vs plain gift 
   (an earlier walk flagged a `toy_block` whose remembered inspect values were shown after navigation_robot's walk
   displaced it: the kernel's remembered-value rendering, see the kernel request in the round report);
   `tools/layout_audit.py 20 --domain manipulation` reports no problems.
+
+---------------------------------------------------------------------------------------------
+
+## 15. Tier-1 adoption (kernel v3.0 - v3.1: physics, camera, body, sweep)
+
+**Physics (TIER1_PHYSICS 10.3).** The domain's physics now runs through the kernel. `common.py` keeps thin wrappers
+so the call sites read as before: `break_item` -> `phys.impact.break_entity`; `drop_item` -> `impact.fall` (from a
+cell, `by`); `impact` -> `impact.impact`; `make_spill` / `spill_liquid` -> `phys.liquids.spill` (a `source`, `by`);
+`container_closed`, headroom, slosh, topple and tip/tilt spill volumes -> `phys.liquids`; `friction` ->
+`phys.forces.friction`; `scratch_floor` -> `forces.scratch` (floors.json tables, damage.scratch, `phys.scratch`);
+`crush_limit` -> `statics.crush_limit_kg`; padding -> `statics.padding_factor`; `subtree_mass` -> `support`;
+`effective_speed` -> `impact.effective_speed` (quiet mode turns fast into normal); furniture tipping ->
+`impact.tip_over` (motion's `tip_check` uses the kernel's sliding friction with the base side along the push; a
+person it strikes is hurt by the people and safety domains' `phys.tipped` hooks, this domain only logs the strike);
+hook overloads -> `statics.overload` + `impact.collapse`; the bump and gust events -> `phys.events.bump` /
+`wind_gust`. The literal tables `FRICTION`, `FLOOR_HARDNESS`, `FLOOR_SCRATCH`, `FLOOR_FRICTION`, `FOOT_SCRATCH`,
+`SURFACE_STATE_MU` stay in `common.py` because `tests/test_physics_data.py` checks them against the kernel data.
+
+Every legacy copy of a deferred law is guarded by `C.kernel_owns(law)` (`lawbook.active`): it steps aside once the
+law flips. Hooks: `phys.props` (handling: carried container ratings, `handle_kg`), `phys.items_above` (stacking:
+packing order), `phys.settle_extra` (stacking `_packed_loads`: the crush law on what a newly packed item rests on,
+which the settle pass would not visit), `phys.broke` (world: a hidden break is remembered until unwrapped),
+`phys.fell` (world: a cover that falls or blows off stops covering).
+
+Readiness (each law forced with `lawbook.forced(<law>=True)`, then all ready laws together, over
+`tests/test_manipulation.py` and both spec files on 5 seeds):
+
+| Law | Verdict | Notes |
+|---|---|---|
+| hang, edge, furniture_tip, open_spill, wet_contact, carry | ready | no difference |
+| crush | ready | needs `_packed_loads`; with only crush active the crush law runs before this domain's stack trigger |
+| stack | ready | `stack_marginal` reads the kernel's stack verdict while the settle pass sets `wobbly` after the handler |
+| handle | ready | the kernel tears (`torn`) where this domain set `bottom_failed` / `handles_torn`; ratings vary +-15 % |
+| contact_heat | ready | the kernel marks `damage.scorch` / `heat_mark` at once; the domain's `scorched` cue is not written then |
+| wind | ready | covers laid over things stay this domain's; items need a real mass (the kernel lifts a sheet by its own weight) |
+| slope | not ready | the kernel's roll stops at the room's floor edge (a bin never runs out into the street) and starts rolling a cart the robot holds tilted |
+| setdown | not ready | the kernel's 6 cm fast set-down never chips porcelain or glass on stone; spec T-ce25a2474ffb3d-01's wrong plan and `test_fast_set_down_chips_fragile_ware_on_stone` rely on that chip |
+
+Data: vases and the table centerpiece survive a fall onto carpet from table height and break on tile (drop
+tolerance 0.3 m); `small_parts` is a handful of beads 4 x 3 x 1 cm; the trivet's limit is the kernel's `heat_limit_c`;
+printed load ratings are `load_rating_text` (read tier) instead of re-exposing hidden thresholds; new type `coaster`.
+
+**Camera (TIER1_CAMERA).** Room mode is unchanged; everything below applies only when `robot.view` exists.
+Visual domain events go through `camera.visual_event` (framed, never emitted twice); the `falling` / `rolling` /
+`demonstration` channels list only what a frame of this step has in view (`camera.in_frame`); printed fields
+(`label_text`, `this_side_up`) are listed by the inspector only when `ctx.read_check` can read them; a label's face
+(the kernel's `label_facing` word, from `apply_label face=`) turns with `flip` and `set_orientation`, so a label on
+the underside cannot be read; `hold_steady frame=robot` takes the robot's left/right from its real yaw against the person.
+
+**Body (TIER1_BODY).** Lifting: `ctx.require_grasp` and `ctx.check_lift` (capacity, lift plan, two hands);
+grip forces are clamped to the body's `grip_limit_n`, pushes and pulls to `push_n` / `pull_n`, twists to
+`wrist_nm` (`commanded_force` notes the clamp); precision verbs (insert, catch, throw) read `precision_mm`;
+verbs that move the robot (`drag` and `roll` to a room, `follow`, co-carry) walk through `walk_robot`
+(`ctx.require_mobile`, `ctx.motion`); `tilt`, `shake` and `hold_steady` take `timing="commanded"`; slips and stair
+stumbles drop what is held through `body_faults.drop_held`; sliding loud loads and tape declare `noise_db`, so quiet mode
+refuses them above 55 dB. The domain's own duration key is `ctx.data["manip_s"]` (`seconds` is reserved).
+
+**Sweep (TIER1_SWEEP).** Notices: `clink` (50 dB), `rip` (55 dB), `bang` (65 dB) through `w.notice`.
+Dialogue route `manipulation.items`: ask aspects keep / status / who / intended / where / owner, how (+ fragile,
+handle, care), which (+ contents), preference (+ facing / frame / orientation) map onto `manip:<key>:<id>`; the
+kernel's people and permission routes come first. Spec migrations: both perception specs and all examples run in
+generation-2 houses (`"house": {"gen": 2}`); the wind spec's privileged `wait_until` became a plain 420 s wait, and
+its weather op pins the morning gusts (a generation-2 day draws its own `gust_mps`); the vase spec is
+`"camera": "geometric"` with a camera wrong plan, and its transport drop is 0.76 m (ISTA 1A); the hot-mug hand-over
+mug is 88 % full, so rushing spills more than the kernel's 5 ml droplet threshold.

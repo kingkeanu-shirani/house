@@ -19,7 +19,7 @@ off never does. Emitters follow outdoor_plants' contract (irrigation_emitter, on
 Freezing (outdoor <= -2 C for 1 h): hoses holding water split; spigots with water trapped in the bib (hose
 attached, or a standard spigot whose interior valve is open / outdoor tap shut) burst inside the wall.
 """
-from ...kernel import clock, geometry, physics
+from ...kernel import body_faults, clock, geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
@@ -326,9 +326,12 @@ def flush_hose(ctx, hose):
 # connect / disconnect
 
 def _spray_self(ctx, where, liters, why):
+    """Water sprays over the robot from a coupling it worked on under pressure: droplets on the lens (the body's
+    degrade_camera: the self-check notices a dirty camera below its threshold) and a few seconds of aimed spray on
+    an IP54 body (body_faults.expose_water: harmless up to the profile's spray limit, then water ingress)."""
     w = ctx.w
-    r = w.robot_m()
-    r["camera_clean"] = round(max(0.0, C.num(r.get("camera_clean"), 1.0) - 0.35), 3)
+    body_faults.degrade_camera(w, 0.35, cause="water spray")
+    body_faults.expose_water(w, "spray", 2.0 + liters)
     C.pcount(w, "sprayed_self")
     rid = C.room_of(w, where)
     cell = C.cell_of(w, where)
@@ -668,7 +671,7 @@ def _ingress(w, rid, liters):
                          "seconds": {"type": "number", "default": 60.0, "min": 5.0, "max": 1800.0}, "face": "?str",
                          "toward": {"type": "str", "default": "away", "choices": ["away", "lawn", "street", "drain", "house"]},
                          "cells": "?list"},
-        duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.01, noise=0.1, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.01, noise=0.1, category="physical", timing="commanded",
         doc="Spray water from a held hose (nozzle pattern jet|full|flat|shower|cone|mist|soaker) at a target: a vehicle "
             "or object (face=roof|hood|sides|lower...; rinse top-down: dirty runoff lands on lower faces), the ground of "
             "this outdoor area (target=room id or its floor; cells=[[c,r],...] to limit it), a wall or window. toward "
@@ -837,29 +840,31 @@ def controller_setting(ctx, eid, name, old, new):
     _controller_display(w, eid)
 
 
+def _display_text(mode, delay_until_s, now):
+    text = "Mode: {}".format(mode.upper())
+    if mode == "rain_delay" and delay_until_s:
+        text += " ({:.0f} h left)".format(max(0.0, (C.num(delay_until_s) - now) / 3600.0))
+    return text
+
+
 def _controller_display(w, eid):
     rec = w.ent(eid)
-    settings = rec.get("settings") or {}
-    mode = settings.get("mode", "auto")
-    text = "Mode: {}".format(mode.upper())
-    if mode == "rain_delay" and rec.get("delay_until_s"):
-        text += " ({:.0f} h left)".format(max(0.0, (C.num(rec["delay_until_s"]) - C.now(w)) / 3600.0))
+    text = _display_text((rec.get("settings") or {}).get("mode", "auto"), rec.get("delay_until_s"), C.now(w))
     if rec.get("display") != text:
         w.mut(eid)["display"] = text
 
 
-def controller_step(w, eid, dt):
-    rec = w.ent(eid)
+def controller_plan(w, eid):
+    """What a controller does this substep, without doing it: (rain delay ends now, its display text afterwards, the
+    zones its program or a manual run waters now). Pure; controller_step applies it."""
+    rec = w.s["entities"][eid]
     settings = rec.get("settings") or {}
     mode = settings.get("mode", "auto")
     now = C.now(w)
-    if mode == "rain_delay" and rec.get("delay_until_s") is not None and now >= C.num(rec.get("delay_until_s")):
-        m = w.mut(eid)
-        m["settings"]["mode"] = "auto"
-        m["delay_until_s"] = None
-        mode = "auto"
-        C.plog(w, "rain_delay_ended", controller=eid)
-    _controller_display(w, eid)
+    delay_until = rec.get("delay_until_s")
+    ends = mode == "rain_delay" and delay_until is not None and now >= C.num(delay_until)
+    if ends:
+        mode, delay_until = "auto", None
     active = set()
     if mode == "auto" and not (rec.get("rain_sensor") and raining(w)):
         today = clock.now(w.s).strftime("%A")
@@ -874,6 +879,29 @@ def controller_step(w, eid, dt):
     manual = settings.get("manual_zone")
     if manual and manual != "none" and mode != "off" and now < C.num(rec.get("manual_until_s")):
         active.add(manual)
+    return ends, _display_text(mode, delay_until, now), active
+
+
+def controller_idle(w, eid):
+    """True when controller_step would change nothing: no rain delay ending, the display current, no zone watering
+    and every emitter of its zones off. Pure (the water system's idle probe)."""
+    ends, text, active = controller_plan(w, eid)
+    rec = w.s["entities"][eid]
+    if ends or rec.get("display") != text or (active and S.main_factor(w) > 0):
+        return False
+    entities = w.s["entities"]
+    return not any((entities.get(em) or {}).get("on") for ems in (rec.get("zones") or {}).values() for em in ems)
+
+
+def controller_step(w, eid, dt):
+    rec = w.ent(eid)
+    ends, _, active = controller_plan(w, eid)
+    if ends:
+        m = w.mut(eid)
+        m["settings"]["mode"] = "auto"
+        m["delay_until_s"] = None
+        C.plog(w, "rain_delay_ended", controller=eid)
+    _controller_display(w, eid)
     pressure = S.main_factor(w) > 0
     zones = rec.get("zones") or {}
     rain = raining(w)
@@ -899,6 +927,64 @@ def controller_step(w, eid, dt):
             if not C.system_present("outdoor_plants.lawn"):
                 flow = sum(C.num(w.ent(e).get("flow_lpm"), 7.5) for e in zones[zone] if e in w.s["entities"])
                 C.use_water(w, flow * dt / 60.0)
+
+
+def _emitter(rec):
+    return bool(rec.get("irrigation_emitter"))
+
+
+def emitters(w):
+    return C.live(w, C.index(w, "emitters", _emitter))
+
+
+def sprinkler_spray(w, dt):
+    """A running sprinkler whose throw reaches the robot sprays it: aimed spray on an IP54 body
+    (body_faults.expose_water, TIER1_EMBODIMENT 4.13: harmless up to the profile's spray limit, about 10 minutes in
+    total, then water gets in). One exposure per substep however many heads reach it."""
+    robot = w.s["robot"]
+    pos = robot.get("pos")
+    if not pos:
+        return
+    rid = robot.get("room")
+    entities = w.s["entities"]
+    for eid in emitters(w):
+        rec = entities.get(eid)
+        if rec is None or not rec.get("on") or C.num(rec.get("radius_m")) <= 0 or C.room_of(w, eid) != rid:
+            continue
+        cell = C.cell_of(w, eid)
+        reach = ((cell[0] - pos[0]) ** 2 + (cell[1] - pos[1]) ** 2) ** 0.5 * geometry.CELL
+        if reach <= C.num(rec.get("radius_m")):
+            body_faults.expose_water(w, "spray", dt)
+            return
+
+
+def sprinklers_idle(w):
+    """True when no sprinkler is running (sprinkler_spray then does nothing). Pure."""
+    entities = w.s["entities"]
+    return not any((entities.get(eid) or {}).get("on") for eid in emitters(w))
+
+
+def spigot_idle(w, eid, cache):
+    """True when spigot_step would change nothing: the spigot shut (or without supply) and not dripping, its derived
+    state current, and its hose (if any) slack, not spraying at a joint and with no sprinkler left on. Pure."""
+    potential, drip = _spigot_potential(w, eid, cache)
+    if potential > 0 or drip > 0:
+        return False
+    rec = w.s["entities"][eid]
+    idle = {"water_running": False, "flow_lpm": 0.0, "dripping": False, "drip_lpm": 0.0, "outlet_temp_c": None}
+    if any(rec.get(k) != v for k, v in idle.items()):
+        return False
+    hose = hose_on(w, eid)
+    if hose is None:
+        return True
+    hrec = w.s["entities"][hose]
+    nid = nozzle_of(w, hose)
+    nrec = w.s["entities"].get(nid) or {}
+    if nrec.get("irrigation_emitter") and nrec.get("on") and not nrec.get("_controller"):
+        return False
+    if joint_leaky(w, hose) and hrec.get("pressurized"):
+        return False
+    return not hrec.get("joint_spraying")
 
 
 # ----------------------------------------------------------------------------------

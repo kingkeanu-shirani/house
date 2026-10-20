@@ -17,9 +17,15 @@ A container that holds liquid carries (CONVENTIONS "Liquids in containers"):
 
 Displacement: solid items resting "in" a basin raise the level by their material volume (mass / density,
 Archimedes; floating ice by its own mass). Overflow returns the excess so callers can spill it.
+
+Tier-1 physics (kernel v3.0, TIER1_PHYSICS 5.7 transfer): what is poured in mixes temperatures by heat capacity (the
+vessel's body and what it already holds against the incoming liquid, phys.thermal.mix_in's rule: 85 C coffee poured
+into a 21 C ceramic mug settles near 72 C), unless a domain owns the receiver's temperature; only the unfrozen part of
+a liquid (ice_frac, the kernel's phase law) pours, and taking liquid out of a partly frozen holder keeps its ice.
 """
 import copy
 
+from ...kernel.phys import thermal as PT
 from . import common as C
 
 MATERIAL_DENSITY = {"ceramic": 2.4, "porcelain": 2.4, "stoneware": 2.3, "glass": 2.5, "crystal": 2.9,
@@ -99,6 +105,31 @@ def cap_l(rec):
 
 def liters(rec):
     return C.num(rec.get("liquid_l"))
+
+
+def frozen_frac(rec):
+    """The kernel's ice_frac of a holder's liquid (phase law): the part of liquid_l that is ice."""
+    return C.clamp(C.num(rec.get("ice_frac")), 0.0, 1.0)
+
+
+def free_l(rec):
+    """Liters that can pour out: the liquid that is not frozen (phys.liquids.free_liquid_l)."""
+    return liters(rec) * (1.0 - frozen_frac(rec))
+
+
+def mixed_temp_c(rec, into_l, temp_in, liquid):
+    """Bulk temperature after into_l liters of liquid at temp_in join a holder: heat-capacity weighted (the holder's
+    body and contents against the incoming liquid, phys.thermal.mix_in's rule). A holder whose temperature a domain
+    owns (thermal_owner, a phase plateau) mixes by liquid volume only (its owner models the rest)."""
+    have = liters(rec)
+    t_old = C.num(rec.get("temperature_c"), 21.0)
+    if into_l <= 0:
+        return t_old
+    if PT.owned(rec):
+        return (t_old * have + temp_in * into_l) / (have + into_l) if have + into_l > 0 else temp_in
+    incoming = into_l * C.density_kg_l(liquid) * PT.liquid_cp(liquid or "water")
+    mine = PT.heat_capacity_j_k(rec)
+    return (mine * t_old + incoming * temp_in) / max(1e-9, mine + incoming)
 
 
 def fill_frac(rec):
@@ -254,10 +285,12 @@ def write_state(w, eid, mix, chem=None, temp=None, extra=None):
 
 
 def take(w, eid, amount, carry_chem=True):
-    """Remove `amount` liters (proportional composition). Returns a parcel dict."""
+    """Remove `amount` liters (proportional composition; at most the unfrozen part, free_l: the ice stays, so the
+    holder's ice_frac grows). Returns a parcel dict."""
     rec = w.ent(eid)
     have = liters(rec)
-    amount = C.clamp(float(amount), 0.0, have)
+    frozen = frozen_frac(rec)
+    amount = C.clamp(float(amount), 0.0, have * (1.0 - frozen))
     mix = mix_of(rec)
     chem = dict(rec.get("cl_chem") or {})
     frac = amount / have if have > 0 else 0.0
@@ -277,6 +310,8 @@ def take(w, eid, amount, carry_chem=True):
         extra["cl_soil_g"] = C.rnd(C.num(rec.get("cl_soil_g")) - parcel["soil_g"], 3)
     if rec.get("ice_g"):
         extra["ice_g"] = C.rnd(C.num(rec.get("ice_g")) - parcel["ice_g"], 2)
+    if frozen > 0 and have - amount > 1e-6:
+        extra["ice_frac"] = C.rnd(min(1.0, frozen * have / (have - amount)), 4)     # the ice volume stays put
     write_state(w, eid, rest, chem=new_chem, extra=extra)
     if have - amount <= 1e-6:
         residue(w, eid, mix)
@@ -323,10 +358,14 @@ def add(w, eid, parcel, now_s=None, limit=None):
     chem = dict(rec.get("cl_chem") or {})
     for k, v in parcel.get("chem", {}).items():
         chem[k] = C.num(chem.get(k)) + C.num(v) * frac
-    t_old = C.num(rec.get("temperature_c"), 21.0)
     t_in = C.num(parcel.get("temp_c"), 21.0)
-    temp = (t_old * have + t_in * into) / (have + into) if have + into > 0 else t_in
+    if into > 0:
+        temp = mixed_temp_c(rec, into, t_in, parcel_name(parcel))
+    else:
+        temp = C.num(rec.get("temperature_c"), 21.0) if have > 0 else t_in
     extra = {}
+    if into > 0 and frozen_frac(rec) > 0 and have + into > 1e-9:
+        extra["ice_frac"] = C.rnd(frozen_frac(rec) * have / (have + into), 4)          # liquid joins the ice
     if parcel.get("solids"):
         solids = dict(rec.get("solids") or {})
         for k, v in parcel["solids"].items():

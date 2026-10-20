@@ -13,6 +13,12 @@ stop it, and a wet mop drags water over rugs. It returns to its dock when done o
 can only dock when the dock's clearance zone (1.5 m in front, 0.5 m sides) is clear. A wet mop pad
 left on the dock over hardwood for 8 h damages the floor. Lifting it out of a normal run cancels
 the job.
+A household robot announces itself (a `household_robot` notice from where it is, TIER1_SWEEP 6.1):
+"Error: ..." when it gets stuck, its bin is full, it cannot find its dock or its battery dies, and
+"Cleaning complete" when it docks after a run; one with an app (remote_status) also notifies the
+household's devices (a remote `device` notice over the network). Getting stuck is a visual occurrence
+too (the geometric camera may witness it). What it breaks is the robot's responsibility: the robot
+runs it (impact.break_entity by the robot).
 """
 import copy
 
@@ -67,6 +73,25 @@ def zone_clear(state, dock_id):
         if C.cell(a["pos"]) in zone and C.asleep(a):
             owners.append(aid)
     return not owners, sorted(owners)
+
+
+SAYS = {"rug_fringe": "Error: wheel stuck. Move me to a new location", "cord": "Error: brush stuck. Please clean the brushes",
+        "brush_jammed": "Error: brush stuck. Please clean the brushes", "bin_full": "Please empty the bin",
+        "cannot_find_dock": "Cannot find the home base", "battery_empty": "Please charge me",
+        "done": "Cleaning complete"}
+
+
+def announce(w, eid, status):
+    """The household robot's spoken status (SAYS[status]) as a household_robot notice from its place; with an app
+    (remote_status) also a remote device notice (the household's phones, and the robot over the network)."""
+    rec = w.s["entities"].get(eid) or {}
+    text = SAYS.get(status)
+    if text is None:
+        return
+    rid = C.room_of(w.s, eid)
+    C.notice(w, "household_robot", source=eid, room=rid, text=text, data={"status": status})
+    if rec.get("remote_status"):
+        C.notice(w, "device", source=eid, room=rid, text=text, data={"status": status}, remote=True)
 
 
 def _room_area(state, rid):
@@ -146,7 +171,8 @@ def _encounters(w, eid):
         if r.get("ground_layer"):
             if (cat == "rug" or C.is_type(r, "rug")) and r.get("fringe") and not rec.get("outdoor"):
                 _set(w, eid, state="stuck", stuck_reason="rug_fringe")
-                C.incident(w, "rv_stuck", robot=eid, reason="rug_fringe", on=item)
+                C.incident(w, "rv_stuck", robot=eid, reason="rug_fringe", on=item, witness={"source": eid})
+                announce(w, eid, "rug_fringe")
                 return
             if (cat == "rug" or C.is_type(r, "rug")) and data.get("mop") and C.num(data.get("mop_tank_l")) > 0 and not r.get("no_mop_zone"):
                 m = w.mut(item)
@@ -168,7 +194,8 @@ def _encounters(w, eid):
                     w.mut(dev)["plugged_in"] = False
             w.mut(item)["tangled_in"] = eid
             _set(w, eid, state="stuck", stuck_reason="cord")
-            C.incident(w, "rv_ate_cord", robot=eid, cord=item)
+            C.incident(w, "rv_ate_cord", robot=eid, cord=item, witness={"source": eid})
+            announce(w, eid, "cord")
             return
         if cat in ("sock", "garment", "clothing", "cloth", "towel") or C.is_type(r, "sock") or r.get("material") in ("cotton", "wool", "fabric", "polyester"):
             m = w.mut(item)
@@ -176,7 +203,8 @@ def _encounters(w, eid):
             m.pop("pos", None)
             w.log_move(item, rid, eid)
             _set(w, eid, state="stuck", stuck_reason="brush_jammed", ingested=list(data.get("ingested", [])) + [item])
-            C.incident(w, "rv_brush_jammed", robot=eid, by=item)
+            C.incident(w, "rv_brush_jammed", robot=eid, by=item, witness={"source": eid})
+            announce(w, eid, "brush_jammed")
             return
         if C.num(r.get("mass_kg"), 0.4) <= 0.06 and max(float(v) for v in size[:3]) <= 0.06:
             m = w.mut(item)
@@ -218,6 +246,7 @@ def _clean_floor(w, eid, dt):
     if bin_fill >= 0.95:
         _set(w, eid, state="error", error="bin_full")
         C.incident(w, "rv_bin_full", robot=eid)
+        announce(w, eid, "bin_full")
 
 
 def try_dock(w, eid):
@@ -230,6 +259,7 @@ def try_dock(w, eid):
     if not clear:
         _set(w, eid, state="error", error="cannot_find_dock")
         C.incident(w, "rv_cannot_dock", robot=eid, blocked_by=owners)
+        announce(w, eid, "cannot_find_dock")
         return False
     drec = state["entities"][dock]
     m = w.mut(eid)
@@ -237,6 +267,7 @@ def try_dock(w, eid):
     powered = drec.get("plugged_in", True) is not False and (state.get("utilities") or {}).get("power", True)
     data = rv(state["entities"][eid])
     _set(w, eid, state="docked", docked=True, charging=bool(powered), error=None, stuck_reason=None)
+    announce(w, eid, "done")
     if C.is_type(drec, "auto_empty_dock") and C.num(data.get("bin_fill")) > 0:
         added = C.num(data.get("bin_fill")) * C.num(data.get("bin_capacity_l"), 0.45) / max(0.1, C.num(drec.get("bag_capacity_l"), 2.5))
         w.mut(dock)["bag_fill"] = round(min(1.0, C.num(drec.get("bag_fill")) + added), 4)
@@ -264,7 +295,14 @@ def refresh_dock_zone(w, eid, force=False):
     return data
 
 
-@system("navigation_robot.robot_vacuums", order=115, max_dt=30.0)
+def rv_idle(w):
+    """Exact idle probe of navigation_robot.robot_vacuums (kernel v3.1): no household robot in the house (with one,
+    the system always runs: it refreshes each dock's clearance at the first substep of a step and charges, cleans or
+    drains every substep)."""
+    return not robot_ids(w)
+
+
+@system("navigation_robot.robot_vacuums", order=115, max_dt=30.0, idle=rv_idle)
 def rv_system(w, dt, tick):
     state = w.s
     now = C.now(state)
@@ -333,6 +371,7 @@ def rv_system(w, dt, tick):
             w.mut(eid)["battery_level"] = battery
             if battery <= 0:
                 _set(w, eid, state="dead", error="battery_empty")
+                announce(w, eid, "battery_empty")
 
 
 # ----------------------------------------------------------------------

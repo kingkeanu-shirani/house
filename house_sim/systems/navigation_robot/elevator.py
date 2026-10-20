@@ -9,6 +9,9 @@ A car travels 2.5 s per floor (about 1.2 m/s with 3 m floors) plus a 3 s door cy
 its doors 8 s. Entering or leaving needs the car at that landing with the doors open. A robot
 lingering in the open car (or in the landing doorway) holds the doors: neighbors wait
 (held_s, held_events).
+When the car arrives and its doors open it chimes at that landing (an `elevator` notice, TIER1_SWEEP
+6.1): a robot waiting there can wait for the chime (wait interrupt_on ["elevator"]) instead of
+watching the car's hidden state.
 """
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
@@ -27,6 +30,21 @@ def elevator_for_landing(state, landing):
         if el and landing in (el.get("landings") or {}):
             return rid
     return None
+
+
+def landing_at(state, el, floor):
+    """The landing room the car's doors open onto at a floor, or None."""
+    for room in sorted(el.get("landings") or {}):
+        if el["landings"][room] == floor:
+            return room
+    return None
+
+
+def chime(w, car, floor):
+    """The arrival chime and the doors opening at the landing of `floor` (heard there and in the car)."""
+    el = model(w.s, car) or {}
+    landing = landing_at(w.s, el, floor)
+    C.notice(w, "elevator", room=landing or car, data={"car": car, "floor": floor})
 
 
 @before("move", order=8)
@@ -63,8 +81,11 @@ def call_elevator(ctx):
     floor = el["landings"][landing]
     now = C.now(state)
     if el.get("car_floor") == floor and el.get("moving_to") is None:
+        opened = el.get("doors") != "open"
         el["doors"] = "open"
         el["doors_close_at_s"] = now + 3.0 + C.num(el.get("door_open_s"), 8.0)
+        if opened:
+            chime(w, car, floor)
         return "The elevator is here; doors open"
     el["moving_to"] = floor
     el["doors"] = "closed"
@@ -107,10 +128,27 @@ def ride_elevator(ctx):
     m["doors_close_at_s"] = C.now(state) + ctx.data["seconds"] + C.num(el.get("door_open_s"), 8.0)
     room["floor"] = floor
     C.log(w, "rode_elevator", car=car, floor=floor)
+    chime(w, car, floor)
     return "Arrived at floor {}; doors open".format(floor)
 
 
-@system("navigation_robot.elevator", order=86, max_dt=30.0)
+def elevator_idle(w):
+    """Exact idle probe of navigation_robot.elevator (kernel v3.1): no car is due to arrive and no open door is due to
+    close or be held (the system then writes nothing)."""
+    state = w.s
+    now = C.now(state)
+    for rid in state["rooms"]:
+        el = model(state, rid)
+        if not el:
+            continue
+        if el.get("moving_to") is not None and now >= C.num(el.get("arrive_at_s")):
+            return False
+        if el.get("doors") == "open" and now >= C.num(el.get("doors_close_at_s")):
+            return False
+    return True
+
+
+@system("navigation_robot.elevator", order=86, max_dt=30.0, idle=elevator_idle)
 def elevator_system(w, dt, tick):
     state = w.s
     now = C.now(state)
@@ -126,6 +164,7 @@ def elevator_system(w, dt, tick):
             m["doors"] = "open"
             m["doors_close_at_s"] = now + C.num(el.get("door_open_s"), 8.0)
             room["floor"] = m["car_floor"]
+            chime(w, rid, m["car_floor"])
             continue
         if el.get("doors") == "open":
             robot = state["robot"]

@@ -26,7 +26,7 @@ what is under it (opaque_cover), so sharp items in it are found by draining, not
 """
 import json
 
-from ...kernel import geometry
+from ...kernel import camera, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, hook
@@ -97,6 +97,15 @@ def refresh(w, eid, cache=None):
         from . import outdoor
         outdoor.spigot_refresh(w, eid, cache)
         return
+    changes = tap_changes(w, eid, cache)
+    if changes:
+        w.mut(eid).update(changes)
+
+
+def tap_state(w, eid, cache=None):
+    """The derived state of a (non-spigot) tap from its settings and the supply: water_running, flow_lpm,
+    outlet_temp_c, the hot/cold split and the drip of a worn washer. Pure (writes nothing)."""
+    rec = w.s["entities"][eid]
     th_tank = S.hot_supply_c(w, cache)
     tc = S.cold_supply_c(w)
     hot_open, cold_open = handle_fracs(rec, th_tank, tc)
@@ -127,11 +136,16 @@ def refresh(w, eid, cache=None):
     if total > 0.01:
         outlet = C.rnd((hot_lpm * th_out + cold_lpm * tc) / total, 1)
     running = total > 0.05
-    changes = {"water_running": running, "flow_lpm": C.rnd(total, 3), "outlet_temp_c": outlet,
-               "_hot_lpm": C.rnd(hot_lpm, 3), "_cold_lpm": C.rnd(cold_lpm, 3), "drip_lpm": C.rnd(drip, 4),
-               "dripping": drip > 0.0}
-    if any(rec.get(k) != v for k, v in changes.items()):
-        w.mut(eid).update(changes)
+    return {"water_running": running, "flow_lpm": C.rnd(total, 3), "outlet_temp_c": outlet,
+            "_hot_lpm": C.rnd(hot_lpm, 3), "_cold_lpm": C.rnd(cold_lpm, 3), "drip_lpm": C.rnd(drip, 4),
+            "dripping": drip > 0.0}
+
+
+def tap_changes(w, eid, cache=None):
+    """What refresh would write ({} when the tap's derived state is current). Pure."""
+    rec = w.s["entities"][eid]
+    state = tap_state(w, eid, cache)
+    return state if any(rec.get(k) != v for k, v in state.items()) else {}
 
 
 def _is_tap(rec):
@@ -449,6 +463,15 @@ def clog_amount(rec):
 def refresh_drain(w, eid):
     """Effective drain rate (L/min) of a basin given plug, clog and the house sewer."""
     rec = w.ent(eid)
+    lpm, speed = drain_rate(w, rec)
+    if rec.get("_drain_lpm") != round(lpm, 3) or rec.get("drain_speed") != speed:
+        m = w.mut(eid)
+        m["_drain_lpm"] = round(lpm, 3)
+        m["drain_speed"] = speed
+
+
+def drain_rate(w, rec):
+    """(L/min, speed word) a basin drains at given its plug, clog and the house sewer. Pure."""
     base = C.num(rec.get("drain_capacity_lpm"), 25.0)
     clog = clog_amount(rec)
     if C.pget(w, "sewer_backup"):
@@ -458,10 +481,7 @@ def refresh_drain(w, eid):
     else:
         lpm = base * (1.0 - clog)
     speed = "blocked" if clog >= 0.92 else "very_slow" if clog >= 0.6 else "slow" if clog >= 0.2 else "normal"
-    if rec.get("_drain_lpm") != round(lpm, 3) or rec.get("drain_speed") != speed:
-        m = w.mut(eid)
-        m["_drain_lpm"] = round(lpm, 3)
-        m["drain_speed"] = speed
+    return lpm, speed
 
 
 # ----------------------------------------------------------------------------------
@@ -479,8 +499,11 @@ def outlet_step(w, eid, dt, cache):
     new_run = min(warm_up * 2, run + dt) if hot_running else max(0.0, run - dt / 10.0)
     if abs(new_run - run) > 1e-6:
         w.mut(eid)["_hot_run_s"] = C.rnd(new_run, 2)
+    was_dripping = bool(rec.get("dripping"))
     refresh(w, eid, cache)
     rec = w.ent(eid)
+    if rec.get("dripping") and not was_dripping:
+        drip_started(w, eid)
     flow = C.num(rec.get("flow_lpm")) + C.num(rec.get("drip_lpm"))
     if flow <= 0:
         return 0.0
@@ -510,6 +533,38 @@ def outlet_step(w, eid, dt, cache):
     return flow
 
 
+def drip_started(w, eid):
+    """A tap starts dripping (its supply came back with a worn washer; a crushed washer): a drip the robot may hear
+    (notice "drip") and a visual occurrence at the spout, small enough that only a close camera sees it."""
+    camera.visual_event(w, "plumbing_drip_started", source=eid, size_m=0.02, emit=False)
+    C.notice(w, "drip", source=eid)
+
+
+def outlet_idle(w, eid, cache):
+    """True when outlet_step would change nothing: no flow and no drip, the hot pipe cold, no touchless sensor on,
+    the derived tap state current. Pure (the water system's idle probe)."""
+    rec = w.s["entities"][eid]
+    if fkind(rec) == "touchless" and (rec.get("settings") or {}).get("sensor") == "on":
+        return False
+    if C.num(rec.get("_hot_run_s")) > 0 or C.num(rec.get("_hot_lpm")) > 0.01:
+        return False
+    if C.num(rec.get("flow_lpm")) + C.num(rec.get("drip_lpm")) > 0:
+        return False
+    return not tap_changes(w, eid, cache)
+
+
+def basin_idle(w, eid):
+    """True when basin_step and the attended fill would change nothing: an empty basin with no greasy ring or murk
+    pending, its drain rate current, no attended fill, the clog mirror current. Pure."""
+    rec = w.s["entities"][eid]
+    if L.liters(rec) > 1e-6 or rec.get("_dirty_drain") or rec.get("opaque_cover") or rec.get("_fill_target_l") is not None:
+        return False
+    if isinstance(rec.get("_clog"), dict) and rec.get("standing_l") != C.rnd(L.liters(rec), 3):
+        return False
+    lpm, speed = drain_rate(w, rec)
+    return rec.get("_drain_lpm") == round(lpm, 3) and rec.get("drain_speed") == speed
+
+
 def basin_inflow(w, eid, parcel):
     rec = w.ent(eid)
     over = L.add(w, eid, parcel)
@@ -517,12 +572,25 @@ def basin_inflow(w, eid, parcel):
         overflow(w, eid, over)
 
 
+def overflow_started(w, eid):
+    """True when a basin or toilet starts running over (it had not run over in the last substep and a half); marks
+    it as running over now. A start is a visual occurrence at its rim and, from the time systems, a "splash" notice."""
+    rec = w.ent(eid)
+    started = C.now(w) > C.num(rec.get("_overflow_until_s"), -1.0) + 1e-6
+    w.mut(eid)["_overflow_until_s"] = C.now(w) + 45.0
+    return started
+
+
 def overflow(w, eid, parcel):
     rec = w.ent(eid)
     rid = C.room_of(w, eid)
     cell = C.cell_of(w, eid)
     name = L.parcel_name(parcel)
-    C.plog(w, "overflow", basin=eid, liters=C.rnd(parcel["liters"], 3), liquid=name)
+    started = overflow_started(w, eid)
+    C.plog(w, "overflow", see={"source": eid, "size_m": 0.4} if started else None, basin=eid,
+           liters=C.rnd(parcel["liters"], 3), liquid=name)
+    if started:
+        C.notice(w, "splash", source=eid)
     C.add_floor_water(w, rid, cell, name, parcel["liters"], source=eid)
     m = w.mut(eid)
     m["overflowed_l"] = C.rnd(C.num(m.get("overflowed_l")) + parcel["liters"], 3)

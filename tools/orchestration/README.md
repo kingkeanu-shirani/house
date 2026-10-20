@@ -61,3 +61,11 @@ or `gate/<ID>/reviewed.json` / `--reviewed FILE` (`[{"catalog_id", "seeds": [..]
 `--only` re-runs some checks and keeps the recorded results of the others (for a flaky benchmark, say);
 `--spec-files 'cleaning__*'` limits G2/G3 while iterating (such a record is partial and never a baseline).
 `--shared-tree` lets G10 attribute files of packages running in the same sub-stage in one working tree.
+
+## Tier-1 foundation workflows (2026-10-13..)
+
+- `tier1_stage_a.js` - A0 (gate tool, timeline carve-out, sweep stubs) and the six stage-A libraries, review, fixes.
+- `tier1_stage_b.js` - B0..B6: physics, camera and robot body integrated in merge order with merge gates, review, B-CLOSE.
+- `tier1_stage_c.js` - TIME-EVAL || PEOPLE-IO (the sweep), merge, review, C-CLOSE.
+- `tier1_adopt.js` - adoption round: 16 domain owners plus two kernel follow-up agents, then an integration gate.
+Plans and contracts: docs/design/TIER1_*.md; package handoffs: catalog/analysis/tier1/handoff_*.md.

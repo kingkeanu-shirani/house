@@ -5,7 +5,8 @@
    "title": "Fill the sink for hand-washing dishes",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -290,7 +291,8 @@
    "title": "Shut a running two-handle faucet off completely",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -461,7 +463,8 @@
    "title": "Clear a clogged toilet safely",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -766,7 +769,8 @@
    "title": "Stop a burst-pipe flood at the right valve",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1079,7 +1083,8 @@
    "title": "Pour a measured amount of broth",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1335,14 +1340,18 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
      "op": "weather",
      "condition": "clear",
      "temperature_c": 16.0,
-     "wind_mps": 1.0
+     "wind_mps": 1.0,
+     "gust_mps": 1.5,
+     "rain_mm_h": 0.0,
+     "snow_cm_h": 0.0
     },
     {
      "op": "randint",
@@ -1530,7 +1539,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1743,7 +1753,8 @@
    "title": "Fill the ice cube trays and freeze them flat",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1980,7 +1991,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2136,7 +2148,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2385,7 +2398,8 @@
    "title": "Bring someone a glass of drinking water",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2642,14 +2656,18 @@
      "garage"
     ],
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
      "op": "weather",
      "condition": "clear",
      "temperature_c": 4.0,
-     "wind_mps": 2.0
+     "wind_mps": 2.0,
+     "gust_mps": 3.0,
+     "rain_mm_h": 0.0,
+     "snow_cm_h": 0.0
     },
     {
      "op": "event",

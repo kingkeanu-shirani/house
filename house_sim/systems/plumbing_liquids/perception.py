@@ -15,7 +15,10 @@ hoses (pressurized/stiff, water inside, kinks, washer, nozzle), leak evidence on
 active (where = closely shows the component), condensation, ceiling stains (wet vs dry), moisture readings
 (where = closely: moisture_inner of thick items), containers (fill fraction, temperature, film/biofilm, staleness).
 Answerer `plumbing.`: plumbing.where_noticed (where a resident noticed water), plumbing.main_shutoff (where the
-main is, if they know), plumbing.watering_rules.
+main is, if they know), plumbing.watering_rules. Canonical questions (kernel v3.1 `ask` with about/aspect,
+docs/DIALOGUE.md) reach it through the routes registered below (CONVENTIONS 8): "where" about water, a leak, a
+puddle or a stain (to a person who noticed it), "where" about the main shutoff, and "how"/"when"/"ok" about watering
+or hosing.
 Invariants: plumbing_liquids.nonpotable_drink (non-potable/contaminated liquid newly in a drinking vessel or pet bowl),
 plumbing_liquids.alcohol_minor (alcohol held by a minor), plumbing_liquids.pollution (chemicals/oil/soapy water into a storm drain
 or garden), plumbing_liquids.water_rules (hosing against household rules), plumbing_liquids.ice_sheet (spray water frozen on
@@ -23,7 +26,7 @@ hardscape), plumbing_liquids.sprayed_person, plumbing_liquids.food_zone (dirty/m
 """
 import copy
 
-from ...kernel import geometry
+from ...kernel import dialogue, geometry
 from ...kernel.plugins import answerer, inspector, invariant, observer
 from ...kernel.realism import TOUCH
 from . import common as C
@@ -429,8 +432,8 @@ def _seen_details_body(w, eid, rec, details, ctx):
         hidden_inside = V.secret(rec, "liquid_l", "fill_level", "liquid") or V.sealed(ctx, rec)
         if "fill_level" not in details and cap > 0 and not hidden_level:
             details["fill_level"] = C.rnd(L.liters(rec) / cap, 3)      # the kernel shows it to the nearest 5 % at inspect
-        elif hidden_level:
-            details.pop("fill_level", None)
+        # (a hidden level adds nothing; a fill_level another inspector reported stays: the kernel hides a sealed
+        # container's own recorded level and every secret field itself, and a reading it was given is that domain's)
         if L.liters(rec) > 0 and not V.secret(rec, "temperature_c"):
             temp = C.num(rec.get("temperature_c"), 21.0)
             if probe and not hidden_inside and (rec.get("open") or not rec.get("openable")):
@@ -491,6 +494,63 @@ def plumbing_answers(env, w, pid, topic, ctx):
         w.stat("necessary_questions" if rules else "unnecessary_questions")
         return {"topic": topic, "value": copy.deepcopy(rules) or "No watering restrictions here.", "by": pid}
     return None
+
+
+# ----------------------------------------------------------------------------------
+# routes from canonical questions to the plumbing. answerer (kernel v3.1, docs/DIALOGUE.md "Routes")
+
+WATER_WORDS = {"water", "leak", "leaking", "puddle", "wet", "drip", "dripping", "stain", "flood", "flooding", "damp",
+               "spill", "flooded", "wetness"}
+MAIN_WORDS = {"main", "shutoff", "stopcock", "mains"}
+VALVE_WORDS = {"valve", "shutoff", "tap", "stopcock", "shut", "off"}
+WATERING_WORDS = {"watering", "water", "hose", "hosing", "sprinkler", "irrigation", "irrigate", "lawn", "garden",
+                  "yard", "driveway"}
+
+
+def _subject_words(state, subject):
+    """The words a question's subject goes by: its own words, or a thing's type and label words."""
+    if subject is None:
+        return set()
+    words = set(subject.words or ())
+    if subject.kind == "entity":
+        record = state.get("entities", {}).get(subject.id) or {}
+        words |= set(dialogue.words_of(record.get("type"))) | set(dialogue.words_of(record.get("label")))
+    return words
+
+
+def _route_where_noticed(state, pid, subject, aspect, detail, act):
+    """where (did you notice it), about water, a leak, a puddle or a stain, asked of a person who noticed it."""
+    hints = ((state.get(C.SECTION) or {}).get("hints") or {}).get(pid) or {}
+    if "where_noticed" not in hints:
+        return None
+    if subject is None or subject.kind in ("house", "request") or _subject_words(state, subject) & WATER_WORDS:
+        return "plumbing.where_noticed"
+    return None
+
+
+def _route_main_shutoff(state, pid, subject, aspect, detail, act):
+    """where (is it), about the house's main water shutoff (the words, or the valve itself)."""
+    if subject is None:
+        return None
+    if subject.kind == "entity" and (state.get("entities", {}).get(subject.id) or {}).get("main"):
+        return "plumbing.main_shutoff"
+    words = _subject_words(state, subject)
+    if words & MAIN_WORDS and (words & VALVE_WORDS or "water" in words):
+        return "plumbing.main_shutoff"
+    return None
+
+
+def _route_watering_rules(state, pid, subject, aspect, detail, act):
+    """how / when / ok, about watering or hosing (the household's watering rules)."""
+    words = _subject_words(state, subject)
+    if detail in ("rules", "care") and words & WATERING_WORDS or words & (WATERING_WORDS - {"water", "yard", "lawn", "garden"}):
+        return "plumbing.watering_rules"
+    return None
+
+
+dialogue.route("plumbing.main_shutoff", ("where",), _route_main_shutoff)
+dialogue.route("plumbing.where_noticed", ("where",), _route_where_noticed)
+dialogue.route("plumbing.watering_rules", ("how", "when", "ok"), _route_watering_rules)
 
 
 # ----------------------------------------------------------------------------------

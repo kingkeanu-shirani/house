@@ -10,7 +10,7 @@ and every exit), too_close (< 0.9 m from a liquid fire), unaimed_discharge.
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after
@@ -78,7 +78,8 @@ def pull_pin(ctx):
     require(rec.get("extinguisher"), "That is not a fire extinguisher", "argument")
     require(rec.get("pin_in", True), "The pin is already out")
     hands = w.robot.get("hands", {})
-    other_free = any(h != ctx.hand_of(eid) and v is None for h, v in hands.items()) or rec.get("held_hand") == "both"
+    # the other hand pulls the pin: an empty hand on a working arm (an arm that failed holds nothing and pulls nothing)
+    other_free = any(h != ctx.hand_of(eid) and v is None and body.arm_health(w.s, h) > 0 for h, v in hands.items()) or         rec.get("held_hand") == "both"
     require(other_free, "You need a free hand to pull the pin", "capability")
     m = w.mut(eid)
     m["pin_in"] = False
@@ -122,7 +123,7 @@ def aim(ctx):
 
 @action("discharge", params={"target": "entity", "seconds": {"type": "number", "default": 4.0, "min": 0.5, "max": 120.0},
                              "sweep": {"type": "bool", "default": True}},
-        duration=lambda ctx: ctx.data.get("seconds", 1.0), energy=0.01, noise=0.6, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 1.0), energy=0.01, noise=0.6, category="physical", timing="commanded",
         doc="Squeeze the handle of a held, aimed extinguisher for N seconds (sweep side to side), or throw the contents of a "
             "held container of water at the aimed fire.")
 def discharge(ctx):
@@ -130,6 +131,7 @@ def discharge(ctx):
     state = w.s
     eid = ctx.args["target"]
     rec = _held(ctx, eid)
+    ctx.require_arm(ctx.hand_of(eid))      # squeezing the lever / swinging the container needs the holding arm working
     is_ext = bool(rec.get("extinguisher"))
     if not is_ext:
         require(rec.get("liquid_container") and float(rec.get("liquid_l", 0.0) or 0.0) > 0.05,

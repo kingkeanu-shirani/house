@@ -604,7 +604,11 @@
      "turn_off_water"
     ]
    },
-   "doc": "Stall shower with a 2 gpm head and a thermostatic valve (temp_c set point, max 49 C); the pan holds ~25 L above its drain."
+   "doc": "Stall shower with a 2 gpm head and a thermostatic valve (temp_c set point, max 49 C); the pan holds ~25 L above its drain.",
+   "view": {
+    "porosity": 0.6,
+    "doc": "Glass doors and panels in a frame, usually frosted or spotted: about 60 % of the view passes the enclosure."
+   }
   },
   "toilet": {
    "is_a": "plumbing_fixture",
@@ -683,7 +687,11 @@
     ],
     "inner_floor_m": 0.25
    },
-   "doc": "1.6 gpf (6 L) gravity toilet: bowl holds 1.9 L normally and ~6.5 L to the rim; fill valve 9 L/min; supply stop behind it (settings.supply_valve, possibly seized)."
+   "doc": "1.6 gpf (6 L) gravity toilet: bowl holds 1.9 L normally and ~6.5 L to the rim; fill valve 9 L/min; supply stop behind it (settings.supply_valve, possibly seized).",
+   "view": {
+    "opening": "top",
+    "doc": "Seen from above: the bowl with the seat lid up (open), the tank's water with its lid off (cover_open); a closed lid hides both."
+   }
   },
   "outdoor_spigot": {
    "is_a": "plumbing_fixture",
@@ -842,6 +850,13 @@
      "display",
      "reading_l"
     ]
+   },
+   "view": {
+    "text_m": {
+     "display": 0.005,
+     "reading_l": 0.005
+    },
+    "doc": "A mechanical meter's register digits are about 5 mm tall (not a 10 mm appliance display): read from about half a metre."
    }
   },
   "water_heater": {
@@ -888,6 +903,14 @@
     "read": [
      "recovery_kw"
     ]
+   },
+   "view": {
+    "behind_gap_m": 0.1,
+    "text_m": {
+     "recovery_kw": 0.003,
+     "power_w": 0.003
+    },
+    "doc": "A tank stands about 10 cm off the wall (supply pipes, the relief-valve discharge pipe), so the space behind it can be looked into; the rating plate's small print is about 3 mm."
    }
   },
   "water_pipe": {
@@ -1081,6 +1104,12 @@
      "program",
      "remote_status"
     ]
+   },
+   "view": {
+    "text_m": {
+     "program": 0.006
+    },
+    "doc": "The program lines on a controller's small LCD are about 6 mm tall; the mode line uses the 10 mm display default."
    }
   },
   "sprinkler_head": {
@@ -1954,6 +1983,13 @@
      "used_l",
      "hot_damaged"
     ]
+   },
+   "view": {
+    "text_m": {
+     "rated_l": 0.003,
+     "discard_fills": 0.003
+    },
+    "doc": "The capacity and first-use instructions are small print on the cartridge (about 3 mm)."
    }
   },
   "water_bottle": {

@@ -12,6 +12,9 @@ Two modes (routine_mode):
              goes to bed later. Opt out per person with routine: false, or for the house with
              household.people_sim.natural_routines: false. Children who are supervised, roaming, curious or on a
              scenario bedtime routine are left to the scenario.
+In full mode a household.calendar event in progress outranks the schedule (calendar_model.event_block): school, work at
+the office, appointments, trips, practice and lessons (a party or birthday somewhere other than home) take the people
+it is for away, work_remote has them working at home; cancelled events and tentative ones that will not happen do not.
 In both modes an awake resident whose room grows dark because daylight fades (not because someone switched a light off
 or closed the curtains) switches a light on, as people do at dusk. And an awake, idle resident whose room stays well
 above their comfort band (HEAT_OVER_C = 4 C over the top of preferences/comfort temp_c for HEAT_DWELL_S = 20 min) walks
@@ -26,6 +29,7 @@ from ...kernel import clock, geometry
 from ...kernel.physics import room_temperature
 from ...kernel.plugins import hook, system
 from ...kernel.predicates import root_room
+from . import calendar_model as K
 from . import common as C
 from . import model as M
 from . import senses as S
@@ -56,8 +60,9 @@ def routine_mode(state, p):
     return NIGHT
 
 
-def current_block(state, p, mode):
-    day = None
+def current_block(state, p, mode, now=None, day=None):
+    """The schedule block in force (mode NIGHT: night sleep only), or None. now / day: the minute of the day and the
+    weekday name when the caller already has them (routine_system computes them once per tick)."""
     for block in p.get("schedule") or []:
         if not isinstance(block, dict) or "from" not in block:
             continue
@@ -68,7 +73,7 @@ def current_block(state, p, mode):
             day = day or C.weekday(state)
             if day not in days and day[:3] not in days:
                 continue
-        if C.in_window(state, block["from"], block.get("to", block["from"])):
+        if C.in_window(state, block["from"], block.get("to", block["from"]), now):
             return block
     return None
 
@@ -76,6 +81,8 @@ def current_block(state, p, mode):
 def block_key(block):
     if block is None:
         return "none"
+    if block.get("event"):
+        return "event:{}:{}".format(block["event"], block.get("start"))
     return "{}-{}-{}".format(block.get("from"), block.get("to"), block.get("activity"))
 
 
@@ -94,26 +101,39 @@ def _routines_at_start(w, env):
 @system("people.routine", order=106, max_dt=30.0)
 def routine_system(w, dt, tick):
     state = w.s
+    clock_now = None
     for pid in sorted(state.get("people", {})):
         p = state["people"][pid]
         mode = routine_mode(state, p)
         if mode is None:
             continue
-        _schedule(w, pid, p, mode)
-        _dusk(w, pid, state["people"][pid])
+        if clock_now is None:       # the clock does not move inside a tick: read it once for everyone
+            clock_now = (C.minute_of_day(state), C.weekday(state), clock.daylight(state))
+        _schedule(w, pid, p, mode, clock_now)
+        _dusk(w, pid, state["people"][pid], clock_now[2])
         _heat(w, pid, state["people"][pid])
 
 
 # ----------------------------------------------------------------------
 # schedule blocks
 
-def _schedule(w, pid, p, mode):
+def _schedule(w, pid, p, mode, clock_now=None):
     state = w.s
-    block = current_block(state, p, mode)
+    # a calendar event in progress outranks the usual schedule block
+    block = K.event_block(state, pid, p) if mode == FULL else None
+    if block is None and clock_now is not None:
+        block = current_block(state, p, mode, now=clock_now[0], day=clock_now[1])
+    elif block is None:
+        block = current_block(state, p, mode)
     key = block_key(block)
     if p.get("_schedule_key") == key:
         return
     routine = p.get("_routine")
+    if routine and routine.get("key") != key and _still_away(p, routine, block, key):
+        m = w.person_m(pid)         # from a schedule block straight into a calendar event elsewhere: no trip home
+        m["_schedule_key"] = key
+        m["_routine"] = dict(routine, key=key)
+        return
     if routine and routine.get("key") != key:
         _end_routine(w, pid, routine, mode)
         p = state["people"][pid]
@@ -123,6 +143,14 @@ def _schedule(w, pid, p, mode):
     if mode == NIGHT and not _free_for_bed(state, pid, p):
         return
     _start_block(w, pid, p, block, key, mode)
+
+
+def _still_away(p, routine, block, key):
+    """An away routine running into an away block where one of the two is a calendar event (so plain schedules keep
+    their behaviour): the person stays out."""
+    if block is None or block.get("activity") != "away" or routine.get("activity") != "away" or C.present(p):
+        return False
+    return bool(block.get("event")) or str(routine.get("key") or "").startswith("event:")
 
 
 def _free_for_bed(state, pid, p):
@@ -311,13 +339,13 @@ def _lights_out(w, pid, rid):
             w.mut(lid)["on"] = False
 
 
-def _dusk(w, pid, p):
+def _dusk(w, pid, p, day=None):
     """Fading daylight darkens an awake resident's room: they switch a light on."""
     state = w.s
     rid = p.get("location")
     if not C.present(p) or S.asleep(p) or rid not in state["rooms"] or state["rooms"][rid].get("outdoor"):
         return
-    day = clock.daylight(state)
+    day = clock.daylight(state) if day is None else day
     seen = p.get("_seen_light")
     fresh = isinstance(seen, list) and len(seen) == 3 and seen[0] == rid
     if fresh and abs(float(seen[2]) - day) < 1e-9:

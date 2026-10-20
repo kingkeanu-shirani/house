@@ -11,14 +11,37 @@ a ladder is never stood on; ladders need scoped approval ("climb_on:<id>") with 
 casters roll away, boxes and buckets collapse, and standing on tables or counters is unsafe
 (safety violation) even when it holds.
 Grabbing within 4 cm of the reach limit (above 1.6 m) knocks neighboring fragile items off the shelf.
+
+The body (kernel v3.0): climbing needs a body that climbs (body.climb_problem: not the wheeled mobile
+manipulator), working legs and a battery above its critical level (limp mode refuses: TIER1_EMBODIMENT 4.5),
+and the robot's own mobility (ctx.require_mobile). Stepping up onto the aid and back down are one-cell motions
+(ctx.motion: paid, framed by the camera). A fall from an aid is the body's (body_faults.fall: actuator damage
+from 0.4 m or with 5 kg carried, what it holds drops from the carry height plus the step). Things knocked off
+shelves or slipping from the reacher fall through the kernel (impact.fall).
 """
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.actions import action
 from ...kernel.errors import require
 from ...kernel.plugins import after, before
 from ..core import check_handling, require_tool, subtree_mass
 from . import common as C
 from . import hazards as H
+
+LIMP_LEGS_TEXT = "Weak legs: climbing is not safe now"
+LIMP_BATTERY_TEXT = "Battery critical: climbing is not safe now; charge first"
+
+
+def climb_body_problem(state):
+    """Why this body may not climb onto an aid now, with the message and category, or None: a profile without the
+    legs for it, failed or weak legs, or limp mode from a critical battery."""
+    problem = body.climb_problem(state)
+    if problem is not None:
+        return problem
+    if float(body.get(state, "legs_health")) <= body.LEGS_LIMP + body.EPS:
+        return LIMP_LEGS_TEXT, "capability"
+    if body.limp(state):
+        return LIMP_BATTERY_TEXT, "capability"
+    return None
 
 UNSAFE_FLOOR_KINDS = ("wet", "slip", "oil", "ice", "black_ice", "rug_slip", "slope", "uneven", "gravel", "mud", "moss", "snow")
 
@@ -80,7 +103,9 @@ def climb_on(ctx):
     rec = ctx.obj(aid, touch=True, action="climb_on")
     robot = state["robot"]
     require(not robot.get("standing_on"), "Already standing on something; step down first", "precondition")
-    require(not robot.get("fallen"), "The robot has fallen; recover first", "capability")
+    ctx.require_mobile()        # power, actuators, fallen ("The robot has fallen; recover first"), legs, localization
+    problem = climb_body_problem(state)
+    require(problem is None, problem[0] if problem else "", problem[1] if problem else "capability")
     rid = robot["room"]
     require(rec.get("location") == rid and rec.get("pos"), "Set it on the floor first", "precondition")
     c = C.cell(rec["pos"])
@@ -115,13 +140,20 @@ def climb_on(ctx):
             problems.append("it could not carry the robot's weight")
         w.stat("safety_violations")
         C.incident(w, "climbed_furniture", target=aid)
-    ctx.data["seconds"] = 4.0 + 1.5 * index
     if problems:
+        ctx.data["seconds"] = 4.0 + 1.5 * index
+        # the body decides the damage (a fall from 0.4 m or more, or onto a carried load of 5 kg or more)
         C.robot_falls(w, "fell climbing {}: {}".format(C.thing(ctx, aid), "; ".join(problems)), rid=rid, at=c,
-                      damage=height >= 0.9, drop_height=height + 1.0)
+                      damage=None, height_m=height)
         if rec.get("climbable") and ("gave way" in " ".join(problems) or "rating" in " ".join(problems) or "spreaders" in " ".join(problems)):
             C.break_entity(w, aid, "collapsed under the robot")
         return "Lost balance climbing {}".format(aid)
+    if c != start:
+        # stepping up onto the aid is a one-cell motion (the body pays it, the camera frames it); the climb itself is
+        # the action's own time below
+        if not ctx.motion([c], start):
+            return body.BATTERY_CUT_TEXT.format(0.0)
+    ctx.data["seconds"] = 4.0 + 1.5 * index
     r = w.robot_m()
     r["nav_climbed_from"] = [start[0], start[1]]
     r["standing_on"] = aid
@@ -148,6 +180,10 @@ def step_down(ctx):
     blocked = geometry.blocked_cells(state, rid)
     if not back or C.cell(back) in blocked:
         back = geometry.free_floor_cell(state, rid, near=tuple(state["robot"].get("pos") or (0, 0))) or state["robot"].get("pos")
+    here = C.cell(state["robot"].get("pos") or back)
+    if C.cell(back) != here and not ctx.motion([C.cell(back)], here):
+        # the battery cannot even pay one step: it stays on the aid (the body's power-down handles a robot up there)
+        return body.BATTERY_CUT_TEXT.format(0.0)
     r = w.robot_m()
     r["standing_on"] = None
     r["pos"] = [int(back[0]), int(back[1])]
@@ -191,9 +227,9 @@ def use_reacher(ctx):
     rid = state["robot"]["room"]
     floor_cell = (cells or [C.cell(state["robot"].get("pos") or [0, 0])])[0]
     for item in riders:
-        _fall_from(w, item, rid, floor_cell, geometry.height_m(state, item), "slid off as {} was pulled out".format(target))
+        C.knock_off(w, item, rid, floor_cell, "slid off as {} was pulled out".format(target), cause="slid_off")
     if slips:
-        _fall_from(w, target, rid, floor_cell, height, "slipped from the reacher's jaws")
+        C.knock_off(w, target, rid, floor_cell, "slipped from the reacher's jaws", cause="dropped", height_m=height)
         C.incident(w, "reacher_dropped", item=target, mass_kg=round(mass, 3))
         return "{} slipped from the reacher and fell".format(target)
     m = w.mut(target)
@@ -204,23 +240,6 @@ def use_reacher(ctx):
     w.log_move(target, parent, "robot")
     C.log(w, "reacher_retrieved", item=target, height_m=round(height, 2))
     return "Retrieved {} with the reacher".format(target)
-
-
-def _fall_from(w, item, rid, c, height, why):
-    rec = w.ent(item)
-    m = w.mut(item)
-    before = m.get("location")
-    m["location"], m["relation"], m["pos"] = rid, "on", [c[0], c[1]]
-    for key in ("spos", "shelf", "held_hand"):
-        m.pop(key, None)
-    w.log_move(item, before, rid)
-    if rec.get("fragile") and height > C.num(rec.get("drop_tolerance_m"), 0.3):
-        C.break_entity(w, item, why)
-    if C.num(rec.get("liquid_l")) > 0 and not rec.get("sealed") and not (rec.get("cap") or {}).get("on"):
-        liters = C.num(rec.get("liquid_l"))
-        w.mut(item)["liquid_l"] = 0.0
-        C.spawn_spill(w, rid, c, liters, rec.get("liquid", "water"), source=item)
-    C.log(w, "fell_from_height", item=item, height_m=round(height, 2), why=why)
 
 
 @before("pick_up", order=60)
@@ -260,6 +279,6 @@ def _overreach(ctx, result):
             continue
         _, cells = geometry.anchor(state, parent)
         c = (cells or [C.cell(state["robot"].get("pos") or [0, 0])])[0]
-        _fall_from(w, item, rid, c, geometry.height_m(state, item), "knocked off by an overextended reach")
+        C.knock_off(w, item, rid, c, "knocked off by an overextended reach")
         C.incident(w, "overreach_knocked_item", item=item, margin_m=round(margin, 3))
         return

@@ -255,16 +255,32 @@ def release_in_use(w, eid):
         C.plog(w)["in_use"].pop(eid, None)
 
 
-def observe_human_move(w, pid, eid, origin, dest):
-    """The robot remembers human-object interactions it witnessed (same room)."""
+def robot_witnesses(w, pid, env=None):
+    """Whether the robot sees what person pid does right now: they are in its room, its colour cameras are on
+    (body.imaging: not in privacy mode, not powered down) with a lens clean enough to tell what they handle
+    (body.clarity >= 0.4); with the geometric camera, its head camera sees them well enough to recognize them
+    (camera.agent_level_now: in frame, in line of sight, lit) -- someone behind the robot is not witnessed."""
+    from ...kernel import body, camera
     state = w.s
     p = C.person(state, pid) or {}
+    if p.get("location") != state["robot"].get("room") or not body.imaging(state) or body.clarity(state) < 0.4:
+        return False
+    if camera.mode(state) == "geometric":
+        if env is None:
+            return False
+        return camera.agent_level_now(env, pid) in ("recognize", "identify")
+    return True
+
+
+def observe_human_move(w, pid, eid, origin, dest, env=None):
+    """The robot remembers human-object interactions it witnessed (robot_witnesses)."""
+    state = w.s
     w.log_move(eid, origin, dest, by=pid)
-    if p.get("location") == state["robot"].get("room") and state["robot"].get("camera_clean", 1.0) >= 0.4:
+    if robot_witnesses(w, pid, env):
         memory = w.sec("memory")
         key = "seen:{}".format(eid)
         history = list((memory.get(key) or {}).get("value") or [])
-        history.append({"by": pid, "to": dest, "room": p.get("location"), "time_s": C.now_s(state)})
+        history.append({"by": pid, "to": dest, "room": (C.person(state, pid) or {}).get("location"), "time_s": C.now_s(state)})
         memory[key] = {"value": history[-10:], "time_s": C.now_s(state), "scope": "observed"}
 
 
@@ -379,12 +395,59 @@ def person_falls(w, pid, cause, robot_caused=True, count=True):
         w.stat("falls")
     if robot_caused:
         w.stat("injury")
+    fall_notices(w, pid)
+
+
+PERSON_DOWN_DB = 65.0       # a body hitting the floor, at 1 m
+CALL_FOR_HELP_DB = 80.0     # "Help!" shouted (a raised voice is about 75 dB at 1 m)
+
+
+def fall_notices(w, pid):
+    """What a fall sounds like to the robot (TIER1_SWEEP 6.1): the thud ("person_down") and, from someone awake who can
+    call out, a call for help ("call_for_help": one of the "urgent" kinds a listening wait ends on). The timeline's
+    propagation decides whether the robot hears them; they name the person only when the robot sees who it is."""
+    state = w.s
+    p = state.get("people", {}).get(pid) or {}
+    room = p.get("location")
+    if room not in state.get("rooms", {}):
+        return
+    w.notice("person_down", room=room, db=PERSON_DOWN_DB, source=pid)
+    if can_call_out(p):
+        w.notice("call_for_help", room=room, db=CALL_FOR_HELP_DB, source=pid)
+
+
+def can_call_out(p):
+    """Someone on the floor who is awake, responsive and old enough to call for help (an infant cries instead)."""
+    if not p or S.asleep(p) or p.get("condition") in ("unresponsive", "unconscious"):
+        return False
+    return C.age_of(p) >= 2.0
 
 
 # ----------------------------------------------------------------------
 # behaviour over time (schedules and lights: routine.py)
 
-@system("people.behavior", order=105, max_dt=30.0)
+def behavior_idle(w):
+    """Exact idle probe (kernel v3.1): nothing of people.behavior is due -- no alert acknowledgement, arrival, end of an
+    activity, an affect or an infant's crying, and no visitor whose patience ran out."""
+    now = C.now_s(w.s)
+    for p in w.s.get("people", {}).values():
+        if any(a["at_s"] <= now for a in p.get("_pending_acks") or ()):
+            return False
+        arrive = p.get("_arrive")
+        if arrive and arrive["at_s"] <= now:
+            return False
+        for key in ("activity_until", "affect_until"):
+            if p.get(key) is not None and now >= float(p[key]):
+                return False
+        if p.get("crying_until") and now >= float(p["crying_until"]):
+            return False
+        if p.get("at_door") and p.get("patience_until") is not None and now >= float(p["patience_until"]) \
+                and not p.get("admitted"):
+            return False
+    return True
+
+
+@system("people.behavior", order=105, max_dt=30.0, idle=behavior_idle)
 def behavior_system(w, dt, tick):
     state = w.s
     now = C.now_s(state)
@@ -505,7 +568,7 @@ def ev_use(w, args, env):
             m["shelf"] = int(args.get("shelf", 0))
     m["last_used_by"] = pid
     m["last_used_s"] = C.now_s(state)
-    observe_human_move(w, pid, eid, origin, dest)
+    observe_human_move(w, pid, eid, origin, dest, env)
     log = C.plog(w)
     log.setdefault("human_uses", []).append({"person": pid, "item": eid, "to": dest, "time_s": C.now_s(state), "activity": args.get("activity")})
     return True
@@ -635,8 +698,12 @@ def ev_affect(w, args, env):
         m["mood"] = {"arguing": "angry", "crying": "sad", "grieving": "sad", "upset": "upset"}.get(affect, "calm")
         if affect == "arguing":
             S.add_sound(w, m.get("location"), C.person_xy(m), 72.0, "raised_voices", robot_caused=False)
+            if m.get("location") in state.get("rooms", {}):
+                w.notice("speech", room=m.get("location"), db=72.0, source=pid)     # raised voices (words unheard)
         elif affect == "crying":
             S.add_sound(w, m.get("location"), C.person_xy(m), 55.0, "crying", robot_caused=False)
+            if m.get("location") in state.get("rooms", {}):
+                w.notice("crying", room=m.get("location"), db=55.0, source=pid)
         C.log_event(w, "affect_start", person=pid, affect=affect)
     return True
 

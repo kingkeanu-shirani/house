@@ -187,9 +187,9 @@ def _out_of_the_way_cell(ctx, rid, keys):
 
 @scenario_helper("cleaning.spill")
 def spill_helper(ctx, liquid="water", liters=0.3, room=None, surface=None, cell=None, near=None, eid=None, props=None):
-    from .floors import SPILL_PROPS
-    record = {"liquid": liquid, "liquid_l": float(liters), "label": "{} spill".format(liquid.replace("_", " "))}
-    record.update(copy.deepcopy(SPILL_PROPS.get(liquid, {})))
+    from .floors import spill_film_mm, spill_record
+    record = copy.deepcopy(spill_record(liquid, liters))
+    record["liquid_l"] = float(liters)
     record.update(copy.deepcopy(props or {}))
     if surface:
         new = ctx.placer.make("spill", surface, eid=eid, **record)
@@ -204,7 +204,7 @@ def spill_helper(ctx, liquid="water", liters=0.3, room=None, surface=None, cell=
         floor = ctx.config["entities"].get("floor_" + rid, {})
         if floor and M.material_key(floor) in ("carpet", "wool_carpet"):
             rec["on_carpet"] = True
-    thickness = 3.0 if rec.get("on_carpet") else (2.5 if liquid in ("cooking_oil", "motor_oil", "paint", "vomit") else 1.5)
+    thickness = spill_film_mm(liquid, rec.get("on_carpet"))
     area = max(0.01, float(liters) / thickness)
     side = round(min(3.0, area ** 0.5), 3)
     rec["area_m2"] = round(area, 4)

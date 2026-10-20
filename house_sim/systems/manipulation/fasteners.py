@@ -19,6 +19,7 @@ Models:
 """
 import math
 
+from ...kernel import body as kbody
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import hook
@@ -60,7 +61,7 @@ def attach(ctx):
     mates = set(conn.get("mates", []))
     accepts = set((drec.get("mount") or {}).get("accepts", [])) | _tags(drec)
     require(mates & accepts, "Those parts are not compatible", "precondition")
-    force = C.num(ctx.args.get("force_n"), 30.0)
+    force = C.commanded_force(ctx, "force_n", 30.0)
     key = conn.get("key")
     if key and ctx.args.get("orientation") not in (None, key):
         if force > C.num(conn.get("engage_force_n"), 25.0) * 1.5:
@@ -174,12 +175,12 @@ def detach(ctx):
     release = ctx.args.get("release")
     latched = conn.get("engaged") and conn.get("release") in ("button", "twist", "squeeze", "lever", "latch")
     if latched and not release:
-        if C.num(ctx.args.get("force_n"), 30.0) >= C.num(conn.get("break_force_n"), 60.0):
+        if C.commanded_force(ctx, "force_n", 30.0, "pull_n") >= C.num(conn.get("break_force_n"), 60.0):
             C.mark_damage(w, eid, "tab_snapped", "yanked off without pressing the release")
         else:
             raise ActionError("It is latched; press its release (release=true)", "precondition")
     if base in w.s["entities"] and (w.ent(base).get("pressurized") or rec.get("pressurized")) and w.ent(base).get("water_running", True) and w.ent(base).get("pressurized"):
-        C.make_spill(w, C.room_of(w, base), w.ent(base).get("pos"), "water", 0.5)
+        C.make_spill(w, C.room_of(w, base), w.ent(base).get("pos"), "water", 0.5, source=base)
         C.note_event(w, "sprayed", eid)
     hands = C.free_hands(w)
     require(hands, "No free hand", "capability")
@@ -236,7 +237,7 @@ def _fastener(rec, which):
 
 @action("fasten", params={"target": "entity", "which": "?str", "start": {"type": "int", "default": 0, "min": 0, "max": 20},
                           "destination": "?entity", "where": "?str:handle|zipper_pull|strap|ring|loop", "force_n": {"type": "number", "default": 25.0, "min": 0, "max": 200}},
-        duration=lambda ctx: ctx.data.get("seconds", 4.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 4.0), energy=0.005, category="physical",
         inverse=lambda ctx, before: {"action": "unfasten", "target": ctx.args["target"], "which": ctx.args.get("which")},
         doc="Close a garment's or item's fasteners (buttons in order starting from hole 'start', buckle until it clicks, clasp, strap), "
             "or strap a held tag/strap to destination (where=handle is secure; a zipper pull is not).")
@@ -264,15 +265,15 @@ def fasten(ctx):
     if count > 1:
         start = int(ctx.args.get("start") or 0)
         fasteners[name] = dict(info, engaged=True, offset=start, closed_count=count - start)
-        ctx.data["seconds"] = 3.0 + 3.0 * count
+        ctx.data["manip_s"] = 3.0 + 3.0 * count
         if start:
             m["misfastened"] = True
             return "Fastened {} {} starting {} off: they are misaligned".format(count - start, name, start)
         m["misfastened"] = False
         return "Fastened all {} {}".format(count, name)
-    clicked = C.num(ctx.args.get("force_n"), 25.0) >= C.num(info.get("click_force_n"), 15.0)
+    clicked = C.commanded_force(ctx, "force_n", 25.0) >= C.num(info.get("click_force_n"), 15.0)
     fasteners[name] = dict(info, engaged=clicked)
-    ctx.data["seconds"] = 3.0
+    ctx.data["manip_s"] = 3.0
     return "{} the {}".format("Fastened" if clicked else "Pressed but did not latch", name)
 
 
@@ -351,7 +352,9 @@ def update_seal(w, container):
 
 
 def _twist_capacity(w, ctx):
-    capacity = C.ROBOT_WRIST_TORQUE_NM
+    """Torque the robot can put on a cap or screw part: the body's wrist torque (body.limit wrist_nm), 2.5x with a
+    jar opener or rubber grip in hand."""
+    capacity = C.wrist_limit_nm(w)
     for held in w.held_items():
         rec = w.ent(held)
         if "grip_twist" in (rec.get("affordances") or []) or C.is_kind(rec, "jar_opener", "rubber_grip"):
@@ -440,7 +443,7 @@ def _loosen(ctx, part, turns, press, vent):
     if thread.get("child_resistant") and not press:
         return "The cap ratchets without turning; it is child-resistant (press while turning)"
     breakaway = max(C.num(thread.get("torque_nm")), C.num(thread.get("stuck_nm")))
-    grip_mu = C.friction(prec)
+    grip_mu = C.grasp_mu(w, part)          # the item's surface and the hand's grasp friction (body.grip_mu)
     capacity = _twist_capacity(w, ctx) * min(1.0, grip_mu / 0.3)
     if breakaway > capacity + 1e-9:
         if C.realistic(ctx):
@@ -574,7 +577,7 @@ def unscrew_apart(ctx):
     if base in w.s["entities"]:
         w.mut(base)["assembled"] = False
     if not C.free_hands(w):
-        C.drop_item(w, eid, max(0.3, C.HAND_HEIGHT_M), C.room_of(w, eid), cause="loosened_part_fell")
+        C.drop_item(w, eid, max(0.3, kbody.hand_drop_m(w.s)), C.room_of(w, eid), cause="loosened_part_fell")
         return "It came free and fell: no hand was free to catch it"
     C.take_into_hand(ctx, eid, ctx.args.get("hand"))
     update_seal(w, base)
@@ -655,7 +658,7 @@ def unclip(ctx):
         if ctx.holding(target):
             tm["order_lost"] = True
             tm["shuffled"] = True
-            C.drop_item(w, target, C.HAND_HEIGHT_M, w.robot["room"], cause="papers_scattered")
+            C.drop_item(w, target, kbody.hand_drop_m(w.s), w.robot["room"], w.robot.get("pos"), cause="papers_scattered")
             C.note_event(w, "papers_scattered", target)
     w.mut(clip_id).pop("clipped_to", None)
     C.take_into_hand(ctx, clip_id, ctx.args.get("hand"))
@@ -776,7 +779,7 @@ def snap(ctx):
     w = ctx.w
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
-    force = C.num(ctx.args.get("force_n"), 40.0)
+    force = C.commanded_force(ctx, "force_n", 40.0)
     dest = ctx.args.get("destination")
     if dest:
         C.held_or_fail(ctx, eid)
@@ -933,7 +936,7 @@ def unvelcro(ctx):
 @action("tie", params={"target": "entity", "knot": {"type": "str", "default": "double", "choices": sorted(KNOTS)},
                        "destination": "?entity", "tool": "?entity", "tightness": {"type": "str", "default": "snug", "choices": ["loose", "snug", "tight"]},
                        "press_air": {"type": "bool", "default": False}, "force": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.005, category="physical",
         inverse=lambda ctx, before: {"action": "untie", "target": ctx.args["target"], "method": "pick_apart"},
         doc="Tie a knot: close a trash/bread bag with its drawstring or flaps (needs headroom), bow laces or a ribbon, bundle papers "
             "with held twine (tool), or tie a plant to a stake (destination; loose figure_eight). Knot strength by type: twist 0.3 kg, "
@@ -946,7 +949,7 @@ def tie(ctx):
     hold, releasable, slips = KNOTS[knot]
     tool = ctx.args.get("tool")
     dest = ctx.args.get("destination")
-    ctx.data["seconds"] = 8.0 + (4.0 if knot in ("double", "square", "surgeon", "double_bow") else 0.0)
+    ctx.data["manip_s"] = 8.0 + (4.0 if knot in ("double", "square", "surgeon", "double_bow") else 0.0)
     if tool:
         require(ctx.holding(tool), "Hold the twine or ribbon first")
         trec = w.ent(tool)
@@ -1008,7 +1011,7 @@ def tie(ctx):
 
 @action("untie", params={"target": "entity", "method": {"type": "str", "default": "pick_apart", "choices": ["pick_apart", "pull_tail", "pull_ends", "cut"]},
                          "tool": "?entity"},
-        duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.005, category="physical",
         doc="Undo a knot, tie or tangle: pick_apart works slack into it (slow but safe; tangled cables/chains lose crossings), pull_tail "
             "releases bows and slip knots, pull_ends tightens everything else (bows become hard knots), cut needs a held blade and ruins "
             "cords that must not be cut (ask first).")
@@ -1024,7 +1027,7 @@ def untie(ctx):
     closure = rec.get("closure") or {}
     kind = knot.get("type") or closure.get("knot")
     if not kind and tangle:
-        ctx.data["seconds"] = 2.0
+        ctx.data["manip_s"] = 2.0
         return "It is already free of tangles"
     require(kind, "There is no knot to undo", "precondition")
     m = w.mut(eid)
@@ -1033,14 +1036,14 @@ def untie(ctx):
         if rec.get("_cut_ok") is False or C.is_kind(rec, "shoe", "leash", "ribbon_keep") or rec.get("keep_cord"):
             C.mark_damage(w, eid, "cord_cut", "cut instead of untied", broken=False)
         m["cut"] = True
-        ctx.data["seconds"] = 3.0
+        ctx.data["manip_s"] = 3.0
     elif method == "pull_tail":
         if not (knot.get("releasable") or closure.get("releasable")):
-            ctx.data["seconds"] = 3.0
+            ctx.data["manip_s"] = 3.0
             if C.realistic(ctx):
                 return "Pulling the tail does nothing: the knot holds"
             return "Pulling the tail does nothing on a {} knot".format(kind.replace("_", " "))
-        ctx.data["seconds"] = 2.0
+        ctx.data["manip_s"] = 2.0
     elif method == "pull_ends":
         tightened = dict(knot or closure)
         if kind in ("bow", "double_bow"):
@@ -1054,11 +1057,11 @@ def untie(ctx):
             m["closure"] = tightened
         if rec.get("delicate") or C.is_kind(rec, "necklace", "chain"):
             C.mark_damage(w, eid, "link_broken", "pulled tight", broken=True)
-        ctx.data["seconds"] = 3.0
+        ctx.data["manip_s"] = 3.0
         return "Pulling the standing ends drew the knot tighter"
     else:
         tight = knot.get("tight") or closure.get("tight")
-        ctx.data["seconds"] = 25.0 if tight else 12.0
+        ctx.data["manip_s"] = 25.0 if tight else 12.0
     if rec.get("drawstring_channel") and method == "pull_ends":
         m["drawstring_pulled_out"] = True
     m["knot"] = None
@@ -1088,7 +1091,7 @@ def _untangle(ctx, eid, rec, tangle, method):
                     C.note_event(w, "unplugged_by_pulling", member)
                 if mrec.get("delicate") or C.is_kind(mrec, "necklace", "chain"):
                     C.mark_damage(w, member, "link_broken", "pulled tight", broken=True)
-        ctx.data["seconds"] = 3.0
+        ctx.data["manip_s"] = 3.0
         return "Pulling tightened the tangle"
     if method == "cut":
         C.tool_of(ctx, "cut", ctx.args.get("tool"))
@@ -1096,10 +1099,10 @@ def _untangle(ctx, eid, rec, tangle, method):
         for member in group:
             if member in w.s["entities"]:
                 w.mut(member)["tangle"] = {"crossings": 0, "knots": 0, "with": []}
-        ctx.data["seconds"] = 3.0
+        ctx.data["manip_s"] = 3.0
         return "Cut through the tangle"
     if method == "pull_tail":
-        ctx.data["seconds"] = 3.0
+        ctx.data["manip_s"] = 3.0
         return "That only shifts the loops around"
     per_call = 3 if not tangle.get("tight") else 1
     crossings = max(0, int(C.num(tangle.get("crossings"))) - per_call)
@@ -1116,7 +1119,7 @@ def _untangle(ctx, eid, rec, tangle, method):
             mrec = w.ent(member)
             if mrec.get("plugged_in") and mrec.get("pull_limit_n") is not None:
                 pass
-    ctx.data["seconds"] = 20.0 if not tangle.get("tight") else 40.0
+    ctx.data["manip_s"] = 20.0 if not tangle.get("tight") else 40.0
     if crossings == 0 and knots == 0:
         return "Untangled: the pieces are separate"
     return "Worked loose some loops ({} crossings, {} knots left)".format(crossings, knots)

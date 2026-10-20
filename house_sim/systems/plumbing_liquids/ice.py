@@ -3,9 +3,14 @@
 Ice cube tray (ice_cube_tray): cells 14 x cell_ml 28; filling sets the mean cell fill (cell_fill); above 100 % the
 cells bridge and freeze into one slab (joined); set down tilted (on a lumpy bag) water runs to the low side and
 spills over in the freezer. Freezing time ~ 20140 s x cell_ml^(2/3) / (-T_freezer) (~2.9 h at -18 C for 28 ml).
-Releasing cubes: a tray colder than -10 C releases ~70 % with a normal twist, all with force=firm but the brittle
-plastic cracks; after ~1-2 min on the counter it releases everything. Cubes dropped on the floor melt into a
-slippery puddle (~20-40 min).
+Releasing cubes: a tray straight from the freezer (colder than -10 C, out of the cold less than 90 s) releases ~70 %
+with a normal twist, all with force=firm but the brittle plastic cracks; after ~1.5 min on the counter it releases
+everything (the time out of the cold decides, not the bulk temperature, whose time constant the kernel's thermal_tau
+law sets). Cubes dropped on the floor melt into a slippery puddle (~20-40 min).
+Tier-1 physics (TIER1_PHYSICS 10.3): while this domain freezes a holder's water it owns the plateau
+(thermal_owner "plumbing_liquids"); with the kernel's phase law active only ice trays freeze here and every other
+container freezes by the kernel (ice_frac); the time constant of a holder with floating ice follows the thermal_tau law
+(ice_tau_s); a tray set down tilted spills by the kernel's open_spill law once it is active.
 Ice maker (freezer_ice_maker): on (switch) and settings.arm down; needs its water-line valve open, a freezer at
 or below -10 C and a bin that is not full or obstructed; one harvest of 8 cubes (~115 g) every 90 min (~1.8 kg/day).
 Ice in drinks: ice_g floats (displaces its own mass); melts at ~1e-4 g/s per g^(2/3) per C; latent heat cools the drink.
@@ -17,6 +22,8 @@ damages the cartridge; a new cartridge's first fills carry carbon fines when its
 import math
 
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import lawbook
+from ...kernel.phys import thermal as PT
 from ...kernel.plugins import after, hook
 from . import common as C
 from . import liquids as L
@@ -106,6 +113,20 @@ def add_ice(ctx, target, source):
 # ----------------------------------------------------------------------------------
 # trays
 
+WARM_RELEASE_S = 90.0        # a frozen tray on the counter: its thin plastic and the ice at the walls warm within
+                             # a minute or two, then the cubes come out with a twist (the bulk stays below 0 C longer)
+
+
+def fresh_from_cold(rec):
+    """A frozen tray straight from the freezer: colder than -10 C and out of the cold for less than WARM_RELEASE_S (the
+    cells' walls have not warmed, the plastic is brittle). The time out of the cold (_warm_s, kept by freeze_step)
+    decides once the tray is out, not the lumped body temperature, whose time constant the kernel's thermal_tau law
+    sets (17 min for a full tray under the lumped law, 4.5 min under the legacy formula)."""
+    if C.num(rec.get("temperature_c"), -18.0) >= -10.0:
+        return False
+    return C.num(rec.get("_warm_s")) < WARM_RELEASE_S
+
+
 def tray_capacity_l(rec):
     return C.num(rec.get("cells"), 14) * C.num(rec.get("cell_ml"), 28.0) / 1000.0
 
@@ -155,17 +176,17 @@ def empty_tray(ctx, tray, dest, force):
         require(L.liters(rec) > 0, "The tray is empty", "precondition")
         from .transfer import do_pour
         return do_pour(ctx, tray, dest, amount=L.liters(rec), rate="normal", verb="empty")
-    temp = C.num(rec.get("temperature_c"), -18.0)
+    cold = fresh_from_cold(rec)
     ice_g = C.num(rec.get("ice_g"))
     notes = []
     if rec.get("joined"):
         frac = 0.5 if force != "firm" else 1.0
         notes.append("the cubes came out as one slab")
-    elif temp < -10.0:
+    elif cold:
         frac = {"gentle": 0.4, "normal": 0.7, "firm": 1.0}[force]
     else:
         frac = {"gentle": 0.8, "normal": 1.0, "firm": 1.0}[force]
-    if force == "firm" and temp < -10.0 and not rec.get("cracked"):
+    if force == "firm" and cold and not rec.get("cracked"):
         m = w.mut(tray)
         m["cracked"] = True
         C.damage(w, tray, "brittle frozen tray cracked when twisted hard", kind="cracked", severity=0.6)
@@ -243,6 +264,12 @@ def tray_placed(ctx, result):
     m = w.mut(eid)
     m["tilt_deg"] = tilt
     fill = C.num(rec.get("cell_fill"))
+    if tilt > 3.0 and lawbook.active("open_spill") and L.liters(rec) > 0:
+        # the kernel's open_spill law runs the water out of the tilted tray in this step's settle (tilt_deg is what it
+        # reads); leaks.tray_follows_its_water keeps cell_fill and frozen_spill_l in step with it
+        w.mut(eid)["uneven"] = True
+        ctx.note("the tray sits tilted")
+        return
     if tilt > 3.0 and fill > 0.75 and L.liters(rec) > 0 and (rec.get("open", True) or not rec.get("openable")):
         lost = min(L.liters(rec), (fill - 0.75) * tray_capacity_l(rec) + tilt / 100.0 * tray_capacity_l(rec))
         parcel = L.take(w, eid, lost)
@@ -349,15 +376,118 @@ def ambient_c(w, eid):
     return temp
 
 
+WATERS = ("water", "filtered_water", "ice_water", "distilled_water", "tap_water")
+OWNER = "plumbing_liquids"
+
+
+def domain_freezes(rec):
+    """Whether this domain freezes the water in a holder: an ice tray always (its cells, cubes and slabs are this
+    domain's model); any other holder only while the kernel's phase law is deferred. Once the law is active the kernel
+    freezes it (ice_frac in liquid_l, the latent-heat plateau, the sealed-container burst rule; TIER1_PHYSICS 5.9)."""
+    return bool(rec.get("ice_tray")) or not lawbook.active("phase")
+
+
+def _own_plateau(w, eid, on):
+    """While this domain freezes a holder's water it owns the temperature (thermal_owner, CONVENTIONS 6): the plateau
+    at 0 C is its, and the kernel thermal system and phase law leave the holder alone. Never takes over another
+    owner's entity."""
+    rec = w.ent(eid)
+    if on and not rec.get("thermal_owner") and not rec.get("fixed_temperature"):
+        w.mut(eid)["thermal_owner"] = OWNER
+    elif not on and rec.get("thermal_owner") == OWNER:
+        w.mut(eid).pop("thermal_owner", None)
+
+
+def ice_tau_s(rec):
+    """Thermal time constant of a holder with floating ice: the kernel's own formula with the ice's mass counted
+    (the kernel knows liquid_l, not this domain's ice_g): the lumped m c / (h A) law (phys.thermal.tau_s, ice at its
+    own heat capacity) once the thermal_tau law is active, the legacy 300 sqrt(mass + liquid + ice) + 60 s before."""
+    ice_kg = C.num(rec.get("ice_g")) / 1000.0
+    if lawbook.active("thermal_tau"):
+        view = dict(rec)
+        view.pop("thermal_tau_s", None)
+        total = L.liters(rec) + ice_kg
+        view["liquid_l"] = total
+        view["ice_frac"] = ice_kg / total if total > 0 else 0.0
+        if not view.get("liquid"):
+            view["liquid"] = "water"
+        return PT.tau_s(view)
+    return 300.0 * math.sqrt(max(0.01, C.num(rec.get("mass_kg"), 0.2) + L.liters(rec) + ice_kg)) + 60.0
+
+
+def _ice_tau(w, eid):
+    """Keep this domain's time-constant override in step with the ice it holds (marked _tau_by_plumbing, removed when
+    the ice is gone); an explicit thermal_tau_s of the type or a setup (an insulated tumbler) is never replaced."""
+    rec = w.ent(eid)
+    ours = bool(rec.get("_tau_by_plumbing"))
+    if C.num(rec.get("ice_g")) > 0:
+        if rec.get("thermal_tau_s") and not ours:
+            return
+        tau = ice_tau_s(rec)
+        if not ours or abs(C.num(rec.get("thermal_tau_s")) - tau) > 5.0:
+            m = w.mut(eid)
+            m["thermal_tau_s"] = C.rnd(tau, 1)
+            m["_tau_by_plumbing"] = True
+    elif ours:
+        m = w.mut(eid)
+        m.pop("thermal_tau_s", None)
+        m.pop("_tau_by_plumbing", None)
+
+
+def freeze_time_s(rec, have, delta_k):
+    """Seconds to freeze (or thaw) a holder's water through at |T_amb - 0 C| = delta_k: about 20140 s x
+    cell_ml^(2/3) / dK (2.9 h for 28 ml cubes at -18 C)."""
+    cell_ml = C.num(rec.get("cell_ml"), 0.0) or max(28.0, have * 1000.0)
+    return FREEZE_K * cell_ml ** (2.0 / 3.0) / max(1.0, delta_k)
+
+
+def _ice_tau_current(rec):
+    """True when _ice_tau would write nothing. Pure."""
+    ours = bool(rec.get("_tau_by_plumbing"))
+    if C.num(rec.get("ice_g")) > 0:
+        if rec.get("thermal_tau_s") and not ours:
+            return True
+        return ours and abs(C.num(rec.get("thermal_tau_s")) - ice_tau_s(rec)) <= 5.0
+    return not ours
+
+
+def freeze_idle(w, eid):
+    """True when freeze_step would change nothing: nothing freezing or thawing in the holder, no plateau to hand
+    back, no ice melting (ice above 0 C ambient in a holder that is itself above 0 C melts), the ice time constant
+    current. Pure (the water system's idle probe)."""
+    rec = w.s["entities"][eid]
+    have = L.liters(rec)
+    ice = C.num(rec.get("ice_g"))
+    if have <= 0 and ice <= 0 and rec.get("thermal_owner") != OWNER and not rec.get("_tau_by_plumbing") and \
+            "_warm_s" not in rec:
+        return True
+    amb = ambient_c(w, eid)
+    warm = rec.get("_warm_s")
+    if rec.get("ice_tray") and (warm is not None and (ice <= 0 or amb <= -1.0) or
+                                ice > 0 and amb > 0.5 and C.num(warm) < WARM_RELEASE_S):
+        return False
+    freezing = have > 0 and amb <= -1.0 and rec.get("liquid") in WATERS and domain_freezes(rec)
+    if freezing or rec.get("thermal_owner") == OWNER:
+        return False
+    if have > 0 and 0.0 < C.num(rec.get("frozen_frac")) < 1.0 and amb > 0.5:
+        return False
+    if ice > 0 and amb > 0.5 and not rec.get("ice_maker") and C.num(rec.get("temperature_c"), amb) > 0.0:
+        return False
+    return _ice_tau_current(rec)
+
+
 def freeze_step(w, eid, dt):
-    """Water in a container below 0 C turns to ice; ice above 0 C melts."""
+    """Water in a container below 0 C turns to ice; ice above 0 C melts. With the kernel's phase law active only ice
+    trays freeze here (domain_freezes)."""
     rec = w.ent(eid)
     amb = ambient_c(w, eid)
     have = L.liters(rec)
-    if have > 0 and amb <= -1.0 and rec.get("liquid") in ("water", "filtered_water", "ice_water", "distilled_water", "tap_water"):
-        cell_ml = C.num(rec.get("cell_ml"), 0.0) or max(28.0, have * 1000.0)
-        t_freeze = FREEZE_K * cell_ml ** (2.0 / 3.0) / max(1.0, -amb)
-        frac = C.num(rec.get("frozen_frac")) + dt / t_freeze
+    freezing = have > 0 and amb <= -1.0 and rec.get("liquid") in WATERS and domain_freezes(rec)
+    if not freezing and rec.get("thermal_owner") == OWNER:
+        _own_plateau(w, eid, False)
+    if freezing:
+        _own_plateau(w, eid, True)
+        frac = C.num(rec.get("frozen_frac")) + dt / freeze_time_s(rec, have, -amb)
         m = w.mut(eid)
         if frac >= 1.0:
             m["frozen_frac"] = 1.0
@@ -368,17 +498,30 @@ def freeze_step(w, eid, dt):
             L.write_state(w, eid, {}, extra={"liquid_l": 0.0})
             m = w.mut(eid)
             m["temperature_c"] = min(C.num(m.get("temperature_c"), 0.0), 0.0)
+            _own_plateau(w, eid, False)          # frozen through: the kernel cools the ice on toward its ambient
             C.plog(w, "frozen", target=eid, grams=m["ice_g"])
             if rec.get("material") == "glass" and have / max(0.01, L.cap_l(rec)) > 0.9 and not rec.get("ice_tray"):
                 C.damage(w, eid, "glass cracked by expanding ice", broken=True, kind="cracked")
         else:
             m["frozen_frac"] = C.rnd(frac, 4)
             m["temperature_c"] = 0.0
+        _ice_tau(w, eid)
         return
+    frozen = C.num(rec.get("frozen_frac"))
+    if have > 0 and 0.0 < frozen < 1.0 and amb > 0.5:
+        # taken out of the cold before it froze through: the ice skin in the cells thaws back to water
+        left = frozen - dt / freeze_time_s(rec, have, amb)
+        w.mut(eid)["frozen_frac"] = C.rnd(left, 4) if left > 1e-4 else 0.0
     ice = C.num(rec.get("ice_g"))
+    warm = rec.get("_warm_s")
+    if rec.get("ice_tray") and warm is not None and (ice <= 0 or amb <= -1.0):
+        w.mut(eid).pop("_warm_s", None)              # back in the cold, or empty: the clock starts again
+    elif rec.get("ice_tray") and ice > 0 and amb > 0.5 and C.num(warm) < WARM_RELEASE_S:
+        w.mut(eid)["_warm_s"] = C.rnd(min(WARM_RELEASE_S, C.num(warm) + dt), 1)
     if ice > 0 and amb > 0.5 and not rec.get("ice_maker"):
         temp = C.num(rec.get("temperature_c"), amb)
         if temp <= 0.0:
+            _ice_tau(w, eid)
             return      # still warming to 0 C (the kernel's thermal model supplies the heat)
         # latent plateau: sensible heat above 0 C (liquid + container) melts ice at 334 J/g, limited by how fast heat
         # crosses the cube surface (stirred liquid ~3x faster than still air); while ice remains the bulk stays <= 4 C
@@ -416,11 +559,7 @@ def freeze_step(w, eid, dt):
                 spill_near(w, eid, over, "melt")
         else:
             m["temperature_c"] = C.rnd(max(0.0, min(new_t, 4.0) if C.num(m.get("ice_g")) > 0 else new_t), 2)
-    tau = 300.0 * math.sqrt(max(0.01, C.num(w.ent(eid).get("mass_kg"), 0.2) + L.liters(w.ent(eid)) + C.num(w.ent(eid).get("ice_g")) / 1000.0)) + 60.0
-    if C.num(w.ent(eid).get("ice_g")) > 0 and abs(C.num(w.ent(eid).get("thermal_tau_s")) - tau) > 5.0:
-        w.mut(eid)["thermal_tau_s"] = C.rnd(tau, 1)
-    elif C.num(w.ent(eid).get("ice_g")) <= 0 and w.ent(eid).get("thermal_tau_s") and w.ent(eid).get("ice_tray"):
-        w.mut(eid).pop("thermal_tau_s", None)
+    _ice_tau(w, eid)
 
 
 def ice_maker_reasons(w, eid, cache=None):

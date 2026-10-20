@@ -5,28 +5,38 @@ Verbs: stack, unstack, extract, insert, pack, unpack, arrange, align.
 Stack model (G + P-approx): an item placed on another portable item becomes a stack
 member (relation 'on', stack_member=True) centred on the one below (offset_m shifts it).
 Nesting (same nest_group, smaller into larger) adds only nest_step_m of height. After
-every change the stack is settled: each member's load (mass above) vs its max_load_kg
-(fragile items crush), support ratio (a piece more than 25% wider than the one below
-rocks), centre-of-mass offset, slenderness (height / base > 4 marginal, > 6 unstable)
-and shelf clearance. Unstable stacks topple at once; marginal ones topple at the next
-bump (manipulation.bump event or a passing disturbance).
+every change the stack is settled by the kernel's rules (phys.statics.stack_verdict and
+phys.impact.stack_law: a piece more than 25 % wider than the one below rocks off, a
+centre more than 0.3 of the base off-centre topples, height / base > 6 topples and > 4
+is wobbly, a stack taller than the shelf gap topples; crushing through phys.impact.crush
+against phys.statics.crush_limit_kg). This domain triggers those kernel functions itself
+while the stack and crush laws are deferred; once they are active the kernel's settle
+pass applies them (with only crush active the crush law runs before this domain's stack
+trigger, in the settle pass's order). One rule stays the domain's: nothing stacks steadily on the open
+contents of an open container. A wobbly stack goes over at the next bump
+(manipulation.bump, the kernel's knock).
 
 Packing model: items put in a container (pack, or core place relation 'in') get a
 pack_seq and pack_z_m. Carried containers (portable boxes, bags, suitcases, bins) are
 packed in layers: the load on an item is the mass packed after it on the same level.
 Furniture storage (cabinets, drawers, shelving, fridges, trunks) holds items side by side
 on each shelf: a new item rests on others (pack_on) only once that shelf's floor area is
-used up, and only those supports carry its weight. Fragile items crush when the load
-exceeds C.max_load (crush_kg, else max_load_kg, else material defaults; wrapping and cell
-dividers raise it; plates on edge are 3x stronger). Void fraction = 1 - (items + void fill) / capacity; voids > 0.2 let
-contents shift. A transport test (event manipulation.transport_test) drops/vibrates a
-container: fragile items survive if drop * hardness <= tolerance * (1 + padding_mm/5).
+used up, and only those supports carry its weight. The packing order reaches the kernel
+through the phys.items_above hook, so its crush law loads a packed item with what was
+packed on top of it, and a phys.settle_extra hook (_packed_loads) runs that law on the
+supports of a newly packed item, which the settle pass would not visit. Fragile items crush when the load exceeds the kernel's crush limit
+(crush_kg, else a box's max_load_kg, else the material; wrapping and cell dividers raise
+it; plates on edge are 3x stronger). Void fraction = 1 - (items + void fill) / capacity;
+voids > 0.2 let contents shift. A transport test (event manipulation.transport_test)
+drops a container: every item takes the kernel's impact (phys.impact.impact) of the drop
+through the box's and its own padding, doubled when its contents can shift.
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body as kbody, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import impact as kimpact, statics as kstatics, support as ksupport
 from ...kernel.plugins import hook
 from ..core import check_handling, place_item, release_from_hands
 from . import common as C
@@ -119,6 +129,8 @@ def clearance_for(w, base):
 
 
 def topple_from(ctx, members, index, cause):
+    """Members index.. of a stack fall to the floor (pulled out from under, a domain rule): each through the kernel's
+    fall from the height it rested at."""
     w = ctx.w
     base_height = geometry.height_m(w.s, members[0])
     zs = member_heights(w, members)
@@ -138,6 +150,39 @@ def topple_from(ctx, members, index, cause):
     return fallen
 
 
+def stack_reason(w, members):
+    """Why a stack is unstable, in words (the first rule that fails: the kernel's stack rules plus this domain's open
+    container rule), or None."""
+    for i in range(1, len(members)):
+        upper, lower = w.ent(members[i]), w.ent(members[i - 1])
+        uw, ud, _ = C.dims(upper)
+        lw, ld, _ = C.dims(lower)
+        if not upper.get("nested") and (uw > lw * kstatics.STACK_OVERSIZE + 1e-6 or ud > ld * kstatics.STACK_OVERSIZE + 1e-6):
+            return "{} is much larger than {} below it".format(members[i], members[i - 1])
+        if lower.get("openable") and lower.get("open") and lower.get("container") and not upper.get("nested"):
+            return "{} rests on the open contents of {}".format(members[i], members[i - 1])
+        off = upper.get("stack_offset_m") or [0.0, 0.0]
+        if abs(C.num(off[0])) > kstatics.STACK_OFFSET_FRAC * lw or abs(C.num(off[1])) > kstatics.STACK_OFFSET_FRAC * ld:
+            return "{} is off-centre".format(members[i])
+    height = stack_height(w, members)
+    clearance = clearance_for(w, members[0])
+    if clearance is not None and height > clearance + 1e-6:
+        return "the stack hits the shelf above"
+    if height / max(0.05, min(C.dims(w.ent(members[0]))[:2])) > kstatics.STACK_TOPPLE:
+        return "the stack is too tall for its base"
+    return None
+
+
+def _open_contents_at(w, members):
+    """Index of the first member resting on the open contents of an open container below it (this domain's rule: a
+    lid-less box full of things is no base), else None."""
+    for i in range(1, len(members)):
+        upper, lower = w.ent(members[i]), w.ent(members[i - 1])
+        if lower.get("openable") and lower.get("open") and lower.get("container") and not upper.get("nested"):
+            return i
+    return None
+
+
 def settle_stack(ctx, eid, speed=None):
     """Load, wetness, wedging and stability checks after eid joined a stack."""
     w = ctx.w
@@ -151,15 +196,24 @@ def settle_stack(ctx, eid, speed=None):
     m["stack_member"] = True
     members = stack_members(w, eid)
     report = {"members": members}
-    # crushing loads
-    for i, member in enumerate(members):
-        limit = C.max_load(w.ent(member))
-        if limit is None:
-            continue
-        load = sum(C.subtree_mass(w, other) for other in members[i + 1:]) if i + 1 < len(members) else 0.0
-        if load > limit + 1e-9 and not w.ent(member).get("broken"):
-            C.break_item(w, member, "crushed_under_{:.1f}_kg".format(load))
-            report.setdefault("crushed", []).append(member)
+    # crushing loads: the kernel's crush (phys.impact.crush: a brittle item breaks, a soft one is crushed) against its
+    # crush limit, triggered here while the crush law is deferred (its settle pass does it once active). While only the
+    # crush law is active and this domain still triggers the stack law below, the crush law runs here first, as the
+    # settle pass orders them (crush 40 before stack): a box crushed under a load gives way before anything topples
+    if not C.kernel_owns("crush") or not C.kernel_owns("stack"):
+        for i, member in enumerate(members):
+            if member not in w.s["entities"] or w.ent(member).get("broken"):
+                continue
+            if C.kernel_owns("crush"):
+                kimpact.crush_law(w, member)
+            else:
+                limit = C.crush_limit(w, member)
+                load = sum(C.subtree_mass(w, other) for other in members[i + 1:]) if i + 1 < len(members) else 0.0
+                if limit is not None and load > limit + 1e-9:
+                    kimpact.crush(w, member, load)
+            mrec = w.ent(member)
+            if mrec.get("broken") or C.has_damage(mrec, "crushed"):
+                report.setdefault("crushed", []).append(member)
     # wet stacking and nested wedging
     below = parent
     if C.num(rec.get("wetness")) >= 0.2 or C.num(below.get("wetness")) >= 0.2:
@@ -171,54 +225,43 @@ def settle_stack(ctx, eid, speed=None):
         ratio = min(C.dims(rec)[0] / max(0.01, C.dims(below)[0]), 1.0)
         if 0.85 <= ratio <= 0.98 and not rec.get("nest_group_exact"):
             m["stuck_nested"] = True
-    speed = speed or w.robot.get("speed_mode", "normal")
-    if speed == "fast" and C.is_fragile(rec) and C.material(below) in ("ceramic", "porcelain", "glass", "stoneware", "crystal"):
+    speed = C.effective_speed(w, speed)
+    if C.kernel_owns("setdown"):
+        kimpact.setdown(w, eid, speed)          # the set-down law for a piece set on a stack
+    elif speed == "fast" and C.is_fragile(rec) and C.material(below) in ("ceramic", "porcelain", "glass", "stoneware", "crystal"):
         m["chipped"] = True
         C.mark_damage(w, eid, "chipped", "set down too fast on the stack")
-    # stability
-    unstable_at, marginal = None, False
-    for i in range(1, len(members)):
-        upper, lower = w.ent(members[i]), w.ent(members[i - 1])
-        uw, ud, _ = C.dims(upper)
-        lw, ld, _ = C.dims(lower)
-        if not upper.get("nested") and (uw > lw * 1.25 + 1e-6 or ud > ld * 1.25 + 1e-6):
-            unstable_at = i
-            report["reason"] = "{} is much larger than {} below it".format(members[i], members[i - 1])
-            break
-        if lower.get("openable") and lower.get("open") and lower.get("container") and not upper.get("nested"):
-            unstable_at = i
-            report["reason"] = "{} rests on the open contents of {}".format(members[i], members[i - 1])
-            break
-        off = upper.get("stack_offset_m") or [0.0, 0.0]
-        if abs(C.num(off[0])) > 0.3 * lw or abs(C.num(off[1])) > 0.3 * ld:
-            unstable_at = i
-            report["reason"] = "{} is off-centre".format(members[i])
-            break
-    height = stack_height(w, members)
-    base_rec = w.ent(members[0])
-    slender = height / max(0.05, min(C.dims(base_rec)[:2]))
-    materials = sorted({C.material(w.ent(e)) for e in members})
-    if unstable_at is None and slender > 6.0:
-        unstable_at = max(1, len(members) // 2)
-        report["reason"] = "the stack is too tall for its base"
-    elif slender > 4.0 or len(materials) >= 3 and height > 0.5:
-        marginal = True
-    clearance = clearance_for(w, members[0])
-    if clearance is not None and height > clearance + 1e-6:
-        unstable_at = len(members) - 1
-        report["reason"] = "the stack hits the shelf above"
-    bm = w.mut(members[0])
-    bm["stack_count"] = len(members)
-    bm["stack_height_m"] = round(height, 3)
-    if unstable_at is not None:
+    # stability: the kernel's stack rules (phys.impact.stack_law: unstable members topple onto the stack's support
+    # beside it or to the floor; a slender stack shows wobbly), triggered here while the stack law is deferred; plus
+    # this domain's rule that the open contents of an open container carry nothing steadily
+    reason = stack_reason(w, members)
+    open_at = _open_contents_at(w, members)
+    toppled = []
+    if open_at is not None:
+        bm = w.mut(members[0])
         bm["stack_marginal"] = False
-        report["toppled"] = topple_from(ctx, members, unstable_at, "unstable_stack")
-        members = stack_members(w, members[0])
+        toppled = topple_from(ctx, members, open_at, "unstable_stack")
+    elif not C.kernel_owns("stack"):
+        before = set(members)
+        records = kimpact.stack_law(w, eid)
+        toppled = sorted(r["target"] for r in records if r.get("kind") == "phys.tip" and r.get("cause") == "stack_toppled"
+                         and r["target"] in before)
+        if toppled:
+            C.note_event(w, "stack_toppled", members[0], count=len(toppled), cause="unstable_stack")
+    members = stack_members(w, members[0]) if members[0] in w.s["entities"] else []
+    if members:
         bm = w.mut(members[0])
         bm["stack_count"] = len(members)
         bm["stack_height_m"] = round(stack_height(w, members), 3)
-    else:
-        bm["stack_marginal"] = marginal
+        if C.kernel_owns("stack"):
+            # the settle pass sets the kernel's wobbly cue after this handler: read the same verdict now
+            wobbly = any(kind == "wobbly" for _, kind in kstatics.stack_verdict(w.s, members[0]))
+        else:
+            wobbly = bool(w.ent(members[0]).get("wobbly"))
+        bm["stack_marginal"] = wobbly and len(members) > 1
+    if toppled:
+        report["toppled"] = toppled
+        report["reason"] = reason or "the stack was unstable"
     return report
 
 
@@ -306,8 +349,7 @@ def unstack(ctx):
     top = members[-1]
     rec = C.robj(ctx, top, touch=True, grasp=True)
     C.safe_handling(ctx, top)
-    both = C.needs_two_hands(w, top)
-    C.require_payload(w, top)
+    both = C.needs_two_hands(ctx, top)
     m = w.mut(top)
     if rec.get("stuck_nested"):
         if ctx.args.get("method") == "twist_free":
@@ -415,13 +457,13 @@ def extract(ctx):
             C.note_event(w, "shock_risk", eid, tool=tool)
     above = stack_above(w, eid)
     C.safe_handling(ctx, eid, carrying=not above)
-    both = C.needs_two_hands(w, eid) and not above
+    both = C.needs_two_hands(ctx, eid) and not above
     msg = "Extracted " + eid
     if above:
         if method == "lift_stack":
             upper_mass = sum(C.subtree_mass(w, e) for e in above[:1])
             require(len(C.free_hands(w)) == 2, "Both hands are needed: one holds the items above", "capability")
-            require(upper_mass <= C.num(w.robot.get("max_hand_kg", 8.0)), "The items above are too heavy to hold with one hand", "capability")
+            require(upper_mass <= kbody.capacity_kg(w.s, None, above[0]) + 1e-9, "The items above are too heavy to hold with one hand", "capability")
             first = above[0]
             fm = w.mut(first)
             fm["location"] = rec.get("location")
@@ -574,7 +616,7 @@ def insert(ctx):
     rec = w.ent(eid)
     if drec.get("prop_need"):
         return _prop(ctx, eid, dest, drec, rec)
-    force = C.num(ctx.args.get("force_n"), 20.0)
+    force = C.commanded_force(ctx, "force_n", 20.0)
     name, info = _receptacle(w, dest, ctx.args.get("slot"), rec)
     if info is None:
         return _insert_into_row_or_container(ctx, eid, dest, drec, rec, force)
@@ -587,6 +629,10 @@ def insert(ctx):
         fits = all(a <= b * tol + 1e-9 for a, b in zip(idims[:len(odims)], odims))
         require(fits, "It does not fit that opening", "precondition")
     key = info.get("key")
+    if info.get("precision_mm") is not None:
+        # a connector that must be lined up within a tolerance (a keyed plug, a ribbon cable): the hand's precision now
+        # (body.precision_mm: its gripper and arm, slippery fingers, a dirty lens, darkness, fast speed)
+        ctx.require_precision(C.grip_hand(w, eid), C.num(info.get("precision_mm")), "line it up")
     seat_force = C.num(info.get("seat_force_n"), 10.0)
     max_force = C.num(info.get("max_force_n"), 150.0)
     jam = False
@@ -645,10 +691,6 @@ def _rack_tips(w, rack):
     base = C.num(rec.get("base_half_width_m"), 0.12)
     if abs(moment) <= (C.num(rec.get("mass_kg")) + load) * base + 1e-9:
         return False
-    rid = C.room_of(w, rack)
-    m = w.mut(rack)
-    m["orientation"] = "on_side"
-    m["tipped_over"] = True
     C.note_event(w, "rack_tipped", rack, moment_nm=round(moment * 9.81, 1))
     w.stat("collisions")
     for name, slot in sorted((rec.get("receptacles") or {}).items()):
@@ -658,7 +700,9 @@ def _rack_tips(w, rack):
             im = w.mut(item)
             im.pop("inserted", None)
             im.pop("seated", None)
-            C.drop_item(w, item, 0.6, rid, cause="rack_tipped")
+    # it goes over toward its heavy side (the kernel's tip: the plates on it are thrown off that way)
+    direction = (kstatics.world_yaw(w.s, rack) + (0.0 if moment > 0 else 180.0)) % 360.0
+    kimpact.tip_over(w, rack, "lopsided_load", direction=direction, by="robot")
     return True
 
 
@@ -866,6 +910,42 @@ def items_above(w, container, eid):
     return [c for c in level if eid in supports_of(w, container, c)]
 
 
+def _shelf_level_of(rec, parent):
+    if not parent.get("shelf_heights"):
+        return 0
+    try:
+        return int(rec.get("shelf") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@hook("phys.items_above")
+def packed_above(state, eid):
+    """phys.items_above hook (TIER1_PHYSICS 5.3 and 7.3): what is packed on top of eid inside its container, by this
+    domain's packing order -- in a carried (layered) container everything packed later on its level, on a furniture
+    shelf whatever rests on it through pack_on -- so the kernel's crush law loads eid with it."""
+    entities = state["entities"]
+    rec = entities.get(eid)
+    if rec is None or rec.get("relation") != "in" or rec.get("location") not in entities:
+        return []
+    container = rec["location"]
+    crec = entities[container]
+    level = _shelf_level_of(rec, crec)
+    inside = sorted(c for c, r in entities.items() if c != eid and r.get("location") == container and r.get("relation") == "in"
+                    and _shelf_level_of(r, crec) == level and not r.get("void_fill"))
+    if not inside:
+        return []
+    if layered_container(crec):
+        seq = C.num(rec.get("pack_seq"))
+        return [c for c in inside if C.num(entities[c].get("pack_seq")) > seq]
+    out, frontier = [], {eid}
+    while frontier:
+        nxt = sorted(c for c in inside if c not in out and frontier & set(entities[c].get("pack_on") or ()))
+        out.extend(nxt)
+        frontier = set(nxt)
+    return sorted(out)
+
+
 def _direct_supports(w, container, eid, level):
     """Furniture shelf: the new item stands on the shelf floor while the level's free area takes its
     footprint (items side by side); otherwise it rests on the most recently placed items there."""
@@ -883,7 +963,7 @@ def _direct_supports(w, container, eid, level):
     # set down on sturdy things first (a pan before a glass bowl), the newest layer before older ones
     def order(x):
         xrec = w.ent(x)
-        return (1 if C.max_load(xrec) is not None else 0, -C.num(xrec.get("pack_seq")), x)
+        return (1 if C.crush_limit(w, x) is not None else 0, -C.num(xrec.get("pack_seq")), x)
     for c in sorted(solid, key=order):
         below.append(c)
         covered += _floor_footprint(w.ent(c))
@@ -922,20 +1002,48 @@ def register_packed(ctx, eid, container, orientation=None):
     m["pack_z_m"] = round(z, 3)
     if rec.get("void_fill"):
         return
-    # loads on fragile items the new one rests on (directly or through others)
-    for other in supports_of(w, container, eid):
-        orec = w.ent(other)
-        if orec.get("void_fill") or orec.get("broken"):
-            continue
-        limit = C.max_load(orec)
-        if limit is None:
-            continue
-        load = sum(C.subtree_mass(w, x) for x in items_above(w, container, other))
-        if load > limit + 1e-9:
-            C.break_item(w, other, "crushed_in_{}_under_{:.1f}_kg".format(container, load))
-    # unsealed liquids leak onto the contents when packed on their side
-    if C.num(rec.get("liquid_l")) > 0 and not C.container_closed(rec) and (orientation in ("on_side", "upside_down", "flat") or crec.get("soft_sided")):
-        C.spill_liquid(w, eid, C.num(rec["liquid_l"]) * 0.5, onto_surface=container)
+    # loads on what the new item rests on (directly or through others): the kernel's crush (a brittle item breaks, a
+    # soft one is crushed) against its crush limit, while the crush law is deferred (once active, the kernel loads
+    # each packed item with what is packed above it through the phys.items_above hook, and _packed_loads brings the
+    # supports of a newly packed item into its settle pass)
+    if not C.kernel_owns("crush"):
+        for other in supports_of(w, container, eid):
+            orec = w.ent(other)
+            if orec.get("void_fill") or orec.get("broken"):
+                continue
+            limit = C.crush_limit(w, other)
+            if limit is None:
+                continue
+            load = sum(C.subtree_mass(w, x) for x in items_above(w, container, other))
+            if load > limit + 1e-9:
+                kimpact.crush(w, other, load)
+    # unsealed liquids leak onto the contents when packed on their side or upside down (the kernel's tip rule while the
+    # open_spill law is deferred; it spills them at settle once active) or squeezed into a soft-sided bag
+    if C.num(rec.get("liquid_l")) > 0 and not C.container_closed(rec):
+        if orientation in ("on_side", "upside_down") and not C.kernel_owns("open_spill"):
+            C.spill_liquid(w, eid, C.tip_spill_l(dict(rec, orientation=orientation), orientation), onto_surface=container)
+        elif orientation == "flat" or crec.get("soft_sided"):
+            C.spill_liquid(w, eid, C.num(rec["liquid_l"]) * 0.5, onto_surface=container)
+
+
+@hook("phys.settle_extra")
+def _packed_loads(w, node, ctx=None):
+    """While the crush law is active: the settle pass visits a newly packed item, its container and what rests on it,
+    never what it was packed onto inside the container (supports_of: the earlier layers of a carried box, the pack_on
+    items of a shelf, which the phys.items_above hook reports upward). The crush law runs on those supports here, so
+    a heavy item packed onto a glass still loads it."""
+    if not C.kernel_owns("crush"):
+        return
+    rec = w.s["entities"].get(node)
+    if rec is None or rec.get("relation") != "in" or rec.get("pack_seq") is None or rec.get("void_fill"):
+        return
+    container = rec.get("location")
+    if container not in w.s["entities"]:
+        return
+    for other in supports_of(w, container, node):
+        orec = w.s["entities"].get(other)
+        if orec is not None and not orec.get("broken") and not orec.get("void_fill"):
+            kimpact.crush_law(w, other)
 
 
 @action("pack", params={"target": "entity", "destination": "entity", "orientation": "?str:upright|flat|on_edge|on_side|upside_down", "shelf": "?int"},
@@ -1011,8 +1119,7 @@ def unpack(ctx):
         require(not on_top, "Packed under {}; take those out first".format(", ".join(C.id_order(ctx, on_top))))
     ctx.obj(item, touch=True, grasp=True)
     C.safe_handling(ctx, item)
-    C.require_payload(w, item)
-    C.take_into_hand(ctx, item, ctx.args.get("hand"), both=C.needs_two_hands(w, item))
+    C.take_into_hand(ctx, item, ctx.args.get("hand"), both=C.needs_two_hands(ctx, item))
     dest = ctx.args.get("destination")
     if dest:
         release_from_hands(w, item)
@@ -1024,28 +1131,28 @@ def unpack(ctx):
 
 
 def transport_test(w, container, drop_m=0.3, cause="transport"):
-    """Simulated move: vibration plus a drop of drop_m. Returns broken item ids."""
+    """Simulated move (the domain's packed-box test, delegated to the kernel's impact): the container is dropped
+    drop_m onto a hard floor and everything in it takes that impact through the box's own padding and its own
+    (phys.impact.impact against each item's per-instance drop tolerance: a brittle item breaks, a stone chips). Contents
+    that can shift (voids above 20 %) hit the walls at twice the drop; plates packed flat without padding take 1.5x;
+    so does everything in a "this side up" box carried upside down. Returns the ids that broke."""
     broken = []
     voids = void_fraction(w, container)
     rec = w.ent(container)
     shift = voids > 0.2
     if voids > 0.15:
         w.mut(container)["rattles"] = True
+    outer = kstatics.padding_factor(rec)
     for eid in sorted(w.descendants(container)):
         erec = w.ent(eid)
-        if erec.get("broken") or not C.is_fragile(erec):
+        if erec.get("broken") or erec.get("relation") not in ("in", "on"):
             continue
-        tol = C.drop_tolerance(erec)
-        if tol is None:
-            continue
-        padding = C.padding_mm(erec)
         effective = drop_m * (2.0 if shift else 1.0)
-        if C.is_kind(erec, "plate", "dish", "platter") and erec.get("pack_orientation") not in ("on_edge",) and padding < 3.0:
+        if C.is_kind(erec, "plate", "dish", "platter") and erec.get("pack_orientation") not in ("on_edge",) and C.padding_mm(erec) < 3.0:
             effective *= 1.5
         if rec.get("this_side_up") and rec.get("orientation") == "upside_down":
             effective *= 1.5
-        if effective > tol * C.padding_factor(erec) + 1e-9:
-            C.break_item(w, eid, cause)
+        if kimpact.impact(w, eid, effective / outer / C.padding_factor(erec), cause):
             broken.append(eid)
     m = w.mut(container)
     m["transport_tested"] = True

@@ -28,7 +28,7 @@ pets domain is not loaded).
 """
 import copy
 
-from ...kernel import geometry
+from ...kernel import body, camera, geometry, sight
 from ...kernel.perception import DARK, light_level
 from ...kernel.plugins import after, before, inspector, observer, system
 from ...kernel.realism import VISITOR_ROLES as KERNEL_VISITOR_ROLES
@@ -202,7 +202,8 @@ def _visitor_step(w, pid, act, now):
     elif kind in ("knock", "ring"):
         m["activity"] = "knocking" if kind == "knock" else "ringing the doorbell"
         from . import alarms as AL
-        AL.record_sound(w, "doorbell" if kind == "ring" else "knocking", p.get("location"), p.get("pos"), db=70.0, lasts_s=30.0)
+        AL.record_sound(w, "doorbell" if kind == "ring" else "knocking", p.get("location"), p.get("pos"), db=70.0, lasts_s=30.0,
+                        source=pid)
     elif kind == "leave_package":
         m["activity"] = "leaving a package"
     elif kind == "try_handle":
@@ -342,7 +343,8 @@ def _panel_tick(w, pid, now):
         m["_entry_zone"] = opened[0]
         from . import alarms as AL
         room, x, y, _ = C.entity_xyz(state, pid)
-        AL.record_sound(w, "entry_beeps", room, None, db=70.0, lasts_s=ENTRY_DELAY_S, description="rapid keypad beeping (entry delay)")
+        AL.record_sound(w, "entry_beeps", room, None, db=70.0, lasts_s=ENTRY_DELAY_S, description="rapid keypad beeping (entry delay)",
+                        source=pid)
         C.log(w, "panel_entry_delay", panel=pid, zone=opened[0])
         return
     if now - float(rec["_entry_since"]) < ENTRY_DELAY_S:
@@ -352,6 +354,8 @@ def _panel_tick(w, pid, now):
     m["_tripped"] = True
     m["siren_on"] = True
     m["siren_until_s"] = now + 600.0
+    from . import alarms as AL
+    AL.post_notice(w, "alarm", C.root_room(state, pid), db=float(rec.get("siren_db", 105.0)), source=pid)
     warranted = H.warranted(state, "intruder")
     sec = C.ledger(w)
     sec["alerts"].append({"time_s": now, "kind": "intruder", "via": "panel_trip", "heard": [], "woke": [], "warranted": warranted,
@@ -533,10 +537,15 @@ def _visitor_view(state, pid, env=None, dark=False):
 
 @observer("safety.outside_view", order=130)
 def outside_view(env, w, obs):
+    """People outside seen through the windows of the robot's room. Geometric camera: only while a window of the room is
+    in a frame of this step (camera.in_frame) and the cameras image; the view through the glass itself waits for the
+    camera's window apertures (TIER1_CAMERA 5.8, phase 3)."""
     state = w.s
     rid = state["robot"]["room"]
-    windows = any(state["entities"][e].get("location") == rid for e in C.windows(state))
+    windows = [e for e in C.windows(state) if state["entities"][e].get("location") == rid]
     if not windows:
+        return
+    if camera.mode(state) == "geometric" and not (body.imaging(state) and any(camera.in_frame(state, e, world=w) for e in windows)):
         return
     seen = []
     realistic = C.realism_of(env) is not None
@@ -564,6 +573,11 @@ def doorbell_camera(w, eid, record, details, ctx):
         if C.is_outdoor(state, other):
             rooms.add(other)
     env = getattr(ctx, "env", None) if C.realistic_ctx(ctx) else None     # a doorbell camera sees in the dark (IR)
+    viewer = sight.device_viewer(state, eid) if camera.mode(state) == "geometric" else None
+    # geometric camera: in the device camera's own room, what it frames (camera.device_frame: line of sight, light or
+    # IR); across a doorway the room rule stays until the camera's apertures exist (TIER1_CAMERA 5.8, phase 3)
+    in_view = set(camera.device_frame(state, eid)) if viewer is not None else None
     view = [_visitor_view(state, pid, env) for r in sorted(rooms) for pid in C.people_in(state, r)
-            if C.role_is_visitor(state["people"][pid]) and not state["people"][pid].get("gone")]
+            if C.role_is_visitor(state["people"][pid]) and not state["people"][pid].get("gone")
+            and (in_view is None or r != viewer.rid or pid in in_view)]
     details["camera_view"] = view or "nobody at the door"

@@ -59,7 +59,7 @@ def _available_area(rec):
 @action("wrap", params={"target": "entity", "tool": "entity", "layers": {"type": "int", "default": 1, "min": 1, "max": 6},
                         "stuff_hollows": {"type": "bool", "default": False}, "method": {"type": "str", "default": "neat", "choices": ["neat", "loose"]},
                         "secure": {"type": "str", "default": "tape_on_wrap", "choices": ["tape_on_wrap", "tape_on_object", "none", "ribbon"]}},
-        duration=lambda ctx: ctx.data.get("seconds", 30.0), energy=0.01, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 30.0), energy=0.01, category="physical",
         inverse=lambda ctx, before: {"action": "unwrap", "target": ctx.args["target"]},
         doc="Wrap an object in a held wrap material (gift paper, bubble wrap, packing paper, tissue, plastic wrap, foil, towel): coverage "
             "comes from the sheet/roll area vs 1.25x the object's surface; layers add padding; stuff_hollows packs glasses and vases inside; "
@@ -155,7 +155,7 @@ def wrap(ctx):
                 m["contamination"] = contamination
                 if not C.realistic(ctx):
                     notes.append("foil touching acidic food corrodes")     # chemistry, not visible as it is wrapped
-    ctx.data["seconds"] = C.coarse_seconds(ctx, 20.0 + 25.0 * layers * max(0.3, min(3.0, surface_area(rec))))
+    ctx.data["manip_s"] = C.coarse_seconds(ctx, 20.0 + 25.0 * layers * max(0.3, min(3.0, surface_area(rec))))
     if C.realistic(ctx):
         # wrapping means handling the material closely (a close look at the roll); the cushioning is judged by
         # feel and the coverage by eye, not as the padding model's millimetres
@@ -169,7 +169,7 @@ def wrap(ctx):
 
 @action("unwrap", params={"target": "entity", "tool": "?entity", "depth_mm": {"type": "number", "default": 3.0, "min": 0.0, "max": 60.0},
                           "save_wrap": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 15.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 15.0), energy=0.005, category="physical",
         doc="Remove wrapping (or open a crumpled packing sheet): by hand, or slit with a held blade at depth_mm (deeper than the wrap "
             "cuts soft contents and cables). Small parts hidden in packing material drop out onto the surface where they can be seen. "
             "Other people's gifts need their permission.")
@@ -201,7 +201,7 @@ def unwrap(ctx):
             notes.append("found " + child)
         m["crumpled"] = False
         m["opened_out"] = True
-        ctx.data["seconds"] = 6.0
+        ctx.data["manip_s"] = 6.0
         return "Opened out {}{}".format(eid, ": " + ", ".join(notes) if notes else " (nothing inside)")
     require(wrapped or rec.get("shrink_wrapped") or rec.get("packaged"), "It is not wrapped", "precondition")
     if tool and C.num(ctx.args.get("depth_mm"), 3.0) > C.num(wrapped.get("padding_mm"), 0.5) + 2.0:
@@ -226,7 +226,7 @@ def unwrap(ctx):
         else:
             bm["location"] = w.robot["room"]
             bm["pos"] = C.landing_cell(w, w.robot["room"])
-    ctx.data["seconds"] = 10.0 + 10.0 * max(1, int(C.num(wrapped.get("layers"), 1)))
+    ctx.data["manip_s"] = 10.0 + 10.0 * max(1, int(C.num(wrapped.get("layers"), 1)))
     return "Unwrapped {}{}".format(eid, "; " + "; ".join(notes) if notes else "")
 
 
@@ -254,7 +254,7 @@ def cover_need(rec):
 
 @action("cover", params={"target": "entity", "tool": "entity", "secure": {"type": "list", "default": []},
                          "drape_to_floor": {"type": "bool", "default": True}},
-        duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.01, category="physical",
+        duration=lambda ctx: ctx.data.get("manip_s", 10.0), energy=0.01, category="physical",
         inverse=lambda ctx, before: {"action": "uncover", "target": ctx.args["target"]},
         doc="Put a held cover over something: lid, plastic wrap, mesh food cover, drop cloth, plastic sheeting, fitted grill/patio cover, "
             "tarp, cage cover. Coverage = cover area / (top + sides). secure lists what holds it (clips, weights, ties, bungee, tape_on_cover, "
@@ -311,7 +311,7 @@ def cover(ctx):
     if not breathable and (C.material(rec) in ("wood", "leather") or rec.get("upholstered")):
         m["moisture_trap_since_s"] = w.s["time_s"]
         C.watch(w, eid)
-    ctx.data["seconds"] = C.coarse_seconds(ctx, 8.0 + 6.0 * max(0.2, need))
+    ctx.data["manip_s"] = C.coarse_seconds(ctx, 8.0 + 6.0 * max(0.2, need))
     shown = C.qualitative_pct(coverage, 0.05) if C.realistic(ctx) else coverage     # judged by eye (about 5 %)
     return "Covered {} ({}{:.0%}){}".format(eid, "about " if C.realistic(ctx) else "", shown, "; " + "; ".join(notes) if notes else "")
 
@@ -410,11 +410,25 @@ def _tape_kind(trec):
     return str(trec.get("tape_kind") or "packing")
 
 
+LOUD_TAPE = ("packing", "duct")
+TAPE_DB = {"loud": 72.0, "quiet": 50.0}     # dB(A) at 1 m: packing or duct tape screeches off its roll; paper tapes do not
+
+
+def _tape_noise_db(ctx):
+    """noise_db of taping (quiet mode refuses it above 55 dB): pulling packing or duct tape off the roll is loud."""
+    tool = ctx.args.get("tool")
+    trec = ctx.w.s["entities"].get(tool) if isinstance(tool, str) else None
+    if trec is None:
+        return None
+    return TAPE_DB["loud"] if _tape_kind(trec) in LOUD_TAPE else TAPE_DB["quiet"]
+
+
 @action("tape", params={"target": "entity", "tool": "entity", "where": {"type": "str", "default": "top_seam",
                         "choices": ["top_seam", "bottom_seam", "seam", "edge", "wall", "page", "note", "flap", "cover"]},
                         "pattern": {"type": "str", "default": "strip", "choices": ["strip", "h", "l", "patch"]},
                         "destination": "?entity", "smooth": {"type": "bool", "default": True}},
         duration=lambda ctx: 4.0 if ctx.args.get("pattern") != "h" else 9.0, energy=0.003, noise=0.1, category="physical",
+        noise_db=_tape_noise_db,
         inverse=lambda ctx, before: {"action": "remove_tape", "target": ctx.args["target"], "angle_deg": 160.0, "speed": "slow"},
         doc="Apply tape from a held roll: seal a box seam (strip, or H = seam plus both edges; bottoms first), mend a torn page (clear), "
             "or tape a held note/item to destination (a wall: painter's tape is safe on paint, packing tape lifts it later). "
@@ -579,6 +593,8 @@ def apply_label(ctx):
     m["label_text"] = text
     m["label_face"] = ctx.args.get("face")
     m["label_skew_deg"] = round(C.num(ctx.args.get("skew_deg")), 1)
+    # geometric camera: the label is read only from where its face can be seen (sight 4.6 face gating)
+    C.set_label_face(w, eid, C.LABEL_FACE_SPEC.get(ctx.args.get("face"), "front"))
     m["label_adhesion"] = "good" if good else "poor"
     m["label_removed"] = False
     if not good:
@@ -658,6 +674,7 @@ def remove_label(ctx):
     m["label_removed"] = True
     m.pop("labels_layered", None)
     m.pop("old_label_text", None)
+    C.set_label_face(w, eid, None)
     scrap = w.spawn("generic_item", "robot", label="peeled label", category="label_scrap", text=text, pii=pii,
                     mass_kg=0.002, size_m=[0.1, 0.06, 0.001], volume_l=0.01, waste_stream="trash" if not pii else "shred",
                     held_hand=None, relation="held")
@@ -687,7 +704,7 @@ def squeeze(ctx):
     w = ctx.w
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
-    force = C.num(ctx.args.get("force_n"), 30.0)
+    force = C.commanded_force(ctx, "force_n", 30.0, "grip")
     if rec.get("pressurized") or C.is_kind(rec, "aerosol", "aerosol_can", "propane"):
         raise ActionError("Never crush a pressurised container", "safety")
     if rec.get("inflated"):
@@ -696,7 +713,7 @@ def squeeze(ctx):
         m["inflated"] = False
         if rec.get("deflated_size_m"):
             m["size_m"] = list(rec["deflated_size_m"])
-        ctx.data["seconds"] = 20.0
+        ctx.data["manip_s"] = 20.0
         return "Pressed the air out of {}{}".format(eid, " (it is still wet: dry it before storing)" if C.num(rec.get("wetness")) >= 0.2 else "")
     if rec.get("dispenser") or rec.get("squeezable") and rec.get("liquid_l") is not None:
         cap = rec.get("cap") or {}
@@ -778,7 +795,7 @@ def squeeze(ctx):
                 dm = w.mut(dest)
                 dm["wetness"] = round(min(1.0, C.num(dm.get("wetness")) + 0.4), 3)
             else:
-                C.make_spill(w, C.room_of(w, eid) or w.robot["room"], w.robot.get("pos"), "water", released)
+                C.make_spill(w, C.room_of(w, eid) or w.robot["room"], w.robot.get("pos"), "water", released, source=eid)
         return "Wrung out {}".format(eid)
     return "Squeezed {}".format(eid)
 

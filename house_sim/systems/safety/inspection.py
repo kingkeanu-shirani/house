@@ -17,20 +17,26 @@ Reports: core `report target field value [to]` is scored against hidden truth fo
 safety.findings[target][field] = {"value", "correct"}; wrong claims go to safety.report_errors (false alarms count when
 a hazard/defect is claimed where there is none). Truth: _defects, `_hazard` {"kind", "urgency", "severity", ...},
 detector alarm patterns, odor sources `_odor.class`, `_species_true`, `_true_kind`.
-Consequences: walking onto a compromised structural_section (rotten deck, loose tread) collapses it (robot falls,
-damage); entering a flooded room with energized equipment (`_energized_water`) shocks the robot; loading or pressing a
-cracked glass top (`_defects` crack) makes it shatter; scrubbing/dusting/vacuuming mold releases spores.
+Consequences: walking onto a compromised structural_section (rotten deck, loose tread) collapses it when the robot
+with what it carries (body.total_mass_kg) is over its hidden load limit: the robot falls through where it gave way
+(body_faults.fall from the section's fall height; the walk is cut there, so it pays only for what it walked), damage;
+entering a flooded room with energized equipment (`_energized_water`) shocks the robot (an actuator fault); loading or
+pressing a cracked glass top (`_defects` crack) makes it shatter; scrubbing/dusting/vacuuming mold releases spores.
 """
 import json
 
-from ...kernel import geometry
+from ...kernel import body, body_faults, geometry
 from ...kernel.perception import light_level, flashlight_on
 from ...kernel.plugins import after, inspector
 from . import alarms as AL
 from . import common as C
 from . import hazards as H
 
-ROBOT_MASS_KG = 60.0
+# how far the robot drops when a compromised section gives way under it (m): a leg through a deck board drops the body
+# about half a metre, a broken stair tread one riser, a floor bay a joist depth; a record's fall_height_m wins
+FALL_HEIGHT_M = {"deck_section": 0.5, "deck": 0.5, "deck_board": 0.5, "stair_tread": 0.2, "stairs": 0.2, "floor": 0.3,
+                 "floor_section": 0.3, "landing": 0.3}
+DEFAULT_FALL_HEIGHT_M = 0.3
 SAFETY_FIELDS = ("defect", "hazard", "severity", "urgency", "anomaly", "smell", "alarm", "alarm_type", "cause", "species",
                  "substance", "crack_class", "product", "condition", "event", "self_close", "self_latch", "unlabeled", "source",
                  "trend", "depth_cm", "trapped")
@@ -360,6 +366,25 @@ def _structure_at(state, rid, cell):
     return None
 
 
+def fall_height_m(rec):
+    """How far the robot drops through a section that gives way (record fall_height_m, else by structure_kind)."""
+    if rec.get("fall_height_m") is not None:
+        return float(rec["fall_height_m"])
+    return FALL_HEIGHT_M.get(rec.get("structure_kind"), DEFAULT_FALL_HEIGHT_M)
+
+
+def _walked_to(ctx, cell):
+    """Meters of this action's motion record up to (and onto) cell, or None without a record or when the record did
+    not pass the cell."""
+    record = ctx.data.get("motion")
+    if not isinstance(record, dict) or record.get("start") is None:
+        return None
+    cells = [tuple(record["start"])] + [tuple(c) for c in record.get("path") or ()]
+    if tuple(cell) not in cells:
+        return None
+    return geometry.path_length_m(cells[:cells.index(tuple(cell)) + 1])
+
+
 def _walk_load(name):
     @after(name, order=75)
     def hook(ctx, result):
@@ -369,27 +394,32 @@ def _walk_load(name):
         rid = ctx.data.get("from_room") if name == "move" else w.robot["room"]
         if rid not in state["rooms"]:
             return
+        load = body.total_mass_kg(w)            # the robot and everything it carries
         for cell in path:
             sid = _structure_at(state, rid, cell)
             if sid is None:
                 continue
             rec = state["entities"][sid]
             limit = float(rec.get("_load_limit_kg", rec.get("load_rating_kg", 300.0)))
-            if ROBOT_MASS_KG > limit:
+            if load > limit:
                 m = w.mut(sid)
                 m["collapsed"] = True
                 m["broken"] = True
                 m["condition"] = "broken through"
-                r = w.robot_m()
-                r["fallen"] = True
-                w.stat("falls")
+                meters = _walked_to(ctx, cell)
+                if meters is not None:
+                    ctx.cut_motion(meters, "structure_collapse")
+                body_faults.fall(w, "structure_collapse", room=rid, cell=list(cell), height_m=fall_height_m(rec))
                 C.harm(w, "loaded_compromised_structure", stat="damage", element=sid)
+                ctx.note("The {} gave way under the robot".format(sid))
                 return
         if name == "move":
             room = state["rooms"].get(w.robot["room"], {})
             if room.get("_energized_water") and float(room.get("_flood_cm", 0.0)) > 0:
                 C.harm(w, "entered_energized_flood_water", stat="electrical_hazard", room=w.robot["room"])
                 w.stat("damage")
+                # current through the feet: the drive electronics fail (an actuator fault: no motion until serviced)
+                body_faults.add_fault(w, "actuator_failed", source="electric_shock")
     hook.__name__ = "load_" + name
     return hook
 

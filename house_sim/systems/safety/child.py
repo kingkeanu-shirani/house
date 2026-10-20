@@ -20,10 +20,11 @@ harm (injury/burns/electrical_hazard/falls) logged in safety.child_contacts. Wit
 breakables in reach and knocks them down: glass/ceramic shatters into a shard field at the child's feet (damage), other
 fragile items break (damage).
 """
-from ...kernel import geometry
+from ...kernel import geometry, physics
 from ...kernel.plugins import system
 from . import chemicals as CH
 from . import common as C
+from . import events as E
 
 FRAGILE_MATERIALS = ("glass", "ceramic", "porcelain", "crystal", "stoneware", "earthenware")
 
@@ -258,6 +259,9 @@ def _explore_step(w, pid, cfg):
         if near:
             m["pos"] = list(near)
     severe = [k for k in kinds if HARM_STATS.get(k)]
+    if "tip_over" in severe and physics.law_active("furniture_tip") and eid in state["entities"] and \
+            not E.pull_tips(state, eid):
+        severe.remove("tip_over")       # the kernel's pull: this piece does not overturn under a climbing child
     sec = C.ledger(w)
     contacts = sec.setdefault("child_contacts", [])
     contacts.append({"time_s": C.now(state), "child": pid, "item": eid, "kinds": list(kinds)})
@@ -267,9 +271,12 @@ def _explore_step(w, pid, cfg):
         if kind.startswith("fall_"):
             w.stat("falls")
         if kind == "tip_over" and eid in state["entities"]:
-            fm = w.mut(eid)
-            fm["orientation"] = "tipped"
-            fm["tipped_over"] = True
+            if physics.law_active("furniture_tip"):
+                E.tip_over(w, eid, cause=E.CHILD_PULL)      # kernel tip: contents fall, whoever is in front is pinned
+            else:
+                fm = w.mut(eid)
+                fm["orientation"] = "tipped"
+                fm["tipped_over"] = True
         break
     if not severe and "fragile" in kinds and eid in state["entities"]:
         knock_down(w, eid, pid)

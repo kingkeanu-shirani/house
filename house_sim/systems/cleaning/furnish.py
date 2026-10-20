@@ -85,10 +85,14 @@ def _place_small(p, surfaces, type_name, **props):
     return None
 
 
-def _holder_cell(p, rid):
+def _holder_cell(p, rid, along_wall=False):
     """A wall cell for the tool rail: the tools hang from 1.2 m down to the floor, so never a doorway, never in the
     doorway clearance (a door leaf would swing into the brooms), not behind floor-standing things (they would hang
-    into a cabinet) and next to floor the robot can reach. None if the room has no such wall."""
+    into a cabinet) and next to floor the robot can reach. Returns (cell, rot) or None if the room has no such wall.
+    along_wall (generation 2): the 0.6 m rail lies flat along the wall of its cell (place.wall_layouts), never
+    sticking straight out into the room as the type's own orientation does on a west or east wall; generation 1 keeps
+    its pinned layouts."""
+    from ...generator.place import wall_layouts
     state = p.state()
     room = p.c["rooms"][rid]
     cols, rows = geometry.grid_size(room)
@@ -103,17 +107,32 @@ def _holder_cell(p, rid):
                   {(cols - 1, y) for y in range(rows)})
     options = []
     for c in wall:
-        cells = geometry.footprint(dict(rail, pos=list(c)))      # the whole rail, not just its anchor cell
-        if all(geometry.in_grid(room, x) and x not in taken for x in cells) and any(geometry.chebyshev(c, r) <= 1 for r in reach):
-            options.append(c)
-    return list(p.rng.choice(options)) if options else None
+        layouts = wall_layouts(room, rail, c) if along_wall else [(c, rail.get("rot"))]
+        for pos, rot in layouts:
+            cells = geometry.footprint(dict(rail, pos=list(pos), rot=rot or 0))      # the whole rail, not just its anchor
+            if not all(geometry.in_grid(room, x) and x not in taken for x in cells):
+                continue
+            # reachable: generation 1 keeps its anchor-cell test (pinned layouts); a rail along the wall needs one of
+            # its cells next to floor the robot reaches
+            near = cells if along_wall else [c]
+            if any(geometry.chebyshev(x, r) <= 1 for x in near for r in reach):
+                options.append((tuple(pos), rot))
+                break
+    if not options:
+        return None
+    pos, rot = p.rng.choice(options)
+    return list(pos), rot
 
 
-def _holder(p, rid, label="broom and mop holder"):
+def _holder(p, rid, label="broom and mop holder", along_wall=False):
     """A wall-mounted rail for long-handled tools (Placer.mount at an explicit _holder_cell). None if the room has no
     such wall."""
-    cell = _holder_cell(p, rid)
-    return p.mount(rid, "cleaning_tool_holder", cell=cell, label=label) if cell else None
+    found = _holder_cell(p, rid, along_wall=along_wall)
+    if not found:
+        return None
+    cell, rot = found
+    props = {"rot": rot} if along_wall and rot is not None else {}
+    return p.mount(rid, "cleaning_tool_holder", cell=cell, label=label, **props)
 
 
 def _hang(p, holder, type_name, **props):
@@ -139,6 +158,7 @@ def furnish_cleaning(config, rng, opts, registry):
     full = dict(DEFAULT_RULES)
     full.update(rules)
     dwelling = (opts.get("plan") or {}).get("dwelling", "house")
+    gen2 = int(opts.get("gen") or 1) >= 2
     if dwelling == "apartment" and full["compost"] == "backyard":
         full["compost"] = "municipal" if rng.random() < 0.5 else "none"
     household.setdefault("waste_rules", full)
@@ -238,7 +258,7 @@ def furnish_cleaning(config, rng, opts, registry):
 
         def holder_in(rid):
             if rid not in holders:
-                holders[rid] = _holder(p, rid)
+                holders[rid] = _holder(p, rid, along_wall=gen2)
             return holders[rid]
 
         def floor_somewhere(type_name, **props):
@@ -283,7 +303,7 @@ def furnish_cleaning(config, rng, opts, registry):
     garages = p.rooms("garage") + p.rooms("shed")
     if garages:
         rid = garages[0]
-        if not _hang(p, _holder(p, rid, label="broom holder"), "push_broom"):
+        if not _hang(p, _holder(p, rid, label="broom holder", along_wall=gen2), "push_broom"):
             _floor(p, rid, "push_broom")
 
     if dwelling == "apartment":

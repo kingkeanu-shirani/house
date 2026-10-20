@@ -17,7 +17,7 @@ around with go_to(avoid=[...]) or walk_to waypoints.
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.plugins import hook
 from . import common as C
 
@@ -135,7 +135,8 @@ def brush_fragile(rec):
     """A floor item that a passing body can knock over or break (a floor vase, a floor lamp, a LEGO build): fragile or
     topple-prone, not already broken, and free-standing. Rooted plants (trees, shrubs, hedges), anchored fixtures and
     other immovable things are not toppled by a brush, however fragile their twigs are."""
-    if not (rec.get("topple_prone") or rec.get("fragile")) or rec.get("broken") or rec.get("toppled"):
+    if not (rec.get("topple_prone") or rec.get("fragile")) or rec.get("broken") or rec.get("toppled") \
+            or rec.get("tipped_over"):
         return False
     if rec.get("rooted") or rec.get("anchored") or rec.get("mounted"):
         return False
@@ -325,6 +326,12 @@ SEEN_CELLS = 10          # 5 m: farther floor detail is not resolved
 
 PLAN_HIDDEN = "_nav_plan_hidden"   # robot field: sources whose margins the motion in progress cannot plan around
 
+# this domain's transient robot fields (kernel v3.0 field registry; underscore fields are never observed)
+body.register_robot_field(PLAN_EXCLUDE, None, "navigation_robot", "hidden",
+                          "Sources whose keep-out rings the motion in progress plans without (an approach's target)")
+body.register_robot_field(PLAN_HIDDEN, None, "navigation_robot", "hidden",
+                          "Mirrors and reflective panels the motion in progress takes for openings (realistic)")
+
 
 def looks_like_opening(rec):
     """A mirror or reflective glass panel: realistic perception shows it as an open doorway until it is inspected."""
@@ -391,12 +398,15 @@ def scrub_observation(env, state, obs):
                 return False       # replaced below by the posture-based ring (a fallen person stays person_down)
         return not (item.get("kind") == "glass" and item.get("source") in hidden)
     lying = []
+    geometric = C.geometric(state)
     if rid in state.get("rooms", {}) and not obs.get("dark"):
         room = state["rooms"][rid]
         for aid, pos in lying_agents(state, rid):
             agent = state.get("people", {}).get(aid) or state.get("pets", {}).get(aid) or {}
             if agent.get("concealed") and not agent.get("revealed"):
                 continue       # someone hidden (under a blanket fort, in a closet) is not seen, nor their ring
+            if geometric and not C.camera_sees(env, state, aid):
+                continue       # geometric camera: only someone its frames caught lying there
             for c in sorted(geometry.near_cells([pos], room, 1), key=lambda c: (c[1], c[0])):
                 lying.append({"cell": [c[0], c[1]], "kind": LYING_KIND, "source": aid})
     grid = obs.get("grid")
@@ -407,12 +417,24 @@ def scrub_observation(env, state, obs):
         room["floor_hazards"] = [h for h in room["floor_hazards"] if keep(h)]
 
 
-def visible_hazard(state, rid, c, h):
+def seen_cells(state, rid, world=None):
+    """Geometric camera: the floor cells of room rid this step's frames surveyed (camera.seen_floor); None with the
+    room camera (no such limit)."""
+    if not C.geometric(state):
+        return None
+    from ...kernel import camera
+    return {c for r, c in camera.seen_floor(state, world) if r == rid}
+
+
+def visible_hazard(state, rid, c, h, seen=None):
     """Realistic perception: can the robot see this floor hazard entry (from cell_map) from where it stands? Only in
     the robot's room, in light (or with its own light), never the invisible kinds; a water film without a puddle only
-    within FILM_SEEN_CELLS; a hazard owned by an entity only if the robot perceives that entity."""
+    within FILM_SEEN_CELLS; a hazard owned by an entity only if the robot perceives that entity. seen: with the
+    geometric camera, the cells its frames surveyed this step (seen_cells): a hazard elsewhere is not seen."""
     robot = state["robot"]
     if robot.get("room") != rid or h.get("kind") in INVISIBLE_KINDS:
+        return False
+    if seen is not None and C.cell(c) not in seen:
         return False
     if C.light_level(state, rid) < 0.2 and not C.robot_has_light(state):
         return False

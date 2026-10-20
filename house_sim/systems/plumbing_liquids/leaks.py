@@ -9,10 +9,14 @@ Leak source: any entity may carry a hidden `_leak` record:
            "pressurized_hose",
    "line": "hot" | "cold", "fixture": the fixture whose valves isolate it (default: the entity),
    "to": {"entity": cabinet id} | {"room": rid, "cell": [c, r]} | {"below": rid, "cell": [c, r], "stain": stain id}}
-Water from an active leak lands in a catch container sitting at the drip point (in the cabinet, or on the floor
-cell), else on the cabinet floor (moisture, then swelling particleboard), the room floor (a growing puddle that
-may sit downhill of the source: slope), or soaks a ceiling below (a growing stain that starts dripping after
-~2 L). Water damage accrues on what gets wet; crossing 0.3 counts one `damage`.
+While a spray-rate leak (2 L/min and more) runs its host shows `leaking: true` (the kernel's glance tier: a burst
+sprays where anyone looking sees it; the report vocabulary's leak evidence); a slow leak shows only to a close look
+(the inspector) and by the wet things around it. A repaired leak (`fixed`) stops and the flag goes. Water from an active leak lands in a catch container
+sitting at the drip point (in the cabinet, or on the floor cell), else on the cabinet floor (moisture, then swelling
+particleboard), the room floor (a growing puddle that may sit downhill of the source: slope), or soaks a ceiling below
+(a growing stain that starts dripping after ~2 L). Water damage accrues on what gets wet; crossing 0.3 counts one
+`damage`. A leak that starts running is a notice (a spray hisses: "water_spray"; a slow leak drips: "drip") and a
+spray is a visual occurrence for the geometric camera.
 Condensation (`condensation_prone` cold pipes) sweats in humid rooms (>= 55 % RH): wet to the touch, no drip
 point, no growing puddle - not a leak.
 Drips from wet things (`drip_lpm`, e.g. a watered plant pot, a dripping umbrella) land on whatever the item
@@ -22,8 +26,12 @@ misses part of it; a food-contact catcher (baking sheet) gets contaminated by so
 Cold drinks and wet items left directly on unsealed wood leave a water ring after ~30 min (coaster/tray prevents).
 Wet items closed in a cabinet/drawer/closet for an hour start to mildew.
 """
-from ...kernel import geometry, physics
-from ...kernel.plugins import after
+from ...kernel import camera, geometry, physics
+from ...kernel.actions import motion_record
+from ...kernel.phys import lawbook
+from ...kernel.phys import liquids as PL
+from ...kernel.phys import props as PP
+from ...kernel.plugins import HOOKS, after, hook
 from . import common as C
 from . import fixtures as F
 from . import liquids as L
@@ -98,11 +106,17 @@ def _catcher_at(w, rid, cell, inside=None):
     return None
 
 
+def absorb_cap_l(w, eid):
+    """Liters an item soaks up when saturated: the kernel's absorption capacity (phys.liquids.absorb_capacity_l of
+    its props: absorption per kg x dry mass; 0 for waterproof things and films)."""
+    return PL.absorb_capacity_l(PP.props(w.s, eid))
+
+
 def _absorber_at(w, rid, cell, inside=None):
     pool = w.children(inside) if inside is not None else [c for c in w.children(rid) if list(w.ent(c).get("pos") or []) == list(cell)]
     for child in pool:
         rec = w.ent(child)
-        if rec.get("material") in ABSORBENT_MATS and rec.get("portable") and C.num(rec.get("wetness")) < 0.95:
+        if rec.get("portable") and C.num(rec.get("wetness")) < 0.95 and absorb_cap_l(w, child) > 0:
             return child
     return None
 
@@ -133,11 +147,9 @@ def deliver_leak_water(w, eid, leak, liters_):
             liters_ = over["liters"]
         absorber = _absorber_at(w, None, None, inside=cab)
         if absorber:
-            rec = w.ent(absorber)
-            room = (0.95 - C.num(rec.get("wetness"))) * 0.6
-            take = min(liters_, room)
-            w.mut(absorber)["wetness"] = C.rnd(min(1.0, C.num(rec.get("wetness")) + take / 0.6), 3)
-            liters_ -= take
+            # a towel or rag stored under the sink soaks it up to saturation (the kernel's wet: wetness and moisture
+            # rise by liters / absorb_l, and phys.wetted hooks see it); the rest reaches the cabinet floor
+            liters_ -= PL.wet(w, absorber, liters_, "water", source=eid)
             if liters_ <= 1e-6:
                 return "absorbed"
         m = w.mut(cab)
@@ -163,7 +175,10 @@ def deliver_leak_water(w, eid, leak, liters_):
             accrue_damage(w, stain, liters_, material="drywall")
             if C.num(m["ceiling_water_l"]) < 2.0:
                 return "ceiling"
-            m["dripping"] = True
+            if not m.get("dripping"):
+                m["dripping"] = True
+                camera.visual_event(w, "plumbing_ceiling_drip", source=stain, size_m=0.05, emit=False)
+                C.notice(w, "drip", source=stain, room=rid)
         cell = to.get("cell") or [0, 0]
         catcher = _catcher_at(w, rid, cell)
         if catcher:
@@ -203,6 +218,41 @@ def leak_ids(w):
     return C.index(w, "leak_candidates", _leak_candidate)
 
 
+SPRAY_LPM = 2.0      # from about 2 L/min a leak sprays and hisses (a burst pipe, a snapped stem, a split hose)
+
+
+def leak_started(w, eid, leak):
+    """A leak starts running (pressure came on, a drain started flowing, a pipe burst): a spray is a visual
+    occurrence at the leak and a hiss (notice "water_spray", about 65 dB); a slow leak only drips ("drip", 45 dB),
+    too small for the camera to catch it happening."""
+    if C.num(leak.get("rate_lpm"), 0.05) >= SPRAY_LPM:
+        camera.visual_event(w, "plumbing_leak_spray", source=eid, size_m=0.5, emit=False)
+        C.notice(w, "water_spray", source=eid)
+    else:
+        C.notice(w, "drip", source=eid)
+
+
+def leaks_idle(w, cache):
+    """True when leak_step would change nothing: every leak record inactive (or repaired) and marked so. Pure."""
+    entities = w.s["entities"]
+    for eid in leak_ids(w):
+        rec = entities.get(eid)
+        if rec is None or not isinstance(rec.get("_leak"), dict):
+            continue
+        if rec.get("_leak_active") or rec.get("leaking"):
+            return False
+        leak = leak_of(rec)
+        if leak is not None and leak_active(w, eid, leak, cache) > 0:
+            return False
+    return True
+
+
+def drips_idle(w):
+    """True when drip_step would change nothing: no wet thing dripping (drip_lpm > 0). Pure."""
+    entities = w.s["entities"]
+    return not any(C.num((entities.get(eid) or {}).get("drip_lpm")) > 0 for eid in C.index(w, "drippers", _dripper))
+
+
 def leak_step(w, dt, cache):
     """Advance every active leak. Returns total pressurized leak flow (L/min) for the meter."""
     meter = 0.0
@@ -213,11 +263,24 @@ def leak_step(w, dt, cache):
             continue
         leak = leak_of(rec)
         if not leak:
+            if rec.get("_leak_active") or rec.get("leaking"):
+                m = w.mut(eid)               # repaired: it no longer leaks
+                m["_leak_active"] = False
+                m.pop("leaking", None)
             continue
         factor = leak_active(w, eid, leak, cache)
         active = factor > 0
-        if bool(rec.get("_leak_active")) != active:
-            w.mut(eid)["_leak_active"] = active
+        spraying = active and C.num(leak.get("rate_lpm"), 0.05) >= SPRAY_LPM
+        if bool(rec.get("_leak_active")) != active or bool(rec.get("leaking")) != spraying:
+            started = active and not rec.get("_leak_active")
+            m = w.mut(eid)
+            m["_leak_active"] = active
+            if spraying:
+                m["leaking"] = True          # a spray shows at a glance (kernel tier); a slow drip only to a close look
+            else:
+                m.pop("leaking", None)
+            if started:
+                leak_started(w, eid, leak)
         if not active:
             continue
         lpm = C.num(leak.get("rate_lpm"), 0.05) * factor
@@ -342,14 +405,18 @@ def drip_onto(w, eid, liters_, liquid, depth=0):
         if miss > 0:
             _onto_below(w, support, liters_ * miss, liquid, depth)
         return
-    if srec.get("material") in ABSORBENT_MATS or srec.get("absorbent"):
-        before = C.num(srec.get("wetness"))
-        m = w.mut(support)
-        m["wetness"] = C.rnd(min(1.0, before + liters_ / 0.3), 3)
+    if absorb_cap_l(w, support) > 0 or srec.get("material") in ABSORBENT_MATS or srec.get("absorbent"):
+        # an absorbent catcher (towel, cardboard, paper) soaks the drips up to saturation (the kernel's wet, by its
+        # absorption capacity), then they wick through to what is below
+        kept = PL.wet(w, support, liters_, liquid, source=eid) if absorb_cap_l(w, support) > 0 else 0.0
+        if kept <= 1e-9 and absorb_cap_l(w, support) <= 0:
+            before = C.num(srec.get("wetness"))
+            kept = min(liters_, max(0.0, 1.0 - before) * 0.3)          # no kernel capacity: a 0.3 L soak
+            w.mut(support)["wetness"] = C.rnd(min(1.0, before + kept / 0.3), 3)
         if srec.get("material") in ("cardboard", "paper"):
-            m["soggy"] = True
-        if before >= 0.95:
-            drip_onto(w, support, liters_ * 0.9, liquid, depth + 1)
+            w.mut(support)["soggy"] = True
+        if liters_ - kept > 1e-9:
+            drip_onto(w, support, liters_ - kept, liquid, depth + 1)
         return
     # not waterproof and not absorbent: the water sits on it (wood rings, electronics)
     m = w.mut(support)
@@ -483,50 +550,66 @@ def fallback_drying(w, dt):
 
 
 # ----------------------------------------------------------------------------------
-# carrying liquids (only when the manipulation domain's carry dynamics did not already run)
+# carrying liquids. The kernel owns carry slosh (law "carry", TIER1_PHYSICS 5.8): once the law is active its
+# action-phase settle sloshes what the robot carries and this domain's hook below does nothing. Until then (the law is
+# deferred) the hook applies the same model on the same motion record, and only when the manipulation (or climate)
+# carry model did not already run for the trip (their ctx.data["carry_slosh_applied"]; the flip retires the flag).
 
-MOTION = {"careful": 0.5, "normal": 1.0, "fast": 1.7}
+TRAY_CELL_D_M = 0.035        # an ice-tray cell: 3.5 cm across, 2.5 cm deep; each cell sloshes on its own
+TRAY_CELL_H_M = 0.025
+
+
+def slosh_capacity(rec):
+    return C.num(rec.get("cells"), 14) * C.num(rec.get("cell_ml"), 28.0) / 1000.0 if rec.get("ice_tray") else L.cap_l(rec)
 
 
 def slosh_spill_l(rec, motion):
+    """Liters an open container loses to slosh at a motion factor: the kernel's model (phys.liquids.slosh_spill_l:
+    amplitude 0.010 x motion x sqrt(D / 0.08) m above the headroom) on this domain's capacity (a basin's basin_l). An
+    ice tray sloshes cell by cell (a 3.5 cm cell under 2.5 cm walls), so the model runs on one cell and counts all."""
     have = L.liters(rec)
-    cap = L.cap_l(rec) if not rec.get("ice_tray") else C.num(rec.get("cells"), 14) * C.num(rec.get("cell_ml"), 28.0) / 1000.0
+    cap = slosh_capacity(rec)
     if have <= 0 or cap <= 0:
-        return 0.0
-    if rec.get("openable") and not rec.get("open", True):
         return 0.0
     if rec.get("lid") and rec.get("open") is False:
         return 0.0
-    size = rec.get("size_m") or [0.1, 0.1, 0.1]
-    inner = rec.get("inner_size_m") or [float(size[0]) * 0.9, float(size[1]) * 0.9, float(size[2]) * 0.9]
     if rec.get("ice_tray"):
-        diameter, height = 0.035, 0.025
-    else:
-        diameter, height = max(0.03, min(float(inner[0]), float(inner[1]))), max(0.02, float(inner[2]))
-    amplitude = 0.010 * motion * (diameter / 0.08) ** 0.5
-    headroom = max(0.0, (1.0 - have / cap) * height)
-    if amplitude <= headroom:
-        return 0.0
-    area = cap * 1e-3 / max(0.02, height)
-    return min(have, round((amplitude - headroom) * area * 1000.0 * 0.6, 4))
+        cells = max(1, int(C.num(rec.get("cells"), 14)))
+        cell = {"liquid": rec.get("liquid"), "liquid_l": have / cells, "capacity_l": cap / cells,
+                "size_m": [TRAY_CELL_D_M, TRAY_CELL_D_M, TRAY_CELL_H_M / 0.9], "ice_frac": rec.get("ice_frac"),
+                "open": rec.get("open", True), "openable": rec.get("openable")}
+        return min(have, round(PL.slosh_spill_l(cell, motion) * cells, 4))
+    view = dict(rec)
+    view["capacity_l"] = cap
+    return PL.slosh_spill_l(view, motion)
+
+
+def trip_motion(w, record):
+    """Gait motion factor of a trip (phys.liquids.carry_motion: the effective speed's factor times the
+    phys.carry_motion hooks). Until a domain registers that hook for stairs (navigation_robot's adoption), a flight
+    of stairs counts x1.8 here, as it will there."""
+    factor = PL.carry_motion(w, record)
+    if not HOOKS.get("phys.carry_motion"):
+        conn = w.s.get("connections", {}).get((record or {}).get("connection") or "", {})
+        if conn.get("kind") == "stairs" or (record or {}).get("stairs_up") or (record or {}).get("stairs_down"):
+            factor *= 1.8
+    return factor
 
 
 def _carry_hook(name):
     def hook_fn(ctx, result):
+        if lawbook.active("carry"):
+            return          # kernel owns it: the carry law in the action-phase settle
         if ctx.data.get("carry_slosh_applied"):
-            return
+            return          # manipulation's (or climate's) model already sloshed this trip
         w = ctx.w
         held = w.held_items()
         if not held:
             return
-        speed = ctx.args.get("speed") or w.robot.get("speed_mode", "normal")
-        motion = MOTION.get(speed, 1.0)
-        if name == "move":
-            conn = w.s.get("connections", {}).get(ctx.data.get("connection") or "", {})
-            if conn.get("kind") == "stairs":
-                motion *= 1.8
-        elif name == "approach":
-            motion *= 0.8
+        record = motion_record(ctx)
+        if not record or not (record.get("path") or record.get("from_room") != record.get("to_room")):
+            return
+        motion = trip_motion(w, record)
         for eid in held:
             rec = w.ent(eid)
             amount = slosh_spill_l(rec, motion)
@@ -543,12 +626,36 @@ def _carry_hook(name):
     return hook_fn
 
 
-def slosh_capacity(rec):
-    return C.num(rec.get("cells"), 14) * C.num(rec.get("cell_ml"), 28.0) / 1000.0 if rec.get("ice_tray") else L.cap_l(rec)
-
-
 for _name in ("move", "approach", "walk_to"):
     _carry_hook(_name)
+
+
+@hook("phys.settle_extra")
+def tray_follows_its_water(w, eid, ctx):
+    """An ice tray's cell fill follows its water when a kernel law moved it (the carry law sloshed it, the open_spill
+    law ran it out of a tilted tray): cell_fill stays liquid / cell capacity, and water that ran out of a tray resting
+    in a freezer is recorded where it froze (frozen_spill_l on the freezer or the shelf item it stands on), as the
+    domain's own tilt rule does. Runs on every node of every settle pass: returns at once for anything but a tray."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or not rec.get("ice_tray") or C.num(rec.get("frozen_frac")) >= 1.0:
+        return
+    cap = slosh_capacity(rec)
+    if cap <= 0:
+        return
+    have = L.liters(rec)
+    before = C.num(rec.get("cell_fill")) * cap
+    if abs(have / cap - C.num(rec.get("cell_fill"))) < 5e-4:
+        return
+    m = w.mut(eid)
+    m["cell_fill"] = C.rnd(have / cap, 3)
+    lost = before - have
+    loc = rec.get("location")
+    parent = w.s["entities"].get(loc) if isinstance(loc, str) else None
+    if lost > 1e-4 and parent is not None and loc != "robot":
+        holder = parent.get("location") if parent.get("portable") and parent.get("location") in w.s["entities"] else loc
+        if physics.ambient(w.s, eid)[0] <= 0.0:
+            hm = w.mut(holder)
+            hm["frozen_spill_l"] = C.rnd(C.num(hm.get("frozen_spill_l")) + lost, 4)
 
 
 # ----------------------------------------------------------------------------------

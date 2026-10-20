@@ -143,6 +143,28 @@ def pets_in(w, rid):
     return sorted(pid for pid, p in w.s.get("pets", {}).items() if p.get("location") == rid)
 
 
+class StateView(object):
+    """A read-only stand-in for the World over a bare state, for hooks that receive only the state (perceivable_value,
+    visible_floor_hazard): ent, children, root_room and robot; no static_index, so static_ids scans."""
+
+    def __init__(self, state):
+        self.s = state
+
+    def ent(self, eid):
+        return self.s["entities"][eid]
+
+    def children(self, eid):
+        return sorted(e for e, r in self.s["entities"].items() if r.get("location") == eid)
+
+    def root_room(self, eid):
+        from ...kernel.predicates import root_room
+        return root_room(self.s, eid)
+
+    @property
+    def robot(self):
+        return self.s["robot"]
+
+
 # ----------------------------------------------------------------------
 # soil parts (faces, shadows, floor cells)
 
@@ -691,14 +713,17 @@ def damage(w, eid, kind, severity, note=""):
     return current[kind]
 
 
-def break_item(w, eid, note=""):
-    m = w.mut(eid)
-    if not m.get("broken"):
-        m["broken"] = True
-        w.stat("breakages")
-        w.stat("damage")
-        w.emit("broken", target=eid, note=note)
+def break_item(w, eid, note="", cause="cleaning", by=None):
+    """Break an item through the kernel (TIER1_PHYSICS 10.3: physics.break_entity): broken, condition and
+    damage.broken; a brittle item also shows `shattered` and turns sharp; its liquid runs out; the phys.break
+    consequence (a note in the step's message, the camera's visual event, the sound notice) and the phys.broke hooks.
+    Attribution is the kernel's (by=None: the action phase, or something the robot arranged, is the robot's and counts
+    breakages and damage; a scene's own soaking filter is not). Returns True when it broke now."""
+    from ...kernel import physics
+    if physics.break_entity(w, eid, cause, by=by):
         glog(w, "broken", target=eid, note=note)
+        return True
+    return False
 
 
 def add_contamination(w, eid, kind, amount):
@@ -997,6 +1022,14 @@ def held_tool(ctx, param="tool", kinds=None, predicate=None, required=True, mess
             return eid
     if required:
         raise ActionError(message or "Hold a suitable cleaning tool", "capability")
+    return None
+
+
+def hand_of(w, eid):
+    """The robot hand holding eid ("left" / "right"), or None."""
+    for hand, held in sorted((w.s["robot"].get("hands") or {}).items()):
+        if held == eid:
+            return hand
     return None
 
 

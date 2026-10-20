@@ -204,8 +204,44 @@ def heater_step(w, dt, cache=None):
         w.mut(hid)["tank_temp_c"] = C.rnd(max(target, t - dt / 3600.0), 2)
 
 
+def heater_idle(w, cache=None):
+    """True when heater_step would change nothing: no heater, a broken one, a tank at its setpoint (within 0.05 C) or
+    below it without power, a tankless unit at its setpoint while it can fire or at the supply temperature after a
+    cut (still cooling is not idle).
+    Pure (the water system's idle probe)."""
+    hid = heater(w, cache)
+    if hid is None:
+        return True
+    rec = w.s["entities"][hid]
+    if rec.get("broken"):
+        return True
+    target = C.num((rec.get("settings") or {}).get("temp_c"), C.DEFAULT_HEATER_C)
+    t = C.num(rec.get("tank_temp_c"), target)
+    powered = physics.is_powered(w, hid) if rec.get("fuel", "gas") == "electric" else bool((w.s.get("utilities") or {}).get("gas", True))
+    if rec.get("tankless"):
+        return abs((target if powered else cold_supply_c(w)) - t) <= 0.01
+    if t < target - 0.05 and powered:
+        return False
+    return not t > target + 0.05
+
+
 # ----------------------------------------------------------------------------------
 # meter
+
+def _meter_view(rec, total, spinning):
+    reading = round(C.num(rec.get("base_reading_l"), 482113.0) + total, 1)
+    return reading, "{:.1f} L total; flow indicator {}".format(reading, "turning" if spinning else "still")
+
+
+def meter_idle(w):
+    """True when meter_update with no flow would change nothing (every display current and still). Pure."""
+    total = C.num(C.pget(w, "meter_l"))
+    for eid in C.live(w, C.kind_ids(w, "water_meter")):
+        rec = w.s["entities"][eid]
+        if rec.get("display") != _meter_view(rec, total, False)[1] or rec.get("flow_indicator") is not False:
+            return False
+    return True
+
 
 def meter_update(w, flow_lpm):
     """Refresh every water meter's display (cumulative liters) and flow indicator."""
@@ -213,8 +249,7 @@ def meter_update(w, flow_lpm):
     for eid in C.live(w, C.kind_ids(w, "water_meter")):
         rec = w.s["entities"][eid]
         spinning = flow_lpm > 0.005
-        reading = round(C.num(rec.get("base_reading_l"), 482113.0) + total, 1)
-        display = "{:.1f} L total; flow indicator {}".format(reading, "turning" if spinning else "still")
+        reading, display = _meter_view(rec, total, spinning)
         if rec.get("display") != display or rec.get("flow_indicator") != spinning:
             m = w.mut(eid)
             m["display"] = display

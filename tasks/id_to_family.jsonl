@@ -1579,7 +1579,7 @@
 {"catalog_id": "T-17bf62f781f86e-01", "family": null, "source_file": null, "status": "TODO", "title": null}
 {"catalog_id": "T-67dbe6a4f27277-01", "family": null, "source_file": null, "status": "TODO", "title": null}
 {"catalog_id": "T-93aae9b958456f-01", "family": null, "source_file": null, "status": "TODO", "title": null}
-{"catalog_id": "T-d1f9385dbb80fc-01", "family": null, "source_file": null, "status": "TODO", "title": null}
+{"catalog_id": "T-d1f9385dbb80fc-01", "family": null, "source_file": "people__perception.json", "status": "CANDIDATE", "title": "Gather school supplies: what tomorrow needs is on the family calendar"}
 {"catalog_id": "T-8438b861d86b99-01", "family": null, "source_file": null, "status": "TODO", "title": null}
 {"catalog_id": "T-2ba8d783b87ee6-01", "family": null, "source_file": null, "status": "TODO", "title": null}
 {"catalog_id": "T-3c114c8e4796ec-01", "family": null, "source_file": "tools_vehicles__examples.json", "status": "CANDIDATE", "title": "Load vehicle"}

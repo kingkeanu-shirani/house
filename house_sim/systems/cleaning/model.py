@@ -12,6 +12,8 @@ evaporation rates, clearances, dB levels).
 """
 import math
 
+from ...kernel.phys import liquids as _kernel_liquids
+
 CLEAN = 0.05          # a kind below this level counts as clean (CONVENTIONS.md)
 
 # ----------------------------------------------------------------------
@@ -217,15 +219,17 @@ def self_incompatibility(classes, min_amount=0.02):
 
 
 # ----------------------------------------------------------------------
-# surface materials / finishes. Keys are matched against record["finish"], then
-# record["surface_material"], then record["material"].
+# surface materials / finishes: the cleaning chemistry of a finish. Keys are matched against record["finish"], then
+# record["surface_material"], then record["material"]; a material string with no row of its own is re-keyed by the
+# kernel's material class (physics.material_class: "ldpe" -> film -> plastic, "polyester" -> synthetic_fabric ->
+# fabric; CLASS_MATERIAL below). Physical thresholds (thermal shock, drop tolerance, heat limits) are the kernel's
+# (data/physics/materials.json, read through physics.props), never columns of this table.
 #   abrasion  max tool abrasiveness (0..1) before visible scratches/burnishing
 #   water     max free-water film (mm) tolerated for ~10 min before marks/swelling
 #   bad       chemistry classes that damage it -> (damage kind, severity per application)
 #   porous    liquids soak in / stains set; blot rather than rub
 #   polish    accepts wood/furniture polish
 #   steam     tolerates a steam mop
-#   heat_c    surface temperature limit before heat marks
 MATERIALS = {
     "marble": {"abrasion": 0.3, "water": 1.0, "bad": {"acid": ("etched", 0.6)}, "porous": True, "slippery_wet": True},
     "travertine": {"abrasion": 0.3, "water": 1.0, "bad": {"acid": ("etched", 0.6)}, "porous": True, "slippery_wet": True},
@@ -270,7 +274,7 @@ MATERIALS = {
     "copper": {"abrasion": 0.25, "water": 1.0, "bad": {"chlorine": ("discolored", 0.4)}},
     "aluminum": {"abrasion": 0.45, "water": 1.0, "bad": {"alkali_strong": ("pitted", 0.6), "chlorine": ("pitted", 0.3)}},
     "burnished_aluminum": {"abrasion": 0.4, "water": 1.0, "bad": {"alkali_strong": ("pitted", 0.6), "alkali": ("oxidized", 0.35)}},
-    "cast_iron": {"abrasion": 0.95, "water": 1.0, "bad": {"alkali_strong": ("seasoning_stripped", 0.4)}, "rusts": True, "thermal_shock_c": 150},
+    "cast_iron": {"abrasion": 0.95, "water": 1.0, "bad": {"alkali_strong": ("seasoning_stripped", 0.4)}, "rusts": True},
     "carbon_steel": {"abrasion": 0.9, "water": 1.0, "bad": {}, "rusts": True},
     "enameled_cast_iron": {"abrasion": 0.3, "water": 1.0, "bad": {"acid": ("dulled", 0.15)}},
     "enamel": {"abrasion": 0.3, "water": 1.0, "bad": {"acid": ("dulled", 0.15)}},
@@ -286,8 +290,8 @@ MATERIALS = {
     "fiberglass": {"abrasion": 0.15, "water": 1.0, "bad": {"solvent": ("crazed", 0.5)}},
     "cultured_marble": {"abrasion": 0.15, "water": 1.0, "bad": {"acid": ("dulled", 0.3), "solvent": ("crazed", 0.4)}},
     "composite_sink": {"abrasion": 0.3, "water": 1.0, "bad": {"alkali_strong": ("discolored", 0.4)}},
-    "glass": {"abrasion": 0.55, "water": 1.0, "bad": {}, "glossy": True, "lint_shows": True, "thermal_shock_c": 45},
-    "tempered_glass": {"abrasion": 0.55, "water": 1.0, "bad": {}, "glossy": True, "lint_shows": True, "thermal_shock_c": 120},
+    "glass": {"abrasion": 0.55, "water": 1.0, "bad": {}, "glossy": True, "lint_shows": True},
+    "tempered_glass": {"abrasion": 0.55, "water": 1.0, "bad": {}, "glossy": True, "lint_shows": True},
     "coated_glass": {"abrasion": 0.15, "water": 1.0, "bad": {"abrasive_mild": ("coating_scratched", 0.5)}, "glossy": True, "lint_shows": True},
     "mirror": {"abrasion": 0.5, "water": 0.3, "bad": {"ammonia": ("desilvering", 0.05)}, "glossy": True, "lint_shows": True, "edge_sensitive": True},
     "glass_cooktop": {"abrasion": 0.25, "water": 1.0, "bad": {}, "glossy": True},
@@ -328,9 +332,9 @@ MATERIALS = {
     "gilded": {"abrasion": 0.01, "water": 0.0, "bad": {"ammonia": ("gilding_damaged", 0.6), "solvent_light": ("gilding_damaged", 0.4)}},
     "silver": {"abrasion": 0.1, "water": 1.0, "bad": {"chlorine": ("tarnished", 0.6)}},
     "silver_plate": {"abrasion": 0.08, "water": 1.0, "bad": {"chlorine": ("tarnished", 0.6), "abrasive_mild": ("plating_worn", 0.4)}},
-    "crystal": {"abrasion": 0.3, "water": 1.0, "bad": {}, "glossy": True, "thermal_shock_c": 35},
-    "china": {"abrasion": 0.35, "water": 1.0, "bad": {}, "thermal_shock_c": 60},
-    "gold_rim_china": {"abrasion": 0.08, "water": 1.0, "bad": {"abrasive_mild": ("gilding_damaged", 0.5)}, "thermal_shock_c": 60},
+    "crystal": {"abrasion": 0.3, "water": 1.0, "bad": {}, "glossy": True},
+    "china": {"abrasion": 0.35, "water": 1.0, "bad": {}},
+    "gold_rim_china": {"abrasion": 0.08, "water": 1.0, "bad": {"abrasive_mild": ("gilding_damaged", 0.5)}},
     "melamine": {"abrasion": 0.2, "water": 1.0, "bad": {}},
     "eps_foam": {"abrasion": 0.2, "water": 1.0, "bad": {"solvent": ("foam_degraded", 0.8), "chlorine": ("foam_degraded", 0.4)}},
     "coir": {"abrasion": 0.8, "water": 0.0, "bad": {"chlorine": ("fiber_damage", 0.5)}, "porous": True, "textile": True},
@@ -361,6 +365,30 @@ MATERIAL_FAMILY = {"hardwood": "wood", "wood": "wood", "plywood": "wood", "bambo
                    "porcelain": "tile", "laminate": "laminate", "vinyl": "vinyl", "cork": "cork", "concrete": "concrete"}
 
 
+# kernel material class (data/physics/materials.json) -> the chemistry row for a material string this table lacks.
+# Steel maps to plain "metal": the class covers stainless, chrome-plated, galvanized and coated steel, which do not
+# flash-rust (cast iron and carbon steel have rows of their own). Classes with no cleaning meaning (organic produce,
+# granular, soap, foam) keep the default row.
+CLASS_MATERIAL = {"glass": "glass", "tempered_glass": "tempered_glass", "borosilicate": "glass",
+                  "glass_ceramic": "glass_cooktop", "crystal": "crystal", "porcelain": "porcelain", "stoneware": "ceramic",
+                  "ceramic": "ceramic", "terracotta": "terracotta", "enameled_metal": "enamel", "stone": "stone",
+                  "concrete": "concrete", "plaster": "drywall", "steel": "metal", "cast_iron": "cast_iron",
+                  "aluminum": "aluminum", "soft_metal": "metal", "film": "plastic", "plastic": "plastic",
+                  "foam_plastic": "eps_foam", "rubber": "rubber", "paper": "paper", "lined_paperboard": "cardboard",
+                  "cardboard": "cardboard", "cotton": "fabric", "synthetic_fabric": "fabric", "coated_fabric": "faux_leather",
+                  "wool": "wool", "leather": "leather", "wood": "wood", "engineered_wood": "mdf", "laminate": "laminate",
+                  "cork": "cork", "wicker": "wicker", "electronics": "electronics"}
+
+
+def _class_row(record):
+    """The chemistry row of a material string this table has no row for, through the kernel's material class."""
+    from ...kernel.phys import props as kernel_props
+    try:
+        return CLASS_MATERIAL.get(kernel_props.material_class(None, record))
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def material_key(record):
     finish = record.get("finish")
     if finish and record.get("category") == "floor":
@@ -378,6 +406,10 @@ def material_key(record):
     material = record.get("material")
     if material in FLOOR_FINISH and FLOOR_FINISH[material] in MATERIALS:
         return FLOOR_FINISH[material]
+    if isinstance(material, str) and material:
+        row = _class_row(record)
+        if row in MATERIALS:
+            return row
     return "default"
 
 
@@ -455,8 +487,10 @@ FORCE = {"light": 0.7, "normal": 1.0, "hard": 1.3}
 WETNESS_LEVEL = {"dry": 0.0, "barely_damp": 0.2, "damp": 0.4, "wet": 0.85}
 # mop water left on the floor (mm film) by wetness setting; damp mopping ~30-40 g/m2.
 MOP_FILM_MM = {"dry": 0.0, "barely_damp": 0.012, "damp": 0.035, "wet": 0.18}
-# evaporation of a thin indoor water film ~0.1-0.3 kg/m2/h  ->  mm per second
-EVAP_MM_S = 0.2 / 3600.0
+# evaporation of a thin indoor water film (~0.2 mm/h in still air): the kernel's formula (physics.evaporation_mm_s, which
+# started as this domain's), re-exported; cleaning stays the drying owner (TIER1_PHYSICS 5.7)
+EVAP_MM_S = _kernel_liquids.EVAP_MM_S
+evaporation_mm_s = _kernel_liquids.evaporation_mm_s
 
 
 def clamp(x, lo=0.0, hi=1.0):
@@ -505,18 +539,6 @@ def removal_fraction(kind, mech, wetness, chem_factor, action="wipe", softened=0
 def weekday_index(name):
     days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
     return days.index(name) if name in days else None
-
-
-def evaporation_mm_s(room_temp_c=21.0, humidity=0.45, airflow=False, outdoor=False, wind_mps=0.0, sun=False):
-    """Approximate free-water evaporation rate (mm/s) for floors and surfaces."""
-    rate = EVAP_MM_S * (1.0 + 0.04 * (room_temp_c - 21.0)) * clamp(1.6 - 1.4 * humidity, 0.2, 1.6)
-    if airflow:
-        rate *= 2.5
-    if outdoor:
-        rate *= 1.5 + 0.3 * min(wind_mps, 8.0)
-        if sun:
-            rate *= 3.0
-    return max(rate, 1e-6)
 
 
 def grams(kind, level, area_m2):

@@ -3,8 +3,10 @@
 When a glass/ceramic item breaks (broken becomes true on an item with material glass/ceramic/porcelain, or the
 safety.broken_glass helper / event `safety_glass_break`), it shatters into shard entities (type glass_shard):
   large  pieces (2-4) within 0.5 m of the impact, small shards (4-8) within 1.5 m, slivers (6-12) out to 3 m on hard
-  floors (1 m on carpet, where they also hide in the pile). Shards landing under furniture go `under` it (hidden until
-  inspect where=under). Every shard is a floor hazard "sharp"; slivers (shard_size sliver) are NOT shown in observations
+  floors (1 m on carpet, where they also hide in the pile). Shards sliding into furniture with a low gap under it (bed
+  rails, sofa legs: `under_clearance_m`) go `under` it (hidden until inspect where=under); under furniture that is
+  open below (a table or desk top, a chair seat: `open_below`) they stay on that floor cell in plain view; a solid base
+  (counter, cabinet, appliance) stops them at its edge. Every shard is a floor hazard "sharp"; slivers (shard_size sliver) are NOT shown in observations
   until spotted: crouch/kneel and inspect the floor where=closely in good light (or with a lit flashlight) to spot
   slivers within 1 m.
 clean_shards target=<floor or room> method=pick|sweep|damp_wipe|vacuum [radius=0.5..1.5 m around the robot]
@@ -19,7 +21,7 @@ Loose shards put in a trash bag are a harm (safety.loose_sharps_in_trash). Drivi
 import math
 import random
 
-from ...kernel import geometry
+from ...kernel import geometry, sight
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.perception import light_level, flashlight_on
@@ -50,6 +52,36 @@ def shards(state, room=None):
     return out
 
 
+def under_clearance_m(state, eid):
+    """Clear height under a thing a sliding shard can enter, from the kernel's view model (sight.view_props): its
+    clear_below_m (bed rails, sofa and chair legs) or, under a slab top (tables, desks), the height below the slab; 0 for
+    a solid base (counters, cabinets, appliances: no toe-kick is modelled)."""
+    view = sight.view_props(state, eid)
+    gap = float(view.get("clear_below_m") or 0.0)
+    slab = view.get("slab_m")
+    if slab:
+        size = (state["entities"].get(eid) or {}).get("size_m") or [0.0, 0.0, 0.0]
+        try:
+            height = float(size[2])
+        except (TypeError, ValueError, IndexError):
+            height = 0.0
+        gap = max(gap, height - float(slab))
+    return gap
+
+
+def can_hide_under(state, eid, thickness_m=0.001):
+    """True when a shard this thick can slide under eid (see under_clearance_m)."""
+    return under_clearance_m(state, eid) > thickness_m
+
+
+OPEN_BELOW_M = 0.3      # this much clear height under a table top or chair seat: the floor there is in plain view
+
+
+def open_below(state, eid):
+    """Furniture whose underside is open floor (tables, desks, chairs): a shard there lies in plain view."""
+    return under_clearance_m(state, eid) >= OPEN_BELOW_M
+
+
 def shard_cell(state, eid):
     rec = state["entities"][eid]
     if rec.get("location") in state["rooms"] and rec.get("pos"):
@@ -62,11 +94,19 @@ def shard_cell(state, eid):
     return None
 
 
-def shatter(w, eid, impact_cell=None, seed=None, floor_material=None):
-    """Turn a glass item into a shard field around impact_cell (defaults to where it lies). Returns shard ids."""
+def has_shard_field(state, eid):
+    """True once this item was turned into a shard field (its zone exists in the ledger)."""
+    return ("glass:" + eid) in (C.ledger_r(state).get("zones") or {})
+
+
+def shatter(w, eid, impact_cell=None, seed=None, floor_material=None, kernel_break=False):
+    """Turn a glass item into a shard field around impact_cell (defaults to where it lies). Returns shard ids.
+
+    kernel_break: the kernel physics layer already broke it (phys.broke: it set broken / shattered and emitted the
+    breaking sound), so only the shard field is added here (no second sound)."""
     state = w.s
     rec = state["entities"][eid]
-    if rec.get("shattered"):
+    if has_shard_field(state, eid) or (rec.get("shattered") and not kernel_break):
         return []
     rid = C.root_room(state, eid)
     if rid is None:
@@ -103,15 +143,15 @@ def shatter(w, eid, impact_cell=None, seed=None, floor_material=None):
                 if not (0 <= nxt[0] < cols and 0 <= nxt[1] < rows):
                     break
                 if nxt in blocked:
-                    if rng.random() < 0.5:
-                        cell = nxt          # slid under the toe-kick / table edge
+                    if rng.random() < 0.5 and can_hide_under(state, blocked[nxt][0], size[2]):
+                        cell = nxt          # slid under the bed / sofa / table
                     break
                 cell = nxt
             props = {"shard_size": size_name, "size_m": list(size), "mass_kg": smass, "label": "{} glass {}".format(
                 size_name, "piece" if size_name == "large" else ("shard" if size_name == "small" else "sliver")),
                 "origin": eid, "spotted": size_name != "sliver", "in_carpet": not hard}
             sid = w.new_id("glass_shard")
-            if cell in blocked:
+            if cell in blocked and not open_below(state, blocked[cell][0]):
                 parent = blocked[cell][0]
                 record = w.reg.make("glass_shard", parent, relation="under", **props)
                 record["_cell"] = list(cell)
@@ -145,10 +185,35 @@ def shatter(w, eid, impact_cell=None, seed=None, floor_material=None):
                                                "shards": len(created)})
     zones = sec.setdefault("zones", {})
     zones["glass:" + eid] = {"kind": "sharp", "room": rid, "center": list(impact_cell), "radius_cells": int(math.ceil(3.0 / C.CELL))}
-    from . import alarms as AL
-    AL.record_sound(w, "glass_break", rid, impact_cell, db=85.0, lasts_s=30.0, description="sharp crash of breaking glass")
+    if not kernel_break:
+        from . import alarms as AL
+        AL.record_sound(w, "glass_break", rid, impact_cell, db=85.0, lasts_s=30.0, description="sharp crash of breaking glass",
+                        source=eid)
     C.log(w, "glass_shattered", item=eid, room=rid, shards=len(created))
     return created
+
+
+def breaks_into_shards(state, eid, rec):
+    """A brittle break that leaves a shard field on the floor: a portable glass / ceramic item (not a shard, a window
+    or something marked no_shards) lying on a room floor."""
+    return bool(rec.get("portable")) and str(rec.get("material", "")) in GLASS_MATERIALS and not is_shard(rec) and \
+        not rec.get("no_shards") and rec.get("category") not in ("window",) and rec.get("location") in state["rooms"] \
+        and not has_shard_field(state, eid)
+
+
+@hook("phys.broke")
+def kernel_glass_break(w, eid, info):
+    """Kernel physics adoption (TIER1_PHYSICS 10.3; phys.broke): a glass or ceramic item the kernel broke by shattering
+    -- dropped by the robot, knocked off a shelf, tipped over, fallen with a toppling piece of furniture -- lands on the
+    floor as this module's shard field (large pieces, small shards, hidden slivers, the cleared-zone bookkeeping). The
+    kernel already marked it broken and shattered and emitted the sound; attribution stays the kernel's."""
+    if (info or {}).get("mode") != "shatter":
+        return
+    state = w.s
+    rec = state["entities"].get(eid)
+    if rec is None or not breaks_into_shards(state, eid, rec):
+        return
+    shatter(w, eid, impact_cell=tuple(rec["pos"]) if rec.get("pos") else None, kernel_break=True)
 
 
 @system("safety.glass", order=350, max_dt=30.0)

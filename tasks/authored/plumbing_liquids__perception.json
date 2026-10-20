@@ -4,10 +4,12 @@
    "catalog_id": "T-3b1a4024d46110-01",
    "title": "Check under every sink for leaks: find the dripping joint (a drain joint only leaks while water runs) among look-alike stops and an old dry crust",
    "perception": "realistic",
+   "camera": "geometric",
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -32,6 +34,11 @@
    "variants": [
     {
      "+setup": [
+      {
+       "op": "bind",
+       "var": "leak_component",
+       "value": "cold_supply_compression_fitting"
+      },
       {
        "op": "helper",
        "name": "plumbing_liquids.hidden_leak",
@@ -112,6 +119,14 @@
        "target": "{sink_cabinet}"
       },
       {
+       "do": "crouch"
+      },
+      {
+       "do": "peek",
+       "target": "{sink_cabinet}",
+       "where": "inside"
+      },
+      {
        "do": "inspect",
        "target": "{hot_stop}",
        "where": "closely"
@@ -122,15 +137,24 @@
        "where": "closely"
       },
       {
+       "do": "stand"
+      },
+      {
        "do": "turn_on_water",
        "target": "{sink}",
        "temp": "cold",
        "flow": 0.6
       },
       {
+       "do": "crouch"
+      },
+      {
        "do": "inspect",
        "target": "{trap}",
        "where": "closely"
+      },
+      {
+       "do": "stand"
       },
       {
        "do": "turn_off_water",
@@ -157,6 +181,14 @@
        "open": 0.5
       },
       {
+       "do": "crouch"
+      },
+      {
+       "do": "peek",
+       "target": "{vanity}",
+       "where": "inside"
+      },
+      {
        "do": "inspect",
        "target": "{bath_trap}",
        "where": "closely"
@@ -172,6 +204,9 @@
        "where": "closely"
       },
       {
+       "do": "stand"
+      },
+      {
        "do": "turn_off_water",
        "target": "{bath_sink}"
       },
@@ -183,7 +218,7 @@
        "do": "report",
        "target": "{leak_source}",
        "field": "leak",
-       "value": "cold_supply_compression_fitting",
+       "value": "{leak_component}",
        "to": "{adult}"
       }
      ],
@@ -217,6 +252,11 @@
     },
     {
      "+setup": [
+      {
+       "op": "bind",
+       "var": "leak_component",
+       "value": "p_trap_slip_nut"
+      },
       {
        "op": "helper",
        "name": "plumbing_liquids.hidden_leak",
@@ -298,6 +338,14 @@
        "target": "{sink_cabinet}"
       },
       {
+       "do": "crouch"
+      },
+      {
+       "do": "peek",
+       "target": "{sink_cabinet}",
+       "where": "inside"
+      },
+      {
        "do": "inspect",
        "target": "{hot_stop}",
        "where": "closely"
@@ -308,15 +356,24 @@
        "where": "closely"
       },
       {
+       "do": "stand"
+      },
+      {
        "do": "turn_on_water",
        "target": "{sink}",
        "temp": "cold",
        "flow": 0.6
       },
       {
+       "do": "crouch"
+      },
+      {
        "do": "inspect",
        "target": "{trap}",
        "where": "closely"
+      },
+      {
+       "do": "stand"
       },
       {
        "do": "turn_off_water",
@@ -343,6 +400,14 @@
        "open": 0.5
       },
       {
+       "do": "crouch"
+      },
+      {
+       "do": "peek",
+       "target": "{vanity}",
+       "where": "inside"
+      },
+      {
        "do": "inspect",
        "target": "{bath_trap}",
        "where": "closely"
@@ -358,6 +423,9 @@
        "where": "closely"
       },
       {
+       "do": "stand"
+      },
+      {
        "do": "turn_off_water",
        "target": "{bath_sink}"
       },
@@ -369,7 +437,7 @@
        "do": "report",
        "target": "{leak_source}",
        "field": "leak",
-       "value": "p_trap_slip_nut",
+       "value": "{leak_component}",
        "to": "{adult}"
       }
      ],
@@ -482,6 +550,11 @@
     {
      "+setup": [
       {
+       "op": "bind",
+       "var": "leak_component",
+       "value": "hot_supply_compression_fitting"
+      },
+      {
        "op": "set",
        "target": "{hot_stop}",
        "props": {
@@ -592,6 +665,14 @@
        "open": 0.5
       },
       {
+       "do": "crouch"
+      },
+      {
+       "do": "peek",
+       "target": "{vanity}",
+       "where": "inside"
+      },
+      {
        "do": "inspect",
        "target": "{bath_trap}",
        "where": "closely"
@@ -605,6 +686,9 @@
        "do": "inspect",
        "target": "{bath_cold}",
        "where": "closely"
+      },
+      {
+       "do": "stand"
       },
       {
        "do": "turn_off_water",
@@ -623,6 +707,14 @@
        "target": "{sink_cabinet}"
       },
       {
+       "do": "crouch"
+      },
+      {
+       "do": "peek",
+       "target": "{sink_cabinet}",
+       "where": "inside"
+      },
+      {
        "do": "inspect",
        "target": "{hot_stop}",
        "where": "closely"
@@ -633,15 +725,24 @@
        "where": "closely"
       },
       {
+       "do": "stand"
+      },
+      {
        "do": "turn_on_water",
        "target": "{sink}",
        "temp": "cold",
        "flow": 0.6
       },
       {
+       "do": "crouch"
+      },
+      {
        "do": "inspect",
        "target": "{trap}",
        "where": "closely"
+      },
+      {
+       "do": "stand"
       },
       {
        "do": "turn_off_water",
@@ -655,7 +756,7 @@
        "do": "report",
        "target": "{leak_source}",
        "field": "leak",
-       "value": "hot_supply_compression_fitting",
+       "value": "{leak_component}",
        "to": "{adult}"
       }
      ],
@@ -734,6 +835,16 @@
     {
      "path": "entities.{bath_sink}.water_running",
      "op": "is_false",
+     "value": true
+    },
+    {
+     "path": "camera_log.looked_in.{sink_cabinet}",
+     "op": "exists",
+     "value": true
+    },
+    {
+     "path": "camera_log.looked_in.{vanity}",
+     "op": "exists",
      "value": true
     }
    ],
@@ -815,18 +926,79 @@
        "to": "{adult}"
       }
      ]
+    },
+    {
+     "name": "opens both sink cabinets and runs the water but never crouches to look into the dark cabinets, then reports a joint anyway",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "open",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{sink}",
+       "temp": "cold",
+       "flow": 0.6
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{sink}"
+      },
+      {
+       "do": "close",
+       "target": "{sink_cabinet}"
+      },
+      {
+       "skill": "plumbing_liquids.goto",
+       "target": "{vanity}"
+      },
+      {
+       "do": "open",
+       "target": "{vanity}"
+      },
+      {
+       "do": "turn_on_water",
+       "target": "{bath_sink}",
+       "temp": "cold",
+       "flow": 0.6,
+       "handle": "both",
+       "open": 0.5
+      },
+      {
+       "do": "turn_off_water",
+       "target": "{bath_sink}"
+      },
+      {
+       "do": "close",
+       "target": "{vanity}"
+      },
+      {
+       "do": "report",
+       "target": "{leak_source}",
+       "field": "leak",
+       "value": "{leak_component}",
+       "to": "{adult}"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: under each sink the hot and cold stops share the look-alike group water_valve (\"water shutoff valve\" until inspected), the hidden _leak and its component are never glance-visible, and an active leak names its component only to a close inspection (inspect where=closely); a plain inspect gives only the severity. Variants (seed % 3): kitchen cold-stop compression fitting dripping into the sink base (hidden_leak kitchen_supply, a puddle downhill) with an old dry crust on the hot stop; a bathroom P-trap slip nut that leaks only while water drains (hidden_leak bath_trap, no earlier evidence) with an old crust on the cold stop - found only by running the tap and looking at the trap; the kitchen hot stop leaking with the crust on the cold stop. The report must name the leaking component (the value the close look showed) to the adult; reports on the decoy crust, the cabinets or dry joints fail; taps must be off at the end. Wrong plans: report the wet-looking cabinet (glance); pick a look-alike stop after a plain look (severity, not the component); per variant, take the old dry crust for the leak, never run water (the drain-side leak stays hidden) or check only the kitchen."
+   "notes": "Realistic perception: under each sink the hot and cold stops share the look-alike group water_valve (\"water shutoff valve\" until inspected), the hidden _leak and its component are never glance-visible, and an active leak names its component only to a close inspection (inspect where=closely); a plain inspect gives only the severity. Variants (seed % 3): kitchen cold-stop compression fitting dripping into the sink base (hidden_leak kitchen_supply, a puddle downhill) with an old dry crust on the hot stop; a bathroom P-trap slip nut that leaks only while water drains (hidden_leak bath_trap, no earlier evidence) with an old crust on the cold stop - found only by running the tap and looking at the trap; the kitchen hot stop leaking with the crust on the cold stop. The report must name the leaking component (the value the close look showed) to the adult; reports on the decoy crust, the cabinets or dry joints fail; taps must be off at the end. Wrong plans: report the wet-looking cabinet (glance); pick a look-alike stop after a plain look (severity, not the component); per variant, take the old dry crust for the leak, never run water (the drain-side leak stays hidden) or check only the kitchen. Geometric camera (looking is the skill): an under-sink cabinet is dark inside (no interior light), so the reference crouches and peeks inside each opened cabinet with the wrist camera and its LED before the close looks; success also needs both cabinets in camera_log.looked_in. Camera wrong plan: opens the cabinets and runs the water but never looks inside, then reports the right joint by luck."
   },
   {
    "catalog_id": "T-2a55a2133257d0-01",
    "title": "Report water damage: tell an active, still-wet ceiling stain from an old dry one (they look alike at a glance)",
    "perception": "realistic",
+   "camera": "geometric",
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -898,6 +1070,13 @@
       {
        "op": "robot",
        "room": "{living}"
+      },
+      {
+       "op": "track_view",
+       "ids": [
+        "{active_stain}",
+        "{old_stain}"
+       ]
       }
      ]
     },
@@ -956,6 +1135,13 @@
       {
        "op": "robot",
        "room": "{kitchen}"
+      },
+      {
+       "op": "track_view",
+       "ids": [
+        "{active_stain}",
+        "{old_stain}"
+       ]
       }
      ]
     },
@@ -1014,6 +1200,13 @@
       {
        "op": "robot",
        "room": "{living}"
+      },
+      {
+       "op": "track_view",
+       "ids": [
+        "{active_stain}",
+        "{old_stain}"
+       ]
       }
      ]
     }
@@ -1044,6 +1237,16 @@
      "path": "reports.{old_stain}._to.water_damage",
      "op": "eq",
      "value": "{adult}"
+    },
+    {
+     "path": "camera_log.sightings.{active_stain}.best",
+     "op": "eq",
+     "value": "identify"
+    },
+    {
+     "path": "camera_log.sightings.{old_stain}.best",
+     "op": "eq",
+     "value": "identify"
     }
    ],
    "side_effects": {
@@ -1062,11 +1265,19 @@
      "target": "{active_stain}"
     },
     {
+     "do": "look",
+     "target": "{active_stain}"
+    },
+    {
      "do": "inspect",
      "target": "{active_stain}"
     },
     {
      "skill": "plumbing_liquids.goto",
+     "target": "{old_stain}"
+    },
+    {
+     "do": "look",
      "target": "{old_stain}"
     },
     {
@@ -1158,18 +1369,44 @@
        "to": "{adult}"
       }
      ]
+    },
+    {
+     "name": "reports both stains right after one look around from where it starts: never looks up at either stain from close by (one is in another room)",
+     "camera": true,
+     "plan": [
+      {
+       "do": "look",
+       "target": "around"
+      },
+      {
+       "do": "report",
+       "target": "{active_stain}",
+       "field": "water_damage",
+       "value": "active",
+       "to": "{adult}"
+      },
+      {
+       "do": "report",
+       "target": "{old_stain}",
+       "field": "water_damage",
+       "value": "old",
+       "to": "{adult}"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: both ceiling stains belong to the look-alike group water_stain (\"brownish water stain\", wet/dripping/moisture hidden at a glance; the glance record has the same fields for both). A close look (inspect; stains on the ceiling can be inspected from the floor) shows a fresh, active stain (dark damp-looking centre, soft paint) or an old dry one (tide-line edges, firm paint); a held moisture meter with inspect where=closely gives the drywall moisture as a measurement. The old stain is always the bigger one, so the size estimate a glance gives points the wrong way. Variants (seed % 3): active stain in the kitchen and old one in the living room, the reverse, or both on the kitchen ceiling. Success: both reported to the adult with the right status (active / old). Wrong plans act on the glance: every stain reported as active, or the bigger stain called the active one."
+   "notes": "Realistic perception: both ceiling stains belong to the look-alike group water_stain (\"brownish water stain\", wet/dripping/moisture hidden at a glance; the glance record has the same fields for both). A close look (inspect; stains on the ceiling can be inspected from the floor) shows a fresh, active stain (dark damp-looking centre, soft paint) or an old dry one (tide-line edges, firm paint); a held moisture meter with inspect where=closely gives the drywall moisture as a measurement. The old stain is always the bigger one, so the size estimate a glance gives points the wrong way. Variants (seed % 3): active stain in the kitchen and old one in the living room, the reverse, or both on the kitchen ceiling. Success: both reported to the adult with the right status (active / old). Wrong plans act on the glance: every stain reported as active, or the bigger stain called the active one. Geometric camera: the reference walks under each stain and looks up at it before the close look; the stains are tracked (track_view) and success needs both identified in camera_log.sightings. Camera wrong plan: one look around from the start room and the right reports by luck."
   },
   {
    "catalog_id": "T-1cd8e5b7e25846-01",
    "title": "Report the leaking faucet: the drip is heard in the room but only a close look shows which tap it is",
    "perception": "realistic",
+   "camera": "geometric",
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1441,6 +1678,16 @@
       "op": "exists",
       "value": true
      }
+    },
+    {
+     "path": "camera_log.peeked.{sink}:closely",
+     "op": "exists",
+     "value": true
+    },
+    {
+     "path": "camera_log.peeked.{bath_sink}:closely",
+     "op": "exists",
+     "value": true
     }
    ],
    "preserve": [
@@ -1465,12 +1712,22 @@
      "target": "{sink}"
     },
     {
+     "do": "peek",
+     "target": "{sink}",
+     "where": "closely"
+    },
+    {
      "do": "inspect",
      "target": "{sink}"
     },
     {
      "skill": "plumbing_liquids.goto",
      "target": "{bath_sink}"
+    },
+    {
+     "do": "peek",
+     "target": "{bath_sink}",
+     "where": "closely"
     },
     {
      "do": "inspect",
@@ -1519,9 +1776,26 @@
        "to": "{adult}"
       }
      ]
+    },
+    {
+     "name": "hears the drip and reports the right faucet after a look around the first room, without looking at either faucet up close",
+     "camera": true,
+     "plan": [
+      {
+       "do": "look",
+       "target": "around"
+      },
+      {
+       "do": "report",
+       "target": "{dripping_tap}",
+       "field": "leak",
+       "value": "drip",
+       "to": "{adult}"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: a closed tap's drip is inspect-tier (no `dripping` in the glance record; flow/drip rates are measure-tier and never shown); the sounds channel only says that something drips in a room (source_hint = room label, no entity). Inspecting a tap shows dripping and 'steady drip from the spout with the handle closed'. Variants (seed % 3): the bathroom two-handle faucet drips (worn washer), the kitchen single-lever faucet drips (worn cartridge), or a faster bathroom drip. Success: the dripping tap reported as a drip to the adult, the dry one not reported; the stops stay open (a drip is no reason to cut the supply) and nothing is damaged. Wrong plans: report both taps on the strength of the sound and a glance; per variant, report the faucet it saw first, or crank the two-handle faucet hard (crushes the washer: damage)."
+   "notes": "Realistic perception: a closed tap's drip is inspect-tier (no `dripping` in the glance record; flow/drip rates are measure-tier and never shown); the sounds channel only says that something drips in a room (source_hint = room label, no entity). Inspecting a tap shows dripping and 'steady drip from the spout with the handle closed'. Variants (seed % 3): the bathroom two-handle faucet drips (worn washer), the kitchen single-lever faucet drips (worn cartridge), or a faster bathroom drip. Success: the dripping tap reported as a drip to the adult, the dry one not reported; the stops stay open (a drip is no reason to cut the supply) and nothing is damaged. Wrong plans: report both taps on the strength of the sound and a glance; per variant, report the faucet it saw first, or crank the two-handle faucet hard (crushes the washer: damage). Geometric camera: the reference goes to each faucet and takes a close look at the spout with the wrist camera (peek closely: its LED lights a dim bathroom, where the head camera only recognizes a basin) before inspecting it; success needs both peeks in camera_log.peeked. Camera wrong plan: a look around the first room and the right report by luck."
   }
  ]
 }

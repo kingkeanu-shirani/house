@@ -15,6 +15,16 @@ the `water_valve` / `rubber_plunger` groups set one glance size, and identificat
 draws and liquid provenance use the kernel helpers (`ctx.unresolved`, `Realism.sealed`, `ctx.fixed_rng`,
 `core.mark_contents_from`); `--check` passes both spec files on the five seeds (also with HOUSE_SIM_STRICT=1 for the
 unit tests) and `tools/perception_audit.py 20 80` attributes nothing to this domain.
+Tier-1 adoption round (kernel v3.0 physics, camera and body, v3.1 sweep; section 0b): the domain's copies of the carry,
+open_spill, phase and thermal_tau laws step aside once the kernel's law is active (all five of its laws, handle
+included, reported ready to flip: the unit tests and both spec files pass with each forced on), pours use the kernel's
+transfer rules (opening and viscosity, heat-capacity mixing, the thermal-shock check, unfrozen liquid only), held
+containers fill up to the hand's limit, water on the robot goes through the body, visual occurrences go through the
+camera and sounds through the notice bus, the water system has an exact idle probe, and the three perception specs
+declare the geometric camera. Every spec passes in its own mode on the five seeds on generation-2 houses (now their
+house; the realistic three in the geometric camera they declare); `tools/perception_audit.py 20 80` and `tools/layout_audit.py 20 --domain
+plumbing_liquids` attribute nothing to this domain; the unit tests pass normal, strict and with only `core,plumbing_liquids`
+loaded.
 
 | Module | Contents |
 |---|---|
@@ -28,10 +38,10 @@ unit tests) and `tools/perception_audit.py 20 80` attributes nothing to this dom
 | `outdoor.py` | spigots, hoses, nozzles, `spray`, `connect_hose`, `disconnect_hose`, hose storage, irrigation controller, freezing |
 | `ice.py` | ice cube trays, freezer ice makers, ice in drinks, filter pitchers |
 | `leaks.py` | hidden leaks, ceiling stains, water damage, condensation, drips onto catchers, water rings, closed-wet mildew, carry slosh, appliance hoses |
-| `perception.py` | sounds observer, inspector (oracle form and realistic form), `plumbing.` answerer, invariants |
+| `perception.py` | sounds observer, inspector (oracle form and realistic form), `plumbing.` answerer and its dialogue routes, invariants |
 | `seen.py` | realistic-perception helpers: stream/temperature/fill words, amount estimates, held thermometer / moisture meter readings |
-| `systems.py` | time systems `plumbing_liquids.water` (order 100, every substep), `.slow` (101, period 120 s), `.census` (102, period 600 s); `episode_start` hook |
-| `furnish.py`, `scenarios.py`, `skills.py` | furnishers (incl. the late `plumbing_liquids.reach` pass), scenario helpers, reference skills |
+| `systems.py` | time systems `plumbing_liquids.water` (order 100, every substep, exact idle probe `water_idle`), `.slow` (101, period 120 s), `.census` (102, period 600 s); `episode_start` hook |
+| `furnish.py`, `scenarios.py`, `skills.py` | furnishers (incl. the late `plumbing_liquids.reach` pass and the generation-2 `plumbing_liquids.household`), scenario helpers, reference skills |
 
 Fidelity: P-approx throughout (lumped volumes and flows with real magnitudes), G for placement/reach/slopes,
 S for controller modes. Hidden ground truth uses `_` keys (`_leak`, `_clog`, `_worn`, `_hot_handle`, `_seized`,
@@ -66,6 +76,94 @@ S for controller modes. Hidden ground truth uses `_` keys (`_leak`, `_clog`, `_w
   floors get spill entities (cleaning's `spill` type when loaded, else `generic_item` category spill) and
   `rooms.<id>.wet_cells`; outdoor grass/soil soaks it (`plumbing.ground_soak_l`), hardscape puddles (ice at or
   below 0 C); storm drains and gardens record pollution.
+
+---------------------------------------------------------------------------------------------------------------
+
+## 0b. Tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep)
+
+What changed in the adoption round (docs/design/TIER1_INTEGRATION.md section 6, "plumbing_liquids" and "Every domain
+also"), and how this domain now meets the kernel's physics, cameras, body and timeline.
+
+**Physics (TIER1_PHYSICS 10.3: route through the kernel, guard the legacy code, register hooks, report ready).**
+
+| Law (laws.json) | What this domain did | Ready to flip |
+|---|---|---|
+| `carry` | the legacy carry hook (`leaks._carry_hook` on move / approach / walk_to) returns at once while the law is active; while it is deferred it runs only when manipulation's model did not (`carry_slosh_applied`, read only by this deferred path) and uses the kernel's model: `phys.liquids.slosh_spill_l` on the domain's capacity and `carry_motion` on the step's motion record (`actions.motion_record`: the effective speed; stairs x1.8 until navigation registers `phys.carry_motion`); no slosh without travel; an ice tray sloshes cell by cell (3.5 cm cells, 2.5 cm walls); the `phys.settle_extra` hook `tray_follows_its_water` keeps a tray's `cell_fill` equal to its water when the kernel's law moved it | yes |
+| `open_spill` | `ice.tray_placed` only writes `tilt_deg` (8 degrees on a soft or lumpy support) and the `uneven` flag while the law is active; the kernel's law spills from the tilted tray; the same settle hook records what ran out of a tray in a freezer as `frozen_spill_l` on the freezer (or the shelf item), as the deferred rule does | yes |
+| `phase` | `ice.freeze_step` freezes ice trays only (their cells, cubes and slabs are this domain's model) while the law is active; every other container freezes by the kernel (`ice_frac` in `liquid_l`, its latent plateau and sealed-container burst rule). While the domain freezes a holder it owns the plateau (`thermal_owner: "plumbing_liquids"`, handed back once frozen through or taken out), so neither the kernel thermal system nor the phase law touches it; a half-frozen tray taken out of the cold thaws back | yes |
+| `handle` | no copy of the law here; the handled containers carry `handle_rating_kg` (bucket 25, watering can 12, pitchers 4, plungers 3) well above what they can hold (19 / 7.5 / 2 L) | yes |
+| `thermal_tau` | the time-constant override of a holder with floating ice (`ice.ice_tau_s`: the kernel knows `liquid_l`, not this domain's `ice_g`) is the lumped law with the ice counted while the law is active and the legacy formula before; it is marked `_tau_by_plumbing`, never replaces a type's or a setup's own `thermal_tau_s` (an insulated tumbler) and goes with the ice. Releasing cubes now depends on how long a frozen tray has been out of the cold (`fresh_from_cold`, `_warm_s` < 90 s), not on the bulk temperature, whose time constant the law sets (17 min for a full tray under the lumped law, 4.5 min under the legacy formula) | yes |
+| `overflow` (active) | this domain never leaves liquid above a holder's `capacity_l` (basins run over at `basin_l`, below their `capacity_l`; a joined tray holds at most 0.423 L of its 0.42 L) | - |
+
+Verified: the unit tests and both spec files (5 seeds, own modes) pass with each of the five laws forced on
+(`lawbook.forced`) and with all five together. Transfers (`do_pour` stays the verb, TIER1_PHYSICS 5.7): the pour rate
+is the commanded rate (slow 0.06, normal 0.2, fast 0.5 L/s) capped by the source's opening
+(`transfer.pour_opening`: a narrow neck 0.25, a spout 0.5, a wide mouth 2 L/s) times the viscosity factor of
+liquids.json (`common.flow_factor`: min(1, sqrt(20 cP / viscosity)); dish soap and detergent about 0.26, oils 0.58;
+a liquid liquids.json has no row for keeps this domain's factor); only unfrozen liquid pours (`liquids.free_l`) and
+the ice stays (`ice_frac` grows; a source holding only ice, or a few drops of melt, refuses: "What is in it is frozen"); temperatures mix by heat capacity, the vessel's body included (`liquids.mixed_temp_c`,
+the rule of `phys.thermal.mix_in`: 85 C coffee into a 21 C mug settles near 72 C); a pour or a tap fill runs the
+kernel's thermal-shock check of the receiving vessel (`phys.thermal.pour_shock_check`, law-gated: it cracks a cold
+glass under boiling water once `thermal_shock` is active). Densities come from liquids.json (`common.density_kg_l`;
+the domain table lost its density column). Absorption: `wring` and the absorbers under a leaking sink or a drip use
+the kernel's capacity (`phys.liquids.absorb_capacity_l`: absorption x dry mass, a 0.55 kg bath towel about 1.4 L; a mop,
+whose record describes its plastic handle, keeps this domain's 1 L) and the kernel's `wet`. `python
+tools/physics_audit.py --data` attributes no data gap to this domain. Spills stay this domain's records of cleaning's
+`spill` type, the same entity cleaning's `phys.spill_sink` makes of a kernel floor spill: they are not routed through
+`physics.spill`, since its 5 ml droplet limit drops the 1-5 ml a slow leak adds per substep and the flood accounting
+(`wet_cells`, `floor_hazards`, the downhill slope) is this domain's.
+
+**Camera (geometric mode; room mode unchanged).** Visual occurrences go through `camera.visual_event` (the event log
+is the same in both modes; the geometric camera logs whether the robot saw it and a seen one becomes a "visual"
+notice): a new spill, a basin or toilet starting to run over, a spraying leak starting, a tap starting to drip
+(2 cm: only a close camera catches it) and a ceiling stain starting to drip. `"view"` blocks where the category
+defaults mislead: the toilet opens at the top (bowl with the seat lid up, tank with its lid off), a water heater
+stands 10 cm off the wall (look behind it) with 3 mm rating-plate print, a shower stall's glass passes 60 % of the
+view, a water meter's register digits are 5 mm (read from about half a metre), a controller's program lines 6 mm and a
+filter cartridge's print 3 mm. Under-sink cabinets keep the core cabinet defaults (front opening, no interior light:
+a wrist peek's LED or the headlamp lights them). The sounds observer is not camera-gated (sound); the inspector is
+action-driven (the kernel's inspect and read checks apply). Floods and puddles are spill entities, so the camera
+shows them only where its frames reach; the room fields `wet_cells` and `floor_hazards` stay hidden.
+
+**Body.** Filling or pouring into a container the robot holds stops where its hand reaches its holding limit
+(`transfer.hand_room_l` over `body.hold_capacity_left`; one hand holds about 8 kg, a bucket and 7 L: "stopped where the
+hand could hold no more"; poured from another held container only the receiving hand counts). Water sprayed over the
+robot by a coupling or a hose worked on under pressure goes through the body (`body_faults.degrade_camera` for the
+lens, `body_faults.expose_water(w, "spray", s)` for the IP54 body); a running sprinkler whose throw reaches the robot
+sprays it every substep (`outdoor.sprinkler_spray`: about 10 minutes in total are harmless, then water ingress). The
+robot is never inside a running shower (a stall blocks its cell). `spray` and `flush` declare `timing="commanded"` (a
+commanded spray time or handle hold is not stretched by careful speed). No verb of this domain moves the robot (its
+walks are core verbs), and no robot field is declared. Optional `soil_hand("water")` is not used: the body has no drying
+for hand soil, so water on the grippers would stay slippery forever.
+
+**Sweep.** Notices (`common.notice`, from the time systems only; kinds registered here): "drip" (45 dB at 1 m: a tap
+starts dripping, a slow leak starts running, a ceiling stain starts dripping), "water_spray" (65 dB: a burst pipe, a
+snapped stem, a split hose or an open supply line starts spraying) and the kernel's "splash" (a basin or toilet starts
+running over). A spray-rate leak shows `leaking: true` (the kernel's glance tier) while it runs, the report vocabulary's
+leak evidence; a slow leak shows only to a close look and by the wet things around it. Routes for the `plumbing.`
+answerer (CONVENTIONS 8): `plumbing.main_shutoff` (where, about the main water shutoff or the main valve itself),
+`plumbing.where_noticed` (where, about water, a leak, a puddle or a stain, asked of a person who noticed it),
+`plumbing.watering_rules` (how / when / ok, about watering, hosing or sprinklers). The water system has an exact idle
+probe (`systems.water_idle`: the heater settled, every tap shut and not dripping, basins empty, toilets full and calm,
+spigots and hoses slack, no controller watering, no leak running, nothing freezing, melting, foaming, fizzing or
+crossing the hot-hazard line, nothing dripping, no sprinkler on, the meters current); a test runs waits with probes on
+and off on generated and busy houses and compares the state digests. A house with a dripping tap (about a quarter of
+generated houses) is never idle: the drip's water goes through the meter every substep. Generation 2
+(`plumbing_liquids.household`, order 93, returns at once for generation 1): a home without gas service gets an electric
+water heater (generation 1 keeps its draw, see section 9), and in winter 70 % of households have put the garden water
+away (hoses disconnected, drained and coiled, standard spigots shut inside and drained, sprinklers off). Report
+vocabulary words need `data/vocab/plumbing_liquids.json`, a kernel file (requested; the core vocabulary's `leak`,
+`water_damage`, `flooding`, `condensation`, `clogged` and `stuck` cover this domain's findings today). No spec of this
+domain used privileged waits (M-WAITS); every spec passes on generation-2 houses and declares `"house": {"gen": 2}`.
+
+**Specs.** The weather ops of the two hose specs set the gust and no precipitation (a generation-2 house keeps its
+generated 10.2 m/s gust under a 1-2 m/s wind otherwise: on seed 97 the outdoor_plants wind model moved the coiled hose
+1.1 m and the mechanisms wind slams counted 99 `damage`). The three perception specs
+declare `"camera": "geometric"` (looking is the skill): the under-sink check crouches and peeks inside each dark
+cabinet before the close looks and needs both cabinets in `camera_log.looked_in`; the stain check looks up at each
+stain from close by and needs both identified in `camera_log.sightings` (`track_view`); the faucet check takes a close
+wrist-camera look at each spout (`peek closely`) and needs both in `camera_log.peeked`. Each has a wrong plan marked
+`"camera": true` that reports the right answer without looking and fails.
 
 ---------------------------------------------------------------------------------------------------------------
 
@@ -132,7 +230,8 @@ potable/drinkable/alcohol/foam/grease/chemical/biohazard flags and the residue i
 | `connect_hose` | target hose/nozzle/sprinkler; destination spigot/hose; start aligned/angled; torque hand/firm/wrench | one part held (precondition) | attaches; running water sprays the robot (camera); angled start cross-threads (joint leak); missing washer leaks | 12 s |
 | `disconnect_hose` | target nozzle/hose/appliance hose | free hand for a nozzle (capability) | detaches; under pressure: spray + washer lost; appliance hose with live valve: spray + 8 L/min leak | 10 s |
 
-Transfer model (`pour`): rate 0.06/0.2/0.5 L/s x liquid flow factor (oil 0.35, dish soap 0.15); requested amounts miss
+Transfer model (`pour`): rate 0.06/0.2/0.5 L/s, capped by the source's opening (narrow neck 0.25, spout 0.5, wide 2 L/s),
+x the liquid's viscosity factor from liquids.json (oils 0.58, dish soap and detergent 0.26; section 0b); requested amounts miss
 by a clipped zero-mean error (1.5/4/10 %; graduated destinations halve it); a full rigid bottle/carton poured
 fast, or a carton poured spout-down, glugs (5-9 % splash); narrow necks < 30 mm without a funnel lose 4-25 %;
 carbonated drinks raise foam (x0.25 tilted) that runs over; sticky liquids drip down bottle lips (soil on the
@@ -178,6 +277,9 @@ drinking vessels, `alcohol_minor` returns at once when no minor is present and o
 and food items, the rest compare counters in the domain section. The standing-water test after `pick_up` reads spills
 from a static index.
 
+The water system's idle probe (`systems.water_idle`, kernel v3.1) skips a substep only when no step would change
+anything (section 0b); `tests/test_plumbing_liquids.py` (`Tier1Sweep`) compares states with probes on and off.
+
 | System | Order / cadence | Work |
 |---|---|---|
 | `plumbing_liquids.water` | 100, every <= 30 s substep | heater recovery; taps (warm-up, touchless auto-off, scald, water use, where the stream goes); basins (drain, overflow outlet, displacement overflow - items in the basin are only scanned once it is over half full -, opacity, greasy ring after dirty water, attended-fill auto-off, mirror of `standing_l` for tools_vehicles' drain model); toilets (refill 9 L/min with 15 % to the bowl, stuck fill valve, slow bowl drain); spigots and hoses (filling, pressurizing, open ends flooding hardscape, joint leaks); irrigation controllers (program windows, rain delay that resumes, minutes in rain or on saturated soil); leaks; filter pitchers; foam; freezing/melting of liquid in containers (latent heat plateau; ~2.9 h for 28 ml cubes at -18 C); fizz decay; hot-liquid `hazards`; drips onto catchers; the water meter display |
@@ -207,7 +309,9 @@ drips) and drain rates before the baseline, so scenarios that only write handle 
   containers (`fill_frac`, `liquid_temp_c`, `water_age_h`, carbon specks, ice cubes, foam, pitcher reservoir and
   filter indicator); ice trays; ice makers (status); controllers; appliance hoses (`where=closely`: condition).
 * Answerer `plumbing.`: `plumbing.where_noticed` (hint stored by `hidden_leak`), `plumbing.main_shutoff`,
-  `plumbing.watering_rules`.
+  `plumbing.watering_rules`; canonical questions reach it through the routes of section 0b.
+* Notices (kernel v3.1): "drip", "water_spray" and "splash" when the time systems start a drip, a spray or an overflow
+  (section 0b); visual occurrences go through `camera.visual_event` (geometric camera only; the event log is unchanged).
 
 ---------------------------------------------------------------------------------------------------------------
 
@@ -266,7 +370,8 @@ labelled "water bottle"; whose it is shows only on the read-tier `name_label` st
   (the kernel's sealed rule) shows no level, specks, foam or ice until it is opened or hefted (touch knowledge of
   `liquid_l`), and a held probe cannot reach its liquid; fields listed in an entity's `secret_fields` (evaluator
   ground truth, e.g. a refill jug's `liquid_l`) are never shown - in the oracle form either (`fill_frac`,
-  `liquid_temp_c`, `water_age_h`, `reservoir_l` are skipped).
+  `liquid_temp_c`, `water_age_h`, `reservoir_l` are skipped). A hidden level adds no `fill_level`, and a `fill_level`
+  another domain's inspector reported is left alone (the kernel hides a sealed container's recorded level itself).
 * `inspect where=closely` without a tool is touch: `stream_feel` (hand in the stream), basin water `feel`,
   `vessel_feel`, `moisture_feel`, and `inner_feel` (pressing a thick item: dry / damp / wet inside); granted at touch level.
 * `inspect where=closely` holding a probe/liquid thermometer (`tool_kind` thermometer / probe_thermometer, or a
@@ -316,11 +421,23 @@ labelled "water bottle"; whose it is shows only on the read-tier `name_label` st
   provenance), flow measurement with a cup and timer, test strips; remembering what an unread jug held once it is read
   later (the receiving bucket stays "liquid" until emptied - conservative).
 
-**Perception-centric specs** (`tasks/authored/plumbing_liquids__perception.json`, all realistic, 5/5 seeds):
-`T-3b1a4024d46110-01` Check under sinks for leaks (look-alike stops, an old dry crust, a drain-side leak that only
-shows with the tap running; the report must name the component a close look showed), `T-2a55a2133257d0-01` Report
-water damage (active vs old ceiling stains that look alike; the bigger one is the old one), `T-1cd8e5b7e25846-01`
-Report leaking faucet (the drip is heard in the room, only an inspection says which tap; no cranking, stops stay open).
+**With the geometric camera** (kernel v3.0; the default for realistic perception after the D3 switch-over): what a
+glance or an inspection shows is the same, but only of what the cameras frame from where the robot stands. An
+inspection needs the kernel's inspect check (160 px at 0.2 light with the head camera, else the wrist camera within
+reach), so a robot crosses the room to a tap before it can tell whether it drips; under-sink stops, traps and
+disposals sit in a dark cabinet (no interior light): a wrist peek (`peek inside`, its LED) or the headlamp lights them.
+Reading is limited by print size (`view.text_m`): a water meter's 5 mm digits from about half a metre, a controller's
+program lines from about 0.6 m, a cartridge's or rating plate's 3 mm print up close or with the wrist camera. Floods
+and puddles show only on the cells the frames cover; sounds and notices are not camera-gated (a drip in the next room
+is heard, its source is named only once seen). A spraying leak, an overflow starting and a new spill are visual
+occurrences the camera may witness (`obs.camera.events`, a "visual" notice).
+
+**Perception-centric specs** (`tasks/authored/plumbing_liquids__perception.json`, all realistic with the geometric
+camera, 5/5 seeds): `T-3b1a4024d46110-01` Check under sinks for leaks (look-alike stops, an old dry crust, a drain-side
+leak that only shows with the tap running; the report must name the component a close look showed; both dark cabinets
+must have been looked into), `T-2a55a2133257d0-01` Report water damage (active vs old ceiling stains that look alike;
+the bigger one is the old one; both stains identified up close), `T-1cd8e5b7e25846-01` Report leaking faucet (the drip
+is heard in the room, only a close look says which tap; both spouts peeked at; no cranking, stops stay open).
 
 ---------------------------------------------------------------------------------------------------------------
 
@@ -598,6 +715,13 @@ fallback and drips.
   `water_available`), emitters, `household.watering_rules`.
 * manipulation: carry slosh (their model runs first; ice trays have a lid for carrying), grip (handled
   containers carry `has_handle`), shake (fizz).
+* Kernel physics (v3.0): carry, open_spill, phase, handle and thermal_tau are kernel laws this domain routes through or
+  leaves to the kernel once active (section 0b); spills stay this domain's records (cleaning's spill
+  type; the kernel's 5 ml droplet limit would drop a slow leak's water); the kernel's per-container slosh and tilt models use the outer footprint, so an open ice tray
+  sloshes more under the kernel's laws than under this domain's per-cell rule (a kernel follow-up).
+* Generation 1 keeps a known flaw: about half of the apartments without gas service get a gas water heater (no hot water
+  at all); the fix is a one-line furnisher change that would alter pinned generation-1 houses, so it is applied only to
+  generation 2 until the main session re-records `tests/data/gen1_digests.json`.
 * Limits: no free-surface fluid dynamics (volumes, rates and headroom only); pipe networks are per-fixture valve
   sets, not graphs; spray coverage is per face/cell with a pass count; condensation needs room humidity from
   the climate domain (or the setup); dehumidifier float switches, washers and fridges belong to other domains.

@@ -828,7 +828,13 @@ def evaluate_goals(w):
     return results
 
 
-@system("manipulation.goals", order=900, max_dt=30.0)
+def _goals_idle(w):
+    """Exact idle probe of manipulation.goals: no goal is declared (with goals the results follow every write, so the
+    system evaluates them each substep)."""
+    return not C.section(w).get("goals")
+
+
+@system("manipulation.goals", order=900, max_dt=30.0, idle=_goals_idle)
 def goals_system(w, dt, tick):
     sec = C.section(w)
     if not sec.get("goals"):

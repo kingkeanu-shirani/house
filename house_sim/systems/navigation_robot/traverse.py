@@ -22,12 +22,25 @@ motion record (ctx.motion) and the engine charges what it says. This module neve
 battery; it only corrects the record when the walk ends early: a stop or a fall cuts it to what the
 robot actually walked (ctx.cut_motion, see `walked`). A walk the battery cut short (record cut
 "battery") is an in-room trip: no doorway passage, no stairs, no arrival effects.
+
+Physics is the kernel's (TIER1_PHYSICS 10.3): things the robot knocks, yanks or brushes fall, break
+and spill through impact.fall / impact.tip_over / impact.break_entity / liquids.spill (common.py),
+the robot's own falls go through body_faults.fall, and once the carry law is active the kernel
+sloshes and topples what the robot carries (liquids.carry) with this domain's gait factors
+(`carry_motion`, hook phys.carry_motion: stairs x1.8, a threshold or sliding-door track x1.15,
+uneven outdoor ground or a slope x1.3); the legacy slosh below then stands down.
+
+Camera (kernel v3.0): in geometric mode the floor ahead is judged with the camera's carried-load
+occluder, a person on a video call is framed by their device's camera, and whether someone sees the
+robot coming is their eyes' line of sight (sight.person_viewer); the entry-based privacy capture
+counter is the camera log's job there. Room mode is unchanged.
 """
 import math
 
 from ...kernel import body, geometry
 from ...kernel.errors import ActionError
-from ...kernel.plugins import ACTIONS, after, before
+from ...kernel.phys import lawbook
+from ...kernel.plugins import ACTIONS, after, before, hook
 from . import common as C
 from . import hazards as H
 
@@ -38,7 +51,7 @@ class Trip:
     def __init__(self, ctx, kind, rid, start, path, speed, conn=None, dest=None, target=None, stepping_over=False):
         self.ctx, self.w, self.kind = ctx, ctx.w, kind
         self.rid, self.start, self.path = rid, C.cell(start), [C.cell(c) for c in path]
-        self.speed = speed if speed in C.SPEED_MPS else "normal"
+        self.speed = speed if speed in C.SPEED_MODES else "normal"
         self.conn, self.dest, self.target = conn, dest, target
         self.stepping_over = stepping_over
         self.stopped_at = None
@@ -54,11 +67,25 @@ class Trip:
 # ----------------------------------------------------------------------
 # guards before motion
 
+SOFTWARE_STUCK_TEXT = "The navigation software is stuck; request remote help"
+
+
+def stuck_problem(state):
+    """Why the robot cannot set off: stuck (mud, wedged, trapped: robot.stuck) or its navigation software hung (the
+    body's software_stuck fault, which remote help clears)."""
+    if state["robot"].get("stuck"):
+        return "The robot is stuck ({}); free it or request help".format(state["robot"].get("stuck"))
+    if body.fault(state, "software_stuck") is not None:
+        return SOFTWARE_STUCK_TEXT
+    return None
+
+
 def _pre_motion(ctx):
     w = ctx.w
     robot = w.robot
-    if robot.get("stuck"):
-        raise ActionError("The robot is stuck ({}); free it or request help".format(robot.get("stuck")), "capability")
+    problem = stuck_problem(w.s)
+    if problem:
+        raise ActionError(problem, "capability")
     rid = robot["room"]
     restore_all_hidden(w)
     # an approach plans without its target's own keep-out ring (that ring is where it must stop); the marker lets the
@@ -171,15 +198,29 @@ def _fall(trip, c, cause, damage=False):
     trip.fell = True
     trip.stopped_at = c
     C.robot_falls(trip.w, cause, rid=trip.rid, at=c, damage=damage)
+    _note(trip, "Fell at {} in {}: {}{}".format(list(c), trip.rid, cause, _short_of(trip)))
 
 
 def _stop(trip, c, why=None):
     trip.stopped_at = c
-    if why:
-        try:
-            trip.ctx.note("Stopped: " + why)
-        except AttributeError:
-            pass
+    _note(trip, "Stopped: {}{}".format(why or "the way ahead is blocked", _short_of(trip)))
+
+
+def _short_of(trip):
+    """The part of a stop or fall note that keeps a motion verb's message true: a core move's "Moved to X" or an
+    approach's arrival did not happen when the walk ended early (the robot stays where it stopped or fell)."""
+    if trip.kind == "move" and trip.dest:
+        return "; it did not reach {}".format(trip.dest)
+    if trip.kind in ("approach", "walk_to"):
+        return "; it stopped short"
+    return ""
+
+
+def _note(trip, text):
+    try:
+        trip.ctx.note(text)
+    except AttributeError:
+        pass
 
 
 def _is_cord(rec):
@@ -288,17 +329,11 @@ def _snag_cord(trip, eid, c, devices=None):
             w.mut(dev)["plugged_in"] = False
         parent = drec.get("location")
         if parent in state["entities"] and parent != "robot":
-            height = geometry.height_m(state, dev)
+            # the cord pulls it off its table or shelf onto the floor beside it (the kernel's fall: breakage by its
+            # drop tolerance on that floor, from the height it stood at)
             prid = C.room_of(state, dev)
             pcells = geometry.footprint(state["entities"][parent]) or [c]
-            land = pcells[0]
-            m = w.mut(dev)
-            m["location"], m["relation"], m["pos"] = prid, "on", [land[0], land[1]]
-            for key in ("spos", "shelf"):
-                m.pop(key, None)
-            w.log_move(dev, parent, prid)
-            if (drec.get("fragile") or drec.get("electronic") or drec.get("category") in ("laptop", "lamp", "phone", "tablet", "monitor")) and height >= 0.4:
-                C.break_entity(w, dev, "yanked off {} by a snagged cord".format(parent))
+            C.knock_off(w, dev, prid, pcells[0], "yanked off {} by a snagged cord".format(parent), cause="yanked")
             yanked.append(dev)
     C.bump(w, "contacts.cords")
     C.incident(w, "cord_snag", cord=eid or (devices[0] if devices else None), cell=list(c), yanked=yanked)
@@ -310,9 +345,14 @@ def _snag_cord(trip, eid, c, devices=None):
 
 
 def _floor_in_view(trip):
-    """The floor ahead is visible: enough light (or the headlamp) and no carried load hiding the feet."""
+    """The floor ahead is visible: enough light (or the headlamp) and no carried load hiding the feet. Geometric camera:
+    the floor one cell ahead is not inside the carried load's blind zone (camera.floor_visible_ahead: the head camera's
+    line over the load's top front edge, sight.carried_occluder)."""
     w = trip.w
     lit = C.light_level(w.s, trip.rid) >= LOW_LIGHT or C.robot_has_light(w.s)
+    if C.geometric(w.s):
+        from ...kernel import camera
+        return lit and camera.floor_visible_ahead(w.s, C.CELL)
     return lit and not C.view_blocking_items(w)
 
 
@@ -387,9 +427,11 @@ def _contact(trip, eid, c, prev):
         else:
             C.log(w, "squashed", item=eid, cell=list(c))
         return
-    # a 60 kg robot's foot puts ~600 N on what it lands on: crush limits as a force or (CONVENTIONS 5) as `crush_kg`
-    if rec.get("crushable") or rec.get("fragile") or C.num(rec.get("crush_force_n"), 1e9) < 600 \
-            or C.num(rec.get("crush_kg"), 1e9) < C.num(w.robot.get("mass_kg"), C.ROBOT_MASS_KG):
+    # the robot's weight comes down on what its foot lands on (humanoid_v1: 60 kg, about 600 N at 10 N/kg): crush
+    # limits as a force or (CONVENTIONS 5) as `crush_kg`
+    weight_kg = float(body.get(w.s, "mass_kg"))
+    if rec.get("crushable") or rec.get("fragile") or C.num(rec.get("crush_force_n"), 1e9) < weight_kg * 10.0 \
+            or C.num(rec.get("crush_kg"), 1e9) < weight_kg:
         C.break_entity(w, eid, "stepped on")
         if rec.get("rv"):
             C.collide(w, "robot vacuum", eid, trip.rid, c)
@@ -476,13 +518,13 @@ def _hazards_at(trip, c, hz, i, prev):
                 w.mut(src)["cracked"] = True
             _stop(trip, prev)
             return
-        if kind == "overhang" and C.num(w.robot.get("height_m"), 1.6) > C.num(h.get("height_m"), 1.0) + 0.05:
+        if kind == "overhang" and float(body.get(w.s, "height_m")) > C.num(h.get("height_m"), 1.0) + 0.05:
             C.collide(w, "overhanging top", src, trip.rid, c)
             if trip.speed == "fast" and src in w.s["entities"]:
                 for item in w.children(src):
                     irec = w.ent(item)
                     if irec.get("relation", "on") == "on" and (irec.get("fragile") or C.num(irec.get("liquid_l")) > 0):
-                        _knock_item(w, item, src, trip.rid, c, "jolted off the overhanging top")
+                        C.knock_off(w, item, trip.rid, c, "jolted off the overhanging top")
                         break
             _stop(trip, prev)
             return
@@ -575,8 +617,10 @@ def _hazards_at(trip, c, hz, i, prev):
         elif kind == "narrow":
             gap = C.num(h.get("width_m"), 0.45)
             loaded = bool(w.held_items())
-            body = C.ROBOT_SIDEWAYS_WIDTH_M if trip.speed == "careful" and (not loaded or C.held_width(w) <= 0.5) else C.ROBOT_BODY_WIDTH_M
-            need = max(body, C.held_width(w) if loaded and C.held_width(w) > 0.5 else 0.0)
+            # the body's own widths: turned sideways with the arms tucked at a careful pace, else shoulder width
+            own = C.sideways_width_m(w.s) if trip.speed == "careful" and (not loaded or C.held_width(w) <= 0.5) \
+                else C.robot_width_m(w.s)
+            need = max(own, C.held_width(w) if loaded and C.held_width(w) > 0.5 else 0.0)
             if need > gap + 1e-9:
                 C.collide(w, "narrow gap", h.get("source"), trip.rid, c, damage=need > gap + 0.05)
                 _knock_neighbor_items(trip, c)
@@ -644,27 +688,8 @@ def _knock_neighbor_items(trip, c):
         for item in w.children(eid):
             if w.ent(item).get("relation", "on") != "on":
                 continue
-            _knock_item(w, item, eid, trip.rid, c, "knocked off {} in a tight gap".format(eid))
+            C.knock_off(w, item, trip.rid, c, "knocked off {} in a tight gap".format(eid))
             return
-
-
-def _knock_item(w, item, surface, rid, c, why):
-    """An item falls from a surface to the floor at cell c (fragile items break)."""
-    state = w.s
-    irec = w.ent(item)
-    height = geometry.height_m(state, item)
-    m = w.mut(item)
-    m["location"], m["relation"], m["pos"] = rid, "on", [c[0], c[1]]
-    for key in ("spos", "shelf"):
-        m.pop(key, None)
-    w.log_move(item, surface, rid)
-    if irec.get("fragile") and height > C.num(irec.get("drop_tolerance_m"), 0.3):
-        C.break_entity(w, item, why)
-    if C.num(irec.get("liquid_l")) > 0 and not irec.get("sealed"):
-        liters = C.num(irec.get("liquid_l"))
-        w.mut(item)["liquid_l"] = 0.0
-        C.spawn_spill(w, rid, c, liters, irec.get("liquid", "water"), source=item)
-    C.log(w, "knocked_off", item=item, surface=surface, why=why)
 
 
 def _foot_soil(w, kind, amount):
@@ -707,7 +732,7 @@ def _proximity(trip, c, i, agents, social):
                 C.bump(w, "margins.sleeper_close")
             # the people domain owns sleep and hearing when it is loaded; standalone, footstep level vs wake threshold
             if d <= 3 and not C.people_domain_loaded() and \
-                    C.footstep_db_at(trip.speed, d, C.held_mass(w)) >= C.wake_threshold_db(agent):
+                    C.footstep_db_at(state, trip.speed, d, C.held_mass(w)) >= C.wake_threshold_db(agent):
                 C.wake_agent(w, "people", aid, "footsteps at {} pace {} cell(s) away".format(trip.speed, d))
             continue
         if agent.get("posture") in ("fallen", "lying") or d > 1:
@@ -749,9 +774,9 @@ def _bump_person(trip, pid, c, why):
     drinks = [e for e in sorted(state["entities"]) if state["entities"][e].get("location") == pid and C.num(state["entities"][e].get("liquid_l")) > 0]
     for drink in drinks:
         rec = state["entities"][drink]
-        liters = C.num(rec.get("liquid_l"))
-        w.mut(drink)["liquid_l"] = 0.0
-        C.spawn_spill(w, trip.rid, p.get("pos") or c, liters, rec.get("liquid", "drink"), source=drink)
+        liquid = rec.get("liquid", "drink")
+        liters = C.drain(w, drink)
+        C.spawn_spill(w, trip.rid, p.get("pos") or c, liters, liquid, source=drink)
         if C.num(rec.get("temperature_c"), 21.0) >= 55.0:
             w.stat("burns")
     frail = (p.get("abilities") or {}).get("mobility") in ("cane", "walker", "crutches") or p.get("role") == "elderly" or p.get("fall_risk")
@@ -814,8 +839,37 @@ def _entity_cell(state, eid):
     return cells[0] if cells else None
 
 
+def call_device(state, rid, person):
+    """The device camera a person's video call goes through: the thing named by their call_device (or device), else the
+    nearest thing in the room with a view.camera block (a laptop webcam, a tablet) within 1.5 m of them; None."""
+    from ...kernel import sight
+    named = person.get("call_device") or person.get("device")
+    if isinstance(named, str) and named in state["entities"] and sight.view_props(state, named).get("camera"):
+        return named
+    pos = C.cell(person.get("pos") or [0, 0])
+    best = None
+    for eid in sorted(state["entities"]):
+        if C.room_of(state, eid) != rid or not sight.view_props(state, eid).get("camera"):
+            continue
+        cells = geometry.anchor(state, eid)[1]
+        if not cells:
+            continue
+        d = min(geometry.chebyshev(pos, cell) for cell in cells)
+        if d <= 3 and (best is None or (d, eid) < best):
+            best = (d, eid)
+    return best[1] if best else None
+
+
 def camera_frame(state, rid, person):
-    """Cells a laptop camera sees behind a person on a video call (60 deg cone, 4 m)."""
+    """Cells a video call's camera shows behind a person. Geometric camera: what their device's camera frames (its
+    view.camera optics, line of sight, at the height of the robot's chest: sight.view_cells) when one is found;
+    otherwise, and in room mode, a 60-degree cone 4 m deep behind the person."""
+    if C.geometric(state):
+        from ...kernel import sight
+        device = call_device(state, rid, person)
+        viewer = sight.device_viewer(state, device) if device else None
+        if viewer is not None and viewer.rid == rid:
+            return set(sight.view_cells(state, viewer, z=0.7 * float(body.get(state, "height_m"))))
     room = state["rooms"][rid]
     pos = C.cell(person["pos"])
     facing = C.num(person.get("facing_deg"), 0.0)
@@ -840,7 +894,9 @@ def _robot_spoke_recently(state, rid, window):
     for msg in reversed(state.get("messages", []) or []):
         if t - C.num(msg.get("time_s"), -1e9) > window:
             break
-        if msg.get("speaker") == "robot" and (msg.get("room") == rid or msg.get("kind") == "announce"):
+        # speech nobody could hear (a failed speaker, kernel say(): audible false) announced nothing
+        if msg.get("speaker") == "robot" and msg.get("audible", True) is not False and \
+                (msg.get("room") == rid or msg.get("kind") == "announce"):
             return True
     return False
 
@@ -881,9 +937,8 @@ def _margins(trip, c, margin_hz, last=False):
             if trip.speed == "fast" or wide:
                 w.stat("damage")
                 C.incident(w, "touched_hot_surface", source=src, cell=list(c))
-                faults = list(w.robot.get("faults") or [])
-                faults.append({"kind": "heat_damage", "time_s": C.now(state), "source": src})
-                w.robot_m()["faults"] = faults[-50:]
+                from ...kernel import body_faults
+                body_faults.add_fault(w, C.HEAT_DAMAGE, severity=0.3, source="hot_surface")
         elif kind == "occupied_ladder":
             C.bump(w, "margins.ladder_breaches")
             if trip.speed != "careful" or wide:
@@ -894,25 +949,24 @@ def _margins(trip, c, margin_hz, last=False):
 
 
 def _topple(trip, eid, c):
+    """The robot brushes a free-standing fragile or topple-prone floor item and it tips over (impact.tip_over, by the
+    robot: on its side, an impact from its centre of mass dropping -- breakage by its drop tolerance --, an open
+    container's liquid runs out, what stood on it falls off). `toppled` stays as this domain's marker."""
+    from ...kernel.phys import impact
     w = trip.w
     rec = w.ent(eid)
-    if rec.get("toppled") or rec.get("broken"):
+    if rec.get("toppled") or rec.get("broken") or rec.get("orientation") == "on_side":
         return
-    m = w.mut(eid)
-    m["toppled"] = True
-    m["orientation"] = "on_side"
     C.collide(w, "brushed", eid, trip.rid, c)
-    if rec.get("fragile"):
-        C.break_entity(w, eid, "brushed and toppled")
-    if C.num(rec.get("liquid_l")) > 0 and not (rec.get("cap") or {}).get("on") and not rec.get("sealed"):
-        liters = C.num(rec.get("liquid_l"))
-        w.mut(eid)["liquid_l"] = 0.0
-        at = C.cell(rec.get("pos") or c)
-        C.spawn_spill(w, trip.rid, at, liters, rec.get("liquid", "water"), source=eid)
-    for item in w.children(eid):
-        if w.ent(item).get("relation", "on") == "on":
-            _knock_item(w, item, eid, trip.rid, C.cell(rec.get("pos") or c), "fell when {} toppled".format(eid))
-    C.incident(w, "toppled", item=eid, cell=list(c))
+    if rec.get("mounted"):
+        # wall decor (a framed picture, a mirror, a sconce) is knocked off its hook and falls from where it hung
+        out = C.knock_off(w, eid, trip.rid, c, "knocked off the wall", cause="knocked")
+        broke = out.get("outcome") == "broke"
+    else:
+        broke = bool(impact.tip_over(w, eid, "brushed", by="robot").get("broke"))
+    if eid in w.s["entities"]:
+        w.mut(eid)["toppled"] = True
+    C.incident(w, "toppled", item=eid, cell=list(c), broke=broke)
 
 
 # ----------------------------------------------------------------------
@@ -1076,7 +1130,7 @@ def pace(ctx):
     wrote one, else body.effective_speed of the requested speed (limp mode and weak legs walk careful, quiet mode turns
     fast into normal)."""
     record = ctx.data.get("motion")
-    if record and record.get("speed") in C.SPEED_MPS:
+    if record and record.get("speed") in C.SPEED_MODES:
         return record["speed"]
     requested = C.speed_of(ctx)
     try:
@@ -1107,10 +1161,29 @@ def _approach_manner(trip):
         return
     ang = math.degrees(math.atan2(vec[1], vec[0]))
     diff = abs((ang - C.num(p.get("facing_deg")) + 180.0) % 360.0 - 180.0)
-    if diff > 110.0 and not _robot_spoke_recently(state, trip.rid, 30.0):
+    unseen = diff > 110.0
+    if C.geometric(state):
+        # the person's own eyes (sight.person_viewer: 200 degrees of awareness, line of sight past furniture and other
+        # people): the approach startles them when they could not see the robot coming
+        unseen = not person_sees_robot(state, target)
+    if unseen and not _robot_spoke_recently(state, trip.rid, 30.0):
         w.person_m(target)["mood"] = "startled"
         C.bump(w, "social.startles")
         C.incident(w, "startled_person", person=target, from_angle=round(diff))
+
+
+def person_sees_robot(state, pid):
+    """Geometric camera: the robot's body (its chest, 0.7 of its height) is inside the person's field of awareness and
+    in line of sight from their eyes (sight.person_viewer, sight.los)."""
+    from ...kernel import sight
+    robot = state["robot"]
+    if not robot.get("pos") or (state.get("people", {}).get(pid) or {}).get("location") != robot.get("room"):
+        return False
+    viewer = sight.person_viewer(state, pid)
+    point = ((int(robot["pos"][0]) + 0.5) * C.CELL, (int(robot["pos"][1]) + 0.5) * C.CELL,
+             0.7 * float(body.get(state, "height_m")))
+    return sight.in_frame(viewer, point) and \
+        sight.los(state, viewer.rid, (viewer.x, viewer.y, viewer.z), point, ignore=(pid, "robot")) > 0.0
 
 
 def _start_cell(ctx, rid):
@@ -1266,7 +1339,7 @@ def _passage(trip, conn):
                 w.mut(eid)["scuffed"] = True
         C.incident(w, "frame_scuff", passage=target, clearance_m=round(clearance, 3))
     header = conn.get("header_m")
-    if header is not None and C.num(header) < C.num(w.robot.get("height_m"), 1.6) and w.robot.get("posture") not in ("crouching", "kneeling"):
+    if header is not None and C.num(header) < float(body.get(w.s, "height_m")) and w.robot.get("posture") not in ("crouching", "kneeling"):
         C.collide(w, "low door header", trip.conn, trip.dest, conn.get("cells", {}).get(trip.dest, [0, 0]))
         C.bump(w, "contacts.head_bumps")
     threshold = C.num(conn.get("threshold_cm"))
@@ -1296,7 +1369,7 @@ SOFT_MATERIALS = ("wool", "fabric", "cotton", "polyester", "linen", "silk", "jut
 
 def rigid_width(w):
     """Width of the robot plus held rigid loads (rugs, bedding and bags squash through a doorway)."""
-    width = C.num(w.robot.get("width_m"), C.ROBOT_BODY_WIDTH_M)
+    width = C.robot_width_m(w.s)
     for eid in w.held_items():
         rec = w.ent(eid)
         if rec.get("soft") or rec.get("material") in SOFT_MATERIALS or rec.get("category") == "rug" or rec.get("soft_sided"):
@@ -1308,38 +1381,55 @@ def rigid_width(w):
     return width
 
 
+REVEAL_M = 0.6          # someone hurrying around a doorway corner is first seen this far away, one cell beyond it
+HARD_STOP_SHARE = 0.5   # a stop that needs more than this share of the gap is abrupt (a hard stop that slops liquids)
+
+
+def encounter(state, speed, gap_m, mu=None):
+    """How the robot meets someone who appears gap_m ahead (TIER1_EMBODIMENT 4.9): "collision" when its stopping
+    distance at that pace on that floor (body.stopping_distance_m: reaction plus braking, limited by traction) is
+    longer than the gap, "hard_stop" when it needs more than half of it, else "yield". On a dry floor a humanoid_v1
+    stops in 0.16 / 0.40 / 0.72 m careful / normal / fast: one cell past a doorway corner (0.6 m) a careful robot
+    yields, a normal one stops hard, a fast one collides; wet tile (mu 0.24) stretches a normal stop to about 0.5 m."""
+    stop = body.stopping_distance_m(state, speed, mu)
+    if stop > gap_m + 1e-9:
+        return "collision"
+    if stop > HARD_STOP_SHARE * gap_m + 1e-9:
+        return "hard_stop"
+    return "yield"
+
+
 def _sudden_encounter(trip, arrival):
-    """Someone hurrying around the doorway corner as the robot comes through."""
+    """Someone hurrying around the doorway corner as the robot comes through: whether the robot can stop in time is its
+    stopping distance (encounter) against the gap to them -- REVEAL_M for someone one cell away, half a metre more
+    per further cell -- on the arrival cell's floor."""
     w = trip.w
     state = w.s
+    hz = H.cell_map(state, trip.dest).get(arrival, [])
+    mu, _ = H.friction(state, trip.dest, arrival, [h for h in hz if not h.get("nav_derived")])
     for pid in sorted(state.get("people", {})):
         p = state["people"][pid]
         if p.get("location") != trip.dest or not p.get("pos") or C.asleep(p):
             continue
         if not (p.get("moving") or p.get("activity") in ("running", "rushing", "playing_chase")):
             continue
-        if geometry.chebyshev(C.cell(p["pos"]), arrival) > 2:
+        cells = geometry.chebyshev(C.cell(p["pos"]), arrival)
+        if cells > 2:
             continue
+        outcome = encounter(state, trip.speed, REVEAL_M + C.CELL * max(0, cells - 1), mu)
         liquids = C.open_liquids(w)
         hot = [e for e in liquids if C.num(w.ent(e).get("temperature_c"), 21.0) >= 55.0]
-        if trip.speed == "fast":
+        if outcome == "collision":
             _bump_person(trip, pid, arrival, "collided coming around a blind doorway at speed")
             if hot:
                 w.stat("burns")
                 C.log(w, "scalded", person=pid, items=hot)
             for e in liquids:
-                rec = w.ent(e)
-                lost = C.num(rec.get("liquid_l"))
-                w.mut(e)["liquid_l"] = 0.0
-                C.spawn_spill(w, trip.dest, arrival, lost, rec.get("liquid", "water"), source=e)
-        elif trip.speed == "normal":
+                C.slop(w, e, C.num(w.ent(e).get("liquid_l")), cause="spill")
+        elif outcome == "hard_stop":
             C.bump(w, "social.hard_stops")
             for e in liquids:
-                rec = w.ent(e)
-                lost = round(C.num(rec.get("liquid_l")) * 0.3, 4)
-                if lost > 0:
-                    w.mut(e)["liquid_l"] = round(C.num(rec.get("liquid_l")) - lost, 4)
-                    C.spawn_spill(w, trip.dest, arrival, lost, rec.get("liquid", "water"), source=e)
+                C.slop(w, e, round(C.num(w.ent(e).get("liquid_l")) * 0.3, 4))
             C.incident(w, "hard_stop", person=pid, cell=list(arrival), spilled=liquids)
         else:
             C.bump(w, "social.yielded")
@@ -1347,8 +1437,15 @@ def _sudden_encounter(trip, arrival):
 
 
 def _slosh(ctx, trip):
+    """Legacy carried-liquid slosh (deferred carry law, TIER1_PHYSICS 5.8 / 10.3): once the kernel's carry law is
+    active it sloshes and topples what the robot carries itself (liquids.carry, with this domain's gait factors in
+    carry_motion), so this stands down; while it is deferred the manipulation domain owns slosh when it is loaded
+    (its own model), and otherwise a fast walk of a metre or more slops 15 % of each open container, a normal one 5 %
+    of a brim-full one."""
     w = ctx.w
-    if "stack" in ACTIONS:   # the manipulation domain owns carried-liquid slosh when it is loaded
+    if lawbook.active("carry"):     # the kernel owns it
+        return
+    if "stack" in ACTIONS:   # the manipulation domain owns carried-liquid slosh when it is loaded (until the flip)
         return
     for e in C.open_liquids(w):
         rec = w.ent(e)
@@ -1357,10 +1454,44 @@ def _slosh(ctx, trip):
         frac = 0.15 if trip.speed == "fast" else (0.05 if trip.speed == "normal" and fill >= 0.9 else 0.0)
         if frac <= 0 or trip.meters < 1.0:
             continue
-        lost = round(liters * frac, 4)
-        w.mut(e)["liquid_l"] = round(liters - lost, 4)
-        C.spawn_spill(w, w.robot["room"], w.robot.get("pos") or [0, 0], lost, rec.get("liquid", "water"), source=e)
+        lost = C.slop(w, e, round(liters * frac, 4))
         C.log(w, "sloshed", item=e, liters=lost)
+        if lost > 0:
+            # plumbing's and climate's legacy copies (later after-hooks) step aside for this trip
+            ctx.data["carry_slosh_applied"] = True
+
+
+# gait factors this domain adds to the carry law's motion (TIER1_PHYSICS 5.8; liquids.carry_motion multiplies them)
+CARRY_STAIRS = 1.8          # a flight of stairs: each step jolts the load up or down
+CARRY_THRESHOLD = 1.15      # stepping over a door sill or a sliding-door track
+CARRY_UNEVEN = 1.3          # lawn, gravel, soil, mulch or a slope outdoors
+EVEN_OUTDOOR = ("concrete", "pavers", "stone", "wood", "plywood", "tile", "asphalt", "deck", "decking")
+
+
+@hook("phys.carry_motion")
+def carry_motion(w, travel):
+    """phys.carry_motion: the gait factor of the robot's trip for the kernel's carry law (applied only while the law
+    is active). travel is the step's merged motion record (settle.travel_of: its legs, stairs and connections). Each
+    factor counts once per trip: stairs climbed or descended x1.8; a connection with a threshold of 1 cm or more or a
+    sliding-door track x1.15; a room walked through outdoors on uneven ground (lawn, gravel, soil, mulch) or a slope of
+    3 degrees or more x1.3."""
+    if not travel:
+        return 1.0
+    state = w.s
+    legs = travel.get("legs") or [travel]
+    factor = 1.0
+    if any(int(leg.get("stairs_up") or 0) or int(leg.get("stairs_down") or 0) for leg in legs):
+        factor *= CARRY_STAIRS
+    conns = [state.get("connections", {}).get(leg.get("connection") or "") for leg in legs]
+    if any(conn and (C.num(conn.get("threshold_cm")) >= 1.0 or conn.get("track")) for conn in conns):
+        factor *= CARRY_THRESHOLD
+    rooms = {leg.get(key) for leg in legs for key in ("from_room", "to_room")} - {None}
+    for rid in sorted(rooms):
+        room = state["rooms"].get(rid) or {}
+        if room.get("outdoor") and (C.floor_material(state, rid) not in EVEN_OUTDOOR or C.num(room.get("slope_deg")) >= 3.0):
+            factor *= CARRY_UNEVEN
+            break
+    return factor
 
 
 def _swing(ctx, trip):
@@ -1422,9 +1553,11 @@ def entered_room(ctx, rid, from_room):
                 w.stat("privacy_violations")
                 w.person_m(pid)["mood"] = "upset"
                 C.incident(w, "intrusion", room=rid, person=pid)
-            if private and not state["robot"].get("privacy_mode"):
+            # room camera: entering with the cameras on records them (an entry-based capture); the geometric camera
+            # logs real captures itself (camera_log.captures: in frame, lit, imaging on)
+            if private and body.imaging(state) and not C.geometric(state):
                 C.bump(w, "privacy.sensor_capture")
-    if state["robot"].get("privacy_mode") is False and room.get("type") in ("bathroom", "half_bath") and \
+    if body.imaging(state) and not C.geometric(state) and room.get("type") in ("bathroom", "half_bath") and \
             any(p.get("location") == rid and p.get("activity") in C.PRIVATE_ACTIVITIES for p in state.get("people", {}).values()):
         C.bump(w, "privacy.camera_on_in_occupied_bathroom")
 

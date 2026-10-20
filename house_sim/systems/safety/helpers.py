@@ -39,6 +39,7 @@ from ...kernel import geometry
 from ...kernel.errors import SpecError
 from ...kernel.plugins import scenario_helper
 from ...kernel.world import World
+from . import air as A
 from . import common as C
 
 DEFAULT_ADDRESS_FMT = "{} Example Lane"
@@ -355,7 +356,17 @@ def _agents_wall_off(ctx, rid, cell):
 
     before = reached(agents)
     after = reached(agents | {tuple(cell)})
-    return bool(before - after - {tuple(cell)})
+    if before - after - {tuple(cell)}:
+        return True
+    # nobody may be boxed in either: everyone the robot could get within reach of (a free floor cell next to them that a
+    # doorway reaches) keeps such a cell, and so does the newcomer -- a dog on the only free cell beside a child asleep
+    # in a corner would leave the robot no way to wake her
+    room = ctx.config["rooms"][rid]
+
+    def approachable(reach, a):
+        return any((a[0] + dx, a[1] + dy) in reach for dx in (-1, 0, 1) for dy in (-1, 0, 1) if (dx or dy)
+                   and geometry.in_grid(room, (a[0] + dx, a[1] + dy)))
+    return any(not approachable(after, a) for a in [a for a in agents if approachable(before, a)] + [tuple(cell)])
 
 
 def _mount_by_door(ctx, rid, type_name, height, prefer=None, **props):
@@ -745,6 +756,8 @@ def _set_air(ctx, rid, **values):
             a.setdefault("toxic", {}).update(value)
         else:
             a[key] = float(value)
+    if a.get("smoke", 0.0) >= A.SMOKE_SEEN_K:
+        a["seen"] = True        # smoke already in the room at the start: no "smoke" notice for it (air.smoke_sightings)
 
 
 def _spread_air(ctx, rid, key, level, decay=0.45, hops=3, cls=None):
@@ -2417,6 +2430,35 @@ def place_person_helper(ctx, pid, prefer=("bedroom", "master_bedroom", "office",
         p["barefoot"] = bool(barefoot)
     p.update(copy.deepcopy(props or {}))
     return {var or pid: pid, (var or pid) + "_room": rid}
+
+
+@scenario_helper("safety.robot_near")
+def robot_near_helper(ctx, target):
+    """Start the robot beside `target` like the core `robot` op's `near` (the first free neighbouring cell), but on a cell
+    it can walk to from one of the room's doorways without stepping on glass -- unspotted slivers included -- or another
+    floor hazard, so a robot put next to the supplies never starts walled in by the mess it is to clean. Falls back to
+    the core op when no neighbouring cell qualifies."""
+    from ...tasks import setup as SETUP
+    _ent(ctx, target)
+    state = ctx.placer.state()
+    probe = dict(state, robot={"room": ctx.config.get("robot", {}).get("room"), "hands": {}, "pos": None})
+    rid, cells = geometry.anchor(probe, target)
+    if rid not in ctx.config["rooms"] or not cells:
+        raise SpecError("safety.robot_near: cannot locate " + str(target))
+    haz = _setup_hazard_cells(state, rid)
+    blocked = set(geometry.blocked_cells(state, rid))
+    walk = set()
+    for door in sorted({tuple(c["cells"][rid]) for c in ctx.config.get("connections", {}).values() if rid in c.get("cells", {})}):
+        if door not in haz and door not in blocked and door not in walk:
+            walk |= C.reachable_cells(state, rid, start=door, extra_blocked=haz)
+    options = [c for c in sorted(geometry.near_cells(set(cells), ctx.config["rooms"][rid]) - set(cells))
+               if c in walk and c not in blocked and c not in haz]
+    if not options:
+        SETUP.op_robot(ctx, {"op": "robot", "near": target})
+        return {}
+    robot = ctx.config.setdefault("robot", {})
+    robot["room"], robot["pos"], robot["docked"] = rid, list(options[0]), False
+    return {}
 
 
 @scenario_helper("safety.place_pet")

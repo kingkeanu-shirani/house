@@ -17,6 +17,53 @@ from . import model as M
 from . import state as S
 
 
+# ----- the geometric camera (TIER1_INTEGRATION 6: floor cues only on floor this step's frames surveyed) ------------
+
+RAKING_KINDS = ("fingerprints", "streaks", "hairspray", "sunscreen")   # thin films seen only in raking (specular) light
+
+
+def seen_keys(env, w, rid):
+    """Floor cells ("c,r") of room rid that this step's camera frames surveyed (camera.step_view(...).seen, cached by
+    the engine), or None in room mode (no camera restriction)."""
+    if "view" not in w.s["robot"]:
+        return None
+    from ...kernel import camera
+    sv = camera.step_view(env)
+    if sv is None:
+        return None
+    return {S.ck(c) for c in (sv.seen or {}).get(rid, ())}
+
+
+_SEEN_CACHE = {}
+
+
+def _seen_state_keys(state, rid):
+    """seen_keys for hooks that get only the state (camera.seen_floor, memoised for the current step and pose)."""
+    view = state["robot"].get("view") or {}
+    frames = tuple(tuple(f[:9]) for f in (view.get("frames") or ()) if isinstance(f, (list, tuple)))
+    key = (id(state), id(state["entities"]), len(state["entities"]), state.get("steps", 0), state.get("time_s", 0.0),
+           frames, tuple(state["robot"].get("pos") or ()), state["robot"].get("facing_deg"), view.get("pan_deg"),
+           view.get("tilt_deg"), state["robot"].get("posture"))
+    if _SEEN_CACHE.get("key") != key:
+        from ...kernel import camera
+        _SEEN_CACHE["key"] = key
+        _SEEN_CACHE["cells"] = camera.seen_floor(state)
+    return {S.ck(c) for r, c in _SEEN_CACHE["cells"] if r == rid}
+
+
+def _floor_cells_shown(w, eid, rec, seen):
+    """{"c,r": visible soil of the cell} of a floor: cells not under a rug, low furniture or a fixed footprint, and in
+    geometric mode only those this step's frames surveyed (seen)."""
+    vis = S.floor_visibility(w, eid)
+    cells = {}
+    for key, part in sorted((rec.get("_cells") or {}).items()):
+        if vis.get(key) == "visible" and (seen is None or key in seen):
+            shown = {k: v for k, v in part.items() if v >= 0.02}
+            if shown:
+                cells[key] = shown
+    return cells
+
+
 @observer("cleaning.visible_soil", order=60)
 def visible_soil_observer(env, w, obs):
     realism = getattr(env, "realism", None)
@@ -30,14 +77,15 @@ def visible_soil_observer(env, w, obs):
         if S.has_parts(rec):
             data["soil"] = S.visible_soil(w, eid)
         if rec.get("_cells") is not None and S.is_floor(rec):
-            vis = S.floor_visibility(w, eid)
-            cells = {}
-            for key, part in sorted((rec.get("_cells") or {}).items()):
-                if vis.get(key) == "visible":
-                    shown = {k: v for k, v in part.items() if v >= 0.02}
-                    if shown:
-                        cells[key] = shown
+            seen = seen_keys(env, w, rec.get("location"))
+            cells = _floor_cells_shown(w, eid, rec, seen)
             data["dirty_cells"] = dict(list(cells.items())[:80])
+            if seen is not None:
+                agg = {}
+                for part in cells.values():
+                    for kind, level in part.items():
+                        agg[kind] = max(agg.get(kind, 0.0), level)
+                data["soil"] = {k: S.rnd(v) for k, v in sorted(agg.items())}
         if rec.get("cl_applied"):
             data["wet_with"] = sorted({a.get("p") for a in rec["cl_applied"]})
 
@@ -70,7 +118,8 @@ def _cell_ctx(base, robot, rid, cell):
 def perceived_cells(env, w, floor, keys=None, level=None):
     """{"c,r": perceived soil} of a floor's visible cells: glance -> one bucket per cell (light / dirty / very dirty;
     clean cells left out), inspect knowledge -> per-kind buckets. Deterministic per viewpoint (kernel noise).
-    keys: only these cells (already known to be visible, e.g. from an inspection)."""
+    keys: only these cells (already known to be visible, e.g. from an inspection). In geometric mode only the cells
+    this step's frames surveyed."""
     from ...kernel.realism import GLANCE, INSPECT, MISSING
     realism = env.realism
     rec = w.s["entities"].get(floor)
@@ -81,11 +130,12 @@ def perceived_cells(env, w, floor, keys=None, level=None):
     base = realism.context(state)
     vis = S.floor_visibility(w, floor) if keys is None else {}
     rid = rec.get("location")
+    seen = seen_keys(env, w, rid) if keys is None else None
     out = {}
     for key, part in sorted((rec.get("_cells") or {}).items()):
         if keys is not None and key not in keys:
             continue
-        if keys is None and vis.get(key) != "visible":
+        if keys is None and (vis.get(key) != "visible" or (seen is not None and key not in seen)):
             continue
         shown = {k: v for k, v in part.items() if float(v) >= 0.02}
         if not shown:
@@ -113,11 +163,12 @@ def _realistic_room_view(env, w, obs, realism):
         if isinstance(film, dict):
             floor = S.floor_of(w, rid)
             vis = S.floor_visibility(w, floor) if floor else {}
+            surveyed = seen_keys(env, w, rid)
             seen = {}
             if not obs.get("dark"):
                 for key, mm in sorted(film.items()):
                     word = film_word(mm)
-                    if word and vis.get(key, "visible") == "visible":
+                    if word and vis.get(key, "visible") == "visible" and (surveyed is None or key in surveyed):
                         seen[key] = word
             if seen:
                 room_obs["wet_patches"] = seen
@@ -135,12 +186,16 @@ def _realistic_room_view(env, w, obs, realism):
 def wet_floor_seen(state, rid, cell, kind, source):
     """Realistic grid.hazards: a wet cell (rooms.<rid>.wet_cells) shows only where a camera would see water - a film
     of at least a damp sheen (FILM_WORDS; a thin damp film is slippery but invisible) and not under a rug or low
-    furniture - consistent with the wet_patches words of the visible_soil observer."""
+    furniture - consistent with the wet_patches words of the visible_soil observer; with the geometric camera only on
+    floor this step's frames surveyed (camera.seen_floor)."""
     if kind != "wet" or source != rid:
         return None
     room = state["rooms"].get(rid) or {}
-    mm = (room.get("water_film") or {}).get("{},{}".format(int(cell[0]), int(cell[1])))
+    key = "{},{}".format(int(cell[0]), int(cell[1]))
+    mm = (room.get("water_film") or {}).get(key)
     if mm is not None and film_word(mm) is None:
+        return False
+    if "view" in state["robot"] and key not in _seen_state_keys(state, rid):
         return False
     here = (int(cell[0]), int(cell[1]))
     for eid in geometry.room_entities(state, rid):
@@ -149,6 +204,61 @@ def wet_floor_seen(state, rid, cell, kind, source):
             if rec.get("category") == "rug" or rec.get("ground_layer") or S.clearance_m(rec) < S.OPEN_UNDER_M:
                 return False
     return None
+
+
+@hook("perceivable_value")
+def perceivable_soil(state, eid, record, field):
+    """What a camera can see of `soil` (realistic perception; kernel/realism.py renders the result): never soil under
+    standing items (shadows), under rugs, low furniture or fixed footprints (S.visible_soil); with the geometric camera
+    only floor cells this step's frames surveyed, and thin films (fingerprints, streaks, hairspray, sunscreen) only
+    where a glossy finish mirrors a light into the camera (camera.specular: raking light). None: the true value."""
+    soil = record.get("soil")
+    if field != "soil" or not isinstance(soil, dict) or not soil:
+        return None
+    geometric = "view" in state["robot"]
+    parts = S.has_parts(record)
+    if not parts and not (geometric and any(k in soil for k in RAKING_KINDS)):
+        return None
+    view = S.StateView(state)
+    if parts and isinstance(record.get("_cells"), dict) and record["_cells"] and S.is_floor(record):
+        seen = _seen_state_keys(state, record.get("location")) if geometric else None
+        agg = {}
+        for part in _floor_cells_shown(view, eid, record, seen).values():
+            for kind, level in part.items():
+                agg[kind] = max(agg.get(kind, 0.0), level)
+        shown = {k: S.rnd(v) for k, v in sorted(agg.items()) if v > 0.0005}
+    elif parts:
+        shown = S.visible_soil(view, eid)
+    else:
+        shown = dict(soil)
+    if geometric and any(k in shown for k in RAKING_KINDS):
+        from ...kernel import camera
+        if not camera.specular(state, eid):
+            shown = {k: v for k, v in shown.items() if k not in RAKING_KINDS}
+    return None if shown == soil else shown
+
+
+perceivable_soil.fields = ("soil",)
+
+
+def _contained_weight(state, eid):
+    """How much of a thing's smell reaches the room air (the same rule as textiles_laundry's senses): 1 in the open,
+    0.5 inside a closed drawer, cupboard, hamper or lidded bin (none is airtight), 0 when something around it is sealed
+    or airtight (a vacuum bag, an airtight caddy)."""
+    ents = state["entities"]
+    weight, current, seen = 1.0, eid, set()
+    while current in ents and current not in seen:
+        seen.add(current)
+        rec = ents[current]
+        parent = ents.get(rec.get("location"))
+        if parent is None:
+            break
+        if parent.get("sealed") or parent.get("airtight"):
+            return 0.0
+        if rec.get("relation") == "in" and parent.get("openable") and not parent.get("open"):
+            weight = min(weight, 0.5)
+        current = rec.get("location")
+    return weight
 
 
 def smell_sources(w):
@@ -168,8 +278,14 @@ def smell_sources(w):
             level, musty_odor = S.odor_level(rec), 0.0
         musty = (float(soil.get("mildew", 0.0) or 0.0) + float(soil.get("mold", 0.0) or 0.0)) if isinstance(soil, dict) else 0.0
         musty = max(musty, musty_odor)
+        if rec.get("textile"):
+            musty = 0.0         # a soured towel or sheet is textiles_laundry's smell (musty_laundry), not a second one here
         if rec.get("category") == "spill" and rec.get("odor_source"):
             level = max(level, 0.4)
+        if level <= 0.2 and musty <= 0.3:
+            continue
+        weight = _contained_weight(w.s, eid)
+        level, musty = level * weight, musty * weight
         if level <= 0.2 and musty <= 0.3:
             continue
         rid = w.root_room(eid)
@@ -330,6 +446,30 @@ def _fill_words(amount, frac):
             else "mostly full" if frac < 0.95 else "full")
 
 
+def _other_fill(ctx, rec):
+    """fill_estimate words of a closed product without amount_ml: its litres against capacity_l (refill bottles),
+    another domain's amount_l against its type's full amount, or an amount fraction; None when the record carries no
+    amount at all (a seed bag or a canister of wipes: nothing to estimate, so nothing is claimed)."""
+    if rec.get("liquid_l") is not None:
+        liters = float(rec.get("liquid_l") or 0.0)
+        cap = float(rec.get("capacity_l", 0.0) or 0.0)
+        return _fill_words(liters, liters / cap if cap > 0 else (1.0 if liters > 0 else 0.0))
+    if rec.get("amount_l") is not None:
+        amount = float(rec.get("amount_l") or 0.0)
+        try:
+            full = float(ctx.env.registry.resolve(rec.get("type")).get("amount_l") or 0.0)
+        except (KeyError, TypeError, ValueError):
+            full = 0.0
+        return _fill_words(amount, amount / full if full > 0 else (1.0 if amount > 0 else 0.0))
+    if rec.get("amount") is not None:
+        try:
+            frac = float(rec.get("amount") or 0.0)
+        except (TypeError, ValueError):
+            return None
+        return _fill_words(frac, frac)
+    return None
+
+
 def _word(value, scheme, top):
     value = float(value or 0.0)
     for edge, word in scheme:
@@ -385,9 +525,9 @@ def _realistic_details(w, eid, rec, details, ctx):
         for key in ("liquid_l", "murky", "sudsy", "fill_level"):
             details.pop(key, None)
         if "fill_estimate" not in details:
-            liters = float(rec.get("liquid_l", 0.0) or 0.0)
-            cap = float(rec.get("capacity_l", 0.0) or 0.0)
-            details["fill_estimate"] = _fill_words(liters, liters / cap if cap > 0 else (1.0 if liters > 0 else 0.0))
+            estimate = _other_fill(ctx, rec)
+            if estimate is not None:
+                details["fill_estimate"] = estimate
     if "composition_g" in details:
         comp = details.pop("composition_g") or {}
         ranked = [k.replace("_", " ") for k, v in sorted(comp.items(), key=lambda kv: (-float(kv[1]), kv[0])) if float(v) > 0.5]

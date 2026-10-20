@@ -5,7 +5,8 @@
    "title": "Avoid wet floors",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -103,7 +104,8 @@
    "title": "Avoid cords",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -199,7 +201,8 @@
      "stairs"
     ],
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -352,7 +355,8 @@
    "title": "Turn lights on before entering a dark space",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -567,7 +571,8 @@
    "title": "Return to a charging location",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -753,7 +758,8 @@
    "title": "Measure object dimensions",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -919,7 +925,8 @@
    "title": "Clear a wheelchair path",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1111,7 +1118,8 @@
    "title": "Maintain the robot vacuum",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1286,7 +1294,8 @@
    "title": "Reach",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -1535,7 +1544,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1666,7 +1676,8 @@
    "title": "Follow a person",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -1857,7 +1868,8 @@
    "house": {
     "dwelling": "apartment",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1896,13 +1908,10 @@
      "do": "call_elevator"
     },
     {
-     "wait_until": {
-      "path": "rooms.{car}.elevator.doors",
-      "op": "eq",
-      "value": "open"
-     },
-     "max_s": 120,
-     "poll_s": 5
+     "wait_for": [
+      "elevator"
+     ],
+     "max_s": 120
     },
     {
      "do": "move",
@@ -1942,13 +1951,10 @@
        "do": "call_elevator"
       },
       {
-       "wait_until": {
-        "path": "rooms.{car}.elevator.doors",
-        "op": "eq",
-        "value": "open"
-       },
-       "max_s": 120,
-       "poll_s": 5
+       "wait_for": [
+        "elevator"
+       ],
+       "max_s": 120
       },
       {
        "do": "move",
@@ -1973,7 +1979,7 @@
      ]
     }
    ],
-   "notes": "Elevator model: 2.5 s per floor plus a door cycle, doors open 8 s; standing in the doorway holds them (neighbors wait)."
+   "notes": "Elevator model: 2.5 s per floor plus a door cycle, doors open 8 s; standing in the doorway holds them (neighbors wait). Waits are agent-legal (M-WAITS): the robot waits for the elevator's chime as the doors open at its landing (an elevator notice), not on the doors' hidden state."
   }
  ]
 }

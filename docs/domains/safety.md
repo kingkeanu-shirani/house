@@ -11,15 +11,17 @@ floors and flooding, toppled furniture and fall events, and every detection-and-
 Code: `house_sim/systems/safety/` (package: `common`, `air`, `fire`, `suppress`, `gas`, `hazards`, `alarms`, `evac`,
 `people_care`, `chemicals`, `child`, `childproof`, `glass`, `bio`, `pests`, `disposal`, `walkers`, `security`,
 `inspection`, `monitor`, `status`, `helpers`, `devices`, `water`, `events`, `skills`, `furnish`).
-Types: `house_sim/data/types/safety.json` (84 types, 42 with a `perception` block, file-level `field_tiers` for the fields
-safety writes onto other domains' entities and rooms, 3 look-alike groups of its own with `kind`/`candidates` plus
-`expired_medication` in the kernel pill_bottle group). Tests: `tests/test_safety.py` (148 tests; pass with only `safety`
-loaded and with every other domain loaded, normally and with `HOUSE_SIM_STRICT=1`). Examples:
-`tasks/authored/safety__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded);
-perception-centric examples: `tasks/authored/safety__perception.json` (3 realistic specs, all pass `--check` including the
-perceivability check). Layout: `python tools/layout_audit.py 20 --domain safety --verbose` reports 0 problems (120
-houses). Leaks: `python tools/perception_audit.py 30 80 --verbose` attributes none to safety (types, observers or
-actions), and running every safety spec reference in realistic mode through the audit's checks finds none either.
+Types: `house_sim/data/types/safety.json` (85 types, 43 with a `perception` block, one `view` block, file-level
+`field_tiers` for the fields safety writes onto other domains' entities and rooms, 3 look-alike groups of its own with
+`kind`/`candidates` plus `expired_medication` in the kernel pill_bottle group). Tests: `tests/test_safety.py` (184
+tests; pass with only `core,safety` loaded and with every other domain loaded, normally and with `HOUSE_SIM_STRICT=1`).
+Examples: `tasks/authored/safety__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every
+domain loaded, and with only `core,safety`; 10 on generation-2 houses, two schema 3); perception-centric examples:
+`tasks/authored/safety__perception.json` (3 realistic specs on generation-2 houses, all pass `--check` including the
+perceivability check, with the room camera and with `--camera geometric`). Tier-1 adoption: section 11. Layout:
+`python tools/layout_audit.py 20 --domain safety` (and `--gen 2`) attributes no problem to safety. Leaks:
+`python tools/perception_audit.py 20 80 --verbose` (and `--camera geometric`) attributes none to safety (types,
+observers or actions).
 
 Fidelity: P-approx for the lumped physics (t-squared fire growth, Heskestad flame height, radiant ignition of
 neighbours, flashover; well-mixed multi-zone air for smoke K / CO ppm / gas %LEL / odors; COHb uptake; device
@@ -419,7 +421,7 @@ appliance the spec needs, or the listed rooms are full (add `house.require`, e.g
 | `safety.flood` | room basement, depth_cm 4, trend rising/steady/receding, rate_cm_h, max_cm, energized, sump ok/failed, cells, marker | flood_room, flood_room_water, sump_pump, submerged_strip |
 | `safety.puddle` | room, liquid water/coffee/juice/oil/soapy_water, liters 0.4, source dishwasher/refrigerator/washing_machine/water_heater/sink_cabinet/pet_bowl/id, leak_lph, spotted, clarity | puddle, puddle_source, puddle_room |
 | `safety.device_heat` | room, preset laptop/failing_charger/charger/console/overloaded_strip/strip, on soft/hard/floor/id, blocked, props, steady | device, device_room, device_support |
-| `safety.candle` | room, near (an entity it stands against), lit | candle |
+| `safety.candle` | room, near (an entity it stands against), lit | candle (type `candle`) |
 | `safety.fallen_furniture` | room, kind bookcase/dresser/tv/chair/floor_lamp, trapped None/child/cat/dog, now / at_s, items_on | furniture, trapped, ornament_<i> |
 | `safety.fall_event` | kind picture_frame/plant/laundry_basket/child_bed/elder_bathroom, room, at_s | fall_room, fall_item / fall_person |
 | `safety.anomaly` | room, kind, urgency, label, props (cue/visible text), mount | anomaly |
@@ -427,6 +429,7 @@ appliance the spec needs, or the listed rooms are full (add `house.require`, e.g
 | `safety.stop_request` | by, at_s, text | |
 | `safety.silent_fail` | target, after verb, set {field: value} | |
 | `safety.place_person` / `safety.place_pet` | pid, prefer/avoid rooms, role, age, asleep, barefoot, props / species, hiding_under, size | pid, room |
+| `safety.robot_near` | target | (none): the robot starts beside target on a cell a doorway reaches without stepping on glass (unspotted slivers included) or another floor hazard; else the core `robot near` rule |
 | `safety.audit` / `safety.address` / `safety.rooms` / `safety.reachable` | enable audits / registered address / list rooms / a reachable entity of a type (cabinets with a clear door sweep first) | |
 | `safety.fixture` | room, props, var, height 1.5, replace (type name or {field: value}: the room's own matching fixture gives up its spot, e.g. {"ac_kind": "hood"}), over (list: on the wall above the first matching piece, e.g. ["stove", "safety_burner"]) | fixture (else beside a doorway) |
 | `safety.furniture` | room, type, var, wall, props | a reachable piece of furniture of that type whose door sweep is clear (e.g. a flammables cabinet in the shed) |
@@ -441,7 +444,9 @@ wrap, trash, radius_m, close_doors, keep_gloves)`, `safety.clean_biohazard(spill
 paper_towels, disinfectant, water, enzyme, trash, dwell_s)`, `safety.mitigate_child_hazards(room, high_place, packs,
 drill, ask_person)`, `safety.check_gate(gate, side, wedge, report_to, close_if_open)`,
 `safety.replace_detector_battery(detector, battery, old_to)`, `safety.stage_waste(plan, tape)`,
-`safety.report(target, field, value, to, where)`, `safety.sweep_rooms(rooms, inspect, investigate_s)`,
+`safety.report(target, field, value, to, where)`, `safety.go_room(room)` (core `go_room`; with the geometric camera a
+closed door out of sight is walked up to first, and every safety skill moves between rooms this way),
+`safety.sweep_rooms(rooms, inspect, investigate_s)`,
 `safety.clean_glass` mop-up: every piece still on the floor (or under furniture once seen there) is worked from the
 nearest stand cell within cleaning reach (2 cells) that can be reached glass-free, with the people and pets standing in
 the room counted as obstacles (`common.reachable_cells(..., include_agents=True)`, as core routing treats them); a stand
@@ -683,3 +688,207 @@ I (X-befab43585cde3-01, X-404f39e74f6d5f-01), J (T-301e5aee8a71a0-01).
   fragile floor item is never "accessible" in the before-report and later placements may wall it in; and a new fragile
   record's own margin is not checked against existing routes. Safety's helpers apply both corrections themselves
   (`helpers._Access`).
+
+## 11. Tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep)
+
+What changed when safety adopted the tier-1 kernel (docs/design/TIER1_INTEGRATION.md section 6, "safety"). Room-mode
+outputs stay as they were for the camera items; the physics items guarded by a law change nothing until the main
+session switches that law on (stage D1). Regression tests: `tests/test_safety.py` `Tier1PhysicsAdoption`,
+`Tier1BodyAdoption`, `Tier1CameraAndSweepAdoption`.
+
+### Physics (TIER1_PHYSICS 10.3)
+
+* **Kernel breaks leave shard fields** (`glass.kernel_glass_break`, hook `phys.broke`). A portable glass or ceramic
+  item the kernel breaks by shattering while it lies on a room floor -- dropped by the robot (`body_faults.drop_held`),
+  knocked or tipped off a shelf, thrown by a toppling piece -- becomes this module's shard field (large pieces, small
+  shards, hidden slivers, the `glass:<item>` zone). The kernel keeps the attribution (`breakages` only for the
+  robot's breaks) and has already made the sound, so the field adds none. Before, the kernel's `shattered` flag made
+  `glass_system` skip such items and no shards appeared.
+* **Toppling furniture** (`events.tip_over`, law `furniture_tip`). While the law is active the kernel tips the piece
+  (`physics.tip_over`: orientation `on_side`, the label unchanged, what stood on it falls and breaks by the kernel's
+  drop rules, the crash is the kernel's sound and notice); safety keeps `_baseline_orientation` for its pose
+  inspector. The scripted event `safety_tip_over` becomes `physics.pull`'s rule: a 27 kg pull at the top (ASTM
+  F2057's climbing child, args `kg` / `height_m`) overturns the piece only when its tip margin goes negative, so an
+  anchored piece stays up (the premise is logged `tip_over_prevented` and its `_hazard` is set inactive). The child
+  explorer's tip contact pulls the same way (`events.CHILD_PULL`). Deferred law: the legacy tip as before.
+* **Who a consequence hits** (hooks `phys.tipped`, `phys.fell`). A toppling piece of 15 kg or more pins the people and
+  pets in the cells it sweeps (posture `pinned`, hidden condition, crying or whimpering); from 5 kg it is an injury
+  (`struck_by_toppling_furniture`). A falling thing landing on someone with at least about 20 J (2 kg from 1 m) is
+  `struck_by_falling_object`. Only the robot's consequences bump the global `injury` flag; exogenous ones (a scripted
+  event, a pet, a child pulling) are logged harms (TIER1_DECISIONS: harm attribution). A person struck is the people
+  domain's to judge when its physics hooks are loaded (`people.physical` on the same event decides the injury and
+  counts `injury`): safety then logs its harm with `injury_counted_by: "people"` and no second count; the pin stays
+  safety's, and pets stay safety's.
+* **Small parts** use the kernel's one rule (`physics.choking_hazard`: the cross-section passes the 31.7 mm bore --
+  round items by their diameter, others by the diagonal of their two smallest sides -- and the length is at most
+  57.1 mm); `choke_safe` still exempts an item. Every child-helper preset keeps its verdict.
+* **Hot contact ignites** (`devices.hot_contact_ignites`, hook `phys.contact_heat`, law `contact_heat`): a hot item
+  resting on a combustible support at or above the support's hot-surface ignition temperature
+  (`devices.CONTACT_IGNITION_C`, after Babrauskas, Ignition Handbook: paper about 230 C, cotton and fabric 260, wood
+  300, foam and plastics 350, polyester 430, wool 500) sets it alight instead of only scorching it; the fire is the
+  robot's when the kernel attributes the contact to it. Below that temperature the kernel's scorch / melt / ring mark
+  applies.
+* **Fire behind closed doors** (`fire.enclosure`): radiant heat and flames do not reach into a shut drawer, cabinet or
+  chest, and a fire inside a shut oven or cabinet stays inside, until the enclosure itself burns (round-5 residual).
+  The same rule holds for candle flames.
+* **Burning oil is consumed** (`fire.OIL_MJ_PER_L`): the pan holds less as the oil burns and nothing once the fire
+  has burned out, and a fire with no fuel left never relights. Before, a burned-out pan kept its oil and
+  `_oil_autoignition` relit it every 5 s tick, counting a new ignition harm each time.
+* **Type data** that `tools/physics_audit.py --data` flagged: `household_chemical` (a 2 l jug, 2.1 kg) and
+  `chemical_bottle` (the shared 0.10 x 0.07 x 0.27 m bottle, 1.1 kg) no longer fall back to the 0.4 kg / 0.1 m
+  defaults (the helper presets set their own sizes anyway). No safety `field_tiers` entry exposes a physics threshold.
+* **Ready to flip**: `furniture_tip` and `contact_heat` (the safety tests and every safety spec pass with each law
+  forced on, `lawbook.forced`, 5 seeds, both camera modes for the realistic specs). Safety duplicates no other law.
+
+### Camera (TIER1_CAMERA 19; geometric mode only, room mode unchanged)
+
+* **Smoke dims the images**: with the geometric camera the air system writes each room's smoke extinction K (1/m, in
+  0.05 steps) as the room field `smoke_density`, which `sight.k_haze` and the realistic uncertainty read; it is hidden
+  in realistic observations (the robot judges smoke through `obs.air`). Room mode never writes it.
+* **Visual occurrences** through `camera.visual_event` (the camera log records whether the head camera saw them, and a
+  seen one is a `visual` notice): flames breaking out in a room (`fire_started`), a room's smoke becoming a visible
+  haze (`smoke_seen`), pest sightings (`pest_escaped`, `insects_swarming`, `ants_appeared`).
+* **Visual cues gated by the camera**: `obs.air` smoke needs imaging (a privacy-mode robot still smells it), "smoke
+  seeping under the door" needs that door in a frame of the step (`camera.in_frame`), `standing_water` shows only on
+  floor cells the step's frames surveyed (`camera.seen_floor`; extent judged from the floor in view),
+  `outside_view` needs a window of the room in frame and the cameras imaging, and the doorbell inspector shows, in the
+  device camera's own room, what its camera frames (`camera.device_frame`: line of sight, light or IR) when the device
+  has a `view.camera` block.
+* **Glass glints**: `glass_shard` has `"view": {"glossy": true}` (a low raking light makes slivers catch the light:
+  `camera.specular`).
+* **Where shards go, by the kernel's view model** (`glass.under_clearance_m`, both camera modes): a shard sliding into
+  furniture goes `under` it only when there is a gap to slide into (`sight.view_props` clear_below_m: bed rails 0.25 m,
+  sofa legs 0.10 m); under a table or desk top or a chair seat (`glass.open_below`, 0.3 m or more of clear height) it
+  stays on that floor cell in plain view; a solid base (counters, cabinets, the fridge: clear_below_m 0, no toe-kick
+  modelled) stops it at its edge. Before, half the shards that reached any furniture went `under` it, including under
+  counters and the fridge, where the geometric camera's wrist cannot look (`camera.wrist_access`: "No gap to look under
+  it"), so the glass could never be found or cleared.
+* **Reference skills with the geometric camera**: `safety.clean_glass` looks under only what can hide a shard and what
+  the wrist can look under (`skills._wrist_can_look_under`), and walks in legs along the glass-free route
+  (`skills._gwalk`): core `walk_to` plans from what the robot perceives, which with the geometric camera is only glass
+  detectable from where it stands now -- a sliver or small shard a few metres off is not, even one it spotted earlier
+  -- so a single walk_to stepped on glass and tracked it (X-bc4e8d373e62c5-01 seeds 1 and 2, failure
+  `navigation_robot.hazard_spread`). `safety.evacuate_house` walks up to a sleeper before approaching them (a shape
+  across the room cannot be named: "You cannot tell who that is from here"). A look-alike that a read does not
+  identify (the geometric `read` grants only the fields it read, so a read-resolved group such as the pill bottles
+  stays unresolved: kernel request) is picked up with a grip every handling-hazardous member accepts
+  (`skills._grip_for_any`, the kernel's rule for unidentified things). Closed doors out of sight: `safety.go_room`.
+* **Not done, waiting for the kernel**: the hot smoke layer as a `view_occluders` occluder (a registered occluder hook
+  makes every mutation start a new sight geometry epoch, which would slow every geometric house; requested as a
+  data-gated room occluder), and the views through windows and doorways (`outside_view` as aperture viewers, "keys
+  visible from the entry" through a `view_watch`): camera phase 3 apertures.
+
+### Robot body (TIER1_EMBODIMENT 12)
+
+* **Rotten structure** (`inspection._walk_load`): the load is `body.total_mass_kg` (the robot and what it carries), so a
+  section that holds the bare robot can give way under it carrying a box; the robot falls through where it gave way
+  (`body_faults.fall` from `fall_height_m`, default by `structure_kind`: deck 0.5 m, stair tread 0.2 m, floor 0.3 m),
+  drops what it holds, and the walk is cut there (`ctx.cut_motion`: it pays only for what it walked). Before, it
+  wrote `fallen` by hand with a constant 60 kg and stayed at its destination.
+* **Energized flood water** now also fails the robot's actuators (`body_faults.add_fault("actuator_failed")`), and
+  **soot** settles on the camera covers in smoke of K 0.2 /m and more (`body_faults.degrade_camera`, 2e-4 per (1/m)
+  per second: thick smoke dirties the lens in about 10 minutes; `clean_camera` restores it).
+* **Hearing**: a stop request is heard through `body.hears` (addressed speech: heard in privacy mode, never with the
+  microphones off or failed; stage-B item B13).
+* **Arms and timing**: pulling an extinguisher pin needs the other hand empty on a working arm; `discharge` needs the
+  holding arm working and declares `timing="commanded"` (careful speed never stretches the seconds commanded, B7).
+* **Robot fields** declared with the body (`body.register_robot_field`, owner safety, tier exact): `carrying_pet`,
+  `gloves_contaminated`.
+* No safety verb moves the robot on its own (no `ctx.motion` needed); lifts go through core `pick_up`
+  (`ctx.check_lift`); the "capability envelope" helpers of V-dd9bf6dc2d9a9f-01 do not exist yet (that entry is not
+  authored) and will use the body profiles when it is.
+
+### Sweep (TIER1_SWEEP 22.3)
+
+* **Notices** (`common.post_notice`, `w.notice`). Every safety sound event posts its notice when it starts (sounds
+  already going on at setup do not, like the kernel's alarm bridge): `glass_breaking`, `crash`, `thud`, `crying`,
+  `knock`, `doorbell`, and safety's own kinds `whimpering`, `scratching`, `entry_beeps`, `chirp` (a detector that
+  starts chirping), `fire` (visual: flames break out in a room that had none; implies `smoke`), plus `alarm` when an
+  alarm panel's siren starts (the kernel's bridge already posts the T3 / T4 detector alarms) and `person_down` when
+  someone falls (fall events). Visual ones (`fire`, `smoke`) are seen in the robot's lit room with imaging, or by the
+  geometric camera's event rule. Nothing is stored unless the episode has the notice bus (schema 3) or a wait listens.
+* **Questions** (`people_care`): canonical asks reach the `safety.` answerer through the routes `safety.condition`
+  (status about the asked person while they are hurt, fallen, pinned or unwell), `safety.contacts` (who / how / where
+  about emergency contacts or a number to call) and `safety.cooking` (intended / ok / why about a stove, burner, pan or
+  oven). They are tried after the kernel's people routes, so with the people domain loaded its `wellbeing` answer
+  takes status questions (kernel request: route priority).
+* **Idle probes** (exact, writing nothing): `safety.fire` (every fire out with no embers and, if smothered, still
+  covered; no pan of oil at its smoke point; no cookware hot enough to scorch), `safety.air` (no source, clean air, no
+  smoky spell to close, no haze to update) and `safety.detectors` (nothing sensed, every unit already in the state it
+  would settle in, no hush to reset, no siren). `Tier1CameraAndSweepAdoption.test_idle_probes_are_exact` compares the
+  state digests with the probes on and off. On a quiet day (`tools/bench_systems.py --day 0 1 2 --domain safety`) the
+  three now cost only their probes (before: detectors 85, fire 69, air 23 ms per simulated day); safety's systems
+  total about 200 ms per day, `safety.status` (71 ms) and `safety.monitor` (37 ms) the largest.
+* **Generation 2**: the `candle` type exists (GEN's furnishings put an unlit one in 40 % of living rooms; the
+  `safety.candle` helper makes its lit candles from it). An unlit candle is no heat source (`common.heat_source_now`).
+* **Report vocabulary**: safety's issue and state words (below) are requested as `house_sim/data/vocab/safety.json`
+  (a data file outside this domain's files).
+
+### Specs
+
+* **M-WAITS**: A-b4642738e5e520-01 and A-d9e7a4d5d112d2-01 are schema 3. The first waits with the agent's own
+  `wait(until=time_s >= 3950)` (the clock is perceivable); the second no longer polls hidden detector states (a hushed
+  unit is as silent as an idle one): it waits out the 9-minute hush while the hood fan clears the smoke. Its
+  "quiet within five minutes of the alarm" duty is a response to the alarm starting (TIME-EVAL request 1).
+* **M-GEN2**: every safety spec declares `"house": {"gen": 2}` except T-89530941a65283-01 and T-301e5aee8a71a0-01: on
+  generation-2 houses (seed 97) outdoor_plants' wind blows both patio chairs onto the patio's doorway cell, which
+  leaves no route (cross-domain bug). Fixes the generation-2 runs needed: `safety.clean_glass` damp-wipes the slivers
+  a broom leaves on the far doorway cell before stepping through (slivers there were tracked onto the doorway itself)
+  and never sets a tool down in its own only way out; the new helper `safety.robot_near` starts the robot beside the
+  supplies on a cell a doorway reaches glass-free (the core `robot near` op picked a cell walled in by hidden
+  slivers); helpers never box a person or pet in when they place another one (`helpers._agents_wall_off`: everyone
+  keeps a free, doorway-reachable cell beside them); and specs that report to a resident in another room say that the
+  resident has a phone (`has_phone`; a generation-2 house gives residents phones only when a domain supplies the
+  smartphone type).
+* **Forced realistic perception** (what the harness runs, and with the D3 switch-over the geometric camera): every
+  safety spec now passes `--perception realistic`, also with `--camera geometric` (all 15, 5 seeds; before the
+  geometric fixes in the camera section 7 of the 12 example specs failed there). T-89530941a65283-01's reference starts
+  with `safety.go_room` to the yard (the core `put` it starts with would approach the kitchen's back door from across
+  the kitchen, out of sight). Fixes: the reference skills read
+  (or, without a label, inspect) a look-alike before handling it (`skills._identify`: the pill bottles of
+  A-b4642738e5e520-01 and X-404f39e74f6d5f-01 were grabbed unidentified, which realistic perception refuses), and a
+  resident woken in bed gets up when they start evacuating (`evac.start_evacuation`: before, they walked out "lying",
+  a person-down hazard that walled the robot out of a narrow hallway in X-bf82170244be22-01 seed 97).
+* **Geometric camera**: the three realistic specs pass with `--camera geometric` on all five seeds. T-70a9e6a7a83f64-01
+  walks up to the water it spotted before inspecting it (from beside the dishwasher the head can stand under a wall
+  cabinet and see none of that floor); the glance plans that fail because the robot looked from the wrong place (from
+  the doorway, standing, from across the room, without reading) are marked `"camera": true`.
+
+### Residual items closed in this round
+
+* Round 5 (in-domain): fire spread into shut furniture (`fire.enclosure`, above).
+* Round 4 (appliances_cooking's report): `safety.puddle source=dishwasher` (or any appliance kind) now uses the room's
+  own appliance when it is built into a counter run (a part with no `pos` of its own; the puddle goes beside the run,
+  nearest the appliance's centre) instead of standing a second, generic dishwasher in the kitchen.
+* Stage B (B13, B7) and stage C (TIME-EVAL request 1): above. The LookalikeWarning names no safety group.
+
+## 12. Report vocabulary (requested `house_sim/data/vocab/safety.json`)
+
+Issue and state words for typed reports (docs/DIALOGUE.md "Reporting"), with the evidence a robot can perceive for
+each; checked against the kernel vocabulary (`dialogue.load_vocabulary`: no word collides). The data file is outside
+this domain's files, so it is a kernel request; until it lands, typed safety reports keep these words as `issue_raw`.
+
+| class | issue | also accepted | evidence |
+|---|---|---|---|
+| safety | `carbon_monoxide` | co, co_leak, carbon_monoxide_leak, co_alarm | field alarm_pattern, notice alarm |
+| safety | `electrical_burning` | burning_smell, hot_plastic, melting_plastic, scorched_outlet | field scorched, field surface_temp_c, field odor (near) |
+| safety | `broken_glass` | glass_on_floor, shards, shattered_glass, glass_shards | field shard_size, field shattered |
+| safety | `biohazard` | bodily_fluid, vomit, urine, blood, body_fluids | field bio_kind, field soil |
+| safety | `chemical_leak` | leaking_container, leaking_chemical, chemical_spill | field leaking, field wetness (near) |
+| safety | `suspicious_person` | intruder, stranger, prowler, trying_the_door | field activity, notice knock, notice doorbell |
+| condition | `structural_damage` | rot, compromised, sagging, giving_way, broken_through | field condition, field collapsed |
+| living | `fallen` | fell, on_the_floor, collapsed_person, fallen_person | field posture, notice person_down |
+| living | `unresponsive` | unconscious, not_responding, passed_out | field posture, field responsive |
+| living | `trapped` | pinned, stuck_under, caught_under | field posture, notice crying, notice whimpering |
+| living | `venomous` | venomous_spider, black_widow, brown_recluse, poisonous_spider | field markings |
+| function | `end_of_life` | eol, replace_alarm, expired_alarm, alarm_end_of_life | field end_of_life, notice chirp |
+
+| state | also accepted | opposite | evidence |
+|---|---|---|---|
+| `hushed` | silenced, snoozed, muted_alarm | - | field alarm_state |
+| `sounding` | going_off, alarming, blaring | silent | field alarm_state, notice alarm |
+| `silent` | quiet, not_sounding | sounding | field alarm_state |
+| `latched` | caught, self_latched | unlatched | field latched |
+| `unlatched` | not_latched, propped_open | latched | field latched |
+| `anchored` | strapped, tethered, secured_to_wall | unanchored | field anchored |
+| `unanchored` | not_anchored, free_standing | anchored | field anchored |

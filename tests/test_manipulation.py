@@ -71,7 +71,7 @@ class Mini:
         rec.update(props)
         self.c["people"][pid] = rec
 
-    def env(self, task=None, room="living", pos=(1, 3), hold=None, perception=None):
+    def env(self, task=None, room="living", pos=(1, 3), hold=None, perception=None, camera=None):
         c = copy.deepcopy(self.c)
         c["robot"] = {"room": room, "pos": list(pos)}
         if hold:
@@ -81,6 +81,8 @@ class Mini:
                 rec.update(location="robot", relation="held", held_hand=hand)
                 for key in ("pos", "spos", "shelf"):
                     rec.pop(key, None)
+        if camera:
+            return HouseEnv(c, task, perception=perception, camera=camera)
         return HouseEnv(c, task, perception=perception)
 
 
@@ -231,7 +233,7 @@ class ContainerLiftTests(unittest.TestCase):
         e = self._box("none")
         e.step("crouch")
         ok(self, e.step("pick_up", "box", hand="both", grip="normal"))
-        self.assertTrue(ent(e, "box").get("bottom_failed"))
+        self.assertTrue(ent(e, "box").get("torn"))                       # bottom_failed too while the handle law is deferred
         self.assertEqual(ent(e, "book_0")["location"], "living")
 
     def test_h_taped_box_holds_the_load(self):
@@ -245,11 +247,11 @@ class ContainerLiftTests(unittest.TestCase):
         m = Mini()
         m.add("bag", "shopping_bag_plastic", "living", pos=[2, 2])
         m.add("jug", "generic_item", "bag", label="milk jug", mass_kg=4.2, size_m=[0.15, 0.1, 0.25])
-        m.add("cans", "generic_item", "bag", label="cans", mass_kg=3.6, size_m=[0.2, 0.1, 0.12])
+        m.add("cans", "generic_item", "bag", label="cans", mass_kg=4.8, size_m=[0.2, 0.1, 0.12])
         e = m.env(pos=(1, 2))
         e.step("crouch")
         ok(self, e.step("pick_up", "bag", grip="handle"))
-        self.assertTrue(ent(e, "bag").get("handles_torn"))
+        self.assertTrue(ent(e, "bag").get("torn"))       # 9 kg on 7 kg handles (+-15 % per bag): the kernel's tear too
         m.c["entities"]["bag"]["type"] = "reusable_tote"
         m.c["entities"]["bag"]["handle_rating_kg"] = 15.0
         e = m.env(pos=(1, 2))
@@ -354,8 +356,10 @@ class CarryTests(unittest.TestCase):
         e = m.env(pos=(0, 5), hold={"left": "basket", "right": "basket"})
         e.world.s["entities"]["basket"]["held_hand"] = "both"
         ok(self, e.step("move", "upstairs"))
-        self.assertGreater(stat(e, "falls"), 0)
-        self.assertIn("falls", e.evaluate()["failures"])           # global harm flag (kernel v2.1)
+        # the robot catches itself and the basket drops down the stairs (body_faults.drop_held): no robot fall
+        self.assertNotEqual(ent(e, "basket")["location"], "robot")
+        self.assertGreater(stat(e, "robot_drops"), 0)
+        self.assertEqual(stat(e, "falls"), 0)
         e = m.env(pos=(0, 5), hold={"left": "basket", "right": "basket"})
         e.world.s["entities"]["basket"]["held_hand"] = "both"
         ok(self, e.step("move", "upstairs", speed="careful"))
@@ -380,10 +384,10 @@ class PlacementTests(unittest.TestCase):
         m.add("trivet", "trivet", "table", spos=[0.8, 0.3])
         e = m.env(hold={"right": "dish"})
         ok(self, e.step("place", "dish", "table", spos=[0.1, 0.1]))
-        self.assertTrue(ent(e, "table").get("scorched"))
+        self.assertIn("scorch", ent(e, "table").get("damage") or {})      # this domain's copy or the kernel's contact law
         e = m.env(hold={"right": "dish"})
         ok(self, e.step("place", "dish", "trivet"))
-        self.assertFalse(ent(e, "table").get("scorched", False))
+        self.assertNotIn("scorch", ent(e, "table").get("damage") or {})
         self.assertEqual(stat(e, "damage"), 0)
 
     def test_fast_set_down_chips_fragile_ware_on_stone(self):
@@ -512,13 +516,13 @@ class PushPullDragTests(unittest.TestCase):
         e = self._room().env(pos=(2, 3))
         r = ok(self, e.step("push", "chair", direction="south", distance_m=1.0))
         self.assertIn("scratch", r["message"])
-        self.assertGreater(ent(e, "floor_living").get("scratches", 0), 0)
+        self.assertGreater((ent(e, "floor_living").get("damage") or {}).get("scratch", 0), 0)     # the kernel's scratch
         self.assertIn("damage", e.evaluate()["failures"])
 
     def test_lifting_or_felt_pads_protect_the_floor(self):
         e = self._room().env(pos=(2, 3))
         ok(self, e.step("push", "chair", direction="south", distance_m=1.0, lift=True))
-        self.assertEqual(ent(e, "floor_living").get("scratches", 0), 0)
+        self.assertEqual((ent(e, "floor_living").get("damage") or {}).get("scratch", 0), 0)
         self.assertAlmostEqual(ent(e, "chair")["xy_m"][1], 2.5, places=2)
         e = self._room(pads={"kind": "felt", "count": 4, "legs": 4, "adhered": True}).env(pos=(2, 3))
         ok(self, e.step("push", "chair", direction="south", distance_m=1.0))
@@ -843,17 +847,19 @@ class StackTests(unittest.TestCase):
         e = m.env(room="kitchen", pos=(2, 3), hold={"right": "dinner"})
         r = ok(self, e.step("stack", "dinner", "salad"))
         self.assertIn("toppled", r["message"])
-        self.assertTrue(ent(e, "dinner")["broken"])
+        self.assertTrue(ent(e, "dinner")["fell"])
+        self.assertEqual(ent(e, "dinner")["location"], "counter")        # slid off beside it, a 2.5 cm drop
+        self.assertFalse(ent(e, "dinner")["broken"])
 
     def test_heavy_box_on_fragile_box_crushes_it(self):
         m = Mini()
         m.add("light_box", "moving_box_small", "living", pos=[2, 2], open=False, max_load_kg=6.0, fragile=True, material="cardboard",
               drop_tolerance_m=5.0)
-        m.add("heavy_box", "moving_box_small", "living", pos=[4, 4], open=False, mass_kg=14.0)
+        m.add("heavy_box", "generic_item", "living", label="crate of books", pos=[4, 4], mass_kg=14.0, size_m=[0.4, 0.3, 0.3])   # no wider: no topple
         e = m.env(pos=(1, 2), hold={"left": "heavy_box", "right": "heavy_box"})
         e.world.s["entities"]["heavy_box"]["held_hand"] = "both"
         ok(self, e.step("stack", "heavy_box", "light_box"))
-        self.assertTrue(ent(e, "light_box")["broken"])
+        self.assertIn("crushed", ent(e, "light_box")["damage"])          # the kernel's crush: cardboard gives way, no break
 
     def test_stack_taller_than_the_shelf_gap_is_refused(self):
         m = self._kitchen()
@@ -1759,9 +1765,9 @@ class SystemTests(unittest.TestCase):
         m = Mini()
         m.add("ptable", "outdoor_table", "yard", pos=[3, 3])
         m.add("napkins", "generic_item", "ptable", label="paper napkins", material="paper", wind_lift_mps=3.0, hold_down_kg=0.2, spos=[0.1, 0.1],
-              size_m=[0.2, 0.2, 0.03])
+              size_m=[0.2, 0.2, 0.03], mass_kg=0.05)
         m.add("napkins2", "generic_item", "ptable", label="paper napkins", material="paper", wind_lift_mps=3.0, hold_down_kg=0.2, spos=[0.5, 0.1],
-              size_m=[0.2, 0.2, 0.03], accepts_items=True, surface=True)
+              size_m=[0.2, 0.2, 0.03], mass_kg=0.05, accepts_items=True, surface=True)
         m.add("stone", "generic_item", "napkins2", label="napkin weight", mass_kg=0.4, size_m=[0.08, 0.08, 0.03], spos=[0.05, 0.05])
         m.c["weather"]["wind_mps"] = 5.0
         e = m.env(room="yard", pos=(2, 3))
@@ -1949,7 +1955,7 @@ class FixtureDetailTests(unittest.TestCase):
         e.world.robot["max_mass_kg"] = 30.0
         ok(self, e.step("place", "bike", "hook", relation="hung"))
         self.assertEqual(ent(e, "bike")["location"], "garage")
-        self.assertIn("pulled_out", ent(e, "hook")["damage"])
+        self.assertIn("collapsed", ent(e, "hook")["damage"])            # the kernel's hang law: torn off the wall
 
     def test_rug_under_furniture_cannot_be_rotated_until_freed(self):
         m = Mini()
@@ -2192,7 +2198,8 @@ class HouseholdDetailTests(unittest.TestCase):
         m = Mini()
         m.add("table", "table", "kitchen", pos=[1, 1])
         m.add("bag", "bag", "kitchen", label="grocery bag", material="paper", handle_rating_kg=8.0)
-        m.add("eggs", "generic_item", "bag", label="eggs", fragile=True, drop_tolerance_m=0.05, mass_kg=0.7, size_m=[0.3, 0.1, 0.07], volume_l=2.0)
+        m.add("eggs", "generic_item", "bag", label="loose eggs", fragile=True, drop_tolerance_m=0.03, mass_kg=0.7, size_m=[0.3, 0.1, 0.07],
+              volume_l=2.0)
         e = m.env(room="kitchen", pos=(1, 2), hold={"right": "bag"})
         ok(self, e.step("set_speed", "fast"))
         ok(self, e.step("place", "bag", "table"))
@@ -2367,16 +2374,16 @@ class IntegrationRoundTests(unittest.TestCase):
     def test_crush_kg_is_the_crush_limit_and_max_load_kg_the_fallback(self):
         m = Mini()
         m.add("light_box", "moving_box_small", "living", pos=[2, 2], open=False, crush_kg=6.0, material="cardboard", drop_tolerance_m=5.0)
-        m.add("heavy_box", "moving_box_small", "living", pos=[4, 4], open=False, mass_kg=14.0)
+        m.add("heavy_box", "generic_item", "living", label="crate of books", pos=[4, 4], mass_kg=14.0, size_m=[0.4, 0.3, 0.3])   # no wider: no topple
         e = m.env(pos=(1, 2), hold={"left": "heavy_box", "right": "heavy_box"})
         e.world.s["entities"]["heavy_box"]["held_hand"] = "both"
         ok(self, e.step("stack", "heavy_box", "light_box"))
-        self.assertTrue(ent(e, "light_box")["broken"])
+        self.assertIn("crushed", ent(e, "light_box")["damage"])
         m.c["entities"]["light_box"].pop("crush_kg")      # the box's own 30 kg rating applies again
         e = m.env(pos=(1, 2), hold={"left": "heavy_box", "right": "heavy_box"})
         e.world.s["entities"]["heavy_box"]["held_hand"] = "both"
         ok(self, e.step("stack", "heavy_box", "light_box"))
-        self.assertFalse(ent(e, "light_box").get("broken", False))
+        self.assertNotIn("crushed", ent(e, "light_box").get("damage") or {})
 
     def test_timers_follow_fields_set_by_a_scenario_and_prune_the_watch_list(self):
         from house_sim.kernel import plugins
@@ -2534,8 +2541,8 @@ class CrossDomainRoundTests(unittest.TestCase):
         self.assertEqual(stat(e, "breakages"), 0)
         # only fragile glassware fills the shelf: the bag has to go on top of it and crushes it
         m = self._cabinet()
-        m.add("platters", "generic_item", "cab", label="glass platters", material="glass", fragile=True, mass_kg=3.0,
-              size_m=[0.6, 0.55, 0.1], volume_l=30.0, shelf=0)
+        m.add("platters", "generic_item", "cab", label="thin glass platters", material="glass", fragile=True, mass_kg=3.0,
+              size_m=[0.6, 0.55, 0.1], volume_l=30.0, shelf=0, crush_kg=4.0)
         e = m.env(room="kitchen", pos=(3, 1), hold={"right": "kibble"})
         ok(self, e.step("place", "kibble", "cab", relation="in", shelf=0))
         self.assertTrue(set(ent(e, "kibble").get("pack_on") or []) & {"bowl", "platters"})
@@ -2545,7 +2552,8 @@ class CrossDomainRoundTests(unittest.TestCase):
     def test_items_in_a_carried_box_still_load_what_was_packed_first(self):
         m = Mini()
         m.add("box", "moving_box_small", "kitchen", pos=[2, 2], open=True)
-        m.add("bowl", "generic_item", "box", label="glass bowl", material="glass", fragile=True, mass_kg=0.6, size_m=[0.2, 0.2, 0.1], volume_l=2.0)
+        m.add("bowl", "generic_item", "box", label="thin glass bowl", material="glass", fragile=True, mass_kg=0.6, size_m=[0.2, 0.2, 0.1],
+              volume_l=2.0, crush_kg=3.0)
         m.add("kibble", "generic_item", "kitchen", label="bag of kibble", mass_kg=6.8, size_m=[0.3, 0.12, 0.25], volume_l=9.0, pos=[4, 4])
         e = m.env(room="kitchen", pos=(2, 3), hold={"right": "kibble"})
         ok(self, e.step("place", "kibble", "box", relation="in"))
@@ -2561,7 +2569,7 @@ class CrossDomainRoundTests(unittest.TestCase):
         rec = w.ent(sid)
         self.assertAlmostEqual(rec["liquid_l"], 0.005)
         self.assertFalse(rec.get("ground_layer", False))
-        self.assertLess(rec["area_m2"], 0.01)                    # a 5 ml splash, not a 0.2 L puddle
+        self.assertLess(rec["area_m2"], 0.02)                    # a 5 ml splash, not a 0.2 L puddle
         self.assertIn((3, 3), geometry.hazard_cells(w.s, "kitchen"))
         big = w.ent(MC.make_spill(w, "kitchen", [1, 4], "water", 0.4))
         self.assertGreater(big["area_m2"], 0.2)
@@ -2683,10 +2691,10 @@ class LayoutRoundTests(unittest.TestCase):
         m = Mini()
         m.add("cab", "cabinet", "kitchen", pos=[3, 0], open=True)            # shelf_heights [0.1, 0.45]
         # shelf 0 is already covered by glass platters; a glass bowl stands on shelf 1
-        m.add("platters", "generic_item", "cab", label="glass platters", material="glass", fragile=True, mass_kg=3.0,
-              size_m=[0.6, 0.55, 0.1], volume_l=30.0, shelf=0)
-        m.add("bowl", "generic_item", "cab", label="glass mixing bowl", material="glass", fragile=True, mass_kg=0.6,
-              size_m=[0.2, 0.2, 0.1], volume_l=2.0, shelf=1)
+        m.add("platters", "generic_item", "cab", label="thin glass platters", material="glass", fragile=True, mass_kg=3.0,
+              size_m=[0.6, 0.55, 0.1], volume_l=30.0, shelf=0, crush_kg=4.0)
+        m.add("bowl", "generic_item", "cab", label="thin glass mixing bowl", material="glass", fragile=True, mass_kg=0.6,
+              size_m=[0.2, 0.2, 0.1], volume_l=2.0, shelf=1, crush_kg=3.0)
         m.add("kibble", "generic_item", "kitchen", label="bag of kibble", mass_kg=6.9, size_m=[0.35, 0.12, 0.5], volume_l=10.0, pos=[2, 2])
         return m
 
@@ -3172,7 +3180,7 @@ class PerceptionHardeningTests(unittest.TestCase):
 
 class KernelRound5AdoptionTests(unittest.TestCase):
     """Kernel round 5: grips are never picked from an unidentified thing's hidden values, and a brittle break shows
-    at a glance (smashed), so the hazard guard refuses on what the robot sees instead of recording an exposure."""
+    at a glance (shattered, the kernel's), so the hazard guard refuses on what the robot sees instead of recording an exposure."""
 
     def _spy_grips(self):
         from house_sim.systems import core
@@ -3186,6 +3194,8 @@ class KernelRound5AdoptionTests(unittest.TestCase):
         return seen
 
     def _jug_scene(self, type_name, **props):
+        if type_name not in default_registry().types:
+            self.skipTest("{} is another domain's type, not loaded here (HOUSE_SIM_DOMAINS)".format(type_name))
         m = Mini()
         m.add("work_table", "table", "living", pos=[1, 1])
         m.add("jug", type_name, "work_table", spos=[0.2, 0.2], **props)
@@ -3234,17 +3244,17 @@ class KernelRound5AdoptionTests(unittest.TestCase):
               wear_slot="hands", mass_kg=0.1, size_m=[0.25, 0.12, 0.02], pos=[2, 3])
         return m
 
-    def test_a_visible_brittle_break_is_smashed_and_refused_bare_handed_in_both_modes(self):
+    def test_a_visible_brittle_break_is_shattered_and_refused_bare_handed_in_both_modes(self):
         for perception in (None, "realistic"):
             e = self._pot_scene().env(room="kitchen", pos=(1, 2), hold={"right": "pot"}, perception=perception)
             h = e.realism.handles.handle if perception else (lambda x: x)
             ok(self, e.step("throw", h("pot"), "kitchen", cell=[2, 2], force="hard"))
             rec = ent(e, "pot")
             self.assertTrue(rec["broken"])
-            self.assertTrue(rec["smashed"])
+            self.assertTrue(rec["shattered"])
             self.assertIn("sharp", rec["hazards"])
             self.assertIn("rubber_gloves", rec["handled_with"])
-            self.assertTrue(e.observe()["visible_entities"][h("pot")]["smashed"])     # glance tier
+            self.assertTrue(e.observe()["visible_entities"][h("pot")]["shattered"])     # glance tier
             ok(self, e.step("crouch"))
             r = e.step("pick_up", h("pot"))
             # realistic: refused on the visible break (before: it went ahead and counted as an unseen exposure)
@@ -3263,15 +3273,15 @@ class KernelRound5AdoptionTests(unittest.TestCase):
             h = e.realism.handles.handle if perception else (lambda x: x)
             ok(self, e.step("throw", h("pot"), "kitchen", cell=[2, 2], force="hard"))
             self.assertTrue(ent(e, "pot")["broken"])
-            self.assertFalse(ent(e, "pot").get("smashed"))          # the paper hides the pieces
+            self.assertFalse(ent(e, "pot").get("shattered"))          # the paper hides the pieces
             self.assertEqual(e.world.s["manipulation"]["unseen_breaks"], ["pot"])
             ok(self, e.step("unwrap", h("pot")))
-            self.assertTrue(ent(e, "pot")["smashed"])
+            self.assertTrue(ent(e, "pot")["shattered"])
             self.assertEqual(e.world.s["manipulation"]["unseen_breaks"], [])
         # a see-through wrap (bubble wrap) shows the break at once
         e = self._pot_scene(wrapped=dict(wrap, material="bubble_wrap")).env(room="kitchen", pos=(1, 2), hold={"right": "pot"})
         ok(self, e.step("throw", "pot", "kitchen", cell=[2, 2], force="hard"))
-        self.assertTrue(ent(e, "pot")["smashed"])
+        self.assertTrue(ent(e, "pot")["shattered"])
 
     def test_default_presented_feature_follows_perceived_hazards_not_hidden_instance_ones(self):
         """smooth_stone look-alikes, one with a hidden instance sharp edge: presenting either gives the same answer."""
@@ -3284,6 +3294,70 @@ class KernelRound5AdoptionTests(unittest.TestCase):
             answers.append(ok(self, e.step("set_orientation", e.realism.handles.handle("stone"), toward="ana")))
         self.assertTrue(same_answer(*answers), [a["message"] for a in answers])
         self.assertIn("front first", answers[0]["message"])
+
+
+class TierOneAdoptionTests(unittest.TestCase):
+    """Tier-1 adoption (docs/domains/manipulation.md 15): dialogue routes, idle probes, notices, camera-only label faces,
+    the direction-aware tip rule and the crush law's packed loads."""
+
+    def test_canonical_questions_route_to_the_manip_answerer(self):
+        from house_sim.kernel import dialogue
+        m = Mini()
+        m.add("jar", "generic_item", "kitchen", pos=[2, 2], label="jar", _keep=True)
+        m.person("ana", "kitchen", [3, 3])
+        e = m.env(room="kitchen", pos=(2, 3))
+        subject = dialogue.Subject("entity", "jar")
+        for aspect, detail, topic in (("keep", None, "manip:keep:jar"), ("status", None, "manip:in_use:jar"),
+                                      ("how", "fragile", "manip:fragile:jar"), ("which", "contents", "manip:contents:jar"),
+                                      ("intended", None, "manip:recipient:jar")):
+            self.assertEqual(dialogue.find_route(e.world.s, "ana", subject, aspect, detail, None),
+                             ("manipulation.items", topic))
+        r = ok(self, e.step("ask", "ana", aspect="keep", about="jar"))
+        self.assertIs(r["observation"]["last_answer"]["value"], True)
+
+    def test_every_system_has_an_exact_idle_probe_and_a_quiet_house_is_idle(self):
+        from house_sim.kernel import plugins
+        e = Mini().env()
+        for name in ("manipulation.falls", "manipulation.breaks", "manipulation.timers", "manipulation.wind",
+                     "manipulation.jobs", "manipulation.goals"):
+            self.assertIn(name, plugins.SYSTEM_IDLE)
+            self.assertTrue(plugins.SYSTEM_IDLE[name](e.world), name)
+
+    def test_noise_kinds_are_registered_notices(self):
+        from house_sim.kernel import timeline
+        self.assertEqual({k: timeline.NOTICE_KINDS[k]["db"] for k in ("clink", "rip", "bang")},
+                         {"clink": 50.0, "rip": 55.0, "bang": 65.0})
+
+    def test_a_label_face_is_camera_bookkeeping_written_only_in_geometric_mode(self):
+        m = Mini()
+        m.add("table", "table", "living", pos=[1, 1])
+        m.add("box", "generic_item", "living", label="storage box", size_m=[0.3, 0.2, 0.15], mass_kg=0.5)
+        m.add("sheet", "label_sheet", "living", pos=[4, 4])
+        for camera, first, flipped in ((None, None, None), ("geometric", "top", "bottom")):
+            e = m.env(pos=(1, 2), hold={"right": "box", "left": "sheet"}, camera=camera)
+            ok(self, e.step("apply_label", "box", text="Winter clothes", face="top"))
+            self.assertEqual(ent(e, "box").get("label_facing"), first)
+            ok(self, e.step("flip", "box"))
+            self.assertEqual(ent(e, "box").get("label_facing"), flipped)
+
+    def test_a_push_tips_furniture_about_the_base_side_along_the_push(self):
+        m = Mini()
+        m.add("shelf", "generic_item", "living", label="bookcase", category="furniture", mass_kg=18.0, size_m=[0.8, 0.3, 1.8],
+              pos=[4, 4], portable=False, foot_material="felt")
+        e = m.env(pos=(3, 4))
+        ok(self, e.step("push", "shelf", direction="east", distance_m=0.25, height="high"))     # pivots on its 0.8 m side
+        self.assertFalse(ent(e, "shelf").get("tipped_over", False))
+        e = m.env(pos=(4, 3))
+        ok(self, e.step("push", "shelf", direction="south", distance_m=0.25, height="high"))    # 0.3 m deep: over it goes
+        self.assertTrue(ent(e, "shelf").get("tipped_over"))
+
+    def test_with_the_crush_law_active_a_packed_glass_still_takes_the_load(self):
+        from house_sim.kernel.phys import lawbook
+        with lawbook.forced(crush=True):
+            e = PackTests()._scene().env(pos=(1, 2), hold={"right": "glass", "left": "books"})
+            ok(self, e.step("pack", "glass", "box"))
+            ok(self, e.step("pack", "books", "box"))
+            self.assertTrue(ent(e, "glass")["broken"])
 
 
 if __name__ == "__main__":

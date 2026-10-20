@@ -2,30 +2,38 @@
 knowledge for the manipulation domain.
 
 Systems (none scans every entity: static props come from w.static_index, dynamic fields from the
-journaled watch list state.manipulation.watch, seeded at episode_start and extended by C.watch):
-  manipulation.falls    every substep: resolves objects knocked off an edge (catchable for one step)
+journaled watch list state.manipulation.watch, seeded at episode_start and extended by C.watch;
+each declares an exact idle probe, kernel v3.1, so the engine skips it while it would change nothing):
+  manipulation.falls    every substep: resolves objects knocked off an edge (catchable for one step; the
+                        landing is the kernel's fall)
   manipulation.breaks   every substep while state.manipulation.unseen_breaks lists something: a brittle break
-                        hidden by an opaque wrap or factory packaging shows (`smashed`) once that is off
+                        hidden by an opaque wrap or factory packaging shows (the kernel's `shattered`) once that is off
   manipulation.timers   period 120 s: uncapped markers/glue/paint dry out (1-2 h), labels on wet/greasy
                         surfaces peel (15 min), felt pads on dirty feet fall off (1 h),
                         wet items sealed/stacked/rolled grow mildew (12 h)
   manipulation.wind     every substep while wind >= 2.5 m/s: outdoor light items lift off above their
                         wind speed unless weighted, clipped or secured (napkins 3 m/s, paper plates 4,
-                        cloths 5, covers 6)
+                        cloths 5, covers 6) -- this domain's copy of the kernel wind law while it is deferred;
+                        covers laid over things stay this domain's either way (the kernel leaves attached covers be)
 Spills, falls, collisions and breakages are global kernel harm flags (no domain invariants).
-Events (setup op event effect): manipulation.bump, manipulation.fall, manipulation.roll_toward_edge, manipulation.gust,
-  manipulation.transport_test, manipulation.braking_test, manipulation.pull_test,
-  manipulation.paint_event, manipulation.rain_pool, manipulation.deploy_test.
+Events (setup op event effect): manipulation.bump (the kernel's bump plus props), manipulation.fall,
+  manipulation.roll_toward_edge, manipulation.gust (the kernel's gust plus covers), manipulation.transport_test,
+  manipulation.braking_test, manipulation.pull_test, manipulation.paint_event, manipulation.rain_pool,
+  manipulation.deploy_test.
+Physics hooks: phys.broke (a hidden break is remembered until unwrapped), phys.fell (a cover blown or knocked off
+  stops covering), phys.props (handling.py: carried container ratings), phys.items_above (stacking.py: packing order).
 """
 import copy
 
-from ...kernel import geometry
+from ...kernel import camera, dialogue, geometry
+from ...kernel.phys import events as kevents
 from ...kernel.plugins import answerer, hook, inspector, observer, system
 from . import common as C
 
-SOUND_OF = {"manip.break": "glass_breaking", "manip.drop": "thud", "manip.topple": "clatter", "manip.spill": "splash",
-            "manip.stack_toppled": "crash", "manip.runaway": "rolling_bin", "manip.stumble": "crash", "manip.tip_over": "crash",
-            "manip.noise": "ripping", "manip.collision": "bang", "manip.handle_tore": "rip", "manip.box_bottom_failed": "crash"}
+# domain event kinds the manipulation.sounds observer turns into sounds; falls, breaks, spills, tips and tears are the
+# kernel's (phys.* events, its physics.sounds observer), so they are not repeated here
+SOUND_OF = {"manip.runaway": "rolling_bin", "manip.collision": "bang", "manip.handle_tore": "rip"}
+NOISE_SOUND = {"set_down": "clink", "clink": "clink", "tape": "rip", "rip": "rip"}
 
 
 # ----------------------------------------------------------------------------------
@@ -77,7 +85,13 @@ def start_fall(w, eid, height_m=None):
     C.note_event(w, "falling", eid, room=rid)
 
 
-@system("manipulation.falls", order=70, max_dt=30.0)
+def _falls_idle(w):
+    """Exact idle probe of manipulation.falls: no watched entity is rolling or falling."""
+    ents = w.s["entities"]
+    return not any(ents[e].get("rolling") or ents[e].get("falling") for e in C.watched(w))
+
+
+@system("manipulation.falls", order=70, max_dt=30.0, idle=_falls_idle)
 def falls_system(w, dt, tick):
     """Per substep (falls are step-sensitive), over the watch list only."""
     if not C.section(w).get("watch"):
@@ -102,12 +116,46 @@ def falls_system(w, dt, tick):
         C.drop_item(w, eid, C.num(falling.get("height_m"), 0.9), falling.get("room") or w.root_room(eid), falling.get("cell"), cause="fell")
 
 
-@system("manipulation.breaks", order=72, max_dt=30.0)
+def _breaks_idle(w):
+    """Exact idle probe of manipulation.breaks: no hidden break is pending."""
+    return not C.section(w).get("unseen_breaks")
+
+
+@system("manipulation.breaks", order=72, max_dt=30.0, idle=_breaks_idle)
 def breaks_system(w, dt, tick):
-    """Hidden breaks (C.break_item under an opaque wrap or packaging) become visible once unwrapped, whoever
+    """Hidden breaks (a kernel break under an opaque wrap or packaging) become visible once unwrapped, whoever
     unwrapped them; nothing to do (one dict lookup) while none is pending."""
     if C.section(w).get("unseen_breaks"):
         C.reveal_breaks(w)
+
+
+@hook("phys.broke")
+def _remember_hidden_break(w, eid, info):
+    """phys.broke hook (TIER1_PHYSICS 7.3): a shattering break the kernel could not show (an opaque full wrap or the
+    factory packaging hides the pieces: no `shattered`) is remembered until that comes off (manipulation.breaks)."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or (info or {}).get("mode") != "shatter" or rec.get("shattered") or C.break_shows(rec):
+        return
+    C.note_hidden_break(w, eid)
+
+
+@hook("phys.fell")
+def _cover_came_off(w, eid, info):
+    """phys.fell hook: a cover that fell off what it covered (blown or knocked off) no longer covers it."""
+    rec = w.s["entities"].get(eid)
+    target = (rec or {}).get("covering")
+    if not target:
+        return
+    _uncover_record(w, eid, target)
+
+
+def _uncover_record(w, cover, target):
+    if target in w.s["entities"] and w.ent(target).get("covered_by") == cover:
+        tm = w.mut(target)
+        tm["covered_by"] = None
+        tm["covered"] = False
+        tm["cover_coverage"] = 0.0
+    w.mut(cover).pop("covering", None)
 
 
 @hook("episode_start")
@@ -123,16 +171,19 @@ def _seed_watch(w, env):
 
 @hook("event:manipulation.bump")
 def _event_bump(w, args, env):
-    """A small disturbance (someone brushes past, a dog jumps, a door slams)."""
+    """A small disturbance (someone brushes past, a dog jumps, a door slams): what this domain models itself -- a prop
+    that does not hold lets what it propped go -- and then the kernel's bump (physics.bump: a jolt of `g`, default
+    0.3 g, toward the nearest edge on every free-standing item it reaches: something near an edge slides off, a tall
+    item or a wobbly stack tips). Attribution is the kernel's (a bump is exogenous unless the robot arranged what it
+    hit)."""
     targets = []
     if args.get("target") in w.s["entities"]:
         targets = [args["target"]]
     elif args.get("room") in w.s["rooms"]:
         targets = [e for e in sorted(w.s["entities"]) if w.root_room(e) == args["room"]]
-    from .stacking import stack_members, topple_from, prop_holds
-    done = set()
+    from .stacking import prop_holds
     for eid in targets:
-        if eid not in w.s["entities"] or eid in done:
+        if eid not in w.s["entities"]:
             continue
         rec = w.ent(eid)
         if rec.get("prop_need"):
@@ -147,24 +198,12 @@ def _event_bump(w, args, env):
                     m["orientation"] = "flat"
                     if C.is_fragile(rec):
                         C.impact(w, eid, 0.15, 1.0, cause="fell_over_when_bumped")
-            continue
-        if rec.get("stack_marginal"):
-            members = stack_members(w, eid)
-            done.update(members)
-            mm = w.mut(members[0])
-            mm["stack_marginal"] = False
-            topple_from(_FakeCtx(w), members, max(1, len(members) // 2), "bumped_marginal_stack")
-            continue
-        if rec.get("relation") == "on" and isinstance(rec.get("spos"), list) and rec.get("portable"):
-            margin = rec.get("edge_margin_m")
-            if margin is not None and C.num(margin) < 0.015 and C.topple_threshold(rec) < 2.0:
-                C.drop_item(w, eid, geometry.height_m(w.s, eid), w.root_room(eid), cause="bumped_off_edge")
+    kargs = {"g": C.num(args.get("g"), kevents.DEFAULT_BUMP_G)}
+    for key in ("target", "room", "direction", "max_h_m", "by"):
+        if args.get(key) is not None:
+            kargs[key] = args[key]
+    kevents.bump(w, kargs, env)
     return True
-
-
-class _FakeCtx:
-    def __init__(self, w):
-        self.w = w
 
 
 # ----------------------------------------------------------------------------------
@@ -175,7 +214,40 @@ def _dries_index(w):
     return w.static_index("manipulation:dries_uncapped", lambda r: bool(r.get("dries_uncapped_s")))
 
 
-@system("manipulation.timers", order=310, max_dt=30.0, period=120.0)
+def _sealed_with_cap(rec):
+    cap = rec.get("cap") or {}
+    return bool(rec.get("sealed")) and (not isinstance(cap, dict) or cap.get("on", True))
+
+
+def _timers_idle(w):
+    """Exact idle probe of manipulation.timers (checked at its 120 s boundary): no marker is drying out (every one is
+    dried out already or sealed with its cap on), no watched deadline is due (a label peeling, felt pads falling off,
+    mildew) and the watch list needs no pruning."""
+    ents = w.s["entities"]
+    for eid in _dries_index(w):
+        rec = ents.get(eid)
+        if rec is not None and not rec.get("dried_out") and not _sealed_with_cap(rec):
+            return False
+    ids = C.section(w).get("watch") or ()
+    if not ids:
+        return True
+    now = w.s["time_s"]
+    watched = C.watched(w)
+    if len(watched) != len(ids):
+        return False
+    for eid in watched:
+        rec = ents[eid]
+        if not C.watch_live(rec):
+            return False
+        for key in ("label_peels_at_s", "pads_fall_off_at_s"):
+            if rec.get(key) is not None and now >= C.num(rec.get(key)):
+                return False
+        if not rec.get("mildewed") and any(rec.get(k) is not None and now - C.num(rec.get(k)) >= 12 * 3600 for k in C.WATCH_WET):
+            return False
+    return True
+
+
+@system("manipulation.timers", order=310, max_dt=30.0, period=120.0, idle=_timers_idle)
 def timers_system(w, dt, tick):
     """Slow clocks (hours): every 120 s with dt = the accumulated time. Drying accumulates dt x rate
     (closed form); deadlines compare absolute times, so they fire at most one period late."""
@@ -187,8 +259,7 @@ def timers_system(w, dt, tick):
             continue
         dries = rec.get("dries_uncapped_s")
         cap = rec.get("cap") or {}
-        sealed = bool(rec.get("sealed")) and (not isinstance(cap, dict) or cap.get("on", True))
-        if not sealed:
+        if not _sealed_with_cap(rec):
             rate = 0.5 if isinstance(cap, dict) and cap.get("on") else 1.0
             m = w.mut(eid)
             m["uncapped_s"] = round(C.num(rec.get("uncapped_s")) + dt * rate, 1)
@@ -262,25 +333,36 @@ def _held_down(w, eid):
     return weight >= C.num(rec.get("hold_down_kg"), 0.2)
 
 
-@system("manipulation.wind", order=320, max_dt=30.0)
-def wind_system(w, dt, tick):
+def _wind_mps(w):
     weather = w.s.get("weather") or {}
-    wind = max(C.num(weather.get("wind_mps"), 0.0), C.num(weather.get("gust_mps"), 0.0))
+    return max(C.num(weather.get("wind_mps"), 0.0), C.num(weather.get("gust_mps"), 0.0))
+
+
+def _wind_idle(w):
+    """Exact idle probe of manipulation.wind: calm (below 2.5 m/s), or nothing it would move (no light item -- or,
+    while the kernel's wind law is active, no cover laid over something)."""
+    return _wind_mps(w) < 2.5 or not _wind_candidates(w, covers_only=C.kernel_owns("wind"))
+
+
+@system("manipulation.wind", order=320, max_dt=30.0, idle=_wind_idle)
+def wind_system(w, dt, tick):
+    wind = _wind_mps(w)
     if wind < 2.5:
         return
-    _apply_wind(w, wind, None)
+    _apply_wind(w, wind, None, covers_only=C.kernel_owns("wind"))
 
 
-def _wind_candidates(w):
-    """Light items (static wind_lift_mps) and covers currently laid over something (watch list)."""
+def _wind_candidates(w, covers_only=False):
+    """Light items (static wind_lift_mps) and covers currently laid over something (watch list); covers only while
+    the kernel's wind law moves loose items itself."""
     ents = w.s["entities"]
-    ids = set(w.static_index("manipulation:wind_lift", lambda r: r.get("wind_lift_mps") is not None))
+    ids = set() if covers_only else set(w.static_index("manipulation:wind_lift", lambda r: r.get("wind_lift_mps") is not None))
     ids.update(e for e in C.watched(w) if ents[e].get("covering"))
     return sorted(e for e in ids if e in ents)
 
 
-def _apply_wind(w, wind, only_room):
-    candidates = _wind_candidates(w)
+def _apply_wind(w, wind, only_room, covers_only=False):
+    candidates = _wind_candidates(w, covers_only)
     if not candidates:
         return
     outdoor = {r for r, room in w.s["rooms"].items() if room.get("outdoor") and (only_room is None or r == only_room)}
@@ -302,12 +384,7 @@ def _apply_wind(w, wind, only_room):
             secured = target.get("cover_secured") or []
             limit = C.num(rec.get("wind_lift_mps"), 6.0) * (2.5 if secured else 1.0)
             if wind >= limit:
-                tm = w.mut(cover_target)
-                tm["covered_by"] = None
-                tm["covered"] = False
-                tm["cover_coverage"] = 0.0
-                m = w.mut(eid)
-                m.pop("covering", None)
+                _uncover_record(w, eid, cover_target)
                 C.move_to_floor(w, eid, rid, C.landing_cell(w, rid))
                 w.mut(eid)["blown_away"] = True
                 C.note_event(w, "blown_away", eid, room=rid, wind_mps=wind)
@@ -324,7 +401,20 @@ def _apply_wind(w, wind, only_room):
 
 @hook("event:manipulation.gust")
 def _event_gust(w, args, env):
-    _apply_wind(w, C.num(args.get("mps"), 8.0), args.get("room"))
+    """One gust over an outdoor room (mps: the gust where things are): loose items feel the kernel's gust
+    (physics.wind_gust at the item: sheets lift unless weighed down -- what rests on them counts --, tall things tip,
+    nothing slides on a gust alone); covers laid over things blow off unless secured (this domain's rule)."""
+    mps = C.num(args.get("mps"), 8.0)
+    room = args.get("room")
+    kargs = {"mps": mps, "local": True}
+    if room in w.s["rooms"]:
+        kargs["room"] = room
+    else:
+        kargs["outdoor"] = True
+    if args.get("direction_deg") is not None:
+        kargs["direction_deg"] = args["direction_deg"]
+    kevents.wind_gust(w, kargs, env)
+    _apply_wind(w, mps, room, covers_only=True)
     return True
 
 
@@ -343,6 +433,14 @@ def _event_deploy(w, args, env):
 # ----------------------------------------------------------------------------------
 # observation, inspection, invariants, answers
 
+def _seen(env, w, ids):
+    """The ids of `ids` a camera frame of this step has in view (geometric mode: camera.in_frame, the gate of passive
+    visual channels); room mode: all of them, as the room-wide rule always gave."""
+    if camera.mode(w.s) != "geometric":
+        return list(ids)
+    return [e for e in ids if camera.in_frame(w.s, e, world=w)]
+
+
 @observer("manipulation.sounds", order=120)
 def _sounds(env, w, obs):
     steps = w.s.get("steps", 0)
@@ -353,6 +451,8 @@ def _sounds(env, w, obs):
         if entry.get("step") != steps:
             continue
         kind = SOUND_OF.get(entry.get("kind"))
+        if entry.get("kind") == "manip.noise":
+            kind = NOISE_SOUND.get(entry.get("source_kind"))
         if not kind:
             continue
         same = entry.get("room") == room
@@ -362,17 +462,19 @@ def _sounds(env, w, obs):
         obs.setdefault("sounds", []).extend(heard)
     ents = w.s["entities"]
     watched = C.watched(w)
-    falling = [eid for eid in watched if ents[eid].get("falling") and ents[eid]["falling"].get("room") == room]
+    # what the robot sees falling or rolling (geometric mode: only what a frame of this step has in view)
+    falling = _seen(env, w, [eid for eid in watched if ents[eid].get("falling") and ents[eid]["falling"].get("room") == room])
     if falling:
         obs["falling"] = C.id_order(env, falling)       # realistic: listed in handle order, never true-id order
-    rolling = [eid for eid in watched if ents[eid].get("rolling") and w.root_room(eid) == room]
+    rolling = _seen(env, w, [eid for eid in watched if ents[eid].get("rolling") and w.root_room(eid) == room])
     if rolling:
         obs["rolling"] = C.id_order(env, rolling)
     demos = (w.s.get("manipulation") or {}).get("demos") or {}
     shown = {}
     for name, demo in sorted(demos.items()):
         person = w.s["people"].get(demo.get("person"), {})
-        if person.get("location") == room:
+        # a demonstration is watched: the person must be in view (geometric mode), in the room (room mode)
+        if person.get("location") == room and _seen(env, w, [demo.get("person")]):
             shown[name] = C.clean_copy(copy.deepcopy(demo))
     if shown:
         obs["demonstration"] = shown
@@ -383,17 +485,26 @@ def _sounds(env, w, obs):
         obs["shared_tasks"] = active
 
 
+PRINTED_FIELDS = ("label_text", "this_side_up")      # read off the thing: the cameras' read check gates them
+
+
 @inspector("manipulation.details", order=120)
 def _inspect(w, eid, record, details, ctx):
     if eid not in w.s["entities"]:
         return
     rec = record
     facts = w.s.get("facts") or {}
+    printed = [k for k in PRINTED_FIELDS if k in rec and k not in details]
+    readable = set(printed)
+    if printed and ctx is not None and camera.mode(w.s) == "geometric":
+        # printed text is read like core's read (the camera's character size, face, light and glare rules, else the
+        # wrist close up): only what the cameras can read now is listed (CAM-ACTIONS request: domain inspectors)
+        readable = set(ctx.read_check(eid, printed)[3] or ())
     for key in ("stack_count", "stack_height_m", "stack_marginal", "wrapped", "covered_by", "cover_coverage", "closure", "knot", "tangle",
                 "zipper", "seams", "thread", "connector", "snaps", "velcro", "fasteners", "label_text", "label_face", "label_adhesion",
                 "orientation", "face_up", "yaw_deg", "edge_margin_m", "rolled", "coiled", "flattened", "tilt_deg", "pads", "on_sliders",
                 "sealed", "cap", "dried_out", "inserted", "chipped", "wedged", "this_side_up", "presented", "tucked", "table_gap_m"):
-        if key in rec and key not in details:
+        if key in rec and key not in details and (key not in PRINTED_FIELDS or key in readable):
             details[key] = copy.deepcopy(rec[key])
     real = C.realistic(ctx)
     # the same rule as core inspect's contents: a closed opaque container hides what is in it
@@ -480,3 +591,28 @@ def _answer(env, w, pid, topic, ctx):
     w.stat("necessary_questions" if necessary else "unnecessary_questions")
     w.sec("facts")[topic] = copy.deepcopy(value)
     return {"topic": topic, "value": value, "by": pid}
+
+
+# canonical questions (ask aspect / about / detail) -> this domain's legacy topics (docs/DIALOGUE.md "Routes"). The
+# kernel's people routes come first: "where" and "owner" of a thing are the people domain's answers when it is
+# loaded, an "ok" with an act is a permission question, a preference with a detail is the person's own preference.
+ROUTE_DETAILS = {"how": {None: "fragile", "fragile": "fragile", "handle": "fragile", "handling": "fragile", "care": "fragile"},
+                 "which": {"contents": "contents", "inside": "contents"},
+                 "preference": {None: "preference", "facing": "frame", "frame": "frame", "orientation": "frame"}}
+ROUTE_ASPECTS = {"keep": "keep", "status": "in_use", "who": "recipient", "intended": "recipient", "where": "home",
+                 "owner": "owner"}
+
+
+def _route_manip(state, pid, subject, aspect, detail, act):
+    """ask about one of the household's things -> manip:<key>:<id> (keep it? still in use? who is it for? how to
+    handle it? what is inside? which way should it face?)."""
+    if subject is None or subject.kind != "entity" or not subject.id:
+        return None
+    if aspect in ROUTE_DETAILS:
+        key = ROUTE_DETAILS[aspect].get(detail)
+    else:
+        key = ROUTE_ASPECTS.get(aspect) if detail in (None, "") else None
+    return "manip:{}:{}".format(key, subject.id) if key else None
+
+
+dialogue.route("manipulation.items", tuple(sorted(set(ROUTE_DETAILS) | set(ROUTE_ASPECTS))), _route_manip)

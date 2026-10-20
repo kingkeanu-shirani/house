@@ -128,11 +128,60 @@ def _update(w, eid, **fields):
     rec = w.s["entities"][eid]
     if all(rec.get(k) == v for k, v in fields.items()):
         return
+    before = rec.get("alarm_state")
     m = w.mut(eid)
     m.update(fields)
+    if fields.get("alarm_state") in ("chirp", "eol") and before not in ("chirp", "eol"):
+        # a unit that starts chirping is heard as a chirp notice (the kernel's own alarm bridge posts the T3 / T4
+        # alarms: alarm_state "alarm")
+        post_notice(w, "chirp", C.root_room(w.s, eid), db=DETECTOR_DB_1M - 10.0, source=eid)
 
 
-@system("safety.detectors", order=320, max_dt=30.0)
+def _steady(state, rec, now):
+    """(alarm_state, alarm_pattern) a powered unit settles in while nothing is sensed: end of life, a low-battery
+    chirp (unless chirp-hushed), else idle -- the detector system's last branch."""
+    charge = battery_charge(state, rec)
+    if rec.get("end_of_life"):
+        return "eol", "eol_chirp"
+    if charge is not None and charge < 0.1 and float(rec.get("chirp_hush_until_s") or 0.0) <= now:
+        return "chirp", "chirp"
+    return "idle", None
+
+
+def detectors_idle(w):
+    """Exact idle probe (kernel v3.1 @system idle): the detector system would write nothing this substep -- no unit
+    senses smoke, heat or CO (the air of every detector's room under the alarm thresholds and no CO dose accumulated),
+    every unit already shows the state it would settle in (dead without power, else end of life / chirp / idle), no
+    smart hush needs resetting and no siren is sounding. Writes nothing."""
+    state = C.bind_world(w).s
+    now = C.now(state)
+    for eid in C.alarm_panels(state):
+        if state["entities"][eid].get("siren_on"):
+            return False
+    for eid in detectors(state):
+        rec = state["entities"][eid]
+        if float(rec.get("_co_acc", 0.0) or 0.0) > 0.0 or rec.get("initiating") is not False:
+            return False        # (the system writes initiating False on every unit it settles)
+        if not powered(state, rec):
+            if rec.get("alarm_state") != "dead" or rec.get("alarm_pattern") is not None:
+                return False
+            continue
+        a = A.air(state, C.root_room(state, eid))
+        kinds = senses(rec)
+        if "co" in kinds and co_alarm_minutes(float(a.get("co", 0.0))) is not None:
+            return False
+        if "smoke" in kinds and float(a.get("smoke", 0.0)) >= float(rec.get("sensitivity_k", 0.06)):
+            return False
+        if "heat" in kinds and float(a.get("dT", 0.0)) >= 36.0:
+            return False
+        if (rec.get("alarm_state"), rec.get("alarm_pattern")) != _steady(state, rec, now):
+            return False
+        if (rec.get("settings") or {}).get("hush") and float(rec.get("hush_until_s") or 0.0) <= now:
+            return False
+    return True
+
+
+@system("safety.detectors", order=320, max_dt=30.0, idle=detectors_idle)
 def detector_system(w, dt, tick):
     state = C.bind_world(w).s
     ids = detectors(state)
@@ -436,12 +485,24 @@ def sounds_observer(env, w, obs):
         out.append(entry)
 
 
-def record_sound(w, kind, room, cell=None, db=70.0, lasts_s=60.0, description=None):
+def record_sound(w, kind, room, cell=None, db=70.0, lasts_s=60.0, description=None, source=None, notice=None):
+    """A sound event heard through the house: kept in the ledger for the sounds channel (for lasts_s) and posted on
+    the kernel notice bus (TIER1_SWEEP 6.1) when it starts, as the matching notice kind (notice: another kind, e.g.
+    "person_down" for someone falling), at its level at 1 m, so a listening wait or a standing order can react to it.
+    source: the entity, person or pet that made it (named only when perceived). Sounds already going on when the
+    episode starts (setup) are no notices, as for the kernel's alarm bridge."""
     sec = C.ledger(w)
     sounds = sec.setdefault("sounds", [])
     sounds.append({"time_s": C.now(w.s), "kind": kind, "room": room, "cell": list(cell or [0, 0]), "db": db, "lasts_s": lasts_s,
                    "description": description})
     del sounds[:-30]
+    post_notice(w, notice or NOTICE_OF_SOUND.get(kind), room, db=db, source=source, description=description)
+
+
+# sound event kind -> notice kind (kernel built-ins where one fits; safety's own kinds: common.SAFETY_NOTICE_KINDS)
+NOTICE_OF_SOUND = {"glass_break": "glass_breaking", "crash": "crash", "thud": "thud", "crying": "crying", "knocking": "knock",
+                   "doorbell": "doorbell", "whimpering": "whimpering", "scratching": "scratching", "entry_beeps": "entry_beeps"}
+post_notice = C.post_notice
 
 
 # ---------------------------------------------------------------------------------------------
@@ -479,9 +540,12 @@ def sound_alarm(ctx):
             panel = ctx.obj(target, touch=True)
         room, x, y, _ = C.entity_xyz(state, target)
         src = (room, (x, y), float(panel.get("siren_db", 105.0)))
+        was_on = bool(panel.get("siren_on"))
         pm = w.mut(target)
         pm["siren_on"] = True
         pm["siren_until_s"] = C.now(state) + 600.0
+        if not was_on:
+            post_notice(w, "alarm", room, db=src[2], source=target)
     else:
         require(not ctx.args.get("dispatch"), "Dispatch needs a monitored alarm panel (target it), or call emergency services", "argument")
         src = _robot_source(state)

@@ -11,9 +11,9 @@ collects piles; vacuums ingest small objects lying in their path. Mops leave a w
 import math
 
 from ...kernel import geometry, physics
-from ...kernel.actions import action
+from ...kernel.actions import action, motion_record
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, before
+from ...kernel.plugins import after, before, hook
 from . import engine as E
 from . import model as M
 from . import state as S
@@ -223,11 +223,30 @@ def floor_sources(w, floor_id, bucket=None, tool=None, contact=E.CONTACT_S):
 # ----------------------------------------------------------------------
 # spills
 
-def make_spill(w, location, liquid, liters, near=None, cell=None, surface=None, eid=None, **props):
-    """Create a spill entity (other domains may import this). Returns its id."""
+def spill_record(liquid, liters):
+    """A spill's fields: the physical columns of liquids.json (the floor hazard; toxic, flammable and corrosive as
+    hazards: physics.liquid_props) and this domain's residue rules (SPILL_PROPS: residue, contamination, biohazard
+    handling, odour, pet toxicity, disposal)."""
+    info = physics.liquid_props(liquid)
+    record = {"liquid": liquid, "liquid_l": round(max(0.001, float(liters)), 4),
+              "label": "{} spill".format(str(liquid).replace("_", " ")), "floor_hazard": info.get("floor_hazard") or "wet"}
+    hazards = [name for name in ("toxic", "flammable", "corrosive") if info.get(name) is True]
+    rules = dict(SPILL_PROPS.get(liquid, {}))
+    hazards += [h for h in rules.pop("hazards", []) if h not in hazards]
+    if hazards:
+        record["hazards"] = hazards
+    record.update(rules)
+    return record
+
+
+def make_spill(w, location, liquid, liters, near=None, cell=None, surface=None, eid=None, origin=None, quiet=False,
+               **props):
+    """Create a spill entity (other domains may import this). Returns its id. origin: the container the liquid came
+    out of (its provenance: core.mark_contents_from, so realistic perception names the liquid only once that container
+    is identified). The robot's camera may see it happen (camera.visual_event, geometric mode) and it may be heard as a
+    splash (a "splash" notice); quiet=True leaves that to the caller (the kernel's spill already announced it)."""
     liters = max(0.001, float(liters))
-    record = {"liquid": liquid, "liquid_l": round(liters, 4), "label": "{} spill".format(str(liquid).replace("_", " "))}
-    record.update(SPILL_PROPS.get(liquid, {}))
+    record = spill_record(liquid, liters)
     record.update(props)
     if surface:
         rid = surface
@@ -248,40 +267,101 @@ def make_spill(w, location, liquid, liters, near=None, cell=None, surface=None, 
         floor = S.floor_of(w, location)
         if floor and is_carpet(w.ent(floor)):
             m["on_carpet"] = True
+    if origin and origin in w.s["entities"] and origin != spill:
+        from ..core import mark_contents_from
+        mark_contents_from(w, spill, origin)
     resize_spill(w, spill)
     S.glog(w, "spill", spill=spill, liquid=liquid, liters=liters)
+    if not quiet:
+        announce_spill(w, spill)
     return spill
 
 
+def announce_spill(w, spill):
+    """A spill this domain made happen is a visual occurrence (camera.visual_event: whether the head camera saw it, in
+    geometric mode; nothing changes in room mode) and a splash someone may hear (a "splash" notice while the notice
+    bus listens)."""
+    rec = w.s["entities"].get(spill)
+    if rec is None:
+        return
+    rid = w.root_room(spill)
+    size = max(0.3, float((rec.get("size_m") or [0.3])[0]))
+    if "view" in w.s["robot"]:
+        from ...kernel import camera
+        camera.visual_event(w, "spill", source=spill, room=rid, size_m=size, emit=False)
+    from ...kernel import timeline
+    if timeline.active(w):
+        w.notice("splash", room=rid, source=spill)
+
+
+@hook("phys.spill_sink")
+def spill_sink(w, rid, cell, liquid, liters, source, onto):
+    """Liquid the kernel puts on a floor (TIER1_PHYSICS 5.7: overflow, tilt and tip spills, carry slosh, drips, leaks,
+    broken containers) is a cleaning spill while this domain is loaded: it dries, wicks, stains and leaves its residue
+    like any other. More of the same liquid on that cell grows the spill there. The kernel already logged the
+    consequence (event, camera, sound), so nothing is announced again. Returns the spill id."""
+    if rid not in w.s["rooms"]:
+        return None
+    here = [int(cell[0]), int(cell[1])]
+    origin = source if isinstance(source, str) and source in w.s["entities"] else None
+    ents = w.s["entities"]
+    from .systems import spill_ids
+    for eid in spill_ids(w):
+        rec = ents.get(eid)
+        if rec is not None and rec.get("location") == rid and rec.get("liquid") == liquid and list(rec.get("pos") or ()) == here:
+            m = w.mut(eid)
+            m["liquid_l"] = S.rnd(float(rec.get("liquid_l", 0.0) or 0.0) + float(liters), 4)
+            if origin:
+                from ..core import mark_contents_from
+                mark_contents_from(w, eid, origin)
+            resize_spill(w, eid)
+            return eid
+    return make_spill(w, rid, liquid, liters, cell=here, origin=origin, quiet=True)
+
+
+# what this domain adds to a spill of each liquid: dried residue (soil kinds left on the floor or surface), germs,
+# biohazard handling, odour, pet toxicity and disposal. The physical columns (film thickness, floor hazard, toxic /
+# flammable / corrosive) are liquids.json's (spill_record).
 SPILL_PROPS = {
-    "water": {"residue": {}, "floor_hazard": "wet"},
-    "juice": {"residue": {"sticky": 0.7, "stain_juice": 0.3}, "floor_hazard": "wet"},
-    "soda": {"residue": {"sticky": 0.8}, "floor_hazard": "wet"},
-    "milk": {"residue": {"protein": 0.5, "sticky": 0.2}, "floor_hazard": "wet", "odor_source": True},
-    "wine": {"residue": {"stain_wine": 0.8, "sticky": 0.2}, "floor_hazard": "wet"},
-    "coffee": {"residue": {"stain_coffee": 0.7, "sticky": 0.2}, "floor_hazard": "wet"},
-    "cooking_oil": {"residue": {"grease": 0.9, "stain_oil": 0.4}, "floor_hazard": "slip"},
-    "oil": {"residue": {"grease": 0.9, "stain_oil": 0.4}, "floor_hazard": "slip"},
-    "motor_oil": {"residue": {"stain_oil": 0.9, "grease": 0.6}, "floor_hazard": "slip", "hazards": ["toxic"], "hazardous_waste": True},
-    "antifreeze": {"residue": {"sticky": 0.4}, "floor_hazard": "wet", "hazards": ["toxic"], "toxic_to_pets": True, "hazardous_waste": True},
-    "gasoline": {"residue": {"stain_oil": 0.3}, "floor_hazard": "slip", "hazards": ["flammable", "toxic"], "hazardous_waste": True, "volatile": True},
-    "urine": {"residue": {"urine": 0.8}, "contamination": {"bacteria": 0.6, "biohazard": 0.6}, "hazards": ["biohazard"], "handled_with": ["rubber_gloves", "disposable_gloves"], "floor_hazard": "wet"},
-    "vomit": {"residue": {"biohazard": 0.8, "food": 0.4}, "contamination": {"bacteria": 0.9, "biohazard": 0.9}, "hazards": ["biohazard"], "handled_with": ["rubber_gloves", "disposable_gloves"], "floor_hazard": "slip"},
-    "raw_meat_juice": {"residue": {"protein": 0.4}, "contamination": {"raw_meat": 0.9, "bacteria": 0.6}, "floor_hazard": "wet"},
-    "raw_egg": {"residue": {"protein": 0.8}, "contamination": {"bacteria": 0.5}, "floor_hazard": "slip"},
-    "paint": {"residue": {"paint_acrylic": 0.9}, "floor_hazard": "slip"},
-    "bleach": {"residue": {}, "chem_classes": {"chlorine": 1.0}, "hazards": ["corrosive"], "floor_hazard": "wet"},
-    "mud_water": {"residue": {"mud": 0.7}, "floor_hazard": "wet"},
-    "dirty_water": {"residue": {"dirt": 0.3, "streaks": 0.3}, "floor_hazard": "wet"},
-    "cleaning_solution": {"residue": {"streaks": 0.2}, "floor_hazard": "wet"},
-    "garbage_juice": {"residue": {"garbage_juice": 0.7}, "contamination": {"bacteria": 0.5}, "floor_hazard": "wet", "odor_source": True},
+    "water": {"residue": {}},
+    "juice": {"residue": {"sticky": 0.7, "stain_juice": 0.3}},
+    "soda": {"residue": {"sticky": 0.8}},
+    "milk": {"residue": {"protein": 0.5, "sticky": 0.2}, "odor_source": True},
+    "wine": {"residue": {"stain_wine": 0.8, "sticky": 0.2}},
+    "coffee": {"residue": {"stain_coffee": 0.7, "sticky": 0.2}},
+    "cooking_oil": {"residue": {"grease": 0.9, "stain_oil": 0.4}},
+    "oil": {"residue": {"grease": 0.9, "stain_oil": 0.4}},
+    "motor_oil": {"residue": {"stain_oil": 0.9, "grease": 0.6}, "hazardous_waste": True},
+    "antifreeze": {"residue": {"sticky": 0.4}, "toxic_to_pets": True, "hazardous_waste": True},
+    "gasoline": {"residue": {"stain_oil": 0.3}, "hazardous_waste": True, "volatile": True},
+    "urine": {"residue": {"urine": 0.8}, "contamination": {"bacteria": 0.6, "biohazard": 0.6}, "hazards": ["biohazard"], "handled_with": ["rubber_gloves", "disposable_gloves"]},
+    "vomit": {"residue": {"biohazard": 0.8, "food": 0.4}, "contamination": {"bacteria": 0.9, "biohazard": 0.9}, "hazards": ["biohazard"], "handled_with": ["rubber_gloves", "disposable_gloves"]},
+    "raw_meat_juice": {"residue": {"protein": 0.4}, "contamination": {"raw_meat": 0.9, "bacteria": 0.6}},
+    "raw_egg": {"residue": {"protein": 0.8}, "contamination": {"bacteria": 0.5}},
+    "paint": {"residue": {"paint_acrylic": 0.9}},
+    "bleach": {"residue": {}, "chem_classes": {"chlorine": 1.0}},
+    "mud_water": {"residue": {"mud": 0.7}},
+    "dirty_water": {"residue": {"dirt": 0.3, "streaks": 0.3}},
+    "cleaning_solution": {"residue": {"streaks": 0.2}},
+    "garbage_juice": {"residue": {"garbage_juice": 0.7}, "contamination": {"bacteria": 0.5}, "odor_source": True},
 }
+
+
+def spill_film_mm(liquid, on_carpet=False, state=None, rid=None, cell=None):
+    """Film thickness (mm) of a puddle: the liquid's film_mm (liquids.json) on a hard floor or a surface; on an
+    absorbent floor the floor's film_mm (floors.json: 3 mm into carpet and rugs), as the kernel sizes its puddles."""
+    if on_carpet:
+        film = None
+        if state is not None and rid in state.get("rooms", {}):
+            film = physics.floor_props(state, rid, cell).get("film_mm")
+        return float(film) if film else 3.0
+    return float(physics.liquid_props(liquid or "water").get("film_mm") or 1.5)
 
 
 def resize_spill(w, spill):
     rec = w.ent(spill)
     liters = float(rec.get("liquid_l", 0.0))
-    thickness_mm = 3.0 if rec.get("on_carpet") else (2.5 if rec.get("liquid") in ("cooking_oil", "motor_oil", "paint", "vomit") else 1.5)
+    thickness_mm = spill_film_mm(rec.get("liquid"), rec.get("on_carpet"), w.s, rec.get("location"), rec.get("pos"))
     area = max(0.01, liters / thickness_mm) * float(rec.get("spread_factor", 1.0))
     side = round(min(3.0, math.sqrt(area)), 3)
     m = w.mut(spill)
@@ -479,12 +559,18 @@ def clean_floor_cells(ctx, floor_id, verb):
     return "{} {} floor cells ({})".format(verb.capitalize(), len(chosen), S.removed_text(ctx, removed))
 
 
-def apply_to_floor(ctx, floor_id, product, amount, strength, classes, bottle=None):
+def apply_to_floor(ctx, floor_id, product, amount, strength, classes, bottle=None, keys=None):
+    """A product on floor cells (keys, else the cells/zone of the command, else every reachable cell)."""
     w = ctx.w
     rec = floor_target(ctx, floor_id)
-    chosen, _ = select_cells(ctx, floor_id, {"head_m": 0.02, "reach_m": 1.0}, zone=ctx.args.get("zone") or ("all" if not ctx.args.get("cells") else None),
-                             cells=ctx.args.get("cells"))
+    if keys is not None:
+        chosen = list(keys)
+    else:
+        chosen, _ = select_cells(ctx, floor_id, {"head_m": 0.02, "reach_m": 1.0},
+                                 zone=ctx.args.get("zone") or ("all" if not ctx.args.get("cells") else None),
+                                 cells=ctx.args.get("cells"))
     require(chosen, "No reachable floor cells there", "precondition")
+    ctx.data["cl_cells"] = len(chosen)
     t = S.now(w)
     pinfo = M.PRODUCTS.get(product, {})
     m = w.mut(floor_id)
@@ -535,6 +621,41 @@ def absorb_with_granules(ctx, floor_id, cells, amount_ml):
             resize_spill(w, spill)
 
 
+SPILL_DISINFECT_S = 4.0
+
+
+def spill_disinfect_text(ctx, product, bottle):
+    """What spraying a disinfectant (or, realistic, whatever an unread bottle holds) onto a bulk spill says: the same
+    words for every bottle in realistic perception."""
+    if S.realistic(ctx):
+        return "Sprayed {} onto the spill (a bulk spill shields germs; remove it first)".format(S.product_text(ctx, product, bottle))
+    return "Sprayed disinfectant onto the bulk spill (organic load shields the germs; remove it first)"
+
+
+def floor_disinfect_seconds(cells):
+    """Time to wet `cells` floor cells with a disinfectant (or anything else sprayed the same way)."""
+    return 3.0 + 1.0 * cells
+
+
+def disinfect_cells(ctx, target):
+    """The floor cells a disinfection works: the command's cells or zone, else the soiled cells - in realistic
+    perception only the soiled cells the robot can see (not ones under rugs or low furniture: their count would leak
+    them)."""
+    w = ctx.w
+    rec = w.ent(target)
+    floor_target(ctx, target)
+    if ctx.args.get("cells") or ctx.args.get("zone"):
+        chosen, _ = select_cells(ctx, target, {"head_m": 0.02, "reach_m": 1.0}, zone=ctx.args.get("zone"),
+                                 cells=ctx.args.get("cells") or None)
+    else:
+        chosen = sorted(S.floor_soil_cells(rec, threshold=0.0) or [])
+        if S.realistic(ctx):
+            vis = S.floor_visibility(w, target)
+            chosen = [k for k in chosen if vis.get(k) == "visible"]
+    require(chosen, "Name the floor cells to disinfect (cells=[[c,r],...])", "argument")
+    return chosen
+
+
 def disinfect_floor(ctx, target, product, strength, tool, bottle=None):
     w = ctx.w
     rec = w.ent(target)
@@ -547,16 +668,9 @@ def disinfect_floor(ctx, target, product, strength, tool, bottle=None):
             cont[kind] = S.rnd(float(cont[kind]) * 0.7)
         m.setdefault("cl_applied", []).append({"p": product, "face": "main", "t": S.now(w), "wet_until": S.now(w) + 600, "s": strength})
         S.watch(w, "chem", target)
-        ctx.data["seconds"] = 4.0
-        return "Sprayed disinfectant onto the bulk spill (organic load shields the germs; remove it first)"
-    floor_target(ctx, target)
-    chosen, _ = select_cells(ctx, target, {"head_m": 0.02, "reach_m": 1.0}, zone=ctx.args.get("zone"), cells=ctx.args.get("cells") or None) \
-        if (ctx.args.get("cells") or ctx.args.get("zone")) else (sorted(S.floor_soil_cells(rec, threshold=0.0) or []), {})
-    if S.realistic(ctx) and not (ctx.args.get("cells") or ctx.args.get("zone")):
-        # the soiled cells the robot can see (not ones under rugs or low furniture: their count would leak them)
-        vis = S.floor_visibility(w, target)
-        chosen = [k for k in chosen if vis.get(k) == "visible"]
-    require(chosen, "Name the floor cells to disinfect (cells=[[c,r],...])", "argument")
+        ctx.data["seconds"] = SPILL_DISINFECT_S
+        return spill_disinfect_text(ctx, product, bottle)
+    chosen = disinfect_cells(ctx, target)
     pinfo = M.PRODUCTS[product]
     t = S.now(w)
     m = w.mut(target)
@@ -567,7 +681,7 @@ def disinfect_floor(ctx, target, product, strength, tool, bottle=None):
     classes = {c: p * strength for c, p in M.product_classes(product).items()}
     E.check_chemicals(w, target, classes, product)
     S.add_residue(w, target, classes, 0.3)
-    ctx.data["seconds"] = 3.0 + 1.0 * len(chosen)
+    ctx.data["seconds"] = floor_disinfect_seconds(len(chosen))
     return "Applied {} to {} floor cells".format(S.product_text(ctx, product, bottle), len(chosen))
 
 
@@ -1221,9 +1335,49 @@ def noise_event(ctx, rid, db):
             pet["activity"] = "hiding"
 
 
+VACUUM_DB = {"low": 62.0, "medium": 68.0, "high": 74.0}     # dB(A) at 1 m by suction (household vacuums 60-80 dB)
+SHOP_VAC_EXTRA_DB = 3.0
+STEAM_MOP_DB = 64.0        # pump and steam hiss of a steam mop at 1 m
+
+
+def held_vacuum(w):
+    """The vacuum the robot holds, or None."""
+    for eid in w.held_items():
+        rec = w.ent(eid)
+        if rec.get("vacuum_kind") or S.is_a(rec, "vacuum_cleaner"):
+            return eid
+    return None
+
+
+def vacuum_db(w, vac):
+    """Sound level (dB at 1 m) of a running vacuum at its suction setting."""
+    rec = w.ent(vac)
+    suction = (rec.get("settings") or {}).get("suction", "high")
+    return VACUUM_DB.get(suction, 72.0) + (SHOP_VAC_EXTRA_DB if rec.get("vacuum_kind") == "shop" else 0.0)
+
+
+def vacuum_noise_db(ctx):
+    """ActionSpec.noise_db of `vacuum` (TIER1_INTEGRATION 6, body): the running vacuum's level. Quiet mode refuses it
+    through the body (everything above quiet_limit_db, 55 dB, even at low suction: use a broom or a dust mop), and the
+    kernel's robot_sound hook tells listeners."""
+    vac = ctx.args.get("tool") if ctx.args.get("tool") in ctx.w.held_items() else held_vacuum(ctx.w)
+    return vacuum_db(ctx.w, vac) if vac else None
+
+
+def mop_noise_db(ctx):
+    """ActionSpec.noise_db of `mop`: a steam mop's pump and hiss; a plain mop is quiet (None)."""
+    tool = ctx.args.get("tool")
+    held = ctx.w.held_items()
+    tools = [tool] if tool in held else held
+    for eid in tools:
+        if S.tool_spec(ctx.w.ent(eid)).get("steam"):
+            return STEAM_MOP_DB
+    return None
+
+
 @action("vacuum", params={"target": "entity", "tool": "?entity", "zone": "?str", "cells": "?list", "face": "?str",
                           "passes": {"type": "int", "default": 1, "min": 1, "max": 4}, "vacuum_on": "?str:landing|tread", "order": "?str:top_down|bottom_up"},
-        duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.04, noise=0.0, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.04, noise=0.0, category="physical", noise_db=vacuum_noise_db,
         doc="Vacuum a floor zone/cells, a rug, upholstery (faces: seat, crevices, back, under_cushions), a mattress, curtains, "
             "vents, stairs or a vehicle interior with a held vacuum. The fitted head/attachment (install crevice_tool, "
             "upholstery_tool, dust_brush, pet_tool, low_profile_head; settings: mode carpet|hard_floor, suction low|medium|high) "
@@ -1244,9 +1398,6 @@ def vacuum(ctx):
     elif vrec.get("plug_required"):
         require(physics.is_powered(w, vac), "The vacuum has no power (plug it in)", "resource")
     settings = vrec.get("settings") or {}
-    suction_setting = settings.get("suction", "high")
-    if w.robot.get("quiet"):
-        require(suction_setting == "low", "Quiet mode is on: set suction low or use a broom/dust mop", "precondition")
     head, wand, container, filt = vacuum_state(w, vac)
     hspec = dict(M.VACUUM_HEADS.get(head, M.VACUUM_HEADS["floor_head"]))
     if wand:
@@ -1257,7 +1408,7 @@ def vacuum(ctx):
     require(rec is not None, "That is not visible here", "perception")
     passes = ctx.args["passes"]
     rid = w.root_room(target) or w.robot["room"]
-    db = {"low": 62, "medium": 68, "high": 74}.get(suction_setting, 72) + (3 if vrec.get("vacuum_kind") == "shop" else 0)
+    db = vacuum_db(w, vac)
     consequences = []
     if not container:
         S.damage(w, vac, "motor_dust", 0.5, "run without bin or bag")
@@ -1448,7 +1599,7 @@ def find_bucket(ctx):
 @action("mop", params={"target": "entity", "tool": "?entity", "zone": "?str", "cells": "?list", "bucket": "?entity",
                        "wetness": "?str:dry|barely_damp|damp|wet", "face": "?str", "order": "?str:top_down|bottom_up",
                        "parked_s": {"type": "number", "min": 0, "max": 600, "optional": True}},
-        duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.04, noise=0.03, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 60.0), energy=0.04, noise=0.03, category="physical", noise_db=mop_noise_db,
         doc="Mop floor cells/zone (or stairs, or a rug if you insist) with a held mop. Wet mops are dipped and wrung in a "
             "bucket within reach (bucket=...) to the chosen wetness; the solution's chemistry acts on film/sticky soils; loose "
             "debris turns to mud; dirty water redeposits; the cell you stand on is left for last (finish from the doorway of "
@@ -1613,6 +1764,68 @@ def mop(ctx):
 # ----------------------------------------------------------------------
 # absorb
 
+ABSORB_TOOLS = ("towel", "cloth", "paper", "sponge", "mop", "wipe")
+
+
+def _unread_bottle(ctx):
+    """Realistic perception: a held product bottle (or refill) whose label the robot has not read (or that has none),
+    named as the tool or else the first such bottle held; None in oracle mode."""
+    if not S.realistic(ctx):
+        return None
+    w = ctx.w
+    held = w.held_items()
+    named = ctx.args.get("tool")
+    for eid in ([named] if named in held else held):
+        rec = w.ent(eid)
+        if (rec.get("product") or rec.get("cl_chem")) and S.tool_spec(rec).get("kind") not in ABSORB_TOOLS \
+                and not S.label_known(ctx, eid):
+            return eid
+    return None
+
+
+def _pour_unread_over(ctx, target, bottle):
+    """Realistic perception: absorb with a bottle the robot has not identified. Whatever is in it goes over the spill
+    (granules soak it up into a pile; a liquid joins the puddle, dwells and reacts with it) and the message and the time
+    are the same for every bottle; on anything but a spill one refusal for all."""
+    w = ctx.w
+    rec = w.s["entities"].get(target)
+    require(rec is not None and rec.get("category") == "spill", "Pour it out only over a spill", "argument")
+    ctx.obj(target, touch=True)
+    brec = w.ent(bottle)
+    liters = float(rec.get("liquid_l", 0.2) or 0.2)
+    if brec.get("product") == "oil_absorbent" or brec.get("absorbent"):
+        loc = rec["location"]
+        floor = S.floor_of(w, loc) if loc in w.s["rooms"] else None
+        require(floor is not None, "Pour it out only over a spill", "argument")
+        amount = min(float(brec.get("amount_ml", 1500.0)), max(250.0, liters * 1300.0))
+        w.mut(bottle)["amount_ml"] = S.rnd(max(0.0, float(brec.get("amount_ml", 1500.0)) - amount), 1)
+        absorb_with_granules(ctx, floor, spill_cells(w, target), amount)
+    else:
+        from .surfaces import bottle_product, take_from_bottle
+        product, strength = bottle_product(w, bottle)
+        require(product is not None, "The bottle is empty", "resource")
+        amount = 250.0
+        if brec.get("product"):
+            amount = min(amount, float(brec.get("amount_ml", 500.0) or 0.0))
+        else:
+            amount = min(amount, float(brec.get("liquid_l", 0.0) or 0.0) * 1000.0)
+        take_from_bottle(w, bottle, amount)
+        classes = {c: p * min(1.5, strength) for c, p in M.product_classes(product).items()}
+        hazard = M.incompatibility(classes, rec.get("chem_classes") or {})
+        if hazard:
+            S.gas_event(w, w.root_room(target), hazard, target)
+        m = w.mut(target)
+        m["liquid_l"] = S.rnd(liters + amount / 1000.0, 4)
+        m.setdefault("cl_applied", []).append({"p": product, "face": "main", "t": S.now(w),
+                                               "wet_until": S.now(w) + float(M.PRODUCTS.get(product, {}).get("wet_s", 300.0)),
+                                               "s": S.rnd(strength, 3), "ml": S.rnd(amount, 1)})
+        S.watch(w, "chem", target)
+        S.log_product(w, product, target)
+        resize_spill(w, target)
+    ctx.data["seconds"] = 20.0
+    return "Poured what is in {} over {}".format(bottle, target)
+
+
 @action("absorb", params={"target": "entity", "tool": "?entity", "method": "?str:blot|rub", "sheets": {"type": "int", "min": 1, "max": 20, "optional": True},
                           "cells": "?list"},
         duration=lambda ctx: ctx.data.get("seconds", 10.0), energy=0.01, category="physical",
@@ -1622,7 +1835,10 @@ def mop(ctx):
 def absorb(ctx):
     w = ctx.w
     target = ctx.args["target"]
-    tool = S.held_tool(ctx, predicate=lambda r: S.tool_spec(r).get("kind") in ("towel", "cloth", "paper", "sponge", "mop", "wipe") or bool(r.get("product") == "oil_absorbent" or r.get("absorbent")),
+    bottle = _unread_bottle(ctx)
+    if bottle is not None:
+        return _pour_unread_over(ctx, target, bottle)
+    tool = S.held_tool(ctx, predicate=lambda r: S.tool_spec(r).get("kind") in ABSORB_TOOLS or bool(r.get("product") == "oil_absorbent" or r.get("absorbent")),
                        message="Hold an absorbent towel, paper towels, sponge, mop or absorbent granules")
     trec = w.ent(tool)
     rec = w.s["entities"].get(target)
@@ -1703,7 +1919,8 @@ def shake_out(ctx):
     if method == "shake":
         require(target in w.held_items(), "Hold it to shake it", "precondition")
         size = rec.get("size_m") or [1, 1, 0.01]
-        require(float(rec.get("mass_kg", 1.0)) <= 6.0 and max(float(size[0]), float(size[1])) <= 1.6,
+        max_kg, max_m = shake_limits(w.s)
+        require(float(rec.get("mass_kg", 1.0)) <= max_kg and max(float(size[0]), float(size[1])) <= max_m,
                 "Too big and heavy to shake; vacuum it or beat it over a railing", "capability")
     else:
         against = ctx.args.get("against")
@@ -1786,6 +2003,17 @@ def shake_out(ctx):
     return "{} {} {} ({} released)".format("Shook out" if method == "shake" else "Beat", target, where, S.grams_text(ctx, sum(released.values()), "{:.0f} g"))
 
 
+SHAKE_LOAD_FACTOR = 10.0 / 3.0     # snapping a rug out loads the arms about 3x its weight (humanoid_v1: 20 kg -> 6 kg)
+
+
+def shake_limits(state):
+    """(mass kg, length m) of the biggest thing the robot can shake out: its derated two-hand capacity
+    (body.capacity_kg) over SHAKE_LOAD_FACTOR, and nothing longer than the robot is tall (its hem would drag on the
+    floor) - the body's numbers, so a compact humanoid or a weakened arm shakes less."""
+    from ...kernel import body
+    return body.capacity_kg(state, "both") / SHAKE_LOAD_FACTOR, float(body.get(state, "height_m"))
+
+
 def drop_to_floor_near_door(w, rid, from_room, composition):
     cid = next((c for c, conn in sorted(w.s["connections"].items()) if set(conn["rooms"]) == {rid, from_room}), None)
     floor = S.floor_of(w, rid)
@@ -1834,7 +2062,8 @@ def dump_liquid(ctx, container, dest):
                 S.pollute(w, "chemicals_on_plants", dest, liters, source=container)
                 outcome += " (chemicals on the lawn/beds)"
         else:
-            make_spill(w, drec["location"], "dirty_water" if dirty else (rec.get("liquid") or "water"), liters, near=container)
+            make_spill(w, drec["location"], "dirty_water" if dirty else (rec.get("liquid") or "water"), liters, near=container,
+                       origin=container)
             w.stat("spills")
             outcome += " (onto the floor)"
     elif drec.get("drain") or drec.get("toilet") or drec.get("floor_drain"):
@@ -1900,6 +2129,16 @@ def _path_cells(ctx):
     return [S.ck(c) for c in path]
 
 
+def walked_speed(ctx):
+    """The speed the robot actually walked (TIER1_INTEGRATION 1.7): the motion record's effective speed (quiet mode
+    makes fast normal, limp mode or weak legs careful), else body.effective_speed of the requested mode."""
+    record = motion_record(ctx)
+    if isinstance(record, dict) and record.get("speed"):
+        return record["speed"]
+    from ...kernel import body
+    return body.effective_speed(ctx.w.s, ctx.args.get("speed") or ctx.w.robot.get("speed_mode", "normal"))[0]
+
+
 @after("move", order=150)
 @after("approach", order=150)
 @after("walk_to", order=150)
@@ -1918,7 +2157,7 @@ def tracks_and_drips(ctx, result):
     if wet_hits and floor:
         for key in wet_hits:
             S.add_cell_soil(w, floor, key, "streaks", 0.3)
-        speed = ctx.args.get("speed") or w.robot.get("speed_mode", "normal")
+        speed = walked_speed(ctx)
         rec = w.ent(floor)
         if speed != "careful" and M.material(rec).get("slippery_wet"):
             S.gsec(w)["slips"] += 1
@@ -1932,7 +2171,7 @@ def tracks_and_drips(ctx, result):
                 if rec.get("leaking"):
                     S.add_cell_soil(w, floor, key, "garbage_juice", 0.2)
             S.glog(w, "drip_trail", item=item, room=room_id)
-        if (S.is_a(rec, "dustpan") or rec.get("dustpan")) and float(rec.get("cl_load_g", 0.0)) > 0 and (ctx.args.get("speed") or w.robot.get("speed_mode")) == "fast" and floor:
+        if (S.is_a(rec, "dustpan") or rec.get("dustpan")) and float(rec.get("cl_load_g", 0.0)) > 0 and walked_speed(ctx) == "fast" and floor:
             spilled = {k: float(v) * 0.3 for k, v in (rec.get("cl_load") or {}).items()}
             for kind, grams in sorted(spilled.items()):
                 S.add_cell_soil(w, floor, cells[0], kind, M.level_from_grams(kind, grams, CELL_AREA))

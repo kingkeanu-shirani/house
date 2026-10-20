@@ -67,7 +67,12 @@ def bowl_overflow(w, eid, liters_):
     if liters_ <= 1e-4:
         return
     liquid = "sewage" if clog(rec).get("kind") == "sewer" else "toilet_water"
-    C.plog(w, "toilet_overflow", toilet=eid, liters=C.rnd(liters_, 3))
+    from .fixtures import overflow_started
+    started = overflow_started(w, eid)
+    C.plog(w, "toilet_overflow", see={"source": eid, "size_m": 0.4} if started else None, toilet=eid,
+           liters=C.rnd(liters_, 3))
+    if started:
+        C.notice(w, "splash", source=eid)
     C.add_floor_water(w, C.room_of(w, eid), C.cell_of(w, eid), liquid, liters_, source=eid)
     m = w.mut(eid)
     m["overflowed_l"] = C.rnd(C.num(m.get("overflowed_l")) + liters_, 3)
@@ -150,6 +155,7 @@ def _sewer_backflow(w, toilet, liters_):
 
 @action("flush", params={"target": "entity", "hold_s": {"type": "number", "default": 1.0, "min": 0.1, "max": 10.0}},
         duration=lambda ctx: 4.0 + ctx.args.get("hold_s", 1.0), energy=0.003, noise=0.25, category="physical",
+        timing="commanded",
         doc="Flush a toilet (hold the handle ~1 s for a full flush). With a clogged trap the bowl rises instead and can "
             "overflow - do not flush again. Also flushes grit out of a garden hose (target=hose, nozzle off, water on).")
 def flush(ctx):
@@ -384,6 +390,17 @@ def toilet_step(w, eid, dt, cache):
         C.use_water(w, flow)
     leak = C.num(rec.get("_leak_lpm"))
     return flow / dt * 60.0 + leak if dt > 0 else leak
+
+
+def toilet_idle(w, eid, cache):
+    """True when toilet_step would change nothing: the tank full (or its supply off), no stuck fill valve running, the
+    bowl at its normal level. Pure (the water system's idle probe)."""
+    rec = w.s["entities"][eid]
+    tank_l = C.num(rec.get("tank_l"), 6.0)
+    on = supply_on(w, eid, cache)
+    if on and (C.num(rec.get("tank_level_l"), tank_l) < tank_l - 1e-6 or not (rec.get("_tank") or {}).get("fill_valve_ok", True)):
+        return False
+    return C.num(rec.get("bowl_l"), 1.9) <= C.num(rec.get("normal_bowl_l"), 1.9) + 1e-6
 
 
 def bowl_state(rec):

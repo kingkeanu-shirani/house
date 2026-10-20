@@ -336,7 +336,9 @@ def _ask_aside(r, floor):
         asked[pid] = asked.get(pid, 0) + 1
         before = list(state["people"][pid]["pos"])
         try:
-            result = r.do("ask", target=pid, topic="step_aside")
+            # the canonical request (docs/DIALOGUE.md: aspect help, act step_aside), never a legacy topic, so schema-3
+            # reference plans that use these skills pass the dialogue lint
+            result = r.do("ask", target=pid, aspect="help", act="step_aside")
         except PlanError:
             result = {"ok": False}
         if not result.get("ok") or list(r.state["people"][pid].get("pos") or []) == before:
