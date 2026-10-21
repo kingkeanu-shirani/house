@@ -1,9 +1,9 @@
 ---
-name: day
+name: day-trader
 description: Day-trading analysis and planning assistant. Use when the user asks for an intraday trade plan, a setup review, position sizing, risk/reward math, a pre-market watchlist, a post-session journal review, or a backtest of a rule-based intraday strategy. Analysis only; never places orders.
 ---
 
-# Day
+# Day Trader
 
 Helps the user plan, size and review intraday trades. It produces analysis and
 written plans. It does not place orders, connect to brokerage accounts, or
