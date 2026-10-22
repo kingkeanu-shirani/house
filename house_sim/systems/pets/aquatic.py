@@ -102,7 +102,13 @@ def _powered(w, eid):
     return bool(rec.get("on")) and physics.is_powered(w, eid)
 
 
-@system("pets.habitats", order=132, max_dt=30.0)
+def habitats_idle(w):
+    """Exact idle probe of pets.habitats (kernel v3.1): the house has no aquarium, reptile enclosure or habitat device
+    (with one, its water and air keep changing every substep)."""
+    return not C.sindex(w.s, "habitats", _habitat_candidate)
+
+
+@system("pets.habitats", order=132, max_dt=30.0, idle=habitats_idle)
 def habitats_tick(w, dt, tick):
     state = w.s
     C.bind_world(w)
@@ -311,6 +317,7 @@ def _enclosure(w, enc, dt):
                 pm["loose"] = True
                 pm["escaped"] = True
                 C.harm(w, "escape", stat="pet_escape", pet=occupant, via=enc)
+                C.seen_event(w, "pets.harm_escape", source=enc, size_m=0.3)      # out through the open door
         elif C.num(pet.get("_lid_open_s")) > 0:
             w.pet_m(occupant)["_lid_open_s"] = 0.0
         cold = zones["basking"]["surface_c"] < C.num((ranges.get("basking_surface") or [38])[0]) - 4

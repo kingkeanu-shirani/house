@@ -10,9 +10,12 @@ Screw lids (jars, paint jars) and integral child-resistant caps, P-approx torque
   breakaway  = tightening torque + residue/vacuum hold (_mech.stuck_nm); a broken vacuum leaves
                20 %; a lid warmed 15 C above the jar (warm water) needs half; tapping the lid edge
                removes 30 % of residue hold.
-  capacity   = min(wrist 6 N m, mu * grip_force * lid_radius * 2); mu 0.35 bare, 0.9 with a rubber
-               grip pad held.
-  glass cracks when grip_force_n exceeds the jar's crack_force_n (default 350 N glass, 250 N thin).
+  capacity   = min(wrist torque limit, mu * grip_force * lid_radius * 2); mu 0.35 bare, 0.9 with a rubber
+               grip pad held. The wrist limit is the robot body's wrist_nm (kernel v3.0 body.limit: humanoid_v1
+               6 N m, the compact humanoid 4); the grip force asked for is clamped to the strongest working hand's
+               power grip (body.grip_limit_n: 150 N on the default hands), with a note.
+  glass cracks when the grip force exceeds the jar's crack_force_n (default 350 N glass, 250 N thin; a thin
+  glass jar with crack_force_n below the hand's grip cap can still be crushed).
   Sudden release of a stuck lid (> 3 N m) at normal/fast speed splashes liquid contents.
   Tightening beyond max_nm cracks the lid; above a person's grip (elderly ~1.2 N m) it is
   "too tight for them" (mech.torque_nm is observable). start="tilted" cross-threads (leaks).
@@ -24,7 +27,7 @@ from ...kernel.errors import ActionError, require
 from . import closures as K
 from . import common as C
 
-WRIST_MAX_NM = 6.0
+WRIST_MAX_NM = 6.0          # humanoid_v1's wrist_nm: the fallback when the body cannot be read (common.body_limit)
 
 
 def grip_mu(ctx, aid=None):
@@ -53,6 +56,10 @@ def turn_lid(ctx, eid, direction, turns, push, grip_force_n, grip_aid, start, to
     kind = C.kind_of(rec)
     radius = C.num(C.mget(rec, "lid_radius_m"), 0.035)
     crack = C.num(rec.get("crack_force_n"), 350.0 if rec.get("material") == "glass" else 900.0)
+    asked = float(grip_force_n)
+    grip_force_n = min(asked, C.grip_limit(w.s))           # the hand cannot squeeze harder than its hardware cap
+    if grip_force_n + 1e-9 < asked:
+        C.tell(ctx, "The grip is limited to about {:.0f} N".format(grip_force_n))
     if grip_force_n > crack:
         rm = w.mut(eid)
         rm["broken"] = True
@@ -62,7 +69,7 @@ def turn_lid(ctx, eid, direction, turns, push, grip_force_n, grip_aid, start, to
             w.stat("spills")
         return "The container cracked in the grip"
     mu, pad = grip_mu(ctx, grip_aid)
-    capacity = min(WRIST_MAX_NM, mu * grip_force_n * radius * 2.0)
+    capacity = min(C.body_limit(w.s, "wrist_nm", WRIST_MAX_NM), mu * grip_force_n * radius * 2.0)
     cr = kind in ("cr_cap", "squeeze_turn") and C.mget(rec, "cr_engaged", True)
     rm, mech = C.mut_mech(w, eid)
     seat = C.num(C.mget(rec, "turns_to_seat"), 1.25)
@@ -182,7 +189,7 @@ def raise_lid(ctx, eid, to_deg, grip, force):
     K.apply_open(ctx, eid, target / max_deg, force, "raise")
     rm, mech = C.mut_mech(w, eid)
     mech["angle_deg"] = round(target, 1)
-    if C.force_n(force) >= C.FORCE_N["yank"] and target >= max_deg - 1:
+    if C.yanked(C.applied_n(w.s, force, "pull")) and target >= max_deg - 1:
         C.mark_damage(w, eid, "flung past its stop into the wall", stat="damage")
     return "Raised the lid to {:.0f} degrees; it stays open".format(target)
 

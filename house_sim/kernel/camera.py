@@ -38,7 +38,12 @@ rendering and its detection band are CAM-RENDER's).
 
 Per substep the system camera.watch (order 195) keeps tracked agents in frame, accumulates in_view_s / gap_s /
 max_gap_s, logs frame-based privacy captures and evaluates view_watch specs; it returns at once unless agents share
-the robot's room, the head tracks something or watch specs exist (its idle probe skips it in room mode). visual_event()
+the robot's room, the head tracks something, watch specs exist or someone next door does something private (its
+idle probe skips it in room mode). Its in-view rule is exact and cheap on a quiet substep (TIER1_INTEGRATION 3.4):
+the line of sight is memoized on everything it reads (_watch_signature: the room's occlusion signature per room
+epoch, the head camera's pose, the agents, the load), the light (ambient_light, memoized on the clock's daylight and
+a light epoch of the touch log, and the domains' light_at boosts, skipped once a room is lit past saturation) is
+judged every substep. visual_event()
 is how a visual occurrence is logged (seen or missed); physics consequences reach it through
 phys.observe.emit_consequence. A seen occurrence is also a "visual" notice (kernel v3.1, TIER1_SWEEP 6.1-6.2:
 timeline.post with the camera's verdict); sees_event() is the pure test the timeline uses for visual notices posted
@@ -51,11 +56,20 @@ thing; a light support is lifted). Their mechanics live here: look, face, set_tr
 peek, with the times of the hardware rates. A peek's wrist frames carry a 10th element {"target", "where", "lift"};
 the step view renders them with the head's frames (via "wrist"), and their eye ignores a lifted support.
 
+Doorways (camera phase 3; TIER1_CAMERA 5.8 and 12). A head frame sees into the next room through an open doorway of
+its room (sight.doorway_views): the controls beside a doorway the robot reaches from the threshold are listed when a
+frame sees them (the head aims at them through the doorway), the people and pets seen through a doorway are in
+StepView.beyond (through_doorways() for domain channels), in the sightings and, tracked, in the watch; privacy
+captures happen through an open doorway (the camera in frame, the microphones within 4 m), and a room privacy policy
+masks what the cameras see and hear of its room. view_watch takes a viewer outside a window or door
+({"aperture": id}). face_seen() is the camera's half of visitor recognition (phase 4). Mirrors are not modelled.
+
 Fidelity: G for poses, frames and line of sight (sight.py); P-approx for acuity, light, glare and captures.
 Deterministic: no randomness here (the realistic detection band is CAM-RENDER's fixed draw).
 """
 import copy
 import json
+import marshal
 import math
 import weakref
 
@@ -565,14 +579,23 @@ def _face_target(w, target):
 
 def _target_point(state, target):
     """Room-frame point of a target in the robot's room: an entity's box centre, a person's or pet's torso, a cell
-    [c, r] (its floor centre), a point (x, y, z), or None."""
+    [c, r] (its floor centre), a point (x, y, z), or None. A control beside a doorway in the room next door
+    (near_connection) is placed through that doorway (sight.doorway_aperture: the head can aim at it from the
+    threshold)."""
     rid = state["robot"].get("room")
     if isinstance(target, str):
         if target in state["entities"] or target in state.get("people", {}) or target in state.get("pets", {}):
             box = sight.entity_box(state, target)
-            if box is None or box.rid != rid:
+            if box is None:
                 return None
-            return (round((box.x0 + box.x1) / 2.0, 3), round((box.y0 + box.y1) / 2.0, 3),
+            x, y = (box.x0 + box.x1) / 2.0, (box.y0 + box.y1) / 2.0
+            if box.rid != rid:
+                cid = (state["entities"].get(target) or {}).get("near_connection")
+                ap = sight.doorway_aperture(state, cid, rid) if cid else None
+                if ap is None or ap.other != box.rid:
+                    return None
+                x, y = sight.to_room(ap, x, y)
+            return (round(x, 3), round(y, 3),
                     round(box.z0 + (0.65 if target not in state["entities"] else 0.5) * (box.z1 - box.z0), 3))
         return None
     if isinstance(target, (list, tuple)) and len(target) == 2 and all(isinstance(v, int) for v in target):
@@ -739,10 +762,10 @@ def _ensure_current_frame(w):
 # ----- what one eye sees -------------------------------------------------------------------------------------------------
 class _Scene(object):
     """The robot's eye now, with what every query from it shares: room geometry, the full viewshed, ambient light,
-    lens clarity, the sensors and the hardware; the children map and the room's bright sources are built on first
-    use."""
+    lens clarity, the sensors and the hardware; the children map, the room's bright sources and the doorway openings
+    of its room (sight.doorway_views, phase 3) are built on first use."""
     __slots__ = ("state", "world", "rid", "x", "y", "z", "eye", "geom", "vs", "ambient", "clarity", "imaging",
-                 "depth", "on", "hw", "room", "can", "_cmap", "_sources")
+                 "depth", "on", "hw", "room", "can", "_cmap", "_sources", "_apertures")
 
     def __init__(self, state, world):
         self.state, self.world = state, world
@@ -758,7 +781,14 @@ class _Scene(object):
         self.depth = body.depth_ok(state)
         self.hw = hw(state)
         self.can = {}
-        self._cmap = self._sources = None
+        self._cmap = self._sources = self._apertures = None
+
+    @property
+    def apertures(self):
+        """The doorway openings the eye's room sees through into its neighbours (sight.Aperture list)."""
+        if self._apertures is None:
+            self._apertures = sight.doorway_views(self.state, self.eye)
+        return self._apertures
 
     @property
     def cmap(self):
@@ -784,20 +814,58 @@ class _Scene(object):
 
 
 _LIGHT_IDS = weakref.WeakKeyDictionary()      # World -> ((version, entity count), window and light ids in state order)
+_AMBIENT = weakref.WeakKeyDictionary()        # World -> {rid: (key, level)} of ambient_light
 
 
-def ambient_light(state, rid, world=None):
-    """perception.light_level of a room, through a World-kept list of its windows and lights (in state order, so the
-    sums are bit-identical) instead of a scan of every entity."""
-    from .perception import light_level
-    if world is None or getattr(world, "s", None) is not state:
-        return light_level(state, rid)
+def _light_ids(state, world):
     key = (getattr(world, "_version", None), len(state["entities"]))
     hit = _LIGHT_IDS.get(world)
     if hit is None or hit[0] != key:
         ids = [eid for eid, rec in state["entities"].items() if rec.get("category") in ("window", "light")]
         hit = _LIGHT_IDS[world] = (key, ids)
-    return light_level(state, rid, hit[1])
+    return hit[1]
+
+
+def _light_watch(state, ids):
+    """The ids whose writes can change a room's ambient light: its windows and lights and everything they rest on (a
+    lamp on a table that is moved to another room)."""
+    entities = state["entities"]
+    out = set()
+    for eid in ids:
+        cur, depth = eid, 0
+        while cur in entities and cur not in out and depth < 20:
+            out.add(cur)
+            cur, depth = entities[cur].get("location"), depth + 1
+    return out
+
+
+def ambient_light(state, rid, world=None):
+    """perception.light_level of a room, through a World-kept list of its windows and lights (in state order, so the
+    sums are bit-identical) instead of a scan of every entity; with a World memoized exactly on everything
+    light_level reads: the clock's daylight value, the house power, the room's outdoor flag, the @hook("light_level")
+    answers and a light epoch from the touch log (sight.light_epoch: no window, light or thing they rest on written,
+    created or destroyed since; TIER1_INTEGRATION 3.4, the camera's per-substep watch)."""
+    from .perception import light_level
+    if world is None or getattr(world, "s", None) is not state:
+        return light_level(state, rid)
+    ids = _light_ids(state, world)
+    token = sight.light_epoch(world, lambda: _light_watch(state, ids))
+    if token is None:
+        return light_level(state, rid, ids)
+    from . import clock
+    room = state["rooms"].get(rid) or {}
+    hooked = tuple(repr(v) for v in run_hooks("light_level", state, rid)) if HOOKS.get("light_level") else ()
+    key = (token, clock.daylight(state), state.get("utilities", {}).get("power", True), bool(room.get("outdoor")),
+           hooked)
+    memo = _AMBIENT.get(world)
+    if memo is None:
+        memo = _AMBIENT[world] = {}
+    hit = memo.get(rid)
+    if hit is not None and hit[0] == key:
+        return hit[1]
+    level = light_level(state, rid, ids)
+    memo[rid] = (key, level)
+    return level
 
 
 _SCENES = weakref.WeakKeyDictionary()
@@ -849,9 +917,19 @@ def _dist_bucket(d):
 
 
 def _contrast(state, eid, light):
-    if eid not in state["entities"]:
+    """k_contrast of a thing against what is behind it, or of a pet or person (their color, a pet's coat_color)
+    against the floor they are on (pets' adoption request 5: a black cat in a dim room was as easy to make out as a
+    white one); 1.0 for anything without a colour."""
+    rec = state["entities"].get(eid)
+    if rec is not None:
+        return sight.k_contrast(rec.get("color"), sight.background_color(state, eid), light)
+    agent = (state.get("pets") or {}).get(eid) or (state.get("people") or {}).get(eid)
+    if not agent:
         return 1.0
-    return sight.k_contrast(state["entities"][eid].get("color"), sight.background_color(state, eid), light)
+    color = agent.get("color") or agent.get("coat_color")
+    if not color:
+        return 1.0
+    return sight.k_contrast(color, sight.agent_background_color(state, agent), light)
 
 
 def _aimed_beams(sc, point):
@@ -908,6 +986,21 @@ def _liftable(rec):
     return bool(rec and rec.get("portable") and _finite(rec.get("mass_kg"), 99.0) <= LIFTABLE_KG + EPS)
 
 
+def under_gap_m(state, eid):
+    """The open height under a piece of furniture: its view clear_below_m, or, for slab-topped furniture (tables and
+    desks: a top slab_m thick on legs, clear_below_m 0), its height less the slab (safety's adoption request 5: a desk's
+    0.7 m of open space read as "No gap to look under it")."""
+    props = sight.view_props(state, eid)
+    gap = _finite(props.get("clear_below_m"), 0.0)
+    slab = _finite(props.get("slab_m"))
+    if slab is not None:
+        box = sight.entity_box(state, eid)
+        if box is not None:
+            top = box.z1 if props.get("height_m") is None else box.z0 + _finite(props.get("height_m"), 0.0)
+            gap = max(gap, top - box.z0 - slab)
+    return max(0.0, gap)
+
+
 def wrist_access(state, eid, where=None):
     """(ok, reason) for the wrist camera (9.1, 9.3): imaging on and within reach (geometry.reach_problem), then by
     where (or, with where None, by the entity's own relation to its support): under needs the robot crouching or
@@ -937,7 +1030,7 @@ def wrist_access(state, eid, where=None):
     if support is None:
         return True, None
     if relation == "under":
-        gap = _finite(sight.view_props(state, support_id).get("clear_below_m"), 0.0)
+        gap = under_gap_m(state, support_id)
         low = state["robot"].get("posture", "standing") in ("crouching", "kneeling")
         if not ((low and gap >= UNDER_GAP_M - EPS) or _liftable(support)):
             return False, NO_GAP_TEXT
@@ -1031,7 +1124,7 @@ class StepView(object):
     the step; glare: "sun" when the sun was in a current frame, else "none"; light: the ambient light at the eye;
     lidar: the ring or None; key: (steps, time_s, mutation_count) the view was computed for."""
     __slots__ = ("key", "rid", "eye", "frames", "current", "entities", "people", "pets", "seen", "glare", "light",
-                 "lidar", "imaging", "depth", "looked_in", "sightings", "captures", "scene")
+                 "lidar", "imaging", "depth", "looked_in", "sightings", "captures", "scene", "beyond")
 
     def detected_ids(self):
         """Ids of the entities, people and pets observe() lists."""
@@ -1131,8 +1224,12 @@ def _info(sc, eid, viewers, kind="entity", motion=None):
     if not sc.on or (not sc.imaging and not sc.depth):
         return None
     placed = sight.entity_box(state, eid, sc.cmap if kind == "entity" else None)
-    if placed is None or placed.rid != sc.rid:
+    if placed is None:
         return None
+    if placed.rid != sc.rid:
+        # a thing of the next room the robot may act on (a control by the doorway, perception.contained): seen
+        # through the doorway or not at all (phase 3)
+        return _info_through(sc, eid, viewers, kind) if kind == "entity" else None
     # only the frames the box can reach (a bounding-cone test), and each sample's in-frame flags computed once
     frames = []
     for index, viewer, beams in viewers:
@@ -1184,7 +1281,7 @@ def _info(sc, eid, viewers, kind="entity", motion=None):
             light_cache[beam_key] = light
         px = sight.px_on_target(size, d, viewer.focal_px)
         px_eff = sight.effective_px(px, fraction, lens, sight.k_light(light), sight.k_motion(motion),
-                                    sight.k_haze(sc.room, d), _contrast(state, eid, light) if kind == "entity" else 1.0)
+                                    sight.k_haze(sc.room, d), _contrast(state, eid, light))
         level = sight.acuity_level(px_eff, light)
         if level is None:
             if light < sight.LIGHT["detect"] and sc.depth and \
@@ -1269,9 +1366,295 @@ def _best_info(best, sc, eid, wrists, kind="entity"):
     return best
 
 
+# ----- views through doorways (TIER1_CAMERA 5.8 and 12; camera phase 3) ----------------------------------------------
+# A head frame sees into the room next door through an open doorway of its room (sight.doorway_views): what stands
+# there is in frame and in line of sight when the ray passes the opening and both rooms' occluders. The robot's
+# cameras use it for the controls beside a doorway it can reach from the threshold (listed when a frame sees them),
+# for the people and pets it sees through a doorway (StepView.beyond, sightings, the watch of tracked agents) and for
+# privacy captures through a doorway; a room privacy policy masks what a frame sees of its room (12). Imaging off,
+# nothing is seen through a doorway (no IR shapes); the observation lists only the robot's room and those controls.
+DOORWAY_MIC_M = 4.0         # a microphone takes a private moment through an open doorway within 4 m (12)
+
+
+def _beam_into(ap, beam):
+    """A beam of the room an Aperture is seen from, in the frame of the room it looks into."""
+    x, y = sight.from_room(ap, beam.x, beam.y)
+    return beam._replace(x=x, y=y, ux=ap.cos * beam.ux + ap.sin * beam.uy, uy=-ap.sin * beam.ux + ap.cos * beam.uy)
+
+
+def _viewer_into(ap, viewer):
+    """A viewer of the room an Aperture is seen from, in the frame of the room it looks into (faces, glare off a
+    glossy face)."""
+    x, y = sight.from_room(ap, viewer.x, viewer.y)
+    return viewer._replace(rid=ap.other, x=x, y=y,
+                           yaw=(viewer.yaw - math.degrees(math.atan2(ap.sin, ap.cos))) % 360.0)
+
+
+def _sources_seen_from(ap, state):
+    """The bright sources of the room an Aperture looks into, in the frame of the room it is seen from (glare behind a
+    target there)."""
+    out = []
+    for src in sight.bright_sources(state, ap.other):
+        x, y = sight.to_room(ap, src["x"], src["y"])
+        out.append(dict(src, x=round(x, 3), y=round(y, 3)))
+    return out
+
+
+def _at_head(state, frame):
+    """True for a head frame taken where the robot's head camera is now (what it carries hides the floor ahead in
+    those frames, 5.6: _carried_filter's rule)."""
+    rid, x, y, z = eye(state)
+    return frame[6] == "head" and frame[0] == rid and frame[1] == x and frame[2] == y and abs(frame[3] - z) <= 0.011
+
+
+def _next_door_rooms(state, rid):
+    """The rooms a connection joins to room rid (a superset of the rooms its doorway openings show)."""
+    out = set()
+    for conn in (state.get("connections") or {}).values():
+        pair = conn.get("rooms") or ()
+        if rid in pair:
+            out.update(r for r in pair if r != rid)
+    return out
+
+
+def _occupied_rooms(state):
+    """The rooms some person or pet is in (a superset of the rooms _agent_ids lists anyone for)."""
+    return set(agent.get("location") for group in ("people", "pets") for agent in (state.get(group) or {}).values())
+
+
+def _masked(state, rid):
+    """A privacy policy masks what the cameras see of room rid through a doorway (12): imaging as if the robot stood
+    there is off."""
+    return not _imaging_in(state, rid)
+
+
+def _through_samples(state, ap, eye_, geom, vs, eid, viewers, cmap=None, world=None, carried=None):
+    """(box, [(point in the eye room's frame, transmission, the point in its own room's frame)]) of an entity, person
+    or pet of the room a doorway Aperture looks into, seen from eye_ (an Eye of the room it is seen from; geom / vs:
+    that room's geometry and viewshed from it): the sample points (5.3) facing the eye's image, each traced through
+    the opening only when it is in one of the viewers' frames (else 0.0); carried: the robot's carried view when the
+    viewers are its head frames at its current eye (the load hides low things ahead, 5.6). (None, []) when it is not
+    in that room."""
+    placed = sight._place(state, eid, cmap)
+    if placed is None or placed[0].rid != ap.other:
+        return None, []
+    box, rel = placed
+    eye_b = sight._eye_into(ap, eye_)
+    points = sight._samples(state, eid, box, sight._with_ignore(state, eid, rel, eye_.ignore), eye_b)
+    out = []
+    for p in points:
+        qx, qy = sight.to_room(ap, p[0], p[1])
+        q = (round(qx, 3), round(qy, 3), p[2])
+        t = 0.0
+        if any(sight.in_frame(v, q) for v in viewers):
+            if carried is None or not sight.carried_blocks(carried, eye_.x, eye_.y, eye_.z, q[0], q[1], q[2]):
+                t = sight.through_transmission(state, ap, eye_, p, rel=eid, geom=geom, vs=vs, cmap=cmap, world=world)
+        out.append((q, t, p))
+    return box, out
+
+
+def _through_geometry(state, ap, eye_, geom, vs, viewer, eid, kind="agent", cmap=None, world=None, carried=None):
+    """The line-of-sight half for a target of the room a doorway Aperture looks into, in one viewer's frame:
+    (visible fraction, best in-frame point in the eye room's frame, light point in the target room's frame, size,
+    the best point in the target room's frame), or None (the _frame_geometry of a view through a doorway)."""
+    box, samples = _through_samples(state, ap, eye_, geom, vs, eid, (viewer,), cmap, world, carried)
+    if box is None or not samples:
+        return None
+    seen = [(q, t, p) for q, t, p in samples if t > 0.0]
+    if not seen:
+        return None
+    fraction = sight.quarter(sum(t for _, t, _ in seen) / len(samples))
+    if fraction <= 0.0:
+        return None
+    size = max(box.z1 - box.z0, 0.1) if kind == "agent" else _box_size(box)
+    best = max(seen, key=lambda s: s[1])
+    return fraction, best[0], _box_centre(box), size, best[2]
+
+
+def _through_level(state, ap, frame, viewer, beams, clarity, found, world=None):
+    """The light-and-pixels half (_frame_level) for what _through_geometry found: the light in the target room (its
+    ambient, shading and light hooks, the robot's beams carried through the doorway), its haze, the oracle detection
+    rule; the acuity level or None."""
+    fraction, point, centre, size = found[:4]
+    rid = ap.other
+    geom = sight.room_geom(state, rid, world)
+    light = sight.acuity_light(state, rid, centre, [_beam_into(ap, b) for b in beams],
+                               ambient_light(state, rid, world), geom)
+    d = max(_dist3((viewer.x, viewer.y, viewer.z), point), sight.MIN_DIST_M)
+    room = state["rooms"].get(rid) or {}
+    px_eff = sight.effective_px(sight.px_on_target(size, d, viewer.focal_px), fraction, sight.k_lens(clarity),
+                                sight.k_light(light), sight.k_motion(frame[8] if frame[7] == "motion" else None),
+                                sight.k_haze(room, d), 1.0)
+    level = sight.acuity_level(px_eff, light)
+    if level == "detect" and px_eff < sight.PX["detect_oracle"] - EPS:
+        return None
+    return level
+
+
+def _info_through(sc, eid, viewers, kind="entity"):
+    """The best ViewInfo of an entity, person or pet of a room next to the eye's, in the given viewers [(frame
+    index, Viewer, beams)] through the eye room's doorway openings (via "head", "through": the connection; points,
+    bearings and distances in the eye room's frame), or None: imaging off, a privacy policy masking that room, or
+    nothing reaching the detection band."""
+    state = sc.state
+    if not sc.on or not sc.imaging:
+        return None
+    cmap = sc.cmap if kind == "entity" else None
+    placed = sight.entity_box(state, eid, cmap)
+    if placed is None or placed.rid == sc.rid or _masked(state, placed.rid):
+        return None
+    carried = sight.carried_view(state, sc.cmap)
+    lens = sight.k_lens(sc.clarity)
+    best = best_key = None
+    for ap in sc.apertures:
+        if ap.other != placed.rid:
+            continue
+        box, samples = _through_samples(state, ap, sc.eye, sc.geom, sc.vs, eid, [v for _, v, _ in viewers], cmap,
+                                        sc.world, carried)
+        if box is None or not any(t > 0.0 for _, t, _ in samples):
+            continue
+        rid = ap.other
+        geom = sight.room_geom(state, rid, sc.world)
+        ambient = ambient_light(state, rid, sc.world)
+        room = state["rooms"].get(rid) or {}
+        size = _box_size(box) if kind == "entity" else max(box.z1 - box.z0, 0.1)
+        centre = _box_centre(box)
+        sources = None
+        for index, viewer, beams in viewers:
+            seen = [(q, t) for q, t, _ in samples if t > 0.0 and sight.in_frame(viewer, q)]
+            if not seen:
+                continue
+            fraction = sight.quarter(sum(t for _, t in seen) / len(samples))
+            if fraction <= 0.0:
+                continue
+            point = max(seen, key=lambda s: s[1])[0]
+            d = max(_dist3((viewer.x, viewer.y, viewer.z), point), sight.MIN_DIST_M)
+            light = sight.light_at(state, rid, centre, [_beam_into(ap, b) for b in beams], ambient, geom)
+            px_eff = sight.effective_px(sight.px_on_target(size, d, viewer.focal_px), fraction, lens,
+                                        sight.k_light(light), 1.0, sight.k_haze(room, d),
+                                        _contrast(state, eid, light))
+            level = sight.acuity_level(px_eff, light)
+            if level is None:
+                continue
+            word = "none"
+            if px_eff >= sight.PX["recognize"] - EPS and light >= sight.LIGHT["recognize"] - EPS:
+                if sources is None:
+                    sources = _sources_seen_from(ap, state)
+                glare = sight.glare(state, viewer, point, size / 2.0, light, sources)
+                level = sight.acuity_level(px_eff, light, glare["sun_cone"], glare["backlit"])
+                word = "sun" if glare["sun_cone"] else "backlit" if glare["backlit"] else \
+                    "frame" if glare["sun"] else "none"
+                if level is None:
+                    continue
+            key = (LEVEL_RANK[level], round(px_eff, 6))
+            if best_key is not None and best_key >= key:
+                continue
+            info = _view_info(sc, eid, viewer, index, point, d, light, level, px_eff, fraction, word, None, None,
+                              "head")
+            info["through"] = ap.id
+            if kind == "entity":
+                inside = _viewer_into(ap, viewer)
+                info["specular"] = bool(sight.view_props(state, eid).get("glossy")) and \
+                    sight.specular(state, inside, eid, sources=sight.bright_sources(state, rid), cmap=sc.cmap)
+                info["faces"] = sight.faces_seen(state, inside, eid, sc.cmap) if sight._faces(state, eid) else []
+            best, best_key = info, key
+    return best
+
+
+def _beyond(sc, viewers):
+    """{"people": {id: ViewInfo}, "pets": {id: ViewInfo}} of the people and pets of the rooms next door that the
+    viewers see through the eye room's doorways (_info_through; masked rooms give nothing)."""
+    state = sc.state
+    out = {"people": {}, "pets": {}}
+    if not sc.on or not sc.imaging or not _next_door_rooms(state, sc.rid) & _occupied_rooms(state):
+        return out
+    rooms = sorted(set(ap.other for ap in sc.apertures))
+    for rid in rooms:
+        if _masked(state, rid):
+            continue
+        for group in ("people", "pets"):
+            for aid in _agent_ids(state, rid, group):
+                info = _info_through(sc, aid, viewers, kind="agent")
+                if info is not None:
+                    out[group][aid] = info
+    return out
+
+
+def _opening_in_view(state, sc, ap, viewers, carried=None):
+    """True when a doorway opening is in one of the viewers' frames and in line of sight from the eye: any of nine
+    points across it (three along it, at a quarter, half and nine tenths of its height) just inside the eye's room."""
+    skip = frozenset(sc.eye.ignore)
+    agents = None
+    width, height = ap.hi - ap.lo, ap.z1 - ap.z0
+    for fl in (0.1, 0.5, 0.9):
+        lateral = ap.lo + fl * width
+        for fz in (0.25, 0.5, 0.9):
+            z = ap.z0 + fz * height
+            point = (ap.wall + ap.nx * 1e-3, lateral, z) if ap.nx else (lateral, ap.wall + ap.ny * 1e-3, z)
+            if not any(sight.in_frame(v, point) for _, v, _ in viewers):
+                continue
+            if carried is not None and sight.carried_blocks(carried, sc.x, sc.y, sc.z, point[0], point[1], point[2]):
+                continue
+            if agents is None:
+                agents = sight._occluders(state, sc.eye, skip, sc.cmap)
+            if sight._transmission(sc.geom, sc.vs, sc.x, sc.y, sc.z, point[0], point[1], point[2], skip, None,
+                                   agents) > 0.0:
+                return True
+    return False
+
+
+def through_doorways(env):
+    """What the robot's current head frames see through the doorways of its room (the kernel API behind the
+    mechanisms domain's through_doorways channel in geometric mode; TIER1_CAMERA 5.8): one entry per doorway whose
+    opening a current frame has in frame and in line of sight, {"connection", "to", "door", "factor", "people": {id:
+    ViewInfo}, "pets": {id: ViewInfo}} with the people and pets seen through it (the oracle detection rule; points,
+    bearings and distances in the robot room's frame). [] in room mode, with imaging off, and for doorways into a
+    room a privacy policy masks."""
+    w = env.world
+    state = w.s
+    if not _geometric(state):
+        return []
+    sv = step_view(env)
+    sc = sv.scene
+    if sc is None or not sc.on or not sc.imaging:
+        return []
+    viewers = _current_viewers(state, sc, sv.frames)
+    carried = sight.carried_view(state, sc.cmap)
+    out = []
+    for ap in sc.apertures:
+        if _masked(state, ap.other):
+            continue
+        if not _opening_in_view(state, sc, ap, viewers, carried):
+            continue
+        people = {a: i for a, i in sv.beyond["people"].items() if i.get("through") == ap.id and i.get("detected")}
+        pets = {a: i for a, i in sv.beyond["pets"].items() if i.get("through") == ap.id and i.get("detected")}
+        out.append({"connection": ap.id, "to": ap.other, "door": ap.door, "factor": ap.factor,
+                    "people": people, "pets": pets})
+    return out
+
+
+def _near_controls(state, rid, world=None):
+    """Ids of the controls mounted beside a doorway of room rid in the room next door (near_connection: a light
+    switch, a garage-door button), which the robot reaches from the threshold (geometry.reach_problem)."""
+    entities = state["entities"]
+    if world is not None and hasattr(world, "static_index"):
+        ids = world.static_index("camera.near_controls", lambda r: bool(r.get("near_connection")))
+    else:
+        ids = sorted(e for e, r in entities.items() if r.get("near_connection"))
+    connections = state.get("connections") or {}
+    out = []
+    for eid in ids:
+        rec = entities.get(eid)
+        conn = connections.get((rec or {}).get("near_connection") or "")
+        if rec is not None and conn is not None and rid in (conn.get("rooms") or ()) and rec.get("location") != rid:
+            out.append(eid)
+    return out
+
+
 def _candidates(sc, perception):
-    """L0-visible entities of the eye's room (and what its people and pets carry, and the doors of its doorways),
-    without held things, sorted."""
+    """L0-visible entities of the eye's room (and what its people and pets carry, the doors of its doorways and the
+    controls beside its doorways in the rooms next door that L0 lets the robot act on), without held things,
+    sorted."""
     state = sc.state
     rid = sc.rid
     out, stack, seen = [], list(sc.cmap.get(rid, ())), set()
@@ -1283,6 +1666,7 @@ def _candidates(sc, perception):
         door = conn.get("door")
         if door and rid in conn.get("rooms", ()) and door in state["entities"]:
             stack.append(door)
+    stack.extend(_near_controls(state, rid, sc.world))
     while stack:
         eid = stack.pop()
         if eid in seen:
@@ -1334,6 +1718,7 @@ def compute_view(state, world=None, perception=None, frames=None):
             info = _best_info(_info(sc, aid, viewers, kind="agent"), sc, aid, wrists, kind="agent")
             if info is not None:
                 table[aid] = info
+    sv.beyond = _beyond(sc, viewers)
     sv.glare = "none"
     if sc.imaging:
         for _, viewer, _ in viewers:
@@ -1343,8 +1728,50 @@ def compute_view(state, world=None, perception=None, frames=None):
                 break
     sv.lidar = sight.lidar_ring(state, sc.eye, facing(state), sc.geom) if sc.depth else None
     sv.seen = _seen_cells(state, sc, frames, world)
+    if sc.imaging and viewers:
+        _floors_from_survey(sc, sv, viewers, perception)
     sv.looked_in, sv.sightings, sv.captures = None, None, None
     return sv
+
+
+def _floor_layer(rec):
+    """A floor or a floor covering (a floor surface entity, a rug, a mat): a ground layer the robot sees by the floor
+    cells it surveys."""
+    return bool(rec.get("ground_layer")) and (rec.get("category") in ("floor", "rug", "mat", "floor_surface") or
+                                              rec.get("type") in ("floor_surface", "rug"))
+
+
+def _floors_from_survey(sc, sv, viewers, perception):
+    """A floor or a large rug is seen when a frame surveyed a cell of it (sv.seen, C17), even when none of its five
+    sample points was in frame (cleaning's adoption request 5: a whole-room floor slab dropped out of visible_entities,
+    and with it the floor soil the robot had just looked at). The view comes from the nearest surveyed cell on it (a
+    0.5 m patch of floor), at the light there; the robot's own cell does not count."""
+    state = sc.state
+    pos = state["robot"].get("pos")
+    own = (int(pos[0]), int(pos[1])) if pos else None
+    cells = sorted(c for c in sv.seen.get(sc.rid, ()) if c != own)
+    if not cells:
+        return
+    for eid in sorted(sc.cmap.get(sc.rid, ())):
+        rec = state["entities"].get(eid) or {}
+        if eid in sv.entities or not _floor_layer(rec) or not perception.contained(state, eid):
+            continue
+        covered = set(geometry.footprint(rec)) if rec.get("pos") else None
+        on = [c for c in cells if covered is None or c in covered]
+        if not on:
+            continue
+        points = [((c[0] + 0.5) * sight.CELL, (c[1] + 0.5) * sight.CELL, 0.0) for c in on]
+        point = min(points, key=lambda p: (_dist3((sc.x, sc.y, sc.z), p), p))
+        index, viewer, beams = next(((i, v, b) for i, v, b in viewers if sight.in_frame(v, point)), viewers[0])
+        d = max(_dist3((viewer.x, viewer.y, viewer.z), point), sight.MIN_DIST_M)
+        light = sight.light_at(state, sc.rid, point, beams, sc.ambient, sc.geom)
+        px_eff = sight.effective_px(sight.px_on_target(sight.CELL, d, viewer.focal_px), 1.0, sight.k_lens(sc.clarity),
+                                    sight.k_light(light), 1.0, sight.k_haze(sc.room, d), _contrast(state, eid, light))
+        level = sight.acuity_level(px_eff, light)
+        if level is None:
+            continue
+        sv.entities[eid] = _view_info(sc, eid, viewer, index, point, d, light, level, px_eff, 1.0, "none", False, [],
+                                      viewer.kind)
 
 
 def _frame_scene(state, sc, frame, world):
@@ -1483,7 +1910,9 @@ def note_start(env):
     if sv is None or not sv.imaging:
         return
     log = state.get("camera_log") or {}
-    seen = {aid: info.get("level") for table in (sv.people, sv.pets) for aid, info in table.items()
+    beyond = sv.beyond or {}
+    seen = {aid: info.get("level") for table in (sv.people, sv.pets, beyond.get("people") or {},
+                                                 beyond.get("pets") or {}) for aid, info in table.items()
             if info.get("detected")}
     for eid in log.get("track_ids") or ():
         info = sv.entities.get(eid) if isinstance(eid, str) else None
@@ -1526,16 +1955,31 @@ def _sees(state, frame, viewer, geom, vs, eid, cmap):
 
 def _level_in_frame(state, sc, frame, viewer, geom, vs, beams, aid, kind="agent"):
     """Acuity level of an agent (or entity) in one frame, or None."""
+    found = _frame_geometry(state, sc, frame, viewer, geom, vs, aid, kind)
+    if found is None:
+        return None
+    ambient = sc.ambient if frame[0] == sc.rid else ambient_light(state, frame[0], sc.world)
+    return _frame_level(state, frame, viewer, geom, beams, ambient, sc.clarity, found)
+
+
+def _frame_geometry(state, sc, frame, viewer, geom, vs, aid, kind="agent"):
+    """The line-of-sight half of _level_in_frame: (visible fraction, best in-frame point, light point, size) of an
+    agent (or entity) in one frame, or None when nothing of it is in frame and in line of sight."""
     fraction, point, box = _sees(state, frame, viewer, geom, vs, aid, sc.cmap if kind == "entity" else None)
     if fraction <= 0.0 or point is None:
         return None
-    centre = _box_centre(box)
-    ambient = sc.ambient if frame[0] == sc.rid else ambient_light(state, frame[0], sc.world)
-    light = sight.light_at(state, frame[0], centre, beams, ambient, geom)
-    d = max(_dist3((viewer.x, viewer.y, viewer.z), point), sight.MIN_DIST_M)
     size = max(box.z1 - box.z0, 0.1) if kind == "agent" else _box_size(box)
+    return fraction, point, _box_centre(box), size
+
+
+def _frame_level(state, frame, viewer, geom, beams, ambient, clarity, found):
+    """The light-and-pixels half of _level_in_frame for what _frame_geometry found: the acuity level, or None (below
+    the oracle detection rule)."""
+    fraction, point, centre, size = found
+    light = sight.acuity_light(state, frame[0], centre, beams, ambient, geom)   # read only through k_light and the bars
+    d = max(_dist3((viewer.x, viewer.y, viewer.z), point), sight.MIN_DIST_M)
     room = state["rooms"].get(frame[0]) or {}
-    px_eff = sight.effective_px(sight.px_on_target(size, d, viewer.focal_px), fraction, sight.k_lens(sc.clarity),
+    px_eff = sight.effective_px(sight.px_on_target(size, d, viewer.focal_px), fraction, sight.k_lens(clarity),
                                 sight.k_light(light), sight.k_motion(frame[8] if frame[7] == "motion" else None),
                                 sight.k_haze(room, d), 1.0)
     level = sight.acuity_level(px_eff, light)
@@ -1545,10 +1989,23 @@ def _level_in_frame(state, sc, frame, viewer, geom, vs, beams, aid, kind="agent"
 
 
 def _sightings(state, sc, frames, world, log):
-    """{id: (best level this step, faces seen)} for people, pets and the track_ids entities in any frame."""
+    """{id: (best level this step, faces seen)} for people, pets and the track_ids entities in any frame, also those
+    of the rooms next door a head frame sees through an open doorway of its room (phase 3; not through a room a
+    privacy policy masks)."""
     out = {}
     track_ids = [t for t in log.get("track_ids") or [] if isinstance(t, str)]
     viewers = _frame_viewers(state, sc, frames, world)
+    clarity = sc.clarity
+    openings = {}
+    occupied = _occupied_rooms(state) | set(root_room(state, e) for e in track_ids if e in state["entities"])
+
+    def note(aid, level, faces):
+        prev = out.get(aid)
+        if prev is None or LEVEL_RANK[level] > LEVEL_RANK[prev[0]]:
+            out[aid] = (level, sorted(set(faces) | set(prev[1] if prev else ())))
+        else:
+            out[aid] = (prev[0], sorted(set(faces) | set(prev[1])))
+
     for frame, viewer, geom, vs, beams in viewers:
         rid = frame[0]
         ids = [(a, "agent") for g in ("people", "pets") for a in _agent_ids(state, rid, g)]
@@ -1557,12 +2014,31 @@ def _sightings(state, sc, frames, world, log):
             level = _level_in_frame(state, sc, frame, viewer, geom, vs, beams, aid, kind)
             if level is None:
                 continue
-            faces = sight.faces_seen(state, viewer, aid, sc.cmap) if kind == "entity" else []
-            prev = out.get(aid)
-            if prev is None or LEVEL_RANK[level] > LEVEL_RANK[prev[0]]:
-                out[aid] = (level, sorted(set(faces) | set(prev[1] if prev else ())))
+            note(aid, level, sight.faces_seen(state, viewer, aid, sc.cmap) if kind == "entity" else [])
+        if frame[6] != "head":
+            continue
+        if rid not in openings:
+            if not _next_door_rooms(state, rid) & occupied:
+                openings[rid] = []      # nobody and nothing tracked next door: no openings to look through
             else:
-                out[aid] = (prev[0], sorted(set(faces) | set(prev[1])))
+                views = sc.apertures if rid == sc.rid else sight.doorway_views(state, (rid, frame[1], frame[2],
+                                                                                       frame[3]))
+                openings[rid] = [ap for ap in views if not _masked(state, ap.other)]
+        if not openings[rid]:
+            continue
+        eye_ = sight.Eye(rid, frame[1], frame[2], frame[3], _frame_ignore(frame))
+        carried = sight.carried_view(state, sc.cmap) if _at_head(state, frame) else None
+        for ap in openings[rid]:
+            ids = [(a, "agent") for g in ("people", "pets") for a in _agent_ids(state, ap.other, g)]
+            ids += [(e, "entity") for e in track_ids if e in state["entities"] and root_room(state, e) == ap.other]
+            for aid, kind in ids:
+                found = _through_geometry(state, ap, eye_, geom, vs, viewer, aid, kind,
+                                          sc.cmap if kind == "entity" else None, world, carried)
+                level = _through_level(state, ap, frame, viewer, beams, clarity, found, world) if found else None
+                if level is None:
+                    continue
+                faces = sight.faces_seen(state, _viewer_into(ap, viewer), aid, sc.cmap) if kind == "entity" else []
+                note(aid, level, faces)
     return out
 
 
@@ -1660,7 +2136,9 @@ def _capture_key(person, pid):
 
 def _camera_captures(state, sc, frame, world):
     """Camera captures of one frame: a person doing something private in frame (head or torso sample in line of
-    sight) at light >= 0.12, with imaging on in that room."""
+    sight) at light >= 0.12, with imaging on in that room ("via": "direct"); and, through an open doorway of the
+    frame's room (phase 3), such a person of the room next door the frame sees through the opening, unless a privacy
+    policy masks that room ("via": "doorway")."""
     rid = frame[0]
     if rid not in state["rooms"] or not _imaging_in(state, rid):
         return []
@@ -1681,18 +2159,94 @@ def _camera_captures(state, sc, frame, world):
             continue
         out.append({"person": pid, "room": rid, "sensor": "camera", "via": "direct",
                     "activity": state["people"][pid].get("activity")})
+    out.extend(_doorway_captures(state, sc, frame, world))
     return out
+
+
+def _private_next_door(state, rid):
+    """{room: [person ids]} of the people doing something private in the rooms that share a connection with room rid
+    (the cheap test before any doorway geometry): placed, not hiding, private_activity."""
+    adjacent = set()
+    for conn in (state.get("connections") or {}).values():
+        pair = conn.get("rooms") or ()
+        if rid in pair:
+            adjacent.update(r for r in pair if r != rid)
+    out = {}
+    if not adjacent:
+        return out
+    for pid, person in sorted((state.get("people") or {}).items()):
+        if person.get("location") in adjacent and person.get("pos") and \
+                not (person.get("concealed") and not person.get("revealed")) and private_activity(state, pid):
+            out.setdefault(person["location"], []).append(pid)
+    return out
+
+
+def _doorway_captures(state, sc, frame, world):
+    """The camera captures of one head frame through the open doorways of its room (12, phase 3): a private person of
+    a room next door whose head or torso the frame sees through the opening, lit to 0.12 there, unless a privacy
+    policy masks that room."""
+    rid = frame[0]
+    if frame[6] != "head":
+        return []
+    private = _private_next_door(state, rid)
+    if not private:
+        return []
+    out = []
+    geom, vs = _frame_scene(state, sc, frame, world)
+    viewer = _frame_viewer(sc.hw, frame)
+    beams = _frame_beams(state, frame)
+    eye_ = sight.Eye(rid, frame[1], frame[2], frame[3], _frame_ignore(frame))
+    carried = sight.carried_view(state) if _at_head(state, frame) else None
+    for ap in sight.doorway_views(state, eye_):
+        if ap.other not in private or _masked(state, ap.other):
+            continue
+        for pid in private[ap.other]:
+            found = _through_geometry(state, ap, eye_, geom, vs, viewer, pid, "agent", None, world, carried)
+            if found is None:
+                continue
+            light = sight.light_at(state, ap.other, found[4], [_beam_into(ap, b) for b in beams],
+                                   ambient_light(state, ap.other, world), sight.room_geom(state, ap.other, world))
+            if light < CAPTURE_LIGHT - EPS:
+                continue
+            out.append({"person": pid, "room": ap.other, "sensor": "camera", "via": "doorway",
+                        "activity": state["people"][pid].get("activity")})
+    return out
+
+
+def _hearing_in(state, rid):
+    """body.can_hear as if the robot stood in room rid (a room's microphone policy applies to that room)."""
+    robot = state["robot"]
+    if robot.get("room") == rid:
+        return body.can_hear(state)
+    return body.can_hear(dict(state, robot=dict(robot, room=rid)))
 
 
 def _mic_captures(state):
     """Microphone captures: the microphones hear everything and a person doing something private is in the robot's
-    room."""
+    room ("via": "direct"), or in a room next door within DOORWAY_MIC_M of the robot through an open doorway (an
+    open door or none; phase 3), unless a microphone policy masks that room ("via": "doorway")."""
     rid = state["robot"].get("room")
     if not mic_active(state):
         return []
-    return [{"person": pid, "room": rid, "sensor": "mic", "via": "direct",
-             "activity": state["people"][pid].get("activity")}
-            for pid in _agent_ids(state, rid, "people") if private_activity(state, pid)]
+    out = [{"person": pid, "room": rid, "sensor": "mic", "via": "direct",
+            "activity": state["people"][pid].get("activity")}
+           for pid in _agent_ids(state, rid, "people") if private_activity(state, pid)]
+    private = _private_next_door(state, rid)
+    if not private:
+        return out
+    rx, ry = _cell_xy(state["robot"].get("pos") or [0, 0])
+    for ap in sight.doorway_views(state, (rid, rx, ry, 1.0)):
+        door = state["entities"].get(ap.door or "")
+        if ap.other not in private or (door is not None and not door.get("open")) or \
+                _hearing_in(state, ap.other) != "full":
+            continue
+        for pid in private[ap.other]:
+            px, py = sight.to_room(ap, *_cell_xy(state["people"][pid]["pos"]))
+            if math.hypot(px - rx, py - ry) <= DOORWAY_MIC_M + EPS and \
+                    not any(c["person"] == pid for c in out):
+                out.append({"person": pid, "room": ap.other, "sensor": "mic", "via": "doorway",
+                            "activity": state["people"][pid].get("activity")})
+    return out
 
 
 def _log_capture(w, capture):
@@ -1803,7 +2357,9 @@ def watch_idle(w):
 def watch(w, dt, tick):
     """Per substep (8.3; geometric mode): keep tracked agents in frame, accumulate in_view_s / gap_s / max_gap_s,
     log frame-based privacy captures at the current head pose and evaluate the view_watch specs. Returns at once in
-    room mode and when no agent shares the robot's room, the head tracks nothing and no watch spec exists."""
+    room mode and when no agent shares the robot's room, the head tracks nothing and no watch spec exists. The
+    in-view rule's line of sight is memoized exactly (_watch_levels): TIER1_CAMERA 16, <= 0.05 ms per substep with
+    nobody in view (TIER1_INTEGRATION 3.4: <= 0.1 ms with people in view, whose light is judged every substep)."""
     state = w.s
     robot = state["robot"]
     view = robot.get("view")
@@ -1815,33 +2371,17 @@ def watch(w, dt, tick):
     track = [t for t in view.get("track") or () if isinstance(t, str)]
     track_ids = [t for t in log.get("track_ids") or () if isinstance(t, str)]
     specs = log.get("watch_specs") or {}
-    here = _agent_ids(state, rid, "people") + _agent_ids(state, rid, "pets")
-    if not (here or track or track_ids or specs):
+    people_here = _agent_ids(state, rid, "people")
+    here = people_here + _agent_ids(state, rid, "pets")
+    next_door = _private_next_door(state, rid)      # privacy captures through a doorway (phase 3)
+    if not (here or track or track_ids or specs or next_door):
         return
     if track and body.is_on(state):
         _track_pose(w, _scene(state, w), track)
     if here or track or track_ids:
-        watched = sorted(set(here) | set(t for t in track + track_ids
-                                         if t in state.get("people", {}) or t in state.get("pets", {})))
-        sc = viewer = None
-        sig = _watch_signature(w, state, rid, watched)
-        memo = _WATCHED.get(w)
-        if sig is not None and memo is not None and memo[0] == sig:
-            updates = dict(memo[1])     # nothing the in-view rule reads changed since the last substep
-        else:
-            sc = _scene(state, w)
-            viewer = head_viewer(state)
-            beams = sight.robot_beams(state, (viewer.x, viewer.y, viewer.z), viewer.yaw, viewer.tilt)
-            imaging = sc.imaging
-            updates = {}
-            for aid in watched:
-                agent = state.get("people", {}).get(aid) or state.get("pets", {}).get(aid) or {}
-                level = None
-                if imaging and agent.get("location") == rid and aid in here:
-                    level = _agent_level(state, sc, viewer, beams, aid)
-                updates[aid] = level
-            if sig is not None:
-                _WATCHED[w] = (sig, dict(updates))
+        agents = state.get("people", {}), state.get("pets", {})
+        watched = sorted(set(here) | set(t for t in track + track_ids if t in agents[0] or t in agents[1]))
+        updates = _watch_levels(w, state, rid, here, watched)
         if updates:
             cl = w.sec("camera_log")
             for key in ("in_view_s", "gap_s", "max_gap_s", "sightings"):
@@ -1859,49 +2399,123 @@ def watch(w, dt, tick):
                     cl["gap_s"][aid] = gap
                     cl["max_gap_s"][aid] = max(cl["max_gap_s"].get(aid, 0.0), gap)
                     cl["in_view_s"].setdefault(aid, 0.0)
-        if here and any(private_activity(state, pid) for pid in _agent_ids(state, rid, "people")):
-            if sc is None:
-                sc, viewer = _scene(state, w), head_viewer(state)
-            frame = _frame(viewer.rid, viewer.x, viewer.y, viewer.z, viewer.yaw, viewer.tilt)
-            for capture in _camera_captures(state, sc, frame, w) + _mic_captures(state):
-                _log_capture(w, capture)
+    if next_door or (people_here and any(private_activity(state, pid) for pid in people_here)):
+        sc, viewer = _scene(state, w), head_viewer(state)
+        frame = _frame(viewer.rid, viewer.x, viewer.y, viewer.z, viewer.yaw, viewer.tilt)
+        for capture in _camera_captures(state, sc, frame, w) + _mic_captures(state):
+            _log_capture(w, capture)
     if specs:
         _watch_specs(w, specs)
 
 
-_WATCHED = weakref.WeakKeyDictionary()     # World -> (signature, {agent id: in view}) of the last substep's watch
-_WATCH_HOOKS = ("light_at", "view_occluders", "bright_sources", "sun_beam")
+_WATCHED = weakref.WeakKeyDictionary()     # World -> (signature, {agent id: _frame_geometry}) of the watch's last look
+# what places a person or pet for the camera (sight._agent_place, person_eye, agent_top, _samples)
+AGENT_VIEW_FIELDS = ("location", "pos", "posture", "concealed", "revealed", "height_m", "species", "size", "role",
+                     "age", "in_bed", "bed", "view")
 
 
-def _watch_signature(w, state, rid, watched):
-    """Everything the watch's in-view rule reads, or None when a domain hook may change the answer unseen (then it
-    is computed every substep): the room's geometry epoch, the robot's pose, sensors, lens, lights and load, every
-    person and pet of the room (they occlude each other), the room's ambient light and haze, and the watched ids.
-    Equal signatures give equal answers, so a quiet substep reuses the last one (TIER1_CAMERA 16: watch <= 0.05 ms)."""
-    if any(HOOKS.get(name) for name in _WATCH_HOOKS):
-        return None
+def _pack(values):
+    """A compact, exact snapshot of JSON-like values (marshal; repr for anything marshal cannot take)."""
+    try:
+        return marshal.dumps(values)
+    except ValueError:
+        return repr(values)
+
+
+def _watch_levels(w, state, rid, here, watched):
+    """{agent id: acuity level or None} of the watched agents in the head camera's current pose, as the watch logs
+    them (the oracle detection rule; imaging off: None). Exact and cheap on a quiet substep: the line of sight
+    (_frame_geometry) is memoized on _watch_signature, and the light and pixels (_frame_level), which the clock, the
+    lights and the domains' light_at hooks change unseen, are judged every substep for what is in line of sight."""
+    viewer = head_viewer(state)
+    imaging = body.imaging(state)
+    away = [a for a in watched if a not in here]
+    apertures = ()
+    if away and imaging:
+        rooms = set((state.get("people", {}).get(a) or state.get("pets", {}).get(a) or {}).get("location")
+                    for a in away)
+        apertures = tuple(ap for ap in sight.doorway_views(state, (rid,) + tuple(viewer[1:4]))
+                          if ap.other in rooms and not _masked(state, ap.other))
+    sig = _watch_signature(w, state, rid, watched, viewer, apertures, imaging)
+    memo = _WATCHED.get(w)
+    if sig is not None and memo is not None and memo[0] == sig:
+        geo = memo[1]
+    else:
+        geo = {}
+        if imaging:
+            sc = _scene(state, w)
+            frame = _frame(viewer.rid, viewer.x, viewer.y, viewer.z, viewer.yaw, viewer.tilt)
+            for aid in watched:
+                if aid in here:
+                    found = _frame_geometry(state, sc, frame, viewer, sc.geom, sc.vs, aid)
+                    if found is not None:
+                        geo[aid] = found
+            if apertures:
+                carried = sight.carried_view(state, sc.cmap)
+                for aid in away:
+                    agent = state.get("people", {}).get(aid) or state.get("pets", {}).get(aid) or {}
+                    if not agent.get("pos") or (agent.get("concealed") and not agent.get("revealed")):
+                        continue
+                    for ap in apertures:
+                        if ap.other != agent.get("location"):
+                            continue
+                        found = _through_geometry(state, ap, sc.eye, sc.geom, sc.vs, viewer, aid, "agent", None, w,
+                                                  carried)
+                        if found is not None and (aid not in geo or found[0] > geo[aid][1][0]):
+                            geo[aid] = (ap, found)
+        if sig is not None:
+            _WATCHED[w] = (sig, geo)
+    levels = dict.fromkeys(watched)
+    if geo:
+        frame = _frame(viewer.rid, viewer.x, viewer.y, viewer.z, viewer.yaw, viewer.tilt)
+        beams = sight.robot_beams(state, (viewer.x, viewer.y, viewer.z), viewer.yaw, viewer.tilt)
+        geom = sight.room_geom(state, rid, w, sig[0] if sig is not None else None)     # sig[0]: its occ_sig
+        ambient = ambient_light(state, rid, w)
+        clarity = body.clarity(state)
+        for aid in sorted(geo):
+            if aid not in levels:
+                continue
+            found = geo[aid]
+            if isinstance(found[0], sight.Aperture):
+                levels[aid] = _through_level(state, found[0], frame, viewer, beams, clarity, found[1], w)
+            else:
+                levels[aid] = _frame_level(state, frame, viewer, geom, beams, ambient, clarity, found)
+    return levels
+
+
+def _watch_signature(w, state, rid, watched, viewer=None, apertures=(), imaging=None):
+    """Everything the line of sight of the watch's in-view rule reads (light and pixels are judged every substep):
+    the room's occlusion signature (sight.occ_sig: its sources, what they rest on, its doors and the view_occluders
+    hook output, memoized per room epoch), the head camera at its current pose (head_viewer: the eye with posture, a
+    fall and a climbing aid, the head's yaw and tilt, the optics), imaging, what the robot carries (it hides the floor
+    ahead), every person and pet of the room (they occlude each other) or watched, the watched ids, and for tracked
+    agents next door the doorway openings looked through (apertures) with their rooms' signatures and people and pets.
+    Equal signatures give equal line-of-sight answers, so a quiet substep reuses the last ones (TIER1_CAMERA 16:
+    watch <= 0.05 ms)."""
     robot = state["robot"]
-    view = robot.get("view") or {}
+    rooms = set([rid] + [ap.other for ap in apertures])
     agents = []
     for group in ("people", "pets"):
         for aid, agent in sorted((state.get(group) or {}).items()):
-            if agent.get("location") == rid or aid in watched:
-                agents.append((aid, agent.get("location"), tuple(agent.get("pos") or ()), agent.get("posture"),
-                               agent.get("concealed"), agent.get("revealed"), agent.get("height_m"),
-                               agent.get("species"), agent.get("size")))
-    room = state["rooms"].get(rid) or {}
+            if agent.get("location") in rooms or aid in watched:
+                agents.append((aid,) + tuple(map(agent.get, AGENT_VIEW_FIELDS)))
     hands = tuple(sorted((robot.get("hands") or {}).items()))
-    return (sight._geom_epoch(w), rid, tuple(robot.get("pos") or ()), robot.get("posture"), robot.get("fallen"),
-            robot.get("standing_on"), robot.get("facing_deg"), view.get("pan_deg"), view.get("tilt_deg"),
-            repr(view.get("hw")), robot.get("headlamp_on"), body.is_on(state), body.imaging(state),
-            body.clarity(state), hands, tuple(agents), tuple(watched), ambient_light(state, rid, w),
-            room.get("smoke"), room.get("smoke_density"), room.get("steam"), room.get("fog"))
+    carried = repr(sight.carried_view(state)) if any(v for _, v in hands) else None
+    beyond = tuple((ap, sight.occ_sig(state, ap.other, w)) for ap in apertures)
+    return (sight.occ_sig(state, rid, w) if rid in state["rooms"] else None,
+            tuple(viewer if viewer is not None else head_viewer(state)),
+            body.imaging(state) if imaging is None else imaging, hands, carried,
+            _pack(tuple(agents)), tuple(watched), beyond)
 
 
 def _spec_viewer(state, spec):
-    """The Viewer of a view_watch spec: {"entity": device id}, {"person": pid, "attention": bool} or {"room": rid,
-    "cell": [c, r], "z", "yaw", "hfov", "range_m"}; None for the phase-3 aperture form or anything unplaced."""
+    """The Viewer of a view_watch spec: {"entity": device id}, {"person": pid, "attention": bool}, {"room": rid,
+    "cell": [c, r], "z", "yaw", "hfov", "range_m"} or {"aperture": window / door / connection id, "outside_m" (3.0),
+    "eye_z" (1.6)} (sight.aperture_viewer: someone outside looking in through it, phase 3); None for anything
+    unplaced or closed."""
     v = spec.get("viewer") or {}
+    if v.get("aperture"):
+        return sight.aperture_viewer(state, v["aperture"], _finite(v.get("outside_m"), 3.0), _finite(v.get("eye_z"), 1.6))
     if v.get("entity"):
         return sight.device_viewer(state, v["entity"]) if v["entity"] in state["entities"] else None
     if v.get("person"):
@@ -1928,8 +2542,13 @@ def _robot_seen_by(state, viewer):
     top = sight.agent_top(state, "robot")
     points = [(x, y, top - 0.1), (x, y, 0.6 * top)]
     seen = 0.0
+    outside = str(viewer.kind).startswith("aperture:")
     for p in points:
-        if sight.in_frame(viewer, p):
+        if not sight.in_frame(viewer, p):
+            continue
+        if outside:                     # through the window or door it stands outside (phase 3)
+            seen += sight.aperture_transmission(state, viewer, p, ignore=("robot",))
+        else:
             seen += sight.los(state, viewer.rid, (viewer.x, viewer.y, viewer.z), p,
                               ignore=tuple(viewer.ignore or ()) + ("robot",))
     return sight.quarter(seen / len(points))
@@ -2126,6 +2745,18 @@ def in_frame(state, eid, world=None, current_pose=False):
         viewers.append((None, head_viewer(state)))
     box, samples = sight.sample_transmissions(state, eid, sc.eye, sc.geom, sc.vs, sc.cmap)
     if box is None:
+        # a control beside a doorway in the room next door that the robot may act on: in frame through the doorway
+        placed = sight.entity_box(state, eid, sc.cmap)
+        if placed is None or placed.rid == sc.rid or not sc.imaging or _masked(state, placed.rid) or \
+                eid not in _near_controls(state, sc.rid, world) or geometry.reach_problem(state, eid) is not None:
+            return False
+        carried = sight.carried_view(state, sc.cmap)
+        for ap in sc.apertures:
+            if ap.other == placed.rid:
+                _, seen = _through_samples(state, ap, sc.eye, sc.geom, sc.vs, eid, [v for _, v in viewers],
+                                           sc.cmap, world, carried)
+                if any(t > 0.0 for _, t, _ in seen):
+                    return True
         return False
     samples = _carried_filter(state, sc.cmap, eid, (sc.rid, sc.x, sc.y, sc.z), samples)
     for _, viewer in viewers:
@@ -2162,53 +2793,96 @@ def acuity(env_or_state, eid):
     return {"level": info["level"], "px": info["px"], "view": info}
 
 
-_SEEN = weakref.WeakKeyDictionary()     # World -> {eid: (signature, acuity)} of entity_view_now
+_SEEN = weakref.WeakKeyDictionary()     # World -> {eid: (signature, view)} of entity_view_now
+# what places a thing and decides how the camera sees it (sight placement, containment, faces, light, contrast)
+ENTITY_VIEW_FIELDS = sight.GEOM_FIELDS + sight.LAYOUT_FIELDS + (
+    "cover_open", "covered_by", "revealed", "private", "slots", "slot", "submerged", "liquid_opaque", "opaque_cover",
+    "color", "label_facing", "shelf_heights", "carry_level", "blocks_view", "on", "battery_powered")
+# the keys of a ViewInfo entity_view_now keeps: what decides the level, the oracle listing and the realistic band
+VIEW_NOW_KEYS = ("level", "detected", "px", "via", "frame", "frame_yaw")
 
 
 def _chain_signature(state, eid):
-    """What containment and placement of a thing (and of everything holding it) the view reads."""
+    """What placement and containment of a thing, of everything holding it and of the neighbours it is packed with in
+    a container, the view reads (ENTITY_VIEW_FIELDS of each)."""
     entities = state["entities"]
     out, current, depth = [], eid, 0
     while current in entities and depth < 16:
         rec = entities[current]
-        out.append((current, rec.get("location"), rec.get("relation"), tuple(rec.get("pos") or ()),
-                    repr(rec.get("spos")), rec.get("shelf"), rec.get("open"), rec.get("cover_open"),
-                    rec.get("covered_by"), rec.get("revealed"), repr(rec.get("size_m"))))
-        current, depth = rec.get("location"), depth + 1
+        out.append((current, _pack(tuple(rec.get(f) for f in ENTITY_VIEW_FIELDS))))
+        parent = rec.get("location")
+        if rec.get("relation") == "in" and parent in entities:
+            for kid in sorted(k for k, r in entities.items() if r.get("location") == parent and k != current):
+                out.append((kid, _pack(tuple(entities[kid].get(f) for f in sight.LAYOUT_FIELDS + ("relation",)))))
+        current, depth = parent, depth + 1
     return tuple(out)
 
 
+def _entity_signature(w, state, eid):
+    """Everything entity_view_now's answer (VIEW_NOW_KEYS of camera.acuity) reads: the watch's line-of-sight
+    signature for the room (geometry, eye, pose, optics, imaging, load, its people and pets), this step's frames, the
+    depth camera and power, the lens, the room's ambient light (exact memo), daylight, house power, haze and floor,
+    the robot's lights, the thing's own chain (_chain_signature), the approvals and visible_veto answers (L0), and the
+    domain hooks' answers that may change unseen: light_at at the thing, sun_beam at each eye of the step,
+    bright_sources of the room."""
+    from . import clock
+    robot = state["robot"]
+    rid = robot.get("room")
+    view = robot.get("view") or {}
+    room = state["rooms"].get(rid) or {}
+    entities = state["entities"]
+    frames = list(_frames(state))
+    held = tuple((e, _pack(tuple(entities.get(e, {}).get(f) for f in ("category", "on", "view"))))
+                 for e in sorted(set(v for v in (robot.get("hands") or {}).values() if v)))
+    hooks = []
+    if HOOKS.get("light_at"):
+        box = sight.entity_box(state, eid)
+        if box is not None:
+            c = _box_centre(box)
+            hooks.append(tuple(repr(v) for v in run_hooks("light_at", state, box.rid, c[0], c[1], c[2])))
+    if HOOKS.get("sun_beam"):
+        eyes = sorted(set([tuple(eye(state)[1:])] + [(f[1], f[2], f[3]) for f in frames if f[0] == rid]))
+        hooks.append(tuple(repr(run_hooks("sun_beam", state, rid, x, y, z)) for x, y, z in eyes))
+    if HOOKS.get("bright_sources"):
+        hooks.append(repr(sight.bright_sources(state, rid)))
+    if HOOKS.get("visible_veto") and eid in entities:
+        hooks.append(tuple(bool(fn(state, eid, entities[eid])) for _, _, fn in HOOKS["visible_veto"]))
+    return (_watch_signature(w, state, rid, ()), repr(frames), view.get("step") == state.get("steps", 0),
+            body.is_on(state), body.depth_ok(state), body.clarity(state), ambient_light(state, rid, w),
+            clock.daylight(state), state.get("utilities", {}).get("power", True), robot.get("headlamp_on"), held,
+            tuple(room.get(k) for k in ("smoke", "smoke_density", "steam", "fog", "floor_color", "floor_material")),
+            tuple(state.get("approvals") or ()), _chain_signature(state, eid), tuple(hooks))
+
+
 def entity_view_now(env, eid):
-    """acuity(env, eid) for the timeline's per-substep perceivability of conditions (kernel v3.1, TIER1_INTEGRATION
-    1.3), memoized per entity by the watch signature (room geometry epoch, the robot's pose, sensors, lens, lights and
-    load, the room's people and pets, ambient light and haze) plus this step's frames and the thing's own placement and
-    containment chain: a quiet substep reuses the last answer. Computed every time while a domain view hook is
-    registered (it may change the view unseen). None in room mode."""
+    """The timeline's per-substep view of a thing (kernel v3.1, TIER1_INTEGRATION 1.3): {"level", "px", "view"} as
+    camera.acuity(env, eid) gives them, the view cut to VIEW_NOW_KEYS (what decides the level, the oracle listing and
+    the realistic detection band), or None when it is not seen; None in room mode. Memoized exactly per thing on
+    _entity_signature (domain hooks included through their answers): a quiet substep reuses the last answer."""
     w = env.world
     state = w.s
     if not _geometric(state) or eid not in state["entities"]:
         return None
-    sig = _watch_signature(w, state, state["robot"].get("room"), ())
-    memo = None
-    if sig is not None:
-        sig = (sig, repr((state["robot"].get("view") or {}).get("frames")), _chain_signature(state, eid))
-        memo = _SEEN.setdefault(w, {})
-        found = memo.get(eid)
-        if found is not None and found[0] == sig:
-            return found[1]
+    sig = _entity_signature(w, state, eid)
+    memo = _SEEN.setdefault(w, {})
+    found = memo.get(eid)
+    if sig is not None and found is not None and found[0] == sig:
+        return found[1]
     result = acuity(env, eid)
-    if memo is not None:
-        if len(memo) > 256:
-            memo.clear()
-        memo[eid] = (sig, result)
+    if result is not None:
+        info = {k: result["view"].get(k) for k in VIEW_NOW_KEYS}
+        result = {"level": result["level"], "px": result["px"], "view": info}
+    if len(memo) > 256:
+        memo.clear()
+    memo[eid] = (sig, result)
     return result
 
 
 def agent_level_now(env, aid):
     """The level at which the head camera in its current pose sees a person or pet now ("shape" / "detect" /
     "recognize" / "identify"), or None (not in the robot's room, hiding, out of frame, imaging off): the per-substep
-    view of the timeline's perceivability rules (kernel v3.1, TIER1_INTEGRATION 1.3). It reuses camera.watch's
-    substep memo when nothing its in-view rule reads changed since. None in room mode."""
+    view of the timeline's perceivability rules (kernel v3.1, TIER1_INTEGRATION 1.3), camera.watch's own in-view rule
+    and memo (_watch_levels). None in room mode."""
     w = env.world
     state = w.s
     if not _geometric(state) or not body.imaging(state):
@@ -2223,14 +2897,7 @@ def agent_level_now(env, aid):
     track = [t for t in view.get("track") or () if isinstance(t, str)]
     track_ids = [t for t in log.get("track_ids") or () if isinstance(t, str)]
     watched = sorted(set(here) | set(t for t in track + track_ids if t in agents))
-    sig = _watch_signature(w, state, rid, watched)
-    memo = _WATCHED.get(w)
-    if sig is not None and memo is not None and memo[0] == sig and aid in memo[1]:
-        return memo[1][aid]
-    sc = _scene(state, w)
-    viewer = head_viewer(state)
-    beams = sight.robot_beams(state, (viewer.x, viewer.y, viewer.z), viewer.yaw, viewer.tilt)
-    return _agent_level(state, sc, viewer, beams, aid)
+    return _watch_levels(w, state, rid, here, watched).get(aid)
 
 
 def agent_identified(env, aid):
@@ -2240,6 +2907,38 @@ def agent_identified(env, aid):
     inspect asks. (Close-range details stay the domain inspectors' own: safety's responsiveness within 2 cells.)"""
     found = acuity(env, aid)
     return found is not None and found["level"] == "identify"
+
+
+FACE_M = 0.16               # a face is about 16 cm across (adult face width and chin to brow, 14-18 cm)
+FACE_PX = sight.PX["identify"]      # face recognition needs 64 px across the face (TIER1_CAMERA 19, people phase 4)
+FACE_TOWARD_DEG = 60.0      # ... with the face turned toward the camera (frontal to three-quarter view)
+
+
+def face_seen(env, pid):
+    """How this step's frames at the current eye show a person's face (TIER1_CAMERA 19 people, camera phase 4: the
+    hook for visitor recognition): {"px": effective pixels across the face (the person's ViewInfo px scaled from
+    their height to FACE_M), "toward": the face turned within FACE_TOWARD_DEG of the camera, "recognizable": seen at
+    the identify level with px >= FACE_PX and toward}, or None (room mode, not a person, not seen). A domain's face
+    matcher gates on "recognizable" in geometric mode; in room mode it keeps its own rule."""
+    w = env.world
+    state = w.s
+    person = (state.get("people") or {}).get(pid)
+    if not _geometric(state) or person is None:
+        return None
+    found = acuity(env, pid)
+    box = sight.entity_box(state, pid)
+    if found is None or box is None:
+        return None
+    info = found["view"]
+    frame = info.get("frame")
+    frames = _frames(state)
+    cam = frames[frame][1:4] if isinstance(frame, int) and 0 <= frame < len(frames) else eye(state)[1:4]
+    px = info["px"] * FACE_M / max(box.z1 - box.z0, 0.1)
+    fx, fy, _ = sight.person_eye(state, pid)
+    to_camera = math.degrees(math.atan2(cam[1] - fy, cam[0] - fx))
+    toward = abs(sight.wrap_deg(_finite(person.get("facing_deg"), 90.0) - to_camera)) <= FACE_TOWARD_DEG + EPS
+    return {"px": round(px, 1), "toward": bool(toward),
+            "recognizable": bool(info["level"] == "identify" and px >= FACE_PX - EPS and toward)}
 
 
 def inspect_check(state, eid, world=None):
@@ -2295,9 +2994,14 @@ def read_check(state, eid, fields, world=None):
             _, point, d, light, _, _ = found
             viewer = _aimed_viewer(sc, point)
             faces = sight.faces_seen(state, viewer, eid, sc.cmap)
+            declared = sight._faces(state, eid)
             readable, glare, small = [], False, False
             for field in fields:
                 face = sight.gated_face(state, eid, field)
+                if face is not None and face not in declared:
+                    # a type-mapped face this entity does not declare gates nothing (realism's rule; the wrist
+                    # already read such fields: adoption-round request of cleaning)
+                    face = None
                 if face is not None and face not in faces:
                     continue
                 if not sight.readable(_text_m(state, eid, field), d, viewer.focal_px, light, sc.clarity):
@@ -2327,8 +3031,11 @@ def read_check(state, eid, fields, world=None):
         face = sight.gated_face(state, eid, field)
         spec = faces.get(face) if face is not None else None
         if not held and face is not None:
-            # the wrist turns to any face except one facing down onto its support or pressed against a solid
+            # the wrist turns to any face except one facing down onto its support, pressed against a solid or a top
+            # half covered by what stands on it (sight.faces_seen's rule for the head)
             if spec == "down" or (spec not in ("all", "up", None) and _face_against_solid(state, eid, spec, sc)):
+                continue
+            if spec == "up" and _top_face_covered(state, eid, sc):
                 continue
         if not held and sight.view_props(state, eid).get("glossy"):
             wrist = _off_axis_viewer(state, sc, eid, spec if spec is not None else _default_face(state, eid))
@@ -2358,6 +3065,13 @@ def _face_against_solid(state, eid, spec, sc):
     if normal is None or placed is None:
         return False
     return sight._face_blocked(state, eid, state["entities"][eid], placed, normal, sc.cmap)
+
+
+def _top_face_covered(state, eid, sc):
+    """The "up" face half covered by things standing on it (sight's covered-top rule: a box stacked on a parcel hides
+    its top label from every camera; adoption-round request of admin_inventory)."""
+    placed = sight.entity_box(state, eid, sc.cmap)
+    return placed is not None and sight._top_covered(state, eid, placed, sc.cmap)
 
 
 def _aimed_viewer(sc, point):
@@ -2753,7 +3467,7 @@ def peek_access(state, eid, where):
         return False, reason, False
     lift = False
     if where == "under":
-        gap = _finite(sight.view_props(state, eid).get("clear_below_m"), 0.0)
+        gap = under_gap_m(state, eid)
         low = state["robot"].get("posture", "standing") in ("crouching", "kneeling")
         lift = not (low and gap >= UNDER_GAP_M - EPS)
     elif where == "behind":
@@ -2801,7 +3515,7 @@ def peek_poses(state, eid, where, lift=False):
             return [_pose(sx, sy, box.z1 + PEEK_LIFT_ABOVE_M, gx, gy, box.z0, face_yaw)]
         return [_pose(sx, sy, box.z1 + PEEK_LIFT_ABOVE_M, cx, cy, box.z0, face_yaw)]
     if where == "under":
-        gap = _finite(sight.view_props(state, eid).get("clear_below_m"), 0.0)
+        gap = under_gap_m(state, eid)
         z = box.z0 + _clamp(gap * 0.5, PEEK_LOW_MIN_M, PEEK_LOW_MAX_M)
         return [_pose(sx, sy, z, nx - ox * deep, ny - oy * deep, box.z0 + 0.03, face_yaw)]
     if where == "behind":

@@ -1,0 +1,11 @@
+{
+ "about": "tools_vehicles' report words (adoption request tools_vehicles 1): tool, fastener, seal and tire faults, with the perceivable record fields (condition, damage, display) that show them.",
+ "issues": {
+  "stripped": {"class": "condition", "synonyms": ["stripped_screw", "stripped_head", "stripped_hole", "cam_out"], "evidence": [{"field": "condition"}, {"field": "damage"}]},
+  "mushroomed": {"class": "condition", "synonyms": ["mushroomed_head", "flared_head"], "evidence": [{"field": "condition"}, {"field": "damage"}]},
+  "rounded": {"class": "condition", "synonyms": ["rounded_off", "rounded_jaws", "rounded_hex"], "evidence": [{"field": "condition"}, {"field": "damage"}]},
+  "flat_tire": {"class": "function", "synonyms": ["flat", "underinflated", "low_tire", "soft_tire"], "evidence": [{"field": "inflation"}, {"field": "condition"}]},
+  "dull": {"class": "condition", "synonyms": ["blunt", "dull_blade", "not_sharp"], "evidence": [{"field": "condition"}, {"field": "blade"}]},
+  "worn_weatherstrip": {"class": "condition", "synonyms": ["compressed_seal", "peeling_weatherstrip", "gap_under_door"], "evidence": [{"field": "condition"}]}
+ }
+}

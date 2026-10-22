@@ -125,6 +125,14 @@ One JSONL file per format (UTF-8, one JSON object per line, keys sorted). Every 
 ```
 The last turn is always `{"action": "done"}` on the final observation (the harness's end-of-episode command).
 
+**Multi-phase tasks** (kernel v3.1, docs/TASK_SPEC.md "Phases") are one episode in the harness's protocol: the
+agent ends each phase with `{"action": "done"}`, recorded as a turn (or a pairs / critique step) whose result also
+carries `"phase": {"ended": <id>, "active": <next id or null>, "waiting": <bool>}`; the observation after it shows
+the next phase's instruction and request. The done that ends the last phase is the episode's last turn (it keeps
+its result; no further done follows). Their records add `meta.phases` (the phase ids) and the sft outcome
+`"phases": [{"id", "success", "steps", "time_s", "end_reason"}]`; `unmet_success` names phase criteria as
+`"<phase id>:<index>"`. This is an addition within `house-dataset-v3` (single-phase records are unchanged).
+
 **pairs_trajectory**: `{"prompt": {"instruction", "observation": <initial>}, "chosen": [reference commands],
 "rejected": [wrong-plan commands], "rejected_reason": {"wrong_plan": <spec's wrong-plan name>, "failures":
 [evaluator labels], "goal_fraction", "unmet_success": [indices of unmet success predicates], "refused_steps"}}`.
@@ -212,7 +220,8 @@ Within one dataset every record must carry the manifest's three values (`mixed_f
   `unlisted_file` **error** and is validated anyway, so its own problems (test-split records, leaks, ...) are
   reported too. Other data-like files (`.json`, `.csv`, `.parquet`, archives, ...) are `unlisted_file` errors as well;
   anything else (a README) is an `unexpected_file` warning; operating-system metadata files are ignored;
-* **schema** of every format (commands, results, done only last, divergence step = history length, ...) and
+* **schema** of every format (commands, results, done only last unless it is a phase end carrying `phase`,
+  divergence step = history length, ...) and
   `meta.schema`;
 * **content hash** (`id` recomputed) and **duplicates**;
 * **splits**: the manifest's `splits_source` must be `house_sim.eval.splits`; no `test` split or `test:` tag, no

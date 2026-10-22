@@ -20,7 +20,7 @@ pet_reachable, net_turn_deg, isolated, bud_drop, ...
 import json
 import math
 
-from ...kernel import physics
+from ...kernel import camera, physics
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, answerer, before, hook, inspector, system
 from . import common as C
@@ -171,11 +171,11 @@ def _spill_below(w, eid, liters, liquid="water", natural=False):
         cell = C.floor_cell_of(w, loc)
         if rid and C.is_outdoor_room(w, rid) and str(parent.get("material", "")) not in C.WOOD:
             onto = None
-        C.add_spill(w, rid, cell, liters, liquid, onto=onto)
+        C.add_spill(w, rid, cell, liters, liquid, onto=onto, source=eid)
         return
     if rid and C.is_outdoor_room(w, rid):
         return  # drains into the ground/paving outdoors
-    C.add_spill(w, rid, C.floor_cell_of(w, eid), liters, liquid)
+    C.add_spill(w, rid, C.floor_cell_of(w, eid), liters, liquid, source=eid)
 
 
 def receive_in_saucer(w, saucer_id, liters, natural=False):
@@ -903,7 +903,7 @@ def _after_pick_up(ctx, result):
             m["liquid_l"] = round(float(record["liquid_l"]) - spilled, 4)
             rid = w.robot["room"]
             if not C.is_outdoor_room(w, rid):
-                C.add_spill(w, rid, list(w.robot.get("pos") or [0, 0]), spilled)
+                C.add_spill(w, rid, list(w.robot.get("pos") or [0, 0]), spilled, source=target)
             C.note(w, "saucer_tilted", saucer=target, liters=round(spilled, 3))
     refresh_plants_near(w, target)
 
@@ -1085,7 +1085,7 @@ def inspect_plant(w, eid, record, details, ctx):
         facts = w.sec("facts").setdefault("identified", {})
         facts[eid] = identified
         pests = record.get("pests")
-        if pests and (where == "under" or pests.get("where") in ("leaf_top", "stem", "soil")):
+        if pests and (where == "under" or undersides_seen(w, eid, where) or pests.get("where") in ("leaf_top", "stem", "soil")):
             details["pests"] = {"kind": pests.get("kind"), "severity": "heavy" if float(pests.get("severity", 0)) > 0.5 else "light",
                                 "where": pests.get("where")}
         elif pests and where == "closely" and pests.get("kind") == "spider_mites":
@@ -1107,6 +1107,16 @@ def inspect_plant(w, eid, record, details, ctx):
 
 
 SEEN_RENAMES = {"species": "species_seen", "artificial": "artificial_seen", "pests": "pests_seen", "nest": "nest_seen"}
+
+
+def undersides_seen(w, eid, where):
+    """Geometric camera: a close inspection shows the leaf undersides once the wrist camera has looked closely at the
+    plant (peek where=closely: camera_log.peeked "<id>:closely"), held below the canopy looking up. The kernel's
+    inspect where=under is a look beneath the thing itself (a gap under the pot), which a plant on a table does not
+    have. Room mode: False (where=under keeps its meaning there)."""
+    if where != "closely" or camera.mode(w.s) != "geometric":
+        return False
+    return "{}:closely".format(eid) in ((w.s.get("camera_log") or {}).get("peeked") or {})
 
 
 def role_hint(record):
@@ -1266,7 +1276,12 @@ def _derive_at_episode_start(w, env):
     _derive_once(w)
 
 
-@system("outdoor_plants.derive", order=44, max_dt=30.0)
+def _derived(w):
+    """Exact idle probe of outdoor_plants.derive: the one-time derivation already ran (metadata flag)."""
+    return bool((w.s.get("metadata") or {}).get("outdoor_plants_derived"))
+
+
+@system("outdoor_plants.derive", order=44, max_dt=30.0, idle=_derived)
 def derive_system(w, dt, tick):
     """Fallback for worlds that skipped episode_start (reset(preserve_world=True)): O(1) once derived."""
     _derive_once(w)

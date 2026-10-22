@@ -12,12 +12,15 @@ and alarm clocks, ESD-sensitive PC parts. Verbs: `plug_in`, `unplug`, `connect_c
 `restart_device`, `pair_device`, `reset_breaker`, `test_detector`, `set_time`.
 
 Code: `house_sim/systems/electrical/` (package: common, power, cords, lighting, batteries, cables, devices, charging,
-detectors, clocks, pairing, perception, percept, harms, furnish, scenarios, skills). Types:
-`house_sim/data/types/electrical.json` (about 140 types, with realistic-perception tiers, look-alike groups and
-domain-wide `field_tiers`). Tests: `tests/test_electrical.py` (122 tests; pass with all 16 domains loaded, also with
-`HOUSE_SIM_STRICT=1`; the electrical-only run was last checked in the v2.6 round). Examples: `tasks/authored/electrical__examples.json`
-(12 specs, oracle) and `tasks/authored/electrical__perception.json` (4 perception-centric specs, realistic); all pass
-`--check` on seeds 0, 1, 2, 41, 97 with all domains loaded.
+detectors, clocks, pairing, perception, percept, harms, physical, sightlines, hub, furnish, smarthome, scenarios,
+skills). Types: `house_sim/data/types/electrical.json` (about 140 types, with realistic-perception tiers, look-alike
+groups, camera `view` blocks and domain-wide `field_tiers`). Tests: `tests/test_electrical.py` (154 tests; pass with all
+16 domains loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,electrical`). Examples:
+`tasks/authored/electrical__examples.json` (12 specs, oracle) and `tasks/authored/electrical__perception.json` (4
+perception-centric specs, realistic, `"camera": "geometric"`); every spec declares `"house": {"gen": 2}` and passes
+`--check` on seeds 0, 1, 2, 41, 97 in its own mode; the examples also pass `--perception realistic` with either camera.
+The tier-1 adoption (kernel v3.0 physics, camera and robot body, v3.1 sweep, the smart-home layer) is section 11; the
+requested report vocabulary is section 12.
 
 Fidelity: S for switching logic, device state machines and bookkeeping; G for plug/connector geometry, cord routing
 over the room grid, Qi coil alignment, cable reach, IR line of sight and ceiling reach; P-approx for the lumped loads
@@ -539,3 +542,221 @@ K T-89a369ff52000f-01, K T-8e57df5742271b-01, H T-64361790eed0cb-01, E T-dd0bf4a
 Limits: workstation glare and chair-height ergonomics are not modelled here (screen height, viewing side and
 connectivity are); TV power-button toggling is expressed with explicit switch_on/switch_off; cable bend radius is a
 binary `kinked`; EV holsters/coiling belong to tools_vehicles' model.
+
+## 11. Tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep)
+
+What changed when electrical adopted the tier-1 kernel (docs/design/TIER1_INTEGRATION.md section 6, "electrical",
+and its "Every domain also" list). Room-mode outputs stay as they were for the camera items (the light hooks, the
+witnessing of visual events and the geometric branches run only while the state carries `robot.view`); the
+smart-home layer is data-gated on a `smart_home` section that only generation-2 houses and the `electrical.smart_home`
+helper create. Regression tests: `tests/test_electrical.py` `Tier1PhysicsAdoptionTests`, `Tier1CameraAdoptionTests`,
+`Tier1BodyAdoptionTests`, `Tier1SweepAdoptionTests`, `Tier1SmartHomeTests`.
+
+### Physics (TIER1_PHYSICS 10.3 and 13)
+
+* **Liquid ingress** (`physical.py`, hook `phys.wetted`: spills, overflows, rain, a wet item set on a device). Gear
+  rated for water (weather-rated outdoor gear; an IP rating whose second digit is 4 or more: smartphones, smartwatches
+  and fitness trackers IP68, wireless earbuds IPX4) and a few drops (under 20 ml) are unaffected; cables are not gear (a
+  wet jacket is no harm). Energized mains gear leaks to ground: its GFCI receptacle or GFCI breaker trips
+  (`ground_fault`), otherwise it is an electrical hazard (stat `electrical_hazard`, harm
+  `electrical.shock_risk:<id>`), and while still wet it shorts its circuit whenever it runs (`power._shorted_devices`:
+  the breaker trips under load). A switched-on battery device shorts inside and dies (the kernel's
+  `break_entity(..., "short_circuit")`). Mains gear and anything unpowered take the kernel's `water_damage` (0.5) and
+  stay dead (`water_ingress`, hidden: no boot, no light, no charge, no alarm) until their wetness is back to 0.05 or
+  less (cleaning's drying, a towel); the refresher `sync_dry_devices` then clears the flag.
+* **Kernel breaks** (hook `phys.broke`): a device the kernel broke (a fall onto a hard floor, a crush, a short) is dead
+  (`common.dead`: power off, `functional` false, no charge, no light, no boot), and an impact break cracks a screen
+  (`screen_cracked`, glance tier; TVs, monitors, phones, tablets, computers, watches, laptops). A short kills without
+  cracking anything.
+* **Kernel falls**: yanking a cable whose far end sits on a table drags that device off (`cables._drag_other_end`)
+  through `ctx.fall` (the kernel lands it on a free floor cell toward the robot and decides from its drop tolerance
+  whether it breaks; the breakage statistics follow the kernel's robot attribution). Before, the domain moved it by hand
+  and broke every `fragile` thing regardless of height.
+* **Soft and flammable surfaces** (`common.material_kind`) come from the kernel's material table: soft when the
+  material class's softness is at least 0.5 (fabric, cotton, synthetic fabric, wool and felt, foam; leather is not),
+  flammable for a charging device when soft or of a light fibrous class (paper, cardboard, wicker). `SOFT_MATERIALS` /
+  `FLAMMABLE` are gone.
+* **Bulbs and the thermal_tau law.** Electrical has no copy of a deferred law: a lit bulb heats through its fixture's
+  `internal_temp_c` (the kernel's heat-source parent) and cools with the kernel thermal system, so the `thermal_tau`
+  flip changes only how fast a switched-off bulb cools (both time constants are pinned by
+  `test_bulbs_cool_through_the_kernel_with_either_thermal_tau_state`). Burns from a hot bulb are the kernel's
+  `burn_seconds` rule (core hand-over); `electrical.replace_bulb` waits 5 minutes only when it saw the bulb glowing (it
+  no longer polls the bulb's hidden temperature).
+* **Drop rows.** The kernel's electronics rows apply (a TV is glass, 0.3 m nominal; laptops 0.9 m and phones 1.2 m:
+  every instance survives 0.75 m and 1 m); a computer monitor's drop tolerance is 0.45 m (its LCD panel cracks when it
+  falls off a desk) through a `phys.props` refinement (`physical.monitor_props`), so no generated record changes.
+* **Type data** that `tools/physics_audit.py --data` attributed to electrical: the abstract bases `battery_cell` (an AA
+  cell, 23 g, 14.5 x 50.5 mm), `charger`, `electronic_device`, `esd_component`, `plug_device`, `rechargeable_device`
+  and `usb_peripheral` no longer fall back to 0.4 kg / 0.1 m (the audit now lists no electrical gap). No electrical
+  `field_tiers` entry exposes a physics threshold (`water_ingress` hidden, `screen_cracked` glance, `ip_rating` read).
+  None of this changes a generation-1 house: all 340 houses pinned by `tests/data/gen1_digests.json` generate
+  byte-identically with and without this round's electrical files.
+* **Ready to flip**: `thermal_tau` (the only law that names electrical): the electrical tests and all 16 specs pass with
+  it forced on (`lawbook.forced`, 5 seeds, own mode: generation 2, the geometric camera for the realistic specs).
+  With every law forced, the **stack** law (not electrical's) topples a phone set on a Qi pad (a 0.155 m phone on a
+  0.10 m pad is "1.25 x larger" than its base), which fails `test_qi_pad_charges_only_when_aligned`,
+  `test_charging_a_swollen_battery_runs_away` and T-dd0bf4a1707041-01 on every seed: kernel request (a flat, low base
+  under a centred item is not a stack that rocks off); every other law forced leaves all electrical tests and specs
+  green.
+
+### Camera (TIER1_CAMERA 6.1, 6.2 and 19; geometric mode only)
+
+* **Lamp pools** (`sightlines.lamp_pools`, hook `light_at`): a lit corded lamp adds 0.3 x b x (1 - r / 1.5 m) around
+  its shade (b = brightness x dim level).
+* **Bright sources** (hook `bright_sources`): lit lights (this domain's `lit`: a lamp whose bulb burnt out is dark; a
+  shaded lamp at half its level over its shade), screens showing a picture (TV 0.6, monitor 0.45, laptop or tablet
+  0.35, phone 0.3) and, while climate does not answer the hook, the uncovered windows exactly as the kernel fallback
+  lists them (any answer replaces the whole fallback; climate and electrical each list their own sources when both are
+  loaded).
+* **Illuminance**: the `electrical.light` observer's `illuminance_lux` is, in geometric mode, the exposure of what the
+  head camera looks at (`sightlines.geometric_lux`: `light_at` where its centre ray meets the floor, at most 6 m out, or
+  3 m ahead): a lamp's pool counts only when it is in view, and there is none with the cameras off. `harms._room_level`
+  calls the kernel's `light_level` with the static window and light ids instead of a private copy of the formula.
+* **IR remotes** (`devices._remote_guard`, `skills._viewing_cell`): the beam from the robot's hand to the receiver
+  (the bottom of the device's front) must pass `sight.los` with at least half its strength (porous things dim it);
+  room mode keeps the 1.2 m obstacle-cell rule.
+* **Visual occurrences** through `camera.visual_event` (witness only; their event-log entries are unchanged):
+  `battery_thermal_runaway`, `cord_fire`, `cord_overheating`, `device_fried`, `device_fell`, `plug_yanked`,
+  `bulb_failed`, `fixture_overheating`, `battery_leaking`, `water_ingress`, `screen_cracked`, and a `power_lost` that
+  shows (a lit lamp going dark, a screen going black).
+* **View blocks**: the breaker panel opens at the front and its directory is 4 mm text, breaker labels 4 mm; TVs and
+  monitors are glossy with 3 cm on-screen text (inputs, "No signal"); laptops glossy with a 78-degree, 4 m webcam;
+  webcams 78 degrees / 4 m; smartphones glossy; security cameras 110 degrees with IR to 8 m; CO alarm digits 1 cm;
+  bedside clock digits 2 cm. (The flashlight and its beam are core's type.)
+* **Reference skills**: `electrical.reset_breaker` walks up to the supervisor before asking (a person across the room is
+  a shape; off the doorway, where the door leaf hides half of them; `skills._walk_up_to`, geometric mode only).
+
+### Robot body (TIER1_EMBODIMENT 12)
+
+* **Charging the robot**: `charge` refuses the robot itself ("The robot charges itself on its dock"), and a robot
+  battery pack goes only onto the robot's battery charging station (held, set down there; navigation_robot's spare-pack
+  system charges it), never into a household charger, dock or bay.
+* **Lifts**: unplugging a plug-in device into a hand and taking a freed cable both check the lift (`ctx.check_lift`).
+* **Commanded durations**: `restart_device` (its `wait_s`) and `pair_device` (its `hold_s`) declare
+  `timing="commanded"`, so careful speed never stretches them (stage-B item B7).
+* **Robot fields**: `static_v` is declared with the body (hidden: the robot has no electrometer); the carpet charge
+  follows the cells of the step's motion records (every leg, nested ones included).
+* **Wet grippers**: water in the body's hand soil (`body.soil_hand`, more than 0.2) counts as wet hands for shock
+  checks, besides the legacy flags and a dripping held item.
+* **Network**: the household router going down still takes the robot's Wi-Fi with it, and the router coming back
+  restores only what it took, never over the body's own `network_down` fault. This domain still writes
+  `robot.network` for the router case (the body owns the field; kernel request for an environmental-outage API).
+* No electrical verb moves the robot (no `ctx.motion`), and none writes a robot fault. The optional live-wire contact
+  fault is not added.
+
+### Sweep (TIER1_SWEEP 6, 14, 15, 22.3)
+
+* **Notices** (`common.notice`): `chirp` (registered with safety's exact definition: safety posts it itself when
+  loaded), `alarm_clock`, `device` (a paired smart device going offline and coming back, the smart-home app's
+  notifications) and `alarm` (a medical device's power-failure alarm when mains is lost without a backup pack). Smoke
+  and CO alarms sounding reach the robot through the kernel's alarm bridge.
+* **Exact idle probes** (`common.IdleNote`): `electrical.power`, `lights`, `detectors`, `charging` and `devices` skip a
+  substep when their last run wrote nothing and nothing they read changed since (the touch log through each system's
+  static indexes and the location ancestors of those entities, plus the non-entity inputs: the grid, room
+  temperatures, the daylight band, the month, chirp schedules, the network); `electrical.cells` when no device shows
+  reversed cells; `electrical.smart_home` without a section. `test_idle_probes_are_exact` compares state digests with
+  `HOUSE_SIM_IDLE_PROBES` on and off. Over a quiet day (seeds 0 and 3) detectors, devices and charging now run in 3-13 %
+  of the substeps, lights in under 1 % and power in about half (modelled cords follow the room temperature); a CO alarm
+  in clean air no longer journals its record every substep. A run that does happen costs its probe bookkeeping too
+  (about 0.03 ms per substep for the five systems together, the price of skipping them on quiet substeps).
+* **Clocks** follow the wall clock (`clock.wall`, daylight saving time when the house keeps it): at the change a
+  manually set clock keeps showing standard time until someone resets it, auto-sync clocks follow (stage-C fix T6).
+* **Generation 2** (`smarthome.py`, furnisher `electrical.gen2`): smart devices by `household.profile.smart_home`
+  (basic: a smart speaker and 1-2 Wi-Fi plugs feeding lamps, set up in an adult's phone app; connected: a hub beside
+  the router, 2-3 smart bulbs in lamps, 1-2 smart plugs, 1-2 security cameras), the smart-home section below, and the
+  charging spots (each resident's wall charger plugged in near its nightstand / desk / counter with a 2 m cable; at
+  night the owner's phone on it; the charger's `home`, its owner's storage preference and charger habit become that
+  receptacle, so GEN's "displaced items sit at a habit spot" rule still holds). Generation-1 houses are unchanged.
+* **Routes**: none; electrical has no `ask` answerer. **Report vocabulary**: requested (section 12).
+
+### The smart-home layer (`hub.py`; TIER1_SWEEP 15)
+
+* **State** `smart_home`: the tier, the hub (connected) or the phone app (basic), the paired devices with their app
+  names ("living room lamp", a second one "living room lamp 2"), scenes, automations, `away_mode`, the run log and the
+  app's notification inbox (the last 50 each).
+* **Actions**: a device setting through the app (smart plug `relay` on / off; smart bulb `power` on / off, `brightness`
+  1-100, `cct_k`), a scene, or away mode. **Triggers**: a wall-clock time, sunset / sunrise with an offset in minutes,
+  a predicate becoming true, away mode switching; optional weekdays.
+* **Online**: a device answers only while it is online (a plug whose receptacle is live; a smart bulb whose lamp is
+  switched on and powered: a smart bulb behind a switched-off lamp is offline, as in a real app; cameras and speakers
+  on and powered); Wi-Fi devices and the basic tier's cloud also need the router up, Zigbee bulbs the hub. A failed
+  action is logged and posts a `device` notice and a "not responding" notification. A smart bulb switched off in the
+  app leaves its lamp dark with the lamp's own switch still on (`lighting.smart_off`).
+* **The robot** uses the app over its network: core `set` on a device (refused offline or unpaired, as before) or on
+  the hub (`away_mode`, `scene`; refused while the hub is offline or the robot has no network), and reads
+  `obs.smart_home_app` (devices with online and on / off states, away mode, scenes, automations, the last 5
+  notifications; merged with mechanisms' smart locks). Paired devices carry `remote_status` (their glance state is
+  perceivable over the network, so waits may watch it); pairing a device to the house's hub or app adds it to the
+  section, a factory reset removes it.
+* **Away mode** runs the away automations and arms the cameras' motion alerts: anyone coming into a camera's room
+  (a resident, a pet, the robot itself) posts a `device` notice and a notification, at most once per 5 minutes per
+  camera.
+* **Furnished defaults** (generation 2): the scenes "all off", "good night" and, with two or more lamps, "movie night"
+  (the living-room lamps at 30 %); the automations "Away: lights off" and "Good night" (23:30: the lamps off). Nothing
+  turns a light on by itself, so a generation-2 house is never brighter than its twin
+  (`test_generation_two_smart_homes_are_never_brighter`).
+* **Setup helper** `electrical.smart_home` (tier, lamps, bulbs, cameras, hub_on, scenes, automations, away_mode,
+  defaults; an action may name `{"lamp": <lamp>}` for the plug or bulb that switches it): bindings `<var>`,
+  `<var>_app`, `<var>_plugs`, `<var>_bulbs`, `<var>_cameras`, `<var>_device_<lamp>`.
+* **Limits**: the robot cannot edit automations (spec setups stage them); residents' phones get the notifications only
+  as the inbox (no people-side delivery); in realistic perception a device the robot has never seen shows in the app as
+  "something" (no app-level handle to target it remotely: kernel request); no voice assistant.
+
+### Specs
+
+* **M-GEN2**: all 16 specs declare `"house": {"gen": 2}` and pass on seeds 0, 1, 2, 41, 97 (examples in oracle,
+  perception specs in realistic with the geometric camera).
+* **Camera**: the four realistic specs declare `"camera": "geometric"`; the plans that judge from the wrong place (a
+  cord or cable across the room, an alarm from the doorway) are marked `"camera": true`. T-df60f56a4cce54-01 (test the
+  thermostat cells) has no camera wrong plan: looking is not its skill.
+* **Forced realistic perception** (the harness; geometric after D3): all 12 example specs now pass with
+  `--perception realistic`, also with `--camera geometric`. T-8e57df5742271b-01 variant 1 scores the reading the CO
+  alarm displays (`co_ppm` about 120, reported to the adult within 10 minutes; its reference reads the display) instead
+  of the word "elevated", which no observation shows; T-702453ef553c00-01 needed the supervisor walk-up above.
+* **M-WAITS**: no electrical spec waits on hidden state; `electrical.restart_network` watches the modem's and router's
+  lights with an agent wait (`wait(until=...)`, perceivable) and falls back to the restart message's coarse expectation
+  when they are out of view.
+
+### Residual items checked in this round
+
+* Stage B: B7 (commanded durations) done for `restart_device` and `pair_device`; B3, B9 and B13 name no electrical file.
+  Stage C: T6 (clocks on wall time) done. Round 5 and the round-4 not-fixed list name no open electrical item. The
+  registry's LookalikeWarning names no electrical group.
+* BODY-CORE's known gap "domain verbs that put things into the hands without `check_lift`" (electrical cords): done.
+
+## 12. Report vocabulary (requested `house_sim/data/vocab/electrical.json`)
+
+Issue and state words for typed reports (docs/DIALOGUE.md "Reporting"), with the evidence a robot can perceive for
+each; checked against the kernel vocabulary (`dialogue.load_vocabulary` with core.json: `tools/vocab.py`'s problem
+check finds nothing). The data file is outside this domain's files, so it is a kernel request; until it lands, typed
+electrical reports keep these words as `issue_raw`.
+
+| class | issue | also accepted | evidence |
+|---|---|---|---|
+| function | `no_signal` | no_picture, black_screen, blank_screen, wrong_input | field display, field display_source |
+| function | `no_internet` | internet_down, wifi_down, no_wifi, no_connection, network_down | field online, field led, field display |
+| function | `not_charging` | wont_charge, won't_charge, charging_fault, not_taking_charge | field charging, field charge_status, field led |
+| safety | `swollen_battery` | bulging_battery, puffy_battery, battery_swollen, swelling_battery | field battery_swollen |
+| safety | `battery_leak` | leaking_battery, corroded_battery, battery_corrosion, corroded_contacts | field leaking, field condition |
+| function | `reversed_battery` | battery_backwards, batteries_backwards, wrong_way_round, upside_down_battery | field orientation |
+| function | `wrong_time` | clock_wrong, time_wrong, clock_slow, clock_fast, blinking_twelve, blinking_12 | field display_time, field display |
+| condition | `cracked_screen` | screen_cracked, smashed_screen, broken_screen, shattered_screen | field screen_cracked |
+| moisture | `liquid_damage` | water_inside, got_wet, spilled_on, drink_spilled_on | field wetness, field wetness (near) |
+| safety | `overloaded` | overloaded_circuit, overloaded_strip, too_many_plugs, daisy_chained | field plugged_in (near), field tripped |
+| function | `loose_plug` | plug_loose, half_plugged, not_fully_plugged, plug_falling_out | field plugged_in, field plug_seated |
+| condition | `damaged_cable` | broken_cable, bent_connector, damaged_connector, kinked_cable | field damaged, field cord_condition |
+| function | `dim_light` | too_dim, light_dim, weak_light, not_bright_enough | field dim_level, field brightness, field lit |
+
+| state | also accepted | opposite | evidence |
+|---|---|---|---|
+| `online` | connected_online, back_online, internet_up | offline | field online, field led |
+| `offline` | not_online, disconnected_offline, unreachable | online | field online, field led |
+| `paired` | set_up_in_app, linked, added_to_hub | unpaired | field led, field pairing |
+| `unpaired` | not_paired, not_set_up, unlinked | paired | field led, field pairing |
+| `lit` | lit_up, glowing, light_on | dark | field lit, field on |
+| `dark` | unlit, light_off, not_lit | lit | field lit, field on |
+| `dimmed` | dim, turned_down, low_light | - | field dim_level |
+
+Evidence additions requested for core words this domain's records use: `flickering` + field `flicker`; `cracked` +
+field `screen_cracked`; `exposed_wire` + field `cord_condition`; `low_battery` + field `led` and notice `chirp`; `on` /
+`off` + fields `lit` and `power_state`.

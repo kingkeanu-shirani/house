@@ -1,59 +1,58 @@
 """Storage physics and time effects for stored goods (fidelity G / P-approx):
 
-* shelf and surface load ratings: overloading a shelf collapses it, dumping its contents on the
-  floor (fragile items break);
+* shelf and surface load ratings (kernel v3.0 overload law): a shelf or surface the robot loads past its
+  rating gives way (kernel physics: the shelf's load drops to the shelf below or the floor, breakage by drop
+  tolerance); the ratings are the kernel's (record shelf_load_kg / max_load_kg, else supports.json);
 * heat-sensitive goods (candles, vinyl, photos, thermal receipts, batteries) are damaged above
-  their max_safe_temp_c (attics in summer, hot cars, window sills);
+  their max_safe_temp_c (attics in summer, hot cars, window sills); melting is the kernel's melt law;
 * damp: cardboard and paper standing on a damp basement/garage/shed floor wick up water and
   mildew; wet umbrellas, bags and luggage closed or shut away mildew, opened ones dry;
 * pens and markers left uncapped dry out;
-* weather on parcels and mail left outdoors (rain soaks cardboard and damages contents;
-  covered porches shelter), cold packs in meal-kit boxes melt, unattended porch parcels can
-  be stolen after a grace period.
+* weather on parcels and mail left outdoors (rain soaks cardboard -- the kernel's rain model -- and
+  damages contents; wind-driven rain reaches a covered porch), cold packs in meal-kit boxes melt,
+  unattended porch parcels can be stolen after a grace period.
+
+Physics adoption (TIER1_PHYSICS 10.3): every rule the kernel's laws duplicate runs through the kernel's own functions
+and steps aside once that law is active (lawbook.active): overload (_load_check), melt and rain (exposure_tick).
 """
 import math
 
-from ...kernel import geometry, physics
+from ...kernel import physics
+from ...kernel.phys import environment as phys_env, impact as phys_impact, lawbook, props as phys_props
+from ...kernel.phys import support as phys_support, thermal as phys_thermal
 from ...kernel.plugins import after
-from ..core import add_soil, subtree_mass
-from .common import admin_facts, drop_cell, household, indexed
+from ..core import add_soil
+from .common import doorbell_alert, household, indexed, visual_event
 
-# Per-shelf ratings (kg). Particleboard bookcases ~25 kg/shelf; wire/steel shelving units 90 kg;
-# closet wire shelves ~25 kg; floating wall shelves ~12 kg; cabinet shelves ~30 kg.
-SHELF_RATING = (("shelf_unit", 90.0), ("bookshelf", 25.0), ("closet_shelving", 25.0), ("upper_cabinet", 15.0),
-                ("filing_cabinet", 30.0), ("cabinet", 30.0), ("wardrobe", 40.0), ("closet", 40.0))
-SURFACE_RATING = (("wall_shelf", 12.0),)
 STREET_ROOMS = ("porch", "front_yard", "sidewalk", "driveway")
 COVERED_ROOMS = ("porch", "balcony")
 PAPERISH = ("paper", "cardboard")
+PORCH_WIND_MPS = 7.2        # local gust (kernel wind-at-object model) that drives rain under a porch roof: a 10 m
+                            # mean of 8 m/s with the default 1.5 gust factor and ground exposure (0.6 of the gust)
 
 
-def _rating(record, table):
-    if record.get("shelf_load_kg") is not None:
-        return float(record["shelf_load_kg"])
-    for type_name, value in table:
-        if record.get("type") == type_name or type_name in record.get("is_a", []):
-            return value
-    return None
+def _nominal(record, field):
+    """A kernel rating of a record without per-instance variation (phys.props.props_of without a state: the nominal
+    value a printed rating or a furnisher's planning uses): record fields first (shelf_load_kg, max_load_kg), then
+    supports.json. None when unrated."""
+    return phys_support.finite(getattr(phys_props.props_of(record), field))
 
 
 def shelf_rating(record):
-    """Rated load (kg) of one shelf of a shelved container (None when unrated)."""
-    return _rating(record, SHELF_RATING) if record.get("shelf_heights") else None
+    """Rated load (kg) of one shelf of a shelved container: the kernel's nominal shelf_rating_kg (None when unrated).
+    The overload law itself applies about +-15 % per-instance variation (docs/PHYSICS.md 1)."""
+    return _nominal(record, "shelf_rating_kg") if record.get("shelf_heights") else None
 
 
 def surface_rating(record):
-    """Rated load (kg) of a fixed surface (`max_load_kg`, else the type table; None when unrated)."""
-    if record.get("max_load_kg") is not None:
-        return float(record["max_load_kg"])
-    return _rating(record, SURFACE_RATING)
+    """Rated load (kg) of a fixed surface or the bottom of a fixed container: the kernel's nominal rating_kg
+    (max_load_kg, else supports.json; None when unrated)."""
+    return _nominal(record, "rating_kg")
 
 
 def _record_mass(rec):
-    try:
-        return float(rec.get("mass_kg", 0.0) or 0.0) + float(rec.get("liquid_l", 0.0) or 0.0) * float(rec.get("liquid_density", 1.0) or 1.0)
-    except (TypeError, ValueError):
-        return 0.0
+    """Own mass plus liquid at the kernel's density (liquid_density, else liquids.json, else water)."""
+    return phys_support.own_mass(rec)
 
 
 def children_map(entities):
@@ -98,8 +97,10 @@ def surface_load(entities, surface, kids=None):
 
 def shelf_headroom(config, container, shelf=0):
     """Public helper for furnishers and setup code: kg that one shelf of `container` (a shelved cabinet/closet/
-    shelving unit) can still take before its rating, or a fixed surface (shelf=None on a surface) before its
-    `max_load_kg`. Returns None when the furniture is unrated. Use it before Placer.inside/on with heavy stock:
+    shelving unit) can still take before its nominal rating, or a fixed surface (shelf=None on a surface) before its
+    nominal rating. Returns None when the furniture is unrated. A wrapper over the kernel's ratings (supports.json,
+    record shelf_load_kg / max_load_kg), kept for furnishers (TIER1_INTEGRATION 6). Use it before Placer.inside/on with
+    heavy stock:
         if (shelf_headroom(p.c, cabinet, 0) or 1e9) >= mass: p.inside(cabinet, ..., shelf=0)"""
     entities = config["entities"]
     rec = entities.get(container) or {}
@@ -110,82 +111,38 @@ def shelf_headroom(config, container, shelf=0):
     return None if rating is None else round(rating - surface_load(entities, container), 3)
 
 
-def _baseline_load(ctx, container, shelf):
-    """Load that shelf (or surface, shelf=None) carried at episode start (generator and setup), from the engine's
-    baseline snapshot; 0 when there is none. Memoized per episode."""
-    baseline = getattr(getattr(ctx, "env", None), "_baseline", None)
-    if not baseline or container not in baseline.get("entities", {}):
-        return 0.0
-    from .harms import _memo, _on_baseline
-    kids = _on_baseline("storage_kids", baseline, lambda base: children_map(base["entities"]))
-    memo = _memo("storage_start_load", baseline)
-    key = (container, shelf)
-    if key not in memo:
-        entities = baseline["entities"]
-        memo[key] = shelf_load(entities, container, shelf, kids) if shelf is not None else surface_load(entities, container, kids)
-    return memo[key]
-
-
-def _collapse(w, furniture, items, reason):
-    room = w.root_room(furniture)
-    fm = w.mut(furniture)
-    fm["damaged_shelves"] = list(fm.get("damaged_shelves", [])) + [reason]
-    near = tuple((w.ent(furniture).get("pos") or w.robot.get("pos") or [0, 0]))
-    broken = []
-    for item in items:
-        m = w.mut(item)
-        m["location"], m["relation"] = room, "on"
-        for key in ("spos", "shelf", "held_hand"):
-            m.pop(key, None)
-        m["pos"] = drop_cell(w, room, near, item)
-        m["fell"] = True
-        for sub in [item] + w.descendants(item):
-            rec = w.ent(sub)
-            if rec.get("fragile") and not rec.get("broken") and not rec.get("wrapped") and not rec.get("padded"):
-                w.mut(sub)["broken"] = True
-                broken.append(sub)
-    w.stat("damage")
-    if broken:
-        w.stat("breakages", len(broken))
-    w.emit("shelf_collapsed", target=furniture, reason=reason, items=items, broken=broken)
-    return broken
+def _supports_above(state, eid):
+    """The supports a placed item loads: its location chain up to the furniture (what it rests on or in, and what
+    that rests on), nearest first."""
+    entities = state["entities"]
+    out, seen = [], {eid}
+    loc = (entities.get(eid) or {}).get("location")
+    while loc in entities and loc not in seen:
+        out.append(loc)
+        seen.add(loc)
+        loc = entities[loc].get("location")
+    return out
 
 
 @after("place", order=90)
 def _load_check(ctx, result):
-    """A shelf/surface collapses when the robot's placement pushes its load over max(rating, the load it already
-    carried at episode start): a shelf the generator (or a setup) loaded past its nominal rating evidently holds that
-    much, so only weight the robot adds beyond it counts (round-2 fix: never charge a scene artifact to the robot)."""
+    """overload while the law is deferred (TIER1_PHYSICS 5.2, 10.3): the supports the placement loaded go through the
+    kernel's own overload law (phys.impact.overload_law): a shelf, surface or fixed container over max(its rating with
+    per-instance variation, the load it carried at episode start + 0.5 kg) gives way -- load a generator or a setup
+    put there is never charged to the robot. The shelf's items drop to the next intact shelf below or the floor,
+    breakage and floor damage follow the kernel's impact model, the step's message gets the kernel's note ("a shelf
+    of X gave way") and the sagging cue is kept. Once the law is active the settle pass does exactly this for every
+    touched support, so this hook steps aside."""
+    if lawbook.active("overload"):
+        return      # kernel owns it
     w = ctx.w
     eid = ctx.args["target"]
-    rec = w.ent(eid)
-    parent_id = rec.get("location")
-    parent = w.s["entities"].get(parent_id)
-    if parent is None:
+    if eid not in w.s["entities"]:
         return
-    if rec.get("relation") == "in" and parent.get("shelf_heights"):
-        rating = shelf_rating(parent)
-        if rating is None:
-            return
-        shelf = _shelf_of(rec)
-        items = [c for c in w.children(parent_id) if w.ent(c).get("relation") == "in" and _shelf_of(w.ent(c)) == shelf]
-        load = sum(subtree_mass(w, c) for c in items)
-        if load > rating + 1e-9:
-            limit = max(rating, _baseline_load(ctx, parent_id, shelf))
-            if load > limit + 1e-9:
-                reason = "shelf {} overloaded".format(shelf) if ctx.realistic else                     "shelf {} overloaded ({:.0f} kg > {:.0f} kg)".format(shelf, load, limit)   # loads are not seen
-                _collapse(w, parent_id, items, reason)
-    elif rec.get("relation") == "on" and not parent.get("portable"):
-        rating = surface_rating(parent)
-        if rating is None:
-            return
-        items = [c for c in w.children(parent_id) if w.ent(c).get("relation") == "on"]
-        load = sum(subtree_mass(w, c) for c in items)
-        if load > float(rating) + 1e-9:
-            limit = max(float(rating), _baseline_load(ctx, parent_id, None))
-            if load > limit + 1e-9:
-                reason = "surface overloaded" if ctx.realistic else "surface overloaded ({:.0f} kg > {:.0f} kg)".format(load, limit)
-                _collapse(w, parent_id, items, reason)
+    cmap = phys_support.children_map(w.s)
+    for sid in _supports_above(w.s, eid):
+        if sid in w.s["entities"]:
+            phys_impact.overload_law(w, sid, env=ctx.env, cmap=cmap)
 
 
 # ----------------------------------------------------------------------
@@ -231,6 +188,46 @@ def exposure_candidate(record):
                 or record.get("material") in PAPERISH or record.get("dries_in_air"))
 
 
+def rain_mm_h(weather):
+    """Rain rate (mm/h) on things outdoors: the weather's rain_mm_h (the kernel's rain input), else a rate for its
+    condition word (a rain or sleet spell about 2.5 mm/h, a storm 10 mm/h; snow wets nothing until it melts)."""
+    stated = phys_env.rain_mm_h(weather)
+    if stated > 0:
+        return stated
+    return {"rain": 2.5, "sleet": 2.5, "storm": 10.0}.get((weather or {}).get("condition"), 0.0)
+
+
+def _melting(w, eid, rec, dt):
+    """melt while the law is deferred (TIER1_PHYSICS 5.9, 10.3): a body above its kernel melting point (melt_c: the
+    record's, else its material class) accrues the kernel's damage.melted / deformed (phys.thermal.melt_check: full
+    after 600 s at 10 K above it), exactly what the melting process does once the law is active."""
+    if lawbook.active("melt"):
+        return      # kernel owns it: the thermal system starts the melting process
+    melt_c = phys_support.finite(physics.props(w.s, eid).melt_c)
+    if melt_c is not None and float(rec.get("temperature_c", 21.0)) > melt_c:
+        phys_thermal.melt_check(w, eid, dt)
+
+
+def _soaked_parcel(w, eid, rec):
+    """What a soaked parcel or piece of mail does (this domain's rule on top of the soaking): the label smudges and,
+    for a box, paper, fabric and electronics inside get wet and water-damaged."""
+    entities = w.s["entities"]
+    m = w.mut(eid)
+    m["label_smudged"] = True
+    if rec.get("package"):
+        m["soaked"] = True
+        for item in w.descendants(eid):
+            c = entities[item]
+            if c.get("water_sensitive") or c.get("material") in PAPERISH + ("fabric", "electronics"):
+                cm = w.mut(item)
+                cm["wetness"] = max(float(cm.get("wetness", 0.0)), 0.7)
+                cm["water_damaged"] = True
+                cm["damaged"] = True
+        w.emit("package_soaked", target=eid)
+    else:
+        m["water_damaged"] = True
+
+
 def exposure_tick(w, dt, tick, room_of=None):
     """Slow exposure effects; runs from a periodic system, every update is linear in dt (or a
     dt-correct probability), so a 120 s period gives the same totals as 30 s substeps."""
@@ -238,7 +235,7 @@ def exposure_tick(w, dt, tick, room_of=None):
     hours = dt / 3600.0
     weather = state.get("weather", {})
     condition = weather.get("condition", "clear")
-    wind = float(weather.get("wind_mps", 2.0))
+    rain = rain_mm_h(weather)
     raining = condition in ("rain", "storm", "snow", "sleet")
     entities = state["entities"]
     if room_of is None:
@@ -255,43 +252,44 @@ def exposure_tick(w, dt, tick, room_of=None):
             if m["uncapped_s"] >= float(rec.get("dry_out_s", 86400)):
                 m["dried_out"] = True
                 w.emit("pen_dried_out", target=eid)
-        # heat damage
+        # heat: above its stated safe temperature a heat-sensitive good is damaged (thermal paper fades, a battery or a
+        # photo is ruined); a body above its melting point melts (the kernel's melt law)
         limit = rec.get("max_safe_temp_c")
         if limit is not None and not rec.get("heat_damaged") and float(rec.get("temperature_c", 21.0)) > float(limit):
             m = w.mut(eid)
             m["heat_damaged"] = True
             m["damaged"] = True
-            if rec.get("material") in ("wax", "vinyl", "chocolate"):
-                m["melted"] = True
             if rec.get("thermal"):
                 m["faded"] = True
             w.emit("heat_damage", target=eid, temperature_c=rec.get("temperature_c"))
+        if limit is not None and "temperature_c" in rec:
+            _melting(w, eid, entities[eid], dt)
+            rec = entities[eid]
         # parcels and mail outdoors
         if rec.get("package") or rec.get("mail_piece") or rec.get("category") in ("document", "luggage") or rec.get("type") == "rain_umbrella":
             room = _outdoor_room(state, eid, room_of)
-            if room and raining and not _enclosed(state, eid):
-                rtype = state["rooms"][room].get("type")
-                rate = 0.4 if rtype not in COVERED_ROOMS else (0.15 if wind > 8 or condition == "storm" else 0.02)
+            if room and rain > 0 and phys_env.exposed(state, eid):
+                # rain on an exposed item is the kernel's rain law (surface wet within 2 minutes, paper and cardboard
+                # soak through by absorption); while the law is deferred this domain applies it to its own things
+                if not lawbook.active("rain"):
+                    phys_env.rain_wet(w, eid, rain, dt)
+                    rec = entities[eid]
+            elif room and raining and state["rooms"][room].get("type") in COVERED_ROOMS and not _enclosed(state, eid):
+                # wind drives rain under a porch roof, which the kernel never counts as exposed: slowly in a breeze,
+                # faster in a gale (the local gust of the kernel's wind-at-object model) or a storm
+                _, gust = phys_env.object_wind_mps(state, eid, weather)
+                rate = 0.15 if gust >= PORCH_WIND_MPS or condition == "storm" else 0.02
                 if rec.get("material") == "plastic" or rec.get("waterproof"):
                     rate *= 0.1
                 wet = min(1.0, float(rec.get("wetness", 0.0)) + rate * hours)
                 if wet != rec.get("wetness"):
-                    m = w.mut(eid)
-                    m["wetness"] = round(wet, 4)
-                    if wet > 0.6 and rec.get("package") and not rec.get("soaked"):
-                        m["soaked"] = True
-                        m["label_smudged"] = True
-                        for item in w.descendants(eid):
-                            c = entities[item]
-                            if c.get("water_sensitive") or c.get("material") in PAPERISH + ("fabric", "electronics"):
-                                cm = w.mut(item)
-                                cm["wetness"] = max(float(cm.get("wetness", 0.0)), 0.7)
-                                cm["water_damaged"] = True
-                                cm["damaged"] = True
-                        w.emit("package_soaked", target=eid)
-                    if wet > 0.6 and (rec.get("mail_piece") or rec.get("category") == "document") and not rec.get("water_damaged"):
-                        m["water_damaged"] = True
-                        m["label_smudged"] = True
+                    w.mut(eid)["wetness"] = round(wet, 4)
+                    rec = entities[eid]
+            if room and (rec.get("package") or rec.get("mail_piece") or rec.get("category") == "document") \
+                    and not rec.get("label_smudged") and (rec.get("soaked") or float(rec.get("wetness", 0.0)) > 0.6
+                                                          and not phys_env.exposed(state, eid)):
+                _soaked_parcel(w, eid, rec)
+                rec = entities[eid]
             if rec.get("package") and room and state["rooms"][room].get("type") in STREET_ROOMS and not rec.get("outgoing"):
                 left = float(rec.get("_unattended_s", 0.0)) + dt
                 m = w.mut(eid)
@@ -305,6 +303,8 @@ def exposure_tick(w, dt, tick, room_of=None):
                         valuable = protected(rec) or any(protected(entities[d]) for d in w.descendants(eid))
                         household(w).setdefault("stolen", {})[eid] = {"time_s": state["time_s"], "room": room, "label": rec.get("label"),
                                                                        "protected": bool(valuable)}
+                        visual_event(w, "package_stolen", source=eid, room=room, size_m=1.0)   # someone walks off with it
+                        doorbell_alert(w, room, eid, "Motion at the front door")
                         for item in w.descendants(eid):
                             w.destroy(item)
                         w.destroy(eid)

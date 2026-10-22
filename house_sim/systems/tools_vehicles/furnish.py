@@ -12,7 +12,18 @@
   with battery and bits, hardware organizer, automotive supplies on a high garage shelf, painting/patching supplies in
   the basement, a screwdriver and adhesive hooks in the kitchen junk drawer.
 Counts stay modest (roughly 15-45 entities per house) and every placement tolerates a full room (Placer returns None).
+
+Generation 2 (opts["gen"] >= 2, docs/GENERATOR.md; generation-1 houses are unchanged): the vehicles follow the
+household. Residents who drive are marked (`can_drive`: adults with full vision and cognition, 90 %; the elderly by
+age, 85 % under 80, 50 % in their 80s, 20 % older) and a household with nobody who drives has no car; the car carries
+a child seat for every child up to 7 (at most two, infants and toddlers rear-facing); a car parked outdoors on a
+frosty morning (0 C or below at the start) has frosted glass and, after snow, snow on the roof. Bikes are the
+riders': a kids' bike for 75 % of children aged 4-12, a bike for 60 % of teens, 35 % of adults (at most two) and 10 %
+of the elderly, parked as in generation 1.
 """
+
+import hashlib
+import random
 
 from ...generator.place import Placer
 from ...kernel import geometry
@@ -337,20 +348,124 @@ def place_car(config, rng, registry, room, p, label="sedan"):
     return cid
 
 
+YOUNG_SEAT_AGE = 7        # US child-passenger guidance: a car seat or booster to about age 8 (up to 7 here)
+
+
+def _members(config):
+    return sorted((pid, rec) for pid, rec in (config.get("people") or {}).items() if isinstance(rec, dict))
+
+
+def _age(rec, default=40):
+    try:
+        return float(rec.get("age")) if rec.get("age") is not None else float(default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def mark_drivers(config, rng):
+    """Generation 2: who in the household drives (`can_drive`, the field drive_to reads): adults 18 and over with full
+    vision and cognition (90 %), the elderly by age (85 % under 80, 50 % in their 80s, 20 % older) unless their vision
+    or cognition is impaired. A `can_drive` the setup already gave is kept. Returns the drivers' ids."""
+    drivers = []
+    for pid, rec in _members(config):
+        if rec.get("can_drive") is not None:
+            if rec.get("can_drive"):
+                drivers.append(pid)
+            continue
+        role, age = rec.get("role"), _age(rec)
+        abilities = rec.get("abilities") if isinstance(rec.get("abilities"), dict) else {}
+        fit = abilities.get("vision", "full") in ("full", "corrected") and abilities.get("cognition", "full") == "full"
+        if role == "adult" and age >= 18:
+            share = 0.9
+        elif role == "elderly":
+            share = 0.85 if age < 80 else (0.5 if age < 90 else 0.2)
+        else:
+            share = 0.0
+        drives = fit and share > 0 and rng.random() < share
+        rec["can_drive"] = bool(drives)
+        if drives:
+            drivers.append(pid)
+    return drivers
+
+
+def bike_riders(config, rng):
+    """Generation 2: the bikes a household keeps, one per rider: [(type, owner)] -- a kids' bike for 75 % of children
+    aged 4-12, a bike for 60 % of teens, 35 % of adults (at most two adult bikes) and 10 % of the elderly."""
+    out, adults = [], 0
+    for pid, rec in _members(config):
+        role, age = rec.get("role"), _age(rec)
+        if role == "child" and age >= 4 and rng.random() < 0.75:
+            out.append(("kids_bicycle", pid))
+        elif role == "teen" and rng.random() < 0.6:
+            out.append(("bicycle", pid))
+        elif role == "adult" and adults < 2 and rng.random() < 0.35:
+            out.append(("bicycle", pid))
+            adults += 1
+        elif role == "elderly" and rng.random() < 0.1:
+            out.append(("bicycle", pid))
+    return out
+
+
+def gen2_car(config, rng, p, car):
+    """Generation 2: what the household keeps in and on its car -- child seats for the young children (at most two on
+    the rear seat; infants and toddlers rear-facing, older children forward-facing or on a booster), and frost (and
+    after snow, roof snow) on a car parked outdoors on a frosty start."""
+    rec = config["entities"][car]
+    young = [(pid, r) for pid, r in _members(config) if r.get("role") in ("infant", "toddler", "child") and _age(r, 5) <= YOUNG_SEAT_AGE]
+    for pid, r in young[:2]:
+        age = _age(r, 5)
+        label = "rear-facing infant seat" if age < 1 else ("rear-facing child seat" if age < 4 else "booster seat")
+        sid = p.make("child_car_seat", car, label=label, owner=pid,
+                     _install={"latch_attached": True, "movement_in_mm": round(rng.uniform(8.0, 20.0), 1), "harness_snug": True,
+                               "recline_ok": True})
+        config["entities"][sid]["relation"] = "part"
+    room = config["rooms"].get(rec.get("location")) or {}
+    weather = config.get("weather") or {}
+    try:
+        temp = float(weather.get("temperature_c", 10.0))
+    except (TypeError, ValueError):
+        temp = 10.0
+    if room.get("outdoor") and temp <= 0.0:
+        snowing = weather.get("condition") in ("snow", "sleet") or float(weather.get("snow_cm_h", 0.0) or 0.0) > 0
+        ice = round(rng.uniform(1.0, 3.0) if snowing else rng.uniform(0.3, 1.5), 1)
+        rec["glass_ice_mm"] = {"windshield": ice, "rear": ice, "sides": round(ice * 0.6, 1)}
+        rec["clear_view"] = False
+        if snowing:
+            rec["roof_snow_cm"] = round(rng.uniform(2.0, 8.0), 1)
+
+
 @furnisher("tools_vehicles.vehicles", order=32)
 def furnish_vehicles(config, rng, opts, registry):
     p = Placer(config, registry, rng)
+    gen2 = int(opts.get("gen") or 1) >= 2
+    # generation 2's household draws come from their own stream (seeded from this furnisher's), so a household that
+    # has a driver gets its car exactly where generation 1 would put it
+    extra = random.Random(hashlib.sha256(repr(rng.getstate()).encode("ascii")).hexdigest()) if gen2 else None
+    drivers = mark_drivers(config, extra) if gen2 else None
     if (opts.get("plan") or {}).get("dwelling") == "apartment":
         return
     garages = p.rooms("garage")
     drives = p.rooms("driveway")
     car = None
-    if garages:
-        car = place_car(config, rng, registry, garages[0], p)
-    if car is None and drives and rng.random() < 0.85:
-        car = place_car(config, rng, registry, drives[0], p)
+    if drivers is None or drivers:
+        if garages:
+            car = place_car(config, rng, registry, garages[0], p)
+        if car is None and drives and rng.random() < 0.85:
+            car = place_car(config, rng, registry, drives[0], p)
+    if car is not None and gen2:
+        gen2_car(config, extra, p, car)
     bike_rooms = garages + p.rooms("shed") + p.rooms("basement")
-    if bike_rooms:
+    if bike_rooms and gen2:
+        bikes = []
+        for type_name, owner in bike_riders(config, extra):
+            bid = _bike(config, p, bike_rooms, type_name, rng)
+            if bid:
+                config["entities"][bid]["owner"] = owner
+                bikes.append(bid)
+        if bikes:
+            first = config["entities"][bikes[0]]
+            p.floor_item(first["location"], "floor_pump", near=first["pos"], settings={"head": rng.choice(["presta", "schrader"])})
+    elif bike_rooms:
         adults = sum(1 for v in config.get("people", {}).values() if v.get("role") == "adult")
         kids = sum(1 for v in config.get("people", {}).values() if v.get("role") == "child")
         bikes = []

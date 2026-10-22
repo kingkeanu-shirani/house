@@ -13,4 +13,4 @@ placement physics), bedding (beds), care (iron, steam, stains, soak, lint, pilli
 shoes, senses (observers, inspectors, answerers, invariants), furnish (house generation),
 helpers (scenario setup helpers) and skills (reference skills). See docs/domains/textiles_laundry.md.
 """
-from . import model, wash, dry, fold, bedding, care, sewing, shoes, senses, events, furnish, helpers, skills  # noqa: F401
+from . import model, physical, signals, views, wash, dry, fold, bedding, care, sewing, shoes, senses, routes, events, furnish, helpers, skills  # noqa: F401

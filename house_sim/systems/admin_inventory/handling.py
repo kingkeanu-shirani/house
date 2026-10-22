@@ -3,10 +3,12 @@
 * FIFO depth on deep shelves: whatever is set on a shelf lands in front (depth_rank 0); the
   rotate_stock action re-orders a shelf so the oldest stock is at the front;
 * hygienic grip zones: grabbing a toothbrush (or similar) anywhere but its handle contaminates it;
-* bags and boxes with a load rating split their bottom when lifted overloaded (contents drop);
+* bags and boxes give way at the handle or bottom when lifted overloaded (the kernel's handle law: torn, the
+  contents fall from hand height);
 * clearance under beds/furniture: a bin taller than the clearance cannot go under, a forced fit
   lifts the slats;
-* hot items placed into plastic/wood/fabric/paper containers melt or scorch them;
+* hot items placed into (or onto) plastic/wood/fabric/paper containers melt or scorch them at the kernel's heat
+  limit of that material;
 * wet items set on wooden floors leave water rings;
 * bag and box load/fill fields kept current for packing limits;
 * scripted household events: residents moving things offscreen and consuming stock.
@@ -14,6 +16,8 @@
 from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import impact as phys_impact, lawbook, statics as phys_statics, support as phys_support
+from ...kernel.phys import props as phys_props, thermal as phys_thermal
 from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
 from .common import admin_facts, drop_cell, sheet_count
@@ -21,8 +25,8 @@ from .common import require_readable
 from .perceive import dumps, hide_on, order_ids, realism_of, tier_on
 
 LOAD_TRACKED = ("luggage", "package", "organizer", "box", "bag")
-MELT_MATERIALS = {"plastic": 70.0, "polyethylene": 60.0, "polypropylene": 90.0, "vinyl": 60.0, "nylon": 120.0,
-                  "fabric": 150.0, "wicker": 150.0, "wood": 200.0, "cardboard": 180.0, "paper": 180.0, "hdpe": 80.0}
+HEAT_MARK_SPAN_K = phys_thermal.CONTACT_SPAN_K     # a mark's severity: (contact - limit) / 100 K, the kernel's scale
+IGNITES_C = 230.0           # paper and cardboard char and catch near 230-260 C (autoignition of paper about 233 C)
 WOOD_FLOORS = ("hardwood", "wood", "laminate", "hardwood_unsealed")
 
 
@@ -116,32 +120,41 @@ def _pickup_consequences(ctx, result):
         w.mut(eid)["contaminated"] = True
         hide_on(w, eid, ["contaminated"])         # germs from the wrong grip are invisible
         w.emit("hygiene_breach", target=eid)
-    limit = rec.get("max_load_kg")
-    if limit is not None:
-        load = subtree_mass(w, eid) - float(rec.get("mass_kg", 0.0))
-        if load > float(limit) and not rec.get("bottom_failed"):
-            m = w.mut(eid)
-            m["bottom_failed"] = True
-            m["damaged"] = True
-            room = w.robot["room"]
-            dropped, broken = [], []
-            for child in w.children(eid):
-                cm = w.mut(child)
-                cm["location"], cm["relation"] = room, "on"
-                for key in ("spos", "shelf"):
-                    cm.pop(key, None)
-                cm["pos"] = drop_cell(w, room, w.robot.get("pos"), child)
-                dropped.append(child)
-                for sub in [child] + w.descendants(child):
-                    srec = w.ent(sub)
-                    if srec.get("fragile") and not srec.get("broken") and not srec.get("wrapped") and not srec.get("padded"):
-                        w.mut(sub)["broken"] = True
-                        broken.append(sub)
-            if broken:
-                w.stat("breakages", len(broken))
-                w.stat("damage")
-            w.emit("bottom_failed", target=eid, load_kg=round(load, 2), dropped=dropped, broken=broken)
+    if eid in w.s["entities"] and w.s["entities"][eid].get("location") == "robot":
+        _handle_check(ctx, eid)
     _refresh_load(w, ctx.data.get("admin_prev_loc"))
+
+
+# Carry-handle ratings (kg of contents) of the luggage generated houses already hold (the furnisher's suitcase and
+# children's backpacks). They reach the kernel through a phys.props hook so generated records stay as they were
+# (generation-1 houses unchanged); other bags state theirs in the type data (handle_rating_kg).
+LUGGAGE_HANDLE_KG = {"suitcase": 40.0,     # a checked suitcase's carry handles hold well over the 32 kg airline limit
+                     "backpack": 15.0}     # a school daypack lifted by its haul loop: the seams bear about 15 kg
+
+
+def _luggage_handle_props(record, phys):
+    """phys.props hook (TIER1_PHYSICS 7.3): LUGGAGE_HANDLE_KG as the kernel's handle_kg, unless something already set
+    one (the record's own handle_rating_kg / max_load_kg, a supports.json row). A domain hook registered later (the
+    manipulation domain: a load held from underneath loads no handle) still has the last word."""
+    if phys.get("handle_kg") is not None:
+        return None
+    return {"handle_kg": LUGGAGE_HANDLE_KG[record["type"]]}
+
+
+_luggage_handle_props.applies = lambda record: record.get("type") in LUGGAGE_HANDLE_KG
+hook("phys.props")(_luggage_handle_props)
+
+
+def _handle_check(ctx, eid):
+    """A bag or box lifted with more inside than its handle or bottom bears gives way (TIER1_PHYSICS 5.2 handle law,
+    applied here while the law is deferred; the settle pass applies it itself once it is active): torn, it stays in
+    the hand and its contents fall from hand height (kernel impact: breakage by drop tolerance and padding), and at
+    90-100 % of the rating the kernel's creep check tears it if it is still carried that heavy two minutes later. The
+    rating is the kernel's (phys.props handle_kg: the record's handle_rating_kg, else a portable container's
+    max_load_kg, else a supports.json row such as a cardboard box; a load held from underneath loads no handle when
+    the manipulation domain says so)."""
+    if phys_statics.handle_status(ctx.w.s, eid) is not None and not lawbook.active("handle"):
+        phys_impact.handle_law(ctx.w, eid, env=ctx.env)
 
 
 # ----------------------------------------------------------------------
@@ -179,21 +192,8 @@ def _placement_consequences(ctx, result):
         pm["damaged"] = True
         w.stat("damage")
         w.emit("forced_under", target=eid, parent=parent_id)
-    temp = float(rec.get("temperature_c", 21.0))
-    if parent is not None and temp > 60.0:
-        limit = parent.get("max_safe_temp_c") or MELT_MATERIALS.get(parent.get("material"))
-        if limit is not None and temp > float(limit) and not parent.get("heat_damaged"):
-            pm = w.mut(parent_id)
-            pm["heat_damaged"] = True
-            pm["damaged"] = True
-            if parent.get("material") in ("cardboard", "paper", "fabric", "wicker"):
-                pm["scorched"] = True
-                if temp > 230:
-                    w.stat("fire")
-            else:
-                pm["melted"] = True
-            w.stat("damage")
-            w.emit("container_heat_damage", target=parent_id, item=eid, temperature_c=temp)
+    if parent is not None and float(rec.get("temperature_c", 21.0)) > 60.0:
+        _hot_contact(ctx, eid, parent_id)
     if parent is None and parent_id in w.s["rooms"] and float(rec.get("wetness", 0.0)) > 0.5:
         room = w.s["rooms"][parent_id]
         if room.get("floor_material") in WOOD_FLOORS and not room.get("outdoor"):
@@ -205,6 +205,40 @@ def _placement_consequences(ctx, result):
     if parent is not None and rec.get("relation") == "in":
         _terminal_short(w, eid, parent_id)
     _refresh_load(w, parent_id)
+
+
+def _hot_contact(ctx, eid, parent_id):
+    """A hot item set into (or onto) a container or support hotter than that material bears marks it (TIER1_PHYSICS
+    5.9): the limit is the support's max_safe_temp_c, else the kernel's heat limit of its finish (phys.thermal
+    .heat_limit_c: rigid plastic 100 C, film 80 C, paper and cardboard ...), the face temperature the kernel's
+    (a vessel's wall is cooler than its liquid) and the mark the kernel's (melted for plastics, film, rubber, foam
+    and wax; a heat ring in a wood finish below 150 C; else scorched), recorded as damage.<mark> with the kernel's
+    severity, plus heat_damaged. Resting ON a support is the kernel's contact_heat law, which owns it once active;
+    INSIDE a container the kernel has no contact rule, so this domain keeps it whatever the law's state. Paper and
+    cardboard touched by something above about 230 C catch (stat fire)."""
+    w = ctx.w
+    state = w.s
+    parent = state["entities"][parent_id]
+    if state["entities"][eid].get("relation", "on") == "on" and lawbook.active("contact_heat"):
+        return      # kernel owns it (contact_heat law)
+    if parent.get("heat_damaged"):
+        return
+    temp = phys_thermal.contact_temp_c(state, eid)
+    limit = phys_support.finite(parent.get("max_safe_temp_c"))
+    if limit is None:
+        limit = phys_thermal.heat_limit_c(state, parent_id)
+    if limit is None or temp <= limit:
+        return
+    cls = phys_props.props(state, parent_id).cls
+    mark = phys_thermal.contact_mark(cls, temp)
+    pm = w.mut(parent_id)
+    pm["heat_damaged"] = True
+    pm["damaged"] = True
+    phys_impact.damage(w, parent_id, mark, min(1.0, (temp - limit) / HEAT_MARK_SPAN_K), detail="hot item inside",
+                       by="robot")
+    if cls in ("paper", "cardboard") and temp > IGNITES_C:
+        w.stat("fire")
+    w.emit("container_heat_damage", target=parent_id, item=eid, temperature_c=round(temp, 1), mark=mark)
 
 
 CONDUCTIVE = ("metal", "steel", "steel_wool", "aluminum", "brass", "copper", "coins")

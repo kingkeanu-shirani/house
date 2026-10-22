@@ -16,11 +16,19 @@ or touching a grounded, unplugged PC chassis with `inspect`) discharges it. Pick
 sensitive component while charged > 100 V, gripping it anywhere but its edges, or setting it on
 carpet / a non-antistatic soft surface damages it (functional=false).
 """
+from ...kernel import actions, body
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before
 from . import common as C
+from . import hub as hub_mod
 from . import power as P
+
+# the robot's static charge is this domain's robot field (kernel v3.0 robot body field registry): hidden, since a robot
+# has no electrometer; its consequences (a zapped component) are what it perceives
+body.register_robot_field("static_v", 0.0, "electrical", "hidden",
+                          "Static charge on the robot (V): walking on carpet in dry air charges it, an ESD strap or a "
+                          "grounded chassis discharges it")
 
 
 def _powered(state, eid):
@@ -37,7 +45,7 @@ def _powered(state, eid):
 
 @action("pair_device", params={"target": "entity", "destination": "entity", "hold_s": {"type": "number", "default": 0, "min": 0, "max": 60},
                                "name": "?str", "room": "?str"},
-        duration=lambda ctx: ctx.data.get("seconds", 20.0), energy=0.005, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 20.0), energy=0.005, category="physical", timing="commanded",
         doc="Pair a smart plug/bulb/lock or Bluetooth device with a hub, phone or computer: hold its pairing button hold_s seconds "
             "(too short does nothing; past the reset threshold it factory-resets), then add it on the destination with a name and room. "
             "Household hubs need the owner's approval (credentials are never read aloud).")
@@ -66,6 +74,7 @@ def pair_device(ctx):
             if pairing.get("configured"):
                 C.harm(w, "electrical.factory_reset:" + eid)
             p.update(state="pairing", paired_to=None, configured=False, name=None, room=None)
+            _forget(w, eid, m)
         elif cycles >= int(C.num(pairing.get("power_cycles"), 3)):
             if pairing.get("configured"):
                 ctx.data["seconds"] = 10.0 + 3.0 * cycles
@@ -85,6 +94,7 @@ def pair_device(ctx):
             if pairing.get("configured"):
                 C.harm(w, "electrical.factory_reset:" + eid)
             p.update(state="pairing", paired_to=None, configured=False, name=None, room=None)
+            _forget(w, eid, m)
             m["led"] = "fast_red_then_blink"
         elif lo <= hold <= hi:
             if pairing.get("configured") and pairing.get("state") == "paired":
@@ -117,6 +127,8 @@ def pair_device(ctx):
         require(ctx.args["room"] in state["rooms"], "Unknown room " + ctx.args["room"], "argument")
         p["room"] = ctx.args["room"]
     m["led"] = "steady_green"
+    m["remote_status"] = True        # the app now shows it (kernel v3.1: its glance state is perceivable remotely)
+    hub_mod.register_device(w, eid, dest, name=p.get("name"), room=p.get("room"))
     hm = w.mut(dest)
     lst = list(hm.get("paired") or [])
     if eid not in lst:
@@ -128,6 +140,12 @@ def pair_device(ctx):
     ctx.data["seconds"] = seconds
     C.refresh(w)
     return "Paired {} with {}{}".format(eid, dest, " as '{}'".format(p.get("name")) if p.get("name") else "")
+
+
+def _forget(w, eid, m):
+    """A factory reset drops the device from the app (no remote status, out of the smart-home section)."""
+    m.pop("remote_status", None)
+    hub_mod.forget_device(w, eid)
 
 
 # ----------------------------------------------------------------------------------------
@@ -151,7 +169,8 @@ def _static_buildup(ctx, result):
         if C.num(w.robot.get("static_v"), 0.0) > 0:
             w.robot_m()["static_v"] = 0.0
         return
-    path = ctx.data.get("path") or []
+    # the cells this step walked: every leg's motion record (TIER1_INTEGRATION 1.4), nested leaves included
+    path = [cell for record in actions.motion_records(ctx) for cell in (record.get("path") or [])]
     rid = w.robot["room"]
     if not path:
         return
@@ -218,7 +237,7 @@ def _esd_place(ctx, result):
         bad = (state["rooms"][dest].get("floor_material") == "carpet")
     else:
         drec = state["entities"].get(dest) or {}
-        bad = not drec.get("antistatic") and (drec.get("material") in C.SOFT_MATERIALS or drec.get("category") in ("bed", "rug"))
+        bad = not drec.get("antistatic") and (C.soft_material(drec.get("material")) or drec.get("category") in ("bed", "rug"))
     if bad and not rec.get("esd_damaged"):
         m = w.mut(eid)
         m["esd_damaged"] = True

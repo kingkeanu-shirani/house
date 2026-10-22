@@ -20,6 +20,7 @@ from . import grill  # noqa: F401
 from . import timers  # noqa: F401
 from . import handling  # noqa: F401
 from . import status  # noqa: F401
+from . import routes  # noqa: F401
 from . import systems  # noqa: F401
 from . import furnish  # noqa: F401
 from . import scenarios  # noqa: F401

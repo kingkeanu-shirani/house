@@ -22,6 +22,7 @@
   pets.collect_eggs     fetch the basket, collect, put the basket in the kitchen
   pets.crate            lure into a crate and close the door
   pets.report           report fields about a target to a person
+  pets.check_on         look a pet over as a robot with posed cameras does (walk up to it, light the room first)
 """
 from ...kernel import geometry
 from ...kernel.plugins import skill
@@ -574,8 +575,49 @@ def crate_pet(r, pet, crate, lure=None):
 
 @skill("pets.report")
 def report(r, target, fields, to=None):
-    for field, value in fields.items():
+    # in field-name order: the same reports whatever order the plan's dict arrives in (a key-sorted copy of the spec
+    # runs the same steps)
+    for field, value in sorted(fields.items()):
         args = {"target": target, "field": field, "value": value}
         if to:
             args["to"] = to
         r.do("report", **args)
+
+
+DIM_ROOM = 0.6          # a room this dim by daylight alone gets its light switched on before a pet is looked over
+
+
+def _wall_switch(r, rid):
+    """A wall switch in room rid that turns on an indoor light of that room which is off (sorted ids), or None."""
+    state = r.state
+    for eid, rec in sorted(state["entities"].items()):
+        if rec.get("location") != rid or rec.get("category") != "switch":
+            continue
+        for light in rec.get("controls") or ():
+            lrec = state["entities"].get(light) or {}
+            if not lrec.get("on", True) and C.room_of(state, light) == rid and not C.is_outdoor(state, rid):
+                return eid
+    return None
+
+
+@skill("pets.check_on")
+def check_on(r, pet):
+    """Look a pet over (core inspect) as a robot with posed cameras does. Geometric camera: when the room is dim by
+    daylight alone it switches the room's light on at the nearest wall switch first (the camera needs light 0.2 on a
+    small animal at floor level to tell who it is), then walks to a cell next to the pet (a pet the camera cannot tell
+    apart yet is only a shape: it is walked to, not approached by name) and inspects it, the head turning to it. Room
+    camera: the inspect alone, as before."""
+    from ...kernel import camera, perception
+    state = r.state
+    rec = state["pets"].get(pet) or {}
+    if camera.mode(state) == "geometric" and rec.get("location") == state["robot"]["room"] and rec.get("pos"):
+        rid = state["robot"]["room"]
+        if perception.light_level(state, rid) < DIM_ROOM:
+            switch = _wall_switch(r, rid)
+            if switch is not None:
+                S.approach(r, switch)
+                r.do("switch_on", target=switch)
+        cell = r.state["pets"][pet].get("pos")
+        if cell and geometry.chebyshev(tuple(r.state["robot"].get("pos") or (0, 0)), tuple(cell)) > 1:
+            r.do("walk_to", cell=[int(cell[0]), int(cell[1])], adjacent=True)
+    r.do("inspect", target=pet)

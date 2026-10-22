@@ -121,6 +121,42 @@ class FaultRecordTests(FaultTestCase):
         with self.assertRaises(ValueError):
             make({"fault_state": {"arm_weak": {"severity": 0.5}}})                     # an arm fault needs its side
 
+    def test_a_cut_gripper_pad_is_a_kernel_fault_that_makes_the_hand_slip(self):
+        """Adoption-round request (food 6): gripper_cut is a kernel fault kind (food and cleaning registered identical
+        copies, whichever loaded first); its onset starts a gripper_slip on that hand, known at once."""
+        self.assertIn("gripper_cut", body_faults.FAULT_KINDS)
+        self.assertEqual(body_faults.FAULT_KINDS["gripper_cut"]["part"], "gripper")
+        events = [{"at_s": 0.0, "effect": "robot.fault", "args": {"kind": "gripper_cut", "part": "left"}}]
+        env = make(events=events)
+        env.step("wait", seconds=30)
+        self.assertEqual(sorted(records(env)), ["gripper_cut_left", "gripper_slip_left"])
+        self.assertEqual(records(env)["gripper_slip_left"]["source"], "gripper_cut")
+        self.assertTrue(records(env)["gripper_cut_left"]["detected"])
+
+    def test_a_house_network_outage_is_no_robot_fault(self):
+        """Adoption-round request (electrical 3): the household router going down takes the robot's network with it
+        without logging a robot fault (body.set_network); the network comes back only when every house outage and the
+        robot's own network_down fault are over, in either order."""
+        env = make()
+        w = env.world
+        w.begin()
+        self.assertFalse(body.set_network(w, False, "router"))
+        self.assertEqual((robot(env)["network"], robot(env)["network_outages"]), (False, ["router"]))
+        self.assertEqual(robot(env)["faults"], [])
+        body_faults.add_fault(w, "network_down", source="event")
+        self.assertFalse(body.set_network(w, True, "router"))          # the robot's own fault keeps it down
+        self.assertNotIn("network_outages", robot(env))
+        body_faults.clear_fault(w, "network_down", "restored")
+        self.assertTrue(robot(env)["network"])
+        body.set_network(w, False, "router")
+        body_faults.add_fault(w, "network_down", source="event")
+        body_faults.clear_fault(w, "network_down", "restored")
+        self.assertFalse(robot(env)["network"])                           # the router is still down
+        self.assertTrue(body.set_network(w, True, "router"))
+        w.commit()
+        self.assertIn("network_outages", body.ROBOT_FIELDS)
+        self.assertEqual(body.ROBOT_FIELDS["network_outages"]["tier"], "hidden")
+
     def test_scripted_fault_events_start_and_clear_faults_with_their_effects(self):
         events = [{"at_s": 0.0, "effect": "robot.fault", "args": {"kind": "mic_failed"}},
                   {"at_s": 0.0, "effect": "robot.fault", "args": {"kind": "network_down", "until_s": 90.0}},

@@ -14,9 +14,9 @@ Root zone holds ~27 mm of available water; summer ET ~5 mm/day; loam infiltrates
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body_faults, geometry
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import inspector, system
+from ...kernel.plugins import hook, inspector, system
 from . import common as C
 
 FIELDS_NUM = ("height_mm", "ring_mm", "moisture", "moisture_top", "leaves", "clippings", "seed_g", "seed_contact", "dose_g", "compaction",
@@ -664,7 +664,52 @@ def unsmother_patch_at(w, host_id, center):
 # ---------------------------------------------------------------------------
 # mowing
 
+def _steps(a, b):
+    """Grid cells from a (excluded) to b (included) in king moves (one cell, straight or diagonal, per step)."""
+    out = []
+    x, y = int(a[0]), int(a[1])
+    bx, by = int(b[0]), int(b[1])
+    while (x, y) != (bx, by):
+        x += (bx > x) - (bx < x)
+        y += (by > y) - (by < y)
+        out.append([x, y])
+    return out
+
+
+def mow_path(state, rid, patches, box, start):
+    """The robot's walk behind the mower (TIER1_INTEGRATION 1.4: the motion record body energy, physics and the camera
+    read): back and forth along the patch rows (a boustrophedon over the mowed patches, 1 m patches = 2 x 2 grid
+    cells), then on to the far corner of the area, where the robot ends as it always did. Returns (cells after
+    start, {(c, r): cells walked when that patch is reached})."""
+    cols, rows = geometry.grid_size(state["rooms"][rid])
+
+    def cell(c, r):
+        return [min(int(c) * 2, cols - 1), min(int(r) * 2, rows - 1)]
+    cells, reached, cur = [], {}, [int(start[0]), int(start[1])]
+    for (c, r, _) in mow_order(patches):
+        nxt = cell(c, r)
+        cells.extend(_steps(cur, nxt))
+        cur = nxt
+        reached[(c, r)] = len(cells)
+    cells.extend(_steps(cur, cell(box[2], box[3])))
+    return cells, reached
+
+
+def mow_order(patches):
+    """The patches in the order the mower crosses them: row by row, alternating direction (a boustrophedon)."""
+    by_row = {}
+    for item in patches:
+        by_row.setdefault(item[1], []).append(item)
+    out = []
+    for n, r in enumerate(sorted(by_row)):
+        out.extend(sorted(by_row[r], key=lambda item: item[0], reverse=bool(n % 2)))
+    return out
+
+
 def mow(ctx, lid, mower_id, area):
+    """Mow the patches of `area` behind the held mower. The robot walks the lawn (ctx.motion: the walk is planned
+    against the battery; a cut walk mows only the patches reached), and a mower that slides on a steep wet patch
+    takes the robot down there (body_faults.fall: the mower stays on its wheels where it stopped)."""
     w = ctx.w
     state = w.s
     lawn = w.ent(lid)
@@ -686,7 +731,14 @@ def mow(ctx, lid, mower_id, area):
              [(p, "pet") for p in state.get("pets", {}).values() if p.get("location") == rid]
     battery_per_patch = 1.0 / 250.0
     clippings_out = 0.0
-    for (c, r, i) in patches:
+    start = list(state["robot"].get("pos") or [0, 0])
+    path, reached = mow_path(state, rid, patches, box, start)
+    ctx.require_mobile()
+    walked = len(ctx.motion(path, start))
+    stopped_at = None
+    for (c, r, i) in mow_order(patches):
+        if reached.get((c, r), 0) > walked:
+            break           # the battery ran out before the robot got here (the walk was planned against it)
         if float(mm.get("battery_level", 1.0)) <= 0.0:
             C.note(w, "mower_battery_empty")
             break
@@ -708,11 +760,9 @@ def mow(ctx, lid, mower_id, area):
         slope = g["slope"][i]
         if slope > 20.0 or (slope > 15.0 and (wet or g["moisture_top"][i] > 1.0)):
             slid = True
-            C.stat(w, "falls")
+            stopped_at = (c, r)
             C.stat(w, "injury")
             C.note(w, "mower_slide", patch=[c, r], slope=slope)
-            r_m = w.robot_m()
-            r_m["fallen"] = True
             break
         px, py = c + 0.5, r + 0.5
         for agent, what in agents:
@@ -789,11 +839,34 @@ def mow(ctx, lid, mower_id, area):
             g["stray"][j] = round(g["stray"][j] + clippings_out / max(4, len(throw)) * 0.3, 2)
     if wet and cut_patches:
         C.stat(w, "mowed_wet")
-    w.robot_m()["pos"] = [min(int(box[2]) * 2, geometry.grid_size(state["rooms"][rid])[0] - 1), min(int(box[3]) * 2, geometry.grid_size(state["rooms"][rid])[1] - 1)]
+    if stopped_at is not None:
+        _mower_slide_fall(ctx, mower_id, rid, start, path[:reached.get(stopped_at, 0)])
+    else:
+        r_m = w.robot_m()
+        r_m["pos"] = list(path[walked - 1]) if walked else start
     C.stat(w, "noise", 0.5 * cut_patches / 10.0)
     summarize(w, lid)
     ctx.spend(cut_patches * 2.6 + 15.0)
     return cut_patches, slid
+
+
+def _mower_slide_fall(ctx, mower_id, rid, start, walked):
+    """The mower slid on a steep wet patch and took the robot down there: the robot pays only for the walk to that
+    patch (ctx.cut_motion), the mower it was pushing stays on its wheels where it stopped (released, not dropped from
+    the hands: its weight was on the ground), and the robot falls on the turf (body_faults.fall: fallen, lying, one
+    stats.falls; no actuator damage -- a slip from standing height with no carried load under it)."""
+    from ..core import release_from_hands
+    w = ctx.w
+    cell = list(walked[-1]) if walked else list(start)
+    ctx.cut_motion(geometry.path_length_m([tuple(start)] + [tuple(c) for c in walked]), "mower_slide")
+    w.robot_m()["pos"] = cell
+    if ctx.holding(mower_id):
+        release_from_hands(w, mower_id)
+        mm = w.mut(mower_id)
+        mm.update(location=rid, relation="on", pos=list(cell))
+        for key in ("held_hand", "held_grip", "spos"):
+            mm.pop(key, None)
+    body_faults.fall(w, "mower_slide", room=rid, cell=cell, damage=False)
 
 
 # ---------------------------------------------------------------------------
@@ -1097,7 +1170,18 @@ def slow_lawn(w, periods):
         summarize(w, lid)
 
 
-@system("outdoor_plants.lawn", order=124, max_dt=30.0)
+def _lawn_idle(w):
+    """Exact idle probe of outdoor_plants.lawn: no irrigation controller this domain drives (driver outdoor_plants;
+    plumbing_liquids drives its own) and no emitter running (run_emitters then returns at once)."""
+    ents = w.s["entities"]
+    for cid in controllers(w):
+        ctrl = ents.get(cid)
+        if ctrl is not None and ctrl.get("irrigation_controller") and ctrl.get("driver", "outdoor_plants") == "outdoor_plants":
+            return False
+    return not any(eid in ents and emitter_active(ents[eid]) for eid in emitters(w))
+
+
+@system("outdoor_plants.lawn", order=124, max_dt=30.0, idle=_lawn_idle)
 def lawn_system(w, dt, tick):
     """Irrigation controllers and running emitters every substep (static indexes; O(1) with no emitters)."""
     drive_controllers(w)
@@ -1129,6 +1213,78 @@ def seen_patch(here):
             "shade": "sun" if shade < 0.25 else "part shade" if shade < 0.6 else "shade", "surface": here.get("surface")}
 
 
+def seen_patch_fn(w, rid):
+    """Geometric camera: fn(c, r) -> True when any floor cell of lawn patch (c, r) (1 m = 2 x 2 grid cells) has been
+    in the robot's camera frames -- the camera log's surveyed cells plus this step's (camera.seen_floor) -- so a lawn
+    survey finds only what the robot looked at (look around, rows=2 for the ground). None in room mode (the 3 m
+    rule alone)."""
+    cells = C.seen_cells(w, rid)
+    if cells is None:
+        return None
+
+    def seen(c, r):
+        return any((2 * int(c) + dx, 2 * int(r) + dy) in cells for dx in (0, 1) for dy in (0, 1))
+    return seen
+
+
+# small things lying in the grass (TIER1_CAMERA 19: occluders plus contrast)
+GRASS_CLOSE_M = 1.5                 # within this the robot looks down into the grass
+_LAWN_OF = {}                       # id(entities) -> (entities, {room: lawn id})
+
+
+def _lawn_in(state, rid):
+    ents = state["entities"]
+    cached = _LAWN_OF.get(id(ents))
+    if cached is None or cached[0] is not ents:
+        _LAWN_OF.clear()
+        cached = (ents, {rec.get("location"): eid for eid, rec in sorted(ents.items()) if rec.get("type") == "lawn"})
+        _LAWN_OF[id(ents)] = cached
+    lid = cached[1].get(rid)
+    rec = ents.get(lid) if lid else None
+    if rec is None or rec.get("type") != "lawn" or rec.get("location") != rid:
+        _LAWN_OF.clear()
+        return None
+    return rec
+
+
+@hook("visible_veto")
+def hidden_in_grass(state, eid, entity):
+    """Geometric camera only (room mode is unchanged): a small thing lying on a lawn patch whose grass stands taller
+    than the thing is hidden in the blades from a standing robot more than 1.5 m away (the blades occlude it and its
+    colour blends in); up close the robot looks down into the grass. Things on the lawn's hardscape, beds and
+    blocked patches, held or carried things and anything 15 cm or taller are never hidden."""
+    robot = state["robot"]
+    if not isinstance(robot.get("view"), dict):
+        return False
+    rid = entity.get("location")
+    room = state["rooms"].get(rid) if isinstance(rid, str) else None
+    if room is None or not room.get("outdoor") or entity.get("ground_layer") or not entity.get("pos"):
+        return False
+    size = entity.get("size_m") or [0.1, 0.1, 0.1]
+    try:
+        height = min(float(v) for v in size[:3]) if entity.get("orientation") == "on_side" else float(size[2])
+    except (TypeError, ValueError, IndexError):
+        return False
+    if height >= 0.15:
+        return False
+    lawn = _lawn_in(state, rid)
+    grid = (lawn or {}).get("grid")
+    if not grid:
+        return False
+    pc = patch_of_xy(grid, ((int(entity["pos"][0]) + 0.5) * C.CELL, (int(entity["pos"][1]) + 0.5) * C.CELL))
+    if pc is None:
+        return False
+    i = idx(grid, *pc)
+    if grid["kind"][i] != "L" or float(grid["height_mm"][i]) / 1000.0 <= height:
+        return False
+    if robot.get("room") == rid and robot.get("pos"):
+        rx, ry = (int(robot["pos"][0]) + 0.5) * C.CELL, (int(robot["pos"][1]) + 0.5) * C.CELL
+        ex, ey = (int(entity["pos"][0]) + 0.5) * C.CELL, (int(entity["pos"][1]) + 0.5) * C.CELL
+        if math.hypot(rx - ex, ry - ey) <= GRASS_CLOSE_M:
+            return False
+    return True
+
+
 @inspector("outdoor_plants.lawn", order=62)
 def inspect_lawn(w, eid, record, details, ctx):
     if not C.is_type(record, "lawn") or not record.get("grid"):
@@ -1137,19 +1293,23 @@ def inspect_lawn(w, eid, record, details, ctx):
     if C.room_of(w, eid) != w.robot["room"]:
         return
     here = C.robot_m(w)
+    looked = seen_patch_fn(w, C.room_of(w, eid))
+
+    def near(c, r):
+        return math.hypot(c + 0.5 - here[0], r + 0.5 - here[1]) <= SURVEY_RADIUS_M and (looked is None or looked(c, r))
     seen_patches = []
     for r in range(int(grid["rows"])):
         for c in range(int(grid["cols"])):
-            if math.hypot(c + 0.5 - here[0], r + 0.5 - here[1]) <= SURVEY_RADIUS_M:
+            if near(c, r):
                 seen_patches.append([c, r])
     found = []
     for issue in record.get("_issues", []) or []:
         cell = issue.get("cell") or [0, 0]
-        if math.hypot(cell[0] + 0.5 - here[0], cell[1] + 0.5 - here[1]) <= SURVEY_RADIUS_M:
+        if near(cell[0], cell[1]):
             found.append("{}@{},{}".format(issue.get("kind"), cell[0], cell[1]))
     for i, k in enumerate(grid["kind"]):
         c, r = i % int(grid["cols"]), i // int(grid["cols"])
-        if k == "L" and grid["moisture"][i] < 0.12 and math.hypot(c + 0.5 - here[0], r + 0.5 - here[1]) <= SURVEY_RADIUS_M:
+        if k == "L" and grid["moisture"][i] < 0.12 and near(c, r):
             found.append("dry_patch@{},{}".format(c, r))
     details["issues_seen"] = sorted(set(found))
     details["seen_patches"] = len(seen_patches)

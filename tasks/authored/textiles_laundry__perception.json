@@ -4,7 +4,9 @@
    "catalog_id": "A-1895a81a5051bd-01",
    "title": "Find the matching sock among look-alikes",
    "perception": "realistic",
+   "camera": "geometric",
    "house": {
+    "gen": 2,
     "residents": "minimal",
     "pets": "none"
    },
@@ -368,15 +370,62 @@
        "dest": "{bed}"
       }
      ]
+    },
+    {
+     "name": "reads_the_marks_from_across_the_room_and_guesses",
+     "plan": [
+      {
+       "skill": "approach",
+       "target": "{bed}"
+      },
+      {
+       "do": "inspect",
+       "target": "{given}",
+       "where": "closely"
+      },
+      {
+       "do": "look",
+       "target": "{basket}"
+      },
+      {
+       "do": "inspect",
+       "target": "{decoy}",
+       "where": "closely"
+      },
+      {
+       "do": "inspect",
+       "target": "{mate}",
+       "where": "closely"
+      },
+      {
+       "skill": "fetch",
+       "obj": "{given}"
+      },
+      {
+       "skill": "approach",
+       "target": "{basket}"
+      },
+      {
+       "do": "pair",
+       "target": "{given}",
+       "destination": "{decoy}"
+      },
+      {
+       "skill": "put",
+       "obj": "{given}",
+       "dest": "{bed}"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: every sock reads as 'sock' at a glance (default sock look-alike group) and the decoy shares the colour, length and pattern of the true mate; they differ only in the brand/size marks knitted into the sole (record fields brand/size_label stay secret; inspect where=closely reports them as 'marks'; in variant 0 reading the tag also shows the size). Variants: kids-size vs adult Hanes, Champion vs Fruit of the Loom plain whites, Smartwool vs Darn Tough grey wool knee socks. The wrong plans act on glance-level (or plain-inspect) belief and pair the look-alike."
+   "notes": "Realistic perception: every sock reads as 'sock' at a glance (default sock look-alike group) and the decoy shares the colour, length and pattern of the true mate; they differ only in the brand/size marks knitted into the sole (record fields brand/size_label stay secret; inspect where=closely reports them as 'marks'; in variant 0 reading the tag also shows the size). Variants: kids-size vs adult Hanes, Champion vs Fruit of the Loom plain whites, Smartwool vs Darn Tough grey wool knee socks. The wrong plans act on glance-level (or plain-inspect) belief and pair the look-alike. Camera (tier 1, geometric): the brand and size marks are about 4 mm print, legible only to the wrist camera up close (or with the sock held); the reference approaches the basket before each close look. The camera wrong plan stays at the bed and looks across the room at the basket: its close looks cannot read the marks from there (refused or mark-less), so it pairs the first look-alike."
   },
   {
    "catalog_id": "T-ba18cc4b56e89d-01",
    "title": "Check whether the dryer load is really dry",
    "perception": "realistic",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -710,6 +759,7 @@
    "title": "Check pockets before washing (flat things look empty)",
    "perception": "realistic",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],

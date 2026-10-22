@@ -1,9 +1,0 @@
-Processing ./.
-  Preparing metadata (pyproject.toml): started
-  Preparing metadata (pyproject.toml): finished with status 'done'
-Building wheels for collected packages: house-ai-symbolic
-  Building wheel for house-ai-symbolic (pyproject.toml): started
-  Building wheel for house-ai-symbolic (pyproject.toml): finished with status 'done'
-  Created wheel for house-ai-symbolic: filename=house_ai_symbolic-0.3.0-py3-none-any.whl size=1780987 sha256=3de9e9df2f7e951d138e3842b8474cb60e096fc99ced0f32c5956840d16336c2
-  Stored in directory: /tmp/pip-ephem-wheel-cache-pg7k7mcp/wheels/36/08/a4/2b87137082dd906704b035bedb7b43194cda7bfc07860814a8
-Successfully built house-ai-symbolic

@@ -12,6 +12,7 @@ import unittest
 from house_sim.generator import generate_house
 from house_sim.kernel import geometry
 from house_sim.kernel.engine import HouseEnv
+from house_sim.kernel.phys import lawbook
 from house_sim.kernel.plugins import load_domains
 from house_sim.kernel.registry import default_registry
 from house_sim.tasks.runner import Runner
@@ -20,19 +21,26 @@ from house_sim.tasks.setup import apply_setup
 load_domains()
 
 
-def build(ops, seed=2, require=("office",), residents="minimal", pets="none", start=None):
+def build(ops, seed=2, require=("office",), residents="minimal", pets="none", start=None, camera=None, gen=None,
+          notices=False):
+    """A generated house plus setup ops. camera: "geometric" for the posed cameras (kernel v3.0); gen: the house
+    generation (kernel v3.1); notices: turn the notice bus on (as schema-3 tasks do)."""
     house = {"residents": residents, "pets": pets}
     if require:
         house["require"] = list(require)
     if start:
         house["start"] = start
+    if gen:
+        house["gen"] = gen
     config = generate_house(seed, **house)
     bindings = apply_setup(config, ops, default_registry(), seed, {"catalog_id": "test_admin"})
-    env = HouseEnv(config, seed=seed)
+    if notices:
+        config["notices"] = []
+    env = HouseEnv(config, seed=seed, camera=camera)
     return env, bindings, Runner(env, bindings)
 
 
-def build_real(ops, seed=2, require=("office",), residents="minimal", pets="none", start=None):
+def build_real(ops, seed=2, require=("office",), residents="minimal", pets="none", start=None, camera=None):
     """Like build, in realistic perception (kernel v2.4): the env takes handles only; Runner skills translate."""
     house = {"residents": residents, "pets": pets}
     if require:
@@ -41,7 +49,7 @@ def build_real(ops, seed=2, require=("office",), residents="minimal", pets="none
         house["start"] = start
     config = generate_house(seed, **house)
     bindings = apply_setup(config, ops, default_registry(), seed, {"catalog_id": "test_admin"})
-    env = HouseEnv(config, seed=seed, perception="realistic")
+    env = HouseEnv(config, seed=seed, perception="realistic", camera=camera)
     return env, bindings, Runner(env, bindings)
 
 
@@ -550,29 +558,48 @@ class PackageTests(unittest.TestCase):
         self.assertFalse(ent(env, b["cart"])["tape_on"])
         self.assertEqual(ent(env, out["waste"][0])["location"], "robot")
 
-    def test_this_side_up_and_fragile_marked_boxes(self):
-        glass = [{"type": "generic_item", "eid": "glass", "props": {"label": "wine glass", "fragile": True}}]
-        env, b, r = self._pkg(props={"this_side_up": True, "mass_kg": 1.0}, contents=glass)
+    def test_this_side_up_and_crushed_boxes_follow_kernel_physics(self):
+        """Kernel v3.0 physics (TIER1_PHYSICS 5.3, 5.5; replaces this domain's "fragile flag = broken" rule): a box
+        marked this side up and set down upside down tumbles its contents onto the new bottom through its free inner
+        height, cushioned by the cardboard and the box's own packing fill; a box loaded past its crush limit is
+        crushed and passes the load to what is inside."""
+        eggs = [{"type": "generic_item", "eid": "eggs", "props": {"label": "carton of eggs", "drop_tolerance_m": 0.03,
+                                                                 "brittle": True, "phys_exact": True,
+                                                                 "size_m": [0.3, 0.1, 0.07]}}]
+        env, b, r = self._pkg(props={"this_side_up": True, "mass_kg": 1.0}, contents=eggs)
         r.skill("fetch", obj=b["pkg"])
         ok(self, env, "place", b["pkg"], orientation="upside_down")
-        self.assertTrue(ent(env, "glass")["broken"])
-        env, b, r = self._pkg(props={"markings": ["FRAGILE"]}, contents=glass,
+        self.assertTrue(ent(env, "eggs")["broken"])
+        self.assertTrue(ent(env, b["pkg"])["mishandled"])
+        # packed in fill they survive the same tumble
+        env, b, r = self._pkg(props={"this_side_up": True, "mass_kg": 1.0}, contents=eggs, fill=[{"type": "air_pillows"}])
+        r.skill("fetch", obj=b["pkg"])
+        ok(self, env, "place", b["pkg"], orientation="upside_down")
+        self.assertFalse(ent(env, "eggs").get("broken"))
+        # a 16 kg box on a box rated to 15 kg crushes it, and its glass contents take the load
+        glass = [{"type": "generic_item", "eid": "glass", "props": {"label": "wine glass", "material": "glass", "fragile": True,
+                                                                   "phys_exact": True, "size_m": [0.08, 0.08, 0.2]}}]
+        env, b, r = self._pkg(props={"markings": ["FRAGILE"], "phys_exact": True, "crush_kg": 15.0}, contents=glass,
                               extra=[{"op": "spawn", "var": "heavy", "type": "generic_item", "floor": "{office_room}",
-                                      "props": {"label": "box of books", "mass_kg": 14.0, "size_m": [0.3, 0.3, 0.3]}}])
+                                      "props": {"label": "box of books", "mass_kg": 16.0, "size_m": [0.3, 0.3, 0.3]}}])
         r.skill("fetch", obj=b["heavy"], hand="both")
         r.skill("approach", target=b["pkg"])
         ok(self, env, "place", b["heavy"], b["pkg"], relation="on")
+        self.assertGreater(ent(env, b["pkg"])["damage"]["crushed"], 0.0)
         self.assertTrue(ent(env, "glass")["broken"])
 
     def test_delivery_rings_the_doorbell_and_rain_soaks_outdoor_parcels(self):
         env, b, r = build(OFFICE + [{"op": "event", "at_s": 5, "effect": "admin_package_delivery",
                                      "args": {"room": "front_yard", "package": {"eid": "parcel", "props": {"recipient": "Ana"},
                                                                                 "contents": [{"eid": "book_x", "type": "book"}]}}},
-                                    {"op": "weather", "condition": "rain", "wind_mps": 3}], require=("office", "garage"))
+                                    {"op": "weather", "condition": "rain", "rain_mm_h": 2.5, "wind_mps": 3}], require=("office", "garage"))
         ok(self, env, "wait", seconds=10)
         self.assertTrue(any(s.get("kind") == "doorbell" for s in env.observe().get("sounds", [])))
         ok(self, env, "wait", seconds=2 * 3600)
+        # rain on an exposed parcel is the kernel's rain model (this domain applies it while the law is deferred, the
+        # kernel's environment system once it is active); the smudged label and wet contents are this domain's
         self.assertTrue(ent(env, "parcel")["soaked"])
+        self.assertTrue(ent(env, "parcel")["label_smudged"])
         self.assertTrue(ent(env, "book_x")["water_damaged"])
 
     def test_cold_pack_keeps_meal_kit_cold_then_runs_out(self):
@@ -721,9 +748,14 @@ class RestockTests(unittest.TestCase):
     def test_refill_without_funnel_spills_and_wrong_product_contaminates(self):
         env, b, r = self._soap()
         r.skill("admin_inventory.refill_dispenser", dispenser=b["pump"], refill=b["refill"])
+        # the kernel's spill (TIER1_PHYSICS 5.7): what misses the narrow neck lands on what the pump stands on (a
+        # film there; only what that cannot hold reaches the floor as a puddle), counted once as the robot's spill;
+        # soap leaves the surface sticky
         self.assertEqual(env.world.s["stats"]["spills"], 1)
-        spills = [e for e, rec in env.world.s["entities"].items() if rec.get("category") == "spill"]
-        self.assertEqual(len(spills), 1)
+        self.assertEqual(env.world.s["stats"]["phys_spills"], 1)
+        under = ent(env, b["pump"])["location"]
+        self.assertGreater((ent(env, under).get("soil") or {}).get("sticky", 0.0), 0.0)
+        self.assertTrue(any(e.get("kind") == "phys.spill" for e in env.world.s.get("event_log", [])))
         env, b, r = self._soap(refill_props={"liquid": "dish_soap", "label": "dish soap refill"})
         r.skill("admin_inventory.refill_dispenser", dispenser=b["pump"], refill=b["refill"], funnel=b["funnel"])
         self.assertTrue(ent(env, b["pump"])["product_mismatch"])
@@ -855,20 +887,40 @@ class LabelTests(unittest.TestCase):
 
 
 class StorageAndHarmTests(unittest.TestCase):
-    def test_overloaded_wall_shelf_collapses_and_breaks_fragile(self):
-        env, b, r = build(SHELF + [{"op": "helper", "name": "admin_inventory.reachable_surface",
-                                    "args": {"room": "living_room", "types": ["coffee_table", "side_table", "table", "tv_stand", "desk"], "var": "ws"}},
-                                   {"op": "set", "target": "{ws}", "props": {"max_load_kg": 6.5}},
-                                   {"op": "spawn", "var": "vase", "type": "generic_item", "on": "{ws}",
-                                    "props": {"fragile": True, "mass_kg": 1.0, "size_m": [0.1, 0.1, 0.2]}},
-                                   {"op": "spawn", "var": "books", "type": "generic_item", "in": "{shelf}", "shelf": 1,
-                                    "props": {"label": "stack of books", "mass_kg": 6.0, "size_m": [0.3, 0.2, 0.2]}}], require=())
+    def test_overloaded_surface_gives_way_and_breaks_what_falls(self):
+        """The kernel's overload law (TIER1_PHYSICS 5.2), applied by this domain while the law is deferred: a surface
+        loaded past its rating gives way (damage.collapsed) and what was on it falls; breakage is the kernel's impact
+        model (a thin crystal vase from table height breaks). phys_exact keeps the rating and tolerance nominal."""
+        def ops(books_kg, vase=True):
+            out = SHELF + [{"op": "helper", "name": "admin_inventory.reachable_surface",
+                            "args": {"room": "living_room", "types": ["coffee_table", "side_table", "table", "tv_stand", "desk"],
+                                     "var": "ws"}},
+                           {"op": "find", "var": "clutter", "within": "{ws}", "pick": "all", "required": False},
+                           {"op": "remove", "target": "{clutter}"},
+                           {"op": "set", "target": "{ws}", "props": {"max_load_kg": 6.5, "phys_exact": True}},
+                           {"op": "spawn", "var": "books", "type": "generic_item", "in": "{shelf}", "shelf": 1,
+                            "props": {"label": "stack of books", "mass_kg": books_kg, "size_m": [0.3, 0.2, 0.2]}}]
+            if vase:
+                out.append({"op": "spawn", "var": "vase", "type": "generic_item", "on": "{ws}",
+                            "props": {"label": "crystal vase", "material": "crystal", "phys_exact": True,
+                                      "mass_kg": 1.0, "size_m": [0.1, 0.1, 0.2]}})
+            return out
+        env, b, r = build(ops(6.0), require=())
         r.skill("fetch", obj=b["books"])
         r.skill("approach", target=b["ws"])
-        ok(self, env, "place", b["books"], b["ws"])
+        result = ok(self, env, "place", b["books"], b["ws"])
+        self.assertIn("gave way", result["message"])
+        self.assertEqual(ent(env, b["ws"])["damage"]["collapsed"], 1.0)
         self.assertEqual(ent(env, b["vase"])["location"], env.world.root_room(b["ws"]))
         self.assertTrue(ent(env, b["vase"])["broken"])
         self.assertIn("damage", env.evaluate()["failures"])
+        with lawbook.forced(overload=True):     # once the law is active the kernel's settle pass does the same
+            env, b, r = build(ops(7.0, vase=False), require=())
+            r.skill("fetch", obj=b["books"])
+            r.skill("approach", target=b["ws"])
+            result = ok(self, env, "place", b["books"], b["ws"])
+            self.assertIn("gave way", result["message"])
+            self.assertEqual(ent(env, b["ws"])["damage"]["collapsed"], 1.0)
 
     def test_heat_damage_in_a_hot_spot_only(self):
         # With every domain loaded the climate model pulls a living room back toward the thermostat, so the hot
@@ -882,12 +934,15 @@ class StorageAndHarmTests(unittest.TestCase):
                            {"op": "spawn", "var": "car", "type": "generic_item", "floor": "{out}", "props": car},
                            {"op": "spawn", "var": "candle", "type": "generic_item", "in": "{car}", "props": candle}], require=())
         ok(self, env, "wait", seconds=6 * 3600)
-        self.assertTrue(ent(env, b["candle"])["melted"])
+        # melting is the kernel's melt law (paraffin wax melts at 50 C; damage.melted accrues to 1 in 600 s at 10 K
+        # over it); heat_damaged is this domain's mark for anything above its stated safe temperature
+        self.assertEqual(ent(env, b["candle"])["damage"]["melted"], 1.0)
         self.assertTrue(ent(env, b["candle"])["heat_damaged"])
         env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
                            {"op": "spawn", "var": "candle", "type": "generic_item", "floor": "{lr}", "props": candle}], require=())
         ok(self, env, "wait", seconds=6 * 3600)
-        self.assertFalse(ent(env, b["candle"]).get("melted"))
+        self.assertNotIn("melted", ent(env, b["candle"]).get("damage") or {})
+        self.assertFalse(ent(env, b["candle"]).get("heat_damaged"))
 
     def test_wet_umbrella_mildews_closed_but_dries_open(self):
         env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
@@ -1138,17 +1193,31 @@ class HandlingTests(unittest.TestCase):
         self.assertFalse(ent(env, b["brush"]).get("contaminated"))
 
     def test_overloaded_donation_box_bottom_fails_when_lifted(self):
-        env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
-                           {"op": "helper", "name": "admin_inventory.door_cell", "args": {"room": "{lr}"}},
-                           {"op": "spawn", "var": "box", "type": "donation_box", "floor": "{lr}", "near": "{door_cell}", "props": {"max_load_kg": 10.0}},
-                           {"op": "spawn", "var": "books", "type": "generic_item", "in": "{box}", "props": {"label": "books", "mass_kg": 12.0, "size_m": [0.3, 0.25, 0.2], "volume_l": 15}},
-                           {"op": "spawn", "var": "plate", "type": "generic_item", "in": "{box}", "props": {"label": "plate", "fragile": True, "mass_kg": 0.5, "size_m": [0.26, 0.26, 0.03]}},
-                           {"op": "robot", "near": "{box}"}], require=())
-        ok(self, env, "crouch")
-        ok(self, env, "pick_up", b["box"], hand="both")
-        self.assertTrue(ent(env, b["box"])["bottom_failed"])
-        self.assertTrue(ent(env, b["plate"])["broken"])
-        self.assertEqual(ent(env, b["books"])["location"], b["lr"])
+        def lift():
+            env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                               {"op": "helper", "name": "admin_inventory.door_cell", "args": {"room": "{lr}"}},
+                               {"op": "spawn", "var": "box", "type": "donation_box", "floor": "{lr}", "near": "{door_cell}", "props": {"handle_rating_kg": 10.0, "phys_exact": True}},
+                               {"op": "spawn", "var": "books", "type": "generic_item", "in": "{box}", "props": {"label": "books", "mass_kg": 12.0, "size_m": [0.3, 0.25, 0.2], "volume_l": 15}},
+                               {"op": "spawn", "var": "plate", "type": "generic_item", "in": "{box}", "props": {"label": "plate", "material": "porcelain", "phys_exact": True, "mass_kg": 0.5, "size_m": [0.26, 0.26, 0.03]}},
+                               {"op": "robot", "near": "{box}"}], require=())
+            ok(self, env, "crouch")
+            ok(self, env, "pick_up", b["box"], hand="both", grip="handle")      # lifted by its hand holes
+            return env, b
+        # the 12.5 kg inside are more than its handles bear: it gives way and nothing stays carried (with the
+        # manipulation domain loaded, its own copy of the handle law drops the box with what is in it)
+        env, b = lift()
+        self.assertTrue(ent(env, b["box"])["torn"])
+        for item in ("books", "plate"):
+            self.assertEqual(env.world.root_room(b[item]), b["lr"])
+        # the kernel's tear (TIER1_PHYSICS 5.2 handle law, which this domain applies while it is deferred and the
+        # settle pass once it is active): the box stays in the hands, torn, and its contents fall from hand height
+        # (a porcelain plate breaks)
+        with lawbook.forced(handle=True):
+            env, b = lift()
+            self.assertTrue(ent(env, b["box"])["torn"])
+            self.assertEqual(ent(env, b["box"])["location"], "robot")
+            self.assertTrue(ent(env, b["plate"])["broken"])
+            self.assertEqual(ent(env, b["books"])["location"], b["lr"])
 
     def test_too_tall_bin_cannot_go_under_the_bed_and_forced_fit_lifts_slats(self):
         ops = [{"op": "room", "var": "bed_room", "type": "master_bedroom"},
@@ -1173,7 +1242,9 @@ class HandlingTests(unittest.TestCase):
                                     "props": {"label": "hot glue gun", "temperature_c": 150.0, "max_touch_temp_c": 200.0}}], require=())
         ok(self, env, "pick_up", b["gun"])
         ok(self, env, "place", b["gun"], b["bin"])
-        self.assertTrue(ent(env, b["bin"])["melted"])
+        # the kernel's mark on a plastic finish too hot for it (heat limit 100 C for rigid plastic; TIER1_PHYSICS 5.9)
+        self.assertGreater(ent(env, b["bin"])["damage"]["melted"], 0.0)
+        self.assertTrue(ent(env, b["bin"])["heat_damaged"])
 
     def test_offscreen_relocation_and_consumption_events(self):
         env, b, r = build(SHELF + [{"op": "spawn", "var": "keys", "type": "key", "in": "{shelf}", "shelf": 1},
@@ -1462,6 +1533,37 @@ class CrossDomainRoundTests(unittest.TestCase):
                                        for t in geometry.footprint(config["entities"][toilets[0]]))
                             self.assertLessEqual(near, 3, eid)
 
+    def _garage_without_room(self, seed):
+        """A generated house whose garage is stacked with storage totes everywhere but its doorway clearance and the
+        walking lanes between its doorways: a garage as full as the household car and other domains' shelving make
+        it, built here so the fallback is tested whichever domains are loaded (HOUSE_SIM_DOMAINS=core,admin_inventory
+        has no car)."""
+        config = generate_house(seed, residents="minimal", pets="none", require=["garage"])
+        rid = sorted(r for r, v in config["rooms"].items() if v.get("type") == "garage")[0]
+        cols, rows = geometry.grid_size(config["rooms"][rid])
+        taken = set(geometry.door_clearance(config, rid))
+        doors = geometry.doorway_cells(config, rid)
+        robot = config["robot"]
+        ends = list(doors) + ([tuple(robot["pos"])] if robot.get("room") == rid and robot.get("pos") else [])
+        for i, start in enumerate(ends):
+            for goal in ends[i + 1:]:
+                lane = [tuple(start)] + [tuple(c) for c in geometry.find_path(config, rid, start, [goal]) or []]
+                for a, c in zip(lane, lane[1:]):
+                    taken.update((a, c, (c[0], a[1])))      # a diagonal step keeps a side cell: no corner cutting
+        taken.update(ends)
+        for rec in config["entities"].values():
+            if rec.get("location") == rid and not rec.get("ground_layer") and rec.get("category") != "floor_surface":
+                taken.update(geometry.footprint(rec))       # nothing is stacked on top of what stands there
+        n = 0
+        for x in range(cols):
+            for y in range(rows):
+                if (x, y) not in taken:
+                    n += 1
+                    config["entities"]["tote_stack_{}".format(n)] = default_registry().make(
+                        "generic_item", rid, label="stacked storage totes", portable=False, blocks_path=True,
+                        size_m=[0.45, 0.45, 1.2], mass_kg=30.0, pos=[x, y], relation="on")
+        return config
+
     def test_carts_live_next_to_a_garage_with_no_room_for_them(self):
         ops = [{"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage", "streams": ["trash", "recycling"]}}]
         found = None
@@ -1471,7 +1573,15 @@ class CrossDomainRoundTests(unittest.TestCase):
             if env.world.s["rooms"][b["cart_room"]]["type"] != "garage":
                 found = seed
                 break
-        self.assertIsNotNone(found, "no candidate seed has a garage too full for two carts")
+        if found is None:
+            # no generated garage is that full with the loaded domains (alone, this domain has no household car):
+            # fill one's wall space and check the same fallback
+            config = self._garage_without_room(2)
+            b = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_admin"})
+            env = HouseEnv(config, seed=2)
+            r = Runner(env, b)
+            found = 2
+        self.assertNotEqual(env.world.s["rooms"][b["cart_room"]]["type"], "garage")
         neighbours = {room for conn in env.world.s["connections"].values() if "garage_1" in conn["rooms"] for room in conn["rooms"]}
         self.assertIn(b["cart_room"], neighbours)
         for cart in (b["cart_trash"], b["cart_recycling"]):
@@ -1531,8 +1641,11 @@ class CrossDomainRoundTests(unittest.TestCase):
 
     def test_wall_mount_and_surface_fallbacks_stay_reachable(self):
         from house_sim.kernel.errors import SpecError
+        # the toilet is a plumbing_liquids type; alone (HOUSE_SIM_DOMAINS=core,admin_inventory) the holder goes near
+        # the bathroom's core vanity cabinet instead, which checks the same "near" placement
+        near = "toilet" if default_registry().known("toilet") else "cabinet"
         ops = [{"op": "room", "var": "bath", "type": "bathroom", "pick": "first"},
-               {"op": "find", "var": "toilet", "type": "toilet", "room": "{bath}"},
+               {"op": "find", "var": "toilet", "type": near, "room": "{bath}"},
                {"op": "helper", "name": "admin_inventory.wall_mount",
                 "args": {"room": "{bath}", "type": "toilet_paper_holder", "height": 0.66, "var": "holder", "near": "{toilet}"}},
                {"op": "helper", "name": "admin_inventory.reachable_surface",
@@ -1570,38 +1683,45 @@ class LayoutRoundTests(unittest.TestCase):
     """Kernel v2.3 round: load ratings vs scene-generated load, shared kernel placement helpers."""
 
     def _preloaded_shelf(self, heavy_kg, light_kg):
-        """Shelf 0 of a 25 kg-rated closet shelf holding heavy_kg + light_kg at episode start; a 1 kg can on shelf 1."""
-        ops = SHELF + [{"op": "set", "target": "{shelf}", "props": {"shelf_load_kg": 25.0}},
+        """Shelf 2 (1.1 m up) of a 25 kg-rated closet shelf holding heavy_kg + light_kg at episode start (phys_exact: the
+        nominal rating, no per-instance variation); a 1 kg can on shelf 1."""
+        ops = SHELF + [{"op": "set", "target": "{shelf}", "props": {"shelf_load_kg": 25.0, "phys_exact": True}},
                        {"op": "find", "var": "stock", "within": "{shelf}", "pick": "all", "required": False},
                        {"op": "remove", "target": "{stock}"},
-                       {"op": "spawn", "var": "tiles", "type": "generic_item", "in": "{shelf}", "shelf": 0,
+                       {"op": "spawn", "var": "tiles", "type": "generic_item", "in": "{shelf}", "shelf": 2,
                         "props": {"label": "box of floor tiles", "mass_kg": heavy_kg, "size_m": [0.4, 0.3, 0.25]}},
-                       {"op": "spawn", "var": "paint", "type": "generic_item", "in": "{shelf}", "shelf": 0,
+                       {"op": "spawn", "var": "paint", "type": "generic_item", "in": "{shelf}", "shelf": 2,
                         "props": {"label": "paint can", "mass_kg": light_kg, "size_m": [0.17, 0.17, 0.19]}},
-                       {"op": "spawn", "var": "vase", "type": "generic_item", "in": "{shelf}", "shelf": 0,
-                        "props": {"label": "glass vase", "mass_kg": 0.0, "fragile": True, "size_m": [0.1, 0.1, 0.2]}},
+                       {"op": "spawn", "var": "vase", "type": "generic_item", "in": "{shelf}", "shelf": 2,
+                        "props": {"label": "crystal vase", "material": "crystal", "phys_exact": True, "mass_kg": 0.0,
+                                  "size_m": [0.1, 0.1, 0.2]}},
                        {"op": "spawn", "var": "can", "type": "generic_item", "in": "{shelf}", "shelf": 1,
                         "props": {"label": "can of beans", "mass_kg": 1.0, "size_m": [0.08, 0.08, 0.11]}}]
         return build(ops, require=())
 
     def test_shelf_loaded_past_its_rating_by_the_scene_only_collapses_on_extra_load(self):
+        """The kernel's overload law (scene allowance: a slot holds what it held at episode start + 0.5 kg before its
+        own rating applies; TIER1_PHYSICS 5.2). The collapsed shelf's load drops onto the shelf below."""
         # 23 + 4 = 27 kg on a 25 kg shelf at episode start: putting the paint can back is no new load
         env, b, r = self._preloaded_shelf(23.0, 4.0)
         r.skill("fetch", obj=b["paint"])
-        r.skill("put", obj=b["paint"], dest=b["shelf"], shelf=0)
+        r.skill("put", obj=b["paint"], dest=b["shelf"], shelf=2)
         self.assertEqual(ent(env, b["paint"])["location"], b["shelf"])
         self.assertFalse(ent(env, b["vase"]).get("broken"))
         self.assertFalse(env.world.s["stats"].get("damage"))
-        # ... but the robot adding a can on top of that (28 kg > the 27 kg it held) does collapse it
+        # ... but the robot adding a can on top of that (28 kg > the 27.5 kg it holds) does collapse it
         r.skill("fetch", obj=b["can"])
-        r.skill("put", obj=b["can"], dest=b["shelf"], shelf=0)
+        r.skill("put", obj=b["can"], dest=b["shelf"], shelf=2)
+        # 28 kg dropped onto shelf 1 (rated 25 kg) takes that one down too, and so on to the floor (the cascade)
+        self.assertIn(2, ent(env, b["shelf"])["collapsed_shelves"])
+        self.assertNotEqual(ent(env, b["vase"]).get("shelf"), 2)
         self.assertTrue(ent(env, b["vase"])["broken"])
         self.assertIn("damage", env.evaluate()["failures"])
         # a shelf within its rating at episode start collapses as soon as the robot's load passes the rating
         env, b, r = self._preloaded_shelf(20.0, 4.5)
         r.skill("fetch", obj=b["can"])
-        r.skill("put", obj=b["can"], dest=b["shelf"], shelf=0)
-        self.assertTrue(ent(env, b["vase"])["broken"])
+        r.skill("put", obj=b["can"], dest=b["shelf"], shelf=2)
+        self.assertIn(2, ent(env, b["shelf"])["collapsed_shelves"])
 
     def test_shelf_headroom_helper_and_furnished_stock_respect_ratings(self):
         from house_sim.generator.place import Placer
@@ -2126,10 +2246,14 @@ class RedTeamRoundTests(unittest.TestCase):
         self.assertFalse(bad["ok"])
 
     def test_pouring_looks_closely_at_both_bottles_and_spills_are_named_by_their_look(self):
-        ops = SHELF + [{"op": "spawn", "var": "pump", "type": "soap_dispenser", "in": "{shelf}", "shelf": 1,
-                        "props": {"liquid_l": 0.05, "open": True}},
-                       {"op": "spawn", "var": "jug", "type": "refill_bottle", "in": "{shelf}", "shelf": 1,
-                        "props": {"open": True, "label": "hand soap refill"}}]
+        # the pump stands on the floor, so what misses its neck is a floor puddle (the kernel's spill)
+        ops = [{"op": "room", "var": "lr", "type": "living_room"},
+               {"op": "helper", "name": "admin_inventory.door_cell", "args": {"room": "{lr}"}},
+               {"op": "spawn", "var": "pump", "type": "soap_dispenser", "floor": "{lr}", "near": "{door_cell}",
+                "props": {"liquid_l": 0.05, "open": True}},
+               {"op": "spawn", "var": "jug", "type": "refill_bottle", "floor": "{lr}", "near": "{door_cell}",
+                "props": {"open": True, "label": "hand soap refill"}},
+               {"op": "robot", "near": "{pump}"}]
         env, b, r = build_real(ops, require=())
         self.assertEqual(seen(env, b["jug"])["label"], "refill bottle of liquid soap")
         r.skill("fetch", obj=b["jug"])
@@ -2182,6 +2306,321 @@ class RedTeamRoundTests(unittest.TestCase):
         for pack in packs:
             self.assertNotIn(config["people"][pack["owner"]]["label"].split(" ")[0], pack["label"])
             self.assertEqual(pack["name_label"], config["people"][pack["owner"]]["label"].split(" ")[0])
+
+
+class Tier1AdoptionTests(unittest.TestCase):
+    """TIER1_INTEGRATION 6 (admin_inventory): the kernel's physics, camera, body and sweep (kernel v3.0-v3.1)."""
+
+    SCHEDULE = {"weekday": "Friday", "time": "09:00", "streams": {"trash": "weekly", "recycling": "odd_weeks"}}
+
+    # ----- physics
+
+    def test_shredded_paper_weighs_once_and_the_pile_grows_in_the_bin(self):
+        from house_sim.kernel import physics
+        env, b, r = build(DESK_DOC + [{"op": "spawn", "var": "shredder", "type": "paper_shredder", "floor": "{office_room}",
+                                       "props": {"on": True}}])
+        doc_kg = physics.subtree_mass(env.world.s, b["doc"])
+        ok(self, env, "pick_up", b["doc"])
+        r.skill("approach", target=b["shredder"])
+        ok(self, env, "shred", b["doc"], b["shredder"])
+        pile = ent(env, b["doc"])["location"]
+        # the shreds are the pile's children: the kernel's subtree mass counts them once (the pile's own few grams + the
+        # document), and the pile is a layer over the bin floor that rises with the sheets
+        self.assertAlmostEqual(physics.subtree_mass(env.world.s, pile), 0.01 + doc_kg, places=6)
+        self.assertEqual(ent(env, pile)["size_m"][:2], [0.28, 0.18])
+        self.assertGreaterEqual(ent(env, pile)["size_m"][2], 0.02)
+
+    def test_units_taken_from_a_box_weigh_what_they_hold_and_the_hand_must_bear_them(self):
+        from house_sim.kernel import physics
+        ops = SHELF + [{"op": "spawn", "var": "box", "type": "trash_bag_box", "in": "{shelf}", "shelf": 1,
+                        "props": {"open": True, "units_count": 40}}]
+        env, b, r = build(ops, require=())
+        unit = default_registry().make(ent(env, b["box"])["unit_type"], "x")
+        took = msg(ok(self, env, "take_unit", b["box"], count=5))["took"]
+        self.assertAlmostEqual(physics.subtree_mass(env.world.s, took), 5 * unit["mass_kg"], places=4)
+        # a portion heavier than one hand bears is refused at lift-off by the body (counted and felt), and nothing moves
+        env, b, r = build(SHELF + [{"op": "spawn", "var": "box", "type": "trash_bag_box", "in": "{shelf}", "shelf": 1,
+                                    "props": {"open": True, "units_count": 40, "unit_props": {"mass_kg": 2.5}}}], require=())
+        refused(self, env, "take_unit", b["box"], count=5, category="safety")
+        self.assertEqual(env.world.s["stats"].get("overload_attempts"), 1)
+        self.assertEqual(ent(env, b["box"])["units_count"], 40)
+
+    # ----- camera (geometric mode; room mode unchanged)
+
+    def test_geometric_camera_reads_a_shipping_label_only_from_beside_the_box(self):
+        from house_sim.kernel import camera
+        ops = OFFICE + [{"op": "helper", "name": "admin_inventory.package", "args": {"location": "{office_room}", "to": "resident_1"}},
+                        {"op": "helper", "name": "admin_inventory.door_cell", "args": {"room": "{office_room}", "var": "dc"}},
+                        {"op": "robot", "room": "{office_room}", "cell": "{dc}"}]
+        env, b, r = build(ops, camera="geometric")
+        res = refused(self, env, "verify_label", b["pkg"], category="perception")
+        self.assertEqual(res["message"], camera.TOO_SMALL_TEXT)        # 4 mm print from across the room
+        r.skill("approach", target=b["pkg"])
+        self.assertEqual(msg(ok(self, env, "verify_label", b["pkg"]))["verdict"], "resident:resident_1")
+        # a label facing down onto the floor is not read until the box is turned over (both camera modes)
+        env, b, r = build(OFFICE + [{"op": "helper", "name": "admin_inventory.package",
+                                     "args": {"location": "{office_room}", "to": "resident_1", "props": {"label_facing": "bottom"}}},
+                                    {"op": "robot", "near": "{pkg}"}], camera="geometric")
+        refused(self, env, "verify_label", b["pkg"], category="perception")
+        # the room camera keeps its rule: within reach, lit, a clean lens
+        env, b, r = build(ops)
+        refused(self, env, "verify_label", b["pkg"], category="precondition")
+
+    def test_geometric_camera_a_face_down_envelope_is_read_once_picked_up(self):
+        ops = [{"op": "helper", "name": "admin_inventory.reachable_surface",
+                "args": {"rooms": ["office"], "types": ["desk"], "var": "desk", "fallback": None, "add": "desk"}},
+               {"op": "helper", "name": "admin_inventory.roster", "args": {}},
+               {"op": "helper", "name": "admin_inventory.mail_batch",
+                "args": {"location": "{desk}", "pieces": [{"to": "resident_1", "kind": "official", "eid": "letter_1", "props": {"face": "down"}},
+                                                          {"to": "resident_1", "kind": "official", "eid": "letter_2"}]}},
+               {"op": "robot", "near": "{desk}"}]
+        env, b, r = build(ops, camera="geometric")
+        self.assertEqual(ent(env, "letter_1")["view"], {"faces": {"label": "down"}})     # its printed side faces the desk
+        ok(self, env, "read", "letter_2")
+        refused(self, env, "read", "letter_1", category="perception")
+        r.skill("fetch", obj="letter_1")
+        self.assertEqual(ent(env, "letter_1")["face"], "up")
+        self.assertNotIn("view", ent(env, "letter_1"))                  # held printed side to the cameras
+        ok(self, env, "read", "letter_1")
+        ok(self, env, "place", "letter_1", b["desk"], orientation="upside_down")
+        self.assertEqual(ent(env, "letter_1")["view"], {"faces": {"label": "down"}})
+        # the room camera reads it where it lies; the state gains no camera face
+        env, b, r = build(ops)
+        self.assertNotIn("view", ent(env, "letter_1"))
+        ok(self, env, "read", "letter_1")
+
+    def test_geometric_count_sees_only_what_its_view_reaches(self):
+        ops = SHELF + [{"op": "find", "var": "stock", "within": "{shelf}", "pick": "all", "required": False},
+                       {"op": "remove", "target": "{stock}"},
+                       {"op": "spawn", "type": "toilet_paper_roll", "in": "{shelf}", "shelf": 1, "count": 3},
+                       {"op": "helper", "name": "admin_inventory.stock_pack", "args": {"location": "{shelf}", "count": 6, "shelf": 1, "var": "tp"}},
+                       {"op": "helper", "name": "admin_inventory.door_cell", "args": {"room": "{closet}", "var": "dc"}},
+                       {"op": "robot", "room": "{closet}", "cell": "{dc}"}]
+        room, _, _ = build(ops, require=())
+        self.assertEqual(msg(ok(self, room, "count", room.world.s["robot"]["room"], what="toilet_paper_roll"))["count"], 9)
+        env, b, r = build(ops, require=(), camera="geometric")
+        far = msg(ok(self, env, "count", b["shelf"], what="toilet_paper_roll"))
+        self.assertLess(far["count"], 9)                              # from the doorway it cannot see into the shelving
+        r.skill("approach", target=b["shelf"])
+        near = msg(ok(self, env, "count", b["shelf"], what="toilet_paper_roll"))
+        self.assertEqual(near["count"], 9)
+        self.assertEqual(near["from_label"], 6)                       # the sealed 6-pack by its printed count
+
+    def test_a_written_label_faces_where_it_was_written(self):
+        env, b, r = LabelTests._bins(self)
+        ok(self, env, "pick_up", b["maker"])
+        ok(self, env, "label", b["bin"], text="Batteries", face="lid")
+        self.assertEqual(ent(env, b["bin"])["label_facing"], "top")
+        ok(self, env, "label", b["bin"], text="Batteries", face="front", replace=True)
+        self.assertEqual(ent(env, b["bin"])["label_facing"], "front")
+
+    # ----- body
+
+    def test_a_towed_cart_loads_the_hands_with_its_handle_share_and_an_overloaded_one_is_refused(self):
+        from house_sim.kernel import body, physics
+        carts = {"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage", "schedule": self.SCHEDULE}}
+        env, b, r = build([carts, {"op": "robot", "near": "{cart_trash}"}], require=("garage",))
+        ok(self, env, "wheel_cart", b["cart_trash"])
+        loads = {eid: kg for eid, _, kg in body.held_loads(env.world.s)}
+        self.assertAlmostEqual(loads[b["cart_trash"]], physics.subtree_mass(env.world.s, b["cart_trash"]) * body.TOWED_SHARE)
+        rubble = {"op": "spawn", "var": "rubble", "type": "generic_item", "in": "{cart_trash}",
+                  "props": {"label": "bags of rubble", "mass_kg": 160.0, "size_m": [0.5, 0.5, 0.6], "volume_l": 100}}
+        env, b, r = build([carts, rubble, {"op": "robot", "near": "{cart_trash}"}], require=("garage",))
+        refused(self, env, "wheel_cart", b["cart_trash"], category="safety")
+        self.assertEqual(env.world.s["stats"].get("overload_attempts"), 1)
+        self.assertNotEqual(ent(env, b["cart_trash"])["location"], "robot")
+
+    def test_lifting_a_bag_on_the_luggage_scale_is_a_lift_by_the_body(self):
+        env, b, r = TravelTests._bag(self, [{"op": "set", "target": "{clothes}", "props": {"mass_kg": 24.0}}])
+        r.skill("fetch", obj=b["scale"])
+        r.skill("approach", target=b["bag"])
+        refused(self, env, "weigh_luggage", b["bag"], category="safety")
+        self.assertEqual(env.world.s["stats"].get("overload_attempts"), 1)
+        ok(self, env, "weigh_luggage", b["bag"], lift=False)              # resting on the floor it under-reads
+
+    # ----- sweep: notices, questions, calendar, probes, generation 2, wall time
+
+    def test_occurrences_reach_the_robot_as_notices_when_someone_listens(self):
+        from house_sim.systems.admin_inventory import office
+        env, b, r = build([{"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage", "schedule": self.SCHEDULE}}],
+                          require=("garage",), start="2026-10-09T07:00:00", notices=True)
+        res = ok(self, env, "wait", seconds=3 * 3600)
+        self.assertIn("collection_truck", res["message"])
+        self.assertIn("collection_truck", [n["kind"] for n in env.world.s["notices"]])
+        env, b, r = build([{"op": "event", "at_s": 60, "effect": "admin_package_delivery",
+                            "args": {"room": "porch", "package": {"to": "household"}}}], require=("porch",), notices=True)
+        ok(self, env, "wait", seconds=120)
+        self.assertIn("doorbell", [n["kind"] for n in env.world.s["notices"]])
+        env, b, r = build(OFFICE + [{"op": "robot", "near": "{printer}"}], notices=True)
+        w = env.world
+        w.begin()
+        office._jam(w, b["printer"], "test jam")
+        w.commit()
+        self.assertEqual([n["kind"] for n in w.s["notices"]], ["device_beep"])     # it starts beeping once
+        # no notice bus and no listening wait: nothing is stored
+        env, b, r = build(OFFICE + [{"op": "robot", "near": "{printer}"}])
+        w = env.world
+        w.begin()
+        office._jam(w, b["printer"], "test jam")
+        w.commit()
+        self.assertIsNone(w.s.get("notices"))
+
+    def test_a_video_doorbell_that_frames_a_delivered_parcel_sends_a_package_alert(self):
+        """The courier's parcel at a porch cell the doorbell's lens frames (camera.device_frame) raises the doorbell
+        app's "package detected" notification; one left right under the doorbell (outside its 90-degree vertical view)
+        does not."""
+        from house_sim.kernel import camera
+        from house_sim.systems.admin_inventory.common import doorbell_of
+        if not default_registry().known("video_doorbell"):
+            self.skipTest("the video doorbell is a people-domain type")
+        alerts = {}
+        for cell in ([2, 2], [1, 1]):
+            env, b, r = build([{"op": "room", "var": "porch", "type": "porch"},
+                               {"op": "event", "at_s": 60, "effect": "admin_package_delivery",
+                                "args": {"room": "{porch}", "cell": cell, "package": {"to": "household"}}}],
+                              require=("porch",), notices=True)
+            ok(self, env, "wait", seconds=120)
+            pkg = env.world.s["facts"]["admin"]["deliveries"][-1]["package"]
+            bell = doorbell_of(env.world.s, b["porch"])
+            framed = pkg in camera.device_frame(env.world.s, bell)
+            texts = [n.get("text") for n in env.world.s["notices"] if n["kind"] == "device"]
+            alerts[framed] = "Package detected at the front door" in texts
+            self.assertIn("Someone is at the front door", texts)       # the ring itself
+        self.assertEqual(alerts, {True: True, False: False})
+
+    def test_canonical_questions_reach_the_admin_answerer(self):
+        from house_sim.kernel import dialogue
+        env, b, r = build(SHELF + [{"op": "spawn", "var": "jar", "type": "generic_item", "in": "{shelf}", "shelf": 1,
+                                    "props": {"label": "sourdough starter", "home": "{shelf}", "_decision": "donate", "owner": "resident_1",
+                                              "_intentional": False, "_uses_per_month": 2}},
+                                   {"op": "spawn", "var": "plain", "type": "generic_item", "in": "{shelf}", "shelf": 1,
+                                    "props": {"label": "spare jar"}},
+                                   {"op": "person", "id": "resident_1", "room": "{closet}"},
+                                   {"op": "helper", "name": "admin_inventory.roster", "args": {"former_occupants": ["K. Patel"]}}],
+                          require=())
+        S, st, jar = dialogue.Subject, env.world.s, b["jar"]
+        cases = {(S("entity", jar), "keep", None): ("admin.keep", "admin:keep:" + jar),
+                 (S("entity", jar), "keep", "sentimental"): ("admin.keep", "admin:sentimental:" + jar),
+                 (S("entity", jar), "intended", None): ("admin.intended", "admin:intentional:" + jar),
+                 (S("entity", jar), "when", "usage"): ("admin.when", "admin:usage:" + jar),
+                 (S("word", None, ("luggage",)), "how", None): ("admin.scheme", "admin:trip"),
+                 (S("word", None, ("count",)), "preference", None): ("admin.scheme", "admin:unit_preference"),
+                 (S("word", None, ("k", "patel")), "who", None): ("admin.who", "admin:who:k_patel")}
+        for (subject, aspect, detail), expected in cases.items():
+            self.assertEqual(dialogue.find_route(st, "resident_1", subject, aspect, detail, None), expected, (subject, aspect))
+        # questions this answerer has no facts for go on to the routes registered after it: "who is at the door?"
+        # names nobody on the household's mail; a jar no scene said anything about (keep, intended, usage)
+        door = dialogue.find_route(st, "resident_1", S("word", None, ("door",)), "who", None, None)
+        self.assertNotEqual((door or (None,))[0], "admin.who")
+        for aspect, detail in (("keep", None), ("intended", None), ("when", "usage")):
+            found = dialogue.find_route(st, "resident_1", S("entity", b["plain"]), aspect, detail, None)
+            self.assertFalse(((found or (None,))[0] or "").startswith("admin."), (aspect, found))
+        out = msg(ok(self, env, "ask", "resident_1", aspect="keep", about=jar))
+        self.assertEqual(out["value"], "donate")
+        self.assertEqual(env.world.s["stats"].get("necessary_questions"), 1)
+
+    def test_collection_days_and_carrier_pickups_are_on_the_household_calendar(self):
+        from house_sim.kernel import clock
+        env, b, r = build([{"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage", "schedule": self.SCHEDULE}}],
+                          require=("garage",), start="2026-10-09T07:00:00")
+        events = {e["id"]: e for e in env.world.s["household"]["calendar"]["events"]}
+        trash, recycling = events["admin_collection_trash"], events["admin_collection_recycling"]
+        self.assertEqual((trash["kind"], trash["start"], trash["recurrence"]),
+                         ("collection", "2026-10-09T09:00", {"freq": "weekly", "interval": 1, "byday": ["FR"]}))
+        self.assertEqual(recycling["recurrence"]["interval"], 2)        # odd ISO weeks: 41, 43, ...
+        days = [o["start"][:10] for o in clock.occurrences(recycling, "2026-10-01", "2026-10-31")]
+        self.assertEqual(days, ["2026-10-09", "2026-10-23"])
+        env, b, r = build(OFFICE + [{"op": "helper", "name": "admin_inventory.package", "args": {"location": "{office_room}", "to": "resident_1"}},
+                                    {"op": "helper", "name": "admin_inventory.calendar",
+                                     "args": {"collection": False, "pickups": [{"at": "2026-10-09T15:00:00", "spot": "{office_room}", "carrier": "UPS"}]}}])
+        pickup = env.world.s["household"]["calendar"]["events"][-1]
+        self.assertEqual((pickup["kind"], pickup["title"], pickup["start"]), ("carrier_pickup", "UPS pickup", "2026-10-09T15:00"))
+        self.assertEqual(b["pickup_1_s"], 18000.0)                      # 10:00 -> 15:00: the carrier comes then
+
+    def test_collection_keeps_wall_clock_time(self):
+        """A generation-2 clock with daylight saving time: the 09:00 pickup is 09:00 on the wall (08:00 standard)."""
+        from house_sim.systems.admin_inventory.curb import curb_room
+        done = {}
+        for dst in (True, False):
+            env, b, r = build([{"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage", "schedule": self.SCHEDULE}},
+                               {"op": "set_path", "path": "clock.dst", "value": dst}],
+                              require=("garage",), start="2026-07-10T07:00:00", gen=2)
+            curb = curb_room(env.world.s)
+            cell = r.skill("admin_inventory.curb_cell", cart=b["cart_trash"])
+            r.skill("admin_inventory.wheel_to", cart=b["cart_trash"], room=curb, cell=cell)
+            ok(self, env, "wait", seconds=int(4400 - env.world.s["time_s"]))
+            done[dst] = bool(env.world.s["household"].get("collections"))
+        self.assertEqual(done, {True: True, False: False})
+
+    def test_idle_probe_is_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.admin_inventory.timekeeping import time_idle
+
+        def busy():
+            env, b, r = build(OFFICE + [{"op": "helper", "name": "admin_inventory.carts",
+                                         "args": {"room": "garage", "schedule": self.SCHEDULE}},
+                                        {"op": "robot", "near": "{printer}"}],
+                              require=("office", "garage"), start="2026-10-09T07:00:00")
+            ok(self, env, "print", b["printer"], file=sorted(ent(env, b["printer"]).get("files") or {"x": 1})[0], copies=3)
+            return env
+
+        def run(on, make):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = on
+            try:
+                env = make()
+                skipped = 0
+                for seconds in (600, 2 * 3600, 30, 9 * 3600):
+                    skipped += int(time_idle(env.world))
+                    self.assertTrue(env.step("wait", seconds=seconds)["ok"])
+                return digest(env.world.s), skipped
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+
+        skipped_total = 0
+        for make in (busy, lambda: HouseEnv(generate_house(0), seed=0, trace=False)):
+            on, skipped = run(True, make)
+            off, _ = run(False, make)
+            self.assertEqual(on, off)
+            skipped_total += skipped
+        self.assertGreater(skipped_total, 0)
+
+    def test_generation_2_furnishing(self):
+        from house_sim.systems.admin_inventory.furnish import winter_decor_up
+        config = generate_house(0, gen=2)
+        ents = config["entities"]
+        box = [e for e, r in ents.items() if r.get("type") == "document_box"]
+        self.assertEqual(len(box), 1)
+        self.assertEqual(config["rooms"][generate_root(config, box[0])]["type"], "office")
+        self.assertTrue(any(r.get("label_key") == "holiday_decorations" for r in ents.values()))
+        # the wreath hangs during the winter-holiday window only
+        self.assertTrue(winter_decor_up({"clock": {"start": "2026-12-10T10:00:00", "region": "us"}}))
+        self.assertFalse(winter_decor_up({"clock": {"start": "2026-10-09T10:00:00", "region": "us"}}))
+        if default_registry().known("wreath"):          # another domain's type
+            december = generate_house(0, gen=2, start="2026-12-10T10:00:00")
+            self.assertTrue(any(r.get("type") == "wreath" and r.get("displayed") for r in december["entities"].values()))
+            self.assertFalse(any(r.get("displayed") and r.get("type") == "wreath" for r in ents.values()))
+        # generation 1 keeps its houses
+        self.assertFalse(any(r.get("type") == "document_box" for r in generate_house(0)["entities"].values()))
+
+    def test_dated_documents_print_the_date_as_the_household_writes_it(self):
+        env, b, r = build(DESK_DOC[:1] + [{"op": "helper", "name": "admin_inventory.document",
+                                           "args": {"location": "{desk}", "key": "bill", "title": "Water bill", "var": "doc",
+                                                    "props": {"date": "2026-10-09"}}}, DESK_DOC[2]])
+        from house_sim.kernel import clock
+        self.assertEqual(ent(env, b["doc"])["date"], "2026-10-09")          # the value filing by date compares
+        self.assertEqual(ent(env, b["doc"])["text"], "Water bill | " + clock.format_date(env.world.s, "2026-10-09", "long"))
+        self.assertEqual(clock.format_date({"clock": {"region": "us"}}, "2026-10-09", "long"), "October 9, 2026")
+        self.assertEqual(clock.format_date({"clock": {"region": "uk"}}, "2026-10-09", "long"), "9 October 2026")
+
+
+def generate_root(config, eid):
+    """Root room of an entity in a generated config."""
+    loc = config["entities"][eid].get("location")
+    while loc in config["entities"]:
+        loc = config["entities"][loc].get("location")
+    return loc
 
 
 if __name__ == "__main__":

@@ -17,7 +17,9 @@ props(state, eid) -> Phys resolves every field from, most specific first:
 4. the global default.
 
 Then the `phys.props` hooks refine the result (fn(record, phys_dict) -> dict of field updates or None, with an
-optional static filter fn.applies(record) -> bool), and the per-instance variation scales the strength thresholds
+optional static filter fn.applies(record) -> bool; a hook that changes `shape` gets `rollable` recomputed from it
+unless it sets `rollable` itself, and sets any other derived field -- rigid, break_mode, crushable -- that its change
+affects), and the per-instance variation scales the strength thresholds
 (vary: drop_tol_m, crush_kg, rating_kg, shelf_rating_kg, hang_kg, handle_kg, shock_k, heat_limit_c) unless the
 record sets `phys_exact`. Unbreakable or unlimited thresholds are float("inf"); missing ratings are None.
 
@@ -517,6 +519,12 @@ def _apply_hooks(record, values, hooks):
             unknown = sorted(set(update) - set(_FI))
             if unknown:
                 raise ValueError("phys.props hook {} returned unknown fields {}".format(name, unknown))
+            if "shape" in update and "rollable" not in update:
+                # rollable follows the shape the hook gave (food's adoption request 7: produce turned into a sphere
+                # by its ripeness hook rolled only when the hook also set rollable); the other derived fields (rigid,
+                # break_mode, crushable) are the hook's to set with the inputs it changes
+                update = dict(update, rollable=update["shape"] == "sphere" or
+                              (update["shape"] == "cylinder" and record.get("orientation") == "on_side"))
             data.update(update)
     return [data[field] for field in Phys._fields]
 

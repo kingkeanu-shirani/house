@@ -31,7 +31,7 @@ from house_sim.kernel import body
 from house_sim.kernel.actions import CAMERA_FAULT_TEXT, IMAGING_OFF_TEXT, MIC_FAULT_TEXT, MIC_OFF_TEXT, action
 from house_sim.kernel.engine import HouseEnv
 from house_sim.kernel.errors import SpecError
-from house_sim.kernel.plugins import ACTIONS, AFTER
+from house_sim.kernel.plugins import ACTIONS
 from house_sim.kernel.predicates import digest
 from house_sim.kernel.realism import LEVELS
 from house_sim.kernel.registry import default_registry
@@ -88,12 +88,6 @@ def handle(env, eid):
 def held(eid, hand="right", **record):
     """A record held by the robot in `hand` ("both" for two hands)."""
     return dict({"label": eid, "location": "robot", "relation": "held", "held_hand": hand, "portable": True}, **record)
-
-
-def grip_rewritten():
-    """manipulation's pick_up after-hook stores its own held_grip (the command's grip, else normal); the grasp
-    planner's choice stays core's when that domain is not loaded (an adoption-round item)."""
-    return any(label.startswith("house_sim.systems.manipulation.") for _, label, _ in AFTER.get("pick_up", []))
 
 
 def said(env):
@@ -243,7 +237,7 @@ class GraspTests(CoreTestCase):
         self.check(env, {"action": "pick_up", "target": "pin"}, body.TOO_SMALL_TEXT, "capability")
         result = self.ok(env, "pick_up", "bead")
         self.assertIn("pinch grasp", result["message"])
-        self.assertEqual(ent(env, "bead")["held_grip"], "normal" if grip_rewritten() else "pinch")
+        self.assertEqual(ent(env, "bead")["held_grip"], "pinch")     # every domain keeps the planner's grip (adoption)
         self.ok(env, "place", "bead", cell=[2, 0])
         self.assertTrue(self.ok(env, "pick_up", "bead", grip="pinch")["message"].startswith("Picked up bead"))
 
@@ -253,7 +247,7 @@ class GraspTests(CoreTestCase):
         result = self.ok(env, "pick_up", "letter")
         self.assertIn("slid it to the edge of the surface to lift it", result["message"])
         self.assertAlmostEqual(env.world.s["time_s"] - before, 2.0 + 3.0)
-        self.assertEqual(ent(env, "letter")["held_grip"], "normal" if grip_rewritten() else "edges")
+        self.assertEqual(ent(env, "letter")["held_grip"], "edges")
         jaws = make({"body_profile": "mobile_manipulator"}, entities=self.things())
         self.check(jaws, {"action": "pick_up", "target": "letter"}, body.THIN_FLAT_TEXT, "capability")
         self.ok(jaws, "pick_up", "letter", grip="edges")
@@ -346,6 +340,28 @@ class SafetyNetTests(CoreTestCase):
         self.assertEqual((robot(env)["hands"]["right"], ent(env, "bucket")["location"]), (None, "hall"))
         self.assertEqual(env.world.s["stats"]["robot_drops"], 1)
         self.assertEqual(robot(env)["_held_kg"], 0.0)
+
+    def test_with_the_handle_law_a_bag_past_its_handle_rating_tears_instead_of_slipping(self):
+        """Adoption-round request (cleaning 8): the safety net runs before the settle pass, so with the handle law on
+        an overloaded liner (12 kg of trash, a 5 kg handle) slipped out whole instead of tearing. The net now leaves
+        it to the handle law: the handle tears, the trash falls, the robot keeps the torn bag."""
+        from house_sim.kernel.phys import lawbook
+        def scene():
+            bag = held("bag", "right", mass_kg=0.1, size_m=[0.4, 0.3, 0.6], container=True, accepts_items=True,
+                       handle_rating_kg=5.0, material="film")
+            trash = {"type": "generic_item", "label": "trash", "location": "bag", "relation": "in", "mass_kg": 4.0,
+                     "size_m": [0.3, 0.2, 0.3]}
+            return make(hands_of("bag", "right"), entities={"bag": bag, "trash": trash})
+        env = scene()
+        with lawbook.forced(handle=True):
+            result = self.ok(env, "_t_fill", "trash", kg=12.0)
+        self.assertNotIn("Lost hold", result["message"])
+        self.assertEqual(robot(env)["hands"]["right"], "bag")
+        self.assertEqual(ent(env, "trash")["location"], "hall")                  # through the torn bag
+        self.assertTrue(any(e["kind"] == "phys.tear" for e in env.world.s["event_log"]), env.world.s["event_log"][-5:])
+        deferred = scene()
+        result = self.ok(deferred, "_t_fill", "trash", kg=12.0)                 # the law deferred: the net as before
+        self.assertIn("Lost hold of bag", result["message"])
 
     def test_a_held_load_is_not_dropped_by_limp_mode_or_a_climbing_aid(self):
         """Stage-B review (body, high): the safety net applied the lift-off derates (limp x0.5, climbing aid x0.5) to

@@ -258,6 +258,23 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(msg["written_on"], "note_1")
         self.assertEqual(env.world.s["entities"]["note_1"]["text"], "Leak: pipe (minor)")
         self.assertFalse(log(env)[-1]["delivered"]["sam"]["heard"])
+        report(env, kind="finding", subject="pipe_1", issue="leak", to="sam", channel="note")
+        self.assertEqual(env.world.s["entities"]["note_1"]["text"], "Leak: pipe")     # a sticky note holds one note
+
+    def test_a_whiteboard_keeps_what_was_on_it(self):
+        """Adoption-round request (people K-NOTE-APPEND): a note written on a whiteboard replaced everything on it
+        (the household's calendar block); a board now gets the note on a new line below."""
+        board = {"board_1": {"type": "generic_item", "label": "whiteboard", "category": "whiteboard", "location": "lab",
+                             "pos": [3, 2], "portable": False, "size_m": [0.9, 0.02, 0.6], "mount_height_m": 1.0,
+                             "text": "MON: swim 5pm\nTUE: dentist"}}
+        env = env_of(entities=board)
+        result, msg = report(env, kind="finding", subject="pipe_1", issue="leak", to="sam", channel="note")
+        self.assertTrue(result["ok"], result["message"])
+        self.assertEqual(msg["written_on"], "board_1")
+        self.assertEqual(env.world.s["entities"]["board_1"]["text"], "MON: swim 5pm\nTUE: dentist\nLeak: pipe")
+        env.world.s["entities"]["board_1"]["text"] = ""
+        report(env, kind="finding", subject="pipe_1", issue="leak", to="sam", channel="note")
+        self.assertEqual(env.world.s["entities"]["board_1"]["text"], "Leak: pipe")
 
     def test_household_reports_are_logged_for_nobody(self):
         env = env_of()
@@ -383,6 +400,28 @@ class UnitTests(unittest.TestCase):
         self.assertEqual(reports.format_quantity(us, 1.0, "mass"), "2.2 lb")
         self.assertEqual(reports.format_quantity(eu, 0.25, "volume"), "250 ml")
         self.assertEqual(reports.format_quantity({}, 3, "count"), "3")
+
+    def test_the_domains_report_words_load_after_the_kernels(self):
+        """The adoption round's report vocabulary (data/vocab/<domain>.json, one file per domain, all kernel-owned):
+        core.json loads first, every domain file loads without a clash, and the domains' words resolve; a word core
+        already has keeps core's meaning (clogged's 'slow drain', paused's 'on hold')."""
+        from house_sim.kernel import dialogue
+        vocab = dialogue.vocabulary()
+        self.assertEqual(vocab["sources"][0], "core.json")
+        domains = {"admin_inventory", "appliances_cooking", "cleaning", "climate", "electrical", "food",
+                   "manipulation", "mechanisms", "navigation_robot", "outdoor_plants", "pets", "plumbing_liquids",
+                   "safety", "textiles_laundry", "tools_vehicles"}
+        self.assertTrue({d + ".json" for d in domains} <= set(vocab["sources"]))
+        self.assertEqual(vocab["_index"]["problems"], [])
+        for word, issue in (("freezer burnt", "freezer_burn"), ("paper jam", "paper_jam"), ("vomiting", "vomiting"),
+                            ("running toilet", "running_toilet"), ("blocked vent", "blocked_vent"),
+                            ("pilled", "pilled"), ("stripped screw", "stripped"), ("yellow leaves", "yellowing"),
+                            ("overloaded circuit", "overloaded"), ("over capacity", "overloaded"),
+                            ("slow drain", "clogged")):
+            self.assertEqual(reports.issue_of(word), issue, word)
+        for word, state in (("child lock on", "child_locked"), ("preheated", "preheated"), ("on hold", "paused"),
+                            ("burner lit", "lit"), ("glowing", "lit")):
+            self.assertEqual(reports.state_of(word), state, word)
 
     def test_issue_words_by_class_and_category(self):
         self.assertIn("leak", reports.issue_words("moisture"))

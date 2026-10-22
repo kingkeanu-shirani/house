@@ -1,9 +1,14 @@
 """The domain's time systems.
 
 `appliances_cooking.tick` (order 55, every <= 30 s substep, after the kernel thermal pass 50 and food.thermal 52):
-burners and their vessels, ovens/toaster ovens/air fryers, fridges/freezers, microwaves, toasters, kettles, plate
-heaters (waffle maker, griddle), slow/rice/pressure cookers, mixers, dishwashers (idle cooling), grills,
-coffee/espresso machines, timers, then the cooking model for every food item that is hot or inside an active heater.
+burners and their vessels, ovens/toaster ovens/air fryers, microwaves, toasters, kettles, plate heaters (waffle maker,
+griddle), slow/rice/pressure cookers, mixers, dishwashers (idle cooling), grills, coffee/espresso machines, timers,
+then the cooking model for every food item that is hot or inside an active heater. Its exact idle probe (tick_idle,
+kernel v3.1 `@system(idle=)`; HOUSE_SIM_IDLE_PROBES=0 turns probes off and gives the same states) lets the engine skip
+it while nothing in the kitchen can change (see the section below).
+
+`appliances_cooking.cold` (order 55, every substep; it sorts just before the tick): refrigerators and freezers on their
+own, because a thermostat cycle never rests - splitting them out is what lets the rest of the tick be skipped.
 
 Cost (integration round): no per-tick scan of all entities. One kernel static index (`w.static_index`) lists the
 entities this domain can ever act on - appliances and their parts (`ac_kind`), vessels (conducts_heat /
@@ -14,8 +19,8 @@ during the tick share one lazily built location index (common.tick_index_*), whi
 is idle.
 
 `appliances_cooking.drying` (period 300 s): fallback air-drying of dishwasher-washed items, used only when the cleaning
-domain (which owns generic evaporation, conventions 5: drying_owner) is not loaded; exact exponential decay for any dt.
-The fallback smoke/gas/odour ventilation (only without the safety domain) runs at the end of the tick.
+domain (which owns generic evaporation, conventions 5: drying_owner) is not loaded; exact exponential decay for any dt;
+idle probe drying_idle (cleaning dries everything, or nothing washed is wet). The fallback smoke/gas/odour ventilation (only without the safety domain) runs at the end of the tick.
 """
 from ...kernel.plugins import system
 from . import coffee, cold, common as C, cook, countertop, dishwasher, grill, oven, stove, timers
@@ -41,7 +46,7 @@ def _relevant(rec):
                 or rec.get("timer_channels") is not None or "timers" in rec)
 
 
-_CACHE = {"src": None, "groups": None}
+_CACHE = {"src": None, "groups": None, "relevant": frozenset()}
 
 
 def groups_of(w):
@@ -64,7 +69,7 @@ def groups_of(w):
             g["vessel"].append(eid)
         if isinstance(rec.get("food"), dict):
             g["food"].append(eid)
-    _CACHE.update(src=ids, groups=g)
+    _CACHE.update(src=ids, groups=g, relevant=frozenset(ids))
     return g
 
 
@@ -124,7 +129,7 @@ def release_vessel(w, vid):
     its heater delivers heat again)."""
     m = w.mut(vid)
     m.pop("_ac_heat", None)
-    m.pop("fixed_temperature", None)
+    C.release_temperature(m)
     m.pop("foam_level", None)
     if m.get("boil_state") not in (None, "cold", "off_heat"):
         m["boil_state"] = "cold"
@@ -254,7 +259,7 @@ def espresso_idle(ctx, eid):
     if rec.get("on"):
         return False
     esp = rec.get("espresso") or {}
-    return not esp.get("ready") and _near(esp.get("boiler_c"), _room_c(state, eid), 0.01)
+    return not esp.get("ready") and _near(esp.get("boiler_c"), _room_c(state, eid))
 
 
 def dishwasher_idle(ctx, eid):
@@ -340,8 +345,7 @@ def _step_active(w, ctx, g, dt):
     heated = _heated_vessels(state, g)
     stove.step_burners(w, dt, burners, heated)
     holders = list(burners)
-    plan = (("oven", oven_idle, oven.step_oven), ("cold", None, cold.step_cold),
-            ("microwave", microwave_idle, None), ("toaster", toaster_idle, countertop.step_toaster),
+    plan = (("oven", oven_idle, oven.step_oven), ("microwave", microwave_idle, None), ("toaster", toaster_idle, countertop.step_toaster),
             ("kettle", lambda c, e: not c.s["entities"][e].get("on"), countertop.step_kettle),
             ("plate", plate_idle, countertop.step_plate_heater), ("slow", slow_idle, countertop.step_slow_cooker),
             ("rice", rice_idle, countertop.step_rice_cooker), ("pressure", pressure_idle, countertop.step_pressure_cooker),
@@ -367,8 +371,8 @@ def _step_active(w, ctx, g, dt):
             if group in ("oven", "toaster", "microwave", "plate", "slow", "rice", "pressure", "grill"):
                 holders.append(eid)
     for sid in idle_cookers:
-        if ents[sid].get("fixed_temperature") and ents[sid].get("ac_kind") == "slow_cooker":
-            w.mut(sid).pop("fixed_temperature", None)      # a switched-off, cool base relaxes like any object
+        if C.owns_temperature(ents[sid]) and ents[sid].get("ac_kind") == "slow_cooker":
+            C.release_temperature(w.mut(sid))              # a switched-off, cool base relaxes like any object
     for vid in heated:
         rec = ents.get(vid)
         if rec is not None and rec.get("_ac_heat") in idle_heaters:
@@ -397,8 +401,151 @@ def _step_microwave(w, mid, dt):
             C.mut_hidden(w, mid, "_mw")[1]["sh_watch"] = False
 
 
-@system("appliances_cooking.tick", order=55, max_dt=30.0)
+# ----------------------------------------------------------------------------------------------
+# exact idle probe of the tick (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7)
+#
+# A tick that wrote nothing (World.mutation_count unchanged) leaves a transient note: the World, its touch-log reset
+# token (World.phys_scratch is a new dict after every begin(), rollback() and rollback_to()), the touch-log cursor at
+# that moment and, per room, the band of room temperatures within which every idle appliance there stays idle (an idle
+# appliance's own temperature does not move: this domain owns it and does not step it; climate keeps nudging the
+# rooms, so the band, not the exact temperature, is what matters). The next substep's tick would again write nothing
+# when, since then, no entity it steps or holds was written (the touch log: appliances other than the cold ones, which
+# the cold system writes every substep; food and vessels only where they rest in or on such an appliance), every room
+# is inside its band and below 39 C (vessels and cooker bases count as cool below max(room + 1, 40 C)), the plate
+# heaters (whose shells the kernel may still be cooling) are idle, no food anywhere has turned hot (a scan: kernel
+# thermal writes are no touches), no destroy is queued and the fallback air (only without the safety domain) is clear.
+# Then the probe answers True and the engine skips the call; otherwise the tick runs and checks everything itself. The
+# note is never state.
+
+COLD_KINDS = ("fridge", "freezer", "door_bin", "crisper", "gasket")
+_IDLE = {"world": None, "token": None, "cursor": None, "bounds": None}
+ROOM_CAP_C = 38.9       # the cool-vessel test is max(room + 1, 40 C): a constant 40 C only below 39 C
+_CONSUMER = "appliances_cooking.tick"
+_END = 1 << 60          # a cursor beyond any touch log: touched_since returns nothing and the log's current end
+
+
+def _idle_bounds(state, g):
+    """{room: (lo, hi)}: the room temperatures within which the domain's idle appliances stay idle (burner element at
+    most 2 C above the room; oven, toaster oven, air fryer, plate heater cavity, grill grate and espresso boiler within
+    1 C of it; a grill's ash no warmer than the air; a dishwasher between cycles within 0.5 C)."""
+    ents = state["entities"]
+    bounds = {}
+
+    def clamp(eid, lo, hi):
+        rid = C.room_of(state, eid)
+        b = bounds.get(rid, (-1e9, 1e9))
+        bounds[rid] = (max(b[0], lo), min(b[1], hi))
+    for eid in g["burner"]:
+        t = (ents.get(eid) or {}).get("temperature_c")
+        if t is not None:
+            clamp(eid, C.num(t) - 2.0, 1e9)
+    for group, field in (("oven", "internal_temp_c"), ("plate", "internal_temp_c")):
+        for eid in g[group]:
+            t = (ents.get(eid) or {}).get(field)
+            if t is not None:
+                clamp(eid, C.num(t) - NEAR_C, C.num(t) + NEAR_C)
+    for eid in g["grill"]:
+        gr = (ents.get(eid) or {}).get("grill") or {}
+        if gr.get("grate_c") is not None:
+            clamp(eid, C.num(gr["grate_c"]) - NEAR_C, C.num(gr["grate_c"]) + NEAR_C)
+        if gr.get("ash_c") is not None:
+            clamp(eid, C.num(gr["ash_c"]), 1e9)
+    for eid in g["espresso"]:
+        b = ((ents.get(eid) or {}).get("espresso") or {}).get("boiler_c")
+        if b is not None:
+            clamp(eid, C.num(b) - NEAR_C, C.num(b) + NEAR_C)
+    for eid in g["dishwasher"]:
+        rec = ents.get(eid) or {}
+        if (rec.get("appliance") or {}).get("state") != "running" and rec.get("internal_temp_c") is not None:
+            clamp(eid, C.num(rec["internal_temp_c"]) - 0.5, C.num(rec["internal_temp_c"]) + 0.5)
+    return bounds
+
+
+def _within(state, bounds):
+    rooms = state["rooms"]
+    if any(C.room_temp(state, rid) > ROOM_CAP_C for rid in rooms):
+        return False
+    for rid, (lo, hi) in bounds.items():
+        t = C.room_temp(state, rid)
+        if t < lo - 1e-9 or t > hi + 1e-9:
+            return False
+    return True
+
+
+def _air_active(state):
+    """The fallback air has something left to vent (decay_air would write)."""
+    if C.safety_loaded():
+        return False
+    for a in (C.read_section(state).get("air") or {}).values():
+        if a.get("smoke", 0) > 1e-4 or a.get("gas_l", 0) > 1e-3 or any(v > 1e-3 for v in (a.get("odor") or {}).values()):
+            return True
+    return False
+
+
+def _touch_matters(ents, eid, relevant):
+    """True when a write to eid can wake the tick: an appliance it steps or a timer, something it heats, or food or a
+    vessel resting in or on such an appliance (a pot moved onto a burner, food into a cooker's pot). Food chilling in a
+    fridge, a mug moved on a counter and the fridges themselves never wake it."""
+    rec = ents.get(eid)
+    if rec is None:
+        return True                 # destroyed since: let the tick look
+    if eid not in relevant:
+        return False
+    kind = rec.get("ac_kind")
+    if kind is not None:
+        return kind not in COLD_KINDS
+    if rec.get("_ac_heat") or rec.get("timers") or rec.get("timer_channels") is not None:
+        return True
+    loc, depth = rec.get("location"), 0
+    while loc in ents and depth < 4:
+        k = ents[loc].get("ac_kind")
+        if k is not None:
+            return k not in COLD_KINDS
+        loc, depth = ents[loc].get("location"), depth + 1
+    return False
+
+
+def tick_idle(w):
+    """Exact idle probe of appliances_cooking.tick (see above). Writes nothing: it reads the touch log through its own
+    cursor and keeps the transient note."""
+    memo = _IDLE
+    if memo["world"] is not w or memo["token"] is not w.phys_scratch or memo["cursor"] is None:
+        return False
+    state = w.s
+    if C.read_section(state).get("destroy_queue") or _air_active(state):
+        return False
+    g = groups_of(w)
+    ids, end = w.touched_since(memo["cursor"], consumer=_CONSUMER)
+    if ids:
+        ents, relevant = state["entities"], _CACHE["relevant"]
+        if any(_touch_matters(ents, eid, relevant) for eid in set(ids)):
+            return False
+    if not _within(state, memo["bounds"]):
+        return False
+    ctx = _Ctx(w, g)
+    if not all(plate_idle(ctx, eid) for eid in g["plate"] if eid in state["entities"]):
+        return False
+    ents = state["entities"]
+    for fid in g["food"]:
+        rec = ents.get(fid)
+        if rec is not None and _hot_food(rec):
+            return False
+    memo["cursor"] = end
+    return True
+
+
+def _note_idle(w, g, wrote):
+    """After a tick: remember that it changed nothing (or forget it); either way the cursor moves to the log's end."""
+    _, end = w.touched_since(_END, consumer=_CONSUMER)
+    if wrote:
+        _IDLE.update(world=None, token=None, cursor=None, bounds=None)
+    else:
+        _IDLE.update(world=w, token=w.phys_scratch, cursor=end, bounds=_idle_bounds(w.s, g))
+
+
+@system("appliances_cooking.tick", order=55, max_dt=30.0, idle=tick_idle)
 def tick(w, dt, tk):
+    before = w.mutation_count
     C.flush_destroyed(w)
     g = groups_of(w)
     C.tick_index_begin(w)
@@ -406,19 +553,50 @@ def tick(w, dt, tk):
         _step_active(w, _Ctx(w, g), g, dt)
     finally:
         C.tick_index_end()
+    _note_idle(w, g, w.mutation_count != before)
+
+
+@system("appliances_cooking.cold", order=55, max_dt=30.0)
+def cold_tick(w, dt, tk):
+    """Refrigerators and freezers (cold.step_cold): compressor cycling, door and temperature alarms, frost, defrost and
+    the heat load of warm things put in. Every substep (the thermostat cycle never rests), on its own so the rest of the
+    domain's tick can be skipped while it is idle."""
+    g = groups_of(w)
+    if not g["cold"]:
+        cold.release_cursor(w)
+        return
+    ents = w.s["entities"]
+    C.tick_index_begin(w)
+    try:
+        contents = cold.contents_of_units(w, g["cold"])
+        for eid in g["cold"]:
+            if eid in ents:
+                cold.step_cold(w, eid, dt, contents.get(eid))
+    finally:
+        C.tick_index_end()
 
 
 # ----------------------------------------------------------------------------------------------
 # slow fallbacks (periodic)
 
-@system("appliances_cooking.drying", order=76, max_dt=300.0, period=300.0)
+def _wet_washed(w):
+    ents = w.s["entities"]
+    return [e for e in sorted(ents) if ents[e].get("washed_t") is not None and C.num(ents[e].get("wetness")) > 0.0
+            and ents[e].get("drying_owner") in (None, C.SECTION) and ents[e].get("_wet_mine") is None]
+
+
+def drying_idle(w):
+    """Exact idle probe of appliances_cooking.drying: the cleaning domain dries everything (the system returns at
+    once), or nothing washed is wet."""
+    return C.system_loaded("cleaning.drying") or not _wet_washed(w)
+
+
+@system("appliances_cooking.drying", order=76, max_dt=300.0, period=300.0, idle=drying_idle)
 def drying(w, dt, tk):
     """Fallback air-drying of washed dishes when no generic drying domain is loaded (cleaning.drying owns evaporation
     of everything it is not told to skip). Periodic, exact exponential decay; nothing runs in an integrated engine."""
     if C.system_loaded("cleaning.drying"):
         return
-    ents = w.s["entities"]
-    wet = [e for e in sorted(ents) if ents[e].get("washed_t") is not None and C.num(ents[e].get("wetness")) > 0.0
-           and ents[e].get("drying_owner") in (None, C.SECTION) and ents[e].get("_wet_mine") is None]
+    wet = _wet_washed(w)
     if wet:
         dishwasher.step_drying(w, wet, dt)

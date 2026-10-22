@@ -1,4 +1,5 @@
-"""Shared helpers for the appliances_cooking domain (constants, logging/harms, material rules, people, air fallbacks).
+"""Shared helpers for the appliances_cooking domain (constants, logging/harms, material rules, people, air fallbacks,
+the tier-1 physics, camera and notice adapters).
 
 Everything here is pure or mutates only through the journaled World. Domain state that is not attached to an
 entity lives in the top-level section ``state["appliances_cooking"]``:
@@ -9,15 +10,23 @@ entity lives in the top-level section ``state["appliances_cooking"]``:
   once      [key]                      harm de-duplication keys
   air       {room: {smoke, gas_l, odor: {kind: level}}}   fallback air model used only when the safety domain
                                        (which owns smoke/gas concentration) is not loaded
+
+Kernel v3.0 / v3.1 adoption (docs/design/TIER1_INTEGRATION.md 6): temperatures this domain drives carry
+``thermal_owner: "appliances_cooking"`` (own_temperature / release_temperature; the older ``fixed_temperature`` alias
+is still read), breaks, spills and thermal shock go through the kernel's physics functions (break_item, spill,
+shock), visual occurrences through ``camera.visual_event`` (visual_event) and perceivable chimes and alarms through
+``w.notice`` (notice).
 """
 import math
 import sys
 
 from ...kernel import geometry, physics
+from ...kernel.phys import lawbook, props as kprops, thermal as kthermal
 from ...kernel.plugins import SYSTEMS
 from ...kernel.predicates import root_room
 
 SECTION = "appliances_cooking"
+OWNER = SECTION          # thermal_owner value of everything whose temperature this domain drives (CONVENTIONS 6)
 LOG_MAX = 300
 CEILING_M = 2.4
 AMBIENT_C = 21.0
@@ -209,6 +218,114 @@ def harm(w, kind, stat=None, once=None, **data):
 
 def harms_of(state, kind=None):
     return [h for h in read_section(state).get("harms", []) if kind is None or h.get("kind") == kind]
+
+
+# ----------------------------------------------------------------------------------------------
+# tier-1 adapters (TIER1_INTEGRATION 6): temperature ownership, kernel physics, camera events, notices
+
+def own_temperature(m):
+    """This domain drives the record's temperature (a vessel on a burner or a heated base, a pan in an oven, a hot
+    appliance base): the kernel thermal system and the food model leave it alone (thermal_owner, CONVENTIONS 6,
+    TIER1_PHYSICS 5.9). m is a writable record (w.mut)."""
+    m["thermal_owner"] = OWNER
+    m.pop("fixed_temperature", None)
+
+
+def release_temperature(m):
+    """Give a temperature this domain drove back to the kernel / food thermal models (another domain's thermal_owner
+    is left alone; the older fixed_temperature alias goes)."""
+    if m.get("thermal_owner") == OWNER:
+        m.pop("thermal_owner", None)
+    m.pop("fixed_temperature", None)
+
+
+def owns_temperature(rec):
+    rec = rec or {}
+    return rec.get("thermal_owner") == OWNER or bool(rec.get("fixed_temperature"))
+
+
+def law_active(name):
+    """The kernel applies this physics law itself (laws.json state; lawbook.forced in tests): a legacy copy of it in
+    this domain then returns at once (adoption protocol, TIER1_PHYSICS 10.3)."""
+    return lawbook.active(name)
+
+
+def break_item(w, eid, cause, by="robot"):
+    """A break through the kernel (impact.break_entity): broken, condition and damage.broken; glass and ceramics also
+    shattered and sharp (a sharp floor hazard when it lies on a floor); what liquid it held runs down; phys.broke
+    hooks; stats.phys_breaks, and the global breakages flag when it is the robot's. True when it broke now."""
+    return physics.break_entity(w, eid, cause, by=by)
+
+
+def spill(w, liters, liquid="water", onto=None, at=None, source=None, by="robot", cause="spill"):
+    """Liquid that leaves its vessel, through the kernel's single spill entry (liquids.spill): onto a support it films
+    the top (wetness) and runs down to the floor (a cleaning spill or a kernel puddle and the room's wet cells); at a
+    (room, cell) it lands on that floor. cause "leak" or "drip" counts only a portion that starts a new puddle (a
+    trickle of several substeps). Returns the floor spill's id, or None."""
+    return physics.spill(w, liters, liquid=liquid, at=at, onto=onto, source=source, by=by, cause=cause)
+
+
+def shock(w, eid, other_temp_c, coupling, by="robot"):
+    """Thermal shock through the kernel (thermal.shock_check): eid cracks (break_entity, cause thermal_shock) or chips
+    when |T - other| x coupling exceeds its shock tolerance (materials.json shock_k with the per-instance variation:
+    soda-lime glass 45 K, ceramic 100 K, stoneware 100 K, borosilicate 160 K...). True when it failed."""
+    return physics.shock_check(w, eid, other_temp_c, coupling, by=by)
+
+
+# sound level (dB(A) at 1 m) of the loud machines the robot runs with its own verbs: countertop blenders and food
+# processors 85-95 dB, burr grinders 75-85 dB, an espresso machine's steam wand 70-80 dB
+APPLIANCE_DB = {"blender": 88.0, "food_processor": 85.0, "grinder": 80.0, "espresso": 75.0}
+
+
+def quiet_check(ctx, kind):
+    """Quiet mode (core set_quiet): a machine louder than the body's quiet limit (55 dB at 1 m) is not started, with
+    the kernel's own wording (TIER1_INTEGRATION 6, appliances_cooking body item: the noise is the appliance's, so it is
+    no ActionSpec noise_db)."""
+    from ...kernel import body
+    level = APPLIANCE_DB.get(kind)
+    if level is not None and body.get(ctx.w.s, "quiet") and level > body.quiet_limit_db(ctx.w.s):
+        from ...kernel.errors import ActionError
+        raise ActionError(body.QUIET_TEXT, "social")
+
+
+SPLASH_CONTACT_S = 2.0    # hot liquid or steam on skin runs off or is pulled away within about 2 s
+
+
+def scalded(state, people_ids, temp_c, contact_s=SPLASH_CONTACT_S):
+    """The people among people_ids whose skin a splash or steam at temp_c burns within contact_s: the kernel's burn
+    time (thermal.burn_seconds, Moritz and Henriques; a child's skin, 12 or younger, burns in a quarter of the time).
+    Hot oil, boiling water and steam always do; a 60 C splash burns a child but not an adult."""
+    group = people(state)
+    return [pid for pid in people_ids
+            if physics.burn_seconds(temp_c, child=is_child(group.get(pid), 12.0)) <= contact_s]
+
+
+def visual_event(w, kind, source=None, room=None, size_m=0.3):
+    """A visual occurrence (a flare-up, smoke, a boil-over, sparks) witnessed by the geometric camera's current head
+    pose (camera.visual_event without its event-log write: callers keep their own w.emit, so room-mode states stay as
+    they were). Room mode: nothing."""
+    if "view" not in (w.s.get("robot") or {}):
+        return None
+    from ...kernel import camera
+    return camera.visual_event(w, kind, source=source, room=room, size_m=size_m, emit=False)
+
+
+# the chimes and alarms posted as notices: (dB at 1 m, what a listener hears). Typical kitchen-appliance end-of-cycle
+# chimes measure 55-70 dB at 1 m (a dishwasher's is the softest), a kettle's thermostat click about 50 dB, a toaster's
+# pop about 60 dB; refrigerator door alarms 65-70 dB; kitchen timers 80-85 dB (UL 217 asks 85 dB at 3 m of a smoke
+# alarm, which is the safety domain's when it is loaded). The heard word never names the appliance.
+NOTICE_SOUNDS = {"oven_ready": (65.0, "chime"), "cycle_done": (62.0, "beeps"), "microwave_done": (65.0, "beeps"),
+                 "dishwasher_done": (55.0, "chime"), "kettle_click": (50.0, "click"), "toaster_pop": (60.0, "pop"),
+                 "coffee_done": (60.0, "beeps"), "cooker_done": (62.0, "beeps"), "timer": (80.0, "beeping"),
+                 "door_alarm": (68.0, "beeping"), "temp_alarm": (72.0, "beeping"), "smoke_alarm": (85.0, "siren")}
+
+
+def notice(w, kind, source, what, room=None):
+    """A perceivable chime, beep or alarm on the kernel's notice bus (TIER1_SWEEP 6.1): kind "appliance_done" or
+    "alarm"; `what` picks the sound's level and the word a listener hears (NOTICE_SOUNDS). The timeline decides whether
+    the robot hears it and names the source only when it perceives it; nothing is stored while nobody listens."""
+    db, heard = NOTICE_SOUNDS.get(what, (None, "beeps"))
+    return w.notice(kind, room=room, db=db, source=source, data={"sound": heard})
 
 
 # ----------------------------------------------------------------------------------------------
@@ -596,49 +713,16 @@ def _dw_damage(rec):
     return consequence or "damage"
 
 
-def thermal_shock_limit(rec):
-    rec = rec or {}
-    if rec.get("thermal_shock_c") is not None:
-        return num(rec["thermal_shock_c"])
-    m = mat(rec)
-    if m == "borosilicate":
-        return 160.0
-    if m in GLASSES:
-        return 90.0
-    if m in ("ceramic", "stoneware", "earthenware"):
-        return 120.0
-    if m == "porcelain":
-        return 150.0
-    return 1000.0
-
-
-def surface_heat_limit_c(rec):
-    """Hottest object a surface tolerates in contact without a mark/melt/scorch."""
-    rec = rec or {}
-    if rec.get("heat_limit_c") is not None:
-        return num(rec["heat_limit_c"])
-    if rec.get("heat_resistant") or "trivet" in str(rec.get("type", "")) or "trivet" in label(rec, "").lower() or rec.get("rack"):
-        return 400.0
-    m = mat(rec)
-    if m in ("wood", "bamboo", "mdf", "plywood", "particleboard", "wicker"):
-        return 60.0
-    if m in ("laminate",):
-        return 110.0
-    if m in PLASTICS or m in ("vinyl", "rubber"):
-        return 90.0
-    if m in ("fabric", "cotton", "linen", "polyester", "wool"):
-        return 150.0
-    if m in ("paper", "cardboard"):
-        return 200.0
-    if m in ("quartz",):
-        return 150.0
-    if m in ("stone", "granite", "marble", "concrete", "tile", "ceramic", "porcelain", "brick", "soapstone"):
-        return 260.0
-    if is_metal(rec):
-        return 600.0
-    if m in GLASSES:
-        return 180.0
-    return 150.0
+def surface_heat_limit_c(state, sid, rec=None):
+    """Hottest contact (C) a support's finish tolerates without a mark, melt or scorch: the kernel's heat limit
+    (thermal.heat_limit_c: materials.json `heat` or the record's own heat_limit_c, at least 400 C for a heat_resistant
+    top such as a trivet or rack, then the +-15 % per-instance variation) for an entity; for a bare room floor (no floor entity)
+    the kernel's value for `rec`, its material. None: no limit. (The domain's own table went in the adoption round:
+    TIER1_PHYSICS 10.3.)"""
+    if sid in state.get("entities", {}):
+        return kthermal.heat_limit_c(state, sid)
+    value = kprops.props_of(dict(rec or {})).heat_limit_c
+    return None if value is None or value != value or value == float("inf") else float(value)
 
 
 def combustible(rec):
@@ -784,6 +868,7 @@ def add_smoke(w, rid, amount, odor="burning_food", source=None):
         counter(w, "smoke_alarm")
         log(w, "smoke_alarm", room=rid, source=source)
         w.emit("smoke_alarm", room=rid)
+        notice(w, "alarm", None, "smoke_alarm", room=rid)
 
 
 def add_odor(w, rid, odor, amount):

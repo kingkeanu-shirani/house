@@ -332,9 +332,8 @@ def subject_known(env, ref):
     if kind == "room":
         if sid == state["robot"].get("room"):
             return True
-        if mind is not None and sid in getattr(mind, "map", {}):
-            return True
-        return sid in getattr(env, "_known_map", {})
+        # the Mind's map is the known map (kernel v3.1; env._known_map is only its compatibility view, K-EVAL 4)
+        return mind is not None and sid in getattr(mind, "map", {})
     if kind in ("person", "pet"):
         if mind is not None and sid in getattr(mind, "seen", {}):
             return True
@@ -429,6 +428,20 @@ def _writing_surface(ctx):
             except Exception:  # noqa: BLE001
                 continue
     return None
+
+
+BOARD_CATEGORIES = ("whiteboard", "chalkboard")
+
+
+def _written(rec, text):
+    """A note's text after the robot writes `text` on it: a fresh sticky note or sheet holds just the note; a
+    whiteboard or chalkboard keeps what was already on it (a household's calendar block, other notes) and gets the
+    note on a new line below (people's adoption request K-NOTE-APPEND)."""
+    old = rec.get("text")
+    board = rec.get("category") in BOARD_CATEGORIES or rec.get("type") in BOARD_CATEGORIES
+    if board and isinstance(old, str) and old.strip():
+        return old.rstrip("\n") + "\n" + text
+    return text
 
 
 def _intercom_route(state, pid):
@@ -537,7 +550,7 @@ def record(ctx, rec):
     channel, delivered, note = deliver(ctx, rec)
     text = render_text(env, rec, refs)
     if note is not None:
-        w.mut(note)["text"] = text
+        w.mut(note)["text"] = _written(state["entities"][note], text)
     log = _report_log(w)
     number = (log[-1].get("n", len(log)) + 1) if log else 1
     stored = []

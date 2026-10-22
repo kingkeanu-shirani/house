@@ -2,7 +2,7 @@
 
     textiles_laundry.load_washer(washer, items, pods=None)          pods first, then items, door closed after
     textiles_laundry.run_washer(washer, program, temp=None, spin=None, soil=None)
-    textiles_laundry.wait_cycle(machine, max_s=14400)             wait until done (+ door unlock)
+    textiles_laundry.wait_cycle(machine, max_s=14400)             listen for the end chime (+ door unlock)
     textiles_laundry.move_items(items, dest, relation=None)        one by one (fetch + put)
     textiles_laundry.clean_lint_screen(dryer, trash)
     textiles_laundry.run_dryer(dryer, program, heat=None, minutes=None)
@@ -13,8 +13,9 @@
     textiles_laundry.sew_on_button(garment, slot, needle, spool, button=None, home=None, shank=False)
     textiles_laundry.pair_into(pairs, dest)
 """
-from ...kernel import geometry
+from ...kernel import geometry, perception
 from ...kernel.plugins import skill
+from ...kernel.predicates import root_room
 from ...tasks import skills as base
 
 
@@ -61,10 +62,16 @@ def run_washer(r, washer, program, temp=None, spin=None, soil=None, extra_rinse=
 
 @skill("textiles_laundry.wait_cycle")
 def wait_cycle(r, machine, max_s=14400, poll_s=300):
-    waited = 0
+    """Wait for a washer or dryer to finish the way a person does: listen for its end chime (an agent-legal wait,
+    interrupt_on=["appliance_done"]: the kernel's notice bus, TIER1_SWEEP 6.3) for up to max_s. Another appliance's
+    chime, or a chime missed from too far away, sends the robot back to waiting (the display shows the machine still
+    running); then it gives the door lock its release time. poll_s is kept for older plans and unused."""
+    waited, max_s = 0, int(max_s)
     while (r.state["entities"][machine].get("appliance") or {}).get("state") in ("running", "delayed", "paused") and waited < max_s:
-        r.do("wait", seconds=poll_s)
-        waited += poll_s
+        before = float(r.state.get("time_s", 0.0))
+        if not r.do("wait", seconds=max(1, max_s - waited), interrupt_on=["appliance_done"])["ok"]:
+            break                           # a refused wait (a non-strict plan) must not spin
+        waited += max(1, int(round(float(r.state.get("time_s", 0.0)) - before)))
     if r.state["entities"][machine].get("door_locked"):
         r.do("wait", seconds=120)
 
@@ -188,6 +195,30 @@ def iron_garment(r, garment, iron, board, temp, press_cloth=None, steam=None):
     r.do("place", target=iron, destination=board, orientation="upright")
 
 
+CLOSE_WORK_LIGHT = 0.35     # body.precision_mm: a room dimmer than this (no robot light) makes the hand 1.5x less precise
+
+
+def light_for_close_work(r, near):
+    """Close work (threading a needle, sewing a button) needs the room lit: when it is dim, switch on a light the robot
+    can reach -- a wall switch wired to the room's lights, else a lamp -- and come back to `near`. Raises a plan error
+    when the room has neither."""
+    state = r.state
+    room = state["robot"]["room"]
+    if perception.light_level(state, room) >= CLOSE_WORK_LIGHT or perception.flashlight_on(state):
+        return
+    ents = state["entities"]
+    switches = [e for e in sorted(ents) if ents[e].get("category") == "switch" and ents[e].get("location") == room
+                and ents[e].get("controls") and not any(ents[c].get("on") for c in ents[e]["controls"] if c in ents)]
+    lamps = [e for e in sorted(ents) if ents[e].get("category") == "light" and ents[e].get("portable")
+             and not ents[e].get("on") and root_room(state, e) == room]
+    target = (switches or lamps or [None])[0]
+    if target is None:
+        raise base._plan_error("{} is too dim for close work and has no light within reach".format(room))
+    base.approach(r, target)
+    r.do("switch_on", target=target)
+    base.approach(r, near)
+
+
 @skill("textiles_laundry.sew_on_button")
 def sew_on_button(r, garment, slot, needle, spool, button=None, home=None, shank=False, threader=None, snips=None,
                   position="marks", layers="placket"):
@@ -197,12 +228,24 @@ def sew_on_button(r, garment, slot, needle, spool, button=None, home=None, shank
         r.do("trim_thread", target=spool, tool=snips)
         home_s = r.state["entities"][snips].get("home") or r.state["entities"][spool].get("location")
         r.do("place", target=snips, destination=home_s)
+    light_for_close_work(r, spool)
     base.fetch(r, needle, grip="pinch")
+    threader_home = None
+    if threader:
+        # a needle threader in the other hand: a humanoid hand cannot aim a thread at a needle's eye unaided
+        threader_home = r.state["entities"][threader].get("location")
+        base.fetch(r, threader, grip="pinch")
     base.approach(r, spool)
     args = {"target": needle, "thread": spool, "knot": True}
     if threader:
         args["threader"] = threader
     r.do("thread_needle", **args)
+    if threader:
+        if threader_home in r.state["entities"]:
+            base.approach(r, threader_home)
+            r.do("place", target=threader, destination=threader_home)
+        else:
+            r.do("place", target=threader)
     base.approach(r, garment)
     sew = {"target": garment, "slot": slot, "position": position, "shank": shank, "needle": needle, "layers": layers}
     if button:

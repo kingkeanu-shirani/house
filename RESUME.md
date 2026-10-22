@@ -24,3 +24,17 @@ python tools/perception_audit.py 100 80
 python tools/layout_audit.py 30
 python tools/fuzz.py 12 300
 ```
+
+## State on 2026-10-22 (paused by the owner after finishing current work)
+
+- Branch tier1-foundations on GitHub holds everything below; main on GitHub is still the initial import (merge via
+  the PR when ready).
+- Read first: PROGRESS.md "Milestone 4", docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md (sections 1-4),
+  docs/design/VERIFY_HARDENING.md, catalog/analysis/tier1/adopt_status.json.
+- Status: 4,325 tests (4 failing: test_people, test_physics_statics - known domain breakages); 241/243 specs; D3
+  preview 225/243. Mass authoring is frozen until the verifier is hardened (review finding C1).
+- Next steps, in order: PROGRESS.md "Milestone 4 / Next steps".
+- Rules: no paid API calls without asking (with a cost estimate); never create the split key without telling the
+  owner first; hand work between agents through files, never inline-truncated JSON.
+- Local-only material: archive/review_2026-10-22_workdir.zip (the reviewers' probe scripts and logs),
+  archive/partial_adopt_*.patch (now obsolete), catalog/analysis/tier1/gate/ (gate records).

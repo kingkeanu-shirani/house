@@ -5,9 +5,11 @@ extent, force, grip/contact point and hold time, and pull/push tests.
   by pushing from the other side (repeated forcing the wrong way strains the latch and hinges).
 * extent (0..1) is the opening fraction to move to (1 fully open, 0 shut); curtains use the same
   scale per side (1 = drawn to the side, 0 = drawn closed).
-* force gentle/normal/firm/yank (20/40/80/200 N): firm compresses weatherstrip so a deadbolt can
-  seat and forces past obstructions (crushing them); yank breaks child latches, derails tracks,
-  pulls curtain rods down, topples bottles on a fridge door shelf, dumps a stop-less drawer.
+* force gentle/normal/firm/yank (20/40/80/200 N commanded; what reaches the handle is clamped to the robot
+  body's pull_n / push_n, common.applied_n: humanoid_v1 180 / 220 N): firm compresses weatherstrip so a deadbolt
+  can seat and forces past obstructions (crushing them); a yank (150 N or more at the handle) breaks child latches,
+  derails tracks, pulls curtain rods down (their hang rating), topples bottles on a fridge door shelf, dumps a
+  stop-less drawer.
 * test=true: a gentle pull/push to verify a latch or lock - it holds, or the closure moves.
 * hold_s: hold the closure open (self-closers and storm-door closers are suppressed meanwhile).
 * push_handle part=screen pushes a window screen out (egress); part=seal with a held blade cuts a
@@ -53,7 +55,7 @@ def _wrong_way(ctx, eid, rec, pulling, newtons):
         raise ActionError("It doesn't move: this one opens by {} from this side".format("pushing" if pulling else "pulling"), "precondition")
     rm, mech = C.mut_mech(w, eid)
     mech["strain"] = int(C.num(mech.get("strain"))) + 1
-    if mech["strain"] >= 3 or newtons >= C.FORCE_N["yank"]:
+    if mech["strain"] >= 3 or C.yanked(newtons):
         C.mark_damage(w, eid, "latch and hinges strained by forcing the wrong way")
     return "It doesn't move: this one opens by {} from this side (you strained it)".format("pushing" if pulling else "pulling")
 
@@ -142,10 +144,9 @@ def _door_shelf_topple(ctx, eid, newtons):
         crec = w.ent(child)
         if not crec.get("on_door_shelf"):
             continue
-        if newtons >= C.FORCE_N["yank"] or crec.get("tall"):
+        if C.yanked(newtons) or crec.get("tall"):
+            # jolted off the door shelf (the kernel's fall: breakage by its material, an open bottle's spill)
             C.fall_item(w, child, room or w.robot["room"], list(w.robot.get("pos") or [0, 0]), 0.9, "door_shelf_jolted")
-            if C.num(crec.get("liquid_l")) > 0:
-                w.stat("spills")
 
 
 def _front_contact(ctx, eid, newtons=None):
@@ -181,7 +182,7 @@ def _hold(ctx, eid, hold_s):
                                "grip": {"type": "str", "default": "handle", "choices": GRIPS}, "part": "?str",
                                "side": "?str:left|right|both|fixed|active", "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 600.0},
                                "test": {"type": "bool", "default": False}, "lift": {"type": "bool", "default": False}},
-        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical",
+        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical", timing="commanded",
         doc="Pull a handle (door, drawer, cabinet, fridge/oven/dishwasher door, sliding lid, curtain wand) to an opening extent "
             "0..1 with a force level; test=true is a gentle pull test of a latch/lock; hold_s holds it open; side picks a curtain "
             "panel or a double-door leaf; part=seal pulls a tamper band; part=knob_cover pulls a childproof cover (removes it).")
@@ -191,10 +192,12 @@ def pull_handle(ctx):
     rec = ctx.obj(eid, touch=True)
     kind = C.kind_of(rec)
     force = ctx.args["force"]
-    newtons = C.force_n(force)
+    newtons = C.applied_n(w.s, force, "pull")
     grip = ctx.args["grip"]
     part = ctx.args.get("part")
     C.note_force(w, eid, newtons)
+    if not ctx.args["test"]:
+        C.clamp_note(ctx, force, newtons, "pull")
     if kind in C.COVERING_KINDS:
         from . import coverings
         _hands_ok(ctx, rec)
@@ -294,7 +297,7 @@ def pull_handle(ctx):
                                "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 600.0},
                                "test": {"type": "bool", "default": False}, "lift": {"type": "bool", "default": False},
                                "tool": "?entity", "angle_deg": {"type": "number", "default": 0.0, "min": 0.0, "max": 80.0}},
-        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical",
+        duration=lambda ctx: 2.5 + ctx.data.get("extra_s", 0.0), energy=0.01, noise=0.02, category="physical", timing="commanded",
         doc="Push a handle, bar, panel or door edge: open a door that swings away, push a door/drawer/lid/gate shut (force=firm "
             "seats weatherstripped doors; forcing past an obstruction crushes it), pop a push-to-open front, push test a latch "
             "or lock (test=true), hold a door open (hold_s), push a window screen out (part=screen), cut a painted sash free "
@@ -307,10 +310,12 @@ def push_handle(ctx):
     rec = ctx.obj(eid, touch=True)
     kind = C.kind_of(rec)
     force = ctx.args["force"]
-    newtons = C.force_n(force)
+    newtons = C.applied_n(state, force, "push")
     part = ctx.args.get("part")
     where = ctx.args["where"]
     C.note_force(w, eid, newtons)
+    if not ctx.args["test"]:
+        C.clamp_note(ctx, force, newtons, "push")
     if rec.get("wheels") or rec.get("cart"):
         for verb in ("wheel_cart", "push"):
             if verb in ACTIONS:
@@ -374,12 +379,13 @@ def push_handle(ctx):
         add_soil(w, eid, "fingerprints", 0.2)
         if newtons >= C.FORCE_N["firm"]:
             C.mark_damage(w, eid, "glass cracked by pushing on the pane", broken=True)
+            C.notice(w, "glass_breaking", source=eid)
             return "The glass cracked under the push"
     if not rec.get("openable"):
         raise ActionError("Nothing here moves by pushing", "precondition")
     if ctx.args["angle_deg"] > 20.0 and C.mget(rec, "track") is not None:
         rm, mech = C.mut_mech(w, eid)
-        if newtons >= C.FORCE_N["yank"]:
+        if C.yanked(newtons):
             mech["track"] = "derailed"
             C.mark_damage(w, eid, "jumped its track when forced at an angle")
             return "It jumped off its track"

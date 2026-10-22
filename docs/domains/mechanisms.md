@@ -8,13 +8,18 @@ and fixtures are operated with: knobs, dials, valves, switches (incl. 3-way), bu
 hold), touchscreens, levers, handles, trigger sprayers and pumps.
 
 Code: `house_sim/systems/mechanisms/` (package). Types: `house_sim/data/types/mechanisms.json` (72 types).
-Tests: `tests/test_mechanisms.py` (176 tests; pass isolated, strict, and with all 16 domains loaded).
-Examples: `tasks/authored/mechanisms__examples.json` (12 specs, oracle) and `tasks/authored/mechanisms__perception.json`
-(3 realistic-perception specs, section 14); all pass `--check` on seeds 0, 1, 2, 41, 97 with all domains loaded.
+Tests: `tests/test_mechanisms.py` (194 tests, 18 of them for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
+`Tier1BodyAdoptionTests`, `Tier1CameraAdoptionTests`, `Tier1SweepAdoptionTests`; pass isolated
+(`HOUSE_SIM_DOMAINS=core,mechanisms`), strict, with all 16 domains loaded, and with the furniture_tip, hang, wind and rain
+laws forced on). Examples: `tasks/authored/mechanisms__examples.json` (12 specs, oracle; A-8910a09f802fbf-01 is schema 3)
+and `tasks/authored/mechanisms__perception.json` (3 realistic-perception specs, section 14); all pass `--check` on seeds
+0, 1, 2, 41, 97 with all domains loaded, in their own mode, under forced realistic perception, with `--camera
+geometric`, and 12 of the 15 on generation-2 houses (section 16). Tier-1 adoption (kernel v3.0 physics, camera and robot
+body; v3.1 sweep): section 16.
 
 | Module | Contents |
 |---|---|
-| `common.py` | closure kinds and defaults (`kind_of`, `mech_of`, `mget`, `mut_mech`, `hidden`), force levels, room classes (escape zone, fenced, enclosure), doorway cells, agents near closures, damage/harm helpers, falling items |
+| `common.py` | closure kinds and defaults (`kind_of`, `mech_of`, `mget`, `mut_mech`, `hidden`), force levels and the body's limits (`applied_n`, `yanked`, `grip_limit`, `body_limit`), room classes (escape zone, fenced, enclosure), doorway cells, agents near closures, damage/harm helpers, falling items (the kernel's fall), the tier-1 adapters (`law_active`, `geometric`, `visual`, `notice` and the domain's notice kinds) |
 | `closures.py` | hooks on core `open`/`close`/`move`; refusals the hardware imposes; latch catch physics; swing contacts; door dash; drawer tip-over; obstruction crushing; self-closing behind the robot |
 | `handles.py` | `pull_handle`, `push_handle` (extent, force, grip/contact point, hold, push/pull tests, screens, seals, re-seating, rims, runners) |
 | `latches.py` | `latch`, `unlatch` (gate latches and bolts, drop bolts, hasps and padlocks, child locks, window stops/guards, tiebacks, cords, clasps, snap tabs, high-chair parts, pet-door panels) |
@@ -26,8 +31,8 @@ Examples: `tasks/authored/mechanisms__examples.json` (12 specs, oracle) and `tas
 | `dispense.py` | `squeeze_trigger`, `pump` (cone coverage and overspray, pump priming/locks, Boyle-law inflation) |
 | `garage.py` | overhead door opener state machine, photo eyes, auto-reverse, constant-pressure override, manual release |
 | `petdoor.py`, `switches.py`, `diagnosis.py` | pet-door modes; 3-way switches and reach rules (bypass closets, lazy susans); hidden causes, resistance profiles and visual clues |
-| `world.py` | systems `mechanisms.tick` (every substep) and `mechanisms.slow` (period 300 s); the spring-closer driver (section 3a); `episode_start` hook; observers; inspector; invariants; answerers; perturbation events; doorstop props |
-| `scenarios.py`, `build.py`, `skills.py`, `furnish.py` | scenario helpers, config builders, reference skills, furnishers |
+| `world.py` | systems `mechanisms.tick` (every substep) and `mechanisms.slow` (period 300 s) with their exact idle probes (`tick_idle`, `slow_idle`); the spring-closer driver (section 3a); `episode_start` hook; observers; inspector; invariants; answerers and their dialogue routes (`mechanisms.code`, `mechanisms.key_location`); perturbation events; doorstop props |
+| `scenarios.py`, `build.py`, `skills.py`, `furnish.py` | scenario helpers, config builders, reference skills (camera-aware routing, section 16), furnishers (generation 2: per-piece anchoring, the connected tier's smart lock) |
 
 All iteration is over sorted ids; randomness only through `ctx.rng` / `tick.rng(name)` / the setup rng.
 Systems never scan every entity: they iterate the domain's static indexes (`common.ids(w, name)` over
@@ -79,9 +84,11 @@ touched until a mechanism actually changes ("lazy").
 | `_mech.keeper_offset_mm`, `out_of_plumb`, `hinge_misadjusted`, `stiff_lock`, `sensor_fault`, `close_limit_short_m`, `hot_c`/`cold_c`, `stuck_nm`, `vacuum` | hidden | as named |
 | `_latch_ok`, `_closer_ok` | hidden | safety's convention, honoured (false = latch/closer broken) |
 
-Force levels (`force`): gentle 20 N, normal 40 N, firm 80 N, yank 200 N. Firm compresses weatherstrip
-so a deadbolt seats, frees swollen wood and forces past obstructions (crushing them); yank breaks
-child latches, bends latches, derails tracks, pulls curtain rods out, dumps a stop-less drawer.
+Force levels (`force`): gentle 20 N, normal 40 N, firm 80 N, yank 200 N commanded; what reaches the handle is
+clamped to the robot body's push / pull limit (humanoid_v1 220 / 180 N, the compact humanoid 120 / 100 N; section 16).
+Firm compresses weatherstrip so a deadbolt seats, frees swollen wood and forces past obstructions (crushing them); a
+yank (150 N or more at the handle) breaks child latches, bends latches, derails tracks, pulls curtain rods out (above
+twice their hang rating), dumps a stop-less drawer.
 
 Refusal vs consequence: a refusal (ActionError) rolls the step back, so it is used only when the
 hardware simply does not move ("it will not budge", "release the slide bolt first"). Anything that
@@ -220,8 +227,8 @@ whose `mech.release_at` is set, and is asked to stand down entirely).
 | Channel | Content |
 |---|---|
 | `obs.mechanism_notes` | what the robot noticed during its last action ("the door touches something soft on the other side and stops", "the rings bunched", "it bounced back off the latch") |
-| `obs.through_doorways` | for each open/cracked doorway: the far room and agents standing beyond it (crack a door to look before opening it fully) |
-| `obs.mechanism_sounds` | garage motor, opener light blinking, alarm siren, door slams (room hint only), pairing chirps; `obs.smells` gets `gas` near an unlit burner |
+| `obs.through_doorways` | for each open/cracked doorway: the far room and agents standing beyond it (crack a door to look before opening it fully); with the geometric camera only the openings the robot looked at during the step (section 16) |
+| `obs.mechanism_sounds` | garage motor, opener light blinking (the geometric camera must frame the door), alarm siren, door slams (room hint only), pairing chirps; `obs.smells` gets `gas` near an unlit burner; the same occurrences post notices (section 16) |
 | `obs.smart_home_app` | lock and garage status as the devices report them (may be wrong: stale sensors, short close limit) |
 | `inspect` | adds `mechanism` (public mech; realistic: the seen view, section 14), `latched`, `child_lock`, `sealed`, `display`, `panel`, `pump`, `trigger`, `inflatable`, `swings_into` (swinging doors and gates only); within reach and lit: `observations` (clues: "a painted-over seam", "the latch bar sits 9 mm below the catch", "shiny scrape marks on the strike plate", "a screw head stands proud of the side rail", ...), `protruding`, window `obstructions`, `hasp`; garage doors: `obstructions_in_path`, `gap_at_floor_m`. Inspecting a hidden-button case closely finds the button |
 | `read` | `display` of devices (touchscreen screens render as `Title: [item] [item]`), labels |
@@ -301,7 +308,8 @@ items out from behind, clears thresholds, closes, makes the latch catch), `mecha
 clearing heat sources (for wrong plans; heat sources go to a hard surface - table, nightstand, dresser, never a
 bed, sofa or other fabric/upholstered surface - at least 3 cells from the fabric, emptiest first),
 `mechanisms.close_window(window, lock)`, `mechanisms.garage_close(door, button)`,
-`mechanisms.set_control(target, setting, value, push, hold_s, direction)`,
+`mechanisms.set_control(target, setting, value, push, hold_s, direction)`, `mechanisms.shut(target)` (close only when
+open, from the closure's near side),
 `mechanisms.touch_path(device, setting, value, commit=True, scope)` (breadth-first menu search;
 note `save` is a reserved plan-step key, hence `commit`), `mechanisms.inspect_report(target, field, value_path, test, to)`.
 
@@ -355,8 +363,8 @@ commitment instead (a standing order, a report to the right person).
 `hidden: {"stuck_nm": 4, "vacuum": true}`, hinged toy_chest with `on_lid` items, sliding_lid_box,
 clasp_toolbox, hidden_button_case, press_lid_can with a `container_lid`), contents with liquid.
 Success: `open`/`sealed`, `mech.cr_engaged`, `mech.torque_nm <= 1.5` (openable by an elderly
-resident), lid on its own can (`mech.lid_matches`), no `spills`. Wrong: grip_force_n 500 (cracks
-glass), cross-thread (`start=tilted`), push the lid on gently without snapping tabs, `raise` a
+resident), lid on its own can (`mech.lid_matches`), no `spills`. Wrong: crushing a thin glass jar (a `crack_force_n`
+below the hand's 150 N grip cap: the robot cannot squeeze harder than that, section 16), cross-thread (`start=tilted`), push the lid on gently without snapping tabs, `raise` a
 hinged lid to 45 deg (falls shut on items), pry a hidden-catch box (`force=firm`), hammer a paint
 lid, close over a protruding pen (laptop cracks). Twist/Untwist primitives use manipulation's
 `twist`/`untwist` on separate caps (manipulation's thread model).
@@ -699,3 +707,218 @@ as "something"), so keys never collide; sounds and smells carry room hints only.
 * Tests: `PerceptionHardeningTests` (9) - valve/lever/chain seen view and the felt turn message, no raw `mech` on
   core doors, panels without hold effects, the hidden-button case, dispenser messages, the medication rule on
   unidentified bottles, the admission refusal, obstruction lists, corner coverings.
+
+## 16. Tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep)
+
+What changed when mechanisms adopted the tier-1 kernel (docs/design/TIER1_INTEGRATION.md section 6, "mechanisms" and
+"Every domain also"). Room-mode outputs are unchanged for the camera items; the physics items guarded by a law change
+nothing until the main session switches that law on (stage D1). Regression tests: `Tier1PhysicsAdoptionTests`,
+`Tier1BodyAdoptionTests`, `Tier1CameraAdoptionTests`, `Tier1SweepAdoptionTests`.
+
+### Physics (TIER1_PHYSICS 10.3)
+
+* **Falls are the kernel's** (`common.fall_item` is `physics.fall`): everything this domain drops -- contents of a
+  stop-less drawer pulled off its slides, leaners falling out of an opened cabinet, things sliding off a raised lid,
+  bottles jolted off a fridge door shelf, sill items swept off by a falling curtain rod or a fast-drawn curtain, a dumped
+  tumbler, the legacy dresser tip -- lands where the kernel lands it (the nearest free floor cell; a rod or curtain
+  sweeps sill items onto the floor in front of the sill from the sill's real height), breaks by its material class's drop
+  tolerance and the floor's hardness, scatters what it held, spills an open container's liquid as a real puddle and is
+  heard (the kernel's crash / thud / glass_breaking notice). Who caused it is the kernel's attribution (the robot's action
+  phase; a tick or event only when the robot arranged the item). Before, this domain broke glass above 0.3 m and anything
+  else above 1.2 m, and counted a `spills` flag for an open liquid without making a spill (the physics spec's 2.1 finding).
+  Not law-guarded: the fall is a kernel function, not a law.
+* **Furniture tip** (law `furniture_tip`). The open drawers of case furniture are its tip loads (`phys.tip_loads`:
+  the drawer with its contents, its arm = extension - depth / 2 beyond the front edge, its height). While the law is
+  active `closures.check_tip` asks the kernel (`physics.tip_margin_nm`, with a load test's climbing child as an extra
+  load) and tips through `physics.tip_over` (orientation `on_side`, `tipped_over`, what stood on it falls, the crash;
+  injuries are the people, pets and safety domains' `phys.tipped` business, so this domain no longer counts `injury`
+  itself on that path); the hook `phys.tipped` throws the contents of the open drawers out toward where the piece fell
+  (the kernel only moves what rests on or in the piece itself), so a tip from any cause (safety's climbing child, a
+  scripted `physics.pull`) empties open drawers the same way. The kernel's righting moment counts everything the piece
+  carries, closed drawers' contents included (this domain's rule ignored them: an 18 kg child on an open drawer of a
+  loaded dresser tipped it here, not in the kernel; ASTM F2057's 27 kg on an empty unit does). Furniture whose anchoring
+  was never decided (no `anchored` field: generation-1 houses) keeps this domain's convention that it is anchored -- its
+  drawers report no load. Deferred law: this domain's rule as before.
+* **Anchoring drawn per piece** (TIER1_DECISIONS): the generation-2 furnisher `mechanisms.anchoring` (order 106, after
+  GEN's furnishings) writes an explicit `anchored` on every tall free-standing storage piece (dressers, wardrobes,
+  bookshelves, shelf units, filing and chemical cabinets at least 0.686 m tall -- the ASTM F2057 / STURDY Act scope),
+  25 % of them true (a conservative share until a cited survey figure is found; the assumption belongs in
+  docs/KNOWN_LIMITS.md: kernel request). Generation 1 is unchanged (a draw there re-records gen1_digests: kernel request).
+* **Curtain rods on the kernel's hang rating** (law `hang`): a curtain record carries its rod's rated hang load
+  (`hang_load_kg` 8 kg, supports.json's "curtain rod on two brackets"; heavy blackout drapes hang on a 9 kg rod) with the
+  kernel's per-instance variation (`physics.props(...).hang_kg`). A pull of F newtons on the fabric loads the rod with
+  F / g on top of the curtain's weight; the brackets pull out above twice the rating (`coverings.rod_pulls_out`): a firm
+  80 N tug holds, a yank at the humanoid's 180 N pull limit brings any rod down, the compact humanoid's 100 N holds
+  every ordinary rod (heavy blackout drapes on the weakest rods of the +-15 % band, rating factor below 0.87, come down).
+  Before, any "yank" pulled any rod down. The kernel's static hang law concerns things hung on a support; nothing hangs
+  on a curtain, so the law duplicates nothing here.
+* **Rain on sill items** (law `rain`): while the law is active the rain blown in through an open window (this domain's
+  ingress calibration, as a rate at the sill: outdoor rate x wind exposure x opening x 3, a skylight 8) wets the sill and
+  what stands on it through `physics.rain_wet` (wetness, an absorbent body's moisture, a paper-like item soaked and
+  water-damaged, the `phys.wetted` hooks: electronics short out when electrical is loaded); a body the kernel soaks is
+  also marked `water_damaged` (this domain's flag). The room's wet floor cell under the window and the flood flag stay
+  this domain's. Deferred law: this domain's rule (wetness from the ingress litres, `water_damaged` at 0.3 for paper,
+  books and electronics).
+* **Wind** (law `wind`): this domain's wind acts on doors and gates (unlatched gates and outdoor doors blow open, open
+  ones slam; drafts slam interior doors) -- the kernel's wind never moves a door or gate (`environment._free_to_move`
+  excludes anything in a doorway), so there is nothing to hand over. The events `mechanisms.wind_gust`, `calm` and `rain`
+  set the weather, which the kernel's `physics.environment` reads while its laws are active (outdoor objects then feel
+  the same gust).
+* **Soft surfaces by the kernel's material model**: the curtain skill's "heat sources never on fabric" rule
+  (`skills.unsafe_for_heat`) reads `physics.props` softness (>= 0.3: fabrics, foam, leather, rubber) and the thin
+  combustible classes (paper, cardboard, wicker, film) instead of a list of material strings.
+* **Type data**: `tools/physics_audit.py --data` attributes no gap (default mass or size, implausible density) and no
+  threshold tier override to this domain; no mechanisms spec's reference run causes a physics consequence or a physics
+  lint warning.
+* **Ready to flip**: `furniture_tip`, `hang`, `wind`, `rain` -- the domain's tests and its 15 specs pass with all four
+  forced on (`lawbook.forced`), 5 seeds, in their own mode and, for the realistic ones, with the geometric camera.
+
+### Camera (TIER1_CAMERA 19; geometric mode only, room mode unchanged)
+
+* **View blocks**: sheer curtains `porosity` 0.6 (the kernel's sheer row, now declared on the type); French doors 0.7,
+  storm doors 0.8 and glass-front cabinets 0.75 (panes in frames), all glossy; keypads and touchscreens glossy with
+  6 mm screen text (`text_m` display / ui on `alarm_panel`, `touchscreen_device`, `control_panel_device`). A smart
+  lock's keypad on a core door keeps the kernel's 10 mm display default (a record-level view block on a door shows in
+  oracle observations and trips the geometric perception audit: kernel request). The door-leaf occluder is the
+  kernel's (this domain adds none).
+* **Visual occurrences** through `camera.visual_event` (`common.visual`: exactly the old `w.emit` in room mode; the
+  geometric camera logs whether it saw them, and a seen one is a `visual` notice): a door swinging shut on its closer or
+  in a draft, a slam, a gate blown or pushed open, an item a door knocked over, the legacy dresser tip, a curtain rod
+  coming down (new: witnessed by the geometric camera only, no event-log entry), an animal coming in through a pet
+  door, a garage door reversing, closing or someone running under it.
+* **Visual cues gated by the camera**: `obs.through_doorways` lists an opening only when the robot looked at it during
+  the step (its door in a frame of the step, `camera.in_frame`; a doorless opening's near cell among the floor cells the
+  step's frames surveyed, `camera.seen_floor`) -- until the kernel's doorway apertures land (camera phase 3), which
+  replace the 3 x 3 glimpse; the garage opener's blinking light (in `obs.mechanism_sounds`) needs the door in frame;
+  obstruction lists name people and pets the cameras make out (`camera.agent_visible`); the inspector's close-look
+  clues follow the camera's close look (`ctx.inspect_check`: the head resolving it in enough light, or the wrist within
+  reach) instead of the room's light level.
+* **Reference skills with the geometric camera** (`skills._approach`): a door or gate the robot is not beside is walked
+  up to from its near side (`_near_side`: the connected room it reaches without passing through that closure -- before,
+  the route opened the very gate the plan was about and went through it); a closed door on the way or a door or gate the
+  cameras cannot make out from where the robot stands is walked up to by its doorway first (`_go`, `_to_doorway`; the
+  kernel's `go_room` approaches every closed door it passes, which the camera refuses for a door out of sight: kernel
+  request); a blind, curtain or sill it cannot see -- a dark room behind drawn blinds -- is reached by walking up to its
+  window, which the daylight round the blind shows, and within reach the wrist camera sees it. New skill
+  `mechanisms.shut` (close only when open: a gate the wind may or may not have blown open).
+
+### Robot body (TIER1_EMBODIMENT 12)
+
+* **Forces from the body**: the force levels are what the robot is commanded to apply; what reaches the handle is
+  clamped to the profile's whole-body limit (`common.applied_n`: push_n for pushes, pull_n for pulls -- humanoid_v1
+  220 / 180 N, the compact humanoid 120 / 100 N), with a note when the body could not deliver the level ("That is as hard
+  as this body can pull (about 100 N)"). A pull or push of 150 N or more is a yank as far as light hardware is concerned
+  (`common.yanked`: child latches, bolts, slides, tracks), so the compact humanoid's yank no longer breaks a child latch.
+* **Grip and wrist**: `turn`'s `grip_force_n` is clamped to the strongest working hand's power grip
+  (`body.grip_limit_n`: 150 N on the default hands; the 500 N "cracks the glass jar" wrong method of section 7 C1 no
+  longer works -- a thin glass jar rated below the grip cap still cracks); the jar-lid torque is capped by the body's
+  `wrist_nm` (6 N m; the compact humanoid's 4 N m cannot break a 5 N m lid free even with a grip pad).
+* **Timing and noise** (stage-B review B7): `hold_press`, `squeeze_trigger`, `pull_handle`, `push_handle`, `turn` and
+  `move_lever` declare `timing="commanded"` -- their durations are dominated by what the command states (the seconds
+  held, `hold_s` holding a door or a gas knob, the trigger time), which careful speed must not stretch; the short
+  hand motion around it is not stretched either (one timing per verb). `press` with a mallet or hammer declares
+  `noise_db` 85 (quiet mode refuses hammering a lid home; people and pets hear it through `robot_sound`).
+* No mechanisms verb moves the robot (no `ctx.motion` needed); no verb writes a robot fault; lifts go through core.
+  The `move` hooks already handle a battery-cut walk (BODY-ENGINE's note): a cut move stays in its room with no
+  `connection`, so no closer swings shut behind the robot and no forced door is passed. Keypad precision (optional) is
+  not adopted.
+
+### Sweep (TIER1_SWEEP 22.3)
+
+* **Notices** (`common.notice`, `w.notice`; stored only while the notice bus is on or a wait listens): `door_slam`
+  (85 dB at 1 m, any slam: the robot's, a fast closer, a draft, the wind), `garage_door` (70 dB, when the opener's motor
+  starts; registered identically to navigation_robot's row), `pet_door` (50 dB, an animal pushing in through a pet door
+  at night), `alarm` (an armed-away panel tripped by motion: about 100 dB), `crash` (a curtain rod coming down, the legacy
+  dresser tip), `glass_breaking` (a pane cracked by slams or a push), and `smoke` (visual: burning curtain fabric when
+  the safety domain, which posts its own `fire`, is not loaded).
+* **Questions**: canonical asks reach the legacy answerers through the routes `mechanisms.code` (how / which / status
+  about a lock with a combination with detail code -- a bare "how" about a thing is manipulation's handling question --
+  or words naming one with "code": `code:<lock>`) and `mechanisms.key_location` (where / how about a lock's key in
+  words, "the shed key", or how about a keyed lock with detail key: `key_location:<lock>`). They are tried after the
+  kernel's people routes; "where" about an entity is the people domain's `where:` when it is loaded (kernel request:
+  route priority).
+* **Idle probes** (exact, writing nothing): `mechanisms.tick` is idle when no garage door moves and no dashing agent is
+  due back, no self-closer needs claiming, reconciling or swinging, no relock is due, no draft or wind can move a door,
+  no gas flows unlit, no touchscreen edit times out, no open exterior window is in the rain, no pet-door intrusion or pet
+  escape is possible, no armed alarm can trip and no flame or running heater shares a room with fabric;
+  `mechanisms.slow` when no unsealed paint can is skinning over and nothing tracks the sun (glare targets, sun windows).
+  `test_idle_probes_are_exact` compares state digests with the probes on and off over a busy 3.3 h (a closer, rain on an
+  open window and a sill, a glare target, a gust).
+* **Generation 2**: per-piece anchoring (above) and the connected smart-home tier's smart lock: the front door keeps its
+  key and thumb turn and gains a keypad display and the app's lock status (`mech.smart`, no auto-relock unless a scenario
+  sets one; TIER1_SWEEP 14.7). GEN's other request -- a lock opened by copies of its key (personal key rings) -- needs
+  core `lock` / `unlock` to accept a held key whose `opens` names the door (kernel request).
+* **Report vocabulary**: requested as `house_sim/data/vocab/mechanisms.json` (section 17).
+
+### Specs
+
+* **M-WAITS**: A-8910a09f802fbf-01 is schema 3: the standing order runs on its own (`watch ... mode: auto`) while the
+  robot waits, and its wait ends when the order fires (`wait_for: ["order"]`); before, the reference polled the hidden
+  list of pending orders.
+* **M-GEN2**: 12 of the 15 specs declare `"house": {"gen": 2}`. T-259d38eb6707f0-01, T-fffb3941b40c87-01 and
+  T-94a0a940224c22-01 stay generation 1: on generation-2 houses (seed 97) outdoor_plants' wind blows both patio chairs
+  onto the patio's doorway cell to the backyard, which leaves no route to the gate or the shed (cross-domain bug, the
+  same safety reported).
+* **Geometric camera**: the three realistic specs pass with `--camera geometric` on all five seeds, and so do the 12
+  oracle examples (forced realistic and geometric too). Each realistic spec has a camera wrong plan where looking is the
+  skill: the gate latch looked over from across the yard (T-94a0a940224c22-01), the drawer looked over from across the
+  kitchen (A-565da7517f3394-01), the smart lock's keypad text read from across the room (T-1e3f1a4d26121e-01).
+* **T-94a0a940224c22-01** (the B6 demo failure on held-out seed 701, "close gate_1 failed: It is already closed"): the
+  reference walks up to the gate from the yard side and shuts it only when it stands open (`mechanisms.shut`); it passes
+  on seeds 0, 1, 2, 41, 97 and 701-703.
+* **Gate** (`tools/orchestration/tier1_gate.py record --package ADOPT:mechanisms --spec-files "mechanisms__*"` against
+  the C1 record): G0, G2, G3 and G10 pass on an isolated copy (HEAD plus this domain's 18 changed files). The reviewed
+  differences: the `wrong` verdict field of the three realistic specs (the added camera wrong plans; every spec still
+  passes on every seed), and state and observation digests of all 15 specs (generation-2 houses, the kernel's falls,
+  the body's force clamps, notices). The generation-2 furnishers change no other domain's generation-2 verdict (178
+  specs x 5 seeds with `mechanisms.anchoring` and `mechanisms.smart_lock` on and off).
+
+### Residual items closed in this round
+
+* Round 5 red team (identity: the spray_bottle family): every member of the kernel's spray_bottle group squeezes like a
+  trigger sprayer (`dispense.trigger_of`: about 1.1 ml per squeeze; a store-bought spray with no liquid amount is not
+  emptied), and the trigger bottle's fill level is hidden (an opaque sprayer, like the other members, which carry no
+  amount) so a glance no longer separates it from them. Still different, and other domains' to fix: safety's
+  `discharge`, climate's reservoirs, outdoor_plants' `water_plant`, and cleaning's sprays carrying no liquid amount
+  (manipulation's shake and heft).
+* Stage B (B6 request 8): T-94a0a940224c22-01 above.
+* Round 4: the coverings' "mount overlap" layout lines are gone (`tools/layout_audit.py 20 --domain mechanisms`: 0
+  problems); the 7 coverings beside an off-grid window remain the generator's window placement (reported to core then).
+* The LookalikeWarning at registry load names no mechanisms group.
+
+## 17. Report vocabulary (requested `house_sim/data/vocab/mechanisms.json`)
+
+Issue and state words for typed reports (docs/DIALOGUE.md "Reporting") about closures, locks and coverings, with the
+evidence a robot can perceive for each; checked against the kernel vocabulary (`data/vocab/core.json`: no word or
+synonym collides -- `jammed`, `stuck`, `bent`, `loose`, `unlocked`, `unsecured`, `left_open`, `low_battery`,
+`missing_part` and the states `locked` / `unlocked` / `open` / `closed` / `armed` / `disarmed` are the kernel's and are
+used as they are). `latched` / `unlatched` are the same rows safety requested. The data file is outside this domain's
+files (kernel request); until it lands typed mechanisms reports keep these words as `issue_raw` / `state_raw`.
+
+| class | issue | also accepted | evidence |
+|---|---|---|---|
+| condition | `latch_misaligned` | sagging_gate, sag, misaligned_latch, latch_not_catching, gate_sags | field latched, field mechanism |
+| condition | `broken_latch` | latch_broken, bent_latch_bar, missing_keeper_screw, latch_will_not_catch | field latched, field mechanism |
+| condition | `strike_misaligned` | strike_offset, bolt_hits_strike, misaligned_strike, deadbolt_will_not_throw | field locked, field mechanism |
+| condition | `lock_jammed` | smart_lock_jammed, cylinder_jammed, motor_jammed, key_will_not_turn | field display, field locked |
+| condition | `sticking` | sticks, drags, binds, hard_to_open, catching | field mechanism |
+| condition | `off_track` | derailed, roller_off_track, off_its_track, off_the_slides | field mechanism, field off_slides |
+| condition | `rod_down` | curtain_rod_down, rod_pulled_out, curtain_fell | field mechanism |
+| condition | `cross_threaded` | lid_on_crooked, crooked_lid | field mechanism, field sealed |
+| function | `sensor_misaligned` | photo_eye_misaligned, safety_sensor_blinking, eye_blinking | field display |
+| safety | `unlatched` | gate_not_latched, latch_open, left_unlatched | field latched |
+| safety | `propped` | wedged_open, held_open, fire_door_propped | field propped, field mechanism |
+| safety | `cord_hazard` | dangling_cord, blind_cord_loop, cord_within_reach, loose_cord | field mechanism |
+| safety | `child_lock_off` | child_lock_disengaged, childproof_lock_off, child_lock_left_off | field child_lock |
+| safety | `gas_unlit` | gas_on_unlit, burner_unlit, unlit_burner | field mechanism (the gas is smelled: obs.smells) |
+
+| state | also accepted | opposite | evidence |
+|---|---|---|---|
+| `latched` | caught, self_latched | unlatched | field latched |
+| `unlatched` | not_latched, propped_open | latched | field latched |
+| `sealed` | airtight, lid_seated, sealed_shut | unsealed | field sealed |
+| `unsealed` | lid_loose, not_sealed | sealed | field sealed |
+| `raised` | blind_up, pulled_up | lowered | field mechanism |
+| `lowered` | blind_down, let_down | raised | field mechanism |
+| `child_locked` | child_lock_on, childproofed | child_unlocked | field child_lock |
+| `child_unlocked` | child_lock_released | child_locked | field child_lock |

@@ -9,9 +9,11 @@ storage.shelf_headroom so stock never pushes a shelf past its load rating.
 
 The builders are reused by scenario helpers (they only need a Placer).
 """
-from ...kernel import geometry
+import datetime
+
+from ...kernel import clock, geometry
 from ...kernel.plugins import furnisher
-from ...generator.place import Placer
+from ...generator.place import Placer, wall_layouts
 from .storage import shelf_headroom
 
 FOLDER_SETS = [("Utilities", "bill", "Electric bill"), ("Insurance", "insurance", "Home insurance policy"),
@@ -75,7 +77,7 @@ def _low_or_standing(record):
     return height < 0.5 or geometry.floor_standing(dict(record, mounted=True))
 
 
-def mount_cell(p, rid, record, near=None):
+def mount_cell(p, rid, record, near=None, orient=False):
     """A wall cell for a wall-mounted record, chosen with the kernel's shared rules (geometry.door_clearance,
     floor_standing, reachable_cells, access_radius): the footprint is inside the room and does not overlap
     floor-standing things or (below counter height) blocking furniture; a doorway-reachable floor cell is within
@@ -83,7 +85,11 @@ def mount_cell(p, rid, record, near=None):
     into the room, overhead thresholds) is required for low/floor-standing mounts and preferred for the rest (a
     shelf beside the frame is where the opened leaf rests). `near`: a cell or list of cells to stay close to (a
     toilet's footprint for its paper holder), else a random qualifying cell. None when no wall cell qualifies --
-    never Placer.mount's relaxed-reach or last-resort cells (a holder nobody can reach is not furnished)."""
+    never Placer.mount's relaxed-reach or last-resort cells (a holder nobody can reach is not furnished).
+    orient=True lays an oblong footprint (a 0.8 m wall shelf) along the wall of each candidate cell
+    (generator.place.wall_layouts, as Placer.mount(along_wall=True)) and sets record["rot"] to the chosen
+    orientation, instead of keeping the type's, which can run perpendicular into the room (round-5 layout advisory;
+    generation-2 furnishing and the scenario helpers; generation-1 furnishing keeps its pinned layouts)."""
     state = p.state()
     room = p.c["rooms"][rid]
     cols, rows = geometry.grid_size(room)
@@ -124,8 +130,14 @@ def mount_cell(p, rid, record, near=None):
     perimeter = sorted({(x, 0) for x in range(cols)} | {(x, rows - 1) for x in range(cols)} |
                        {(0, y) for y in range(rows)} | {(cols - 1, y) for y in range(rows)})
     options = []
-    for pos in perimeter:
-        cells = geometry.footprint(dict(record, pos=list(pos)))
+    layouts = (lambda c: wall_layouts(room, record, c)) if orient else (lambda c: [(tuple(c), record.get("rot"))])
+    candidates = []
+    for cell in perimeter:
+        for option in layouts(cell):
+            if option not in candidates:
+                candidates.append(option)
+    for pos, rot in candidates:
+        cells = geometry.footprint(dict(record, pos=list(pos), rot=rot))
         if not cells or not all(geometry.in_grid(room, c) for c in cells):
             continue
         if (low and any(c in taken for c in cells)) or (height < 0.85 and any(c in blocked for c in cells)):
@@ -138,26 +150,33 @@ def mount_cell(p, rid, record, near=None):
         if not (geometry.near_cells(cells, room, radius) & reach):
             continue
         key = min(geometry.chebyshev(c, t) for c in cells for t in targets) if targets else 0
-        options.append((in_clearance, key, pos))
+        options.append((in_clearance, key, pos, rot))
     if not options:
         return None
     best = min(o[0] for o in options)
     options = [o for o in options if o[0] == best]
     if targets:
-        options.sort()
-        return list(options[0][2])
-    return list(p.rng.choice([o[2] for o in options]))
+        options.sort(key=lambda o: (o[0], o[1], o[2], -1 if o[3] is None else o[3]))
+        chosen = options[0]
+    else:
+        chosen = p.rng.choice(options)
+    if orient and chosen[3] is not None:
+        record["rot"] = chosen[3]
+    return list(chosen[2])
 
 
-def safe_mount(p, rid, type_name, height=None, near=None, eid=None, **props):
-    """Placer.mount at a reachable wall cell (see mount_cell); None when the room has no such cell."""
+def safe_mount(p, rid, type_name, height=None, near=None, eid=None, orient=False, **props):
+    """Placer.mount at a reachable wall cell (see mount_cell; orient=True lays an oblong mount along its wall); None
+    when the room has no such cell."""
     record = p.reg.make(type_name, rid, **props)
     record["mounted"] = True
     if height is not None:
         record["mount_height_m"] = height
-    cell = mount_cell(p, rid, record, near=near)
+    cell = mount_cell(p, rid, record, near=near, orient=orient)
     if cell is None:
         return None
+    if orient and record.get("rot") is not None:
+        props = dict(props, rot=record["rot"])
     return p.mount(rid, type_name, eid=eid, height=height, cell=cell, **props)
 
 
@@ -282,7 +301,9 @@ def add_files(p, cabinet, rng, count=3):
     return ids
 
 
-def add_bathroom_consumables(p, rid, rng):
+def add_bathroom_consumables(p, rid, rng, orient=False):
+    """Paper holder by the toilet and an open wall shelf with spare rolls, tissues and a soap pump. orient: the
+    shelf runs along its wall (generation 2 and scenario helpers; generation 1 keeps its pinned layout)."""
     ids = {}
     # The paper holder goes on the wall beside the toilet (within a seated arm's reach), not by the door.
     toilet = (p.find("toilet", room=rid) or [None])[0]
@@ -300,7 +321,8 @@ def add_bathroom_consumables(p, rid, rng):
         ids["tp_roll"] = roll
     # Consumables stand on an open wall shelf (visible and reachable without opening a vanity door). 1.2 m clears
     # a wall-hung basin and its faucet (0.85 m + ~0.2 m); mount_cell keeps it off shower stalls and other mounts.
-    vanity = safe_mount(p, rid, "wall_shelf", height=1.2, label="bathroom shelf", size_m=[0.8, 0.2, 0.03], shelf_load_kg=12.0)
+    vanity = safe_mount(p, rid, "wall_shelf", height=1.2, label="bathroom shelf", size_m=[0.8, 0.2, 0.03], shelf_load_kg=12.0,
+                        orient=orient)
     if vanity:
         ids["shelf"] = vanity
         basket = p.on(vanity, "spare_roll_basket")
@@ -383,6 +405,79 @@ def add_backstock(p, rng):
     return ids
 
 
+WINTER_DECOR_UP_DAYS = 30      # winter decorations go up about four weeks before Christmas (after Thanksgiving, Advent)
+WINTER_DECOR_DOWN = (1, 6)     # ... and come down by Epiphany (January 6); Japan's New Year decorations Dec 26 - Jan 7
+DECOR_ROOMS = ("garage", "basement", "attic", "storage_room", "utility_closet")
+
+
+def winter_decor_up(config):
+    """True when the start date falls in the household region's winter-holiday decoration window (the kernel's
+    holiday calendar: a region that keeps Christmas Day decorates from four weeks before it to January 6; Japan from
+    December 26 to January 7 for the New Year)."""
+    start = datetime.datetime.fromisoformat(str((config.get("clock") or {}).get("start") or "2026-10-09T10:00:00"))
+    day = start.date()
+    year = day.year if day.month >= 7 else day.year - 1
+    state = {"clock": config.get("clock") or {}, "metadata": config.get("metadata") or {}}
+    december = dict(clock.holidays_between(state, datetime.date(year, 12, 1), datetime.date(year, 12, 31)))
+    christmas = datetime.date(year, 12, 25)
+    if "christmas" in str(december.get(christmas.isoformat(), "")).lower():
+        return christmas - datetime.timedelta(days=WINTER_DECOR_UP_DAYS) <= day <= \
+            datetime.date(year + 1, *WINTER_DECOR_DOWN)
+    if clock.region(state) == "jp":
+        return datetime.date(year, 12, 26) <= day <= datetime.date(year + 1, 1, 7)
+    return False
+
+
+def add_generation2(p, rng, config):
+    """Generation 2 (TIER1_SWEEP 13.3, 14.4): a fire-resistant document box in the office (GEN's belongings keep the
+    household's passports in "office.document_box"), and the holiday decorations: a labeled bin on a storage shelf,
+    with the wreath hung in the entryway during the winter-holiday window (winter_decor_up). Generation 1 never calls
+    this, so its houses stay as pinned."""
+    ids = {}
+    for rid in p.rooms("office")[:1]:
+        cabinet = (p.find("cabinet", room=rid, where={"label": "filing cabinet"}) or [None])[0]
+        level = _stock_shelf(p, cabinet, _planned_mass(p, "document_box"), 1) if cabinet else None
+        box = p.inside(cabinet, "document_box", shelf=level, home=cabinet) if level is not None else None
+        if box is None:
+            desk = _first(p, ["desk"], [rid])
+            box = p.on(desk, "document_box", home=desk) if desk else None
+        if box:
+            ids["document_box"] = box
+    shelf = _first(p, ["shelf_unit", "closet_shelving"], list(DECOR_ROOMS), reachable=True)
+    decor_bin = None
+    if shelf:
+        level = _stock_shelf(p, shelf, _planned_mass(p, "storage_bin") + 3.0, 0)
+        if level is not None:
+            decor_bin = p.inside(shelf, "storage_bin", shelf=level, home=shelf, label="holiday decorations bin",
+                                 label_text="Holiday decorations", label_key="holiday_decorations")
+    if decor_bin is None:
+        for rid in [r for rtype in DECOR_ROOMS for r in p.rooms(rtype)][:1]:
+            decor_bin = safe_floor_item(p, rid, "storage_bin", label="holiday decorations bin",
+                                        label_text="Holiday decorations", label_key="holiday_decorations")
+    if decor_bin:
+        ids["decor_bin"] = decor_bin
+        up = winter_decor_up(config)
+        wreath_type = "wreath" if p.reg.known("wreath") else None
+        if wreath_type and up:
+            for rid in p.rooms("entryway")[:1] + p.rooms("living_room")[:1]:
+                hung = safe_mount(p, rid, wreath_type, height=1.5, home=decor_bin, displayed=True)
+                if hung:
+                    ids["wreath"] = hung
+                    break
+        elif wreath_type:
+            # a 50 cm wreath does not fit a 50 L bin: it is stored beside it (on its shelf, else on the bin)
+            holder = config["entities"][decor_bin].get("location")
+            stored = None
+            if holder in config["entities"] and config["entities"][holder].get("shelf_heights"):
+                stored = p.inside(holder, wreath_type, shelf=config["entities"][decor_bin].get("shelf"), home=holder)
+            if stored is None:
+                p.on(decor_bin, wreath_type, home=decor_bin)
+        ornament = "decor_item" if p.reg.known("decor_item") else "generic_item"
+        p.inside(decor_bin, ornament, home=decor_bin, label="box of glass ornaments", category="decor", material="glass",
+                 fragile=True, mass_kg=0.8, size_m=[0.3, 0.2, 0.12], volume_l=7.0, holiday="winter")
+    return ids
+
+
 @furnisher("admin_inventory.household_admin", order=72)
 def furnish_admin(config, rng, opts, registry):
     p = Placer(config, registry, rng)
@@ -413,8 +508,9 @@ def furnish_admin(config, rng, opts, registry):
         if hook:
             p.hang(hook, "key", eid=p.new_id("mailbox_key"), label="mailbox key", opens=["apartment mailbox"])
     # point of use and backstock
+    gen2 = int(opts.get("gen") or 1) >= 2
     for rid in p.rooms("bathroom") + p.rooms("half_bath"):
-        add_bathroom_consumables(p, rid, rng)
+        add_bathroom_consumables(p, rid, rng, orient=gen2)
     for rid in p.rooms("kitchen")[:1]:
         add_kitchen_consumables(p, rid, rng)
     add_backstock(p, rng)
@@ -436,3 +532,5 @@ def furnish_admin(config, rng, opts, registry):
                 # whose it is shows on its name tag (read-tier name_label), not in what it looks like
                 safe_floor_item(p, rooms[0], "backpack", owner=pid, label="child's backpack",
                                 name_label=person.get("label", pid).split(" ")[0])
+    if gen2:
+        add_generation2(p, rng, config)

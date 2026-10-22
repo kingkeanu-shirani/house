@@ -4,7 +4,8 @@
    "catalog_id": "T-d8d0ca913007d4-01",
    "title": "Water houseplants by need",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -203,7 +204,8 @@
    "catalog_id": "T-e8541019a4bfac-01",
    "title": "Remove dead leaves from houseplants",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -460,7 +462,8 @@
    "catalog_id": "T-97f43b147c3c2f-01",
    "title": "Rotate leaning pots, not the budding cactus",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -543,12 +546,16 @@
    "reference": [
     {
      "skill": "approach",
-     "target": "{p1}"
+     "target": "{p2}"
     },
     {
      "do": "inspect",
      "target": "{p2}",
      "where": "closely"
+    },
+    {
+     "skill": "approach",
+     "target": "{p1}"
     },
     {
      "do": "pick_up",
@@ -630,7 +637,7 @@
      ]
     }
    ],
-   "notes": "Plant yaw composes over plant/pot/saucer; a pot set down with orientation=rotated turns a quarter turn; lean straightens over days once the leaning side faces away from the window."
+   "notes": "Plant yaw composes over plant/pot/saucer; a pot set down with orientation=rotated turns a quarter turn; lean straightens over days once the leaning side faces away from the window. The reference walks up to the cactus to look at its buds before turning the other pot (on a generation-2 house the two pots can stand apart on a longer table)."
   },
   {
    "catalog_id": "T-118437362c4ab8-01",
@@ -639,7 +646,8 @@
     "dwelling": "house",
     "require": [
      "patio"
-    ]
+    ],
+    "gen": 2
    },
    "setup": [
     {
@@ -848,7 +856,8 @@
     "dwelling": "house",
     "require": [
      "patio"
-    ]
+    ],
+    "gen": 2
    },
    "setup": [
     {
@@ -944,9 +953,9 @@
        "value": true
       },
       {
-       "path": "reports.{umbrella}.decision",
+       "path": "reports.{umbrella}.needs_closing",
        "op": "eq",
-       "value": "leave_open"
+       "value": false
       }
      ],
      "reference": [
@@ -961,8 +970,8 @@
       {
        "do": "report",
        "target": "{umbrella}",
-       "field": "decision",
-       "value": "leave_open"
+       "field": "needs_closing",
+       "value": false
       },
       {
        "do": "wait",
@@ -1048,7 +1057,7 @@
      ]
     }
    ],
-   "notes": "Canopy wind moment vs base+ballast and table restoring moment: gust 15 m/s tips the open tilted canopy; an unstrapped closed canopy whips open above 12 m/s. Calm branch: leave it open and report the decision."
+   "notes": "Canopy wind moment vs base+ballast and table restoring moment: gust 15 m/s tips the open tilted canopy; an unstrapped closed canopy whips open above 12 m/s. Calm branch: leave it open and report the decision. The calm branch reports needs_closing false: a judgement, not an observed word (a decision word such as 'leave_open' never appears in what a robot perceives, so realistic verification could not accept it)."
   },
   {
    "catalog_id": "T-fc5c1e1b7eeccc-01",
@@ -1057,7 +1066,8 @@
     "dwelling": "house",
     "require": [
      "patio"
-    ]
+    ],
+    "gen": 2
    },
    "setup": [
     {
@@ -1243,7 +1253,8 @@
    "catalog_id": "T-3c0e5bb4fb4063-01",
    "title": "Clean the fire pit only when the ash bed is cold",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -1296,8 +1307,12 @@
       },
       {
        "path": "reports.{pit}.ash_state",
-       "op": "eq",
-       "value": "cold"
+       "op": "in",
+       "value": [
+        "cold",
+        "cool",
+        "room temperature"
+       ]
       },
       {
        "path": "facts.ash_probed.{pit}",
@@ -1323,7 +1338,7 @@
        "do": "report",
        "target": "{pit}",
        "field": "ash_state",
-       "value": "cold"
+       "value": "room temperature"
       },
       {
        "skill": "drop_all"
@@ -1396,8 +1411,12 @@
       },
       {
        "path": "reports.{pit}.ash_state",
-       "op": "eq",
-       "value": "hot"
+       "op": "in",
+       "value": [
+        "warm",
+        "hot",
+        "very hot"
+       ]
       },
       {
        "path": "facts.ash_probed.{pit}",
@@ -1511,13 +1530,14 @@
      ]
     }
    ],
-   "notes": "Two-layer ash model: surface temperature (observable with the thermal sensor) cools within hours, buried embers (hidden) with a ~14 h time constant; a held poker or probe thermometer reveals them."
+   "notes": "Two-layer ash model: surface temperature (observable with the thermal sensor) cools within hours, buried embers (hidden) with a ~14 h time constant; a held poker or probe thermometer reveals them. ash_state is reported as the ash bed feels to the poker (realistic perception's temperature words): extinguished ash at ambient temperature (cold, cool, room temperature) versus warm, hot or very hot."
   },
   {
    "catalog_id": "T-e262f715d0bd60-01",
    "title": "Rake the front lawn onto a tarp",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -1679,7 +1699,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1858,7 +1879,8 @@
    "catalog_id": "T-b0ab19967436e0-01",
    "title": "Spread the approved ice melt at the label rate",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -2030,7 +2052,8 @@
    "catalog_id": "T-d182fc681f310d-01",
    "title": "Weed then mulch the front flower bed with stem clearance",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {
@@ -2316,7 +2339,8 @@
    "catalog_id": "T-0caf47d0f789f5-01",
    "title": "Walk the fence line and report every defect",
    "house": {
-    "dwelling": "house"
+    "dwelling": "house",
+    "gen": 2
    },
    "setup": [
     {

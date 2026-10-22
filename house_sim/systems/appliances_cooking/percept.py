@@ -97,6 +97,23 @@ def plain(*keys, eid_arg=False):
     return deco
 
 
+def plain_check(fn):
+    """Decorator for this domain's cycle_check:<type> hooks (core.start_cycle passes the robot's ctx as the third
+    argument, kernel round 5): in realistic mode a refusal about an appliance the robot has not identified (an
+    unfamiliar one: unresolved look-alikes never get here, the group guard refuses first) is the one generic reason, so
+    "put the inner pot in first" or "slide the basket in first" cannot name what it is. Oracle mode, and a call without
+    a ctx (physics.appliance_start), keep the hook's own reason."""
+    @functools.wraps(fn)
+    def wrapper(w, eid, *args, **kwargs):
+        verdict = fn(w, eid, *args, **kwargs)
+        ctx = args[0] if args else kwargs.get("ctx")
+        if verdict and isinstance(verdict, (str, tuple)) and ctx is not None and getattr(ctx, "realistic", False) \
+                and unidentified(ctx.env, eid):
+            return (GENERIC_REFUSAL, verdict[1] if isinstance(verdict, tuple) else "precondition")
+        return verdict
+    return wrapper
+
+
 def ordered(ctx, ids):
     """Ids listed in a percept, in handle order (realistic mode): an order by true id would rank look-alikes by their
     true type names ("salt_jar_1" before "sugar_jar_1")."""
@@ -161,9 +178,14 @@ def near_robot(state, eid, cells=SOURCE_CELLS):
     return min(geometry.chebyshev(pos, c) for c in footprint) <= cells
 
 
-def readable(ctx):
-    """Display text is legible: the room is lit and the camera is clean enough (core `read` rules)."""
+def readable(ctx, eid=None, field="display"):
+    """Display text is legible. Room camera: the room is lit and the camera is clean enough (core `read` rules).
+    Geometric camera (kernel v3.0): the camera's own reading rule for that field of that entity (ctx.read_check: 10 px
+    per character of its text height -- appliance displays 10 mm, so within about 0.9 m of the head camera or 0.34 m
+    of the wrist --, its face in view, enough light, no glare on a glossy panel)."""
     w = ctx.w
+    if eid is not None and getattr(ctx, "camera_mode", "room") == "geometric":
+        return bool(ctx.read_check(eid, [field])[0])
     lit = ctx.env.perception.lit(w.s, w.robot["room"])
     return bool(lit and w.robot.get("camera_clean", 1.0) >= 0.4)
 

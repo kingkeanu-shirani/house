@@ -15,8 +15,10 @@ systems and events. It never refuses and never raises ActionError: a consequence
     marker   in the action phase every dirty entity the action arranged (any change but an open / close alone) gets
              ``_robot_moved: True`` (once): the attribution marker of 6.4 (an underscore field: never observed)
     roots    the dirty entities, their new and old support chains up to the top-level support, what rests on them,
-             and what rested on a destroyed entity (its orphans)
-    laws     a FIFO over the sorted roots; every active law of the lawbook in settle order (orphan 10 ... phase 95)
+             what rested on a destroyed entity (its orphans), and what a phys.items_above hook says a dirty item now
+             rests on inside a container (the hook's inverse)
+    laws     a FIFO over the roots sorted bottom-up (supports before what rests on them, then by id); every active
+             law of the lawbook in settle order (orphan 10 ... phase 95)
              runs on each node, then the phys.settle_extra hooks; what a consequence moved or landed on joins the
              queue; then, in the action phase, the carry law once (the robot travelled holding something) and the
              queue again for what it moved
@@ -146,7 +148,21 @@ def _roots(state, dirty, gone, old, cmap):
     for eid in gone:
         roots.update(_from_chain(state, old.get(eid)))
         roots.update(cmap.get(eid, ()))              # orphans: they still name the destroyed support
-    return sorted(e for e in roots if e in entities)
+    from ..plugins import HOOKS
+    if HOOKS.get("phys.items_above"):
+        # the inverse of the hook: a thing a dirty item now rests on in a domain's packing order inside a container
+        # (a cake box under a cooler loaded into the same trunk: neither is "on" the other), so the crush law looks
+        # at it (tools_vehicles' adoption request 2)
+        for eid in dirty:
+            loc = (entities.get(eid) or {}).get("location")
+            if loc not in entities:
+                continue
+            for sib in cmap.get(loc, ()):
+                if sib != eid and sib not in roots and                         any(eid in (extra or ()) for extra in run_hooks("phys.items_above", state, sib)):
+                    roots.add(sib)
+    # bottom-up (supports before what rests on them, then by id): a stack's lower member meets the crush law before
+    # its oversized upper member topples off it (manipulation's adoption request 7)
+    return sorted((e for e in roots if e in entities), key=lambda e: (len(_chain(state, e)), e))
 
 
 def _budget_hit(w, start, phase):

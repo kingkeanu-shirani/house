@@ -15,7 +15,7 @@ Meinel air-mass model DNI = 1353 * 0.7^(AM^0.678) W/m2; cloud factors reduce it.
 import math
 
 from ...kernel import clock
-from ...kernel.plugins import after
+from ...kernel.plugins import HOOKS, after, hook
 from . import common as C
 
 SKY = {"clear": 1.0, "wind": 0.9, "cloudy": 0.3, "fog": 0.15, "rain": 0.08, "storm": 0.03, "snow": 0.2}
@@ -367,6 +367,219 @@ def shade_cells(state, rid, w=None):
             x, y = C.cell_center((xx, yy))
             if shaded_at(state, rid, x, y, 0.45, az, alt, casters) >= 0.8:
                 out.append([xx, yy])
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# geometric camera hooks (tier-1 camera adoption: TIER1_CAMERA 6.1-6.2, TIER1_INTEGRATION 6 "climate")
+#
+# Read only by the geometric camera (kernel/sight.py light_at, bright_sources, glare); room mode never calls them, so
+# its outputs are unchanged. The sun's direction is the same model as everywhere in this domain (compass azimuth ->
+# the camera's grid angle through sight.grid_deg); a point is in the direct beam by the same window-aperture ray test
+# as sun patches and screen glare.
+SUN_PATCH_GAIN = 0.3        # a sunlit patch is this much brighter than the room's ambient (TIER1_CAMERA 6.1)
+SUN_PATCH_MIN = 0.15        # beam strength from which a spot counts as sunlit (as sun_patches and screen glare)
+SUN_FAR_M = 1000.0          # the sun as a bright source: far along its direction ...
+SUN_RADIUS_DEG = 0.27       # ... with its angular radius
+SUN_FULL_DNI = 900.0        # W/m2 of direct beam that counts as a full beam (a clear midday sun)
+# Source levels are in the camera's light units, on the same 0..1 scale as the light at a target (1.0 = a brightly lit
+# room; light_at is clamped there too, so a source above 1.0 would backlight every target in front of it, sunlit or
+# not). A window lets in the sky's daylight x (1 - covered), the kernel fallback's level, plus while the sun shines
+# through it the direct beam, capped at 1.0: a sunlit window outshines a north window in the morning, the evening, in
+# winter and behind half-closed blinds. The sun itself outdoors is 1.0 at a full beam (its glare is the sun_beam rule).
+SUN_BEAM_LEVEL = 1.0
+SUN_LEVEL = 1.0
+SOURCE_MAX = 1.0
+_SUN_MEMO = {}
+_WINDOWS = {}
+_CASTERS = {}
+
+
+def sun_now(state):
+    """(azimuth_deg, altitude_deg, sky factor, DNI W/m2) of the current moment: a pure function of the time, the clock
+    and the weather condition (memoized: the camera asks for it once per point it lights)."""
+    clk = state.get("clock") or {}
+    key = (state.get("time_s"), tuple(sorted((k, repr(v)) for k, v in clk.items())),
+           (state.get("weather") or {}).get("condition"))
+    hit = _SUN_MEMO.get(key)
+    if hit is None:
+        az, alt = sun_position(state)
+        hit = (az, alt, sky_factor(state), dni(state, alt))
+        if len(_SUN_MEMO) > 512:
+            _SUN_MEMO.clear()
+        _SUN_MEMO[key] = hit
+    return hit
+
+
+def sun_vector(az, alt):
+    """Unit vector toward the sun in the room frame (x east, y south, z up): compass azimuth to grid degrees through
+    sight.grid_deg (the camera convention, 0 = +x east, 90 = +y south)."""
+    from ...kernel import sight
+    g, a = math.radians(sight.grid_deg(az)), math.radians(alt)
+    return (round(math.cos(a) * math.cos(g), 6), round(math.cos(a) * math.sin(g), 6), round(math.sin(a), 6))
+
+
+def windows_of(state, rid):
+    """(window ids of a room, aperture memo) from a per-entity-table index (windows never move; a created or destroyed
+    entity changes the table's size or its last id and rebuilds it)."""
+    ents = state["entities"]
+    key = (len(ents), next(reversed(ents)) if ents else None)
+    hit = _WINDOWS.get(id(ents))
+    if hit is None or hit[0] != key or hit[1] is not ents:
+        rooms = {}
+        for eid in sorted(ents):
+            rec = ents[eid]
+            if rec.get("category") == "window" and rec.get("location") in state["rooms"]:
+                rooms.setdefault(rec["location"], []).append(eid)
+        if len(_WINDOWS) > 32:
+            _WINDOWS.clear()
+        hit = _WINDOWS[id(ents)] = (key, ents, rooms, {})
+    return hit[2].get(rid, []), hit[3]
+
+
+def _casters(state, rid):
+    """Outdoor shade casters of a room for this moment (memoized per entity table, step and time: an action opens an
+    umbrella, a wind gust may close one)."""
+    ents = state["entities"]
+    key = (id(ents), len(ents), state.get("steps"), state.get("time_s"), rid)
+    hit = _CASTERS.get(key)
+    if hit is None or hit[0] is not ents:
+        if len(_CASTERS) > 64:
+            _CASTERS.clear()
+        hit = _CASTERS[key] = (ents, shade_casters(state, rid))
+    return hit[1]
+
+
+def direct_sun(state, rid, x, y, z):
+    """Strength 0..1 of the direct sun at a point of a room (after coverings; outdoors 1 - shade), 0 without sun."""
+    room = state["rooms"].get(rid)
+    if room is None:
+        return 0.0
+    az, alt, sky, _ = sun_now(state)
+    if alt <= 0.5 or sky < 0.15:
+        return 0.0
+    if room.get("outdoor"):
+        return round(sky * (1.0 - shaded_at(state, rid, x, y, z, az, alt, _casters(state, rid))), 3)
+    windows, apertures = windows_of(state, rid)
+    if not windows:
+        return 0.0
+    return beam_at(state, rid, x, y, z, az, alt, windows, apertures)[0]
+
+
+@hook("light_at")
+def sun_patch_light(state, rid, x, y, z):
+    """A spot in the direct sun (a sun patch through a window, an unshaded spot outdoors) is brighter than the room's
+    ambient: + SUN_PATCH_GAIN x the beam strength (TIER1_CAMERA 6.1: a local boost on top of the uniform ambient)."""
+    b = direct_sun(state, rid, x, y, z)
+    return round(SUN_PATCH_GAIN * b, 4) if b >= SUN_PATCH_MIN else None
+
+
+@hook("sun_beam")
+def sun_beam_at_eye(state, rid, x, y, z):
+    """The unit vector toward the sun when the point (a camera's eye) stands in the direct beam, else None
+    (TIER1_CAMERA 6.2: the sun in frame washes the frame out and hides what lies within 20 degrees of it)."""
+    if direct_sun(state, rid, x, y, z) < SUN_PATCH_MIN:
+        return None
+    az, alt, _, _ = sun_now(state)
+    return sun_vector(az, alt)
+
+
+def _others_answer():
+    """True when another domain answers bright_sources (electrical lists lamps and screens and leaves the windows to
+    climate): then climate lists only the daylight sources; alone, it also lists the lit lights exactly as the kernel
+    fallback does (any answer replaces the whole fallback)."""
+    me = __name__.rsplit(".", 1)[0]
+    return any(not getattr(fn, "__module__", "").startswith(me) for _, _, fn in HOOKS.get("bright_sources", []))
+
+
+def _window_point(state, rid, wid, rec):
+    """Where a window's light comes from: the middle of its opening on its wall (climate's aperture geometry), at
+    mid-height; the kernel fallback's place when it has no facing; None when it has no place."""
+    ap = aperture(state, wid)
+    if ap is not None:
+        wall, along, _, sill, head, rw, rd = ap
+        x, y = {"N": (along, 0.0), "S": (along, rd), "E": (rw, along), "W": (0.0, along)}[wall]
+        return x, y, (sill + head) / 2.0
+    from ...kernel import geometry, sight
+    box = sight.entity_box(state, wid)
+    if box is None or not rec.get("pos"):
+        return None
+    room = state["rooms"][rid]
+    cols, rows = geometry.grid_size(room)
+    cx, cy, cz = (box.x0 + box.x1) / 2.0, (box.y0 + box.y1) / 2.0, (box.z0 + box.z1) / 2.0
+    inward, _ = geometry.wall_inward(room, rec["pos"])
+    if inward[0]:
+        cx = 0.0 if inward[0] > 0 else cols * C.CELL
+    else:
+        cy = 0.0 if inward[1] > 0 else rows * C.CELL
+    return cx, cy, cz
+
+
+def _light_sources(state, rid):
+    """Lit lights of a room as the kernel fallback lists them (brightness x dim_level at their box centre)."""
+    from ...kernel import sight
+    from ...kernel.predicates import root_room
+    out = []
+    grid = (state.get("utilities") or {}).get("power", True)
+    for eid in sorted(state["entities"]):
+        rec = state["entities"][eid]
+        if rec.get("category") != "light" or not rec.get("on") or rec.get("burnt_out") or root_room(state, eid) != rid:
+            continue
+        if not ((rec.get("powered", True) and grid) or rec.get("battery_powered")):
+            continue
+        box = sight.entity_box(state, eid)
+        if box is None:
+            continue
+        out.append({"x": round((box.x0 + box.x1) / 2.0, 3), "y": round((box.y0 + box.y1) / 2.0, 3),
+                    "z": round((box.z0 + box.z1) / 2.0, 3),
+                    "radius_m": round(max(box.x1 - box.x0, box.y1 - box.y0) / 2.0, 3),
+                    "level": round(C.num(rec.get("brightness"), 0.8) * C.num(rec.get("dim_level"), 1.0), 3),
+                    "kind": "light", "id": eid})
+    return out
+
+
+@hook("bright_sources")
+def daylight_sources(state, rid):
+    """The daylight sources of a room for glare, backlight and specular reflections (TIER1_CAMERA 6.2): every
+    uncovered window at the sky's daylight x (1 - covered), as the kernel fallback, brightened by the direct beam
+    when the sun shines through it (SUN_BEAM_LEVEL x DNI / SUN_FULL_DNI x the incidence on the glass x what the
+    coverings let through), at most SOURCE_MAX; outdoors the sun itself, far along its direction (SUN_LEVEL x DNI /
+    SUN_FULL_DNI)."""
+    room = state["rooms"].get(rid)
+    if room is None:
+        return None
+    out = []
+    az, alt, sky, beam = sun_now(state)
+    sun_up = alt > 0.5 and sky >= 0.15
+    if room.get("outdoor"):
+        if sun_up:
+            vx, vy, vz = sun_vector(az, alt)
+            rw, rd, _ = C.room_dims(room)
+            out.append({"x": round(rw / 2.0 + SUN_FAR_M * vx, 3), "y": round(rd / 2.0 + SUN_FAR_M * vy, 3),
+                        "z": round(SUN_FAR_M * vz, 3),
+                        "radius_m": round(SUN_FAR_M * math.tan(math.radians(SUN_RADIUS_DEG)), 3),
+                        "level": round(SUN_LEVEL * min(1.0, beam / SUN_FULL_DNI), 3), "kind": "sun", "id": None})
+    else:
+        daylight = clock.daylight(state)
+        windows, _ = windows_of(state, rid)
+        for wid in windows:
+            rec = state["entities"][wid]
+            level = daylight * (1.0 - C.num(rec.get("covered"), 0.0))
+            if sun_up:
+                inc = incidence_cos(az, alt, C.window_facing(rec))
+                if inc > 0.05:
+                    level += SUN_BEAM_LEVEL * min(1.0, beam / SUN_FULL_DNI) * min(1.0, inc * 1.6) *                         cover_transmission(rec, for_light=True)
+            if level <= 0.0:
+                continue
+            point = _window_point(state, rid, wid, rec)
+            if point is None:
+                continue
+            size = rec.get("size_m") or [1.0, 0.1, 1.2]
+            out.append({"x": round(point[0], 3), "y": round(point[1], 3), "z": round(point[2], 3),
+                        "radius_m": round(C.num(size[0], 1.0) / 2.0, 3), "level": round(min(SOURCE_MAX, level), 3),
+                        "kind": "window", "id": wid})
+    if not _others_answer():
+        out.extend(_light_sources(state, rid))
     return out
 
 

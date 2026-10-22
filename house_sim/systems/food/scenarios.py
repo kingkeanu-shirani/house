@@ -15,7 +15,7 @@ food.recipe         a recipe card whose text is rendered from a structured recip
 import copy
 import datetime
 
-from ...kernel import geometry
+from ...kernel import clock, geometry
 from ...kernel.errors import SpecError
 from ...kernel.plugins import scenario_helper
 from ...kernel.predicates import root_room
@@ -268,16 +268,8 @@ def _dressing(ctx, surface, keep=()):
 
 
 def _tree_mass(ents, eid):
-    """Mass of an entity with everything inside/on it (kg)."""
-    total, stack, seen = 0.0, [eid], set()
-    while stack:
-        cur = stack.pop()
-        if cur in seen or cur not in ents:
-            continue
-        seen.add(cur)
-        total += float(ents[cur].get("mass_kg", 0.0) or 0.0)
-        stack.extend(k for k, v in ents.items() if v.get("location") == cur)
-    return total
+    """Mass of an entity with everything inside/on it (kg): the kernel's subtree mass (model.tree_mass)."""
+    return M.tree_mass(ents, eid) if eid in ents else 0.0
 
 
 def _stow(ctx, eid, room, keep_off):
@@ -758,14 +750,23 @@ def dated_props(ctx, type_name, days, date_type=None, opened_days_ago=None, fmt=
 
 @scenario_helper("food.dated")
 def dated(ctx, type, days, var="item", into=None, on=None, shelf=None, date_type=None, opened_days_ago=None, fmt=None,
-          spos=None, props=None, spoil=None):
-    """Spawn a dated package: days from the start date (negative = past); returns {var: id}."""
+          spos=None, props=None, spoil=None, opened_label=False):
+    """Spawn a dated package: days from the start date (negative = past); returns {var: id}. opened_label: with
+    opened_days_ago, the household wrote the opening date on it in its own hand and date style ("milk; opened
+    September 30, 2026" in the US, "30 September 2026" in the UK, clock.format_date "long": a handwritten food_label,
+    read tier), the only way anyone can tell later when a pack was opened."""
     extra = dated_props(ctx, type, days, date_type, opened_days_ago, fmt)
+    if opened_label and extra.get("opened_on"):
+        words = (ctx.reg.resolve(type).get("food") or {}).get("kind", type).replace("_", " ")
+        written = clock.format_date(ctx.config, extra["opened_on"], "long")
+        extra["food_label"] = M.parse_label("{}; opened {}".format(words, written))
     if spoil is not None:
         extra["_spoil"] = float(spoil)
     extra.update(copy.deepcopy(props or {}))
     if spos is not None:
         extra["spos"] = list(spos)
+        if into:
+            extra["inner_spos"] = list(spos)    # the geometric camera's place in the container (model.set_shelf_pos)
     if into:
         eid = ctx.placer.inside(into, type, shelf=shelf, **extra)
     elif on:

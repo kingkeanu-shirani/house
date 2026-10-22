@@ -17,8 +17,9 @@ phase (env.phase_done(): it is scored, its gap runs and the next phase starts) a
 episode continues: the agent's optional hook on_request(request) receives the new request (the observation's
 "request", else {"text": instruction}) and its next act() the new observation, whose "instruction" is the new phase's.
 The same hook is called when the environment starts a phase by itself (a phase that ends on time, on a condition or
-on its budget). The log records each phase end as a step {"phase_done": true, "phase", "next_phase"}; replay_log
-replays it in order. Records carry "phases": [{id, success, steps, time_s, end_reason}] (None for single-phase tasks).
+on its budget). The log records each phase end as a step {"phase_done": true, "phase", "next_phase", "waiting"};
+replay_log and the leaderboard's replay_episode replay it in order (env.phase_done()). Records carry "phases":
+[{id, success, steps, time_s, end_reason}] (None for single-phase tasks).
 """
 import argparse
 import copy
@@ -563,7 +564,9 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
             outcome = env.phase_done()
             following = (outcome.get("phase") or {}).get("active")
             steps.append({"i": n, "command": loggable_command(command, private), "done": True, "phase_done": True,
-                          "phase": ended, "next_phase": following, "t_agent_s": round(t_agent, 4), "usage": step_usage,
+                          "phase": ended, "next_phase": following,
+                          "waiting": bool((outcome.get("phase") or {}).get("waiting")),
+                          "t_agent_s": round(t_agent, 4), "usage": step_usage,
                           "sim_time_s": env.world.s.get("time_s", 0.0)})
             if following is not None or (outcome.get("phase") or {}).get("waiting"):
                 last = filter_result(outcome)
@@ -1242,8 +1245,8 @@ def build_parser():
     p.add_argument("--no-cache", action="store_true")
     p.add_argument("--rpm", type=float, help="LLM requests per minute across workers.")
     p.add_argument("--no-replays", action="store_true",
-                   help="Do not save an env replay per episode (each is ~1-3 MB; logs alone re-score, the viewer rebuilds "
-                        "from the spec).")
+                   help="Do not save an env replay per episode (each is a compact house-replay-v3 file of about "
+                        "60-95 KB; logs alone re-score, the viewer rebuilds from the spec).")
     p.add_argument("--quiet", action="store_true")
     return p
 

@@ -17,7 +17,9 @@ What tests/data/room_golden.json pins (tests/test_room_golden.py checks it; G8 o
   which every step succeeds in oracle mode. The commands are stored in the file and replayed as they are, so later
   packages replay exactly the same commands (true ids, translated to handles in realistic mode like the task runner).
 * specs: the final state digest, steps, time and evaluation of the reference plan of every authored spec on seed 0 in
-  its own perception mode (lenient runner: a refused step is counted, never raised). The test checks the 20
+  its own perception mode (lenient runner: a refused step is counted, never raised), with the room camera; a spec
+  that declares "camera": "geometric" runs with its own camera instead (recorded as "camera", exempt from the
+  room-mode state checks: its reference would only fail with the room camera). The test checks the 20
   `fixed_specs`; with HOUSE_SIM_GOLDEN_ALL=1 it checks all of them.
 * invariants the test asserts on every run: room-mode states have no `camera_log` section and no robot `view` or
   `facing_deg`, and `look` lasts 1 s.
@@ -83,11 +85,22 @@ def house_env(seed, perception):
     return HouseEnv(generate_house(seed=seed), None, seed, perception=perception, **env_kwargs())
 
 
-def spec_env(config, task, seed, perception):
-    """The verifier's make_env (fast: no trace; observations each step only in realistic mode) with the room camera."""
+def spec_env(config, task, seed, perception, camera=None):
+    """The verifier's make_env (fast: no trace; observations each step only in realistic mode) with the room camera,
+    or with camera="geometric" for a spec that declares it (spec_camera)."""
     from house_sim.kernel.engine import HouseEnv
+    kwargs = env_kwargs()
+    if camera and kwargs:
+        kwargs["camera"] = camera
     return HouseEnv(copy.deepcopy(config), copy.deepcopy(task), seed, trace=False,
-                    observe_on_step=perception == "realistic", perception=perception, **env_kwargs())
+                    observe_on_step=perception == "realistic", perception=perception, **kwargs)
+
+
+def spec_camera(task):
+    """The camera a spec's reference plan runs with: "room", unless the spec declares "camera": "geometric" (its setup
+    and reference are written for the posed cameras, so the room camera would only pin a failing run; food's adoption
+    request 5). Such specs are recorded with their camera and are exempt from the room-mode state checks."""
+    return "geometric" if (task or {}).get("camera") == "geometric" else "room"
 
 
 def do(env, command):
@@ -292,13 +305,17 @@ def choose_fixed_specs(specs):
 
 
 def run_spec(spec, seed=SPEC_SEED, keep=False):
-    """The reference plan of a spec on one seed in its own perception mode (lenient: refusals are counted)."""
+    """The reference plan of a spec on one seed in its own perception mode (lenient: refusals are counted), with the
+    room camera unless the spec declares the geometric one (spec_camera)."""
     from house_sim.kernel.predicates import digest
     from house_sim.tasks.runner import PlanError, build, run_plan
     config, task, oracle = build(spec, seed)
     mode = task.get("perception") or "oracle"
-    env = spec_env(config, task, seed, mode)
+    camera = spec_camera(task)
+    env = spec_env(config, task, seed, mode, camera=camera)
     out = {"seed": seed, "perception": mode}
+    if camera != "room":
+        out["camera"] = camera
     try:
         runner = run_plan(env, oracle["reference"], oracle["bindings"], strict=False)
         out["refusals"] = len(runner.failures)
@@ -307,7 +324,7 @@ def run_spec(spec, seed=SPEC_SEED, keep=False):
     result = env.evaluate()
     state = env.world.s
     out.update(state=digest(state), steps=state["steps"], time_s=state["time_s"], passes=bool(result["success"]))
-    out["problems"] = _room_mode_problems(state)
+    out["problems"] = _room_mode_problems(state) if camera == "room" else []
     if keep:
         out["full"] = copy.deepcopy(state)
     return out
@@ -417,7 +434,8 @@ def compare(golden, runs, specs):
         if want is None:
             out.append("spec {}: not in the golden file".format(key))
             continue
-        fields = [f for f in ("state", "steps", "time_s", "passes", "refusals", "error") if want.get(f) != got.get(f)]
+        fields = [f for f in ("state", "steps", "time_s", "passes", "refusals", "error", "camera")
+                  if want.get(f) != got.get(f)]
         if fields:
             out.append("spec {}: {} differ{}".format(key, ", ".join(fields), "" if "passes" not in fields else
                                                      " (passes {} -> {})".format(want.get("passes"), got.get("passes"))))

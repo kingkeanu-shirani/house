@@ -118,8 +118,49 @@ DENSITY = {
     "lentils":           {"default": 0.82},
     "baby_formula":      {"spoon_and_level": 0.5, "dip_and_sweep": 0.56, "packed": 0.62, "default": 0.5},
 }
-LIQUID_DENSITY = {"oil": 0.92, "olive_oil": 0.91, "vegetable_oil": 0.92, "honey": 1.42, "milk": 1.03,
-                  "heavy_cream": 0.99, "water": 1.0}
+# Liquid food that leaves its vessel is a kernel spill (house_sim/data/physics/liquids.json: density, viscosity,
+# residue); food kind -> liquids.json name for kinds whose own name is not a row or alias there, then by category.
+# (The densities of plain liquids are liquids.json's; food's own food.density stays the food's.)
+SPILL_LIQUID = {"raw_egg": "raw_egg", "beaten_egg": "raw_egg", "egg_white": "raw_egg", "egg_yolk": "raw_egg",
+                "egg_wash": "raw_egg", "meat_juice": "raw_meat_juice", "chicken_stock": "broth",
+                "vegetable_stock": "broth", "whole_milk": "milk", "buttermilk": "milk", "oat_milk": "milk",
+                "almond_milk": "milk", "coconut_milk": "milk", "half_and_half": "cream", "batter": "soup",
+                "tomato_sauce": "soup", "smoothie": "juice", "lemon_juice": "juice", "lime_juice": "juice",
+                "maple_syrup": "syrup", "bacon_grease": "oil", "frying_oil": "oil", "soy_sauce": "vinegar"}
+SPILL_LIQUID_BY_CAT = {"oil": "oil", "dairy": "milk", "beverage": "juice", "alcohol": "wine", "sweet": "syrup",
+                       "sauce": "soup", "condiment": "soup", "prepared": "soup", "mixture": "soup", "egg": "raw_egg",
+                       "baby": "soup"}
+
+# Packaging (TIER1_INTEGRATION 6 "food"; kernel physics): a sealed retail package is the food entity, and physically it
+# is its packaging -- a jar of honey drops and breaks like a glass jar, a can dents, a carton crumples. Material names
+# are house_sim/data/physics/materials.json aliases (carton = polyethylene-lined paperboard). Look-alike groups share
+# one packaging so a drop never tells members apart (nut butters, cooking oils, baking boxes, spice jars, cartons).
+PACKAGING = {"bag": "film", "bottle": "plastic", "box": "cardboard", "can": "tin", "canister": "cardboard",
+             "carton": "carton", "cup": "plastic", "jar": "glass", "mill": "glass", "pack": "film", "shaker": "glass",
+             "tray": "film", "tub": "plastic", "wrapper": "film"}
+PACKAGING_BY_TYPE = {
+    # paper sacks: flour and sugar (the flour_sugar_bag group)
+    "all_purpose_flour": "paper", "bread_flour": "paper", "sugar_bag": "paper", "powdered_sugar_bag": "paper",
+    # glass bottles (cooking oils share one look); squeeze bottles stay plastic
+    "olive_oil_bottle": "glass", "vegetable_oil_bottle": "glass", "wine_bottle": "glass", "hot_sauce_bottle": "glass",
+    "soy_sauce_bottle": "glass",
+    # aluminium drink cans; paperboard baking-powder and cocoa canisters (the small_baking_box group is all board);
+    # plastic coffee and nut canisters
+    "beer_can": "aluminum", "canned_soda": "aluminum", "sparkling_water_can": "aluminum",
+    "baking_powder_can": "cardboard", "cocoa_powder_can": "cardboard", "ground_coffee_can": "plastic",
+    "mixed_nuts_can": "plastic",
+    # plastic jars: nut butters (one look for the group), peanuts, US mayonnaise
+    "peanut_butter_jar": "plastic", "almond_butter_jar": "plastic", "peanuts_jar": "plastic", "mayonnaise_jar": "plastic",
+    # foil-laminated paper around cream cheese; paperboard ice-cream tubs
+    "cream_cheese": "foil_paper", "ice_cream_tub": "carton"}
+
+# Crush (kernel crush law; TIER1_PHYSICS 5.3): load on top (kg) a soft package gives way under -- a bagged sliced loaf
+# squashes under about 1.5 kg (a bag of apples on it), a bag of chips or pretzels breaks its contents under about 1 kg.
+CRUSH_KG = {"bread_loaf": 1.5, "gluten_free_bread_loaf": 1.5, "chips_bag": 1.0, "popcorn_bag": 1.0, "pretzels_bag": 1.0}
+
+# Produce under impact (kernel impact law: the organic class bruises from about 1 m onto a hard floor). Firm produce
+# keeps that; soft and ripe produce bruises from lower drops (a ripe peach from about 0.4 m, raspberries from 0.3 m).
+BRUISE_DROP_MIN = 0.3        # fraction of the class drop tolerance left for the softest food
 
 # measurement reading error for liquids (parallax / level surface)
 READ_ERROR = {"eye_level": 0.0, "above": 0.07, "tilted": 0.06}
@@ -182,6 +223,13 @@ MINCE_MAX_MM = 3.0
 CV_GOOD = 0.12          # claw grip, stable board, sharp knife
 CV_SLOPPY = 0.32
 SLIP_RISK_LIMIT = 0.6
+GREASY_HANDLE_RISK = 0.4    # x body.slippery of the hand on the handle: oily or doughy fingers alone never reach the
+                            # limit, but with a sliding board or a dull blade they make the cut slip
+# fine positioning (body.precision_mm of the working hand; a humanoid hand is about 2 mm, worse with slippery fingers,
+# a dirty lens, a dark room or fast speed): the tips of fish pin bones stand about 1-2 mm proud of the flesh (fish
+# tweezers forgive about half a millimetre more); an oyster's hinge pocket takes the knife tip within about 4 mm
+PIN_BONE_MM = 2.5
+OYSTER_HINGE_MM = 4.0
 
 # ----------------------------------------------------------------------
 # mixing state machine thresholds

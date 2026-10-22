@@ -423,8 +423,14 @@ def shock_check(w, eid, cause):
 
 
 def robot_wet(w):
+    """Wet grippers: the body's hand soil holds water (kernel v3.0 robot body: cleaning's wet wiping coats the fingers
+    through body.soil_hand), the legacy hands_wet / hand_wetness flags, or a dripping wet thing in hand."""
     robot = w.robot
     if robot.get("hands_wet") or C.num(robot.get("hand_wetness"), 0.0) > 0.2:
+        return True
+    from ...kernel import body
+    soil = body.get(w.s, "hand_soil") or {}
+    if any(C.num((coat or {}).get("water"), 0.0) > 0.2 for coat in soil.values() if isinstance(coat, dict)):
         return True
     for held in w.held_items():
         rec = w.ent(held)
@@ -515,6 +521,7 @@ def sync_energized(w, memo=None):
 def power_lost(w, eid, cause):
     """Consequences of a device losing mains power (once per transition)."""
     rec = w.ent(eid)
+    visible = C.shows_light(w.s, eid)        # a lit lamp going dark, a screen going black (before the handlers run)
     m = None
     if critical(rec):
         m = w.mut(eid)
@@ -526,11 +533,26 @@ def power_lost(w, eid, cause):
     for _, _, fn in LOST_HANDLERS:
         fn(w, eid, cause)
     C.event(w, "power_lost", eid, cause=cause)
+    if visible:
+        C.witness(w, "power_lost", eid, C.room_of(w.s, eid))
+    if connected(rec):
+        C.notice(w, "device", eid, remote=True, data={"status": "offline"})
+    if rec.get("critical_kind") == "medical" and rec.get("power_fail_alarm", True) and not supply_ok(w.s, eid):
+        # home oxygen concentrators and CPAPs sound a power-failure alarm when mains is lost without a backup pack
+        C.notice(w, "alarm", eid, db=75.0, data={"device": "power_failure"})
 
 
 def power_restored(w, eid):
     for _, _, fn in RESTORED_HANDLERS:
         fn(w, eid)
+    if connected(w.s.get("entities", {}).get(eid) or {}):
+        C.notice(w, "device", eid, remote=True, data={"status": "online"})
+
+
+def connected(rec):
+    """A smart device paired with the household hub or app: its status reaches the robot as `device` notices over the
+    network (kernel v3.1 notice bus)."""
+    return (rec.get("pairing") or {}).get("state") == "paired" if isinstance(rec.get("pairing"), dict) else False
 
 
 LOST_HANDLERS = []
@@ -566,8 +588,76 @@ def _cord_k(rec):
     return k
 
 
-@system("electrical.power", order=56, max_dt=30.0)
+_CHARGE_FIELDS = ("battery_level", "charge_rate_w", "charging", "charge_status", "charger")
+
+
+def _power_ignore(rec):
+    """Fields the power step never reads: charging and thermal bookkeeping (a cord's own temperature excepted)."""
+    out = _CHARGE_FIELDS + ("internal_temp_c",)
+    return out if rec.get("fixed_temperature") else out + ("temperature_c",)
+
+
+POWER_IDLE = C.IdleNote("electrical.power", ("powerable", "metered", "plug_devices", "providers", "backup"),
+                        ignore=_power_ignore)
+
+
+_CORD_RATIOS = {}          # provider id -> load ratio of the last power step (its cord temperature model's input)
+CORD_STEP = 1.0 - math.exp(-30.0 / 600.0)      # the cord temperature model's largest step fraction (max_dt 30 s)
+
+
+def _power_inputs(w):
+    """The power step's inputs outside the entity table: the grid, any timer on its schedule (time alone moves it) and
+    the load ratio of each modelled cord (its temperature follows the room's, which climate keeps moving)."""
+    state = w.s
+    ents = state["entities"]
+    timers, cords = False, {}
+    for oid in C.ids(w, "providers"):
+        rec = ents.get(oid) or {}
+        if rec.get("outlet_kind") == "timer" and (rec.get("settings") or {}).get("mode", "auto") == "auto":
+            timers = True
+        if rec.get("fixed_temperature") and is_provider(rec) and rec.get("outlet_kind", "wall") != "wall":
+            cords[oid] = _CORD_RATIOS.get(oid, 0.0)
+    return {"grid": C.grid_on(state), "timers": timers, "cords": cords}
+
+
+def _cord_steady(state, oid, ratio):
+    """True when the cord temperature step would write nothing now: under 0.05 C of movement toward the room-driven
+    target (for any substep up to 30 s) and no scorch or ignition threshold within reach."""
+    from ...kernel.physics import room_temperature
+    rec = state["entities"].get(oid)
+    if rec is None:
+        return False
+    rid = C.room_of(state, oid)
+    ambient = room_temperature(state, rid) if rid else 21.0
+    target = ambient + _cord_k(rec) * ratio * ratio
+    cur = C.num(rec.get("temperature_c"), ambient)
+    if abs(target - cur) * CORD_STEP >= 0.05:
+        return False
+    top = max(cur, target)
+    return (top < 75.0 or bool(rec.get("scorched"))) and (top < 110.0 or bool(rec.get("ignited")))
+
+
+def power_idle(w):
+    """Exact idle probe of electrical.power (common.IdleNote)."""
+    note = POWER_IDLE
+    if not note.quiet(w):
+        return False
+    extra = note.extra or {}
+    state = w.s
+    if extra.get("timers") or C.grid_on(state) != extra.get("grid"):
+        return False
+    return all(_cord_steady(state, oid, ratio) for oid, ratio in (extra.get("cords") or {}).items())
+
+
+@system("electrical.power", order=56, max_dt=30.0, idle=power_idle)
 def power_system(w, dt, tick):
+    before = w.mutation_count
+    _power_step(w, dt, tick)
+    wrote = w.mutation_count != before
+    POWER_IDLE.after(w, wrote, None if wrote else _power_inputs(w))
+
+
+def _power_step(w, dt, tick):
     state = w.s
     ents = state["entities"]
     if not C.electrified(state, w):
@@ -618,6 +708,7 @@ def power_system(w, dt, tick):
             if heat >= STRIP_TRIP_HEAT:
                 changed |= trip_provider(w, oid, "overload")
         if rec.get("fixed_temperature"):
+            _CORD_RATIOS[oid] = ratio
             _cord_temperature(w, oid, rec, ratio, dt)
     # backup batteries carry their device through an outage and recharge on mains
     for eid in C.ids(w, "backup"):
@@ -698,9 +789,11 @@ def _thermal_breaker(w, bid, rec, load_w, volts, dt, shorted=None):
 
 
 def _shorted_devices(state, w=None):
+    """Devices that short their circuit when they run: a hidden `_short` (a crushed or bared cord, an internal fault) or
+    liquid still inside (physical.py, phys.wetted)."""
     ents = state["entities"]
     candidates = C.ids(w, "powerable") if w is not None else sorted(ents)
-    return [eid for eid in candidates if (ents.get(eid) or {}).get("_short")]
+    return [eid for eid in candidates if (ents.get(eid) or {}).get("_short") or C.water_logged(ents.get(eid) or {})]
 
 
 def _circuit_short(state, bid, shorted=None):

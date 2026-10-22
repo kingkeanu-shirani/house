@@ -1,0 +1,24 @@
+{
+ "issues": {
+  "no_signal": {"class": "function", "synonyms": ["no_picture", "black_screen", "blank_screen", "wrong_input"], "applies_to": ["electronics", "device"], "evidence": [{"field": "display"}, {"field": "display_source"}]},
+  "no_internet": {"class": "function", "synonyms": ["internet_down", "wifi_down", "no_wifi", "no_connection", "network_down"], "evidence": [{"field": "online"}, {"field": "led"}, {"field": "display"}]},
+  "not_charging": {"class": "function", "synonyms": ["wont_charge", "won't_charge", "charging_fault", "not_taking_charge"], "evidence": [{"field": "charging"}, {"field": "charge_status"}, {"field": "led"}]},
+  "swollen_battery": {"class": "safety", "synonyms": ["bulging_battery", "puffy_battery", "battery_swollen", "swelling_battery"], "evidence": [{"field": "battery_swollen"}]},
+  "battery_leak": {"class": "safety", "synonyms": ["leaking_battery", "corroded_battery", "battery_corrosion", "corroded_contacts"], "evidence": [{"field": "leaking"}, {"field": "condition"}]},
+  "reversed_battery": {"class": "function", "synonyms": ["battery_backwards", "batteries_backwards", "wrong_way_round", "upside_down_battery"], "evidence": [{"field": "orientation"}]},
+  "wrong_time": {"class": "function", "synonyms": ["clock_wrong", "time_wrong", "clock_slow", "clock_fast", "blinking_twelve", "blinking_12"], "evidence": [{"field": "display_time"}, {"field": "display"}]},
+  "cracked_screen": {"class": "condition", "synonyms": ["screen_cracked", "smashed_screen", "broken_screen", "shattered_screen"], "evidence": [{"field": "screen_cracked"}]},
+  "liquid_damage": {"class": "moisture", "synonyms": ["water_inside", "got_wet", "spilled_on", "drink_spilled_on"], "evidence": [{"field": "wetness"}, {"field": "wetness", "near": true}]},
+  "loose_plug": {"class": "function", "synonyms": ["plug_loose", "half_plugged", "not_fully_plugged", "plug_falling_out"], "evidence": [{"field": "plugged_in"}, {"field": "plug_seated"}]},
+  "damaged_cable": {"class": "condition", "synonyms": ["broken_cable", "bent_connector", "damaged_connector", "kinked_cable"], "evidence": [{"field": "damaged"}, {"field": "cord_condition"}]},
+  "dim_light": {"class": "function", "synonyms": ["too_dim", "light_dim", "weak_light", "not_bright_enough"], "evidence": [{"field": "dim_level"}, {"field": "brightness"}, {"field": "lit"}]}
+ },
+ "states": {
+  "online": {"synonyms": ["connected_online", "back_online", "internet_up"], "opposite": "offline", "evidence": [{"field": "online"}, {"field": "led"}]},
+  "offline": {"synonyms": ["not_online", "disconnected_offline", "unreachable"], "opposite": "online", "evidence": [{"field": "online"}, {"field": "led"}]},
+  "paired": {"synonyms": ["set_up_in_app", "linked", "added_to_hub"], "opposite": "unpaired", "evidence": [{"field": "led"}, {"field": "pairing"}]},
+  "unpaired": {"synonyms": ["not_paired", "not_set_up", "unlinked"], "opposite": "paired", "evidence": [{"field": "led"}, {"field": "pairing"}]},
+  "dark": {"synonyms": ["light_off"], "opposite": "lit", "evidence": [{"field": "lit"}, {"field": "on"}]},
+  "dimmed": {"synonyms": ["dim", "turned_down", "low_light"], "evidence": [{"field": "dim_level"}]}
+ }
+}

@@ -530,12 +530,23 @@ class WeatherPatioTests(unittest.TestCase):
         self.assertGreater(stat(env, "damage"), 0)
 
     def test_rain_ruins_book_left_outside(self):
-        env, b = make([{"op": "helper", "name": "outdoor_plants.patio_set", "args": {"chairs": 1, "cushions": "none"}},
-                       {"op": "spawn", "type": "book", "on": "{table}", "var": "book"},
-                       {"op": "helper", "name": "outdoor_plants.weather_plan", "args": {"events": [{"in_h": 0.2, "hours": 1, "condition": "rain", "rain_mm_h": 5}]}}])
-        env.step("wait", seconds=3600)
-        self.assertTrue(ent(env, b["book"]).get("ruined"))
-        self.assertGreater(stat(env, "weather_damage"), 0)
+        from house_sim.kernel.phys import lawbook
+        setup = [{"op": "helper", "name": "outdoor_plants.patio_set", "args": {"chairs": 1, "cushions": "none"}},
+                 {"op": "spawn", "type": "book", "on": "{table}", "var": "book"},
+                 {"op": "helper", "name": "outdoor_plants.weather_plan", "args": {"events": [{"in_h": 0.2, "hours": 1, "condition": "rain", "rain_mm_h": 5}]}}]
+        with lawbook.forced(rain=False):            # this domain's copy of the rain law
+            env, b = make(setup)
+            env.step("wait", seconds=3600)
+            self.assertTrue(ent(env, b["book"]).get("ruined"))
+            self.assertGreater(stat(env, "weather_damage"), 0)
+        with lawbook.forced(rain=True):             # TIER1_PHYSICS 5.10: the kernel soaks paper; this domain steps aside
+            env, b = make(setup)
+            env.step("wait", seconds=3600)
+            book = ent(env, b["book"])
+            self.assertEqual(book.get("wetness"), 1.0)
+            self.assertGreater(float(book.get("moisture", 0.0)), 0.0)
+            self.assertFalse(book.get("ruined"))
+            self.assertEqual(stat(env, "weather_damage"), 0)
 
     def test_unfastened_cover_blows_off_fastened_stays(self):
         for fastened in (False, True):
@@ -626,17 +637,33 @@ class YardTests(unittest.TestCase):
         self.assertIn("pet_unsafe_product", issues)
         self.assertIn("over_applied", issues)
 
-    def test_light_snow_cleared_heavy_wet_snow_makes_robot_fall_metal_edge_gouges(self):
+    def test_light_snow_cleared_heavy_wet_snow_is_an_overload_attempt_metal_edge_gouges(self):
         setup = [{"op": "helper", "name": "outdoor_plants.surface", "args": {"room": "front_yard", "which": "walkway", "snow_cm": 4, "density": 90}},
                  {"op": "spawn", "type": "snow_pusher", "robot_hand": "right", "var": "pusher"}]
         env, b = make(setup, house={"dwelling": "house"})
         run(env, b, [{"skill": "go_room", "room": "{room}"}, {"do": "shovel", "target": "{surface}", "destination": "lawn_{room}"}], strict=True)
         self.assertLess(ent(env, b["surface"])["snow_cm"], 0.5)
         self.assertTrue(status(env, b["surface"]).get("snow_pile_ok"))
+        # TIER1_INTEGRATION 6 (outdoor_plants, Body): heavy wet snow over the push limit is an overload attempt through
+        # the body (the push is aborted at the blade, refused, counted), no longer a fall; thinner layers clear it
         env, b = make([{"op": "helper", "name": "outdoor_plants.surface", "args": {"room": "front_yard", "which": "walkway", "snow_cm": 20, "density": 350}},
                        {"op": "spawn", "type": "snow_pusher", "robot_hand": "right", "var": "pusher"}], house={"dwelling": "house"})
-        run(env, b, [{"skill": "go_room", "room": "{room}"}, {"do": "shovel", "target": "{surface}"}])
-        self.assertGreater(stat(env, "falls"), 0)
+        run(env, b, [{"skill": "go_room", "room": "{room}"}])
+        res = env.step("shovel", b["surface"])
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["category"], "safety")
+        self.assertIn("thinner layers", res["message"])
+        self.assertEqual(stat(env, "falls"), 0)
+        self.assertEqual(stat(env, "overload_attempts"), 1)
+        self.assertIn("overload_s", env.world.s["robot"].get("body_log") or {})
+        self.assertFalse(env.world.s["robot"].get("fallen"))
+        self.assertEqual(ent(env, b["surface"])["snow_cm"], 20)
+        for _ in range(6):
+            res = env.step("shovel", b["surface"], layer_cm=4)
+            self.assertTrue(res["ok"], res["message"])
+            if ent(env, b["surface"])["snow_cm"] < 0.5:
+                break
+        self.assertLess(ent(env, b["surface"])["snow_cm"], 0.5)
         env, b = make([{"op": "helper", "name": "outdoor_plants.surface", "args": {"room": "front_yard", "which": "walkway", "snow_cm": 4, "density": 90, "material": "pavers"}},
                        {"op": "spawn", "type": "metal_snow_shovel", "robot_hand": "right", "var": "shovel"}], house={"dwelling": "house"})
         run(env, b, [{"skill": "go_room", "room": "{room}"}, {"do": "shovel", "target": "{surface}", "destination": "street"}])
@@ -1703,6 +1730,316 @@ class RealisticPerceptionTests(unittest.TestCase):
                         later = {m for m in mine if list(config["entities"]).index(m) > list(config["entities"]).index(eid)}
                         # a mount hung after this piece was placed is the hanging domain's to keep clear (reported)
                         self.assertEqual(mine - later, set(), (seed, opts, rid, eid))
+
+
+class TierOneAdoptionTests(unittest.TestCase):
+    """Tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep): docs/domains/outdoor_plants.md section 0b."""
+
+    WINDY = [{"op": "weather", "condition": "clear", "wind_mps": 1.0, "gust_mps": 2.0},
+             {"op": "helper", "name": "outdoor_plants.patio_set", "args": {"chairs": 1, "cushions": "none", "umbrella": {"open": True, "ballast_kg": 0, "tilt_deg": 0}}},
+             {"op": "spawn", "type": "generic_item", "on": "{table}", "var": "box",
+              "props": {"label": "empty box", "material": "cardboard", "mass_kg": 0.3, "size_m": [0.3, 0.3, 0.3], "portable": True}},
+             {"op": "helper", "name": "outdoor_plants.weather_plan", "args": {"events": [{"in_h": 0.01, "hours": 1, "condition": "wind", "wind_mps": 9.0, "gust_mps": 16.0}]}}]
+
+    def test_loose_objects_are_the_kernels_once_the_wind_law_is_active(self):
+        from house_sim.kernel.phys import lawbook
+        with lawbook.forced(wind=False):
+            env, b = make(self.WINDY)
+            env.step("wait", seconds=900)
+            self.assertGreater(stat(env, "wind_displaced"), 0)        # this domain's copy of the law moved the box
+            self.assertTrue(ent(env, b["umbrella"]).get("tipped"))
+        with lawbook.forced(wind=True):
+            env, b = make(self.WINDY)
+            env.step("wait", seconds=900)
+            self.assertEqual(stat(env, "wind_displaced"), 0)           # the kernel's law owns loose objects now
+            self.assertTrue(ent(env, b["umbrella"]).get("tipped"))     # canopies stay this domain's
+            self.assertGreater(stat(env, "tip_overs"), 0)
+
+    def test_kernel_rain_wets_things_and_leaves_soil_water_to_the_domain(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.outdoor_plants import weather as W
+        setup = [{"op": "weather", "condition": "clear", "wind_mps": 1.0, "gust_mps": 2.0},
+                 {"op": "helper", "name": "outdoor_plants.patio_set", "args": {"chairs": 1, "cushions": "out"}},
+                 {"op": "spawn", "type": "generic_item", "on": "{table}", "var": "book",
+                  "props": {"label": "paperback", "material": "paper", "category": "book", "mass_kg": 0.3, "size_m": [0.13, 0.2, 0.03]}},
+                 {"op": "helper", "name": "outdoor_plants.houseplants", "args": {"room": "patio", "clear_existing": False, "plants": [
+                     {"species": "geranium", "rwc": "moist", "on": "{table}", "saucer_water_l": 0.0}]}},
+                 {"op": "helper", "name": "outdoor_plants.weather_plan", "args": {"events": [{"in_h": 0.01, "hours": 1, "condition": "rain", "rain_mm_h": 6}]}}]
+        with lawbook.forced(rain=True):
+            env, b = make(setup)
+            env.step("wait", seconds=1800)
+            state = env.world.s
+            cushion = b["cushions"][0]
+            self.assertEqual(ent(env, cushion)["wetness"], 1.0)                      # the kernel wets exposed surfaces
+            self.assertEqual(ent(env, cushion).get("_wet_mine"), 1.0)                # and this domain dries its own
+            self.assertEqual(ent(env, b["book"])["wetness"], 1.0)
+            self.assertFalse(ent(env, b["book"]).get("ruined"))                      # soaking paper is the kernel's
+            self.assertIsNone(ent(env, b["pot1"]).get("liquid_l"))                   # rain into a pot is soil water
+            self.assertIs(W.kernel_exposure(state, b["pot1"]), False)
+            self.assertIs(W.kernel_exposure(state, b["saucer1"]), False)
+            self.assertIsNone(W.kernel_exposure(state, cushion))
+            self.assertGreater(float(state["weather"].get("rain_24h_mm", 0.0)), 1.0)
+
+    def test_spills_the_robot_causes_go_through_the_kernel(self):
+        env, b = make([{"op": "helper", "name": "outdoor_plants.houseplants", "args": {"room": "living_room", "plants": [{"species": "pothos", "rwc": "dry", "on": "table"}]}}],
+                      house={"dwelling": "house"})
+        w = env.world
+        rid = w.s["robot"]["room"]
+        before = stat(env, "spills")
+        self.assertIsNone(C.add_spill(w, rid, [0, 0], 0.003))                      # 3 ml: droplets
+        self.assertEqual(stat(env, "spills"), before)
+        sid = C.add_spill(w, rid, [0, 0], 0.3)
+        self.assertIsNotNone(sid)
+        self.assertEqual(w.s["entities"][sid].get("category"), "spill")
+        self.assertEqual(stat(env, "spills"), before + 1)
+
+    def test_gen2_weather_follows_the_process_and_yields_to_scripted_weather(self):
+        from house_sim.systems.outdoor_plants import weather as W
+        env, b = make([], house={"dwelling": "house", "gen": 2})
+        wx = env.world.s["weather"]
+        self.assertIsNotNone(W.process_of(wx))
+        self.assertIsNone(wx.get("override_until_s"))
+        wait(env, 6 * 3600)
+        value = W.process_value(env.world.s)
+        for key in W.PROCESS_FIELDS:
+            self.assertEqual(env.world.s["weather"][key], value[key], key)
+        env2, _ = make([{"op": "weather", "condition": "clear", "temperature_c": 22.0, "wind_mps": 1.0, "gust_mps": 2.0}],
+                       house={"dwelling": "house", "gen": 2})
+        self.assertEqual(env2.world.s["weather"].get("override_until_s"), W.SCRIPTED_S)
+        wait(env2, 6 * 3600)
+        self.assertEqual(env2.world.s["weather"]["temperature_c"], 22.0)
+        self.assertEqual(env2.world.s["weather"]["condition"], "clear")
+
+    def test_the_process_forecast_is_issued_twice_a_day_and_stateless(self):
+        import datetime
+        from house_sim.systems.outdoor_plants import weather as W
+        env, b = make([{"op": "robot", "room": "front_yard"}], house={"dwelling": "house", "gen": 2})
+        fc = env.observe()["forecast"]
+        self.assertGreaterEqual(len(fc), 8)
+        self.assertEqual(fc, W.process_forecast(env.world.s))
+        for item in fc:
+            self.assertTrue(0.0 <= item["precip_prob"] <= 1.0)
+            self.assertIn(item["condition"], ("clear", "cloudy", "rain", "storm", "snow"))
+            self.assertLessEqual(item["low_c"], item["high_c"])
+        again, _ = make([{"op": "robot", "room": "front_yard"}], house={"dwelling": "house", "gen": 2})
+        self.assertEqual(again.observe()["forecast"], fc)
+        self.assertEqual(W.issue_time(datetime.datetime(2026, 10, 9, 5, 0)), datetime.datetime(2026, 10, 8, 18, 0))
+        self.assertEqual(W.issue_time(datetime.datetime(2026, 10, 9, 10, 0)), datetime.datetime(2026, 10, 9, 6, 0))
+        trip = W.forecast_for(env.world.s, "uk", ["2026-10-12", "2026-10-13"])
+        self.assertEqual([t["date"] for t in trip], ["2026-10-12", "2026-10-13"])
+        self.assertTrue(all(t["region"] == "uk" and t["low_c"] <= t["high_c"] for t in trip))
+
+    def test_rain_starting_and_thunder_are_notices(self):
+        env, b = make([{"op": "weather", "condition": "clear", "wind_mps": 1.0, "gust_mps": 2.0}, {"op": "robot", "room": "backyard"},
+                       {"op": "helper", "name": "outdoor_plants.weather_plan", "args": {"events": [{"in_h": 0.02, "hours": 1, "condition": "storm", "rain_mm_h": 20}]}}],
+                      house={"dwelling": "house"})
+        env.world.s["notices"] = []
+        env.step("wait", seconds=600)
+        kinds = [n.get("kind") for n in env.world.s.get("notices") or []]
+        self.assertIn("rain", kinds)
+        self.assertIn("thunder", kinds)
+
+    def test_mowing_walks_the_lawn_and_a_slide_is_the_bodys_fall(self):
+        from house_sim.kernel import geometry
+        from house_sim.systems.outdoor_plants import lawn as L
+
+        def mower_env(**extra):
+            env, b = LawnTests().lawn(leaves=0.0, tools=False, **extra)
+            mower = env.world.spawn("lawn_mower", b["room"], pos=list(env.world.robot["pos"]))
+            env.world.s["approvals"].append("use:" + mower)
+            env.world.commit()
+            run(env, b, [{"do": "pick_up", "target": mower, "hand": "both"}], strict=True)
+            return env, b, mower
+        env, b, mower = mower_env()
+        state = env.world.s
+        grid = ent(env, b["lawn"])["grid"]
+        patches, box = L.area_patches(grid, "lawn", kinds=("L", "B", "H"))
+        start = list(state["robot"]["pos"])
+        path, _ = L.mow_path(state, b["room"], patches, box, start)
+        meters = geometry.path_length_m([tuple(start)] + [tuple(c) for c in path])
+        used = float(state["robot"].get("energy_wh_used", 0.0))
+        self.assertTrue(env.step("mow", b["lawn"])["ok"])
+        self.assertEqual(list(env.world.s["robot"]["pos"]), list(path[-1]))
+        self.assertGreaterEqual(float(env.world.s["robot"]["energy_wh_used"]) - used, 0.288 * meters * 0.95)
+        env, b, mower = mower_env(moisture=0.95, slopes=[[3, 1, 25.0]])
+        res = env.step("mow", b["lawn"])
+        self.assertTrue(res["ok"], res["message"])
+        robot = env.world.s["robot"]
+        self.assertTrue(robot.get("fallen"))
+        self.assertEqual(stat(env, "falls"), 1)
+        self.assertTrue(robot.get("actuator_ok", True))
+        self.assertNotIn(mower, (robot.get("hands") or {}).values())
+        self.assertEqual(ent(env, mower)["location"], b["room"])
+
+    def test_quiet_mode_refuses_loud_tools_through_the_body(self):
+        from house_sim.kernel import body
+        env, b = make([{"op": "spawn", "type": "hedge", "furniture": "backyard", "var": "hedge", "props": {"species": "privet", "_target": {"height_m": 1.5}}},
+                       {"op": "spawn", "type": "hedge_trimmer", "robot_hand": "right", "var": "trimmer"}], house={"dwelling": "house"})
+        env.world.s["approvals"].append("use:" + b["trimmer"])
+        run(env, b, [{"skill": "approach", "target": "{hedge}"}, {"do": "set_quiet", "target": "on"}])
+        res = env.step("trim_plant", b["hedge"], part="hedge", height_m=1.5)
+        self.assertFalse(res["ok"])
+        self.assertEqual((res["category"], res["message"]), ("social", body.QUIET_TEXT))
+        self.assertTrue(env.step("set_quiet", "off")["ok"])
+        self.assertTrue(env.step("trim_plant", b["hedge"], part="hedge", height_m=1.5)["ok"])
+
+    def test_falling_into_the_pool_is_the_bodys_wet_fall(self):
+        from house_sim.kernel import geometry
+        house = {"dwelling": "house", "require": ["pool"]}
+        env, b = make([{"op": "helper", "name": "outdoor_plants.pool_state", "args": {"debris_kg": 1.0, "wet_coping": True}},
+                       {"op": "spawn", "type": "pool_skimmer_net", "robot_hand": "right", "var": "net"}], house=house)
+        room = env.world.s["rooms"][b["room"]]
+        cols, rows = geometry.grid_size(room)
+        cells = geometry.footprint(ent(env, b["pool"]))
+        edge = sorted((x, y) for x in range(cols) for y in range(rows) if min(geometry.chebyshev((x, y), c) for c in cells) == 1)[0]
+        run(env, b, [{"skill": "go_room", "room": "{room}"}, {"do": "walk_to", "cell": [edge[0], edge[1]]}, {"do": "skim", "target": "{pool}"}])
+        robot = env.world.s["robot"]
+        self.assertTrue(robot.get("fallen"))
+        self.assertEqual(stat(env, "falls"), 1)
+        self.assertIn("water_ingress", robot.get("fault_state") or {})
+        self.assertTrue(all(isinstance(f, dict) for f in robot.get("faults") or []))
+
+    def test_touching_a_live_line_is_a_typed_actuator_fault(self):
+        from house_sim.systems.outdoor_plants import yard as Y
+        env, b = make([], house={"dwelling": "house"})
+        Y.electrocute(env.world, "power_line_x")
+        robot = env.world.s["robot"]
+        self.assertFalse(robot.get("actuator_ok"))
+        self.assertEqual((robot.get("fault_state") or {}).get("actuator_failed", {}).get("source"), "electric_shock")
+        self.assertTrue(all(isinstance(f, dict) for f in robot.get("faults") or []))
+
+    def test_bare_handed_garden_work_soils_the_grippers(self):
+        setup = [{"op": "helper", "name": "outdoor_plants.garden_bed", "args": {"room": "backyard", "size": [3.0, 1.0], "rwc": 0.95, "plants": [
+                     {"species": "dandelion", "role": "weed", "spos": [0.3, 0.3]}, {"species": "dandelion", "role": "weed", "spos": [1.3, 0.3]}]}}]
+        env, b = make(setup)
+        run(env, b, [{"skill": "approach", "target": "{bed}"}, {"do": "weed", "target": "{bed}", "select": [b["plants"][0]], "method": "pull"}], strict=True)
+        soil = env.world.s["robot"].get("hand_soil") or {}
+        self.assertTrue(any(coat.get("mud", 0.0) > 0 for coat in soil.values()), soil)
+        env, b = make(setup)
+        env.world.robot_m()["wearing"] = ["garden_gloves"]
+        env.world.commit()
+        run(env, b, [{"skill": "approach", "target": "{bed}"}, {"do": "weed", "target": "{bed}", "select": [b["plants"][0]], "method": "pull"}], strict=True)
+        self.assertEqual(env.world.s["robot"].get("hand_soil") or {}, {})
+
+    def test_plant_questions_route_to_the_plants_answerer(self):
+        env, b = make([{"op": "helper", "name": "outdoor_plants.houseplants", "args": {"room": "living_room", "plants": [{"species": "pothos", "rwc": "moist", "on": "table"}]}},
+                       {"op": "person", "id": "resident_9", "role": "adult", "room": "living_room"}], house={"dwelling": "house"})
+        run(env, b, [{"skill": "go_room", "room": "living_room"}])
+        res = env.step("ask", "resident_9", aspect="when", about=b["p1"])
+        self.assertTrue(res["ok"], res["message"])
+        self.assertIn("plants:care:" + b["p1"], env.world.s.get("facts") or {})
+        env, b = make([{"op": "helper", "name": "outdoor_plants.garden_bed", "args": {"room": "backyard", "size": [3.0, 1.0], "plants": [
+                           {"species": "dill", "role": "volunteer", "owner_wants": "keep", "spos": [1.0, 0.3]}]}},
+                       {"op": "person", "id": "resident_9", "role": "adult", "room": "backyard"}], house={"dwelling": "house"})
+        # keep / intended about a plant: manipulation's route claims those aspects for every entity and registers
+        # first (reported); the route itself names the plants topic
+        from house_sim.kernel import dialogue
+        from house_sim.systems.outdoor_plants import routes as R
+        subject = dialogue.Subject("entity", b["plants"][0], ())
+        self.assertEqual(R.route_keep(env.world.s, "resident_9", subject, "keep", None, None), "plants:keep:" + b["plants"][0])
+        self.assertEqual(R.route_care(env.world.s, "resident_9", dialogue.Subject("word", None, ("peace", "lily")), "how", None, None),
+                         "plants:care:peace_lily")
+
+    def test_season_ground_state_of_generation_2_houses(self):
+        from house_sim.generator import generate_house
+        from house_sim.systems.outdoor_plants import season as S
+        snowy = [{"temperature_c": -3.0, "rain_mm_h": 0.0, "snow_cm_h": 1.5}] * 6 + [{"temperature_c": -5.0, "rain_mm_h": 0.0, "snow_cm_h": 0.0}] * 6
+        snow, density, ice, _ = S.ground_after(snowy)
+        self.assertEqual((snow, density, ice), (9.0, 100.0, 0.0))
+        glaze = [{"temperature_c": 3.0, "rain_mm_h": 2.0, "snow_cm_h": 0.0}] * 3 + [{"temperature_c": -2.0, "rain_mm_h": 0.0, "snow_cm_h": 0.0}] * 3
+        self.assertGreater(S.ground_after(glaze)[2], 0.5)              # rain on the paving froze: a glaze of ice
+        summer = generate_house(4, gen=2, dwelling="house", start="2027-07-15T10:00:00", region="us", require=["pool"])
+        winter = generate_house(4, gen=2, dwelling="house", start="2027-01-15T10:00:00", region="ca", require=["pool"])
+        for config, season in ((summer, "open"), (winter, "closed")):
+            pools = [r for r in config["entities"].values() if r.get("type") == "pool"]
+            self.assertTrue(pools and all(r["season"] == season for r in pools))
+            pumps = [r for r in config["entities"].values() if r.get("type") == "pool_pump"]
+            self.assertTrue(all(bool(r.get("on")) == (season == "open") for r in pumps))
+        tender = [r for r in winter["entities"].values() if r.get("species") in S.TENDER_ANNUALS and r.get("type") == "garden_plant"]
+        self.assertEqual(tender, [])
+        steps = [r for r in winter["entities"].values() if r.get("type") == "steps" and r.get("connection")]
+        self.assertTrue(steps)
+        old = generate_house(4, dwelling="house")              # generation 1: the pinned records
+        self.assertFalse(any(r.get("type") == "steps" for r in old["entities"].values()))
+        for rec in old["entities"].values():
+            if rec.get("type") == "roof_face":
+                self.assertIn("view", rec)
+                self.assertNotIn("sightline", rec)
+            if rec.get("type") == "wheelbarrow":
+                self.assertNotIn("chocked", rec)
+
+    def test_porch_steps_mirror_their_treads_onto_the_connection(self):
+        from house_sim.systems.outdoor_plants import yard as Y
+        env, b = make([], house={"dwelling": "house", "gen": 2})
+        w = env.world
+        steps = sorted(e for e, r in w.s["entities"].items() if r.get("type") == "steps" and r.get("connection"))
+        self.assertTrue(steps)
+        sid = steps[0]
+        cid = ent(env, sid)["connection"]
+        w.mut(sid)["ice"] = 0.6
+        Y.surface_status(w, sid)
+        conn = w.s["connections"][cid]
+        self.assertTrue(conn.get("tread_wet"))
+        self.assertTrue(conn.get("icy"))
+        w.mut(sid)["ice"] = 0.0
+        Y.surface_status(w, sid)
+        self.assertFalse(w.s["connections"][cid].get("icy"))
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        setup = [{"op": "helper", "name": "outdoor_plants.patio_set", "args": {"chairs": 1, "cushions": "out"}},
+                 {"op": "helper", "name": "outdoor_plants.weather_plan", "args": {"events": [{"in_h": 0.5, "hours": 1, "condition": "rain", "rain_mm_h": 4}]}}]
+        for house in ({"dwelling": "house"}, {"dwelling": "house", "gen": 2}):
+            for spec_setup in (setup, []):
+                digests = []
+                for on in (True, False):
+                    saved = plugins.IDLE_PROBES[0]
+                    plugins.IDLE_PROBES[0] = on
+                    try:
+                        env, b = make(spec_setup, house=house)
+                        wait(env, 4 * 3600)
+                        digests.append(digest(env.world.s))
+                    finally:
+                        plugins.IDLE_PROBES[0] = saved
+                self.assertEqual(digests[0], digests[1], (house, bool(spec_setup)))
+
+    def test_geometric_camera_gates_lawn_surveys_and_hides_small_things_in_tall_grass(self):
+        from house_sim.systems.outdoor_plants import lawn as L
+        setup = [{"op": "weather", "condition": "clear", "wind_mps": 1.0, "gust_mps": 2.0},
+                 {"op": "helper", "name": "outdoor_plants.lawn", "args": {"room": "front_yard", "height_mm": 90.0}},
+                 {"op": "robot", "room": "front_yard"},
+                 {"op": "spawn", "type": "generic_item", "floor": "front_yard", "var": "ball", "props": {"label": "golf ball", "size_m": [0.043, 0.043, 0.043], "mass_kg": 0.046}}]
+        geo, b = make(setup, house={"dwelling": "house"}, task={"camera": "geometric"})
+        room_env, rb = make(setup, house={"dwelling": "house"})
+        state = geo.world.s
+        ball = state["entities"][b["ball"]]
+        rid = ball["location"]
+        lawn = L._lawn_in(state, rid)
+        rx, ry = state["robot"]["pos"]
+        dist = ((rx - ball["pos"][0]) ** 2 + (ry - ball["pos"][1]) ** 2) ** 0.5 * C.CELL
+        patch = L.patch_of_xy(lawn["grid"], ((ball["pos"][0] + 0.5) * C.CELL, (ball["pos"][1] + 0.5) * C.CELL))
+        tall = lawn["grid"]["kind"][L.idx(lawn["grid"], *patch)] == "L"
+        self.assertEqual(L.hidden_in_grass(state, b["ball"], ball), bool(tall and dist > L.GRASS_CLOSE_M))
+        self.assertFalse(L.hidden_in_grass(room_env.world.s, rb["ball"], room_env.world.s["entities"][rb["ball"]]))
+        self.assertIsNone(L.seen_patch_fn(room_env.world, rid))
+        self.assertIsNotNone(L.seen_patch_fn(geo.world, rid))
+
+    def test_an_unread_spray_bottle_is_no_water_source_whatever_it_is(self):
+        from house_sim.kernel.registry import default_registry
+        reg = default_registry()
+        if not (reg.known("trigger_bottle") and reg.known("glass_cleaner")):
+            self.skipTest("needs mechanisms' trigger_bottle and cleaning's glass_cleaner")
+        results = []
+        for kind in ("trigger_bottle", "glass_cleaner"):
+            env, b = make_r(MOISTURE_SETUP + [{"op": "spawn", "type": kind, "robot_hand": "right", "var": "bottle"}])
+            run(env, b, [{"skill": "approach", "target": "{p1}"}], strict=True)
+            res = rstep(env, "water_plant", b["p1"])
+            named = rstep(env, "water_plant", b["p1"], tool=b["bottle"])
+            results.append(((res["ok"], res["category"], res["message"]), (named["ok"], named["category"], named["message"])))
+        self.assertEqual(results[0], results[1])               # the same answers for every member of the group
+        self.assertFalse(results[0][0][0])
+        self.assertEqual(results[0][1][2], C.UNIDENTIFIED)
 
 
 if __name__ == "__main__":

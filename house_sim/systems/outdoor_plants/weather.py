@@ -15,10 +15,29 @@ Physics per 30 s substep while active:
 * Snow accumulates on exposed ground surfaces; at or below 0 C wet surfaces glaze to ice.
 Slow ticks (600 s): drying (sun/wind/temperature dependent), mildew in wet enclosed
 textiles, snow melt, rain-total decay.
+
+Tier-1 adoption (kernel v3.0 physics and camera, v3.1 sweep; docs/domains/outdoor_plants.md section 0b):
+* Physics (TIER1_PHYSICS 5.10, 10.3): the kernel's environment system applies wind and rain to generic outdoor
+  objects once its `wind` / `rain` laws are active; this domain's copies step aside then (`_object_wind`, the rain
+  soak of things it does not own, the paper/electronics ruin). Umbrella canopies, covers laid over things, plant
+  covers and leaf piles stay this domain's at any law state (the kernel models none of them). The `phys.exposed`
+  hook keeps plants and the soil-water holders (pots, saucers, trays, beds, compost, pool, fire pit, lawns) out of
+  the kernel's environment law: their rain is this domain's own water balance.
+* Camera: wind and rain occurrences are visual events (camera.visual_event); in geometric mode falling rain and snow
+  give outdoor rooms a `fog` haze (Koschmieder extinction), room mode is untouched.
+* Sweep: the stateless default weather process of generation-2 houses (TIER1_SWEEP 13.2, generator/climate.py)
+  drives `state.weather` unless a scripted weather sets `override_until_s`; forecasts come from it (issued 06:00 and
+  18:00, errors growing with the lead); `forecast_for(state, location, dates)` serves trip destinations; rain
+  starting and thunder are notices.
 """
 import copy
+import datetime
+import hashlib
 import math
+from statistics import NormalDist
 
+from ...kernel import camera, clock, timeline
+from ...kernel.phys import lawbook
 from ...kernel.plugins import after, hook, observer, system
 from . import common as C
 
@@ -27,16 +46,32 @@ DEFAULTS = {"condition": "clear", "temperature_c": 18.0, "wind_mps": 2.0, "wind_
 RAIN_DEFAULT = {"rain": 4.0, "storm": 15.0}
 FIELDS = ("condition", "temperature_c", "wind_mps", "gust_mps", "wind_from_deg", "rain_mm_h", "snow_cm_h", "uv_index",
           "humidity", "forecast", "alerts", "rain_24h_mm", "rain_7d_mm", "dry_days")
+PROCESS_FIELDS = ("condition", "temperature_c", "wind_mps", "gust_mps", "rain_mm_h", "snow_cm_h")
+SCRIPTED_S = 1.0e9      # override_until_s of a weather the scenario scripted: past any episode (climate's value too)
+
+# notices (TIER1_SWEEP 6.1): rain heard on the windows or the roof, thunder from a storm
+timeline.register_notice_kind("rain", "rain starts falling (heard on the windows and the roof)", ("any_sound",), 50.0)
+timeline.register_notice_kind("thunder", "thunder rumbles (a thunderstorm nearby)", ("any_sound",), 100.0)
 
 
 # ---------------------------------------------------------------------------
 # events
 
 def apply_weather(w, args):
+    """A scripted weather change (setup events and the weather effects below). On a generation-2 house the default
+    weather process yields to it (TIER1_SWEEP 13.2): `override_until_s` is set for the rest of the episode, or for
+    `override_h` hours when the event says so. Rain starting and a storm arriving are posted as notices."""
+    before = _wx_snapshot(w.s)
     wx = w.sec("weather")
     for key, value in sorted((args or {}).items()):
         if key in FIELDS or key.startswith("forecast"):
             wx[key] = copy.deepcopy(value)
+    if process_of(wx) is not None:
+        hours = (args or {}).get("override_h")
+        if isinstance(hours, (int, float)) and not isinstance(hours, bool):
+            wx["override_until_s"] = round(float(w.s.get("time_s", 0.0)) + float(hours) * 3600.0, 1)
+        else:
+            wx["override_until_s"] = SCRIPTED_S
     cond = wx.get("condition", "clear")
     if "rain_mm_h" not in (args or {}):
         if cond in RAIN_DEFAULT and float(wx.get("rain_mm_h", 0.0)) <= 0.0:
@@ -50,7 +85,148 @@ def apply_weather(w, args):
     if "wind_mps" in (args or {}) and "gust_mps" not in (args or {}):
         wx["gust_mps"] = round(float(wx["wind_mps"]) * 1.5, 2)
     w.emit("weather_changed", condition=cond, rain_mm_h=wx.get("rain_mm_h"), gust_mps=wx.get("gust_mps"))
+    weather_notices(w, before)
     return True
+
+
+# ---------------------------------------------------------------------------
+# notices: rain starting (on the windows / the roof) and thunder
+
+def _wx_snapshot(state):
+    wx = state.get("weather") or {}
+    return {"rain": float(wx.get("rain_mm_h", 0.0) or 0.0), "condition": wx.get("condition")}
+
+
+def _rain_db(mm_h):
+    """Sound of rain at 1 m outdoors: light (< 1 mm/h) about 45 dB, moderate 55, heavy (>= 8 mm/h) 65, a downpour
+    70 dB (rain-noise surveys put moderate rain at 50-60 dBA)."""
+    return 45.0 if mm_h < 1.0 else 55.0 if mm_h < 8.0 else 65.0 if mm_h < 15.0 else 70.0
+
+
+def _windows_by_room(w):
+    ents = w.s["entities"]
+    out = {}
+    for eid in C.static_ids(w, "windows", lambda r: r.get("category") == "window"):
+        rec = ents.get(eid)
+        if rec is not None:
+            out.setdefault(rec.get("location"), True)
+    return out
+
+
+def _first_outdoor_room(w):
+    rooms = w.s["rooms"]
+    here = w.s["robot"].get("room")
+    for cid, conn in sorted(w.s.get("connections", {}).items()):
+        pair = conn.get("rooms") or ()
+        if here in pair:
+            other = pair[1] if pair[0] == here else pair[0]
+            if (rooms.get(other) or {}).get("outdoor"):
+                return other
+    outdoor = sorted(r for r, room in rooms.items() if room.get("outdoor"))
+    return outdoor[0] if outdoor else None
+
+
+def weather_notices(w, before):
+    """Notices for a weather change (from the process, a scripted event): rain starting is heard where the robot is
+    when it is outdoors or its room has a window (the rain on the glass, 10 dB under the outdoor level), otherwise it
+    comes in from the nearest outdoor room (the timeline's propagation decides); a storm arriving brings thunder
+    (100 dB at the source: heard through closed doors)."""
+    if not timeline.active(w):
+        return
+    now = _wx_snapshot(w.s)
+    here = w.s["robot"].get("room")
+    room = (w.s["rooms"].get(here) or {})
+    if now["rain"] > 0.0 and before["rain"] <= 0.0:
+        if room.get("outdoor"):
+            C.notice(w, "rain", room=here, db=_rain_db(now["rain"]), data={"intensity": "heavy" if now["rain"] >= 8.0 else "light" if now["rain"] < 1.0 else "moderate"})
+        elif _windows_by_room(w).get(here):
+            C.notice(w, "rain", room=here, db=_rain_db(now["rain"]) - 10.0, data={"heard_on": "window"})
+        else:
+            out = _first_outdoor_room(w)
+            if out is not None:
+                C.notice(w, "rain", room=out, db=_rain_db(now["rain"]))
+    if now["condition"] == "storm" and before["condition"] != "storm":
+        out = here if room.get("outdoor") else _first_outdoor_room(w)
+        if out is not None:
+            C.notice(w, "thunder", room=out)
+
+
+# ---------------------------------------------------------------------------
+# the default weather process (generation 2; TIER1_SWEEP 13.2): state.weather follows generator/climate.py
+
+def process_of(wx):
+    """The weather's process record {"model", "region", "seed_key"} (generation-2 houses), or None."""
+    proc = (wx or {}).get("process")
+    if isinstance(proc, dict) and proc.get("seed_key") and proc.get("region"):
+        return proc
+    return None
+
+
+def process_running(state):
+    """True while the default weather process drives the weather: a generation-2 house whose scripted override (if
+    any) has run out."""
+    wx = state.get("weather") or {}
+    if process_of(wx) is None:
+        return False
+    until = wx.get("override_until_s")
+    return until is None or float(state.get("time_s", 0.0)) >= float(until)
+
+
+def process_value(state, when=None):
+    """The process's weather at a local standard time (default: now): the fields domains read."""
+    from ...generator import climate
+    proc = process_of(state.get("weather"))
+    return climate.weather_at(proc["seed_key"], proc["region"], clock.now(state) if when is None else when)
+
+
+def mark_scripted(w):
+    """Episode start: a generation-2 weather that is not the process's value at the start time was scripted by the
+    scenario (a weather setup op, a helper, a scripted forecast): the process yields for the whole episode
+    (override_until_s), so a scripted calm stays calm. Returns True when it marked it."""
+    state = w.s
+    wx = state.get("weather")
+    if not isinstance(wx, dict) or process_of(wx) is None or wx.get("override_until_s") is not None:
+        return False
+    value = process_value(state)
+    if all(_same(wx.get(key), value.get(key)) for key in PROCESS_FIELDS) and not wx.get("forecast"):
+        return False
+    w.sec("weather")["override_until_s"] = SCRIPTED_S
+    return True
+
+
+@hook("episode_start")
+def _scripted_weather_at_start(w, env):
+    mark_scripted(w)
+
+
+def _same(a, b):
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(float(a) - float(b)) < 1e-6
+    return a == b
+
+
+def _process_idle(w):
+    """Exact idle probe of outdoor_plants.weather_process: no process, or a scripted override in force."""
+    return not process_running(w.s)
+
+
+@system("outdoor_plants.weather_process", order=43, max_dt=30.0, idle=_process_idle)
+def weather_process_system(w, dt, tick):
+    """Every substep while the process runs: copy its value at the current time into state.weather when it changed
+    (temperatures move by 0.1 C every few minutes, rain spells start and stop), post the notices of the change."""
+    state = w.s
+    if not process_running(state):
+        return
+    value = process_value(state)
+    wx = state["weather"]
+    changed = {key: value[key] for key in PROCESS_FIELDS if not _same(wx.get(key), value.get(key))}
+    if not changed:
+        return
+    before = _wx_snapshot(state)
+    sec = w.sec("weather")
+    sec.update(changed)
+    sec.pop("override_until_s", None)
+    weather_notices(w, before)
 
 
 @hook("event:weather")
@@ -165,6 +341,133 @@ def _ev_spawn(w, args, env):
 # ---------------------------------------------------------------------------
 # observation: forecast (weather app over the network, or seen outdoors)
 
+# ---------------------------------------------------------------------------
+# forecasts from the process (TIER1_SWEEP 13.2): issued at 06:00 and 18:00 local time; a pure function of the
+# process key, the region and the issue time, so every observation, replay and process sees the same forecast.
+#
+#   temperature   T_fc = T + e, e = (1.0 + 0.3 L / 24) z("fcT", issue, block): sigma 1.3 C a day ahead and 2.5 C at
+#                 five days, a mean absolute error of about 1.0 / 2.0 C (MAE = 0.8 sigma), the order of the US National
+#                 Weather Service's published max/min temperature verification (about 2-3 F one day out, 4-5 F at day
+#                 five)
+#   precipitation probability of a block: wet 0.85 - 0.08 L / 24, dry 0.10 + 0.05 L / 24 (L = lead in hours), shown in
+#                 10 % steps like a weather app; condition rain / snow / storm at 50 % and above
+#   amounts       a wet block's rain (mm) x exp(0.3 z), wind x exp(0.15 z): forecasts of amounts are less certain
+FORECAST_BLOCK_H = 6
+FORECAST_BLOCKS = 8                 # 48 h of 6-hour blocks
+FORECAST_DAYS = 3                   # then daily blocks to day five
+_NORMAL = NormalDist()
+_FORECASTS = {}                     # (seed_key, region, issue iso) -> [block dicts with t_issue_h]
+
+
+def _fc_z(seed_key, *parts):
+    """A standard normal draw from SHA-256 of the key and the parts (stateless, PYTHONHASHSEED-independent)."""
+    text = "|".join(["fc", str(seed_key)] + [str(p) for p in parts])
+    value = int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:13], 16)
+    return _NORMAL.inv_cdf((value + 0.5) / float(16 ** 13))
+
+
+def issue_time(now):
+    """The latest forecast issue (06:00 or 18:00 local standard time) at or before `now` (a datetime)."""
+    day = datetime.datetime(now.year, now.month, now.day)
+    for hour in (18, 6):
+        issue = day + datetime.timedelta(hours=hour)
+        if issue <= now:
+            return issue
+    return day - datetime.timedelta(hours=6)
+
+
+def _block(seed_key, region, issue, start, hours):
+    """One forecast block: the truth sampled hourly from the process, perturbed by the lead-dependent errors."""
+    from ...generator import climate
+    lead = max(0.0, (start - issue).total_seconds() / 3600.0)
+    samples = [climate.weather_at(seed_key, region, start + datetime.timedelta(hours=h, minutes=30)) for h in range(hours)]
+    temps = [s["temperature_c"] for s in samples]
+    wet_hours = [s for s in samples if s["rain_mm_h"] > 0 or s["snow_cm_h"] > 0]
+    err = (1.0 + 0.3 * lead / 24.0) * _fc_z(seed_key, "T", issue.isoformat(), start.isoformat())
+    prob = (0.85 - 0.08 * lead / 24.0) if wet_hours else (0.10 + 0.05 * lead / 24.0)
+    prob = round(min(0.95, max(0.0, prob)) * 10.0) / 10.0
+    low, high = round(min(temps) + err), round(max(temps) + err)
+    rain = sum(s["rain_mm_h"] + s["snow_cm_h"] for s in wet_hours)
+    peak = max([s["rain_mm_h"] for s in wet_hours] or [0.0])
+    if prob >= 0.5:
+        condition = "snow" if high + low <= 2.0 else ("storm" if peak >= 15.0 else "rain")
+        rain_mm = round(rain * math.exp(0.3 * _fc_z(seed_key, "R", issue.isoformat(), start.isoformat())) * 2.0) / 2.0
+    else:
+        cloudy = sum(1 for s in samples if s["condition"] != "clear")
+        condition = "cloudy" if cloudy * 2 >= len(samples) else "clear"
+        rain_mm = 0.0
+    wind = sum(s["wind_mps"] for s in samples) / len(samples) * math.exp(0.15 * _fc_z(seed_key, "W", issue.isoformat(), start.isoformat()))
+    return {"t_issue_h": round((start - issue).total_seconds() / 3600.0, 3), "hours": float(hours), "condition": condition,
+            "precip_prob": prob, "rain_mm": rain_mm, "low_c": low, "high_c": high, "wind_mps": round(wind, 1),
+            "gust_mps": round(wind * 1.5, 1)}
+
+
+def _issued(seed_key, region, issue):
+    key = (seed_key, region, issue.isoformat())
+    blocks = _FORECASTS.get(key)
+    if blocks is None:
+        blocks = [_block(seed_key, region, issue, issue + datetime.timedelta(hours=FORECAST_BLOCK_H * i), FORECAST_BLOCK_H)
+                  for i in range(FORECAST_BLOCKS)]
+        first_day = (issue + datetime.timedelta(hours=FORECAST_BLOCK_H * FORECAST_BLOCKS)).replace(hour=0, minute=0, second=0)
+        if first_day < issue + datetime.timedelta(hours=FORECAST_BLOCK_H * FORECAST_BLOCKS):
+            first_day += datetime.timedelta(days=1)
+        blocks += [_block(seed_key, region, issue, first_day + datetime.timedelta(days=i), 24) for i in range(FORECAST_DAYS)]
+        if len(_FORECASTS) > 256:
+            _FORECASTS.clear()
+        _FORECASTS[key] = blocks
+    return blocks
+
+
+def process_forecast(state):
+    """The weather app's forecast from the default weather process: the latest issue's blocks that have not ended,
+    as {in_h, hours, condition, precip_prob, rain_mm, low_c, high_c, wind_mps, gust_mps}. [] without a process."""
+    proc = process_of(state.get("weather"))
+    if proc is None:
+        return []
+    now = clock.now(state)
+    issue = issue_time(now)
+    since_h = (now - issue).total_seconds() / 3600.0
+    out = []
+    for block in _issued(proc["seed_key"], proc["region"], issue):
+        start_h = block["t_issue_h"] - since_h
+        if start_h + block["hours"] <= 0:
+            continue
+        entry = {k: v for k, v in block.items() if k != "t_issue_h"}
+        entry["in_h"] = round(start_h, 2)
+        out.append(entry)
+    return out
+
+
+def forecast_for(state, location, dates):
+    """Forecast for trip destinations (TIER1_SWEEP 13.2, 11.2): per date (ISO strings or dates) {date, high_c, low_c,
+    condition, precip_prob}, from the destination region's normals with the same process and error formulas, issued
+    at the household's latest 06:00 / 18:00. location: a region code (us, uk, eu, jp, ca), {"region": ...} or
+    anything else (the household's region). The destination's weather has its own stream, keyed by the household's
+    process key (or the house salt) and the location."""
+    from ...generator import climate
+    if isinstance(location, dict):
+        region = location.get("region")
+        name = location.get("name") or region
+    else:
+        region, name = location, location
+    known = set(climate.regions())
+    own = process_of(state.get("weather"))
+    if region not in known:
+        region = (own or {}).get("region") or clock.region(state)
+        region = region if region in known else "us"
+    base = (own or {}).get("seed_key") or "house-{}".format((state.get("metadata") or {}).get("seed", 0))
+    key = "wx-" + hashlib.sha256("{}|trip|{}".format(base, name).encode("utf-8")).hexdigest()[:16]
+    issue = issue_time(clock.now(state))
+    out = []
+    for value in dates or ():
+        day = value if isinstance(value, datetime.date) else datetime.date.fromisoformat(str(value)[:10])
+        start = datetime.datetime(day.year, day.month, day.day)
+        block = _block(key, region, issue, start, 24)
+        out.append({"date": day.isoformat(), "region": region, "high_c": block["high_c"], "low_c": block["low_c"],
+                    "condition": block["condition"], "precip_prob": block["precip_prob"]})
+    return out
+
+
 @observer("outdoor_plants.forecast", order=60)
 def forecast_observer(env, w, obs):
     state = w.s
@@ -179,6 +482,8 @@ def forecast_observer(env, w, obs):
         return
     now = float(state.get("time_s", 0.0))
     items = []
+    if not wx.get("forecast") and process_running(state):
+        items = process_forecast(state)          # the weather app's forecast of the default weather process
     for item in wx.get("forecast", []) or []:
         t = float(item.get("t_s", now))
         hours = float(item.get("hours", 1.0))
@@ -300,6 +605,11 @@ def _secured_rating_n(record):
 
 
 def _object_wind(w, eid, rid, g, vec, kids=None):
+    """This domain's copy of the wind law for loose objects (drag and lift with the weather's gust against friction,
+    tie-downs and ballast). Once the kernel's `wind` law is active its environment system moves loose outdoor items
+    (TIER1_PHYSICS 5.10: the wind at the item, sustained wind slides, gusts lift and tip) and this copy steps aside."""
+    if lawbook.active("wind"):
+        return      # the kernel owns loose objects
     state = w.s
     record = state["entities"][eid]
     if record.get("location") == "robot" or record.get("relation") in ("in", "part", "attached", "held", "hung", "under", "behind"):
@@ -373,10 +683,12 @@ def _displace(w, eid, rid, vec, distance, mass):
     if hit_edge and mass >= 1.0 and C.distance_to_edge_m(room, edge, (nx, ny)) < 0.6:
         C.stat(w, "wind_impacts")
         C.note(w, "wind_impact", target=eid, room=rid)
+        C.notice(w, "thud", room=rid, source=eid)        # it slams into the house wall
     if record.get("fragile") and mass >= 0.3:
         m["broken"] = True
         C.stat(w, "breakages")
-    C.note(w, "blown", target=eid, distance_m=round(moved, 2))
+    size = record.get("size_m") or [0.3]
+    C.visual(w, "blown", source=eid, room=rid, size_m=max(float(v) for v in size[:3]), target=eid, distance_m=round(moved, 2))
 
 
 def umbrella_tip_check(w, eid, g):
@@ -420,11 +732,13 @@ def _umbrella_wind(w, eid, g):
     record = w.s["entities"][eid]
     if record.get("tipped") or record.get("location") == "robot":
         return
+    canopy = float(record.get("canopy_d_m", 2.7))
+    rid = C.room_of(w, eid)
     if not record.get("open") and not record.get("strapped") and g >= 12.0:
         m = w.mut(eid)
         m["open"] = True
         m["fabric_torn"] = True
-        C.note(w, "umbrella_whipped_open", target=eid)
+        C.visual(w, "umbrella_whipped_open", source=eid, room=rid, size_m=canopy, target=eid)
     tips, moment, resist = umbrella_tip_check(w, eid, g)
     if not tips:
         return
@@ -433,6 +747,7 @@ def _umbrella_wind(w, eid, g):
     m["pole_bent"] = True
     C.stat(w, "tip_overs")
     C.stat(w, "wind_damage")
+    shattered = False
     base = record.get("in_base")
     if base and base in w.s["entities"]:
         table = w.s["entities"][base].get("under_table")
@@ -443,7 +758,10 @@ def _umbrella_wind(w, eid, g):
             if trec.get("material") == "glass" or trec.get("glass_top"):
                 tm["broken"] = True
                 C.stat(w, "breakages")
-    C.note(w, "umbrella_tipped", target=eid, moment=round(moment, 1), resist=round(resist, 1))
+                shattered = True
+    C.visual(w, "umbrella_tipped", source=eid, room=rid, size_m=canopy, target=eid, moment=round(moment, 1), resist=round(resist, 1))
+    # an 8.5 kg pole and canopy going over is loud; a glass table top under it shatters
+    C.notice(w, "glass_breaking" if shattered else "crash", room=rid, db=80.0 if shattered else 70.0, source=eid)
 
 
 def _cover_wind(w, eid, g):
@@ -464,7 +782,7 @@ def _cover_wind(w, eid, g):
     rid = C.room_of(w, eid)
     if rid:
         _displace(w, eid, rid, C.wind_vector(w), 6.0, 1.0)
-    C.stat(w, "covers_blown_off")
+    C.stat(w, "covers_blown_off")         # _displace logged it as a visual "blown" event
 
 
 def _plant_cover_wind(w, eid, g, kids=None):
@@ -488,7 +806,8 @@ def _plant_cover_wind(w, eid, g, kids=None):
         m.pop("spos", None)
         _displace(w, eid, rid, C.wind_vector(w), 6.0, 1.0)
     C.stat(w, "covers_blown_off")
-    C.note(w, "plant_cover_blown_off", cover=eid, bed=target)
+    C.visual(w, "plant_cover_blown_off", source=eid, room=rid, size_m=max(float(size[0]), float(size[1]) if len(size) > 1 else 1.0),
+             cover=eid, bed=target)
 
 
 def _pile_wind(w, eid, g, dt=30.0):
@@ -547,6 +866,9 @@ def precip_effects(w, dt):
             if cm > 0:
                 m["snow_cm"] = round(float(m.get("snow_cm", 0.0)) + cm * exposure, 3)
                 m.setdefault("snow_density", 100.0)
+            if record.get("connection"):
+                from .yard import mirror_steps
+                mirror_steps(w, eid)
             continue
         if C.is_type(record, "plant") or C.is_type(record, "plant_pot") or C.is_type(record, "lawn") or C.is_type(record, "garden_bed"):
             continue  # soil water handled by plants/lawn systems from rain_period_mm
@@ -557,10 +879,16 @@ def precip_effects(w, dt):
         if record.get("plug_required") and not own_drying(record) and C.weather_rated(record):
             continue  # sealed outdoor-rated mains equipment (robot mower dock, irrigation controller...) sheds rain
         soak_mm = 4.0 if record.get("quick_dry") else 2.0
-        gain = exposure * (mm + cm * 3.0) / soak_mm
+        # the kernel's rain law wets exposed objects itself (environment.rain_wet: surfaces wet within 120 s, absorbent
+        # bodies soak, paper is water-damaged); this domain then only adds snow (the kernel has none) and keeps its
+        # drying bookkeeping in step with the kernel's wetness
+        kernel_rain = mm > 0 and lawbook.active("rain")
+        gain = exposure * ((0.0 if kernel_rain else mm) + cm * 3.0) / soak_mm
+        before = float(record.get("wetness", 0.0))
+        if kernel_rain:
+            _mark_kernel_wet(w, eid, record, before)
         if gain <= 0:
             continue
-        before = float(record.get("wetness", 0.0))
         after = round(min(1.0, before + gain), 3)
         if after == before:
             continue
@@ -571,12 +899,31 @@ def precip_effects(w, dt):
             m["_wet_mine"] = after  # single-sourced drying: generic evaporation models skip records marked _wet_mine
             if m.get("drying_owner") is None:
                 m["drying_owner"] = "outdoor_plants"
+        if kernel_rain:
+            continue    # what water does to paper and electronics in the rain is the kernel's (soaking, phys.wetted)
         if C.water_sensitive(record) and record.get("category") not in ("cushion",) and not record.get("fabric_item") and after >= 0.3 and not m.get("ruined"):
             if str(record.get("material")) not in ("polyester_foam", "nylon", "polyester", "cotton", "wool", "fabric") or record.get("plug_required") or record.get("category") in ("electronics", "book", "document", "phone", "laptop", "artwork"):
                 m["ruined"] = True
                 m["broken"] = True
                 C.stat(w, "weather_damage")
-                C.note(w, "rain_ruined", target=eid)
+                C.visual(w, "rain_ruined", source=eid, target=eid)
+
+
+def _mark_kernel_wet(w, eid, record, wetness):
+    """While the kernel's rain law wets things: an own-drying item the rain made wet is marked for this domain's
+    single-sourced drying (_wet_mine, drying_owner), and any other wet thing outdoors is flagged _wx_wet so the slow
+    tick dries it when no generic drying domain is loaded (conventions 5)."""
+    if wetness <= 0.0:
+        return
+    if own_drying(record):
+        if record.get("_wet_mine") != wetness or not record.get("_wx_wet"):
+            m = w.mut(eid)
+            m["_wet_mine"] = wetness
+            m["_wx_wet"] = True
+            if m.get("drying_owner") is None:
+                m["drying_owner"] = "outdoor_plants"
+    elif not record.get("_wx_wet") and record.get("drying_owner") in (None, "outdoor_plants"):
+        w.mut(eid)["_wx_wet"] = True
 
 
 def _cover_pooling(w, eid, mm):
@@ -689,6 +1036,9 @@ def slow_weather(w, periods):
                 m["wetness"] = round(min(1.0, float(m.get("wetness", 0.0)) + melt * 0.2), 3)
             if outdoor and t_air > 1.0 and ice > 0 and not m.get("deicer"):
                 m["ice"] = round(max(0.0, ice - 0.15 * t_air * dt / 3600.0), 3)
+            if record.get("connection"):
+                from .yard import mirror_steps
+                mirror_steps(w, eid)
             continue
         if C.is_type(record, "plant") or C.is_type(record, "lawn") or C.is_type(record, "garden_bed") or C.is_type(record, "plant_pot"):
             continue
@@ -740,7 +1090,90 @@ def mildew_risk(w, eid):
     return not w.s["entities"][box].get("ventilated")
 
 
-@system("outdoor_plants.weather", order=45, max_dt=30.0)
+# ---------------------------------------------------------------------------
+# what the kernel's environment law (wind, rain) leaves to this domain: phys.exposed (TIER1_PHYSICS 7.3)
+
+OWN_WATER_TYPES = ("plant", "plant_pot", "nursery_pot", "plant_saucer", "pebble_tray", "seed_tray", "garden_bed",
+                   "compost_bin", "pool", "fire_pit", "planting_hole", "lawn")
+
+
+@hook("phys.exposed")
+def kernel_exposure(state, eid):
+    """False (left alone by the kernel's wind and rain laws) for the plants and the soil-water holders and water bodies
+    whose rain is this domain's own water balance: plants (rain reaches their roots through rain_period_mm; wet foliage
+    is leaf_wet_h), pots and saucers, pebble and seed trays, beds, compost bins, the pool, the fire pit's ash, planting
+    holes and lawns (the kernel would pour the rain into them as free liquid). Their wind is nothing the kernel's
+    frontal-area drag would move anyway (a plant sits in its pot or bed, a soil-filled pot is heavy for its outline;
+    beds, pools and pits are fixtures). Covers, porch roofs and closed boxes need no hook: the kernel's own exposure
+    rule shelters what is covered_by a cover, roofed or closed in. None otherwise (the kernel decides)."""
+    rec = state["entities"].get(eid)
+    if rec is None:
+        return None
+    t = rec.get("type")
+    if t in OWN_WATER_TYPES or any(name in OWN_WATER_TYPES for name in rec.get("is_a") or ()):
+        return False
+    return None
+
+
+def _fog_target(wx):
+    """Haze of an outdoor room in falling rain or snow or fog for the geometric camera's k_haze (exp(-0.3 fog d)):
+    fog = sigma / 0.3 with the extinction sigma = 3.912 / visibility (Koschmieder). Visibility assumption (typical
+    meteorological values): rain sigma 0.3 R^0.6 per km (about 13 km at 1 mm/h, 3 km at 10 mm/h), snow ten times
+    rain at the same water-equivalent rate (3.0 S^0.7 per km: about 1.3 km at 1 cm/h), fog 300 m. 0 when clear."""
+    rain = float(wx.get("rain_mm_h", 0.0) or 0.0)
+    snow = float(wx.get("snow_cm_h", 0.0) or 0.0)
+    sigma_km = 0.0
+    if rain > 0:
+        sigma_km += 0.3 * rain ** 0.6
+    if snow > 0:
+        sigma_km += 3.0 * snow ** 0.7
+    if wx.get("condition") == "fog":
+        sigma_km = max(sigma_km, 3.912 / 0.3)
+    return round(sigma_km / 1000.0 / 0.3, 5)
+
+
+def _fog_rooms(w):
+    """[(rid, wanted)] for the outdoor rooms whose haze differs from what the weather says (geometric mode only: room
+    mode states stay untouched). A room this domain never hazed keeps any fog a scenario gave it."""
+    state = w.s
+    if camera.mode(state) != "geometric":
+        return []
+    wanted = _fog_target(state.get("weather") or {})
+    out = []
+    for rid, room in sorted(state["rooms"].items()):
+        if not room.get("outdoor") or C.is_roofed(w, rid):
+            continue
+        mine = room.get("_op_fog")
+        if mine is None and room.get("fog") is not None:
+            continue
+        if (mine or 0.0) != wanted:
+            out.append((rid, wanted))
+    return out
+
+
+def update_fog(w):
+    for rid, wanted in _fog_rooms(w):
+        m = w.room_m(rid)
+        if wanted > 0:
+            m["fog"] = wanted
+            m["_op_fog"] = wanted
+        else:
+            m.pop("fog", None)
+            m.pop("_op_fog", None)
+
+
+def _weather_idle(w):
+    """Exact idle probe of outdoor_plants.weather: no weather, or dry (no rain or snow falling), gusts under the 6 m/s
+    at which this domain's wind effects start, and no outdoor haze to update."""
+    wx = w.s.get("weather")
+    if not wx:
+        return True
+    if float(wx.get("rain_mm_h", 0.0) or 0.0) > 0.0 or float(wx.get("snow_cm_h", 0.0) or 0.0) > 0.0:
+        return False
+    return C.gust(w) < 6.0 and not _fog_rooms(w)
+
+
+@system("outdoor_plants.weather", order=45, max_dt=30.0, idle=_weather_idle)
 def weather_system(w, dt, tick):
     """Event-sensitive weather (rain/snow wetting, wind gusts) every substep; O(1) in calm dry weather and
     O(outdoor entities) otherwise (C.outdoor_map)."""
@@ -749,6 +1182,7 @@ def weather_system(w, dt, tick):
         return
     precip_effects(w, dt)
     wind_effects(w, dt)
+    update_fog(w)
 
 
 @system("outdoor_plants.weather_slow", order=46, max_dt=C.SLOW_S, period=C.SLOW_S)

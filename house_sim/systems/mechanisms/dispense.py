@@ -28,12 +28,30 @@ from . import common as C
 
 P_ATM = 101.3
 CONE = {"spray": 50.0, "stream": 8.0, "mist": 70.0, "jet": 6.0, "shower": 40.0, "flat": 35.0, "soaker": 60.0, "cone": 45.0}
+# a household trigger sprayer (cleaning sprays, plant misters, the trigger bottle): about 1.1 ml per full squeeze
+DEFAULT_TRIGGER = {"ml_per_squeeze": 1.1, "nozzle": "spray", "modes": ["off", "spray", "stream"]}
+
+
+def spray_bottle(rec):
+    """A member of the kernel's spray_bottle look-alike group (the cleaning sprays, the generic spray bottle, this
+    domain's trigger bottle): every one is a trigger sprayer, so the robot cannot tell them apart by squeezing."""
+    from ...kernel.registry import default_registry
+    return rec.get("type") in default_registry().lookalike_types().get("spray_bottle", ())
+
+
+def trigger_of(rec):
+    """A sprayer's trigger: its own `trigger` dict, else a standard household trigger sprayer's for any spray bottle
+    (round 5 red team: the spray_bottle group squeezed only for the trigger bottle); {} when it has none."""
+    trig = rec.get("trigger")
+    if isinstance(trig, dict) and trig:
+        return dict(trig)
+    return dict(DEFAULT_TRIGGER) if spray_bottle(rec) else {}
 
 
 def set_nozzle(ctx, eid, value):
     w = ctx.w
     rec = w.ent(eid)
-    trig = dict(rec.get("trigger") or {})
+    trig = trigger_of(rec)
     require(trig, "It has no adjustable nozzle", "precondition")
     modes = trig.get("modes") or ["off", "spray", "stream"]
     require(value in modes, "Nozzle settings: " + ", ".join(modes), "argument")
@@ -104,6 +122,7 @@ def _neighbours(w, target):
                                    "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 300.0},
                                    "distance_m": {"type": "number", "default": 0.25, "min": 0.03, "max": 6.0}},
         duration=lambda ctx: 0.8 * ctx.args["squeezes"] + ctx.args["hold_s"] + 0.5, energy=0.003, noise=0.01, category="physical",
+        timing="commanded",
         doc="Squeeze a held trigger sprayer or hose nozzle at a destination (surface, item, person/pet) from distance_m: "
             "squeezes for bottles (dose = squeezes x ml per squeeze), hold_s for nozzles. The cone footprint beyond the target "
             "is overspray onto neighbours (electronics are damaged when wetted). Set the nozzle first (turn part=nozzle).")
@@ -113,7 +132,7 @@ def squeeze_trigger(ctx):
     eid = ctx.args["target"]
     require(ctx.holding(eid), "Hold the sprayer first", "precondition")
     rec = w.ent(eid)
-    trig = dict(rec.get("trigger") or {})
+    trig = trigger_of(rec)
     require(trig, "It has no trigger", "precondition")
     dest = ctx.args.get("destination")
     nozzle = trig.get("nozzle", "spray")
@@ -128,13 +147,16 @@ def squeeze_trigger(ctx):
         liquid = rec.get("liquid") or "water"
     else:
         ml = C.num(trig.get("ml_per_squeeze"), 1.1) * ctx.args["squeezes"]
-        have = C.num(rec.get("liquid_l")) * 1000.0
-        if have <= 0:
-            return "Only air sputters out: it is empty"
-        ml = min(ml, have)
-        liquid = rec.get("liquid") or "water"
-        rm = w.mut(eid)
-        rm["liquid_l"] = round((have - ml) / 1000.0, 5)
+        liquid = rec.get("liquid") or rec.get("product") or "water"
+        if rec.get("liquid_l") is None and rec.get("product"):
+            pass        # a store-bought spray keeps no liquid amount (cleaning's products): it is not emptied here
+        else:
+            have = C.num(rec.get("liquid_l")) * 1000.0
+            if have <= 0:
+                return "Only air sputters out: it is empty"
+            ml = min(ml, have)
+            rm = w.mut(eid)
+            rm["liquid_l"] = round((have - ml) / 1000.0, 5)
     cone = C.num((trig.get("cone_deg") or {}).get(nozzle), CONE.get(nozzle, 45.0))
     radius = ctx.args["distance_m"] * math.tan(math.radians(cone / 2.0))
     footprint = math.pi * radius * radius

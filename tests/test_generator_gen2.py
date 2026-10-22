@@ -20,7 +20,7 @@ from house_sim import generator
 from house_sim.generator import belongings, climate, generate_house, profile
 from house_sim.kernel import clock, geometry
 from house_sim.kernel.engine import HouseEnv
-from house_sim.kernel.plugins import load_domains
+from house_sim.kernel.plugins import FURNISHERS, load_domains
 from house_sim.kernel.predicates import digest
 from house_sim.kernel.registry import default_registry
 
@@ -714,11 +714,28 @@ class Houses(unittest.TestCase):
         if not registry.known("sofa_cushion"):
             self.assertTrue(any("missing type sofa_cushion" in line for line in notes))
 
-    def test_pending_pets_have_no_records_or_habitats_yet(self):
-        habitats = ("aquarium", "bird_cage", "small_animal_cage", "chicken_coop")
-        for config, _ in self.houses.values():
-            self.assertTrue(all(p.get("species", "dog") in ("dog", "cat") for p in config["pets"].values()))
-            self.assertFalse(any(rec["type"] in habitats for rec in config["entities"].values()))
+    def test_pending_pets_are_housed_by_the_pets_furnisher_or_noted(self):
+        """The generator writes dogs and cats and leaves the caged species in profile.pets_pending; the pets domain's
+        generation-2 furnisher (pets.habitats, the adoption round) builds each one's habitat and record, or leaves a
+        'note gen2 pets' line naming why it could not. Without that furnisher the houses hold dogs and cats only."""
+        habitats = ("aquarium", "bird_cage", "small_animal_cage", "chicken_coop", "terrarium")
+        housing = any(name == "pets.habitats" for _, name, _ in FURNISHERS)
+        for name, (config, report) in self.houses.items():
+            prof = config["household"]["profile"]
+            pending = sorted(str(p["id"]) for p in prof.get("pets_pending") or [])
+            if not housing:
+                self.assertTrue(all(p.get("species", "dog") in ("dog", "cat") for p in config["pets"].values()), name)
+                self.assertFalse(any(rec["type"] in habitats for rec in config["entities"].values()), name)
+                continue
+            housed = prof.get("pets_housed") or []
+            skipped = [line for line in report if line.startswith("note gen2 pets ")]
+            if pending:
+                self.assertTrue(sorted(housed) == pending or skipped, (name, housed, pending))
+            caged = {pid: rec for pid, rec in config["pets"].items() if rec.get("species", "dog") not in ("dog", "cat")}
+            self.assertTrue(set(caged) <= set(pending), (name, sorted(caged)))
+            for pid, rec in config["pets"].items():
+                if rec.get("enclosure"):
+                    self.assertEqual(config["entities"][rec["enclosure"]].get("occupant"), pid, (name, pid))
 
     def test_gen2_houses_run_in_both_perception_modes(self):
         """Valid configs (normalize), steps without errors (strict mode under HOUSE_SIM_STRICT=1), and realistic

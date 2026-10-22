@@ -16,14 +16,20 @@ from house_sim.tasks.runner import PlanError, Runner, build
 FOOD = "house_sim.systems.food"
 
 
-def scene(setup, seed=0, house=None, kitchen_args=None, place_robot=True, perception=None):
+def scene(setup, seed=0, house=None, kitchen_args=None, place_robot=True, perception=None, camera=None, notices=False):
+    """A kitchen scene built through the spec machinery. camera: "geometric" for the posed cameras; notices: turn the
+    kernel notice bus on (the state carries the "notices" section, as schema-3 tasks do)."""
     ops = [{"op": "helper", "name": "food.kitchen", "args": kitchen_args or {}}] + list(setup)
     if place_robot:
         ops.append({"op": "robot", "room": "{kitchen}", "cell": "{stand}"})
     spec = {"catalog_id": "test-food", "house": house or {"residents": "minimal", "pets": "none"}, "setup": ops,
             "success": [{"path": "time_s", "op": "gte", "value": 0}], "reference": []}
+    if camera:
+        spec["camera"] = camera
     config, task, oracle = build(spec, seed)
-    env = HouseEnv(config, task, seed, trace=False, observe_on_step=False, perception=perception)
+    if notices:
+        config["notices"] = []
+    env = HouseEnv(config, task, seed, trace=False, observe_on_step=False, perception=perception, camera=camera)
     b = oracle["bindings"]
     return env, b, Runner(env, b, strict=True)
 
@@ -145,7 +151,14 @@ class KnifeWork(unittest.TestCase):
         self.assertTrue(res["ok"])
         self.assertIn("slipped", res["message"])
         self.assertEqual(env.world.s["stats"]["damage"], 1)
-        self.assertIn("end_effector_cut", env.world.s["robot"]["faults"])
+        # the blade cut the steadying hand's gripper pad: a typed body fault (body_faults), which makes that pad slip
+        knife_hand = next(h for h, held in env.world.s["robot"]["hands"].items() if held == b["knife"])
+        other = "left" if knife_hand == "right" else "right"
+        state = env.world.s["robot"]["fault_state"]
+        self.assertIn("gripper_cut_" + other, state)
+        self.assertTrue(state["gripper_cut_" + other]["detected"])
+        self.assertIn("gripper_slip_" + other, state)
+        self.assertTrue(all(isinstance(entry, dict) for entry in env.world.s["robot"]["faults"]))
         self.assertGreaterEqual(food(env, b["onion"])["piece_cv"], 0.45)
 
     def test_root_removed_before_dicing_splays_into_slivers(self):
@@ -595,6 +608,9 @@ class Transfers(unittest.TestCase):
     def test_strained_liquid_keeps_its_provenance(self):
         # kernel v2.9 contents_from: the reserved and the strained water came from wherever the pot's water came from
         # (chains stay one deep); the emptied pot no longer holds anything from elsewhere
+        from house_sim.kernel.registry import default_registry
+        if not default_registry().known("stovetop_kettle"):
+            self.skipTest("stovetop_kettle is an appliances_cooking type (HOUSE_SIM_DOMAINS without it)")
         env, b, r = scene([
             {"op": "spawn", "var": "kettle", "type": "stovetop_kettle", "on": "{counter}"},
             {"op": "spawn", "var": "pot", "type": "saucepan", "on": "{counter}",
@@ -2222,6 +2238,533 @@ class Integration(unittest.TestCase):
         self.assertEqual(rec["_food_status"]["class"], "unsafe")
         self.assertNotIn("_status", rec)
         self.assertNotIn("_odor", rec)                   # safety owns _odor (room-air odor sources)
+
+
+
+def drop_event(eid_var, at_s=30, height_m=0.9):
+    """A physics.drop perturbation (someone drops it; exogenous) at at_s."""
+    return {"op": "event", "at_s": at_s, "effect": "physics.drop", "args": {"target": "{" + eid_var + "}", "height_m": height_m}}
+
+
+def spills_of(env, liquid=None):
+    """Floor spill entities (kernel puddles, or cleaning's spill entities while cleaning is loaded) of a liquid."""
+    state = env.world.s
+    return [eid for eid, rec in sorted(state["entities"].items())
+            if rec.get("location") in state["rooms"] and (rec.get("_phys_spill") or rec.get("category") == "spill")
+            and (liquid is None or rec.get("liquid") == liquid)]
+
+
+class TierOnePhysics(unittest.TestCase):
+    """Food in the kernel physics layer (kernel v3.0; docs/domains/food.md "Physics"): phys.props (packaging,
+    produce), phys.broke (eggs, packages), phys.fell (bruises), kernel spills, the freeze-burst rule, kernel masses."""
+
+    def props(self, env, eid):
+        from house_sim.kernel import physics
+        return physics.props(env.world.s, eid)
+
+    def test_a_retail_package_is_physically_its_packaging(self):
+        env, b, r = scene([
+            {"op": "spawn", "var": "honey", "type": "honey_jar", "on": "{counter}", "props": {"phys_exact": True}},
+            {"op": "spawn", "var": "can", "type": "canned_tomatoes", "on": "{counter}", "props": {"phys_exact": True}},
+            {"op": "spawn", "var": "milk", "type": "milk_carton", "on": "{counter}", "props": {"phys_exact": True}},
+            {"op": "spawn", "var": "bread", "type": "bread_loaf", "on": "{counter2}", "props": {"phys_exact": True}},
+            {"op": "spawn", "var": "chips", "type": "chips_bag", "on": "{counter2}", "props": {"phys_exact": True}}])
+        honey, can, milk = self.props(env, b["honey"]), self.props(env, b["can"]), self.props(env, b["milk"])
+        self.assertEqual((honey.cls, honey.break_mode), ("glass", "shatter"))     # a jar of honey breaks like a jar
+        self.assertEqual(can.cls, "steel")
+        self.assertEqual(can.drop_tol_m, float("inf"))                           # a can dents, it does not break
+        self.assertEqual(milk.cls, "lined_paperboard")
+        self.assertTrue(milk.crushable)
+        self.assertEqual(self.props(env, b["bread"]).crush_kg, 1.5)              # a sliced loaf squashes
+        self.assertEqual(self.props(env, b["chips"]).crush_kg, 1.0)
+        self.assertEqual(ent(env, b["honey"])["material"], "organic")            # nothing is written to the record
+
+    def test_a_record_override_never_leaks_into_another_packages_physics(self):
+        # the packaging values are memoised per type: one record's own drop tolerance must stay its own, whichever
+        # record the process saw first (a leak would make a run depend on what ran before it in the same process)
+        from house_sim.kernel.phys import props as P
+        from house_sim.kernel.registry import default_registry
+        from house_sim.systems.food import physical as PH
+        plain = dict(default_registry().make("honey_jar", "probe_room"), phys_exact=True)
+        tough = dict(plain, drop_tolerance_m=2.0)
+        PH._PACK_MEMO.clear()
+        alone = P.props_of(plain).drop_tol_m
+        PH._PACK_MEMO.clear()
+        self.assertEqual(P.props_of(tough).drop_tol_m, 2.0)
+        self.assertEqual(P.props_of(plain).drop_tol_m, alone)
+        self.assertLess(alone, 2.0)
+
+    def test_look_alike_packages_share_one_packaging(self):
+        # a drop or a squeeze must never tell the members of a look-alike group apart
+        from house_sim.kernel.phys import props as P
+        from house_sim.kernel.registry import default_registry
+        reg = default_registry()
+        for group, spec in reg.looks_like.items():
+            members = [m for m in spec.get("members", []) if reg.known(m) and reg.resolve(m).get("package")]
+            classes = {P.props_of(reg.make(m, "probe_room")).cls for m in members}
+            self.assertLessEqual(len(classes), 1, (group, classes))
+
+    def test_round_whole_produce_rolls_and_ripe_fruit_bruises_from_lower(self):
+        env, b, r = scene([
+            {"op": "spawn", "var": "hard", "type": "peach", "on": "{counter}", "props": {"phys_exact": True, "food": {"ripeness": 0.2}}},
+            {"op": "spawn", "var": "ripe", "type": "peach", "on": "{counter}", "props": {"phys_exact": True, "food": {"ripeness": 0.95}}},
+            {"op": "spawn", "var": "knife", "type": "chef_knife", "on": "{counter}"}])
+        hard, ripe = self.props(env, b["hard"]), self.props(env, b["ripe"])
+        self.assertEqual(hard.shape, "sphere")
+        self.assertTrue(hard.rollable)
+        self.assertLess(ripe.drop_tol_m, hard.drop_tol_m)        # a ripe peach bruises from a lower drop ...
+        self.assertGreater(ripe.softness, hard.softness)         # ... and is softer
+        env.world.s["entities"][b["hard"]]["food"]["cut"] = "halved"
+        self.assertNotEqual(self.props(env, b["hard"]).shape, "sphere")      # halves do not roll
+
+    def test_a_dropped_raw_egg_becomes_a_raw_egg_spill_and_its_shell(self):
+        env, b, r = scene([{"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter}"}, drop_event("egg")])
+        r.do("wait", seconds=60)
+        rec = ent(env, b["egg"])
+        self.assertTrue(rec["broken"])
+        self.assertEqual(rec["food"]["kind"], "eggshell")
+        self.assertLess(rec["food"]["qty_g"], 10.0)
+        self.assertGreaterEqual(rec["contamination"]["raw_meat"], 0.3)
+        puddles = spills_of(env, "raw_egg")
+        self.assertTrue(puddles)
+        self.assertEqual(env.world.s["stats"].get("phys_spills"), 1)
+        self.assertEqual(env.world.s["stats"].get("spills", 0), 0)    # someone else dropped it: not the robot's harm
+
+    def test_a_dropped_hard_boiled_egg_only_cracks(self):
+        env, b, r = scene([{"op": "spawn", "var": "egg", "type": "hard_boiled_egg", "on": "{counter}"}, drop_event("egg")])
+        r.do("wait", seconds=60)
+        rec = ent(env, b["egg"])
+        self.assertTrue(rec["food"]["cracked"])
+        self.assertEqual(rec["food"]["kind"], "hard_boiled_egg")
+        self.assertFalse(spills_of(env, "raw_egg"))
+
+    def test_a_dropped_jar_breaks_spills_and_what_stays_is_unsafe(self):
+        env, b, r = scene([{"op": "spawn", "var": "jam", "type": "honey_jar", "on": "{counter}"}, drop_event("jam", height_m=1.2)])
+        before = food(env, b["jam"])["qty_g"]
+        r.do("wait", seconds=60)
+        rec = ent(env, b["jam"])
+        self.assertTrue(rec["broken"])
+        self.assertTrue(rec["_unsafe"])
+        self.assertAlmostEqual(rec["food"]["qty_g"], before / 2.0, delta=1.0)     # honey oozes: half stays in the shards
+        self.assertTrue(spills_of(env, "honey"))
+        self.assertEqual(M_eater(env, b["jam"]), ["unsafe_food:" + b["jam"]])
+
+    def test_a_dropped_peach_bruises_and_picks_up_bacteria_from_the_floor(self):
+        env, b, r = scene([{"op": "spawn", "var": "peach", "type": "peach", "on": "{counter}", "props": {"food": {"ripeness": 0.9}}},
+                           drop_event("peach")])
+        r.do("wait", seconds=60)
+        rec = ent(env, b["peach"])
+        self.assertFalse(rec.get("broken", False))
+        self.assertGreater(rec["food"]["bruise"], 0.3)
+        self.assertIn("bruised", rec["appearance"])
+        self.assertGreaterEqual(rec["contamination"]["bacteria"], 0.2)
+
+    def test_liquid_food_spills_are_kernel_spills_and_solids_only_soil(self):
+        env, b, r = scene([
+            {"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter}"},
+            {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"}])
+        r.skill("fetch", obj=b["egg"])
+        res = r.do("crack_egg", target=b["egg"], destination=b["bowl"], force="hard")      # 35 % misses the bowl
+        self.assertTrue(res["ok"])
+        stats = env.world.s["stats"]
+        self.assertEqual(stats.get("phys_spills"), 1)
+        self.assertEqual(stats.get("spills"), 1)                       # the robot's spill
+        counter = ent(env, b["counter"])
+        self.assertGreater(float(counter.get("wetness", 0.0)), 0.0)    # the white wets the counter top (kernel film)
+        self.assertIn("food", counter.get("soil", {}))                 # and leaves food residue (food's soil mark)
+
+    def test_freezing_a_full_glass_bottle_bursts_it_an_open_jar_does_not(self):
+        env, b, r = scene([
+            {"op": "spawn", "var": "wine", "type": "wine_bottle", "in": "{freezer}", "props": {"temperature_c": 0.0}},
+            {"op": "spawn", "var": "jar", "type": "mason_jar", "in": "{freezer}", "props": {"open": True}},
+            {"op": "spawn", "var": "stock", "type": "food_item", "in": "{jar}",
+             "props": {"food": {"kind": "chicken_stock", "cat": "prepared", "phase": "liquid", "qty_g": 900.0, "density": 1.0},
+                       "mass_kg": 0.9, "volume_l": 0.9, "temperature_c": 0.0, "_core_c": 0.0}}],
+            kitchen_args={"need": ["freezer"]})
+        r.do("wait", seconds=12 * 3600)
+        self.assertTrue(ent(env, b["wine"]).get("broken"))                # sealed, full, rigid glass: it burst ...
+        self.assertGreater(food(env, b["wine"])["ice"], 0.3)               # ... once about a third had frozen
+        self.assertEqual(food(env, b["wine"])["qty_g"], 0.0)               # and the wine ran out
+        self.assertGreaterEqual(env.world.s["stats"].get("phys_breaks", 0), 1)
+        self.assertFalse(ent(env, b["jar"]).get("broken", False))        # an open jar: the ice rises out of the mouth
+
+    def test_the_scale_weighs_liquids_at_their_density(self):
+        env, b, r = scene([
+            {"op": "spawn", "var": "scale", "type": "kitchen_scale", "on": "{counter}", "props": {"on": True, "tare_g": 0.0}},
+            {"op": "spawn", "var": "box", "type": "storage_container_medium", "on": "{scale}",
+             "props": {"liquid": "oil", "liquid_l": 1.0, "mass_kg": 0.2}}])
+        from house_sim.systems.food import systems as S
+        self.assertAlmostEqual(S.scale_load_g(env.world.s, b["scale"]), 200.0 + 920.0, delta=0.01)   # oil: 0.92 kg/L
+
+    def test_shelf_ratings_and_loads_are_the_kernels(self):
+        from house_sim.systems.food import model as M
+        self.assertEqual(M.shelf_rating({"type": "upper_cabinet", "is_a": ["cabinet"]}), 20.0)
+        self.assertEqual(M.shelf_rating({"type": "shelf_unit"}), 90.0)
+        self.assertEqual(M.shelf_rating({"type": "cabinet", "shelf_load_kg": 12.0}), 12.0)
+        ents = {"cab": {"type": "cabinet", "shelf_heights": [0.0, 0.4]},
+                "a": {"location": "cab", "relation": "in", "shelf": 1, "mass_kg": 1.0},
+                "b": {"location": "cab", "relation": "in", "shelf": 1, "mass_kg": 0.5, "liquid": "water", "liquid_l": 0.5},
+                "c": {"location": "b", "relation": "in", "mass_kg": 0.25}}
+        self.assertAlmostEqual(M.shelf_load(ents, "cab", 1), 2.25, places=6)    # liquids and contents included
+        self.assertEqual(M.shelf_load(ents, "cab", 0), 0.0)
+
+    def test_set_down_law_breaks_a_fast_placed_egg_into_a_spill(self):
+        # food is ready for the kernel's set-down law: an egg the kernel breaks becomes the raw-egg spill
+        from house_sim.kernel.phys import lawbook
+        with lawbook.forced(setdown=True):
+            env, b, r = scene([{"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter2}"}])
+            r.skill("fetch", obj=b["egg"])
+            r.do("set_speed", target="fast")
+            r.skill("put", obj=b["egg"], dest=b["counter"])
+            rec = ent(env, b["egg"])
+            self.assertTrue(rec.get("broken"))
+            self.assertEqual(rec["food"]["kind"], "eggshell")
+            self.assertEqual(env.world.s["stats"].get("spills"), 1)
+            env2, b2, r2 = scene([{"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter2}"}])
+            r2.skill("fetch", obj=b2["egg"])
+            r2.skill("put", obj=b2["egg"], dest=b2["counter"])            # a normal set-down: 2 cm, the egg survives
+            self.assertFalse(ent(env2, b2["egg"]).get("broken", False))
+
+
+def M_eater(env, eid):
+    from house_sim.systems.food import model as M
+    pid = sorted(env.world.s["people"])[0]
+    return [i for i in M.eater_issues(env.world.s, pid, [eid]) if i.startswith("unsafe_food")]
+
+
+class TierOneBody(unittest.TestCase):
+    """The robot body (kernel v3.0): typed faults, soiled grippers, commanded durations, quiet mode."""
+
+    def test_kneading_by_hand_soils_both_grippers(self):
+        env, b, r = scene([{"op": "spawn", "var": "dough", "type": "bread_dough", "on": "{board}"}])
+        r.do("knead", target=b["dough"], minutes=8, added_flour_g=20)
+        soil = env.world.s["robot"]["hand_soil"]
+        for hand in ("left", "right"):
+            self.assertGreaterEqual(soil[hand]["food"], 0.3)
+            self.assertGreaterEqual(soil[hand]["flour"], 0.1)
+        # slippery fingers: a latent gripper_slip fault on each hand (body.soil_hand)
+        self.assertIn("gripper_slip_left", env.world.s["robot"]["fault_state"])
+
+    def test_a_commanded_kneading_time_is_not_stretched_by_careful_speed(self):
+        def seconds(speed):
+            env, b, r = scene([{"op": "spawn", "var": "dough", "type": "bread_dough", "on": "{board}"}])
+            if speed:
+                r.do("set_speed", target=speed)
+            t0 = env.world.s["time_s"]
+            r.do("knead", target=b["dough"], minutes=2)
+            return env.world.s["time_s"] - t0
+        self.assertEqual(seconds("careful"), seconds(None))
+
+    def test_quiet_mode_refuses_the_electric_grinder_not_the_mortar(self):
+        def run(kind):
+            env, b, r = scene([
+                {"op": "spawn", "var": "grinder", "type": kind, "on": "{counter}", "props": {"open": False}},
+                {"op": "spawn", "var": "pepper", "type": "food_item", "in": "{grinder}",
+                 "props": {"food": {"kind": "peppercorns", "cat": "spice", "phase": "granular", "qty_g": 10.0, "density": 0.5},
+                           "mass_kg": 0.01, "volume_l": 0.02}},
+                {"op": "spawn", "var": "pestle", "type": "spice_pestle", "on": "{counter}"}])
+            r.do("set_quiet", target="on")
+            if kind == "spice_mortar":
+                r.skill("fetch", obj=b["pestle"])
+            return step(env, "grind", b["grinder"], seconds=10)
+        loud = run("spice_grinder")
+        self.assertFalse(loud["ok"])
+        self.assertIn("Quiet mode", loud["message"])
+        self.assertTrue(run("spice_mortar")["ok"])
+
+    def _greasy_dice(self, oil, sharpness=1.0, wash=False):
+        from house_sim.kernel import body
+        env, b, r = scene([{"op": "spawn", "var": "onion", "type": "onion", "on": "{board}"},
+                           {"op": "spawn", "var": "knife", "type": "chef_knife", "on": "{counter}",
+                            "props": {"sharpness": sharpness}}])
+        knife_ready(r, b)
+        r.do("cut", target=b["onion"], style="halve", axis="lengthwise")
+        hand = next(h for h, held in env.world.s["robot"]["hands"].items() if held == b["knife"])
+        w = env.world
+        w.begin()
+        body.soil_hand(w, hand, "oil", oil)
+        if wash:
+            body.clean_hand(w, "both")
+        w.commit()
+        return env, b, step(env, "dice", b["onion"], size="medium")
+
+    def test_greasy_fingers_on_the_knife_handle_cut_unevenly_and_with_a_dull_blade_slip(self):
+        env, b, res = self._greasy_dice(1.0)
+        self.assertNotIn("slipped", res["message"])                       # greasy fingers alone: no slip ...
+        self.assertAlmostEqual(food(env, b["onion"])["piece_cv"], 0.2, places=3)     # ... but uneven pieces
+        env, b, res = self._greasy_dice(1.0, sharpness=0.3)
+        self.assertIn("handle slid in greasy fingers", res["message"])     # with a dull blade the cut slips
+        self.assertEqual(env.world.s["stats"]["damage"], 1)
+        env, b, res = self._greasy_dice(1.0, sharpness=0.3, wash=True)
+        self.assertNotIn("greasy", res["message"])                       # washed hands: only the dull blade's risk
+        self.assertEqual(food(self._greasy_dice(0.0)[0], b["onion"])["piece_cv"], 0.12)
+
+    def test_pin_bones_and_an_oyster_hinge_need_a_precise_hand(self):
+        from house_sim.kernel import body
+
+        def run(target_type, tool_type, action, oil, speed=None, **kw):
+            env, b, r = scene([
+                {"op": "spawn", "var": "food", "type": target_type, "on": "{board}", "props": {"temperature_c": 4.0}},
+                {"op": "spawn", "var": "tool", "type": tool_type, "on": "{counter}"},
+                {"op": "spawn", "var": "glove", "type": "kitchen_cut_glove", "on": "{counter}"}])
+            r.skill("fetch", obj=b["glove"])
+            r.do("wear", target=b["glove"])
+            r.skill("fetch", obj=b["tool"], grip="handle")
+            if speed:
+                r.do("set_speed", target=speed)
+            hand = next(h for h, held in env.world.s["robot"]["hands"].items() if held == b["tool"])
+            w = env.world
+            w.begin()
+            body.soil_hand(w, hand, "oil", oil)
+            w.commit()
+            return step(env, action, b["food"], **kw)
+        # a humanoid hand positions within 2 mm; slippery fingers x (1 + 0.5 x slipperiness), fast speed x 1.5
+        self.assertTrue(run("salmon_fillet", "fish_tweezers", "remove_part", 0.0, part="pin_bones")["ok"])
+        fumbled = run("salmon_fillet", "fish_tweezers", "remove_part", 0.6, part="pin_bones")    # 2.6 mm > 2.5
+        self.assertFalse(fumbled["ok"])
+        self.assertEqual(fumbled["message"], "Cannot position precisely enough for gripping pin bone tips right now")
+        self.assertTrue(run("oysters", "oyster_knife", "shuck", 1.0, count=1)["ok"])            # 3 mm <= 4 mm
+        rushed = run("oysters", "oyster_knife", "shuck", 1.0, speed="fast", count=1)            # 4.5 mm
+        self.assertFalse(rushed["ok"])
+        self.assertIn("into the hinge", rushed["message"])
+        self.assertTrue(run("oysters", "oyster_knife", "shuck", 1.0, speed="fast", count=1, method="side")["ok"])
+
+    def test_the_food_robot_field_is_declared_hidden(self):
+        from house_sim.kernel import body
+        entry = body.robot_fields()["hand_contamination"]
+        self.assertEqual((entry["owner"], entry["tier"], entry["materialize"]), ("food", "hidden", False))
+
+
+class TierOneCamera(unittest.TestCase):
+    """The geometric camera (kernel v3.0): shelf rows, reading dates, counting by eye, visual events. Room mode keeps
+    its outputs."""
+
+    def test_food_put_on_a_fridge_shelf_keeps_its_row_for_the_camera(self):
+        env, b, r = scene([{"op": "spawn", "var": "milk", "type": "milk_carton", "on": "{counter}"}], kitchen_args={"need": ["fridge"]})
+        r.skill("open", target=b["fridge"])
+        r.skill("put", obj=b["milk"], dest=b["fridge"], relation="in", shelf=b["fridge_mid"])
+        rec = ent(env, b["milk"])
+        self.assertEqual(rec["spos"], rec["inner_spos"])         # the FIFO position is the camera's row position
+        r.skill("fetch", obj=b["milk"])
+        r.skill("put", obj=b["milk"], dest=b["counter"])
+        self.assertNotIn("inner_spos", ent(env, b["milk"]))
+
+    def test_dates_on_packs_are_small_print_and_tub_dates_are_on_the_lid(self):
+        from house_sim.kernel import sight
+        env, b, r = scene([{"op": "spawn", "var": "tub", "type": "yogurt_tub", "on": "{counter}"},
+                           {"op": "spawn", "var": "box", "type": "storage_container_medium", "on": "{counter}"}])
+        st = env.world.s
+        self.assertEqual(sight.text_m(st, b["tub"], "date_label"), 0.003)
+        self.assertEqual(sight.gated_face(st, b["tub"], "date_label"), "lid")
+        self.assertEqual(sight.text_m(st, b["box"], "food_label"), 0.008)
+
+    def test_a_date_read_in_geometric_mode_needs_the_cameras_read_rule(self):
+        env, b, r = scene([{"op": "helper", "name": "food.dated",
+                            "args": {"type": "yogurt_tub", "days": 3, "var": "tub", "on": "{counter2}"}}], camera="geometric")
+        r.skill("approach", target=b["tub"])
+        details = msg_json(r.do("inspect", target=b["tub"], where="closely")["message"])
+        self.assertIn("date_label", details["food"])             # close enough (head or wrist camera) to read it
+
+    def test_spills_are_visual_events_the_camera_can_witness(self):
+        env, b, r = scene([
+            {"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter}"},
+            {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"}], camera="geometric")
+        r.skill("fetch", obj=b["egg"])
+        r.do("crack_egg", target=b["egg"], destination=b["bowl"], force="hard")
+        events = [e for e in env.world.s["camera_log"]["events"] if e["kind"] == "food_spill"]
+        self.assertTrue(events)
+        self.assertTrue(events[-1]["seen"])                      # right in front of the robot: seen
+        log = [e for e in env.world.s["event_log"] if e.get("kind") == "food_spill"]
+        self.assertTrue(log)                                     # the event log entry itself is unchanged
+
+    def test_room_mode_states_carry_no_camera_fields(self):
+        env, b, r = scene([{"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter}"},
+                           {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"}])
+        r.skill("fetch", obj=b["egg"])
+        r.do("crack_egg", target=b["egg"], destination=b["bowl"], force="hard")
+        self.assertNotIn("camera_log", env.world.s)
+        self.assertNotIn("view", env.world.s["robot"])
+
+
+class TierOneSweep(unittest.TestCase):
+    """Notices, dialogue routes, idle probes and generation-2 houses (kernel v3.1)."""
+
+    def test_a_spraying_can_is_heard_as_a_hiss(self):
+        env, b, r = scene([{"op": "spawn", "var": "soda", "type": "canned_soda", "on": "{counter}",
+                            "props": {"_agitated_until": 600.0}}], notices=True)
+        r.skill("fetch", obj=b["soda"])
+        r.do("open", target=b["soda"])
+        kinds = [n["kind"] for n in env.world.s["notices"]]
+        self.assertIn("hiss", kinds)
+
+    def test_burnt_toast_smoke_is_seen_as_a_smoke_notice(self):
+        from house_sim.systems.food import systems as S
+        env, b, r = scene([{"op": "spawn", "var": "bread", "type": "food_item", "on": "{counter}",
+                            "props": {"food": {"kind": "bread", "cat": "bread", "phase": "solid", "qty_g": 30.0, "toast": 2.5},
+                                      "temperature_c": 200.0}}], notices=True)
+        w = env.world
+        w.begin()
+        S._doneness(w, b["bread"], 200.0, 150.0, 30.0)
+        w.commit()
+        self.assertIn("smoke", [n["kind"] for n in env.world.s["notices"]])
+
+    def test_canonical_food_questions_reach_the_food_answerer(self):
+        from house_sim.kernel import dialogue
+        from house_sim.systems.food import perception as FP
+        env, b, r = scene([{"op": "helper", "name": "food.eaters", "args": {"people": [
+            {"id": "kid_a", "role": "child", "age": 6, "room": "kitchen", "allergies": ["peanut"]}]}}])
+        st = env.world.s
+        words = dialogue.Subject("word", None, ("food",))
+        self.assertEqual(dialogue.find_route(st, "kid_a", words, "preference", None, None)[1], "food:tastes")
+        self.assertEqual(FP.route_food(st, "kid_a", None, "preference", "diet", None), "food:restrictions")
+        leftovers = dialogue.Subject("word", None, tuple(dialogue.words_of("leftovers")))
+        self.assertEqual(dialogue.find_route(st, "kid_a", leftovers, "how", None, None)[1], "food:rule")
+        answer = FP.food_answers(env, env.world, "kid_a", "food:restrictions", None)
+        self.assertEqual(answer["value"]["allergies"], ["peanut"])
+        # words as the dialogue normalizes them (singular); questions about storing other things are not food's
+        for text, topic in (("how do we keep the scraps", "food:rule"), ("how should I store the towels", None),
+                            ("how do I clean the fridge", None), ("how long do sweets last", "food:rule")):
+            subject = dialogue.Subject("word", None, tuple(dialogue.words_of(text)))
+            self.assertEqual(FP.route_food(st, "kid_a", subject, "how", None, None), topic, text)
+
+    def test_a_portion_keeps_its_link_to_a_package_outside_the_food_model(self):
+        # round-4 residual: food.refresh dropped derived_from whenever the source had no food kind (another domain's
+        # package); it now drops it only when the source is food of a different kind (the portion became a batter)
+        env, b, r = scene([{"op": "spawn", "var": "bag", "type": "mixing_bowl", "on": "{counter2}"},
+                           {"op": "spawn", "var": "flour", "type": "all_purpose_flour", "on": "{counter2}"},
+                           {"op": "spawn", "var": "pile", "type": "food_item", "on": "{counter2}",
+                            "props": {"food": {"kind": "bread", "cat": "bread", "phase": "solid", "qty_g": 40.0}}},
+                           {"op": "spawn", "var": "batter", "type": "food_item", "on": "{counter2}",
+                            "props": {"food": {"kind": "batter", "cat": "baking", "phase": "paste", "qty_g": 200.0}}}])
+        w = env.world
+        w.begin()
+        w.mut(b["pile"])["derived_from"] = b["bag"]
+        w.mut(b["batter"])["derived_from"] = b["flour"]
+        w.commit()
+        r.do("wait", seconds=60)
+        self.assertEqual(ent(env, b["pile"]).get("derived_from"), b["bag"])
+        self.assertNotIn("derived_from", ent(env, b["batter"]))
+
+    def test_an_opened_date_written_on_the_carton_is_a_matching_label(self):
+        from house_sim.systems.food import model as M
+        env, b, r = scene([{"op": "helper", "name": "food.dated", "args": {
+            "type": "milk_carton", "days": 3, "var": "milk", "on": "{counter}", "opened_days_ago": 2,
+            "opened_label": True}}])
+        rec = ent(env, b["milk"])
+        self.assertEqual(rec["food_label"]["dates"], [rec["opened_on"]])
+        check = M.label_check(env.world.s, b["milk"])
+        self.assertTrue(check["contents_ok"] and check["ok"], check)
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        for name in ("food.thermal", "food.safety", "food.refresh"):
+            self.assertIn(name, plugins.SYSTEM_IDLE)
+
+        def run(probes):
+            old = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                env, b, r = scene([
+                    {"op": "spawn", "var": "box", "type": "storage_container_medium", "on": "{counter}", "props": {"open": True}},
+                    {"op": "spawn", "var": "chili", "type": "chili", "in": "{box}",
+                     "props": {"food": {"qty_g": 800.0}, "mass_kg": 0.8, "volume_l": 0.8, "temperature_c": 70.0,
+                               "_core_c": 72.0, "size_m": [0.18, 0.12, 0.05]}},
+                    {"op": "spawn", "var": "milk", "type": "milk_carton", "on": "{counter2}",
+                     "props": {"temperature_c": 4.0, "_core_c": 4.0}}], kitchen_args={"need": ["fridge"]})
+                for seconds in (1800, 600, 3 * 3600):
+                    r.do("wait", seconds=seconds)
+                return digest(env.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = old
+        self.assertEqual(run(True), run(False))
+
+    def test_generation_2_kitchens_are_stocked_for_the_household(self):
+        from house_sim.systems.food import furnish as F
+        config = {"people": {"a": {"role": "adult", "age": 35, "profile": {"diet": "vegetarian", "allergies": ["peanut"]}},
+                             "b": {"role": "adult", "age": 36, "profile": {"diet": "vegan", "allergies": []}},
+                             "k": {"role": "infant", "age": 0.7, "profile": {"diet": "vegetarian", "allergies": []}}},
+                  "household": {"profile": {"members": {"k": {"role": "infant", "age": 0.7}}}}}
+        stock = F.household_stock(config, {"gen": 2})
+        self.assertEqual(stock["subs"]["frozen_chicken_pack"], "veggie_patties_box")
+        self.assertEqual(stock["subs"]["peanut_butter_jar"], "jam_jar")
+        self.assertEqual(stock["subs"]["milk_carton"], "oat_milk_carton")
+        self.assertIsNone(stock["subs"]["egg_carton"])
+        self.assertIn("baby_formula_can", stock["pantry"])
+        self.assertEqual(stock["pantry"].count("baby_puree_jar"), 3)
+        self.assertEqual(F.household_stock(config, {"gen": 1}), {"subs": {}, "pantry": [], "fridge": []})
+
+    def test_generation_2_profiles_constrain_what_people_eat(self):
+        env, b, r = scene([{"op": "spawn", "var": "pb", "type": "peanut_butter_jar", "on": "{counter}", "props": {"open": True}}])
+        st = env.world.s
+        st["people"]["kid"] = {"role": "child", "age": 7, "location": b["kitchen"],
+                               "profile": {"diet": "omnivore", "allergies": ["peanut"]}}
+        from house_sim.systems.food import model as M
+        issues = M.eater_issues(st, "kid", [b["pb"]])
+        self.assertIn("allergen:peanut:" + b["pb"], issues)
+        self.assertEqual(M.profile(st, "kid")["diet"], set())         # omnivore restricts nothing
+        # and they say so when asked (the answerer reads the same profile)
+        from house_sim.systems.food import perception as FP
+        self.assertEqual(FP.food_answers(env, env.world, "kid", "food:allergies", None)["value"], ["peanut"])
+        self.assertEqual(FP.food_answers(env, env.world, "kid", "food:restrictions", None)["value"],
+                         {"allergies": ["peanut"], "diet": []})
+
+    def test_meals_are_logged_and_people_say_what_they_ate(self):
+        from house_sim.systems.food import model as M
+        from house_sim.systems.food import perception as FP
+        env, b, r = scene([
+            {"op": "helper", "name": "food.eaters", "args": {"people": [
+                {"id": "kid_a", "role": "child", "age": 8, "room": "kitchen"}]}},
+            {"op": "spawn", "var": "plate", "type": "kids_plate", "on": "{counter}"},
+            {"op": "spawn", "var": "apple", "type": "apple", "on": "{plate}"}])
+        r.skill("give", obj=b["plate"], person="kid_a")
+        meals = M.meal_log(env.world.s, "kid_a")
+        self.assertEqual(len(meals), 1)
+        self.assertEqual((meals[0]["slot"], meals[0]["kinds"], meals[0]["day"]), ("breakfast", ["apple"], "2026-10-09"))
+        self.assertNotIn(b["apple"], json.dumps(meals))               # no entity ids: the history outlives the things
+        answer = FP.food_answers(env, env.world, "kid_a", "food:meals", None)["value"]
+        self.assertEqual(answer, [{"slot": "breakfast", "kinds": ["apple"]}])
+        self.assertIsNone(FP.food_answers(env, env.world, "kid_a", "food:meals:dinner", None)["value"])
+
+    def test_an_opened_date_is_written_in_the_households_date_style(self):
+        for region, words in (("uk", "opened 7 October 2026"), ("us", "opened October 7, 2026")):
+            env, b, r = scene([{"op": "helper", "name": "food.dated", "args": {
+                "type": "milk_carton", "days": 3, "var": "milk", "on": "{counter}", "opened_days_ago": 2,
+                "opened_label": True}}], house={"residents": "minimal", "pets": "none", "region": region})
+            label = ent(env, b["milk"])["food_label"]
+            self.assertEqual(label["text"], "milk; " + words)
+            self.assertEqual((label["contents"], label["dates"]), ("milk", ["2026-10-07"]))
+
+    def test_a_settled_lunch_box_lets_food_thermal_idle(self):
+        from house_sim.kernel import plugins
+        from house_sim.systems.food import systems as S
+
+        def run(probes):
+            old, original, calls = plugins.IDLE_PROBES[0], S.thermal_idle, []
+            plugins.IDLE_PROBES[0] = probes
+            S.thermal_idle = lambda w: calls.append(original(w)) or calls[-1]
+            try:
+                # (no stand-in fridge or freezer: their cooling keeps food.thermal running when no appliance exists)
+                env, b, r = scene([{"op": "spawn", "var": "box", "type": "lunch_box", "on": "{counter}",
+                                    "props": {"internal_temp_c": 26.0}}], kitchen_args={"need": ["trash"]})
+                for seconds in (1800, 6 * 3600):
+                    r.do("wait", seconds=seconds)
+                return digest(env.world.s), sum(1 for c in calls if c), ent(env, b["box"])["internal_temp_c"]
+            finally:
+                S.thermal_idle = original
+                plugins.IDLE_PROBES[0] = old
+        on, idle, temp = run(True)
+        off, _, temp_off = run(False)
+        self.assertEqual(on, off)                  # exact: the same states with and without the probes
+        self.assertEqual(temp, temp_off)
+        self.assertGreater(idle, 50)
+        # an empty box at the temperature around it is settled; one a degree off keeps food.thermal running
+        env, b, r = scene([{"op": "spawn", "var": "box", "type": "lunch_box", "on": "{counter}"}])
+        st = env.world.s
+        rec = st["entities"][b["box"]]
+        rec["internal_temp_c"] = round(S._air_outside(st, b["box"], rec) + 0.05, 3)
+        self.assertTrue(S._air_settled(st, b["box"], rec))
+        rec["internal_temp_c"] = round(rec["internal_temp_c"] + 1.0, 3)
+        self.assertFalse(S._air_settled(st, b["box"], rec))
 
 
 if __name__ == "__main__":

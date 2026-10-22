@@ -15,13 +15,14 @@ Conventions used across the package
 """
 import math
 
-from ...kernel import clock, geometry
+from ...kernel import camera, clock, geometry, physics
 from ...kernel.errors import ActionError, require  # noqa: F401  (re-exported)
+from ...kernel.phys import environment as kenv
 from ...kernel.predicates import root_room
 
 CELL = geometry.CELL
 SLOW_S = 600.0
-RHO_AIR = 1.225
+RHO_AIR = kenv.RHO_AIR          # the kernel's drag model (TIER1_PHYSICS 5.10): one air density for every wind force
 G = 9.81
 DAY = 86400.0
 HOUR = 3600.0
@@ -235,6 +236,34 @@ def fact(w, key, value):
 
 def note(w, event_kind, **data):
     return w.emit("outdoor_plants." + event_kind, **data)
+
+
+def visual(w, event_kind, source=None, room=None, size_m=0.3, **data):
+    """A visual occurrence (an umbrella tips, a cover blows off, a cushion blows across the lawn): the event log entry
+    is exactly note()'s; in geometric camera mode the robot's head camera witnesses it when it is in frame, lit and
+    big enough (camera.visual_event, TIER1_CAMERA 8.6), and a seen one becomes a "visual" notice."""
+    return camera.visual_event(w, "outdoor_plants." + event_kind, source=source, room=room, size_m=size_m, **data)
+
+
+def seen_cells(w, rid):
+    """Geometric camera: the floor cells of room rid the robot's cameras have surveyed this episode (the camera log's
+    seen_cells plus this step's frames, camera.seen_floor). None in room mode (the room-wide rules apply)."""
+    state = w.s
+    if camera.mode(state) != "geometric" or rid not in state["rooms"]:
+        return None
+    cols, rows = geometry.grid_size(state["rooms"][rid])
+    bits = ((state.get("camera_log") or {}).get("seen_cells") or {}).get(rid)
+    cells = set()
+    if isinstance(bits, str) and len(bits) == cols * rows:
+        cells = {(i % cols, i // cols) for i, ch in enumerate(bits) if ch == "1"}
+    cells |= {cell for room, cell in camera.seen_floor(state, w) if room == rid}
+    return cells
+
+
+def notice(w, kind, room=None, db=None, source=None, data=None):
+    """A perceivable occurrence on the kernel notice bus (w.notice, TIER1_SWEEP 6.1): the timeline decides whether the
+    robot hears it and stores it when someone listens. Posted only by the time systems and scripted events."""
+    return w.notice(kind, room=room, db=db, source=source, data=data)
 
 
 def set_status(w, eid, **values):
@@ -537,11 +566,15 @@ def spawn(w, type_name, location, eid=None, **props):
     return w.spawn(type_name, location, eid=eid, **props)
 
 
-def add_spill(w, rid, cell, liters, liquid="water", onto=None):
-    """Water/liquid lands on the floor of rid at cell (and optionally wets a furniture item)."""
+def add_spill(w, rid, cell, liters, liquid="water", onto=None, source=None):
+    """Liquid the robot let out (an overflowing saucer, water dripping off a carried rain-soaked item) goes through the
+    kernel's single spill entry point (physics.spill, by the robot; TIER1_PHYSICS 5.7): below 5 ml it is droplets;
+    onto an entity, it and the supports under it catch what they can and the rest reaches the floor under them;
+    otherwise it lands on the floor of rid at cell as cleaning's spill (phys.spill_sink) or a kernel puddle, which
+    keep the room's wet_cells. A counted spill adds the global `spills`. A wooden or water-unsafe piece it lands on
+    also keeps this domain's water mark (damage["water"]). Returns the floor spill's id or None."""
     if liters <= 1e-4:
         return None
-    stat(w, "spills")
     stat(w, "spilled_l", round(liters, 3))
     if onto and onto in w.s["entities"]:
         target = w.s["entities"][onto]
@@ -555,15 +588,50 @@ def add_spill(w, rid, cell, liters, liquid="water", onto=None):
             m["damage"] = damage
             stat(w, "damage")
             note(w, "water_damage", target=onto, liters=round(liters, 3))
+    if onto in w.s["entities"]:
+        return physics.spill(w, liters, liquid, onto=onto, source=source, by="robot")
     if rid is None or rid not in w.s["rooms"]:
         return None
-    room = w.room_m(rid)
-    cells = room.setdefault("wet_cells", [])
-    if list(cell) not in cells:
-        cells.append(list(cell))
-    eid = spawn(w, "spill", rid, eid=w.new_id("spill"), label="puddle of " + liquid, category="spill", liquid=liquid,
-                volume_l=round(liters, 3), liquid_l=round(liters, 3), floor_hazard="wet", portable=False, pos=list(cell), wetness=1.0)
-    return eid
+    return physics.spill(w, liters, liquid, at=(rid, list(cell) if cell is not None else None), source=source, by="robot")
+
+
+# ---------------------------------------------------------------------------
+# the robot's grippers (kernel v3.0 body: hand soil goes through body.soil_hand only)
+
+GLOVES = ("garden_gloves", "rubber_gloves", "work_gloves", "cut_resistant_gloves", "nitrile_gloves", "gloves")
+MUD_RWC = 0.6           # soil at or above this relative water content smears on the fingers as mud
+
+
+def gloved(w):
+    """True while the robot wears gloves (core wear records the gear kind): they take the soil instead."""
+    return bool(set(w.s["robot"].get("wearing") or ()) & set(GLOVES))
+
+
+def soil_hands(ctx, kind, amount, hand=None):
+    """Bare-handed garden work leaves `kind` on the grippers (body.soil_hand): mud makes them slippery (lower grip
+    friction and precision; enough of it starts a latent gripper_slip fault) until they are washed (cleaning's wash /
+    wipe with target robot_hand); dry soil and plant sap or oils (urushiol from poison ivy) stay on them and ride along
+    to whatever is touched next. Gloves worn take it instead. hand: "left" | "right" | "both" (default: the free hand,
+    else both)."""
+    from ...kernel import body
+    w = ctx.w
+    if amount <= 0 or gloved(w):
+        return
+    if hand is None:
+        free = [h for h, held in sorted((w.s["robot"].get("hands") or {}).items()) if held is None]
+        hand = free[0] if len(free) == 1 else "both"
+    body.soil_hand(w, hand, kind, amount)
+
+
+def soil_from(ctx, holder, amount=0.2, hand=None):
+    """Hand work in a pot's, tray's or bed's medium: mud when it is wet (RWC >= MUD_RWC), dry soil otherwise."""
+    from .species import rwc
+    medium = (holder or {}).get("medium") or {}
+    kind = medium.get("kind") or "garden_soil"
+    if kind == "none" or float(medium.get("soil_l", 1.0) or 0.0) <= 0:
+        return
+    wet = rwc(float(medium.get("moisture_top", medium.get("moisture", 0.0)) or 0.0), kind) >= MUD_RWC
+    soil_hands(ctx, "mud" if wet else "soil", amount, hand)
 
 
 def destroy_tree(w, eid):

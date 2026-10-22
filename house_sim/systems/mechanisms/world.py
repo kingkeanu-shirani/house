@@ -25,9 +25,153 @@ RAIN_CONDITIONS = {"rain", "storm", "drizzle", "showers", "thunderstorm"}
 
 
 # ----------------------------------------------------------------------------------
+# exact idle probes (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7): True only when the system would change nothing this
+# substep (a part that rolls a random draw counts as busy). HOUSE_SIM_IDLE_PROBES=0 turns them off for comparisons.
+
+def _weather(state):
+    weather = state.get("weather") or {}
+    wind = max(C.num(weather.get("wind_mps"), 0.0), C.num(weather.get("gust_mps"), 0.0))
+    raining = weather.get("condition") in RAIN_CONDITIONS or C.num(weather.get("rain_mm_h")) > 0.2
+    return weather, wind, raining
+
+
+def _closer_busy(w, eid, rec, now, wind):
+    """One door of the closer index would be written this substep (mechanisms_tick's door branch)."""
+    state = w.s
+    mech = rec.get("mech")
+    if _unclaimed_closer(rec):
+        return True
+    if isinstance(mech, dict):
+        stale = "release_at" in mech or "resting_on" in mech or "closer_held" in mech or C.num(mech.get("open_frac")) > 0.005
+        if not rec.get("open") and stale and not C.leaf_state(rec) and C.kind_of(rec) != "overhead_door":
+            return True
+        if "release_at" in mech and rec.get("open"):
+            held = C.held_open(rec, now, w, eid) or C.hidden(rec).get("spring") == "broken"
+            if held != bool(mech.get("closer_held")):
+                return True
+            if not held and now - C.num(mech.get("release_at")) >= C.closer_delay_s(rec):
+                return True
+        if "relock_at" in mech and now >= C.num(mech["relock_at"]):
+            return True
+        if mech.get("draft_prone") and rec.get("open") and _draft_possible(w, eid, rec, wind):
+            return True
+    if wind >= 6.0 and "latched" in rec and not rec.get("latched") and C.kind_of(rec) in ("gate", "hinged_door", "double_door", "storm_door") \
+            and any(C.is_outdoor(state, r) for r in C.door_rooms(state, eid)):
+        return True
+    return False
+
+
+def _draft_possible(w, eid, rec, wind):
+    """_draft gets past its early returns (it then rolls the draft's random draw)."""
+    if C.mget(rec, "propped_by") and C.mget(rec, "propped_by") in w.s["entities"]:
+        return False
+    rooms = set(C.door_rooms(w.s, eid))
+    draft = any((w.s["entities"].get(wid) or {}).get("location") in rooms and (w.s["entities"].get(wid) or {}).get("open")
+                and C.num(C.mget(w.s["entities"][wid], "open_frac", 1.0), 1.0) >= 0.15 for wid in C.ids(w, "windows"))
+    draft = draft or bool(C.mget(rec, "hvac_draft"))
+    return bool((draft and wind >= 2.0) or C.hidden(rec).get("out_of_plumb") or (draft and C.mget(rec, "hvac_draft")))
+
+
+def _pets_possible(w):
+    """_pets would roll an escape draw for some pet (an open passage toward an escape zone, a cat by an open
+    unscreened window)."""
+    state = w.s
+    for pid in sorted(state.get("pets", {})):
+        pet = state["pets"][pid]
+        if C.num(pet.get("escape_risk")) <= 0 or pet.get("escaped") or pet.get("leashed") or pet.get("crated") or pet.get("held"):
+            continue
+        here = pet.get("location")
+        if here not in state["rooms"] or not pet.get("pos"):
+            continue
+        for cid in sorted(state.get("connections", {})):
+            conn = state["connections"][cid]
+            if here not in conn["rooms"]:
+                continue
+            there = conn["rooms"][1] if conn["rooms"][0] == here else conn["rooms"][0]
+            if not K._is_escape(state, here, there):
+                continue
+            door = state["entities"].get(conn.get("door") or "")
+            if door is None or (door.get("open") and C.num(C.mget(door, "open_frac", 1.0), 1.0) >= 0.3):
+                return True
+        if pet.get("species") == "cat":
+            for wid in C.ids(w, "windows"):
+                wrec = state["entities"].get(wid) or {}
+                if wrec.get("location") == here and wrec.get("open") and C.mget(wrec, "screen", "in_place") != "in_place" \
+                        and C.num(C.mget(wrec, "open_frac", 1.0), 1.0) >= 0.12:
+                    return True
+    return False
+
+
+def tick_idle(w):
+    """Exact idle probe of mechanisms.tick: no moving garage door or dashing agent due back, no self-closer to claim,
+    reconcile or swing, no relock due, no possible draft or wind on a door, no unlit gas, no touchscreen edit timing out,
+    no open window in the rain, no pet-door intrusion or pet escape possible, no armed alarm to trip and no flame or
+    running heater near fabric."""
+    state = w.s
+    ents = state["entities"]
+    now = state["time_s"]
+    weather, wind, raining = _weather(state)
+    for group in ("pets", "people"):
+        for agent in (state.get(group) or {}).values():
+            if agent.get("_dash_until") is not None and now >= agent["_dash_until"]:
+                return False
+    for d in C.ids(w, "overhead"):
+        m = (ents.get(d) or {}).get("mech")
+        if isinstance(m, dict) and m.get("state") in ("opening", "closing"):
+            return False
+    for eid in C.ids(w, "closers"):
+        rec = ents.get(eid)
+        if rec is not None and _closer_busy(w, eid, rec, now, wind):
+            return False
+    for eid in C.ids(w, "gas"):
+        gas = ((ents.get(eid) or {}).get("mech") or {}).get("gas")
+        if isinstance(gas, dict) and gas.get("flow") and not gas.get("lit"):
+            return False
+    for eid in C.ids(w, "ui"):
+        ui = (ents.get(eid) or {}).get("ui")
+        if isinstance(ui, dict) and ui.get("staged") and now - C.num(ui.get("last_touch_s")) >= C.num(ui.get("timeout_s"), 45.0):
+            return False
+    if raining:
+        for eid in C.ids(w, "windows"):
+            rec = ents.get(eid)
+            if rec is not None and rec.get("open") and rec.get("exterior") is not False and not C.mget(rec, "sheltered"):
+                return False
+    if C.ids(w, "pet_doors") and C.is_night(state):
+        household_risk = C.num((state.get("household") or {}).get("wildlife_risk"))
+        for eid in C.ids(w, "pet_doors"):
+            rec = ents.get(eid)
+            if rec is not None and isinstance(rec.get("mech"), dict) and C.num(rec["mech"].get("wildlife_risk"), household_risk) > 0 \
+                    and P.admits_in(rec):
+                return False
+    for eid in C.ids(w, "alarms"):
+        rec = ents.get(eid)
+        if rec is not None and _alarm_trips(state, rec):
+            return False
+    hot = [h for h in C.ids(w, "heat") if h in ents and ((ents[h].get("open_flame") or ents[h].get("flame")) and ents[h].get("lit")
+                                                       or (ents[h].get("heat_source") and ents[h].get("on")))]
+    if hot:
+        rooms = {C.room_of(state, h) for h in hot}
+        if any(e in ents and not ents[e].get("burnt") and C.room_of(state, e) in rooms
+               for e in set(C.ids(w, "curtains")) | set(C.ids(w, "heat_watch"))):
+            return False
+    return not _pets_possible(w)
+
+
+def slow_idle(w):
+    """Exact idle probe of mechanisms.slow: no unsealed paint can still skinning over and no window or screen the sun
+    model tracks (glare targets, sun-tracked windows)."""
+    ents = w.s["entities"]
+    for eid in C.ids(w, "paint"):
+        rec = ents.get(eid)
+        if rec is not None and rec.get("paint") and not rec.get("sealed") and not rec.get("dried_out"):
+            return False
+    return not any(e in ents for e in C.ids(w, "glare")) and not any(e in ents for e in C.ids(w, "sun_windows"))
+
+
+# ----------------------------------------------------------------------------------
 # system
 
-@system("mechanisms.tick", order=95, max_dt=30.0)
+@system("mechanisms.tick", order=95, max_dt=30.0, idle=tick_idle)
 def mechanisms_tick(w, dt, tick):
     """Fast, event-sensitive mechanics. Iterates the domain's static indexes (C.ids) and re-checks dynamic
     fields on the records: nothing here scans every entity."""
@@ -111,7 +255,7 @@ def _heat_near_fabric(w, dt):
         _fabric_heat(w, eid, rec, dt, hot)
 
 
-@system("mechanisms.slow", order=96, max_dt=600.0, period=300.0)
+@system("mechanisms.slow", order=96, max_dt=600.0, period=300.0, idle=slow_idle)
 def mechanisms_slow(w, dt, tick):
     """Slow processes, once per 300 s with the accumulated dt (both are linear/stateless in dt):
     paint skinning over in unsealed cans; sun position -> direct sun through windows and glare."""
@@ -220,7 +364,7 @@ def _closer(w, eid, rec, mech, now, tick):
         C.mut_mech(w, eid)[1]["rests_ajar"] = True     # spent: the spring has no travel left to try again
     if C.mget(rec, "closer_speed") == "fast" and not C.mget(rec, "bumper"):
         _slam(w, eid)
-    w.emit("door_self_closed", target=eid)
+    C.visual(w, "door_self_closed", source=eid, size_m=1.0, target=eid)
 
 
 def _slam(w, eid):
@@ -228,7 +372,8 @@ def _slam(w, eid):
     mech["slams"] = int(C.num(mech.get("slams"))) + 1
     w.stat("noise", 1.0)
     C.mlog(w, "slams", {"target": eid, "room": C.room_of(w.s, eid)})
-    w.emit("slam", target=eid)
+    C.visual(w, "slam", source=eid, size_m=1.0, target=eid)
+    C.notice(w, "door_slam", source=eid)
     if mech["slams"] >= 6:
         C.mark_damage(w, eid, "frame cracking from repeated slams")
 
@@ -294,7 +439,7 @@ def _draft(w, eid, rec, dt, wind, tick):
     if not mech.get("bumper") and C.mget(rec, "soft_catch") is not True:
         _slam(w, eid)
     else:
-        w.emit("door_swung_shut", target=eid)
+        C.visual(w, "door_swung_shut", source=eid, size_m=1.0, target=eid)
 
 
 def _wind(w, eid, rec, dt, wind, tick):
@@ -309,7 +454,7 @@ def _wind(w, eid, rec, dt, wind, tick):
         if leaves and not (leaves.get("fixed") or {}).get("bolted"):
             rm, mech = C.mut_mech(w, eid)
             C.set_leaf_state(mech, dict(leaves, fixed=dict(leaves.get("fixed") or {}, open=True)))
-        w.emit("blown_open", target=eid, wind_mps=wind)
+        C.visual(w, "blown_open", source=eid, size_m=1.0, target=eid, wind_mps=wind)
         C.mlog(w, "wind", {"target": eid})
 
 
@@ -331,7 +476,17 @@ def _rain(w, eid, rec, dt, weather):
     total = mech["ingress_l"]
     if C.num(rm.get("wetness")) < 1.0:
         rm["wetness"] = round(min(1.0, C.num(rm.get("wetness")) + litres * 2.0), 3)
-    for sill in V.sills_of_w(w, eid):
+    if C.law_active("rain"):
+        # the kernel's rain law owns how rain wets things (TIER1_PHYSICS 10.3): the sill and what stands on it take the
+        # rain blown in through the opening (this domain's ingress calibration as a rate at the sill) through
+        # physics.rain_wet -- wetness, an absorbent body's moisture, a paper-like item soaked and water-damaged, the
+        # phys.wetted hooks (electronics short out when electrical is loaded)
+        mm_h = rate * exposure * frac * (8.0 if C.kind_of(rec) == "skylight" else 3.0)
+        for sill in V.sills_of_w(w, eid):
+            _kernel_rain(w, sill, mm_h, dt)
+            for item in list(w.children(sill)):
+                _kernel_rain(w, item, mm_h, dt)
+    for sill in ([] if C.law_active("rain") else V.sills_of_w(w, eid)):
         sm = w.mut(sill)
         sm["wetness"] = round(min(1.0, C.num(sm.get("wetness")) + litres * 3.0), 3)
         for item in w.children(sill):
@@ -351,6 +506,18 @@ def _rain(w, eid, rec, dt, weather):
     if total >= 20.0 and not mech.get("flood_flagged"):
         mech["flood_flagged"] = True
         C.harm(w, "flood", window=eid, litres=round(total, 1))
+
+
+def _kernel_rain(w, eid, mm_h, dt):
+    """Rain at mm_h for dt seconds on one sill or sill item through the kernel (physics.rain_wet); a body the kernel
+    soaked through is marked water_damaged (this domain's observable flag for rain damage)."""
+    from ...kernel import physics
+    if eid not in w.s["entities"] or mm_h <= 0 or dt <= 0:
+        return
+    physics.rain_wet(w, eid, mm_h, dt)
+    rec = w.s["entities"].get(eid) or {}
+    if rec.get("soaked") and not rec.get("water_damaged"):
+        w.mut(eid)["water_damaged"] = True
 
 
 def _pets(w, dt, tick):
@@ -400,22 +567,34 @@ def _wildlife(w, eid, rec, dt, tick):
         sec = w.sec("mechanisms")
         intrusions = sec.setdefault("intrusions", [])
         intrusions.append({"via": eid, "animal": "raccoon", "time_s": w.s["time_s"]})
-        w.emit("wildlife_entered", via=eid, animal="raccoon")
+        C.visual(w, "wildlife_entered", source=eid, size_m=0.5, via=eid, animal="raccoon")
+        C.notice(w, "pet_door", source=eid)
         rm, mech = C.mut_mech(w, eid)
         mech["wildlife_entries"] = int(C.num(mech.get("wildlife_entries"))) + 1
 
 
-def _alarm(w, eid, rec, dt):
+def _alarm_movers(state, rec):
+    """Pets and people whose motion an armed-away panel's motion sensors pick up once its exit delay ran out ([] while
+    it is not armed away, still in its exit delay or without motion sensing)."""
     settings = rec.get("settings") or {}
     if settings.get("mode") != "away" or not settings.get("motion", True):
-        return
-    state = w.s
+        return []
     if not C.num(C.mget(rec, "armed_at"), -1) >= 0:
-        return
+        return []
     if state["time_s"] - C.num(C.mget(rec, "armed_at")) < C.num(settings.get("exit_delay_s"), 60.0):
-        return
+        return []
     moving = [pid for pid in sorted(state.get("pets", {})) if not C.is_outdoor(state, state["pets"][pid].get("location")) and C.num(state["pets"][pid].get("weight_kg"), 15.0) > C.num(settings.get("pet_immune_kg"), 0.0)]
     moving += [pid for pid in sorted(state.get("people", {})) if not C.is_outdoor(state, state["people"][pid].get("location")) and state["people"][pid].get("awake", True)]
+    return moving
+
+
+def _alarm_trips(state, rec):
+    return not C.mget(rec, "triggered") and bool(_alarm_movers(state, rec))
+
+
+def _alarm(w, eid, rec, dt):
+    state = w.s
+    moving = _alarm_movers(state, rec)
     if moving and not C.mget(rec, "triggered"):
         rm, mech = C.mut_mech(w, eid)
         mech["triggered"] = True
@@ -423,6 +602,7 @@ def _alarm(w, eid, rec, dt):
         w.stat("false_alarms")
         w.stat("noise", 3.0)
         w.emit("alarm_triggered", panel=eid, by=moving[0])
+        C.notice(w, "alarm", source=eid, room=C.room_of(state, eid), db=100.0)    # a siren: about 100 dB at 1 m
 
 
 def _fabric_heat(w, eid, rec, dt, hot_sources):
@@ -462,6 +642,7 @@ def _fabric_heat(w, eid, rec, dt, hot_sources):
             ignite(w, eid, hrr_kw=5.0, cause="curtain_over_flame")
         else:
             C.harm(w, "fire", source=hot, fabric=eid, cause="curtain fabric against a flame or heater")
+            C.notice(w, "smoke", source=eid, visual=True)        # without the fire owner: the burning fabric's smoke
 
 
 def _safety_ignite():
@@ -662,12 +843,34 @@ def _after_pickup(ctx, result):
 # ----------------------------------------------------------------------------------
 # observation channels
 
+def _doorway_in_view(w, conn, here, seen_floor):
+    """Geometric camera: the robot looked at this opening during the step -- its door leaf in a frame of the step
+    (camera.in_frame), or for a doorless opening its doorway cell on the robot's side among the floor cells the step's
+    frames surveyed (seen_floor: a callable computing them once). Until the kernel's doorway apertures land (camera
+    phase 3, TIER1_CAMERA 5.8) this gate stands in for line of sight through the opening; the room camera glimpses
+    every open doorway of its room."""
+    from ...kernel import camera
+    door_id = conn.get("door")
+    if door_id and door_id in w.s["entities"]:
+        return camera.in_frame(w.s, door_id, w)
+    cell = conn.get("cells", {}).get(here)
+    return cell is not None and (here, tuple(cell)) in seen_floor()
+
+
 @observer("mechanisms.doorways", order=120)
 def _doorways(env, w, obs):
     from ...kernel.perception import DARK, light_level
     state = w.s
     real = C.realistic(env)
     here = state["robot"]["room"]
+    geometric = C.geometric(state)
+    floor = []
+
+    def seen_floor():
+        if not floor:
+            from ...kernel import camera
+            floor.append(camera.seen_floor(state, w))      # computed once per observation, and only when needed
+        return floor[0]
     seen = []
     for cid in sorted(state.get("connections", {})):
         conn = state["connections"][cid]
@@ -687,6 +890,10 @@ def _doorways(env, w, obs):
             if sroom == far:
                 view.update(scells)
         agents = [{"id": aid, "kind": group[:-1], "pos": state[group][aid].get("pos")} for group, aid in C.agents_at(state, far, sorted(view))]
+        if not agents and door is None:
+            continue                     # an open doorway with nobody beyond it: nothing to list
+        if geometric and not _doorway_in_view(w, conn, here, seen_floor):
+            continue
         frac = C.num(C.mget(door, "open_frac", 1.0), 1.0) if door else 1.0
         if real:
             # a glance through the opening: nobody is made out in a dark room, and the opening is judged to ~10 %
@@ -718,7 +925,10 @@ def _sounds(env, w, obs):
             rooms = set(C.door_rooms(state, eid))
             if here in rooms or rooms & exits:
                 sounds.append({"kind": "garage_door_motor", "source_hint": "here" if here in rooms else "nearby", "loudness": 0.6})
-        if C.kind_of(rec) == "overhead_door" and C.num(m.get("light_blink_until"), -1) >= state["time_s"] and here in C.door_rooms(state, eid):
+        if C.kind_of(rec) == "overhead_door" and C.num(m.get("light_blink_until"), -1) >= state["time_s"] and here in C.door_rooms(state, eid) \
+                and _sees(w, eid):
+            # a visual cue (the opener's light), listed with the opener's sounds: the geometric camera must frame the
+            # door (or its opener above it) this step
             sounds.append({"kind": "opener_light_blinking", "source_hint": "here", "loudness": 0.0})
         if m.get("triggered") and rec.get("category") == "alarm_panel":
             sounds.append({"kind": "alarm_siren", "source_hint": "house", "loudness": 1.0})
@@ -733,6 +943,15 @@ def _sounds(env, w, obs):
                 sounds.append({"kind": "door_slam", "source_hint": state["rooms"].get(room, {}).get("label", "nearby") if room != here else "here", "loudness": 0.8})
     if sounds:
         obs.setdefault("mechanism_sounds", []).extend(sounds)
+
+
+def _sees(w, eid):
+    """A visual observer cue about eid: always in room mode (the room camera's room-wide rule); with the geometric
+    camera only when eid is in a frame of this step (camera.in_frame)."""
+    if not C.geometric(w.s):
+        return True
+    from ...kernel import camera
+    return camera.in_frame(w.s, eid, w)
 
 
 @observer("mechanisms.notes", order=119)
@@ -789,7 +1008,12 @@ def _inspect(w, eid, record, details, ctx):
         # its group carry (a sprayer's nozzle, a pump head) would tell them apart; read the label first
         return
     close = geometry.reach_problem(w.s, eid) is None
-    lit = ctx.env.perception.lit(w.s, w.robot["room"]) if ctx is not None else True
+    if ctx is not None and C.geometric(w.s):
+        # the geometric camera's close look (core inspect already required it: the head resolving it in enough light,
+        # or the wrist camera within reach): the clues need the robot within reach of the hardware as well
+        lit = bool(ctx.inspect_check(eid)[0])
+    else:
+        lit = ctx.env.perception.lit(w.s, w.robot["room"]) if ctx is not None else True
     found_button = bool(close and lit and kind == "hidden_button" and ctx is not None and ctx.args.get("where") in ("closely", None))
     public = {k: copy.deepcopy(v) for k, v in (record.get("mech") or {}).items()}
     view = C.mech_of(record)
@@ -844,10 +1068,15 @@ def _visible(ctx, ids, real):
         return list(ids)
     state = ctx.w.s
     perception = ctx.env.perception
+    geometric = C.geometric(state)
     out = []
     for oid in ids:
         if oid in state["entities"]:
-            if perception.visible(state, oid):
+            if perception.visible(state, oid):          # the geometric camera's can_see in that mode
+                out.append(oid)
+        elif geometric:
+            from ...kernel import camera
+            if camera.agent_visible(state, oid, ctx.w):    # people and pets the cameras make out from here
                 out.append(oid)
         else:
             group = "people" if oid in state.get("people", {}) else "pets"
@@ -1215,6 +1444,79 @@ def _answer_code(env, w, pid, topic, ctx):
     return {"topic": topic, "value": str(rec["_code"]), "by": pid}
 
 
+# canonical questions (kernel v3.1 ask: aspect / about / detail; docs/DIALOGUE.md "Routes") reaching the legacy answerers
+# above, tried after the kernel's people routes: "how do I open this padlock / what is its code" -> code:<lock>, "where
+# is the shed key" -> key_location:<lock>. A route returns a topic only for a lock that really has a combination or a
+# key, so it never tells the robot anything the answerer would not.
+CODE_WORDS = {"code", "combination", "combo", "pin", "passcode", "password", "keypad", "digit", "number"}
+KEY_WORDS = {"key", "spare", "spare_key"}
+
+
+def _route_words(subject, detail):
+    from ...kernel import dialogue
+    words = set(dialogue.words_of(detail)) if detail else set()
+    if subject is not None and subject.kind in ("word", "house"):
+        words |= set(subject.words or ())
+    return words
+
+
+def _named_lock(state, words, has):
+    """The one lock (an entity with a combination, has="_code", or a key, has="key") the words name by its label or
+    type words; None when none or several do."""
+    from ...kernel import dialogue
+    rest = {w_ for w_ in words if w_ not in CODE_WORDS and w_ not in KEY_WORDS}
+    found = []
+    for eid in sorted(state.get("entities", {})):
+        rec = state["entities"][eid]
+        held = rec.get("_code") if has == "_code" else (rec.get("key") or (rec.get("mech") or {}).get("key"))
+        if held is None:
+            continue
+        names = set(dialogue.words_of(rec.get("label"))) | set(dialogue.words_of(rec.get("type")))
+        if rest and rest <= names:
+            found.append(eid)
+        elif not rest:
+            found.append(eid)
+    return found[0] if len(found) == 1 else None
+
+
+def _route_code(state, pid, subject, aspect, detail, act):
+    """how / which / status about a lock that has a combination, with detail code (a bare "how" about a thing is
+    manipulation's handling question), or words naming one with "code": code:<lock>."""
+    words = _route_words(subject, detail)
+    if subject is not None and subject.kind == "entity":
+        rec = (state.get("entities") or {}).get(subject.id) or {}
+        if rec.get("_code") is not None and words & CODE_WORDS:
+            return "code:" + subject.id
+        return None
+    if words & CODE_WORDS:
+        lock = _named_lock(state, words, "_code")
+        return "code:" + lock if lock else None
+    return None
+
+
+def _route_key(state, pid, subject, aspect, detail, act):
+    """where (or how) about the key of a lock, named in words ("the shed key"), or how about a keyed lock with detail
+    key: key_location:<lock>."""
+    words = _route_words(subject, detail)
+    if subject is not None and subject.kind == "entity":
+        rec = (state.get("entities") or {}).get(subject.id) or {}
+        key = rec.get("key") or (rec.get("mech") or {}).get("key")
+        return "key_location:" + subject.id if key and words & KEY_WORDS else None
+    if words & KEY_WORDS:
+        lock = _named_lock(state, words, "key")
+        return "key_location:" + lock if lock else None
+    return None
+
+
+def _register_routes():
+    from ...kernel import dialogue
+    dialogue.route("mechanisms.code", ("how", "which", "status"), _route_code)
+    dialogue.route("mechanisms.key_location", ("where", "how"), _route_key)
+
+
+_register_routes()
+
+
 @answerer("key_location:")
 def _answer_key(env, w, pid, topic, ctx):
     lock = topic.split(":", 1)[1]
@@ -1334,7 +1636,7 @@ def _ev_load(w, args, env):
     if kind in ("gate", "hinged_door", "double_door"):
         if not rec.get("locked") and not K.is_latched(rec):
             C.set_open(w, target, 0.5)
-            w.emit("pushed_open", target=target, by=args.get("by"))
+            C.visual(w, "pushed_open", source=target, size_m=1.0, target=target, by=args.get("by"))
             pet = args.get("by")
             if pet in w.s.get("pets", {}):
                 here = w.s["pets"][pet].get("location")

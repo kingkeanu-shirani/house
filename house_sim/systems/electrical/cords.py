@@ -625,6 +625,7 @@ def _unplug_effects(ctx, device, grip):
     if rec.get("relation") == "attached" and rec.get("location") == out:
         hand = ctx.free_hand()
         require(hand is not None, "You need a free hand to take it", "capability")
+        ctx.check_lift(device, (hand,))     # a plug-in device comes off the wall into that hand (kernel v3.0 body)
         m["location"], m["relation"], m["held_hand"] = "robot", "held", hand
         w.robot_m()["hands"][hand] = device
         w.log_move(device, out, "robot")

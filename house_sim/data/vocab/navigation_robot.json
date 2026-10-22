@@ -1,0 +1,11 @@
+{
+ "about": "navigation_robot's report words (adoption request navigation_robot 7): the anomalies a patrol reports (its report field anomaly), each its own issue (core's left_open, unlocked, left_on and spill keep their words).",
+ "issues": {
+  "exterior_door_open": {"class": "safety", "synonyms": ["outside_door_open", "front_door_open", "back_door_open"], "evidence": [{"field": "open"}]},
+  "exterior_door_unlocked": {"class": "safety", "synonyms": ["outside_door_unlocked", "front_door_unlocked", "back_door_unlocked"], "evidence": [{"field": "locked"}]},
+  "window_open": {"class": "safety", "synonyms": ["open_window", "window_left_open"], "evidence": [{"field": "open"}]},
+  "appliance_left_on": {"class": "safety", "synonyms": ["appliance_on", "appliance_running", "left_running"], "evidence": [{"field": "on"}, {"field": "running"}]},
+  "water_on_floor": {"class": "safety", "synonyms": ["wet_floor", "water_on_the_floor"], "evidence": [{"field": "wetness", "near": true}, {"field": "liquid_l"}]},
+  "unexpected_person": {"class": "safety", "synonyms": ["unknown_person", "unexpected_visitor"], "evidence": [{"field": "role"}]}
+ }
+}

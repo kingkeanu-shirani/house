@@ -816,9 +816,10 @@ def remove_plant_as_weed(ctx, pid, method, tool_kind, collect):
     p = P.prof(record)
     role = record.get("role") or ("weed" if p.get("weed") else "desired")
     wanted = role in ("crop", "ornamental", "desired", "volunteer_keep") or record.get("owner_wants") == "keep"
-    if p.get("toxic_touch") and "garden_gloves" not in w.robot.get("wearing", []) and "rubber_gloves" not in w.robot.get("wearing", []):
+    if p.get("toxic_touch") and not C.gloved(w):
         C.stat(w, "injury")
         C.note(w, "toxic_plant_contact", plant=pid)
+        C.soil_hands(ctx, "plant_oil", 0.5)      # urushiol on the grippers: it rides along to whatever they touch next
     full = extract_weed(w, pid, method, tool_kind, host)
     if not full and not wanted:
         hm = w.mut(host)

@@ -23,6 +23,8 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ..core import clear_contents_from, release_from_hands
 from . import model as M
+from . import physical as P
+from . import signals as S
 from .dry import DEVICE_TICKERS, TEXTILE_TICKERS, wet_floor_near
 
 IRON_TEMPS = {"low": 110.0, "medium": 150.0, "high": 200.0, "max": 220.0}
@@ -81,8 +83,11 @@ def iron(ctx):
         require(crec.get("location") in (target, board) or ctx.holding(cloth), "Lay the press cloth on the garment first")
     steam = bool((trec.get("settings") or {}).get("steam")) and float(trec.get("liquid_l", 0.0) or 0.0) >= 0.01 and temp >= 140
     why = "ironed at {:.0f} C".format(temp)
-    melts = fab.get("melts")
-    threshold = float(fab.get("scorch_c", 200)) + (30.0 if cloth else 0.0)
+    # a thermoplastic fibre melts above the kernel's melting point (physical.melt_point: phys.props melt_c, the same
+    # number the kernel's melt law uses); the others scorch above their scorch point; a press cloth adds 30 C
+    melt_c = P.melt_point(w.s, target)
+    melts = melt_c is not None
+    threshold = (melt_c if melts else float(fab.get("scorch_c", 200))) + (30.0 if cloth else 0.0)
     if care.get("iron") == "none" or not fab.get("iron_c"):
         if temp >= 100:
             if melts or fab.get("heat_damage_c"):
@@ -153,7 +158,7 @@ def _iron_ticker(w, eid, rec, dt):
     elif not hot and "hot" in hazards:
         changes["hazards"] = [h for h in hazards if h != "hot"]
     held = w.is_held(eid)
-    face_down = rec.get("orientation") in ("flat", "upside_down") and not held
+    face_down = P.soleplate_down(rec) and not held
     if held:
         changes["_idle_since"] = None
         changes["_face_down_s"] = 0.0
@@ -172,12 +177,16 @@ def _iron_ticker(w, eid, rec, dt):
             under = rec.get("location")
             if fd >= 60.0 and under in w.s["entities"] and not rec.get("_scorched_under"):
                 changes["_scorched_under"] = under
-                M.add_damage(w, under, "scorched", 0.6, why="hot iron left face-down on it")
+                if not P.law("contact_heat"):
+                    # the mark itself is the kernel's once its contact_heat law is active (a face-down soleplate is
+                    # a hot body resting on its support; physical.heel_rest claims only an iron on its heel)
+                    M.add_damage(w, under, "scorched", 0.6, why="hot iron left face-down on it")
                 w.emit("burning_smell", source=eid)
             if fd >= 600.0 and not rec.get("_fire"):
                 changes["_fire"] = True
                 w.stat("fire")
-                w.emit("fire", source=eid, why="iron left face-down without auto-off")
+                S.seen(w, "fire", eid, source=eid, why="iron left face-down without auto-off")
+                S.notice(w, "smoke", eid, visual=True)
         if hot and rec.get("on") and w.robot.get("room") != M.room_of(w, eid) and not rec.get("_unattended_flag"):
             changes["_unattended_flag"] = True
             w.stat("safety_violations")
@@ -221,8 +230,19 @@ DEVICE_TICKERS.append(_steamer_ticker)
 # ---------------------------------------------------------------------------
 # steamer
 
+# sound levels at 1 m (kernel v3.0 body: ActionSpec.noise_db; quiet mode refuses what is louder than 55 dB): a handheld
+# garment steamer's pump and steam hiss about 58 dB(A), a battery fabric shaver's blade motor about 62 dB(A); an iron, a
+# sweater comb or picking pills by hand are quiet
+STEAMER_DB = 58.0
+SHAVER_DB = 62.0
+
+
+def _depill_db(ctx):
+    return SHAVER_DB if ctx.data.get("depill_tool") == "fabric_shaver" else None
+
+
 @action("steam", params={"target": "entity", "tool": "?entity", "distance_cm": {"type": "number", "default": 3.0, "min": 0, "max": 30}},
-        duration=lambda ctx: ctx.data.get("seconds", 120.0), energy=0.03, noise=0.1, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 120.0), energy=0.03, noise=0.1, category="physical", noise_db=STEAMER_DB,
         doc="Steam the wrinkles out of a hanging garment with the held, heated garment steamer (keep 5+ cm from silk). "
             "Never on a garment someone is wearing; leather, suede, waxed or coated fabrics are damaged.")
 def steam(ctx):
@@ -693,7 +713,7 @@ def lint_roll(ctx):
 @action("depill", params={"target": "entity", "tool": "?entity", "faces": "?list",
                           "pressure": {"type": "str", "default": "light", "choices": ["light", "firm"]},
                           "taut": {"type": "bool", "default": True}, "empty_chamber": {"type": "bool", "default": False}},
-        duration=lambda ctx: ctx.data.get("seconds", 90.0), energy=0.02, noise=0.1, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 90.0), energy=0.02, noise=0.1, category="physical", noise_db=_depill_db,
         doc="Remove pills from knitwear lying flat: with a fabric shaver (sturdy knits, light pressure, fabric taut), a "
             "sweater comb or pumice stone (fine knits), or by hand (no tool) for loose/textured knits.")
 def depill(ctx):
@@ -706,6 +726,7 @@ def depill(ctx):
     if not tool:
         tool = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("fabric_shaver", "sweater_comb", "pumice_stone")), None)
     kind = w.ent(tool).get("tool_kind") if tool else "hand"
+    ctx.data["depill_tool"] = kind
     if tool:
         require(ctx.holding(tool), "Hold the tool", "capability")
     if kind == "fabric_shaver":

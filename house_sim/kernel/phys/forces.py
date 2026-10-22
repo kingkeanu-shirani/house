@@ -94,9 +94,23 @@ def _helper_value(person, key):
         own = person.get("max_lift_kg")
     if _num(own, None) is not None:
         return max(0.0, float(own))
+    return float(_role_row(person)[key])
+
+
+def _role_row(person):
+    """The supports.json people row of a person: their role's, else the age band's (age_roles: a guest, visitor,
+    contractor or courier of 70 helps like an elderly resident, a 2-year-old guest not at all), else default_role's
+    (people's adoption request K-HELPER-ROLES)."""
     roles = _PEOPLE["roles"]
-    row = roles.get(person.get("role")) or roles[_PEOPLE["default_role"]]
-    return float(row[key])
+    row = roles.get(person.get("role"))
+    if row is not None:
+        return row
+    age = _num(person.get("age"), None)
+    if age is not None:
+        for band in _PEOPLE.get("age_roles") or ():
+            if age < float(band["below_age"]) and band["role"] in roles:
+                return roles[band["role"]]
+    return roles[_PEOPLE["default_role"]]
 
 
 def _helpers(state, helpers, key):
@@ -282,15 +296,38 @@ def max_push_n(w, helpers=()):
     return robot_caps(w)["push_n"] + sum(value for _, value in _helpers(w.s, helpers, "push_n"))
 
 
-def tips_when_pushed(w, eid, contact_h_m):
-    """True when pushing or pulling eid at contact height h (m) tips it before it slides: mu h > b / 2, with b the
-    smaller side of its resting footprint and mu its sliding friction (manipulation tip_check: an unanchored bookcase
-    0.30 m deep on a mu 0.4 floor tips when pulled above 0.375 m). Anchored and mounted items never tip."""
+PUSH_DIRECTION_DEG = {"east": 0.0, "south": 90.0, "west": 180.0, "north": 270.0}      # grid degrees (y points south)
+
+
+def tips_when_pushed(w, eid, contact_h_m, direction=None):
+    """True when pushing or pulling eid at contact height h (m) tips it before it slides: mu h > b / 2, with mu its
+    sliding friction and b its resting footprint's extent along the push (manipulation tip_check: an unanchored
+    bookcase 0.30 m deep on a mu 0.4 floor tips when pulled forward above 0.375 m, pushed sideways only above its
+    0.9 m width). direction: the push in grid degrees (0 east, 90 south), a word (east, south, west, north) or a
+    (dx, dy) vector; None takes the smaller side (the worst case; manipulation's adoption request 8 added the
+    direction). Anchored and mounted items never tip."""
     mu = _contact_mu(w.s, eid, None)
     if mu is None:
         return False
-    size = props_of(w.s["entities"][eid]).size_m
-    return mu * float(contact_h_m) > min(size[0], size[1]) / 2.0 + 1e-9
+    rec = w.s["entities"][eid]
+    size = props_of(rec).size_m
+    if direction is None:
+        base = min(size[0], size[1])
+    else:
+        if isinstance(direction, str):
+            deg = PUSH_DIRECTION_DEG.get(direction.strip().lower())
+            if deg is None:
+                raise ValueError("push direction must be east, south, west or north: " + direction)
+        elif isinstance(direction, (tuple, list)):
+            deg = math.degrees(math.atan2(float(direction[1]), float(direction[0])))
+        else:
+            deg = float(direction)
+        along_x, along_y = float(size[0]), float(size[1])
+        if int(round(_num(rec.get("rot"), 0.0))) % 180 == 90:
+            along_x, along_y = along_y, along_x               # rot 90 / 270: the footprint's sides swap axes
+        rad = math.radians(deg)
+        base = abs(along_x * math.cos(rad)) + abs(along_y * math.sin(rad))
+    return mu * float(contact_h_m) > base / 2.0 + 1e-9
 
 
 # ----------------------------------------------------------------------------------------------------------------

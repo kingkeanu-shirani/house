@@ -631,8 +631,8 @@ class Perception:
                 if door:
                     item.update(open=door.get("open", False), locked=door.get("locked", False))
                 conns.append(item)
-        env._known_map[rid] = {"exits": list(room.get("exits", [])), "connections": conns, "label": room.get("label"), "type": room.get("type")}
-        sv = _camera().step_view(env) if "view" in robot else None     # geometric camera: the step view (10.6)
+        # the known map is env.mind.map (kernel v3.1, TIER1_SWEEP 7.1); observing no longer writes it
+        sv =_camera().step_view(env) if "view" in robot else None     # geometric camera: the step view (10.6)
         if sv is not None:
             visible, people, pets, hazards = self._geometric(env, state, sv, records, dirty)
         else:

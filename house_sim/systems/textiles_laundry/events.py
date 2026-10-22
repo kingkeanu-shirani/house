@@ -7,10 +7,13 @@
     is marked stored_months. Without "container", every closed bin/drawer/closet/garment bag is affected.
 
 {"op": "event", "at_s": 600, "effect": "textiles_laundry.transport", "args": {"container": "suitcase_1"}}
-    A packed bag is carried/flown: wrinkle-prone items not protected (garment bag, packing folder, rolled knits)
-    crease, structured items folded small crease badly, unbagged muddy shoes soil the clothes, crushable items
-    under heavy ones are crushed, damp items wet their neighbours.
+    A packed bag is carried/flown: the drops and jostles are the kernel's (physics.transport: args drop_m, default
+    0.3 m, drops, default 1, jostle in g, default 0; what is packed takes each impact through its own padding and the
+    bag's, so a perfume bottle among the clothes survives where one loose in a hard case breaks); then wrinkle-prone
+    items not protected (garment bag, packing folder, rolled knits) crease, structured items folded small crease badly,
+    unbagged muddy shoes soil the clothes, crushable items under heavy ones are crushed, damp items wet their neighbours.
 """
+from ...kernel.phys import events as phys_events
 from ...kernel.plugins import hook
 from . import model as M
 
@@ -75,7 +78,14 @@ def transport(w, args, env):
     box = args.get("container")
     if not box or box not in w.s["entities"]:
         return True
-    contents = w.descendants(box)
+    kernel_args = {"target": box}
+    for key in ("drop_m", "drops", "jostle", "by"):
+        if args.get(key) is not None:
+            kernel_args[key] = args[key]
+    phys_events.transport(w, kernel_args, env)       # the drops: kernel impacts, breakage and spills (TIER1_PHYSICS 7.4)
+    if box not in w.s["entities"]:
+        return True
+    contents = [e for e in w.descendants(box) if e in w.s["entities"]]
     textiles = [e for e in contents if M.is_textile(w.ent(e)) and w.ent(e).get("pair_kind") != "shoe"]
     shoes = [e for e in contents if w.ent(e).get("pair_kind") == "shoe"]
     heavy = any(float(w.ent(e).get("mass_kg", 0.0)) >= 1.0 for e in contents if w.ent(e).get("location") == box)

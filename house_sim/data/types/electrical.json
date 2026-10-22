@@ -35,7 +35,8 @@
    "pairing.reset_hold_s",
    "pairing.power_cycles",
    "pairing.reset_cycles",
-   "plug_seated"
+   "plug_seated",
+   "water_ingress"
   ],
   "measure": {
    "battery_level": "battery_tester",
@@ -49,10 +50,12 @@
    "rating_label",
    "output",
    "outputs",
-   "rating_w"
+   "rating_w",
+   "ip_rating"
   ],
   "glance": [
-   "flicker"
+   "flicker",
+   "screen_cracked"
   ],
   "room": {
    "hidden": [
@@ -227,7 +230,15 @@
      "inspect"
     ]
    },
-   "doc": "Load center: door hides the breakers (children with relation 'part'); label_text is the handwritten panel directory."
+   "doc": "Load center: door hides the breakers (children with relation 'part'); label_text is the handwritten panel directory.",
+   "view": {
+    "opening": "front",
+    "text_m": {
+     "label_text": 0.004,
+     "directory": 0.004
+    },
+    "doc": "A steel load centre with a front door; the handwritten circuit directory is 4 mm text."
+   }
   },
   "circuit_breaker": {
    "is_a": "electrical_fixture",
@@ -259,7 +270,13 @@
      "switch_on"
     ]
    },
-   "doc": "Thermal-magnetic branch breaker. Tripped handle rests mid-way; a reset needs full OFF then ON (reset_breaker). Panel work is risk 3."
+   "doc": "Thermal-magnetic branch breaker. Tripped handle rests mid-way; a reset needs full OFF then ON (reset_breaker). Panel work is risk 3.",
+   "view": {
+    "text_m": {
+     "label_text": 0.004
+    },
+    "doc": "The breaker's number and rating print are about 4 mm."
+   }
   },
   "main_breaker": {
    "is_a": "circuit_breaker",
@@ -338,9 +355,15 @@
     "affordances": [
      "plug_in",
      "unplug"
+    ],
+    "mass_kg": 0.5,
+    "size_m": [
+     0.2,
+     0.12,
+     0.1
     ]
    },
-   "doc": "Anything with a mains plug and cord. outlet/socket name where it is plugged; cord_cells/cord_hazard are the routed cord.",
+   "doc": "Anything with a mains plug and cord. outlet/socket name where it is plugged; cord_cells/cord_hazard are the routed cord. Base defaults (tier-1 physics audit): a small corded appliance.",
    "perception": {
     "hidden": [
      "outlet",
@@ -574,7 +597,13 @@
     "has_buttons": true,
     "fragile": true,
     "plug_type": "type_a",
-    "water_safe": false
+    "water_safe": false,
+    "mass_kg": 1.0,
+    "size_m": [
+     0.25,
+     0.18,
+     0.05
+    ]
    },
    "perception": {
     "hidden": [
@@ -586,7 +615,8 @@
     "measure": {
      "loudness_db": "sound_meter"
     }
-   }
+   },
+   "doc": "Base defaults (tier-1 physics audit): a small appliance-sized box (router, streaming box, cable box)."
   },
   "television": {
    "is_a": "electronic_device",
@@ -711,6 +741,14 @@
     "read": [
      "display_source"
     ]
+   },
+   "view": {
+    "glossy": true,
+    "text_m": {
+     "display": 0.03,
+     "display_source": 0.03
+    },
+    "doc": "A glass screen (specular glare); on-screen text and input names are about 3 cm tall."
    }
   },
   "soundbar": {
@@ -992,7 +1030,15 @@
     "charging": false,
     "min_charge_w": 30.0
    },
-   "doc": "Battery laptop: charges only through its charging port with an adequate charger; on battery it drains at consumption_w."
+   "doc": "Battery laptop: charges only through its charging port with an adequate charger; on battery it drains at consumption_w.",
+   "view": {
+    "glossy": true,
+    "camera": {
+     "hfov_deg": 78.0,
+     "range_m": 4.0
+    },
+    "doc": "A glossy screen with a 78-degree webcam in its bezel (useful to about 4 m)."
+   }
   },
   "laptop": {
    "is_a": "laptop_computer",
@@ -1113,6 +1159,14 @@
     "read": [
      "display_source"
     ]
+   },
+   "view": {
+    "glossy": true,
+    "text_m": {
+     "display": 0.03,
+     "display_source": 0.03
+    },
+    "doc": "A glossy panel; the on-screen display messages ('No signal', inputs) are about 3 cm."
    }
   },
   "usb_peripheral": {
@@ -1130,9 +1184,15 @@
       "label": "USB plug",
       "captive": true
      }
-    }
+    },
+    "mass_kg": 0.1,
+    "size_m": [
+     0.12,
+     0.065,
+     0.04
+    ]
    },
-   "doc": "Bus-powered USB device with a captive cable (connect_cable target=device)."
+   "doc": "Bus-powered USB device with a captive cable (connect_cable target=device). Base defaults (tier-1 physics audit): a mouse-sized USB device."
   },
   "keyboard": {
    "is_a": "usb_peripheral",
@@ -1168,6 +1228,13 @@
      0.03
     ],
     "mass_kg": 0.08
+   },
+   "view": {
+    "camera": {
+     "hfov_deg": 78.0,
+     "range_m": 4.0
+    },
+    "doc": "A 1080p webcam: 78-degree lens, about 4 m."
    }
   },
   "external_drive": {
@@ -1482,8 +1549,28 @@
     "owner": "household",
     "accepts_pairing": true,
     "requires_owner_approval": true,
-    "plug_polarized": false
-   }
+    "plug_polarized": false,
+    "smart": true,
+    "remote_status": true,
+    "settings": {
+     "away_mode": false,
+     "scene": "none"
+    },
+    "setting_options": {
+     "away_mode": [
+      true,
+      false
+     ],
+     "scene": [
+      "none"
+     ]
+    },
+    "control_kinds": {
+     "away_mode": "app",
+     "scene": "app"
+    }
+   },
+   "doc": "Smart-home hub beside the router (Zigbee, Wi-Fi, Matter, Bluetooth): runs the household's automations and scenes and its away mode (settings away_mode and scene, through the app); its state is the house's smart_home section (hub.py)."
   },
   "rechargeable_device": {
    "is_a": "portable_object",
@@ -1499,9 +1586,15 @@
     "charger": null,
     "fragile": true,
     "water_safe": false,
-    "battery_swollen": false
+    "battery_swollen": false,
+    "mass_kg": 0.2,
+    "size_m": [
+     0.075,
+     0.155,
+     0.01
+    ]
    },
-   "doc": "Battery device: charging rises only through a compatible, powered charger; swollen batteries must never be charged.",
+   "doc": "Battery device: charging rises only through a compatible, powered charger; swollen batteries must never be charged. Base defaults (tier-1 physics audit): a phone-sized battery device.",
    "perception": {
     "hidden": [
      "charger",
@@ -1538,12 +1631,17 @@
       "label": "USB-C",
       "charge_in": true
      }
-    }
+    },
+    "ip_rating": "IP68"
    },
    "perception": {
     "inspect": [
      "battery_level"
     ]
+   },
+   "view": {
+    "glossy": true,
+    "doc": "A glass touchscreen (specular glare)."
    }
   },
   "smartphone_lightning": {
@@ -1589,6 +1687,10 @@
     "inspect": [
      "battery_level"
     ]
+   },
+   "view": {
+    "glossy": true,
+    "doc": "A glass touchscreen (specular glare)."
    }
   },
   "smartwatch": {
@@ -1605,7 +1707,8 @@
     "battery_capacity_wh": 1.2,
     "max_charge_w": 2.5,
     "charge_port": "puck_magnetic",
-    "dock_kind": "watch_puck"
+    "dock_kind": "watch_puck",
+    "ip_rating": "IP68"
    },
    "perception": {
     "inspect": [
@@ -1627,7 +1730,8 @@
     "battery_capacity_wh": 0.4,
     "max_charge_w": 1.0,
     "charge_port": "pogo_clip",
-    "dock_kind": "tracker_clip"
+    "dock_kind": "tracker_clip",
+    "ip_rating": "IP68"
    }
   },
   "earbuds_case": {
@@ -1677,7 +1781,8 @@
     "max_charge_w": 0.5,
     "charge_port": "case_contacts",
     "side": "left",
-    "case_id": null
+    "case_id": null,
+    "ip_rating": "IPX4"
    }
   },
   "over_ear_headphones": {
@@ -1891,6 +1996,14 @@
     "always_on": true,
     "plug_polarized": false,
     "weatherproof": true
+   },
+   "view": {
+    "camera": {
+     "hfov_deg": 110.0,
+     "range_m": 8.0,
+     "ir": true
+    },
+    "doc": "An indoor/outdoor camera: 110-degree lens, IR night vision to about 8 m."
    }
   },
   "charger": {
@@ -1909,9 +2022,15 @@
      "plug_in",
      "unplug",
      "charge"
+    ],
+    "mass_kg": 0.08,
+    "size_m": [
+     0.05,
+     0.05,
+     0.03
     ]
    },
-   "doc": "Mains-powered charger. Wall bricks attach to the outlet (plug_in_place wall) and expose a USB source port.",
+   "doc": "Mains-powered charger. Wall bricks attach to the outlet (plug_in_place wall) and expose a USB source port. Base defaults (tier-1 physics audit): a USB wall brick (about 50-100 g).",
    "perception": {
     "read": [
      "output",
@@ -2415,9 +2534,15 @@
     "secret_fields": [
      "charge"
     ],
-    "stackable": true
+    "stackable": true,
+    "mass_kg": 0.023,
+    "size_m": [
+     0.0145,
+     0.0145,
+     0.0505
+    ]
    },
-   "doc": "Primary or rechargeable cell; charge is hidden until tested (battery tester) or read from sealed packaging (condition). orientation must match the slot's polarity mark.",
+   "doc": "Primary or rechargeable cell; charge is hidden until tested (battery tester) or read from sealed packaging (condition). orientation must match the slot's polarity mark. Base defaults (tier-1 physics audit): an AA cell (IEC LR6: 14.5 x 50.5 mm, about 23 g).",
    "perception": {
     "read": [
      "chemistry",
@@ -2839,7 +2964,8 @@
     },
     "settings": {
      "brightness": 100,
-     "cct_k": 2700
+     "cct_k": 2700,
+     "power": "on"
     },
     "setting_options": {
      "brightness": {
@@ -2849,11 +2975,16 @@
      "cct_k": {
       "min": 2200,
       "max": 6500
-     }
+     },
+     "power": [
+      "on",
+      "off"
+     ]
     },
     "control_kinds": {
      "brightness": "app",
-     "cct_k": "app"
+     "cct_k": "app",
+     "power": "app"
     },
     "label_text": "Smart LED 9W (60W equivalent) 2200-6500K - Zigbee - to pair, switch the light off and on 3 times"
    }
@@ -3211,7 +3342,13 @@
      }
     }
    },
-   "doc": "Electrochemical CO alarm with ppm display and peak memory; alarm follows a UL 2034-style dose curve."
+   "doc": "Electrochemical CO alarm with ppm display and peak memory; alarm follows a UL 2034-style dose curve.",
+   "view": {
+    "text_m": {
+     "display": 0.01
+    },
+    "doc": "A CO alarm's LCD ppm digits are about 1 cm tall."
+   }
   },
   "co_alarm_plugin": {
    "is_a": "alarm_unit",
@@ -3351,6 +3488,12 @@
      "alarms",
      "rang"
     ]
+   },
+   "view": {
+    "text_m": {
+     "display_time": 0.02
+    },
+    "doc": "Bedside LED digits about 2 cm tall."
    }
   },
   "wall_clock": {
@@ -3536,14 +3679,21 @@
     "esd_damaged": false,
     "pin_damage": false,
     "functional": true,
-    "material": "pcb"
+    "material": "pcb",
+    "mass_kg": 0.3,
+    "size_m": [
+     0.2,
+     0.12,
+     0.03
+    ]
    },
    "perception": {
     "hidden": [
      "esd_damaged",
      "functional"
     ]
-   }
+   },
+   "doc": "Base defaults (tier-1 physics audit): an expansion card or small board."
   },
   "motherboard": {
    "is_a": "esd_component",

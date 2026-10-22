@@ -10,12 +10,25 @@ windows, wall cabinets - becomes inaccessible, and nothing tall stands in front 
 (freezer compartment, propane cylinder, racks, burners) are children of their appliance; small appliances put away in
 cabinets are unplugged; loose floor items go through Placer.floor_item (keep_access). A full kitchen gets built-in
 variants and missing optional appliances rather than failing.
+
+Generation 2 (opts["gen"] >= 2, docs/GENERATOR.md): the residents' usual hot drinks (household profiles,
+people.<pid>.profile.drinks.hot) choose the drink makers: a household where someone drinks tea has an electric kettle,
+one where someone drinks coffee has a coffee machine (drip, pod or espresso by the regional shares; the small pod
+machine when the drawn one does not fit; none only on a counter with no room left), and one where nobody drinks coffee
+mostly has none. The same random draws are taken in both generations, so generation-1 houses are
+unchanged; a generation-1 kitchen also keeps the field values the adoption round changed in the type data (GEN1_PROPS:
+burners and the electric griddle own their temperature through the older fixed_temperature alias, a pressure cooker
+is put away lid open), because generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2).
 """
 from ...generator.place import Placer
 from ...kernel import geometry
 from ...kernel.plugins import furnisher
 from . import build as B
 from . import common as C
+
+# type-data changes made after generation 1 was frozen: what a generation-1 kitchen keeps instead (_generation_one)
+GEN1_PROPS = {"burner": {"fixed_temperature": True}, "electric_griddle": {"fixed_temperature": True},
+              "electric_pressure_cooker": {"open": True}}
 
 STOVES = {
     "us": [("electric_coil", 0.4), ("radiant", 0.25), ("gas", 0.3), ("induction", 0.05)],
@@ -105,6 +118,38 @@ def _store(p, cabinets, type_name, rng, extra_kg=0.0, **props):
     return B.store_in_cabinets(p, order, type_name, extra_kg=extra_kg, **props)
 
 
+def _hot_drinks(config):
+    """What a generation-2 household drinks hot: {"coffee", "tea"} words from the residents' profiles."""
+    out = set()
+    for person in (config.get("people") or {}).values():
+        hot = str(((person.get("profile") or {}).get("drinks") or {}).get("hot") or "").lower()
+        if "coffee" in hot:
+            out.add("coffee")
+        if "tea" in hot:
+            out.add("tea")
+    return out
+
+
+def _generation_one(ents, before):
+    """The GEN1_PROPS values on what this furnisher placed in a generation-1 house (thermal_owner gives way to the
+    fixed_temperature alias: the kernel reads both as this domain's ownership)."""
+    for eid, rec in ents.items():
+        old = GEN1_PROPS.get(rec.get("type"))
+        if old and eid not in before:
+            if "fixed_temperature" in old:
+                rec.pop("thermal_owner", None)
+            rec.update(old)
+
+
+def _pod_machine(p, counters, rng):
+    """A pod coffee machine with its pod holder on some counter; its id, or None."""
+    pm = _on_some_counter(p, counters, "pod_coffee_machine", rng)
+    if pm:
+        holder = p.make("pod_holder", pm, eid=pm + "_holder")
+        p.c["entities"][holder]["relation"] = "part"
+    return pm
+
+
 def _kg(p, *type_names):
     return sum(C.num((p.reg.resolve(t) if p.reg.known(t) else {}).get("mass_kg"), 0.5) for t in type_names)
 
@@ -117,6 +162,9 @@ def furnish_kitchen(config, rng, opts, registry):
     dwelling = meta.get("dwelling_type", "house")
     gas_service = config.get("utilities", {}).get("gas", True)
     ents = config["entities"]
+    gen2 = int(opts.get("gen") or 1) >= 2
+    drinks = _hot_drinks(config) if gen2 else set()
+    before = set(ents)
     for kitchen in p.rooms("kitchen"):
         counters = _counters(p, kitchen)
         kind = _pick(rng, STOVES.get(region, STOVES["us"]))
@@ -149,20 +197,25 @@ def furnish_kitchen(config, rng, opts, registry):
             fits = lambda t: _counter_room(p, counters, t)  # noqa: E731
             if rng.random() < 0.85 and fits("microwave"):
                 _on_some_counter(p, counters, "microwave", rng)
-            if rng.random() < (0.95 if region in ("uk", "eu", "jp") else 0.45) and fits("kettle_base"):
+            p_kettle = 0.95 if region in ("uk", "eu", "jp") or "tea" in drinks else 0.45
+            if rng.random() < p_kettle and fits("kettle_base"):
                 c0 = rng.choice(counters)
                 B.build_kettle(p, c0) or B.build_kettle(p, counters[0])
             r = rng.random()
+            if gen2 and "coffee" in drinks and r >= 0.92:
+                r = 0.0                                      # someone drinks coffee every day: there is a machine
+            elif gen2 and "coffee" not in drinks and r < 0.8:
+                r = 1.0                                      # most coffee-free households own none
+            machine = None
             if r < (0.35 if region == "eu" else 0.6):
                 if fits("drip_coffee_maker"):
-                    B.build_coffee_maker(p, rng.choice(counters))
+                    machine = B.build_coffee_maker(p, rng.choice(counters))
             elif r < 0.8:
-                pm = _on_some_counter(p, counters, "pod_coffee_machine", rng) if fits("pod_coffee_machine") else None
-                if pm:
-                    holder = p.make("pod_holder", pm, eid=pm + "_holder")
-                    ents[holder]["relation"] = "part"
+                machine = _pod_machine(p, counters, rng) if fits("pod_coffee_machine") else None
             elif r < 0.92 and fits("espresso_machine"):
-                B.build_espresso(p, rng.choice(counters), water_l=round(rng.uniform(0.5, 1.8), 2))
+                machine = B.build_espresso(p, rng.choice(counters), water_l=round(rng.uniform(0.5, 1.8), 2))
+            if gen2 and "coffee" in drinks and not machine and fits("pod_coffee_machine"):
+                _pod_machine(p, counters, rng)               # a crowded counter still finds room for the smallest one
             if rng.random() < (0.35 if region == "jp" else 0.75) and fits("toaster"):
                 _on_some_counter(p, counters, "toaster", rng)
             if rng.random() < (0.85 if region == "jp" else 0.15) and fits("rice_cooker"):
@@ -214,6 +267,8 @@ def furnish_kitchen(config, rng, opts, registry):
                 p.inside(utensil, "cake_tester", home=utensil)
         if counters and rng.random() < 0.5:
             _on_some_counter(p, counters, "kitchen_timer", rng)
+    if not gen2:
+        _generation_one(ents, before)
 
 
 def _farthest_cell(config, room):

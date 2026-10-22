@@ -794,7 +794,8 @@ class HarnessTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp, mock.patch.object(runner, "build", spy):
                 result = self.R.run_episode(record, episode, make_agent("random", seed=0, max_actions=2),
                                             caps={"max_steps": 3}, out_dir=tmp, camera=forced)
-                replay = json.loads(next((Path(tmp) / "replays").glob("*.json")).read_text(encoding="utf-8"))
+                from house_sim.kernel import replays       # compact replays: read() unpacks house-replay-v3
+                replay = replays.read(next((Path(tmp) / "replays").glob("*.json")))
                 log = json.loads((Path(tmp) / result["log"]).read_text(encoding="utf-8"))
                 self.R.replay_log(log, record)
                 lb.replay_episode(spec, 0, log, camera=log.get("camera"))
@@ -918,12 +919,15 @@ class SearchAgentTests(unittest.TestCase):
             self.skipTest("needs look around with rows (CAM-ACTIONS)")
         from house_sim.agent import SearchAgent
         from house_sim.world import make_house
-        # test_kernel's fetch houses with the cup in the open (its cabinets are 10 cm cubes: two things inside one
-        # share one box and hide each other from the wrist camera, a sight packing limit noted in the handoff)
+        # test_kernel's fetch houses exactly as its baseline builds them (K-CAM, CAM-RENDER / B3-MERGE not_done): all
+        # eight seeds, the cup in a 10 cm cabinet on the odd ones, seed 7 the 22-room house, both perception modes,
+        # within test_kernel's 600 steps
         for mode in ("oracle", "realistic"):
-            for seed in (0, 2, 4, 6):
+            for seed in range(8):
                 with self.subTest(seed=seed, mode=mode):
                     c = make_house(1 + seed * 3, 1 + seed % 3 if seed else 1, seed)
+                    if seed % 2:
+                        c["entities"]["cup"]["location"] = "cabinet_" + str(1 + seed)
                     e, policy, last = HouseEnv(c, perception=mode, camera="geometric"), SearchAgent(), None
                     for _ in range(600):
                         if e.task_complete():
@@ -937,14 +941,14 @@ class SearchAgentTests(unittest.TestCase):
 
     def test_the_search_agent_finds_a_cup_inside_a_cabinet(self):
         # B3 merge: test_kernel's fetch houses with the cup moved into a cabinet, found by opening it and peeking inside
-        # with the wrist camera. Oracle: the houses as they are (10 cm cabinets: the cup and a book share one box, which
-        # no longer hides either from the wrist). Realistic: a cabinet of a real size (in a 10 cm one the 10 cm cup
-        # sticks out of the opening and stays below identify, and the cabinet shows "openable" only from very close)
+        # with the wrist camera. K-CAM: the 10 cm cabinets as they are in both modes (the agent remembers that a small
+        # cabinet showed "openable" from close by, and inspects what the wrist sees half hidden inside), and a
+        # cabinet of a real size in realistic perception as before
         if "rows" not in ACTIONS["look"].params or "peek" not in ACTIONS:
             self.skipTest("needs the camera verbs (CAM-ACTIONS)")
         from house_sim.agent import SearchAgent
         from house_sim.world import make_house
-        for mode, size in (("oracle", None), ("realistic", 0.4)):
+        for mode, size in (("oracle", None), ("realistic", None), ("realistic", 0.4)):
             for seed in (1, 3):
                 with self.subTest(seed=seed, mode=mode):
                     c = make_house(1 + seed * 3, 1 + seed % 3, seed)

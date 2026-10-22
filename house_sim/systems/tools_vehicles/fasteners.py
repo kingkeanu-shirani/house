@@ -16,12 +16,19 @@ where it is). Torque is a lumped model:
 Derived hidden state (refresh()): handle play and alignment, furniture racking + leg rocking
 (`_wobble_mm`), two-axis tilt (`_tilt_deg`). Restricted fasteners (gas, electrical terminals,
 pressurized supply, structural) are physically reachable; touching them has consequences.
+
+Robot body (kernel v3.0): what a hand tool can put on a fastener is the lower of the tool's own rating and what the
+body can push through it (common.body_torque_nm: the wrist's 6 N m bare-handed or with a driver; push_n x the lever
+arm with a wrench; push and pull together on a cross wrench); a commanded torque above it is clamped with a note. A
+powered driver is loud (75 dB at 1 m: the body's quiet mode refuses it). Reaching into a cabinet at normal speed
+brushes the glassware there (the kernel's physics.nudge: a slender glass tips over, a squat bowl stays put).
 """
 import copy
 import math
 
 from ...kernel import geometry, physics
 from ...kernel.actions import action
+from ...kernel.phys import events as kevents
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import hook, inspector, run_hooks
 from . import common as C
@@ -56,7 +63,8 @@ KINDS = {
     "leveling_foot": {"snug": [0.0, 99.0], "strip": 999.0},
     "lug_nut": {"snug": [100.0, 140.0], "strip": 250.0},
 }
-HAND_NM = 6.0            # firm hand twist on a cartridge, sump ring, knob or valve cap
+DRIVER_DB = 75.0         # a cordless drill/driver driving or backing out screws, at 1 m
+ARM_BRUSH_N = 5.0        # an arm swept past a glass on a cabinet shelf at normal speed pushes it with a few newtons
 RESTRICTED_KINDS = {"gas_flare_nut": "gas", "terminal_screw": "electrical", "compression_nut": "pressurized_water"}
 
 
@@ -327,6 +335,16 @@ def _is_drill(rec):
     return rec.get("tool_kind") == "drill"
 
 
+def hand_limit_nm(w, trec=None):
+    """(limit, body_cap): the most torque the robot puts on a fastener with a hand tool (trec) or bare-handed (None):
+    the lower of the tool's rating (max_torque_nm) and what the body can apply through it (common.body_torque_nm);
+    body_cap is the body's part (None for a powered driver)."""
+    body_cap = C.body_torque_nm(w, trec)
+    tool_cap = float(trec.get("max_torque_nm", 3.0)) if trec else None
+    caps = [v for v in (tool_cap, body_cap) if v is not None]
+    return (min(caps) if caps else 3.0), body_cap
+
+
 def drill_torque(rec):
     clutch = (rec.get("settings") or {}).get("clutch", 5)
     if clutch == "drill":
@@ -390,24 +408,28 @@ def check_access(ctx, eid, f):
 
 
 def _fragile_sweep(ctx, eid, f):
-    """Reaching into a cabinet past fragile items at normal speed knocks one over."""
+    """Reaching into a cabinet past fragile items at normal speed brushes the first one on that shelf: the kernel's
+    physics.nudge (ARM_BRUSH_N at its centre of mass, attributed to the robot) tips a slender glass over (breaking only
+    if the tip itself exceeds its drop tolerance) and leaves a squat bowl where it is. Returns the id when it tipped or
+    slid, else None."""
     w = ctx.w
     if f.get("access") not in ("inside",) or w.robot.get("speed_mode") == "careful":
         return None
     shelf = f.get("shelf")
-    for child in w.children(eid):
+    for child in sorted(w.children(eid)):
         crec = w.ent(child)
         if crec.get("relation") != "in" or not crec.get("fragile") or crec.get("broken"):
             continue
         if shelf is not None and crec.get("shelf") not in (None, shelf):
             continue
-        m = w.mut(child)
-        m["broken"] = True
-        m["toppled"] = True
-        C.add_damage(m, "broken", 1.0)
-        w.stat("breakages")
-        w.stat("damage")
-        C.log(w, "knocked_over", item=child, by="reach_inside")
+        before = (crec.get("orientation"), crec.get("spos"), crec.get("location"))
+        kevents.nudge(w, {"target": child, "newtons": ARM_BRUSH_N, "by": "robot"})
+        after = w.s["entities"].get(child) or {}
+        if (after.get("orientation"), after.get("spos"), after.get("location")) == before:
+            return None
+        if child in w.s["entities"]:
+            w.mut(child)["toppled"] = True
+        C.log(w, "knocked_over", seen=child, size_m=0.1, item=child, by="reach_inside")
         return child
     return None
 
@@ -451,6 +473,7 @@ def turn(ctx, eid, fid, tighten, tool_id, torque=None, turns=None, axial="firm",
         if not ok:
             return "{}: tool failed ({})".format(fid, "; ".join(more))
         if trec.get("power_tool"):
+            ctx.data["tv_noise_db"] = DRIVER_DB
             notes.extend(C.power_tool_gate(ctx, tool))
             C.drain_battery(w, tool, 0.004)
             direction = (trec.get("settings") or {}).get("direction", "forward")
@@ -486,9 +509,11 @@ def turn(ctx, eid, fid, tighten, tool_id, torque=None, turns=None, axial="firm",
                 notes.append("a drill/driver delivers its clutch torque, not a requested value" if ctx.realistic else
                              "a drill/driver delivers its clutch torque ({:.1f} N m), not a requested value".format(applied))
         else:
-            limit = float(trec.get("max_torque_nm", 3.0)) if tool else HAND_NM
+            limit, body_cap = hand_limit_nm(w, trec if tool else None)
             want = float(torque) if torque is not None else lo + 0.4 * (hi - lo)
             applied = min(want, limit)
+            if torque is not None and want > limit + 1e-9 and body_cap is not None and body_cap <= limit + 1e-9:
+                notes.append("torque limited to what the robot can apply")
             if applied < lo and torque is None:
                 notes.append("the tool tops out before it feels snug" if ctx.realistic else
                              "the tool cannot reach snug ({:.1f} N m max)".format(limit))
@@ -553,7 +578,7 @@ def turn(ctx, eid, fid, tighten, tool_id, torque=None, turns=None, axial="firm",
         if tool and _is_drill(trec):
             applied = drill_torque(trec)
         else:
-            applied = float(trec.get("max_torque_nm", 3.0)) if tool else HAND_NM
+            applied = hand_limit_nm(w, trec if tool else None)[0]
         if spin is not None and spin < need - 1e-9:
             notes.append("the wheel just spins (it is off the ground): break the nuts loose before lifting")
             turns_done = 0.2
@@ -723,10 +748,15 @@ def _remove(ctx, eid, fid, into):
 # ---------------------------------------------------------------------------------------------
 # actions
 
+def _turn_db(ctx):
+    """A powered driver is loud (DRIVER_DB); a screwdriver, a wrench or a hand twist is not (None)."""
+    return ctx.data.get("tv_noise_db")
+
+
 @action("tighten", params={"target": "entity", "fastener": "?str", "tool": "?entity", "torque_nm": {"type": "number", "min": 0.05, "max": 300, "optional": True},
                            "turns": {"type": "number", "min": 0.1, "max": 40, "optional": True}, "hold_aligned": {"type": "bool", "default": False},
                            "axial": "?str:firm|light", "screw": "?str"},
-        duration=1.0, energy=0.01, noise=0.05, category="physical",
+        duration=1.0, energy=0.01, noise=0.05, category="physical", noise_db=_turn_db,
         doc="Tighten a screw, bolt, nut, cam lock, set screw or twist-lock part with a held tool (or by hand where possible). "
             "fastener is an id or a group (all of its fasteners). Hand tools stop at snug unless torque_nm is given; a drill/driver "
             "delivers its clutch torque in its set direction. hold_aligned keeps a pull straight while snugging. screw re-inserts a "
@@ -737,7 +767,7 @@ def tighten(ctx):
 
 @action("loosen", params={"target": "entity", "fastener": "?str", "tool": "?entity", "turns": {"type": "number", "min": 0.1, "max": 40, "optional": True},
                           "remove": {"type": "bool", "default": False}, "into": "?entity", "axial": "?str:firm|light"},
-        duration=1.0, energy=0.01, noise=0.05, category="physical",
+        duration=1.0, energy=0.01, noise=0.05, category="physical", noise_db=_turn_db,
         doc="Loosen (or with remove=true take out) a fastener with a held tool. Removed hardware goes into `into` (a parts tray or "
             "bag within reach) or drops on the floor. Leveling feet extend by turns x pitch. Seized or over-tight fasteners cam out with "
             "a poor-fitting tool.")

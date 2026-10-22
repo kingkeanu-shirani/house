@@ -184,12 +184,34 @@ def set_panels(ctx, eid, left=None, right=None):
     _after_change(ctx, eid, before_cov)
 
 
+ROD_PULLOUT_FACTOR = 2.0    # rod brackets on drywall anchors pull out at about twice their rated hang load
+G = 9.81
+
+
+def rod_rating_kg(state, eid):
+    """The curtain rod's rated hang load (kg): the kernel's hang rating of the curtain record (its rod and brackets;
+    types carry hang_load_kg 8 kg, supports.json's "curtain rod on two brackets: about 8 kg") with the kernel's
+    per-instance variation (about +-15 %)."""
+    from ...kernel import physics
+    rating = physics.props(state, eid).hang_kg
+    return C.num(rating, 8.0) if rating is not None else 8.0
+
+
+def rod_pulls_out(state, eid, newtons):
+    """A pull of `newtons` on the fabric loads the rod with newtons / g on top of the curtain's own weight; the
+    brackets pull out of the wall when that exceeds ROD_PULLOUT_FACTOR x the rod's rated hang load (TIER1_PHYSICS hang,
+    adopted for curtain rods: a firm 80 N tug on standard curtains holds, a yank at the robot's 180 N pull limit does
+    not; a compact robot's 100 N cannot pull a rod down)."""
+    mass = C.num(state["entities"][eid].get("mass_kg"), 3.0)
+    return mass + float(newtons) / G > ROD_PULLOUT_FACTOR * rod_rating_kg(state, eid) + 1e-9
+
+
 def pull_covering(ctx, eid, side, extent, grip, force):
     """pull_handle on a curtain (side, opening extent) or on a blind's cord (extent = lift)."""
     w = ctx.w
     rec = w.ent(eid)
     kind = C.kind_of(rec)
-    newtons = C.force_n(force)
+    newtons = C.applied_n(w.s, force, "pull")
     if kind != "curtain":
         return raise_blind(ctx, eid, extent, 0.0, True, force)
     require(C.mget(rec, "rod") != "down", "The rod is down; it needs re-hanging", "precondition")
@@ -200,7 +222,7 @@ def pull_covering(ctx, eid, side, extent, grip, force):
         if newtons >= C.FORCE_N["firm"]:
             mech["hooks_torn"] = int(C.num(mech.get("hooks_torn"))) + 3
             C.mark_damage(w, eid, "hooks torn out of the curtain heading")
-        if newtons >= C.FORCE_N["yank"]:
+        if rod_pulls_out(w.s, eid, newtons):
             _rod_down(ctx, eid)
             return "The rod pulled out of the wall and the curtain came down"
         current = C.mget(rec, "panels") or {}
@@ -209,11 +231,11 @@ def pull_covering(ctx, eid, side, extent, grip, force):
         set_panels(ctx, eid, values.get("left"), values.get("right"))
         return "The rings bunched and jammed partway"
     if C.mget(rec, "jammed"):
-        if newtons >= C.FORCE_N["yank"]:
+        if rod_pulls_out(w.s, eid, newtons):
             _rod_down(ctx, eid)
             return "Yanking the jammed curtain pulled the rod down"
         raise ActionError("The rings are bunched and jammed; free them by hand first (push_handle part=rings)", "precondition")
-    if newtons >= C.FORCE_N["yank"]:
+    if rod_pulls_out(w.s, eid, newtons):
         _rod_down(ctx, eid)
         return "Yanking pulled the rod off its brackets"
     sides = ["left", "right"] if side in ("both", None) else [side]
@@ -229,12 +251,15 @@ def _rod_down(ctx, eid):
     mech["rod"] = "down"
     C.mark_damage(w, eid, "curtain rod pulled out of the wall")
     refresh(w, eid)
+    C.visual(w, "curtain_rod_down", source=eid, size_m=1.4, log=False, target=eid)
+    C.notice(w, "crash", source=eid, db=70.0)
     wid = window_of(w.ent(eid))
     for sill in sills_of_w(w, wid):
         for item in w.children(sill):
             irec = w.ent(item)
             if C.num((irec.get("size_m") or [0, 0, 0.1])[2]) >= 0.12:
-                C.fall_item(w, item, C.room_of(w.s, sill), list(w.robot.get("pos") or [0, 0]), 0.9, "curtain_rod_fell")
+                # swept off the sill by the falling rod: from the sill's height, onto the floor in front of it
+                C.fall_item(w, item, C.room_of(w.s, sill), None, None, "curtain_rod_fell")
 
 
 def _sills(state, wid):
@@ -255,7 +280,7 @@ def _knock_sill(ctx, eid):
         for item in w.children(sill):
             irec = w.ent(item)
             if C.num((irec.get("size_m") or [0, 0, 0.1])[2]) >= 0.2:
-                C.fall_item(w, item, C.room_of(w.s, sill), list(w.robot.get("pos") or [0, 0]), 0.9, "swept_off_sill_by_curtain")
+                C.fall_item(w, item, C.room_of(w.s, sill), None, None, "swept_off_sill_by_curtain")
 
 
 # ----------------------------------------------------------------------------------
@@ -388,7 +413,7 @@ def raise_(ctx):
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
     kind = C.kind_of(rec)
-    C.note_force(w, eid, C.force_n(ctx.args["force"]))
+    C.note_force(w, eid, C.applied_n(w.s, ctx.args["force"], "pull"))
     if kind in ("blind", "shutter"):
         return raise_blind(ctx, eid, 1.0 if ctx.args.get("to_frac") is None else ctx.args["to_frac"], ctx.args["cord_angle_deg"], ctx.args["lock"], ctx.args["force"])
     if kind in C.WINDOW_KINDS:
@@ -430,7 +455,7 @@ def lower(ctx):
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
     kind = C.kind_of(rec)
-    C.note_force(w, eid, C.force_n(ctx.args["force"]))
+    C.note_force(w, eid, C.applied_n(w.s, ctx.args["force"], "pull"))
     speed = ctx.args["speed"]
     if kind in ("blind", "shutter"):
         return lower_blind(ctx, eid, 0.0 if ctx.args.get("to_frac") is None else ctx.args["to_frac"], "release" if speed != "controlled" else "controlled")

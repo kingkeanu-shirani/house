@@ -5,9 +5,17 @@ A mounted piece of hardware is `attached` to its surface (wall_surface, door, ca
 with a `mount` record {surface, offset_m, height_m, point [x,y,z], method, bond, mounted_at, cure_s,
 premature, approved, hazards[]}. Its `z_m` is the mount height so reach/heights work. Decorations hang
 on it (relation hung). Capacity = rated_kg x surface bond x (0.5 if loaded before the cure time) x
-heat/wet decay; overloaded mounts creep and let go (items fall; fragile ones break). Hazards around the
-spot (heat source below, wet zone, crib within 0.9 m, outlet/vent/detector covered, door swing / head
-height, fan sweep, hot bulb) are computed from room geometry and recorded on the mount.
+heat/wet decay. Hazards around the spot (heat source below, wet zone, crib within 0.9 m, outlet/vent/detector
+covered, door swing / head height, fan sweep, hot bulb) are computed from room geometry and recorded on the mount.
+
+Physics (kernel v3.0, TIER1_PHYSICS 10.3): the capacity is the kernel's hang rating of the mounted hardware (a
+phys.props hook; the package rating is a load the hook holds, so the nominal rating is capacity / 0.85 and every
+instance of the +-15 % band holds its rated load), and the mount records how it fails (`anchor`: adhesive_hook /
+adhesive_strip / adhesive_tape come off with the load, drywall_anchor pulls out leaving a hole, stud bends). While the
+kernel's hang law is deferred this domain's creep model decides when an overloaded mount lets go (120 + 2400 x
+capacity / load s); the letting go itself is the kernel's collapse of the hung slot (falls, breakage by drop
+tolerance, the wall hole, attribution, physics sounds and notices). With the law active the kernel decides at once,
+and a capacity this domain lowers later (heat, damp) is re-judged by the kernel's law.
 """
 import copy
 import math
@@ -15,8 +23,12 @@ import math
 from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import impact as kimpact
 from ...kernel.plugins import after, hook, inspector, system
 from . import common as C
+
+HOLD_ANCHOR_FRAC = 0.85     # the kernel's calibration rule: a rated load holds for the whole +-15 % band
+TAPE_KG = {"painters": 0.12, "masking": 0.15, "packing": 1.0, "duct": 2.0}
 
 ADHESIVE_KINDS = ("adhesive_hook", "adhesive_strip", "cable_clip", "accessory", "bumper")
 SURFACE_BOND = {"painted": 1.0, "satin_paint": 1.0, "eggshell_paint": 1.0, "semi_gloss": 1.0, "tile": 1.0, "glass": 1.0, "metal": 1.0,
@@ -210,6 +222,7 @@ def mount_hardware(ctx, hw, surface, height_m=None, offset_m=None, method="adhes
     require(point[2] <= robot_reach + 0.15, "Too high to reach safely; use a step stool or ladder", "capability")
     bond = _bond(w, srec, hwrec)
     anchor_rating = None
+    on_stud = None
     if method == "anchor":
         hole = _hole_at(srec, offset_m, point[2])
         require(hole is not None, "Drill a pilot hole at that spot first", "precondition")
@@ -228,13 +241,15 @@ def mount_hardware(ctx, hw, surface, height_m=None, offset_m=None, method="adhes
             anchor_rating *= 0.2
             notes.append("the hole is oversized: the anchor spins")
         bond = 1.0
+        on_stud = bool(hole.get("stud"))
         hole["state"] = "anchor"
     hazards = spot_hazards(w, surface, point, hwrec, item and dict(w.ent(item), _id=item))
     approved = approved_hardware(w, hwrec)
+    anchor = _anchor_class(srec, hwrec, method, offset_m, on_stud)
     from ..core import release_from_hands
     release_from_hands(w, hw)
     hm = w.mut(hw)
-    hm.update(location=surface, relation="attached", z_m=C.rnd(point[2], 3), mounted=True, hang_height_m=0.0)
+    hm.update(location=surface, relation="attached", z_m=C.rnd(point[2], 3), mounted=True, hang_height_m=0.0, anchor=anchor)
     hm.pop("held_hand", None)
     if hm.get("hang_slots", 0) > 0:
         hm["accepts_items"] = True
@@ -280,6 +295,27 @@ def mount_hardware(ctx, hw, surface, height_m=None, offset_m=None, method="adhes
     return "Mounted {} on {} at {:.2f} m{}".format(hw, surface, point[2], ": " + "; ".join(notes) if notes else "")
 
 
+RIGID_WALLS = ("masonry", "brick", "concrete", "stone", "block")
+
+
+def _anchor_class(srec, hwrec, method, offset_m, on_stud=None):
+    """How a mount fails when overloaded (the kernel's `anchor` classes, impact.collapse of a hung slot): adhesive
+    hardware and tape come off the wall with the load ("adhesive_strip" for strips, "adhesive_tape" for tape, else
+    "adhesive_hook"); a nail, screw or anchor in a stud or a masonry wall bends ("stud"); in drywall or plaster it pulls
+    out of the board and leaves a hole ("drywall_anchor")."""
+    if method == "tape":
+        return "adhesive_tape"
+    if method == "adhesive":
+        return "adhesive_strip" if hwrec.get("hardware_kind") == "adhesive_strip" else "adhesive_hook"
+    if str(srec.get("wall_material") or srec.get("material") or "").lower() in RIGID_WALLS:
+        return "stud"
+    if method == "anchor":
+        return "stud" if on_stud else "drywall_anchor"
+    if offset_m is not None and any(abs(float(offset_m) - float(s)) <= 0.025 for s in srec.get("_studs_m") or []):
+        return "stud"
+    return "drywall_anchor"
+
+
 def _hole_at(srec, offset_m, height_m):
     for hole in C.hole_list(srec):
         if hole.get("state") not in ("open",):
@@ -292,19 +328,42 @@ def _hole_at(srec, offset_m, height_m):
     return None
 
 
-def capacity_kg(w, hw):
-    rec = w.ent(hw)
+def capacity_of(rec):
+    """What a piece of hanging hardware holds now (kg): its rating x the surface bond x heat/wet decay (x0.5 when it was
+    loaded before the adhesive cured). A record-only function (the phys.props hook calls it)."""
     mount = rec.get("mount") or {}
+    if mount.get("bent"):
+        return 0.0
     # an anchor's holding power in this wall (material, stud, oversize hole) lives in the mount record; `rated_kg` on the
     # hardware stays the printed package rating (a read-tier field must not turn into hidden truth once it is installed)
     rated = mount.get("rated_kg") if mount.get("rated_kg") is not None else rec.get("rated_kg", 0.0)
-    rated = float(rated) if isinstance(rated, (int, float)) else 0.0
+    rated = float(rated) if isinstance(rated, (int, float)) and not isinstance(rated, bool) else 0.0
     if mount.get("method") == "tape":
-        rated = {"painters": 0.12, "masking": 0.15, "packing": 1.0, "duct": 2.0}.get(rec.get("tape_kind"), 0.1)
+        rated = TAPE_KG.get(rec.get("tape_kind"), 0.1)
     cap = rated * float(mount.get("bond", 1.0)) * float(mount.get("decay", 1.0))
     if mount.get("premature"):
         cap *= 0.5
     return cap
+
+
+def capacity_kg(w, hw):
+    return capacity_of(w.ent(hw))
+
+
+def _domain_mount(record):
+    """Hardware this domain mounted (a mount record with a method); hooks the household already had are structural."""
+    mount = record.get("mount")
+    return is_hardware(record) and isinstance(mount, dict) and bool(mount.get("method"))
+
+
+def hang_props(record, phys):
+    """phys.props hook (TIER1_PHYSICS 7.3): the kernel's hang rating of hardware this domain mounted is what the mount
+    holds now (capacity_of), as a nominal rating the whole +-15 % band holds at its rated load (capacity / 0.85)."""
+    return {"hang_kg": capacity_of(record) / HOLD_ANCHOR_FRAC}
+
+
+hang_props.applies = _domain_mount
+hook("phys.props")(hang_props)
 
 
 def load_kg(w, hw):
@@ -560,29 +619,60 @@ def _active_heat_near(w, hw):
     return False
 
 
-@system("tools_vehicles.adhesive", order=137, max_dt=30.0)
+def _decaying(w, hw, mount):
+    """The decay rate (per second) of a mounted adhesive's bond now: an active heat source within 0.6 m (about 10 min
+    to nothing), a damp wet zone (about 2 h); 0.0 when neither applies. Nails and anchors do not decay."""
+    if mount.get("method") in ("nail", "anchor"):
+        return 0.0
+    rate = 0.0
+    if _active_heat_near(w, hw):
+        rate += 1.0 / 600.0
+    if "wet" in (mount.get("hazards") or []):
+        room = w.root_room(hw)
+        surface = w.s["entities"].get(mount.get("surface")) or {}
+        if float(w.s["rooms"].get(room, {}).get("humidity", 0.45)) > 0.7 or float(surface.get("wetness", 0.0)) > 0.2:
+            rate += 1.0 / 7200.0
+    return rate
+
+
+def _env_of(w):
+    ref = getattr(w, "_env_ref", None)
+    return ref() if ref is not None else None
+
+
+def adhesive_idle(w):
+    """Exact idle probe (kernel v3.1): no hardware this domain mounted is on a wall (pre-existing household hooks are
+    structural and never looked at)."""
+    ents = w.s["entities"]
+    return not any((ents.get(hw) or {}).get("mounted") and _domain_mount(ents[hw]) for hw in C.index(w, "hardware", is_hardware))
+
+
+@system("tools_vehicles.adhesive", order=137, max_dt=30.0, idle=adhesive_idle)
 def adhesive_system(w, dt, tick):
     """Per substep over the static index of hanging hardware (only hardware is ever mounted by mount_hardware):
-    heat/wet decay, overload creep and falls. Hooks the household already had (no mount method) are structural."""
+    heat/wet decay of adhesive bonds; while the kernel's hang law is deferred, overload creep (an overloaded mount lets
+    go 120 + 2400 x capacity / load s after it was first overloaded); with the law active the kernel decides, and a
+    capacity the decay lowered is re-judged by the kernel's law at once. Hooks the household already had (no mount
+    method) are structural."""
     t = C.now(w)
     ents = w.s["entities"]
+    kernel = C.law("hang")
     for hw in C.index(w, "hardware", is_hardware):
         rec = ents.get(hw)
-        if rec is None or not rec.get("mounted") or not isinstance(rec.get("mount"), dict) or not rec["mount"].get("method"):
+        if rec is None or not rec.get("mounted") or not _domain_mount(rec):
             continue
         mount = rec["mount"]
         decay = float(mount.get("decay", 1.0))
-        new_decay = decay
-        if mount.get("method") != "nail" and _active_heat_near(w, hw):
-            new_decay = max(0.05, decay - dt / 600.0)
-        if "wet" in (mount.get("hazards") or []) and mount.get("method") != "nail":
-            room = w.root_room(hw)
-            humid = float(w.s["rooms"].get(room, {}).get("humidity", 0.45)) > 0.7 or float(w.ent(mount["surface"]).get("wetness", 0.0)) > 0.2
-            if humid:
-                new_decay = max(0.05, new_decay - dt / 7200.0)
-        if abs(new_decay - decay) > 1e-9:
+        rate = _decaying(w, hw, mount)
+        new_decay = max(0.05, decay - dt * rate) if rate > 0 else decay
+        changed = abs(new_decay - decay) > 1e-9
+        if changed:
             w.mut(hw)["mount"]["decay"] = C.rnd(new_decay, 4)
         load = load_kg(w, hw)
+        if kernel:
+            if changed and load > 0:
+                kimpact.hang_law(w, hw, env=_env_of(w))      # the kernel owns the hang law: its rating fell
+            continue
         if load <= 0:
             continue
         cap = capacity_kg(w, hw)
@@ -596,56 +686,44 @@ def adhesive_system(w, dt, tick):
             continue
         ttf = 120.0 + 2400.0 * max(0.0, cap / load)
         if t - float(since) >= ttf:
-            _fall(w, hw, tick)
+            let_go(w, hw)
 
 
-def _fall(w, hw, tick):
-    rec = w.ent(hw)
-    mount = rec["mount"]
+def let_go(w, hw):
+    """An overloaded mount lets go: the kernel's collapse of its hung slot (TIER1_PHYSICS 5.3): the hung items fall
+    (breaking by their drop tolerance onto the floor below), adhesive hardware comes off with them, an anchor or a nail
+    in drywall pulls out and leaves a hole, one in a stud bends; attribution, physics sounds and notices are the
+    kernel's. The domain's bookkeeping follows in the phys.collapsed hook."""
+    return kimpact.collapse(w, hw, ("hung",))
+
+
+@hook("phys.collapsed")
+def _mount_let_go(w, sid, info):
+    """After the kernel collapsed the hung slot of hardware this domain mounted: the items that fell are marked
+    `fallen` (the field this domain's specs read), the hardware no longer holds (`failed`; adhesive hardware and
+    pulled-out anchors lie on the floor unmounted, a bent one stays in the stud), fresh paint under an adhesive
+    peels, and the event log records the failure."""
+    rec = w.s["entities"].get(sid)
+    if rec is None or not is_hardware(rec) or list(info.get("slot") or []) != ["hung"]:
+        return
+    mount = rec.get("mount") if isinstance(rec.get("mount"), dict) else {}
     surface = mount.get("surface")
-    room = w.root_room(hw)
-    height = float(mount.get("height_m", 1.5))
-    point = mount.get("point") or [0.25, 0.25, height]
-    cell = [int(point[0] / C.CELL), int(point[1] / C.CELL)]
-    cols, rows = geometry.grid_size(w.s["rooms"][room])
-    cell = [max(0, min(cols - 1, cell[0])), max(0, min(rows - 1, cell[1]))]
-    below = None
-    for eid in sorted(e for e, r in w.s["entities"].items() if r.get("location") == room and r.get("pos")):
-        r = w.ent(eid)
-        if tuple(cell) in geometry.footprint(r) and (r.get("surface") or C.is_heat_source(r)) and eid != surface:
-            below = eid
-            break
-    items = [c for c in w.children(hw) if w.ent(c).get("relation") in ("hung", "on", "attached")]
-    for item in items + [hw]:
-        irec = w.ent(item)
-        m = w.mut(item)
-        for key in ("spos", "shelf", "held_hand", "z_m"):
-            m.pop(key, None)
-        drop = height - (geometry.height_m(w.s, below) if below else 0.0)
-        if below and w.ent(below).get("accepts_items"):
-            m.update(location=below, relation="on")
-            spot = geometry.surface_spot(w.s, below, item)
-            if spot is not None:
-                m["spos"] = spot
-        else:
-            m.update(location=room, relation="on", pos=cell)
-        if irec.get("fragile") and drop > float(irec.get("drop_tolerance_m", 0.3)):
-            m["broken"] = True
-            C.add_damage(m, "broken", 1.0)
-            w.stat("breakages")
-            w.stat("damage")
+    items = [i for i in info.get("items") or [] if i in w.s["entities"]]
+    for item in items:
+        w.mut(item)["fallen"] = True
+    m = w.mut(sid)
+    m["failed"] = True
+    if rec.get("location") == surface and rec.get("anchor") == "stud":
+        m["mount"]["bent"] = True                # still in the stud, bent: it holds nothing any more
+    else:
+        m["mounted"] = False
         m["fallen"] = True
-        w.log_move(item, hw if item != hw else surface, m["location"], by="gravity")
-    hm = w.mut(hw)
-    hm["mounted"] = False
-    hm["failed"] = True
-    hm.pop("mount", None)
-    if surface in w.s["entities"] and float(w.ent(surface).get("paint_age_days", 365)) < 7:
-        sm = w.mut(surface)
-        sm["paint_peeled"] = int(sm.get("paint_peeled", 0)) + 1
-    if below and C.is_heat_source(w.ent(below)):
-        C.log(w, "fell_onto_heat", hardware=hw, onto=below)
-    C.log(w, "mount_failed", hardware=hw, items=items, surface=surface)
+        m.pop("mount", None)
+        m.pop("anchor", None)
+        if surface in w.s["entities"] and float(w.ent(surface).get("paint_age_days", 365)) < 7 and rec.get("adhesive"):
+            sm = w.mut(surface)
+            sm["paint_peeled"] = int(sm.get("paint_peeled", 0)) + 1
+    C.log(w, "mount_failed", hardware=sid, items=items, surface=surface)
 
 
 @after("open", order=130)

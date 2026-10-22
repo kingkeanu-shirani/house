@@ -153,9 +153,11 @@
     "towels": {"types": ["bath_towel"], "props": {"label": "towel", "mass_kg": 0.5, "size_m": [0.4, 0.3, 0.08], "volume_l": 9.6, "material": "cotton"}, "source": "a folded bath towel: about 0.5 kg"}
   },
   "people": {
-    "doc": "Helper capacities for team lifts and pushes (forces.lift_plan, forces.max_push_n). A person's own lift_kg (or manipulation's max_lift_kg) and push_n win; anyone whose abilities.mobility is not \"full\" counts 0.",
+    "doc": "Helper capacities for team lifts and pushes (forces.lift_plan, forces.max_push_n). A person's own lift_kg (or manipulation's max_lift_kg) and push_n win; anyone whose abilities.mobility is not \"full\" counts 0. A role without a row (guest, visitor, contractor, courier, ...) takes the row its age falls in (age_roles: the first band whose below_age exceeds it), else default_role.",
     "default_role": "adult",
+    "age_roles": [{"below_age": 3, "role": "toddler"}, {"below_age": 13, "role": "child"}, {"below_age": 18, "role": "teen"}, {"below_age": 65, "role": "adult"}, {"below_age": 200, "role": "elderly"}],
     "roles": {
+      "toddler": {"lift_kg": 0, "push_n": 0, "source": "cannot help (people's adoption request K-HELPER-ROLES)"},
       "adult": {"lift_kg": 23, "push_n": 200, "source": "revised NIOSH lifting equation load constant 23 kg (51 lb); sustained two-hand push about 200 N (Snook and Ciriello tables)"},
       "teen": {"lift_kg": 15, "push_n": 120, "source": "adolescent lifting guidance about two thirds of the adult constant"},
       "elderly": {"lift_kg": 10, "push_n": 80, "source": "older adults: reduced strength, fall risk"},

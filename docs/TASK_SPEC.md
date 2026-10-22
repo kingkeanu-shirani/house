@@ -35,7 +35,7 @@ behaviour they were verified with. Schema 3 turns on, for that spec only:
 | `instruction`, `phrasings` | the request text and at least three phrasings (a single-phase spec) |
 | `request` | who asked and how (below) |
 | `success`, `failure` | predicates: all success must hold; any failure defeats success |
-| `preserve`, `side_effects` | paths that must keep their baseline value; collateral-damage rules (`no_moves_except`, `no_damage`, `no_new_soil_except`, `unchanged_fields`) |
+| `preserve`, `side_effects` | paths that must keep their baseline value; collateral-damage rules (`no_moves_except`: moves the robot caused, by the settle pass's attribution -- wind, pets, people and scripted events moving things do not fail it; `no_damage`, `no_new_soil_except`, `unchanged_fields`) |
 | `milestones`, `order`, `required_milestones`, `deadlines` | named conditions with the time they were first reached, their order, required ones, deadlines (below) |
 | `never`, `always`, `responses` | temporal conditions over the whole episode (below) |
 | `phases` | several requests in one episode (below); a spec has either `instruction` / `success` or `phases` |
@@ -246,7 +246,7 @@ only when the run's camera is geometric):
 | `camera` | `{"op": "camera", "face": 90 \| "north" \| "{thing}" \| [c, r], "pan": 0, "tilt": -10, "track": ["{pid}"], "hw": {...}}` | the robot's starting body heading (grid degrees, a compass word, or toward a thing, person, pet or cell from its cell: place the robot first), head pan and tilt, the people and pets the head keeps in frame, hardware overrides (keys of `camera.HW`, same shapes). Sensor switches (`camera_on`, `mic_on`, `privacy_policy`) belong to the robot op |
 | `view` | `{"op": "view", "target": "{x}", "props": {...}}` | merges validated view properties into the record's `view`: `porosity`, `below_porosity`, `clear_below_m`, `behind_gap_m`, `slab_m`, `height_m`, `opening` (front / top / none), `interior_light`, `glossy`, `front_deg`, `faces`, `text_m`, `camera` (a device camera), `beam` |
 | `track_view` | `{"op": "track_view", "ids": ["{pid}", "{toy}"]}` | `camera_log.sightings` also follows these things |
-| `view_watch` | `{"op": "view_watch", "name": "door_cam", "viewer": {...}, "targets": ["{x}", "robot"], "every_s": 60}` | what another viewer sees, every `every_s` (at least 10 s), in `camera_log.watch.<name>` (`visible`, `ever`, `fraction`, `clear`, `ever_clear`, `robot_in_view_s`). Viewers: `{"entity": "{device}"}` (a thing with a `view.camera`), `{"person": "{pid}", "attention": true}`, `{"room": "{r}", "cell": [c, r], "z", "yaw", "tilt", "hfov", "range_m"}`; aperture viewers arrive with camera phase 3 |
+| `view_watch` | `{"op": "view_watch", "name": "door_cam", "viewer": {...}, "targets": ["{x}", "robot"], "every_s": 60}` | what another viewer sees, every `every_s` (at least 10 s), in `camera_log.watch.<name>` (`visible`, `ever`, `fraction`, `clear`, `ever_clear`, `robot_in_view_s`). Viewers: `{"entity": "{device}"}` (a thing with a `view.camera`), `{"person": "{pid}", "attention": true}`, `{"room": "{r}", "cell": [c, r], "z", "yaw", "tilt", "hfov", "range_m"}`, `{"aperture": "{window / door / connection}", "outside_m": 3.0, "eye_z": 1.6}` (someone outside looking in through it: its coverings and, by day, the glass's reflection apply; camera phase 3) |
 
 `spawn ... "in"` gains `"row": "front" | "back"` (both camera modes; inert in room mode): the item's `inner_spos` puts
 it in the front row at the opening, or the back row against the back wall, of its shelf, at the leftmost free place.
@@ -270,6 +270,9 @@ Success and failure predicates may read the camera log, e.g. `{"path": "camera_l
   marked `"camera": true` that fails for a camera reason.
 
 Verify one file with `python -m house_sim --check FILE [--camera geometric] [--gen 2] [--perception realistic]`.
+`python -m house_sim --verify [--verify-only ID|SECTION|FILE ...]` writes the catalog evidence; with `--gen`,
+`--camera` or `--perception` it is a forced check of every selected spec under that mode (the M-GEN2 migration runs
+`--verify --gen 2`), written to `reports/verification_forced.jsonl` beside the evidence, never over it.
 
 ## Concrete tasks
 

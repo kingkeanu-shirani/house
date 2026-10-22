@@ -3,7 +3,8 @@ packages and packing material, labels, lists and inventory records, consumable r
 refills, storage rules and harms, curbside collection, luggage and travel checks.
 
 Importing this package registers every action, hook, system, furnisher, skill, helper,
-observer, inspector, answerer and invariant of the domain (see docs/domains/admin_inventory.md).
+observer, inspector, answerer (and its dialogue routes) and invariant of the domain (see
+docs/domains/admin_inventory.md).
 """
 from . import common  # noqa: F401
 from . import paper  # noqa: F401
@@ -19,6 +20,7 @@ from . import curb  # noqa: F401
 from . import travel  # noqa: F401
 from . import handling  # noqa: F401
 from . import knowledge  # noqa: F401
+from . import routes  # noqa: F401
 from . import timekeeping  # noqa: F401
 from . import furnish  # noqa: F401
 from . import helpers  # noqa: F401

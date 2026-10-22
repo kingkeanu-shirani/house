@@ -1,0 +1,28 @@
+{
+ "about": "Report vocabulary of the pets domain (requested house_sim/data/vocab/pets.json; docs/domains/pets.md section 11): the symptoms and states a robot reports about pets, each with the evidence it can perceive (the observation's pet fields: signs, stress_signs, muddy_paws, wet_coat, confined_in, cues; the glance field pet_accident near the subject).",
+ "issues": {
+  "vomiting": {"class": "living", "synonyms": ["vomit", "vomited", "throwing_up", "threw_up", "retching", "sick_up"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "limping": {"class": "living", "synonyms": ["lame", "lameness", "favoring_a_leg", "favouring_a_leg", "hobbling"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "lethargic": {"class": "living", "synonyms": ["lethargy", "listless", "sluggish", "low_energy", "weak"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "not_eating": {"class": "living", "synonyms": ["off_food", "no_appetite", "wont_eat", "won't_eat", "refusing_food", "anorexic"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "drooling": {"class": "living", "synonyms": ["salivating", "slobbering", "foaming"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "breathing_trouble": {"class": "living", "synonyms": ["labored_breathing", "laboured_breathing", "wheezing", "rapid_breathing", "gasping", "tail_bobbing"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "trembling": {"class": "living", "synonyms": ["shaking", "shivering", "tremors", "quivering"], "applies_to": ["pet"], "evidence": [{"field": "stress_signs"}, {"field": "signs"}]},
+  "wound": {"class": "living", "synonyms": ["cut", "bite_wound", "hot_spot", "sore", "red_skin", "bleeding_paw"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "parasites": {"class": "living", "synonyms": ["fleas", "flea", "ticks", "tick", "flea_dirt", "worms"], "applies_to": ["pet"], "evidence": [{"field": "signs"}]},
+  "muddy_paws": {"class": "soil", "synonyms": ["muddy_feet", "dirty_paws", "mud_on_paws"], "applies_to": ["pet"], "evidence": [{"field": "muddy_paws"}]},
+  "pet_accident": {"class": "soil", "synonyms": ["urine_spot", "pee", "peed", "pooped", "house_soiling", "pet_mess", "accident"], "evidence": [{"field": "pet_accident", "near": true}]}
+ },
+ "states": {
+  "fed": {"synonyms": ["already_fed", "has_eaten", "had_breakfast", "had_dinner"], "opposite": "hungry"},
+  "hungry": {"synonyms": ["not_fed", "unfed", "starving"], "opposite": "fed"},
+  "leashed": {"synonyms": ["on_leash", "on_the_leash", "clipped_on"], "opposite": "unleashed", "evidence": [{"field": "leashed"}]},
+  "unleashed": {"synonyms": ["off_leash", "off_the_leash", "unclipped"], "opposite": "leashed", "evidence": [{"field": "leashed"}]},
+  "crated": {"synonyms": ["in_the_crate", "in_crate", "in_the_carrier", "caged"], "opposite": "loose", "evidence": [{"field": "confined_in"}]},
+  "loose": {"synonyms": ["running_loose", "out_of_the_crate", "roaming"], "opposite": "crated", "evidence": [{"field": "confined_in"}]},
+  "hiding": {"synonyms": ["hidden", "under_the_bed", "under_the_sofa", "taking_cover"]},
+  "shut_in": {"synonyms": ["locked_in", "shut_in_a_room", "stuck_in_a_room", "trapped_inside"], "evidence": [{"notice": "meowing"}, {"notice": "whining"}, {"notice": "pet_scratching"}]},
+  "calm": {"synonyms": ["relaxed", "settled", "at_ease"], "opposite": "anxious", "evidence": [{"field": "stress_signs"}]},
+  "anxious": {"synonyms": ["stressed", "nervous", "panicking", "frightened_pet"], "opposite": "calm", "evidence": [{"field": "stress_signs"}]}
+ }
+}

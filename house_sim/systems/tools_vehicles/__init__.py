@@ -16,6 +16,7 @@ from . import assembly  # noqa: F401
 from . import surfaces  # noqa: F401
 from . import vehicles  # noqa: F401
 from . import perception  # noqa: F401
+from . import routes  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401
 from . import furnish  # noqa: F401

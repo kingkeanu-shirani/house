@@ -5,6 +5,13 @@ Storage (`_stowed`, recomputed whenever a tool or its container moves/opens/lock
   {"in_storage", "home_ok", "height_m", "child_accessible", "outline", "outline_ok"}
 child_accessible = below 1.4 m and not inside a locked container. Blade safety is read directly from
 settings.blade / settings.jaws / guard / latched; power-tool batteries from slots.battery.item.
+
+Tier-1 adoption (kernel v3.0): drill, hammer and powered saws declare their noise (ActionSpec.noise_db: the body's
+quiet mode refuses them, listeners hear the level through robot_sound; the hand-written quiet checks are gone); the
+drill and the hammer work with both arms (arms=2: the nail or the auxiliary handle in the other hand); a tool knocked
+off a crowded rack falls through the kernel; a hot item set on a plastic container melts it by this domain's rule
+only while the kernel's contact_heat law is deferred; lubricant that drips on the floor is a kernel spill (motor or
+cooking oil: a slippery puddle the cleaning domain mops up).
 """
 import copy
 import math
@@ -16,6 +23,10 @@ from ...kernel.plugins import ACTIONS, after, before, hook, inspector, run_hooks
 from . import common as C
 
 RUSTING = ("steel", "iron", "carbon_steel", "cast_iron", "metal")
+DRILL_DB = 82.0          # a cordless drill driving a bit into a wall, at 1 m (operator-position levels are 85-95 dB(A))
+HAMMER_DB = {"drive": 90.0, "strike": 90.0, "tap": 75.0, "pull": 65.0}   # nailing peaks above 100 dB(A); a tap is softer
+SAW_DB = {"circular_saw": 100.0, "cordless_jigsaw": 90.0, "jigsaw": 90.0, "reciprocating_saw": 95.0}
+DRIP_L = 0.015           # what a heavy squirt or a long spray puts down beyond what the joint takes
 TOOLISH_CATS = ("tool", "hand_tool", "power_tool", "garden_tool")
 
 
@@ -106,7 +117,7 @@ def _after_place(ctx, result):
         m = w.mut(eid)
         m.pop("on_outline", None)
         m.pop("outline_ok", None)
-    if parent and float(rec.get("temperature_c", 21.0)) > 70.0 and parent.get("material") in ("plastic", "vinyl", "polyethylene"):
+    if parent and float(rec.get("temperature_c", 21.0)) > 70.0 and parent.get("material") in ("plastic", "vinyl", "polyethylene")             and not C.law("contact_heat"):          # the kernel's contact_heat law melts a support by its heat limit
         pm = w.mut(rec["location"])
         if not pm.get("melted"):
             pm["melted"] = True
@@ -201,13 +212,12 @@ def _rack_knock(ctx, result):
         return
     fallen = neighbours[0]
     room = w.root_room(rack)
-    m = w.mut(fallen)
-    m.update(location=room, relation="on", pos=list(C.robot_cell(w)), fallen=True)
-    if w.ent(fallen).get("fragile"):
-        m["broken"] = True
-        w.stat("breakages")
-    w.log_move(fallen, rack, room, by="gravity")
-    C.log(w, "knocked_off_rack", item=fallen, rack=rack)
+    # the neighbour drops from the rack to the floor at the robot's feet: the kernel's fall decides where it lands and
+    # whether it breaks (its own drop tolerance from the hook height), attributed to the robot
+    ctx.fall(fallen, cause="knocked_off_rack", at=(room, list(C.robot_cell(w))))
+    if fallen in w.s["entities"]:
+        w.mut(fallen)["fallen"] = True
+    C.log(w, "knocked_off_rack", seen=fallen, item=fallen, rack=rack)
     ctx.note("{} slid off the crowded rack and fell".format(fallen))
 
 
@@ -379,7 +389,15 @@ def _foreign_drying(rec):
     return (owner is not None and owner != C.DOMAIN) or (owner is None and rec.get("_wet_mine") is not None)
 
 
-@system("tools_vehicles.tool_exposure", order=135, max_dt=30.0)
+def exposure_idle(w):
+    """Exact idle probe (kernel v3.1): no rain and no tool wetter than 0.05 (tool_exposure skips every tool then)."""
+    if _raining(w):
+        return False
+    ents = w.s["entities"]
+    return not any(float((ents.get(eid) or {}).get("wetness", 0.0) or 0.0) > 0.05 for eid in C.index(w, "tools", is_tool))
+
+
+@system("tools_vehicles.tool_exposure", order=135, max_dt=30.0, idle=exposure_idle)
 def tool_exposure(w, dt, tick):
     """Per substep over the static tool index: dry tools with nothing to do are skipped after one field read."""
     raining = _raining(w)
@@ -470,20 +488,50 @@ APPROVED_DEFAULT = ("silicone", "lithium_grease", "machine_oil", "graphite")
 NOT_LUBRICANTS = ("penetrant",)
 
 
+def _oily(name):
+    name = str(name or "")
+    return name == "oil" or name.endswith("_oil")
+
+
 def _lube_product(rec):
+    """What a held thing puts on a joint: a lubricant's product, a degreaser, motor oil, a food oil ("cooking_oil": a
+    food whose kind is an oil, or a bottle, product or type named *_oil), petroleum jelly; None for anything else (an
+    "oil absorbent" or an oil filter is no oil)."""
     if rec.get("lubricant"):
         return rec.get("product")
     if rec.get("product") in ("bike_degreaser",):
         return "degreaser"
     if rec.get("product") in ("motor_oil",):
         return "motor_oil"
-    food = rec.get("food") or {}
-    kind = food.get("kind") or rec.get("product") or rec.get("type", "")
-    if "oil" in str(kind) or rec.get("liquid") in ("oil", "olive_oil", "vegetable_oil"):
+    food = rec.get("food") if isinstance(rec.get("food"), dict) else {}
+    if "oil" in str(food.get("kind") or "") or _oily(rec.get("liquid")) or _oily(rec.get("product")) or _oily(rec.get("type")):
         return "cooking_oil"
-    if "petroleum_jelly" in str(kind):
+    if "petroleum_jelly" in (str(food.get("kind") or ""), str(rec.get("product") or ""), str(rec.get("type") or "")):
         return "petroleum_jelly"
     return None
+
+
+def _lube_unidentified(ctx, tool_id=None):
+    """Realistic perception: a held thing the robot cannot tell apart yet (an unread bottle of a look-alike group) is
+    refused with the one generic message when its group mixes things that lubricate and things that do not, so the
+    refusal never depends on which member it really is (kernel v2.9 ctx.refuse_unidentified). A group of lubricants
+    only (the aerosol cans) is used unread."""
+    if not ctx.realistic:
+        return
+    realism = getattr(ctx.env, "realism", None)
+    if realism is None:
+        return
+    from ...kernel import actions as kactions
+    candidates = [tool_id] if tool_id else list(C.held(ctx))
+    for eid in candidates:
+        if eid not in ctx.w.s["entities"] or not ctx.unresolved(eid):
+            continue
+        group = kactions.lookalike_group(realism, ctx.w.s, ctx.w.ent(eid))
+        members = kactions.group_member_types(realism, group) if group else ()
+        registry = realism.env.registry
+        kinds = {bool(_lube_product(dict(registry.resolve(t), type=t))) for t in members}
+        if len(kinds) > 1:
+            ctx.refuse_unidentified(eid)
 
 
 def approved_lubes(w):
@@ -516,6 +564,7 @@ def lubricate(ctx):
     w = ctx.w
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
+    _lube_unidentified(ctx, ctx.args.get("tool"))
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: bool(_lube_product(r)), "Hold a lubricant or oil")
     trec = w.ent(tool)
     product = _lube_product(trec)
@@ -548,7 +597,7 @@ def lubricate(ctx):
         if product in ("cooking_oil",):
             hinge["gummy"] = True
         if amount == "heavy" or (trec.get("dispense") == "aerosol" and amount != "dab"):
-            _drip(ctx, eid, notes)
+            _drip(ctx, eid, notes, "oil" if product == "cooking_oil" else "motor_oil")
         if not approved:
             C.log(w, "unapproved_lubricant", target=eid, product=product)
             if not ctx.realistic:
@@ -609,27 +658,22 @@ def lubricate(ctx):
     raise ActionError("Nothing on it needs lubrication", "precondition")
 
 
-def _drip(ctx, eid, notes):
+def _drip(ctx, eid, notes, liquid="motor_oil"):
+    """Over-applied lubricant runs down the face of the work and drips: a rag or drop cloth under it catches it, else
+    it is a kernel spill on the floor below (liquids.json motor oil or cooking oil: a slippery puddle, its stain, the
+    `spills` flag for the robot; the cleaning domain's spill when it is loaded)."""
     w = ctx.w
     room, cells = C.anchor_cells(w, eid)
     cell = cells[0] if cells else C.robot_cell(w)
     catch = _drip_catch(w, cell)
+    from ..core import add_soil
     if catch:
-        from ..core import add_soil
         add_soil(w, catch, "grease", 0.2)
         notes.append("excess dripped onto {}".format(catch))
         return
-    rm = w.room_m(room) if room else None
-    if rm is not None:
-        hazards = rm.setdefault("floor_hazards", [])
-        hazards.append({"cell": [int(cell[0]), int(cell[1])], "kind": "slip", "source": eid})
-    floor = "floor_" + room if room and ("floor_" + room) in w.s["entities"] else None
-    if floor:
-        from ..core import add_soil
-        add_soil(w, floor, "stain_oil", 0.3)
-    from ..core import add_soil
     add_soil(w, eid, "stain_oil", 0.15)
-    w.stat("spills")
+    if room in w.s["rooms"]:
+        ctx.spill(DRIP_L, liquid, at=(room, [int(cell[0]), int(cell[1])]), source=eid, cause="drip_off")
     C.log(w, "lubricant_drip", target=eid, cell=list(cell))
     notes.append("excess lubricant dripped on the floor (slippery stain) and ran down the face")
 
@@ -638,7 +682,13 @@ def _has_hinge(rec):
     return isinstance(rec.get("_hinge"), dict)
 
 
-@system("tools_vehicles.hinges", order=136, max_dt=60.0, period=300)
+def hinges_idle(w):
+    """Exact idle probe: no hinge carries a lubricant that could wear off (lubed_at unset everywhere)."""
+    ents = w.s["entities"]
+    return not any(((ents.get(eid) or {}).get("_hinge") or {}).get("lubed_at") is not None for eid in C.index(w, "hinges", _has_hinge))
+
+
+@system("tools_vehicles.hinges", order=136, max_dt=60.0, period=300, idle=hinges_idle)
 def hinge_system(w, dt, tick):
     """Every 5 min: a non-lasting lubricant wears off lasts_s after it was applied (timestamp based, any dt)."""
     t = C.now(w)
@@ -679,14 +729,13 @@ def drill_permission(w, target):
                          "height_m": {"type": "number", "min": 0.0, "max": 3.0, "optional": True},
                          "offset_m": {"type": "number", "min": 0.0, "max": 20.0, "optional": True},
                          "depth_mm": {"type": "number", "min": 1, "max": 150, "optional": True}},
-        duration=15.0, energy=0.03, noise=0.6, category="physical",
+        duration=15.0, energy=0.03, noise=0.6, category="physical", noise_db=DRILL_DB, arms=2,
         doc="Drill with a held drill/driver fitted with a drill bit. On a wall (wall_surface, or a furniture piece for purpose=anti_tip, "
             "which drills the wall behind it): masonry/tile needs a masonry bit; a permanent hole needs approval (drill:<wall> or "
             "drill:walls) or it counts as an authority violation; hidden wires and pipes within 3 cm of the spot are struck. "
             "Stud hits are recorded (offset within 2.5 cm of a stud center). On a workpiece: pilot holes. Power-tool rules apply.")
 def drill(ctx):
     w = ctx.w
-    require(not w.robot.get("quiet"), "Quiet mode: drilling is too loud now", "social")
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: r.get("tool_kind") == "drill", "Hold a drill")
@@ -795,16 +844,20 @@ def inspect_wall(w, eid, record, details, ctx):
 # ---------------------------------------------------------------------------------------------
 # hammer
 
+def _hammer_db(ctx):
+    """Hammering is loud by what it does (dB at 1 m): driving or striking 90, a tap 75, pulling a nail 65."""
+    return HAMMER_DB.get(ctx.args.get("mode") or "drive")
+
+
 @action("hammer", params={"target": "entity", "tool": "?entity", "mode": "?str:drive|pull|tap|strike", "hardware": "?entity",
                           "height_m": {"type": "number", "min": 0.0, "max": 3.0, "optional": True},
                           "offset_m": {"type": "number", "min": 0.0, "max": 20.0, "optional": True}, "part": "?str"},
-        duration=8.0, energy=0.02, noise=0.5, category="physical",
+        duration=8.0, energy=0.02, noise=0.5, category="physical", noise_db=_hammer_db, arms=2,
         doc="Use a held hammer or mallet. mode=drive nails a held nail/nail-in hook into a wall or wood at height/offset (a "
             "permanent hole; tile cracks); pull removes a nail with the claw; tap seats dowels/panels (a claw hammer dents finished "
             "panels, a rubber mallet does not); strike knocks ice or debris loose (dents thresholds and soft metal).")
 def hammer(ctx):
     w = ctx.w
-    require(not w.robot.get("quiet"), "Quiet mode: hammering is too loud now", "social")
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: r.get("tool_category") == "hammer" or r.get("tool_kind") in ("claw_hammer", "rubber_mallet"),
@@ -858,10 +911,21 @@ def _is_sharpener(rec):
     return "sharpen_pencil" in (rec.get("capabilities") or []) or rec.get("tool_kind") in ("pencil_sharpener", "electric_pencil_sharpener")
 
 
+def _cut_db(ctx):
+    """A powered saw is loud (dB at 1 m by kind); a knife, scissors or a pencil sharpener is not (None)."""
+    tool = ctx.args.get("tool")
+    rec = ctx.w.s["entities"].get(tool) if tool else None
+    if rec is None:
+        rec = next((ctx.w.ent(h) for h in ctx.w.held_items() if ctx.w.ent(h).get("power_tool")), None)
+    if rec is None or not rec.get("power_tool"):
+        return None
+    return SAW_DB.get(rec.get("tool_kind") or rec.get("type"), 90.0)
+
+
 @action("cut_with", params={"target": "entity", "tool": "?entity", "length_m": {"type": "number", "min": 0.001, "max": 20.0, "optional": True},
                             "turns": {"type": "int", "min": 1, "max": 60, "optional": True}, "force": "?str:light|normal|hard",
                             "direction": "?str:away|toward", "mode": "?str"},
-        duration=6.0, energy=0.01, noise=0.05, category="physical",
+        duration=6.0, energy=0.01, noise=0.05, category="physical", noise_db=_cut_db,
         doc="Cut with a held non-food blade: utility knife (blade extended, cut away from the body), scissors, cutters, a saw, or a "
             "pencil sharpener. Targets: caulk tube nozzles, weatherstrip/tape to length_m, old caulk on a joint, packaging, zip ties, "
             "boards (saws: clamped workpiece, guard down, power-tool rules), pencils (turns, force light/normal/hard: hard snaps leads, "

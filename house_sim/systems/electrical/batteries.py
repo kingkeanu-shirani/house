@@ -132,7 +132,14 @@ def sync_packs(w):
             C.set_if(w, eid, "short_risk", not rec.get("terminal_cover", True))
 
 
-@system("electrical.cells", order=58, max_dt=30.0)
+def cells_idle(w):
+    """Exact idle probe of electrical.cells: the step only ages reversed cells in a series string, so with no battery
+    device showing reversed cells it changes nothing."""
+    ents = w.s["entities"]
+    return not any((ents.get(eid) or {}).get("reversed_cells") for eid in C.ids(w, "battery_devices", battery_device))
+
+
+@system("electrical.cells", order=58, max_dt=30.0, idle=cells_idle)
 def cells_system(w, dt, tick):
     state = w.s
     ents = state["entities"]

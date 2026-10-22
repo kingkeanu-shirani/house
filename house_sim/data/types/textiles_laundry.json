@@ -219,6 +219,14 @@
      "lost_on_floor",
      "fitted_damp"
     ]
+   },
+   "view": {
+    "text_m": {
+     "care_label": 0.0025,
+     "size_label": 0.004,
+     "label_text": 0.004
+    },
+    "doc": "A sewn-in care label's print is about 2.5 mm high: legible only up close (the wrist camera, or the item held); a size tag's 4 mm."
    }
   },
   "garment": {
@@ -1309,7 +1317,19 @@
      "dry": "line",
      "iron": "none"
     },
-    "label": "tights"
+    "label": "tights",
+    "size_m": [
+     0.15,
+     0.1,
+     0.05
+    ],
+    "loose_size_m": [
+     0.15,
+     0.1,
+     0.05
+    ],
+    "volume_l": 0.75,
+    "loose_volume_l": 0.75
    },
    "doc": "Nylon tights (mesh bag)."
   },
@@ -1987,7 +2007,18 @@
     },
     "label": "bath mat"
    },
-   "doc": "Cotton-top bath mat with rubber/latex backing (cold gentle wash, tumble low or line dry; hot dryer crumbles the backing)."
+   "doc": "Cotton-top bath mat with rubber/latex backing (cold gentle wash, tumble low or line dry; hot dryer crumbles the backing).",
+   "view": {
+    "faces": {
+     "label": "down"
+    },
+    "doc": "The care label is sewn on the back: it faces the floor while the mat lies there."
+   },
+   "perception": {
+    "faces": {
+     "care_label": "label"
+    }
+   }
   },
   "memory_foam_bath_mat": {
    "is_a": "bath_mat",
@@ -3386,7 +3417,7 @@
     ],
     "inner_floor_m": 0.4,
     "drum_volume_l": 65.0,
-    "max_load_kg": 8.0,
+    "wash_capacity_kg": 8.0,
     "loader": "front",
     "he": true,
     "glass_door": true,
@@ -3533,7 +3564,7 @@
      "water_above_door"
     ],
     "read": [
-     "max_load_kg",
+     "wash_capacity_kg",
      "drum_volume_l",
      "power_w",
      "noise_db",
@@ -3546,6 +3577,17 @@
      "odor_kind",
      "liquid"
     ]
+   },
+   "view": {
+    "porosity": 0.0,
+    "text_m": {
+     "display": 0.01,
+     "error": 0.01,
+     "wash_capacity_kg": 0.004,
+     "drum_volume_l": 0.004,
+     "power_w": 0.0025
+    },
+    "doc": "An opaque cabinet with a front (or top) opening. A glass porthole door shows the drum while closed in geometric camera mode (the domain marks a glass_door washer transparent there; the body stays opaque). The display shows 10 mm characters; the capacity is on the rating label inside the door (4 mm), the electrical rating in 2.5 mm print."
    }
   },
   "front_load_washer": {
@@ -3562,7 +3604,7 @@
     "glass_door": false,
     "capacity_l": 110.0,
     "drum_volume_l": 110.0,
-    "max_load_kg": 9.0,
+    "wash_capacity_kg": 9.0,
     "inner_size_m": [
      0.55,
      0.55,
@@ -3639,7 +3681,7 @@
     ],
     "inner_floor_m": 0.45,
     "drum_volume_l": 120.0,
-    "max_load_kg": 9.0,
+    "dry_capacity_kg": 9.0,
     "switchable": true,
     "on": false,
     "plug_required": true,
@@ -3747,7 +3789,7 @@
    "doc": "Vented tumble dryer (9 kg, 120 L drum); lint screen slot; door opens anytime (pauses).",
    "perception": {
     "read": [
-     "max_load_kg",
+     "dry_capacity_kg",
      "drum_volume_l",
      "power_w"
     ],
@@ -3757,6 +3799,16 @@
      "lint_chamber",
      "max_touch_temp_c"
     ]
+   },
+   "view": {
+    "porosity": 0.0,
+    "text_m": {
+     "display": 0.01,
+     "dry_capacity_kg": 0.004,
+     "drum_volume_l": 0.004,
+     "power_w": 0.0025
+    },
+    "doc": "An opaque cabinet with a front door (a glass_door dryer shows its drum while closed in geometric mode, as a washer does). 10 mm display; 4 mm rating label inside the door."
    }
   },
   "heat_pump_dryer": {
@@ -3889,7 +3941,14 @@
     "remaining": 1.0,
     "material": "plastic",
     "stock_item": true,
-    "chemical_class": null
+    "chemical_class": null,
+    "mass_kg": 0.2,
+    "size_m": [
+     0.12,
+     0.08,
+     0.2
+    ],
+    "volume_l": 1.9
    },
    "doc": "Laundry chemical/consumable.",
    "perception": {
@@ -4000,8 +4059,8 @@
     "label": "fabric softener",
     "liquid_container": true,
     "liquid": "fabric_softener",
-    "liquid_l": 1.5,
-    "capacity_l": 1.6,
+    "liquid_l": 2.5,
+    "capacity_l": 2.95,
     "scented": true,
     "size_m": [
      0.12,
@@ -4020,8 +4079,9 @@
     "label": "chlorine bleach",
     "liquid_container": true,
     "liquid": "chlorine_bleach",
-    "liquid_l": 2.8,
-    "capacity_l": 3.0,
+    "liquid_l": 2.5,
+    "capacity_l": 2.95,
+    "mouth_frac": 0.3,
     "chemical_class": "chlorine",
     "hazards": [
      "toxic",
@@ -4055,8 +4115,8 @@
     "ring_risk": false,
     "liquid_container": true,
     "liquid": "oxygen_bleach_solution",
-    "liquid_l": 1.0,
-    "capacity_l": 1.2,
+    "liquid_l": 2.5,
+    "capacity_l": 2.95,
     "size_m": [
      0.15,
      0.15,
@@ -4120,12 +4180,12 @@
     "ring_risk": false,
     "liquid_container": true,
     "liquid": "enzyme_presoak",
-    "liquid_l": 1.0,
-    "capacity_l": 1.1,
+    "liquid_l": 2.5,
+    "capacity_l": 2.95,
     "size_m": [
+     0.13,
      0.1,
-     0.07,
-     0.22
+     0.26
     ],
     "volume_l": 1.2,
     "mass_kg": 0.07,
@@ -4316,9 +4376,10 @@
     "hanger_kind": "velvet",
     "hang_load_kg": 2.0,
     "non_slip": true,
-    "mass_kg": 0.06
+    "mass_kg": 0.06,
+    "friction_mu": 1.0
    },
-   "doc": "Slim flocked non-slip hanger."
+   "doc": "Slim flocked non-slip hanger (velvet flocking grips about as well as rubber: friction 1.0 against finished wood)."
   },
   "padded_hanger": {
    "is_a": "clothes_hanger",
@@ -4326,9 +4387,10 @@
     "hanger_kind": "padded",
     "hang_load_kg": 1.5,
     "non_slip": true,
-    "mass_kg": 0.08
+    "mass_kg": 0.08,
+    "friction_mu": 0.8
    },
-   "doc": "Padded satin hanger for delicates."
+   "doc": "Padded satin hanger for delicates (the padding grips: friction 0.8)."
   },
   "clip_hanger": {
    "is_a": "clothes_hanger",
@@ -4401,6 +4463,10 @@
     "glance": [
      "tipped"
     ]
+   },
+   "view": {
+    "porosity": 0.85,
+    "doc": "An empty accordion rack is thin rails: most of the view passes. In geometric mode the record's view porosity follows the laundry hung on it (dry.refresh_rack_view)."
    }
   },
   "towel_bar": {
@@ -4454,14 +4520,18 @@
     "blocks_path": false,
     "mounted": true,
     "pins_on_line": 0,
-    "material": "nylon"
+    "material": "nylon",
+    "max_load_kg": 20.0
    },
-   "doc": "Outdoor clothesline 6 m between posts at 1.8 m (needs pins against wind).",
+   "doc": "Outdoor clothesline 6 m between posts at 1.8 m (needs pins against wind). Rated about 20 kg of hung laundry (two full washer loads wet; household lines and rotary dryers are sold for 15-25 kg): the hang rating the kernel's hang law reads.",
    "perception": {
     "measure": {
      "length_m": "tape_measure",
      "hang_height_m": "tape_measure"
-    }
+    },
+    "hidden": [
+     "max_load_kg"
+    ]
    }
   },
   "clothespin_bag": {
@@ -4519,7 +4589,8 @@
      0.9
     ],
     "folding_stand": true,
-    "blocks_path": false
+    "blocks_path": false,
+    "surface_heat_limit_c": 120.0
    },
    "doc": "Folding ironing board: stored folded (0.38 x 0.1 m, 1.37 m long) hung on wall hooks, stood upright or in a closet; open = set up on its legs at 0.9 m (1.2 x 0.38 m surface, an obstacle on the floor). Nothing can be laid on it folded; it is folded only when empty.",
    "perception": {
@@ -4527,7 +4598,15 @@
      "open_size_m": "tape_measure",
      "folded_size_m": "tape_measure",
      "surface_height_m": "tape_measure"
-    }
+    },
+    "hidden": [
+     "surface_heat_limit_c"
+    ]
+   },
+   "view": {
+    "slab_m": 0.04,
+    "below_porosity": 0.9,
+    "doc": "Set up, a 4 cm board on splayed legs: the space under it stays open."
    }
   },
   "clothes_iron": {
@@ -4737,6 +4816,10 @@
     "hidden": [
      "designated"
     ]
+   },
+   "view": {
+    "opening": "top",
+    "doc": "Looked into from above with its lid open."
    }
   },
   "sorter_hamper": {
@@ -4756,7 +4839,11 @@
     "blocks_path": true,
     "material": "steel"
    },
-   "doc": "Three-bag sorter hamper (lights / darks / colors sections)."
+   "doc": "Three-bag sorter hamper (lights / darks / colors sections).",
+   "view": {
+    "opening": "top",
+    "doc": "A steel frame holding open-topped fabric bags: looked into from above."
+   }
   },
   "hamper_section": {
    "is_a": "fixture",
@@ -4780,7 +4867,11 @@
     ],
     "blocks_path": false
    },
-   "doc": "One bag of a sorter hamper."
+   "doc": "One bag of a sorter hamper.",
+   "view": {
+    "opening": "top",
+    "doc": "An open-topped fabric bag hung in the sorter's frame: looked into from above."
+   }
   },
   "mesh_laundry_bag": {
    "is_a": "carry_container",
@@ -4790,17 +4881,17 @@
     "soft_sided": true,
     "capacity_l": 10.0,
     "inner_size_m": [
-     0.4,
-     0.3,
-     0.12
+     0.39,
+     0.29,
+     0.088
     ],
     "size_m": [
      0.4,
      0.3,
-     0.12
+     0.09
     ],
     "volume_l": 0.5,
-    "mass_kg": 0.05,
+    "mass_kg": 0.06,
     "material": "polyester"
    },
    "doc": "Zippered mesh laundry bag (protects delicates, halves agitation)."
@@ -4812,20 +4903,20 @@
     "soft_sided": true,
     "capacity_l": 40.0,
     "inner_size_m": [
-     0.45,
-     0.35,
-     0.6
+     0.34,
+     0.24,
+     0.49
     ],
     "size_m": [
-     0.45,
      0.35,
-     0.6
+     0.25,
+     0.5
     ],
     "volume_l": 1.0,
-    "mass_kg": 0.2,
+    "mass_kg": 0.25,
     "material": "cotton"
    },
-   "doc": "Drawstring laundry bag."
+   "doc": "Drawstring cotton laundry bag (40 L, 0.25 kg)."
   },
   "garment_bag": {
    "is_a": "carry_container",
@@ -4837,19 +4928,20 @@
     "hang_slots": 1,
     "capacity_l": 60.0,
     "inner_size_m": [
-     0.6,
-     0.2,
-     1.2
+     0.58,
+     0.11,
+     1.08
     ],
     "size_m": [
      0.6,
-     0.2,
-     1.2
+     0.12,
+     1.1
     ],
     "volume_l": 1.0,
-    "mass_kg": 0.3
+    "mass_kg": 0.45,
+    "material": "canvas"
    },
-   "doc": "Breathable garment bag for coats and formal wear."
+   "doc": "Breathable canvas garment bag for coats and formal wear (0.6 x 1.1 m, about 12 cm deep holding a coat; 0.45 kg)."
   },
   "wash_basin": {
    "is_a": "carry_container",
@@ -5272,6 +5364,158 @@
      "max_load_kg"
     ]
    }
+  },
+  "jacket": {
+   "is_a": "garment",
+   "props": {
+    "garment_kind": "jacket",
+    "label": "jacket",
+    "fabric": "denim",
+    "has_sleeves": true,
+    "has_buttons": true,
+    "thick": true,
+    "needs_hanger": true,
+    "hang_loop": false,
+    "hang_length_m": 0.65,
+    "flat_size_m": [
+     1.3,
+     0.7
+    ],
+    "fold_base_m": [
+     0.55,
+     0.7
+    ],
+    "layer_thickness_m": 0.006,
+    "loose_size_m": [
+     0.4,
+     0.35,
+     0.12
+    ],
+    "loose_volume_l": 12.0,
+    "size_m": [
+     0.4,
+     0.35,
+     0.12
+    ],
+    "volume_l": 12.0,
+    "mass_kg": 0.8,
+    "dry_time_h": 10.0,
+    "season": "transitional",
+    "weather_class": "mild",
+    "color": "blue",
+    "color_class": "dark",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 40,
+     "gentle": 0,
+     "bleach": "none",
+     "tumble": "medium",
+     "dry": "tumble",
+     "iron": "high",
+     "inside_out": true,
+     "like_colors": true
+    },
+    "fasteners": {
+     "buttons": {
+      "count": 6,
+      "engaged": false
+     }
+    }
+   },
+   "doc": "Denim jacket (adult M about 0.8 kg; the generic mid-season jacket of the sweep's type request; light_jacket and puffer_jacket are the shell and down variants)."
+  },
+  "sofa_cushion": {
+   "is_a": "cushion_insert",
+   "props": {
+    "label": "sofa cushion",
+    "category": "cushion",
+    "fabric": "polyester",
+    "fill": "foam",
+    "cover_removable": false,
+    "fluffable": true,
+    "liftable": true,
+    "insert_dims_m": [
+     0.6,
+     0.6
+    ],
+    "flat_size_m": [
+     0.6,
+     0.6
+    ],
+    "size_m": [
+     0.6,
+     0.6,
+     0.15
+    ],
+    "loose_size_m": [
+     0.6,
+     0.6,
+     0.15
+    ],
+    "volume_l": 54.0,
+    "loose_volume_l": 54.0,
+    "mass_kg": 1.4,
+    "dry_time_h": 36.0,
+    "color": "grey",
+    "color_class": "light",
+    "care": {
+     "wash": "none",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none",
+     "notes": [
+      "SPOT CLEAN COVER WITH WATER-BASED CLEANER (CODE W)"
+     ]
+    }
+   },
+   "doc": "Loose sofa seat or back cushion: foam core in a sewn-on polyester cover (60 x 60 x 15 cm, 1.4 kg; spot clean only). Lifted to look under it or to vacuum the deck."
+  },
+  "seat_cushion": {
+   "is_a": "textile",
+   "props": {
+    "label": "seat cushion",
+    "category": "cushion",
+    "fabric": "polyester",
+    "fill": "foam",
+    "foldable": false,
+    "fluffable": true,
+    "liftable": true,
+    "ties": true,
+    "thick": true,
+    "flat_size_m": [
+     0.4,
+     0.4
+    ],
+    "size_m": [
+     0.4,
+     0.4,
+     0.04
+    ],
+    "loose_size_m": [
+     0.4,
+     0.4,
+     0.04
+    ],
+    "volume_l": 6.4,
+    "loose_volume_l": 6.4,
+    "mass_kg": 0.3,
+    "dry_time_h": 12.0,
+    "color": "beige",
+    "color_class": "light",
+    "care": {
+     "wash": "machine",
+     "wash_max_c": 30,
+     "gentle": 2,
+     "bleach": "none",
+     "tumble": "none",
+     "dry": "flat",
+     "iron": "none"
+    }
+   },
+   "doc": "Tie-on dining-chair seat pad (40 x 40 x 4 cm foam in a polyester cover, 0.3 kg; machine washable cold on gentle, dry flat)."
   }
  },
  "looks_like": {
@@ -5302,7 +5546,8 @@
     "chlorine bleach",
     "oxygen laundry booster",
     "enzyme presoak"
-   ]
+   ],
+   "doc": "Members are sold in the same 2.5 L household jug (a full jug looks, hefts and sloshes alike whatever is in it: the label tells them apart; red-team round 5 found the litres an inspection estimates told them apart)"
   },
   "dryer_sheet": {
    "descriptor": "dryer sheet",

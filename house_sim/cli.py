@@ -170,7 +170,10 @@ def main(argv=None):
     parser.add_argument("--agent", action="store_true", help="Run the observation-only search baseline on a legacy layout.")
     parser.add_argument("--max-steps", type=int, default=5000)
     parser.add_argument("--demo", nargs="?", const="all", help="Run a task's privileged reference plan (or all section demos).")
-    parser.add_argument("--verify", action="store_true", help="Verify every authored scenario on seeds 0,1,2,41,97.")
+    parser.add_argument("--verify", action="store_true",
+                        help="Verify every authored scenario on seeds 0,1,2,41,97 (the catalog evidence in "
+                             "reports/verification.jsonl and the coverage reports). With --perception, --camera or "
+                             "--gen it is a forced check instead, written to reports/verification_forced.jsonl.")
     parser.add_argument("--verify-only", nargs="+", help="Verify only these catalog ids, sections or authored file names.")
     parser.add_argument("--check", metavar="SPEC_FILE", help="Verify the specs in one authored file and print details (no evidence written).")
     parser.add_argument("--ids", nargs="+", help="With --check: only these catalog ids.")
@@ -200,17 +203,11 @@ def main(argv=None):
             raise ValueError("--camera cannot be combined with --load-state or --replay: the file records its camera "
                              "mode")
         if args.verify or args.verify_only:
-            import inspect
             from .audit import verify
-            options = {"camera": args.camera} if args.camera else {}
-            if args.gen:
-                options["gen"] = args.gen
-            for key in sorted(options):
-                if key not in inspect.signature(verify).parameters:
-                    raise ValueError("--{0} with --verify needs audit.verify({0}=); use --check FILE --{0} "
-                                     "instead".format(key))
+            # a forced mode (--perception, --camera, --gen; M-GEN2 runs --verify --gen 2) is a check written to
+            # reports/verification_forced.jsonl, never the catalog evidence (audit.verify)
             run = verify(only=set(args.verify_only) if args.verify_only else None, workers=args.workers,
-                         perception=args.perception, **options)
+                         perception=args.perception, camera=args.camera, gen=args.gen)
             return 1 if run["failed_entries"] else 0
         if args.check:
             return check_file(args.check, args.workers, args.ids, args.seeds, perception=args.perception,

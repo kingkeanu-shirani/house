@@ -221,6 +221,24 @@ class RecurrenceTests(unittest.TestCase):
         self.assertEqual(len(clock.occurrences(once, "2026-10-10", "2026-10-10")), 1)
         self.assertEqual(clock.occurrences(once, "2026-10-11", "2026-10-12"), [])
 
+    def test_yearly_birthdays_and_leap_days(self):
+        """Adoption-round request (people K-YEARLY): op_calendar accepts freq yearly, which clock.occurrences
+        refused with a ValueError."""
+        birthday = {"start": "1990-03-14T18:00", "end": "1990-03-14T21:00", "recurrence": {"freq": "yearly"}}
+        self.assertEqual(clock.occurrences(birthday, "2026-01-01", "2027-12-31"),
+                         [{"start": "2026-03-14T18:00", "end": "2026-03-14T21:00"},
+                          {"start": "2027-03-14T18:00", "end": "2027-03-14T21:00"}])
+        leap = {"start": "2024-02-29T09:00", "recurrence": {"freq": "yearly", "until": "2032-12-31"}}
+        self.assertEqual([o["start"][:10] for o in clock.occurrences(leap, "2024-01-01", "2040-12-31")],
+                         ["2024-02-29", "2028-02-29", "2032-02-29"])
+        every_other = {"start": "2026-06-01T10:00", "recurrence": {"freq": "yearly", "interval": 2, "count": 2,
+                                                                   "except": ["2028-06-01"]}}
+        self.assertEqual([o["start"][:10] for o in clock.occurrences(every_other, "2026-01-01", "2034-12-31")],
+                         ["2026-06-01"])
+        with self.assertRaises(ValueError):
+            clock.occurrences({"start": "2026-06-01T10:00", "recurrence": {"freq": "hourly"}}, "2026-01-01",
+                              "2026-12-31")
+
 
 class FormatTests(unittest.TestCase):
     def test_locale_orders(self):

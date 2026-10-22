@@ -124,18 +124,35 @@ def climate_observer(env, w, obs):
     if windows or room.get("outdoor"):
         az, alt = S.sun_position(state)
         out["sun"] = {"azimuth_deg": az, "altitude_deg": alt, "direct": alt > 0.5 and S.sky_factor(state) >= 0.15}
+        geo = C.geometric(state)
+        if geo:
+            from ...kernel import camera
         if windows and alt > 0.5:
             lit = []
             for wid in windows:
                 win = state["entities"][wid]
-                if env.perception.visible(state, wid) and S.incidence_cos(az, alt, C.window_facing(win)) > 0.05 and S.sky_factor(state) >= 0.15:
+                # geometric camera: only windows in a frame of this step (camera.in_frame), not any window it could turn to
+                seen = camera.in_frame(state, wid, w) if geo else env.perception.visible(state, wid)
+                if seen and S.incidence_cos(az, alt, C.window_facing(win)) > 0.05 and S.sky_factor(state) >= 0.15:
                     lit.append(wid)
             out["sunlit_windows"] = by_handle(env, lit)
-            if lit:
+            if geo:
+                # sun patches on the floor cells this step's frames surveyed (a patch is seen on the floor whether or
+                # not the window letting it in is in frame)
+                patches = _seen_cells(state, rid, S.sunlit_cells(state, rid, w=w), camera.seen_floor(state, w))
+                if patches:
+                    out["sun_patches"] = patches
+            elif lit:
                 out["sun_patches"] = S.sunlit_cells(state, rid, w=w)
         if room.get("outdoor"):
-            out["shade_cells"] = S.shade_cells(state, rid, w)
+            shade = S.shade_cells(state, rid, w)
+            out["shade_cells"] = _seen_cells(state, rid, shade, camera.seen_floor(state, w)) if geo and isinstance(shade, list) else shade
     obs["climate"] = out
+
+
+def _seen_cells(state, rid, cells, seen):
+    """The cells of a list that the geometric camera's frames surveyed this step (camera.seen_floor)."""
+    return [c for c in cells if (rid, (int(c[0]), int(c[1]))) in seen]
 
 
 @inspector("climate.details", order=90)

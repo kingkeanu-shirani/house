@@ -1,0 +1,22 @@
+{
+ "about": "appliances_cooking report words (docs/domains/appliances_cooking.md section 10): kitchen-appliance faults and cooking states, each with the evidence a robot can perceive.",
+ "issues": {
+  "frost_buildup": {"class": "condition", "applies_to": ["appliance", "appliance_part"], "synonyms": ["iced_up", "ice_buildup", "frosted_up", "needs_defrosting", "frost"], "evidence": [{"field": "frost_mm"}]},
+  "door_not_sealing": {"class": "function", "applies_to": ["appliance"], "synonyms": ["not_sealing", "bad_seal", "seal_gap", "door_gap", "gasket_gap", "not_shut_properly"], "evidence": [{"field": "ajar"}]},
+  "too_warm": {"class": "function", "applies_to": ["appliance"], "synonyms": ["not_cold", "not_cold_enough", "not_cooling", "warm_inside", "temperature_alarm"], "evidence": [{"field": "temp_alarm"}, {"field": "display"}, {"field": "internal_temp_c"}]},
+  "boil_over": {"class": "soil", "synonyms": ["boiled_over", "boiling_over", "foamed_over", "bubbled_over", "boilover"], "evidence": [{"field": "foam_level"}, {"field": "boil_state"}, {"field": "soil", "near": true}]},
+  "burnt_food": {"class": "condition", "synonyms": ["burnt", "burned", "charred", "blackened", "overcooked", "burnt_on"], "evidence": [{"field": "charred"}, {"field": "cook_state"}, {"field": "smoking"}]},
+  "arcing": {"class": "safety", "applies_to": ["appliance"], "synonyms": ["sparks", "sparking", "sparks_inside", "electric_arc"], "evidence": [{"field": "arcing"}]},
+  "flare_up": {"class": "safety", "synonyms": ["flareup", "grease_flare", "flames_leaping", "flaring"], "evidence": [{"field": "flare_up"}]},
+  "door_alarm": {"class": "function", "applies_to": ["appliance"], "synonyms": ["door_beeping", "door_open_alarm", "fridge_beeping", "freezer_beeping"], "evidence": [{"field": "door_alarm"}, {"notice": "alarm"}]}
+ },
+ "states": {
+  "preheated": {"synonyms": ["up_to_temperature", "at_temperature", "preheat_done", "oven_ready"], "opposite": "preheating", "evidence": [{"field": "preheated"}, {"field": "display"}, {"notice": "appliance_done"}]},
+  "preheating": {"synonyms": ["heating_up", "still_preheating", "not_up_to_temperature"], "opposite": "preheated", "evidence": [{"field": "preheated"}, {"field": "display"}]},
+  "boiling": {"synonyms": ["at_a_boil", "on_the_boil", "rolling_boil", "boil"], "evidence": [{"field": "boil_state"}]},
+  "simmering": {"synonyms": ["simmer", "gently_bubbling", "low_boil"], "evidence": [{"field": "boil_state"}]},
+  "keeping_warm": {"synonyms": ["on_warm", "warm_setting", "keep_warm", "on_keep_warm"], "evidence": [{"field": "keep_warm"}, {"field": "display"}]},
+  "unlit": {"synonyms": ["not_lit", "flame_out", "blown_out", "no_flame"], "opposite": "lit", "evidence": [{"field": "lit"}, {"field": "settings"}]},
+  "self_cleaning": {"synonyms": ["self_clean", "cleaning_cycle", "self_clean_cycle"], "evidence": [{"field": "display"}, {"field": "locked"}, {"field": "settings"}]}
+ }
+}

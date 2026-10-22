@@ -1,0 +1,23 @@
+{
+ "about": "Laundry and textile report vocabulary (TIER1_SWEEP 5.2, 22.3): issue words for the conditions this domain models on textiles, with the record fields that are their evidence (top-level fields of the subject). The core vocabulary already covers stained, torn, frayed, faded, worn, mildew/musty, smelly, wet and damp.",
+ "issues": {
+  "pilled": {"class": "condition", "synonyms": ["pilling", "bobbled", "bobbles", "fuzzy", "balled_up"], "evidence": [{"field": "pilling"}, {"field": "face_pilling"}]},
+  "shrunk": {"class": "condition", "synonyms": ["shrank", "shrunken", "too_small_now"], "evidence": [{"field": "shrunk"}]},
+  "felted": {"class": "condition", "synonyms": ["felting", "matted"], "evidence": [{"field": "damage"}, {"field": "shrunk"}]},
+  "snagged": {"class": "condition", "synonyms": ["snag", "pulled_thread", "snags"], "evidence": [{"field": "damage"}]},
+  "stretched": {"class": "condition", "synonyms": ["stretched_out", "baggy", "misshapen", "out_of_shape"], "evidence": [{"field": "stretched"}]},
+  "dye_transfer": {"class": "condition", "synonyms": ["color_bleed", "colour_bleed", "colour_run", "color_run", "turned_pink"], "evidence": [{"field": "dye_damage"}]},
+  "scorched": {"class": "condition", "synonyms": ["scorch", "scorch_mark", "singed", "iron_burn"], "evidence": [{"field": "damage"}, {"field": "scorched"}]},
+  "melted": {"class": "condition", "synonyms": ["melt", "glazed", "shiny_patch", "iron_shine"], "evidence": [{"field": "damage"}, {"field": "shine"}]},
+  "wrinkled": {"class": "condition", "synonyms": ["creased", "crumpled", "rumpled", "wrinkly"], "evidence": [{"field": "wrinkled"}]},
+  "missing_button": {"class": "condition", "synonyms": ["button_missing", "lost_button", "loose_button", "button_off"], "evidence": [{"field": "buttons"}]},
+  "split_seam": {"class": "condition", "synonyms": ["seam_split", "open_seam", "seam_coming_apart"], "evidence": [{"field": "seams"}]},
+  "linty": {"class": "soil", "synonyms": ["lint", "fluff", "pet_hair", "hairy", "covered_in_hair"], "evidence": [{"field": "soil"}, {"field": "face_soil"}]}
+ },
+ "states": {
+  "inside_out": {"synonyms": ["turned_inside_out"], "opposite": "right_side_out", "evidence": [{"field": "inside_out"}]},
+  "right_side_out": {"synonyms": ["right_way_out"], "opposite": "inside_out", "evidence": [{"field": "inside_out"}]},
+  "made": {"synonyms": ["bed_made", "made_up"], "opposite": "unmade", "evidence": [{"field": "made"}]},
+  "unmade": {"synonyms": ["bed_unmade", "messy_bed"], "opposite": "made", "evidence": [{"field": "made"}]}
+ }
+}

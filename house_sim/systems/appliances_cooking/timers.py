@@ -141,6 +141,7 @@ def step_timers(w, eid, dt):
             changed = True
             C.log(w, "timer_rang", timer=eid, label=t.get("label"))
             w.emit("timer_rang", target=eid, label=t.get("label"))
+            C.notice(w, "alarm", eid, "timer")
         elif t.get("state") == "ringing" and now - C.num(t.get("rang_s")) >= RING_S:
             t["state"] = "done"
             changed = True

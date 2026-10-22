@@ -7,7 +7,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-10T07:40:00"
+    "start": "2026-10-10T07:40:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -423,7 +424,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-10T19:10:00"
+    "start": "2026-10-10T19:10:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -827,7 +829,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-10T20:30:00"
+    "start": "2026-10-10T20:30:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -1134,7 +1137,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-10T21:45:00"
+    "start": "2026-10-10T21:45:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -1157,7 +1161,16 @@
      "room": "{lounge}",
      "props": {
       "activity": "reading",
-      "awake": true
+      "awake": true,
+      "posture": "standing",
+      "in_bed": null,
+      "schedule": [
+       {
+        "from": "23:00",
+        "to": "07:00",
+        "activity": "sleeping"
+       }
+      ]
      }
     }
    ],
@@ -1280,6 +1293,30 @@
          "to": "{adult}"
         }
        ]
+      },
+      {
+       "name": "camera: glances at the oven from the kitchen doorway - the panel's 10 mm digits are unreadable from there - and, seeing a shut oven with nothing roaring, reports it off",
+       "plan": [
+        {
+         "skill": "go_room",
+         "room": "{kitchen}"
+        },
+        {
+         "do": "look",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "off",
+         "to": "{adult}"
+        }
+       ]
       }
      ]
     },
@@ -1369,6 +1406,30 @@
          "target": "{oven}"
         }
        ]
+      },
+      {
+       "name": "camera: glances at the oven from the kitchen doorway; the thermal glance shows it very hot, so it reports it on without walking up to read the panel",
+       "plan": [
+        {
+         "skill": "go_room",
+         "room": "{kitchen}"
+        },
+        {
+         "do": "look",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "on",
+         "to": "{adult}"
+        }
+       ]
       }
      ]
     },
@@ -1435,6 +1496,30 @@
          "to": "{adult}"
         }
        ]
+      },
+      {
+       "name": "camera: from the kitchen doorway the lit display looks like an oven that is on; reports it on without reading it up close",
+       "plan": [
+        {
+         "skill": "go_room",
+         "room": "{kitchen}"
+        },
+        {
+         "do": "look",
+         "target": "{oven}"
+        },
+        {
+         "skill": "go_room",
+         "room": "{lounge}"
+        },
+        {
+         "do": "report",
+         "target": "{oven}",
+         "field": "state",
+         "value": "on",
+         "to": "{adult}"
+        }
+       ]
       }
      ]
     }
@@ -1455,7 +1540,8 @@
     "steps": 60,
     "time_s": 900
    },
-   "notes": "Realistic perception: from the room an oven at 150-180 C looks 'very hot' whether it is baking or just switched off (thermal glance); its mode, knob setting and display (BAKE 350F vs the clock), and the HOT light of a switched-off oven, show only on a close look (inspect; the display when the kitchen is lit). Variants: forgotten on at 350 F (switch it off), off but still hot after dinner, off and cold with the clock lit. Graded on reports.{oven}.state = what was found, reported to the resident, and the oven ending off."
+   "notes": "Realistic perception: from the room an oven at 150-180 C looks 'very hot' whether it is baking or just switched off (thermal glance); its mode, knob setting and display (BAKE 350F vs the clock), and the HOT light of a switched-off oven, show only on a close look (inspect; the display when the kitchen is lit). Variants: forgotten on at 350 F (switch it off), off but still hot after dinner, off and cold with the clock lit. Graded on reports.{oven}.state = what was found, reported to the resident, and the oven ending off. Geometric camera (adoption round): reading the panel is the skill, so the spec runs with the robot's posed cameras; the camera wrong plans look from the doorway, where the display's 10 mm digits are unreadable (the camera reads them within about 0.9 m). The resident is reading in the lounge and goes to bed at 23:00 (a generation-2 profile may have put them to bed earlier).",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-b1456a2d293d2f-01",
@@ -1463,7 +1549,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {

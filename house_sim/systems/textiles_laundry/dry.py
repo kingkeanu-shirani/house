@@ -22,6 +22,9 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook, system
 from . import model as M
+from . import physical as P
+from . import signals as S
+from . import views as V
 from .wash import is_washer
 
 DRYER_TEMPS = {"no_heat": None, "low": 48.0, "medium": 57.0, "high": 65.0}
@@ -70,7 +73,7 @@ def wet_floor_near(w, eid, litres, why, cell=None):
     floor = "floor_" + rid
     if w.has(floor) and M.floor_material(w, rid) in M.WATER_SENSITIVE_FLOORS:
         M.add_damage(w, floor, "water_damage", 0.2, why=why)
-    w.emit("laundry_spill", source=eid, litres=litres, why=why)
+    S.seen(w, "laundry_spill", spill, source=eid, litres=litres, why=why)
     return spill
 
 
@@ -255,7 +258,8 @@ def _dryer_fire(w, eid, why):
     m["hazards"] = hazards
     m["_smell"] = "smoke"
     w.stat("fire")
-    w.emit("fire", source=eid, why=why)
+    S.seen(w, "fire", eid, source=eid, why=why)
+    S.notice(w, "smoke", eid, visual=True)
 
 
 def _dryer_damage(w, item, r, heat, drum_t, minutes, cycle):
@@ -321,6 +325,7 @@ def dryer_complete(w, eid):
     m["_noise"] = None
     m["_chime_until"] = M.now(w) + 600.0
     m["display"] = "DONE"
+    S.notice(w, "appliance_done", eid, "dryer_done")              # the end buzzer
     m["last_cycle"] = {"program": cycle.get("program"), "heat": cycle.get("heat"), "kind": cycle.get("kind"),
                        "load_kg": cycle.get("load_kg"), "sheets": sheets, "overdry_min": round(float(cycle.get("overdry_s", 0.0)) / 60.0, 1),
                        "energy_kwh": cycle.get("energy_kwh", 0.0), "ended_s": M.now(w), "items": textiles,
@@ -401,6 +406,13 @@ def is_folding_stand(rec):
     """A folding drying rack or an ironing board: stored folded (a thin upright footprint), set up open on the floor
     (it has an open size; cleaning's counter-top dish racks also carry `drying_rack` but do not fold)."""
     return bool(rec.get("open_size_m") and (rec.get("folding_stand") or rec.get("drying_rack")))
+
+
+def set_stand_open(rec, opened):
+    """A folding stand set up on its legs is a piece of furniture (portable False: the kernel's stack law then sees
+    a support with things lying on it, not a stack whose base is a loose item; carrying it means folding it first);
+    folded it is portable again. Writes into rec (a mutable record or a config record)."""
+    rec["portable"] = not opened
 
 
 def _stand_target(ctx):
@@ -520,19 +532,27 @@ def rack_set_up(ctx, result):
         raise ActionError("Stand the folded {} on the floor first (it unfolds on its legs)".format(noun), "precondition")
     spot = unfold_spot(ctx.w, target, open_size)
     if spot is None:
-        # the robot stands where it has to unfold: it steps back one cell first if that leaves it within reach
+        # the robot stands where it has to unfold: it steps back one cell first if that leaves it within reach (a walk:
+        # body.mobile_problem, the motion record pays it and the camera frames it, TIER1_INTEGRATION 1.4)
         spot = unfold_spot(ctx.w, target, open_size, ignore_robot=True)
         back = _step_back(ctx.w, rec["location"], spot, open_size) if spot is not None else None
         if back is None:
             raise ActionError("Not enough clear floor to unfold the {} here".format(noun), "precondition")
-        ctx.w.robot_m()["pos"] = back
+        ctx.require_mobile()
+        walked = ctx.motion([list(back)], list(ctx.w.robot["pos"]))
+        if not walked:
+            raise ActionError("Not enough battery left to step back for the {}".format(noun), "capability")
+        ctx.w.robot_m()["pos"] = list(walked[-1])
+        ctx.spend(float(ctx.data["motion"]["seconds"]))
         ctx.note("stepped back to make room for the {}".format(noun))
     m = ctx.w.mut(target)
     m["pos"], m["rot"] = spot
     m["size_m"] = open_size
     m["blocks_path"] = True
     m["accepts_items"] = True
+    set_stand_open(m, True)
     _update_rack_egress(ctx.w, target)
+    V.refresh_rack_view(ctx.w, target)
 
 
 @before("close", order=82)
@@ -555,6 +575,27 @@ def rack_folded(ctx, result):
     m["size_m"] = list(rec.get("folded_size_m") or [0.6, 0.08, 1.1])
     m["blocks_path"] = False
     m["blocks_egress"] = False
+    set_stand_open(m, False)
+    V.refresh_rack_view(ctx.w, target)
+
+
+@before("pick_up", order=54)
+def stand_carry_guard(ctx):
+    """A set-up drying rack or ironing board is folded before it is carried (it stands on splayed legs)."""
+    target, rec = _stand_target(ctx)
+    if target and rec.get("open"):
+        raise ActionError("Fold the {} first (close it) to carry it".format("rack" if rec.get("drying_rack") else "ironing board"),
+                          "precondition")
+
+
+@hook("episode_start")
+def stands_set_up(w, env):
+    """Scenario setups may leave a folding stand open: an open stand is furniture (set_stand_open)."""
+    ents = w.s["entities"]
+    for eid in sorted(ents):
+        rec = ents[eid]
+        if is_folding_stand(rec) and bool(rec.get("open")) == bool(rec.get("portable", True)):
+            set_stand_open(w.mut(eid), bool(rec.get("open")))
 
 
 @before("place", order=62)
@@ -575,6 +616,9 @@ def rack_placed(ctx, result):
         if not rec.get("blocks_path"):
             ctx.w.mut(target)["blocks_path"] = True
         _update_rack_egress(ctx.w, target)
+    dest = ctx.w.ent(ctx.args.get("target")).get("location")
+    if dest in ctx.w.s["entities"] and ctx.w.ent(dest).get("drying_rack"):
+        V.refresh_rack_view(ctx.w, dest)          # something laid or hung on a rack with plain place
     umbrella = ctx.args.get("target")
     urec = ctx.w.ent(umbrella)
     if M.is_umbrella(urec) and urec.get("open") and urec.get("location") in ctx.w.s["rooms"]:
@@ -584,14 +628,18 @@ def rack_placed(ctx, result):
 
 
 def rack_tip_check(w, rack):
+    """A drying rack loaded lopsidedly (one wing more than tip_margin_kg heavier than the other) tips over and drops its
+    laundry; while the kernel's hang law is deferred an overloaded rack (more than its max_load_kg, the hang rating the
+    law reads) does too. Loads are wet masses (physical.wet_mass: dry mass plus the water held)."""
     rec = w.ent(rack)
     sides = {"left": 0.0, "right": 0.0, "center": 0.0}
     for child in w.children(rack):
         c = w.ent(child)
-        mass = float(c.get("mass_kg", 0.3)) * (1.0 + 2.0 * float(c.get("wetness", 0.0)))
+        mass = P.wet_mass(w.s, child)
         sides[c.get("rack_side") or "center"] = sides.get(c.get("rack_side") or "center", 0.0) + mass
     total = sum(sides.values())
-    if abs(sides["left"] - sides["right"]) > float(rec.get("tip_margin_kg", 3.0)) or total > float(rec.get("max_load_kg", 15.0)):
+    overloaded = total > float(rec.get("max_load_kg", 15.0)) and not P.law("hang")
+    if abs(sides["left"] - sides["right"]) > float(rec.get("tip_margin_kg", 3.0)) or overloaded:
         rid = M.room_of(w, rack)
         cell = list(rec.get("pos") or M.anchor_cell(w, rack) or (0, 0))
         for child in w.children(rack):
@@ -604,13 +652,16 @@ def rack_tip_check(w, rack):
         m = w.mut(rack)
         m["tipped"] = True
         m["open"] = False
+        set_stand_open(m, False)
         m["size_m"] = list(rec.get("folded_size_m") or [0.6, 0.08, 1.1])
         m["blocks_path"] = False
         m["floor_hazard"] = "trip"
         wet = sum(float(w.ent(c).get("wetness", 0.0)) for c in w.children(rid) if c != rack and w.ent(c).get("pos") == cell)
         if wet > 0.6:
             wet_floor_near(w, rack, 1.0, "laundry fell off a tipped drying rack", cell=cell)
-        w.emit("rack_tipped", target=rack, left=sides["left"], right=sides["right"])
+        V.refresh_rack_view(w, rack)
+        S.seen(w, "rack_tipped", rack, target=rack, left=sides["left"], right=sides["right"])
+        S.notice(w, "clatter", rack, "rack_tipped")
         return True
     return False
 
@@ -715,6 +766,7 @@ def hang_dry(ctx):
         m = w.mut(target)
         m["drying_mode"] = "hanger"
     if drec.get("drying_rack"):
+        V.refresh_rack_view(w, dest)
         rack_tip_check(w, dest)
     w.log_move(target, "robot", dest)
     outdoor = w.s["rooms"].get(M.room_of(w, dest) or "", {}).get("outdoor")
@@ -777,7 +829,7 @@ def environment(w, rid):
     if room.get("outdoor"):
         temp = float(weather.get("temperature_c", 18.0))
         condition = weather.get("condition", "clear")
-        covered = room.get("type") in COVERED_ROOMS or bool(room.get("covered"))
+        covered = room.get("type") in COVERED_ROOMS or bool(room.get("covered")) or bool(room.get("roofed"))
         day = clock.daylight(w.s)
         cond = {"clear": 1.5, "cloudy": 1.1, "fog": 0.3, "wind": 1.6}.get(condition, 0.6)
         factor = max(0.05, (max(1.0, temp) / 21.0) * cond * (1.0 + 0.12 * float(weather.get("wind_mps", 2.0))) * (0.6 + 0.6 * day))
@@ -825,6 +877,8 @@ def _needs_tick(w, eid, rec, heat):
     periodic idle system handles."""
     if float(rec.get("wetness", 0.0) or 0.0) > 0.0005 or float(rec.get("_core_wetness", 0.0) or 0.0) > 0.0005:
         return True
+    if float(rec.get("moisture", 0.0) or 0.0) > 0.0:
+        return True             # the kernel's body moisture left behind once the textile dried (_tick_textile)
     for key in FAST_KEYS:
         if rec.get(key):
             return True
@@ -838,10 +892,125 @@ def _needs_tick(w, eid, rec, heat):
     return bool(contact) and any(a in contact for a in M.chain(w, eid))
 
 
-@system("textiles_laundry.fabric", order=115, max_dt=30.0)
+# ---------------------------------------------------------------------------
+# exact idle probe of the fabric system (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7)
+#
+# A run that wrote nothing (World.mutation_count unchanged) while every device was idle with no timer pending, no
+# textile needed a tick, no heater was active and nobody was inside a washer or dryer leaves a transient note: the
+# World, its touch-log reset token (World.phys_scratch is a new dict after every begin(), rollback() and
+# rollback_to()) and the touch-log cursor at that moment. The next substep's run would again write nothing when, since
+# then, no textile or device was written, created or destroyed (the touch log: _needs_tick and the device tickers read
+# only those records once no heater is on), still no heater is active and nobody is inside a drum, and every device is
+# still idle (an iron's or steamer's temperature keeps chasing its ambient, so the room temperature is re-checked).
+# Then the probe answers True and the engine skips the call; otherwise the system runs and checks everything itself.
+# The note is never state.
+
+_IDLE = {"world": None, "token": None, "cursor": None}
+_CONSUMER = "textiles_laundry.fabric"
+_END = 1 << 60          # a cursor beyond any touch log: touched_since returns nothing and the log's current end
+_SETS = {}
+QUIET_C = 0.01          # temperature steps the device tickers do not write
+MAX_DT_S = 30.0
+
+
+def _index_set(w, name, predicate):
+    """The ids of a static index as a set (memoised per index list: the kernel rebuilds the list on create/destroy)."""
+    ids = w.static_index(name, predicate)
+    found = _SETS.get(name)
+    if found is None or found[0] is not ids:
+        found = _SETS[name] = (ids, frozenset(ids))
+    return found[1]
+
+
+def _agents_inside(w):
+    devices = _index_set(w, "textiles_laundry.devices", _is_device)
+    return any(agent.get("inside") in devices for group in ("people", "pets")
+               for agent in (w.s.get(group) or {}).values())
+
+
+def _device_idle(w, eid, rec, now):
+    """True when the device tickers would write nothing for this device now and after any later substep of up to
+    MAX_DT_S while its record stays as it is: no cycle delay, door unlock, chime, drum moisture or post-cycle wrinkle
+    window pending; an iron or steamer switched off (or unpowered), put down long enough to have its idle mark, cool
+    and within QUIET_C of where its cooling would take it in one substep."""
+    if is_washer(rec) or is_dryer(rec):
+        machine = rec.get("appliance") or {}
+        if machine.get("state") == "delayed" or rec.get("_delay_until") is not None:
+            return False
+        if (rec.get("door_locked") and rec.get("_unlock_at") is not None) or rec.get("_drum_moist_since") is not None:
+            return False
+        if rec.get("_chime_until") is not None:
+            return False
+        if (is_dryer(rec) and machine.get("state") == "done" and rec.get("_done_at") is not None
+                and now - float(rec["_done_at"]) <= 7200):
+            return False
+        return True
+    category = rec.get("category")
+    if category == "iron":
+        if w.is_held(eid) or rec.get("on") or rec.get("_idle_since") is None:
+            return False
+        temp = float(rec.get("temperature_c", 21.0))
+        room = M.room_of(w, eid)
+        ambient = float(w.s["rooms"].get(room or "", {}).get("temperature_c", 21.0))
+        if temp > 50.0 or "hot" in (rec.get("hazards") or []):
+            return False
+        return abs(temp - ambient) * (1.0 - math.exp(-MAX_DT_S / 600.0)) <= QUIET_C
+    if category == "garment_steamer":
+        if rec.get("on"):
+            return False
+        temp = float(rec.get("temperature_c", 21.0))
+        return abs(temp - 21.0) * (1.0 - math.exp(-MAX_DT_S / 400.0)) <= QUIET_C
+    return True
+
+
+def _devices_idle(w, now):
+    ents = w.s["entities"]
+    return all(_device_idle(w, eid, ents[eid], now) for eid in w.static_index("textiles_laundry.devices", _is_device)
+               if eid in ents)
+
+
+def fabric_idle(w):
+    """Exact idle probe of textiles_laundry.fabric (see above). Writes nothing: it reads the touch log through its own
+    cursor and keeps the transient note."""
+    memo = _IDLE
+    if memo["world"] is not w or memo["token"] is not w.phys_scratch or memo["cursor"] is None:
+        return False
+    ids, end = w.touched_since(memo["cursor"], consumer=_CONSUMER)
+    if ids:
+        ents = w.s["entities"]
+        devices = _index_set(w, "textiles_laundry.devices", _is_device)
+        textiles = _index_set(w, "textiles_laundry.textiles", M.is_fabric_candidate)
+        if any(eid not in ents or eid in devices or eid in textiles for eid in set(ids)):
+            return False
+    if M.heat_sources(w) or _agents_inside(w) or not _devices_idle(w, M.now(w)):
+        return False
+    memo["cursor"] = end
+    return True
+
+
+def _note_idle(w, idle):
+    """After a run: remember that it changed nothing with nothing pending (or forget it)."""
+    _, end = w.touched_since(_END, consumer=_CONSUMER)
+    if idle:
+        _IDLE.update(world=w, token=w.phys_scratch, cursor=end)
+    else:
+        _IDLE.update(world=None, token=None, cursor=None)
+
+
+@system("textiles_laundry.fabric", order=115, max_dt=30.0, idle=fabric_idle)
 def fabric_system(w, dt, tick):
+    before = w.mutation_count
+    ticked = _fabric_run(w, dt)
+    idle = (w.mutation_count == before and not ticked and not M.heat_sources(w) and not _agents_inside(w)
+            and _devices_idle(w, M.now(w)))
+    _note_idle(w, idle)
+
+
+def _fabric_run(w, dt):
+    """One substep of the fabric system. Returns True when some textile needed a tick."""
     ents = w.s["entities"]
     now = M.now(w)
+    ticked = False
     for eid in w.static_index("textiles_laundry.devices", _is_device):
         rec = ents.get(eid)
         if rec is None:
@@ -859,6 +1028,7 @@ def fabric_system(w, dt, tick):
         rec = ents.get(eid)
         if rec is None or not _needs_tick(w, eid, rec, heat):
             continue
+        ticked = True
         wet = float(rec.get("wetness", 0.0) or 0.0)
         if _wind_moved(rec):
             _wind_landed(w, eid, rec)
@@ -883,7 +1053,7 @@ def fabric_system(w, dt, tick):
         if rec is not None and mode in ("bunched", "enclosed") and float(rec.get("wetness", 0.0)) > 0.0:
             groups.setdefault(rec.get("location"), []).append(eid)
     if not groups:
-        return
+        return ticked
     by_parent = {}
     for eid in M.textile_ids(w):
         rec = ents.get(eid)
@@ -900,6 +1070,7 @@ def fabric_system(w, dt, tick):
         for e, wv in zip(members, wets):
             if wv < avg * 0.6:
                 w.mut(e)["wetness"] = round(min(avg, wv + (avg - wv) * 0.1 * dt / 3600.0), 4)
+    return ticked
 
 
 @hook("episode_start")
@@ -926,11 +1097,53 @@ def claim_textile_moisture(w, env):
 IDLE_PERIOD_S = 300.0
 
 
-@system("textiles_laundry.fabric_idle", order=116, max_dt=IDLE_PERIOD_S, period=IDLE_PERIOD_S)
+# exact idle probe of the wrinkle system (the same note as the fabric system's): a run that wrote nothing with no heater
+# on writes nothing again while no textile, nor anything that holds one (a hamper opened or closed changes whether
+# what is in it lies heaped or shut away), was written, created or destroyed and still no heater is on: every
+# wrinkle-prone dry textile is then still at its cap or floor, or lies where its creases do not change
+_IDLE_WRINKLES = {"world": None, "token": None, "cursor": None}
+_WRINKLE_CONSUMER = "textiles_laundry.fabric_idle"
+
+
+def wrinkles_idle(w):
+    """Exact idle probe of textiles_laundry.fabric_idle (see above); writes nothing."""
+    memo = _IDLE_WRINKLES
+    if memo["world"] is not w or memo["token"] is not w.phys_scratch or memo["cursor"] is None:
+        return False
+    ids, end = w.touched_since(memo["cursor"], consumer=_WRINKLE_CONSUMER)
+    if ids:
+        ents = w.s["entities"]
+        textiles = _index_set(w, "textiles_laundry.textiles", M.is_fabric_candidate)
+        touched = set(ids)
+        if any(eid not in ents or eid in textiles for eid in touched):
+            return False
+        holders = set()
+        for eid in textiles:
+            if eid in ents:
+                holders.update(M.chain(w, eid))
+        if touched & holders:
+            return False
+    if M.heat_sources(w):
+        return False
+    memo["cursor"] = end
+    return True
+
+
+@system("textiles_laundry.fabric_idle", order=116, max_dt=IDLE_PERIOD_S, period=IDLE_PERIOD_S, idle=wrinkles_idle)
 def fabric_idle_system(w, dt, tick):
     """Dry, idle textiles (not handled by the per-substep fabric system): wrinkle-prone items heaped or held keep
     creasing (0.03 x proneness per hour up to 0.8 x proneness + 0.1), hung ones relax (0.03 x (1.2 - proneness) per
     hour down to 0.1 x proneness). Both are linear with a cap, so one update over the accumulated dt is exact."""
+    before = w.mutation_count
+    _wrinkle_run(w, dt)
+    _, end = w.touched_since(_END, consumer=_WRINKLE_CONSUMER)
+    if w.mutation_count == before and not M.heat_sources(w):
+        _IDLE_WRINKLES.update(world=w, token=w.phys_scratch, cursor=end)
+    else:
+        _IDLE_WRINKLES.update(world=None, token=None, cursor=None)
+
+
+def _wrinkle_run(w, dt):
     ents = w.s["entities"]
     hours = dt / 3600.0
     heat = False
@@ -942,7 +1155,7 @@ def fabric_idle_system(w, dt, tick):
         if prone <= 0.3:
             continue
         wrinkled = float(rec.get("wrinkled", 0.0) or 0.0)
-        cap, floor = 0.8 * prone + 0.1, 0.1 * prone
+        cap, floor = round(0.8 * prone + 0.1, 4), round(0.1 * prone, 4)    # stored values are 4-decimal: no no-op writes
         if heat is False:
             heat = heat_context(w)
         if _needs_tick(w, eid, rec, heat) or M.dried_elsewhere(rec):
@@ -965,10 +1178,17 @@ def _tick_textile(w, eid, rec, dt, mode, rid, env, heaters, now):
         wet = float(rec["_wet_mine"])
         changes["wetness"] = wet
     core = float(rec.get("_core_wetness", wet) or 0.0) if rec.get("thick") else wet
-    exposed = outdoor and mode in ("hung", "pinned", "flat", "spread", "draped", "bunched") and not covered
-    # rain / dew
+    # out in the weather: the kernel's exposure rule (a closed bin, a cover or a table over it shelters laundry)
+    exposed = (outdoor and mode in ("hung", "pinned", "flat", "spread", "draped", "bunched") and not covered
+               and P.out_in_weather(w.s, eid))
+    # rain / dew (while the kernel's rain law wets what stands in the rain, environment.rain_wet, this domain only keeps
+    # the thick seams as wet as the surface and stops drying until the rain stops; physical.kernel_rain)
     if exposed and raining:
-        if wet < 0.95 or not rec.get("rained_on"):
+        if P.kernel_rain(w):
+            core = max(core, wet)
+            if not rec.get("rained_on"):
+                changes["rained_on"] = now
+        elif wet < 0.95 or not rec.get("rained_on"):
             wet, core = 0.95, max(core, 0.95)
             changes["rained_on"] = now
     elif exposed and day <= 0.01 and float((w.s.get("weather") or {}).get("temperature_c", 18)) <= 16 and wet < 0.2:
@@ -990,6 +1210,10 @@ def _tick_textile(w, eid, rec, dt, mode, rid, env, heaters, now):
         changes["wetness"] = round(wet, 6)
     if rec.get("thick") and abs(core - float(rec.get("_core_wetness", wet) or 0.0)) > 1e-7:
         changes["_core_wetness"] = round(core, 6)
+    # the kernel's wetting raised `moisture` with the wetness (liquids.wet, rain); this domain dries the textile, so the
+    # body moisture never stays above the wetter of surface and seams (physical module doc)
+    if float(rec.get("moisture", 0.0) or 0.0) > max(wet, core) + 1e-6:
+        changes["moisture"] = round(max(wet, core), 6)
     # souring and mildew
     damp = max(wet, core)
     damp_s = float(rec.get("_damp_s", 0.0) or 0.0)
@@ -1146,7 +1370,7 @@ def _wind_landed(w, eid, rec):
         M.add_soil(w, eid, "mud" if wet_ground and terrain in ("grass", "soil") else "dirt", 0.3)
     m = w.mut(eid)
     m["wrinkled"] = max(float(m.get("wrinkled", 0.0)), 0.6)
-    w.emit("laundry_blown_down", target=eid, wind_mps=float((w.s.get("weather") or {}).get("wind_mps", 0.0)))
+    S.seen(w, "laundry_blown_down", eid, target=eid, wind_mps=float((w.s.get("weather") or {}).get("wind_mps", 0.0)))
 
 
 def _blow_down(w, eid, rec, rid, wind):
@@ -1172,7 +1396,7 @@ def _blow_down(w, eid, rec, rid, wind):
     M.add_soil(w, eid, "mud" if wet_ground and terrain in ("grass", "soil") else "dirt", 0.3)
     m = w.mut(eid)
     m["wrinkled"] = max(float(m.get("wrinkled", 0.0)), 0.6)
-    w.emit("laundry_blown_down", target=eid, wind_mps=wind)
+    S.seen(w, "laundry_blown_down", eid, target=eid, wind_mps=wind)
 
 
 def _hang_effects(w, eid, rec, risk, hours, now):
@@ -1209,7 +1433,7 @@ def _slip_off(w, eid, rec):
     m["slipped_off"] = M.now(w)
     m["wrinkled"] = max(float(m.get("wrinkled", 0.0)), 0.6)
     M.add_soil(w, eid, "dust", 0.05)
-    w.emit("garment_slipped_off", target=eid, hanger=rec.get("on_hanger"))
+    S.seen(w, "garment_slipped_off", eid, target=eid, hanger=rec.get("on_hanger"))
 
 
 def heater_kind(hrec):
@@ -1355,7 +1579,8 @@ def _heat_exposure(w, eid, rec, heaters, dt):
                 M.add_damage(w, eid, "scorched", 1.0, why="textile left on an active heater")
                 if kind in ("heater", "open_fire") or (kind == "appliance" and on_it):
                     w.stat("fire")
-                    w.emit("fire", source=eid, why="textile ignited on a heater")
+                    S.seen(w, "fire", eid, source=eid, why="textile ignited on a heater")
+                    S.notice(w, "smoke", eid, visual=True)
         break
 
 

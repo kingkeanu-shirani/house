@@ -121,6 +121,13 @@ class ContactHeatTests(PhysTest):
         w = self.kitchen(table())
         self.assertIsNone(thermal.contact_check(w, "pan", "top"))
         self.assertEqual(claimed, [("pan", "top", 1.0)])
+        # the same claim check, public for domains' legacy contact-heat code (textiles_laundry's adoption request 8)
+        self.assertTrue(thermal.contact_claimed(w, "pan", "top", 200.0, 0.5))
+        self.assertEqual(claimed[-1], ("pan", "top", 0.5))
+
+    def test_nobody_claims_a_contact_without_a_hook(self):
+        w = self.kitchen(table())
+        self.assertFalse(thermal.contact_claimed(w, "pan", "top", 200.0, 1.0))
 
     def test_only_a_direct_support_counts(self):
         w = world({"table": table(), "trivet": item("table", material="cork", size_m=[0.2, 0.2, 0.01],
@@ -323,6 +330,16 @@ class PhaseTests(PhysTest):
         w = self.freezer(("bottle", bottle))
         self.assertEqual(thermal.freeze_burst_check(w, "bottle"), "burst")  # a narrow neck plugs: needs 11.1 %
         self.assertIsNone(thermal.freeze_burst_check(w, "bottle"))
+
+    def test_a_domain_can_pass_its_own_fill_and_ice(self):
+        """Adoption-round request (food 3): food keeps liquid and ice in its own model, so it passes fill and ice
+        instead of copying the formula; the record's liquid_l and ice_frac are not read then."""
+        w = self.freezer(("soup", jar("freezer", 0.0)), ("stock", jar("freezer", 0.0)))
+        self.assertIsNone(thermal.freeze_burst_check(w, "soup"))                          # no liquid on record
+        self.assertIsNone(thermal.freeze_burst_check(w, "soup", fill=0.9, ice=1.0))       # 8.1 % into 10 %
+        self.assertEqual(thermal.freeze_burst_check(w, "soup", fill=1.0, ice=0.5), "burst")
+        self.assertEqual(thermal.freeze_burst_check(w, "stock", fill=0.98, ice=1.0), "burst")
+        self.assertIsNone(thermal.freeze_burst_check(w, "stock", fill=1.0, ice=1.0))       # already broken
 
     def test_cans_bulge_then_burst_plastic_bulges_and_open_or_soft_containers_never_burst(self):
         w = self.freezer(("can", jar("freezer", 0.92, material="aluminum", ice_frac=0.5)),

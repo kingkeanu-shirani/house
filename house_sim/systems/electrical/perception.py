@@ -30,6 +30,7 @@ from . import cables as K
 from . import common as C
 from . import percept
 from . import power as P
+from . import sightlines
 from .lighting import lux_here
 
 
@@ -170,7 +171,15 @@ def smells(env, w, obs):
 
 @observer("electrical.light", order=112)
 def light(env, w, obs):
-    lux = lux_here(w.s, obs.get("room_id"))
+    """illuminance_lux: room mode, the room's light level (a camera exposure estimate in realistic perception);
+    geometric camera mode, the exposure of what the head camera looks at (sightlines.geometric_lux: a lamp's pool
+    counts only in view), absent with the cameras off."""
+    if sightlines.geometric(w.s):
+        lux = sightlines.geometric_lux(w.s)
+        if lux is None:
+            return
+    else:
+        lux = lux_here(w.s, obs.get("room_id"))
     obs["illuminance_lux"] = percept.lux_estimate(env, obs.get("room_id"), lux) if percept.active(env) else lux
 
 

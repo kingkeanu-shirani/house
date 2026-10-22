@@ -345,3 +345,35 @@ only for the package that creates it and later stages.
 | M-GEN2 (D2) | D2 | state, obs, verdict (D2) | 1.05 x prev | gen | - | `tasks/authored/*.json`<br>`catalog/analysis/gen2_migration.json` |
 | CAM-FLIP (D3) | D3 | state, obs, verdict (D3) | 1.05 x prev | camera | - | `house_sim/kernel/camera.py`<br>`docs/PERCEPTION.md`<br>`docs/EVAL_HARNESS.md`<br>`docs/AUTHORING_GUIDE.md`<br>`docs/KNOWN_LIMITS.md`<br>`tasks/authored/*.json` |
 | ADOPT:&lt;domain&gt; (e.g. ADOPT:cleaning) | ADOPT | state, obs, verdict, fingerprint (ADOPT) | 1.05 x prev | - | - | `house_sim/systems/<domain>/*`<br>`house_sim/data/types/<domain>.json`<br>`tests/test_<domain>.py`<br>`docs/domains/<domain>.md`<br>`tasks/authored/<domain>__*.json` |
+
+## Appendix B: adoption-round update (K-EVAL, 2026-10-20)
+
+Added by the adoption round's kernel follow-up K-EVAL (details: `handoff_K-EVAL.md`, tools/orchestration/README.md).
+
+* **Packages**: `ADOPT:<domain>` (also the compiled `tasks/specs.jsonl` / `tasks/id_to_family.jsonl` its spec edits
+  rewrite), `K-EVAL` (may change nothing), `K-CAM`, and `ADOPT-ALL` (alias `ADOPT`: the union, for the integrator's
+  `record --id ADOPT`); the adoption round's default previous gate is C1. Folder names write a package id's colon as
+  `_` (`gate/ADOPT_cleaning`, `handoff_ADOPT_cleaning.md`). B-CLOSE / C-CLOSE also list what `--verify` rewrites
+  (`coverage.csv`, `tasks/specs.jsonl`, `tasks/id_to_family.jsonl`, `catalog/entries.jsonl`, `catalog/manifest.json`).
+* **`--shared-tree`** attributes every adoption package running beside the current one (`SUBSTAGES["ADOPT"]`).
+* **The supported `compare` forms**: `compare PREV ID` as before; `compare [PREV] --package PKG [--shared-tree]
+  [--spec-files GLOB]` takes the package's own record and the previous gate it names (else the stage default); with
+  `--shared-tree` it also checks the working tree's scope (G10) now; without a record it prints the `record` command
+  to run (exit 2). A record made with `--spec-files` is compared on those files only (no "missing" trials).
+* **`isolate --out DIR [--package PKG] [--files ...]`**: an isolated copy (base commit via `git archive`, the empty
+  directories `tasks/templates` and `house_sim/data/actions`, the package's changed files) whose G10 lists exactly that
+  overlay; nothing is committed. `record` also creates the empty directories in any root it checks.
+* G9's physics audit writes `physics_audit.json` into the gate folder; spec chunks and `all_specs.json` keep the
+  authored key order (the gate's digests now equal the verifier's for X-c7a6de4ed9ba04-01; C1 request 4).
+
+## Appendix C: adoption-round integrator update (ADOPT-INT, 2026-10-22)
+
+* **Packages**: `ADOPT-INT` (the integrator: kernel, core, tasks, generator, eval, data/physics, data/vocab, tools,
+  kernel tests, `tests/data/*`, top-level docs, `adopt_status.json`, the compiled specs and regenerated evidence) is part
+  of `ADOPT-ALL`, which may now also change generation-1 digests (`gen1`); `house_sim/tasks/skills.py` is on K-CAM's
+  list. A union package (`ADOPT-ALL`) owns its member packages' handoffs and gate folders in G10.
+* **Generation-1 digests** pin generation-1 houses only: `gen1-digests --write` skips spec house blocks with `gen` 2 or
+  more (the adoption round moved 233 of 243 specs to generation 2). Re-recorded by ADOPT: 20 default and 40 spec-house
+  entries (record fields from domain type data; no placement change).
+* **Gate ADOPT** (`gate/ADOPT/`, previous C1, reviewed rows in `gate/ADOPT/reviewed.json`; the domain breakages that
+  remain are in `catalog/analysis/tier1/adopt_status.json`).

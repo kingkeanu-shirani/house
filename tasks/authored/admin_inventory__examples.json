@@ -3,7 +3,7 @@
     {
       "catalog_id": "T-0242c820d56e7e-01",
       "title": "Refill printer paper",
-      "house": {"require": ["office"], "residents": "minimal", "pets": "none"},
+      "house": {"require": ["office"], "residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.office", "args": {"room": "office", "sheets": 0, "guides": "loose"}},
         {"op": "find", "var": "cab", "type": "cabinet", "room": "{office_room}", "where": {"label": "filing cabinet"}},
@@ -45,7 +45,7 @@
     {
       "catalog_id": "T-dde0975c7a26b8-01",
       "title": "Shred documents when instructed",
-      "house": {"require": ["office"], "residents": "minimal", "pets": "none"},
+      "house": {"require": ["office"], "residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.office", "args": {"room": "office", "sheets": 20}},
         {"op": "spawn", "var": "shredder", "type": "paper_shredder", "floor": "{office_room}", "props": {"accepts_staples": false, "label": "micro-cut shredder"}},
@@ -136,7 +136,7 @@
     {
       "catalog_id": "T-0cd7f8f3019b40-01",
       "title": "Sort mail",
-      "house": {"require": ["office"], "residents": "minimal", "pets": "none"},
+      "house": {"require": ["office"], "residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.reachable_surface", "args": {"rooms": ["office"], "types": ["desk"], "var": "desk", "fallback": null, "add": "desk"}},
         {"op": "find", "var": "clutter", "within": "{desk}", "pick": "all", "required": false},
@@ -219,7 +219,7 @@
     {
       "catalog_id": "T-89d7a649052266-01",
       "title": "Restock toilet paper",
-      "house": {"residents": "minimal", "pets": "none"},
+      "house": {"residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "room", "var": "bath", "type": "bathroom", "pick": "first"},
         {"op": "helper", "name": "admin_inventory.wall_mount", "args": {"room": "{bath}", "type": "wall_shelf", "height": 1.0, "var": "vanity", "props": {"label": "spare roll shelf", "size_m": [0.6, 0.2, 0.03]}}},
@@ -372,12 +372,12 @@
           {"skill": "admin_inventory.count_scopes", "scopes": ["{gshelf}", "{cshelf}"], "what": "paper_towel_roll", "save": "pt"},
           {"do": "record_inventory", "target": "paper_goods", "entries": {"toilet_paper_roll": {"count": "{tp}"}, "paper_towel_roll": {"count": "{pt}"}}}]}
       ],
-      "notes": "Units are counted through the clear wrap of sealed multipacks; installed rolls are in use, not spares."
+      "notes": "Units are counted through the clear wrap of sealed multipacks; installed rolls are in use, not spares. Generation 1 for now: on a generation-2 house (seed 97) a 6.8 m/s breeze blows a hung garden hose and a ring buoy off their holders (the outdoor_plants wind model) and side_effects.no_moves_except counts those exogenous moves against the robot (kernel request filed); the reference passes otherwise."
     },
     {
       "catalog_id": "T-92f2736b7f949c-01",
       "title": "Refill dispensers",
-      "house": {"residents": "minimal", "pets": "none"},
+      "house": {"residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "find", "var": "old_pumps", "type": "soap_dispenser", "pick": "all", "required": false},
         {"op": "remove", "target": "{old_pumps}"},
@@ -470,7 +470,7 @@
     {
       "catalog_id": "T-73a13fb297c40f-01",
       "title": "Bring trash bins out",
-      "house": {"require": ["garage"], "residents": "minimal", "pets": "none", "start": "2026-10-09T08:00:00"},
+      "house": {"require": ["garage"], "residents": "minimal", "pets": "none", "start": "2026-10-09T08:00:00", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.carts", "args": {"room": "garage", "streams": ["trash", "recycling"]}}
       ],
@@ -486,20 +486,20 @@
             {"skill": "admin_inventory.wheel_to", "cart": "{cart_trash}", "room": "{curb}", "cell": "{c1}"},
             {"skill": "admin_inventory.curb_cell", "cart": "{cart_recycling}", "save": "c2"},
             {"skill": "admin_inventory.wheel_to", "cart": "{cart_recycling}", "room": "{curb}", "cell": "{c2}"},
-            {"wait_until": {"path": "household.collections", "op": "len_gte", "value": 1}, "max_s": 9000, "poll_s": 600}
+            {"wait_for": ["collection_truck"], "max_s": 9000}
           ],
           "wrong": [
             {"name": "takes out only the trash cart (recycling is due this week)", "plan": [
               {"skill": "admin_inventory.curb_cell", "cart": "{cart_trash}", "save": "c1"},
               {"skill": "admin_inventory.wheel_to", "cart": "{cart_trash}", "room": "{curb}", "cell": "{c1}"},
-              {"wait_until": {"path": "household.collections", "op": "len_gte", "value": 1}, "max_s": 9000, "poll_s": 600}]},
+              {"wait_for": ["collection_truck"], "max_s": 9000}]},
             {"name": "leaves the trash cart lid open at the curb", "plan": [
               {"skill": "admin_inventory.curb_cell", "cart": "{cart_trash}", "save": "c1"},
               {"skill": "admin_inventory.wheel_to", "cart": "{cart_trash}", "room": "{curb}", "cell": "{c1}"},
               {"do": "open", "target": "{cart_trash}"},
               {"skill": "admin_inventory.curb_cell", "cart": "{cart_recycling}", "save": "c2"},
               {"skill": "admin_inventory.wheel_to", "cart": "{cart_recycling}", "room": "{curb}", "cell": "{c2}"},
-              {"wait_until": {"path": "household.collections", "op": "len_gte", "value": 1}, "max_s": 9000, "poll_s": 600}]}
+              {"wait_for": ["collection_truck"], "max_s": 9000}]}
           ]
         },
         {
@@ -511,7 +511,7 @@
           "reference": [
             {"skill": "admin_inventory.curb_cell", "cart": "{cart_trash}", "save": "c1"},
             {"skill": "admin_inventory.wheel_to", "cart": "{cart_trash}", "room": "{curb}", "cell": "{c1}"},
-            {"wait_until": {"path": "household.collections", "op": "len_gte", "value": 1}, "max_s": 9000, "poll_s": 600}
+            {"wait_for": ["collection_truck"], "max_s": 9000}
           ],
           "wrong": [
             {"name": "puts both carts out although recycling is on its off-week", "plan": [
@@ -519,12 +519,12 @@
               {"skill": "admin_inventory.wheel_to", "cart": "{cart_trash}", "room": "{curb}", "cell": "{c1}"},
               {"skill": "admin_inventory.curb_cell", "cart": "{cart_recycling}", "save": "c2"},
               {"skill": "admin_inventory.wheel_to", "cart": "{cart_recycling}", "room": "{curb}", "cell": "{c2}"},
-              {"wait_until": {"path": "household.collections", "op": "len_gte", "value": 1}, "max_s": 9000, "poll_s": 600}]},
+              {"wait_for": ["collection_truck"], "max_s": 9000}]},
             {"name": "leaves the trash cart lid open at the curb", "plan": [
               {"skill": "admin_inventory.curb_cell", "cart": "{cart_trash}", "save": "c1"},
               {"skill": "admin_inventory.wheel_to", "cart": "{cart_trash}", "room": "{curb}", "cell": "{c1}"},
               {"do": "open", "target": "{cart_trash}"},
-              {"wait_until": {"path": "household.collections", "op": "len_gte", "value": 1}, "max_s": 9000, "poll_s": 600}]}
+              {"wait_for": ["collection_truck"], "max_s": 9000}]}
           ]
         }
       ],
@@ -542,12 +542,12 @@
       "risk_level": 0,
       "fidelity": "G",
       "target_fidelity": "G",
-      "notes": "Collection truck system: only streams due this ISO week (2026-10-09 is week 41, odd), lids closed, handles toward the house, 1 m from other carts, mailbox and the driveway apron are emptied at 09:00."
+      "notes": "Collection truck system: only streams due this ISO week (2026-10-09 is week 41, odd), lids closed, handles toward the house, 1 m from other carts, mailbox and the driveway apron are emptied at 09:00. The plans wait at the curb until the robot hears the truck (wait interrupt_on the collection_truck notice the collection posts, 80 dB at the curb) instead of polling the hidden household.collections log (M-WAITS, kernel v3.1)."
     },
     {
       "catalog_id": "T-0ccc3cf843ba50-01",
       "title": "Label bins",
-      "house": {"residents": "minimal", "pets": "none"},
+      "house": {"residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.reachable_surface",
          "args": {"rooms": ["utility_closet", "linen_closet", "pantry", "laundry_room", "coat_closet"], "types": ["closet_shelving", "shelf_unit"],
@@ -643,7 +643,7 @@
     {
       "catalog_id": "T-847e9e300bdea8-01",
       "title": "File papers",
-      "house": {"require": ["office"], "residents": "minimal", "pets": "none"},
+      "house": {"require": ["office"], "residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.reachable_surface", "args": {"rooms": ["office"], "types": ["desk"], "var": "desk", "fallback": null, "add": "desk"}},
         {"op": "find", "var": "clutter", "within": "{desk}", "pick": "all", "required": false},
@@ -708,7 +708,7 @@
     {
       "catalog_id": "T-63b5495ec1360b-01",
       "title": "Weigh suitcase",
-      "house": {"residents": "minimal", "pets": "none"},
+      "house": {"residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "room", "var": "lr", "type": "living_room"},
         {"op": "spawn", "var": "bag", "type": "suitcase", "floor": "{lr}", "props": {"open": true, "owner": "resident_1"}},
@@ -760,12 +760,19 @@
         },
         {
           "+setup": [
-            {"op": "spawn", "var": "clothes", "type": "generic_item", "in": "{bag}", "props": {"label": "folded clothes", "mass_kg": 9.0, "material": "fabric", "size_m": [0.4, 0.3, 0.2], "volume_l": 26}},
-            {"op": "spawn", "var": "books", "type": "generic_item", "in": "{bag}", "props": {"label": "stack of hardcover books", "mass_kg": 7.5, "size_m": [0.3, 0.24, 0.15], "volume_l": 11}},
-            {"op": "set", "target": "{bag}", "props": {"open": false}}
+            {"op": "spawn", "var": "clothes", "type": "generic_item", "in": "{bag}", "props": {"label": "folded clothes", "mass_kg": 6.5, "material": "fabric", "size_m": [0.4, 0.3, 0.2], "volume_l": 24}},
+            {"op": "spawn", "var": "books", "type": "generic_item", "in": "{bag}", "props": {"label": "stack of hardcover books", "mass_kg": 5.0, "size_m": [0.3, 0.24, 0.15], "volume_l": 11}},
+            {"op": "set", "target": "{bag}", "props": {"open": false}},
+            {"op": "household", "trip": {"airline": "Skylark Basic", "checked_bag_allowance_kg": 18, "destination": "Lisbon"}}
+          ],
+          "instruction": "Weigh my packed suitcase and tell me whether it's within the airline's 18 kg checked-bag allowance.",
+          "phrasings": [
+            "Weigh my packed suitcase and tell me whether it's within the airline's 18 kg checked-bag allowance.",
+            "Is my suitcase over the 18 kg baggage limit of the basic fare? Weigh it with the luggage scale.",
+            "Check the suitcase weight against the 18 kg allowance - don't unpack it."
           ],
           "+success": [
-            {"path": "reports.{bag}.weight_kg", "op": "approx", "value": [24.0, 0.3]},
+            {"path": "reports.{bag}.weight_kg", "op": "approx", "value": [19.0, 0.3]},
             {"path": "reports.{bag}.over_allowance", "op": "eq", "value": true}
           ],
           "reference": [
@@ -782,7 +789,7 @@
               {"do": "inspect", "target": "{bag}"},
               {"do": "report", "target": "{bag}", "field": "weight_kg", "value": "{w}"},
               {"do": "report", "target": "{bag}", "field": "over_allowance", "value": false}]},
-            {"name": "compares 24 kg against a 50 lb limit as if the units matched", "plan": [
+            {"name": "compares 19 kg against the fare's 40 lb limit as if the units matched", "plan": [
               {"skill": "fetch", "obj": "{scale}"}, {"skill": "approach", "target": "{bag}"},
               {"do": "weigh_luggage", "target": "{bag}", "scale": "{scale}"}, {"save": "w", "from": "admin.last_weigh.kg"},
               {"do": "inspect", "target": "{bag}"},
@@ -813,12 +820,12 @@
       "risk_level": 0,
       "fidelity": "G",
       "target_fidelity": "G",
-      "notes": "Reading comes from the hook scale model (total subtree mass, 50 g resolution); resting on the floor under-reads. Branch: under vs over the allowance."
+      "notes": "Reading comes from the hook scale model (total subtree mass, 50 g resolution); resting on the floor under-reads. Lifting the bag on the hook scale is a lift by the hands on its grip (kernel v3.0 body: check_lift, about 20 kg with both hands for the default robot), so both branches stay within what the robot can lift: 15 kg against a 23 kg allowance, and 19 kg against a budget fare's 18 kg allowance (the over branch was 24 kg against 23 kg, which the robot cannot lift). Branch: under vs over the allowance."
     },
     {
       "catalog_id": "T-2d08289a6d709f-01",
       "title": "Open mail",
-      "house": {"require": ["office"], "residents": "minimal", "pets": "none"},
+      "house": {"require": ["office"], "residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.reachable_surface", "args": {"rooms": ["office"], "types": ["desk"], "var": "desk", "fallback": null, "add": "desk"}},
         {"op": "find", "var": "clutter", "within": "{desk}", "pick": "all", "required": false},
@@ -908,7 +915,7 @@
     {
       "catalog_id": "T-ca8e88d719c9ff-01",
       "title": "Apply postage when instructed",
-      "house": {"require": ["office"], "residents": "minimal", "pets": "none"},
+      "house": {"require": ["office"], "residents": "minimal", "pets": "none", "gen": 2},
       "setup": [
         {"op": "helper", "name": "admin_inventory.reachable_surface", "args": {"rooms": ["office"], "types": ["desk"], "var": "desk", "fallback": null, "add": "desk"}},
         {"op": "find", "var": "clutter", "within": "{desk}", "pick": "all", "required": false},

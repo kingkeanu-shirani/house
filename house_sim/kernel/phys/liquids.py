@@ -298,9 +298,12 @@ def _mix_into(w, eid, liters, liquid, density=None):
 
 def _drain(w, eid, liters):
     """Take liters out of eid. A kernel puddle below the droplet limit disappears with its wet cell; an emptied
-    holder forgets where its contents came from (contents_from)."""
+    holder forgets where its contents came from (contents_from). What leaves is the unfrozen part (pourable_l): the
+    ice stays, so ice_frac grows to the same frozen volume over less liquid (plumbing_liquids' adoption request 1:
+    pouring half of a half-frozen bottle used to turn ice into liquid), and goes with the last of it."""
     rec = w.ent(eid)
-    left = round(max(0.0, num(rec.get("liquid_l")) - liters), 4)
+    before = num(rec.get("liquid_l"))
+    left = round(max(0.0, before - liters), 4)
     if rec.get("_phys_spill"):
         if left < droplet_l():
             _remove_puddle(w, eid)
@@ -308,9 +311,16 @@ def _drain(w, eid, liters):
             w.mut(eid)["liquid_l"] = left
             _size_puddle(w, eid)
         return
-    w.mut(eid)["liquid_l"] = left
+    ice = min(1.0, max(0.0, num(rec.get("ice_frac"))))
+    m = w.mut(eid)
+    m["liquid_l"] = left
+    if ice > 0 and left < before:
+        if left > 0:
+            m["ice_frac"] = round(min(1.0, before * ice / left), 4)
+        else:
+            m.pop("ice_frac", None)
     if left <= 0 and "contents_from" in rec:
-        w.mut(eid).pop("contents_from", None)
+        m.pop("contents_from", None)
 
 
 def _mark_provenance(w, dst, src):
@@ -525,12 +535,26 @@ def _remove_puddle(w, eid):
         w.room_m(rid)["wet_cells"] = [c for c in wet_cells if c != cell]
 
 
+def puddle_label(liquid):
+    """A kernel puddle's glance label: what it looks like, never what it is. A clear liquid (liquids.json "clear":
+    water, vinegar, alcohol, bleach, gasoline) is a "clear liquid spill" at a glance (navigation_robot's adoption
+    request: "spilled white vinegar" named it to a realistic observer); any other is named ("spilled milk")."""
+    if props.liquid_props(liquid).get("clear"):
+        return "clear liquid spill"
+    return "spilled " + str(liquid).replace("_", " ")
+
+
 def _floor_puddle(w, rid, cell, liquid, liters, source, onto):
     """Put liters on the floor: a phys.spill_sink hook's entity, else a kernel puddle (new, or the same liquid's on
-    that cell grown). Returns (spill id, True when a new spill entity was made)."""
-    for sid in run_hooks("phys.spill_sink", w, rid, list(cell), liquid, round(liters, 4), source, onto):
-        if sid is not None:
-            return sid, True
+    that cell grown). Returns (spill id, True when a new spill entity was made). A sink hook returns the spill id, or
+    (id, new) when it can tell a portion that grew its existing spill from a new one (cleaning's request 3: a grown
+    spill is not counted again in phys_spills)."""
+    for found in run_hooks("phys.spill_sink", w, rid, list(cell), liquid, round(liters, 4), source, onto):
+        if isinstance(found, (tuple, list)) and len(found) == 2:
+            if found[0] is not None:
+                return found[0], bool(found[1])
+        elif found is not None:
+            return found, True
     state = w.s
     existing = _puddle_at(w, rid, cell, liquid)
     if existing is not None:
@@ -538,7 +562,7 @@ def _floor_puddle(w, rid, cell, liquid, liters, source, onto):
         _size_puddle(w, existing)
         return existing, False
     info = props.liquid_props(liquid)
-    record = {"label": "spilled " + str(liquid).replace("_", " "), "category": "spill", "portable": False,
+    record = {"label": puddle_label(liquid), "category": "spill", "portable": False,
               "liquid": liquid, "liquid_l": round(liters, 4), "floor_hazard": info.get("floor_hazard") or "wet",
               "pos": [cell[0], cell[1]], "relation": "on", "mass_kg": 0.0, "wetness": 1.0, "blocks_path": False,
               "_phys_spill": True}

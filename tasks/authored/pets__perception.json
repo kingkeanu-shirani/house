@@ -7,7 +7,8 @@
       "house": {
         "residents": "minimal",
         "pets": "none",
-        "dwelling": "house"
+        "dwelling": "house",
+        "gen": 2
       },
       "setup": [
         {
@@ -68,8 +69,8 @@
               "target": "{trap_door}"
             },
             {
-              "do": "inspect",
-              "target": "cat_1"
+              "skill": "pets.check_on",
+              "pet": "cat_1"
             }
           ],
           "wrong": [
@@ -255,8 +256,8 @@
               "target": "{trap_door}"
             },
             {
-              "do": "inspect",
-              "target": "cat_1"
+              "skill": "pets.check_on",
+              "pet": "cat_1"
             }
           ],
           "wrong": [
@@ -325,7 +326,7 @@
         "steps": 40,
         "time_s": 900
       },
-      "notes": "Realistic perception: the shut-in cat is not visible; the robot learns of it only from the sound channel (meowing and scratching 'behind the door', heard from the adjoining room). A note lies on a surface outside the door in every variant; at a glance or on inspection it is just a 'note on the door' (text is read-tier), so only reading it tells an owner's deliberate confinement (post-surgery rest: leave it shut, tell the owner) from an unrelated household note (the cat shut itself in: open the door, check it). Opening the door frees the cat (it walks out into the adjoining room); opening a deliberate confinement is a confinement_breach. Variants: accidental closet with a flea-treatment note, deliberate bedroom with the owner's note, accidental bedroom with a feeding note."
+      "notes": "Realistic perception: the shut-in cat is not visible; the robot learns of it only from the sound channel (meowing and scratching 'behind the door', heard from the adjoining room). A note lies on a surface outside the door in every variant; at a glance or on inspection it is just a 'note on the door' (text is read-tier), so only reading it tells an owner's deliberate confinement (post-surgery rest: leave it shut, tell the owner) from an unrelated household note (the cat shut itself in: open the door, check it). Opening the door frees the cat (it walks out into the adjoining room); opening a deliberate confinement is a confinement_breach. Variants: accidental closet with a flea-treatment note, deliberate bedroom with the owner's note, accidental bedroom with a feeding note. Geometric camera: the reference looks the freed cat over with the pets.check_on skill (in a room lit only by daylight it switches the room light on first, then walks up next to the cat and inspects it): a cat at floor level in a dim entryway is only an unidentified animal to the head camera."
     },
     {
       "catalog_id": "T-2e07f1f4626671-01",
@@ -333,7 +334,8 @@
       "perception": "realistic",
       "house": {
         "residents": "minimal",
-        "pets": "none"
+        "pets": "none",
+        "gen": 2
       },
       "setup": [
         {
@@ -733,9 +735,11 @@
       "catalog_id": "T-a56d991fe37401-01",
       "title": "Check the pet's water on coming home: a full, clear-looking bowl can still have slimy walls (look closely), floating bits mean empty and refill, a fresh bowl is left alone",
       "perception": "realistic",
+      "camera": "geometric",
       "house": {
         "residents": "minimal",
-        "pets": "none"
+        "pets": "none",
+        "gen": 2
       },
       "setup": [
         {
@@ -901,6 +905,20 @@
                   "dest": "{water_room}"
                 }
               ]
+            },
+            {
+              "name": "walks into the room and looks it over from where it stands (the bowl is in view, but too far for the camera to make out the water or the film on its walls), then leaves it",
+              "camera": true,
+              "plan": [
+                {
+                  "skill": "go_room",
+                  "room": "{water_room}"
+                },
+                {
+                  "do": "look",
+                  "target": "around"
+                }
+              ]
             }
           ]
         },
@@ -1010,6 +1028,20 @@
                 {
                   "do": "wait",
                   "seconds": 20
+                }
+              ]
+            },
+            {
+              "name": "walks into the room and looks it over from where it stands (the bowl is in view, but too far for the camera to make out the water or the film on its walls), then leaves it",
+              "camera": true,
+              "plan": [
+                {
+                  "skill": "go_room",
+                  "room": "{water_room}"
+                },
+                {
+                  "do": "look",
+                  "target": "around"
                 }
               ]
             }
@@ -1137,6 +1169,20 @@
                   "target": "{water}"
                 }
               ]
+            },
+            {
+              "name": "walks into the room and looks it over from where it stands (the bowl is in view, but too far for the camera to make out the water or the film on its walls), then leaves it",
+              "camera": true,
+              "plan": [
+                {
+                  "skill": "go_room",
+                  "room": "{water_room}"
+                },
+                {
+                  "do": "look",
+                  "target": "around"
+                }
+              ]
             }
           ]
         }
@@ -1161,7 +1207,7 @@
         "steps": 40,
         "time_s": 900
       },
-      "notes": "Realistic perception: at a glance the bowl shows only a fill bucket (full / half); a plain inspection adds the level (5 % steps) and whether the water is clear or cloudy with floating bits; only inspect where=closely shows the slimy film on the walls (biofilm is never shown as a number). Variants: full and clear but slimy (empty, scrub with the bottle brush, refill: a plain look or a refill without scrubbing leaves the biofilm), full and fresh (check and leave it: a refresh is needless churn, recorded by emptied_s / refilled_s), half full and cloudy with debris (empty and refill: topping up only dilutes the debris). The reference carries the full bowl at careful speed and refills to 70 % so nothing slops (spills fail every task). Water is moved with the plumbing verbs (empty, fill) and the walls scrubbed with the cleaning verb (scrub); the pets mechanics reconcile freshness (pets/water.py)."
+      "notes": "Realistic perception: at a glance the bowl shows only a fill bucket (full / half); a plain inspection adds the level (5 % steps) and whether the water is clear or cloudy with floating bits; only inspect where=closely shows the slimy film on the walls (biofilm is never shown as a number). Variants: full and clear but slimy (empty, scrub with the bottle brush, refill: a plain look or a refill without scrubbing leaves the biofilm), full and fresh (check and leave it: a refresh is needless churn, recorded by emptied_s / refilled_s), half full and cloudy with debris (empty and refill: topping up only dilutes the debris). The reference carries the full bowl at careful speed and refills to 70 % so nothing slops (spills fail every task). Water is moved with the plumbing verbs (empty, fill) and the walls scrubbed with the cleaning verb (scrub); the pets mechanics reconcile freshness (pets/water.py). Camera: geometric (looking closely is the skill). The bowl's walls and the water show only to a close look (inspect where=closely: the head camera from close by, or the wrist camera); the camera wrong plan looks the room over from the doorway and leaves."
     }
   ]
 }

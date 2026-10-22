@@ -82,6 +82,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
+# the keys of realism.view_dict: the "view" a geometric observation shows for every record it saw
+CAMERA_VIEW_KEYS = frozenset(("bearing_deg", "elev_deg", "px", "occluded", "via", "light", "range_m"))
 NUM = re.compile(r"-?\d+\.\d+")
 OPTS = [{}, {"dwelling": "apartment"}, {"dwelling": "house", "require": ["garage", "laundry_room"]}, {"dwelling": "townhouse"},
         {"residents": "minimal", "pets": "none"}]
@@ -257,6 +259,11 @@ def check_obs(env, obs, leaks, where, start_ids=None, order=None):
                 leaks.append(("secret", owner, "{} {}.{}".format(where, eid, field)))
                 continue
             if field not in true:
+                continue
+            if field == "view" and isinstance(shown, dict) and "via" in shown and set(shown) <= CAMERA_VIEW_KEYS:
+                # the geometric camera's own viewing geometry (realism.view_dict), which replaces the record's view
+                # block in the observation: not a leak of that never-tier block (adoption requests manipulation 9,
+                # textiles_laundry 5, mechanisms 9, K-CAM)
                 continue
             tier = realism.tier(true, field)
             if tier == "never":

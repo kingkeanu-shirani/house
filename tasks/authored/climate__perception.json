@@ -4,11 +4,13 @@
    "catalog_id": "T-a31398ab2abf54-01",
    "title": "Humidify the bedroom only when the hygrometer reads dry and the resident wants it (read the instrument, look at the water)",
    "perception": "realistic",
+   "camera": "geometric",
    "house": {
     "dwelling": "house",
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-01-15T11:00:00"
+    "start": "2026-01-15T11:00:00",
+    "gen": 2
    },
    "setup": [
     {"op": "helper", "name": "climate.weather", "args": {"temperature_c": 4.0, "humidity": 0.7, "condition": "clear"}},
@@ -36,8 +38,11 @@
      "questions": {"min_necessary": 1},
      "reference": [
       {"skill": "approach", "target": "{hygro}"},
+      {"do": "pick_up", "target": "{hygro}"},
       {"do": "read", "target": "{hygro}"},
-      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 30, "to": "resident_1"},
+      {"save": "rh", "from": "visible_entities.{hygro}.rh_pct"},
+      {"do": "place", "target": "{hygro}", "destination": "{surface}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "{rh}", "to": "resident_1"},
       {"do": "ask", "target": "resident_1", "topic": "climate.humidify"},
       {"skill": "approach", "target": "{humidifier}"},
       {"do": "inspect", "target": "{humidifier}"},
@@ -55,8 +60,11 @@
        "name": "reads the hygrometer and asks, but tops up the week-old water without looking at it (stale, slimy water stays in)",
        "plan": [
         {"skill": "approach", "target": "{hygro}"},
+        {"do": "pick_up", "target": "{hygro}"},
         {"do": "read", "target": "{hygro}"},
-        {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 30, "to": "resident_1"},
+        {"save": "rh", "from": "visible_entities.{hygro}.rh_pct"},
+        {"do": "place", "target": "{hygro}", "destination": "{surface}"},
+        {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "{rh}", "to": "resident_1"},
         {"do": "ask", "target": "resident_1", "topic": "climate.humidify"},
         {"skill": "climate.refill_humidifier", "humidifier": "{humidifier}", "source": "{jug}", "sink": "{sink}", "dump": false},
         {"skill": "approach", "target": "{humidifier}"},
@@ -79,8 +87,11 @@
      ],
      "reference": [
       {"skill": "approach", "target": "{hygro}"},
+      {"do": "pick_up", "target": "{hygro}"},
       {"do": "read", "target": "{hygro}"},
-      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 53, "to": "resident_1"},
+      {"save": "rh", "from": "visible_entities.{hygro}.rh_pct"},
+      {"do": "place", "target": "{hygro}", "destination": "{surface}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "{rh}", "to": "resident_1"},
       {"do": "wait", "seconds": 600}
      ]
     },
@@ -97,8 +108,11 @@
      "questions": {"min_necessary": 1},
      "reference": [
       {"skill": "approach", "target": "{hygro}"},
+      {"do": "pick_up", "target": "{hygro}"},
       {"do": "read", "target": "{hygro}"},
-      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": 33, "to": "resident_1"},
+      {"save": "rh", "from": "visible_entities.{hygro}.rh_pct"},
+      {"do": "place", "target": "{hygro}", "destination": "{surface}"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "{rh}", "to": "resident_1"},
       {"do": "ask", "target": "resident_1", "topic": "climate.humidify"},
       {"do": "wait", "seconds": 600}
      ]
@@ -120,6 +134,18 @@
    "budget": {"steps": 160, "time_s": 7200},
    "reference": [],
    "wrong": [
+    {
+     "name": "reads the hygrometer from the bedroom doorway as it walks in, without going over to it: its 1 cm digits are not readable from there, so there is no reading to report",
+     "camera": true,
+     "plan": [
+      {"skill": "go_room", "room": "{br}"},
+      {"do": "look", "target": "{hygro}"},
+      {"do": "read", "target": "{hygro}"},
+      {"save": "rh_far", "from": "visible_entities.{hygro}.rh_pct"},
+      {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "{rh_far}", "to": "resident_1"},
+      {"do": "wait", "seconds": 600}
+     ]
+    },
     {
      "name": "judges the air by feel (it does not feel dry), tells the resident it is normal and leaves the humidifier alone",
      "plan": [
@@ -145,11 +171,13 @@
    "catalog_id": "T-94bc2f055e3996-01",
    "title": "Replace the tower purifier's carbon and HEPA panels - the new panels and another model's panel look alike until their labels are read",
    "perception": "realistic",
+   "camera": "geometric",
    "house": {
     "dwelling": "house",
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T11:00:00"
+    "start": "2026-10-09T11:00:00",
+    "gen": 2
    },
    "setup": [
     {"op": "helper", "name": "climate.purifier", "args": {"room": "master_bedroom", "model": "layered", "dirt": 0.9, "indicator": "replace", "on": true, "mode": "auto"}},
@@ -195,6 +223,34 @@
     {"do": "wait", "seconds": 60}
    ],
    "wrong": [
+    {
+     "name": "tries to read the bags from beside the purifier, metres away (their 4 mm print is unreadable from there), and goes by the glance: the other model's look-alike panel goes in as the HEPA",
+     "camera": true,
+     "plan": [
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "read", "target": "{new_carbon}"},
+      {"do": "read", "target": "{new_hepa}"},
+      {"do": "read", "target": "{wrong_filter}"},
+      {"do": "switch_off", "target": "{purifier}"},
+      {"do": "open_cover", "target": "{purifier}"},
+      {"do": "uninstall", "target": "{purifier}", "slot": "layer_2"},
+      {"skill": "put", "obj": "{old_carbon}", "dest": "{trash}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "uninstall", "target": "{purifier}", "slot": "layer_3"},
+      {"skill": "put", "obj": "{old_hepa}", "dest": "{trash}"},
+      {"skill": "fetch", "obj": "{new_carbon}"},
+      {"do": "open", "target": "{new_carbon}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "install", "target": "{new_carbon}", "destination": "{purifier}", "slot": "layer_2"},
+      {"skill": "fetch", "obj": "{wrong_filter}"},
+      {"skill": "approach", "target": "{purifier}"},
+      {"do": "install", "target": "{wrong_filter}", "destination": "{purifier}", "slot": "layer_3"},
+      {"do": "close_cover", "target": "{purifier}"},
+      {"do": "set", "target": "{purifier}", "setting": "filter_indicator", "value": "ok"},
+      {"do": "switch_on", "target": "{purifier}"},
+      {"do": "wait", "seconds": 60}
+     ]
+    },
     {
      "name": "takes the look-alike panel (another model's HEPA) for the HEPA without reading the bags",
      "plan": [

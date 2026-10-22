@@ -7,7 +7,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1129,7 +1130,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1364,6 +1366,38 @@
          "value": "fiddle_leaf_fig"
         }
        ]
+      },
+      {
+       "name": "looks around the room from where it came in and goes close to none of the plants: the cameras resolve no leaves from there, so it can only report them unidentified",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "go_room",
+         "room": "{room}"
+        },
+        {
+         "do": "look",
+         "target": "around"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "unknown"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "unknown"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "unknown"
+        }
+       ]
       }
      ]
     },
@@ -1587,6 +1621,38 @@
          "target": "{p3}",
          "field": "species",
          "value": "boston_fern"
+        }
+       ]
+      },
+      {
+       "name": "looks around the room from where it came in and goes close to none of the plants: the cameras resolve no leaves from there, so it can only report them unidentified",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "go_room",
+         "room": "{room}"
+        },
+        {
+         "do": "look",
+         "target": "around"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "unknown"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "unknown"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "unknown"
         }
        ]
       }
@@ -1814,6 +1880,38 @@
          "value": "pothos"
         }
        ]
+      },
+      {
+       "name": "looks around the room from where it came in and goes close to none of the plants: the cameras resolve no leaves from there, so it can only report them unidentified",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "go_room",
+         "room": "{room}"
+        },
+        {
+         "do": "look",
+         "target": "around"
+        },
+        {
+         "do": "report",
+         "target": "{p1}",
+         "field": "species",
+         "value": "unknown"
+        },
+        {
+         "do": "report",
+         "target": "{p2}",
+         "field": "species",
+         "value": "unknown"
+        },
+        {
+         "do": "report",
+         "target": "{p3}",
+         "field": "species",
+         "value": "unknown"
+        }
+       ]
       }
      ]
     }
@@ -1835,7 +1933,8 @@
    "risk_level": 0,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Realistic perception: all three look like 'potted plant' at a glance; a plain inspect gives the leaf appearance (the fake looks like the species it imitates, the peace lily and calla lily share one look); inspect where=closely reports species_seen, artificial_seen, or species_candidates for the look-alike lily. The reference resolves the lily by asking the resident (plants:care:<plant>) - 'unsure' is also accepted - and reports the fake as artificial. Wrong plans: confident wrong lily; plain-look identification that registers the fake as living."
+   "notes": "Realistic perception: all three look like 'potted plant' at a glance; a plain inspect gives the leaf appearance (the fake looks like the species it imitates, the peace lily and calla lily share one look); inspect where=closely reports species_seen, artificial_seen, or species_candidates for the look-alike lily. The reference resolves the lily by asking the resident (plants:care:<plant>) - 'unsure' is also accepted - and reports the fake as artificial. Wrong plans: confident wrong lily; plain-look identification that registers the fake as living. Geometric camera (tier 1): a close look needs the head camera to resolve the plant (160 px, lit) or the wrist within reach, so the reference approaches each pot; the camera wrong plan only looks around the room from the entrance and can name none of them.",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-e662e1ab5384e8-01",
@@ -1844,7 +1943,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1945,9 +2045,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p1}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -1965,9 +2070,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p2}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -1985,9 +2095,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p3}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2005,9 +2120,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p4}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2018,7 +2138,7 @@
      ],
      "wrong": [
       {
-       "name": "checks only the leaf tops and stems (never looks under the leaves)",
+       "name": "checks only the leaf tops and stems with the head camera (never brings the wrist camera under the leaves)",
        "plan": [
         {
          "skill": "approach",
@@ -2080,7 +2200,8 @@
          "field": "pests",
          "value": "none"
         }
-       ]
+       ],
+       "camera": true
       },
       {
        "name": "reports the dusty plant's grey film as spider mites",
@@ -2095,9 +2216,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p1}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2115,9 +2241,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p2}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2135,9 +2266,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p3}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2155,9 +2291,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p4}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2260,9 +2401,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p1}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2280,9 +2426,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p2}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2300,9 +2451,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p3}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2320,9 +2476,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p4}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2333,7 +2494,7 @@
      ],
      "wrong": [
       {
-       "name": "checks only the leaf tops and stems (never looks under the leaves)",
+       "name": "checks only the leaf tops and stems with the head camera (never brings the wrist camera under the leaves)",
        "plan": [
         {
          "skill": "approach",
@@ -2395,7 +2556,8 @@
          "field": "pests",
          "value": "none"
         }
-       ]
+       ],
+       "camera": true
       },
       {
        "name": "reports the dusty plant's grey film as spider mites",
@@ -2410,9 +2572,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p1}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2430,9 +2597,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p2}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2450,9 +2622,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p3}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2470,9 +2647,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p4}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2572,9 +2754,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p1}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p1}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2592,9 +2779,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p2}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p2}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2612,9 +2804,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p3}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p3}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2632,9 +2829,14 @@
        "where": "closely"
       },
       {
+       "do": "peek",
+       "target": "{p4}",
+       "where": "closely"
+      },
+      {
        "do": "inspect",
        "target": "{p4}",
-       "where": "under"
+       "where": "closely"
       },
       {
        "do": "report",
@@ -2645,7 +2847,7 @@
      ],
      "wrong": [
       {
-       "name": "checks only the leaf tops and stems (never looks under the leaves)",
+       "name": "checks only the leaf tops and stems with the head camera (never brings the wrist camera under the leaves)",
        "plan": [
         {
          "skill": "approach",
@@ -2707,7 +2909,8 @@
          "field": "pests",
          "value": "none"
         }
-       ]
+       ],
+       "camera": true
       },
       {
        "name": "reports the dusty plant's grey film as spider mites",
@@ -2722,9 +2925,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p1}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p1}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2742,9 +2950,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p2}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p2}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2762,9 +2975,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p3}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p3}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2782,9 +3000,14 @@
          "where": "closely"
         },
         {
+         "do": "peek",
+         "target": "{p4}",
+         "where": "closely"
+        },
+        {
          "do": "inspect",
          "target": "{p4}",
-         "where": "under"
+         "where": "closely"
         },
         {
          "do": "report",
@@ -2826,7 +3049,8 @@
    "risk_level": 0,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Realistic perception: pests are a secret field. inspect where=closely shows pests on stems/leaf tops (pests_seen) and webbing cues; only where=under shows leaf-underside colonies (aphids, whitefly). A dusty plant shows a dirty soil bucket at a glance but has no pests. Clean plants must be reported with a non-pest value (e.g. 'none'). Wrong plans: leaf tops only (misses the underside colony); dust reported as spider mites."
+   "notes": "Realistic perception: pests are a secret field. inspect where=closely shows pests on stems/leaf tops (pests_seen) and webbing cues; only where=under shows leaf-underside colonies (aphids, whitefly). A dusty plant shows a dirty soil bucket at a glance but has no pests. Clean plants must be reported with a non-pest value (e.g. 'none'). Wrong plans: leaf tops only (misses the underside colony); dust reported as spider mites. Geometric camera (tier 1): aphids and whitefly on the leaf undersides are seen only once the wrist camera has looked closely at the plant from below the canopy (peek where=closely, camera_log.peeked), then inspect where=closely reports pests_seen; the kernel's inspect where=under is a look beneath the pot, which has no gap on the table. The camera wrong plan looks at the leaf tops only.",
+   "camera": "geometric"
   }
  ]
 }

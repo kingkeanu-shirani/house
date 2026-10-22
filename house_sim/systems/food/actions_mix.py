@@ -108,6 +108,7 @@ def crack_egg(ctx):
         M.add_contam(w, w.ent(dest).get("location") if w.ent(dest).get("location") in w.s["entities"] else dest, "raw_meat", 0.3)
     new = X.add(w, portion, dest, "in")
     C.touch_food(ctx, new, 0.3)
+    C.soil_hands(ctx, "food", 0.05, hands=ctx.hand_of(eid))      # a smear of white on the fingertips
     M.contact(w, dest, new, 0.4)
     shell = _shell_to_hand(w, ctx, eid, shell_g)
     C.seconds(ctx, 6.0 if force != "gentle" else 9.0)
@@ -158,6 +159,7 @@ def separate_egg(ctx):
     for new, vessel in ((wid, whites_to), (yid, yolk_to)):
         M.contact(w, vessel, new, 0.4)
     C.touch_food(ctx, wid, 0.7 if method == "hand" else 0.3)
+    C.soil_hands(ctx, "food", 0.3 if method == "hand" else 0.05, hands=ctx.hand_of(eid))   # white through the fingers
     _shell_to_hand(w, ctx, eid, mass * 0.11)
     C.seconds(ctx, 15.0)
     return {"whites": wid, "yolk": yid, "yolk_broke": weak, "shell_fragments_added": fragments}
@@ -337,7 +339,7 @@ def stir(ctx):
 
 @action("knead", params={"target": "entity", "minutes": {"type": "number", "default": 8, "min": 0.5, "max": 30},
                          "added_flour_g": {"type": "number", "default": 0, "min": 0, "max": 500}},
-        duration=C.duration(480.0), irreversible=True, noise=0.1,
+        duration=C.duration(480.0), irreversible=True, noise=0.1, timing="commanded",
         doc="Knead dough by hand on a lightly floured surface with both hands free (~8-10 min). Gluten develops until it "
             "passes the windowpane test; extra flour lowers hydration (dry, stiff dough). Cover it afterwards to proof.")
 @P.perceived_result
@@ -362,6 +364,9 @@ def knead(ctx):
             add_soil(w, surface, "dust", min(0.3, 0.02 + added / 400.0))
     X.apply_work(w, eid, minutes * 60.0, "knead")
     C.touch_food(ctx, eid, 0.5)
+    C.soil_hands(ctx, "food", 0.4, hands="both")              # dough sticks to both hands (body.soil_hand)
+    if added > 0:
+        C.soil_hands(ctx, "flour", 0.1, hands="both")
     m = w.mut(eid)
     mf = m["food"]
     g = float(mf["mix"].get("gluten", 0.0))
@@ -491,6 +496,7 @@ def shape(ctx):
     for pid in pieces:
         _gap(w, pid, pieces)
     M.destroy_food(w, eid)
+    C.soil_hands(ctx, "food", 0.15, hands="both")             # shaping by hand leaves dough on the fingers
     C.seconds(ctx, 15.0 * count + (10.0 * count if method == "scale" else 0.0))
     return {"pieces": pieces, "grams": [round(g, 1) for g in weights], "torn": tear}
 
@@ -874,6 +880,8 @@ def coat(ctx):
         require(trec.get("category") in ("cookware", "bakeware") or trec.get("conducts_heat") or trec.get("surface"), "Grease cookware or bakeware", "argument")
         grams = float(ctx.args.get("amount_g") or 5.0)
         portion, grams = M.take(w, cid, grams)
+        if not ctx.args.get("tool") and method in ("grease", "rub"):
+            C.soil_hands(ctx, C.coating_soil(crec) or "oil", 0.3)     # butter or oil rubbed on with the fingers
         m = w.mut(tid)
         m["greased"] = True
         m["grease_g"] = round(float(m.get("grease_g", 0.0)) + grams, 2)
@@ -929,6 +937,10 @@ def coat(ctx):
             out["note"] = "thick clumps of coating"
         C.touch_food(ctx, tid, 0.4)
         C.touch_food(ctx, cid, 0.3)
+        if method != "brush" and not ctx.args.get("tool"):
+            # dredging, dipping, pressing into crumbs, tossing or rubbing by hand coats the fingers too
+            C.soil_hands(ctx, C.coating_soil(crec) or "food", 0.25 if method in ("dredge", "press") else 0.3,
+                         hands=ctx.hand_of(tid))
     portion, used = M.take(w, cid, grams)
     m = w.mut(tid)
     mf = m["food"]

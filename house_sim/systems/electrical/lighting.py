@@ -85,11 +85,19 @@ def dim_for(state, light_id, rec, index=None):
     sd = (rec.get("settings") or {}).get("dim")
     if isinstance(sd, (int, float)) and not isinstance(sd, bool):
         level = min(level, float(sd))
-    for b in working_bulbs(state, light_id):
+    work = working_bulbs(state, light_id)
+    for b in work:
         brec = state["entities"][b]
-        if brec.get("smart"):
+        if brec.get("smart") and not smart_off(brec):
             level = min(level, C.num((brec.get("settings") or {}).get("brightness"), 100.0) / 100.0)
+    if work and all(smart_off(state["entities"][b]) for b in work):
+        level = 0.0         # every working bulb is a smart bulb switched off in the app: the fixture stays dark
     return round(C.clamp(level, 0.0, 1.0), 3)
+
+
+def smart_off(brec):
+    """A smart bulb switched off through the app or the hub (setting power off; hub.py): no light, no heat."""
+    return bool(brec.get("smart")) and (brec.get("settings") or {}).get("power", "on") == "off"
 
 
 def dimmed_by_control(state, light_id, rec, index=None):
@@ -123,6 +131,8 @@ def sync_lights(w):
             hottest = None
             for b in work:
                 brec = ents[b]
+                if smart_off(brec):
+                    continue
                 lumens += C.num(brec.get("lumens"), 800.0)
                 watts += C.num(brec.get("wattage_w"), 9.0)
                 ccts.add(int(C.num(brec.get("cct_k"), 2700)))
@@ -145,7 +155,7 @@ def sync_lights(w):
         lit = bool(on and powered and not rec.get("burnt_out") and dim > 0.0)
         if slots:
             lit = bool(on and powered and working_bulbs(state, eid) and dim > 0.0)
-        if rec.get("_fault") == "internal":
+        if rec.get("_fault") == "internal" or C.dead(rec):
             lit = False
         if rec.get("photocell"):
             mode = (rec.get("settings") or {}).get("mode", "auto")
@@ -176,8 +186,49 @@ def _over_wattage(state, eid):
     return [b for b in working_bulbs(state, eid) if C.num(state["entities"][b].get("wattage_w"), 0.0) > C.num(limit) + 1e-6]
 
 
-@system("electrical.lights", order=57, max_dt=30.0)
+LIGHTS_IDLE = C.IdleNote("electrical.lights", ("lights", "switches", "bulbs"),
+                         ignore=lambda rec: ("battery_level", "charge_rate_w", "charging", "charge_status", "charger",
+                                             "_load_w", "load_a", "temperature_c"))
+
+
+def _lights_inputs(w):
+    """The light step's inputs outside the entity table: the daylight band of photocell lights and the temperatures of
+    the rooms whose dimmed socket lights heat their bulbs toward the room."""
+    state = w.s
+    ents = state["entities"]
+    photocell, rooms = False, set()
+    for eid in C.ids(w, "lights"):
+        rec = ents.get(eid) or {}
+        if rec.get("photocell"):
+            photocell = True
+        if rec.get("lit") and bulb_slots(rec) and C.num(rec.get("dim_level"), 1.0) < 1.0:
+            rid = C.room_of(state, eid)
+            if rid:
+                rooms.add(rid)
+    return {"daylit": (clock.daylight(state) >= C.DARK) if photocell else None, "temps": C.room_temps(state, rooms)}
+
+
+def lights_idle(w):
+    """Exact idle probe of electrical.lights (common.IdleNote)."""
+    note = LIGHTS_IDLE
+    if not note.quiet(w):
+        return False
+    extra = note.extra or {}
+    state = w.s
+    if extra.get("daylit") is not None and (clock.daylight(state) >= C.DARK) != extra["daylit"]:
+        return False
+    return C.room_temps(state, extra.get("temps") or {}) == extra.get("temps")
+
+
+@system("electrical.lights", order=57, max_dt=30.0, idle=lights_idle)
 def lights_system(w, dt, tick):
+    before = w.mutation_count
+    _lights_step(w, dt, tick)
+    wrote = w.mutation_count != before
+    LIGHTS_IDLE.after(w, wrote, None if wrote else _lights_inputs(w))
+
+
+def _lights_step(w, dt, tick):
     state = w.s
     ents = state["entities"]
     if not C.electrified(state, w):

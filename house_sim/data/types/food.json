@@ -297,6 +297,16 @@
     "tare_volume_l": 0.024,
     "full_g": 1000.0,
     "opened_life_days": 7
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "apple": {
@@ -485,6 +495,17 @@
     "tare_volume_l": 0.024,
     "full_g": 800.0,
     "opened_life_days": 30
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "baby_puree_jar": {
@@ -520,6 +541,9 @@
     "opened_life_days": 2,
     "storage_opened": "fridge",
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "baby_spinach_bag": {
@@ -905,6 +929,17 @@
     "tare_volume_l": 0.009,
     "full_g": 360.0,
     "reseal_needed": false
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "beet": {
@@ -1020,6 +1055,9 @@
     "tare_volume_l": 0.024,
     "full_g": 70.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "blueberries": {
@@ -1186,6 +1224,10 @@
      "bread_box"
     ],
     "portable": true
+   },
+   "view": {
+    "opening": "front",
+    "doc": "a roll-top bread box opens at the front"
    }
   },
   "bread_dough": {
@@ -1675,6 +1717,16 @@
     "tare_volume_l": 0.024,
     "full_g": 980.0,
     "opened_life_days": 10
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "butternut_squash": {
@@ -1899,6 +1951,17 @@
     "storage_opened": "fridge",
     "opener_required": "can_opener",
     "material": "metal"
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "canned_soda": {
@@ -1934,6 +1997,17 @@
     "full_g": 370.0,
     "reseal_needed": false,
     "material": "aluminum"
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "canned_tomatoes": {
@@ -1969,6 +2043,17 @@
     "opened_life_days": 5,
     "storage_opened": "fridge",
     "opener_required": "can_opener"
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "canned_tuna": {
@@ -2008,6 +2093,17 @@
     "opened_life_days": 3,
     "storage_opened": "fridge",
     "reseal_needed": false
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "cantaloupe": {
@@ -2243,6 +2339,9 @@
     "tare_volume_l": 0.024,
     "full_g": 45.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "celery": {
@@ -2700,6 +2799,16 @@
     "full_g": 950.0,
     "opened_life_days": 5,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "chicken_thighs": {
@@ -2817,6 +2926,9 @@
     "tare_volume_l": 0.024,
     "full_g": 40.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "chips_bag": {
@@ -2960,6 +3072,9 @@
     "tare_volume_l": 0.024,
     "full_g": 50.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "citrus_press": {
@@ -3313,6 +3428,12 @@
     "max_touch_temp_c": 65.0,
     "safe_grips": [
      "handle"
+    ],
+    "mass_kg": 1.2,
+    "size_m": [
+     0.38,
+     0.19,
+     0.1
     ]
    },
    "doc": "Pots and pans: conduct heat to their contents.",
@@ -3574,6 +3695,9 @@
     "tare_volume_l": 0.024,
     "full_g": 50.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "cutting_board": {
@@ -3586,7 +3710,13 @@
     "surface": true,
     "container": false,
     "food_safe": true,
-    "slip_risk": 0.2
+    "slip_risk": 0.2,
+    "mass_kg": 0.6,
+    "size_m": [
+     0.38,
+     0.25,
+     0.01
+    ]
    },
    "perception": {
     "glance": [
@@ -3835,6 +3965,9 @@
     "tare_volume_l": 0.024,
     "full_g": 20.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "drinking_glass": {
@@ -3865,7 +3998,13 @@
     "serving": true,
     "food_safe": true,
     "material": "glass",
-    "fragile": true
+    "fragile": true,
+    "mass_kg": 0.25,
+    "size_m": [
+     0.08,
+     0.08,
+     0.13
+    ]
    },
    "perception": {
     "hidden": [
@@ -4134,7 +4273,13 @@
     "dishwasher_safe": true,
     "lid": true
    },
-   "doc": "Lidded food storage container (closing the lid = covered/airtight)."
+   "doc": "Lidded food storage container (closing the lid = covered/airtight).",
+   "view": {
+    "text_m": {
+     "food_label": 0.008
+    },
+    "doc": "a handwritten marker label on a storage container: capitals about 8 mm"
+   }
   },
   "food_glove_box": {
    "is_a": "carry_container",
@@ -4988,8 +5133,8 @@
      "hand_peel": true
     },
     "size_m": [
-     0.1,
-     0.1,
+     0.11,
+     0.11,
      0.1
     ],
     "storage": "counter",
@@ -5113,8 +5258,16 @@
      0.22,
      0.38
     ],
-    "mass_kg": 0.15,
-    "category": "bag"
+    "mass_kg": 0.18,
+    "category": "bag",
+    "material": "polypropylene",
+    "soft_sided": true,
+    "handle_rating_kg": 15.0
+   },
+   "perception": {
+    "hidden": [
+     "handle_rating_kg"
+    ]
    }
   },
   "ground_beef": {
@@ -5217,6 +5370,16 @@
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
     "full_g": 340.0
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "ground_cumin_jar": {
@@ -5250,6 +5413,9 @@
     "tare_volume_l": 0.024,
     "full_g": 45.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "habanero": {
@@ -5470,6 +5636,16 @@
     "tare_volume_l": 0.024,
     "full_g": 470.0,
     "opened_life_days": 7
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "hen_egg": {
@@ -5541,6 +5717,9 @@
     "tare_volume_l": 0.024,
     "full_g": 340.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "hot_dog": {
@@ -5649,6 +5828,9 @@
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
     "full_g": 150.0
+   },
+   "view": {
+    "glossy": true
    }
   },
   "hummus_tub": {
@@ -5686,6 +5868,16 @@
     "tare_volume_l": 0.024,
     "full_g": 283.0,
     "opened_life_days": 7
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "ice_bucket": {
@@ -5778,6 +5970,16 @@
     "full_g": 780.0,
     "temperature_c": -18.0,
     "_core_c": -18.0
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "ice_scoop": {
@@ -5864,6 +6066,9 @@
     "full_g": 340.0,
     "opened_life_days": 180,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "jigger": {
@@ -5914,6 +6119,16 @@
     "tare_volume_l": 0.006,
     "full_g": 200.0,
     "reseal_needed": false
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "kale": {
@@ -6009,7 +6224,13 @@
     "accepts_items": true,
     "container": true,
     "food_safe": true,
-    "material": "ceramic"
+    "material": "ceramic",
+    "mass_kg": 0.35,
+    "size_m": [
+     0.16,
+     0.16,
+     0.065
+    ]
    },
    "perception": {
     "hidden": [
@@ -7079,6 +7300,16 @@
     "full_g": 1950.0,
     "opened_life_days": 7,
     "no_door": true
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "mint": {
@@ -7157,6 +7388,16 @@
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
     "full_g": 283.0
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "mixing_bowl": {
@@ -7433,6 +7674,16 @@
     "full_g": 1000.0,
     "opened_life_days": 7,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "oatmeal": {
@@ -7512,6 +7763,9 @@
     "tare_volume_l": 0.21,
     "full_g": 460.0,
     "material": "glass"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "onion": {
@@ -7619,6 +7873,16 @@
     "tare_volume_l": 0.024,
     "full_g": 1550.0,
     "opened_life_days": 7
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "oyster_knife": {
@@ -7714,6 +7978,12 @@
      "full_g",
      "date_type"
     ]
+   },
+   "view": {
+    "text_m": {
+     "date_label": 0.003
+    },
+    "doc": "printed best-by / use-by codes on retail packs are inkjet characters about 2-3 mm tall"
    }
   },
   "paprika_jar": {
@@ -7747,6 +8017,9 @@
     "tare_volume_l": 0.024,
     "full_g": 50.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "parchment_sheet": {
@@ -8176,6 +8449,9 @@
     "mill": true,
     "reseal_needed": false,
     "serving_condiment": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "pesto_jar": {
@@ -8215,6 +8491,9 @@
     "full_g": 190.0,
     "opened_life_days": 7,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "picnic_cooler": {
@@ -8982,6 +9261,9 @@
     "full_g": 300.0,
     "opened_life_days": 180,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "rice_bag": {
@@ -9262,6 +9544,9 @@
     "opened_life_days": 10,
     "storage_opened": "fridge",
     "material": "glass"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "salt_canister": {
@@ -9332,6 +9617,9 @@
     "shaker": true,
     "reseal_needed": false,
     "serving_condiment": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "saucepan": {
@@ -9477,6 +9765,9 @@
     "tare_volume_l": 0.024,
     "full_g": 60.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "shallot": {
@@ -9737,6 +10028,16 @@
     "tare_volume_l": 0.024,
     "full_g": 454.0,
     "opened_life_days": 10
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "soy_sauce_bottle": {
@@ -9776,6 +10077,9 @@
     "tare_volume_l": 0.024,
     "full_g": 300.0,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "sparkling_water_can": {
@@ -9810,6 +10114,17 @@
     "tare_volume_l": 0.009,
     "full_g": 355.0,
     "reseal_needed": false
+   },
+   "view": {
+    "glossy": true,
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "spice_grinder": {
@@ -10277,7 +10592,13 @@
     "food_safe": true,
     "material": "ceramic",
     "fragile": true,
-    "stackable": true
+    "stackable": true,
+    "mass_kg": 0.6,
+    "size_m": [
+     0.27,
+     0.27,
+     0.025
+    ]
    },
    "perception": {
     "hidden": [
@@ -10769,6 +11090,9 @@
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
     "full_g": 1300.0
+   },
+   "view": {
+    "glossy": true
    }
   },
   "vegetable_peeler": {
@@ -11076,6 +11400,9 @@
     "tare_volume_l": 0.024,
     "full_g": 30.0,
     "reseal_needed": true
+   },
+   "view": {
+    "glossy": true
    }
   },
   "wine_bottle": {
@@ -11115,6 +11442,9 @@
     "material": "glass",
     "fragile": true,
     "reseal_needed": false
+   },
+   "view": {
+    "glossy": true
    }
   },
   "wine_glass": {
@@ -11185,6 +11515,9 @@
     "tare_volume_l": 0.024,
     "full_g": 113.0,
     "storage_opened": "fridge"
+   },
+   "view": {
+    "glossy": true
    }
   },
   "yogurt_cup_multipack": {
@@ -11254,6 +11587,16 @@
       "lot"
      ]
     }
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "yogurt_snack_cup": {
@@ -11292,6 +11635,16 @@
     "tare_volume_l": 0.005,
     "full_g": 150.0,
     "opened_life_days": 1
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "yogurt_tub": {
@@ -11330,6 +11683,16 @@
     "tare_volume_l": 0.024,
     "full_g": 907.0,
     "opened_life_days": 7
+   },
+   "view": {
+    "faces": {
+     "lid": "up"
+    }
+   },
+   "perception": {
+    "faces": {
+     "date_label": "lid"
+    }
    }
   },
   "zip_top_bag": {

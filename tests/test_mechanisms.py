@@ -622,13 +622,16 @@ class WindowTests(unittest.TestCase):
         self.assertTrue(ent(e, "win_living")["open"])
 
     def test_rain_comes_in_open_window_and_wets_sill_items(self):
+        # this domain's own rule while the kernel's rain law is deferred (the active law: Tier1PhysicsAdoptionTests)
+        from house_sim.kernel.phys import lawbook
         h = House()
         h.mech("win_living", {"kind": "sash_window", "open_frac": 0.6}, open=True, locked=False)
         h.add("sill", "window_sill", "living", pos=[2, 0], window="win_living", mount_height_m=0.9, size_m=[1.0, 0.18, 0.03])
         h.add("book", "book", "sill")
         h.c["events"] = [{"at_s": 10, "effect": "mechanisms.rain", "args": {"mm_h": 8.0}}]
         e = h.env(room="living", pos=(2, 3))
-        ok(self, e.step("wait", seconds=3600))
+        with lawbook.forced(rain=False):
+            ok(self, e.step("wait", seconds=3600))
         self.assertTrue(ent(e, "book").get("water_damaged"))
         self.assertIn("damage", failures(e))
         self.assertTrue(e.world.s["rooms"]["living"].get("wet_cells"))
@@ -855,27 +858,33 @@ class DrawerTests(unittest.TestCase):
         return h
 
     def test_unanchored_dresser_tips_with_loaded_drawers_open(self):
+        # the same outcome by this domain's rule and by the kernel's furniture_tip law (closures.tipped reads both)
+        from house_sim.systems.mechanisms.closures import tipped
         h = self.dresser_house(False)
         e = h.env(room="bedroom", pos=(4, 5))
         ok(self, e.step("open", "dd0"))
-        self.assertFalse(ent(e, "dresser").get("tipped"))
+        self.assertFalse(tipped(ent(e, "dresser")))
         ok(self, e.step("open", "dd1"))
         ok(self, e.step("open", "dd2"))
-        self.assertTrue(ent(e, "dresser").get("tipped"))
+        self.assertTrue(tipped(ent(e, "dresser")))
         self.assertIn("damage", failures(e))
         h2 = self.dresser_house(True)
         e2 = h2.env(room="bedroom", pos=(4, 5))
         for d in ("dd0", "dd1", "dd2"):
             ok(self, e2.step("open", d))
-        self.assertFalse(ent(e2, "dresser").get("tipped"))
+        self.assertFalse(tipped(ent(e2, "dresser")))
 
     def test_child_climbing_open_drawer(self):
+        # this domain's rule while furniture_tip is deferred: closed drawers' contents do not right it (the kernel counts
+        # them, and an 18 kg child no longer tips this loaded dresser: Tier1PhysicsAdoptionTests)
+        from house_sim.kernel.phys import lawbook
         h = self.dresser_house(False)
         h.c["events"] = [{"at_s": 30, "effect": "mechanisms.load_test", "args": {"target": "dd2", "kg": 18.0, "x_m": 0.3}}]
         e = h.env(room="bedroom", pos=(4, 5))
-        ok(self, e.step("open", "dd2"))
-        ok(self, e.step("wait", seconds=60))
-        self.assertTrue(ent(e, "dresser").get("tipped"))
+        with lawbook.forced(furniture_tip=False):
+            ok(self, e.step("open", "dd2"))
+            ok(self, e.step("wait", seconds=60))
+            self.assertTrue(ent(e, "dresser").get("tipped"))
 
     def test_stopless_drawer_yanked_out(self):
         h = House()
@@ -1009,12 +1018,16 @@ class CabinetTests(unittest.TestCase):
         self.assertTrue(any(f.startswith("child_lock_left_disengaged") for f in failures(e)))
 
     def test_leaning_item_falls_out_unless_cracked_first(self):
+        # the fall is the kernel's (tier 1, TIER1_PHYSICS 5.5): a thin platter (drop tolerance 0.1 m) breaks on the floor;
+        # before v3.0 this domain broke any glass falling more than 0.3 m (kernel glass: 0.5 m by its material class)
         h = House()
         h.add("cab", "cabinet", "kitchen", pos=[4, 4])
-        h.add("platter", "generic_item", "cab", label="glass platter", fragile=True, material="glass", leans_on_door=True, shelf=1)
+        h.add("platter", "generic_item", "cab", label="glass platter", fragile=True, material="glass", leans_on_door=True, shelf=1,
+              drop_tolerance_m=0.1)
         e = h.env(room="kitchen", pos=(4, 3))
         ok(self, e.step("open", "cab"))
         self.assertEqual("kitchen", ent(e, "platter")["location"])
+        self.assertTrue(ent(e, "platter")["fell"])
         self.assertTrue(ent(e, "platter")["broken"])
         e2 = h.env(room="kitchen", pos=(4, 3))
         ok(self, e2.step("pull_handle", "cab", extent=0.2))
@@ -1067,11 +1080,14 @@ class LidTests(unittest.TestCase):
     def test_hinged_lid_detent_and_items_on_lid(self):
         h = House()
         h.add("chest", "toy_chest", "living", pos=[6, 3])
-        h.add("vase", "generic_item", "chest", relation="on", label="vase", fragile=True, material="ceramic", spos=[0.1, 0.1])
+        # a thin porcelain vase (drop tolerance 0.2 m): the kernel's fall from the lid's height breaks it
+        h.add("vase", "generic_item", "chest", relation="on", label="vase", fragile=True, material="ceramic", spos=[0.1, 0.1],
+              drop_tolerance_m=0.2)
         e = h.env(room="living", pos=(5, 3))
         r = ok(self, e.step("raise", "chest", to_deg=45.0))
         self.assertIn("fell shut", r["message"])
         self.assertFalse(ent(e, "chest")["open"])
+        self.assertEqual("living", ent(e, "vase")["location"])
         self.assertTrue(ent(e, "vase")["broken"])
         h2 = House()
         h2.add("chest", "toy_chest", "living", pos=[6, 3])
@@ -1109,8 +1125,14 @@ class LidTests(unittest.TestCase):
         h.add("spoon", "generic_item", "counter", tool_kind="spoon", label="spoon")
         e = h.env(room="kitchen", pos=(1, 1))
         no(self, e.step("turn", "jar", direction="ccw"), "budge")
-        self.assertIn("cracked", ok(self, e.step("turn", "jar", direction="ccw", grip_force_n=500.0))["message"])
-        self.assertTrue(ent(e, "jar")["broken"])
+        # tier 1 (TIER1_EMBODIMENT 12): the asked 500 N is clamped to the hand's 150 N power grip, below the glass's 350 N
+        no(self, e.step("turn", "jar", direction="ccw", grip_force_n=500.0), "budge")
+        self.assertFalse(ent(e, "jar").get("broken"))
+        h.mech("jar", crack_force_n=120.0, label="thin glass jar")
+        e1 = h.env(room="kitchen", pos=(1, 1))
+        self.assertIn("cracked", ok(self, e1.step("turn", "jar", direction="ccw", grip_force_n=500.0))["message"])
+        self.assertTrue(ent(e1, "jar")["broken"])
+        h.mech("jar", crack_force_n=350.0, label="pickle jar")
         e2 = h.env(room="kitchen", pos=(1, 1))
         ok(self, e2.step("pick_up", "spoon"))
         r = ok(self, e2.step("press", "jar", where="lid_edge", tool="spoon"))
@@ -2865,6 +2887,343 @@ class UndercutTests(unittest.TestCase):
         self.assertTrue(ent(e, "slipper").get("shifted"))
         self.assertFalse(ent(e, "slipper").get("toppled"))
         self.assertEqual([1, 3], ent(e, "flat_mail")["pos"])     # flatter than the undercut: the leaf passes over it
+
+
+# ======================================================================================
+# tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep): docs/domains/mechanisms.md section 16
+
+def _env_with(h, room="living", pos=(2, 3), camera=None, notices=False, robot=None):
+    c = copy.deepcopy(h.c)
+    c["robot"] = dict({"room": room, "pos": list(pos)}, **(robot or {}))
+    if notices:
+        c["notices"] = []                       # the notice bus on, as for a schema-3 task
+    return HouseEnv(c, None, camera=camera)
+
+
+class Tier1PhysicsAdoptionTests(unittest.TestCase):
+    """TIER1_PHYSICS 10.3: the furniture tip (open drawers as tip loads), curtain rods on the kernel's hang rating, the
+    kernel's fall for everything this domain drops, rain on sill items through the rain law."""
+
+    def dresser_house(self, anchored, load_kg=12.0):
+        h = House()
+        props = {"mass_kg": 22.0, "size_m": [1.0, 0.45, 1.1]}
+        if anchored is not None:
+            props["anchored"] = anchored
+        h.add("dresser", "dresser", "bedroom", pos=[4, 6], **props)
+        for i, z in enumerate((0.9, 0.6, 0.3)):
+            d = h.add("dd{}".format(i), "drawer", "dresser", relation="part", z_m=z, part_of="dresser", mass_kg=3.0,
+                      inner_size_m=[0.8, 0.42, 0.15], size_m=[0.85, 0.45, 0.18])
+            if load_kg:
+                h.add("load{}".format(i), "generic_item", d, mass_kg=load_kg, size_m=[0.3, 0.3, 0.1], volume_l=5.0)
+        return h
+
+    def test_open_drawers_are_tip_loads_and_the_kernel_tips_an_unanchored_dresser(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.mechanisms import closures as K
+        e = self.dresser_house(False).env(room="bedroom", pos=(4, 5))
+        with lawbook.forced(furniture_tip=True):
+            ok(self, e.step("open", "dd0"))
+            loads = K._tip_loads(e.world.s, "dresser")
+            self.assertEqual(1, len(loads))
+            mass, arm, height = loads[0]
+            self.assertAlmostEqual(15.0, mass, places=3)                  # the drawer and what is in it
+            self.assertAlmostEqual(0.42 - 0.45 / 2.0, arm, places=3)       # its extension less half the depth
+            self.assertAlmostEqual(0.9, height, places=3)
+            ok(self, e.step("open", "dd1"))
+            self.assertFalse(ent(e, "dresser").get("tipped_over"))
+            r = ok(self, e.step("open", "dd2"))
+            self.assertIn("tipped", r["message"])
+            d = ent(e, "dresser")
+            self.assertTrue(d["tipped_over"])
+            self.assertEqual("on_side", d["orientation"])                 # the kernel's tip (no legacy `tipped` flag)
+            self.assertFalse(d.get("tipped"))
+            for i in range(3):
+                self.assertEqual("bedroom", ent(e, "load{}".format(i))["location"], "thrown out of its open drawer")
+        for anchored in (True, None):                    # strapped, or never decided (generation-1 furniture): no load
+            e = self.dresser_house(anchored).env(room="bedroom", pos=(4, 5))
+            with lawbook.forced(furniture_tip=True):
+                for d in ("dd0", "dd1", "dd2"):
+                    ok(self, e.step("open", d))
+                self.assertEqual([], K._tip_loads(e.world.s, "dresser"))
+                self.assertFalse(ent(e, "dresser").get("tipped_over"))
+
+    def test_a_climbing_child_tips_it_through_the_kernel_and_the_deferred_law_keeps_the_legacy_rule(self):
+        from house_sim.kernel.phys import lawbook
+        # ASTM F2057's test: the drawers empty, a 27 kg child on the front of an open drawer
+        h = self.dresser_house(False, load_kg=0)
+        h.c["events"] = [{"at_s": 30, "effect": "mechanisms.load_test", "args": {"target": "dd0", "kg": 27.0, "x_m": 0.3}}]
+        e = h.env(room="bedroom", pos=(4, 5))
+        with lawbook.forced(furniture_tip=True):
+            ok(self, e.step("open", "dd0"))
+            ok(self, e.step("wait", seconds=60))
+            self.assertTrue(ent(e, "dresser").get("tipped_over"))
+            self.assertEqual(0, stat(e, "injury"))                         # injuries are people / pets / safety's
+        # the kernel counts what the closed drawers hold in the righting moment: an 18 kg child cannot tip it loaded
+        h = self.dresser_house(False)
+        h.c["events"] = [{"at_s": 30, "effect": "mechanisms.load_test", "args": {"target": "dd2", "kg": 18.0, "x_m": 0.3}}]
+        e = h.env(room="bedroom", pos=(4, 5))
+        with lawbook.forced(furniture_tip=True):
+            ok(self, e.step("open", "dd2"))
+            ok(self, e.step("wait", seconds=60))
+            self.assertFalse(ent(e, "dresser").get("tipped_over"))
+        e2 = self.dresser_house(False).env(room="bedroom", pos=(4, 5))
+        with lawbook.forced(furniture_tip=False):
+            for d in ("dd0", "dd1", "dd2"):
+                ok(self, e2.step("open", d))
+        self.assertTrue(ent(e2, "dresser").get("tipped"))                 # deferred: this domain's own rule
+        self.assertNotEqual("on_side", ent(e2, "dresser").get("orientation"))
+
+    def test_curtain_rods_pull_out_by_their_hang_rating_and_the_robots_pull_limit(self):
+        from house_sim.systems.mechanisms import coverings as V
+        outcomes = {}
+        for profile in ("humanoid_v1", "humanoid_compact"):
+            for force in ("firm", "yank"):
+                h = House()
+                h.add("cov", "curtains", "living", pos=[2, 0], window="win_living")
+                e = _env_with(h, pos=(2, 1), robot={"body_profile": profile})
+                r = ok(self, e.step("pull_handle", "cov", grip="fabric", force=force, extent=0.0))
+                outcomes[(profile, force)] = mech(e, "cov").get("rod")
+                if profile == "humanoid_compact" and force == "yank":
+                    self.assertIn("as hard as this body can pull", r["message"])
+        self.assertEqual({("humanoid_v1", "firm"): "ok", ("humanoid_v1", "yank"): "down",
+                          ("humanoid_compact", "firm"): "ok", ("humanoid_compact", "yank"): "ok"}, outcomes)
+        e = House().env()
+        state = copy.deepcopy(e.world.s)
+        state["entities"]["probe"] = default_registry().make("curtains", "living")
+        self.assertAlmostEqual(8.0, V.rod_rating_kg(state, "probe") / __import__("house_sim.kernel.phys.props", fromlist=["x"]).vary(state, "probe", "hang"), places=6)
+
+    def test_drops_are_the_kernels_fall_with_a_real_spill(self):
+        h = House()
+        h.add("old", "stopless_drawer", "kitchen", pos=[3, 0], mount_height_m=0.75, mounted=True)
+        h.add("mug", "generic_item", "old", label="mug of tea", material="ceramic", liquid="tea", liquid_l=0.25, sealed=False,
+              open=True, liquid_container=True, size_m=[0.09, 0.09, 0.1])
+        e = h.env(room="kitchen", pos=(3, 1))
+        ok(self, e.step("pull_handle", "old", force="yank"))
+        self.assertTrue(ent(e, "mug")["fell"])
+        self.assertGreater(stat(e, "phys_falls"), 0)
+        self.assertGreater(stat(e, "phys_spills"), 0)                      # before v3.0: a spill counted, none made
+        spills = [x for x, rec in e.world.s["entities"].items() if rec.get("category") == "spill"]
+        self.assertTrue(spills)
+
+    def test_rain_on_sill_items_follows_the_kernel_rain_law_when_it_is_active(self):
+        from house_sim.kernel.phys import lawbook
+        h = House()
+        h.mech("win_living", {"kind": "sash_window", "open_frac": 0.6}, open=True, locked=False)
+        h.add("sill", "window_sill", "living", pos=[2, 0], window="win_living", mount_height_m=0.9, size_m=[1.0, 0.18, 0.03])
+        h.add("book", "book", "sill")
+        h.c["events"] = [{"at_s": 10, "effect": "mechanisms.rain", "args": {"mm_h": 8.0}}]
+        e = h.env(room="living", pos=(2, 3))
+        with lawbook.forced(rain=True):
+            ok(self, e.step("wait", seconds=3600))
+            book = ent(e, "book")
+            self.assertEqual(1.0, book.get("wetness"))
+            self.assertGreater(C_num(book.get("moisture")), 0.0)          # the kernel's absorbency model
+            self.assertEqual(bool(book.get("soaked")), bool(book.get("water_damaged")))
+        self.assertTrue(e.world.s["rooms"]["living"].get("wet_cells"))    # the floor under the window: this domain's
+
+    def test_heat_sources_never_go_onto_soft_surfaces_by_the_kernel_material_model(self):
+        from house_sim.systems.mechanisms import skills as SK
+        h = House()
+        h.add("sofa1", "sofa", "living", pos=[6, 4])
+        h.add("rug_stool", "table", "living", pos=[2, 5], material="wool")
+        e = h.env()
+        st = e.world.s
+        self.assertTrue(SK.unsafe_for_heat(st, "sofa1"))
+        self.assertTrue(SK.unsafe_for_heat(st, "rug_stool"))              # wool: kernel softness 0.85
+        self.assertFalse(SK.unsafe_for_heat(st, "table"))                 # wood
+
+
+class Tier1BodyAdoptionTests(unittest.TestCase):
+    """TIER1_EMBODIMENT 12: forces clamped to the body's push / pull limits, the wrist's torque and the grip's cap from
+    the body, commanded durations, the noise of a mallet."""
+
+    def test_a_compact_robots_yank_does_not_break_a_child_latch(self):
+        for profile, breaks in (("humanoid_v1", True), ("humanoid_compact", False)):
+            h = House()
+            h.add("sink_cab", "sink_base_cabinet", "kitchen", pos=[4, 0])
+            h.mech("sink_cab", {"child_lock_kind": "magnetic"}, child_lock=True)
+            e = _env_with(h, room="kitchen", pos=(4, 1), robot={"body_profile": profile})
+            r = e.step("pull_handle", "sink_cab", force="yank")
+            self.assertEqual(breaks, bool(mech(e, "sink_cab").get("child_lock_broken")), r["message"])
+
+    def test_the_wrist_limit_is_the_bodys(self):
+        for profile, opens in (("humanoid_v1", True), ("humanoid_compact", False)):
+            h = House()
+            h.add("jar", "screw_lid_jar", "counter", label="jam jar")
+            h.mech("jar", {"kind": "screw_lid"}, {"stuck_nm": 3.8})        # 1.2 + 3.8 = 5 N m to break it free
+            h.add("pad", "rubber_grip_pad", "counter")
+            e = _env_with(h, room="kitchen", pos=(1, 1), robot={"body_profile": profile})
+            ok(self, e.step("pick_up", "pad"))
+            r = e.step("turn", "jar", direction="ccw", grip_aid="pad", grip_force_n=140.0)
+            self.assertEqual(opens, bool(r["ok"]), r["message"])
+
+    def test_commanded_holds_are_not_stretched_by_careful_speed(self):
+        h = House()
+        h.add("panel1", "control_panel_device", "kitchen", pos=[2, 2],
+              panel={"buttons": {"start": {"effect": "none"}}})
+        e = h.env(room="kitchen", pos=(2, 1))
+        ok(self, e.step("set_speed", "careful"))
+        t0 = e.world.s["time_s"]
+        e.step("hold_press", "panel1", button="start", seconds=10.0)
+        self.assertAlmostEqual(10.5, e.world.s["time_s"] - t0, delta=1.0)
+        for verb in ("hold_press", "squeeze_trigger", "pull_handle", "push_handle", "turn", "move_lever"):     # B7
+            self.assertEqual("commanded", ACTIONS[verb].timing, verb)
+
+    def test_hammering_a_lid_home_is_loud_and_a_button_press_is_quiet(self):
+        from house_sim.systems.mechanisms import controls as CT
+
+        class _Ctx:
+            def __init__(self, w, tool):
+                self.w, self.args = w, {"tool": tool}
+        h = House()
+        h.add("mallet", "generic_item", "counter", tool_kind="rubber_mallet", label="rubber mallet")
+        e = h.env(room="kitchen", pos=(1, 1))
+        self.assertEqual(85.0, CT.press_noise_db(_Ctx(e.world, "mallet")))
+        self.assertIsNone(CT.press_noise_db(_Ctx(e.world, None)))
+
+
+class Tier1CameraAdoptionTests(unittest.TestCase):
+    """TIER1_CAMERA 19: view blocks, visual occurrences, the doorway glimpse gated by the camera; room mode unchanged."""
+
+    def test_view_blocks(self):
+        from house_sim.kernel import sight
+        h = House()
+        for eid, type_name in (("sheer", "sheer_curtains"), ("fd", "french_door"), ("sd", "storm_door"),
+                               ("gfc", "glass_front_cabinet"), ("ts", "touchscreen_device"), ("ap", "alarm_panel")):
+            h.add(eid, type_name, "living", pos=[1, 1])
+        st = h.env().world.s
+        self.assertAlmostEqual(0.6, sight.view_props(st, "sheer")["porosity"])
+        self.assertAlmostEqual(0.7, sight.view_props(st, "fd")["porosity"])
+        self.assertAlmostEqual(0.8, sight.view_props(st, "sd")["porosity"])
+        self.assertAlmostEqual(0.75, sight.view_props(st, "gfc")["porosity"])
+        for eid in ("ts", "ap"):
+            self.assertTrue(sight.view_props(st, eid)["glossy"])
+            self.assertAlmostEqual(0.006, sight.text_m(st, eid, "display"))
+
+    def test_visual_occurrences_log_exactly_as_before_in_room_mode(self):
+        h = House()
+        h.add("storm", "storm_door", "entry", pos=[1, 1])
+        e = h.env(room="entry", pos=(2, 2))
+        before = len(e.world.s.get("events", []) or [])
+        from house_sim.systems.mechanisms import common as C
+        C.visual(e.world, "slam", source="storm", size_m=1.0, target="storm")
+        entry = e.world.s["events"][-1] if e.world.s.get("events") else None
+        if entry is not None:
+            self.assertEqual("slam", entry.get("kind"))
+            self.assertNotIn("source", entry)
+            self.assertNotIn("size_m", entry)
+        self.assertNotIn("camera_log", e.world.s)
+
+    def test_the_doorway_glimpse_needs_the_opening_in_frame_with_the_geometric_camera(self):
+        h = House()
+        h.person("adult_1", "hall", [1, 2])
+        e = _env_with(h, room="bedroom", pos=(4, 2), robot={"facing_deg": 0.0})
+        self.assertIn("through_doorways", ok(self, e.step("wait", seconds=1))["observation"])     # room camera
+        e = _env_with(h, room="bedroom", pos=(4, 2), camera="geometric", robot={"facing_deg": 0.0})
+        self.assertNotIn("through_doorways", e.step("wait", seconds=1)["observation"])           # facing away
+        r = ok(self, e.step("look", "door_bed"))
+        self.assertEqual("hall", r["observation"]["through_doorways"][0]["to"])
+
+
+class Tier1SweepAdoptionTests(unittest.TestCase):
+    """TIER1_SWEEP 22.3: notices, ask routes, exact idle probes, generation-2 furnishing."""
+
+    def test_slams_and_the_garage_motor_are_notices(self):
+        h = House()
+        h.mech("door_bed", {"kind": "hinged_door"}, open=True)
+        e = _env_with(h, room="hall", pos=(2, 2), notices=True, robot={"speed_mode": "fast"})
+        ok(self, e.step("close", "door_bed"))
+        kinds = [n["kind"] for n in e.world.s.get("notices", [])]
+        self.assertIn("door_slam", kinds)
+        h = House()
+        h.add("btn", "garage_door_button", "garage", pos=[11, 5], controls_door="garage_door")
+        h.mech("garage_door", {"kind": "overhead_door", "state": "open", "pos": 1.0}, open=True)
+        e = _env_with(h, room="garage", pos=(10, 5), notices=True)
+        ok(self, e.step("press", "btn"))
+        self.assertIn("garage_door", [n["kind"] for n in e.world.s.get("notices", [])])
+
+    def test_code_and_key_questions_reach_the_answerers(self):
+        from house_sim.kernel import dialogue
+        from house_sim.kernel.dialogue import Subject
+        h = House()
+        h.add("lock_1", "combination_padlock", "back", pos=[14, 1], label="shed padlock", _code="4721")
+        st = h.env().world.s
+        self.assertEqual(("mechanisms.code", "code:lock_1"),
+                         dialogue.find_route(st, "adult_1", Subject("entity", "lock_1"), "how", "code", None))
+        self.assertEqual(("mechanisms.key_location", "key_location:shed_door"),
+                         dialogue.find_route(st, "adult_1", Subject("entity", "shed_door"), "how", "key", None))
+        self.assertEqual(("mechanisms.code", "code:lock_1"),
+                         dialogue.find_route(st, "adult_1", Subject("word", None, ("padlock", "code")), "how", None, None))
+        self.assertEqual(("mechanisms.key_location", "key_location:shed_door"),
+                         dialogue.find_route(st, "adult_1", Subject("word", None, ("shed", "key")), "where", None, None))
+        self.assertEqual((None, None),
+                         dialogue.find_route(st, "adult_1", Subject("word", None, ("front", "code")), "how", None, None))
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        quiet = House().env()
+        ok(self, quiet.step("wait", seconds=60))
+        self.assertTrue(plugins.SYSTEM_IDLE["mechanisms.tick"](quiet.world))
+        self.assertTrue(plugins.SYSTEM_IDLE["mechanisms.slow"](quiet.world))
+
+        def busy_house():
+            h = House()
+            h.mech("garage_entry", {"kind": "hinged_door", "release_at": -100.0}, open=True)   # a closer due to swing
+            h.mech("win_living", {"kind": "sash_window", "open_frac": 0.6}, open=True, locked=False)
+            h.add("sill", "window_sill", "living", pos=[2, 0], window="win_living", mount_height_m=0.9, size_m=[1.0, 0.18, 0.03])
+            h.add("book", "book", "sill")
+            h.add("monitor", "generic_item", "table", label="monitor", glare_from=["win_living"])
+            h.c["events"] = [{"at_s": 600, "effect": "mechanisms.rain", "args": {"mm_h": 6.0}},
+                             {"at_s": 1800, "effect": "mechanisms.wind_gust", "args": {"mps": 14.0}}]
+            return h
+        busy = busy_house().env()
+        self.assertFalse(plugins.SYSTEM_IDLE["mechanisms.tick"](busy.world))
+        self.assertFalse(plugins.SYSTEM_IDLE["mechanisms.slow"](busy.world))
+
+        def run(probes):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                e = busy_house().env(room="hall", pos=(1, 4))
+                for seconds in (300, 900, 3600, 7200):
+                    ok(self, e.step("wait", seconds=seconds))
+                return digest(e.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+        self.assertEqual(run(True), run(False))
+
+    def test_generation_two_draws_anchoring_per_piece_and_fits_smart_locks_in_connected_homes(self):
+        from house_sim.generator import generate_house
+        from house_sim.systems.mechanisms import furnish as F
+        reg = default_registry()
+        drawn, anchored, smart = 0, 0, 0
+        for seed in range(12):
+            c2 = generate_house(seed, gen=2)
+            for rec in c2["entities"].values():
+                name = rec.get("type")
+                chain = set([name] + (reg.ancestors(name) if name and reg.known(name) else []))
+                if chain & set(F.TALL_STORAGE) and not rec.get("portable") and C_num((rec.get("size_m") or [0, 0, 0])[2]) >= F.TALL_STORAGE_MIN_M:
+                    self.assertIn("anchored", rec, name)
+                    drawn += 1
+                    anchored += bool(rec["anchored"])
+            if ((c2.get("household") or {}).get("profile") or {}).get("smart_home") == "connected":
+                smart += sum(1 for rec in c2["entities"].values() if isinstance((rec.get("mech") or {}).get("smart"), dict))
+        self.assertGreater(drawn, 8)
+        self.assertLess(anchored, drawn)
+        c1 = generate_house(0)
+        self.assertFalse(any("anchored" in rec and rec.get("type") == "dresser" for rec in c1["entities"].values()))
+
+    def test_every_spray_bottle_squeezes_like_a_trigger_sprayer(self):
+        h = House()
+        name = "spray_bottle" if default_registry().known("spray_bottle") else "trigger_bottle"   # cleaning's, else ours
+        h.add("plain", name, "counter", liquid="water", liquid_l=0.4)
+        h.c["entities"]["plain"].pop("trigger", None)          # a member of the spray_bottle group with no trigger data
+        e = h.env(room="kitchen", pos=(1, 1))
+        ok(self, e.step("pick_up", "plain"))
+        r = ok(self, e.step("squeeze_trigger", "plain", squeezes=3))
+        self.assertIn("Sprayed", r["message"])
+        self.assertAlmostEqual(0.4 - 0.0033, ent(e, "plain")["liquid_l"], places=4)
 
 
 def self_reg():

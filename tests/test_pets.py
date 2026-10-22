@@ -129,7 +129,7 @@ class House:
         self.c["pets"][pid] = record
         return pid
 
-    def env(self, robot_room=None, robot_pos=None, hold=None, perception="oracle"):
+    def env(self, robot_room=None, robot_pos=None, hold=None, perception="oracle", camera=None):
         c = copy.deepcopy(self.c)
         if robot_room:
             c["robot"]["room"] = robot_room
@@ -141,7 +141,7 @@ class House:
             rec.update(location="robot", relation="held", held_hand=hand)
             for key in ("pos", "spos", "shelf"):
                 rec.pop(key, None)
-        return HouseEnv(c, None, seed=0, perception=perception)
+        return HouseEnv(c, None, seed=0, perception=perception, camera=camera)
 
 
 def step(env, action, target="", destination="", **kw):
@@ -2189,21 +2189,24 @@ class RobustPlacementTests(unittest.TestCase):
             self.assertEqual(bad, [], "{} seed {}".format(dwelling, seed))
 
     def test_generated_pet_food_storage_is_within_shelf_ratings(self):
+        # the shelf ratings are the kernel's (TIER1_PHYSICS 4.6 supports.json, per-instance variation included: the very
+        # limit the overload law enforces), not a pets copy; the load is the kernel's subtree mass
         from house_sim.generator import generate_house
-        from house_sim.systems.pets import scenarios as SC
+        from house_sim.kernel import physics
         for seed in (1, 41, 97, 7, 12):
             c = generate_house(seed)
+            state = {"rooms": c["rooms"], "entities": c["entities"]}
             for eid, rec in c["entities"].items():
                 if rec.get("type") not in ("dog_kibble_bag", "cat_kibble_bag", "cat_litter_bag"):
                     continue
                 parent = c["entities"].get(rec.get("location"))
                 if not parent or not parent.get("shelf_heights"):
                     continue
-                rating = SC._shelf_rating(parent)
+                rating = physics.props(state, rec["location"]).shelf_rating_kg
                 shelf = rec.get("shelf", 0)
-                load = sum(float(r.get("mass_kg", 0) or 0) for r in c["entities"].values()
+                load = sum(physics.subtree_mass(state, o) for o, r in c["entities"].items()
                            if r.get("location") == rec["location"] and r.get("relation") == "in" and r.get("shelf", 0) == shelf)
-                self.assertLessEqual(load, rating, "seed {}: {} overloads {}".format(seed, eid, rec["location"]))
+                self.assertLessEqual(load, 0.8 * rating + 1e-6, "seed {}: {} overloads {}".format(seed, eid, rec["location"]))
 
 
 class SettleTests(unittest.TestCase):
@@ -2935,6 +2938,533 @@ class RealisticPerceptionTests(unittest.TestCase):
         env = self.env()
         self.assertNotIn("spoiled_pet_food", json.dumps(env.observe().get("smells", [])))
         self.assertIn("spoiled_pet_food", json.dumps(self.h.env("kitchen", [4, 4]).observe().get("smells", [])))
+
+
+
+# ----------------------------------------------------------------------
+# tier-1 adoption (docs/design/TIER1_INTEGRATION.md section 6, "pets"; docs/domains/pets.md section 11)
+
+class Tier1PhysicsAdoption(unittest.TestCase):
+    """The kernel physics layer: the carry law, kernel breaks, crashes startling pets, pets knocking things over,
+    kernel shelf ratings (TIER1_PHYSICS 10.3 and 13)."""
+
+    def _carry(self, liters, speed):
+        h = House()
+        h.add("wb", "dog_water_bowl", "kitchen", liquid_l=liters, _last_l=liters)
+        env = h.env("kitchen", [1, 1], hold={"right": "wb"})
+        ok(self, step(env, "walk_to", cell=[5, 7], speed=speed))
+        return env
+
+    def test_a_brim_full_bowl_carried_at_a_normal_walk_sloshes_by_the_kernel_model(self):
+        # 1.8 l in a 1.9 l bowl (24 cm across, 7 cm deep inside): about 4 mm of headroom; a normal walk's slosh amplitude
+        # (0.010 x 1.0 x sqrt(0.24 / 0.08) = 17 mm) is far above it. Whichever model runs (this domain's deferred copy,
+        # manipulation's, or the kernel's carry law) the water lands on the floor and the pets harm and the level follow.
+        from house_sim.kernel.phys import lawbook
+        for forced in (False, True):
+            with lawbook.forced(carry=forced):
+                env = self._carry(1.8, "normal")
+                rec = ent(env, "wb")
+                self.assertLess(rec["liquid_l"], 1.8 - 0.05, forced)
+                self.assertEqual(harms(env).get("carry_spill"), 1, forced)
+                self.assertEqual(rec["_last_l"], rec["liquid_l"], forced)
+                self.assertEqual(rec["water_level"], round(rec["liquid_l"] / 1.9, 2), forced)
+                self.assertGreaterEqual(env.world.s["stats"].get("spills", 0), 1, forced)
+                self.assertGreaterEqual(env.world.s["stats"].get("phys_spills", 0), 1, forced)
+
+    def test_a_bowl_filled_to_70_percent_carried_carefully_keeps_its_water(self):
+        from house_sim.kernel.phys import lawbook
+        for forced in (False, True):
+            with lawbook.forced(carry=forced):
+                env = self._carry(1.33, "careful")
+                self.assertAlmostEqual(ent(env, "wb")["liquid_l"], 1.33, places=4)
+                self.assertNotIn("carry_spill", harms(env))
+
+    def test_the_deferred_copy_uses_the_kernel_formula(self):
+        from house_sim.kernel.phys import liquids as PL
+        rec = default_registry().make("dog_water_bowl", "x", liquid_l=1.8)
+        self.assertGreater(PL.slosh_spill_l(rec, PL.SPEED_FACTOR["normal"]), 0.1)
+        self.assertEqual(PL.slosh_spill_l(dict(rec, liquid_l=1.33), PL.SPEED_FACTOR["careful"]), 0.0)
+        import inspect
+        from house_sim.systems.pets import water
+        # the pets-only slosh line is gone: the type keeps its old slosh_frac value only so generation-1 houses stay
+        # byte-identical (TIER1_SWEEP 14.1), and no pets code reads it
+        self.assertNotIn("slosh_frac", inspect.getsource(water))
+
+    def test_a_thrown_toy_breaks_glass_through_the_kernel(self):
+        h = House()
+        h.pet("dog_1", "dog", room="back", pos=[2, 2])
+        h.add("ball", "fetch_ball", "back", pos=[1, 1])
+        h.add("vase", "generic_item", "back", pos=[10, 4], label="glass patio table", fragile=True, material="glass",
+              size_m=[1.5, 1.5, 0.75], mass_kg=12.0)
+        env = h.env("back", [3, 5], hold={"right": "ball"})
+        ok(self, step(env, "play_fetch", "ball", cell=[11, 5], pet="dog_1"))
+        rec = ent(env, "vase")
+        self.assertTrue(rec["broken"])
+        self.assertTrue(rec.get("shattered"))                         # the kernel shows a glass break at a glance
+        self.assertIn("sharp", rec.get("hazards") or [])
+        self.assertEqual(env.world.s["stats"].get("phys_breaks"), 1)
+        self.assertEqual(env.world.s["stats"].get("breakages"), 1)    # the robot threw it
+        self.assertEqual(harms(env).get("fetch_breakage"), 1)
+
+    def _drop(self, env, eid, height, by):
+        from house_sim.kernel.phys import impact
+        w = env.world
+        w.begin()
+        result = impact.fall(w, eid, height_m=height, cause="test", at=("living", [5, 5]), by=by)
+        w.commit()
+        return result
+
+    def test_a_crash_startles_and_wakes_pets_in_earshot(self):
+        h = House()
+        h.pet("cat_1", "cat", room="living", pos=[7, 7], awake=False, posture="sleeping", anxiety=0.15)
+        h.add("glass", "generic_item", "table", label="drinking glass", material="glass", mass_kg=0.3, size_m=[0.08, 0.08, 0.12],
+              fragile=True)
+        env = h.env("kitchen", [1, 1])
+        self._drop(env, "glass", 0.9, "exogenous")
+        cat = pet(env, "cat_1")
+        self.assertTrue(cat["awake"])
+        self.assertGreater(cat["anxiety"], 0.15)
+        self.assertNotIn("struck", harms(env))
+        self.assertEqual(env.world.s["stats"].get("injury", 0), 0)
+
+    def test_a_heavy_thing_landing_on_a_pet_hurts_it(self):
+        from house_sim.systems.pets import physical as PH
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[5, 5], size="medium")
+        h.add("box", "generic_item", "table", label="box of books", mass_kg=4.0, size_m=[0.4, 0.3, 0.3])
+        env = h.env("kitchen", [1, 1])
+        self._drop(env, "box", 1.0, "robot")
+        signs = [s for c in pet(env, "dog_1")["_health"]["conditions"] for s in c.get("signs", [])]
+        self.assertIn("yelping", signs)
+        self.assertEqual(harms(env).get("struck"), 1)
+        # the injury flag is the safety domain's to count when it hooks the event; without it this domain counts it
+        self.assertEqual(env.world.s["stats"].get("injury", 0), 1)
+
+    def _cat_and_glass(self, robot_placed):
+        h = House()
+        h.pet("cat_1", "cat", room="kitchen", pos=[2, 2], behaviors={"knocks_items": 1.0, "explores": 0.0})
+        h.add("glass", "generic_item", "counter", label="drinking glass", material="glass", mass_kg=0.3, size_m=[0.08, 0.08, 0.12],
+              fragile=True, spos=[0.02, 0.02])
+        if robot_placed:
+            h.c["entities"]["glass"]["_robot_moved"] = True
+        return h.env("living", [5, 6])
+
+    def test_a_cat_pushes_a_glass_off_the_counter_and_it_counts_only_when_the_robot_left_it_there(self):
+        for robot_placed in (False, True):
+            env = self._cat_and_glass(robot_placed)
+            ok(self, step(env, "wait", seconds=900))
+            rec = ent(env, "glass")
+            self.assertTrue(rec.get("fell"), robot_placed)
+            self.assertNotEqual(rec.get("location"), "counter", robot_placed)
+            self.assertTrue(rec.get("broken"), robot_placed)                    # glass off a 0.9 m counter
+            self.assertEqual(env.world.s["stats"].get("breakages", 0), 1 if robot_placed else 0, robot_placed)
+            self.assertIn("knocked_off", json.dumps(env.world.s["pet_care"]["log"]))
+
+    def test_generated_pets_never_knock_things_off(self):
+        rec = {"species": "cat"}
+        M.ensure_record(rec, "cat_1")
+        self.assertEqual(C.behavior(rec, "knocks_items"), 0.0)
+
+    def _low_table_vase(self, excitement):
+        h = House()
+        h.add("ct", "table", "living", pos=[5, 3], size_m=[1.0, 0.5, 0.45], surface_height_m=0.45, surface_size_m=[1.0, 0.5])
+        h.add("vase", "generic_item", "ct", label="tall vase", material="ceramic", mass_kg=0.6, size_m=[0.1, 0.1, 0.4], spos=[0.0, 0.0])
+        h.pet("dog_1", "dog", room="kitchen", pos=[2, 2], size="large", excitement=excitement)
+        env = h.env("hall", [1, 1])
+        w = env.world
+        w.begin()
+        C.move_pet(w, "dog_1", "living", near=[5, 4], why="test")
+        w.commit()
+        return ent(env, "vase")
+
+    def test_an_excited_dog_sweeps_a_tall_vase_on_a_low_table_with_its_tail(self):
+        swept = self._low_table_vase(0.9)
+        self.assertTrue(swept.get("tipped_over") or swept.get("fell"), swept)
+        calm = self._low_table_vase(0.2)
+        self.assertFalse(calm.get("tipped_over") or calm.get("fell"))
+
+    def test_the_knock_event_pushes_a_thing_off(self):
+        from house_sim.kernel.plugins import run_hooks
+        env = self._cat_and_glass(False)
+        w = env.world
+        w.begin()
+        run_hooks("event:pets.knock", w, {"pet": "cat_1", "item": "glass"}, env)
+        w.commit()
+        self.assertTrue(ent(env, "glass").get("fell"))
+
+
+class Tier1ResidualFixes(unittest.TestCase):
+    """Residual items of earlier rounds closed or re-checked in the tier-1 adoption round."""
+
+    def test_a_pet_never_settles_on_a_passage_a_person_leaves_one_cell_wide(self):
+        # round-4 report (safety): a dog moved beside a resident cut a doorway pocket off; people count as walls in the
+        # pets' standing tiers (geometry.blocked_cells includes agents), so the remaining one-cell gap is a cut cell
+        h = House()
+        h.add("shelf2", "shelf_unit", "hall", pos=[2, 9], size_m=[1.0, 0.4, 1.8])
+        h.c["people"]["resident_1"].update(location="hall", pos=[1, 9])
+        env = h.env("living", [5, 6])
+        tiers = C.standing_tiers(env.world.s, "hall")
+        self.assertNotEqual(tiers.get((0, 9), 0), 0)
+        h.c["people"]["resident_1"].update(location="living", pos=[8, 8])
+        free = C.standing_tiers(h.env("living", [5, 6]).world.s, "hall")
+        self.assertEqual(free.get((0, 9)), 0)
+
+    def test_the_pill_bottle_group_matches_at_a_glance(self):
+        reg = default_registry()
+        rec = reg.make("pet_medication", "x")
+        self.assertEqual((rec["color"], rec["material"]), ("amber", "polypropylene"))
+        dog, rx = reg.make("dog_kibble_bag", "x"), reg.make("rx_kibble_bag", "x")
+        self.assertEqual(dog["size_m"], rx["size_m"])                  # no LookalikeWarning for dog_food_bag
+
+    def test_reports_from_a_fields_dict_run_in_field_order(self):
+        from house_sim.systems.pets import skills as SK
+        calls = []
+
+        class R(object):
+            def do(self, action, **args):
+                calls.append(args["field"])
+        SK.report(R(), "x", {"zeta": 1, "alpha": 2, "mid": 3})
+        self.assertEqual(calls, ["alpha", "mid", "zeta"])
+
+
+class Tier1BodyAdoption(unittest.TestCase):
+    """The robot body: footfall noise and the effective speed startle pets, loud robot actions stress them, walks pay
+    walking work and need legs, guards use the body's capability check, commanded durations (TIER1_EMBODIMENT 12)."""
+
+    def _sleeping_dog(self, quiet=False):
+        h = House()
+        h.pet("dog_1", "dog", room="kitchen", pos=[3, 3], awake=False, posture="sleeping")
+        env = h.env("kitchen", [3, 1])
+        if quiet:
+            env.world.s["robot"]["quiet"] = True
+        return env
+
+    def test_a_normal_walk_past_a_sleeping_dog_startles_it_but_not_in_quiet_mode(self):
+        # this domain's startle (its counter; navigation_robot wakes sleepers it passes by its own rule)
+        env = self._sleeping_dog()
+        ok(self, step(env, "walk_to", cell=[4, 6]))
+        self.assertTrue(pet(env, "dog_1")["awake"])
+        self.assertEqual(pet(env, "dog_1")["startled"], 1)
+        quiet = self._sleeping_dog(quiet=True)
+        ok(self, step(quiet, "walk_to", cell=[4, 6]))            # quiet footfalls: 36 - 4 = 32 dB at 1 m, under 33
+        self.assertEqual(pet(quiet, "dog_1")["startled"], 0)
+
+    def test_quiet_mode_turns_a_fast_rush_into_a_normal_walk_so_nothing_is_bumped(self):
+        loud = self._sleeping_dog()
+        ok(self, step(loud, "walk_to", cell=[4, 6], speed="fast"))
+        self.assertEqual(harms(loud).get("robot_contact"), 1)
+        quiet = self._sleeping_dog(quiet=True)
+        ok(self, step(quiet, "walk_to", cell=[4, 6], speed="fast"))
+        self.assertNotIn("robot_contact", harms(quiet))
+
+    def _dryer(self):
+        h = House()
+        h.pet("dog_1", "dog", room="bath", pos=[2, 2], wetness=0.8)
+        h.pet("cat_1", "cat", room="bath", pos=[3, 4], anxiety=0.15, behaviors={"noise_phobia": 0.8})
+        h.add("dryer", "pet_dryer", "bath", pos=[1, 1], on=True)
+        return h.env("bath", [2, 3], hold={"right": "dryer"})
+
+    def test_the_dryer_is_too_loud_for_quiet_mode_and_its_noise_counts_once(self):
+        env = self._dryer()
+        env.world.s["robot"]["quiet"] = True
+        r = step(env, "dry_pet", "dog_1", tool="dryer", minutes=2)
+        self.assertFalse(r["ok"])
+        self.assertIn("Quiet mode", r["message"])
+        env.world.s["robot"]["quiet"] = False
+        ok(self, step(env, "dry_pet", "dog_1", tool="dryer", minutes=2))
+        # the running dryer (noise_db 80, on) loads the cat through the agents tick; the robot_sound hook adds nothing
+        control = self._dryer()
+        ok(self, step(control, "wait", seconds=120))
+        self.assertAlmostEqual(pet(env, "cat_1")["anxiety"], pet(control, "cat_1")["anxiety"], delta=0.01)
+
+    def test_a_loud_robot_action_stresses_noise_phobic_pets(self):
+        from house_sim.kernel.plugins import run_hooks
+        h = House()
+        h.pet("cat_1", "cat", room="kitchen", pos=[3, 3], anxiety=0.15, behaviors={"noise_phobia": 0.8})
+        env = h.env("kitchen", [1, 1])
+        w = env.world
+        w.begin()
+        run_hooks("robot_sound", w, 85.0, "blend", "kitchen", [1, 1])
+        w.commit()
+        after = pet(env, "cat_1")["anxiety"]
+        self.assertAlmostEqual(after, 0.15 + 0.25, delta=0.01)          # (85 - 60) / 40 x 0.8 x 0.5
+        w.begin()
+        run_hooks("robot_sound", w, 50.0, "talk", "kitchen", [1, 1])     # speech-level: no effect
+        w.commit()
+        self.assertEqual(pet(env, "cat_1")["anxiety"], after)
+
+    def _walk_env(self):
+        from house_sim.systems.pets.handling import DEFAULT_ROUTE
+        h = House(start="2026-10-09T13:00:00")
+        h.pet("dog_1", "dog", room="front", pos=[10, 5], size="medium", leashed=True, leash="leash", leash_ring="collar:d_ring")
+        h.add("collar", "dog_collar", "dog_1", relation="worn", settings={"length_cm": 43})
+        h.add("leash", "leash", "front", pos=[9, 9], attached_to="dog_1", ring="collar:d_ring")
+        segs = [dict(s, event=None) for s in copy.deepcopy(DEFAULT_ROUTE)]
+        h.c["household"]["walk_routes"] = {"block": {"segments": segs, "planned_min": 30, "approved": True}}
+        return h.env("front", [10, 6], hold={"right": "leash"})
+
+    def test_a_walk_pays_its_walking_work_at_the_robots_pace(self):
+        from house_sim.kernel import actions
+        self.assertEqual(actions.ACTIONS["walk_pet"].timing, "speed")
+        env = self._walk_env()
+        ok(self, step(env, "walk_pet", "dog_1", command="start"))       # the first segment: 120 m of front walk
+        before, t0 = env.world.s["robot"]["energy_wh_used"], env.world.s["time_s"]
+        ok(self, step(env, "walk_pet", "dog_1", command="continue"))    # the 15 m crossing at the normal pace, 0.8 m/s
+        self.assertGreater(env.world.s["robot"]["energy_wh_used"] - before, 15 * 0.288)
+        self.assertAlmostEqual(env.world.s["time_s"] - t0, 15 / 0.8, delta=1.0)
+
+    def test_a_robot_with_failed_legs_cannot_walk_the_dog(self):
+        env = self._walk_env()
+        env.world.s["robot"]["legs_health"] = 0.0
+        self.assertFalse(step(env, "walk_pet", "dog_1", command="start")["ok"])
+
+    def test_handling_a_pet_uses_the_bodys_capability_check(self):
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[5, 5])
+        h.add("brush", "bristle_brush", "living", pos=[5, 6])
+        env = h.env("living", [5, 6], hold={"right": "brush"})
+        env.world.s["robot"]["actuator_ok"] = False
+        r = step(env, "brush_pet", "dog_1", tool="brush", minutes=1)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["message"], "Actuator fault; request human assistance")
+
+    def test_commanded_minutes_are_not_stretched_by_careful_speed(self):
+        from house_sim.kernel import actions
+        for verb in ("brush_pet", "dry_pet"):
+            self.assertEqual(actions.ACTIONS[verb].timing, "commanded", verb)
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[5, 5])
+        h.add("brush", "bristle_brush", "living", pos=[5, 6])
+        env = h.env("living", [5, 6], hold={"right": "brush"})
+        env.world.s["robot"]["speed_mode"] = "careful"
+        t0 = env.world.s["time_s"]
+        ok(self, step(env, "brush_pet", "dog_1", tool="brush", minutes=2))
+        self.assertAlmostEqual(env.world.s["time_s"] - t0, 120.0, delta=1.0)
+
+    def test_the_robot_field_this_domain_writes_is_declared(self):
+        from house_sim.kernel import body
+        entry = body.robot_fields()["pet_waste_on_feet"]
+        self.assertEqual((entry["owner"], entry["tier"], entry["default"]), ("pets", "hidden", 0.0))
+
+
+class Tier1CameraAdoption(unittest.TestCase):
+    """The geometric camera: pet heights, view blocks, hidden pets concealed for the kernel, visual events, cues that
+    need the pet identified; room mode unchanged (TIER1_CAMERA 19)."""
+
+    def _env(self, camera, **pet_props):
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[5, 4], **pet_props)
+        h.pet("cat_1", "cat", room="living", pos=[7, 4])
+        return h.env("living", [5, 8], camera=camera)
+
+    def test_room_mode_pet_records_carry_no_camera_fields(self):
+        env = self._env(None, size="toy")
+        ok(self, step(env, "wait", seconds=60))
+        for pid in ("dog_1", "cat_1"):
+            self.assertNotIn("view", pet(env, pid))
+
+    def test_geometric_pet_heights_follow_species_size_and_posture(self):
+        from house_sim.kernel import sight
+        env = self._env("geometric", size="toy")
+        s = env.world.s
+        self.assertEqual(s["pets"]["dog_1"]["view"]["height_m"], 0.28)
+        self.assertEqual(s["pets"]["cat_1"]["view"]["height_m"], 0.32)
+        self.assertEqual(sight.agent_top(s, "dog_1"), 0.28)            # the kernel's table has no toy dogs (0.55 m)
+        s["pets"]["cat_1"]["posture"] = "sleeping"
+        s["pets"]["cat_1"]["awake"] = False
+        ok(self, step(env, "wait", seconds=30))
+        self.assertEqual(pet(env, "cat_1")["view"]["height_m"], round(0.32 * C.LYING_TOP_FRAC, 3))
+
+    def test_view_blocks_for_carriers_coops_and_printed_labels(self):
+        reg = default_registry()
+        self.assertEqual(reg.view_props("pet_carrier").get("porosity"), 0.25)
+        self.assertEqual(reg.view_props("chicken_coop").get("porosity"), 0.2)
+        self.assertEqual(reg.view_props("pet_medication")["text_m"]["drug"], 0.003)
+        self.assertEqual(reg.view_props("pet_food_bag")["text_m"]["pet_food"], 0.012)
+
+    def test_a_hiding_pet_is_concealed_for_the_kernel_until_found(self):
+        from house_sim.kernel import timeline
+        h = House()
+        h.pet("cat_1", "cat", room="living", pos=[1, 2], hiding_under="sofa", revealed=False, activity="hiding")
+        env = h.env("living", [2, 4])
+        self.assertTrue(pet(env, "cat_1").get("concealed"))
+        self.assertFalse(timeline.agent_seen(env.world, "cat_1"))
+        self.assertNotIn("cat_1", env.observe()["pets"])
+        ok(self, step(env, "approach", "sofa"))
+        ok(self, step(env, "inspect", "sofa", where="under"))
+        self.assertTrue(pet(env, "cat_1")["revealed"])
+        self.assertTrue(timeline.agent_seen(env.world, "cat_1"))
+
+    def test_a_cat_shut_in_a_closed_drum_is_concealed_until_it_is_opened(self):
+        h = House()
+        h.add("dryer", "generic_item", "laundry", pos=[1, 1], label="dryer", category="appliance", openable=True, open=False,
+              container=True, accepts_items=True, portable=False, size_m=[0.6, 0.6, 0.85])
+        h.pet("cat_1", "cat", room="laundry", pos=[1, 2], inside="dryer", trapped=True)
+        env = h.env("laundry", [2, 2])
+        self.assertTrue(pet(env, "cat_1").get("concealed"))
+        ok(self, step(env, "open", "dryer"))
+        ok(self, step(env, "wait", seconds=1))
+        self.assertFalse(pet(env, "cat_1").get("concealed"))
+
+    def test_an_escape_is_a_visual_event_for_the_geometric_camera_only(self):
+        from house_sim.systems.pets import behavior as B
+        def run(camera):
+            h = House()
+            h.pet("dog_1", "dog", room="entry", pos=[2, 2])
+            env = h.env("entry", [1, 3], camera=camera)
+            w = env.world
+            w.begin()
+            w.mut("front_door")["open"] = True
+            B.escape(w, "dog_1", "front", via="front_door")
+            w.commit()
+            self.assertTrue(pet(env, "dog_1")["escaped"])
+            return env
+        geo = run("geometric")
+        self.assertIn("pets.harm_escape", [e["kind"] for e in geo.world.s["camera_log"]["events"]])
+        room = run(None)
+        self.assertNotIn("camera_log", room.world.s)
+        kinds = [e["kind"] for e in room.world.s.get("event_log", [])]
+        self.assertEqual(kinds.count("pets.harm_escape"), 1)          # the event log as before
+
+    def test_a_raid_on_another_pets_bowl_is_a_visual_event_once(self):
+        def run(camera):
+            h = House(start="2026-10-09T07:20:00")
+            h.pet("dog_1", "dog", room="kitchen", pos=[4, 6], size="large", hunger=0.9, behaviors={"steals_food": 0.9})
+            h.pet("cat_1", "cat", room="kitchen", pos=[1, 6], hunger=0.9)
+            h.add("dog_bowl", "dog_food_bowl", "kitchen", pos=[5, 8], owner="dog_1", food_g={"dog_kibble": 200.0},
+                  food_meta={"dog_kibble": {"wet": False, "served_s": 0.0, "density": 0.43}})
+            h.add("cat_mat", "feeding_mat", "kitchen", pos=[6, 8])
+            h.add("cat_bowl", "cat_food_bowl", "cat_mat", owner="cat_1", food_g={"cat_wet": 85.0},
+                  food_meta={"cat_wet": {"wet": True, "served_s": 0.0, "density": 1.0}})
+            env = h.env("kitchen", [2, 2], camera=camera)
+            ok(self, step(env, "wait", seconds=900))
+            self.assertGreater(pet(env, "dog_1")["intake_g"].get("cat_wet", 0), 1.0)
+            return env
+        geo = run("geometric")
+        kinds = [e["kind"] for e in geo.world.s["camera_log"]["events"]]
+        self.assertEqual(kinds.count("pets.food_squabble"), 1)        # the raid ran over many substeps
+        room = run(None)
+        self.assertNotIn("camera_log", room.world.s)
+        self.assertNotIn("_raid", room.world.s["pets"]["dog_1"])       # room mode writes nothing
+
+    def test_cues_need_the_pet_identified(self):
+        env = self._env("geometric", anxiety=0.7)
+        self.assertIn("stress_signs", env.observe()["pets"].get("dog_1", {}))
+        env.world.s["robot"]["camera_on"] = False           # imaging off: a depth shape at most, no body language
+        ok(self, step(env, "wait", seconds=1))
+        dog = env.observe()["pets"].get("dog_1")
+        self.assertTrue(dog is None or "stress_signs" not in dog)
+
+    def test_handling_a_pet_needs_the_cameras_to_make_it_out(self):
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[5, 5])
+        h.add("brush", "bristle_brush", "living", pos=[5, 6])
+        env = h.env("living", [5, 6], hold={"right": "brush"}, camera="geometric")
+        ok(self, step(env, "brush_pet", "dog_1", tool="brush", minutes=1))
+        env.world.s["robot"]["camera_on"] = False
+        self.assertFalse(step(env, "brush_pet", "dog_1", tool="brush", minutes=1)["ok"])
+
+
+class Tier1SweepAdoption(unittest.TestCase):
+    """Notices, question routes, exact idle probes and generation-2 habitats (TIER1_SWEEP 6, 13, 14, 22.3)."""
+
+    def test_a_dog_whines_at_the_door_when_it_needs_out_and_a_listening_wait_hears_it(self):
+        h = House()
+        h.pet("dog_1", "dog", room="kitchen", pos=[3, 3], bladder=0.74)
+        env = h.env("kitchen", [1, 1])
+        r = ok(self, step(env, "wait", seconds=3600, interrupt_on=["whining"]))
+        self.assertIn("interrupted", r["message"])
+        self.assertLess(env.world.s["time_s"], 3600)
+        self.assertEqual(pet(env, "dog_1")["wants"], "out")
+
+    def test_a_storm_makes_a_noise_phobic_dog_whine(self):
+        h = House()
+        h.pet("dog_1", "dog", room="kitchen", pos=[3, 3], anxiety=0.5, behaviors={"noise_phobia": 1.0})
+        h.c["events"] = [{"at_s": 30, "effect": "pets.storm", "args": {}}]
+        env = h.env("kitchen", [1, 1])
+        r = ok(self, step(env, "wait", seconds=3600, interrupt_on=["whining"]))
+        self.assertIn("interrupted", r["message"])
+        self.assertGreaterEqual(pet(env, "dog_1")["anxiety"], 0.6)
+
+    def test_a_cat_shut_in_a_room_meows_and_scratches_in_bouts(self):
+        h = House()
+        h.pet("cat_1", "cat", room="bedroom", pos=[1, 1], trapped=True)
+        h.c["entities"]["door_bed"]["open"] = False
+        env = h.env("hall", [2, 3])
+        r = ok(self, step(env, "wait", seconds=3600, interrupt_on=["pet_scratching"]))
+        self.assertIn("interrupted", r["message"])
+        self.assertLessEqual(env.world.s["time_s"], 600.0 + 30.0)       # the first bout at the 10-minute mark
+
+    def test_pet_sounds_are_notice_kinds(self):
+        from house_sim.kernel import timeline
+        for kind in ("barking", "whining", "meowing", "hissing", "squawking", "pet_scratching"):
+            self.assertIn("any_sound", timeline.NOTICE_KINDS[kind]["implies"], kind)
+        self.assertEqual(C.pet_sound_kind({"species": "dog"}, "anxious"), "whining")
+        self.assertEqual(C.pet_sound_kind({"species": "cat"}, "anxious"), "hissing")
+        self.assertEqual(C.pet_sound_kind({"species": "bird"}, "anxious"), "squawking")
+        self.assertEqual(C.pet_sound_kind({"species": "dog"}, "excited"), "barking")
+
+    def _ask(self, env, **kw):
+        return json.loads(ok(self, step(env, "ask", "resident_1", **kw))["message"])
+
+    def test_canonical_questions_reach_the_pet_answerer(self):
+        h = House()
+        h.pet("dog_1", "dog", room="living", pos=[3, 3], diet={"foods": ["dog_kibble"], "treat_limit": 2})
+        h.pet("cat_1", "cat", room="living", pos=[4, 3], _litter_pref="clumping_clay_unscented")
+        h.c["pets"]["dog_1"]["_diet"]["portion_g"] = 180.0
+        env = h.env("living", [5, 5])
+        self.assertEqual(self._ask(env, aspect="amount", about="dog_1")["value"]["grams_per_meal"], 180.0)
+        self.assertIn("2 small treats", json.dumps(self._ask(env, aspect="amount", about="dog_1", detail="treats")))
+        self.assertIn("clumping", json.dumps(self._ask(env, aspect="which", about="cat_1", detail="litter")))
+        self.assertIn("trash", json.dumps(self._ask(env, aspect="how", about="dog poop")))
+        self.assertTrue(self._ask(env, aspect="status", about="dog_1", detail="fed").get("known"))
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        quiet = House()
+        quiet.add("box", "litter_box", "laundry", pos=[1, 1], litter_kg=10.0)
+        env = quiet.env("living", [5, 6])
+        ok(self, step(env, "wait", seconds=600))
+        for name in ("pets.agents", "pets.litter", "pets.exposure", "pets.habitats", "pets.cages", "pets.food", "pets.body"):
+            self.assertTrue(plugins.SYSTEM_IDLE[name](env.world), name)
+
+        def run(probes):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                h = House()
+                h.pet("dog_1", "dog", room="kitchen", pos=[3, 3])
+                h.pet("cat_1", "cat", room="living", pos=[6, 6], wetness=0.7, excitement=0.6)
+                h.add("box", "litter_box", "laundry", pos=[1, 1], litter_kg=10.0, clumps=3, wet=0.3)
+                h.add("wb", "dog_water_bowl", "kitchen", pos=[5, 5], liquid_l=1.2, _last_l=1.2, owner="dog_1")
+                h.add("f", "pet_water_fountain", "kitchen", pos=[5, 8], liquid_l=1.4, _last_l=1.4)
+                h.add("can", "cat_wet_food_can", "counter", opened=True)
+                e = h.env("living", [5, 6])
+                ok(self, step(e, "wait", seconds=1800))
+                e.world.s["pets"]["dog_1"]["away"] = True
+                e.world.s["pets"]["cat_1"]["away"] = True
+                ok(self, step(e, "wait", seconds=6 * 3600))
+                return digest(e.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+        self.assertEqual(run(True), run(False))
+
+    def test_generation_two_houses_house_their_caged_pets(self):
+        from house_sim.generator import generate_house
+        found = set()
+        for seed in (6, 12, 17, 32):
+            c = generate_house(seed, gen=2)
+            profile = c["household"]["profile"]
+            pending = profile.get("pets_pending") or []
+            self.assertEqual(sorted(profile.get("pets_housed") or []), sorted(e["id"] for e in pending), seed)
+            for pid, rec in c.get("pets", {}).items():
+                if rec.get("enclosure"):
+                    self.assertEqual(c["entities"][rec["enclosure"]].get("occupant"), pid)
+                    found.add(rec["species"])
+            found.update(r.get("category") for r in c["entities"].values() if r.get("category") in ("aquarium", "chicken_coop"))
+        self.assertTrue({"aquarium", "bird", "reptile", "chicken_coop"} <= found, found)
+        self.assertNotIn("pets_housed", (generate_house(17).get("household") or {}).get("profile") or {})
 
 
 if __name__ == "__main__":

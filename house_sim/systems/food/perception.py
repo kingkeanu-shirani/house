@@ -1,7 +1,7 @@
 """What the robot can sense about food, what residents can tell it, and global food harms."""
 import copy
 
-from ...kernel import clock, geometry
+from ...kernel import clock, dialogue, geometry
 from ...kernel.plugins import answerer, inspector, invariant, observer
 from . import data as D
 from . import mixing as X
@@ -10,7 +10,12 @@ from . import percept as P
 from . import systems as S
 
 
-def _readable(ctx, w):
+def _readable(ctx, w, eid=None):
+    """Printed date text is legible now. Room camera: the robot's room is lit and its lens clean enough. Geometric
+    camera (kernel v3.0): the cameras' read rule for the date field (ctx.read_check: about 10 px per character of the
+    pack's 3 mm print, the printed face in view, light, no glare on a glossy jar; else the wrist camera within reach)."""
+    if eid is not None and getattr(ctx, "camera_mode", "room") == "geometric":
+        return bool(ctx.read_check(eid, ["date_label"])[0])
     lit = ctx.env.perception.lit(w.s, w.robot["room"])
     return lit and w.robot.get("camera_clean", 1.0) >= 0.4
 
@@ -76,7 +81,7 @@ def _food_view(w, eid, rec, closely, ctx):
     if f.get("ripens"):
         r = float(f.get("ripeness", 0.5))
         view["ripeness"] = "unripe" if r < 0.5 else "ripe" if r < 0.95 else "overripe"
-    if rec.get("date_label") and _readable(ctx, w):
+    if rec.get("date_label") and _readable(ctx, w, eid):
         view["date_label"] = rec["date_label"]
     if rec.get("opened"):
         view["opened"] = True
@@ -250,7 +255,8 @@ def _seen_inspector(w, eid, rec, details, ctx):
     if foods and not ctx.env.realism.sealed(rec):      # a closed opaque container hides its contents; glass does not
         seen = [c for c in foods if ctx.env.perception.visible(w.s, c)]
         details["food_contents"] = [dict(_seen_view(w, c, w.ent(c), closely, ctx, at=0), id=c) for c in _by_handle(ctx, seen)]
-        units = M.whole_items(w.s, eid)
+        # counted by eye: only what the robot sees in it (the geometric camera frames part of a deep or crowded box)
+        units = M.whole_items(w.s, eid, ids=seen if ctx.camera_mode == "geometric" else None)
         if units:
             details["whole_items"] = P.count(ctx.env, eid, "whole_items", units)   # counted by eye: exact up to 12
         if rec.get("fill_level") is not None:
@@ -311,20 +317,41 @@ def food_smells(env, w, obs):
 @answerer("food:")
 def food_answers(env, w, pid, topic, ctx):
     """Residents answer food questions from their own profile: allergies, diet, likes, dislikes, orders,
-    the household food rules (best_before policy, scraps for stock, storage habits)."""
+    the household food rules (best_before policy, scraps for stock, storage habits), and what they ate today (the
+    meal log)."""
     person = w.s.get("people", {}).get(pid)
     if person is None:
         return None
     parts = topic.split(":")
     key = parts[1] if len(parts) > 1 else ""
     sim = w.s.get("user_simulator", {}).get("by_person", {}).get(pid, {})
+    # diet and allergies as the eater checks read them: the person's own fields, else (generation-2 households) their
+    # profile's, else their preferences' ("omnivore" restricts nothing)
+    eats = M.profile(w.s, pid)
     if topic in sim:
         value = copy.deepcopy(sim[topic])
     elif key == "allergies":
-        value = sorted(person.get("allergies", []) or [])
+        value = sorted(eats["allergies"])
     elif key == "diet":
-        diet = person.get("diet") or []
-        value = [diet] if isinstance(diet, str) else sorted(diet)
+        value = sorted(eats["diet"])
+    elif key == "restrictions":
+        # what this person must not eat, in one answer (the canonical "preference, detail diet" question; the diet
+        # detail's synonyms are allergy, allergies and food_restrictions)
+        value = {"allergies": sorted(eats["allergies"]), "diet": sorted(eats["diet"])}
+        if not value["allergies"] and not value["diet"]:
+            value = None
+    elif key == "meals":
+        # what they ate today (the meal log; sub-key a slot: breakfast, lunch, dinner, snack)
+        sub = parts[2] if len(parts) > 2 else None
+        today = M.iso(M.today(w.s))
+        value = [{"slot": meal["slot"], "kinds": list(meal["kinds"])} for meal in M.meal_log(w.s, pid)
+                 if meal["day"] == today and (sub is None or meal["slot"] == sub)] or None
+    elif key == "tastes":
+        prefs = (person.get("preferences") or {}).get("food", {})
+        prefs = prefs if isinstance(prefs, dict) else {}
+        value = {"likes": sorted(prefs.get("likes", [])), "dislikes": sorted(prefs.get("dislikes", []))}
+        if not value["likes"] and not value["dislikes"]:
+            value = None
     elif key in ("likes", "dislikes", "order", "preference"):
         prefs = (person.get("preferences") or {}).get("food", {})
         sub = parts[2] if len(parts) > 2 else None
@@ -341,11 +368,49 @@ def food_answers(env, w, pid, topic, ctx):
     else:
         return None
     facts = w.s.get("facts", {})
-    known = (pid + ":" + topic) in facts.get("asked", {}) or topic in facts or \
+    # what one person eats is theirs: asking the next eater the same topic is a new question (the facts are kept per
+    # person); the household's food rules are the same whoever is asked
+    fact_key = topic if key == "rule" else pid + ":" + topic
+    known = (pid + ":" + topic) in facts.get("asked", {}) or fact_key in facts or \
         any(k.startswith("food:" + pid) or k == topic for k in (w.s.get("memory") or {}))
     w.stat("unnecessary_questions" if known or value in (None, [], {}) else "necessary_questions")
-    w.sec("facts")[topic] = copy.deepcopy(value)
+    w.sec("facts")[fact_key] = copy.deepcopy(value)
     return {"topic": topic, "value": value, "by": pid}
+
+
+# canonical questions to the food answerer (kernel v3.1 dialogue routes, docs/DIALOGUE.md "Routes"; tried after the
+# kernel's people routes): only questions about the asked person's own eating, which the answerer answers from their
+# profile, and the household's food rules
+# (subject words arrive normalized by dialogue.words_of: lower case and singular, "leftovers" -> "leftover")
+FOOD_WORDS = {"food", "eat", "eating", "meal", "snack", "dinner", "lunch", "breakfast", "dish", "cooking", "cuisine"}
+# a household food rule is asked about only with a word that is about food itself: "how do we store leftovers?",
+# "how do you handle expired food?" -- never storage, the fridge or the pantry alone (how to store the towels, how to
+# clean the fridge are other domains' questions, and food's route is tried before theirs)
+RULE_WORDS = {"food", "leftover", "scrap", "sweet", "treat", "expired", "grocery"}
+
+
+def _about_self(subject, pid):
+    return subject is None or subject.kind in ("request", "house") or (subject.kind == "person" and subject.id == pid)
+
+
+def route_food(state, pid, subject, aspect, detail, act):
+    """preference, detail diet (allergies, food restrictions), about the asked person   -> food:restrictions
+    preference without a detail, about food in words ("what food do you like?")          -> food:tastes
+    how, about the household's food rules in words (food, leftovers, sweets, scraps)     -> food:rule
+    (A preference question with a detail reaches the kernel's people.pref route first; see docs/domains/food.md.)"""
+    words = set(subject.words or ()) if subject is not None and subject.kind in ("word", "request") else set()
+    if aspect == "preference":
+        if detail == "diet" and _about_self(subject, pid):
+            return "food:restrictions"
+        if detail is None and words & FOOD_WORDS:
+            return "food:tastes"
+        return None
+    if aspect == "how" and detail in (None, "storage", "rules") and words & RULE_WORDS:
+        return "food:rule"
+    return None
+
+
+dialogue.route("food.profile", ("preference", "how"), route_food)
 
 
 # ----------------------------------------------------------------------

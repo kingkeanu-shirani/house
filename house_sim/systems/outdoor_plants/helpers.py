@@ -398,6 +398,11 @@ def weather_plan(ctx, now=None, events=None, forecast=None, rules=None):
     cfg = ctx.config
     wx = cfg.setdefault("weather", {})
     wx.update(copy.deepcopy(now or {}))
+    if isinstance(wx.get("process"), dict):
+        # a scripted weather (and forecast) on a generation-2 house: the default weather process yields to it for
+        # the whole episode (TIER1_SWEEP 13.2, weather.override_until_s)
+        from .weather import SCRIPTED_S
+        wx["override_until_s"] = SCRIPTED_S
     if "wind_mps" in (now or {}) and "gust_mps" not in (now or {}):
         wx["gust_mps"] = round(float(wx["wind_mps"]) * 1.4, 2)
     if wx.get("condition") in ("rain", "storm") and "rain_mm_h" not in (now or {}):
@@ -655,8 +660,9 @@ def surface(ctx, room="front_yard", which="walkway", leaves=None, wet=None, snow
     if which == "floor":
         sid = "floor_" + rid
     else:
-        sid = next((e for e in sorted(cfg["entities"]) if cfg["entities"][e].get("type") in ("walkway", "steps") and cfg["entities"][e].get("location") == rid
-                    and (which in ("walkway", "any") or cfg["entities"][e].get("type") == which)), None)
+        # which: a walkway, the steps (a generation-2 house's porch steps are a `steps` surface) or any of them
+        kinds = {"steps": ("steps",), "any": ("walkway", "steps")}.get(which, ("walkway",))
+        sid = next((e for e in sorted(cfg["entities"]) if cfg["entities"][e].get("type") in kinds and cfg["entities"][e].get("location") == rid), None)
         if sid is None:
             cells = F.walkway_cells(cfg, rid) or _fallback_path(ctx, rid)
             rec = ctx.reg.make("walkway" if which != "steps" else "steps", rid, cells=cells, area_m2=round(len(cells) * 0.5, 2), label="front walkway" if which != "steps" else "front steps")
@@ -737,18 +743,18 @@ def fence_defects(ctx, room="backyard", count=3, kinds=None, weathered=2, gap_cm
 def roof_damage(ctx, faces=None):
     cfg = ctx.config
     out = {"faces": [], "expected": [], "unseen": []}
-    for spec in faces or [{"face": "front", "room": "front_yard", "view": "clear", "damage": ["missing_shingles"]}]:
+    for spec in faces or [{"face": "front", "room": "front_yard", "sightline": "clear", "damage": ["missing_shingles"]}]:
         rid = _room(ctx, spec.get("room", "front_yard"))
         edge = F.house_wall(cfg, rid)
         cells = C.edge_cells(cfg["rooms"][rid], edge)
-        rec = ctx.reg.make("roof_face", rid, face=spec["face"], view=spec.get("view", "clear"), label="{} roof".format(spec["face"]), mount_height_m=5.5,
+        rec = ctx.reg.make("roof_face", rid, face=spec["face"], sightline=spec.get("sightline", spec.get("view", "clear")), label="{} roof".format(spec["face"]), mount_height_m=5.5,
                            size_m=[0.5, 0.1, 3.0], width_m=round(len(cells) * 0.5, 1), _roof_damage=[{"kind": d, "severity": "major"} for d in spec.get("damage", [])], moss=bool(spec.get("moss")))
         rec["pos"] = list(cells[len(cells) // 2]) if cells else [0, 0]
         rec["mounted"] = True
         eid = ctx.placer.new_id("roof_face")
         cfg["entities"][eid] = rec
         out["faces"].append(eid)
-        if spec.get("view", "clear") == "blocked":
+        if spec.get("sightline", spec.get("view", "clear")) == "blocked":
             out["unseen"].append(spec["face"])
         else:
             out["expected"] += ["{}:{}".format(spec["face"], d) for d in spec.get("damage", [])]

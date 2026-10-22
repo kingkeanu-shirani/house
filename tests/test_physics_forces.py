@@ -125,7 +125,9 @@ class LiftPlanMatchesCorePickUpTests(unittest.TestCase):
                 self.assertEqual(plan["ok"], result["ok"], (plan, result["message"]))
                 self.assertAlmostEqual(plan["mass_kg"], core_subtree_mass(env.world, "item"))
                 if result["ok"]:
-                    self.assertEqual(result["message"], "Picked up item")
+                    # core accepted the lift; a domain's grip physics may then let it slip (manipulation: the 8 kg
+                    # cube in a one-hand friction grip), which body_faults.drop_held reports after " | "
+                    self.assertEqual(result["message"].split(" | ")[0], "Picked up item")
                     record = env.world.ent("item")
                     if record["location"] == "robot":     # a domain's grip physics may drop it again at once
                         self.assertEqual(record["held_hand"], "both" if len(plan["hands"]) == 2 else plan["hands"][0])
@@ -182,6 +184,24 @@ class TeamLiftTests(unittest.TestCase):
         self.assertEqual(self.plan(["strong"])["helpers"], ["strong"])    # 20 + 40
         self.assertEqual(self.plan(["mover"])["reason"], "over_capacity")  # 20 + 30 (manipulation's max_lift_kg)
         self.assertEqual(self.plan(["mover", "ann", "kid"])["helpers"], ["mover", "ann"])
+
+    def test_roles_without_a_row_help_by_their_age(self):
+        """Adoption-round request (people K-HELPER-ROLES): toddlers, guests, visitors, contractors and couriers fell
+        back to the adult row whatever their age. A toddler has its own row; other roles take their age band."""
+        people = self.w.s["people"]
+        people.update({"tot": {"role": "toddler", "location": "living", "age": 2},
+                       "guest_old": {"role": "guest", "location": "living", "age": 78},
+                       "guest_kid": {"role": "visitor", "location": "living", "age": 9},
+                       "courier": {"role": "courier", "location": "living", "age": 30},
+                       "contractor": {"role": "contractor", "location": "living"}})
+        self.assertEqual(self.plan(["tot"])["reason"], "over_capacity")
+        self.assertEqual(self.plan(["guest_kid"])["reason"], "over_capacity")      # a 9-year-old: a child, 0 kg
+        self.assertEqual(self.plan(["guest_old"])["helpers"], ["guest_old"])       # 78: elderly, 20 + 10 = 30
+        self.w.s["entities"]["chest"]["mass_kg"] = 40.0
+        self.assertEqual(self.plan(["guest_old"])["reason"], "over_capacity")
+        self.assertEqual(self.plan(["courier"])["helpers"], ["courier"])           # 30: adult, 20 + 23 >= 40
+        self.assertEqual(self.plan(["contractor"])["helpers"], ["contractor"])     # no age: the default role
+        self.assertEqual(forces.max_push_n(self.w, ["tot", "guest_kid"]), forces.max_push_n(self.w))
 
     def test_helpers_never_rescue_busy_hands(self):
         self.w.s["robot"]["hands"]["left"] = "chest"
@@ -265,6 +285,26 @@ class PushTests(unittest.TestCase):
         w.s["entities"]["case"]["size_m"] = [0.9, 0.6, 1.8]                     # a deeper case needs a higher push
         self.assertFalse(forces.tips_when_pushed(w, "case", 0.7))
         self.assertTrue(forces.tips_when_pushed(w, "case", 0.8))
+
+    def test_the_base_counts_along_the_push(self):
+        """Adoption-round request (manipulation 8): b is the footprint's extent along the push, not always the narrow
+        side: the 0.9 x 0.3 m bookcase pulled forward (along y) tips at 0.38 m, pushed sideways (along x) only above
+        mu h > 0.45 m, i.e. 1.13 m; a case turned 90 degrees swaps the two."""
+        w = world({"case": {"type": "bookshelf", "location": "patio", "pos": [0, 0], "size_m": [0.9, 0.30, 1.8]},
+                   "turned": {"type": "bookshelf", "location": "patio", "pos": [3, 0], "size_m": [0.9, 0.30, 1.8],
+                              "rot": 90}})
+        for direction in ("south", "north", 90.0, (0, 1)):
+            self.assertTrue(forces.tips_when_pushed(w, "case", 0.38, direction), direction)
+        for direction in ("east", "west", 0.0, (-1, 0)):
+            self.assertFalse(forces.tips_when_pushed(w, "case", 1.1, direction), direction)
+            self.assertTrue(forces.tips_when_pushed(w, "case", 1.14, direction), direction)
+        self.assertTrue(forces.tips_when_pushed(w, "turned", 0.38, "east"))
+        self.assertFalse(forces.tips_when_pushed(w, "turned", 1.1, "south"))
+        diagonal = 0.9 * math.cos(math.radians(45)) + 0.3 * math.sin(math.radians(45))      # 0.85 m along 45 degrees
+        self.assertFalse(forces.tips_when_pushed(w, "case", diagonal / 0.8 - 0.01, 45.0))
+        self.assertTrue(forces.tips_when_pushed(w, "case", diagonal / 0.8 + 0.01, 45.0))
+        with self.assertRaises(ValueError):
+            forces.tips_when_pushed(w, "case", 1.0, "up")
 
 
 class FrictionTests(unittest.TestCase):

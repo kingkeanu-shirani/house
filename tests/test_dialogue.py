@@ -379,6 +379,21 @@ class NecessityTests(unittest.TestCase):
         ask(env, "kim", aspect="where", about="box_1")                      # asked before (any person): unnecessary
         self.assertEqual(stats(env)[:2], (1, 1))
 
+    def test_a_personal_legacy_answer_is_new_from_each_person(self):
+        """Adoption-round request (food 8): the legacy topic path keyed what the robot knew by topic alone, so asking
+        a second person for their own answer (user_simulator.by_person) counted as unnecessary. A household answer
+        (answers) asked twice still is."""
+        sim = {"facts": [], "answers": {"bedtime": "21:00"},
+               "by_person": {"ann": {"drink": "tea"}, "kim": {"drink": "juice"}}}
+        env = env_of(extra={"user_simulator": sim})
+        self.assertEqual(ask(env, "ann", topic="drink")[1]["value"], "tea")
+        self.assertEqual(ask(env, "kim", topic="drink")[1]["value"], "juice")
+        self.assertEqual(stats(env)[:2], (2, 0))
+        ask(env, "ann", topic="drink")                                         # the same person again
+        ask(env, "ann", topic="bedtime")
+        ask(env, "kim", topic="bedtime")                                       # the household's answer, known now
+        self.assertEqual(stats(env)[:2], (3, 2))
+
     def test_not_known_respects_memory_and_evidence(self):
         env = self.one({"id": "f", "about": "box_1", "aspect": "where", "value": "hall"},
                        extra={"memory": {"note:f": {"value": "hall", "time_s": -1}}})
@@ -689,6 +704,66 @@ class RouteTests(unittest.TestCase):
         data = ask(env, "ann", aspect="where", about="comfort blanket")[1]
         self.assertNotIn("route", data)
         self.assertEqual(env.world.s["dialogue_log"][-1]["topic"], "where:blanket_1")
+
+
+@unittest.skipUnless(people_loaded(), "the people routes' answerers are the people domain's")
+class RoutePriorityTests(unittest.TestCase):
+    """Adoption-round requests (climate 1, food 2, pets 6, safety 2, mechanisms 7): the kernel's people routes register
+    first and their catch-alls (any preference detail, any status of the person, any pet's schedule, an entity's
+    place with a detail) shadowed the domain routes that know the answer. Those topics are weak (fallbacks) now:
+    a later route's plain topic wins, and the fallback still answers when nothing else does."""
+
+    def setUp(self):
+        self.calls = []
+        ANSWERERS["tdom:"] = lambda *a, **k: None
+        self.addCleanup(ANSWERERS.pop, "tdom:", None)
+
+        def domain(state, pid, subject, aspect, detail, act):
+            self.calls.append((aspect, detail))
+            if aspect == "preference" and detail == "fan_speed":
+                return "tdom:fan"
+            if aspect == "status" and ((state.get("people") or {}).get(pid) or {}).get("posture") == "fallen":
+                return "tdom:condition"
+            if aspect == "when" and subject is not None and subject.kind == "pet" and detail == "walk":
+                return "tdom:walk"
+            if aspect == "where" and detail == "key":
+                return "tdom:key"
+            return None
+        entry = ("test.domain", frozenset(("preference", "status", "when", "where")), domain)
+        # right after the kernel's people routes, before every domain's (the place a domain route has in a build with
+        # that domain alone)
+        at = [name for name, _, _ in dialogue.ROUTES].index("kernel.permission") + 1
+        dialogue.ROUTES.insert(at, entry)
+        dialogue._ROUTE_NAMES["test.domain"] = domain
+        self.addCleanup(dialogue.ROUTES.remove, entry)
+        self.addCleanup(dialogue._ROUTE_NAMES.pop, "test.domain", None)
+        self.state = config(extra={"pets": {"dog_1": {"label": "Rex", "species": "dog", "location": "lab"}}})
+        self.state["people"]["ann"]["preferences"] = {"drink": "tea"}
+
+    def find(self, aspect, subject=None, detail=None, pid="ann"):
+        return dialogue.find_route(self.state, pid, subject, aspect, detail, None)
+
+    def test_a_domain_route_answers_what_a_catch_all_would_have_claimed(self):
+        self.assertEqual(self.find("preference", detail="fan_speed"), ("test.domain", "tdom:fan"))
+        self.assertEqual(self.find("preference", detail="drink"), ("people.pref", "pref:drink"))     # a known key
+        self.assertEqual(self.find("preference", detail="favourite_colour"), ("people.pref", "pref:favourite_colour"))
+        pet = dialogue.Subject("pet", "dog_1", ())
+        self.assertEqual(self.find("when", pet, "walk"), ("test.domain", "tdom:walk"))
+        self.assertEqual(self.find("when", pet), ("people.schedule", "schedule:dog_1"))
+        self.assertEqual(self.find("where", dialogue.Subject("entity", "book_1", ()), "key"), ("test.domain", "tdom:key"))
+        self.assertEqual(self.find("where", dialogue.Subject("entity", "book_1", ())), ("people.where", "where:book_1"))
+
+    def test_the_wellbeing_answer_defers_to_a_route_that_knows_the_persons_state(self):
+        me = dialogue.Subject("person", "ann", ())
+        self.assertEqual(self.find("status", me), ("people.wellbeing", "wellbeing"))
+        self.state["people"]["ann"]["posture"] = "fallen"
+        self.assertEqual(self.find("status", me), ("test.domain", "tdom:condition"))
+
+    def test_weak_topics_are_plain_strings_to_callers(self):
+        name, topic = self.find("preference", detail="favourite_colour")
+        self.assertIs(type(topic), str)
+        self.assertEqual(dialogue.weak(None), None)
+        self.assertEqual(dialogue.weak("x:y"), "x:y")
 
 
 class LintTests(unittest.TestCase):

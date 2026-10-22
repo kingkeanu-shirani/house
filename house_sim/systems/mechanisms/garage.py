@@ -168,6 +168,7 @@ def command(ctx, door, hold_s=0.0):
         _set_pos(w, door, pos, "opening")
         rm, mech = C.mut_mech(w, door)
         mech["last_dir"] = "up"
+        _motor_notice(w, door, "opening")
         return "The opener hums: the door is going up"
     if not sensors_ok(state, door, w) or beam_blocked(state, door):
         _blink(w, door, "sensors")
@@ -175,7 +176,14 @@ def command(ctx, door, hold_s=0.0):
     _set_pos(w, door, pos, "closing")
     rm, mech = C.mut_mech(w, door)
     mech["last_dir"] = "down"
+    _motor_notice(w, door, "closing")
     return "The opener hums: the door is coming down"
+
+
+def _motor_notice(w, door, direction):
+    """The opener's motor starts: a garage_door notice from the garage (the robot hears it per the timeline)."""
+    rooms = [r for r in C.door_rooms(w.s, door) if (w.s["rooms"].get(r) or {}).get("type") == "garage"]
+    C.notice(w, "garage_door", source=door, room=rooms[0] if rooms else None, data={"direction": direction})
 
 
 def _constant_pressure(ctx, door, hold_s):
@@ -268,7 +276,7 @@ def _travel(w, door, dt):
     if target <= max(0.0, short):
         _set_pos(w, door, short if short > 0 else 0.0, "closed")
         w.mut(door)["mech"]["reported"] = "closed"
-        w.emit("garage_door_closed", door=door, gap_m=round(short * height, 2))
+        C.visual(w, "garage_door_closed", source=door, size_m=2.4, door=door, gap_m=round(short * height, 2))
         return False
     _set_pos(w, door, target)
     return True
@@ -295,7 +303,7 @@ def _dashers(w, door, pos):
             m["_dash_until"] = state["time_s"] + 60.0
             m["location"] = room
             m["pos"] = list(spot[len(spot) // 2])
-            w.emit("ran_under_door", agent=aid, door=door)
+            C.visual(w, "ran_under_door", source=door, size_m=0.5, agent=aid, door=door)
 
 
 def _dashers_return(w):
@@ -320,7 +328,7 @@ def _reverse(w, door, pos, why):
     mech["reversals"] = int(C.num(mech.get("reversals"))) + 1
     mech["light_blink_until"] = round(w.s["time_s"] + 10.0, 3)
     C.mlog(w, "garage", {"door": door, "event": "reversed", "why": why})
-    w.emit("garage_door_reversed", door=door, why=why)
+    C.visual(w, "garage_door_reversed", source=door, size_m=2.4, door=door, why=why)
 
 
 def aim_eye(ctx, eid, value):

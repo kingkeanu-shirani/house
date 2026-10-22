@@ -508,7 +508,41 @@ def _food_candidate(rec):
     return bool(isinstance(pf, dict) and pf.get("wet") or rec.get("bowl_kind") or rec.get("pet_item") or "hopper_g" in rec)
 
 
-@system("pets.food", order=135, max_dt=30.0)
+def _feeder_due(state, rec):
+    """True when an automatic feeder has a dispensing time due now that it has not served yet (as _feeder decides)."""
+    done = list(rec.get("_dispensed") or [])
+    today = C.date_key(state)
+    for t in (rec.get("settings") or {}).get("times") or []:
+        key = "{}:{}".format(today, t)
+        if key in done or C.hm_to_h(t) > C.hour(state) or C.hour(state) - C.hm_to_h(t) > 0.25:
+            continue
+        return True
+    return False
+
+
+def food_idle(w):
+    """Exact idle probe of pets.food (kernel v3.1): no opened wet food spoiling, every bowl's stale-wet list current
+    and no ants due, no powered feeder with a dispensing time due."""
+    state = w.s
+    now = C.now(state)
+    for eid in C.sindex(state, "food", _food_candidate):
+        rec = state["entities"][eid]
+        pf = rec.get("pet_food")
+        if isinstance(pf, dict) and pf.get("wet") and rec.get("opened") and not rec.get("spoiled"):
+            return False
+        if is_bowl(rec) and rec.get("food_g"):
+            meta = rec.get("food_meta") or {}
+            stale = sorted(k for k, v in meta.items() if v.get("wet") and now - C.num(v.get("served_s"), now) >= WET_TIMEOUT_S)
+            if stale != list(rec.get("stale_wet") or []):
+                return False
+            if stale and not rec.get("ants") and now - min(C.num(meta[k].get("served_s"), now) for k in stale) >= 2 * 3600:
+                return False
+        if "hopper_g" in rec and rec.get("on") and physics.is_powered(w, eid) and _feeder_due(state, rec):
+            return False
+    return True
+
+
+@system("pets.food", order=135, max_dt=30.0, idle=food_idle)
 def food_tick(w, dt, tick):
     state = w.s
     now = C.now(state)

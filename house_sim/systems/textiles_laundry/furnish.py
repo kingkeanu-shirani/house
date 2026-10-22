@@ -2,7 +2,8 @@
 
 order 45  textiles_laundry.appliances  washer + dryer (+ detergent drawer and compartments, lint screen,
                                        drain filter), products on the laundry shelf (bleach on the top shelf),
-                                       drying rack, ironing board and iron, a clean-laundry basket.
+                                       drying rack, ironing board and iron, a clean-laundry basket. Generation 2:
+                                       the machines keep clear of an electrical panel's working space.
                                        Rooms: laundry_room, shared_laundry; else basement, garage, bathroom
                                        or kitchen (compact apartments). US houses get top-loaders with
                                        cold/warm/hot dials; others front-loaders with C dials.
@@ -11,7 +12,10 @@ order 75  textiles_laundry.linens      bed sizes and dressed beds (fitted sheet,
                                        a hamper per occupied bedroom, a few folded/hung clothes per
                                        occupant, bathroom towels and bath mat, a linen-closet stock,
                                        one pair of shoes per resident at the entry, coats on hooks,
-                                       a folded throw and two cushions on the sofa.
+                                       a folded throw and two cushions on the sofa. Generation 2 (opts gen):
+                                       bedrooms from the residents' home_room (toddlers and infants included,
+                                       garment sizes by age), an in-season garment in each dresser and the
+                                       off-season clothes in a lidded bin in each closet (opts season).
 Counts are kept modest (~60-90 entities in a family house). Every helper tolerates missing rooms
 and Placer returning None.
 """
@@ -527,6 +531,37 @@ def find_station(config, rid):
 
 
 FALLBACK_ROOMS = ("basement", "garage", "bathroom", "kitchen")
+PANEL_DEPTH_CELLS = 2       # NEC 110.26: 0.9 m (36 in) of clear floor in front of an electrical panel
+
+
+def panel_keep_clear(p, rid):
+    """Generation 2: temporary floor blockers over the working space of every electrical panel on room rid's walls
+    (the wall cell under it and the cell in front: 1 m deep, the panel's width), so the machines stand elsewhere and the
+    panel stays reachable (NEC 110.26). Returns the blockers' ids; the caller removes them after placing."""
+    config = p.c
+    room = config["rooms"].get(rid)
+    if room is None:
+        return []
+    cols, rows = geometry.grid_size(room)
+    made = []
+    for eid in sorted(config["entities"]):
+        rec = config["entities"][eid]
+        if rec.get("location") != rid or rec.get("category") != "breaker_panel" or not rec.get("pos"):
+            continue
+        x, y = int(rec["pos"][0]), int(rec["pos"][1])
+        step = (1, 0) if x == 0 else ((-1, 0) if x == cols - 1 else ((0, 1) if y == 0 else ((0, -1) if y == rows - 1 else None)))
+        if step is None:
+            continue
+        for k in range(PANEL_DEPTH_CELLS):
+            cell = [x + step[0] * k, y + step[1] * k]
+            if not geometry.in_grid(room, cell):
+                break
+            bid = p.new_id("_panel_keep_clear")
+            config["entities"][bid] = {"type": "generic_item", "label": "panel working space", "location": rid,
+                                       "relation": "on", "pos": cell, "size_m": [0.5, 0.5, 2.0], "blocks_path": True,
+                                       "portable": False, "mass_kg": 0.0}
+            made.append(bid)
+    return made
 
 
 @furnisher("textiles_laundry.appliances", order=45)
@@ -536,21 +571,30 @@ def furnish_laundry(config, rng, opts, registry):
     from ...generator import REGIONS
     style = (REGIONS.get(region) or {}).get("washer", "front_load")
     us = region == "us"
+    gen = int(opts.get("gen", 1) or 1)
     in_unit = p.rooms("laundry_room")
     rooms = in_unit + p.rooms("shared_laundry")
     fallback = [r for kind in FALLBACK_ROOMS for r in p.rooms(kind)]
     if not rooms:
         rooms = fallback[:1]
+
+    def install(rid, shared=False):
+        blockers = panel_keep_clear(p, rid) if gen >= 2 else []
+        try:
+            return install_station(p, rid, style, shared=shared, us=us, strict_stack=True)
+        finally:
+            for bid in blockers:
+                config["entities"].pop(bid, None)
     made = []
     for rid in rooms[:2]:
         shared = config["rooms"][rid].get("type") == "shared_laundry"
-        if install_station(p, rid, style, shared=shared, us=us, strict_stack=True):
+        if install(rid, shared=shared):
             made.append(rid)
     if in_unit and not any(r in in_unit for r in made):
         # the dwelling was built with in-unit laundry, but its laundry room is too full of other fixtures (air
         # handler, water heater, sink) for a washer: the hookups go in the next utility space instead
         for rid in fallback:
-            if install_station(p, rid, style, us=us, strict_stack=True):
+            if install(rid):
                 break
 
 
@@ -634,9 +678,79 @@ def dress_bed(p, bed, size=None, protector=False, flat=False, made=True, pillows
     return out
 
 
-def _owner_garments(p, owner, person, drawers, closet, style):
-    child = person.get("role") in ("child", "infant", "teen")
-    size = "8" if child else p.rng.choice(["S", "M", "L"])
+def _home_room_owners(config):
+    """Generation 2: who sleeps where, from the residents' home_room (GEN: roommates in rooms of their own, minors
+    sharing, the nursery, elderly partners together), every resident including toddlers and infants. Rooms that are no
+    bedroom (a sofa bed in the living room) get no linens here."""
+    rooms = config["rooms"]
+    people = config.get("people", {})
+    owners = {}
+    for pid in sorted(people, key=lambda q: (people[q].get("role", "adult") != "adult", q)):
+        rid = people[pid].get("home_room")
+        if rid in rooms and rooms[rid].get("type") in BEDROOM_TYPES:
+            owners.setdefault(rid, []).append(pid)
+    return owners
+
+
+BEDROOM_TYPES = ("master_bedroom", "bedroom", "guest_room", "nursery")
+GEN2_SIZES = {"infant": "6M", "toddler": "2T", "child": "8", "teen": None}
+# generation 2, by the house's season at the start (TIER1_SWEEP 13.3): what is worn now sits folded in the dresser,
+# the far season's clothes are packed in a lidded bin on the closet floor (infants and toddlers: neither)
+IN_SEASON = {"winter": ("sweater",), "spring": ("hoodie",), "summer": ("tank_top", "shorts"), "autumn": ("sweater",)}
+OFF_SEASON = {"winter": ("shorts", "swimsuit", "tank_top"), "spring": ("sweater", "beanie"),
+              "summer": ("sweater", "beanie", "scarf"), "autumn": ("shorts", "swimsuit")}
+
+
+def _garment_size(p, person, gen):
+    role = person.get("role", "adult")
+    if gen >= 2 and role in GEN2_SIZES:
+        return GEN2_SIZES[role] or p.rng.choice(["S", "M"])
+    return "8" if role in ("child", "infant", "teen") else p.rng.choice(["S", "M", "L"])
+
+
+def _seasonal_clothes(p, owner, person, rid, drawers, closet, season, style):
+    """Generation 2: one in-season garment folded in the owner's dresser (middle drawer, shorts in the bottom one) and
+    the off-season clothes folded in a lidded storage bin on their closet's floor. Nothing is forced: a full drawer or a
+    closet with no floor room simply gets nothing."""
+    if person.get("role") in ("infant", "toddler") or season not in IN_SEASON:
+        return []
+    made = []
+    size = _garment_size(p, person, 2)
+    mid = drawers[1] if len(drawers) > 1 else None
+    low = drawers[2] if len(drawers) > 2 else None
+    for kind in IN_SEASON[season]:
+        drawer = low if kind == "shorts" else mid
+        if drawer is None:
+            continue
+        eid = p.inside(drawer, kind, owner=owner, size=size, home=drawer)
+        if eid:
+            _fold(p.c, eid, "half_thirds" if kind == "shorts" else style.get("top", "retail"))
+            made.append(eid)
+    if closet is None:
+        return made
+    label = "{}'s off-season clothes".format(person.get("label", owner))
+    stored = OFF_SEASON[season]
+    bin_id = stow_in_closet(p, "storage_bin", rooms=[rid], label=label, owner=owner, holds="off_season_clothes")
+    if bin_id is None:
+        return made
+    for kind in stored:
+        eid = p.inside(bin_id, kind, owner=owner, size=size, home=bin_id, stored_off_season=True)
+        if eid:
+            spec_cls = p.c["entities"][eid].get("fold_class")
+            style_name = "square" if spec_cls in ("accessory", "underwear") else (
+                "half_thirds" if kind == "shorts" else style.get("top", "retail"))
+            from .fold import allowed_styles
+            if style_name not in allowed_styles(p.c["entities"][eid]):
+                style_name = "half_half"
+            _fold(p.c, eid, style_name)
+            made.append(eid)
+    made.append(bin_id)
+    return made
+
+
+def _owner_garments(p, owner, person, drawers, closet, style, gen=1):
+    child = person.get("role") in (("child", "infant", "teen", "toddler") if gen >= 2 else ("child", "infant", "teen"))
+    size = _garment_size(p, person, gen)
     made = []
     top_drawer, mid_drawer, low_drawer = drawers if len(drawers) == 3 else (drawers + [None, None, None])[:3]
     if mid_drawer:
@@ -689,7 +803,8 @@ def furnish_linens(config, rng, opts, registry):
     for bed in sorted(e for e in ents if ents[e].get("category") == "bed" and ents[e].get("location") in config["rooms"]):
         rtype = config["rooms"][ents[bed]["location"]]["type"]
         dress_bed(p, bed, protector=rtype in ("master_bedroom", "guest_room"), flat=rtype == "guest_room", made=rng.random() < 0.6)
-    owners = _bedroom_owners(config)
+    gen = int(opts.get("gen", 1) or 1)
+    owners = _home_room_owners(config) if gen >= 2 else _bedroom_owners(config)
     for rid in sorted(owners):
         occupants = owners[rid]
         if not occupants:
@@ -722,7 +837,9 @@ def furnish_linens(config, rng, opts, registry):
         if not wall_floor_item(p, rid, "hamper", near=near, **hamper_props):
             stow_in_closet(p, "hamper", rooms=[rid], **hamper_props)
         for pid in occupants:
-            _owner_garments(p, pid, people.get(pid, {}), drawers, closet, style)
+            _owner_garments(p, pid, people.get(pid, {}), drawers, closet, style, gen=gen)
+            if gen >= 2:
+                _seasonal_clothes(p, pid, people.get(pid, {}), rid, drawers, closet, opts.get("season"), style)
     # bathrooms
     for rid in p.rooms("bathroom") + p.rooms("half_bath"):
         hooks = p.find("towel_hook", room=rid)
@@ -760,7 +877,7 @@ def furnish_linens(config, rng, opts, registry):
         hooks = p.find("coat_hooks", room=rid)
         for n, pid in enumerate(sorted(people)):
             person = people[pid]
-            child = person.get("role") in ("child", "infant")
+            child = person.get("role") in (("child", "infant", "toddler") if gen >= 2 else ("child", "infant"))
             if racks:
                 kind = "sneaker" if child or n % 2 else "dress_shoe"
                 pair_id = "shoes_{}".format(pid)

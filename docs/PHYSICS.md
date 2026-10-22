@@ -25,7 +25,9 @@ nesting, rolling, flotation, anchoring. Nothing is added to the entities: each f
 from
 
 1. the entity record (the type's props plus setup and generator overrides; names in section 8 of the setup table),
-2. the `phys.props` hooks (domain refinements such as ripeness),
+2. the `phys.props` hooks (domain refinements such as ripeness; a hook that changes `shape` gets `rollable`
+   recomputed from it unless it sets `rollable` itself, and sets any other derived field it affects: `rigid`,
+   `break_mode`, `crushable`),
 3. the `supports.json` rows of its type, ancestors, head noun, category and tags,
 4. its material class (`materials.json`: 129 registry material strings map to 42 classes),
 5. the global default.

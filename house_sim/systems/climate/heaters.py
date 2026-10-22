@@ -144,10 +144,13 @@ def _safety(w, eid, rid, dt):
             C.add_damage(om, "scorched", 0.4)
             w.stat("damage")
             C.log(w, "scorched", target=other, source=eid)
+            C.visual(w, "scorching", other)
         if om["_heat_exposure_s"] >= limit and not om.get("burnt"):
             om["burnt"] = True
             w.stat("fire")
             C.log(w, "ignition", target=other, source=eid, cause="space heater clearance")
+            C.visual(w, "fire", other)
+            C.notice(w, "smoke", other, visual=True)
     awake = C.people_in(state, rid, awake_only=True)
     awake = [p for p in awake if state["people"][p].get("role") not in ("infant",)]
     if not awake:

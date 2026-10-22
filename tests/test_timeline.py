@@ -519,6 +519,36 @@ class IdleProbeTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             plugins.system("test_timeline.bad_probe", idle="yes")
 
+    def test_a_probe_may_take_the_substeps_tick(self):
+        """Adoption-round request (navigation_robot 5): a system gated on its own substep schedule (the first substep
+        of a step, every 20 substeps) needs the tick to have an exact probe; fn(w, tick) gets it, fn(w) as before."""
+        seen, ran = [], []
+
+        def probe(w, tick):
+            seen.append(tick.index)
+            return tick.index % 2 == 1                     # idle on odd substeps
+
+        def plain(w):
+            return True
+
+        def fn(w, dt, tick):
+            ran.append(tick.index)
+        try:
+            plugins.system("test_timeline.ticked", order=999, max_dt=30.0, idle=probe)(fn)
+            plugins.system("test_timeline.plain", order=999, max_dt=30.0, idle=plain)(lambda w, dt, tick: None)
+            self.assertIn("test_timeline.ticked", plugins.IDLE_TAKES_TICK)
+            self.assertNotIn("test_timeline.plain", plugins.IDLE_TAKES_TICK)
+            env = env_of()
+            start = env._tick_index
+            env.step("wait", seconds=120)                   # four 30 s substeps
+            self.assertEqual(seen, [start, start + 1, start + 2, start + 3])
+            self.assertEqual(ran, [start, start + 2] if start % 2 == 0 else [start + 1, start + 3])
+        finally:
+            for name in ("test_timeline.ticked", "test_timeline.plain"):
+                plugins.SYSTEMS[:] = [s for s in plugins.SYSTEMS if s[1] != name]
+                plugins.SYSTEM_IDLE.pop(name, None)
+                plugins.IDLE_TAKES_TICK.discard(name)
+
 
 MONITORING = {
     "catalog_id": "T-timeline-merge-01", "schema": 3, "title": "Tell me when Sam gets up",
@@ -838,6 +868,62 @@ class StageCFixTests(unittest.TestCase):
         speech = [n for n in env.world.s["notices"] if n["kind"] == "speech"]
         self.assertTrue(speech)
         self.assertNotIn("resident_1", json.dumps(speech))
+
+
+class CameraAwareTests(unittest.TestCase):
+    """C-MERGE's request, checked by the adoption round's camera follow-up (K-CAM): timeline.perceivable and the
+    person_enters / person_leaves derivation are light-, imaging- and geometric-camera-aware (the stage-C fix T1 did
+    the work per referenced id; these pin the cases its tests left out: the cameras switched off, a thing the
+    geometric camera must frame, someone leaving behind the geometric camera)."""
+
+    PERSON = {"path": "people.resident_1.posture", "op": "eq", "value": "sitting"}
+
+    def test_with_the_cameras_off_a_wait_watches_nothing_it_would_have_to_see(self):
+        for perception in ("oracle", "realistic"):
+            for robot in ({"privacy_mode": True}, {"camera_on": False}):
+                c = fixture()
+                c["robot"].update(robot)
+                env = HouseEnv(c, None, perception=perception)
+                door = entity_rule(env, "door_12", "open", True)
+                result = env.step("wait", seconds=30, until=door)
+                self.assertEqual(result["message"], "Wait only on what the robot can observe", (perception, robot))
+                person = env.step("wait", seconds=30, until=self.PERSON)
+                # the oracle observation lists the room's people with only the depth camera (TIER1_INTEGRATION 1.3:
+                # the darkness rule), realistic perception sees shapes and no one
+                self.assertEqual(person["ok"], perception == "oracle", (perception, robot, person["message"]))
+
+    def test_the_geometric_camera_must_frame_the_thing_a_wait_watches(self):
+        for perception in ("oracle", "realistic"):
+            accepted = {}
+            for deg in range(0, 360, 45):
+                env = HouseEnv(fixture(), None, perception=perception, camera="geometric")
+                env.step("face", deg=deg)
+                door = entity_rule(env, "door_12", "open", True)
+                accepted[deg] = env.step("wait", seconds=30, until=door)["ok"]
+                room = HouseEnv(fixture(), None, perception=perception)
+                self.assertTrue(room.step("wait", seconds=30, until=entity_rule(room, "door_12", "open", True))["ok"])
+            self.assertTrue(any(accepted.values()), perception)              # facing the door
+            self.assertFalse(all(accepted.values()), perception)             # not with the door behind the camera
+
+    def test_someone_leaving_is_named_only_when_the_robot_saw_them_go(self):
+        def leaves(perception, camera, facing=None, track=False, dark=False):
+            c = (dark_fixture if dark else fixture)(bus=True, door_open=True)
+            c["events"] = [{"at_s": 60, "changes": {"people.resident_1.location": "room_2"}}]
+            env = HouseEnv(c, None, perception=perception, camera=camera)
+            if facing is not None:
+                env.step("face", deg=facing)
+            if track:
+                self.assertTrue(env.step("look", target="resident_1", track=True)["ok"])
+            env.step("wait", seconds=300)
+            return [n.get("source") for n in env.world.s["notices"] if n["kind"] == "person_leaves"]
+        for perception in ("oracle", "realistic"):
+            self.assertEqual(leaves(perception, "room"), ["resident_1"], perception)
+            self.assertEqual(leaves(perception, "room", dark=True), [None], perception)     # heard, not seen
+            sources = {deg: leaves(perception, "geometric", facing=deg) for deg in (0, 90, 180, 270)}
+            self.assertIn(["resident_1"], sources.values(), perception)                     # facing her
+            self.assertIn([None], sources.values(), perception)                             # behind the camera
+            unseen = next(deg for deg, found in sources.items() if found == [None])
+            self.assertEqual(leaves(perception, "geometric", facing=unseen, track=True), ["resident_1"], perception)
 
 
 if __name__ == "__main__":

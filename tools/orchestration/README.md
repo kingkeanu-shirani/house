@@ -22,8 +22,10 @@ python tools/orchestration/tier1_gate.py record --id <ID> [--package <PKG>[+<PKG
                                          [--extras physics,camera,body,sweep,gen] [--camera room|geometric]
                                          [--only G2,G3] [--skip G7] [--jobs N] [--shared-tree] [--reviewed FILE]
 python tools/orchestration/tier1_gate.py run ...              # same as record (the name used in TIER1_INTEGRATION)
-python tools/orchestration/tier1_gate.py compare <PREV_ID> <ID> [--package <PKG>]
+python tools/orchestration/tier1_gate.py compare [<PREV_ID> [<ID>]] [--package <PKG>] [--shared-tree]
+                                          [--spec-files GLOB] [--reviewed FILE]
 python tools/orchestration/tier1_gate.py scope --package <PKG> [--shared-tree]      # G10 alone
+python tools/orchestration/tier1_gate.py isolate --out DIR [--package <PKG>] [--files PATH ...] [--base REV]
 python tools/orchestration/tier1_gate.py packages [<PKG> ...]                       # the scope / policy table
 python tools/orchestration/tier1_gate.py gen1-digests [--write --by <ID> --reason TEXT]
 ```
@@ -60,7 +62,29 @@ the package's handoff table (catalog id | seed(s) | mode own/realistic | old -> 
 or `gate/<ID>/reviewed.json` / `--reviewed FILE` (`[{"catalog_id", "seeds": [..] or "all", "mode", "code"}]`).
 `--only` re-runs some checks and keeps the recorded results of the others (for a flaky benchmark, say);
 `--spec-files 'cleaning__*'` limits G2/G3 while iterating (such a record is partial and never a baseline).
-`--shared-tree` lets G10 attribute files of packages running in the same sub-stage in one working tree.
+`--shared-tree` lets G10 attribute files of packages running in the same sub-stage in one working tree (the
+adoption round: every `ADOPT:<domain>`, `K-EVAL` and `K-CAM`).
+
+**compare.** `compare PREV ID` compares two records. Without `ID` it takes the package's own record (`gate/<PKG>`;
+a colon in a package id is written `_`: `gate/ADOPT_cleaning`), without `PREV` the previous gate that record names
+(else the stage's default: the adoption round compares with `C1`); one positional names `PREV`. A record made with
+`--spec-files` is compared on those spec files only (the previous gate's other trials are not "missing");
+`--spec-files` on `compare` narrows both records further. `--shared-tree` also checks the working tree's scope (G10)
+now, attributing the concurrent packages' files. Without a record, `compare --package PKG --shared-tree` prints the
+`record` command to run (exit 2) and the scope check. The supported forms in the adoption round:
+
+```
+python tools/orchestration/tier1_gate.py record --id ADOPT_cleaning --package ADOPT:cleaning --only G0,G2,G3,G10        --spec-files 'cleaning__*' --shared-tree           # quick: the domain's own specs and the scope
+python tools/orchestration/tier1_gate.py compare --package ADOPT:cleaning --shared-tree     # vs C1 (its prev)
+```
+
+**isolate.** On a shared tree a package can record on an isolated copy instead: `isolate --package PKG --out DIR`
+copies the base commit's tree (`git archive`; nothing in the project is committed or changed), the empty
+directories git does not carry (`tasks/templates`, `house_sim/data/actions`) and the package's changed files; the copy
+records its base files' hashes, so G10 in it lists exactly that overlay. Record it with `record --root DIR
+--gates-root <project>/catalog/analysis/tier1/gate --id <PKG>`; `isolate --out DIR2` without a package is the
+pristine base to compare with. G9's physics audit writes `physics_audit.json` into the gate folder (as G9's body
+audit does); spec chunks keep the authored key order.
 
 ## Tier-1 foundation workflows (2026-10-13..)
 
@@ -69,3 +93,6 @@ or `gate/<ID>/reviewed.json` / `--reviewed FILE` (`[{"catalog_id", "seeds": [..]
 - `tier1_stage_c.js` - TIME-EVAL || PEOPLE-IO (the sweep), merge, review, C-CLOSE.
 - `tier1_adopt.js` - adoption round: 16 domain owners plus two kernel follow-up agents, then an integration gate.
 Plans and contracts: docs/design/TIER1_*.md; package handoffs: catalog/analysis/tier1/handoff_*.md.
+- `independent_review.js` - the independent review (claims, gaming policies, leak hunters, architecture, plan, report,
+  evidence audit) run on a frozen copy; report in docs/reviews/2026-10-22_independent_review/.
+- `verify_hardening_design.js` - design, adversarial critique and finalisation of docs/design/VERIFY_HARDENING.md.

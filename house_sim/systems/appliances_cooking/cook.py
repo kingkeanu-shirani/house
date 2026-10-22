@@ -371,6 +371,7 @@ def step_food(w, eid, dt, hctx=None):
             if hctx.get("radiant") and top_b >= 3.2 and (C.num(prof.get("fat")) >= 0.5 or "cheese" in C.food_kind(rec)) \
                     and not hc.get("flared"):
                 hc["flared"] = True
+                C.visual_event(w, "flare_up", source=eid, room=rid, size_m=0.4)    # fat flares under the broiler
                 from .stove import ignite_item
                 ignite_item(w, eid, rid, cause="broiler_flare_up")
     # ---- doneness by class
@@ -623,10 +624,23 @@ def _check_seconds(ctx):
             "visual (colour, bubbles, juices, crust - cheap but can mislead), water_drop (pan/griddle surface temperature). "
             "Probing food inside an appliance needs its door/lid open.")
 def check_doneness(ctx):
-    ctx.obj(ctx.args["target"], touch=(ctx.args.get("method") or "visual") != "visual")
+    method = ctx.args.get("method") or "visual"
+    target = ctx.args["target"]
+    ctx.obj(target, touch=method != "visual")
+    if method in ("visual", "toothpick", "fork", "press"):
+        # what a look, a tester, a fork or a press tells depends on what the food really is (bread browns, batter sets,
+        # nut butters and flours differ): an unidentified look-alike or unfamiliar food gets the kernel's one generic
+        # refusal until a closer look identifies it (kernel round 5 refuse_unidentified)
+        ctx.refuse_unidentified(target)
+    if method == "visual" and getattr(ctx, "camera_mode", "room") == "geometric":
+        # judging browning and doneness by eye needs a close, lit look at the food (the camera's inspect acuity:
+        # about 160 px across with the head camera, else the wrist camera within reach)
+        ok, reason, _via = ctx.inspect_check(target)
+        if not ok:
+            raise ActionError(reason or "Too far to judge it by eye: get closer", "perception")
     # kernel access refusals (visibility, reach, permission) above pass unchanged; this domain's own reasons below
     # are generic for an unidentified (look-alike or unfamiliar) target, so they cannot name what it is
-    with P.plain_refusals(ctx, ctx.args.get("target")):
+    with P.plain_refusals(ctx, target):
         return _check_doneness_body(ctx)
 
 

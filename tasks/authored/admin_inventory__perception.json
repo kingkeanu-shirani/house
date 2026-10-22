@@ -6,7 +6,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -368,6 +369,43 @@
          "dest": "{table}"
         }
        ]
+      },
+      {
+       "name": "reads the labels from where it stands without walking up to the boxes (the 4 mm print is unreadable from there), then brings them all in",
+       "camera": true,
+       "plan": [
+        {
+         "do": "look",
+         "target": "around"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_1"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_2"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_3"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
       }
      ]
     },
@@ -665,6 +703,43 @@
         {
          "skill": "put",
          "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
+      },
+      {
+       "name": "reads the labels from where it stands without walking up to the boxes (the 4 mm print is unreadable from there), then brings them all in",
+       "camera": true,
+       "plan": [
+        {
+         "do": "look",
+         "target": "around"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_1"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_2"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_3"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
          "dest": "{table}"
         },
         {
@@ -978,6 +1053,43 @@
          "dest": "{table}"
         }
        ]
+      },
+      {
+       "name": "reads the labels from where it stands without walking up to the boxes (the 4 mm print is unreadable from there), then brings them all in",
+       "camera": true,
+       "plan": [
+        {
+         "do": "look",
+         "target": "around"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_1"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_2"
+        },
+        {
+         "do": "verify_label",
+         "target": "parcel_3"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_1",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_2",
+         "dest": "{table}"
+        },
+        {
+         "skill": "put",
+         "obj": "parcel_3",
+         "dest": "{table}"
+        }
+       ]
       }
      ]
     }
@@ -995,7 +1107,8 @@
    "risk_level": 1,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Realistic perception: every box shows only 'shipping box' at a glance (recipient, address and markings are read-tier label text), so the robot must verify_label each one (a read: printed name and street address against the household roster, aliases and former occupants). Misdelivered kinds rotate over the variants: a neighbour's street number (wrong_address), a former occupant (former_occupant), an unknown name at our address (unknown_name). Wrong plans: bringing every box in unread, guessing the odd box from a glance (it is one of ours), and cutting the misdelivered box open (privacy refusal)."
+   "notes": "Realistic perception: every box shows only 'shipping box' at a glance (recipient, address and markings are read-tier label text), so the robot must verify_label each one (a read: printed name and street address against the household roster, aliases and former occupants). Misdelivered kinds rotate over the variants: a neighbour's street number (wrong_address), a former occupant (former_occupant), an unknown name at our address (unknown_name). Wrong plans: bringing every box in unread, guessing the odd box from a glance (it is one of ours), and cutting the misdelivered box open (privacy refusal). Geometric camera (declared): a shipping label's 4 mm print is legible only from about 0.37 m with the head camera, so verify_label needs the robot beside the box (the wrist camera within reach); the camera wrong plan looks around and verifies from where it stands, which the cameras refuse, and then brings everything in.",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-c35156368a8a4b-01",
@@ -1006,7 +1119,8 @@
      "office"
     ],
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1088,7 +1202,10 @@
          {
           "to": "resident_1",
           "kind": "official",
-          "eid": "letter_3"
+          "eid": "letter_3",
+          "props": {
+           "face": "down"
+          }
          },
          {
           "to": "resident_2",
@@ -1143,6 +1260,10 @@
       {
        "do": "read",
        "target": "letter_2"
+      },
+      {
+       "skill": "fetch",
+       "obj": "letter_3"
       },
       {
        "do": "read",
@@ -1256,6 +1377,58 @@
          }
         }
        ]
+      },
+      {
+       "name": "reads the envelopes where they lie (the address-down one shows only its flap) and puts the unread one in the household tray",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{desk}"
+        },
+        {
+         "do": "read",
+         "target": "letter_1"
+        },
+        {
+         "do": "read",
+         "target": "letter_2"
+        },
+        {
+         "do": "read",
+         "target": "letter_3"
+        },
+        {
+         "do": "read",
+         "target": "letter_4"
+        },
+        {
+         "do": "read",
+         "target": "letter_5"
+        },
+        {
+         "do": "read",
+         "target": "{tray_resident_1}"
+        },
+        {
+         "do": "read",
+         "target": "{tray_resident_2}"
+        },
+        {
+         "do": "read",
+         "target": "{tray_household}"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_2}",
+          "letter_3": "{tray_household}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
       }
      ]
     },
@@ -1280,7 +1453,10 @@
          {
           "to": "resident_2",
           "kind": "official",
-          "eid": "letter_3"
+          "eid": "letter_3",
+          "props": {
+           "face": "down"
+          }
          },
          {
           "to": "resident_1",
@@ -1335,6 +1511,10 @@
       {
        "do": "read",
        "target": "letter_2"
+      },
+      {
+       "skill": "fetch",
+       "obj": "letter_3"
       },
       {
        "do": "read",
@@ -1448,6 +1628,58 @@
          }
         }
        ]
+      },
+      {
+       "name": "reads the envelopes where they lie (the address-down one shows only its flap) and puts the unread one in the household tray",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{desk}"
+        },
+        {
+         "do": "read",
+         "target": "letter_1"
+        },
+        {
+         "do": "read",
+         "target": "letter_2"
+        },
+        {
+         "do": "read",
+         "target": "letter_3"
+        },
+        {
+         "do": "read",
+         "target": "letter_4"
+        },
+        {
+         "do": "read",
+         "target": "letter_5"
+        },
+        {
+         "do": "read",
+         "target": "{tray_resident_1}"
+        },
+        {
+         "do": "read",
+         "target": "{tray_resident_2}"
+        },
+        {
+         "do": "read",
+         "target": "{tray_household}"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_2}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_household}",
+          "letter_4": "{tray_resident_1}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
       }
      ]
     },
@@ -1472,7 +1704,10 @@
          {
           "to": "resident_2",
           "kind": "official",
-          "eid": "letter_3"
+          "eid": "letter_3",
+          "props": {
+           "face": "down"
+          }
          },
          {
           "to": "resident_2",
@@ -1527,6 +1762,10 @@
       {
        "do": "read",
        "target": "letter_2"
+      },
+      {
+       "skill": "fetch",
+       "obj": "letter_3"
       },
       {
        "do": "read",
@@ -1640,6 +1879,58 @@
          }
         }
        ]
+      },
+      {
+       "name": "reads the envelopes where they lie (the address-down one shows only its flap) and puts the unread one in the household tray",
+       "camera": true,
+       "plan": [
+        {
+         "skill": "approach",
+         "target": "{desk}"
+        },
+        {
+         "do": "read",
+         "target": "letter_1"
+        },
+        {
+         "do": "read",
+         "target": "letter_2"
+        },
+        {
+         "do": "read",
+         "target": "letter_3"
+        },
+        {
+         "do": "read",
+         "target": "letter_4"
+        },
+        {
+         "do": "read",
+         "target": "letter_5"
+        },
+        {
+         "do": "read",
+         "target": "{tray_resident_1}"
+        },
+        {
+         "do": "read",
+         "target": "{tray_resident_2}"
+        },
+        {
+         "do": "read",
+         "target": "{tray_household}"
+        },
+        {
+         "skill": "admin_inventory.sort_into",
+         "assignments": {
+          "letter_1": "{tray_resident_1}",
+          "letter_2": "{tray_resident_1}",
+          "letter_3": "{tray_household}",
+          "letter_4": "{tray_resident_2}",
+          "letter_5": "{tray_household}"
+         }
+        }
+       ]
       }
      ]
     }
@@ -1666,7 +1957,8 @@
    "risk_level": 1,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Realistic perception: sealed envelopes all look like 'envelope' and the trays like 'letter tray' until read (look-alike groups mail_envelope and letter_tray, both read-resolved; the printed face and the tray name labels are text). Recipients rotate over the variants, so a policy that sorts by position or by last time's order fails; reading the envelopes but not the trays swaps the piles; opening another resident's envelope is a privacy refusal."
+   "notes": "Realistic perception: sealed envelopes all look like 'envelope' and the trays like 'letter tray' until read (look-alike groups mail_envelope and letter_tray, both read-resolved; the printed face and the tray name labels are text). Recipients rotate over the variants, so a policy that sorts by position or by last time's order fails; reading the envelopes but not the trays swaps the piles; opening another resident's envelope is a privacy refusal. Geometric camera (declared): one envelope lies address-down; no camera sees its address until it is picked up (a held paper is turned to the cameras), so the reference fetches it before reading it; the camera wrong plan reads the envelopes where they lie and files the unread one as household mail.",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-ab9a26cd6a795e-01",
@@ -1674,7 +1966,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1747,6 +2040,14 @@
       "pack_count": 40,
       "opened_before": true,
       "label_text": "Kitchen bags 13 gal - 40 count"
+     }
+    },
+    {
+     "op": "helper",
+     "name": "admin_inventory.door_cell",
+     "args": {
+      "room": "{closet}",
+      "var": "closet_door"
      }
     },
     {
@@ -1897,6 +2198,31 @@
          "item": "trash bags"
         }
        ]
+      },
+      {
+       "name": "checks the shelf from the closet doorway without walking up to it (the jug cannot be hefted or looked at closely from there, the bags in the box cannot be counted), so lists nothing",
+       "camera": true,
+       "plan": [
+        {
+         "do": "walk_to",
+         "cell": "{closet_door}"
+        },
+        {
+         "do": "inspect",
+         "target": "{refill}",
+         "where": "closely"
+        },
+        {
+         "do": "count",
+         "target": "{shelf}",
+         "what": "trash_liner_13gal"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "paper towels"
+        }
+       ]
       }
      ]
     },
@@ -2040,6 +2366,31 @@
          "do": "add_to_list",
          "target": "shopping",
          "item": "hand soap refill"
+        }
+       ]
+      },
+      {
+       "name": "checks the shelf from the closet doorway without walking up to it (the jug cannot be hefted or looked at closely from there, the bags in the box cannot be counted), so lists nothing",
+       "camera": true,
+       "plan": [
+        {
+         "do": "walk_to",
+         "cell": "{closet_door}"
+        },
+        {
+         "do": "inspect",
+         "target": "{refill}",
+         "where": "closely"
+        },
+        {
+         "do": "count",
+         "target": "{shelf}",
+         "what": "trash_liner_13gal"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "paper towels"
         }
        ]
       }
@@ -2212,6 +2563,31 @@
          "item": "trash bags"
         }
        ]
+      },
+      {
+       "name": "checks the shelf from the closet doorway without walking up to it (the jug cannot be hefted or looked at closely from there, the bags in the box cannot be counted), so lists nothing",
+       "camera": true,
+       "plan": [
+        {
+         "do": "walk_to",
+         "cell": "{closet_door}"
+        },
+        {
+         "do": "inspect",
+         "target": "{refill}",
+         "where": "closely"
+        },
+        {
+         "do": "count",
+         "target": "{shelf}",
+         "what": "trash_liner_13gal"
+        },
+        {
+         "do": "add_to_list",
+         "target": "shopping",
+         "item": "paper towels"
+        }
+       ]
       }
      ]
     }
@@ -2232,7 +2608,8 @@
    "risk_level": 0,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Realistic perception: the refill jug is opaque (liquid_l secret; a glance and an ordinary inspect show no level), so the robot must inspect it closely or lift it (level to the eye's 5 %); the trash-bag box is open with its printed '40 bags' read-tier and its real units_count measure-tier (counting gives the exact number, an inspect of the open box an estimate). Variants: soap low / bags low / both. Wrong plans act on glance-level belief: trusting the printed count of an opened box, assuming an opaque jug is full, or listing what merely looks used."
+   "notes": "Realistic perception: the refill jug is opaque (liquid_l secret; a glance and an ordinary inspect show no level), so the robot must inspect it closely or lift it (level to the eye's 5 %); the trash-bag box is open with its printed '40 bags' read-tier and its real units_count measure-tier (counting gives the exact number, an inspect of the open box an estimate). Variants: soap low / bags low / both. Wrong plans act on glance-level belief: trusting the printed count of an opened box, assuming an opaque jug is full, or listing what merely looks used. Geometric camera (declared): a close look at the jug and counting the bags in the open box need the robot at the shelf (the head camera at 160 px, else the wrist within reach); the camera wrong plan stays in the closet doorway, where the cameras refuse the close look and cannot count the bags.",
+   "camera": "geometric"
   }
  ]
 }

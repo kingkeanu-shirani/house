@@ -1,0 +1,26 @@
+{
+ "about": "Safety's report vocabulary (tier-1 adoption, TIER1_SWEEP 5.2): hazards, emergencies and the states of alarms, gates and furniture anchors, with the evidence a robot can perceive for each (docs/domains/safety.md).",
+ "issues": {
+  "carbon_monoxide": {"class": "safety", "synonyms": ["co", "co_leak", "carbon_monoxide_leak", "co_alarm"], "evidence": [{"field": "alarm_pattern"}, {"notice": "alarm"}]},
+  "electrical_burning": {"class": "safety", "synonyms": ["burning_smell", "hot_plastic", "melting_plastic", "scorched_outlet"], "evidence": [{"field": "scorched"}, {"field": "surface_temp_c"}, {"field": "odor", "near": true}]},
+  "broken_glass": {"class": "safety", "synonyms": ["glass_on_floor", "shards", "shattered_glass", "glass_shards"], "evidence": [{"field": "shard_size"}, {"field": "shattered"}]},
+  "biohazard": {"class": "safety", "synonyms": ["bodily_fluid", "urine", "blood", "body_fluids"], "evidence": [{"field": "bio_kind"}, {"field": "soil"}]},
+  "chemical_leak": {"class": "safety", "synonyms": ["leaking_container", "leaking_chemical", "chemical_spill"], "evidence": [{"field": "leaking"}, {"field": "wetness", "near": true}]},
+  "suspicious_person": {"class": "safety", "synonyms": ["intruder", "stranger", "prowler", "trying_the_door"], "evidence": [{"field": "activity"}, {"notice": "knock"}, {"notice": "doorbell"}]},
+  "structural_damage": {"class": "condition", "synonyms": ["rot", "compromised", "giving_way", "broken_through"], "evidence": [{"field": "condition"}, {"field": "collapsed"}]},
+  "fallen": {"class": "living", "synonyms": ["fell", "on_the_floor", "collapsed_person", "fallen_person"], "evidence": [{"field": "posture"}, {"notice": "person_down"}]},
+  "unresponsive": {"class": "living", "synonyms": ["unconscious", "not_responding", "passed_out"], "evidence": [{"field": "posture"}, {"field": "responsive"}]},
+  "trapped": {"class": "living", "synonyms": ["pinned", "stuck_under", "caught_under"], "evidence": [{"field": "posture"}, {"notice": "crying"}, {"notice": "whimpering"}]},
+  "venomous": {"class": "living", "synonyms": ["venomous_spider", "black_widow", "brown_recluse", "poisonous_spider"], "evidence": [{"field": "markings"}]},
+  "end_of_life": {"class": "function", "synonyms": ["eol", "replace_alarm", "expired_alarm", "alarm_end_of_life"], "evidence": [{"field": "end_of_life"}, {"notice": "chirp"}]}
+ },
+ "states": {
+  "hushed": {"synonyms": ["silenced", "snoozed", "muted_alarm"], "evidence": [{"field": "alarm_state"}]},
+  "sounding": {"synonyms": ["going_off", "alarming", "blaring"], "opposite": "silent", "evidence": [{"field": "alarm_state"}, {"notice": "alarm"}]},
+  "silent": {"synonyms": ["quiet", "not_sounding"], "opposite": "sounding", "evidence": [{"field": "alarm_state"}]},
+  "latched": {"synonyms": ["caught", "self_latched"], "opposite": "unlatched", "evidence": [{"field": "latched"}]},
+  "unlatched": {"synonyms": ["not_latched", "propped_open"], "opposite": "latched", "evidence": [{"field": "latched"}]},
+  "anchored": {"synonyms": ["strapped", "tethered", "secured_to_wall"], "opposite": "unanchored", "evidence": [{"field": "anchored"}]},
+  "unanchored": {"synonyms": ["not_anchored", "free_standing"], "opposite": "anchored", "evidence": [{"field": "anchored"}]}
+ }
+}

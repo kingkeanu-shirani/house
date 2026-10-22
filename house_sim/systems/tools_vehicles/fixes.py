@@ -5,10 +5,17 @@
 * reset_disposal - jammed garbage disposal: lock out power, free with the 1/4 in hex key, cool and press reset.
 * clear_jam     - printer paper path (pull in the feed direction; tearing leaves scraps; hot fuser), staple guns.
 * bleed_radiator - trapped air, cool + heating off first, towel for the drips, system pressure drop.
+
+Tier-1 adoption (kernel v3.0-v3.1): radiator water that misses the towel is a kernel spill (a puddle under the valve,
+`spills` for the robot), and so is a clogged basin's overflow (a puddle under the fixture that grows while it runs
+over); a clogged basin that starts running over posts a "splash" notice and is a visual event, as
+are scalding spray from a hot radiator and a staple fired while clearing a jam; the drain, toilet and disposal systems
+have exact idle probes (nothing running into a clogged drain, every toilet calm, every disposal switched off or idle).
 """
 import copy
 
 from ...kernel import geometry, physics
+from ...kernel.phys import liquids
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook, inspector, observer, system
@@ -21,15 +28,9 @@ def _add_soil(w, eid, kind, amount):
 
 
 def _wet_floor(w, eid, liters):
-    room, cells = C.anchor_cells(w, eid)
-    if not room or room not in w.s["rooms"]:
-        return
-    cell = list(cells[0]) if cells else list(C.robot_cell(w))
-    rm = w.room_m(room)
-    wet = rm.setdefault("wet_cells", [])
-    if [int(cell[0]), int(cell[1])] not in wet:
-        wet.append([int(cell[0]), int(cell[1])])
-    rm["spilled_water_l"] = C.rnd(float(rm.get("spilled_water_l", 0.0)) + liters, 3)
+    """Water running over a basin's rim: a kernel spill on the floor under the fixture (one puddle that grows while
+    the overflow lasts; the kernel counts the new puddle in phys_spills, and in spills when robot-attributable)."""
+    liquids.spill(w, liters, "water", source=eid, cause="overflow")
 
 
 def _towel_at(w, eid):
@@ -153,7 +154,9 @@ def snake_drain(ctx):
 
 
 def _has_clog(rec):
-    return isinstance(rec.get("_clog"), dict)
+    """Static: a clogged drain this domain fills and overflows -- not a basin the plumbing domain simulates (a `plumb`
+    record: its fill, drain rate and overflow are plumbing's, which reads the same `_clog`)."""
+    return isinstance(rec.get("_clog"), dict) and not isinstance(rec.get("plumb"), dict)
 
 
 def _water_fixture(rec):
@@ -173,7 +176,14 @@ def _water_running_into(w, eid):
     return False
 
 
-@system("tools_vehicles.drains", order=142, max_dt=30.0)
+def drains_idle(w):
+    """Exact idle probe (kernel v3.1): no water runs into any clogged drain (drain_system skips every one of them)."""
+    ents = w.s["entities"]
+    return not any(isinstance((ents.get(eid) or {}).get("_clog"), dict) and _water_running_into(w, eid)
+                   for eid in C.index(w, "clogged_drains", _has_clog))
+
+
+@system("tools_vehicles.drains", order=142, max_dt=30.0, idle=drains_idle)
 def drain_system(w, dt, tick):
     """Per substep (a basin overflows within a minute or two of running water) over the static clogged-drain index."""
     ents = w.s["entities"]
@@ -195,6 +205,10 @@ def drain_system(w, dt, tick):
         standing = max(0.0, float(rec.get("standing_l", 0.0)) + flow_in - out)
         cap = float(rec.get("basin_l", 12.0))
         if standing > cap:
+            if float(rec.get("standing_l", 0.0)) < cap - 1e-9:
+                # the basin starts running over: heard (a splash) and seen
+                C.log(w, "basin_overflow", seen=eid, target=eid)
+                C.notice(w, "splash", source=eid)
             _wet_floor(w, eid, standing - cap)
             w.stat("spills")
             if standing - cap > 5.0:
@@ -325,7 +339,19 @@ def _derive_fixtures(w, env):
         refresh_drain(w, eid)
 
 
-@system("tools_vehicles.toilets", order=143, max_dt=30.0)
+def toilets_idle(w):
+    """Exact idle probe: every toilet's derived state is current (refresh_toilet would write nothing) and none leaks."""
+    ents = w.s["entities"]
+    for eid in C.index(w, "toilets", _has_tank):
+        rec = ents.get(eid)
+        if rec is None:
+            continue
+        if tank_leak_lpm(rec) != 0.0 or rec.get("running") is not False or rec.get("_leak_lpm") != 0.0:
+            return False
+    return True
+
+
+@system("tools_vehicles.toilets", order=143, max_dt=30.0, idle=toilets_idle)
 def toilet_system(w, dt, tick):
     """Per substep over the static toilet index: water wasted at the current leak rate (linear in dt)."""
     ents = w.s["entities"]
@@ -434,7 +460,23 @@ def _has_jam(rec):
     return isinstance(rec.get("_jam"), dict)
 
 
-@system("tools_vehicles.disposals", order=144, max_dt=30.0)
+def disposals_idle(w):
+    """Exact idle probe: every disposal is off (or tripped) and already shows it (`running` False), and none holds an
+    object that is no longer in its hopper (disposal_system would write nothing)."""
+    ents = w.s["entities"]
+    for eid in C.index(w, "disposals", _has_jam):
+        rec = ents.get(eid)
+        if rec is None or not isinstance(rec.get("_jam"), dict):
+            continue
+        obj = rec["_jam"].get("object")
+        if obj and (obj not in ents or ents[obj].get("location") != eid):
+            return False
+        if (disposal_live(w, eid) and not rec.get("thermal_tripped")) or rec.get("running"):
+            return False
+    return True
+
+
+@system("tools_vehicles.disposals", order=144, max_dt=30.0, idle=disposals_idle)
 def disposal_system(w, dt, tick):
     """Per substep (a jammed motor trips its thermal reset after 20 s of humming) over the static disposal index."""
     ents = w.s["entities"]
@@ -495,6 +537,7 @@ def clear_jam(ctx):
             else:
                 w.stat("damage")
             notes.append("the unlocked staple gun fired a staple while being cleared")
+            C.log(w, "staple_fired", seen=eid, size_m=0.1, target=eid)
         m["jammed"] = False
         return "Cleared the staple jam" + (": " + "; ".join(notes) if notes else "")
     slots = rec.get("slots") or {}
@@ -593,15 +636,15 @@ def bleed_radiator(ctx):
         if near:
             w.stat("burns")
         notes.append("scalding water and steam sprayed from the valve")
-        C.log(w, "bleed_hot", target=eid)
+        C.log(w, "bleed_hot", seen=eid, target=eid)
     absorbed = 0.5 if towel else 0.0
     if towel:
         tm = w.mut(towel)
         tm["wetness"] = 1.0 if water_out > 0.2 else max(float(tm.get("wetness", 0.0)), 0.6)
     if water_out > absorbed + 1e-9:
-        _wet_floor(w, eid, water_out - absorbed)
-        w.stat("spills")
         spilled = water_out - absorbed
+        # what the towel does not catch lands under the valve: a kernel spill (the puddle, the robot's `spills`)
+        ctx.spill(spilled, "water", source=eid, cause="bleed")
         # realistic: a look at the floor (a few drops / a puddle), not a volume that would spell out the air fraction
         notes.append(("water dripped on the floor" if spilled < 0.3 else "a puddle of water ran onto the floor") if ctx.realistic else
                      "water dripped on the floor ({:.2f} l)".format(spilled))

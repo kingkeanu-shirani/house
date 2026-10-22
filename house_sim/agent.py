@@ -11,7 +11,11 @@ can tell what they are, looks around again from the centres of the room's quarte
 far off are below what the camera resolves), looks into what it opens with the wrist camera, and
 when a room is surveyed without a find it kneels and looks under the beds and sofas there (peek,
 or inspect where=under where the peek verb is not offered). Peeking lifts nothing for good, so
-there is nothing to put back. A thing out of frame is not forgotten. Room mode behaves exactly as
+there is nothing to put back. A thing out of frame is not forgotten: what an observation once
+showed as openable stays so (a small cabinet tells it only from close by) and is opened before the
+survey walks on; something the wrist sees half hidden inside what it opened is inspected and looked
+at again; a thing seen in a room and out of frame now is walked back to once; a room already
+surveyed is not surveyed again when the search passes through it. Room mode behaves exactly as
 before.
 """
 from collections import deque
@@ -43,6 +47,8 @@ class SearchAgent:
         self.room_approaches = 0
         self.viewpoints = {}     # room -> survey cells not yet visited this visit
         self.unsupported = set()  # camera forms the environment refused as unknown ("rows", "peek")
+        self.openables = set()   # things an observation showed as openable (a far look may not show it again)
+        self.surveyed = set()    # rooms whose survey viewpoints were all looked around from (not walked again)
 
     def _identify(self, word, objects, holding):
         """Handle (or id) of the thing called `word`, or None. Returns ("examine", handle) for an unresolved
@@ -92,6 +98,14 @@ class SearchAgent:
             self.unsupported.add("peek")
             self.plan.clear()
 
+    def _openable(self, eid, obj):
+        """A closed container the agent may open to look inside: openable (now, or as an earlier observation showed
+        it: with the geometric camera a small cabinet shows that it opens only from close by, and a step back shows
+        just "cabinet"), not locked or private, not opened by it yet, not a door or window."""
+        return bool((obj.get("openable") or eid in self.openables) and not obj.get("open") and not obj.get("locked")
+                    and not obj.get("private") and eid not in self.opened and "connects" not in obj
+                    and obj.get("category") not in ("window", "door"))
+
     @staticmethod
     def _unidentified(rec):
         """A detection the camera could not identify yet: "object", or only its category word (recognize)."""
@@ -132,6 +146,16 @@ class SearchAgent:
         sought_word = self.destination if self.names.get(self.target) in holding or self.target in holding else self.target
         if self._identify(sought_word, objects, holding) is not None:
             return None
+        for handle, rec in sorted(objects.items()):
+            container = rec.get("location")
+            if handle not in self.examined and self._unidentified(rec) and container in self.opened:
+                # seen inside something it opened, half hidden by its walls: a close look tells what it is, and the
+                # wrist camera looks in again to see it as that (the head may not see into a small container)
+                self.examined.add(handle)
+                self.plan.append({"action": "inspect", "target": container, "where": "inside"}
+                                 if "peek" in self.unsupported else
+                                 {"action": "peek", "target": container, "where": "inside"})
+                return {"action": "inspect", "target": handle}
         if self.room_approaches < MAX_APPROACHES_PER_ROOM:
             fits = SMALL_CLASSES if self.small_target else ("medium", "large", "huge")
             candidates = sorted((self._distance(rec), handle) for handle, rec in objects.items()
@@ -145,7 +169,11 @@ class SearchAgent:
                 if rec.get("size_class") in ("tiny", "small") or (rec.get("view") or {}).get("elev_deg", 0) <= -30:
                     self.plan.append({"action": "crouch"})      # a small or low thing needs a lower eye to tell
                 return {"action": "approach", "target": handle}
+        if any(self._openable(handle, rec) for handle, rec in objects.items()):
+            return None                                 # open (and look into) what it found before walking on
         viewpoints = self.viewpoints.get(room) or []
+        if not viewpoints:
+            self.surveyed.add(room)                     # passing through later: no second survey walk
         if viewpoints:
             # small things far off are below what the camera resolves: look around again from another part of the room
             here = tuple(pos) if pos else (0, 0)
@@ -184,7 +212,7 @@ class SearchAgent:
             self.room_now = room
             self.looked.discard(room)       # a new visit: look around again
             self.room_approaches = 0
-            self.viewpoints[room] = self._survey_cells(observation)
+            self.viewpoints[room] = [] if room in self.surveyed else self._survey_cells(observation)
         for word in (self.target, self.destination):
             found = self._identify(word, objects, holding)
             if isinstance(found, tuple):
@@ -199,6 +227,8 @@ class SearchAgent:
             self.locations[eid] = room
             if objects[eid].get("pos"):
                 self.positions[eid] = (room, list(objects[eid]["pos"]))
+            if geometric and objects[eid].get("openable"):
+                self.openables.add(eid)
         if geometric and target in objects and target not in holding and posture in ("kneeling", "crouching") \
                 and (objects[target].get("view") or {}).get("dist") == "within reach":
             # found while low (under a bed or sofa): take it from here, then stand
@@ -245,14 +275,24 @@ class SearchAgent:
             if nxt:
                 self.last = {"action": "move", "target": nxt}
                 return self.last
+        if geometric and self.locations.get(sought) == room and sought not in objects and sought not in holding \
+                and room in self.looked:
+            # seen here before, out of frame now (a small thing far off is below what the camera resolves): go back
+            # to where it was and look at it; once, then forget the place so the search goes on
+            known = self.positions.get(sought)
+            if known and known[0] == room and (sought, room) not in self.rechecked:
+                self.rechecked.add((sought, room))
+                self.plan.append({"action": "look", "target": sought})
+                self.last = {"action": "walk_to", "cell": list(known[1]), "adjacent": True}
+                return self.last
+            del self.locations[sought]
         if geometric:
             step = self._geometric_step(room, objects, holding, posture, observation.get("robot", {}).get("pos"))
             if step is not None:
                 self.last = step
                 return step
         for eid, obj in sorted(objects.items()):
-            if obj.get("openable") and not obj.get("open") and not obj.get("locked") and not obj.get("private") \
-                    and eid not in self.opened and "connects" not in obj and obj.get("category") not in ("window", "door"):
+            if self._openable(eid, obj):
                 self.opened.add(eid)
                 self.plan.append({"action": "open", "target": eid})
                 if geometric:

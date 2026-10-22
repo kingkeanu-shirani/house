@@ -22,6 +22,7 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, system
 from . import common as C
 from . import power as P
+from . import sightlines
 
 WATCHING = {"watching_tv", "watching", "gaming", "playing_video_games", "watching_movie"}
 CALLING = {"video_call", "on_call", "phone_call", "streaming", "gaming_online", "working_online"}
@@ -84,7 +85,11 @@ def _remote_guard(ctx):
     require(C.room_of(state, target) == w.robot["room"], "The device is not in this room", "perception")
     if rrec.get("remote_kind", "ir") == "ir":
         require(dev.get("ir_receiver", True), "That device has no IR receiver")
-        require(line_of_sight(state, tuple(w.robot.get("pos") or (0, 0)), target),
+        if sightlines.geometric(state):
+            clear = sightlines.ir_line_clear(state, target)      # the beam from the hand to the receiver (sight.los)
+        else:
+            clear = line_of_sight(state, tuple(w.robot.get("pos") or (0, 0)), target)
+        require(clear,
                 "No response: something blocks the line of sight to the IR receiver; move so you can see the device", "precondition")
     ctx.data["via_remote"] = remote
 
@@ -121,7 +126,7 @@ def _boot(ctx, result):
     if not electronics(rec):
         return
     m = w.mut(eid)
-    if rec.get("_fault") == "internal":
+    if rec.get("_fault") == "internal" or C.dead(rec):
         m["power_state"] = "off"
         m["no_response"] = True
         ctx.note("Nothing happens: no light, no sound")
@@ -308,8 +313,35 @@ def network_ok(state, w=None):
     return False
 
 
-@system("electrical.devices", order=59, max_dt=30.0)
+DEVICES_IDLE = C.IdleNote("electrical.devices", ("electronics", "network", "powerable"),
+                          ignore=lambda rec: ("internal_temp_c", "battery_level", "charge_rate_w", "charging",
+                                              "charge_status", "charger", "_load_w", "load_a", "temperature_c"))
+
+
+def _devices_inputs(w):
+    """The device step's inputs outside the entity table: the robot's network and the body's network fault (the
+    router sync reads them)."""
+    from ...kernel import body
+    state = w.s
+    return {"net": bool(w.robot.get("network", True)), "fault": body.fault(state, "network_down") is not None,
+            "router": bool(C.section(state).get("net_down_by_router"))}
+
+
+def devices_idle(w):
+    """Exact idle probe of electrical.devices (common.IdleNote)."""
+    note = DEVICES_IDLE
+    return note.quiet(w) and _devices_inputs(w) == note.extra
+
+
+@system("electrical.devices", order=59, max_dt=30.0, idle=devices_idle)
 def devices_system(w, dt, tick):
+    before = w.mutation_count
+    _devices_step(w, dt, tick)
+    wrote = w.mutation_count != before
+    DEVICES_IDLE.after(w, wrote, None if wrote else _devices_inputs(w))
+
+
+def _devices_step(w, dt, tick):
     state = w.s
     if not C.electrified(state, w):
         return
@@ -373,18 +405,26 @@ def devices_system(w, dt, tick):
             m["transfer_remaining_s"] = round(max(0.0, left), 1)
             if left <= 0:
                 m["job"] = None
-    # robot connectivity follows the household router (only when the house has one)
-    ok = network_ok(state, w)
-    if ok is not None:
-        s = C.section(state)
-        if not ok and w.robot.get("network", True):
-            w.robot_m()["network"] = False
-            C.sec(w)["net_down_by_router"] = True
-        elif ok and s.get("net_down_by_router"):
-            w.robot_m()["network"] = True
-            C.sec(w)["net_down_by_router"] = False
+    sync_robot_network(w, network_ok(state, w))
     if changed:
         C.refresh(w)
+
+
+def sync_robot_network(w, ok):
+    """The robot's connectivity follows the household router (only when the house has one): the Wi-Fi going down takes
+    the robot's network with it, and the router coming back restores only what it took (never over the body's own
+    network_down fault, kernel v3.0 robot body: body_faults owns that state)."""
+    if ok is None:
+        return
+    from ...kernel import body
+    s = C.section(w.s)
+    if not ok and w.robot.get("network", True):
+        w.robot_m()["network"] = False
+        C.sec(w)["net_down_by_router"] = True
+    elif ok and s.get("net_down_by_router"):
+        if body.fault(w.s, "network_down") is None:
+            w.robot_m()["network"] = True
+        C.sec(w)["net_down_by_router"] = False
 
 
 @C.refresher(50)
@@ -458,6 +498,7 @@ def _authorized(ctx, eid):
 @action("restart_device", params={"target": "entity", "method": "?str:soft|power_cycle|hard|factory_reset",
                                   "wait_s": {"type": "number", "default": 30.0, "min": 0, "max": 600}},
         duration=lambda ctx: ctx.data.get("seconds", 6.0), energy=0.01, category="physical", irreversible=True,
+        timing="commanded",
         doc="Restart a device: soft (menu/OS restart; blocked by unsaved work), power_cycle (unplug wait_s then replug; the right way for "
             "modems/routers: modem first, router after the modem is back online), hard (hold power 10 s: loses unsaved work), "
             "factory_reset (wipes settings and pairings). Shared infrastructure needs an adult's request or approval.")

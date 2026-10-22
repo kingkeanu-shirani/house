@@ -16,7 +16,8 @@ from ...kernel import physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, inspector, observer
-from .common import admin_facts, household, indexed, kids, requester, sheet_count, sheets_of, slug
+from .common import (admin_facts, entity_room, household, indexed, kids, notice, require_readable, requester, set_face,
+                     sheet_count, sheets_of, slug)
 from .paper import is_document
 from .perceive import dumps, has_read
 
@@ -107,10 +108,16 @@ def compute_status(w, pid):
     return "ready_low_ink" if low else "ready"
 
 
+BEEPS = ("paper_jam", "out_of_paper", "ink_empty", "no_cartridge", "cartridge_error", "paper_size_mismatch",
+         "feeder_jam")       # errors a printer beeps for (an open cover or tray is the user's doing: no alarm)
+
+
 def refresh_status(w, pid):
     status = compute_status(w, pid)
     rec = w.ent(pid)
     if rec.get("status") != status:
+        if status in BEEPS and rec.get("status") not in BEEPS:
+            notice(w, "device_beep", room=entity_room(w.s, pid), source=pid)     # it starts beeping (kernel v3.1)
         m = w.mut(pid)
         m["status"] = status
         m["display"] = DISPLAY.get(status, status)
@@ -157,12 +164,18 @@ def _find_file(files, name):
 
 
 def _printer_access(ctx, pid, remote_ok=True):
+    """The printer over the network (print, when it is networked and the robot online) or at its panel (touch). At
+    the panel with the geometric camera the robot must read the panel display (ctx.read_check through the panel face:
+    3-4 mm text, so from right in front of it or with the wrist camera; a printer turned to the wall cannot be run)."""
     w = ctx.w
     rec = w.s["entities"].get(pid)
     require(rec is not None and is_printer(rec), "That is not a printer", "argument")
     if remote_ok and w.robot.get("network", True) and rec.get("networked", True):
         return rec
-    return ctx.obj(pid, touch=True)
+    rec = ctx.obj(pid, touch=True)
+    if ctx.camera_mode == "geometric":
+        require_readable(ctx, pid, ["display"])
+    return rec
 
 
 def _enqueue(w, pid, job):
@@ -360,6 +373,8 @@ def _jam(w, pid, reason):
     jm["slot"] = "paper_path"
     m = w.mut(pid)
     m["slots"]["paper_path"]["item"] = jam
+    if m.get("status") not in BEEPS:
+        notice(w, "device_beep", room=entity_room(w.s, pid), source=pid)
     m["status"] = "paper_jam"
     m["display"] = DISPLAY["paper_jam"]
     m["last_error"] = reason
@@ -526,16 +541,18 @@ def _paper_loaded(ctx, result):
             w.mut(printer)["feeds_since_load"] = 0
     if parent is not None and parent.get("document_feeder"):
         w.mut(eid)["feed_order"] = int(w.s.get("steps", 0))
-    # originals placed on the glass: orientation upside_down means face down
-    if parent is not None and (parent.get("scanner_glass") or parent.get("document_feeder")) and is_document(rec):
+    # a paper (a document, an envelope or a mail piece) set down upside down lies face down (originals on the glass:
+    # the side the scanner sees); upright or flat turns it face up; on the glass or the feeder a paper set down without
+    # an orientation lies face up
+    if is_document(rec) or rec.get("envelope") or rec.get("mail_piece"):
         orient = ctx.args.get("orientation")
-        m = w.mut(eid)
+        on_scanner = parent is not None and (parent.get("scanner_glass") or parent.get("document_feeder"))
         if orient == "upside_down":
-            m["face"] = "down"
-        elif orient in ("upright", "flat", None):
-            m["face"] = "up" if orient else m.get("face", "up")
-        if orient == "rotated":
-            m["orientation"] = "rotated"
+            set_face(w, eid, "down")
+        elif orient in ("upright", "flat") or (on_scanner and orient is None and rec.get("face") != "down"):
+            set_face(w, eid, "up")
+        if orient == "rotated" and on_scanner:
+            w.mut(eid)["orientation"] = "rotated"
 
 
 @after("pick_up", order=60)
@@ -544,8 +561,8 @@ def _feeder_cleared(ctx, result):
     rec = w.ent(ctx.args["target"])
     if rec.get("feeder_jammed"):
         w.mut(ctx.args["target"])["feeder_jammed"] = False
-    if is_document(rec) and rec.get("face") == "down":
-        w.mut(ctx.args["target"])["face"] = "up"
+    if (is_document(rec) or rec.get("envelope") or rec.get("mail_piece")) and rec.get("face") == "down":
+        set_face(w, ctx.args["target"], "up")       # picked up, it is held printed side to the cameras
 
 
 @inspector("admin_inventory.printer")

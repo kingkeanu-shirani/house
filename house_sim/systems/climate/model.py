@@ -1049,6 +1049,7 @@ def _effects_step(w, dt, sc, az, alt):
                         moisture._wet_cell(w, rid, wrec.get("pos"))
                         w.stat("spills")
                         C.log(w, "rain_ingress", window=wid)
+                        C.visual(w, "water_on_floor", wid, room=rid, at=list(wrec.get("pos") or [0, 0]), z=0.02, size_m=0.4)
                     if changes["rain_in_l"] >= 0.5 and not wrec.get("water_damage") and room.get("floor_material") in ("carpet", "hardwood", "laminate", None):
                         changes["water_damage"] = True
                         w.stat("damage")
@@ -1082,6 +1083,7 @@ def _effects_step(w, dt, sc, az, alt):
                 w.stat("damage")
                 w.stat("flood")
                 C.log(w, "pipe_burst", room=rid)
+                C.notice(w, "pipe_burst", room=rid)
         if t > 27.0:
             for pid in C.pets_in(state, rid):
                 if t > C.PET_HEAT_C.get(state["pets"][pid].get("species", "dog"), C.PET_HEAT_DEFAULT_C):
@@ -1132,6 +1134,7 @@ def _pet_escape(w, pid, rid, wid):
         m["pos"] = geometry.free_floor_cell(state, outdoor[0], clearance=False, reachable=False) or [0, 0]
     w.stat("pet_escape")
     C.log(w, "pet_escaped", pet=pid, window=wid)
+    C.visual(w, "pet_escaped", wid)
 
 
 def _people_comfort(w, dt, sc, az, alt):
@@ -1182,52 +1185,42 @@ def _glare(w, sc, az, alt):
                 w.mut(eid).update(changes)
 
 
-def light_level_fast(w, sc, rid):
-    """kernel.perception.light_level computed from the static window/light indexes (same formula: daylight x
-    0.45 per uncovered window (capped at 1) + each lit, powered ceiling light's brightness + light_level hooks)."""
-    from ...kernel import clock
-    from ...kernel.plugins import run_hooks
-    state = w.s
-    room = state["rooms"].get(rid, {})
-    if room.get("outdoor"):
-        level = clock.daylight(state)
-    else:
-        exposure = 0.0
-        for wid in sc["windows"].get(rid, []):
-            exposure += 0.45 * (1.0 - float(state["entities"][wid].get("covered", 0.0)))
-        level = clock.daylight(state) * min(1.0, exposure)
-    grid = state.get("utilities", {}).get("power", True)
-    for eid in sc["lights"].get(rid, []):
-        entity = state["entities"][eid]
-        if entity.get("on") and not entity.get("burnt_out"):
-            if entity.get("powered", True) and grid or entity.get("battery_powered"):
-                level += float(entity.get("brightness", 0.8)) * float(entity.get("dim_level", 1.0))
-    for extra in run_hooks("light_level", state, rid):
-        if isinstance(extra, (int, float)):
-            level += extra
-    return round(max(0.0, min(1.0, level)), 3)
+def _light_ids(w, sc):
+    """{room: [window and light ids]} in state order, built once per env step (windows never move; lights move between
+    rooms only by actions): the id list kernel.perception.light_level takes, cut down to each room."""
+    memo = sc["memo"]
+    hit = memo.get("light_ids")
+    if hit is None:
+        hit = {}
+        rooms = w.s["rooms"]
+        for eid, rec in w.s["entities"].items():
+            cat = rec.get("category")
+            if cat == "window":
+                rid = rec.get("location")
+            elif cat == "light":
+                rid = sc["room"].get(eid)
+            else:
+                continue
+            if rid in rooms:
+                hit.setdefault(rid, []).append(eid)
+        memo["light_ids"] = hit
+    return hit
 
 
 def _light_levels(w, sc):
-    """Observable light level (kernel daylight + lamps) for rooms holding glare targets or listed in watch_rooms."""
+    """Observable light level for rooms holding glare targets or listed in watch_rooms: the kernel's ambient light,
+    kernel.perception.light_level (tier-1 camera adoption: climate's own copy of the formula is gone), given each room's
+    own window and light ids in state order (the same sums as over the whole house; no scan per substep)."""
+    from ...kernel.perception import light_level
     state = w.s
     rooms = set(r for r in sc["glare"] if r in state["rooms"]) | set(C.section(state).get("watch_rooms") or [])
     if not rooms:
         return
-    lights = sc["memo"].get("lights")
-    if lights is None:
-        lights = {}
-        for eid in C.static_ids(w, "climate.lights", lambda r: r.get("category") == "light"):
-            if eid in state["entities"]:
-                rid = sc["room"].get(eid)
-                if rid is not None:
-                    lights.setdefault(rid, []).append(eid)
-        sc["memo"]["lights"] = lights
-    sc["lights"] = lights
+    ids = _light_ids(w, sc)
     for rid in sorted(rooms):
         if rid not in state["rooms"]:
             continue
-        lvl = light_level_fast(w, sc, rid)
+        lvl = light_level(state, rid, ids.get(rid, ()))
         if state["rooms"][rid].get("light_level") != lvl:
             w.room_m(rid)["light_level"] = lvl
 
@@ -1306,7 +1299,21 @@ def _energy_step(w, dt, sc, hv):
 SLOW_PERIOD_S = 300.0
 
 
-@system("climate.slow", order=46, max_dt=SLOW_PERIOD_S, period=SLOW_PERIOD_S)
+def _wet_tanks(w):
+    """Humidifier tanks holding water (moisture.age_tanks ages only those)."""
+    state = w.s
+    ents = state["entities"]
+    return [e for e in C.static_ids(w, "climate.kinds", lambda r: bool(r.get("climate_kind")))
+            if (ents.get(e) or {}).get("climate_kind") == "humidifier_tank" and C.num(ents[e].get("liquid_l")) > 0.02]
+
+
+def slow_idle(w):
+    """Exact idle probe of climate.slow (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7): no tank holds standing water,
+    so nothing ages this period (the system would change nothing)."""
+    return not w.s.get("rooms") or not _wet_tanks(w)
+
+
+@system("climate.slow", order=46, max_dt=SLOW_PERIOD_S, period=SLOW_PERIOD_S, idle=slow_idle)
 def climate_slow(w, dt, tick):
     """Slow processes, once per 300 s with the accumulated dt: standing water in humidifier tanks ages and grows
     bacteria (~0.1/day, biofilm doubling; closed-form per call, so any dt up to the period is exact enough)."""
@@ -1320,9 +1327,37 @@ def climate_slow(w, dt, tick):
 
 
 METER_PERIOD_S = 120.0
+LEDGER_KEYS = ("kwh", "gas_kwh", "cost_usd", "peak_kwh")
 
 
-@system("climate.meter", order=45, max_dt=METER_PERIOD_S, period=METER_PERIOD_S)
+def meter_idle(w):
+    """Exact idle probe of climate.meter: the house has no metered device of another domain (the step-cached static
+    scan) and the energy ledger already holds every key a booking of nothing would (re)write at 6 decimals, so a run
+    would book nothing and change nothing."""
+    state = w.s
+    if not state.get("rooms"):
+        return True
+    memo = step_memo(w)
+    static = memo.get("scan")
+    if static is None:
+        static = _scan_static(w, state)
+        memo["scan"] = static
+    if static["power"]:
+        return False
+    sec = state.get(C.SECTION)
+    if not isinstance(sec, dict) or any(not isinstance(sec.get(k), t) for k, t in (("energy", dict), ("hazards", dict), ("trackers", dict), ("log", list))):
+        return False
+    e = sec["energy"]
+    if not isinstance(e.get("by_device"), dict):
+        return False
+    for key in LEDGER_KEYS:
+        value = e.get(key)
+        if type(value) is not float or value != round(value, 6):
+            return False        # a booking would (re)write it: an int becomes a float, an unrounded value is rounded
+    return True
+
+
+@system("climate.meter", order=45, max_dt=METER_PERIOD_S, period=METER_PERIOD_S, idle=meter_idle)
 def climate_meter(w, dt, tick):
     """Energy ledger for every other domain's metered device (``power_w`` when active else ``standby_w``; zero when
     unplugged, unpowered or its switched strip / smart plug is off). Device state is sampled once per 120 s and

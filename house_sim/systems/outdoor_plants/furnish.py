@@ -635,7 +635,7 @@ def _roof_face(p, config, registry, rid, edge, face, floors, view):
     cells = C.edge_cells(room, edge)
     if not cells:
         return None
-    return p.mount(rid, "roof_face", cell=list(cells[0]), height=round(2.7 * floors + 0.5, 2), face=face, view=view, label="{} roof".format(face),
+    return p.mount(rid, "roof_face", cell=list(cells[0]), height=round(2.7 * floors + 0.5, 2), face=face, sightline=view, label="{} roof".format(face),
                    size_m=[round(len(cells) * C.CELL, 2), 0.1, 3.0], rot=_edge_rot(edge))
 
 
@@ -855,3 +855,24 @@ def furnish_finish(config, rng, opts, registry):
     ents = config["entities"]
     for lid in [e for e in sorted(ents) if ents[e].get("type") == "lawn"]:
         rebuild_lawn_kinds(config, lid)
+    if int(opts.get("gen") or 1) < 2:
+        gen1_records(config)
+
+
+# record fields the tier-1 adoption added to types this domain furnishes, and the fields they replaced: a
+# generation-1 house keeps its pinned records (tests/data/gen1_digests.json) until the main session re-records them
+GEN1_RENAMED = {"roof_face": (("sightline", "view"),)}
+GEN1_ADDED = {"wheelbarrow": ("chocked",)}
+
+
+def gen1_records(config):
+    """Generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2): the roof faces keep their old `view` word
+    (the code reads `sightline` first, then that word) and the wheelbarrow carries no `chocked` (the deferred slope
+    law is the only reader)."""
+    for rec in config["entities"].values():
+        for old_new in GEN1_RENAMED.get(rec.get("type"), ()):
+            new, old = old_new
+            if new in rec:
+                rec[old] = rec.pop(new)
+        for key in GEN1_ADDED.get(rec.get("type"), ()):
+            rec.pop(key, None)

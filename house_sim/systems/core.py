@@ -1861,7 +1861,10 @@ def legacy_answer(ctx, pid, topic):
         facts = w.s.get("facts", {})
         asked = facts.get("asked", {})
         if known:
-            necessary = (pid + ":" + topic) not in asked and topic not in facts
+            # a person's own answer (user_simulator.by_person) is new from each person asked; a household answer
+            # (answers) is known once anyone gave it (food's adoption request 8)
+            personal = topic in ((w.s.get("user_simulator") or {}).get("by_person") or {}).get(pid, {})
+            necessary = (pid + ":" + topic) not in asked and (personal or topic not in facts)
             w.stat("necessary_questions" if necessary else "unnecessary_questions")
             answer = {"topic": topic, "value": copy.deepcopy(value), "by": pid}
             w.sec("facts")[topic] = copy.deepcopy(value)

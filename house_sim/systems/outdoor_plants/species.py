@@ -37,7 +37,7 @@ BASE = {"kind": "houseplant", "band": [0.3, 1.0], "water_at": 0.35, "et": 0.08, 
         "hardy_c": 2.0, "frost_tender": True, "toxic": [], "leaf": "glossy", "woody": False, "bud_sensitive": False, "mix": "potting_mix",
         "bloom": None, "deadhead": False, "seedheads": False, "harvest": None, "root": "fibrous", "spacing_cm": 30, "sun": "part",
         "season": None, "lookalike": None, "toxic_touch": False, "invasive": False, "dormant_months": [], "foliar_disease": False,
-        "look": "leafy plant", "weed": False, "lean_rate": 1.0, "thorny": False}
+        "look": "leafy plant", "weed": False, "lean_rate": 1.0, "thorny": False, "sap": None}
 
 
 def _sp(**kw):
@@ -55,7 +55,7 @@ SPECIES = {
                       look="dark glossy lance leaves, white hooded flowers", bloom="indoor"),
     "calla_lily": _sp(band=[0.45, 1.0], water_at=0.5, et=0.12, dli=[8, 25], direct=True, temp=[10, 30], toxic=["cat", "dog"], lookalike="peace_lily",
                       look="dark glossy lance leaves, white hooded flowers"),
-    "fiddle_leaf_fig": _sp(band=[0.3, 1.0], water_at=0.35, et=0.2, dli=[10, 35], direct=True, temp=[15, 30], toxic=["cat", "dog"], look="large violin-shaped leathery leaves", lean_rate=1.5),
+    "fiddle_leaf_fig": _sp(band=[0.3, 1.0], water_at=0.35, et=0.2, dli=[10, 35], direct=True, temp=[15, 30], toxic=["cat", "dog"], look="large violin-shaped leathery leaves", lean_rate=1.5, sap="latex"),
     "jade_plant": _sp(kind="succulent", band=[0.0, 0.7], water_at=0.1, et=0.02, dli=[10, 40], direct=True, temp=[5, 35], toxic=["cat", "dog"], leaf="succulent", mix="cactus_mix",
                       dormant_months=[11, 12, 1, 2], look="thick oval fleshy leaves on woody stems"),
     "echeveria": _sp(kind="succulent", band=[0.0, 0.65], water_at=0.1, et=0.015, dli=[12, 45], direct=True, temp=[5, 35], leaf="farina", mix="cactus_mix",
@@ -66,7 +66,7 @@ SPECIES = {
                      look="thick serrated grey-green spears"),
     "boston_fern": _sp(band=[0.5, 1.0], water_at=0.55, et=0.15, dli=[3, 12], temp=[13, 29], leaf="fine", look="arching fronds of small leaflets"),
     "african_violet": _sp(band=[0.4, 1.0], water_at=0.45, et=0.04, dli=[5, 12], temp=[16, 29], leaf="fuzzy", look="rosette of fuzzy round leaves, purple flowers", bloom="indoor"),
-    "rubber_plant": _sp(band=[0.3, 1.0], water_at=0.35, et=0.1, dli=[6, 25], temp=[13, 32], toxic=["cat", "dog"], look="thick oval glossy burgundy leaves"),
+    "rubber_plant": _sp(band=[0.3, 1.0], water_at=0.35, et=0.1, dli=[6, 25], temp=[13, 32], toxic=["cat", "dog"], look="thick oval glossy burgundy leaves", sap="latex"),
     "monstera": _sp(band=[0.3, 1.0], water_at=0.35, et=0.15, dli=[4, 20], temp=[15, 32], toxic=["cat", "dog"], look="large split glossy leaves"),
     "zz_plant": _sp(band=[0.05, 0.8], water_at=0.1, et=0.02, dli=[1, 15], temp=[10, 32], toxic=["cat", "dog"], look="waxy pinnate leaves on thick stems"),
     "spider_plant": _sp(band=[0.3, 1.0], water_at=0.35, et=0.08, dli=[4, 20], temp=[10, 32], leaf="fine", look="arching striped strap leaves with plantlets"),
@@ -133,10 +133,10 @@ SPECIES = {
     "strawberry": _sp(kind="fruit", band=[0.45, 1.0], water_at=0.5, et=0.3, dli=[15, 40], direct=True, temp=[-10, 30], hardy_c=-15, frost_tender=False, harvest="pinch", sun="full", spacing_cm=30, look="trifoliate toothed leaves, runners"),
     "raspberry": _sp(kind="fruit", band=[0.4, 1.0], water_at=0.45, et=1.0, dli=[20, 45], direct=True, temp=[-25, 30], hardy_c=-30, frost_tender=False, woody=True, thorny=True, harvest="roll", sun="full", spacing_cm=60, look="prickly canes"),
     "apple": _sp(kind="tree", band=[0.3, 1.0], water_at=0.3, et=20.0, dli=[20, 50], direct=True, temp=[-30, 35], hardy_c=-35, frost_tender=False, woody=True, harvest="lift_twist", sun="full", look="fruit tree"),
-    "fig": _sp(kind="tree", band=[0.3, 1.0], water_at=0.3, et=8.0, dli=[20, 50], direct=True, temp=[-8, 38], hardy_c=-10, frost_tender=False, woody=True, harvest="lift_twist", sun="full", look="lobed rough leaves"),
+    "fig": _sp(kind="tree", band=[0.3, 1.0], water_at=0.3, et=8.0, dli=[20, 50], direct=True, temp=[-8, 38], hardy_c=-10, frost_tender=False, woody=True, harvest="lift_twist", sun="full", look="lobed rough leaves", sap="latex"),
 
     # ---------------- weeds and volunteers (role decides keep/pull; see entity owner_wants)
-    "dandelion": _sp(kind="weed", weed=True, band=[0.1, 1.0], water_at=0.0, et=0.1, dli=[5, 50], direct=True, temp=[-30, 35], hardy_c=-35, frost_tender=False, root="taproot", root_cm=20, look="toothed leaf rosette, yellow flower or puffball"),
+    "dandelion": _sp(kind="weed", weed=True, band=[0.1, 1.0], water_at=0.0, et=0.1, dli=[5, 50], direct=True, temp=[-30, 35], hardy_c=-35, frost_tender=False, root="taproot", root_cm=20, look="toothed leaf rosette, yellow flower or puffball", sap="latex"),
     "crabgrass": _sp(kind="weed", weed=True, band=[0.1, 1.0], water_at=0.0, et=0.05, dli=[10, 50], direct=True, temp=[5, 40], hardy_c=0.0, root="fibrous", root_cm=8, look="coarse sprawling grass"),
     "bindweed": _sp(kind="weed", weed=True, invasive=True, band=[0.1, 1.0], water_at=0.0, et=0.1, dli=[10, 50], direct=True, temp=[-25, 38], hardy_c=-30, frost_tender=False, root="rhizome", root_cm=60, look="twining vine, arrow-shaped leaves"),
     "plantain_weed": _sp(kind="weed", weed=True, band=[0.1, 1.0], water_at=0.0, et=0.05, dli=[5, 50], direct=True, temp=[-25, 35], hardy_c=-30, frost_tender=False, root="taproot", root_cm=12, look="broad ribbed leaf rosette"),

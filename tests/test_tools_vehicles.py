@@ -70,7 +70,7 @@ class Mini:
         rec.update(props)
         self.c["people"][pid] = rec
 
-    def env(self, task=None, room="living", pos=(1, 3), hold=None, seed=0, perception=None):
+    def env(self, task=None, room="living", pos=(1, 3), hold=None, seed=0, perception=None, camera=None):
         c = copy.deepcopy(self.c)
         c["robot"] = {"room": room, "pos": list(pos)}
         if hold:
@@ -80,7 +80,7 @@ class Mini:
                 rec.update(location="robot", relation="held", held_hand=hand)
                 for key in ("pos", "spos", "shelf"):
                     rec.pop(key, None)
-        return HouseEnv(c, task, seed=seed, perception=perception)
+        return HouseEnv(c, task, seed=seed, perception=perception, camera=camera)
 
 
 def go(env, target, **kw):
@@ -128,6 +128,17 @@ def grab(test, env, eid, **kw):
     if crouch:
         ok(test, env.step("stand"))
     return r
+
+
+def spills_in(env, room, liquid=None):
+    """Floor spills in a room: the kernel's puddles (category spill) or the cleaning domain's spill entities (its
+    phys.spill_sink), optionally of one liquid (kernel v3.0 physics.spill)."""
+    out = []
+    for eid, rec in sorted(env.world.s["entities"].items()):
+        if rec.get("location") == room and (rec.get("category") == "spill" or rec.get("type") == "spill"):
+            if liquid is None or rec.get("liquid") == liquid:
+                out.append(eid)
+    return out
 
 
 def wait(test, env, seconds):
@@ -228,7 +239,10 @@ class FastenerTests(unittest.TestCase):
         env = self.m.env(room="kitchen", pos=(2, 1), hold={"right": "ph1"})
         ok(self, env.step("open", "cab"))
         ok(self, env.step("tighten", "cab", fastener="hinge_1"))
-        self.assertTrue(ent(env, "glass")["broken"])         # reached past the glass at normal speed
+        # reached past the glass at normal speed: the kernel's nudge tips it over (a tip from shelf height leaves it
+        # whole; tier-1 physics decides breakage, TIER1_PHYSICS 10.3)
+        self.assertTrue(ent(env, "glass")["toppled"])
+        self.assertTrue(ent(env, "glass")["tipped_over"])
         self.assertFalse(F.snug(fastener(env, "cab", "hinge_1")))  # #1 tip in #2 head cams out before snug
 
     def test_wiggle_test_reveals_loose_screws_only_closely(self):
@@ -353,7 +367,7 @@ class WobbleAndPadTests(unittest.TestCase):
         if cause == "short":
             rec["_legs"]["br"]["len_mm"] = -4.0
         if vase:
-            m.add("vase", "generic_item", "table", label="vase", fragile=True, mass_kg=0.8, size_m=[0.15, 0.15, 0.3])
+            m.add("vase", "generic_item", "table", label="vase", fragile=True, mass_kg=0.8, size_m=[0.15, 0.15, 0.3], material="ceramic")
         m.add("wrench", "combination_wrench_13mm", "kitchen", pos=[1, 1])
         m.add("pad", "felt_pad_38mm", "kitchen", pos=[1, 1])
         m.add("big_pad", "felt_pad_51mm", "kitchen", pos=[1, 1])
@@ -393,7 +407,8 @@ class WobbleAndPadTests(unittest.TestCase):
         m = self.build("short", vase=True)
         env = m.env(room="kitchen", pos=(1, 2), hold={"right": "pad"})
         ok(self, env.step("install", "pad", destination="table", slot="pad_br"))
-        self.assertTrue(ent(env, "vase")["broken"])
+        self.assertTrue(ent(env, "vase")["fell"])                                     # slid off the tipped top (kernel fall)
+        self.assertTrue(ent(env, "vase")["broken"])                                   # a ceramic vase from table height
         self.assertEqual(ent(env, "vase")["location"], "kitchen")
         m = self.build("short", mass=45.0)
         env = m.env(room="kitchen", pos=(1, 2), hold={"right": "pad"})
@@ -650,7 +665,11 @@ class HangingTests(unittest.TestCase):
         self.assertEqual(ent(env, "wreath")["location"], "living")
         env = m.env(pos=(3, 1), hold={"right": "medium", "left": "wreath"})
         ok(self, env.step("hang_decoration", "wreath", destination="wall", hardware="medium", height_m=1.6, offset_m=0.5))
-        self.assertTrue(ent(env, "medium")["mount"]["premature"])
+        from house_sim.kernel.phys import lawbook
+        if lawbook.active("hang"):
+            self.assertTrue(ent(env, "wreath")["fallen"])        # the kernel's hang law judges the half-strength hook at once
+        else:
+            self.assertTrue(ent(env, "medium")["mount"]["premature"])
         ok(self, env.step("wait", seconds=3600))
         self.assertTrue(ent(env, "wreath")["fallen"])
         env = m.env(pos=(3, 1), hold={"right": "small", "left": "frame"})
@@ -1039,7 +1058,7 @@ class FixTests(unittest.TestCase):
         env = self.radiator().env(pos=(1, 4), hold={"right": "key"})
         ok(self, env.step("bleed_radiator", "rad", tool="key", close_on="time", seconds=120))
         self.assertEqual(stat(env, "spills"), 1)
-        self.assertTrue(env.world.s["rooms"]["living"]["wet_cells"])
+        self.assertTrue(spills_in(env, "living", "water"))           # a kernel spill under the valve (physics.spill)
 
 
 # ======================================================================================
@@ -1429,7 +1448,8 @@ class CarTests(unittest.TestCase):
                 ok(self, env.step("place", item, destination=trunk))
         env = m.env(room="drive", pos=(0, 0))
         load(env, ["cake", "cooler", "duffel", "suitcase"])
-        self.assertTrue(ent(env, "cake")["broken"])
+        cake = ent(env, "cake")         # crushed by this domain's rule, or by the kernel's crush law once it is active
+        self.assertTrue(cake.get("broken") or (cake.get("damage") or {}).get("crushed", 0) > 0)
         self.assertTrue(ent(env, trunk)["blocks_rear_view"])
         env = m.env(room="drive", pos=(0, 0))
         load(env, ["suitcase", "cooler", "duffel"])
@@ -1669,7 +1689,7 @@ class ToolTests(unittest.TestCase):
         env = m.env(pos=(8, 3), hold={"right": "sil"})
         ok(self, env.step("lubricate", "door", tool="sil", amount="heavy"))
         self.assertEqual(stat(env, "spills"), 1)
-        self.assertTrue(env.world.s["rooms"]["living"]["floor_hazards"])
+        self.assertTrue(spills_in(env, "living", "motor_oil"))      # a slippery oil spill on the floor (physics.spill)
         env = m.env(pos=(8, 3), hold={"right": "wd"})
         ok(self, env.step("lubricate", "door", tool="wd"))
         self.assertLess(ent(env, "door")["_hinge"]["squeak"], 0.2)
@@ -1811,7 +1831,8 @@ class MoreToolTests(unittest.TestCase):
         m.add("bit", "drill_bit_wood_6mm", "drill", relation="part")
         m.c["entities"]["drill"]["slots"]["bit"]["item"] = "bit"
         m.add("anchor", "wall_anchor", "living", pos=[3, 2])
-        m.add("mirror", "generic_item", "living", pos=[4, 2], label="heavy mirror", mass_kg=9.0, fragile=True, size_m=[0.6, 0.04, 0.8])
+        m.add("mirror", "generic_item", "living", pos=[4, 2], label="heavy mirror", mass_kg=9.0, fragile=True, size_m=[0.6, 0.04, 0.8],
+              material="glass")
         m.person("mom", "living", [9, 10])
         m.c["approvals"] = ["drill:walls"]
         env = m.env(pos=(3, 1), hold={"right": "anchor"})
@@ -1827,6 +1848,10 @@ class MoreToolTests(unittest.TestCase):
         ok(self, env.step("hang_decoration", "mirror", destination="anchor"))
         ok(self, env.step("wait", seconds=3600))
         self.assertTrue(ent(env, "mirror")["broken"])                                  # 9 kg mirror on a 4.5 kg plastic anchor
+        self.assertTrue(ent(env, "mirror")["fell"])                                    # the kernel's collapse of the hung slot:
+        self.assertTrue(ent(env, "anchor")["failed"])                                  # the drywall anchor pulled out
+        self.assertFalse(ent(env, "anchor")["mounted"])
+        self.assertGreater(ent(env, "wall")["damage"]["hole"], 0.0)                    # and left a hole
 
     def test_pliers_on_chrome_and_cutting_a_live_cord(self):
         m = Mini()
@@ -1936,7 +1961,8 @@ class MoreToolTests(unittest.TestCase):
         self.assertNotEqual(json.loads(r["message"])["shelves"]["s2"], "0.0 deg")
         ok(self, env.step("place", "level"))
         ok(self, env.step("uninstall", "case", slot="pin_s2_br_h10"))
-        self.assertTrue(ent(env, "vase")["broken"])                                     # shelf still loaded
+        self.assertTrue(ent(env, "vase")["toppled"])                                    # shelf still loaded: it tips
+        self.assertTrue(ent(env, "vase")["tipped_over"])                                # (the kernel's tip_over)
         ok(self, env.step("install", "pin_br", destination="case", slot="pin_s2_br_h9"))
         self.assertLess(ent(env, "case")["_shelf_state"]["s2"]["tilt_deg"], 0.3)
 
@@ -2409,7 +2435,8 @@ class RealisticPerceptionTests(unittest.TestCase):
     def test_glance_hides_inspect_and_read_tier_truth(self):
         env = self.bench().env(room="garage", pos=(2, 1), perception="realistic")
         hook, hammer = self.seen(env, "hook_s_1"), self.seen(env, "hammer_1")
-        self.assertNotIn("rated_kg", hook)                                     # printed on the package: read tier
+        self.assertNotIn("rated_kg", hook)                                     # a physics threshold: never shown
+        self.assertNotIn("load_rating_text", hook)                             # printed on the package: read tier
         self.assertNotIn("material", hammer)                                   # inspect tier
         self.assertNotIn("value", hammer)                                      # never tier
         self.assertEqual(hammer.get("tool_kind"), "claw_hammer")               # what kind of tool is plain to see
@@ -2654,7 +2681,8 @@ class RealisticHardeningTests(unittest.TestCase):
         self.assertEqual(ent(env, "anchor")["mount"]["rated_kg"], 45.0)        # into the stud
         r = json.loads(ok(self, self.step(env, "read", "anchor"))["message"])
         self.assertNotIn("45", json.dumps(r))                                  # the package print, not the in-wall truth
-        self.assertEqual((r.get("rated_kg") or {}).get("drywall"), 4.5)
+        self.assertIn("4.5 kg", r.get("load_rating_text", ""))                 # the printed rating (kernel load_rating_text)
+        self.assertNotIn("rated_kg", r)                                        # the numeric rating is a hidden threshold
 
     def test_latch_issue_and_lock_refusal_carry_no_gap_measurements(self):
         m = SealTests().build()
@@ -2813,3 +2841,313 @@ class RealisticHardeningTests(unittest.TestCase):
                 r.pop("object", None)
                 seen[member] = json.dumps(r, sort_keys=True)
             self.assertEqual(len(set(seen.values())), 1, "{}: {}".format(name, seen))
+
+
+# ======================================================================================
+class Tier1AdoptionTests(unittest.TestCase):
+    """Tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep): docs/domains/tools_vehicles.md
+    section 11. Every test passes with every domain loaded and with only this one."""
+
+    # ----- physics ---------------------------------------------------------------------------------------------
+    def test_a_full_set_of_leg_pads_is_the_kernels_foot_material(self):
+        from house_sim.kernel.phys import forces
+        m = WobbleAndPadTests().build("level")
+        for leg in F.LEG_KEYS:
+            m.add("pad_" + leg, "felt_pad_38mm", "kitchen", pos=[1, 1])
+        env = m.env(room="kitchen", pos=(1, 2))
+        bare = forces.push_needed_n(env.world, "table")
+        self.assertNotEqual(forces.foot_kind(ent(env, "table")), "felt")
+        for leg in F.LEG_KEYS:
+            grab(self, env, "pad_" + leg)
+            ok(self, go(env, "table"))
+            ok(self, env.step("install", "pad_" + leg, destination="table", slot="pad_" + leg))
+        pads = ent(env, "table")["pads"]
+        self.assertEqual((pads["kind"], pads["count"], pads["legs"], pads["adhered"]), ("felt", 4, 4, True))
+        self.assertEqual(forces.foot_kind(ent(env, "table")), "felt")
+        self.assertLess(forces.push_needed_n(env.world, "table"), bare)          # felt halves the legs' friction
+        ok(self, env.step("uninstall", "table", slot="pad_fl"))
+        self.assertEqual(ent(env, "table")["pads"]["count"], 3)
+        self.assertNotEqual(forces.foot_kind(ent(env, "table")), "felt")         # a partial set: the bare leg drags
+
+    def test_a_mounted_hooks_hang_rating_is_what_its_mount_holds(self):
+        from house_sim.kernel import physics
+        from house_sim.kernel.phys.props import props_of
+        m = HangingTests().build()
+        env = m.env(pos=(3, 1), hold={"right": "medium"})
+        ok(self, env.step("hang_decoration", "medium", destination="wall", height_m=1.6, offset_m=0.5))
+        hook = ent(env, "medium")
+        self.assertEqual(hook["anchor"], "adhesive_hook")
+        self.assertAlmostEqual(props_of(hook).hang_kg, 1.36 / 0.85, places=4)      # the rated load holds over the band
+        varied = physics.props(env.world.s, "medium").hang_kg
+        self.assertTrue(1.36 - 1e-9 <= varied <= 1.36 / 0.85 * 1.15 + 1e-9, varied)
+        early = dict(hook, mount=dict(hook["mount"], premature=True))
+        self.assertAlmostEqual(props_of(early).hang_kg, 0.68 / 0.85, places=4)    # loaded before it cured: half
+
+    def test_with_the_hang_law_the_kernel_pulls_an_overloaded_hook_at_once(self):
+        from house_sim.kernel.phys import lawbook
+        m = HangingTests().build()
+        with lawbook.forced(hang=True):
+            env = m.env(pos=(3, 1), hold={"right": "small", "left": "frame"})
+            ok(self, env.step("hang_decoration", "frame", destination="wall", hardware="small", height_m=1.6, offset_m=0.5))
+            self.assertTrue(ent(env, "frame")["fell"])                     # in the same step: no creep under the law
+            self.assertTrue(ent(env, "frame")["fallen"])
+            self.assertTrue(ent(env, "frame")["broken"])
+            self.assertTrue(ent(env, "small")["failed"])
+            self.assertFalse(ent(env, "small")["mounted"])
+        with lawbook.forced(hang=False):
+            env = m.env(pos=(3, 1), hold={"right": "small", "left": "frame"})
+            ok(self, env.step("hang_decoration", "frame", destination="wall", hardware="small", height_m=1.6, offset_m=0.5))
+            self.assertEqual(ent(env, "frame")["location"], "small")        # deferred: this domain's creep decides
+            ok(self, env.step("wait", seconds=3600))
+            self.assertTrue(ent(env, "frame")["fell"])                     # and the kernel's collapse lets go
+
+    def test_mounts_fail_the_way_their_anchor_does(self):
+        from house_sim.systems.tools_vehicles import hanging as H
+        wall = {"wall_material": "drywall", "_studs_m": [0.4], "holes": []}
+        self.assertEqual(H._anchor_class(wall, {"hardware_kind": "adhesive_hook"}, "adhesive", 0.5), "adhesive_hook")
+        self.assertEqual(H._anchor_class(wall, {"hardware_kind": "adhesive_strip"}, "adhesive", 0.5), "adhesive_strip")
+        self.assertEqual(H._anchor_class(wall, {"tape_kind": "painters"}, "tape", 0.5), "adhesive_tape")
+        self.assertEqual(H._anchor_class(wall, {"hardware_kind": "nail_hook"}, "nail", 0.41), "stud")
+        self.assertEqual(H._anchor_class(wall, {"hardware_kind": "nail_hook"}, "nail", 0.8), "drywall_anchor")
+        self.assertEqual(H._anchor_class(wall, {"hardware_kind": "anchor"}, "anchor", 0.8, on_stud=True), "stud")
+        self.assertEqual(H._anchor_class(wall, {"hardware_kind": "anchor"}, "anchor", 0.8, on_stud=False), "drywall_anchor")
+        self.assertEqual(H._anchor_class(dict(wall, wall_material="brick"), {"hardware_kind": "anchor"}, "anchor", 0.8), "stud")
+
+    def trunk_scene(self):
+        m, b = car_mini(kind="suv")
+        for name, props in (("suitcase", {"mass_kg": 18.0, "size_m": [0.75, 0.5, 0.3], "two_handed": True}),
+                            ("cooler", {"mass_kg": 9.0, "size_m": [0.55, 0.35, 0.38]}),
+                            ("duffel", {"mass_kg": 6.0, "size_m": [0.6, 0.3, 0.3]}),
+                            ("cake", {"mass_kg": 1.5, "size_m": [0.3, 0.3, 0.15], "fragile": True, "crush_kg": 1.0})):
+            b["_ctx"].placer.floor_item("drive", "generic_item", eid=name, label=name, **props)
+        m.c["entities"][b["car"]]["locked"] = False
+        return m, b
+
+    def load(self, env, trunk, order):
+        ok(self, go(env, trunk))
+        if not ent(env, trunk)["open"]:
+            ok(self, env.step("open", trunk))
+        for item in order:
+            grab(self, env, item, **({"hand": "both"} if item == "suitcase" else {}))
+            ok(self, go(env, trunk))
+            ok(self, env.step("place", item, destination=trunk))
+
+    def test_trunk_layers_tell_the_kernels_crush_law_what_rests_on_a_load(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.tools_vehicles.vehicles import trunk_items_above
+        m, b = self.trunk_scene()
+        trunk = b["trunk"]
+        with lawbook.forced(crush=True):
+            env = m.env(room="drive", pos=(0, 0))
+            self.load(env, trunk, ["cake", "cooler", "duffel", "suitcase"])
+            self.assertIn("suitcase", trunk_items_above(env.world.s, "cake"))    # stacked on the load
+            self.assertEqual(trunk_items_above(env.world.s, "suitcase"), [])
+            cake = ent(env, "cake")
+            self.assertTrue(cake.get("broken") or (cake.get("damage") or {}).get("crushed", 0) > 0)   # the kernel crushed it
+            self.assertNotIn("crushed", cake)                                   # this domain's own crush stood down
+        self.assertEqual(trunk_items_above({"entities": {"x": {"relation": "on", "location": "floor"}}}, "x"), [])
+
+    def test_a_ride_brakes_what_stands_loose_in_the_trunk(self):
+        m, b = car_mini()
+        car, trunk = b["car"], b["trunk"]
+        m.c["entities"][car]["locked"] = False
+        m.c["rooms"]["pharmacy"] = {"type": "errand", "size_m": [6.0, 10.0], "outdoor": True, "errand_place": "pharmacy", "travel_min": 12,
+                                    "parking_cell": [1, 1], "exits": []}
+        m.c["connections"]["c_dp"] = {"rooms": ["drive", "pharmacy"], "cells": {"drive": [6, 19], "pharmacy": [5, 19]}, "width_m": 0.1,
+                                      "kind": "road", "needs_ladder": True}
+        m.c["household"]["robot_scope"] = "extended"
+        m.person("mom", "drive", [6, 1], can_drive=True)
+        m.add("bottle", "generic_item", trunk, label="tall bottle", mass_kg=1.0, size_m=[0.08, 0.08, 0.35], relation="in")
+        env = m.env(room="drive", pos=(0, 0))
+        ok(self, go(env, car))
+        ok(self, env.step("drive_to", car, destination="pharmacy", driver="mom"))
+        self.assertTrue(ent(env, "bottle").get("tipped_over"))             # physics.brake, 0.4 g toward the front
+        self.assertEqual(ACTIONS["drive_to"].timing, "commanded")          # careful speed never stretches a ride
+
+    # ----- robot body ------------------------------------------------------------------------------------------
+    def test_loud_tools_declare_their_noise_and_quiet_mode_refuses_them(self):
+        from house_sim.kernel import body
+        self.assertGreater(ACTIONS["drill"].noise_db, 55.0)
+        self.assertEqual(ACTIONS["drill"].arms, 2)
+        self.assertEqual(ACTIONS["pressure_wash"].arms, 2)
+        self.assertEqual(ACTIONS["inflate"].timing, "commanded")
+        m = Mini()
+        m.add("wall", "wall_surface", "living", pos=[3, 0], mounted=True, blocks_path=False, category="wall", wall_material="drywall", holes=[])
+        m.add("drill", "cordless_drill", "living", pos=[3, 2])
+        m.add("pack", "generic_item", "drill", part_type="tool_pack_brand_a_18v", charge=0.9, relation="part")
+        m.c["entities"]["drill"]["slots"]["battery"]["item"] = "pack"
+        m.add("bit", "drill_bit_wood_6mm", "drill", relation="part")
+        m.c["entities"]["drill"]["slots"]["bit"]["item"] = "bit"
+        m.person("mom", "living", [8, 8])
+        m.c["approvals"] = ["drill:walls"]
+        env = m.env(pos=(3, 1), hold={"right": "drill"})
+        ok(self, env.step("set_quiet", "on"))
+        r = refused(self, env.step("drill", "wall", offset_m=0.3, height_m=1.5), "social")
+        self.assertEqual(r["message"], body.QUIET_TEXT)
+        self.assertEqual(ent(env, "wall")["holes"], [])
+        bike = bike_mini(valve="schrader", start=1.0)
+        for tool, loud in (("comp", True), ("pump", False)):
+            env = bike.env(room="garage", pos=(2, 1), hold={"right": tool})
+            ok(self, env.step("set_quiet", "on"))
+            ok(self, env.step("loosen", "bike", fastener="rear_cap"))
+            r = env.step("inflate", "bike", part="rear", tool=tool, **({"seconds": 5} if tool == "comp" else {"strokes": 3}))
+            (refused(self, r, "social") if loud else ok(self, r))       # a compressor is loud, a floor pump is not
+
+    def test_hand_torque_follows_the_robot_body(self):
+        from house_sim.kernel.registry import default_registry as reg
+        from house_sim.systems.tools_vehicles import common as C
+        m = Mini()
+        m.add("shelf", "generic_item", "living", pos=[2, 2], portable=False, label="shelf", size_m=[0.8, 0.3, 1.0])
+        screws(m, "shelf", [{"id": "s1", "kind": "bolt_m6", "drive": "torx", "size": "t25", "substrate": "metal", "torque_nm": 0.0}])
+        m.add("flat", "screwdriver_torx_t25", "living", pos=[2, 1])
+        env = m.env(pos=(2, 1), hold={"right": "flat"})
+        lug = reg().make("lug_wrench", "living")
+        self.assertGreaterEqual(C.body_torque_nm(env.world, lug), 150.0)     # a 60 kg humanoid leans on a cross wrench
+        ok(self, env.step("tighten", "shelf", fastener="s1", torque_nm=5.0))
+        self.assertAlmostEqual(fastener(env, "shelf", "s1")["torque_nm"], 5.0)          # humanoid_v1: the 6 N m wrist
+        c = copy.deepcopy(m.c)
+        c["robot"] = {"room": "living", "pos": [2, 1], "body_profile": "humanoid_compact", "hands": {"left": None, "right": "flat"}}
+        c["entities"]["flat"].update(location="robot", relation="held", held_hand="right")
+        c["entities"]["flat"].pop("pos", None)
+        env = HouseEnv(c, None, seed=0)
+        r = ok(self, env.step("tighten", "shelf", fastener="s1", torque_nm=5.0))
+        self.assertAlmostEqual(fastener(env, "shelf", "s1")["torque_nm"], 4.0)          # a compact humanoid's 4 N m wrist
+        self.assertIn("limited to what the robot can apply", r["message"])
+        self.assertLess(C.body_torque_nm(env.world, lug), 150.0)                          # a 35 kg one cannot reach its rating
+
+    # ----- camera ----------------------------------------------------------------------------------------------
+    def test_view_blocks_where_the_category_defaults_mislead(self):
+        from house_sim.kernel import sight
+        reg = default_registry()
+        self.assertLess(reg.view_props("car")["porosity"], 0.5)          # not an all-glass box
+        self.assertEqual(reg.view_props("car_trunk")["opening"], "top")
+        self.assertTrue(reg.view_props("car_trunk")["interior_light"])
+        self.assertEqual(reg.view_props("toolbox")["opening"], "top")
+        self.assertGreater(reg.view_props("bicycle")["porosity"], 0.5)
+        m = Mini()
+        m.add("drawer", "organizer_compartment", "garage", pos=[2, 2], label_text="Wood screws")
+        env = m.env(room="garage", pos=(2, 1))
+        self.assertEqual(sight.text_m(env.world.s, "drawer", "label_text"), 0.005)
+
+    def test_a_burst_is_a_visual_event_the_geometric_camera_can_witness(self):
+        bike = bike_mini(valve="schrader", start=1.0)
+        env = bike.env(room="garage", pos=(2, 1), hold={"right": "comp"}, camera="geometric")
+        ok(self, env.step("loosen", "bike", fastener="rear_cap"))
+        ok(self, env.step("look", target="bike"))
+        ok(self, env.step("inflate", "bike", part="rear", tool="comp", seconds=40))
+        events = [e for e in env.world.s.get("camera_log", {}).get("events", []) if e.get("kind") == "tv_burst"]
+        self.assertTrue(events)
+        room = bike.env(room="garage", pos=(2, 1), hold={"right": "comp"})
+        self.assertNotIn("camera_log", room.world.s)                      # room mode: no camera state at all
+
+    # ----- sweep -----------------------------------------------------------------------------------------------
+    def clogged(self, bus):
+        m = Mini()
+        if bus:
+            m.c["notices"] = []
+        m.add("sink", "generic_item", "bath", pos=[0, 0], portable=False, category="sink", drain=True, settings={"stopper": "removed"},
+              basin_l=6.0, flow_lpm=8.0, water_running=True, _clog={"kind": "hair", "amount": 0.97, "depth_m": 0.25, "chemical": False})
+        return m.env(room="bath", pos=(1, 1))
+
+    def test_systems_post_what_the_robot_can_hear_as_notices(self):
+        env = self.clogged(True)
+        ok(self, env.step("wait", seconds=600))
+        self.assertIn("splash", [n["kind"] for n in env.world.s["notices"]])   # the basin started running over
+        puddles = spills_in(env, "bath", "water")                                # ... onto the floor: one kernel puddle
+        self.assertEqual(len(puddles), 1)
+        self.assertGreater(env.world.s["entities"][puddles[0]].get("liquid_l", 0.0), 1.0)
+        env = self.clogged(False)
+        ok(self, env.step("wait", seconds=600))
+        self.assertNotIn("notices", env.world.s)                                # no bus, no section
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.generator import generate_house
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.tools_vehicles import fittings as FI, fixes as FX, hanging as H, surfaces as SU, tools as TO
+        from house_sim.systems.tools_vehicles import vehicles as VE
+        probes = (TO.exposure_idle, TO.hinges_idle, H.adhesive_idle, FI.pads_idle, FI.seals_idle, FI.water_filters_idle,
+                  FI.air_filters_idle, FI.filter_load_idle, FX.drains_idle, FX.toilets_idle, FX.disposals_idle, SU.cure_idle,
+                  VE.leaks_idle, VE.charging_idle)
+
+        def busy():
+            m = bike_mini(valve="schrader", leak="front")
+            m.add("hammer_out", "claw_hammer", "yard", pos=[2, 2], wetness=0.8)
+            m.add("toilet", "generic_item", "bath", pos=[1, 0], portable=False, category="toilet", cover_open=False,
+                  _tank={"flapper_seal": 0.5, "chain_slack_mm": 10.0, "float_mm": -25.0, "fill_valve_ok": True},
+                  settings={"supply_valve": "open"})
+            return m.env(room="garage", pos=(2, 1))
+
+        def run(on, make):
+            saved = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = on
+            try:
+                env = make()
+                skipped = 0
+                for seconds in (600, 2 * 3600, 30, 9 * 3600):
+                    skipped += sum(int(p(env.world)) for p in probes)
+                    self.assertTrue(env.step("wait", seconds=seconds)["ok"])
+                return digest(env.world.s), skipped
+            finally:
+                plugins.IDLE_PROBES[0] = saved
+
+        cases = [busy, lambda: self.clogged(False), lambda: Mini().env()] + \
+            [lambda s=s: HouseEnv(generate_house(s), seed=s) for s in (0, 2)] + [lambda: HouseEnv(generate_house(3, gen=2), seed=3)]
+        skipped_total = 0
+        for make in cases:
+            on, skipped = run(True, make)
+            off, _ = run(False, make)
+            self.assertEqual(on, off)
+            skipped_total += skipped
+        self.assertGreater(skipped_total, 0)
+
+    def test_canonical_questions_reach_the_job_answerer(self):
+        m = Mini()
+        m.person("mom", "living", [3, 3])
+        m.c["user_simulator"] = {"intent": {"mom": {"job": "hang the mirror by the door", "spot": "left of the coat hooks"}}}
+        env = m.env(pos=(2, 3))
+        ok(self, env.step("ask", "mom", aspect="intended", about="job"))
+        self.assertEqual(env.world.s["facts"].get("tools_vehicles.job"), "hang the mirror by the door")
+        ok(self, env.step("ask", "mom", aspect="where", about="spot"))
+        self.assertEqual(env.world.s["facts"].get("tools_vehicles.spot"), "left of the coat hooks")
+        self.assertGreaterEqual(stat(env, "necessary_questions"), 2)
+
+    def test_a_typed_report_is_not_mirrored_or_judged_here(self):
+        m = Mini()
+        m.add("hammer", "claw_hammer", "living", pos=[2, 2])
+        m.person("mom", "living", [3, 3])
+        env = m.env(pos=(2, 1))
+        ok(self, env.step("inspect", "hammer", where="closely"))
+        ok(self, env.step("report", kind="status", subject="hammer", state="ok", to="mom"))
+        self.assertNotIn("reported", ent(env, "hammer"))
+        self.assertNotIn("_report_ok", ent(env, "hammer"))
+
+    def test_generation2_vehicles_follow_the_household(self):
+        from house_sim.generator import generate_house
+        cars = 0
+        for seed in range(0, 24):
+            c = generate_house(seed, gen=2)
+            people = c["people"]
+            drivers = [p for p, r in people.items() if r.get("can_drive")]
+            mine = [e for e, r in c["entities"].items() if r.get("type") in ("car", "suv", "electric_car")]
+            if mine:
+                cars += 1
+                self.assertTrue(drivers, "seed {}: a car but nobody drives".format(seed))
+                young = [p for p, r in people.items() if r.get("role") in ("infant", "toddler", "child") and float(r.get("age") or 0) <= 7]
+                n = sum(1 for r in c["entities"].values() if r.get("type") == "child_car_seat" and r.get("location") == mine[0])
+                self.assertEqual(n, min(2, len(young)), seed)
+            for r in c["entities"].values():
+                if r.get("type") in ("bicycle", "kids_bicycle"):
+                    self.assertIn(r.get("owner"), people)
+                    if r["type"] == "kids_bicycle":
+                        self.assertEqual(people[r["owner"]]["role"], "child")
+        self.assertGreater(cars, 0)
+        g1 = generate_house(0)
+        self.assertFalse(any("can_drive" in r for r in g1["people"].values()))     # generation 1 is untouched
+
+    def test_lubricant_choice_never_reads_an_unidentified_bottle(self):
+        from house_sim.systems.tools_vehicles import tools as TO
+        self.assertIsNone(TO._lube_product({"product": "oil_absorbent"}))            # an oil absorbent is no oil
+        self.assertEqual(TO._lube_product({"liquid": "olive_oil"}), "cooking_oil")
+        self.assertEqual(TO._lube_product({"type": "canola_oil"}), "cooking_oil")
+        self.assertEqual(TO._lube_product({"lubricant": True, "product": "silicone"}), "silicone")

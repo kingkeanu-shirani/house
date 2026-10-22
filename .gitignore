@@ -30,7 +30,5 @@ archive/*.zip
 tools/orchestration/green_tests.json
 # tier-1 gate records (local working data, large and machine-specific; regenerate with tools/orchestration/tier1_gate.py)
 catalog/analysis/tier1/gate/
-# demo replays are large (about 3 MB each); regenerate with python -m house_sim --demo
-demos/replays/
 # partial work of interrupted agents (backups for resuming)
 archive/partial_adopt_*.patch

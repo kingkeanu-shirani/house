@@ -300,6 +300,7 @@ def disconnect_cable(ctx):
         else:
             hand = ctx.free_hand()
             require(hand is not None, "You need a free hand to take the cable", "capability")
+            ctx.check_lift(cid, (hand,))     # the freed cable stays in that hand (kernel v3.0 body)
             m = w.mut(cid)
             m["location"], m["relation"], m["held_hand"] = "robot", "held", hand
             w.robot_m()["hands"][hand] = cid
@@ -388,20 +389,14 @@ def _drag_other_end(ctx, cid, end):
     if h < 0.3:
         return
     rid = C.room_of(state, other)
-    # it lands on the floor beside its table, toward the robot that pulled it (anywhere free, even a door swing)
+    # it comes off its table toward the robot that pulled it: the kernel's fall (kernel v3.0 physics) lands it on a free
+    # floor cell next to that and decides from its drop tolerance whether it breaks (phys.broke: physical.py marks a
+    # broken device dead); the breakage and damage flags follow the kernel's robot attribution
     _, here = C.anchor_cells(state, parent)
     toward = tuple(w.robot.get("pos") or (here[0] if here else (0, 0)))
-    cell = geometry.free_floor_cell(state, rid, near=toward, ignore=(other,), record=dict(orec, rot=0),
-                                    clearance=False, reachable=False)
-    m = w.mut(other)
-    m["location"], m["relation"] = rid, "on"
-    m.pop("spos", None)
-    m["pos"] = cell or list(toward)
-    w.log_move(other, parent, rid)
-    if orec.get("fragile"):
-        m["broken"] = True
-        w.stat("breakages")
-    w.stat("damage")
+    landed = ctx.fall(other, height_m=h, at=(rid, toward), cause="cable_yanked")
+    if not landed.get("fell"):
+        return
     C.harm(w, "electrical.device_dragged_off:" + other, height_m=round(h, 2))
     C.event(w, "device_fell", other)
 
@@ -459,7 +454,7 @@ def port_dir(state, dev, port):
 
 def device_on(state, eid):
     rec = state["entities"].get(eid) or {}
-    if rec.get("broken"):
+    if C.dead(rec):
         return False
     if rec.get("plug_required") and not P.supply_ok(state, eid):
         return False

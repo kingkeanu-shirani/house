@@ -134,8 +134,46 @@ def sources(state, eid):
     return out
 
 
-@system("electrical.charging", order=62, max_dt=30.0)
+CHARGING_IDLE = C.IdleNote("electrical.charging", (("chargeables", _chargeable), "metered", ("linkables", K._linkable),
+                                                   "powerable"),
+                           ignore=lambda rec: ("internal_temp_c", "load_a", "temperature_c"))
+
+
+def _charging_inputs(w):
+    """The charging step's inputs outside the entity table: the grid and the temperature of rooms whose charger bays
+    hold packs at a charging-temperature limit."""
+    state = w.s
+    ents = state["entities"]
+    rooms = set()
+    for eid in C.ids(w, "chargeables", _chargeable):
+        rec = ents.get(eid) or {}
+        parent = ents.get(rec.get("location") or "") or {}
+        if rec.get("relation") == "part" and parent.get("charge_temp_c"):
+            rid = C.room_of(state, eid)
+            if rid:
+                rooms.add(rid)
+    return {"grid": C.grid_on(state), "temps": C.room_temps(state, rooms)}
+
+
+def charging_idle(w):
+    """Exact idle probe of electrical.charging (common.IdleNote)."""
+    note = CHARGING_IDLE
+    if not note.quiet(w):
+        return False
+    extra = note.extra or {}
+    state = w.s
+    return C.grid_on(state) == extra.get("grid") and C.room_temps(state, extra.get("temps") or {}) == extra.get("temps")
+
+
+@system("electrical.charging", order=62, max_dt=30.0, idle=charging_idle)
 def charging_system(w, dt, tick):
+    before = w.mutation_count
+    _charging_step(w, dt, tick)
+    wrote = w.mutation_count != before
+    CHARGING_IDLE.after(w, wrote, None if wrote else _charging_inputs(w))
+
+
+def _charging_step(w, dt, tick):
     state = w.s
     ents = state["entities"]
     loads = {}
@@ -152,7 +190,7 @@ def charging_system(w, dt, tick):
         key = level_key(rec)
         if key is None:
             continue
-        srcs = sources(state, eid)
+        srcs = [] if C.dead(rec) else sources(state, eid)      # a broken or water-logged device takes no charge
         cap = max(0.1, C.num(rec.get("battery_capacity_wh"), C.num(rec.get("capacity_wh"), 15.0)))
         level = C.clamp(C.num(rec.get(key), 0.5), 0.0, 1.0)
         best = max(srcs, key=lambda t: (t[1], t[0])) if srcs else None
@@ -266,8 +304,12 @@ def charge(ctx):
     w = ctx.w
     state = w.s
     dev, dest = ctx.args["target"], ctx.args["destination"]
+    require(dev != "robot", "The robot charges itself on its dock (dock there); its packs charge on their charging "
+                            "station", "argument")
     drec = ctx.obj(dev)
     srec = ctx.obj(dest)
+    if is_robot_pack(drec):
+        return _charge_robot_pack(ctx, dev, dest, srec)
     via_cable = not (srec.get("wireless") or srec.get("dock_for") or srec.get("bud_slots") is not None or srec.get("captive_connector")
                      or (srec.get("slots") and (srec.get("charges_chemistry") is not None or srec.get("platform"))))
     if srec.get("captive_connector"):
@@ -384,6 +426,37 @@ def charge(ctx):
             return "{} is on charge from {} (charging indicator on)".format(dev, best[0])
         return "{} is on charge from {} ({:.0f} W available)".format(dev, srcs[0][0], srcs[0][1])
     return "{} is on {} but NOT charging (check alignment, seating, power and compatibility)".format(dev, dest)
+
+
+def is_robot_pack(rec):
+    """A swappable robot battery pack (navigation_robot's type; the body owns the pack in the robot, kernel v3.0)."""
+    return rec.get("part_type") == "robot_battery" or rec.get("category") == "robot_battery"
+
+
+def robot_pack_station(rec):
+    """The robot's own pack charger (navigation_robot's battery_charging_station): a charging station with a pack
+    charge rate and no device ports."""
+    return rec.get("category") == "charging_station" and rec.get("charge_rate_pct_per_min") is not None \
+        and not rec.get("ports")
+
+
+def _charge_robot_pack(ctx, pack, dest, srec):
+    """The robot's 2.4 kWh packs charge only on their own station (TIER1_INTEGRATION 6 "electrical", Body): never in a
+    household charger, a dock or a bay. On the station navigation_robot's spare-pack system charges it."""
+    w = ctx.w
+    require(robot_pack_station(srec), "A robot battery pack charges only on the robot's battery charging station",
+            "precondition")
+    require(ctx.holding(pack), "Hold the pack first (with both hands)")
+    ctx.obj(dest, touch=True)
+    from ...systems.core import place_item, release_from_hands
+    release_from_hands(w, pack)
+    place_item(ctx, pack, dest, "on", None)
+    w.log_move(pack, "robot", dest)
+    ctx.data["seconds"] = 4.0
+    from ...kernel import physics
+    if srec.get("plugged_in", True) and physics.is_powered(w, dest):
+        return "{} is on the charging station (charging light on)".format(pack)
+    return "{} is on the charging station but it is not charging (the station has no power)".format(pack)
 
 
 def _charge_port(drec, connector):

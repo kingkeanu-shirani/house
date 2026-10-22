@@ -18,8 +18,11 @@ from . import play  # noqa: F401
 from . import aquatic  # noqa: F401
 from . import cages  # noqa: F401
 from . import perception  # noqa: F401
+from . import routes  # noqa: F401
 from . import yard  # noqa: F401
 from . import exposure  # noqa: F401
+from . import physical  # noqa: F401
 from . import furnish  # noqa: F401
+from . import gen2  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401

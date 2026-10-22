@@ -283,6 +283,8 @@ def step_grill(w, gid, dt):
         if C.num(hg["unattended_flare_s"]) > 180.0:
             C.harm(w, "grill_grease_fire", stat="fire", once="greasefire:" + gid, grill=gid)
         C.add_smoke(w, rid, 0.01 * dt, source=gid)
+    if flaring and not rec.get("flare_up"):
+        C.visual_event(w, "flare_up", source=gid, room=rid, size_m=0.5)       # flames leap off the grate
     m = w.mut(gid)
     m["grill"] = g
     m["_grill"] = hg

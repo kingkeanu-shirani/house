@@ -8,11 +8,13 @@ holders/dispensers, luggage, bags and their contents, donation bags, and the sto
 stored goods are safe (load ratings, child reach, chemical segregation, clearances, heat, damp).
 
 Code: `house_sim/systems/admin_inventory/` (package, ~20 modules). Types: `house_sim/data/types/admin_inventory.json`
-(130 types; 62 with `perception` blocks, 18 look-alike groups, file-level `field_tiers`). Tests: `tests/test_admin_inventory.py`
-(128 tests with every domain loaded, also with `HOUSE_SIM_STRICT=1`; `RealisticPerceptionTests` and `RedTeamRoundTests` cover
-realistic mode). Examples:
-`tasks/authored/admin_inventory__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded)
-and `tasks/authored/admin_inventory__perception.json` (3 realistic-perception specs, section 15).
+(132 types; 66 with `perception` blocks, 9 with camera `view` blocks, 20 look-alike groups, file-level `field_tiers`).
+Tests: `tests/test_admin_inventory.py` (144 tests with every domain loaded, also with `HOUSE_SIM_STRICT=1` and with
+`HOUSE_SIM_DOMAINS=core,admin_inventory`; `RealisticPerceptionTests` and `RedTeamRoundTests` cover realistic mode,
+`Tier1AdoptionTests` the kernel v3.0-v3.1 adoption, section 17). Examples:
+`tasks/authored/admin_inventory__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded;
+11 on generation-2 houses) and `tasks/authored/admin_inventory__perception.json` (3 realistic-perception specs with the
+geometric camera, generation 2; sections 15 and 17).
 
 Fidelity: S for symbolic bookkeeping (lists, records, mail classes), G for geometry-backed rules (fit, shelf heights,
 reach, clearances, curb spacing, load ratings), P-approx for the lumped physical models (liquid/granular transfer
@@ -91,13 +93,14 @@ Hooks on core actions: `open` (sealed envelopes, taped packages, others' `privat
 (seals envelopes; traps moisture in folded umbrellas/zipped bags); `read` (private/confidential documents [privacy]);
 `hand_over` (sensitive documents only to owner/authorized adult [privacy]) -- in realistic mode these privacy guards follow
 section 16's rule (refuse, generically, only what the robot perceived; otherwise the act goes ahead as a privacy violation); `pick_up` (folder `order` upkeep, slipping
-clips, hygiene `grip_zone`, overloaded box/bag bottoms fail and drop contents, napkin holder counts, feeder jam clears,
+clips, hygiene `grip_zone`, overloaded bag/box handles or bottoms give way (the kernel's handle law, section 17), napkin
+holder counts, feeder jam clears,
 leaks from open bottles in carried bags, scale display); `place` (folder `order`, paper tray reset, glass/feeder face,
-postal scale display, window-envelope address, napkin holder fill, soggy soap, wet floors ruin paper, crushing and
-FRAGILE boxes, this-side-up, shelf/surface load collapse (only when the robot's placement pushes the load past
-max(rating, the load that shelf carried at episode start): load a generator or setup put there is never charged to
-the robot), FIFO `depth_rank`, under-bed clearance, hot items melt
-containers, water rings on wood floors, battery terminal shorts, bag `load_kg`/`fill_l`); `install` (holder default
+postal scale display, window-envelope address, napkin holder fill, soggy soap, wet floors ruin paper, crushed boxes
+(the kernel's crush law), this-side-up (contents tumble through the kernel's impact model), shelf/surface overload (the
+kernel's overload law: only load beyond what the slot carried at episode start + 0.5 kg is charged to the robot), FIFO
+`depth_rank`, under-bed clearance, hot items mark containers at the kernel's heat limit of their material, papers set
+down upside down lie face down, water rings on wood floors, battery terminal shorts, bag `load_kg`/`fill_l`); `install` (holder default
 orientation); `move` (no carts on stairs); `setting_changed` (shredder reverse clears a jam; scale units).
 
 ## 3. Systems and events
@@ -108,10 +111,12 @@ Two systems (kernel v2.1: indexed lookups via `w.static_index`, never a whole-ho
   paper feed, jams, ink use), shredder cool-down (linear), mail route (default 13:30 Mon-Sat: collects ready outgoing
   pieces from flagged boxes/outgoing slots into `household.sent_mail`, leaves `carrier_note` "postage due"/"no
   address"/"undeliverable"; delivers `household.mail_incoming`), curb collection (`household.collection` {weekday,
-  time, streams {trash: weekly, recycling: odd_weeks/even_weeks}, skip_dates}) and wind litter from open carts
-  (probability 1 - exp(-dt/1800 s) per open outdoor cart in wind >= 8 m/s).
+  time, streams {trash: weekly, recycling: odd_weeks/even_weeks}, skip_dates}; wall-clock times) and wind litter from
+  open carts (probability 1 - exp(-dt/1800 s) per open cart out in the weather while the local gust at the cart, the
+  kernel's wind-at-object model, is 7.2 m/s or more). Exact idle probe `timekeeping.time_idle` (section 17).
 * `admin_inventory.exposure` (order 86, `period` 120 s; dt = the accumulated time, every update linear in dt or a
-  dt-correct probability): parcels/mail outdoors (rain soaks, covered porch slower; `soaked` boxes damage
+  dt-correct probability): parcels/mail outdoors (rain on an exposed parcel is the kernel's rain model; wind-driven
+  rain under a porch roof wets slowly; a soaked or wet parcel's label smudges and `soaked` boxes damage
   paper/fabric/electronics contents; unattended street-facing parcels can be stolen after `household.theft_grace_s`
   at `theft_risk_per_h`, probability 1 - exp(-rate dt)), cold packs (`cold_pack_s` keeps a box at 3 C, burns faster
   when warm), heat damage (`max_safe_temp_c`), damp basement/garage floors soak cardboard (mold), trapped moisture in
@@ -123,7 +128,8 @@ Two systems (kernel v2.1: indexed lookups via `w.static_index`, never a whole-ho
 Drying ownership (conventions 5): this domain evolves only `_trapped_water` (moisture folded into umbrellas/bags) and
 the wetting of parcels/mail left out in the rain; generic surface evaporation of `wetness` belongs to the cleaning
 domain's `cleaning.drying` (fallback drying here only when it is not loaded). Liquid spills from refills are the
-cleaning domain's `spill` entities (`liquid`, `liquid_l`, `area_m2`), so absorb/mop and evaporation apply.
+kernel's spills (`physics.spill`: a film on the surface below, the rest a floor puddle; the cleaning domain's `spill`
+entity through its `phys.spill_sink` when it is loaded), so absorb/mop and evaporation apply.
 
 Scenario events (`{"op": "event", "at_s": .., "effect": ..., "args": {...}}`): `admin_mail_delivery` {box, pieces},
 `admin_carrier_visit`, `admin_package_delivery` {room, package {eid, type, props, contents, fill [{hidden}]}, ring},
@@ -244,9 +250,10 @@ reachable wall cell exists, never Placer.mount's relaxed-reach or last-resort ce
 nearest the toilet. Point-of-use consumables stay on open shelves.
 
 Public helper for other furnishers: `house_sim.systems.admin_inventory.storage.shelf_headroom(config, container,
-shelf=0)` -> kg one shelf (or, with shelf=None, a fixed surface with `max_load_kg`) can still take before its rating
-(None when unrated). Ratings: `shelf_load_kg` if set, else shelf_unit 90, bookshelf 25, closet_shelving 25,
-upper_cabinet 15, filing_cabinet 30, cabinet 30, wardrobe/closet 40 kg per shelf; wall_shelf 12 kg.
+shelf=0)` -> kg one shelf (or, with shelf=None, a fixed surface) can still take before its nominal rating (None when
+unrated). Ratings are the kernel's (kernel v3.0, `phys.props`: the record's `shelf_load_kg` / `max_load_kg`, else
+`supports.json`: shelf_unit 90, bookshelf 25, closet_shelving 25, upper_cabinet 20, filing_cabinet 30, cabinet 30,
+wardrobe 40 kg per shelf; wall_shelf 12 kg); the overload law itself varies them about +-15 % per instance.
 
 ## 8. Spec recipes by cluster
 
@@ -530,7 +537,7 @@ admin_inventory --verbose` 0 problems.
 File-level `field_tiers` (fields this domain writes onto any entity, names no other domain uses): glance `depth_rank`,
 `towed`, `tagged`, `tissue_up`, `roll_orientation`, `flaps_torn`; inspect `label_faces`, `label_conflict`,
 `adhesive_residue`, `barcode_scannable`, `old_barcode_visible`, `stamps`, `stamp_position`, `label_smudged`,
-`damp_damaged`, `ribs_rusting`, `damaged_shelves`, `slats_lifted`, `liquid_mix`, `mixed_products`, `cut_damage`,
+`damp_damaged`, `ribs_rusting`, `slats_lifted`, `liquid_mix`, `mixed_products`, `cut_damage`,
 `opened_before`, `shorted`; read `label_key`, `not_collected_reason` (the collector's tag), `carrier_note`,
 `postage_cents`, `to_text`, `from_text`, `tag_text`, `pao_months`, `bag_size`, `liner_size`, `paper_size`; hidden
 `label_adhered`, `label_falls_off_s`, `labels` (the history with adhesion flags), `labeled_by_robot`, `return_label_ok`,
@@ -692,3 +699,168 @@ independent of a hidden sheet count; rotate_stock filter by readable labels only
 centimetres in refusals; one fill estimate per pump inspect and `_damage.visible` respected; unidentified marker writes a
 washable label; pouring resolves the refill look-alike and labels the spill by look; portions derive from their pack;
 folders/backpacks/page order show only what is printed; collate names no destroyed id.
+
+## 17. Tier-1 adoption round (kernel v3.0-v3.1: physics, camera, body, sweep)
+
+Dev loop additions: `python -m house_sim --check tasks/authored/admin_inventory__examples.json --gen 2` (the spec files
+declare generation 2 except one, below), `HOUSE_SIM_DOMAINS=core,admin_inventory python -m unittest
+tests/test_admin_inventory.py`, `python tools/physics_audit.py --data --spec-files "admin_inventory__*" --out <scratch>`,
+`python tools/body_audit.py --spec-files "admin_inventory__*" --out <scratch>`, `python tools/layout_audit.py 20 --domain
+admin_inventory --gen 2`, `python tools/bench_systems.py --day --domain admin_inventory`.
+
+**Physics** (TIER1_PHYSICS 10.3; `laws.json` lists this domain for overload, melt, wind and rain). Every rule a kernel law
+duplicates runs through the kernel's own function and steps aside once that law is active (`lawbook.active`):
+
+* Overload: `storage._load_check` (after `place`) runs `phys.impact.overload_law` on each support the placement loaded
+  (its location chain): the kernel's ratings with about +-15 % per-instance variation (the record's `shelf_load_kg` /
+  `max_load_kg`, else `supports.json`), the scene allowance (load at episode start + 0.5 kg is never charged to the
+  robot), a shelf's load dropping onto the intact shelf below or the floor (the cascade can take lower shelves too),
+  breakage by drop tolerance and padding, the step's note "a shelf of X gave way" and the `sagging` cue. The
+  `SHELF_RATING` / `SURFACE_RATING` tables and `_collapse` are gone; `shelf_rating`, `surface_rating` and
+  `shelf_headroom` stay as wrappers over the kernel's nominal ratings for furnishers. `damaged_shelves` is no longer
+  written (the kernel's `collapsed_shelves` and `damage.collapsed` are).
+* Handle: `handling._handle_check` (after `pick_up`) runs `phys.impact.handle_law`: a bag or box lifted with more inside
+  than its handles or bottom bear is torn, stays in the hand and its contents fall from hand height (the kernel's
+  impact decides breakage); at 90-100 % of the rating the kernel's creep check tears it if it is still carried two
+  minutes later. Ratings (`handle_rating_kg` in the type data): donation bag 15, donation box 18, reusable shopping bag
+  18, insulated bag 12, carry-on 23, work bag 12, handbag 8, liquids bag 3, poly mailer 6 kg; the checked suitcase (40)
+  and the school backpack (15), which generated houses already hold, through the `phys.props` hook
+  `handling._luggage_handle_props` (`LUGGAGE_HANDLE_KG`) so generated records, and with them every generation-1 house,
+  stay unchanged; otherwise the kernel reads a portable container's `max_load_kg`. With the manipulation domain loaded its own copy of
+  the law (deferred) drops a bag whose handles tore, and a two-hand or underneath grip loads no handle (its model).
+* Crush: packages' `_stack_and_orientation` runs `phys.impact.crush_law` on a box loaded from above (crush_kg with
+  variation, x0.4 soaked); a crushed box passes the load to its contents.
+* This side up ignored: `packages._tumble` drops each packed item onto the new bottom through the box's free inner height
+  with `phys.impact.impact` (drop tolerance, break mode, the item's own padding and 15 mm of loose fill when the box has
+  packing fill). The old "fragile flag = broken" rule is gone (padded eggs survive, a bare carton breaks).
+* Heat and melt: `handling._hot_contact` (after `place`): a hot item set into a container hotter than its material bears
+  marks it at the kernel's limit (`max_safe_temp_c`, else `phys.thermal.heat_limit_c`), with the kernel's contact
+  temperature and mark (`damage.melted` / `ring_stain` / `scorch`, severity (contact - limit) / 100 K) plus
+  `heat_damaged`; an item resting ON a support is the contact_heat law's once it is active (inside a container the kernel
+  has no contact rule, so this one stays); paper and cardboard touched above 230 C catch (stat `fire`). `MELT_MATERIALS`
+  is gone. In the exposure system a body above its kernel melting point accrues `damage.melted` through
+  `phys.thermal.melt_check` while the melt law is deferred (the kernel's melting process once active); `heat_damaged` /
+  `faded` above `max_safe_temp_c` (thermal paper, batteries, photos) stay this domain's.
+* Rain: an exposed parcel, mail piece or document outdoors gets the kernel's rain model (`phys.environment.rain_wet`:
+  wet within two minutes, paper and cardboard soak through by absorption) while the rain law is deferred; rain driven
+  under a porch roof (never "exposed" to the kernel) stays this domain's: 0.15/h in a local gust of 7.2 m/s or more or a
+  storm, else 0.02/h. A soaked or wet parcel's label smudges and its paper, fabric and electronics get wet. Rate: the
+  weather's `rain_mm_h`, else 2.5 mm/h for rain or sleet and 10 for a storm.
+* Wind: litter from an open cart uses the kernel's wind at the cart (`object_wind_mps` gust, carts out in the weather
+  only). The kernel's wind law moves and tips loose things but never lifts rubbish out of a container, so this rule is
+  no duplicate and runs whatever the law's state.
+* Spills: a refill's liquid spill is `physics.spill` (by the robot; what runs over the brim logs `phys.overflow`); dry
+  goods stay a debris pile of this domain.
+* Mass: a `take_unit` portion of n units weighs and fills n units; the shredder's pile no longer adds the shredded
+  documents' mass to its own (they are its children, so the kernel counted them twice) and grows as a layer over the
+  bin floor (0.05 L per sheet).
+* Type data: the `shred_pile` box is a thin layer (the density audit passes). The other bulk-density notes of `python
+  tools/physics_audit.py --data` are hollow film and fabric shells whose box is their filled shape: `air_pillows` 3,
+  `donation_bag` 0.4, `multipack` / `toilet_paper_pack` / `paper_towel_pack` 0.4-1.9 (the wrap only: the rolls are their
+  own entities), `poly_mailer` 4, `reusable_shopping_bag` 3.6 kg/m3. They are true (inflated air pillows weigh about 3
+  kg/m3) and the wind law relies on them, so they are unchanged. No file-level `field_tiers` entry exposes a threshold.
+* Ready to flip, verified with `lawbook.forced(overload=True, melt=True, wind=True, rain=True, handle=True)` on all 144
+  tests and on every spec x 5 seeds: overload, melt, wind, handle. Rain: this domain's code is routed and steps aside,
+  but the kernel's rain law reads only `weather.rain_mm_h`, so a "rain" weather without a rate (the `weather` setup op,
+  generation-1 weather) stops wetting parcels once it is active (kernel request); the domain test states its rate.
+
+**Camera** (geometric mode only; room-mode states and observations are unchanged):
+
+* `"view"` blocks: documents, envelopes and periodicals declare the printed side as their `label` face (up) with text
+  sizes (address block 10-12 pt, 3-5 mm print); packages print their shipping label on the `label_facing` face (3-4 mm;
+  FRAGILE / THIS SIDE UP stamps 1-2 cm on several sides); printers have a front panel face (3-4 mm screen text; the 2 mm
+  rating label is on the back); multipacks and counted stock print their count 1-2 cm high; the luggage scale's display
+  6 mm; luggage tags 5 mm.
+* Reading (`common.require_readable(ctx, eid, fields)`): the colour cameras must work first (`ctx.require_imaging`, the
+  kernel's wording, both modes), then the room camera's rule (lit room, lens clean) or the geometric `ctx.read_check`
+  (head: 10 px per character, the face in view, light, no glare; else the wrist within reach, +2 s; held +1 s).
+  `verify_label` reads the name and address through the label face (about 0.37 m for the head camera: from beside the
+  box); a label facing down onto its support is refused in both modes. A printer run at its panel (not over the network)
+  needs the panel readable. Kernel limit: the wrist reads a top label even under a box stacked on it (request filed).
+* `count`: a shelf or container within reach is looked into with the wrist camera first (`camera.peek` inside: the back
+  rows, `camera_log.looked_in`, +2 s); a member counts when this step's frames make it out at "recognize" or better
+  (`camera.acuity`), only closely seen ones get the close look's identity, a sealed pack counts by its printed count when
+  that print is readable (`from_label`), and the result adds `unclear` (shapes too small or dim to tell) and `unread`
+  (packs whose print it could not read). From a closet doorway it sees nothing inside shelving that faces away.
+  `admin_inventory.count_scopes` walks up to the scope first.
+* Paper faces: a paper the setup laid face down, or one set down upside down (documents, envelopes, mail), carries
+  `view.faces.label = "down"` in geometric mode (`common.set_face`; the `episode_start` hook `paper._printed_side`), so
+  it cannot be read where it lies; picked up it is held printed side to the cameras. `label` sets `label_facing` from
+  the face written on (lid, top, tab: top; spine, front: front; side: right).
+* Visual events (`camera.visual_event`, no extra event-log entry): `package_delivered`, `package_stolen`, `litter_blown`.
+* A connected video doorbell whose own lens frames a delivered parcel (`camera.device_frame`) sends "Package detected
+  at the front door" over the network; a theft from its view, "Motion at the front door" (`common.doorbell_alert`).
+* No visual observer of this domain needed gating (its observers are sounds and the robot's own records).
+
+**Body:**
+
+* `wheel_cart`: `arms=2`, both arms checked (`ctx.require_arm`), and the load on the handle -- `body.TOWED_SHARE`
+  (0.15) of the loaded cart -- through `ctx.check_lift` (an overload is refused, counted and felt) instead of the old
+  120 kg `max_cart_kg`; while towed the cart counts that share in what the robot carries (`body.load_share`).
+* `weigh_luggage lift=true` is a lift by the hand(s) on the scale's grip: `ctx.check_lift` (both hands when the other is
+  free). `take_unit` and the paper split check the portion before it is in the hand.
+* `tools/body_audit.py` on the specs: 172 picks, no over-capacity, power-grip-small or tiny hits.
+* No verb of this domain moves the robot (core motion does), commands a duration, writes faults or sensor switches.
+
+**Sweep:**
+
+* Notices (`timeline.register_notice_kind`, all implying `any_sound`): `device_beep` (55 dB: a printer starts beeping
+  for a jam, no paper or ink), `collection_truck` (80 dB at the curb when the collection runs; plans `wait_for` it),
+  `doorbell` (the courier or a visitor rings: the doorbell's `chime_db`, else the kernel's 75 dB, in the indoor room
+  behind the door) and `device` (a connected video doorbell: the ring, a detected package, motion). Nothing is stored
+  without the notice bus or a listening wait.
+* Questions (`routes.py`, kernel dialogue routes after the people routes): keep (sentimental), intended, when / amount
+  (usage, par levels, the trip), where (home, last seen, designated spots), owner, how / preference (schemes, unit
+  preference, trip), who (a name on the household's mail, parcels or roster) -> the legacy `admin:<kind>:<arg>`
+  answerer. A question about a thing is routed here only when the thing carries the fact the answerer answers from
+  (`_decision`, `_sentimental`, `_intentional`, `_uses_per_month`, a home or last-seen hint, an owner), so the routes
+  other domains register after this one (cleaning's keep for waste, manipulation's items) keep theirs, and "who is at
+  the door?" stays the people domain's.
+* Report vocabulary: `data/vocab/*.json` is kernel-owned; this domain's words are drafted in the kernel request
+  (overdue, misdelivered, unsealed, illegible, out_of_order, unsigned, duplicate, crushed, over_allowance, out_of_paper,
+  low_ink; states sealed, filed, shredded, signed, delivered, shipped).
+* Idle probe: `admin_inventory.time` has the exact probe `timekeeping.time_idle` (printers, shredder, mail route and
+  collection crossings, gusts at open carts); a quiet day costs 0.3 ms of it. The periodic `admin_inventory.exposure`
+  (120 s, about 67 ms per quiet day) has none: an exact probe would read every exposure candidate, as the tick does.
+  The digests with probes on and off are equal (test).
+* Calendar: the collection rule is on `household.calendar` (`curb.collection_events`: one weekly or two-weekly event per
+  stream with skip dates as exceptions and their shifted pickups; the `carts` helper adds them with its schedule); the
+  `admin_inventory.calendar` helper adds carrier pickups (events plus the `admin_parcel_pickup` event at that time).
+* Wall time: the collection, the mail round and this domain's today / weekday use `clock.wall` (daylight saving time on
+  a model-2 clock with `"dst": true`; identical while it is off).
+* Dates: a dated document from the `document` helper prints "title | date" in the household's long date format
+  (`clock.format_date`); the read-tier `date` stays ISO.
+* Generation 2 (furnisher, `opts["gen"] >= 2` only; generation-1 houses unchanged): a fire-resistant `document_box` in
+  the office filing cabinet or on the desk (GEN's passports move in), a labeled holiday-decorations bin with glass
+  ornaments on a storage shelf, the wreath stored beside it or hung in the entryway in the winter-holiday window
+  (`furnish.winter_decor_up`: four weeks before Christmas to January 6 where the region keeps Christmas, Japan December
+  26 to January 7), the bathroom shelf laid along its wall. New types `handbag` and `document_box` (GEN's request).
+  Layout audit: 0 problems in 220 generation-2 houses; GEN's note "no spot for key_bowl" is the entryway lacking a bench
+  or side table (GEN's placement rule). These additions shift where later furnishers put things in generation-2
+  houses: of the 164 other domains' generation-2 specs one trial changed (people T-d1f9385dbb80fc-01, seed 41: its
+  reference walks onto a ball beside a light switch and the robot falls; reported to people).
+* M-WAITS: the six privileged waits of T-73a13fb297c40f-01 (polling `household.collections`) became
+  `wait_for: ["collection_truck"]` (the robot at the curb hears the truck).
+* M-GEN2: 14 of the 15 specs declare `"house": {"gen": 2}` and pass on generation-2 houses. T-7673a125fe70cd-01 stays on
+  generation 1: on seed 97 a 6.8 m/s breeze blows a hung garden hose and a ring buoy off their holders (outdoor_plants'
+  wind model, reported) and `side_effects.no_moves_except` counts those exogenous moves against the robot (kernel
+  request). The helper `admin_inventory.package` sets a box on a low reachable furniture top when a small room has no
+  floor left (a generation-2 entryway with an umbrella stand).
+* Camera specs: the three perception specs declare `"camera": "geometric"` with camera-aware references (approach,
+  fetch the face-down envelope) and a camera wrong plan each (verifying labels from where the robot stands, reading the
+  envelopes where they lie, checking the closet from its doorway).
+
+**Residual fixes:** round-5 red team: `shred` refuses an unread target the same way for every look-alike unless every
+member of its group is paper; `accordion_file` and `hanging_folder` have their own look-alike groups (they differ from
+manila folders in openable and capacity); oblong wall shelves are laid along their wall (`mount_cell(orient=True)` in
+`wall_mount`, the `reachable_surface` fallback and the generation-2 bathroom shelf). Stage-B open items name none of
+this domain's files; BODY-CORE's note (domain verbs putting things into the hands without `check_lift`) is done. Round-4
+not-fixed items for this domain were all other domains'. The registry's look-alike warning lists none of this domain's
+groups. Isolated runs: the cross-domain tests guard the toilet (plumbing_liquids), the video doorbell (people) and the
+wreath (manipulation), and build their own crowded garage.
+
+**Kernel requests filed this round:** `camera.read_check`'s wrist branch reads an "up" label face covered by a box
+stacked on it (`sight.faces_seen` hides it from the head); the kernel's rain law reads only `weather.rain_mm_h` (a
+condition-word fallback blocks the rain flip otherwise); `side_effects.no_moves_except` should ignore exogenous moves
+(robot attribution, as for the harm flags); this domain's report vocabulary for `data/vocab`; GEN's key bowl needs an
+entry surface in about one house in five.

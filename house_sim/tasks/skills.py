@@ -140,7 +140,7 @@ def go_room(r, room, avoid=None, speed=None):
         if door_id:
             door = state["entities"][door_id]
             if not door.get("open"):
-                r.do("approach", target=door_id)
+                _approach_door(r, door_id)
                 if door.get("locked"):
                     r.do("unlock", target=door_id)
                 r.do("open", target=door_id)
@@ -156,7 +156,7 @@ def go_room(r, room, avoid=None, speed=None):
                 switch = None
             if switch is not None:
                 if geometry.chebyshev(r.state["robot"]["pos"], conn["cells"][here]) > geometry.REACH_CELLS:
-                    r.do("approach", target=door_id) if door_id else _approach_cell(r, conn["cells"][here])
+                    _approach_door(r, door_id) if door_id else _approach_cell(r, conn["cells"][here])
                 r.do("switch_on", target=switch)
         args = {"target": nxt}
         routed = safe_avoid(r.state, here, r.state["robot"]["pos"], [conn["cells"][here]], avoid, strict=True)
@@ -186,6 +186,16 @@ def locate(state, target):
 
 def _geometric(r):
     return camera.mode(r.state) == "geometric"
+
+
+def _approach_door(r, door_id):
+    """go_room's approach of a door on the route (the raw verb, as before). With the geometric camera a door out of
+    sight from here (a fridge or a wall run between) is walked into view first, as the approach skill does
+    (_to_viewpoint), since core approach refuses a target it cannot see (adoption-round request of cleaning and food;
+    safety's own go_room did the same). Room camera: the raw verb alone."""
+    if _geometric(r) and door_id in r.state["entities"] and not _in_sight(r, door_id):
+        _to_viewpoint(r, door_id)
+    r.do("approach", target=door_id)
 
 
 def _in_sight(r, target):

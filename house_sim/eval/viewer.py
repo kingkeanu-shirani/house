@@ -8,7 +8,8 @@ The output is ONE self-contained offline HTML file (episode data embedded as JSO
 network access) that opens by double-clicking on Windows.
 
 Sources
-  * an env replay file (``HouseEnv.save_replay``, format house-replay-v2, oracle or realistic perception);
+  * an env replay file (``HouseEnv.save_replay``: the compact house-replay-v3, or a house-replay-v2 file from before
+    it; kernel/replays.py; oracle or realistic perception);
   * a harness command log (``results/<run_id>/logs/<catalog_id>__<seed_tag>.json``, house-harness-log-v1);
   * an episodes.jsonl record: ``path/episodes.jsonl`` (one record), ``path/episodes.jsonl#3`` (0-based index),
     ``path/episodes.jsonl#<catalog_id>`` or ``#<catalog_id>__<seed_tag>``, a dict, or inline JSON text.
@@ -63,6 +64,7 @@ import sys
 from pathlib import Path
 
 FORMAT = "house-viewer-v1"
+REPLAY_FORMATS = ("house-replay-v2", "house-replay-v3")      # kernel/replays.py FORMATS (v3: the compact default)
 TEMPLATE_PATH = Path(__file__).with_name("viewer_template.html")
 DATA_MARKER = "/*__EPISODE_DATA__*/"
 TITLE_MARKER = "__PAGE_TITLE__"
@@ -106,6 +108,9 @@ PHYS_CUES = ("sagging", "wobbly", "in_motion", "collapsed_shelves", "fell", "tip
 BODY_MARKS = ("power_down", "power_up", "robot_fell", "overload", "fault_onset", "fault_detected", "fault_logged",
               "fault_cleared", "battery_low", "battery_reserve")
 MAX_MARKS = 12              # markers kept per step (a shelf cascade can emit dozens of phys.* events)
+# kernel v3.1 (the sweep): phase boundaries and standing orders from the event log, and the notices the robot
+# perceived in the step (state["notices"]), marked on the oracle timeline too
+TIME_MARKS = ("phase_start", "phase_end", "phase_relocate", "standing_order_fired")
 
 
 class ViewerError(ValueError):
@@ -441,12 +446,25 @@ def _command_items(data):
     return None
 
 
+def _decode_replay(data):
+    """The v2-shaped dict of a replay object (house-replay-v2 as is, the compact v3 unpacked; kernel/replays.py)."""
+    from ..kernel import replays
+    try:
+        return replays.decode(data)
+    except ValueError as exc:
+        raise ViewerError("unreadable replay ({})".format(exc))
+
+
 def _from_data(data, base, name, path, private=None):
     if not isinstance(data, dict):
         raise ViewerError("unsupported source: expected a JSON object")
     fmt = str(data.get("format") or "")
-    if fmt == "house-replay-v2":
-        return _guard_episode(_from_replay(data, name, path), private)
+    if fmt in REPLAY_FORMATS:
+        # the test-split guard first: a replay's seed is plain JSON in both formats, so a test replay is refused
+        # before its packed states are even unpacked
+        _guard(_merge_meta(data.get("meta"), data.get("metadata"), {"seed": data.get("seed")}), data.get("seed"),
+               (data.get("task") or {}).get("catalog_id"), private)
+        return _guard_episode(_from_replay(_decode_replay(data), name, path), private)
     if fmt.startswith("house-replay"):
         raise ViewerError("unsupported replay format {} (re-record with the current simulator)".format(fmt))
     if fmt == "house-state-v2":
@@ -457,7 +475,7 @@ def _from_data(data, base, name, path, private=None):
     if isinstance(data.get("log"), str):
         _guard(data, data.get("seed"), data.get("catalog_id"), private)
         return _guard_episode(_from_record(data, base, path, private), private)
-    raise ViewerError("unrecognised source (expected a house-replay-v2 file, a harness log or an episode record)")
+    raise ViewerError("unrecognised source (expected a house-replay-v2/v3 file, a harness log or an episode record)")
 
 
 def _merge_meta(*dicts):
@@ -524,7 +542,16 @@ def _from_log(data, items, name, path, record, private=None):
             command = item["command"]
         else:
             command = item if "action" in item else None
-        if command is None:
+        if command is None and not item.get("phase_done"):
+            continue
+        if item.get("phase_done"):
+            # a multi-phase episode: the agent's done ended a phase (house_sim/eval/run.py); the re-run calls
+            # env.phase_done() here. With no phase after it (and none still to come) it was also the episode's done.
+            records.append({"command": {"action": "phase_done"}, "phase_done": True, "phase": item.get("phase"),
+                            "next_phase": item.get("next_phase"), "ok": True, "category": "", "agent_message": None,
+                            "time_s": item.get("sim_time_s"), "wall_s": item.get("t_agent_s")})
+            if item.get("next_phase") is None and not item.get("waiting"):
+                done = True
             continue
         raw = item.get("command") if isinstance(item.get("command"), dict) else command
         if item.get("done") or str(raw.get("action", "")).strip().lower() == "done":
@@ -578,9 +605,9 @@ def _log_replay(data, path):
         if candidate.is_file():
             try:
                 replay = _read_json(candidate)
+                return _decode_replay(replay) if replay.get("format") in REPLAY_FORMATS else None
             except ViewerError:
                 return None
-            return replay if replay.get("format") == "house-replay-v2" else None
     return None
 
 
@@ -590,10 +617,14 @@ def _from_replay(data, name, path):
     meta.update(_merge_meta(data.get("meta"), data.get("metadata")))
     records = []
     for item in data.get("steps", []):
-        records.append({"command": dict(item.get("command") or {}), "ok": item.get("ok"),
-                        "category": item.get("category", ""), "message": item.get("message"),
-                        "time_s": item.get("time_s"), "state_hash": item.get("state_hash"),
-                        "changes": item.get("changes")})
+        record = {"command": dict(item.get("command") or {}), "ok": item.get("ok"),
+                  "category": item.get("category", ""), "message": item.get("message"),
+                  "time_s": item.get("time_s"), "state_hash": item.get("state_hash"),
+                  "changes": item.get("changes")}
+        if item.get("phase_done"):
+            # a multi-phase episode's phase end (HouseEnv.phase_done; not an action): re-run with env.phase_done()
+            record.update(phase_done=True, phase=item.get("phase"), next_phase=item.get("next_phase"))
+        records.append(record)
     perception = data.get("perception") or task.get("perception") or "oracle"
     return {"kind": "replay", "name": name, "path": str(path) if path else None, "meta": meta, "records": records,
             "initial": data.get("initial"), "start_state": data.get("start_state"), "baseline": data.get("baseline"),
@@ -1183,15 +1214,29 @@ def _mark_detail(entry):
         return "{}: {}".format(entry.get("fault_kind"), entry.get("status"))
     if kind in ("battery_low", "battery_reserve"):
         return "gauge {}%".format(_num(_float(entry.get("gauge")), 1))
+    if kind in ("phase_start", "phase_end"):
+        return str(entry.get("phase") or "")
+    if kind == "phase_relocate":
+        return "{} {}".format(entry.get("phase") or "", "to the dock" if entry.get("moved") else
+                              "stays ({})".format(entry.get("reason") or "")).strip()
+    if kind == "standing_order_fired":
+        return "order {}".format(entry.get("order"))
+    if kind == "notice":
+        text = entry.get("text") or ""
+        return "{}{}".format(entry.get("notice_kind") or "", ": " + text if text else "")
     return ""
 
 
 def step_marks(state):
-    """[[kind, detail], ...] for the physics consequences (phys.* events) and body events (BODY_MARKS) the event log
-    holds for the state's current step (at most MAX_MARKS, then ["more", "+N"])."""
+    """[[kind, detail], ...] for the physics consequences (phys.* events), body events (BODY_MARKS) and the sweep's
+    phase and standing-order events (TIME_MARKS) the event log holds for the state's current step, then the notices the
+    robot perceived in it ("notice"; kernel v3.1, state["notices"]) -- at most MAX_MARKS, then ["more", "+N"]."""
     step = state.get("steps", 0)
     found = [entry for entry in state.get("event_log") or [] if isinstance(entry, dict) and entry.get("step") == step
-             and (str(entry.get("kind", "")).startswith("phys.") or entry.get("kind") in BODY_MARKS)]
+             and (str(entry.get("kind", "")).startswith("phys.") or entry.get("kind") in BODY_MARKS
+                  or entry.get("kind") in TIME_MARKS)]
+    found += [{"kind": "notice", "notice_kind": n.get("kind"), "text": n.get("text")}
+              for n in state.get("notices") or [] if isinstance(n, dict) and n.get("step") == step]
     marks = [[str(entry.get("kind")), _short(_mark_detail(entry), 80)] for entry in found[:MAX_MARKS]]
     if len(found) > MAX_MARKS:
         marks.append(["more", "+{}".format(len(found) - MAX_MARKS)])
@@ -1381,6 +1426,9 @@ def step_compact(record, raw_message, agent_message, diverged):
     command = dict(record.get("command") or {})
     action = str(command.pop("action", ""))
     target, destination = command.pop("target", ""), command.pop("destination", "")
+    if record.get("phase_done"):
+        # a phase end (multi-phase episode): the step list shows "phase_done  <ended> -> <next>"
+        action, target, destination = "phase_done", record.get("phase") or "", record.get("next_phase") or ""
     out = {"a": action, "ok": bool(record.get("ok_now", record.get("ok")))}
     if target not in (None, ""):
         out["tg"] = _short(target, 120)
@@ -1551,6 +1599,16 @@ def _physics_version():
         return None
 
 
+def _milestone_names(task):
+    """The task's milestone names as the monitor records them: the top-level ones, then each phase's as
+    "<phase id>/<name>" (kernel/monitor.py compile_task)."""
+    names = sorted(str(k) for k in (task.get("milestones") or {}))
+    for phase in task.get("phases") or []:
+        if isinstance(phase, dict):
+            names += sorted("{}/{}".format(phase.get("id"), k) for k in (phase.get("milestones") or {}))
+    return names
+
+
 def build_viewer_data(source, view="both", private=False, verify_spec=False):
     """Load, re-run and compact an episode into the page's data object (see docs/VIEWER.md for the schema)."""
     if view not in VIEWS:
@@ -1615,11 +1673,28 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
     def handle_of(eid):
         return env.realism.handles.handle(eid) if env is not None and env.realism is not None else "?"
 
+    shown_marks = {"step": None, "marks": []}
+
     def add_frames(current_state, evaluation, obs, perceived_ok):
         nonlocal prev_oracle, prev_perceived
         true_ids.update(current_state["entities"])
         if want_oracle:
             found = step_marks(current_state)
+            step_no = current_state.get("steps", 0)
+            if shown_marks["step"] == step_no:
+                # a phase end counts no step: its frame shares the step number of the action before it, so it shows
+                # only the events that came with it (the phase's end and start, the next request), not those again
+                earlier = list(shown_marks["marks"])
+                fresh = []
+                for mark in found:
+                    if mark in earlier:
+                        earlier.remove(mark)
+                    else:
+                        fresh.append(mark)
+                shown_marks["marks"] = shown_marks["marks"] + fresh
+                found = fresh
+            else:
+                shown_marks.update(step=step_no, marks=list(found))
             if found:
                 marks[str(len(oracle_frames.items))] = found      # keyed by the frame the step led to
             prev_oracle = oracle_frame(current_state, prev_oracle)
@@ -1641,15 +1716,31 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
             compact = _mask_ids(compact, true_ids, [0], replace=handle_of)
         evals.add(compact)
 
+    # the episode's monitor record (kernel/monitor.py) as the recording's final evaluation gives it: every milestone
+    # with the step and time it was reached at -- inside waits too, and for the extended forms ({"pred", "count"},
+    # {"pred", "held_for_s"}, a phase's "<phase>/<name>") that a plain predicate check cannot reproduce
+    recorded_milestones = {str(k): dict(v) for k, v in
+                           ((episode.get("final_evaluation") or {}).get("milestones") or {}).items()
+                           if isinstance(v, dict)}
+
     def recorded_eval(current_state, step_number):
+        """The evaluation of a reconstructed state (the re-run diverged, or the simulator cannot load the episode):
+        milestones reached by this step from the recorded monitor record; without one, those the live part of the
+        re-run reached, plus plain milestone predicates checked on the reconstructed state."""
         try:
             from ..kernel.evaluation import evaluate
             from ..kernel.predicates import check
             from ..kernel.world import World
-            for name, rule in (task.get("milestones") or {}).items():
-                if name not in milestones and check(current_state, rule):
-                    milestones[name] = {"step": step_number, "time_s": current_state.get("time_s", 0)}
-            return evaluate(task, current_state, baseline or current_state, milestones, step_number,
+            if recorded_milestones:
+                reached = {k: dict(v) for k, v in recorded_milestones.items()
+                           if isinstance(v.get("step"), int) and v["step"] <= step_number}
+            else:
+                for name, rule in (task.get("milestones") or {}).items():
+                    plain = not (isinstance(rule, dict) and "pred" in rule)     # extended forms need the monitor
+                    if plain and name not in milestones and check(current_state, rule):
+                        milestones[name] = {"step": step_number, "time_s": current_state.get("time_s", 0)}
+                reached = milestones
+            return evaluate(task, current_state, baseline or current_state, reached, step_number,
                             world=World(current_state, env.registry if env is not None else None))
         except Exception:  # noqa: BLE001
             return None
@@ -1666,7 +1757,8 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
         if live:
             command = dict(record.get("command") or {})
             try:
-                result = env.step(**command)
+                # a phase end of a multi-phase episode is HouseEnv.phase_done(), not an action
+                result = env.phase_done() if record.get("phase_done") else env.step(**command)
             except Exception as exc:  # noqa: BLE001
                 result = None
                 diverged = "the re-run raised {}".format(type(exc).__name__)
@@ -1674,6 +1766,10 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
                 history = env._history[-1]
                 if record.get("ok") is not None and bool(record["ok"]) != bool(result["ok"]):
                     diverged = "recorded ok={} but the re-run gives ok={}".format(bool(record["ok"]), bool(result["ok"]))
+                elif record.get("phase_done") and "next_phase" in record and \
+                        (result.get("phase") or {}).get("active") != record.get("next_phase"):
+                    diverged = "recorded next phase {} but the re-run starts {}".format(
+                        record.get("next_phase"), (result.get("phase") or {}).get("active"))
                 elif record.get("state_hash") and (history.get("state_hash") or digest(env.world.s)) != record["state_hash"]:
                     diverged = "the re-run state differs from the recording"
                 if not (diverged and have_changes):
@@ -1731,7 +1827,8 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
 
     if layout is None:
         # perceived-only page: rooms the agent observed (+ exit-only stubs), masked like the perceived frames
-        known = sorted(env._known_map) if env is not None and isinstance(getattr(env, "_known_map", None), dict) else ()
+        # (env.known_map(): the robot's known map, a view of env.mind.map -- rooms it was in and prior knowledge)
+        known = sorted(env.known_map()) if env is not None and callable(getattr(env, "known_map", None)) else ()
         layout = _mask_ids(pmap.layout(known=known), true_ids, leaks, skip_keys=descriptive | {"l", "ty"})
     if live and episode.get("final_hash") and digest(env.world.s) != episode["final_hash"] and not first_divergence:
         warnings.append("The re-run's final state differs from the recorded final state.")
@@ -1773,7 +1870,8 @@ def build_viewer_data(source, view="both", private=False, verify_spec=False):
                 "agent": meta.get("agent"), "privileged": meta.get("privileged"), "private": bool(test),
                 "steps": len(records), "step_budget": task.get("step_budget"), "time_budget_s": task.get("time_budget_s"),
                 "risk_level": task.get("risk_level"), "fidelity": task.get("fidelity"), "variant": task.get("variant"),
-                "milestones": sorted((task.get("milestones") or {}).keys()), "warnings": warnings,
+                "milestones": _milestone_names(task), "warnings": warnings,
+                "phases": [p.get("id") for p in task.get("phases") or [] if isinstance(p, dict)] or None,
                 "done_declared": meta.get("done_declared"), "end_reason": meta.get("end_reason"),
                 "spec_status": _spec_status(spec, verify_spec) if spec is not None else {"state": "n/a"},
                 # the physics data the frames come from: the current code's when it re-ran the episode, else the

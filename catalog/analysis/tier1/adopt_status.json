@@ -1,0 +1,2029 @@
+{
+ "format": "house-adopt-status-v1",
+ "by": "ADOPT-INT (tier-1 adoption round integrator)",
+ "date": "2026-10-22",
+ "gate": {
+  "id": "ADOPT",
+  "folder": "catalog/analysis/tier1/gate/ADOPT",
+  "previous": "C1",
+  "summary": "TIER1-GATE ADOPT [ADOPT-ALL] vs C1: FAIL (6 pass, 6 fail, 1 skip; this run: G10)",
+  "checks": {
+   "G0": "PASS: action fingerprint 0eec7120d723 (427 actions, 115 systems); changed vs C1 (allowed)",
+   "G1": "FAIL: 59 test files x normal+strict: 4325 tests (normal), 4 failing run(s): test_people.py (normal), test_people.py (strict), test_physics_statics.py (normal), test_physics_statics.py (strict)",
+   "G10": "FAIL: 407 changed file(s); 18 outside the list of ADOPT-ALL: RESUME.md, catalog/analysis/verify_hardening_critique.json, docs/design/VERIFY_HARDENING.md, docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md, docs/reviews/2026-10-22_independent_review/house_ai_project_brief.md, docs/reviews/2026-10-22_independent_review/house_ai_reviewer_prompt.md, docs/reviews/2026-10-22_independent_review/phases/p1_claims.md, docs/reviews/2026-10-22_independent_review/phases/p2_conditional.md, docs/reviews/2026-10-22_independent_review/phases/p2_gaming_a.md, docs/reviews/2026-10-22_independent_review/phases/p2_gaming_b.md, docs/reviews/2026-10-22_independent_review/phases/p2_gaming_c.md, docs/reviews/2026-10-22_independent_review/phases/p2_tests_gate.md",
+   "G1b": "FAIL: isolated domains 15/16 files ok (1 failing test(s) in test_people.py; NEW vs C1: [\"tests.test_people.Tier1AdoptionTests.test_helper_capacity_by_age\"]); kernel files with HOUSE_SIM_DOMAINS=core 30/30 ok",
+   "G1c": "SKIP: no import-inert modules listed for this package",
+   "G2": "FAIL: own mode: 241/243 specs pass (1215 trials); vs C1: 147 verdict change(s) (0 reviewed), 1210 state-digest change(s), 1192 observation-digest change(s) [147 unreviewed verdict change(s)]",
+   "G3": "FAIL: forced realistic: 236/243 specs pass (1215 trials); vs C1: 188 verdict change(s) (0 reviewed), 1210 state-digest change(s), 1210 observation-digest change(s) [188 unreviewed verdict change(s)]; 255 realistic-spec trials identical in G2 and G3",
+   "G4": "PASS: perception audit geometric: 0 leaks, 0 crashes; room: 0 leaks, 0 crashes",
+   "G5": "PASS: layout: 240 houses, 0 problems; counts equal to C1; generation-1 digests 60/60 equal to tests/data/gen1_digests.json",
+   "G6": "PASS: fuzz battery: 1800 commands, 0 defects, 0 nondeterministic; geometric: 1800 commands, 0 defects, 0 nondeterministic; room: 1800 commands, 0 defects, 0 nondeterministic",
+   "G7": "PASS: 3.21 ms/substep (best of 5), 1 h wait 1.133 s (seeds 0-3, best of 5); vs C1 (1.05x): within budget",
+   "G8": "PASS: room golden: golden ok, golden_all ok",
+   "G9": "FAIL: physics_audit: ok; camera: geometric tool runs in G4/G6 ok; body_audit: FAILED; gen-2 timing: gen2/gen1 time 1.04 ok; layout_audit gen 2: ok; test_generator_compat: ok; test_generator_gen2: ok; sweep_bench: ok"
+  },
+  "compare": [
+   "compare C1 -> ADOPT (packages: ADOPT-ALL; allowed: fingerprint,gen1,obs,state,verdict; codes: ADOPT)",
+   "G0   PASS  action fingerprint changed 955c5ef9ac14 -> 0eec7120d723 (allowed for this package)",
+   "G2   FAIL  1215 trials vs 1210: 147 verdict change(s) (144 reviewed), 1210 with changed state digests (allowed), 1192 with a changed observation digest (allowed)",
+   "G3   FAIL  1215 trials vs 1210: 188 verdict change(s) (184 reviewed), 1210 with changed state digests (allowed), 1210 with a changed observation digest (allowed)",
+   "G5   PASS  layout counts equal (0 problems)",
+   "G4   INFO  perception audit: leaks 0 -> 0, errors 0 -> 0",
+   "G6   INFO  fuzz: defects 0 -> 0, nondeterministic 0 -> 0, commands 1800 -> 1800, succeeded 395 -> 469",
+   "G7   PASS  substep_ms: 3.17 -> 3.21 (+1.3%; limit 3.329 = prev x 1.05)",
+   "G1   INFO  test_admin_inventory.py (normal): ran 128 -> 144, skipped 0 -> 0",
+   "compare result: FAIL"
+  ]
+ },
+ "laws": {
+  "overload": {
+   "required": [
+    "admin_inventory"
+   ],
+   "reported_ready": [
+    "admin_inventory"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "hang": {
+   "required": [
+    "manipulation",
+    "mechanisms"
+   ],
+   "reported_ready": [
+    "manipulation",
+    "mechanisms"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "handle": {
+   "required": [
+    "manipulation",
+    "plumbing_liquids",
+    "cleaning"
+   ],
+   "reported_ready": [
+    "manipulation",
+    "plumbing_liquids",
+    "cleaning"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "admin_inventory",
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "ready; the body's hold safety net now leaves an overloaded bag to the handle law (cleaning 8)",
+   "verdict": "ready"
+  },
+  "crush": {
+   "required": [
+    "manipulation"
+   ],
+   "reported_ready": [
+    "manipulation"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "food",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "settle roots now run bottom-up (crush before an oversized top member topples) and the phys.items_above inverse is queued; manipulation and tools_vehicles tests green with crush and stack forced",
+   "verdict": "ready"
+  },
+  "edge": {
+   "required": [
+    "manipulation"
+   ],
+   "reported_ready": [
+    "manipulation"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "slope": {
+   "required": [
+    "manipulation",
+    "outdoor_plants"
+   ],
+   "reported_ready": [
+    "outdoor_plants"
+   ],
+   "reported_not_ready": [
+    {
+     "domain": "manipulation",
+     "why": "Two kernel gaps in the roll process. (1) It starts rolling a cart the robot is holding tilted on its wheels ('Tilted cart onto its wheels | cart started rolling'). (2) A runaway roll stops at the room's floor edge (phys.roll ended=floor_edge) instead of carrying on through the open connection, so the bin never reaches the street. Fails test_bin_released_on_a_slope_runs_into_the_street under lawbook.forced(slope=True)."
+    }
+   ],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "kernel fixes applied (no free roll while tilted_on_wheels; a floor runaway rolls through an open connection on the downhill edge); manipulation still has to clear tilted_on_wheels when its roll verb lets go (breakage listed) before SlideRollTests pass with slope forced",
+   "verdict": "not_ready"
+  },
+  "stack": {
+   "required": [
+    "manipulation"
+   ],
+   "reported_ready": [
+    "manipulation"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "people",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [
+    {
+     "domain": "textiles_laundry",
+     "why": "With stack forced on, T-6eed74e7a248a5-01 (pocket check, textiles_laundry__perception.json) fails on all 5 seeds. The receipt and lip balm put on a 0.5 x 0.35 m tray topple off (phys.fall, cause stack_toppled). statics.stack_verdict applies its centre-offset rule (|offset| > 0.3 x the lower footprint) to a small item lying wholly on a large portable support. All 141 tests pass with stack forced; the other 18 laws pass both spec files together (75/75)."
+    },
+    {
+     "domain": "electrical",
+     "why": "Not electrical's law, but electrical cannot vouch for it. Forced on, statics.stack_verdict's oversize rule (STACK_OVERSIZE 1.25) topples a 0.155 m phone centred on a 0.10 m x 12 mm Qi pad. This fails test_qi_pad_charges_only_when_aligned, test_charging_a_swollen_battery_runs_away and T-dd0bf4a1707041-01 on all 5 seeds. With every other law forced, all electrical tests and specs pass. Kernel request filed"
+    },
+    {
+     "domain": "appliances_cooking",
+     "why": "Oven racks are portable, so a dish on a rack counts as a stack. statics.clearance_above_m then uses the next rack position (oven shelf_heights every 6 cm: clearance 0.04 m) even when no rack sits there. With the law forced, opening the oven moves the dish onto the oven itself, where 'Crouch or kneel to grasp something this low' refuses it: 8 tests and T-1aea0c41439b0a-01 fail. Kernel request."
+    }
+   ],
+   "integrator": "kernel fixes applied (statics: thin flat bases, a member wholly on the one below stays, oven rack clearance to the next rack present): appliances_cooking (181 tests, T-1aea0c41439b0a-01), electrical (154 tests, T-dd0bf4a1707041-01), textiles_laundry (141 tests, T-6eed74e7a248a5-01) and manipulation + tools_vehicles (360 tests, with crush) re-run green with stack forced by the integrator; their reported 'not ready' was the kernel's",
+   "verdict": "ready"
+  },
+  "furniture_tip": {
+   "required": [
+    "mechanisms",
+    "manipulation",
+    "safety",
+    "climate"
+   ],
+   "reported_ready": [
+    "mechanisms",
+    "manipulation",
+    "safety",
+    "climate"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "open_spill": {
+   "required": [
+    "manipulation",
+    "plumbing_liquids"
+   ],
+   "reported_ready": [
+    "manipulation",
+    "plumbing_liquids"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "carry": {
+   "required": [
+    "manipulation",
+    "navigation_robot",
+    "plumbing_liquids",
+    "pets",
+    "climate"
+   ],
+   "reported_ready": [
+    "manipulation",
+    "navigation_robot",
+    "plumbing_liquids",
+    "pets",
+    "climate"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "ready per all five; climate's moisture carry hook has the lawbook guard (navigation's report is resolved)",
+   "verdict": "ready"
+  },
+  "contact_heat": {
+   "required": [
+    "manipulation",
+    "appliances_cooking"
+   ],
+   "reported_ready": [
+    "manipulation",
+    "appliances_cooking"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "people",
+    "safety",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "ready per both required domains; flipping it also ends textiles' T-7d4006bda247ba-01 failure (the legacy contact-heat copies of admin_inventory and appliances_cooking step aside), but those copies should honour thermal.contact_claimed anyway (breakage listed)",
+   "verdict": "ready"
+  },
+  "wet_contact": {
+   "required": [
+    "manipulation"
+   ],
+   "reported_ready": [
+    "manipulation"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "thermal_shock": {
+   "required": [
+    "appliances_cooking",
+    "cleaning"
+   ],
+   "reported_ready": [
+    "appliances_cooking",
+    "cleaning"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "phase": {
+   "required": [
+    "plumbing_liquids",
+    "food"
+   ],
+   "reported_ready": [
+    "plumbing_liquids",
+    "food"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "melt": {
+   "required": [
+    "admin_inventory",
+    "textiles_laundry"
+   ],
+   "reported_ready": [
+    "admin_inventory",
+    "textiles_laundry"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "thermal_tau": {
+   "required": [
+    "appliances_cooking",
+    "food",
+    "plumbing_liquids",
+    "electrical"
+   ],
+   "reported_ready": [
+    "appliances_cooking",
+    "food",
+    "plumbing_liquids",
+    "electrical"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "",
+   "verdict": "ready"
+  },
+  "wind": {
+   "required": [
+    "manipulation",
+    "outdoor_plants",
+    "mechanisms",
+    "admin_inventory"
+   ],
+   "reported_ready": [
+    "manipulation",
+    "outdoor_plants",
+    "mechanisms",
+    "admin_inventory"
+   ],
+   "reported_not_ready": [],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "ready per the four required domains; outdoor_plants' generation-2 weather displacement bugs (hung rescue gear, chairs and cans on doorway cells, flat items flying) and mechanisms' wind-slam damage stay open (breakages listed); the spec failures they caused are gone since no_moves_except counts only robot moves",
+   "verdict": "ready"
+  },
+  "rain": {
+   "required": [
+    "outdoor_plants",
+    "mechanisms",
+    "admin_inventory"
+   ],
+   "reported_ready": [
+    "outdoor_plants",
+    "mechanisms"
+   ],
+   "reported_not_ready": [
+    {
+     "domain": "admin_inventory",
+     "why": "This domain's code is routed through the kernel and steps aside correctly, but the kernel rain law reads only weather.rain_mm_h. A weather of condition 'rain' with no rate (the weather setup op, generation-1 weather) produces no rain once the law is active. Repro: a parcel in front_yard under {op: weather, condition: rain} stays at wetness 0 after 2 h with lawbook.forced(rain=True), while the deferred path soaks it. Ready once the kernel falls back to a rate for the condition word (kernel request)."
+    }
+   ],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [
+    {
+     "domain": "appliances_cooking",
+     "why": "Not my mechanics. With rain forced, T-d8355138bcf9fb-01 (seed 41, variant 2, a rainy gen-2 evening) fails no_damage because outdoor_plants raised_bed_1 and raised_bed_2 get damage.water_ring 0.3, which counts in stats.damage. The domain's 181 tests pass with rain forced."
+    }
+   ],
+   "integrator": "kernel fallback applied (RAIN_BY_CONDITION when a rain condition has no rate); admin_inventory's 144 tests and 15 specs pass with rain forced (integrator run), and appliances_cooking's T-d8355138bcf9fb-01 seed 41 passes with rain forced; admin_inventory's reported blocker was the kernel's",
+   "verdict": "ready"
+  },
+  "setdown": {
+   "required": [
+    "manipulation",
+    "food"
+   ],
+   "reported_ready": [
+    "food"
+   ],
+   "reported_not_ready": [
+    {
+     "domain": "manipulation",
+     "why": "The kernel models a fast set-down as a 6 cm drop (h_eff 0.06 m), which is far below porcelain (0.4 m) and glass (0.5 m) tolerances, so it never chips stemware or porcelain on stone. Under the forced law, spec T-ce25a2474ffb3d-01 (wrong plan 'rushes and sets it down hard on marble') fails on seeds 0, 1 and 97, and test_fast_set_down_chips_fragile_ware_on_stone fails. Needs a kernel decision (a chip outcome for brittle rims on hard tops at fast speed) or a re-authored wrong plan."
+    }
+   ],
+   "not_reported": [],
+   "also_ready_elsewhere": [
+    "appliances_cooking",
+    "people",
+    "textiles_laundry",
+    "tools_vehicles"
+   ],
+   "not_ready_elsewhere": [],
+   "integrator": "decision: a fast set-down stays a 6 cm effective drop (no chip outcome for brittle rims; rim strikes are not modelled); manipulation re-authors T-ce25a2474ffb3d-01's wrong plan and its chip test (breakage listed); food reported ready",
+   "verdict": "not_ready"
+  }
+ },
+ "laws_ready": [
+  "carry",
+  "contact_heat",
+  "crush",
+  "edge",
+  "furniture_tip",
+  "handle",
+  "hang",
+  "melt",
+  "open_spill",
+  "overload",
+  "phase",
+  "rain",
+  "stack",
+  "thermal_shock",
+  "thermal_tau",
+  "wet_contact",
+  "wind"
+ ],
+ "laws_not_ready": [
+  "setdown",
+  "slope"
+ ],
+ "domains": {
+  "admin_inventory": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 14,
+    "gen2_pass": 14,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 15,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 15,
+     "gen2_pass": 14,
+     "gen2_set": 14
+    }
+   },
+   "tests": {
+    "count": 144,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "overload",
+    "melt",
+    "wind",
+    "handle"
+   ],
+   "laws_not_ready": [
+    "rain"
+   ]
+  },
+  "appliances_cooking": {
+   "specs": {
+    "total": 17,
+    "own_mode_pass": 17,
+    "own_mode_failing": {},
+    "gen2_set": 17,
+    "gen2_pass": 17,
+    "realistic_specs": 5,
+    "realistic_geometric_pass": 5,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 17,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 17,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 17,
+     "own_mode_pass": 17,
+     "geometric_pass": 5,
+     "gen2_pass": 17,
+     "gen2_set": 17
+    }
+   },
+   "tests": {
+    "count": 181,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "contact_heat",
+    "thermal_shock",
+    "thermal_tau",
+    "phase",
+    "overload",
+    "carry",
+    "crush",
+    "edge",
+    "furniture_tip",
+    "handle",
+    "hang",
+    "melt",
+    "open_spill",
+    "setdown",
+    "slope",
+    "wet_contact",
+    "wind"
+   ],
+   "laws_not_ready": [
+    "stack",
+    "rain"
+   ]
+  },
+  "cleaning": {
+   "specs": {
+    "total": 16,
+    "own_mode_pass": 16,
+    "own_mode_failing": {},
+    "gen2_set": 16,
+    "gen2_pass": 16,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 16,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 16,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 16,
+     "own_mode_pass": 16,
+     "geometric_pass": 3,
+     "gen2_pass": 16,
+     "gen2_set": 16
+    }
+   },
+   "tests": {
+    "count": 193,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "thermal_shock",
+    "handle"
+   ],
+   "laws_not_ready": []
+  },
+  "climate": {
+   "specs": {
+    "total": 14,
+    "own_mode_pass": 14,
+    "own_mode_failing": {},
+    "gen2_set": 14,
+    "gen2_pass": 14,
+    "realistic_specs": 2,
+    "realistic_geometric_pass": 2,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 14,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 14,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 14,
+     "own_mode_pass": 14,
+     "geometric_pass": 2,
+     "gen2_pass": 14,
+     "gen2_set": 14
+    }
+   },
+   "tests": {
+    "count": 98,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "furniture_tip",
+    "carry"
+   ],
+   "laws_not_ready": []
+  },
+  "electrical": {
+   "specs": {
+    "total": 16,
+    "own_mode_pass": 16,
+    "own_mode_failing": {},
+    "gen2_set": 16,
+    "gen2_pass": 16,
+    "realistic_specs": 4,
+    "realistic_geometric_pass": 4,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 16,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 16,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 16,
+     "own_mode_pass": 16,
+     "geometric_pass": 4,
+     "gen2_pass": 16,
+     "gen2_set": 16
+    }
+   },
+   "tests": {
+    "count": 154,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "thermal_tau"
+   ],
+   "laws_not_ready": [
+    "stack"
+   ]
+  },
+  "food": {
+   "specs": {
+    "total": 16,
+    "own_mode_pass": 16,
+    "own_mode_failing": {},
+    "gen2_set": 16,
+    "gen2_pass": 16,
+    "realistic_specs": 4,
+    "realistic_geometric_pass": 4,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 16,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 16,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 16,
+     "own_mode_pass": 16,
+     "geometric_pass": 4,
+     "gen2_pass": 16,
+     "gen2_set": 16
+    }
+   },
+   "tests": {
+    "count": 157,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "setdown",
+    "phase",
+    "thermal_tau",
+    "crush"
+   ],
+   "laws_not_ready": []
+  },
+  "manipulation": {
+   "specs": {
+    "total": 14,
+    "own_mode_pass": 14,
+    "own_mode_failing": {},
+    "gen2_set": 14,
+    "gen2_pass": 14,
+    "realistic_specs": 2,
+    "realistic_geometric_pass": 2,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 14,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 14,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 14,
+     "own_mode_pass": 14,
+     "geometric_pass": 2,
+     "gen2_pass": 14,
+     "gen2_set": 14
+    }
+   },
+   "tests": {
+    "count": 215,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "hang",
+    "crush",
+    "handle",
+    "edge",
+    "stack",
+    "furniture_tip",
+    "open_spill",
+    "contact_heat",
+    "wet_contact",
+    "carry",
+    "wind"
+   ],
+   "laws_not_ready": [
+    "slope",
+    "setdown"
+   ]
+  },
+  "mechanisms": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 12,
+    "gen2_pass": 12,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 15,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 15,
+     "gen2_pass": 12,
+     "gen2_set": 12
+    }
+   },
+   "tests": {
+    "count": 194,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "furniture_tip",
+    "hang",
+    "wind",
+    "rain"
+   ],
+   "laws_not_ready": []
+  },
+  "navigation_robot": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 15,
+    "gen2_pass": 15,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 13,
+    "forced_realistic_geometric_failing": {
+     "T-0383801c7466a3-01": [
+      0,
+      2,
+      41,
+      97
+     ],
+     "T-089c40fb507289-01": [
+      0,
+      2,
+      41,
+      97
+     ]
+    },
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 3,
+     "gen2_pass": 15,
+     "gen2_set": 15
+    }
+   },
+   "tests": {
+    "count": 210,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "carry"
+   ],
+   "laws_not_ready": []
+  },
+  "outdoor_plants": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 15,
+    "gen2_pass": 15,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 13,
+    "forced_realistic_geometric_failing": {
+     "T-0caf47d0f789f5-01": [
+      0,
+      1,
+      2,
+      41,
+      97
+     ],
+     "T-d182fc681f310d-01": [
+      0,
+      1,
+      2,
+      97
+     ]
+    },
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 3,
+     "gen2_pass": 15,
+     "gen2_set": 15
+    }
+   },
+   "tests": {
+    "count": 128,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "wind",
+    "rain",
+    "slope"
+   ],
+   "laws_not_ready": []
+  },
+  "people": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 14,
+    "own_mode_failing": {
+     "T-d1f9385dbb80fc-01": [
+      41
+     ]
+    },
+    "gen2_set": 13,
+    "gen2_pass": 12,
+    "realistic_specs": 4,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {
+     "T-d1f9385dbb80fc-01": [
+      41
+     ]
+    },
+    "forced_realistic_room_pass": 13,
+    "forced_realistic_room_failing": {
+     "T-c072906a11f55c-01": [
+      0
+     ],
+     "T-d1f9385dbb80fc-01": [
+      41
+     ]
+    },
+    "forced_realistic_geometric_pass": 10,
+    "forced_realistic_geometric_failing": {
+     "T-0908068a0b4269-01": [
+      0
+     ],
+     "T-c072906a11f55c-01": [
+      0
+     ],
+     "T-d1f9385dbb80fc-01": [
+      41
+     ],
+     "T-fd8774ed84c8e3-01": [
+      1
+     ],
+     "X-9cb1ee87e09363-01": [
+      2
+     ]
+    },
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 3,
+     "gen2_pass": 13,
+     "gen2_set": 13
+    }
+   },
+   "tests": {
+    "count": 172,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "carry",
+    "contact_heat",
+    "crush",
+    "edge",
+    "furniture_tip",
+    "handle",
+    "hang",
+    "melt",
+    "open_spill",
+    "overload",
+    "phase",
+    "rain",
+    "setdown",
+    "slope",
+    "stack",
+    "thermal_shock",
+    "thermal_tau",
+    "wet_contact",
+    "wind"
+   ],
+   "laws_not_ready": []
+  },
+  "pets": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 13,
+    "gen2_pass": 13,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 12,
+    "forced_realistic_room_failing": {
+     "T-79a861877a2a67-01": [
+      1,
+      41,
+      97
+     ],
+     "T-dda4e199f3f5b0-01": [
+      0,
+      1,
+      97
+     ],
+     "X-fee35ef3aac659-01": [
+      0,
+      2
+     ]
+    },
+    "forced_realistic_geometric_pass": 9,
+    "forced_realistic_geometric_failing": {
+     "T-0adf708ce0749a-01": [
+      0,
+      1,
+      2,
+      41,
+      97
+     ],
+     "T-79a861877a2a67-01": [
+      1,
+      41,
+      97
+     ],
+     "T-7fe081a3de29f8-01": [
+      1
+     ],
+     "T-ad17030a2c3223-01": [
+      1
+     ],
+     "T-dda4e199f3f5b0-01": [
+      0,
+      1,
+      97
+     ],
+     "X-fee35ef3aac659-01": [
+      0,
+      2
+     ]
+    },
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 3,
+     "gen2_pass": 13,
+     "gen2_set": 13
+    }
+   },
+   "tests": {
+    "count": 247,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "carry"
+   ],
+   "laws_not_ready": []
+  },
+  "plumbing_liquids": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 15,
+    "gen2_pass": 15,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 15,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 3,
+     "gen2_pass": 15,
+     "gen2_set": 15
+    }
+   },
+   "tests": {
+    "count": 154,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "carry",
+    "open_spill",
+    "phase",
+    "handle",
+    "thermal_tau"
+   ],
+   "laws_not_ready": []
+  },
+  "safety": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 13,
+    "gen2_pass": 13,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 15,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 15,
+     "gen2_pass": 13,
+     "gen2_set": 13
+    }
+   },
+   "tests": {
+    "count": 184,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "furniture_tip",
+    "contact_heat"
+   ],
+   "laws_not_ready": []
+  },
+  "textiles_laundry": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 14,
+    "own_mode_failing": {
+     "T-7d4006bda247ba-01": [
+      0,
+      2,
+      41
+     ]
+    },
+    "gen2_set": 15,
+    "gen2_pass": 14,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 13,
+    "forced_realistic_room_failing": {
+     "T-28ff695081cd2c-01": [
+      1,
+      97
+     ],
+     "T-7d4006bda247ba-01": [
+      0,
+      2,
+      41
+     ]
+    },
+    "forced_realistic_geometric_pass": 12,
+    "forced_realistic_geometric_failing": {
+     "T-28ff695081cd2c-01": [
+      1,
+      97
+     ],
+     "T-7d4006bda247ba-01": [
+      0,
+      2,
+      41
+     ],
+     "T-ed45170be6256e-01": [
+      0,
+      1,
+      2,
+      41,
+      97
+     ]
+    },
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 14,
+     "geometric_pass": 3,
+     "gen2_pass": 14,
+     "gen2_set": 15
+    }
+   },
+   "tests": {
+    "count": 141,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "carry",
+    "contact_heat",
+    "crush",
+    "edge",
+    "furniture_tip",
+    "handle",
+    "hang",
+    "melt",
+    "open_spill",
+    "overload",
+    "phase",
+    "rain",
+    "setdown",
+    "slope",
+    "thermal_shock",
+    "thermal_tau",
+    "wet_contact",
+    "wind"
+   ],
+   "laws_not_ready": [
+    "stack"
+   ]
+  },
+  "tools_vehicles": {
+   "specs": {
+    "total": 15,
+    "own_mode_pass": 15,
+    "own_mode_failing": {},
+    "gen2_set": 15,
+    "gen2_pass": 15,
+    "realistic_specs": 3,
+    "realistic_geometric_pass": 3,
+    "realistic_geometric_failing": {},
+    "forced_realistic_room_pass": 15,
+    "forced_realistic_room_failing": {},
+    "forced_realistic_geometric_pass": 15,
+    "forced_realistic_geometric_failing": {},
+    "reported": {
+     "total": 15,
+     "own_mode_pass": 15,
+     "geometric_pass": 3,
+     "gen2_pass": 15,
+     "gen2_set": 15
+    }
+   },
+   "tests": {
+    "count": 145,
+    "passed": true,
+    "strict_passed": true,
+    "isolated_passed": true
+   },
+   "laws_ready": [
+    "hang",
+    "crush",
+    "carry",
+    "setdown",
+    "contact_heat",
+    "edge",
+    "slope",
+    "stack",
+    "furniture_tip",
+    "open_spill",
+    "overload",
+    "handle",
+    "wet_contact",
+    "thermal_shock",
+    "phase",
+    "melt",
+    "thermal_tau",
+    "wind",
+    "rain"
+   ],
+   "laws_not_ready": []
+  }
+ },
+ "breakages": [
+  {
+   "domain": "admin_inventory",
+   "problem": "T-7d4006bda247ba-01 (textiles_laundry) fails in its own mode on seeds 0, 2, 41 ('damage'): an iron set upright on its heel rest on the ironing board scorches the board.",
+   "cause": "handling._hot_contact marks the support under a hot item while contact_heat is deferred without running the phys.contact_heat claim hooks the kernel's contact_check honours (textiles' heel-rest claim).",
+   "change": "Before marking, return when phys.thermal.contact_claimed(w, hot, support, temp, severity) (new public kernel helper), as thermal.contact_check does.",
+   "evidence": "gate ADOPT G2; textiles_laundry cross-domain report 1 (repro scratchpad/ad_textiles_laundry/repro_admin_heel.py)"
+  },
+  {
+   "domain": "appliances_cooking",
+   "problem": "The same T-7d4006bda247ba-01 failure: the upright iron writes damage.heat_mark 0.5 on the ironing board.",
+   "cause": "handling._marks_support (legacy contact heat) checks only this domain's own _claim_contact, not every domain's phys.contact_heat hook.",
+   "change": "Return when phys.thermal.contact_claimed(...) is true before marking (the kernel helper runs every claim hook).",
+   "evidence": "gate ADOPT G2; textiles_laundry cross-domain report 2"
+  },
+  {
+   "domain": "people",
+   "problem": "T-d1f9385dbb80fc-01 (people__perception) fails on seed 41 in its own mode and with the geometric camera: the reference's walk_to beside the living-room light switch lands on a rolling toy, the robot falls, and switch_on light_switch_8 is refused ('The robot has fallen; recover first').",
+   "cause": "The reference plan walks to a fixed cell of a generation-2 house where a ball / toy car rests (furnishing order moved it there).",
+   "change": "Route around floor items: approach the switch (the approach skill avoids floor_item) or walk_to with avoid ['floor_item', 'trip'], or pick a free adjacent cell.",
+   "evidence": "gate ADOPT G2/G3; K-CAM, admin_inventory, climate, mechanisms reports"
+  },
+  {
+   "domain": "safety",
+   "problem": "tests/test_physics_statics FallAndBreakTests.test_break_modes_follow_the_material fails with every domain loaded: a glass jar broken inside an intact opaque wrap becomes a shard field with shattered True.",
+   "cause": "glass.kernel_glass_break (phys.broke, mode shatter) shatters every brittle break on a floor, also the ones the kernel hid inside an opaque wrap (it leaves shattered off for wrapped or packaged breaks).",
+   "change": "Skip when the kernel did not mark the item shattered (rec.get('shattered') is not True after its break), or when it is fully wrapped (coverage >= 0.95, opaque) or packaging_intact.",
+   "evidence": "gate ADOPT G1 (test_physics_statics normal and strict); manipulation cross-domain report 1"
+  },
+  {
+   "domain": "safety",
+   "problem": "Shards are spread along the planned path of a walk the robot never finished.",
+   "cause": "glass._spread_hook (after move / approach / walk_to) uses ctx.data['path'], the planned path, even when navigation cut the motion (a slip at [6, 4] spreads shards to [8, 4]).",
+   "change": "Use the walked motion record (ctx.data['motion'] path after ctx.cut_motion) up to the robot's final cell, and do not spread shards created during this step behind the robot.",
+   "evidence": "navigation_robot cross-domain report 1 (still uses ctx.data['path'])"
+  },
+  {
+   "domain": "people",
+   "problem": "tests/test_people Tier1AdoptionTests.test_helper_capacity_by_age fails (KeyError 'lift_kg').",
+   "cause": "The test pins the pre-fix kernel: people wrote explicit lift_kg / push_n for a toddler because supports.json had no toddler row. The kernel now has a toddler row (0 / 0) and age bands for roles without a row (people's own K-HELPER-ROLES request), so people no longer writes the field for a toddler.",
+   "change": "Assert the kernel's helper value (forces._helper_value / lift_plan with helpers) instead of the record field; people may drop its explicit writes for the roles the kernel now covers.",
+   "evidence": "gate ADOPT G1"
+  },
+  {
+   "domain": "manipulation",
+   "problem": "The slope law is not ready: with slope forced, SlideRollTests.test_bin_released_on_a_slope_runs_into_the_street fails (the cart stays in the driveway).",
+   "cause": "The roll verb's release leaves tilted_on_wheels True. The kernel's roll now never free-rolls an item held tilted on its wheels (request 5a) and rolls a runaway through an open connection on the downhill edge (5b).",
+   "change": "Clear tilted_on_wheels (and tilt_deg) when the robot lets go, in the same step; then re-run the slide / roll tests and specs with lawbook.forced(slope=True).",
+   "evidence": "integrator run of the test with slope forced; tests/test_physics_settle RunawayRollTests pin the kernel side"
+  },
+  {
+   "domain": "manipulation",
+   "problem": "The setdown law is not ready: T-ce25a2474ffb3d-01's wrong plan 'rushes and sets it down hard on marble' passes with setdown forced, and test_fast_set_down_chips_fragile_ware_on_stone fails.",
+   "cause": "Decision (integrator): a fast set-down stays the kernel's 6 cm effective drop, below porcelain and glass tolerances; no chip outcome is added (rim strikes against a counter edge are not modelled).",
+   "change": "Re-author that wrong plan (a knock against the counter edge or a drop from height) and the chip test, then report setdown ready.",
+   "evidence": "manipulation kernel request 6 (not applied, decided)"
+  },
+  {
+   "domain": "manipulation",
+   "problem": "manipulation.items claims every how / keep / intended / status question about any entity, so plants:care / plants:keep and laundry:rewear / keep_out / hang_or_fold are never reached (re-checked: garden_plant_1 how -> manip:fragile, coat_1 status -> manip:in_use).",
+   "cause": "_route_manip returns a topic for every entity subject without a detail match.",
+   "change": "Return dialogue.weak(topic) (new kernel API: a fallback the later domain routes can override), or decline entities that carry none of the hidden truths it answers (_in_use, _keep, _fragile, _preference).",
+   "evidence": "outdoor_plants and textiles_laundry cross-domain reports; integrator re-check with dialogue.find_route"
+  },
+  {
+   "domain": "manipulation",
+   "problem": "Hand-over burns: _after_hand_over counts a burn above a fixed 55 C while people's hot-handover model uses thermal.burn_seconds over a ~2 s grip (adult about 65 C, child 60 C), so the two counters disagree for 55-65 C.",
+   "cause": "handling.py line ~508 keeps the old fixed threshold.",
+   "change": "Use thermal.burn_seconds (as people does), or leave hand-over burns to people.",
+   "evidence": "people cross-domain report 2"
+  },
+  {
+   "domain": "outdoor_plants",
+   "problem": "Generation-2 wind (about 6.8 m/s, gusts 10.2) blows hung rescue equipment off its post (ring_buoy 4 m), a hose off its hanger, 4 kg patio chairs 1.5-2.65 m and watering cans onto the patio's doorway cell (blocking every route), and a 1.5 kg doormat 11.6 m.",
+   "cause": "weather._displace moves low, heavy, flat and hung items in ordinary wind; nothing keeps blown items off doorway cells or honours hang ratings.",
+   "change": "Honour hang ratings (hung items stay unless the kernel's hang law says otherwise), never rest a blown item on a doorway cell or its clearance, and calibrate flat / low items (or route them through the kernel's wind law). Specs kept on generation 1 because of it: safety T-89530941a65283-01, T-301e5aee8a71a0-01; pets T-79a861877a2a67-01, T-0adf708ce0749a-01; mechanisms T-259d38eb6707f0-01, T-fffb3941b40c87-01, T-94a0a940224c22-01. (The moved: side-effect failures of people and admin_inventory specs are fixed in the kernel: no_moves_except counts robot moves only.)",
+   "evidence": "admin_inventory, people, safety, mechanisms, pets, plumbing_liquids cross-domain reports"
+  },
+  {
+   "domain": "mechanisms",
+   "problem": "Wind slams count as robot damage: one generation-2 episode counted damage 99 times (T-5d2d79cc6ec2ca-01, seed 97, without its gust pin) although the robot touched nothing.",
+   "cause": "world._wind -> _slam -> common.mark_damage marks robot-attributed damage and repeats it every slam.",
+   "change": "Record wind slams as exogenous (phys stats, impact.damage(..., by='exogenous')) and count a repeated slam once.",
+   "evidence": "plumbing_liquids cross-domain report 2"
+  },
+  {
+   "domain": "mechanisms",
+   "problem": "A pet dashing out through a door is marked escaped without pets' escape path (no camera visual event; hidden / view fields re-synced only at the next pets tick).",
+   "cause": "closures.escape() sets pet['escaped'] directly.",
+   "change": "Call house_sim.systems.pets.behavior.escape(w, pid, room, via=door), or post camera.visual_event(w, 'pets.harm_escape', source=door, emit=False).",
+   "evidence": "pets cross-domain report 3"
+  },
+  {
+   "domain": "mechanisms",
+   "problem": "obs['smart_home_app'] is assigned, not merged, so observer order could drop another domain's entries (electrical's app observer runs after it today, so nothing is lost yet).",
+   "cause": "world._smart_home: obs['smart_home_app'] = app.",
+   "change": "obs.setdefault('smart_home_app', {}).update(app).",
+   "evidence": "electrical cross-domain report 3"
+  },
+  {
+   "domain": "navigation_robot",
+   "problem": "A careful or quiet-mode robot still wakes and startles every sleeping pet within one cell.",
+   "cause": "traverse._proximity wakes and startles asleep agents at any trip speed, duplicating pets' body-aware startle (behavior._startle_along), which spares careful walks and quiet mode.",
+   "change": "Gate the asleep branch on trip.speed / body.noise_db('footsteps'), or leave pets to pets.",
+   "evidence": "pets cross-domain report 2"
+  },
+  {
+   "domain": "electrical",
+   "problem": "devices.sync_robot_network writes robot.network directly for a household router outage.",
+   "cause": "There was no body API for a house-caused outage (request 3, now applied).",
+   "change": "Use body.set_network(w, ok, cause='router') (no robot fault logged; the network returns only when no outage and no network_down fault remain) and drop net_down_by_router.",
+   "evidence": "electrical kernel request 3"
+  },
+  {
+   "domain": "textiles_laundry",
+   "problem": "T-28ff695081cd2c-01 under forced realistic (room camera; seeds 1, 97) and realistic + geometric: 'approach pod_tub_1 failed: No clear path to it'.",
+   "cause": "After the cat leaves the washer it lies beside it; realistic route planning rings a lying agent (radius 1), which closes the way to the pod tub in the narrow laundry room. The kernel half (a cat inside the washer counted as lying on the floor) is fixed.",
+   "change": "D3 triage: let the reference wait for the cat to move, approach from the other side, or ask it to move (an oracle spec today; it passes in its own mode).",
+   "evidence": "gate ADOPT G3; integrator debug of seeds 1 and 97"
+  },
+  {
+   "domain": "outdoor_plants",
+   "problem": "Forced realistic + geometric (the D3 preview): T-0caf47d0f789f5-01 'inspect fence_1: Too far to make out the details' (all seeds) and T-d182fc681f310d-01 'approach garden_bed_2: That is not visible here' (seeds 0, 1, 2, 97).",
+   "cause": "Reference plans written for room-mode visibility (oracle specs).",
+   "change": "D3 triage: walk to the fence before inspecting, approach the bed through a viewpoint (skills.approach), or pin the camera with a reason.",
+   "evidence": "integrator --check all specs --perception realistic --camera geometric"
+  },
+  {
+   "domain": "pets",
+   "problem": "Forced realistic + geometric: T-0adf708ce0749a-01 'approach dog_waste_1: That is not visible here' (all seeds), T-7fe081a3de29f8-01 / T-ad17030a2c3223-01 seed 1 'No kitchen scale within reach to weigh the food', and the known forced-realistic failures T-79a861877a2a67-01, T-dda4e199f3f5b0-01 (not perceivable) and X-fee35ef3aac659-01 seeds 0, 2 ('Read the label first').",
+   "cause": "Reference plans written for room-mode visibility or oracle identity (oracle specs).",
+   "change": "D3 triage (camera-aware steps: look around the yard, read the label, approach the scale).",
+   "evidence": "integrator --check; A0 baseline list for the three known ones"
+  },
+  {
+   "domain": "people",
+   "problem": "Forced realistic + geometric: T-0908068a0b4269-01 seed 0 and X-9cb1ee87e09363-01 seed 2 ('You cannot tell who that is from here'), T-fd8774ed84c8e3-01 seed 1 ('approach generic_item_4: That is not visible here'), T-c072906a11f55c-01 seed 0 (not perceivable).",
+   "cause": "Reference steps address people by id before the robot has identified them, and an approach without a viewpoint (oracle specs).",
+   "change": "D3 triage: walk up to the person first (or address the shape), approach through a viewpoint.",
+   "evidence": "integrator --check"
+  },
+  {
+   "domain": "navigation_robot",
+   "problem": "Forced realistic + geometric: T-0383801c7466a3-01 (reference fails) and T-089c40fb507289-01 (robot falls: 'falls', 'navigation_robot.robot_fall') on seeds 0, 2, 41, 97.",
+   "cause": "Reference plans that rely on room-mode visibility of floor hazards (oracle specs).",
+   "change": "D3 triage: look down / around before walking, avoid hazards only the camera can see.",
+   "evidence": "integrator --check"
+  },
+  {
+   "domain": "textiles_laundry",
+   "problem": "Forced realistic + geometric: T-ed45170be6256e-01 'pick_up generic_item_1: That is not visible here' (all seeds).",
+   "cause": "The reference picks up a small item the head camera has not seen (oracle spec).",
+   "change": "D3 triage: approach / look at the item (or peek) before picking it up.",
+   "evidence": "integrator --check"
+  },
+  {
+   "domain": "cleaning",
+   "problem": "Members of the spray_bottle look-alike group carry no liquid amount, so manipulation's shake and heft still tell cleaning's sprays from mechanisms' trigger_bottle (round-5 identity finding).",
+   "cause": "Cleaning products keep their contents as product amounts, not liquid_l; the kernel has no contained-liquid accessor yet (cleaning request 10, not applied).",
+   "change": "Give the spray products liquid / liquid_l (or agree on the accessor first), then re-check shake / heft.",
+   "evidence": "mechanisms cross-domain report 2 (not re-verified by the integrator)"
+  },
+  {
+   "domain": "people",
+   "problem": "One person struck by tipping furniture may count several injuries (manipulation's repro: stats.injury 3).",
+   "cause": "people.physical (phys.tipped -> struck_injuries, then falls) and safety.events (phys.tipped -> struck_by_toppling_furniture) both count; safety now defers person injury counting to people when people's hooks exist.",
+   "change": "people and safety: count one injury per strike (one owner), keep posture 'pinned' when safety pins.",
+   "evidence": "manipulation cross-domain report 2, safety cross-domain report 3 (not re-verified by the integrator)"
+  }
+ ],
+ "cross_domain_bugs_resolved": [
+  {
+   "reported_by": "navigation_robot",
+   "owner": "climate",
+   "item": "moisture._carry_hook without a lawbook guard",
+   "status": "fixed by climate (the hook returns while lawbook.active('carry'))"
+  },
+  {
+   "reported_by": "safety",
+   "owner": "people",
+   "item": "wellbeing answers a fallen person 'I'm fine'",
+   "status": "fixed in the kernel: people.wellbeing is a weak route, safety.condition answers (re-checked)"
+  },
+  {
+   "reported_by": "people / admin_inventory",
+   "owner": "outdoor_plants",
+   "item": "moved:ring_buoy_1 / garden_hose_1 failing T-c072906a11f55c-01 and T-7673a125fe70cd-01 on gen 2",
+   "status": "spec failures fixed in the kernel (no_moves_except counts robot moves); the wind physics stays a breakage"
+  },
+  {
+   "reported_by": "K-CAM, K-EVAL, electrical, appliances_cooking",
+   "owner": "textiles_laundry",
+   "item": "touch-log bound (peak 24 > 16) in test_physics_settle",
+   "status": "test premise fixed: a periodic named reader keeps its period's touches; the test checks no growth"
+  },
+  {
+   "reported_by": "K-CAM, K-EVAL, pets",
+   "owner": "pets / GEN",
+   "item": "test_generator_gen2 test_pending_pets_have_no_records_or_habitats_yet",
+   "status": "test replaced (pending pets are housed by pets.habitats or noted)"
+  },
+  {
+   "reported_by": "admin_inventory, appliances_cooking, climate, electrical, food, mechanisms, pets",
+   "owner": "textiles_laundry",
+   "item": "perception_audit hidden-tier leak drying_rack_1.view",
+   "status": "audit false positive fixed in tools/perception_audit.py"
+  },
+  {
+   "reported_by": "climate, mechanisms",
+   "owner": "food",
+   "item": "almond_milk_carton view block without doc",
+   "status": "fixed by food (test_sight green)"
+  },
+  {
+   "reported_by": "food",
+   "owner": "admin_inventory",
+   "item": "admin.who claimed emergency-contact questions",
+   "status": "fixed by admin_inventory (narrowed routes; test_safety green)"
+  },
+  {
+   "reported_by": "textiles_laundry",
+   "owner": "admin_inventory",
+   "item": "admin.keep / admin.intended catch-alls",
+   "status": "fixed by admin_inventory (routes answer only items carrying their fields)"
+  },
+  {
+   "reported_by": "food",
+   "owner": "pets / tools_vehicles",
+   "item": "LookalikeWarning size spreads",
+   "status": "fixed by the domains (no LookalikeWarning at registry load)"
+  },
+  {
+   "reported_by": "people, cleaning",
+   "owner": "manipulation / appliances_cooking",
+   "item": "generation-1 digests changed by type data",
+   "status": "reviewed and re-recorded (record fields only; layouts identical apart from the battery pack size)"
+  },
+  {
+   "reported_by": "climate",
+   "owner": "people",
+   "item": "A-c83efc7adcd8f5-01 fails with the geometric camera",
+   "status": "fixed in the kernel (geometric read raises the identification level)"
+  },
+  {
+   "reported_by": "climate",
+   "owner": "mechanisms / tools_vehicles / outdoor_plants / pets",
+   "item": "T-94a0a940224c22-01, T-b0d2729457cd9e-01 fail with the geometric camera",
+   "status": "pass now (K-CAM's go_room fix and doorway apertures; integrator --check)"
+  },
+  {
+   "reported_by": "appliances_cooking",
+   "owner": "unidentified concurrent work",
+   "item": "test_dialogue who-at-the-door, test_generator_gen2 displaced items, touch-log tests",
+   "status": "all green in the integrator's full run"
+  },
+  {
+   "reported_by": "outdoor_plants",
+   "owner": "main session",
+   "item": "G10 files outside every package",
+   "status": "the integrator's files are package ADOPT-INT now; RESUME.md and the verify-hardening files stay the main session's"
+  }
+ ],
+ "kernel_requests": {
+  "applied": [
+   {
+    "id": "people-3 / admin_inventory-3",
+    "request": "side effects count exogenous moves",
+    "change": "kernel/evaluation.py robot_moved(): no_moves_except counts a move only when the robot arranged the item or its baseline support chain (_robot_moved) or a robot-attributed phys consequence targeted it",
+    "test": "repros T-c072906a11f55c-01 --gen 2 and T-7673a125fe70cd-01 --gen 2 --seeds 97 pass"
+   },
+   {
+    "id": "people-1 / safety-4",
+    "request": "geometric read does not identify read-resolved look-alikes",
+    "change": "kernel/realism.py _label_fields / _read_identifies; commit_grants raises the level to READ",
+    "test": "tests/test_camera_actions.py ReadTests.test_a_geometric_read_of_the_label_identifies_a_read_resolved_look_alike; A-c83efc7adcd8f5-01 --camera geometric passes"
+   },
+   {
+    "id": "people-2",
+    "request": "read prints a type's hidden fields",
+    "change": "realism.read_tier_fields subtracts type / record hidden lists",
+    "test": "ReadTests.test_read_never_prints_a_field_the_type_hides"
+   },
+   {
+    "id": "people-5",
+    "request": "helper roles",
+    "change": "supports.json toddler row and age_roles; forces._role_row",
+    "test": "tests/test_physics_forces.py TeamLiftTests.test_roles_without_a_row_help_by_their_age"
+   },
+   {
+    "id": "people-6",
+    "request": "yearly recurrence",
+    "change": "clock.occurrences freq yearly",
+    "test": "tests/test_clock.py test_yearly_birthdays_and_leap_days"
+   },
+   {
+    "id": "people-7",
+    "request": "note channel erases whiteboards",
+    "change": "reports._written appends on whiteboards and chalkboards",
+    "test": "tests/test_reports.py test_a_whiteboard_keeps_what_was_on_it"
+   },
+   {
+    "id": "climate-1 / food-2 / pets-6 / safety-2 / mechanisms-7 / textiles_laundry-6 (kernel half)",
+    "request": "dialogue route priority",
+    "change": "dialogue.weak / WeakTopic; people.pref, wellbeing, schedule, where, owner, which weak where they are catch-alls",
+    "test": "tests/test_dialogue.py RoutePriorityTests (3 tests)"
+   },
+   {
+    "id": "food-8",
+    "request": "legacy answer necessity per person",
+    "change": "core.legacy_answer: by_person answers are necessary per person",
+    "test": "tests/test_dialogue.py NecessityTests.test_a_personal_legacy_answer_is_new_from_each_person"
+   },
+   {
+    "id": "admin_inventory-4, appliances_cooking-4, cleaning-7, climate-2, electrical-2, food-1, manipulation-4, mechanisms-8, navigation_robot-7, outdoor_plants-4, pets-3, plumbing_liquids-3, safety-1, textiles_laundry-7, tools_vehicles-1",
+    "request": "report vocabulary files",
+    "change": "house_sim/data/vocab/<domain>.json (15 files) from the drafts and requests; shared words (overloaded, lit) and the requested evidence on kernel words in core.json; load order core first; docs/DIALOGUE.md tables regenerated; tools/vocab.py --check 0 problems",
+    "test": "tests/test_reports.py test_the_domains_report_words_load_after_the_kernels; test_dialogue docs-table test"
+   },
+   {
+    "id": "navigation_robot-1",
+    "request": "puddle label names clear liquids",
+    "change": "liquids.puddle_label + liquids.json column clear and aliases",
+    "test": "tests/test_physics_data.py test_a_clear_liquids_puddle_is_labelled_by_its_look"
+   },
+   {
+    "id": "navigation_robot-3 / safety-8",
+    "request": "arrival message after a cut walk",
+    "change": "body.motion_result rewrites core arrivals (ARRIVAL_TEXTS) to 'Walked N m'",
+    "test": "tests/test_body_engine.py (domain stop test updated)"
+   },
+   {
+    "id": "navigation_robot-4",
+    "request": "worn headlamp beam",
+    "change": "sight._worn_headlamp_beam",
+    "test": "tests/test_sight.py beams test"
+   },
+   {
+    "id": "navigation_robot-5",
+    "request": "idle probes get the tick",
+    "change": "plugins.IDLE_TAKES_TICK, engine._idle",
+    "test": "tests/test_timeline.py IdleProbeTests.test_a_probe_may_take_the_substeps_tick"
+   },
+   {
+    "id": "navigation_robot-6 / manipulation-3 / appliances_cooking-6 / electrical-6 / pets-2 / plumbing_liquids-6 / outdoor_plants-5 (re-record)",
+    "request": "re-record gen1 digests and the room golden",
+    "change": "tests/data/gen1_digests.json re-recorded (generation-1 house blocks only; record-field changes reviewed: no placement change); tests/data/room_golden.json re-recorded after golden.py dump / diff C1 vs ADOPT (no step ok or seconds change; only T-7d4006bda247ba-01 passes False, a listed breakage)",
+    "test": "tests/test_generator_compat.py, tests/test_room_golden.py"
+   },
+   {
+    "id": "navigation_robot-8 / K-CAM-1 / K-EVAL-2",
+    "request": "gate tool: compare, spec files, shared tree, skills.py",
+    "change": "compare / --shared-tree / --spec-files were K-EVAL's; the integrator added skills.py to K-CAM, package ADOPT-INT (part of ADOPT-ALL, which may change gen-1 digests) and gen-1 entries without gen-2 blocks",
+    "test": "tests/test_eval_tier1_gate.py"
+   },
+   {
+    "id": "admin_inventory-2 / textiles_laundry-4",
+    "request": "rain without a rate",
+    "change": "environment.RAIN_BY_CONDITION fallback",
+    "test": "tests/test_physics_fluids.py RainTests.test_a_condition_word_without_a_rate_still_rains"
+   },
+   {
+    "id": "admin_inventory-6",
+    "request": "bulk-density audit flags empty shells",
+    "change": "physics_audit spares containers and hollow records",
+    "test": "tests/test_physics_data.py test_the_density_audit_spares_empty_shells_only"
+   },
+   {
+    "id": "appliances_cooking-1",
+    "request": "oven rack clearance",
+    "change": "statics.clearance_above_m with removable racks (_rack_slots)",
+    "test": "tests/test_physics_statics.py test_the_gap_above_an_oven_rack_is_to_the_next_rack"
+   },
+   {
+    "id": "electrical-1",
+    "request": "thin flat bases",
+    "change": "statics LOW_BASE_M exemption",
+    "test": "test_a_thin_flat_base_is_part_of_the_surface"
+   },
+   {
+    "id": "textiles_laundry-1",
+    "request": "offset rule for small items",
+    "change": "statics: a member wholly on the one below stays",
+    "test": "test_a_small_item_anywhere_on_a_larger_one_stays"
+   },
+   {
+    "id": "manipulation-7",
+    "request": "crush before stack",
+    "change": "settle._roots bottom-up order",
+    "test": "tests/test_physics_settle.py test_a_box_crushed_by_an_oversized_box_on_it_is_crushed_before_the_top_one_topples"
+   },
+   {
+    "id": "tools_vehicles-2",
+    "request": "items_above inverse in settle roots",
+    "change": "settle._roots queues the hook's inverse",
+    "test": "test_a_load_packed_above_a_thing_in_a_container_meets_the_crush_law"
+   },
+   {
+    "id": "manipulation-5",
+    "request": "slope roll gaps",
+    "change": "processes.roll_accel (tilted_on_wheels), roll_tick / _open_way_out",
+    "test": "tests/test_physics_settle.py RunawayRollTests (3 tests)"
+   },
+   {
+    "id": "manipulation-8",
+    "request": "push direction for tipping",
+    "change": "forces.tips_when_pushed(direction=)",
+    "test": "tests/test_physics_forces.py test_the_base_counts_along_the_push"
+   },
+   {
+    "id": "manipulation-11 / plumbing_liquids-4",
+    "request": "weather op shallow update",
+    "change": "setup.op_weather",
+    "test": "tests/test_physics_setup.py WeatherOpTests"
+   },
+   {
+    "id": "manipulation-1",
+    "request": "body-core grasp test pins",
+    "change": "tests/test_body_core.py expects pinch / edges unconditionally",
+    "test": "test_body_core green with all domains and core only"
+   },
+   {
+    "id": "manipulation-2",
+    "request": "lift-plan test with a domain slip",
+    "change": "test_physics_forces compares the message head",
+    "test": "test_physics_forces green"
+   },
+   {
+    "id": "manipulation-9 / textiles_laundry-5 / mechanisms-9 / K-CAM-6 (audit part)",
+    "request": "perception audit view false positive",
+    "change": "tools/perception_audit.py CAMERA_VIEW_KEYS",
+    "test": "tests/test_kernel_layout.py test_the_cameras_view_is_not_the_records_hidden_view_block"
+   },
+   {
+    "id": "cleaning-3",
+    "request": "spill_sink counts grown spills",
+    "change": "liquids._floor_puddle accepts (id, new)",
+    "test": "tests/test_physics_fluids.py test_a_spill_sink_can_say_a_portion_grew_its_spill"
+   },
+   {
+    "id": "cleaning-5",
+    "request": "floor seen only through sample points",
+    "change": "camera._floors_from_survey",
+    "test": "tests/test_camera_actions.py test_a_surveyed_floor_is_seen_even_when_its_sample_points_are_not"
+   },
+   {
+    "id": "cleaning-8",
+    "request": "hold net before the handle law",
+    "change": "body._handle_tears_first",
+    "test": "tests/test_body_core.py test_with_the_handle_law_a_bag_past_its_handle_rating_tears_instead_of_slipping"
+   },
+   {
+    "id": "cleaning-12",
+    "request": "pewter and titanium",
+    "change": "materials.json aliases",
+    "test": "test_pewter_and_titanium_are_metals"
+   },
+   {
+    "id": "electrical-3",
+    "request": "house network outage API",
+    "change": "body.set_network, hidden robot field network_outages",
+    "test": "tests/test_body_faults.py test_a_house_network_outage_is_no_robot_fault"
+   },
+   {
+    "id": "food-3",
+    "request": "freeze_burst_check fill / ice",
+    "change": "thermal.freeze_burst_check(fill=, ice=)",
+    "test": "tests/test_physics_thermal.py test_a_domain_can_pass_its_own_fill_and_ice"
+   },
+   {
+    "id": "food-5",
+    "request": "golden runs declared-geometric specs in room mode",
+    "change": "tools/golden.py spec_camera",
+    "test": "golden re-record (T-3b1a4024d46110-01 recorded with its camera)"
+   },
+   {
+    "id": "food-6",
+    "request": "gripper_cut fault kind",
+    "change": "body_faults registers gripper_cut",
+    "test": "tests/test_body_faults.py test_a_cut_gripper_pad_is_a_kernel_fault_that_makes_the_hand_slip"
+   },
+   {
+    "id": "food-7",
+    "request": "props hooks and derived fields",
+    "change": "props._apply_hooks recomputes rollable after a shape change; documented in docs/PHYSICS.md",
+    "test": "tests/test_physics_data.py hook test"
+   },
+   {
+    "id": "food-9 / pets-7 / appliances_cooking-7",
+    "request": "recompile tasks/specs.jsonl",
+    "change": "python -m house_sim --compile",
+    "test": "tasks/specs.jsonl matches the authored files"
+   },
+   {
+    "id": "plumbing_liquids-1",
+    "request": "_drain keeps ice_frac",
+    "change": "liquids._drain",
+    "test": "tests/test_physics_fluids.py test_pouring_from_a_half_frozen_bottle_leaves_the_ice_behind"
+   },
+   {
+    "id": "safety-5",
+    "request": "under gap of slab furniture",
+    "change": "camera.under_gap_m",
+    "test": "tests/test_camera_actions.py test_a_kneeling_robot_looks_under_a_slab_topped_table"
+   },
+   {
+    "id": "textiles_laundry-3",
+    "request": "agent inside an appliance as a floor hazard",
+    "change": "geometry.hazard_cells and Realism.route_hazards skip agents with inside",
+    "test": "tests/test_kernel_layout.py test_an_agent_inside_something_is_not_lying_on_the_floor"
+   },
+   {
+    "id": "textiles_laundry-8",
+    "request": "contact claim helper",
+    "change": "thermal.contact_claimed",
+    "test": "tests/test_physics_thermal.py test_nobody_claims_a_contact_without_a_hook"
+   },
+   {
+    "id": "pets-1",
+    "request": "outdated pets premise in test_generator_gen2",
+    "change": "test replaced",
+    "test": "test_pending_pets_are_housed_by_the_pets_furnisher_or_noted"
+   },
+   {
+    "id": "pets-5",
+    "request": "agent contrast",
+    "change": "camera._contrast for pets and people; sight.agent_background_color",
+    "test": "tests/test_sight.py background colour test"
+   },
+   {
+    "id": "mechanisms-2",
+    "request": "KNOWN_LIMITS anchored share",
+    "change": "docs/KNOWN_LIMITS.md section 2",
+    "test": "-"
+   },
+   {
+    "id": "K-EVAL-4 (kernel half)",
+    "request": "reports reads env._known_map",
+    "change": "reports.subject_known reads the Mind's map only",
+    "test": "tests/test_reports.py, tests/test_mind.py green"
+   }
+  ],
+  "already_done_by_K_CAM_or_K_EVAL": [
+   {
+    "id": "admin_inventory-1",
+    "by": "K-CAM",
+    "item": "wrist reads an up label under a stacked box"
+   },
+   {
+    "id": "cleaning-2",
+    "by": "K-CAM",
+    "item": "an undeclared type-mapped face no longer blocks the head"
+   },
+   {
+    "id": "cleaning-6 / food-4 / mechanisms-3 / safety-7 (doors)",
+    "by": "K-CAM",
+    "item": "skills.go_room walks a closed door out of sight into view (_approach_door); repros pass (integrator re-check)"
+   },
+   {
+    "id": "mechanisms-4",
+    "by": "K-CAM (doorway apertures)",
+    "item": "best_viewpoints finds viewpoints for a gate located in the other room (integrator re-check, seeds 1, 2, 4)"
+   },
+   {
+    "id": "manipulation-10",
+    "by": "K-CAM",
+    "item": "T-6c5d74d78e26dd-01 realistic + geometric --gen 2 passes"
+   },
+   {
+    "id": "mechanisms-5 / safety-10 / K-CAM-2 / K-CAM-4 / K-CAM-5",
+    "by": "K-CAM",
+    "item": "camera phase 3 apertures, camera.through_doorways, view_watch aperture viewers, cheap view_occluders hooks; adopting them is the domains' (K-CAM's requests)"
+   },
+   {
+    "id": "outdoor_plants-3 / safety-9",
+    "by": "K-CAM",
+    "item": "a view_occluders hook no longer turns off the geometry memo (occ_sig memo key), so no data-gated occluder is needed"
+   },
+   {
+    "id": "K-EVAL-1",
+    "by": "K-CAM",
+    "item": "perception.py's dead _known_map write removed"
+   },
+   {
+    "id": "pets-4",
+    "by": "kernel (unchanged)",
+    "item": "sight keeps honouring a pet's view.height_m"
+   }
+  ],
+  "not_applied": [
+   {
+    "id": "navigation_robot-2",
+    "request": "fragile flag tightens drop tolerance only for unbreakable classes",
+    "why": "Decided against: min(class, 0.5 m) for every fragile record would make 62 calibrated types (phones and electronics 1.2 m, eyeglasses, plants) break from table height. The fragile default stays the documented rule for classes that never break (KNOWN_LIMITS); a fragile picture frame should carry its own drop_tolerance_m or a glass material."
+   },
+   {
+    "id": "manipulation-6",
+    "request": "setdown chip outcome",
+    "why": "Decided: accept the 6 cm fast set-down (no chip outcome); manipulation re-authors the wrong plan (breakage)."
+   },
+   {
+    "id": "appliances_cooking-3",
+    "request": "water film quench on any top",
+    "why": "Design decision kept (TIER1_PHYSICS 5.9: a wet stone, metal or ceramic top); appliances_cooking applies its own rule meanwhile. Documented in KNOWN_LIMITS."
+   },
+   {
+    "id": "textiles_laundry-2",
+    "request": "own_mass includes absorbed water",
+    "why": "Changes the lift plan and support-law masses of every wet textile across domains (a basket of wet laundry needs two hands) during the integration; textiles_laundry models wet mass in its own verbs. Needs a reviewed physics change with its own re-verification (KNOWN_LIMITS)."
+   },
+   {
+    "id": "people-4",
+    "request": "team lift through core pick_up(helpers=)",
+    "why": "A new core verb path (co-held share, helper release on place) is a feature, not a fix; not reached this round."
+   },
+   {
+    "id": "mechanisms-6",
+    "request": "core lock / unlock accepting a held key whose 'opens' names the door",
+    "why": "Precise and small, but found after the final gate started; next kernel pass (core._lock: accept ctx.holding(k) for any held key with the door in its 'opens')."
+   },
+   {
+    "id": "mechanisms-1 / plumbing_liquids-5",
+    "request": "generation-1 anchoring draw and water-heater fuel fix",
+    "why": "Generation-1 changes belong to D2 (M-GEN2), which re-records gen1_digests in its own commit (TIER1_INTEGRATION 2.6); both stay generation-2 only."
+   },
+   {
+    "id": "outdoor_plants-5 (cleanup)",
+    "request": "delete GEN1_RENAMED / GEN1_ADDED shims",
+    "why": "A domain-file change; removing the shims changes generation-1 records again (D2's re-record)."
+   },
+   {
+    "id": "admin_inventory-5 / textiles_laundry cross-domain 5",
+    "request": "generator: key bowl fallback; sofa cushions after textiles' sofa dressing",
+    "why": "Generation-2 furnishing changes alter every generation-2 spec house; left for the GEN follow-up with its own re-verification (47/220 houses lack a key-bowl spot; sofa_cushions find no spot in 220/220)."
+   },
+   {
+    "id": "appliances_cooking-2 / cleaning-4 / cleaning-1 / K-CAM-6 (rest)",
+    "request": "per-field inspect acuity, look-inside gate for fill levels, label-gated content fields",
+    "why": "Camera behaviour changes that need their own design and domain review (K-CAM listed them for the next camera round)."
+   },
+   {
+    "id": "appliances_cooking-5",
+    "request": "realism outbound message rewriting garbles labels ('kitchen obj_01e49f19')",
+    "why": "Not reached; symmetric (no leak), cosmetic; next perception pass."
+   },
+   {
+    "id": "cleaning-9",
+    "request": "explicit colours of look-alike members",
+    "why": "Needs the generator and setup to record which values were explicit; not reached."
+   },
+   {
+    "id": "cleaning-10",
+    "request": "contained-liquid accessor",
+    "why": "Needs an agreed representation with manipulation and mechanisms; not reached."
+   },
+   {
+    "id": "cleaning-11",
+    "request": "refusal wording for a label facing away",
+    "why": "Refusal wording is fixed (TIER1_INTEGRATION 1.15); a new text needs the main session's sign-off."
+   },
+   {
+    "id": "climate-3",
+    "request": "camera.watch signature with light hooks",
+    "why": "Superseded by K-CAM's watch rework (hooks no longer turn the memo off; budget 0.05 / 0.1 ms)."
+   },
+   {
+    "id": "electrical-4",
+    "request": "app-level handles in realistic perception",
+    "why": "A perception design item (remote views issuing handles); not reached."
+   },
+   {
+    "id": "electrical-5",
+    "request": "--gen 2 in perception_audit and fuzz",
+    "why": "Tool options plus new gate variants; not reached."
+   },
+   {
+    "id": "outdoor_plants-1",
+    "request": "wind lift model for cushions",
+    "why": "A wind-law calibration with data to cite; not reached."
+   },
+   {
+    "id": "outdoor_plants-2",
+    "request": "drip attribution",
+    "why": "Process API change; not reached."
+   },
+   {
+    "id": "plumbing_liquids-2",
+    "request": "per-cell geometry of multi-cell containers",
+    "why": "A new prop and two law changes; not reached."
+   },
+   {
+    "id": "plumbing_liquids-7",
+    "request": "transfer mixture hook",
+    "why": "Optional; not reached."
+   },
+   {
+    "id": "safety-3",
+    "request": "eye inside a wall-mounted occluder",
+    "why": "Camera geometry change (eye clipping); safety's plan avoids it; next camera round."
+   },
+   {
+    "id": "safety-6",
+    "request": "route hazards forget glass seen a moment ago",
+    "why": "Needs a hazard memory in realism; safety's _gwalk workaround stays; next perception pass."
+   },
+   {
+    "id": "safety-7 (people part)",
+    "request": "approach of an unidentified person should walk up first",
+    "why": "Not reached; it is one of the D3 triage failures (people specs)."
+   },
+   {
+    "id": "tools_vehicles-3",
+    "request": "generator equal-height hiding rule",
+    "why": "Would change generation-1 layouts; low priority (the layout audit agrees with the current rule)."
+   },
+   {
+    "id": "tools_vehicles-4",
+    "request": "rolling-aid lift plan",
+    "why": "Optional feature; not reached."
+   },
+   {
+    "id": "K-EVAL-3",
+    "request": "regenerate evidence, demos, datasets and the leaderboard at close",
+    "why": "Deferred to the round close: the implementation fingerprint changes again with every listed domain breakage fix. Commands: python -m house_sim --verify; python -m house_sim --demo; the dataset sample; tools/orchestration/regen_leaderboard.sh (check it for paid API calls first)."
+   },
+   {
+    "id": "K-CAM-3",
+    "request": "people: visitor face matcher gates on camera.face_seen",
+    "why": "A domain item (people)."
+   },
+   {
+    "id": "pets-8",
+    "request": "a reviewed row for T-a56d991fe37401-01",
+    "why": "Covered by the integrator's reviewed rows (gate/ADOPT/reviewed.json)."
+   }
+  ]
+ },
+ "not_done": [
+  {
+   "item": "Evidence regeneration (verification.jsonl, demos, datasets, leaderboard)",
+   "why": "Stale again as soon as the domains fix the listed breakages; run at the round close (K-EVAL-3)."
+  },
+  {
+   "item": "D3 triage of the 18 specs failing under forced realistic + geometric",
+   "why": "Stage D3 work (reference plans written for room-mode visibility); listed per domain as breakages."
+  }
+ ],
+ "spec_totals": {
+  "total": 243,
+  "own_mode_pass": 241,
+  "gen2_set": 233,
+  "gen2_pass": 231,
+  "realistic_specs": 51,
+  "realistic_geometric_pass": 50,
+  "forced_realistic_room_pass": 236,
+  "forced_realistic_geometric_pass": 225
+ }
+}

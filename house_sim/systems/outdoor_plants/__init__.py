@@ -19,5 +19,7 @@ from . import pool  # noqa: F401
 from . import compost  # noqa: F401
 from . import verbs  # noqa: F401
 from . import furnish  # noqa: F401
+from . import season  # noqa: F401
 from . import helpers  # noqa: F401
 from . import skills  # noqa: F401
+from . import routes  # noqa: F401

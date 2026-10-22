@@ -21,6 +21,10 @@ from . import clocks  # noqa: F401
 from . import pairing  # noqa: F401
 from . import perception  # noqa: F401
 from . import harms  # noqa: F401
+from . import physical  # noqa: F401
+from . import sightlines  # noqa: F401
+from . import hub  # noqa: F401
 from . import furnish  # noqa: F401
+from . import smarthome  # noqa: F401
 from . import scenarios  # noqa: F401
 from . import skills  # noqa: F401

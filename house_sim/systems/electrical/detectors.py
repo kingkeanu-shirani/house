@@ -147,7 +147,7 @@ def sync_detectors(w):
         if rec is None:
             continue
         source, low = power_status(state, eid)
-        operational = source != "none" and rec.get("_sensor_ok", True)
+        operational = source != "none" and rec.get("_sensor_ok", True) and not C.dead(rec)
         eol = expired(state, rec)
         chirp = operational and (low or eol) and C.num(rec.get("chirp_hush_until_s"), -1) < state.get("time_s", 0)
         C.set_if(w, eid, "mounted", mounted(state, eid))
@@ -174,8 +174,75 @@ def _phase(eid):
     return float(sum(ord(c) for c in eid) % 37)
 
 
-@system("electrical.detectors", order=64, max_dt=30.0)
+def _detectors_ignore(rec):
+    """Fields the detector step never reads (a detector's own battery_level is its derived output: kept)."""
+    out = ("internal_temp_c", "charge_rate_w", "charging", "charge_status", "charger", "_load_w", "load_a", "temperature_c")
+    return out if rec.get("category") == "detector" else out + ("battery_level",)
+
+
+DETECTORS_IDLE = C.IdleNote("electrical.detectors", ("detectors", "detector_bases", "cells", "powerable"),
+                            ignore=_detectors_ignore)
+
+
+def _detector_inputs(w):
+    """The detector step's inputs outside the entity table: the air (smoke, CO) of every detector's room, the month (end
+    of life is counted in months) and the chirp schedule of chirping units; None when time alone would change something
+    else (a test or hush timer, a hushed chirp coming back, a CO dose wearing off)."""
+    state = w.s
+    ents = state["entities"]
+    now = state.get("time_s", 0.0)
+    air, chirps = {}, []
+    for eid in C.ids(w, "detectors"):
+        rec = ents.get(eid)
+        if rec is None:
+            continue
+        if rec.get("alarm_state") in ("alarm", "testing", "hushed") or C.num(rec.get("chirp_hush_until_s"), -1) >= now or \
+                C.num(rec.get("hush_until_s"), -1) >= now or C.num(rec.get("test_until_s"), -1) >= now or \
+                C.num(rec.get("_co_dose"), 0.0) > 0:
+            return None
+        if rec.get("chirping"):
+            chirps.append((chirp_period(rec), _phase(eid)))
+        rid = C.room_of(state, eid)
+        if rid:
+            air[rid] = (room_smoke(state, rid), room_co(state, rid))
+    made = clock.now(state)
+    return {"air": air, "month": (made.year, made.month), "chirps": chirps,
+            "safety": C.has_system("safety.detectors")}
+
+
+def _chirp_due(now, period, phase, span=30.0):
+    """A chirp falls in (now - span, now]: the step would emit it (span: the longest substep)."""
+    k = int((now - span - phase) // period) + 1
+    return k * period + phase <= now + 1e-9
+
+
+def detectors_idle(w):
+    """Exact idle probe of electrical.detectors (common.IdleNote)."""
+    note = DETECTORS_IDLE
+    if not note.quiet(w):
+        return False
+    extra = note.extra
+    state = w.s
+    if extra is None:
+        return False
+    now = clock.now(state)
+    if (now.year, now.month) != extra["month"]:
+        return False
+    t = state.get("time_s", 0.0)
+    if not extra["safety"] and any(_chirp_due(t, period, phase) for period, phase in extra["chirps"]):
+        return False
+    return all((room_smoke(state, rid), room_co(state, rid)) == value for rid, value in extra["air"].items())
+
+
+@system("electrical.detectors", order=64, max_dt=30.0, idle=detectors_idle)
 def detectors_system(w, dt, tick):
+    before = w.mutation_count
+    _detectors_step(w, dt, tick)
+    inputs = None if w.mutation_count != before else _detector_inputs(w)
+    DETECTORS_IDLE.after(w, inputs is None, inputs)
+
+
+def _detectors_step(w, dt, tick):
     state = w.s
     ents = state["entities"]
     now = state.get("time_s", 0.0)
@@ -203,6 +270,7 @@ def detectors_system(w, dt, tick):
                 k += 1
             if count:
                 w.emit("detector_chirp", target=eid, room=rid, count=count, pattern="eol" if rec.get("end_of_life") else "low_battery")
+                C.notice(w, "chirp", eid, room=rid)
         if not rec.get("operational"):
             if rec.get("alarm_state") in ("alarm", "testing") and not safety:
                 w.mut(eid)["alarm_state"] = "idle"
@@ -211,21 +279,24 @@ def detectors_system(w, dt, tick):
         # CO dose (UL 2034-like)
         if rec.get("detector_kind") in ("co", "combo") and rid:
             ppm = room_co(state, rid)
-            dose = C.num(rec.get("_co_dose"), 0.0)
-            dose = max(0.0, dose + dt * (ppm - 35.0)) if ppm > 35 else max(0.0, dose - dt * 35.0)
-            m = w.mut(eid)
-            if abs(dose - C.num(rec.get("_co_dose"), 0.0)) > 1e-6:
-                m["_co_dose"] = round(dose, 1)
+            old_dose = C.num(rec.get("_co_dose"), 0.0)
+            dose = max(0.0, old_dose + dt * (ppm - 35.0)) if ppm > 35 else max(0.0, old_dose - dt * 35.0)
             shown = int(round(ppm)) if ppm >= 30 else 0
-            if m.get("co_ppm") != shown:
-                m["co_ppm"] = shown
-                m["display"] = str(shown)
-            if shown > C.num(m.get("co_peak_ppm"), 0):
-                m["co_peak_ppm"] = shown
-            if dose >= CO_ALARM_DOSE and rec.get("_sensor_ok", True) and m.get("alarm_state") != "alarm" and not safety:
-                m["alarm_state"] = "alarm"
-                m["alarm_cause"] = "co"
-                C.event(w, "co_alarm", eid, ppm=shown)
+            alarm = dose >= CO_ALARM_DOSE and rec.get("_sensor_ok", True) and rec.get("alarm_state") != "alarm" and not safety
+            # journal the record only when something changes (clean air: no write, so the idle probe can skip the step)
+            if abs(dose - old_dose) > 1e-6 or rec.get("co_ppm") != shown or shown > C.num(rec.get("co_peak_ppm"), 0) or alarm:
+                m = w.mut(eid)
+                if abs(dose - old_dose) > 1e-6:
+                    m["_co_dose"] = round(dose, 1)
+                if m.get("co_ppm") != shown:
+                    m["co_ppm"] = shown
+                    m["display"] = str(shown)
+                if shown > C.num(m.get("co_peak_ppm"), 0):
+                    m["co_peak_ppm"] = shown
+                if alarm:
+                    m["alarm_state"] = "alarm"
+                    m["alarm_cause"] = "co"
+                    C.event(w, "co_alarm", eid, ppm=shown)
         # smoke
         if rec.get("detector_kind") in ("smoke", "combo") and rid and rec.get("_sensor_ok", True) and not safety:
             smoke = room_smoke(state, rid)

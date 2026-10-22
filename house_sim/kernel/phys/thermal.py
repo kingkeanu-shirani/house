@@ -388,6 +388,15 @@ def contact_mark(cls, contact_c):
     return "scorch"
 
 
+def contact_claimed(w, hot, support_id, temp, severity):
+    """True when a domain's phys.contact_heat hook claims the contact of hot on support_id (a heel rest, a trivet,
+    a domain's own heat model): the check contact_check makes before marking anything. Public so that a domain's
+    legacy contact-heat code (while the law is deferred) honours every other domain's claims the same way
+    (textiles_laundry's adoption request 8: an iron upright on its heel rest scorched the ironing board through
+    another domain's legacy rule)."""
+    return any(run_hooks("phys.contact_heat", w, hot, support_id, temp, severity))
+
+
 def contact_check(w, hot, support_id, by=None):
     """contact_heat law: hot rests directly on support_id and its contact face (contact_temp_c: a vessel's wall is
     cooler than its liquid) is above the support's heat limit. Hooks may claim it; a brittle top is shock-checked
@@ -401,7 +410,7 @@ def contact_check(w, hot, support_id, by=None):
     if limit is None or temp <= limit:
         return None
     severity = round(min(1.0, (temp - limit) / CONTACT_SPAN_K), 4)
-    if any(run_hooks("phys.contact_heat", w, hot, support_id, temp, severity)):
+    if contact_claimed(w, hot, support_id, temp, severity):
         return None
     sp = props.props(state, support_id)
     if sp.brittle and finite(sp.shock_k) is not None:
@@ -706,23 +715,29 @@ def phase_end(w, eid):
     """The plateau ends: the _phys_phase marker goes with the process, so the kernel thermal system resumes."""
 
 
-def freeze_burst_check(w, eid, by=None):
+def freeze_burst_check(w, eid, by=None, fill=None, ice=None):
     """A sealed, rigid container whose ice needs more room than its headspace: 0.09 x fill x ice_frac (+0.03 x
     ice_frac for a narrow glass neck, which plugs with ice first) > 1 - fill. Glass and ceramics burst, a metal can
     bulges and bursts beyond 2 % excess, plastic bulges. Returns "burst", "bulged" or None. Food calls this for its
-    own containers."""
+    own containers. fill / ice: the filled fraction of the capacity and the frozen fraction of the contents when the
+    caller keeps them in its own model (food's adoption request 3); default the record's liquid_l / capacity_l and
+    ice_frac."""
     state = w.s
     rec = state["entities"].get(eid)
     if rec is None or rec.get("broken"):
         return None
-    cap, liters = num(rec.get("capacity_l")), num(rec.get("liquid_l"))
-    if cap <= 0 or liters <= 0 or not liquids.container_closed(rec):
+    if fill is None:
+        cap, liters = num(rec.get("capacity_l")), num(rec.get("liquid_l"))
+        if cap <= 0 or liters <= 0:
+            return None
+        fill = liters / cap
+    fill = min(1.0, max(0.0, num(fill)))
+    if fill <= 0 or not liquids.container_closed(rec):
         return None
     p = props.props(state, eid)
     if not p.rigid:
         return None
-    fill = min(1.0, liters / cap)
-    ice = min(1.0, max(0.0, num(rec.get("ice_frac"))))
+    ice = min(1.0, max(0.0, num(rec.get("ice_frac") if ice is None else ice)))
     need = ICE_EXPANSION * fill * ice
     if p.cls in SHATTER_CLASSES and liquids.mouth_frac(rec, p.mouth_frac) < liquids.WIDE_MOUTH:
         need += NARROW_NECK_MARGIN * ice

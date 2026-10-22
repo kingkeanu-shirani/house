@@ -23,6 +23,12 @@ Every record also has "format", "id" (sha256 of the content without id/meta, use
 perception_fingerprint, split, seed_tag, seed, camera, ...). camera (kernel v3.0) is the camera mode the episode ran in
 ("room" or "geometric": the spec's own, else camera.default_mode).
 
+Multi-phase tasks (kernel v3.1, TIER1_SWEEP 9) are exported as one episode in the harness's protocol: the agent ends
+each phase with {"action": "done"}, recorded as a turn (or step) whose result also carries "phase": {"ended",
+"active", "waiting"}; the observation after it shows the next phase's instruction and request. The last phase's
+done ends the episode (no further done turn). Such records carry meta.phases (the phase ids) and the sft outcome
+"phases" ([{id, success, steps, time_s, end_reason}]); unmet_success lists "<phase id>:<index>" for phase criteria.
+
 Format house-dataset-v3 (kernel v3.0, tier 1): the observation schema changed with the physics, camera and robot-body
 layers (realistic obs.robot is the robot's proprioception with an integer battery gauge equal to obs.battery, physics
 sounds carry loudness words, geometric-camera episodes add obs.camera and obs.lidar), so meta.camera is required and
@@ -698,7 +704,9 @@ class _Audit(object):
 
 class _Recorder(object):
     """Wraps env.step so every primitive step (skills expand to primitives) is recorded with the observation the
-    agent had before it, the command as issued and the agent-facing result."""
+    agent had before it, the command as issued and the agent-facing result. A multi-phase task's phase ends
+    (env.phase_done(), a plan's {"phase_done": true}) are recorded as the agent sends them in the harness, a
+    {"action": "done"} turn, whose result also carries "phase": {"ended", "active", "waiting"}."""
 
     def __init__(self, env, obs_mode, instruction, audit):
         self.env, self.obs_mode, self.audit = env, obs_mode, audit
@@ -716,6 +724,29 @@ class _Recorder(object):
         self.initial = self.current
         self._step_fn = env.step
         env.step = self._step
+        self._phase_done_fn = env.phase_done
+        env.phase_done = self._phase_done
+
+    def _phase_done(self):
+        before = self.current
+        result = self._phase_done_fn()
+        where = "phase end {}".format(len(self.steps) + 1)
+        message = result.get("message")
+        if not isinstance(message, str):
+            message = json.dumps(_plain(message), sort_keys=True)
+        self.audit.message(self.env, "phase_done", "", message, where)
+        obs = result.get("observation")
+        if obs is None:
+            obs = self.env.observe()
+        self.audit.observation(self.env, obs, where)
+        phase = result.get("phase") or {}
+        self.steps.append({"before": before, "action": dict(DONE),
+                           "result": {"ok": bool(result.get("ok")), "message": message,
+                                      "category": result.get("category") or "",
+                                      "phase": {"ended": phase.get("ended"), "active": phase.get("active"),
+                                                "waiting": bool(phase.get("waiting"))}}})
+        self.current = self._pack(obs)
+        return result
 
     def _pack(self, obs):
         data = _plain(obs)
@@ -745,7 +776,7 @@ def _failed_episode(error):
     empty = {"digest": "", "obs": {}}
     return {"steps": [], "initial": empty, "final": empty, "instruction": "", "success": False, "goal_fraction": 0.0, "failures": [],
             "unmet_success": [], "steps_count": 0, "time_s": 0.0, "score": 0.0, "error": error, "plan_error": None,
-            "perceivability_gaps": 0, "drop_leaks": [], "warnings": Counter()}
+            "perceivability_gaps": 0, "phases": None, "ended_by_phase": False, "drop_leaks": [], "warnings": Counter()}
 
 
 def _run_episode(config, task, seed, plan, bindings, strict, obs_mode, perceivability=False):
@@ -757,11 +788,33 @@ def _run_episode(config, task, seed, plan, bindings, strict, obs_mode, perceivab
         return _failed_episode("episode failed: {}: {}".format(type(exc).__name__, exc))
 
 
+def _unmet_success(state, task):
+    """Indexes of the task's success predicates that fail on state; a multi-phase task's are "<phase id>:<index>" of
+    each phase's success list."""
+    from ..kernel.predicates import check
+    scopes = [(None, task.get("success") or [])] + [(p.get("id"), p.get("success") or [])
+                                                    for p in task.get("phases") or [] if isinstance(p, dict)]
+    unmet = []
+    for phase_id, rules in scopes:
+        for index, rule in enumerate(rules):
+            try:
+                ok = check(state, rule)
+            except Exception:  # noqa: BLE001
+                ok = False
+            if not ok:
+                unmet.append(index if phase_id is None else "{}:{}".format(phase_id, index))
+    return unmet
+
+
+def phases_of(task):
+    """The phase ids of a multi-phase task (TIER1_SWEEP 9), None for a single-phase one."""
+    return [p.get("id") for p in task.get("phases") or [] if isinstance(p, dict)] or None
+
+
 def _record_episode(config, task, seed, plan, bindings, strict, obs_mode, perceivability):
     from ..kernel.errors import SpecError
-    from ..kernel.predicates import check
     from ..tasks.runner import PlanError, make_env, run_plan
-    from ..tasks.verify import perceivability_gaps
+    from ..tasks.verify import perceivability_gaps, report_perceivability_gaps
     env = make_env(config, task, seed, perception="realistic")
     if perceivability:
         env.realism.record_observations = True
@@ -778,23 +831,24 @@ def _record_episode(config, task, seed, plan, bindings, strict, obs_mode, percei
         error = "{}: {}".format(type(exc).__name__, exc)
     outcome = env.evaluate()
     state = env.world.s
-    unmet = []
-    for index, rule in enumerate(task.get("success", [])):
-        try:
-            if not check(state, rule):
-                unmet.append(index)
-        except Exception:  # noqa: BLE001
-            unmet.append(index)
+    unmet = _unmet_success(state, task)
     gaps = []
     if perceivability and outcome["success"] and not (error or plan_error):
-        gaps = perceivability_gaps(env, task)
+        # as the verifier's realistic check (tasks/verify.py): reported values and typed reports rest on perception
+        gaps = perceivability_gaps(env, task) + report_perceivability_gaps(env, task)
+    phases = [{k: p.get(k) for k in ("id", "success", "steps", "time_s", "end_reason")}
+              for p in outcome.get("phases") or [] if isinstance(p, dict)] or None
+    # the episode ended with the done that ended its last phase: no further done turn follows it
+    ended_by_phase = bool(recorder.steps) and isinstance(recorder.steps[-1]["result"].get("phase"), dict) and \
+        recorder.steps[-1]["result"]["phase"].get("active") is None and \
+        not recorder.steps[-1]["result"]["phase"].get("waiting")
     return {"steps": recorder.steps, "initial": recorder.initial, "final": recorder.current, "instruction": recorder.instruction,
             "camera": getattr(env, "camera_mode", "room"),
             "success": bool(outcome["success"]), "goal_fraction": outcome["goal_fraction"],
             "failures": env.realism.out_obj(list(outcome["failures"])), "unmet_success": unmet,
             "steps_count": outcome["steps"], "time_s": outcome["time_s"], "score": outcome["score"],
-            "error": error, "plan_error": plan_error, "perceivability_gaps": len(gaps),
-            "drop_leaks": audit.dropping(), "warnings": audit.warnings()}
+            "error": error, "plan_error": plan_error, "perceivability_gaps": len(gaps), "phases": phases,
+            "ended_by_phase": ended_by_phase, "drop_leaks": audit.dropping(), "warnings": audit.warnings()}
 
 
 # ----- first divergence ---------------------------------------------------------------------------------------------
@@ -893,6 +947,10 @@ def _run_job(job):
             "harness_fingerprint": job["harness_fingerprint"], "perception_fingerprint": job["perception_fingerprint"],
             "split": job["split"], "seed_tag": tag, "seed": seed, "variant": oracle.get("variant"),
             "perception": "realistic", "camera": ref.get("camera") or "room", "obs": obs_mode, "schema": SCHEMA}
+    if phases_of(task):
+        # a multi-phase episode (TIER1_SWEEP 9): each phase ends with the agent's done (a done turn whose result
+        # carries "phase"); the observations after it show the next phase's instruction and request
+        meta["phases"] = phases_of(task)
 
     def result_of(step):
         return dict(step["result"])
@@ -900,11 +958,14 @@ def _run_job(job):
     ref_actions = [s["action"] for s in ref["steps"]]
     if "sft" in formats:
         turns = [{"observation": s["before"]["obs"], "action": s["action"], "result": result_of(s)} for s in ref["steps"]]
-        turns.append({"observation": ref["final"]["obs"], "action": dict(DONE)})
+        if not ref.get("ended_by_phase"):
+            turns.append({"observation": ref["final"]["obs"], "action": dict(DONE)})
+        outcome = {"success": True, "goal_fraction": ref["goal_fraction"], "steps": ref["steps_count"],
+                   "time_s": ref["time_s"], "score": ref["score"]}
+        if ref.get("phases"):
+            outcome["phases"] = ref["phases"]
         out["records"]["sft"].append({"format": "sft", "system": SYSTEM_PROMPT, "instruction": instruction, "turns": turns,
-                                      "outcome": {"success": True, "goal_fraction": ref["goal_fraction"], "steps": ref["steps_count"],
-                                                  "time_s": ref["time_s"], "score": ref["score"]},
-                                      "meta": dict(meta, source="reference")})
+                                      "outcome": outcome, "meta": dict(meta, source="reference")})
     out["exported"] = True
     for index, item in enumerate(oracle.get("wrong", [])):
         name = item.get("name") or "wrong_{}".format(index)
@@ -942,6 +1003,10 @@ def _run_job(job):
                 skip("wrong plan issues the same commands as the reference", name)
             elif not div["same_observation"]:
                 skip("observations differ at the first divergence (step pair skipped)", name)
+            elif _canon(div["chosen"]) == _canon(div["rejected"]):
+                # a multi-phase reference ends a phase (done) exactly where the wrong plan stops (done): the same
+                # command, no preference to learn
+                skip("wrong plan stops where the reference ends a phase (step pair skipped)", name)
             else:
                 k = div["index"]
                 observation = ref["steps"][k]["before"]["obs"] if k < len(ref["steps"]) else ref["final"]["obs"]
@@ -1290,6 +1355,13 @@ def _is_result(value):
             and isinstance(value.get("category"), str))
 
 
+def _is_phase_end(result):
+    """The result of a done that ended a phase of a multi-phase task: a result with "phase": {"ended", "active",
+    "waiting"} (any turn, not only the last)."""
+    return _is_result(result) and isinstance(result.get("phase"), dict) and \
+        isinstance(result["phase"].get("ended"), str)
+
+
 def _schema_problems(rec, fmt):
     problems = []
 
@@ -1306,8 +1378,9 @@ def _schema_problems(rec, fmt):
             if not (isinstance(turn, dict) and isinstance(turn.get("observation"), dict) and _is_action(turn.get("action"))):
                 problems.append("turns[{}] needs observation (object) and action (command)".format(i))
                 continue
-            if turn["action"].get("action") == "done":
-                need(last, "turns[{}]: done is only allowed as the last turn".format(i))
+            if turn["action"].get("action") == "done" and not _is_phase_end(turn.get("result")):
+                need(last, "turns[{}]: done is only allowed as the last turn (or as a phase end, whose result "
+                           "carries phase)".format(i))
             else:
                 need(_is_result(turn.get("result")), "turns[{}].result needs ok/message/category".format(i))
         need(isinstance(rec.get("outcome"), dict) and isinstance(rec["outcome"].get("success"), bool), "outcome.success missing")

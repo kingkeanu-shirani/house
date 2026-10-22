@@ -12,10 +12,11 @@ See docs/domains/climate.md. Modules register on import:
   moisture    humidifiers, dehumidifiers, tanks/buckets, refill_reservoir / empty_reservoir verbs
   airclean    air purifiers and air filters (fit, orientation, wrap, layers, loading)
   comfort     occupant thermal comfort and the ``climate.`` answerer
+  routes      canonical questions (ask aspect / about / detail) to the ``climate.`` answerer (kernel v3.1)
   model       the whole-house air system (one substep pass), effects and energy ledger
   perception  observation channel, inspector, invariants
   furnish     furnishers
   scenarios   scenario helpers (climate.*)
   skills      reference skills (climate.*)
 """
-from . import common, sun, hvac, fans, heaters, moisture, airclean, comfort, model, perception, furnish, scenarios, skills  # noqa: F401
+from . import common, sun, hvac, fans, heaters, moisture, airclean, comfort, routes, model, perception, furnish, scenarios, skills  # noqa: F401

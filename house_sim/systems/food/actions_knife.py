@@ -5,13 +5,14 @@ Geometry model (fidelity G / P-approx): every food item has whole dimensions (si
 food.unit_size_m) and, once cut, a piece description (pieces, piece_mm [l,w,h], piece_cv,
 round_pieces, cut_axis). Piece size comes from the requested size and the cut style; size
 spread (coefficient of variation) comes from technique (claw grip), board stability, knife
-sharpness and slips. Rolling round produce, a sliding board, flat fingers or a dull blade make
-the knife slip (robot end-effector cut -> stats.damage). Parts (peel, seeds, pit, stem, root,
+sharpness, slips and greasy fingers on the handle. Rolling round produce, a sliding board, flat fingers, a dull blade
+or a handle in greasy fingers make the knife slip (a cut gripper pad, body_faults gripper_cut, -> stats.damage). Parts (peel, seeds, pit, stem, root,
 bones, ...) are tracked per item; removing a part moves its mass to a scraps pile whose waste
 stream decides where it may be discarded.
 """
 import math
 
+from ...kernel import body
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.physics import is_powered
@@ -49,6 +50,8 @@ def _prepare(ctx, capability, allow=("board", "plate"), need_free_hand=True):
         cv += 0.08
     if float(w.ent(knife).get("sharpness", 1.0)) < 0.5:
         cv += 0.08
+    if ctx.hand_of(knife) and body.slippery(w.s, ctx.hand_of(knife)) >= 0.5:
+        cv += 0.08              # the handle turns in greasy or doughy fingers: uneven pieces (wash the hands first)
     if slipped:
         cv = max(cv, 0.45)
     return fid, w.ent(fid), knife, surface, technique, cv, slipped
@@ -521,6 +524,10 @@ def remove_part(ctx):
     rec = C.food_target(ctx, fid)
     f = rec["food"]
     method = ctx.args.get("method")
+    if part == "pin_bones":
+        # gripping the bone tips needs a precise hand (checked before anything depends on whether there are bones, so
+        # a refusal never tells a realistic robot that the fillet has them)
+        ctx.require_precision(_tool_hand(ctx, PART_TOOLS["pin_bones"]), D.PIN_BONE_MM, "gripping pin bone tips")
     known = set(f.get("parts", [])) | set(f.get("hidden_parts", [])) | ({"pin_bones"} if rec.get("_pin_bones") else set())
     if ctx.realistic and part in SEARCHED_PARTS and part not in known and f.get("cat") in SEARCHED_PARTS[part]:
         # whether a fillet still has pin bones is found by running tweezers along it, not by a refusal
@@ -609,6 +616,18 @@ def remove_part(ctx):
         C.seen_inside(ctx, fid)
     C.seconds(ctx, PART_SECONDS.get(part, 8.0) * count)
     return {"target": fid, "removed": part, "count": count, "loss_g": round(removed, 1), "warning": ctx.data.get("slipped")}
+
+
+def _tool_hand(ctx, caps):
+    """The hand holding the working tool (the named one, else a held tool with one of caps), else the right hand."""
+    for cap in caps or ():
+        try:
+            tool_id = C.optional_tool(ctx, cap, ctx.args.get("tool"))
+        except ActionError:
+            tool_id = None
+        if tool_id and ctx.hand_of(tool_id):
+            return ctx.hand_of(tool_id)
+    return "right"
 
 
 PART_SECONDS = {"pit": 6.0, "calyx": 3.0, "bone": 45.0, "pin_bones": 20.0, "seeds": 10.0}
@@ -782,6 +801,8 @@ def shuck(ctx):
     if f.get("cat") == "shellfish":
         knife = C.tool(ctx, "shuck", ctx.args.get("tool"))
         C.free_hand_for_steadying(ctx, "hold the oyster")
+        if (ctx.args.get("method") or "hinge") == "hinge":
+            ctx.require_precision(ctx.hand_of(knife) or "right", D.OYSTER_HINGE_MM, "working the knife into the hinge")
         protected = "cut_resistant_gloves" in w.robot.get("wearing", []) or \
             (surface in w.s["entities"] and w.ent(surface).get("category") in ("towel", "cloth", "textile"))
         if not protected:
@@ -1020,9 +1041,20 @@ def crush(ctx):
     return {"target": fid, "result": "crushed", "particle_mm": round(size, 2)}
 
 
+def _grind_db(ctx):
+    """Sound at 1 m (body quiet mode, robot_sound): a blade spice or coffee grinder runs at about 80-90 dB; a pestle
+    worked round a mortar is about 50 dB."""
+    w = ctx.w
+    gid = ctx.args.get("target")
+    rec = w.s["entities"].get(gid) or {}
+    if M.food(rec) is not None:
+        rec = w.s["entities"].get(rec.get("location")) or {}
+    return 50.0 if rec.get("tool_kind") == "mortar" else 85.0
+
+
 @action("grind", params={"target": "entity", "tool": "?entity", "setting": "?str:fine|medium|coarse",
                          "seconds": {"type": "number", "default": 0, "min": 0, "max": 120}},
-        duration=C.duration(20.0), irreversible=True, noise=0.6,
+        duration=C.duration(20.0), irreversible=True, noise=0.6, timing="commanded", noise_db=_grind_db,
         doc="Grind whole spices/peppercorns/coffee beans inside a grinder (lid closed, powered) or mortar (target = the "
             "grinder/mortar holding them). Particle size follows setting/time; the grinder keeps the flavour of what it ground.")
 @P.perceived_result
@@ -1052,7 +1084,7 @@ def grind(ctx):
                 lost = 0.4 * M.qty(w.ent(c))
                 M.set_qty(w, c, M.qty(w.ent(c)) - lost)
                 M.spill(w, gid, M.kind(w.ent(c)), lost, "powder")
-            w.emit("grinder_spray", target=gid)
+            C.witness(w, "grinder_spray", source=gid, size_m=0.2, visual="powder sprays", target=gid)
         fill = M.vessel_food_ml(w.s, gid) / max(1.0, M.capacity_ml(grec))
         if fill > 1.0:
             size *= 2.5

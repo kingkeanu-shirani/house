@@ -153,6 +153,8 @@ def hazard_cells(state, rid):
         hazards.setdefault(tuple(item["cell"]), []).append((item["kind"], item.get("source", rid)))
     for group in ("people", "pets"):
         for aid, agent in state.get(group, {}).items():
+            if agent.get("inside"):
+                continue   # in an appliance, a crate or a cupboard: not lying on the floor (textiles_laundry request 3)
             if agent.get("location") == rid and agent.get("pos") and agent.get("posture") in ("sleeping", "lying", "fallen"):
                 hazards.setdefault(tuple(agent["pos"]), []).append(("sleeping" if agent.get("posture") == "sleeping" else "person_down", aid))
     return hazards

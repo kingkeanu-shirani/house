@@ -674,7 +674,7 @@ def thaw(ctx):
             m = w.mut(moving)
             m["location"] = dest
             m["relation"] = "in" if drec.get("container") else "on"
-            for key in ("spos", "pos", "shelf", "held_hand"):
+            for key in M.PLACE_KEYS:
                 m.pop(key, None)
             if m["relation"] == "on":
                 spot = geometry.surface_spot(w.s, dest, moving)

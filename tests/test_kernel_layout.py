@@ -129,6 +129,17 @@ class LyingAvoidTests(unittest.TestCase):
         # without avoid the route goes straight through
         self.assertIn((2, 1), geometry.find_path(state, "bedroom", (0, 1), [(4, 1)], ignore=("resident_1",)))
 
+    def test_an_agent_inside_something_is_not_lying_on_the_floor(self):
+        """Adoption-round request (textiles_laundry 3): a sleeping cat inside a washer was listed as a person_down
+        floor hazard at the washer's cell, and realistic route planning ringed it ('No clear path to it')."""
+        state = self._state()
+        state["pets"] = {"cat_1": {"location": "bedroom", "pos": [4, 4], "posture": "sleeping", "species": "cat",
+                                   "inside": "washer_1"}}
+        hazards = geometry.hazard_cells(state, "bedroom")
+        self.assertNotIn((4, 4), hazards)
+        state["pets"]["cat_1"].pop("inside")
+        self.assertIn(("sleeping", "cat_1"), geometry.hazard_cells(state, "bedroom")[(4, 4)])
+
     def test_path_blocked_hooks_see_the_aliases(self):
         seen = []
 
@@ -400,6 +411,25 @@ class PerceptionAuditTests(unittest.TestCase):
         leaks = []
         perception_audit.check_obs(env, obs, leaks, "t")
         self.assertFalse([l for l in leaks if l[0] == "tier" and "toy_block_7.material" in l[2]], leaks)
+
+    def test_the_cameras_view_is_not_the_records_hidden_view_block(self):
+        """Adoption-round requests (manipulation 9, textiles_laundry 5, mechanisms 9): a record with its own view
+        block (never-tier) was reported as a hidden leak in geometric observations, whose records all carry the
+        camera's own "view" (realism.view_dict). The record's block itself shown would still be a leak."""
+        env = self._env()
+        record = env.world.s["entities"]["toy_block_7"]
+        record["view"] = {"porosity": 0.6}
+        handle = env.realism.handles.handle("toy_block_7")
+        camera_view = {"bearing_deg": 10.0, "elev_deg": -20.0, "px": 120.0, "occluded": 0.0, "via": "head",
+                       "light": "bright", "range_m": 1.4}
+        leaks = []
+        perception_audit.check_obs(env, {"visible_entities": {handle: {"view": camera_view}}, "grid": {"hazards": []}},
+                                   leaks, "camera view")
+        self.assertFalse([l for l in leaks if l[0] == "hidden"], leaks)
+        leaks = []
+        perception_audit.check_obs(env, {"visible_entities": {handle: {"view": {"porosity": 0.6}}},
+                                         "grid": {"hazards": []}}, leaks, "record view")
+        self.assertTrue([l for l in leaks if l[0] == "hidden" and "toy_block_7.view" in l[2]], leaks)
 
     def test_tier_rule_still_flags_unlearned_or_changed_values(self):
         from house_sim.kernel.realism import INSPECT

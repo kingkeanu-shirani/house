@@ -1,0 +1,32 @@
+{
+ "about": "manipulation's report words (adoption request manipulation 4): the handling, packing and orientation conditions this domain models, with their record fields.",
+ "issues": {
+  "tangled": {"class": "condition", "synonyms": ["tangle", "snarled", "knotted_up"], "evidence": [{"field": "tangle"}]},
+  "knotted": {"class": "condition", "synonyms": ["knot", "has_a_knot"], "evidence": [{"field": "knot"}]},
+  "tipped_over": {"class": "order", "synonyms": ["knocked_over", "toppled", "fell_over"], "evidence": [{"field": "tipped_over"}, {"field": "orientation"}]},
+  "overfull": {"class": "supply", "synonyms": ["overpacked", "too_full", "will_not_close"], "evidence": [{"field": "packing"}]},
+  "peeling_label": {"class": "condition", "synonyms": ["label_peeling", "label_coming_off"], "evidence": [{"field": "label_adhesion"}]},
+  "blown_away": {"class": "order", "synonyms": ["blew_away", "blown_off", "wind_took_it"], "evidence": [{"field": "blown_away"}]},
+  "loose_cap": {"class": "condition", "synonyms": ["cap_loose", "lid_not_tight", "cap_not_tight"], "evidence": [{"field": "cap"}]}
+ },
+ "states": {
+  "wrapped": {"synonyms": ["wrapped_up", "padded"], "evidence": [{"field": "wrapped"}], "opposite": "unwrapped"},
+  "unwrapped": {"synonyms": ["not_wrapped", "bare"], "evidence": [{"field": "wrapped"}], "opposite": "wrapped"},
+  "covered": {"synonyms": ["covered_up", "lidded"], "evidence": [{"field": "covered_by"}], "opposite": "uncovered"},
+  "uncovered": {"synonyms": ["not_covered", "exposed"], "evidence": [{"field": "covered_by"}], "opposite": "covered"},
+  "capped": {"synonyms": ["cap_on", "capped_off"], "evidence": [{"field": "cap"}], "opposite": "uncapped"},
+  "uncapped": {"synonyms": ["cap_off", "no_cap"], "evidence": [{"field": "cap"}], "opposite": "capped"},
+  "zipped": {"synonyms": ["zipped_up", "zip_closed"], "evidence": [{"field": "zipper"}], "opposite": "unzipped"},
+  "unzipped": {"synonyms": ["zip_open", "not_zipped"], "evidence": [{"field": "zipper"}], "opposite": "zipped"},
+  "upright": {"synonyms": ["standing_up", "right_way_up"], "evidence": [{"field": "orientation"}]},
+  "upside_down": {"synonyms": ["inverted", "wrong_way_up"], "evidence": [{"field": "orientation"}]},
+  "on_side": {"synonyms": ["on_its_side", "lying_on_side"], "evidence": [{"field": "orientation"}]},
+  "coiled": {"synonyms": ["coiled_up", "wound_up"], "evidence": [{"field": "coiled"}]},
+  "rolled_up": {"synonyms": ["rolled"], "evidence": [{"field": "rolled"}]},
+  "flattened": {"synonyms": ["flat_packed", "broken_down"], "evidence": [{"field": "flattened"}]},
+  "inflated": {"synonyms": ["blown_up", "pumped_up"], "evidence": [{"field": "inflated"}], "opposite": "deflated"},
+  "deflated": {"synonyms": ["flat", "let_down"], "evidence": [{"field": "inflated"}], "opposite": "inflated"},
+  "stacked": {"synonyms": ["in_a_stack", "piled"], "evidence": [{"field": "stack_member"}]},
+  "packed": {"synonyms": ["packed_up", "boxed"], "evidence": [{"field": "pack_seq"}]}
+ }
+}

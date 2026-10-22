@@ -8,7 +8,7 @@ claims, which task specs compare with the ground truth they set up.
 """
 import copy
 
-from ...kernel import geometry
+from ...kernel import camera, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.realism import INSPECT
@@ -97,26 +97,61 @@ def _count_seconds(ctx):
     return ctx.data.get("seconds", 2.0)
 
 
-def _realistic_matches(ctx, realism, scope, visible, what, by):
+COUNT_LEVELS = ("recognize", "identify")     # a thing the cameras make out at least this well can be counted
+
+
+def _geometric_view(ctx, scope, members):
+    """Geometric camera (TIER1_CAMERA 7, 9.2, 19): what this count's frames make out. A container or shelving scope
+    within reach is looked into with the wrist camera first (camera.peek "inside": the back rows a front row hides,
+    camera_log.looked_in; +2 s), from wherever it is the head looks at it (Ctx.obj's auto-gaze). Returns (counted,
+    unclear, close): the members the step's frames resolve to "recognize" or better (camera.acuity: about 32 px
+    across, lit), those only detected (a shape too small or far to tell), and those the robot looked at closely
+    enough to tell look-alikes apart (ctx.inspect_check: 160 px with the head, else the wrist within reach)."""
+    w = ctx.w
+    state = w.s
+    if scope in state["entities"]:
+        ok, _, lift = camera.peek_access(state, scope, "inside")
+        if ok and not lift and (state["entities"][scope].get("shelf_heights") or
+                                state["entities"][scope].get("container")):
+            camera.peek(ctx, scope, "inside")
+            ctx.spend(camera.INSPECT_WRIST_S)
+    counted, unclear, close = [], [], set()
+    for eid in members:
+        info = ctx.acuity(eid)
+        if info is None:
+            continue
+        if info["level"] in COUNT_LEVELS:
+            counted.append(eid)
+            if ctx.inspect_check(eid)[0]:
+                close.add(eid)
+        elif info.get("level") is not None:
+            unclear.append(eid)
+    return counted, unclear, close
+
+
+def _realistic_matches(ctx, realism, scope, visible, what, by, close=None):
     """Realistic perception: (seen, matched, unidentified). A room-wide count from where the robot stands can miss
     small things (the kernel's small-object model; counting a shelf or container looks closely and finds them).
     Counting looks at each item closely (inspect), so inspect-resolved look-alikes are told apart; members of a
     read-resolved group that were not read are matched only when every member of the group fits `what`,
-    otherwise they are reported as unidentified, never counted by their hidden identity."""
+    otherwise they are reported as unidentified, never counted by their hidden identity. Geometric camera (close:
+    the ids the cameras looked at closely, see _geometric_view): `visible` is already what the frames made out, and
+    only the closely seen ones get the close look's identity (the rest keep what the robot knew)."""
     state = ctx.w.s
     reg = ctx.w.reg
     seen = []
     room_scope = scope in state["rooms"]
     for eid in visible:
         rec = state["entities"][eid]
-        if room_scope and realism.missed(state, eid, rec, realism.context(state, eid, rec)):
+        if close is None and room_scope and realism.missed(state, eid, rec, realism.context(state, eid, rec)):
             continue
         seen.append(eid)
     matched, unidentified = [], []
     key = slug(what) if what else None
     for eid in seen:
         rec = state["entities"][eid]
-        level = max(INSPECT, realism.knowledge.entity_level(eid, rec))
+        known = realism.knowledge.entity_level(eid, rec)
+        level = max(INSPECT, known) if close is None or eid in close else known
         ident = realism.identity(eid, rec, level)
         if "candidates" not in ident:
             if matches(rec, eid, what, by):
@@ -139,6 +174,16 @@ def _realistic_matches(ctx, realism, scope, visible, what, by):
     return seen, matched, unidentified
 
 
+def _printed_count_legible(ctx, eid):
+    """The printed count on a sealed pack can be read now: room camera, the room is lit; geometric camera, the
+    read rule of the cameras for its pack_count print (ctx.read_check: about 2 cm figures on retail packs, the face
+    in view; a pack under another one or turned to the wall does not show it)."""
+    if ctx.camera_mode == "geometric":
+        ok, _, _, fields = ctx.read_check(eid, ["pack_count"])
+        return bool(ok and "pack_count" in fields)
+    return ctx.env.perception.lit(ctx.w.s, ctx.w.robot["room"])
+
+
 @action("count", params={"target": "target", "what": "?str", "by": "?str:any|sku|type|category|label",
                          "unit": "?str:units|packages", "include_in_use": {"type": "bool", "default": False}},
         duration=_count_seconds, energy=0.001, category="perception",
@@ -149,35 +194,54 @@ def count(ctx):
     scope = ctx.args["target"]
     what, by = ctx.args.get("what"), ctx.args.get("by") or "any"
     unit = ctx.args.get("unit") or "units"
+    geometric = ctx.camera_mode == "geometric"
+    if geometric:
+        ctx.require_imaging()       # counting is looking (the colour cameras; TIER1_INTEGRATION 1.3)
     members = _scope_members(ctx, scope)
     visible = [e for e in members if ctx.visible(e)]
+    unclear, close = [], None
+    if geometric:
+        visible, unclear, close = _geometric_view(ctx, scope, visible)
     realism = ctx.env.realism
     unidentified = []
     if realism is not None:
-        visible, matched, unidentified = _realistic_matches(ctx, realism, scope, visible, what, by)
+        visible, matched, unidentified = _realistic_matches(ctx, realism, scope, visible, what, by, close=close)
     else:
         matched = [e for e in visible if matches(state["entities"][e], e, what, by)]
     matched_set = set(matched)
     tested = state.get("facts", {}).get("admin", {}).get("tested", {})
+    # geometric camera: a sealed pack is counted by its printed count when the cameras can read it (the rolls deep in
+    # a clear 12-pack hide behind the outer ones); its units are not counted again. Room camera: as before (units
+    # through clear wrap one by one, the printed count of an opaque pack)
+    by_label = {e for e in matched if geometric and state["entities"][e].get("multipack") and
+                state["entities"][e].get("sealed") and not state["entities"][e].get("open") and
+                _printed_count_legible(ctx, e)}
     result = {"scope": scope, "what": what, "unit": unit, "count": 0, "partial": 0, "levels": {}, "empty": 0,
               "in_use": 0, "untested": 0, "packages": 0, "from_label": 0, "ids": []}
+    if geometric:
+        result["unclear"] = len(unclear)        # shapes seen but too small, far or dim to tell what they are
+        result["unread"] = 0                    # sealed packs whose printed count cannot be read from here
     counted_ids = []
     for eid in matched:
         rec = state["entities"][eid]
         parent = rec.get("location")
         inside_pack = parent in matched_set and state["entities"][parent].get("multipack")
+        if parent in by_label and unit != "packages":
+            continue                    # counted by its pack's printed count
         if rec.get("multipack"):
             result["packages"] += 1
             if unit == "packages":
                 result["count"] += 1
                 counted_ids.append(eid)
                 continue
-            if not (rec.get("transparent") or rec.get("open")):
-                if ctx.env.perception.lit(state, w.robot["room"]):
+            if eid in by_label or not (rec.get("transparent") or rec.get("open")):
+                if _printed_count_legible(ctx, eid):
                     result["count"] += int(rec.get("pack_count", 0))
                     result["from_label"] += int(rec.get("pack_count", 0))
                     counted_ids.append(eid)
                     ctx.grant(eid, "read", ["pack_count", "sku", "label_text"])    # the printed count was read
+                elif geometric:
+                    result["unread"] += 1
             continue
         if unit == "packages" and inside_pack:
             continue
@@ -196,13 +260,19 @@ def count(ctx):
         if "units_count" in rec and rec.get("unit_name") and unit == "units":
             inside = int(rec["units_count"])
             printed = int(rec.get("pack_count", inside))
+            if (rec.get("open") or not rec.get("openable")) and geometric and eid not in close:
+                result["unread"] += 1           # the units in an open box are counted only on a close look
+                continue
             if rec.get("open") or not rec.get("openable"):
                 result["count"] += inside
                 ctx.grant(eid, "measure", ["units_count"])          # counted unit by unit
-            else:
+            elif not geometric or _printed_count_legible(ctx, eid):
                 result["count"] += printed
                 result["from_label"] += printed
                 ctx.grant(eid, "read", ["pack_count", "sku", "label_text"])
+            else:
+                result["unread"] += 1
+                continue
         else:
             result["count"] += 1
         if level is not None and realism is not None and not observable:
@@ -227,7 +297,8 @@ def count(ctx):
         if scope in state["entities"]:
             ctx.grant(scope, "inspect")                              # a close look at the shelf finds small items
         for eid in counted_ids + unidentified:
-            ctx.grant(eid, "inspect")
+            if close is None or eid in close:
+                ctx.grant(eid, "inspect")
     # counting time by what the robot looked at (everything it perceives in the scope), never by hidden things
     ctx.data["seconds"] = 1.5 + 0.4 * len(visible if len(visible) < 60 else visible[:60])
     result = ordered(ctx.env, result)          # realistic: id-keyed levels in handle order (never true-id order)

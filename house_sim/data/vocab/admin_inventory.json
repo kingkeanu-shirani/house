@@ -1,0 +1,37 @@
+{
+ "about": "admin_inventory's report vocabulary (requested as house_sim/data/vocab/admin_inventory.json; docs/domains/admin_inventory.md section 17): issues and states of papers, mail, parcels, office machines, stock and storage, each with the evidence a robot can perceive.",
+ "issues": {
+  "paper_jam": {"class": "function", "synonyms": ["printer_jam", "paper_jammed", "misfeed"], "evidence": [{"field": "status"}, {"field": "display"}, {"notice": "device_beep"}]},
+  "out_of_paper": {"class": "supply", "synonyms": ["no_paper", "paper_out", "needs_paper"], "evidence": [{"field": "status"}, {"field": "display"}, {"field": "sheets_loaded"}, {"notice": "device_beep"}]},
+  "low_ink": {"class": "supply", "synonyms": ["ink_low", "toner_low", "low_toner"], "evidence": [{"field": "status"}, {"field": "display"}, {"field": "remaining"}]},
+  "out_of_ink": {"class": "supply", "synonyms": ["ink_empty", "no_ink", "toner_empty", "out_of_toner"], "evidence": [{"field": "status"}, {"field": "display"}, {"field": "remaining"}, {"notice": "device_beep"}]},
+  "misdelivered": {"class": "order", "synonyms": ["wrong_address", "not_ours", "wrong_house", "delivered_to_the_wrong_house"], "evidence": [{"field": "recipient"}, {"field": "address"}, {"field": "to_text"}]},
+  "former_occupant": {"class": "order", "synonyms": ["previous_resident", "old_tenant", "moved_away"], "evidence": [{"field": "recipient"}, {"field": "to_text"}]},
+  "overdue": {"class": "order", "synonyms": ["past_due", "late_payment", "unpaid"], "evidence": [{"field": "date"}, {"field": "action_required"}, {"field": "markings"}]},
+  "misfiled": {"class": "order", "synonyms": ["filed_wrong", "wrong_folder", "wrong_drawer"], "evidence": [{"field": "location"}, {"field": "label_text"}]},
+  "postage_due": {"class": "order", "synonyms": ["insufficient_postage", "needs_postage", "underpaid_postage"], "evidence": [{"field": "carrier_note"}, {"field": "postage_cents"}, {"field": "stamps"}]},
+  "duplicate": {"class": "order", "synonyms": ["duplicates", "doubled", "bought_twice"], "evidence": [{"field": "location"}, {"field": "count"}, {"field": "sku"}]},
+  "crushed": {"class": "condition", "synonyms": ["squashed", "caved_in", "crumpled_box"], "evidence": [{"field": "damage"}, {"field": "crushed"}]},
+  "sagging": {"class": "condition", "synonyms": ["bowing", "bowed", "sagged"], "evidence": [{"field": "sagging"}, {"field": "collapsed_shelves"}]},
+  "illegible": {"class": "condition", "synonyms": ["smudged_label", "unreadable", "label_smudged"], "evidence": [{"field": "label_smudged"}, {"field": "faded"}]},
+  "incompatible_storage": {"class": "safety", "synonyms": ["chemicals_together", "stored_together", "mixed_chemicals"], "evidence": [{"field": "location"}, {"field": "chem_class"}]}
+ },
+ "states": {
+  "sealed": {"synonyms": ["taped_shut", "unopened"], "opposite": "unsealed", "evidence": [{"field": "sealed"}, {"field": "tape_sealed"}]},
+  "unsealed": {"synonyms": ["cut_open", "slit_open"], "opposite": "sealed", "evidence": [{"field": "sealed"}, {"field": "tape_sealed"}, {"field": "slit"}]},
+  "filed": {"synonyms": ["put_in_its_folder", "in_the_folder"], "evidence": [{"field": "location"}]},
+  "shredded": {"synonyms": ["shredded_up"], "evidence": [{"field": "shredded"}]},
+  "flagged": {"synonyms": ["flag_up", "flag_raised"], "opposite": "unflagged", "evidence": [{"field": "settings"}]},
+  "unflagged": {"synonyms": ["flag_down", "flag_lowered"], "opposite": "flagged", "evidence": [{"field": "settings"}]},
+  "delivered": {"synonyms": ["arrived", "dropped_off"], "evidence": [{"field": "location"}, {"notice": "doorbell"}]},
+  "collected": {"synonyms": ["picked_up", "taken_away"], "evidence": [{"field": "emptied_at_s"}, {"notice": "collection_truck"}]}
+ },
+ "category_classes": {
+  "package": ["condition", "order", "moisture", "safety"],
+  "office_device": ["function", "supply", "condition", "safety"],
+  "luggage": ["condition", "order", "moisture", "soil"],
+  "organizer": ["order", "condition", "supply"],
+  "folder": ["order", "condition"],
+  "stationery": ["supply", "condition", "order"]
+ }
+}

@@ -429,7 +429,7 @@ def carrier_visit(w, now_dt):
 def mail_tick(w, dt):
     state = w.s
     route = _route(state)
-    now_dt = clock.now(state)
+    now_dt = clock.wall(state)      # the carrier's round keeps wall-clock time
     hh_time = route.get("time", "13:30")
     hour, minute = [int(x) for x in str(hh_time).split(":")[:2]]
     target = now_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
@@ -455,4 +455,4 @@ def _event_mail_delivery(w, args, env):
 
 @hook("event:admin_carrier_visit")
 def _event_carrier(w, args, env):
-    return carrier_visit(w, clock.now(w.s))
+    return carrier_visit(w, clock.wall(w.s))

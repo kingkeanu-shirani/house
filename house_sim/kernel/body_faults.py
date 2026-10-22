@@ -617,7 +617,7 @@ def _network_down(robot, record):
 
 
 def _network_up(robot, record):
-    robot["network"] = True
+    robot["network"] = not robot.get("network_outages")     # a house outage (body.set_network) outlasts the fault
     robot.pop("network_until_s", None)
 
 
@@ -657,6 +657,19 @@ register_fault_kind("arm_weak", "arm", _weaken_arm, detect=LATENT, clear=_restor
 register_fault_kind("arm_failed", "arm", _fail_arm, clear=_restore_arm, onset=_arm_failed_onset, doc="Arm failed")
 register_fault_kind("gripper_slip", "gripper", _noop, detect=LATENT,
                     doc="Grasp friction x 0.6; loads of 1 kg or more may slip out after a walk")
+
+
+def _cut_pad_slips(w, record):
+    if body.fault(w.s, "gripper_slip_" + record["part"]) is None:
+        add_fault(w, "gripper_slip", part=record["part"], source="gripper_cut")
+
+
+# a kernel kind since the adoption round (food's request 6): food and cleaning raised the same fault and each
+# registered it when loaded first; their own registrations now find it here and step aside
+register_fault_kind("gripper_cut", "gripper", _noop, onset=_cut_pad_slips,
+                    doc="A blade cut a gripper pad (a knife, mandoline, grater or oyster knife slipped into the "
+                        "holding hand, or a knife wiped toward its edge): the gashed pad grips worse (a gripper_slip "
+                        "fault on that hand) until service replaces it")
 register_fault_kind("legs_weak", "legs", _min_field("legs_health"), clear=_field("legs_health", 1.0),
                     doc="Legs at half strength: careful speed only, no stairs, no climbing")
 register_fault_kind("actuator_failed", "body", _field("actuator_ok", False), clear=_field("actuator_ok", True),

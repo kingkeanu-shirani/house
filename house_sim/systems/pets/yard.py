@@ -6,11 +6,17 @@ cell of them or inspects the ground closely nearby (inspect <floor> where=closel
 over a pile soils the robot's feet (robot.pet_waste_on_feet 0..1); entering an indoor room with soiled feet
 smears biohazard soil on that floor (tracked waste). Walking on grass wipes the feet a little.
 """
-from ...kernel import geometry
+from ...kernel import body, geometry
 from ...kernel.plugins import after
 from ..core import add_soil
 from . import common as C
 from .perception import reveal_near
+
+# the robot field this domain writes (kernel v3.0 body field registry; hidden: the robot learns it from "You stepped in
+# dog poop", not from proprioception)
+body.register_robot_field("pet_waste_on_feet", 0.0, "pets", "hidden",
+                          "dog waste on the robot's feet, 0..1 (stepping in a pile; walking on grass wipes some off; "
+                          "carried indoors it soils the floor)")
 
 
 def _waste_cells(state, rid):

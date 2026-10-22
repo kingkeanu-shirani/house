@@ -17,8 +17,12 @@ from . import common as C
 
 @after("report", order=120)
 def _mirror(ctx, result):
+    """The legacy report(target, field, value) mirrored onto the entity and judged. A typed report (kernel v3.1
+    kind/subject: target and field None) gives this nothing to mirror: the kernel's report_log and predicates judge it."""
     w = ctx.w
-    target, field, value = ctx.args["target"], ctx.args["field"], ctx.args["value"]
+    target, field, value = ctx.args.get("target"), ctx.args.get("field"), ctx.args.get("value")
+    if target is None or field is None:
+        return
     C.mirror_report(w, target, field, value)
     judge = REPORT_JUDGES.get(field)
     if judge and target in w.s["entities"]:

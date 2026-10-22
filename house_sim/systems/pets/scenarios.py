@@ -494,21 +494,18 @@ def _furniture_any(ctx, value, fallbacks, type_name, what, indoor_any=True, **pr
 
 
 STORAGE_KINDS = ("cabinet", "closet_shelving", "shelf_unit", "bookshelf")
-# Per-shelf load ratings (kg) of household storage (the admin_inventory domain collapses an overloaded shelf):
-# base cabinet shelves ~30 kg, wall cabinets ~15 kg, wire closet shelves / particleboard bookcases ~25 kg, steel
-# shelving units ~90 kg. `shelf_load_kg` on a record wins. Supplies are kept at <= 80 % of the rating.
-SHELF_RATING_KG = (("shelf_unit", 90.0), ("bookshelf", 25.0), ("closet_shelving", 25.0), ("upper_cabinet", 15.0),
-                   ("filing_cabinet", 30.0), ("cabinet", 30.0), ("wardrobe", 40.0), ("closet", 40.0))
+# Supplies are kept at <= 80 % of a shelf's rated load. The rating is the kernel's (TIER1_PHYSICS 4.6, the overload
+# law): the record's shelf_rating_kg / shelf_load_kg, else supports.json (base cabinet 30 kg, wall cabinet 20, wire
+# closet shelving and particleboard bookcases 25, wardrobes 40, steel shelving units 90), with its per-instance
+# variation, so a filled shelf stays under the very limit the kernel enforces once the robot puts a bag back.
 SHELF_USE = 0.8
 
 
-def _shelf_rating(rec):
-    if rec.get("shelf_load_kg") is not None:
-        return C.num(rec.get("shelf_load_kg"), 1e9)
-    for type_name, value in SHELF_RATING_KG:
-        if rec.get("type") == type_name or type_name in (rec.get("is_a") or []):
-            return value
-    return None
+def _shelf_rating(ctx, container):
+    """The kernel's effective per-shelf rating (kg) of a storage piece, or None when its shelves are unrated."""
+    from ...kernel import physics
+    rating = physics.props(ctx.placer.state(), container).shelf_rating_kg
+    return None if rating is None or rating != rating or rating == float("inf") else float(rating)
 
 
 def _config_children(ctx, eid):
@@ -516,16 +513,9 @@ def _config_children(ctx, eid):
 
 
 def _config_mass(ctx, eid):
-    total, stack, seen = 0.0, [eid], set()
-    while stack:
-        cur = stack.pop()
-        if cur in seen:
-            continue
-        seen.add(cur)
-        rec = _ent(ctx, cur)
-        total += C.num(rec.get("mass_kg")) + C.num(rec.get("liquid_l")) * C.num(rec.get("liquid_density"), 1.0)
-        stack.extend(_config_children(ctx, cur))
-    return total
+    """Mass of eid and everything in or on it: the kernel's one subtree mass (liquids at their liquids.json density)."""
+    from ...kernel import physics
+    return physics.subtree_mass(ctx.placer.state(), eid)
 
 
 def _shelf_items(ctx, container, shelf):
@@ -549,7 +539,7 @@ def _room_for(ctx, container, shelf, kg, litres, size=None):
     cap = C.num(rec.get("capacity_l"))
     if cap > 0 and _used_l(ctx, container) + litres > cap + 1e-9:
         return False
-    rating = _shelf_rating(rec)
+    rating = _shelf_rating(ctx, container)
     if rating is not None and _shelf_load(ctx, container, shelf) + kg > SHELF_USE * rating + 1e-9:
         return False
     return True
@@ -1764,6 +1754,14 @@ def h_person(ctx, id, room=None, role="adult", label=None, props=None):
                                 "permissions": [], "preferences": {}}
     if label:
         record["label"] = label
+    if record.get("in_bed") or record.get("awake") is False or record.get("posture") == "sleeping":
+        # someone the scene puts in this room is up and about there: a generation-2 resident asleep in bed at the start
+        # time (in_bed, posture sleeping) would otherwise lie asleep on the kitchen floor
+        record.pop("in_bed", None)
+        record["awake"] = True
+        record["posture"] = "standing"
+        if record.get("activity") in ("sleeping", "napping"):
+            record.pop("activity", None)
     record["location"] = rid
     record["pos"] = _agent_cell(ctx, rid, exclude=(id,))
     record.update(copy.deepcopy(props or {}))

@@ -48,6 +48,9 @@ Command logs (see ``parse_log``): the harness's house-harness-log-v1 ({"steps": 
 only), "require_done", ...}). The replay re-issues each "sent" command exactly as the harness did, reproduces logged
 simulator errors ("sent" + "error", no "result"), skips "done" / "discarded" items, requires every logged "ok" to
 match, and applies the done protocol of run.json (success = evaluation success AND declared done when require_done).
+A multi-phase episode logs each done that ended a phase as {"done": true, "phase_done": true, "phase", "next_phase",
+"waiting"}: the replay calls env.phase_done() there (no environment step) and requires the same next phase; the last
+phase's item, with no phase after it, is also the episode's done.
 """
 import argparse
 import csv
@@ -104,6 +107,7 @@ TRACK_NOTE = ("Rows are ranked within (split, track): standard; non-standard (do
               "differ from the harness defaults, incomplete runs); privileged (a privileged agent or any perception "
               "other than realistic, which hands the agent true ids and hidden fields).")
 END_ITEM_REASON = {"done": "done", "discarded": "step_budget", "error": "sim_error"}
+PHASE_DONE = {"action": "phase_done"}     # a logged phase end of a multi-phase episode (env.phase_done(), no step)
 VERIFIER_KEY_ENV = "HOUSE_AI_VERIFIER_KEY"
 VERIFIER_KEY_FILE = "verifier_key"
 RUN_DIGEST_DIRS = ("logs", "transcripts")
@@ -1745,6 +1749,14 @@ def parse_log(log):
         if not isinstance(item, dict):
             steps.append({"command": None, "logged": None, "error": False})
             continue
+        if item.get("phase_done") is True:
+            # a multi-phase episode (house_sim/eval/run.py): the agent's done ended a phase; the replay calls
+            # env.phase_done() (not an environment step); it ends the episode only when it is the last item and no
+            # phase followed it (below)
+            steps.append({"command": dict(PHASE_DONE), "logged": None, "error": False, "phase_done": True,
+                          "phase": item.get("phase"), "next_phase": item.get("next_phase"),
+                          "waiting": bool(item.get("waiting"))})
+            continue
         if item.get("done") is True or (_is_done_command(item.get("command")) and item.get("sent") is None):
             done = True
             end_item = end_item or "done"
@@ -1777,6 +1789,9 @@ def parse_log(log):
         steps.append({"command": command, "logged": result, "error": error})
         if error:
             end_item = end_item or "error"
+    if end_item is None and steps and steps[-1].get("phase_done") and steps[-1].get("next_phase") is None and \
+            not steps[-1].get("waiting") and (log.get("done_declared") is not False if isinstance(log, dict) else True):
+        done, end_item = True, "done"      # the done that ended the last phase also ended the episode
     require_done = bool(log.get("require_done", True)) if isinstance(log, dict) else True
     return {"steps": steps, "done": done, "require_done": require_done, "meta": meta, "end_item": end_item,
             "after_end": after_end}
@@ -1862,6 +1877,21 @@ def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=
                     protocol.append("step {}: the log continues after the simulated time budget ({} s) ran out".format(
                         number, limits["time_budget_s"]))
                     break
+            if step.get("phase_done"):
+                # the agent's done ended a phase (not an environment step: no attempt counted); the replay must end
+                # the same phase and start the same next one
+                active = env._phases.active() if env._phases.phases else None
+                if active is None or (step.get("phase") is not None and active["id"] != step["phase"]):
+                    issues.append("replay diverged at step {} (the log ends phase {}, the replay's active phase is "
+                                  "{})".format(number, step.get("phase"), active["id"] if active else None))
+                    break
+                outcome = env.phase_done()
+                following = (outcome.get("phase") or {}).get("active")
+                if following != step.get("next_phase"):
+                    issues.append("replay diverged at step {} (next phase {} logged, {} replayed)".format(
+                        number, step.get("next_phase"), following))
+                    break
+                continue
             info["attempts"] += 1
             if not isinstance(command, dict) or "action" not in command:
                 info["unstepped"] += 1

@@ -6,7 +6,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -203,6 +204,57 @@
        "dest": "{sort_room}"
       }
      ]
+    },
+    {
+     "name": "tries to read the 5 mm drawer labels from the doorway, cannot, and guesses: every pile lands in the wrong drawer",
+     "camera": true,
+     "plan": [
+      {
+       "foreach": "{compartments}",
+       "as": "c",
+       "steps": [
+        {
+         "do": "read",
+         "target": "{c}"
+        }
+       ]
+      },
+      {
+       "foreach": "{lots}",
+       "as": "lot",
+       "steps": [
+        {
+         "skill": "approach",
+         "target": "{lot}"
+        },
+        {
+         "do": "inspect",
+         "target": "{lot}",
+         "where": "closely"
+        }
+       ]
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_wood}",
+       "dest": "{comp_drywall}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_drywall}",
+       "dest": "{comp_machine}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_machine}",
+       "dest": "{comp_sheet_metal}"
+      },
+      {
+       "skill": "put",
+       "obj": "{lot_sheet_metal}",
+       "dest": "{comp_wood}"
+      }
+     ]
     }
    ],
    "instruction": "Sort these loose screws into the right drawers of the hardware organizer.",
@@ -214,7 +266,8 @@
    "risk_level": 0,
    "fidelity": "S",
    "target_fidelity": "G",
-   "notes": "Perception is the skill. Realistic mode: every pile is a 'handful of small fasteners' (look-alike group loose_fasteners, resolved by inspect: thread, head, length and finish; inspect closely adds the gauge) and every organizer drawer a 'small organizer drawer' (group organizer_drawer, resolved only by reading its label). Drawer order and pile order are shuffled per seed. Truth: fastener_lot._kind (hidden) vs organizer_compartment.holds_kind (read tier); the place hook sets sorted_ok (hidden). Wrong plans act on glance-level belief (wood vs drywall screws, machine vs sheet-metal screws) or lose a pile."
+   "notes": "Perception is the skill. Realistic mode: every pile is a 'handful of small fasteners' (look-alike group loose_fasteners, resolved by inspect: thread, head, length and finish; inspect closely adds the gauge) and every organizer drawer a 'small organizer drawer' (group organizer_drawer, resolved only by reading its label). Drawer order and pile order are shuffled per seed. Truth: fastener_lot._kind (hidden) vs organizer_compartment.holds_kind (read tier); the place hook sets sorted_ok (hidden). Wrong plans act on glance-level belief (wood vs drywall screws, machine vs sheet-metal screws) or lose a pile. Geometric camera (declared): the drawer labels are 5 mm print (view text_m), readable by the head camera within about half a metre or by the wrist camera within reach, so the reference reads them from the organizer; the camera wrong plan reads from where it starts (refused: too far to read) and has to guess.",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-5a9598c809336a-01",
@@ -222,7 +275,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -458,6 +512,34 @@
        ]
       }
      ]
+    },
+    {
+     "name": "looks the bench over from where it stands and reports every tool fine: hairline damage needs a close look (160 px or the wrist camera)",
+     "camera": true,
+     "plan": [
+      {
+       "do": "look",
+       "around": true
+      },
+      {
+       "foreach": "{tools}",
+       "as": "t",
+       "steps": [
+        {
+         "do": "inspect",
+         "target": "{t}",
+         "where": "closely"
+        },
+        {
+         "do": "report",
+         "target": "{t}",
+         "field": "condition",
+         "value": "ok",
+         "to": "resident_1"
+        }
+       ]
+      }
+     ]
     }
    ],
    "instruction": "Check the tools on the bench and set aside any damaged ones - let me know which.",
@@ -469,7 +551,8 @@
    "risk_level": 1,
    "fidelity": "S",
    "target_fidelity": "S",
-   "notes": "Perception is the skill. Two of six bench tools (which ones follows the seed) carry damage that only a close, hands-on look shows (_damage visible closely: loose hammer head, cracked handle, chipped blade, worn jaws, bent tip); one intact tool is merely greasy (soil is visible at a glance but is not damage). In realistic mode a plain inspect shows soil but no condition; inspect where=closely reveals 'condition'. The report judge (_report_ok.condition) compares each condition report with the truth; a false flag or a missed tool reported fine fails. Damaged tools go in the do-not-use bin (nothing is thrown away) and the owner is told."
+   "notes": "Perception is the skill. Two of six bench tools (which ones follows the seed) carry damage that only a close, hands-on look shows (_damage visible closely: loose hammer head, cracked handle, chipped blade, worn jaws, bent tip); one intact tool is merely greasy (soil is visible at a glance but is not damage). In realistic mode a plain inspect shows soil but no condition; inspect where=closely reveals 'condition'. The report judge (_report_ok.condition) compares each condition report with the truth; a false flag or a missed tool reported fine fails. Damaged tools go in the do-not-use bin (nothing is thrown away) and the owner is told. Geometric camera (declared): a close inspection needs the head camera at 160 px in good light or the wrist camera within reach (kernel inspect_check), so the reference walks up to each tool; the camera wrong plan inspects from where it stands (refused for what it cannot resolve) and reports everything fine.",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-b0d2729457cd9e-01",
@@ -477,7 +560,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -585,7 +669,7 @@
    "risk_level": 0,
    "fidelity": "G",
    "target_fidelity": "G",
-   "notes": "Perception is the skill: in realistic mode a look (plain inspect) shows torn, missing, peeling or gapped strips (seal_visual) but a compressed strip looks intact; only the closed-door paper-pull test (inspect where=closely) shows 'paper slides out (not sealing)'. Every seed has at least one compressed segment, so judging by eye fails. Each door's report is judged against its true failing set (_report_ok.seal_failures); doors must be left closed and locked as found."
+   "notes": "Perception is the skill: in realistic mode a look (plain inspect) shows torn, missing, peeling or gapped strips (seal_visual) but a compressed strip looks intact; only the closed-door paper-pull test (inspect where=closely) shows 'paper slides out (not sealing)'. Every seed has at least one compressed segment, so judging by eye fails. Each door's report is judged against its true failing set (_report_ok.seal_failures); doors must be left closed and locked as found. Not camera-dependent (the paper-pull test is touch); it passes with the geometric camera too, whose approach to a door out of sight first walks to a viewpoint (the domain skills' see_first)."
   }
  ]
 }

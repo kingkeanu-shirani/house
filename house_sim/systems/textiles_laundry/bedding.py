@@ -16,6 +16,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ..core import release_from_hands, place_item
 from . import model as M
+from . import signals as S
 from .dry import TEXTILE_TICKERS
 
 LAYER_ORDER = {"protector": 0, "fitted": 1, "flat": 2, "blanket": 3, "duvet": 4, "throw": 5}
@@ -108,7 +109,7 @@ def lifted_from_bed(w, item, bed):
                         em.pop(key, None)
                     M.add_soil(w, e, "dust", 0.05)
                     w.mut(e)["floor_contact"] = M.now(w)
-                    w.emit("bedding_dragged_off", target=e, bed=bed)
+                    S.seen(w, "bedding_dragged_off", e, target=e, bed=bed)
     if bed in w.s["entities"] and w.ent(bed).get("made"):
         w.mut(bed)["made"] = False
     refresh_bed(w, bed)
@@ -178,6 +179,7 @@ def _dress_layer(ctx, target, rec, bed, brec, role):
     require(ctx.holding(target), "Hold it first")
     others = [h for h in w.held_items() if h != target]
     require(not others, "Both hands are needed to spread bedding", "capability")
+    M.require_both_arms(ctx, "Both hands are needed to spread bedding")
     layers = bed_layers(w, bed)
     require(not any(l == layer for _, _, l in layers), "There is already a {} on the bed; strip it first".format(layer))
     if layer in ("protector", "fitted"):
@@ -305,6 +307,7 @@ def _dress_duvet(ctx, cover, crec, insert, irec):
     unbutton = 0.0 if crec.get("closure_open", True) else 30.0
     others = [h for h in w.held_items() if h not in (cover, insert)]
     require(not others, "Both hands are needed for a duvet", "capability")
+    M.require_both_arms(ctx, "Both hands are needed for a duvet")
     method = ctx.args.get("method")
     require(method in ("inside_out", "stuff"), "Choose method inside_out or stuff", "argument")
     require(ctx.args.get("orientation"), "Say how the duvet is oriented in the cover (orientation lengthwise|crosswise)", "argument")
@@ -749,7 +752,7 @@ def _fitted_ticker(w, eid, rec, dt, context):
         if w.ent(bed).get("made"):
             w.mut(bed)["made"] = False
         refresh_bed(w, bed)
-        w.emit("fitted_corner_popped", target=eid, bed=bed)
+        S.seen(w, "fitted_corner_popped", eid, target=eid, bed=bed)
 
 
 TEXTILE_TICKERS.append(_fitted_ticker)

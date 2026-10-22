@@ -42,11 +42,14 @@ def pets_cues(env, w, obs):
     state = w.s
     rid = obs.get("room_id")
     realistic = getattr(env, "realism", None) is not None
+    geometric = C.geometric(state)
     pets = obs.get("pets") or {}
     for pid in sorted(list(pets)):
         if not C.visible_pet(state, pid):
             pets.pop(pid)
             continue
+        if geometric and not _identified(env, pid):
+            continue        # the geometric camera makes out only "an animal" (below identify): no visual cues
         pet = state["pets"][pid]
         view = pets[pid]
         view["stress_signs"] = list(pet.get("stress_signs") or C.stress_signs(pet.get("anxiety"), pet))
@@ -148,6 +151,17 @@ def pets_cues(env, w, obs):
         obs.setdefault("smells", []).extend(smells)
 
 
+def _identified(env, pid):
+    """Geometric camera: this step's frames resolve the pet well enough to tell who it is and read its body language
+    (camera.agent_identified: identify level, 64 px, lit, not backlit), the level at which the observation shows its
+    activity and cues."""
+    from ...kernel import camera
+    try:
+        return bool(camera.agent_identified(env, pid))
+    except Exception:  # noqa: BLE001 - an observer never breaks an observation
+        return False
+
+
 def _cue_source(rec):
     return rec.get("category") in ("pet_water_source", "aquarium_device", "litter_box", "pet_bowl", "biohazard", "pet_food")         or bool(rec.get("pet_accident"))
 
@@ -201,14 +215,31 @@ def _reveal(ctx, result):
     target = ctx.args.get("target")
     where = ctx.args.get("where")
     if where in ("under", "behind"):
-        for pid in C.pet_ids(state):
-            if state["pets"][pid].get("hiding_under") == target and not state["pets"][pid].get("revealed"):
-                w.pet_m(pid)["revealed"] = True
-                C.tell(ctx, "{} is hiding {} the {}".format(state["pets"][pid].get("label", pid), where, state["entities"][target].get("label", target)),
-                       result)
+        reveal_hiding(ctx, target, where, result)
     rec = state["entities"].get(target) or {}
     if where == "closely" and (rec.get("category") in ("floor", "lawn", "garden_bed") or rec.get("ground_layer")):
         reveal_near(w, ctx, radius=6, result=result)
+
+
+def reveal_hiding(ctx, target, where, result=None):
+    """A look under or behind `target` finds the pets hiding there (revealed: seen from now on until they move)."""
+    w = ctx.w
+    state = w.s
+    for pid in C.pet_ids(state):
+        if state["pets"][pid].get("hiding_under") == target and not state["pets"][pid].get("revealed"):
+            w.pet_m(pid)["revealed"] = True
+            C.sync_hidden(w, pid)
+            C.tell(ctx, "{} is hiding {} the {}".format(state["pets"][pid].get("label", pid), where, state["entities"][target].get("label", target)),
+                   result)
+
+
+@after("peek", order=60)
+def _reveal_peek(ctx, result):
+    """Geometric camera: a wrist-camera peek under or behind furniture finds a pet hiding there, as inspect does."""
+    where = ctx.args.get("where")
+    target = ctx.args.get("target")
+    if where in ("under", "behind") and isinstance(target, str) and target in ctx.w.s["entities"]:
+        reveal_hiding(ctx, target, where, result)
 
 
 def reveal_near(w, ctx, radius=1, cells=None, result=None):
@@ -597,8 +628,11 @@ def _ev_arrival(w, args, env):
     for dog in C.pet_ids(state):
         pet = state["pets"][dog]
         if pet.get("location") == room or dog in C.pets_in_room(state, room) or C.species(pet) == "dog" and room in C.pet_rooms(state, dog):
+            before = C.num(pet.get("excitement"))
             pm = w.pet_m(dog)
-            pm["excitement"] = round(min(1.0, C.num(pet.get("excitement")) + 0.6), 3)
+            pm["excitement"] = round(min(1.0, before + 0.6), 3)
+            if C.species(pet) == "dog" and before < 0.7 <= pm["excitement"]:
+                C.notice(w, "barking", dog)          # the dog barks at the arrival
     C.log(w, "arrival", person=pid, room=room)
     return True
 

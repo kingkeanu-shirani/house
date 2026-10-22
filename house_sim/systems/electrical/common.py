@@ -129,9 +129,81 @@ def log(w, kind, **data):
     return entry
 
 
+# Occurrences a camera sees happen (kernel v3.0 camera, TIER1_INTEGRATION 6 "Camera"): flames, smoke or a pop from a
+# device, something falling, a plug snapping out, a bulb or lamp going dark. Their event-log entries stay exactly as
+# before; in geometric mode the head camera also witnesses them (camera.visual_event: robot.view.events, camera_log,
+# and the kernel's `visual` notice when seen). Sounds and smells are not camera-gated.
+VISUAL_EVENTS = frozenset(("battery_thermal_runaway", "cord_fire", "cord_overheating", "device_fried", "device_fell",
+                           "plug_yanked", "bulb_failed", "fixture_overheating", "battery_leaking", "water_ingress",
+                           "screen_cracked"))
+
+
 def event(w, kind, eid=None, **data):
     room = room_of(w.s, eid) if eid else None
-    return w.emit(kind, target=eid, room=room, **data)
+    entry = w.emit(kind, target=eid, room=room, **data)
+    if kind in VISUAL_EVENTS:
+        witness(w, kind, eid, room)
+    return entry
+
+
+def witness(w, kind, eid, room=None):
+    """Geometric camera mode: let the head camera witness a visual occurrence at entity `eid` (nothing is logged twice:
+    the caller already emitted it). A no-op in room mode."""
+    if not isinstance((w.s.get("robot") or {}).get("view"), dict):
+        return
+    from ...kernel import camera
+    camera.visual_event(w, kind, source=eid, room=room, emit=False)
+
+
+# Notices (kernel v3.1 notice bus, TIER1_SWEEP 6.1): what the robot can hear or is told happened. w.notice stores a
+# record only in episodes that carry the notice bus (schema-3 tasks; a listening wait hears them in any episode), so
+# schema-2 states never change. Smoke / CO alarms sounding are the kernel's `alarm` bridge (detectors set
+# alarm_state); this domain adds the kinds below, `alarm` for a medical device's power-failure alarm and `device`
+# notifications from connected (paired) devices over the household network.
+NOTICE_KINDS = (
+    # the same definition as safety's (a kind registered twice must match): safety posts chirps itself when loaded
+    ("chirp", "a smoke or CO alarm chirps (low battery or end of life)", 85.0),
+    ("alarm_clock", "an alarm clock rings", 70.0),
+)
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind, doc, db in NOTICE_KINDS:
+        timeline.register_notice_kind(kind, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
+
+
+def notice(w, kind, eid=None, db=None, remote=False, visual=False, data=None, room=None):
+    """Post a perceivable occurrence at entity `eid` (its room unless `room` is given); the timeline decides whether the
+    robot perceives it. Returns the stored record or None."""
+    if not hasattr(w, "notice"):
+        return None
+    rid = room if room is not None else (room_of(w.s, eid) if eid else None)
+    return w.notice(kind, room=rid, db=db, source=eid, remote=remote, visual=visual, data=data)
+
+
+DRY_WETNESS = 0.05      # a device that took water works again once its wetness is down to this (physical.py)
+
+
+def water_logged(rec):
+    """True while a device that took liquid inside (physical.py, phys.wetted) is still wet: it does not work until it
+    dries."""
+    return bool(rec.get("water_ingress")) and num(rec.get("wetness"), 0.0) > DRY_WETNESS
+
+
+def dead(rec):
+    """A device that cannot work: broken (a kernel break, an overvoltage, a battery fire) or still water-logged."""
+    return bool(rec.get("broken")) or water_logged(rec)
+
+
+def shows_light(state, eid):
+    """A device whose power loss is visible: a lit light going dark, a screen going black."""
+    rec = (state.get("entities") or {}).get(eid or "") or {}
+    return bool(rec.get("lit") or rec.get("category") == "light" and rec.get("on")
+                or rec.get("category") in ("tv", "monitor") and rec.get("power_state") == "on")
 
 
 # --- people ---------------------------------------------------------------------------
@@ -186,10 +258,31 @@ def chain(state, eid, limit=12):
     return out
 
 
-SOFT_MATERIALS = {"fabric", "cotton", "wool", "foam", "down", "polyester", "linen", "velvet", "leather", "plush"}
+# Soft and flammable surfaces come from the kernel's material table (kernel v3.0 physics, TIER1_INTEGRATION 6
+# "electrical": SOFT_MATERIALS -> kernel): a material is soft when its class's softness is at least SOFT_MIN (fabric and
+# cotton 0.8, synthetic fabrics 0.7, wool and felt 0.85, foam 0.9; leather 0.4 and rubber-backed hard goods are not), and
+# flammable for a charging device when soft or of a light fibrous class that chars easily (paper, cardboard, wicker).
+SOFT_MIN = 0.5
+FLAMMABLE_CLASSES = ("paper", "cardboard", "wicker")
+_MATERIAL_MEMO = {}
 
 
-FLAMMABLE = SOFT_MATERIALS | {"cardboard", "paper", "wicker"}
+def material_kind(material):
+    """(soft, flammable) of a material string by its kernel material class (memoized per string)."""
+    if not isinstance(material, str) or not material:
+        return False, False
+    hit = _MATERIAL_MEMO.get(material)
+    if hit is None:
+        from ...kernel.phys import props as phys_props
+        cls = phys_props.material_class(None, {"material": material})
+        row = phys_props.MATERIALS["classes"].get(cls) or {}
+        soft = num(row.get("soft"), 0.0) >= SOFT_MIN
+        hit = _MATERIAL_MEMO[material] = (soft, soft or cls in FLAMMABLE_CLASSES)
+    return hit
+
+
+def soft_material(material):
+    return material_kind(material)[0]
 
 
 def on_soft_surface(state, eid, flammable=False, w=None):
@@ -201,7 +294,7 @@ def on_soft_surface(state, eid, flammable=False, w=None):
         p = state["entities"][parent]
         if p.get("category") in ("bed", "pillow", "cushion", "blanket", "bedding") or p.get("upholstered") or p.get("soft_surface"):
             return True
-        if p.get("material") in (FLAMMABLE if flammable else SOFT_MATERIALS) and not p.get("antistatic"):
+        if material_kind(p.get("material"))[1 if flammable else 0] and not p.get("antistatic"):
             return True
         if p.get("surface") or p.get("category") in ("table", "counter", "furniture", "charger"):
             if p.get("material") in ("wood", "stone", "metal", "glass", "plastic", "laminate", "ceramic"):
@@ -210,7 +303,7 @@ def on_soft_surface(state, eid, flammable=False, w=None):
     candidates = ids(w, "soft") if w is not None else sorted(state["entities"])
     for other in candidates:
         o = state["entities"].get(other) or {}
-        if o.get("covers") == eid and o.get("material") in SOFT_MATERIALS:
+        if o.get("covers") == eid and soft_material(o.get("material")):
             return True
     return False
 
@@ -234,9 +327,23 @@ def fmt_hhmm(seconds_of_day):
 
 
 def local_seconds(state):
+    """Seconds into the household's day on the wall clock (kernel v3.1: clock.wall follows daylight saving time when the
+    house keeps it, clock model 2 with "dst"; otherwise it is the standard time clock.now gives)."""
     from ...kernel import clock
-    now = clock.now(state)
+    now = clock.wall(state)
     return now.hour * 3600 + now.minute * 60 + now.second
+
+
+def dst_shift_s(state, dt):
+    """Seconds the wall clock jumped during the last dt (+3600 when daylight saving time began, -3600 when it ended,
+    else 0)."""
+    from ...kernel import clock
+    if not clock.dst_enabled(state):
+        return 0.0
+    before = dict(state, time_s=float(state.get("time_s", 0.0)) - float(dt))
+    now_off = (clock.wall(state) - clock.now(state)).total_seconds()
+    then_off = (clock.wall(before) - clock.now(before)).total_seconds()
+    return now_off - then_off
 
 
 def clamp(x, lo, hi):
@@ -324,6 +431,8 @@ PREDICATES = {
     "lights": lambda r: r.get("category") == "light",
     "switches": lambda r: r.get("category") == "switch",
     "detectors": lambda r: r.get("category") == "detector",
+    "detector_bases": lambda r: r.get("category") == "detector_base",
+    "bulbs": lambda r: r.get("category") == "light_bulb",
     "clocks": lambda r: isinstance(r.get("clock"), dict),
     "electronics": lambda r: "power_state" in r or storage_device(r)
     or r.get("category") in ("tv", "monitor", "audio", "media_source", "computer", "network"),
@@ -332,7 +441,7 @@ PREDICATES = {
     "tvs": lambda r: r.get("category") == "tv",
     "cells": lambda r: r.get("category") == "battery",
     "tool_packs": lambda r: str(r.get("part_type", "")).startswith("tool_pack"),
-    "soft": lambda r: r.get("material") in SOFT_MATERIALS,
+    "soft": lambda r: soft_material(r.get("material")),
     "workstation": lambda r: r.get("category") == "monitor" or r.get("type") in ("laptop", "laptop_barrel", "computer_mouse", "keyboard"),
 }
 
@@ -340,6 +449,115 @@ PREDICATES = {
 def ids(w, name, predicate=None):
     """Sorted ids of entities in a named static index (see PREDICATES; modules may pass their own predicate)."""
     return w.static_index("electrical." + name, predicate or PREDICATES[name])
+
+
+# --- exact idle probes (kernel v3.1 @system(idle=), TIER1_SWEEP 6.7) ------------------------------------------------
+# A system run that wrote nothing (World.mutation_count unchanged) leaves a transient note: the World, its touch-log
+# reset token (World.phys_scratch is a new dict after every begin(), rollback() and rollback_to()), the touch-log cursor
+# after the run, the non-entity inputs the system reads (the grid, room temperatures, the daylight band, ...) and a
+# snapshot of the entities other systems keep writing (a fridge's cooling state, an iron's temperature, the clock
+# display): their records minus the fields this system never reads. The next substep's run would again write nothing
+# when, since then, every entity it reads that was written (the touch log through the system's own cursor: its static
+# indexes, plus the location ancestors of those entities, since moving a cart moves the lamp on it) still has its
+# snapshot, and those other inputs are unchanged; the probe then answers True and the engine skips the call. A touched
+# entity without a snapshot (or a new or destroyed one) makes it answer False, and the run after that snapshots it, so a
+# neighbour that writes every substep stops waking the system after one run. Anything that changes with time alone (a
+# timer schedule, a chirp period, a hush timer) makes the probe answer False. The note is never state;
+# HOUSE_SIM_IDLE_PROBES=0 turns the probes off (tests compare the digests of both runs).
+
+_END = 1 << 60
+# fields no electrical system reads (other domains' bookkeeping written every substep): ignored in every snapshot
+OTHERS_FIELDS = frozenset(("heat_load_w", "_fridge", "_ac_heat", "_mw", "display_time", "clock", "ringing",
+                           "ringing_alarm", "ring_until_s", "rang"))
+ANCESTOR_FIELDS = ("location", "relation")       # all an ancestor contributes: where the things on or in it are
+
+
+class IdleNote(object):
+    """The transient note of one system's last run (see above). ignore(rec) -> the fields of a record the system
+    never reads (besides OTHERS_FIELDS)."""
+
+    def __init__(self, consumer, indexes, ignore=None):
+        self.consumer, self.indexes = consumer, tuple(indexes)
+        self.ignore = ignore or (lambda rec: ())
+        self.world = self.token = self.cursor = self.extra = None
+        self.sigs = {}
+        self.hot = set()
+        self._relevant = (None, None, None)
+
+    def relevant(self, w):
+        """(members, ancestors): the ids of the system's static indexes, and the location ancestors of those (cached
+        per World version and entity count, like the static indexes themselves)."""
+        key = (id(w), getattr(w, "_version", None), len(w.s["entities"]))
+        if self._relevant[0] == key:
+            return self._relevant[1], self._relevant[2]
+        ents = w.s["entities"]
+        members, ancestors = set(), set()
+        for spec in self.indexes:
+            name, predicate = (spec, None) if isinstance(spec, str) else spec
+            members.update(ids(w, name, predicate))
+        for eid in members:
+            loc, depth = (ents.get(eid) or {}).get("location"), 0
+            while loc in ents and depth < 12:
+                if loc not in members:
+                    ancestors.add(loc)
+                loc, depth = ents[loc].get("location"), depth + 1
+        self._relevant = (key, members, ancestors)
+        return members, ancestors
+
+    def _sig(self, eid, rec, members):
+        if eid not in members:
+            return tuple(rec.get(k) for k in ANCESTOR_FIELDS)
+        skip = OTHERS_FIELDS.union(self.ignore(rec))
+        return {k: v for k, v in rec.items() if k not in skip}
+
+    def after(self, w, wrote, extra=None):
+        """After a run: remember that it changed nothing (with the non-entity inputs `extra` and snapshots of the
+        entities touched while it was not idle), or forget it; the cursor moves to the log's end either way."""
+        import copy
+        _, end = w.touched_since(_END, consumer=self.consumer)
+        if wrote:
+            self.world = self.token = self.cursor = self.extra = None
+            self.sigs, self.hot = {}, set()
+            return
+        ents = w.s["entities"]
+        members, _ = self.relevant(w)
+        keep = (set(self.sigs) | self.hot) if self.world is w and self.token is w.phys_scratch else set(self.hot)
+        self.sigs = {eid: copy.deepcopy(self._sig(eid, ents[eid], members)) for eid in sorted(keep) if eid in ents}
+        self.hot = set()
+        self.world, self.token, self.cursor, self.extra = w, w.phys_scratch, end, extra
+
+    def quiet(self, w):
+        """True when the last run wrote nothing and every entity it reads that was written since still matches its
+        snapshot (a destroyed or new entity always counts)."""
+        if self.world is not w or self.token is not w.phys_scratch or self.cursor is None:
+            return False
+        touched, end = w.touched_since(self.cursor, consumer=self.consumer)
+        if touched:
+            ents = w.s["entities"]
+            members, ancestors = self.relevant(w)
+            changed = False
+            for eid in set(touched):
+                if eid not in ents:
+                    return False
+                if eid in members or eid in ancestors:
+                    sig = self.sigs.get(eid)
+                    if sig is None or self._sig(eid, ents[eid], members) != sig:
+                        self.hot.add(eid)
+                        changed = True
+            if changed:
+                return False
+        self.cursor = end
+        return True
+
+
+def room_temps(state, rooms):
+    """{room: temperature} of some rooms (an idle-probe input)."""
+    from ...kernel.physics import room_temperature
+    return {rid: room_temperature(state, rid) for rid in sorted(rooms) if rid in state.get("rooms", {})}
+
+
+def grid_on(state):
+    return bool(state.get("utilities", {}).get("power", True))
 
 
 def electrified(state, w=None):

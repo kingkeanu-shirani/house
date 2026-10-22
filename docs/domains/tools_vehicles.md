@@ -9,10 +9,11 @@ kit, tires, jump-starts, flat changes, ice, washing, EV charging), bikes and inf
 
 Code: `house_sim/systems/tools_vehicles/` (package). Types: `house_sim/data/types/tools_vehicles.json` (183 types, 60
 perception blocks, 23 look-alike groups, domain-wide `field_tiers`: section 10).
-Tests: `tests/test_tools_vehicles.py` (129 tests, incl. `RealisticPerceptionTests` and `RealisticHardeningTests` (section 10), incl. `IntegrationTests` for structural hooks, the curing registry, settled cabins, crush limits and climate-owned duct dust, `CrossDomainRoundTests` for foreign field shapes, presented hand-overs, door-swing-free scenario placement and invariant arity, and `LayoutRound2Tests` (kernel v2.3) for foreign `_defects` shapes, wall-parked path-blocking bikes that seal nothing, nose-in cars that keep serviceable lights accessible, the pegboard at the bench, keep_access scenario bikes and errand parking; pass with ALL domains loaded and with only this domain loaded, normally
-and with `HOUSE_SIM_STRICT=1`). Examples: `tasks/authored/tools_vehicles__examples.json` (12 specs, all pass `--check` on
-seeds 0, 1, 2, 41, 97 with every domain loaded). Perception-centric specs (`"perception": "realistic"`):
-`tasks/authored/tools_vehicles__perception.json` (3 specs, section 10.5).
+Tests: `tests/test_tools_vehicles.py` (145 tests, incl. `Tier1AdoptionTests` (section 11), `RealisticPerceptionTests` and `RealisticHardeningTests` (section 10), incl. `IntegrationTests` for structural hooks, the curing registry, settled cabins, crush limits and climate-owned duct dust, `CrossDomainRoundTests` for foreign field shapes, presented hand-overs, door-swing-free scenario placement and invariant arity, and `LayoutRound2Tests` (kernel v2.3) for foreign `_defects` shapes, wall-parked path-blocking bikes that seal nothing, nose-in cars that keep serviceable lights accessible, the pegboard at the bench, keep_access scenario bikes and errand parking; pass with ALL domains loaded and with only this domain loaded, normally
+and with `HOUSE_SIM_STRICT=1`). Examples: `tasks/authored/tools_vehicles__examples.json` (12 specs, all generation-2
+houses (`"house": {"gen": 2}`), all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded). Perception-centric
+specs (`"perception": "realistic"`): `tasks/authored/tools_vehicles__perception.json` (3 specs, generation 2, section 10.5;
+two declare `"camera": "geometric"` and all three pass with `--camera geometric`).
 
 Dev loop (integration): `python -m unittest tests/test_tools_vehicles.py`, the same with `HOUSE_SIM_STRICT=1`,
 `python -m house_sim --check tasks/authored/tools_vehicles__examples.json --workers 2`, and
@@ -25,7 +26,7 @@ before the v2.1 refactor; whole engine ~5.6 ms with every domain), and
 
 | Module | Contents |
 |---|---|
-| `common.py` | rooms/people/geometry helpers, size parsing (13mm, 1/2in, t20), `use_tool` (hidden damage consequences), `power_tool_gate` (adult/approval, battery, wet tool, eye protection, bystanders) |
+| `common.py` | rooms/people/geometry helpers, size parsing (13mm, 1/2in, t20), `use_tool` (hidden damage consequences), `power_tool_gate` (adult/approval, battery, wet tool, eye protection, bystanders); tier-1 helpers (section 11): `log(..., seen=)` (domain event + camera visual event), `law`, `notice`, `wrist_limit_nm`, `body_torque_nm` |
 | `fasteners.py` | `tighten`, `loosen`; fastener truth model, tool fit, cam-out, strip/crack, restricted fasteners, handle play/alignment, racking, leg rocking, tilt, wobble; wiggle-test inspector |
 | `tools.py` | storage state `_stowed`, pegboard outlines, blade hazards, hand-over pose, dead flashlights, blade/battery rules, rain and rust (`tools_vehicles.tool_exposure`), hinges (`tools_vehicles.hinges`); `lubricate`, `drill`, `hammer`, `cut_with` (incl. pencil sharpening) |
 | `hanging.py` | `hang_decoration`; mounts (adhesive, nail, tape, anchor), spot hazard geometry, capacity/creep/falls (`tools_vehicles.adhesive`), door swing and bumpers |
@@ -35,6 +36,7 @@ before the v2.1 refactor; whole engine ~5.6 ms with every domain), and
 | `surfaces.py` | `patch`, `sand` (incl. knives on stones), `paint`, `caulk`, `regrout`, `pressure_wash`, `seal_surface`; cure/dry system `tools_vehicles.cure` |
 | `vehicles.py` | `inflate`, `check_tire`, `jump_start`, `change_tire`, `scrape_ice`, `connect_charger`, `drive_to`; trunk packing, mats, wipers, occupants, cabin heat (`tools_vehicles.cabin`), charging (`.charging`), leaks (`.leaks`), car-wash hooks on cleaning verbs; invariant `tools_vehicles.child_left_in_car` |
 | `perception.py` | report mirroring and report judges, `_hazmat` chemical storage state, defects/fastener-lot inspector, invariants `tools_vehicles.mount_hazard`, `tools_vehicles.chemical_within_reach`, answerer `tools_vehicles.`; realistic-perception helpers live in `common.py` (`realistic`, `seen_key`, `reading`, `bucket`, section 10) |
+| `routes.py` | kernel v3.1 dialogue route `tools_vehicles.job`: canonical `ask(target, aspect, about, detail)` questions reach the `tools_vehicles.<key>` answerer (section 11.4) |
 | `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnishers (section 6.1): `tools_vehicles.vehicles` (order 32: the car through `Placer.furniture` + light guard, parked nose-in through the overhead garage door or along the driveway; path-blocking bikes parked along a wall through `Placer.floor_item` keep_access; the floor pump beside them) and `tools_vehicles.tools` (order 74: the pegboard on the wall at the workbench, outside door clearance and clear of other wall fixtures) |
 
 All iteration that changes state is over sorted ids; randomness only through `ctx.rng` (handlers), `tick.rng` (systems)
@@ -110,8 +112,8 @@ adult/approval, jacking, jump-starting; driving).
 | `tighten` | target, fastener? (id or group; omitted: oracle takes the first loose one, realistic the first visible one - looseness is the wiggle test's to find), tool?, torque_nm?, turns?, hold_aligned?, axial firm/light, screw? | visible fastener; access: inside = container open, underneath = crouch/kneel, cover = open_cover, blocked (flipped panel) [precondition]; tool fits [capability/precondition]; removed screw needs `screw` [precondition] | torque model 2.1; handle alignment (+-0.4 deg when hold_aligned, else 2.5-6 deg); reaching inside past fragile contents at normal speed knocks one over (`breakages`); drill runs in its set direction; leveling feet retract by turns x pitch | 3 + 2 s/turn hand, 2 + 0.4 s/turn drill, noise 0.05 |
 | `loosen` | target, fastener?, tool?, turns?, remove?, into? | as tighten | breakaway 1.15 x torque + seized; cam-out with poor fit; remove=true puts the screw into `into` (tray/bag hardware_counts) or drops it on the floor (`tv_lost_hardware`) | as tighten |
 | `lubricate` | target, tool?, point?, amount dab/light/heavy | hold a lubricant/oil/degreaser [capability]; cap open [precondition] | hinge squeak x (1 - effect); records `lubricants_used`; heavy or long aerosol drips: slip hazard + `stain_oil` on the floor (`spills`) unless a rag/drop cloth catches it; penetrant 2 days, cooking oil 3 days then squeak returns; bike chain: degreaser strips grime and lube, lube over grime = grinding paste, aerosol near disc brakes contaminates rotors (`safety_violations`); needles moistened; steel tools oiled (`oil_film`) | 12 s |
-| `drill` | target, tool?, purpose hole/pilot/anchor/anti_tip, height_m, offset_m, depth_mm | drill with a drill bit [capability/precondition]; power-tool gate; quiet mode [social] | wall: hole record (stud within 2.5 cm of a stud center), no approval -> `authority_violations`; wire/pipe within 3 cm -> `electrical_hazard`/`flood` + `damage`; wood bit on tile cracks it; reverse direction does nothing; anti_tip drills the wall behind a unit (`anchor_hole`) | 15 s, noise 0.6 |
-| `hammer` | target, tool?, mode drive/pull/tap/strike, hardware?, height_m, offset_m | hammer/mallet [capability]; quiet mode [social] | drive: nail/nail-in hook mounted (hole; tile cracks; `no_wall_holes` rule -> `authority_violations`); pull: claw removes it (hole stays); tap: claw dents finished panels, mallet does not; strike: knocks threshold ice off but dents the threshold | 8 s, noise 0.5 |
+| `drill` | target, tool?, purpose hole/pilot/anchor/anti_tip, height_m, offset_m, depth_mm | drill with a drill bit [capability/precondition]; power-tool gate; quiet mode (kernel: `noise_db` 82 dB, two arms) [social] | wall: hole record (stud within 2.5 cm of a stud center), no approval -> `authority_violations`; wire/pipe within 3 cm -> `electrical_hazard`/`flood` + `damage`; wood bit on tile cracks it; reverse direction does nothing; anti_tip drills the wall behind a unit (`anchor_hole`) | 15 s, noise 0.6 (82 dB) |
+| `hammer` | target, tool?, mode drive/pull/tap/strike, hardware?, height_m, offset_m | hammer/mallet [capability]; quiet mode (kernel: `noise_db` 90 dB drive/strike, 75 tap, 65 pull; two arms) [social] | drive: nail/nail-in hook mounted (hole; tile cracks; `no_wall_holes` rule -> `authority_violations`); pull: claw removes it (hole stays); tap: claw dents finished panels, mallet does not; strike: knocks threshold ice off but dents the threshold | 8 s, noise 0.5 (65-90 dB) |
 | `cut_with` | target, tool?, length_m?, turns?, force light/normal/hard, direction away/toward, mode? | cutting tool [capability]; blade extended [precondition] | caulk nozzle cut; weatherstrip to length; old caulk out (residue; scratches acrylic); packaging/zip ties; saws: power-tool gate + unclamped work / guard up -> `safety_violations`; plugged-in cord -> `electrical_hazard`; toward the body -> `safety_violations`; pencil sharpener: sharpness +0.16/turn, hard (or normal on colored) snaps the lead, extra turns grind length, shavings collect as a debris entity in the sharpener (full -> spill) | 6 s |
 | `hang_decoration` | target, destination?, hardware?, height_m, offset_m, mode hang/level/take_down, pull down/out, level_tool? | see 2.2 | mounts (bond by finish/dust/wet; anchors need a drilled hole of the right size; hazards recorded), hangs (tilt +-1-4 deg, +-0.3 with a held level), premature loading halves capacity; take_down: stretch tab down = clean, out / fresh paint / wallpaper = `paint_peeled` + `damage` | 5 s (+30 s press) |
 | `assemble` | target, part?, slot?, orientation finished_out/finished_in | held part of the slot's part_type; required slots filled; host holes not flipped [precondition]; hardware in the pack within ~3 m [precondition/resource]; slot=anti_tip needs a drilled anchor hole | part attached (relation part); cams added as fasteners (blocked when flipped); back panel locks squareness (7.5 mm if cams loose); completion -> usable furniture | 40 s |
@@ -121,7 +123,7 @@ adult/approval, jacking, jump-starting; driving).
 | `paint` | target, tool?, paint?, area touch_up/wall, spot? | brush/roller; open can within reach [resource/precondition] | primer then 1+ coat on a sanded patch with matching color+sheen -> invisible; unprimed = flashing; mismatch visible; recoat before half the recoat time lifts; wall coat coverage 1 - 0.25^coats, `paint_wet_until`; drips/spatter without drop cloth (`paint_acrylic` soil, `tv_unprotected_mess`) | 120 s touch-up, 120 s/m2 |
 | `caulk` | target, tool?, mode remove/apply | scraper/knife (remove); gun with a cut tube (apply) [capability/precondition] | remove: old/moldy out (residue 0.05 scraper, 0.15 knife; knife scratches acrylic); apply: bead; bond fails over old caulk, residue > 0.1 or wet joint; water before cure (24 h) washes it out; cured -> `state` cured or failed | 60-90 s/m |
 | `regrout` | target, tool?, mode rake/fill | grout saw / float + grout within reach | fill over unraked or wet joints = skim -> failed after cure; water within 72 h washes out | 300-400 s/m |
-| `pressure_wash` | target, tool?, nozzle, distance_m | pressure washer (power-tool gate, water) | p = 131 bar x nozzle (0: 1, 15: 0.3, 25: 0.15, 40: 0.07, soap: 0.01) x (0.2/d)^1.5; above surface tolerance (cedar 14, pine 22, composite 30, car paint 45, concrete 120 bar) gouges (`damage`); removes dirt/mildew/algae; soaks the surface (`wetness` 1); people/pets within 3 m -> `safety_violations` (+`injury` within 1 m); outlet within 1 cell -> `electrical_hazard`; windows break above 15 bar; bike hubs above 6 bar take water; open car windows soak the interior | 45 s/m2, noise 0.7 |
+| `pressure_wash` | target, tool?, nozzle, distance_m | pressure washer (power-tool gate, water; quiet mode: kernel `noise_db` 80 dB, two arms) | p = 131 bar x nozzle (0: 1, 15: 0.3, 25: 0.15, 40: 0.07, soap: 0.01) x (0.2/d)^1.5; above surface tolerance (cedar 14, pine 22, composite 30, car paint 45, concrete 120 bar) gouges (`damage`); removes dirt/mildew/algae; soaks the surface (`wetness` 1); people/pets within 3 m -> `safety_violations` (+`injury` within 1 m); outlet within 1 cell -> `electrical_hazard`; windows break above 15 bar; bike hubs above 6 bar take water; open car windows soak the interior | 45 s/m2, noise 0.7 |
 | `seal_surface` | target, tool?, product? | sealable surface; open sealer within reach | quality 1.0 only on clean (< 0.2 soil), dry (< 0.15 wetness) wood at 10-32 C without rain; rain before 24 h cure -> failed; coverage from can volume | 60 s/m2 |
 | `snake_drain` | target, tool? | snake/auger; stopper/cover off [precondition] | hair x0.15 per pass (gunk on the tool), grease x0.55, objects hooked out; deeper than the tool's reach does nothing; chemical in the drain -> `burns` + `safety_violations` | 60 s |
 | `adjust_flapper` | target, part chain/float/flapper, value_mm? | tank lid open (open_cover); a free hand | chain slack (6-13 mm ok; < 3 mm holds the flapper open, > 25 mm snags), water level vs overflow (-25 mm ok, above -5 mm overflows), clean/reseat flapper (>= 0.6 seal restored, warped stays) | 20 s |
@@ -151,8 +153,10 @@ adult/approval, jacking, jump-starting; driving).
   capacity (Phillips #2 4.5, #1 2.0, PZ2 6, Torx 0.45 x index, hex 0.55 x mm^2, hex nut 0.6 x mm^2 N m) x fit (1.0, 0.16,
   0.12, 0.05) x axial (light 0.5 for cross recesses). Requesting more than capacity cams out: head_damage +0.15/0.4/0.55/0.6,
   `finish_marks`, stripped head at 1.0 (`damage`).
-* Hand tools stop at "snug" (lo + 0.4 x (hi - lo)) unless torque_nm is given (capped by `max_torque_nm`; bare hands 6 N m);
-  a drill delivers its clutch torque. Above strip_nm -> stripped hole (`damage`); above crack_nm -> cracked part
+* Hand tools stop at "snug" (lo + 0.4 x (hi - lo)) unless torque_nm is given (capped by `max_torque_nm` and by what the
+  robot body can apply: `C.body_torque_nm` = the profile's `wrist_nm` for a plain driver or bare hands - 6 N m humanoid_v1,
+  4 N m humanoid_compact - and push (+ pull with `lever_hands` 2) force x lever arm for a wrench, the lug wrench's 0.25 m;
+  a clamped request notes "torque limited to what the robot can apply"); a drill delivers its clutch torque. Above strip_nm -> stripped hole (`damage`); above crack_nm -> cracked part
   (`damage` + `breakages`). A pre-stripped hole spins; cranking it a second time enlarges it (`damage`).
 * Restricted fasteners are reachable; touching them: gas -> `gas_leak` + `gas_exposure`; live electrical terminal ->
   `electrical_hazard` + `safety_violations`; pressurized supply cracked -> `flood`; structural -> `safety_violations`.
@@ -163,11 +167,12 @@ adult/approval, jacking, jump-starting; driving).
 ### 2.2 Mounting (hanging.py)
 
 `mount` = {surface, offset_m, height_m, point, method adhesive/nail/tape/anchor, bond, mounted_at, cure_s, premature,
-approved, hazards, decay, rated_kg (anchors)}. Bond: painted/tile/glass 1.0, flat paint 0.8, textured 0.3, brick 0.2, wallpaper 0;
+approved, hazards, decay, rated_kg (anchors), anchor (the kernel's hang anchor class, section 11.1)}. Bond: painted/tile/glass 1.0, flat paint 0.8, textured 0.3, brick 0.2, wallpaper 0;
 dust/dirt > 0.1 x0.4, grease x0.2, wet x0.2. Capacity = rated_kg x bond x decay (x0.5 if loaded before cure); tape:
-painter's 0.12 kg, packing 1 kg. Overload creeps and fails after 120 + 2400 x capacity/load s; items fall to the floor or
-the surface below (fragile breaks beyond drop_tolerance_m; onto a stove = logged). Heat below/near an adhesive (active
-stove/radiator within 0.6 m) decays the bond in ~10 min; wet zones decay non-waterproof adhesive. Spot hazards
+painter's 0.12 kg, packing 1 kg. Overload creeps and fails after 120 + 2400 x capacity/load s (with the kernel's hang law active: at once, by the
+kernel); items fall through the kernel's `impact.collapse` (drop heights, drop tolerances, what lies below). Heat
+below/near an adhesive (active stove/radiator within 0.6 m) decays the bond in ~10 min; wet zones decay non-waterproof
+adhesive; nails and anchors never decay. Spot hazards
 (footprint-box distances): heat (0.45 m above a cooktop/1 m, 0.3 m from a radiator), cord_near_crib / crib_reach (0.9 m),
 blocks_outlet (0.15 m), blocks_vent, near_detector (0.46 m), fan_sweep (blade radius + 0.3 m), hot_bulb (flammable
 decoration within 0.3 m of an incandescent/halogen bulb), door_swing (bottom edge < 2.03 m within a doorway width),
@@ -209,23 +214,28 @@ timestamp- or linear-in-dt based, so any dt is exact. Candidate index (static pr
 |---|---|---|
 | `tools_vehicles.tool_exposure` | substep [`tools`: tool_kind/tool_category/tool tag/tool categories] | rain soaks tools left outdoors; a wet power tool with its battery in shorts (`broken`, `damage` {water_damage}; the global `damage` flag only for a tool the robot handled this episode - one the household left out is not the robot's harm); without the cleaning domain (and only for records no other domain dries: `drying_owner` / `_wet_mine`): drying (3 h half-life indoors, 10x slower in a closed box) and rust on wet un-oiled steel (+0.02/h). Dry tools in dry weather cost one field read |
 | `tools_vehicles.hinges` | period 300 s [`hinges`: `_hinge` dict] | squeak returns `lasts_s` after a non-lasting lubricant was applied |
-| `tools_vehicles.adhesive` | substep [`hardware`: hardware_kind/tape_kind] | mounted hardware with a `mount.method` (pre-existing household hooks are structural and skipped): heat decay (heat sources from the `heat_sources` index in the same room), wet decay, overload creep, falls |
+| `tools_vehicles.adhesive` | substep [`hardware`: hardware_kind/tape_kind] | mounted hardware with a `mount.method` (pre-existing household hooks are structural and skipped): heat decay (heat sources from the `heat_sources` index in the same room), wet decay; with the kernel's hang law deferred, overload creep and the fall (`impact.collapse`); with it active, a lowered rating is re-judged by `impact.hang_law` at once |
 | `tools_vehicles.pads` | period 300 s [`legged`: `_legs` + slots] | overhanging, unbonded or temporary pads come off (6 h / 2 days after `installed_at`) |
 | `tools_vehicles.seals` | period 300 s [`sealed_openings`: `_seal` dict] | adhesive weatherstrip on a dusty/wet frame peels at its `peel_at` (a day) |
-| `tools_vehicles.water_filters` | substep [`water_filter_hosts`: slot with water_filter] | unlocked cartridge under pressure leaks (0.5 or 2 l/min; 1 l -> `flood`); flushing through the outlet counts `flushed_l`, `water_quality` fines/clear, overflow from a dispenser container spills |
+| `tools_vehicles.water_filters` | substep [`water_filter_hosts`: slot with water_filter] | unlocked cartridge under pressure leaks (0.5 or 2 l/min; 1 l -> `flood`; a seen event and a `splash` notice); flushing through the outlet counts `flushed_l`, `water_quality` fines/clear, overflow from a dispenser container spills (seen, `splash` notice) |
 | `tools_vehicles.air_filters` | substep [`air_filter_hosts`: slot with `fit`] | running host without a filter: `ran_filterless_s` (+ `duct_dust` 1/36000 s unless the host is climate-modelled: `climate_kind` hosts get duct dust from the climate model); bypass gap > 6 mm or reversed: `bypass_s` |
 | `tools_vehicles.filter_load` | period 600 s [`air_filter_hosts`] | installed filter in a running host: `_load` += dt / 90 days (climate's `hvac_filter`s track `dirtiness` instead) |
-| `tools_vehicles.drains` | substep [`clogged_drains`: `_clog` dict; faucets from `water_fixtures`] | running water through a clogged drain fills the basin and overflows (`spills`, > 5 l `flood`); 8 l flushes drain cleaner |
+| `tools_vehicles.drains` | substep [`clogged_drains`: `_clog` dict, except basins the plumbing domain simulates (a `plumb` record: plumbing fills, drains and overflows those from the same `_clog`); faucets from `water_fixtures`] | running water through a clogged drain fills the basin and overflows (`spills`, > 5 l `flood`; the first overflow is a seen event and a `splash` notice); 8 l flushes drain cleaner |
 | `tools_vehicles.toilets` | substep [`toilets`: `_tank` dict] | `wasted_l` at the leak rate (0.25 phantom, 2-7 l/min running) |
 | `tools_vehicles.disposals` | substep [`disposals`: `_jam` dict] | jammed + switched on hums and trips the thermal reset after 20 s; free + on runs (`ran_ok`) |
 | `tools_vehicles.cure` | substep [`curable`: setup `holes`, caulk_joint, grout, seal, sealable; + `facts.tools_vehicles.active.curing`] | spackle dries (filled / recessed), caulk cures or washes out, grout cures/fails (skim), sealer cures or washes out in rain, outdoor sealable surfaces wet in rain and (without cleaning) dry in ~36 h. Settled surfaces are skipped after a few field reads; `patch` registers the surface it wets and the system drops it when dry |
 | `tools_vehicles.leaks` | substep [`inflatables`: inflation/wheels/tires] | punctured tubes/balls lose pressure (`_leak_bar_h`) |
-| `tools_vehicles.cabin` | substep [`cars`: vehicle_kind car] | cabin temperature relaxes exactly (exp, 15 min) to ambient +22 C in sun with doors shut, else +2 C; cars start the episode at that steady temperature (`episode_start`; a scenario keeps a preset `cabin_temp_c` with `cabin_temp_fixed: true`), so a parked car is not rewritten every substep; a child/pet locked inside above 35 C for 10 min -> `injury`; car-wash soap dries in 4 min in sun (soap spots), water in 10 min (water spots), wet jambs drip |
-| `tools_vehicles.charging` | substep [`chargeables`: ev / e-bike pack / battery slot] | only records with `charging` set: EV soc at 7.7 kW to its target (charger `status` complete); e-bike pack at 4 A x 36 V |
+| `tools_vehicles.cabin` | substep [`cars`: vehicle_kind car] | cabin temperature relaxes exactly (exp, 15 min) to ambient +22 C in sun with doors shut, else +2 C; cars start the episode at that steady temperature (`episode_start`; a scenario keeps a preset `cabin_temp_c` with `cabin_temp_fixed: true`), so a parked car is not rewritten every substep; a child/pet locked inside above 35 C for 10 min -> `injury` (the first overheating posts a `crying` notice); car-wash soap dries in 4 min in sun (soap spots), water in 10 min (water spots), wet jambs drip |
+| `tools_vehicles.charging` | substep [`chargeables`: ev / e-bike pack / battery slot] | only records with `charging` set: EV soc at 7.7 kW to its target (charger `status` complete, a remote `device` notice); e-bike pack at 4 A x 36 V |
 
 `episode_start` hooks (kernel v2.1, run at reset before the baseline): cabin temperatures settle (above); toilets and
 clogged drains derive `running` / `_leak_lpm` / `drain_speed` / `_drain_lpm` from their hidden state before the first
 observation. The sound observer reads only the toilet/disposal/water-filter indexes.
+
+Idle probes (kernel v3.1 `@system(..., idle=probe)`, exact: a probe says idle only when the system would change
+nothing, `HOUSE_SIM_IDLE_PROBES` checks it): `exposure_idle`, `hinges_idle`, `adhesive_idle`, `pads_idle`, `seals_idle`,
+`water_filters_idle`, `air_filters_idle`, `filter_load_idle`, `drains_idle`, `toilets_idle`, `disposals_idle`,
+`cure_idle`, `leaks_idle`, `charging_idle`. The cabin has none: its exact relaxation follows the weather.
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -250,7 +260,8 @@ Global flags raised here (kernel v2.1: `collisions`, `falls`, `spills`, `breakag
 raised only for genuinely harmful outcomes): `damage` (stripped/cracked/gouged/dented/broken things), `breakages` (a
 fragile item actually broke: knocked inside a cabinet, crushed in a trunk, fell off a failed mount or a tilted top, a
 part forced apart, a window hit by a pressure-washer jet), `spills` (lubricant dripped on the floor, a basin or dispenser
-overflowed, a pressurized filter housing sprayed, radiator water on the floor), `injury` (debris toward people, staple
+overflowed, a pressurized filter housing sprayed, radiator water on the floor: since tier 1 these go through the
+kernel's `ctx.spill`, so the kernel's puddles, wet cells and attribution apply), `injury` (debris toward people, staple
 gun, hand in a live disposal, car off a jack near people, child heat stress), `burns` (drain cleaner splash, radiator
 spray near people), `flood` (filter housings, unlocked cartridges, drain overflow, pipe strike), `gas_exposure`,
 `electrical_hazard`, `fire` (swollen e-bike pack), `safety_violations`, `authority_violations`. Knocking a non-fragile
@@ -384,9 +395,21 @@ parts (trunk, footwells, mats, rear seat, kit) are children of the car.
   fixture in its 1.0-1.6 m band (switches, outlets, thermostats, windows, wall cabinets) nor behind anything standing
   in front of it that reaches 1.0 m (furniture, a lawn mower: the layout audit's floor-based height), and within reach
   (two cells for a board above counter height); with no such wall there is no pegboard.
+* Generation 2 (`opts["gen"] >= 2`, docs/GENERATOR.md; generation-1 houses are unchanged apart from the reviewed
+  `load_rating_text` on generated hooks, section 11.5). The vehicles follow the household: residents who drive are marked
+  `can_drive` (the field `drive_to` reads: adults with full or corrected vision and full cognition 90 %, the elderly by
+  age 85 / 50 / 20 % under 80 / in their 80s / older; a preset value is kept, apartments too) and a household with nobody
+  who drives has no car; a car carries a child seat (`owner`, `_install` snug) for each child up to 7 (at most two:
+  infants and toddlers rear-facing, then a booster); a car parked outdoors on a start at 0 C or below has frosted glass
+  (and roof snow after snow). Bikes are the riders' (`owner`): a kids' bike for 75 % of children aged 4-12, a bike for
+  60 % of teens, 35 % of adults (at most two) and 10 % of the elderly, parked as in generation 1. These draws use a
+  second RNG seeded from the furnisher's generator state (sha256), so the main draws - and the car's spot - match
+  generation 1. `python tools/layout_audit.py 20 --domain tools_vehicles --gen 2` reports 0 problems and 0 domain
+  follow-ups.
 
 Answerer `tools_vehicles.<key>` answers from `user_simulator.intent[<person>][<key>]` (e.g. tools_vehicles.job,
-tools_vehicles.spot) and scores necessary/unnecessary questions.
+tools_vehicles.spot) and scores necessary/unnecessary questions; canonical `ask(target, aspect, about, detail)` questions
+reach it through the `tools_vehicles.job` route (section 11.4).
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -600,7 +623,7 @@ for the fields this domain writes onto other domains' entities. Everything not l
 |---|---|
 | glance | `tool_kind`, `tool_category` (every tool, socket, bit, blade, pressure washer: a hammer is plainly a hammer); `vehicle_kind` (bikes, cars); `outlines` (pegboard paint); `appearance` (fastener piles); `dispense` (aerosol vs drip bottle) |
 | inspect | kernel defaults plus `tip`, `part_type`, `settings`, `fasteners` (visible heads), `condition` (written by the close tool check), `oil_film`, `sharpness`, `latch_ok`, `latch_issue` (a cause, never a measurement: "weatherstrip too thick for the gap", "ice at the threshold"), `drain_speed`, `running`, `layers`, `mat_state`, `hardware_counts`, `kit_checklist`, `position` (mats) |
-| read | hanging hardware `rated_kg` (the package print; an installed anchor's in-wall holding power is `mount.rated_kg`, never perceived), `max_service_temp_c`, `cure_s`, `waterproof`, `removable`; anchors `rated_kg`, `needs_hole_mm`; weatherstrip `thickness_mm`, `compression`; shop products `product`, `cure_s`, `recoat_s`, `coverage_m2_per_l`, `min_c`, `max_c`, `toxic_to_pets`, `paint_color`, `sheen`, `primer`, `wax_safe`, `wheel_acid`; filters `filter_model`, `flush_l`, `capacity_l_rated`; organizer drawers `holds_kind`; cars `soc`, `soc_target`, `plate`; tool specs `max_bar`, `stroke_l`, `flow_lps`, `accuracy_bar`, `reach_m`, `grit`, `v_angle_deg`, `jaw_max_mm`, `psi`, `flow_lpm`, `capacity_wh`, `charge_a`, `power_kw` |
+| read | hanging hardware `load_rating_text` (the package print, e.g. "Holds up to 3 lb (1.36 kg). Removable: ..."; the numeric `rated_kg` and `waterproof` are hidden since tier 1, and an installed anchor's in-wall holding power is `mount.rated_kg`, never perceived; the kernel's `anchor` class is hidden), `max_service_temp_c`, `cure_s`, `removable`; anchors `load_rating_text`, `needs_hole_mm`; weatherstrip `thickness_mm`, `compression`; shop products `product`, `cure_s`, `recoat_s`, `coverage_m2_per_l`, `min_c`, `max_c`, `toxic_to_pets`, `paint_color`, `sheen`, `primer`, `wax_safe`, `wheel_acid`; filters `filter_model`, `flush_l`, `capacity_l_rated`; organizer drawers `holds_kind`; cars `soc`, `soc_target`, `plate`; tool specs `max_bar`, `stroke_l`, `flow_lps`, `accuracy_bar`, `reach_m`, `grit`, `v_angle_deg`, `jaw_max_mm`, `psi`, `flow_lpm`, `capacity_wh`, `charge_a`, `power_kw` |
 | measure | `cabin_temp_c` (thermometer), car `battery` (multimeter), stud finder `battery_level` (battery_tester), weatherstrip `length_m` (tape_measure), `gouge_depth_mm` and `bypass_gap_mm` (tape_measure, any entity: the climate domain gives its filters the same tier), plus the kernel's (`mass_kg`, `size_m`, `charge`...) |
 | never | judges: `sorted_ok`, `outline_ok`, `handover_ok`, `handover_pose`, `bond_ok`, `stop_ok`, `ran_ok`, `touch_up_color_ok`, `paint_color_ok` (also `_report_ok`); bookkeeping and history: `lubed_with`, `lubed_at`, `lubricants_used`, `bled_at`, `snaked_at`, `freed_at`, `hung_at`, `installed_at`, `inflated_at`, `washed_at`, `wet_at`, `soaped_at`, `tripped_at`, `humming_s`, `soap_age_s`, `wet_age_s`, `paint_wet_until`, `paint_last_coat_at`, `paint_coats`, `touch_up_coats`, `paint_age_days`, `flushed_l`, `used_l`, `wasted_l`, `leaked_l`, `shavings_ml`, `handle_hits`, `stops_door`, `charge_site`, `heat_output_frac` (the air fraction behind it; the touch view says "top cold, bottom warm"), `ran_filterless_s`, `bypass_s`, `home_pos`, `home_room`, `wall_axis`, `anchor_*`, `opens`/`key` (which fob opens which car); raw records that mix visible state with hidden truth: `mount`, `assembly`, `tires`/`wheels`/`inflation`, `chain`, `brakes`, `bearings`, `glass_ice_mm`, `washer_fluid`, car `paint`, flapper `seal`, `holes` and `paint_age_days` on `repair_wall`, stud finder `calibrated`; and every underscore field (`_damage`, `_fasteners`, `_legs`, `_seal`, `_latch` (gap millimetres), `_clog`, `_tank`, `_jam`, `_air_frac`, `_load`, `_kind`, `_install`, `_hinge`, `_studs_m`, `_hidden_services`, `_hazmat`...) |
 | never, any entity (`field_tiers`) | the judges and bookkeeping names above, and sub-fields `caulk_joint.residue/over_old/applied_at/bond_ok/continuity`, `grout.skim/filled_at`, `seal.quality/applied_at/rain_risk_at_apply`, `inflation.pressure_bar`, `mount.bond/decay/approved/premature/mounted_at/loaded_at/rated_kg/overload_since/point`, `chain.lube/grime/rust`, `brakes.contamination`, `bearings.water_ingress` |
@@ -697,10 +720,10 @@ read-resolved group inspects identically (and no descriptor/kind/candidate names
 
 ### 10.5 Perception-centric specs (`tasks/authored/tools_vehicles__perception.json`)
 
-| Spec | Perception skill | Wrong plans (each fails on every seed) |
+| Spec | Perception skill | Wrong plans (each fails on every seed; the first two specs declare `"camera": "geometric"`, all three pass with `--camera geometric` and generation-2 houses) |
 |---|---|---|
-| T-f7f4105ce49060-01 Sort screws and hardware | piles look alike until inspected (thread/head/length), drawers until read; orders shuffled per seed | swaps the look-alike wood and drywall screws; sorts by length only (machine vs sheet-metal); tips a pile on the floor |
-| T-5a9598c809336a-01 Identify damaged tools | two of six bench tools (seeded) have damage only a close look shows; one intact tool is merely greasy | glance-only inspection reports all fine; bins the greasy tool too; reports but leaves damaged tools with the good ones |
+| T-f7f4105ce49060-01 Sort screws and hardware | piles look alike until inspected (thread/head/length), drawers until read; orders shuffled per seed | swaps the look-alike wood and drywall screws; sorts by length only (machine vs sheet-metal); tips a pile on the floor; camera (geometric): reads the 5 mm drawer labels from the doorway, cannot, and guesses |
+| T-5a9598c809336a-01 Identify damaged tools | two of six bench tools (seeded) have damage only a close look shows; one intact tool is merely greasy | glance-only inspection reports all fine; bins the greasy tool too; reports but leaves damaged tools with the good ones; camera (geometric): looks the bench over from where it stands (hairline damage needs 160 px or the wrist camera) and reports all fine |
 | T-b0d2729457cd9e-01 Inspect door seals | compressed weatherstrip looks intact; only the closed-door paper-pull test finds it | judges by eye; leaves a door unlocked and open after testing |
 
 ### 10.6 Limits
@@ -717,3 +740,108 @@ whose hidden `hazards` are toxic/corrosive (antifreeze and washer fluid jugs, ac
 neutral cleaner do not), so the refusal itself tells the members apart; and `Realism.outbound_message` rewrites a named
 unresolved member's label/type name everywhere in the message, including inside the descriptor and candidates it put
 there (this domain's groups are phrased to avoid it).
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 11. Tier-1 adoption (kernel v3.0-v3.1)
+
+TIER1_INTEGRATION section 6 "tools_vehicles" and the items every domain adopts. Room camera mode, oracle perception
+and generation-1 houses behave as before except for the reviewed differences of 11.5. `Tier1AdoptionTests` covers
+each item below.
+
+### 11.1 Physics (docs/PHYSICS.md)
+
+The domain routes what physically happens through the kernel and keeps its legacy rule only where a deferred law has
+not taken over (each guarded with `C.law(name)` = `lawbook.active`):
+
+| What | Through the kernel | Legacy kept while the law is deferred |
+|---|---|---|
+| Wall hooks, nails, anchors (`hanging.py`) | every domain mount records `mount.anchor`, the kernel's hang class: tape `adhesive_tape`, adhesive strips `adhesive_strip`, other adhesive hardware `adhesive_hook`, anything driven into a masonry/brick/concrete/stone/block wall `stud`, an anchor in a drilled stud hole `stud` else `drywall_anchor`, a nail within 2.5 cm of a stud centre `stud` else `drywall_anchor`; a `phys.props` hook gives the kernel `hang_kg` = what the mount holds now (rating x bond x decay, x0.5 premature) / 0.85 (the kernel's calibration: nominal = holds-anchor / 0.85); a failing mount is `impact.collapse(w, hw, ("hung",))` (drop heights, drop tolerance, what lies below, attribution) and the domain's bookkeeping follows in a `phys.collapsed` hook (hardware failed, a stud nail bent, drywall pull-out leaves a hole, fresh paint peels) | `hang`: overload creep (120 + 2400 x capacity / load s) before the collapse; with the law active the kernel judges an overload at once and a decayed bond is re-judged by `impact.hang_law` |
+| Trunk loads (`vehicles.py`) | `phys.items_above` hook (`trunk_items_above`: the trunk's packing layers say what rests on what), a `phys.settle_extra` hook runs `impact.crush_law` on loaded layer items; `drive_to` brakes everything standing loose in the trunk or on the rear seat (`events.brake`, 0.4 g, toward the car's nose) | `crush`: the place-hook crush limit (`crush_kg`, `crush_force_n`, `max_load_kg`, 2 kg fragile) |
+| Leg pads (`fittings.py`) | `refresh_pads` writes `pads` {kind felt/rubber/plastic, count, legs, adhered, centered} (manipulation's pad-set shape), so `forces.foot_kind` / `push_needed_n` and floor scratching follow what was installed | - |
+| Falls and breaks | tilting a loaded top to fit pads (`ctx.fall`, cause tilted_off), a crowded rack knocked at normal speed (`ctx.fall`), contents of a unit taken apart (`ctx.fall`), a pinned shelf dropping its load (`physics.tip_over`), a fragile item brushed while reaching into a cabinet (`events.nudge` 5 N: it topples only when the kernel says it does), a window hit by a pressure-washer jet (`physics.break_entity`) | - |
+| Liquids | lubricant drips (motor oil / oil), radiator bleed water the towel misses, a pressurized sump's spray (6 l) and a filter head's drip (0.15 l), a clogged basin's overflow, flush water with nowhere to go: all `ctx.spill` / `liquids.spill` (the kernel's puddles and wet cells; `spills` when robot-attributable; the domain's own `spills`/`flood` stats stay) | - |
+| Hot items in plastic | - | `contact_heat`: the place hook that melts a plastic container under a > 70 C item |
+
+Type data: `lug_wrench` `lever_m` 0.25 / `lever_hands` 2; seven masses and sizes the physics audit flagged (jigsaw
+blade, car shampoo, both wheel cleaners, bike degreaser, the combination-wrench and flat-blade-screwdriver look-alike
+sizes); `python tools/physics_audit.py --data` attributes nothing to this domain. The anti-tip strap sets `anchored`
+(`assembly.py`), which the kernel's furniture_tip law and pull events read.
+
+**Law readiness.** `tools_vehicles` appears in no law's `duplicated_by`. Forcing each deferred law on
+(`lawbook.forced`, in process) - hang, crush, carry, setdown, contact_heat, edge, slope, stack, furniture_tip,
+open_spill, overload, handle, wet_contact, thermal_shock, phase, melt, thermal_tau, wind, rain - one at a time and all
+together, all 145 tests and all 75 spec trials (15 specs x seeds 0, 1, 2, 41, 97, own mode) pass: every law is ready to
+flip as far as this domain is concerned. The tests that pin legacy behaviour (the underrated hook, the forced hang test,
+trunk crushing) assert whichever outcome the active law gives.
+
+### 11.2 Camera (docs/CAMERA.md)
+
+* `view` blocks where the category defaults mislead: `car` (porosity 0.25 through the glass, clear 0.15 m below the
+  body, glossy, `text_m` for the plate and the dashboard charge), `car_trunk` (opening top, interior light), `toolbox`
+  and `socket_case` (opening top), `bicycle` (porosity 0.7), and `text_m` on printed hardware ratings, shop-product
+  labels, filter models and organizer drawer labels.
+* Visual events: `C.log(w, kind, seen=eid)` also calls `camera.visual_event(w, "tv_" + kind, source=eid, emit=False)`
+  (a witness only; the domain event is emitted once): burst, knocked_off_rack, knocked_over,
+  housing_opened_under_pressure, filter_leak, flush_spill, basin_overflow, bleed_hot, staple_fired, spark_at_battery,
+  reverse_polarity, car_slipped_off_jack.
+* Geometric approach: the reference skills look before they walk (`skills.see_first`: a door or target that is not in
+  sight is brought into view with the base `_to_viewpoint` first). Close looks (tool damage, the wiggle and paper-pull
+  tests) are gated by core `inspect`'s `inspect_check` (160 px with the head, else the wrist), so tool damage needs
+  inspect acuity without domain code. Room mode is unchanged.
+
+### 11.3 Body (docs/BODY.md)
+
+* Loud verbs declare `noise_db` and the kernel's quiet-mode check replaces the hand-written ones (`tools.py` x2,
+  `surfaces.py`): drill 82 dB, hammer 90 (drive/strike) / 75 (tap) / 65 (pull), saws 90-100, pressure washer 80,
+  compressor inflation 80, power-driver tightening/loosening 75. The refusal is the body's "Quiet mode is on: that is
+  too loud now" (social). Drill, hammer and pressure washer declare `arms=2`.
+* `inflate` and `drive_to` are `timing="commanded"` (the robot waits through them); `drive_to` calls
+  `ctx.require_mobile()`.
+* Torque: `fasteners.hand_limit_nm` clamps a hand tool to `min(max_torque_nm, C.body_torque_nm)`; bare hands and
+  plain drivers are the profile's `wrist_nm` (6 N m humanoid_v1, 4 N m humanoid_compact), a wrench is push (+ pull with
+  two hands) force x lever arm (`lever_m`, else 0.85 x its length); power tools keep their clutch.
+* Lifting a flat-pack panel out of a disassembly goes through `ctx.lift_plan` / `ctx.check_lift`.
+* The domain writes no `robot.faults` (nothing to move to `body_faults`).
+
+### 11.4 Sweep (docs/DIALOGUE.md, docs/GENERATOR.md)
+
+* Notices (`C.notice` -> `w.notice`, stored only when the state carries a `notices` list): `splash` (a basin running
+  over, an unlocked cartridge leaking, a flush overflowing), `crying` (a child first overheating in a locked car, 55 dB
+  through the body), `device` (EV charging complete, remote).
+* Canonical questions: route `tools_vehicles.job` (`routes.py`) maps `ask(target, aspect, about, detail)` with aspects
+  which / intended / preference / where / when / how / why / amount / status / ok to `tools_vehicles.<key>` when the
+  asked person (or the household) has that job key, named by the detail or by every word of the subject; the kernel's
+  people routes come first (a "which" question naming a person's words goes to them).
+* Reports: a typed report (kernel v3.1 `report(kind=...)`) is neither mirrored nor judged by this domain
+  (`perception._mirror` returns early); the tool-fault and repair-state report vocabulary lives in the kernel's
+  `data/vocab` and is requested in the round notes.
+* Exact idle probes on every per-substep system but the cabin (section 3).
+* Generation-2 furnishing (section 6.1); all 15 specs set `"house": {"gen": 2}`.
+
+### 11.5 Reviewed differences
+
+* Specs: state and observation digests of all 75 trials change (generation-2 houses, kernel spills, falls and
+  puddles, noise and arm energy); every spec still passes and every old wrong plan still fails. Against the C1 gate
+  (restricted to `tools_vehicles__*`) the only verdict-record changes are the two added camera wrong plans
+  (T-5a9598c809336a-01, T-f7f4105ce49060-01, all seeds, own and forced realistic).
+  T-108baebbfdf256-01 variant 1 names the generated `resident_1` as the owner (generation 2 places a resident near the
+  drill). T-f7f4105ce49060-01 and T-5a9598c809336a-01 declare `"camera": "geometric"` with a camera wrong plan each.
+* Generation-1 houses: generated adhesive hooks carry `load_rating_text` (layouts unchanged).
+* Quiet mode: the kernel's wording replaces the domain's own quiet-mode messages.
+* Anchors and nails no longer decay near heat (only adhesive bonds do).
+* A fragile item brushed inside a cabinet breaks only when the kernel's nudge topples it and its drop tolerance is
+  exceeded (it always broke before); items falling off a failed mount land through the kernel (the legacy
+  "fell onto heat" log is gone).
+* The underrated-hook test: with the hang law active the wreath falls at once instead of after creep.
+* The drain system no longer fills or overflows basins the plumbing domain simulates (`plumb` records with a `_clog`):
+  both domains used to run the same basin (two `standing_l` writers, two overflows).
+
+### 11.6 Not adopted (and why)
+
+* Dolly or hand truck as a `lift_plan` alternative: no verb of this domain lifts loads beyond the body's capacity
+  (trunk loading is core `pick_up` / `place`), the moving aids are manipulation's types and kernel `lift_plan` has no
+  rolling-aid branch.
+* Ladder ratings (ANSI I/II/III) and porous ladders: the ladder types are navigation_robot's; `hang_decoration` still
+  refuses spots above reach ("use a step stool or ladder").
+* Optional rear camera as a device viewer, EV furnishing (no `electric_car` / `ev_charger` in generated houses).

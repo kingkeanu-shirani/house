@@ -118,7 +118,7 @@ def lower_sash(ctx, eid, to_frac, part, force, speed):
     newtons = C.force_n(force)
     if speed in ("release", "drop"):
         obstacles = K.close_obstructions(w, eid)
-        K.apply_close(ctx, eid, "yank", "lower", obstacles=obstacles, guided=False)
+        K.apply_close(ctx, eid, "yank", "drop", obstacles=obstacles, guided=False)     # gravity drops it, not the robot
         return "The sash dropped and banged shut"
     obstacles = K.check_close(ctx, eid, force, "lower")
     K.apply_close(ctx, eid, force, "lower", obstacles=obstacles)

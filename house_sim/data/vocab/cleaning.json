@@ -1,0 +1,22 @@
+{
+ "about": "cleaning's report words (TIER1_SWEEP 5.2; docs/domains/cleaning.md): soil and finish issues the cleaning domain models beyond the kernel's dirty / dusty / stained / sticky / greasy / residue (limescale, soap scum) / mildew / scratched / bent (warped), waste-stream and bin problems, and the states of washed things. Soil kinds are keys of an entity's soil dict (CONVENTIONS 5), so their evidence is the soil field; finish harm is a damage dict key. Words are plain household English.",
+ "issues": {
+  "streaky": {"class": "soil", "synonyms": ["streaks", "streaked", "streaking", "smeared", "smears"], "evidence": [{"field": "soil"}]},
+  "water_spots": {"class": "soil", "synonyms": ["water_spotted", "hard_water_spots", "spotty", "water_marks"], "evidence": [{"field": "soil"}]},
+  "fingerprints": {"class": "soil", "synonyms": ["fingerprint", "smudges", "smudged", "prints", "fingermarks"], "evidence": [{"field": "soil"}]},
+  "crumbs": {"class": "soil", "synonyms": ["crumb", "crumbly", "food_bits"], "evidence": [{"field": "soil"}, {"field": "dirty_cells"}]},
+  "rusty": {"class": "condition", "synonyms": ["rust", "rusted", "rusting"], "evidence": [{"field": "soil"}, {"field": "damage"}]},
+  "etched": {"class": "condition", "synonyms": ["etching", "acid_etched", "dull_spot", "dulled_finish"], "evidence": [{"field": "damage"}]},
+  "wrong_bin": {"class": "order", "synonyms": ["wrong_stream", "missorted", "mis_sorted", "in_the_wrong_bin", "sorting_error"], "evidence": [{"field": "stream_ok"}, {"field": "in_stream"}]},
+  "lid_blocked": {"class": "function", "synonyms": ["lid_will_not_close", "lid_wont_close", "lid_does_not_close"], "evidence": [{"field": "lid_blocked"}]},
+  "hair_wrapped": {"class": "function", "synonyms": ["tangled_brush", "brush_roll_wrapped", "hair_wrap", "hair_tangled"], "evidence": [{"field": "brushroll_wrap"}]},
+  "cross_contaminated": {"class": "safety", "synonyms": ["cross_contamination", "germs_spread", "toilet_germs"], "evidence": [{"field": "contamination"}, {"field": "cl_used_zones"}]},
+  "fruit_flies": {"class": "living", "synonyms": ["fruit_fly", "gnats", "flies"], "evidence": [{"field": "fruit_flies"}]}
+ },
+ "states": {
+  "soapy": {"synonyms": ["sudsy", "soaped", "soap_on_it"], "opposite": "rinsed", "evidence": [{"field": "cl_suds"}]},
+  "rinsed": {"synonyms": ["soap_free", "rinsed_off"], "opposite": "soapy", "evidence": [{"field": "cl_suds"}]},
+  "sanitized": {"synonyms": ["disinfected", "sanitised", "disinfected_surface"], "opposite": "dirty", "evidence": [{"field": "contamination"}]},
+  "air_dried": {"synonyms": ["drip_dried", "air_dry"], "evidence": [{"field": "wetness"}]}
+ }
+}

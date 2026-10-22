@@ -885,7 +885,9 @@ entity panels, `physics_version` in the header, `pw` / `bs` / `ft` frame keys, b
 robot fields), `house_sim/eval/dataset.py` and `docs/DATASET.md` (format version bump, compact `battery` rule),
 `docs/VIEWER.md`, `docs/KNOWN_LIMITS.md` (consolidated rewrite: physics section 1, camera non-goals, embodiment
 approximations), `house_sim/data/types/core.json` (the `ottoman` type for GEN), regenerated `demos/replays/*` and
-`demos/manifest.json`, `reports/verification.jsonl` and `verification_run.json` (`python -m house_sim --verify`),
+`demos/manifest.json`, `reports/verification.jsonl` and `verification_run.json` (`python -m house_sim --verify`,
+which also rewrites `coverage.csv`, the compiled `tasks/specs.jsonl` / `tasks/id_to_family.jsonl` and
+`catalog/entries.jsonl` / `catalog/manifest.json`: on the close steps' lists since the adoption round, K-EVAL),
 leaderboard regeneration (`tools/orchestration/regen_leaderboard.sh`), an archive snapshot
 (`tools/orchestration/snapshot.py tier1_B`), and `tests/data/spec_baseline.json` (the B6 gate's verdicts and
 reference digests in the sweep's format, the baseline of sweep 19.2 for stage C).
@@ -931,7 +933,9 @@ Contracts between the two (sweep 16.1, frozen): `timeline.*`, `monitor.*`, `phas
 remaining stub call is marked `TIER1-STUB(<ID>)` and removed before stage C closes.
 
 **C1 C-CLOSE** (main session). Regenerate verification evidence, demo replays and datasets (the action fingerprint
-changed); refresh `tests/data/spec_baseline.json`; snapshot.
+changed); refresh `tests/data/spec_baseline.json`; snapshot. `--verify` also rewrites `coverage.csv` and the compiled
+specs (B6 above). Demo replays are compact `house-replay-v3` files (about 100 KB) and committed again since the
+adoption round (K-EVAL).
 
 ### 2.6 Stage D (switch-overs, after the adoption round)
 
@@ -1026,7 +1030,7 @@ handoff reports the measured numbers against these budgets.
 | Package | Budget (from the layer specs) |
 |---|---|
 | PHYS-INT | settle substep with nothing touched <= 0.02 ms; settle action typical <= 1 ms, 64-consequence worst case <= 10 ms; `physics.processes` idle <= 0.02 ms, 10 active <= 0.2 ms; `physics.environment` windy <= 0.3 ms (0 when calm or deferred); kernel thermal <= 0.5 ms amortized; `props()` <= 5 µs; data load <= 20 ms; whole engine <= A0 and < 15 ms on any 900-entity house |
-| CAM-RUNTIME, CAM-RENDER | viewshed <= 0.3 ms indoors, <= 1.5 ms outdoors; `end_step` <= 3 ms indoors (+0.5 ms motion frames); `camera.watch` <= 0.05 ms per substep and skipped when idle; lidar <= 0.4 ms; `can_see` warm <= 0.05 ms; geometric realistic observe overhead target 3 ms, test bound 10 ms (seed 7, best of 5); look-around <= 4 ms extra; caches within 64 rooms x 32 eyes |
+| CAM-RUNTIME, CAM-RENDER | viewshed <= 0.3 ms indoors, <= 1.5 ms outdoors; `end_step` <= 3 ms indoors (+0.5 ms motion frames); `camera.watch` <= 0.05 ms per substep and skipped when idle (K-CAM, adoption round: with nobody in view; with people in view <= 0.1 ms, the light and pixels of each agent in view being judged exactly every substep under the domains' light hooks); lidar <= 0.4 ms; `can_see` warm <= 0.05 ms; geometric realistic observe overhead target 3 ms, test bound 10 ms (seed 7, best of 5); look-around <= 4 ms extra; caches within 64 rooms x 32 eyes |
 | BODY-ENGINE, BODY-FAULTS | body system <= 0.02 ms per substep; settlement <= 0.1 ms per leaf; motion prefix <= 0.05 ms per 40 cells; proprio <= 0.05 ms per observation; a week-long wait adds <= 0.4 s |
 | GEN | `generate_house(gen=2)` <= +20 % over generation 1; generation 1 unchanged |
 | TIME-EVAL, PEOPLE-IO | a quiet simulated day (seeds 0-2) no slower than the B6 gate, <= 3.5 s once the domain idle probes land; notice derivation and interrupt check <= 0.03 ms per substep; monitor sampling <= 0.05 ms per substep with nothing touched (<= 0.5 ms with quantified predicates over touched entities); `mind.update` <= 1.0 ms per step on a 900-entity house; `ask` <= 2 ms; `report` <= 1 ms; vocabulary and holiday data load <= 20 ms |

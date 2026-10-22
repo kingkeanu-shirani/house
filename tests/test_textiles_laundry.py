@@ -18,6 +18,7 @@ from house_sim.kernel.schema import _default_connections
 
 load_domains()
 from house_sim.systems.textiles_laundry import model as M  # noqa: E402
+from house_sim.systems.textiles_laundry import physical as P  # noqa: E402
 from house_sim.systems.textiles_laundry.furnish import install_station  # noqa: E402
 
 
@@ -1082,7 +1083,10 @@ class IronSteamTests(unittest.TestCase):
         ok(env, "wait", seconds=120)
         ok(env, "place", s["iron"], s["board"], orientation="flat")
         ok(env, "wait", seconds=300)
-        self.assertIn("scorched", ent(env, s["board"]).get("damage", {}))
+        # the board cover's mark is this domain's ("scorched") while the kernel's contact_heat law is deferred, the
+        # kernel's ("scorch", the board's 120 C cover limit) once it is active (adoption round, TIER1_PHYSICS 10.3)
+        mark = "scorch" if P.law("contact_heat") else "scorched"
+        self.assertIn(mark, ent(env, s["board"]).get("damage", {}))
         self.assertIn("iron_left_on", env.evaluate()["failures"])
 
     def test_leaving_the_room_with_the_iron_on_is_a_safety_violation(self):
@@ -1252,11 +1256,15 @@ class LintSewingShoeTests(unittest.TestCase):
             env = env_of(config)
             ok(env, "approach", s["table"])
             ok(env, "pick_up", kit["needle"], grip="pinch")
-            no(env, "thread_needle", kit["needle"], thread=kit["thread_white"])
+            self.assertIn("frayed", no(env, "thread_needle", kit["needle"], thread=kit["thread_white"])["message"])
             ok(env, "pick_up", kit["snips"], grip="handle")
             ok(env, "trim_thread", kit["thread_white"])
             ok(env, "place", kit["snips"], s["table"])
-            ok(env, "thread_needle", kit["needle"], thread=kit["thread_white"])
+            # a humanoid hand (2 mm) cannot aim at a needle's eye (0.5 mm) unaided: the threader opens the target
+            self.assertIn("precisely", no(env, "thread_needle", kit["needle"], thread=kit["thread_white"])["message"])
+            ok(env, "pick_up", kit["threader"], grip="pinch")
+            ok(env, "thread_needle", kit["needle"], thread=kit["thread_white"], threader=kit["threader"])
+            ok(env, "place", kit["threader"], s["table"])
             ok(env, "sew_button", shirt, slot="b3", button=kit["button_1"], position="marks", layers=layers)
             state = ent(env, shirt)["buttons"]["b3"]["state"]
             self.assertEqual(state == "ok", layers == "placket")
@@ -1266,6 +1274,32 @@ class LintSewingShoeTests(unittest.TestCase):
             ok(env, "pick_up", kit["needle"], grip="pinch")
             ok(env, "place", kit["needle"], kit["pincushion"])
             self.assertNotIn("loose_needle", env.evaluate()["failures"])
+
+    def test_sewing_needs_a_precise_hand_light_and_a_clean_lens(self):
+        """Adoption round (body, TIER1_EMBODIMENT 4.8): stitching through a button's holes needs the point within about
+        2 mm. The humanoid hand manages it with a clean lens; with a smudged lens (camera_clean 0.55) its visual servoing
+        halves in precision and the robot refuses (capability) both to thread the needle, even with the threader, and
+        to sew."""
+        from house_sim.systems.textiles_laundry.helpers import sewing_kit
+
+        class Ctx:
+            pass
+        config, p, s = build()
+        ctx = Ctx()
+        ctx.config, ctx.placer = config, p
+        kit = sewing_kit(ctx, on=s["table"], frayed=False)
+        shirt = p.on(s["table"], "dress_shirt", buttons={"b3": {"state": "loose", "holes": 4, "size_mm": 11, "pattern": "cross",
+                                                                 "thread_color": "white", "marks": True}})
+        env = env_of(config)
+        ok(env, "approach", s["table"])
+        ok(env, "pick_up", kit["needle"], grip="pinch")
+        ok(env, "pick_up", kit["threader"], grip="pinch")
+        env.world.s["robot"]["camera_clean"] = 0.55
+        result = no(env, "thread_needle", kit["needle"], thread=kit["thread_white"], threader=kit["threader"])
+        self.assertEqual(result["category"], "capability")
+        env.world.s["entities"][kit["needle"]]["threaded"] = {"color": "white", "length_cm": 50.0, "knot": True,
+                                                               "doubled": False, "spool": kit["thread_white"]}
+        self.assertIn("precisely", no(env, "sew_button", shirt, slot="b3", position="marks")["message"])
 
     def test_seam_repair_needs_overlap_and_tears_are_not_seams(self):
         from house_sim.systems.textiles_laundry.helpers import sewing_kit
@@ -1281,7 +1315,9 @@ class LintSewingShoeTests(unittest.TestCase):
         env = env_of(config)
         ok(env, "approach", s["table"])
         ok(env, "pick_up", kit["needle"], grip="pinch")
-        ok(env, "thread_needle", kit["needle"], thread=kit["thread_white"], length_cm=80)
+        ok(env, "pick_up", kit["threader"], grip="pinch")
+        ok(env, "thread_needle", kit["needle"], thread=kit["thread_white"], length_cm=80, threader=kit["threader"])
+        ok(env, "place", kit["threader"], s["table"])
         ok(env, "repair_seam", tee, seam="left_side", overlap_cm=1.5)
         seam = ent(env, tee)["seams"]["left_side"]
         self.assertEqual(seam["split_cm"], 0.0)
@@ -1355,16 +1391,33 @@ class TableclothTests(unittest.TestCase):
         rec = ent(env, cloth)
         self.assertLessEqual(rec["drop_diff_cm"], 3.0)
         self.assertTrue(rec["shape_match"])
-        # a vase set on the cloth breaks when the cloth is pulled off without clearing the table
+        # what stands on the cloth is dragged over the edge when the cloth is pulled off without clearing the table:
+        # the kernel's fall (TIER1_PHYSICS 5.5; adoption round) -- onto this bedroom's carpet a ceramic vase lands on
+        # the floor, and the crumbs go with it
         env.world.begin()
         vid = env.world.spawn("generic_item", table, eid="vase_1", label="vase", fragile=True, relation="on", spos=[0.5, 0.3],
-                              size_m=[0.12, 0.12, 0.25])
+                              size_m=[0.12, 0.12, 0.25], material="ceramic")
         env.world.s["entities"]["vase_1"]["relation"] = "on"
         env.world.commit()
         env.world.s["entities"][cloth]["soil"] = {"crumbs": 0.3}
         ok(env, "pick_up", cloth, hand="both")
-        self.assertTrue(ent(env, vid)["broken"])
+        self.assertEqual(ent(env, vid)["location"], "bedroom")
+        self.assertTrue(ent(env, vid).get("fell"))
         self.assertGreater(M.soil_level(ent(env, "floor_bedroom"), "crumbs"), 0.2)
+
+    def test_a_glass_dragged_off_with_the_cloth_breaks_on_a_tile_floor(self):
+        """Adoption round (kernel physics): a drinking glass standing on a spread cloth falls with it onto the laundry
+        room's tile and breaks, counted as the robot's breakage."""
+        config, p, s = build()
+        cloth = p.make("tablecloth", s["table"], spread_on=s["table"], size_m=[1.2, 1.2, 0.0015])
+        config["entities"][cloth]["relation"] = "on"
+        glass = p.on(s["table"], "generic_item", label="drinking glass", material="glass", size_m=[0.08, 0.08, 0.12],
+                     mass_kg=0.25)
+        env = env_of(config)
+        ok(env, "approach", s["table"])
+        ok(env, "pick_up", cloth, hand="both")
+        self.assertTrue(ent(env, glass).get("broken"))
+        self.assertGreaterEqual(stat(env, "breakages"), 1)
 
     def test_gathered_cloth_keeps_its_crumbs(self):
         config, p, s = build()
@@ -1982,8 +2035,12 @@ class LongHorizonAndPlacementTests(unittest.TestCase):
             if ent(env, hooks).get("broken"):
                 broke = True
                 break
-        self.assertTrue(broke)
-        self.assertGreater(stat(env, "damage"), 0)
+        # this domain's pull-out (a hook rack without its own rating holds 10 kg; loads are wet masses) applies while
+        # the kernel's hang law is deferred; once it is active the kernel judges the rack by its supports.json rating
+        # (about 42 kg for a six-hook coat rack) and two wet coats stay up (adoption round, TIER1_PHYSICS 10.3)
+        self.assertEqual(broke, not P.law("hang"))
+        if broke:
+            self.assertGreater(stat(env, "damage"), 0)
         hold(env, shirt)
         ok(env, "approach", rod)
         self.assertIn("hanger", no(env, "place", shirt, rod, relation="hung")["message"])
@@ -2573,9 +2630,253 @@ class PerceptionHardeningTests(unittest.TestCase):
         env, H = self._env(config)
         self._do(env, "approach", H(s["table"]))
         self._do(env, "pick_up", H(kit["needle"]))
-        self._do(env, "thread_needle", H(kit["needle"]), thread=H(kit["spools"][0]))
+        self._do(env, "pick_up", H(kit["threader"]))       # a humanoid hand needs the threader (adoption round, body)
+        self._do(env, "thread_needle", H(kit["needle"]), thread=H(kit["spools"][0]), threader=H(kit["threader"]))
         refused = self._no(env, "repair_seam", H(shirt), seam="collar")
         self.assertNotIn("side", refused["message"])
+
+
+class TierOneAdoptionTests(unittest.TestCase):
+    """Tier-1 adoption round (docs/design/TIER1_INTEGRATION.md 6): the domain on the kernel's physics, camera, body and
+    sweep layers."""
+
+    def test_fibre_properties_come_through_the_kernel_hook_and_the_wet_mass_from_them(self):
+        from house_sim.kernel import physics
+        config, p, s = build()
+        tee = p.on(s["table"], "t_shirt")                             # cotton jersey
+        poly = p.on(s["table"], "t_shirt", fabric="polyester")
+        coat = p.on(s["table"], "raincoat")                           # coated nylon
+        towel = p.on(s["table"], "bath_towel", wetness=0.5)
+        env = env_of(config)
+        st = env.world.s
+        cotton, synthetic = physics.props(st, tee), physics.props(st, poly)
+        self.assertAlmostEqual(cotton.absorb_l, 2.5 * 0.17, places=4)          # the kernel's cotton class, per kg
+        self.assertAlmostEqual(synthetic.absorb_l, 0.6 * 0.17, places=4)       # hydrophobic polyester
+        self.assertEqual(cotton.melt_c, float("inf"))                          # cotton scorches, never melts
+        self.assertEqual(synthetic.melt_c, 180.0)                              # polyester glazes under an iron at 180 C
+        self.assertTrue(physics.props(st, coat).waterproof)
+        self.assertAlmostEqual(P.wet_mass(st, coat), 0.6, places=4)             # a coated shell holds no water
+        self.assertAlmostEqual(P.wet_mass(st, towel), 0.55 + 0.5 * 2.5 * 0.55, places=4)
+        self.assertLessEqual(cotton.heat_limit_c, P.RESTING_SCORCH_C * 1.15 + 1e-9)
+        # the kernel's mass stays the dry own mass: what a body holds when saturated never depends on how wet it is
+        # (liquids.absorb_capacity_l divides by that mass; a soaked leather boot still soaks rather than shedding a film)
+        from house_sim.kernel.phys import liquids
+        self.assertEqual(physics.props(st, towel).mass_kg, 0.55)
+        dry_boot, wet_boot = (p.on(s["table"], "boot", wetness=w) for w in (0.0, 0.9))
+        env = env_of(config)
+        st = env.world.s
+        caps = [liquids.absorb_capacity_l(physics.props(st, b)) for b in (dry_boot, wet_boot)]
+        self.assertGreater(caps[0], 0.0)
+        self.assertEqual(caps[0], caps[1])
+        # the drum's capacity is a wash load, not a structural rating the overload law could collapse
+        self.assertIsNone(physics.props(st, s["washer"]).rating_kg)
+        self.assertEqual(ent(env, s["washer"])["wash_capacity_kg"], 8.0)
+
+    def test_a_garment_slides_off_a_hanger_whose_friction_is_too_low(self):
+        reg = default_registry()
+        silk = reg.make("blouse", "r", fabric="silk")
+        cotton = reg.make("dress_shirt", "r")
+        plain, velvet, wire = (reg.make(t, "r") for t in ("plastic_hanger", "velvet_hanger", "wire_hanger"))
+        self.assertTrue(P.slips_off_hanger(silk, plain))
+        self.assertTrue(P.slips_off_hanger(silk, wire))
+        self.assertFalse(P.slips_off_hanger(silk, velvet))
+        self.assertFalse(P.slips_off_hanger(cotton, plain))
+        self.assertLess(P.hanger_friction(silk, plain), P.HANGER_SLIP_MU)
+        self.assertGreater(P.hanger_friction(silk, velvet), P.HANGER_SLIP_MU)
+
+    def test_the_washer_end_chime_ends_a_wait_that_listens_for_it(self):
+        config, p, s = build()
+        shirt = p.on(s["table"], "t_shirt", worn=True)
+        env = env_of(config)
+        hold(env, shirt)
+        ok(env, "approach", s["washer"])
+        ok(env, "open", s["washer"])
+        ok(env, "place", shirt, s["washer"], relation="in")
+        run_washer(env, s["washer"])
+        t0 = env.world.s["time_s"]
+        result = ok(env, "wait", seconds=4 * 3600, interrupt_on=["appliance_done"])
+        self.assertIn("appliance_done", result["message"])
+        self.assertLess(env.world.s["time_s"] - t0, 2 * 3600)
+        self.assertEqual(ent(env, s["washer"])["appliance"]["state"], "done")
+
+    def test_the_fabric_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.textiles_laundry import dry as D
+
+        def run(probes):
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                config, p, s = build()
+                p.on(s["table"], "t_shirt", wetness=0.3)
+                p.on(s["table"], "clothes_iron", temperature_c=80.0, on=False)
+                p.on(s["table"], "sweater", wrinkled=0.2)
+                env = env_of(config)
+                ok(env, "wait", seconds=10 * 3600)
+                return digest(env.world.s), D.fabric_idle(env.world)
+            finally:
+                plugins.IDLE_PROBES[0] = True
+        with_probes, without = run(True), run(False)
+        self.assertEqual(with_probes[0], without[0])
+        self.assertTrue(with_probes[1])           # dry, cool and nothing pending: the system is skipped from here on
+
+    def test_geometric_camera_sees_through_glass_doors_and_a_loaded_rack_hides_more(self):
+        config, p, s = build()
+        towels = [p.on(s["table"], "bath_towel", wetness=0.4) for _ in range(2)]
+        geo = HouseEnv(config, seed=0, camera="geometric")
+        room = env_of(config)
+        self.assertTrue(ent(geo, s["washer"]).get("transparent"))
+        self.assertFalse(ent(room, s["washer"]).get("transparent"))              # room mode keeps today's rule
+        for env in (geo, room):
+            set_up_rack(env, s["rack"])
+            for t in towels:
+                hold(env, t)
+                ok(env, "approach", s["rack"])
+                ok(env, "hang_dry", t, s["rack"], method="hang", side="left" if t == towels[0] else "right")
+        self.assertLess(ent(geo, s["rack"])["view"]["porosity"], 0.85)
+        self.assertNotIn("view", ent(room, s["rack"]))
+
+    def test_an_open_folding_stand_is_furniture_and_is_folded_before_it_is_carried(self):
+        config, p, s = build()
+        env = env_of(config)
+        set_up_rack(env, s["rack"])
+        self.assertFalse(ent(env, s["rack"])["portable"])
+        self.assertIn("Fold the rack first", no(env, "pick_up", s["rack"])["message"])
+        ok(env, "close", s["rack"])
+        self.assertTrue(ent(env, s["rack"])["portable"])
+        hold(env, s["rack"], hand="both")
+        self.assertEqual(ent(env, s["rack"])["location"], "robot")
+
+    def test_a_packed_bag_is_dropped_by_the_kernel_and_creased_by_this_domain(self):
+        from house_sim.systems.textiles_laundry.events import transport
+        config, p, s = build()
+        case = p.on(s["table"], "storage_bin")
+        config["entities"][case]["open"] = True
+        bottle = p.inside(case, "generic_item", label="perfume bottle", material="glass", size_m=[0.06, 0.06, 0.12],
+                          mass_kg=0.3)
+        shirt = p.inside(case, "dress_shirt")
+        env = env_of(config)
+        env.world.begin()
+        transport(env.world, {"container": case, "drop_m": 0.9}, env)
+        env.world.commit()
+        self.assertTrue(ent(env, bottle).get("broken"))                        # kernel impact (physics.transport)
+        self.assertGreater(ent(env, shirt)["wrinkled"], 0.3)                    # this domain's creasing
+
+    def test_canonical_questions_reach_the_laundry_answerer(self):
+        from house_sim.kernel.dialogue import Subject
+        from house_sim.systems.textiles_laundry import routes as R
+        config, p, s = build()
+        tee = p.on(s["table"], "t_shirt", soil={"stain_wine": 0.4})
+        env = env_of(config)
+        st = env.world.s
+        self.assertEqual(R.route_preferences(st, "resident_1", Subject("word", None, ("folding",)), "preference",
+                                             "fold_style", None), "laundry:fold_style")
+        self.assertEqual(R.route_preferences(st, "resident_1", Subject("entity", tee, ("shirt",)), "how", "fold_style",
+                                             None), "laundry:fold_style:top")
+        self.assertEqual(R.route_item(st, "resident_1", Subject("entity", tee, ("stain",)), "why", None, None),
+                         "laundry:stain:" + tee)
+        self.assertEqual(R.route_item(st, "resident_1", Subject("entity", tee, ("wash",)), "status", None, None),
+                         "laundry:rewear:" + tee)
+        self.assertEqual(R.route_people(st, "resident_1", Subject("person", "resident_1"), "amount", None, None),
+                         "laundry:size:resident_1")
+        self.assertEqual(R.route_item(st, "resident_1", Subject("entity", tee, ()), "how", "hang_or_fold", None),
+                         "laundry:hang_or_fold:" + tee)                         # the detail's words count too
+        self.assertIsNone(R.route_item(st, "resident_1", Subject("entity", s["washer"], ()), "why", None, None))
+
+    def test_generation_two_houses_keep_the_off_season_clothes_in_a_bin(self):
+        gen2 = generate_house(7, gen=2, start="2026-01-14T03:00:00", region="ca")
+        ents = gen2["entities"]
+        bins = [e for e in ents if ents[e].get("holds") == "off_season_clothes"]
+        self.assertTrue(bins)
+        stored = [e for e in ents if ents[e].get("stored_off_season")]
+        self.assertTrue(stored and all(ents[e]["location"] in bins for e in stored))
+        self.assertTrue(all(ents[e]["type"] in ("shorts", "swimsuit", "tank_top") for e in stored))   # winter: summer clothes away
+        gen1 = generate_house(7)
+        self.assertFalse([e for e in gen1["entities"] if gen1["entities"][e].get("holds") == "off_season_clothes"])
+
+    def test_rain_soaks_laundry_on_the_line_whoever_models_it_and_a_closed_bin_keeps_it_dry(self):
+        """The kernel's rain law wets what stands in the rain at the weather's rain_mm_h; a weather record that says
+        only condition "rain" is rain to this domain, which then wets the laundry itself (law active or deferred).
+        Exposure is the kernel's: a towel in a closed bin out in the yard stays as it was."""
+        from house_sim.kernel.phys import lawbook
+
+        def run(changes, law):
+            with lawbook.forced(rain=law):
+                config, p, s = build()
+                config["events"] = [{"at_s": 1200, "changes": changes}]
+                line = p.mount("yard", "clothesline", height=1.8, cell=[2, 2])
+                towel = p.hang(line, "beach_towel", wetness=0.1, drying_mode="hung", pins=3)
+                bin_id = p.floor_item("yard", "storage_bin", open=False)
+                stored = p.inside(bin_id, "hand_towel", wetness=0.1)
+                env = env_of(config)
+                ok(env, "wait", seconds=3600)
+                return ent(env, towel), ent(env, stored)
+        for changes, law in (({"weather.condition": "rain"}, False), ({"weather.condition": "rain"}, True),
+                             ({"weather.condition": "rain", "weather.rain_mm_h": 4.0}, True)):
+            towel, stored = run(changes, law)
+            self.assertGreater(towel["wetness"], 0.9, (changes, law))
+            self.assertTrue(towel.get("rained_on"))
+            self.assertLessEqual(stored["wetness"], 0.1, (changes, law))
+            self.assertFalse(stored.get("rained_on"))
+
+    def test_the_kernel_moisture_of_a_soaked_towel_dries_with_it(self):
+        config, p, s = build()
+        towel = p.on(s["table"], "hand_towel")
+        env = env_of(config)
+        env.world.begin()
+        kept = P.soak_into(env.world, towel, 0.15)                 # the kernel's wetting (liquids.wet)
+        env.world.commit()
+        self.assertGreater(kept, 0.0)
+        self.assertGreater(ent(env, towel)["moisture"], 0.2)
+        self.assertEqual(ent(env, towel)["moisture"], ent(env, towel)["wetness"])
+        set_up_rack(env, s["rack"])
+        hold(env, towel)
+        ok(env, "approach", s["rack"])
+        ok(env, "hang_dry", towel, s["rack"], method="hang")
+        ok(env, "wait", seconds=3600)
+        rec = ent(env, towel)
+        self.assertLessEqual(rec["moisture"], max(rec["wetness"], rec.get("_core_wetness", 0.0)) + 1e-6)
+        ok(env, "wait", seconds=24 * 3600)
+        self.assertEqual(ent(env, towel)["wetness"], 0.0)
+        self.assertEqual(ent(env, towel)["moisture"], 0.0)
+
+    def test_an_iron_on_its_heel_rest_leaves_the_board_unmarked_under_the_contact_heat_law(self):
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.textiles_laundry.helpers import station
+        with lawbook.forced(contact_heat=True):
+            for orientation, marked in (("upright", False), ("flat", True)):
+                config, p, s = build()
+                s.update(station(Ctx(config, p), need=["iron", "board"], iron_on_board=True))
+                config["entities"][s["iron"]].update(plugged_in=True, auto_off=False)
+                env = env_of(config)
+                ok(env, "approach", s["board"])
+                ok(env, "pick_up", s["iron"])
+                ok(env, "switch_on", s["iron"])
+                ok(env, "set", s["iron"], setting="temp", value="high")
+                ok(env, "wait", seconds=120)
+                ok(env, "place", s["iron"], s["board"], orientation=orientation)
+                ok(env, "wait", seconds=300)
+                self.assertEqual("scorch" in (ent(env, s["board"]).get("damage") or {}), marked, orientation)
+
+    def test_care_labels_and_stains_as_the_geometric_camera_shows_them(self):
+        """A care label's 2.5 mm print is legible only up close (the wrist camera at the table, or held); a large stain
+        shows at a glance once the camera identifies the garment, a small one only to inspect."""
+        config, p, s = build()
+        shirt = p.on(s["table"], "dress_shirt", soil={"stain_wine": 0.5})
+        tee = p.on(s["table"], "t_shirt", soil={"stain_wine": 0.1})
+        geo = HouseEnv(config, seed=0, camera="geometric")
+        room = env_of(config)
+        for env in (geo, room):
+            ok(env, "walk_to", cell=[3, 2])                 # about a metre from the folding table
+        ok(geo, "face", s["table"])
+        self.assertNotIn("care_label", ok(geo, "inspect", shirt)["message"])      # the head camera at a metre
+        visible = geo.observe()["visible_entities"]
+        self.assertEqual(visible[shirt].get("appearance"), "stained")
+        self.assertNotIn("appearance", visible.get(tee, {}))
+        self.assertNotIn("appearance", room.observe()["visible_entities"].get(shirt, {}))
+        for env in (geo, room):
+            ok(env, "approach", s["table"])
+            self.assertIn("care_label", ok(env, "inspect", shirt)["message"])      # up close; room mode as before
 
 
 def sewing_kit_for(config, p, s):

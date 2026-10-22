@@ -465,7 +465,7 @@ def _add_months(dt, months):
 def occurrences(event, d0, d1):
     """The occurrences of a calendar event (household.calendar, TIER1_SWEEP 11.2) whose start date lies in [d0, d1]
     (dates, inclusive): [{"start": iso, "end": iso}] in order. event: {"start", "end"?, "recurrence"?: {"freq":
-    daily | weekly | monthly, "interval" (1), "byday" (["MO", ...]: weekly; default the start's weekday),
+    daily | weekly | monthly | yearly, "interval" (1), "byday" (["MO", ...]: weekly; default the start's weekday),
     "bymonthday" ([1..31]: monthly; default the start's day), "until" (date, inclusive), "count" (occurrences from the
     start, excluded dates included), "except" ([dates])}}. Without a recurrence the event occurs once."""
     start = _iso_dt(event["start"])
@@ -484,8 +484,8 @@ def occurrences(event, d0, d1):
         emit(start)
         return out
     freq = rec.get("freq", "weekly")
-    if freq not in ("daily", "weekly", "monthly"):
-        raise ValueError("recurrence freq must be daily, weekly or monthly")
+    if freq not in ("daily", "weekly", "monthly", "yearly"):
+        raise ValueError("recurrence freq must be daily, weekly, monthly or yearly")
     interval = max(1, int(rec.get("interval", 1)))
     until = _as_date(rec["until"]) if rec.get("until") else None
     count = int(rec["count"]) if rec.get("count") is not None else None
@@ -509,6 +509,18 @@ def occurrences(event, d0, d1):
                 if day >= start and day.date() <= last:
                     candidates.append(day)
             week += datetime.timedelta(weeks=interval)
+            step += 1
+    elif freq == "yearly":
+        # birthdays and anniversaries (setup op_calendar accepts them; people's adoption request K-YEARLY): the start's
+        # month and day every `interval` years; 29 February occurs only in leap years
+        step = 0
+        while start.year + step * interval <= last.year and step < MAX_OCCURRENCE_STEPS:
+            try:
+                day = start.replace(year=start.year + step * interval)
+            except ValueError:
+                day = None
+            if day is not None and day.date() <= last:
+                candidates.append(day)
             step += 1
     else:
         mdays = sorted(int(x) for x in (rec.get("bymonthday") or [start.day]))

@@ -6,7 +6,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -457,9 +458,29 @@
        "value": "stuck"
       }
      ]
+    },
+    {
+     "name": "looks the drawer over from across the kitchen instead of up close (a proud screw head, a roller off its track or grit on the runners are millimetres: too small to make out from there) and reports a guess",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "go_room",
+       "room": "{k}"
+      },
+      {
+       "do": "inspect",
+       "target": "{drawer}"
+      },
+      {
+       "do": "report",
+       "target": "{drawer}",
+       "field": "cause",
+       "value": "swollen"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: at a glance a sticking drawer is just a closed drawer (the cause lives in hidden _mech.stick). A gentle pull gives the resistance profile (touch) and a close, lit inspection shows the visual clue and the cause it points to (inspect 'suggests'); the matching low-risk fix differs per cause (screwdriver on the proud screw, lift to re-seat the roller, one firm pull then wipe the gritty runners with a cloth). The reported cause must match the hidden ground truth and appear in what the robot observed."
+   "notes": "Realistic perception: at a glance a sticking drawer is just a closed drawer (the cause lives in hidden _mech.stick). A gentle pull gives the resistance profile (touch) and a close, lit inspection shows the visual clue and the cause it points to (inspect 'suggests'); the matching low-risk fix differs per cause (screwdriver on the proud screw, lift to re-seat the roller, one firm pull then wipe the gritty runners with a cloth). The reported cause must match the hidden ground truth and appear in what the robot observed. Camera: verified with the geometric camera; the across-the-kitchen look is the camera wrong plan (the evidence needs the robot within reach, in good light)."
   },
   {
    "catalog_id": "T-94a0a940224c22-01",
@@ -532,7 +553,7 @@
        "target": "{gate}"
       },
       {
-       "do": "close",
+       "skill": "mechanisms.shut",
        "target": "{gate}"
       },
       {
@@ -556,7 +577,7 @@
          "target": "{gate}"
         },
         {
-         "do": "close",
+         "skill": "mechanisms.shut",
          "target": "{gate}"
         },
         {
@@ -628,7 +649,7 @@
        "target": "{gate}"
       },
       {
-       "do": "close",
+       "skill": "mechanisms.shut",
        "target": "{gate}"
       },
       {
@@ -652,7 +673,7 @@
          "target": "{gate}"
         },
         {
-         "do": "close",
+         "skill": "mechanisms.shut",
          "target": "{gate}"
         },
         {
@@ -732,7 +753,7 @@
        "target": "{gate}"
       },
       {
-       "do": "close",
+       "skill": "mechanisms.shut",
        "target": "{gate}"
       },
       {
@@ -761,7 +782,7 @@
          "target": "{gate}"
         },
         {
-         "do": "close",
+         "skill": "mechanisms.shut",
          "target": "{gate}"
         },
         {
@@ -770,7 +791,7 @@
          "test": true
         },
         {
-         "do": "close",
+         "skill": "mechanisms.shut",
          "target": "{gate}"
         },
         {
@@ -810,7 +831,7 @@
        "target": "{gate}"
       },
       {
-       "do": "close",
+       "skill": "mechanisms.shut",
        "target": "{gate}"
       },
       {
@@ -834,7 +855,7 @@
        "target": "{gate}"
       },
       {
-       "do": "close",
+       "skill": "mechanisms.shut",
        "target": "{gate}"
       },
       {
@@ -854,9 +875,30 @@
        "to": "resident_1"
       }
      ]
+    },
+    {
+     "name": "looks the latch over from across the yard instead of walking up to it (the bent bar, the empty screw hole and a 1 cm sag are too small to make out from there), sees a gate resting shut and reports the latch as fine",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "go_room",
+       "room": "{inside}"
+      },
+      {
+       "do": "inspect",
+       "target": "{gate}"
+      },
+      {
+       "do": "report",
+       "target": "{gate}",
+       "field": "fault",
+       "value": "none",
+       "to": "resident_1"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: a gate resting shut looks latched at a glance (latched is inspect-tier). A close, lit inspection shows the seeded fault's evidence - a bent bar, a missing keeper screw, or the latch bar sitting below the catch (an eyeballed gap, 5 mm resolution) - and what it points to. The report must name the hidden fault and reach the resident; a sagging gate can and should be latched by lifting it, the other faults cannot latch (left shut)."
+   "notes": "Realistic perception: a gate resting shut looks latched at a glance (latched is inspect-tier). A close, lit inspection shows the seeded fault's evidence - a bent bar, a missing keeper screw, or the latch bar sitting below the catch (an eyeballed gap, 5 mm resolution) - and what it points to. The report must name the hidden fault and reach the resident; a sagging gate can and should be latched by lifting it, the other faults cannot latch (left shut). Tier 1: the reference walks up to the gate from the yard side (mechanisms.approach no longer opens the gate on the way through) and shuts it only when it stands open (mechanisms.shut: the wind may have blown it open or not, held-out seed 701 starts it shut). Camera: verified with the geometric camera; the across-the-yard look is the camera wrong plan (the latch hardware needs a close look within reach). Generation 1 (M-GEN2): on generation-2 houses (seed 97) outdoor_plants' wind blows both patio chairs onto the patio's doorway cell to the backyard, which leaves no route to the gate (cross-domain bug reported to outdoor_plants); the spec moves to generation 2 once that is fixed."
   },
   {
    "catalog_id": "T-1e3f1a4d26121e-01",
@@ -865,7 +907,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -1282,9 +1325,30 @@
        "to": "resident_1"
       }
      ]
+    },
+    {
+     "name": "glances at the keypad from across the room instead of reading it up close (its small screen text is unreadable from there), so it never sees the low-battery warning and reports the front lock's battery fine",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "go_room",
+       "room": "{f_inside}"
+      },
+      {
+       "do": "read",
+       "target": "{f_door}"
+      },
+      {
+       "do": "report",
+       "target": "{f_door}",
+       "field": "battery_low",
+       "value": false,
+       "to": "resident_1"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: lock faults are hidden (_mech.fault); doors look the same at a glance and the phone app only repeats what the lock last reported. Turning each lock gently is the test: a jammed smart lock's motor whirs without moving the bolt, a misaligned strike stops the bolt partway (both refusals, nothing forced), a lock with a low battery still locks and its keypad reads 'Low battery' (read). The broken one is reported to the resident; a merely low battery is reported as such, not as broken."
+   "notes": "Realistic perception: lock faults are hidden (_mech.fault); doors look the same at a glance and the phone app only repeats what the lock last reported. Turning each lock gently is the test: a jammed smart lock's motor whirs without moving the bolt, a misaligned strike stops the bolt partway (both refusals, nothing forced), a lock with a low battery still locks and its keypad reads 'Low battery' (read). The broken one is reported to the resident; a merely low battery is reported as such, not as broken. Camera: verified with the geometric camera; reading the keypad from across the room is the camera wrong plan (the keypad's screen text is legible within reach or with the head camera close up, not from across the room)."
   }
  ]
 }

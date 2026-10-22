@@ -712,7 +712,12 @@ class CableTests(unittest.TestCase):
         r.skill("electrical.connect", cable=b["cable"], device=b["drive"], port="usb")
         ok(self, env, "disconnect_cable", b["cable"], b["drive"], grip="cable")
         self.assertEqual(ent(env, b["laptop"])["location"], b["lr"])
-        self.assertTrue(ent(env, b["laptop"])["broken"])
+        # tier-1 physics (TIER1_PHYSICS 13, electrical: kernel falls): the kernel's fall decides breakage from the drop
+        # tolerance; a laptop survives a side table's height (supports.json laptop row: desk height onto a hard floor),
+        # so it lands intact (the old rule broke every fragile device); the yank itself is still equipment damage
+        self.assertTrue(ent(env, b["laptop"]).get("fell"))
+        self.assertFalse(ent(env, b["laptop"]).get("broken"))
+        self.assertIn("electrical.device_dragged_off:" + b["laptop"], harm_labels(env))
 
     def test_lookalike_barrel_adapter_fries_the_device(self):
         ops = [{"op": "spawn", "var": "table", "type": "side_table", "furniture": "living_room", "wall": True},
@@ -2045,6 +2050,587 @@ class RoundThreeLayoutTests(unittest.TestCase):
         for name in ("security_camera", "photocell_light"):
             self.assertTrue(reg.resolve(name).get("weatherproof"))
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+# tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep): docs/design/TIER1_INTEGRATION.md 6
+
+def plugged_lamp(gfci=False):
+    """A plugged lamp, on, in a bathroom GFCI outlet (gfci) or a living-room wall outlet."""
+    if gfci:
+        ops = [{"op": "room", "var": "lr", "type": "bathroom", "pick": "first"},
+               {"op": "helper", "name": "electrical.outlet", "args": {"room": "{lr}", "gfci": True, "new": True, "height": 1.05}},
+               {"op": "spawn", "var": "lamp", "type": "generic_item", "floor": "{lr}",
+                "props": {"label": "lamp", "category": "light", "power_w": 9.0, "plug_required": True, "plug_type": "type_a",
+                          "switchable": True, "on": True, "cord_length_m": 1.8, "size_m": [0.2, 0.2, 0.4], "mass_kg": 1.0}},
+               {"op": "helper", "name": "electrical.plug", "args": {"device": "{lamp}", "outlet": "{outlet}"}},
+               {"op": "robot", "room": "{lr}"}]
+    else:
+        ops = LAMP_SCENE + [{"op": "helper", "name": "electrical.plug", "args": {"device": "{lamp}", "outlet": "{outlet}"}},
+                            {"op": "set", "target": "{lamp}", "props": {"on": True}}]
+    return build(ops)
+
+
+def wet(env, eid, liters, liquid="water"):
+    from house_sim.kernel.phys import liquids
+    w = env.world
+    w.begin()
+    liquids.wet(w, eid, liters, liquid)
+    w.commit()
+
+
+class Tier1PhysicsAdoptionTests(unittest.TestCase):
+    """Physics adoption (TIER1_PHYSICS 10.3 and 13): phys.wetted, phys.broke, kernel falls, kernel material softness,
+    the data the physics audit attributes to this domain, and the thermal_tau law."""
+
+    def test_liquid_on_a_powered_lamp_trips_its_gfci_and_leaves_it_dead_until_dry(self):
+        env, b, r = plugged_lamp(gfci=True)
+        self.assertTrue(ent(env, b["lamp"])["energized"])
+        wet(env, b["lamp"], 0.2)
+        self.assertTrue(ent(env, b["outlet"])["gfci_tripped"])
+        self.assertTrue(ent(env, b["lamp"])["water_ingress"])
+        self.assertGreater(ent(env, b["lamp"])["damage"]["water_damage"], 0)
+        self.assertEqual(env.evaluate()["metrics"]["electrical_hazard"], 0, "the GFCI prevents the hazard")
+        env.world.begin()
+        env.world.mut(b["lamp"])["wetness"] = 0.0
+        from house_sim.systems.electrical import common as C
+        C.refresh(env.world)
+        env.world.commit()
+        self.assertFalse(ent(env, b["lamp"])["water_ingress"], "it works again once dry")
+
+    def test_liquid_on_a_powered_lamp_without_gfci_is_a_shock_hazard_and_shorts_while_wet(self):
+        env, b, r = plugged_lamp()
+        self.assertTrue(ent(env, b["lamp"])["lit"])
+        wet(env, b["lamp"], 0.2)
+        self.assertGreater(env.evaluate()["metrics"]["electrical_hazard"], 0)
+        self.assertTrue(has_harm(env, "shock_risk"))
+        self.assertFalse(ent(env, b["lamp"])["lit"], "a water-logged lamp does not light")
+        from house_sim.systems.electrical.power import _shorted_devices
+        self.assertIn(b["lamp"], _shorted_devices(env.world.s))
+
+    def test_drops_do_not_get_in_and_rated_gear_shrugs_off_a_spill(self):
+        env, b, r = plugged_lamp(gfci=True)
+        wet(env, b["lamp"], 0.005)
+        self.assertFalse(ent(env, b["lamp"]).get("water_ingress"))
+        self.assertFalse(ent(env, b["outlet"])["gfci_tripped"])
+        env, b, r = build([{"op": "room", "var": "k", "type": "kitchen"},
+                           {"op": "spawn", "var": "phone", "type": "smartphone", "floor": "{k}"},
+                           {"op": "spawn", "var": "tab", "type": "tablet", "floor": "{k}", "props": {"power_state": "on"}},
+                           {"op": "spawn", "var": "off_tab", "type": "tablet", "floor": "{k}"},
+                           {"op": "robot", "room": "{k}"}])
+        wet(env, b["phone"], 0.3)
+        self.assertFalse(ent(env, b["phone"]).get("water_ingress"), "an IP68 phone takes a spill")
+        wet(env, b["tab"], 0.3)
+        self.assertTrue(ent(env, b["tab"])["broken"], "liquid in a running tablet shorts it")
+        self.assertFalse(ent(env, b["tab"]).get("screen_cracked"), "a short does not crack the glass")
+        wet(env, b["off_tab"], 0.3)
+        self.assertFalse(ent(env, b["off_tab"]).get("broken"))
+        self.assertTrue(ent(env, b["off_tab"])["water_ingress"], "a switched-off tablet is water-logged until dry")
+
+    def test_a_kernel_break_kills_a_device_and_cracks_its_screen(self):
+        env, b, r = build([{"op": "room", "var": "k", "type": "kitchen"},
+                           {"op": "spawn", "var": "pad", "type": "wireless_charging_pad", "floor": "{k}"},
+                           {"op": "spawn", "var": "phone", "type": "smartphone", "robot_hand": "left",
+                            "props": {"battery_level": 0.2}},
+                           {"op": "helper", "name": "electrical.plug", "args": {"device": "{pad}"}},
+                           {"op": "robot", "room": "{k}"}])
+        r.skill("electrical.charge", device=b["phone"], charger=b["pad"])
+        ok(self, env, "wait", seconds=60)
+        self.assertTrue(ent(env, b["phone"])["charging"])
+        from house_sim.kernel.phys import impact
+        w = env.world
+        w.begin()
+        impact.break_entity(w, b["phone"], "fall", by="exogenous")
+        w.commit()
+        self.assertTrue(ent(env, b["phone"])["screen_cracked"])
+        self.assertFalse(ent(env, b["phone"])["functional"])
+        ok(self, env, "wait", seconds=60)
+        self.assertFalse(ent(env, b["phone"])["charging"], "a dead phone takes no charge")
+
+    def test_soft_surfaces_come_from_the_kernel_material_table(self):
+        from house_sim.systems.electrical import common as C
+        for material, soft in (("cotton", True), ("fabric", True), ("felt", True), ("foam", True), ("polyester", True),
+                               ("leather", False), ("wood", False), ("plastic", False), ("glass", False)):
+            self.assertEqual(C.soft_material(material), soft, material)
+        self.assertEqual(C.material_kind("cardboard"), (False, True), "cardboard chars but does not insulate like bedding")
+
+    def test_audit_data_masses_sizes_and_drop_rows(self):
+        reg = default_registry()
+        for base in ("battery_cell", "charger", "electronic_device", "esd_component", "plug_device", "rechargeable_device",
+                     "usb_peripheral"):
+            props = reg.resolve(base)
+            self.assertNotEqual(props.get("mass_kg"), 0.4, base)
+            self.assertNotEqual(props.get("size_m"), [0.1, 0.1, 0.1], base)
+        from house_sim.kernel.phys import props as P
+        env, b, r = build([{"op": "room", "var": "o", "type": "living_room"},
+                           {"op": "spawn", "var": "mon", "type": "computer_monitor", "floor": "{o}"},
+                           {"op": "spawn", "var": "tv", "type": "television", "floor": "{o}"},
+                           {"op": "spawn", "var": "phone", "type": "smartphone", "floor": "{o}"},
+                           {"op": "spawn", "var": "laptop", "type": "laptop", "floor": "{o}"}])
+        state = env.world.s
+        self.assertLess(P.props(state, b["mon"]).drop_tol_m, 0.55, "an LCD panel cracks from desk height")
+        self.assertLess(P.props(state, b["tv"]).drop_tol_m, 0.4)
+        self.assertGreater(P.props(state, b["phone"]).drop_tol_m, 1.0, "phones are drop-rated to about 1 m")
+        self.assertGreater(P.props(state, b["laptop"]).drop_tol_m, 0.75, "laptops survive desk height")
+
+    def test_bulbs_cool_through_the_kernel_with_either_thermal_tau_state(self):
+        from house_sim.kernel.phys import lawbook
+        for law in (False, True):
+            with lawbook.forced(thermal_tau=law):
+                env, b, r = build([{"op": "room", "var": "lr", "type": "living_room"},
+                                   {"op": "helper", "name": "electrical.furniture", "args": {"room": "{lr}", "type": "side_table", "var": "side"}},
+                                   {"op": "helper", "name": "electrical.lamp", "args": {"on": "{side}", "var": "lamp",
+                                                                                       "bulb": "incandescent_bulb_e26",
+                                                                                       "props": {"on": True}}},
+                                   {"op": "robot", "room": "{lr}"}])
+                ok(self, env, "wait", seconds=1800)
+                bulb = ent(env, b["lamp_bulb"])
+                self.assertGreater(bulb.get("temperature_c", 21.0), 90.0, "a lit 60 W incandescent runs hot")
+                r.skill("approach", target=b["lamp"])
+                ok(self, env, "switch_off", b["lamp"])
+                ok(self, env, "wait", seconds=300)      # the replace_bulb skill's cool-down
+                self.assertLessEqual(ent(env, b["lamp_bulb"]).get("temperature_c", 21.0), 50.0, law)
+
+
+class Tier1CameraAdoptionTests(unittest.TestCase):
+    """Camera adoption (TIER1_CAMERA 19): lamp pools, bright sources, IR remotes by sight.los, the illuminance
+    observer, visual events and view blocks; room mode unchanged."""
+
+    def _lamp_env(self, camera="geometric", on=True):
+        ops = [{"op": "room", "var": "lr", "type": "living_room"},
+               {"op": "helper", "name": "electrical.furniture", "args": {"room": "{lr}", "type": "side_table", "var": "side"}},
+               {"op": "helper", "name": "electrical.lamp", "args": {"on": "{side}", "var": "lamp", "props": {"on": on}}},
+               {"op": "robot", "room": "{lr}"}]
+        config = generate_house(2, residents="minimal", pets="none")
+        bindings = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_electrical_camera"})
+        return HouseEnv(config, seed=2, camera=camera), bindings
+
+    def test_lamp_pools_add_light_near_a_lit_lamp(self):
+        from house_sim.kernel import sight
+        from house_sim.systems.electrical import sightlines
+        env, b = self._lamp_env()
+        state = env.world.s
+        box = sight.entity_box(state, b["lamp"])
+        sx, sy, sz = sightlines._shade_point(box)
+        near = sightlines.lamp_pools(state, b["lr"], sx + 0.3, sy, sz - 0.3)
+        self.assertIsNotNone(near)
+        self.assertGreater(near, 0.05)
+        self.assertIsNone(sightlines.lamp_pools(state, b["lr"], sx + 3.0, sy, sz), "beyond 1.5 m no pool")
+        env2, b2 = self._lamp_env(on=False)
+        box2 = sight.entity_box(env2.world.s, b2["lamp"])
+        p2 = sightlines._shade_point(box2)
+        self.assertIsNone(sightlines.lamp_pools(env2.world.s, b2["lr"], p2[0] + 0.3, p2[1], p2[2]))
+
+    def test_bright_sources_list_lamps_at_half_level_and_bright_screens(self):
+        from house_sim.systems.electrical import sightlines
+        env, b = self._lamp_env()
+        state = env.world.s
+        out = sightlines.bright_sources(state, b["lr"])
+        lamp = [s for s in out if s["id"] == b["lamp"]]
+        self.assertEqual(len(lamp), 1)
+        self.assertEqual(lamp[0]["kind"], "lamp")
+        rec = ent(env, b["lamp"])
+        self.assertAlmostEqual(lamp[0]["level"], round(rec.get("brightness", 0.8) * rec.get("dim_level", 1.0) * 0.5, 3))
+        if not sightlines._others_answer():
+            self.assertTrue(all(s["kind"] in ("window", "lamp", "light", "screen") for s in out))
+        tv = {"category": "tv", "power_state": "on", "display": "showing streaming box"}
+        self.assertEqual(sightlines._screen_level(tv), 0.6)
+        self.assertEqual(sightlines._screen_level(dict(tv, display="no_signal")), 0.0)
+
+    def test_remote_ir_follows_sight_los_in_geometric_mode(self):
+        from house_sim.systems.electrical import sightlines
+        ops = [{"op": "room", "var": "lr", "type": "living_room"},
+               {"op": "helper", "name": "electrical.media", "args": {"room": "{lr}", "sources": [], "tv_on": False}},
+               {"op": "robot", "room": "{lr}"}]
+        config = generate_house(2, residents="minimal", pets="none")
+        b = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_electrical_ir"})
+        env = HouseEnv(config, seed=2, camera="geometric")
+        r = Runner(env, b, strict=True)
+        r.skill("fetch", obj=b["remote"])
+        from house_sim.systems.electrical.skills import _viewing_cell
+        cell = _viewing_cell(r, b["tv"])
+        self.assertIsNotNone(cell, "a viewing cell with a clear IR line to the TV")
+        self.assertTrue(sightlines.ir_line_clear(env.world.s, b["tv"], cell=cell))
+        r.do("walk_to", cell=cell)
+        from house_sim.kernel import sight
+        real = sight.los
+        try:
+            sight.los = lambda *a, **k: 0.0          # something solid between the hand and the receiver
+            res = refused(self, env, "switch_on", b["tv"], category="precondition")
+            self.assertIn("line of sight", res["message"])
+        finally:
+            sight.los = real
+        ok(self, env, "switch_on", b["tv"])
+
+    def test_illuminance_follows_the_view_and_needs_the_cameras(self):
+        from house_sim.kernel import body
+        env, b = self._lamp_env()
+        obs = env.observe()
+        self.assertIsInstance(obs.get("illuminance_lux"), int)
+        w = env.world
+        w.begin()
+        body.set_sensors(w, camera=False)
+        w.commit()
+        self.assertNotIn("illuminance_lux", env.observe())
+        room_env, rb = self._lamp_env(camera="room")
+        from house_sim.systems.electrical.lighting import lux_here
+        self.assertEqual(room_env.observe()["illuminance_lux"], lux_here(room_env.world.s, rb["lr"]), "room mode unchanged")
+
+    def test_visual_events_keep_their_log_entry_and_are_witnessed_in_geometric_mode(self):
+        from house_sim.systems.electrical import common as C
+        for camera in ("room", "geometric"):
+            env, b = self._lamp_env(camera=camera)
+            w = env.world
+            w.begin()
+            entry = C.event(w, "bulb_failed", b["lamp"], reason="test")
+            w.commit()
+            self.assertEqual({k: entry[k] for k in ("kind", "target", "room", "reason")},
+                             {"kind": "bulb_failed", "target": b["lamp"], "room": b["lr"], "reason": "test"})
+            logged = ((env.world.s.get("camera_log") or {}).get("events") or [])
+            if camera == "room":
+                self.assertNotIn("camera_log", env.world.s)
+            else:
+                self.assertTrue(any(e.get("kind") == "bulb_failed" for e in logged), logged)
+
+    def test_view_blocks(self):
+        reg = default_registry()
+        self.assertTrue(reg.view_props("television").get("glossy"))
+        self.assertEqual(reg.view_props("television")["text_m"]["display"], 0.03)
+        self.assertEqual(reg.view_props("laptop")["camera"]["hfov_deg"], 78.0)
+        self.assertEqual(reg.view_props("breaker_panel")["opening"], "front")
+
+
+class Tier1BodyAdoptionTests(unittest.TestCase):
+    """Body adoption (TIER1_EMBODIMENT 12): the robot's packs and the charge verb, commanded durations, the static
+    charge field, the network the router gives, wet grippers from the body's hand soil."""
+
+    def test_the_charge_verb_refuses_the_robot_and_keeps_its_packs_to_their_station(self):
+        reg = default_registry()
+        env, b, r = build([{"op": "room", "var": "k", "type": "kitchen"},
+                           {"op": "spawn", "var": "brick", "type": "usb_wall_charger", "floor": "{k}"},
+                           {"op": "robot", "room": "{k}"}])
+        refused(self, env, "charge", "robot", b["brick"], category="argument")
+        if not (reg.known("robot_battery_pack") and reg.known("battery_charging_station")):
+            self.skipTest("navigation_robot's pack types are not loaded")
+        env, b, r = build([{"op": "room", "var": "g", "type": "living_room"},
+                           {"op": "spawn", "var": "pack", "type": "robot_battery_pack", "robot_hand": "both", "props": {"charge_pct": 20.0}},
+                           {"op": "spawn", "var": "station", "type": "battery_charging_station", "floor": "{g}"},
+                           {"op": "spawn", "var": "bay", "type": "tool_battery_charger", "floor": "{g}"},
+                           {"op": "robot", "room": "{g}"}])
+        r.skill("approach", target=b["bay"])
+        res = refused(self, env, "charge", b["pack"], b["bay"], category="precondition")
+        self.assertIn("charging station", res["message"])
+        r.skill("approach", target=b["station"])
+        ok(self, env, "charge", b["pack"], b["station"])
+        self.assertEqual(ent(env, b["pack"])["location"], b["station"])
+
+    def test_commanded_durations_are_not_stretched_by_careful_speed(self):
+        from house_sim.kernel.actions import ACTIONS
+        self.assertEqual(ACTIONS["restart_device"].timing, "commanded")
+        self.assertEqual(ACTIONS["pair_device"].timing, "commanded")
+
+    def test_static_charge_is_a_hidden_robot_field_of_this_domain(self):
+        from house_sim.kernel import body
+        field = body.robot_fields()["static_v"]
+        self.assertEqual((field["owner"], field["tier"]), ("electrical", "hidden"))
+
+    def test_the_router_restores_only_the_network_it_took_and_never_over_a_network_fault(self):
+        from house_sim.kernel import body_faults
+        from house_sim.systems.electrical.devices import sync_robot_network
+        env, b, r = build([{"op": "robot", "room": "living_room"}])
+        w = env.world
+        w.begin()
+        sync_robot_network(w, False)
+        self.assertFalse(w.robot["network"])
+        body_faults.add_fault(w, "network_down", source="event")
+        sync_robot_network(w, True)
+        self.assertFalse(w.robot["network"], "the body's network_down fault stays in charge")
+        w.commit()
+
+    def test_wet_grippers_from_the_body_hand_soil_count_as_wet_hands(self):
+        from house_sim.kernel import body
+        env, b, r = build(LAMP_SCENE)
+        r.skill("approach", target=b["outlet"])
+        w = env.world
+        w.begin()
+        body.soil_hand(w, "both", "water", 0.6)
+        w.commit()
+        r.skill("electrical.plug_in", device=b["lamp"], outlet=b["outlet"])
+        self.assertTrue(has_harm(env, "wet_hands"))
+
+
+class Tier1SweepAdoptionTests(unittest.TestCase):
+    """Sweep adoption (TIER1_SWEEP 6, 14, 22.3): notices, exact idle probes, DST-aware clocks, generation-2 furnishing."""
+
+    def test_notice_kinds_and_chirps_on_the_bus(self):
+        from house_sim.kernel import timeline
+        self.assertIn("chirp", timeline.NOTICE_KINDS)
+        self.assertIn("alarm_clock", timeline.NOTICE_KINDS)
+        config = generate_house(2, residents="minimal", pets="none")
+        ops = [{"op": "room", "var": "bed", "type": "master_bedroom", "pick": "first"},
+               {"op": "helper", "name": "electrical.detector", "args": {"room": "{bed}", "type": "smoke_alarm", "charge": 0.2}},
+               {"op": "robot", "room": "{bed}"}]
+        b = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_electrical_notices"})
+        config["notices"] = []
+        env = HouseEnv(config, seed=2)
+        self.assertTrue(ent(env, b["detector"])["chirping"])
+        ok(self, env, "wait", seconds=120)
+        kinds = [n["kind"] for n in env.world.s.get("notices") or []]
+        from house_sim.kernel.plugins import SYSTEMS
+        if not any(entry[1] == "safety.detectors" for entry in SYSTEMS):     # safety posts its own chirps
+            self.assertIn("chirp", kinds)
+
+    def test_idle_probes_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        for name in ("electrical.power", "electrical.lights", "electrical.detectors", "electrical.devices",
+                     "electrical.charging", "electrical.cells"):
+            self.assertIn(name, plugins.SYSTEM_IDLE)
+
+        def run(probes, seed, gen):
+            old = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                env = HouseEnv(generate_house(seed, gen=gen), seed=seed, trace=False, observe_on_step=False)
+                for seconds in (3 * 3600, 1800, 7 * 3600):
+                    env.step("wait", seconds=seconds)
+                return digest(env.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = old
+        for seed, gen in ((0, 1), (3, 1), (5, 2)):
+            self.assertEqual(run(True, seed, gen), run(False, seed, gen), (seed, gen))
+
+    def test_manual_clocks_keep_standard_time_at_the_dst_change_and_auto_sync_ones_follow(self):
+        config = generate_house(2, residents="minimal", pets="none")
+        ops = [{"op": "room", "var": "bed", "type": "master_bedroom", "pick": "first"},
+               {"op": "find", "var": "stand", "type": "nightstand", "room": "{bed}", "pick": "first"},
+               {"op": "helper", "name": "electrical.devices", "args": {"devices": [
+                   {"type": "alarm_clock", "on": "{stand}", "var": "clock", "plug": True},
+                   {"type": "smart_speaker", "on": "{stand}", "var": "speaker", "plug": True}]}},
+               {"op": "robot", "room": "{bed}"}]
+        b = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_electrical_dst"})
+        config["clock"] = dict(config.get("clock") or {}, start="2026-03-08T01:50:00", model=2, dst=True, region="us")
+        env = HouseEnv(config, seed=2)
+        ok(self, env, "wait", seconds=1200)
+        self.assertEqual(ent(env, b["clock"])["clock"]["offset_s"], -3600.0, "a manual clock still shows standard time")
+        self.assertEqual(ent(env, b["speaker"])["clock"]["offset_s"], 0, "an auto-sync clock follows the wall clock")
+
+    def test_generation_two_houses_get_smart_devices_by_tier_and_charging_spots(self):
+        tiers = {}
+        for seed in range(12):
+            config = generate_house(seed, gen=2)
+            ents = config["entities"]
+            tier = ((config.get("household") or {}).get("profile") or {}).get("smart_home")
+            smart = [e for e, rec in ents.items() if rec.get("type") in ("smart_hub", "smart_speaker", "smart_plug", "smart_bulb", "security_camera")
+                     and (rec.get("pairing") or {}).get("state") in ("paired", None)]
+            tiers.setdefault(tier, []).append(len(smart))
+            for e, rec in ents.items():
+                if rec.get("type") == "usb_wall_charger" and rec.get("owner"):
+                    self.assertTrue(rec.get("plugged_in"), (seed, e))
+                    cables = [c for c, crec in ents.items() if crec.get("category") == "cable"
+                              and (crec.get("ends") or {}).get("a", {}).get("at") == e]
+                    self.assertEqual(len(cables), 1, (seed, e))
+                if rec.get("type") == "smart_plug" and rec.get("location") in ents:
+                    self.assertEqual((rec.get("pairing") or {}).get("state"), "paired", (seed, e))
+            gen1 = generate_house(seed)
+            self.assertFalse([e for e, rec in gen1["entities"].items() if rec.get("type") == "smart_hub"])
+        for tier, counts in tiers.items():
+            if tier in ("basic", "connected"):
+                self.assertTrue(any(counts), (tier, counts))
+
+
+
+def smart_home_scene(tier="connected", bulbs=False, cameras=False, lamp_on=True, robot_room=None, **args):
+    """A plugged living-room lamp behind a smart plug (or a smart bulb) of a smart home (hub.py)."""
+    ops = LAMP_SCENE + [{"op": "helper", "name": "electrical.plug", "args": {"device": "{lamp}", "outlet": "{outlet}"}},
+                        {"op": "set", "target": "{lamp}", "props": {"on": lamp_on}}]
+    helper = dict({"tier": tier, "lamps": ["{lamp}"], "bulbs": bulbs, "cameras": ["{lr}"] if cameras else []}, **args)
+    ops.append({"op": "helper", "name": "electrical.smart_home", "args": helper})
+    if robot_room:
+        ops.append({"op": "room", "var": "away_room", "type": robot_room, "pick": "first"})
+        ops.append({"op": "robot", "room": "{away_room}"})
+    ops.append({"op": "helper", "name": "electrical.settle", "args": {}})
+    return build(ops)
+
+
+def smart(env):
+    return env.world.s.get("smart_home") or {}
+
+
+def poke(env, eid, **fields):
+    """Set fields of an entity outside an action (a resident's hand) and refresh the derived electrical state."""
+    from house_sim.systems.electrical import common as EC
+    w = env.world
+    w.begin()
+    w.mut(eid).update(fields)
+    EC.refresh(w)
+    w.commit()
+
+
+class Tier1SmartHomeTests(unittest.TestCase):
+    """The smart-home layer (TIER1_SWEEP 15; hub.py): the hub or app, scenes, automations, away mode, the app's view
+    and its notifications. Data-gated: no section, no change."""
+
+    def test_away_mode_through_the_app_runs_the_away_automation(self):
+        env, b, r = smart_home_scene()
+        plug = b["hub_device_" + b["lamp"]]
+        self.assertTrue(ent(env, b["lamp"])["lit"])
+        self.assertTrue(ent(env, plug)["remote_status"])
+        ok(self, env, "set", b["hub"], setting="away_mode", value=True)
+        self.assertTrue(smart(env)["away_mode"])
+        self.assertEqual(ent(env, plug)["settings"]["relay"], "off")
+        self.assertFalse(ent(env, b["lamp"])["lit"], "the away automation switched the lamp's plug off")
+        self.assertEqual(smart(env)["log"][-1]["automation"], "away_lights_off")
+        self.assertEqual(smart(env)["log"][-1]["done"], [plug])
+        ok(self, env, "set", plug, setting="relay", value="on")
+        self.assertTrue(ent(env, b["lamp"])["lit"])
+
+    def test_a_schedule_fires_on_the_wall_clock_and_a_scene_through_the_hub(self):
+        env, b, r = smart_home_scene(automations=[
+            {"id": "lamp_off", "name": "Lamp off", "trigger": {"time": "10:10"},
+             "actions": [{"lamp": "{lamp}", "setting": "relay", "value": "off"}]}])
+        plug = b["hub_device_" + b["lamp"]]
+        ok(self, env, "wait", seconds=300)
+        self.assertTrue(ent(env, b["lamp"])["lit"], "10:05: not yet")
+        ok(self, env, "wait", seconds=600)
+        self.assertFalse(ent(env, b["lamp"])["lit"], "10:15: the 10:10 schedule ran")
+        self.assertEqual([e["automation"] for e in smart(env)["log"]], ["lamp_off"])
+        ok(self, env, "wait", seconds=3600)
+        self.assertEqual(len(smart(env)["log"]), 1, "once a day")
+        ok(self, env, "set", plug, setting="relay", value="on")
+        ok(self, env, "set", b["hub"], setting="scene", value="all off")
+        self.assertEqual(ent(env, plug)["settings"]["relay"], "off")
+        refused(self, env, "set", b["hub"], setting="scene", value="party", category="argument")
+
+    def test_sunset_and_state_triggers(self):
+        env, b, r = smart_home_scene(automations=[
+            {"id": "dusk", "trigger": {"sunset": -30}, "actions": [{"lamp": "{lamp}", "setting": "relay", "value": "on"}]},
+            {"id": "follow", "trigger": {"state": {"path": "entities.{lamp}.on", "op": "eq", "value": False}},
+             "actions": [{"lamp": "{lamp}", "setting": "relay", "value": "off"}]}])
+        from house_sim.kernel import clock
+        plug = b["hub_device_" + b["lamp"]]
+        ok(self, env, "set", plug, setting="relay", value="off")
+        _, sunset = clock.sun_times(env.world.s)
+        now = clock.now(env.world.s)
+        due = sunset * 3600.0 - 1800.0 - (now.hour * 3600.0 + now.minute * 60.0 + now.second)
+        ok(self, env, "wait", seconds=int(due) - 120)
+        self.assertEqual(ent(env, plug)["settings"]["relay"], "off")
+        ok(self, env, "wait", seconds=240)
+        self.assertEqual(ent(env, plug)["settings"]["relay"], "on", "half an hour before sunset")
+        poke(env, b["lamp"], on=False)
+        ok(self, env, "wait", seconds=60)
+        self.assertEqual(ent(env, plug)["settings"]["relay"], "off", "the lamp switched off at its own switch")
+        self.assertEqual([e["automation"] for e in smart(env)["log"]], ["dusk", "follow"])
+
+    def test_a_smart_bulb_behind_a_switched_off_lamp_does_not_respond(self):
+        env, b, r = smart_home_scene(bulbs=True, lamp_on=False, automations=[
+            {"id": "dim", "name": "Dim", "trigger": {"time": "10:05"},
+             "actions": [{"lamp": "{lamp}", "setting": "brightness", "value": 20}]}])
+        bulb = b["hub_device_" + b["lamp"]]
+        self.assertEqual(ent(env, bulb)["type"], "smart_bulb")
+        ok(self, env, "wait", seconds=600)
+        self.assertEqual(smart(env)["log"][-1]["failed"], [bulb])
+        self.assertEqual(ent(env, bulb)["settings"]["brightness"], 100)
+        self.assertTrue(any(n["kind"] == "not_responding" and n.get("device") == bulb for n in smart(env)["notifications"]))
+        refused(self, env, "set", bulb, setting="power", value="off")
+        poke(env, b["lamp"], on=True)
+        self.assertTrue(ent(env, b["lamp"])["lit"])
+        ok(self, env, "set", bulb, setting="power", value="off")
+        self.assertFalse(ent(env, b["lamp"])["lit"], "an app-off smart bulb leaves its lamp dark")
+        self.assertTrue(ent(env, b["lamp"])["on"], "the lamp's own switch stays on")
+        ok(self, env, "set", bulb, setting="power", value="on")
+        ok(self, env, "set", bulb, setting="brightness", value=40)
+        self.assertTrue(ent(env, b["lamp"])["lit"])
+        self.assertAlmostEqual(ent(env, b["lamp"])["dim_level"], 0.4)
+
+    def test_cameras_alert_in_away_mode_when_someone_comes_in(self):
+        env, b, r = smart_home_scene(cameras=True, robot_room="kitchen")
+        cam = b["hub_cameras"][0]
+        ok(self, env, "set", b["hub"], setting="away_mode", value=True)
+        ok(self, env, "wait", seconds=60)
+        self.assertFalse([n for n in smart(env)["notifications"] if n["kind"] == "motion"])
+        r.skill("go_room", room=b["lr"])
+        ok(self, env, "wait", seconds=30)
+        motions = [n for n in smart(env)["notifications"] if n["kind"] == "motion"]
+        self.assertEqual([n["device"] for n in motions], [cam], "the robot walked into the camera's room")
+        ok(self, env, "set", b["hub"], setting="away_mode", value=False)
+        self.assertEqual(smart(env).get("_occupied"), {})
+
+    def test_the_hub_offline_refuses_away_mode_and_the_app_view_needs_the_network(self):
+        env, b, r = smart_home_scene()
+        obs = env.observe()
+        self.assertIn("smart_home_app", obs)
+        self.assertIn("living room lamp", [d["name"] for d in obs["smart_home_app"]["devices"]])
+        env.world.begin()
+        env.world.robot_m()["network"] = False
+        env.world.commit()
+        self.assertNotIn("smart_home_app", env.observe())
+        refused(self, env, "set", b["hub"], setting="away_mode", value=True, category="resource")
+        env.world.begin()
+        env.world.robot_m()["network"] = True
+        env.world.commit()
+        poke(env, b["hub"], power_state="off")
+        refused(self, env, "set", b["hub"], setting="away_mode", value=True, category="precondition")
+        self.assertFalse(smart(env)["away_mode"])
+
+    def test_basic_tier_runs_in_the_phone_app(self):
+        from house_sim.systems.electrical import smarthome
+        config = generate_house(2, gen=2, residents="minimal", pets="none")
+        phone = smarthome._adult_phone(config)
+        self.assertIsNotNone(phone)
+        ops = LAMP_SCENE + [{"op": "helper", "name": "electrical.plug", "args": {"device": "{lamp}", "outlet": "{outlet}"}},
+                            {"op": "set", "target": "{lamp}", "props": {"on": True}},
+                            {"op": "helper", "name": "electrical.smart_home", "args": {"tier": "basic", "lamps": ["{lamp}"]}}]
+        b = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_electrical_basic"})
+        env = HouseEnv(config, seed=2)
+        self.assertEqual(smart(env)["app"], phone)
+        self.assertIsNone(smart(env)["hub"])
+        plug = b["hub_device_" + b["lamp"]]
+        self.assertEqual(ent(env, plug)["pairing"]["paired_to"], phone)
+        ok(self, env, "set", plug, setting="relay", value="off")
+        self.assertFalse(ent(env, b["lamp"])["lit"])
+
+    def test_notifications_reach_the_robot_as_device_notices(self):
+        config = generate_house(2, residents="minimal", pets="none")
+        ops = LAMP_SCENE + [{"op": "helper", "name": "electrical.plug", "args": {"device": "{lamp}", "outlet": "{outlet}"}},
+                            {"op": "helper", "name": "electrical.smart_home", "args": {
+                                "lamps": ["{lamp}"], "bulbs": True, "automations": [
+                                    {"id": "dim", "trigger": {"time": "10:05"},
+                                     "actions": [{"lamp": "{lamp}", "setting": "brightness", "value": 20}]}]}}]
+        b = apply_setup(config, ops, default_registry(), 2, {"catalog_id": "test_electrical_hub_notices"})
+        config["notices"] = []
+        env = HouseEnv(config, seed=2)
+        ok(self, env, "wait", seconds=600)
+        bulb = b["hub_device_" + b["lamp"]]
+        heard = [n for n in env.world.s["notices"] if n["kind"] == "device"]
+        self.assertEqual([n["data"]["app"] for n in heard], ["not_responding"])
+        self.assertEqual(heard[0]["source"], bulb)
+        env.world.begin()
+        env.world.robot_m()["network"] = False
+        env.world.commit()
+        ok(self, env, "wait", seconds=86400)
+        self.assertEqual(len([n for n in env.world.s["notices"] if n["kind"] == "device"]), 1,
+                         "an app notification needs the robot's network")
+
+    def test_no_section_no_change(self):
+        env, b, r = plugged_lamp()
+        self.assertNotIn("smart_home", env.world.s)
+        from house_sim.kernel import plugins
+        self.assertTrue(plugins.SYSTEM_IDLE["electrical.smart_home"](env.world))
+        ok(self, env, "wait", seconds=3600)
+        self.assertNotIn("smart_home", env.world.s)
+        self.assertNotIn("smart_home_app", env.observe())
+
+    def test_generation_two_smart_homes_are_never_brighter(self):
+        for seed in (2, 4, 8, 11):
+            config = generate_house(seed, gen=2)
+            section = config.get("smart_home")
+            self.assertIsNotNone(section, seed)
+            for auto in section["automations"]:
+                for act in auto["actions"]:
+                    for a in section["scenes"].get(act.get("scene"), [act]):
+                        self.assertEqual(a.get("value"), "off", (seed, auto["id"], a))
+            for eid in section["devices"]:
+                self.assertTrue(config["entities"][eid].get("remote_status"), (seed, eid))
 
 if __name__ == "__main__":
     unittest.main()

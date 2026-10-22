@@ -13,8 +13,63 @@ snipping or pulling structural or chain-stitched threads (seams/hems unravel).
 """
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.plugins import after, hook
 from . import model as M
 from .care import _held_tool
+
+# Positioning a needle (TIER1_EMBODIMENT 4.8, ctx.require_precision: the hand's precision after arm health, slippery
+# fingers, a dirty lens, darkness and fast speed must be within the tolerance). A needle's eye leaves about half a
+# millimetre around the thread (TIER1_INTEGRATION 6): a humanoid hand (2 mm by visual servoing) cannot thread one
+# unaided; a wire needle threader's loop opens the target to a few millimetres. A button's holes (1.5-2 mm across, in
+# a dished face that guides the point) take the point within about 2 mm: a humanoid hand just manages it on a lit
+# table with a clean lens, not in dim light, with greasy fingers or with a weak arm. (TIER1_INTEGRATION 6 names 1.5 mm
+# for sew_button, which no humanoid hand could meet; this domain uses the hole geometry.)
+THREAD_EYE_MM = 0.5
+THREADER_MM = 2.5
+BUTTON_HOLE_MM = 2.0
+
+
+PINNED = {"by": "pincushion"}
+
+
+def _pin_state(w, eid):
+    """A needle stuck into a pincushion is fastened to it (`secured`: the kernel's stack law never counts it as a
+    loose item balanced on top); lying anywhere else it is loose."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or not rec.get("needle"):
+        return
+    parent = w.s["entities"].get(rec.get("location")) or {}
+    pinned = bool(parent.get("needle_storage")) and rec.get("relation", "on") in ("on", "in")
+    current = rec.get("secured")
+    if pinned and current != PINNED:
+        w.mut(eid)["secured"] = dict(PINNED)
+    elif not pinned and current == PINNED:
+        w.mut(eid).pop("secured", None)
+
+
+@after("place", order=64)
+def needle_pinned(ctx, result):
+    _pin_state(ctx.w, ctx.args.get("target"))
+
+
+@after("pick_up", order=64)
+def needle_unpinned(ctx, result):
+    _pin_state(ctx.w, ctx.args.get("target"))
+
+
+@hook("episode_start")
+def needles_pinned(w, env):
+    for eid in sorted(w.s["entities"]):
+        if w.s["entities"][eid].get("needle"):
+            _pin_state(w, eid)
+
+
+def _hand_of(w, eid):
+    """The hand holding eid (the right one when it is not held in a single hand)."""
+    for hand, held in sorted((w.robot.get("hands") or {}).items()):
+        if held == eid:
+            return hand
+    return "right"
 
 
 def _needle(ctx, needle=None):
@@ -32,8 +87,9 @@ def _needle(ctx, needle=None):
                                  "threader": "?entity"},
         duration=lambda ctx: ctx.data.get("seconds", 20.0), energy=0.003, category="physical",
         doc="Thread the held needle from a thread spool (length_cm working length, knot the end, doubled for strength). "
-            "A frayed thread end will not pass a fine needle's eye - trim it (trim_thread on the spool) or hold a needle "
-            "threader.")
+            "Aiming a thread at a needle's eye needs about 0.5 mm of positioning: hold a needle threader in the other "
+            "hand (it opens the target to a few mm) unless the hand is that precise. A frayed thread end will not pass a "
+            "fine needle's eye - trim it (trim_thread on the spool) or use the threader.")
 def thread_needle(ctx):
     w = ctx.w
     needle = ctx.args["target"]
@@ -50,6 +106,7 @@ def thread_needle(ctx):
     fine = float(nrec.get("eye_mm", 1.0)) < 1.0
     if srec.get("frayed") and fine and not threader:
         raise ActionError("The frayed thread end will not pass the fine needle's eye; trim a fresh angled end or use a threader")
+    ctx.require_precision(_hand_of(w, needle), THREADER_MM if threader else THREAD_EYE_MM, "threading the needle")
     m = w.mut(needle)
     m["threaded"] = {"color": srec.get("color"), "length_cm": float(ctx.args["length_cm"]), "knot": bool(ctx.args["knot"]),
                      "doubled": bool(ctx.args["doubled"]), "spool": spool}
@@ -90,6 +147,7 @@ def sew_button(ctx):
     needle = _needle(ctx, ctx.args.get("needle"))
     threaded = w.ent(needle).get("threaded")
     require(threaded, "Thread the needle first")
+    ctx.require_precision(_hand_of(w, needle), BUTTON_HOLE_MM, "stitching through the button holes")
     button = ctx.args.get("button")
     if info.get("state") == "missing":
         require(button, "Bring the spare button (button)", "argument")

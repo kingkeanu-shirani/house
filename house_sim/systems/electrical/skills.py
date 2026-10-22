@@ -74,11 +74,20 @@ def _stand(r):
     base._stand(r)
 
 
-def _wait_until(r, fn, max_s=1800, step=30):
-    waited = 0
-    while not fn() and waited < max_s:
-        r.do("wait", seconds=step)
-        waited += step
+COOL_S = 300        # let a bulb that was glowing cool before unscrewing it ("wait about 5 minutes"); the kernel thermal
+#                     model takes an incandescent from 130 C below its 50 C handling limit in about 2-3 min either way
+
+
+def _wait_seen(r, rule, seconds, fallback_s=None):
+    """Wait until a condition the robot can observe holds (kernel v3.1 wait until: the robot watches it, e.g. a
+    modem's status lights), at most `seconds`. When the condition is not observable from where the robot stands, wait
+    `fallback_s` instead (the coarse expectation a person would use). Reference plans never poll hidden state."""
+    from ...kernel import timeline
+    env = r.env
+    if timeline.perceivable(env.world, rule, getattr(env, "realism", None), env):
+        r.do("wait", seconds=int(seconds), until=rule)
+    elif fallback_s:
+        r.do("wait", seconds=int(fallback_s))
 
 
 def _best_route(r, device, outlet):
@@ -151,6 +160,7 @@ def reset_breaker(r, breaker, supervisor=None, cause=None, cause_off=None):
         where = r.state["people"][supervisor].get("location")
         if where and where != r.state["robot"]["room"]:
             _go_room(r, where)
+        _walk_up_to(r, supervisor)
         base.ask(r, supervisor, "permission:reset_breaker:" + breaker)
     _approach(r, panel)
     if not _ent(r, panel).get("open"):
@@ -158,6 +168,34 @@ def reset_breaker(r, breaker, supervisor=None, cause=None, cause_off=None):
     r.do("inspect", target=breaker)
     r.do("reset_breaker", target=breaker)
     r.do("close", target=panel)
+
+
+def _walk_up_to(r, pid):
+    """Geometric camera: a person across the room is a shape until the robot walks up to them (kernel v3.0 camera:
+    "You cannot tell who that is from here"), so it walks next to them before asking, onto a free cell that is not a
+    doorway (a robot that just came through the door stands in its jamb and the door leaf hides half the person).
+    No-op with the room camera, when already beside them off the doorway, or when they are elsewhere."""
+    from ...kernel import camera
+    state = r.state
+    person = (state.get("people") or {}).get(pid) or {}
+    rid = state["robot"]["room"]
+    if camera.mode(state) != "geometric" or person.get("location") != rid or not person.get("pos"):
+        return
+    target = tuple(person["pos"])
+    doors = {tuple(c["cells"][rid]) for c in (state.get("connections") or {}).values()
+             if isinstance(c, dict) and isinstance(c.get("cells"), dict) and rid in c["cells"]}
+    pos = tuple(state["robot"].get("pos") or (0, 0))
+    if geometry.chebyshev(pos, target) <= geometry.REACH_CELLS and pos not in doors:
+        return
+    taken = set(geometry.blocked_cells(state, rid)) | doors | {target}
+    for group in ("people", "pets"):
+        taken |= {tuple(a["pos"]) for a in (state.get(group) or {}).values() if a.get("location") == rid and a.get("pos")}
+    goals = sorted((geometry.chebyshev(c, pos), c[1], c[0]) for c in geometry.near_cells([target], state["rooms"][rid])
+                   if c not in taken)
+    if goals:
+        r.do("walk_to", cell=[goals[0][2], goals[0][1]])
+    elif geometry.chebyshev(pos, target) > geometry.REACH_CELLS:
+        r.do("walk_to", cell=list(target), adjacent=True)
 
 
 def _cell_surface(r, surface):
@@ -203,9 +241,12 @@ def replace_cells(r, device, cells, recycle=None, surface=None, test=None, home=
 
 
 def _viewing_cell(r, device):
-    """A free floor cell 2-4 cells from the device with an unobstructed line to it."""
+    """A free floor cell 2-4 cells from the device with an unobstructed line to it (geometric camera mode: the IR line
+    from the hand to the receiver, sightlines.ir_line_clear)."""
     from .devices import line_of_sight
+    from . import sightlines
     state = r.state
+    clear = (lambda st, c, dev: sightlines.ir_line_clear(st, dev, cell=c)) if sightlines.geometric(state) else line_of_sight
     rid, cells = C.anchor_cells(state, device)
     room = state["rooms"][rid]
     cols, rows = geometry.grid_size(room)
@@ -218,7 +259,7 @@ def _viewing_cell(r, device):
             if c in blocked or not cells:
                 continue
             d = min(geometry.chebyshev(c, k) for k in cells)
-            if 2 <= d <= 5 and line_of_sight(state, c, device):
+            if 2 <= d <= 5 and clear(state, c, device):
                 options.append((geometry.chebyshev(c, pos), d, y, x))
     if not options:
         return None
@@ -248,10 +289,18 @@ def remote_test_skill(r, remote, device):
 
 
 @skill("electrical.replace_bulb")
-def replace_bulb(r, fixture, bulb, switch=None, disposal=None, slot=None, outlet=None, cool_c=45.0, restore=True):
+def replace_bulb(r, fixture, bulb, switch=None, disposal=None, slot=None, outlet=None, cool_c=None, restore=True):
+    """Power off, let a bulb that was glowing cool, swap it, power on. Whether the bulb glowed is what the robot saw:
+    the fixture lit with that bulb working (a burnt-out bulb in a lit two-bulb lamp is dark, and cold). cool_c is kept
+    for old plans and ignored (the wait no longer reads the bulb's temperature)."""
+    from .lighting import bulb_slots
     rec = _ent(r, fixture)
     was_on = bool(rec.get("on"))
     lamp = bool(rec.get("plug_required"))
+    pick = slot or next((s for s in bulb_slots(rec) if (rec["slots"][s] or {}).get("item")), None)
+    item = (rec.get("slots") or {}).get(pick, {}).get("item") if pick else None
+    irec = _ent(r, item) if item in r.state["entities"] else {}
+    glowing = bool(rec.get("lit") and not irec.get("burnt_out") and not irec.get("broken"))
     if lamp:
         if rec.get("on"):
             _approach(r, fixture)
@@ -261,10 +310,10 @@ def replace_bulb(r, fixture, bulb, switch=None, disposal=None, slot=None, outlet
             unplug(r, fixture)
     elif switch and rec.get("on"):
         switch_light(r, fixture, on=False)
-    from .lighting import bulb_slots
     slot = slot or next(s for s in bulb_slots(_ent(r, fixture)) if (_ent(r, fixture)["slots"][s] or {}).get("item"))
     old = _ent(r, fixture)["slots"][slot]["item"]
-    _wait_until(r, lambda: C.num(_ent(r, old).get("temperature_c"), 21.0) <= cool_c, max_s=1800, step=60)
+    if glowing:
+        r.do("wait", seconds=COOL_S)      # it was glowing a moment ago: let it cool (no thermometer needed)
     _approach(r, fixture)
     r.do("uninstall", target=fixture, slot=slot)
     if disposal:
@@ -409,12 +458,23 @@ def select_input(r, tv, input, remote=None, source=None):
 
 @skill("electrical.restart_network")
 def restart_network(r, modem, router, wait_s=30):
+    """Power-cycle the modem, watch its lights until it is online, then the router (watching it come back on)."""
     _approach(r, modem)
     r.do("restart_device", target=modem, method="power_cycle", wait_s=wait_s)
-    _wait_until(r, lambda: _ent(r, modem).get("power_state") == "on" and _ent(r, modem).get("online"), max_s=600, step=30)
+    online = {"all": [{"path": "entities.{}.power_state".format(modem), "op": "eq", "value": "on"},
+                      {"path": "entities.{}.online".format(modem), "op": "eq", "value": True}]}
+    _wait_seen(r, online, 600, fallback_s=_boot_wait_s(_ent(r, modem)))
     _approach(r, router)
     r.do("restart_device", target=router, method="power_cycle", wait_s=wait_s)
-    _wait_until(r, lambda: _ent(r, router).get("power_state") == "on", max_s=600, step=30)
+    _wait_seen(r, {"path": "entities.{}.power_state".format(router), "op": "eq", "value": "on"}, 600,
+               fallback_s=_boot_wait_s(_ent(r, router)))
+
+
+def _boot_wait_s(rec):
+    """The wait the restart message's coarse expectation suggests ("under a minute", "a minute or two", "a few
+    minutes"; devices._boot_words), used when the device's lights are not in view."""
+    boot = C.num(rec.get("boot_s"), 30.0)
+    return 60 if boot < 45 else (150 if boot < 150 else 300)
 
 
 @skill("electrical.goto")

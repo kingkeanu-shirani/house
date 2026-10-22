@@ -9,15 +9,18 @@ that is over capacity has fastener_ok False and fails when the stack is lifted.
 """
 import copy
 
-from ...kernel import geometry, physics
+from ...kernel import camera, geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import release_from_hands
 from .perceive import count_seen, dumps, has_read, perceives, privacy_violation, was_read
 from .common import (FLAT_M, admin_facts, drop_cell, authority, doc_keys, flat_spot, in_order, indexed, is_child, need_tool, refresh_paper, requester,
-                     require_readable, sheet_count, sheets_of)
+                     printed_face_down, require_readable, set_face, sheet_count, sheets_of)
 
+SHRED_PILE_FOOT_M = (0.28, 0.18)    # the pile covers the floor of a home shredder's bin (about 28 x 18 cm)
+SHRED_PILE_MIN_H_M = 0.02           # a thin layer of strips
+SHRED_PILE_MAX_H_M = 0.35           # a full 20-25 L bin
 DOC_META_KEYS = ("title", "doc_kind", "owner", "date", "sensitive", "original", "do_not_punch", "no_fold",
                  "action_required", "signed", "_important", "_doc_important", "_designated", "_file_as", "text", "label", "pii",
                  "_pii", "shred_required", "numbered", "year", "category_hint", "secret_fields")
@@ -119,6 +122,20 @@ def order_key(w, eid):
 
 # ----------------------------------------------------------------------
 # guards on core actions
+
+@hook("episode_start")
+def _printed_side(w, env):
+    """Geometric camera: a paper (a document, an envelope or a magazine) the setup laid face down shows its printed
+    side to no camera: its label face (sight 4.6; the type's is up) follows `face` from the first step. (The camera is
+    installed before the episode_start hooks run; a room-mode state is left as generated.)"""
+    if camera.mode(w.s) != "geometric":
+        return
+    for eid in sorted(w.s["entities"]):
+        rec = w.s["entities"][eid]
+        paper = is_document(rec) or rec.get("envelope") or rec.get("mail_piece")
+        if paper and (rec.get("face") == "down") != printed_face_down(rec):
+            set_face(w, eid, "down" if rec.get("face") == "down" else "up")
+
 
 @before("pick_up", order=50)
 def _remember_origin(ctx):
@@ -645,6 +662,25 @@ def _shred_seconds(ctx):
     return ctx.data.get("seconds", 4.0)
 
 
+def _is_paper(record):
+    return record.get("category") in ("document", "mail") or record.get("material") == "paper"
+
+
+def _group_all_paper(ctx, record):
+    """True when every type of the look-alike group the robot sees `record` as is paper (the paper check then cannot
+    tell the members apart); False for a mixed group or a novel thing."""
+    realism = ctx.env.realism
+    if realism is None:
+        return True
+    name, group = realism.group_of(record)
+    if not name:
+        return False
+    reg = ctx.w.reg
+    types = (reg.lookalike_types().get(name) if hasattr(reg, "lookalike_types") else None) or \
+        [m for m in (group or {}).get("members", []) if reg.known(m)]
+    return bool(types) and all(_is_paper(reg.resolve(t)) for t in types)
+
+
 @action("shred", params={"target": "entity", "destination": "?entity"}, duration=_shred_seconds, energy=0.01, noise=0.7,
         category="physical", irreversible=True,
         doc="Feed a held document into a powered paper shredder (destination or one within reach). Irreversible; needs an adult requester or approval shred:<doc>. Over-capacity stacks, binder clips or cards jam it; reverse mode clears jams.")
@@ -654,7 +690,11 @@ def shred(ctx):
     doc_id = ctx.args["target"]
     require(ctx.holding(doc_id), "Hold the document to feed it", "precondition")
     doc = w.ent(doc_id)
-    require(doc.get("category") in ("document", "mail") or doc.get("material") == "paper", "Only paper goes in a shredder", "argument")
+    if ctx.unresolved(doc_id) and not _group_all_paper(ctx, doc):
+        # realistic: whether it is paper at all depends on what it really is (a thermal receipt and foil gift wrap look
+        # alike): the same refusal for every member until the robot tells them apart (red team round 5)
+        ctx.refuse_unidentified(doc_id)
+    require(_is_paper(doc), "Only paper goes in a shredder", "argument")
     shredder = ctx.args.get("destination") or _shredder_in_reach(ctx)
     require(shredder, "Approach a paper shredder", "precondition")
     s = ctx.obj(shredder, touch=True, action="shred")
@@ -712,10 +752,8 @@ def shred(ctx):
     release_from_hands(w, doc_id)
     pm = w.mut(pile)
     pm["sheets_count"] = used + n
-    total = 0.0
     for i in items:
         rec = w.mut(i)
-        total += float(rec.get("mass_kg", 0.0))
         rec["shredded"] = True
         if rec.get("sheets"):
             rec["shredded_sheets"] = rec["sheets"]
@@ -727,8 +765,12 @@ def shred(ctx):
     m["location"], m["relation"] = pile, "in"
     for key in ("held_hand", "spos", "pos", "shelf"):
         m.pop(key, None)
-    pm["mass_kg"] = round(float(pm.get("mass_kg", 0.0)) + total, 4)
+    # the shredded documents are the pile's children, so their mass is already the pile's (kernel subtree mass); the
+    # pile itself grows: about 0.05 L of loose strips per sheet, spread over the bin's floor
     pm["volume_l"] = round(0.1 + 0.05 * pm["sheets_count"], 2)
+    width, depth = [float(v) for v in (pm.get("size_m") or SHRED_PILE_FOOT_M)[:2]]
+    pm["size_m"] = [width, depth, round(min(SHRED_PILE_MAX_H_M, max(SHRED_PILE_MIN_H_M,
+                                                                     pm["volume_l"] / 1000.0 / (width * depth))), 3)]
     if float(sm["run_s"]) > float(s.get("duty_cycle_s", 300)):
         sm["overheated"] = True
         sm["on"] = False

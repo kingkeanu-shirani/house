@@ -115,10 +115,16 @@ LIST_SECTIONS = ("severities", "issue_classes", "stopwords")
 
 
 def load_vocabulary(paths=None):
-    """Merge vocabulary files (default: every data/vocab/*.json, sorted by file name). Dict sections merge by key and a
-    key defined in two files is an error (ValueError); list sections are unioned in file order; "severities" may only
-    be defined once. Also builds the lookup indexes ("_index"). Unknown sections are an error."""
-    files = [Path(p) for p in paths] if paths is not None else sorted(VOCAB_DIR.glob("*.json"))
+    """Merge vocabulary files (default: data/vocab/core.json, then every other data/vocab/*.json sorted by file name, so
+    the kernel's words come first in file order -- suggestion lists, the docs tables -- and a domain's word that
+    collides with one of them is the one dropped from the index). Dict sections merge by key and a key defined in two
+    files is an error (ValueError); list sections are unioned in file order; "severities" may only be defined once.
+    Also builds the lookup indexes ("_index"). Unknown sections are an error."""
+    if paths is not None:
+        files = [Path(p) for p in paths]
+    else:
+        found = sorted(VOCAB_DIR.glob("*.json"))
+        files = [p for p in found if p.name == "core.json"] + [p for p in found if p.name != "core.json"]
     vocab = {name: {} for name in DICT_SECTIONS}
     vocab.update({name: [] for name in LIST_SECTIONS})
     owner = {}
@@ -952,11 +958,26 @@ ROUTES = []          # [(name, aspects frozenset or None, fn)] in registration o
 _ROUTE_NAMES = {}
 
 
+class WeakTopic(str):
+    """A route's topic that answers only when no other route does (weak(topic)): a catch-all's answer."""
+    __slots__ = ()
+
+
+def weak(topic):
+    """Mark a route's topic as a fallback: find_route keeps trying the later routes and uses it only when none of
+    them answers. For catch-all routes (any preference detail, any status of a person, any entity's place) so that a
+    domain route which knows the specific answer -- registered later, since the kernel's people routes register
+    first -- is not shadowed (adoption-round requests climate 1, food 2, pets 6, safety 2, mechanisms 7,
+    textiles_laundry 6). A domain's own catch-all can return weak(topic) too."""
+    return WeakTopic(topic) if topic else topic
+
+
 def route(name, aspects, fn):
     """Register a route from canonical questions to a legacy answerer topic: fn(state, pid, subject, aspect, detail,
     act) -> topic or None, offered only for `aspects` (None: every aspect). Routes are tried in registration order;
-    the first topic whose answerer exists (or a permission:) wins. Registering a name twice with another function is
-    an error."""
+    the first topic whose answerer exists (or a permission:) wins, except that a weak(topic) is only a fallback: the
+    first of those answers when no route gives a plain topic. Registering a name twice with another function is an
+    error."""
     if name in _ROUTE_NAMES:
         if _ROUTE_NAMES[name] is not fn:
             raise ValueError("dialogue route {!r} registered twice".format(name))
@@ -1019,8 +1040,9 @@ def _route_confirm(state, pid, subject, aspect, detail, act):
 
 
 def _route_wellbeing(state, pid, subject, aspect, detail, act):
+    # a fallback: a domain that knows the person's state (safety.condition for a fallen or hurt person) answers first
     if subject is None or (subject.kind == "person" and subject.id == pid):
-        return "wellbeing"
+        return weak("wellbeing")
     return None
 
 
@@ -1061,7 +1083,8 @@ def _route_hint(state, pid, subject, aspect, detail, act):
 def _route_entity(prefix):
     def fn(state, pid, subject, aspect, detail, act):
         if subject is not None and subject.kind == "entity":
-            return prefix + subject.id
+            # with a detail ("where is the key for it?") a domain route that knows that detail answers first
+            return weak(prefix + subject.id) if detail else prefix + subject.id
         return None
     fn.__name__ = "_route_" + prefix.rstrip(":")
     return fn
@@ -1071,7 +1094,7 @@ def _route_which(state, pid, subject, aspect, detail, act):
     if subject is not None and subject.kind in ("word", "request") and subject.words:
         words = [w for w in subject.words if w != "request"] if subject.kind == "request" else list(subject.words)
         if words:
-            return "which:" + "_".join(words)
+            return weak("which:" + "_".join(words)) if detail else "which:" + "_".join(words)
     if subject is not None and subject.kind == "request":
         intent = (state.get("user_simulator") or {}).get("intent") or {}
         category = intent.get("category")
@@ -1086,10 +1109,14 @@ def _route_which(state, pid, subject, aspect, detail, act):
 def _route_schedule(state, pid, subject, aspect, detail, act):
     if subject is None:
         return None
-    if subject.kind in ("person", "event", "pet", "room") and subject.id:
+    # a person's or an event's schedule is the people answerer's; when about a pet, a room or words, a domain route
+    # that knows (pets' walks and meals) answers first
+    if subject.kind in ("person", "event") and subject.id:
         return "schedule:" + subject.id
+    if subject.kind in ("pet", "room") and subject.id:
+        return weak("schedule:" + subject.id)
     if subject.kind == "word" and subject.words:
-        return "schedule:" + "_".join(subject.words)
+        return weak("schedule:" + "_".join(subject.words))
     return None
 
 
@@ -1111,7 +1138,10 @@ def _route_pref(state, pid, subject, aspect, detail, act):
     person = _people(state).get(pid) or {}
     hidden = ((state.get("user_simulator") or {}).get("by_person") or {}).get(pid) or {}
     keys = list(person.get("preferences") or {}) + [k[len("pref:"):] for k in hidden if str(k).startswith("pref:")]
-    return "pref:" + _legacy_key(keys, detail)
+    key = _legacy_key(keys, detail)
+    # a detail the person has no preference for ("No preference.") is only a fallback: a domain route that knows that
+    # detail (climate's fan speed, food's diet from the profile) answers first
+    return "pref:" + key if key in keys else weak("pref:" + key)
 
 
 def _route_intent(state, pid, subject, aspect, detail, act):
@@ -1183,7 +1213,8 @@ VETTED_ROUTES = {"people.visitor": _perceived_visitor}     # route name -> fn(en
 def find_route(state, pid, subject, aspect, detail, act, env=None):
     """(route name, legacy topic) of the first route that answers, or (None, None). A route's topic counts only if
     an answerer exists for it (or it is a permission: topic, which core answers itself) and, with env, its vetting
-    rule allows it (VETTED_ROUTES)."""
+    rule allows it (VETTED_ROUTES). A weak topic (weak()) counts only when no route gives a plain one."""
+    fallback = None
     for name, aspects, fn in ROUTES:
         if aspects is not None and aspect not in aspects:
             continue
@@ -1194,8 +1225,12 @@ def find_route(state, pid, subject, aspect, detail, act, env=None):
         if env is not None and vet is not None and not vet(env, topic):
             continue
         if topic.startswith("permission:") or answerer_for(topic) is not None:
-            return name, topic
-    return None, None
+            if isinstance(topic, WeakTopic):
+                if fallback is None:
+                    fallback = (name, str(topic))   # a catch-all: only if no later route answers
+                continue
+            return name, str(topic)
+    return fallback if fallback is not None else (None, None)
 
 
 # ----------------------------------------------------------------------------------------------------------------

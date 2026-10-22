@@ -257,6 +257,15 @@ holds): the step view of `camera.end_step` (motion frames feed the camera log, n
 thing is listed when it is detected at 17 px or more (the 50 % point) or seen as a depth shape; in realistic mode the
 10-24 px band is a draw (below).
 
+**Through a doorway** (camera phase 3). Frames see into the next room through an open doorway (or a closed glazed
+door) of the robot's room. The observation lists only the robot's room, plus the controls beside its doorways in the
+next room that it can reach from the threshold (a light switch by the door: room mode lists them whenever they are
+reachable; here when a frame sees them through the doorway -- `look` at one aims through the doorway, and acting on
+one turns the head to it). People and pets seen through a doorway are not in `obs.people` / `obs.pets`: they reach
+the sightings, the watch of tracked agents and the privacy captures, and a domain channel (mechanisms'
+`through_doorways`) through `camera.through_doorways`. A room privacy policy masks what the cameras see of that room
+through a doorway; with the cameras off nothing is seen through one.
+
 **View levels** (realistic, from the best current frame; TIER1_CAMERA 11.1):
 
 | level | needs | the record |
@@ -290,7 +299,9 @@ wrist (a grant of the field keeps it).
 **Face gating.** A field gated to a declared face (`view.faces`, `label_facing`, or a type's `"perception":
 {"faces": {field: face}}`; `label_text`, `recipient`, `address`, `barcode`, `order_id` follow the label face) shows
 only when a current frame saw that face, unless a grant of it still holds. Things without declared faces are never
-gated.
+gated. The geometric `read` follows the same rule: a type-mapped face the thing does not declare gates nothing (the
+head reads such a field like wrap-around text), and neither camera reads an `"up"` face half covered by things
+standing on it (a box stacked on a parcel's top label) until they are taken off.
 
 **Tracked identity.** Knowledge entries gain `"ident": [level, placement signature]`: the best view level the thing
 was seen at since it last moved (an inspection that still holds counts as identify). While it has not moved, a later,

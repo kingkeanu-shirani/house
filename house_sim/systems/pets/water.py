@@ -9,11 +9,15 @@ above 35 C), and a filter slot whose cartridge is due after service_life_days.
 The liquid itself is moved by the plumbing domain's verbs (fill/empty/pour) or anything else that changes
 liquid_l: reconcile() turns observed level changes into freshness changes (emptying resets age and debris;
 topping up mixes ages and dilutes debris but leaves the biofilm). Cleaning verbs (wash/scrub/rinse/wipe)
-on a bowl reduce the biofilm. Carrying a bowl filled above its slosh line spills water on the floor.
+on a bowl reduce the biofilm. Carrying a bowl too full for the walk sloshes water onto the floor (the kernel's carry
+model and spill; see the carry section).
 """
 import math
 
 from ...kernel import geometry, physics
+from ...kernel.actions import motion_record, motion_records
+from ...kernel.phys import lawbook
+from ...kernel.phys import liquids as PL
 from ...kernel.plugins import after, hook, system
 from ...kernel.predicates import root_room
 from . import common as C
@@ -151,7 +155,25 @@ def _derive_levels(w, env):
         sync_level(w, eid)
 
 
-@system("pets.water", order=130, max_dt=30.0, period=120)
+def water_idle(w):
+    """Exact idle probe of pets.water (kernel v3.1): every water source empty, without biofilm, its level reconciled
+    and water_level current -- nothing ages, warms, evaporates or grows slime (skipping a period boundary then loses
+    no time: the system would have started its next period there anyway)."""
+    entities = w.s["entities"]
+    for eid in water_sources(w.s):
+        rec = entities[eid]
+        if C.num(rec.get("liquid_l")) > 0.0 or C.num(rec.get("biofilm")) > 0.0 or not _reconciled(rec):
+            return False
+        if rec.get("water_level") != round(fill_fraction(rec), 2):
+            return False
+    return True
+
+
+def _reconciled(rec):
+    return rec.get("_last_l") is not None and abs(C.num(rec.get("liquid_l")) - C.num(rec.get("_last_l"))) < 1e-4
+
+
+@system("pets.water", order=130, max_dt=30.0, period=120, idle=water_idle)
 def water_tick(w, dt, tick):
     """Slow water processes (every 2 min, exact for the accumulated dt): age, temperature (exponential
     relaxation), evaporation, biofilm and bird droppings. Fountain pumps run per substep (pets.fountains)."""
@@ -193,7 +215,31 @@ def water_tick(w, dt, tick):
                 m["water_level"] = round(fill_fraction(m), 2)
 
 
-@system("pets.water_levels", order=131, max_dt=30.0)
+def _fountain_idle(w, eid):
+    """A fountain _fountain would leave as it is: its filter_due current, and either off (not flowing) or running
+    steadily between its lines (flowing, trickling, no dry-run time) at a safe temperature."""
+    state = w.s
+    rec = state["entities"][eid]
+    if bool(rec.get("filter_due")) != filter_due(state, eid):
+        return False
+    if not (rec.get("on") and physics.is_powered(w, eid)) or not rec.get("pump_ok", True):
+        return not rec.get("flowing")
+    level = C.num(rec.get("liquid_l"))
+    if C.num(rec.get("liquid_temp_c"), 20.0) > 35.0 or level < C.num(rec.get("min_l"), 0.6) or             level > C.num(rec.get("max_l"), 1.8) + 0.02:
+        return False
+    return rec.get("_dry_run_s") == 0.0 and rec.get("flowing") is True and rec.get("noise") == "trickling"
+
+
+def water_levels_idle(w):
+    """Exact idle probe of pets.water_levels (kernel v3.1): every water source's level reconciled and every fountain
+    steady (_fountain_idle)."""
+    entities = w.s["entities"]
+    if not all(_reconciled(entities[eid]) for eid in water_sources(w.s)):
+        return False
+    return all(_fountain_idle(w, eid) for eid in fountains(w.s))
+
+
+@system("pets.water_levels", order=131, max_dt=30.0, idle=water_levels_idle)
 def water_level_tick(w, dt, tick):
     """Per substep (cheap, event-sensitive): reconcile level changes made by anything without a hook (emptying vs
     topping up), and run fountain pumps (flow between the lines, dry-run damage, overheating, splashing above MAX)."""
@@ -328,40 +374,85 @@ for _verb in ("wash", "scrub", "rinse", "wipe", "disinfect"):
 
 
 # ----------------------------------------------------------------------
-# carrying a full bowl
+# carrying a full bowl (TIER1_PHYSICS 5.8 carry law, adoption protocol 10.3)
+#
+# While the kernel's carry law is active it sloshes every held open container in the action-phase settle (the kernel's
+# model: amplitude 0.010 x motion x sqrt(D / 0.08) m above the headroom, motion = the effective speed's factor careful
+# 0.5 / normal 1.0 / fast 1.7 times the phys.carry_motion hooks; the water lands as a puddle at the robot's cell). While
+# it is deferred, manipulation's copy sloshes every held container when it is loaded (its ctx.data flag), plumbing's
+# legacy copy does when that domain is loaded (later after-hook, the kernel's model); only with neither does this hook
+# slosh pet water itself, with the same kernel model and spill. Whoever sloshed it, carry_noted (a phys.settle_extra
+# hook, after every after-hook and the carry law) records the pets harm and keeps water_level in step.
+
+
+def _plumbing_copy():
+    from ...kernel.plugins import SYSTEMS
+    return any(name.startswith("plumbing") for _, name, _, _ in SYSTEMS)
+
+
+def _moved(record):
+    return bool(record) and (bool(record.get("path")) or C.num(record.get("meters")) > 0 or
+                             record.get("from_room") != record.get("to_room"))
+
 
 def _slosh(ctx, room):
+    if lawbook.active("carry"):
+        return              # kernel owns it: the carry law in the action-phase settle
+    if ctx.data.get("carry_slosh_applied") or _plumbing_copy():
+        return              # manipulation's copy already sloshed this trip / plumbing's (a later hook) will
     w = ctx.w
-    state = w.s
-    path = [tuple(c) for c in (ctx.data.get("path") or [])]
-    if not path:
+    record = motion_record(ctx)
+    if not _moved(record):
         return
+    motion = None
     for eid in w.held_items():
         rec = w.ent(eid)
         if not is_water_source(rec) or rec.get("category") == "pet_water_source" or rec.get("sealed"):
             continue
-        cap = C.num(rec.get("capacity_l"), 1.0)
-        frac = fill_fraction(rec)
-        limit = C.num(rec.get("slosh_frac"), 0.85)
-        speed = ctx.args.get("speed") or state["robot"].get("speed_mode", "normal")
-        if speed == "careful":
-            limit += 0.07
-        if frac <= limit:
-            continue
-        lost = min(C.num(rec.get("liquid_l")), (frac - limit + 0.03) * cap * min(1.0, 0.15 * len(path)))
-        if lost <= 0.002:
+        if motion is None:
+            motion = PL.carry_motion(w, record)
+        lost = PL.slosh_spill_l(rec, motion)
+        if lost <= 0.0:
             continue
         m = w.mut(eid)
-        m["liquid_l"] = round(C.num(rec.get("liquid_l")) - lost, 4)
-        m["_last_l"] = m["liquid_l"]
-        m["water_level"] = round(fill_fraction(m), 2)
-        wet_floor(w, room, path, lost)
-        w.stat("spills")
-        C.harm(w, "carry_spill", item=eid, litres=round(lost, 3))
-        if C.realistic(ctx):
-            C.tell(ctx, "Water slopped out of {} onto the floor".format(eid))
-        else:
-            C.tell(ctx, "Water slopped out of the {} ({:.2f} l on the floor)".format(rec.get("label", "bowl"), lost))
+        m["liquid_l"] = round(max(0.0, C.num(rec.get("liquid_l")) - lost), 4)
+        PL.deposit_below(w, eid, lost, rec.get("liquid") or "water", source=eid, by="robot", cause="slosh")
+        _carry_spill(ctx, eid, lost)
+
+
+def _carry_spill(ctx, eid, lost):
+    """Bookkeeping of water that left a carried pet water source: the pets harm, the reconciled level (a spill is not
+    a refill), the message. The spill itself (puddle, global spills flag) is the kernel's."""
+    w = ctx.w
+    rec = w.s["entities"][eid]
+    m = w.mut(eid)
+    m["_last_l"] = C.num(rec.get("liquid_l"))
+    m["water_level"] = round(fill_fraction(m), 2)
+    C.harm(w, "carry_spill", item=eid, litres=round(lost, 3))
+    if ctx is None:
+        return
+    if C.realistic(ctx):
+        C.tell(ctx, "Water slopped out of {} onto the floor".format(eid))
+    else:
+        C.tell(ctx, "Water slopped out of the {} ({:.2f} l on the floor)".format(rec.get("label", "bowl"), lost))
+
+
+@hook("phys.settle_extra")
+def carry_noted(w, eid, ctx):
+    """phys.settle_extra: a held pet water source that lost water during an action in which the robot travelled
+    (another domain's slosh model, or the kernel's carry law) gets the same bookkeeping as this domain's own slosh
+    (carry_spill harm, level kept in step). Returns at once for anything else; exact (writes only on a real loss)."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or ctx is None or rec.get("location") != "robot" or not is_water_source(rec):
+        return
+    if w.phys_scratch.get("phase") != "action":
+        return
+    last = rec.get("_last_l")
+    if last is None or C.num(last) - C.num(rec.get("liquid_l")) < 1e-4:
+        return
+    if not any(_moved(leg) for leg in motion_records(ctx)):
+        return
+    _carry_spill(ctx, eid, C.num(last) - C.num(rec.get("liquid_l")))
 
 
 @after("move", order=55)

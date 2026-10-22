@@ -151,11 +151,12 @@ main { display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr)
 .mk { font-size: 11px; line-height: 1.5; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); color: var(--muted); word-break: break-all; }
 .mk.phys { color: var(--warn); border-color: var(--warn); background: var(--warn-bg); }
 .mk.body { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); }
+.mk.time { color: var(--accent); border-color: var(--accent); }
 .scrubwrap { position: relative; flex: 1 1 260px; min-width: 160px; display: flex; flex-direction: column; }
 .scrubwrap input[type=range] { width: 100%; margin: 0; }
 #markStrip { position: relative; height: 7px; margin: 1px 8px 0; }
 #markStrip i { position: absolute; top: 0; width: 3px; height: 7px; margin-left: -1px; border-radius: 1px; cursor: pointer; }
-#markStrip i.phys { background: var(--warn); } #markStrip i.body { background: var(--bad); }
+#markStrip i.phys { background: var(--warn); } #markStrip i.body { background: var(--bad); } #markStrip i.time { background: var(--accent); }
 .ev-status { display: inline-block; font-weight: 700; padding: 2px 10px; border-radius: 6px; margin-bottom: 6px; }
 .ev-status.success { background: var(--ok-bg); color: var(--ok); }
 .ev-status.failed { background: var(--bad-bg); color: var(--bad); }
@@ -278,7 +279,8 @@ details summary { cursor: pointer; color: var(--muted); }
   function roomAt(f) { var fr = anyFrame(f); return fr ? fr.r : null; }
   function kv(rows) { return '<dl class="kv">' + rows.filter(function (r) { return r[1] !== undefined && r[1] !== null && r[1] !== ""; }).map(function (r) { return "<dt>" + esc(r[0]) + "</dt><dd>" + r[1] + "</dd>"; }).join("") + "</dl>"; }
   function store(key, value) { try { if (value === undefined) return window.localStorage.getItem(key); window.localStorage.setItem(key, value); } catch (e) { return null; } return null; }
-  function markClass(kind) { return kind === "more" ? "" : String(kind).indexOf("phys.") === 0 ? "phys" : "body"; }
+  var TIME_KINDS = {notice: 1, phase_start: 1, phase_end: 1, phase_relocate: 1, standing_order_fired: 1};   // kernel v3.1
+  function markClass(kind) { return kind === "more" ? "" : String(kind).indexOf("phys.") === 0 ? "phys" : TIME_KINDS[kind] ? "time" : "body"; }
   function markText(m) { var k = String(m[0]); return (k.indexOf("phys.") === 0 ? k.slice(5) : k.replace(/_/g, " ")) + (m[1] ? ": " + m[1] : ""); }
   function marksAt(f) { return S.view === "oracle" ? (MARKS[String(f)] || []) : []; }
   function marksHtml(f) { var m = marksAt(f); return m.length ? '<div class="smarks">' + m.map(function (x) { return '<span class="mk ' + markClass(x[0]) + '">' + esc(trunc(markText(x), 60)) + "</span>"; }).join("") + "</div>" : ""; }
@@ -525,7 +527,7 @@ details summary { cursor: pointer; color: var(--muted); }
                 ["var(--door-locked)", "locked door"], ["var(--doorway)", "doorway"], ["var(--hz)", "hazard"], ["var(--wet)", "wet cell"],
                 ["var(--robot)", META.camera === "geometric" ? "robot (line: facing; wedges: camera views this step; tint: floor seen)" : "robot"],
                 ["var(--muted)", "robot powered down"], ["var(--person)", "person"], ["var(--pet)", "pet"]];
-    if (O) rows.push(["var(--warn)", "dashed outline: physics cue (sagging, wobbly, rolling, fell, ...); amber/red marks: physics and body events"]);
+    if (O) rows.push(["var(--warn)", "dashed outline: physics cue (sagging, wobbly, rolling, fell, ...); amber/red/blue marks: physics, body and time events (notices, orders, phases)"]);
     $("legend").innerHTML = rows.map(function (r) { return '<span><i style="background:' + r[0] + '"></i>' + r[1] + "</span>"; }).join("") + "<span>numbered badge = items on/in it; hover for details</span>";
   }
 
@@ -620,11 +622,13 @@ details summary { cursor: pointer; color: var(--muted); }
     buildMarkStrip();
   }
   function buildMarkStrip() {
-    // timeline markers (oracle view): one tick per frame with physics consequences (amber) or body events (red)
+    // timeline markers (oracle view): one tick per frame with body events (red), else physics consequences (amber),
+    // else only time events -- notices, standing orders, phase boundaries (blue)
     var ticks = [];
     if (S.view === "oracle" && N > 0) Object.keys(MARKS).forEach(function (key) {
-      var f = +key, m = MARKS[key] || [], body = m.some(function (x) { return markClass(x[0]) === "body"; });
-      ticks.push('<i class="' + (body ? "body" : "phys") + '" data-f="' + f + '" style="left:' + (100 * f / N).toFixed(3) + '%" title="' +
+      var f = +key, m = MARKS[key] || [], cls = m.map(function (x) { return markClass(x[0]); });
+      var kind = cls.indexOf("body") >= 0 ? "body" : cls.indexOf("phys") >= 0 ? "phys" : "time";
+      ticks.push('<i class="' + kind + '" data-f="' + f + '" style="left:' + (100 * f / N).toFixed(3) + '%" title="' +
                  esc("frame " + f + ": " + m.map(markText).join("; ")) + '"></i>');
     });
     $("markStrip").innerHTML = ticks.join("");

@@ -139,6 +139,8 @@
     "cast_iron": "cast_iron", "aluminum": "aluminum", "aluminium": "aluminum", "coated_aluminum": "aluminum",
     "aluminum_cable": "aluminum", "brass": "soft_metal", "gold": "soft_metal", "copper": "soft_metal",
     "silver": "soft_metal", "bronze": "soft_metal",
+    "pewter": {"class": "soft_metal", "rho": 7300, "c_p": 220, "heat": 170, "melt": 230, "mohs": 1.5, "source": "pewter (about 92 % tin with antimony and copper): 7.3 g/cm3, c_p about 0.22 J/gK, melts 170-230 C, soft (Mohs about 1.5); not for the oven (cleaning's adoption request 12)"},
+    "titanium": {"class": "steel", "rho": 4500, "c_p": 520, "melt": 1668, "mohs": 6.0, "source": "titanium: 4.5 g/cm3, c_p 0.52 J/gK, melts at 1668 C, hard and corrosion-proof (cleaning's adoption request 12)"},
     "polyethylene": "film", "ldpe": "film", "film": "film", "thin_plastic": "film", "foil": "film", "foil_laminate": "film",
     "mylar": "film",
     "plastic": "plastic", "pvc": "plastic",

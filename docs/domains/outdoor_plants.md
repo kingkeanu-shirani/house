@@ -6,13 +6,15 @@ pools (skimming, baskets, covers, toys, flotation), gutters/drains, snow and ice
 from the ground, outdoor decorations and cut flowers.
 
 Code: `house_sim/systems/outdoor_plants/` (package). Types: `house_sim/data/types/outdoor_plants.json`.
-Tests: `tests/test_outdoor_plants.py`. Example specs: `tasks/authored/outdoor_plants__examples.json`.
+Tests: `tests/test_outdoor_plants.py`. Example specs: `tasks/authored/outdoor_plants__examples.json` (12) and
+`tasks/authored/outdoor_plants__perception.json` (3 realistic-perception specs, two of them with the geometric camera).
+Tier-1 adoption round (kernel v3.0 physics, camera and body, v3.1 sweep): section 0b.
 
 | module | contents |
 |---|---|
-| `common.py` | constants, realistic-perception helpers (`realistic`, `seen_keys`, `drop_keys`, `mass_feel`, `temp_feel`, `fill_word`, `unresolved`, `require_identified`, `gone_refs`, `approx`, `amount_word`, `water_word`, `perceived_liters`; `find_held`/`nearby_entity` take `by_identity`), shared helpers (`set_status`, cached indexes `type_index`/`find_types`/`kids_of_type`/`static_ids`/`outdoor_map`, `reach_with_tool`, weather/wind helpers, `add_spill`, `drop_cell`, `pinfo`, house-wall geometry) |
+| `common.py` | constants, realistic-perception helpers (`realistic`, `seen_keys`, `drop_keys`, `mass_feel`, `temp_feel`, `fill_word`, `unresolved`, `require_identified`, `gone_refs`, `approx`, `amount_word`, `water_word`, `perceived_liters`; `find_held`/`nearby_entity` take `by_identity`), shared helpers (`set_status`, cached indexes `type_index`/`find_types`/`kids_of_type`/`static_ids`/`outdoor_map`, `reach_with_tool`, weather/wind helpers, `add_spill` (the kernel's spill), `drop_cell`, `pinfo`, house-wall geometry), tier-1 helpers (`visual` visual events, `notice` notices, `seen_cells` the geometric camera's surveyed floor, `soil_hands` / `soil_from` / `gloved` hand soil through the body) |
 | `species.py` | growing media table (saturation / field capacity / wilting point), ~75 species profiles |
-| `weather.py` | weather events, forecast observer, wind (drag/lift), rain/snow wetting, drying, mildew, drip trails |
+| `weather.py` | weather events, the generation-2 weather process and its forecasts (`process_value`, `process_forecast`, `forecast_for`), rain/thunder notices, forecast observer, wind (drag/lift), rain/snow wetting, drying, mildew, drip trails, `phys.exposed`, outdoor haze for the geometric camera |
 | `plants.py` | container water balance, light/heat zones, plant status, health/pests/lean, inspector, answerer, one-time derivation |
 | `garden.py` | beds, digging/planting/filling/firming, mulch grids, sowing/germination/thinning/hardening, weeds, supports, covers, produce |
 | `lawn.py` | 1 m patch grid: height, moisture, leaves, clippings, seed, amendments, aeration, edges, emitters, mowing |
@@ -21,9 +23,146 @@ Tests: `tests/test_outdoor_plants.py`. Example specs: `tasks/authored/outdoor_pl
 | `pool.py` | pool debris, skimming zones, skimmer basket, toys/flotation, pool chemical invariant |
 | `compost.py` | compost pile model (C:N, moisture, O2, temperature, maturity, contaminants, worms), smells observer, realistic-only compost inspector and turning feel |
 | `verbs.py` | the 30 domain actions |
-| `furnish.py` | generation furnishers (yard, houseplants, outdoor items, finish), the shared floor placement (`floor_place`/`floor_spot`, hidden-mount avoidance) and the serviceable-light guard (`guarded`) |
+| `furnish.py` | generation furnishers (yard, houseplants, outdoor items, finish), the shared floor placement (`floor_place`/`floor_spot`, hidden-mount avoidance) and the serviceable-light guard (`guarded`); `gen1_records` keeps generation-1 houses byte-identical |
+| `season.py` | generation 2: the season ground state (snow and ice from the process's last week, leaf litter, pool season, garden stage, frost) and the porch steps of the exterior stairs |
 | `helpers.py` | scenario helpers |
 | `skills.py` | reference skills |
+| `routes.py` | dialogue routes of canonical `ask` questions to the `plants:` answerer |
+
+## 0b. Tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep)
+
+What changed in the adoption round (docs/design/TIER1_INTEGRATION.md section 6, "outdoor_plants" and "Every domain
+also"), and how this domain now meets the kernel's physics, cameras, body and timeline.
+
+**Physics (TIER1_PHYSICS 10.3: route through the kernel, guard the legacy code, register hooks, report ready).**
+
+| Law (laws.json) | What this domain did | Ready to flip |
+|---|---|---|
+| `wind` | `weather._object_wind` (loose objects: drag and lift with the weather's gust against friction, tie-downs and ballast) returns at once while the law is active: the kernel's environment system moves loose outdoor items then, with the wind at the item (0.4 of the 10 m mean, 0.6 of the gust in a yard), the sustained wind sliding and gusts lifting sheets and tipping tall things. Umbrella canopies (`umbrella_tip_check`: canopy moment against base, ballast and table; the 10 m gust calibration of "close an umbrella above about 9 m/s" kept), covers laid over furniture, plant covers over beds and leaf piles stay this domain's at any law state: the kernel models none of them (its record of a deployed cover is the folded bundle). Every drag force uses the kernel's air density (`C.RHO_AIR = environment.RHO_AIR`, 1.2 kg/m3, was 1.225). `secure_outdoor method=weight` writes no hold-down rating while the law is active (the kernel counts the ballast's own mass resting on the item; this domain's copy counted a rating). Scripted `wind` / `storm` / `start_rain` events change `state.weather`, which the kernel's system reads: they feed the kernel's laws without a bridge. | yes (kernel calibration request below: a seat cushion never lifts under the kernel's sheet-only lift model) |
+| `rain` | `precip_effects` no longer wets foreign or own objects with rain while the law is active (the kernel's `rain_wet`: surfaces fully wet within 120 s, absorbent bodies soak, paper soaked to 0.3 is water-damaged, `phys.wetted`); this domain keeps the ground surfaces (wetness, snow and ice of outdoor floors, walkways and steps: kernel-excluded ground layers), snow on objects (the kernel has no snow), the rain totals that feed soil water, cover pooling, and its drying bookkeeping (`_mark_kernel_wet`: an own-drying item the kernel wetted gets `_wet_mine` / `drying_owner`, anything else outdoors `_wx_wet`). The paper/electronics "ruined" rule runs only for this domain's copy. `@hook("phys.exposed")` keeps plants and the soil-water holders (pots, saucers, pebble and seed trays, beds, compost bins, the pool, the fire pit, planting holes, lawns) out of the kernel's environment law: their rain is this domain's soil-water balance (the kernel would pour it into a pot as free liquid). | yes |
+| `slope` | no copy of the law here (the lawn's per-patch slopes only make a pushed mower slide, a robot fall). The wheelbarrow rests on its legs: `chocked: true` (the kernel's roll rule leaves chocked things); the garden cart rolls on a sloped paved floor as the kernel says. | yes |
+
+Verified with `lawbook.forced` (each law alone and all three together): the 128 unit tests and both spec files (15
+specs x 5 seeds, own modes, generation 2) pass. Spills: `C.add_spill` (an overflowing saucer, water dripping off a
+rain-soaked thing carried indoors, a saucer tipped by lifting a heavy pot) is the kernel's `physics.spill` by the
+robot (droplets below 5 ml; onto a piece it and the supports under it catch a film; cleaning's spill entity through
+`phys.spill_sink`); a wooden piece keeps this domain's water mark. Pot drainage stays immediate (within the watering
+action): a `drip_start` process would lose the robot's attribution, because the kernel's drip has no `by` and soil
+water is no structural change the settle marks (kernel request). `python tools/physics_audit.py --data` attributes
+two bulk-density notes to this domain, both true: an empty open paper leaf bag (0.25 kg in its filled 0.42 x 0.3 x 0.9 m
+box, 2 kg/m3) and the plastic contractor bag (1 kg/m3); their fill mass is added as they fill. The PHYS-INT request
+"decide gust-driven sliding with outdoor_plants' wind adoption": keep the kernel's sustained-only sliding (its
+calibration against hourly generated weather; this domain's legacy model, which slid things with the full 10 m gust,
+over-predicted), so the two pinned kernel tests stand.
+
+**Camera (geometric mode; room mode outputs unchanged).**
+
+* `"view"` blocks: hedges pass 30 % of the view (dense clipped foliage; the large-plant default is 0.5), a tree's
+  footprint is its opaque trunk, compost bins, tumblers, worm bins, deck boxes and the fire pit open at the top, a
+  gutter's trough opens to the sky with the face `trough` up, a row label's marker writing is 8 mm.
+* Gutters: from the ground the inspector still reports what shows over the lip; with the trough face in view (an eye
+  above the gutter: a ladder) it reports the trough itself (`yard.gutter_seen_from_above`).
+* Roof faces: the yard's sight line is the field `sightline` (clear | partial | blocked), no longer `view`, the camera's
+  name for per-entity view properties (CAM-RENDER request; generation-1 houses keep the old word until their digests
+  are re-recorded: `furnish.gen1_records`).
+* Surveys see only what the cameras covered: the lawn inspector's `issues_seen` / `seen_patches` and the fence
+  inspector's panels need floor cells the camera log surveyed (`C.seen_cells`: camera_log.seen_cells plus this step's
+  frames); the `outdoor_plants.survey` skill looks all round with the low row (`look target=around rows=2`) at each
+  spot first.
+* Small things in tall grass: a thing under 15 cm lying on a lawn patch whose grass is taller than it is hidden from a
+  robot more than 1.5 m away (`@hook("visible_veto") lawn.hidden_in_grass`, geometric only).
+* Leaf undersides: `inspect where=closely` shows underside pests once the wrist camera has looked closely at the plant
+  (`peek where=closely`, camera_log.peeked); the kernel's `inspect where=under` is a look beneath the pot.
+* Visual events (`C.visual` = `camera.visual_event`, the event log identical to before): things blown across the yard,
+  an umbrella whipped open or tipped, a plant cover blown off, rain ruining something.
+* Haze: falling rain or snow (or a fog condition) gives exposed outdoor rooms a `fog` level for the camera's `k_haze`
+  (`fog = sigma / 0.3`, sigma = 3.912 / visibility; assumed visibilities: about 13 km in 1 mm/h rain, 3 km at 10 mm/h,
+  1.3 km in 1 cm/h snow, 300 m in fog), written only in geometric mode and only where this domain set it.
+* No observer of this domain is a visual cue to gate: the forecast is the weather app (or the sky outdoors), smells are
+  smells, inspectors are actions under the kernel's inspect and read checks.
+* Not done: tall grass and open umbrella canopies as `view_occluders` (a registered occluder hook makes every mutation
+  a new sight epoch; the data-gated room occluder safety requested would serve them too).
+
+**Body.**
+
+* Falls go through `body_faults.fall`: a mower sliding on a steep wet patch takes the robot down where it slid (the
+  walk is cut there with `ctx.cut_motion`, the mower stays on its wheels, no actuator damage: a slip from standing
+  height with no carried load under the body); falling off wet coping into the pool is a wet fall (`water=True`: water
+  ingress fails the cameras and actuators) plus the global damage of a robot in the water. No string is appended to
+  `robot.faults` any more (the stage-B `sorted(set())` crash): touching a live downed line is
+  `body_faults.add_fault("actuator_failed", source="electric_shock")`.
+* Heavy wet snow over the push limit (15 kg on the blade for humanoid_v1, scaled with `body.limit("push_n")`) is an
+  overload attempt: the push is aborted and refused ("too heavy to push in one pass; take it off in thinner layers",
+  safety), `overload_attempts`, the `overload` event and `body_log.overload_s` survive the rollback. `shovel` gains
+  `layer_cm` (at most that much off the top per pass).
+* Loud tools: `noise_db=tool_noise` on prune, deadhead, trim_plant, harvest, weed, rake, mow, edge, aerate, overseed
+  and shovel: the sound of the tool the action used (mower 75, leaf blower 85, power edger 85, hedge and string
+  trimmers 90, petrol snow blower 95 dB at 1 m; an unrated powered tool 85); the hand-written quiet checks in
+  `verbs.py` are gone, so quiet mode refuses through the body ("Quiet mode is on: that is too loud now", social) and
+  listeners hear the level (`robot_sound`). The household's quiet hours stay this domain's `quiet_hours_violations`.
+* Motion: `mow` walks the lawn behind the mower (`ctx.motion` over a boustrophedon of the mowed patches, then to the far
+  corner where the robot always ended; a battery-cut walk mows only the patches reached) after `ctx.require_mobile`;
+  a snow pass also needs a mobile body. `water_plant` is `timing="commanded"` (a commanded hose time is not stretched
+  by careful speed).
+* Hand soil through `body.soil_hand` (`C.soil_hands`): bare-handed work in a wet medium (RWC >= 0.6) leaves mud,
+  slippery: weeding by hand, planting, repotting, transplanting, thinning by pulling, firming by hand, backfilling
+  without a tool; dry soil otherwise; latex sap from cutting figs, rubber plants and dandelions (species `sap`);
+  urushiol from poison ivy. Worn gloves take it instead.
+* Water: the pool fall is immersion; sprinkler throw on the robot is plumbing_liquids' (`outdoor.sprinkler_spray`, one
+  exposure per substep for all heads), so this domain adds none; rain on the robot is harmless (IP54).
+
+**Sweep.**
+
+* The default weather process (TIER1_SWEEP 13.2): on a generation-2 house (`weather.process`) the system
+  `outdoor_plants.weather_process` (order 43, exact idle probe) copies `generator/climate.weather_at` at the current
+  local time into `state.weather` whenever it changed. A scripted weather yields it: a weather that differs at episode
+  start from the process value (a `weather` setup op, a helper, a scripted forecast) sets `override_until_s` past any
+  episode (`weather.mark_scripted`, the `episode_start` hook), the `weather_plan` helper does so itself, and a scripted
+  weather event does too (or for `override_h` hours). Generation-1 houses have no process.
+* Forecasts: the weather app's forecast of a running process is computed, not stored (`weather.process_forecast`):
+  issued at 06:00 and 18:00 local time, eight 6-hour blocks then three days; temperature error (1.0 + 0.3 L / 24) sigma,
+  precipitation probability 0.85 - 0.08 L / 24 for a wet block and 0.10 + 0.05 L / 24 for a dry one in 10 % steps,
+  amounts and wind with a log-normal error; the same for every observation and replay. A scripted forecast wins.
+  `weather.forecast_for(state, location, dates)` gives trip destinations (a region code or {"region"}) the same model
+  on the destination region's normals, keyed by the household's process.
+* Notices: rain starting (heard where the robot is when it is outdoors or its room has a window, 10 dB under the
+  outdoor level of 45-70 dB by intensity; otherwise it comes in from the nearest outdoor room) and thunder when a storm
+  arrives (100 dB at the source); an umbrella going over is a crash (glass breaking when its glass table top shatters),
+  a blown thing slamming into the house wall a thud. Kinds registered: `rain`, `thunder`.
+* Questions (`routes.py`, after the people routes): how / when (detail none, care, schedule, light, a care word) about a
+  plant or words naming a species -> `plants:care:<id|species>`; keep / intended about a plant -> `plants:keep:<id>`.
+  manipulation's `manipulation.items` route registers first and claims how / keep / intended about every entity, so
+  those questions about a plant reach "No preference." today (cross-domain report); "when" reaches the plants
+  answerer.
+* Report vocabulary: the plant-issue words (yellowing, dead leaves, overwatered, root bound, leggy, sunscald, frost
+  damage, disease, leaning, bolting, weeds, lawn thin patches, mole hills, grubs, mushrooms, icy, snow covered, blown
+  over) are drafted for `data/vocab/outdoor_plants.json`, which is kernel-owned (requested); the core vocabulary's
+  `wilted`, `needs_water`, `dry_soil`, `pests`, `overgrown`, `clogged`, `overflowing` cover the rest.
+* Exact idle probes: `weather_process` (no process or an override in force), `weather` (dry, gusts under 6 m/s, no
+  haze to update), `lawn` (no controller this domain drives, no emitter running), `derive` (already derived); a test
+  compares the state digests of 4-hour waits with probes on and off on generation-1 and -2 houses.
+* Generation 2 (`season.py`, furnisher order 97; generation 1 untouched): snow and ice on exposed paving from the
+  process's last seven days (this domain's own accumulation, melt and freeze rates), leaf litter September-November,
+  the pool open late May to early September (UK June-August, Japan July-August) with its pump, the garden by month and
+  frost (tender annuals gone after a frost in the last fortnight and before May, spring crops as seedlings, perennials
+  dormant in winter), and the porch steps of the exterior stairs (a `steps` surface tied to the connection,
+  `yard.mirror_steps` writing `tread_wet`, `icy` and `snow_cm` onto it for navigation_robot).
+* No spec of this domain used privileged waits (M-WAITS). Every spec passes on generation-2 houses and declares
+  `"house": {"gen": 2}`.
+
+**Specs.** The pest check (`T-e662e1ab5384e8-01`) and the identification (`T-f7913405ff4906-01`) declare
+`"camera": "geometric"` (looking is the skill): the pest check brings the wrist camera under each plant's leaves
+(`peek where=closely`) before the close inspection, its wrong plan that looks only at leaf tops is marked
+`"camera": true`; the identification's new camera wrong plan looks round the room from the entrance and goes close to
+no plant, so it can name none. The moisture check passes with the geometric camera unchanged (touch is its skill).
+The rotation example walks up to the budding cactus before looking at it (generation-2 tables can be longer).
+Forced to realistic perception (the harness's mode, geometric by default from stage D3) all 12 examples pass: the
+umbrella's calm branch reports `needs_closing: false` (a judgement; the decision word "leave_open" never appears in
+anything a robot perceives) and the fire pit's `ash_state` is reported as the ash bed feels to the poker (extinguished
+ash at ambient temperature is "room temperature" on a mild day: any of cold / cool / room temperature; the hot branch
+warm / hot / very hot) -- the round-4 report of these two specs failing under forced realistic perception.
+The unread spray-bottle look-alike (round-5 red team R1): `water_plant` gives every member the same answer (an unread
+bottle is skipped as a water source; named as the tool it gets the one look-alike refusal).
 
 ## 1. Model overview
 
@@ -290,12 +429,13 @@ registered as `spread_granular` to avoid a duplicate registration.
 
 | system | order | period | work |
 |---|---|---|---|
-| `outdoor_plants.derive` | 44 | every substep (O(1)) | fallback only: computes `_op_status`/`_eval` once if the `episode_start` hook did not (metadata flag) |
-| `outdoor_plants.weather` | 45 | every substep | rain/snow wetting, rain totals, cover pooling (only while it rains/snows); wind on umbrellas, covers, plant covers, leaf piles and loose objects (gust >= 6 m/s, objects >= 8); iterates `outdoor_map` only |
+| `outdoor_plants.weather_process` | 43 | every substep; idle probe | generation 2: copies the default weather process's value at the current time into `state.weather` when it changed (rain and thunder notices), unless a scripted weather set `override_until_s`; idle without a process or under an override |
+| `outdoor_plants.derive` | 44 | every substep (O(1)); idle probe | fallback only: computes `_op_status`/`_eval` once if the `episode_start` hook did not (metadata flag) |
+| `outdoor_plants.weather` | 45 | every substep; idle probe | rain/snow wetting, rain totals, cover pooling (only while it rains/snows); wind on umbrellas, covers, plant covers, leaf piles and loose objects (gust >= 6 m/s, objects >= 8; loose objects only while the kernel's wind law is deferred); outdoor haze (geometric camera); iterates `outdoor_map` only; idle when dry, gusts under 6 m/s and no haze to update |
 | `outdoor_plants.weather_slow` | 46 | 600 s | rain-total decay, freezing/melting of paving, drying of own items, mildew (wet + enclosed 48 h), stored-wet status; candidates = own-drying + surface static indexes |
 | `outdoor_plants.plants` | 120 | 600 s | pot water balance (ET, evaporation, rain, saucer wick), in-ground root zone water, health, pests, lean, plant status |
 | `outdoor_plants.garden` | 122 | 600 s | bed water/evaporation/rain, covers, weed regrowth, germination, hardening off, chill of tray seedlings |
-| `outdoor_plants.lawn` | 124 | every substep | irrigation controllers (`irrigation_controller` static index) and running emitters (`irrigation_emitter`/sprinkler static index) |
+| `outdoor_plants.lawn` | 124 | every substep; idle probe | irrigation controllers (`irrigation_controller` static index) and running emitters (`irrigation_emitter`/sprinkler static index); idle with no controller this domain drives and no emitter running |
 | `outdoor_plants.lawn_growth` | 125 | 600 s | grass growth, ring growth, clippings decay/smother, seed germination, amendment wash-off, moisture |
 | `outdoor_plants.yard` | 126 | 600 s | paved surfaces (de-icer melt, spalling), pumpkin rot, decorations in rain |
 | `outdoor_plants.patio` | 128 | 600 s | umbrellas (lock collapse), fire pit / hot ash cooling (closed-form), cushion/stack/cover/umbrella status, cover pumps |
@@ -654,8 +794,13 @@ every cell), and only those hung before the domain's piece.
   Propane cylinders: category "propane_tank" (or tag), `orientation`.
 * **Bins** (cleaning owns waste bins): yard waste goes where `waste_stream` is "yard_waste"/"green" or
   `accepts_any_waste`; `plant_debris` carries `waste_stream` (trash for diseased/seeding-invasive/toxic).
-* **Spills**: `add_spill` creates cleaning's `spill` type (falls back to `generic_item` category spill)
-  and room `wet_cells`.
+* **Spills**: `add_spill` goes through the kernel's `physics.spill` (by the robot): cleaning's `spill` through
+  `phys.spill_sink` when cleaning is loaded, else a kernel puddle (which keeps the room's `wet_cells`); below 5 ml
+  nothing happens (droplets); a wooden piece it lands on also keeps this domain's water mark.
+* **Sprinklers on the robot**: plumbing_liquids' `outdoor.sprinkler_spray` exposes the robot to a running head's throw
+  (`body_faults.expose_water`, once per substep for every head); this domain does not add its own exposure.
+* **Porch steps** (generation 2): a `steps` surface with `connection` at the yard end of an exterior stairs connection;
+  `yard.mirror_steps` writes `tread_wet`, `icy` and `snow_cm` onto the connection for navigation_robot.
 * **Rain on electrical equipment**: rain soaks and ruins mains (`plug_required`) items left outdoors unless they
   are built for the weather: a rating flag (`waterproof`, `weatherproof`, `outdoor_rated`, `weather_rated`, which
   electrical also honours) or, for types that do not declare one yet, an outdoor-equipment type/category hint
@@ -923,6 +1068,14 @@ Secondary entries (`outdoor_plants__secondary.jsonl`, owned by other domains) re
 * Rain/wind see items carried outdoors by people/pets during a long wait at the next 600 s boundary
   (`outdoor_map` cache); robot actions invalidate the cache immediately.
 * Leaf-pile scattering in wind is 15 %/30 s per 6 m/s of gust above 6 m/s, scaled by substep length.
+* Tier 1: only `mow` walks the ground it works (a motion record); raking, edging, aerating, overseeding and spreading
+  over an `area` still work it from where the robot stands (their time grows with the area, the walk is not
+  recorded). Pot drainage is immediate within the watering action (no drip process: the kernel's drip has no robot
+  attribution). Under the kernel's wind law a seat cushion never lifts off its chair (the kernel lifts only flat
+  sheets; this domain's copy blows cushions off at an 8 m/s gust, too easily): kernel calibration requested.
+  Irrigation programs, quiet hours and the watering rules read local standard time (clock.hour), like the rest of the
+  house until the clock's `dst` flag is set. The default weather process has no fog, humidity or UV (generator/climate.py);
+  scripted weather keeps those fields.
 * Realistic perception: since kernel v2.9 round 5 an unread bag shows its group's glance size (section 5a), not its
   own, so a 1.5 kg seed bag and an 11 kg salt bag look alike at a glance; they still feel different when lifted (mass
   is touch-tier). An instance spawned with its own size (e.g. a small mulch bag) also shows the group size until read. A product's printed `qty` is the remaining amount (labels in this domain double as fill gauges).

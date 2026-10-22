@@ -326,6 +326,10 @@ def roll_accel(state, eid):
     wheeled = bool(rec.get("casters") or rec.get("wheeled"))
     if rec.get("secured") or rec.get("chocked") or not (wheeled or props.props(state, eid).rollable):
         return 0.0
+    if rec.get("tilted_on_wheels"):
+        # balanced on its wheels by whoever tilted it (a cart held at its handle): no free roll until it is let go
+        # (manipulation's adoption request 5)
+        return 0.0
     rad = math.radians(min(89.9, statics.support_tilt_deg(state, eid)))
     c_rr = statics.rolling_resistance(state, eid)
     if rad <= 0 or math.tan(rad) <= c_rr:
@@ -359,6 +363,33 @@ def _floor_run(state, eid):
     cells = min(steps) if steps else 0.0
     end = [min(cols - 1, max(0, int(round(col + ux * cells)))), min(rows - 1, max(0, int(round(row + uy * cells))))]
     return (cells + 0.5) * geometry.CELL, end
+
+
+def _open_way_out(state, eid, end):
+    """(next room, cell there) when a floor roll's end cell on the room's downhill edge is an open connection: its
+    cell in this room within half the opening's width (width_m, at least one cell) of the end cell, no closed door,
+    not stairs; else None."""
+    rid = state["entities"][eid]["location"]
+    entities = state["entities"]
+    best = None
+    for cid, conn in sorted((state.get("connections") or {}).items()):
+        cells = conn.get("cells") or {}
+        if rid not in cells or conn.get("kind") == "stairs" or len(conn.get("rooms") or ()) != 2:
+            continue
+        door = conn.get("door")
+        if door in entities and not entities[door].get("open"):
+            continue
+        here = cells[rid]
+        reach = max(1, int(num(conn.get("width_m"), geometry.CELL) / 2.0 / geometry.CELL))
+        gap = max(abs(int(here[0]) - int(end[0])), abs(int(here[1]) - int(end[1])))
+        if gap > reach:
+            continue
+        nxt = [r for r in conn["rooms"] if r != rid][0]
+        if nxt not in state["rooms"] or nxt not in cells:
+            continue
+        if best is None or gap < best[0]:
+            best = (gap, nxt, [int(cells[nxt][0]), int(cells[nxt][1])])
+    return (best[1], best[2]) if best is not None else None
 
 
 def roll_begin(w, eid, values):
@@ -404,6 +435,17 @@ def roll_tick(w, eid, dt):
         end = _floor_run(state, eid)[1]
         if list(state["entities"][eid].get("pos") or ()) != end:
             w.mut(eid)["pos"] = end
+        through = _open_way_out(state, eid, end)
+        if through is not None:
+            # the downhill edge is an open way out (the driveway's mouth onto the street): it rolls on through and
+            # stops just past it (manipulation's adoption request 5)
+            nxt, cell = through
+            room = state["entities"][eid]["location"]
+            impact._relocate(w, eid, nxt, state["entities"][eid].get("relation", "on"), pos=cell)
+            w.log_move(eid, room, nxt, by="gravity")
+            consequence(w, "phys.roll", eid, blame(w, eid), "{} rolled out into {}".format(eid, nxt),
+                        ended="through_opening", into=nxt, **payload)
+            return False
         consequence(w, "phys.roll", eid, blame(w, eid), "{} rolled away".format(eid), ended="floor_edge", **payload)
     else:
         emit_consequence(w, "phys.roll", eid, by=blame(w, eid), ended="fell_off", **payload)

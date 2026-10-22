@@ -24,6 +24,18 @@ HANDS = "hands"
 SYS = "_food_sys"       # food-owned bookkeeping section: thermal_full_t, air (runtime ice/water baths), labeled
 
 
+def _declare_robot_fields():
+    """The robot field this domain writes (TIER1_INTEGRATION 1.1 / 6, body field registry): hand_contamination, the
+    food-safety contamination of the grippers (hidden from proprioception, never materialized). The kernel's registry
+    carries the same declaration; declaring it again with the same values is a no-op."""
+    from ...kernel import body
+    body.register_robot_field("hand_contamination", None, "food", "hidden",
+                              "Food-safety contamination of the grippers", materialize=False)
+
+
+_declare_robot_fields()
+
+
 def register(w, key, eid):
     """Remember a runtime-made food structure (key "air": an ice/water bath, "labeled": a handwritten label) so the
     food systems find it without scanning every entity."""
@@ -122,39 +134,32 @@ def is_chemical(rec):
     return any(t in CHEMICAL_TAGS or str(t).startswith("chem:") for t in (rec.get("tags") or []))
 
 
-# Per-shelf load ratings (kg) behind admin_inventory's shelf-collapse rule: particleboard bookcase ~25, closet wire
-# shelving ~25, wall cabinet ~15, base cabinet ~30, wardrobe/closet ~40, steel shelf unit ~90. Food furnishes and picks
-# pantries within them so that a task's few cans never "collapse" a shelf the generator had already overloaded.
-SHELF_RATINGS = (("shelf_unit", 90.0), ("bookshelf", 25.0), ("closet_shelving", 25.0), ("upper_cabinet", 15.0),
-                 ("filing_cabinet", 30.0), ("cabinet", 30.0), ("wardrobe", 40.0), ("closet", 40.0))
-
-
 def shelf_rating(rec):
-    if rec.get("shelf_load_kg") is not None:
-        return float(rec["shelf_load_kg"])
-    for type_name, value in SHELF_RATINGS:
-        if rec.get("type") == type_name or type_name in (rec.get("is_a") or []):
-            return value
-    return None
+    """Rated load (kg) of one shelf of a shelved unit, or None when it has none: the kernel's (physics props
+    shelf_rating_kg: the record's shelf_load_kg, else the supports.json row -- bookcase and closet shelving 25, wall
+    cabinet 20, base cabinet 30, wardrobe 40, steel shelf unit 90). Nominal, without the per-instance variation: food
+    furnishes and picks pantries well within it, so that a task's few cans never make a shelf the generator had already
+    loaded give way."""
+    from ...kernel.phys import props
+    value = props.props_of(rec).shelf_rating_kg
+    return float(value) if value is not None and math.isfinite(float(value)) else None
 
 
 def shelf_load(entities, container, shelf):
-    """Mass (kg, with contents) standing on one shelf of a container (records in a config or state dict)."""
-    children = {}
-    for eid, rec in entities.items():
-        children.setdefault(rec.get("location"), []).append(eid)
+    """Mass (kg) standing on one shelf of a container, contents and liquids included: the kernel's load on that slot
+    (phys.support.load_on; a unit without shelf heights has one floor, its "in" slot). Records in a config or a state
+    dict."""
+    from ...kernel.phys import support
+    rec = entities.get(container) or {}
+    slot = ("shelf", int(shelf or 0)) if rec.get("shelf_heights") else ("in",)
+    return support.load_on({"entities": entities, "rooms": {}}, container, slot)
 
-    def tree(eid, seen):
-        if eid in seen:
-            return 0.0
-        seen.add(eid)
-        return float(entities[eid].get("mass_kg", 0.0) or 0.0) + sum(tree(c, seen) for c in children.get(eid, []))
-    total, seen = 0.0, set()
-    for eid in children.get(container, []):
-        rec = entities[eid]
-        if rec.get("relation") == "in" and int(rec.get("shelf", 0) or 0) == int(shelf):
-            total += tree(eid, seen)
-    return total
+
+def tree_mass(entities, eid):
+    """Mass (kg) of an entity with everything in, on or attached to it, liquids included (the kernel's one subtree
+    mass, phys.support.subtree_mass; records in a config or a state dict)."""
+    from ...kernel.phys import support
+    return support.subtree_mass({"entities": entities, "rooms": {}}, eid)
 
 
 def is_package(rec):
@@ -209,7 +214,10 @@ def format_date(day, fmt):
 
 
 def region_date_format(state):
-    region = state.get("metadata", {}).get("region", "us")
+    """How packs printed for this household's market write a date (best-by codes are the packer's, not the household's
+    handwriting -- clock.format_date is that): US 10/09/26, Canada 2026 OC 09 (bilingual month codes), UK and EU
+    09/10/2026, Japan 2026-10-09. The region is the clock's (clock.region: generation-2 houses carry it in the clock)."""
+    region = clock.region(state) if state.get("clock") or state.get("metadata") else "us"
     fmt = D.DATE_FORMATS.get(region, "YMD")
     return "YMD_CA" if region == "ca" else fmt
 
@@ -228,8 +236,17 @@ def expires(rec):
 
 PACKAGE_KEYS = ("package", "openable", "open", "date_label", "label_text", "tare_kg", "tare_volume_l", "sealed",
                 "opener_required", "lid", "food_label", "_bulging", "_loose_lid", "liner_closed", "expiration",
-                "storage_opened", "opened_life_days", "opened", "opened_on", "spos", "pos", "shelf", "held_hand",
-                "_fifo_ok", "_report_check", "product")
+                "storage_opened", "opened_life_days", "opened", "opened_on", "spos", "inner_spos", "pos", "shelf",
+                "held_hand", "_fifo_ok", "_report_check", "product")
+PLACE_KEYS = ("spos", "inner_spos", "pos", "shelf", "held_hand")     # where a record sat in its old location
+
+
+def set_shelf_pos(m, spot):
+    """Put a record at [x, depth] on its shelf (depth 0 at the front edge; FIFO reads spos): inner_spos, the geometric
+    camera's place of a thing inside a container ([u, v]: across from the left edge seen from the front, back from the
+    opening -- the same frame), follows it, so a can behind another is behind it for the camera too."""
+    m["spos"] = [round(float(spot[0]), 3), round(float(spot[1]), 3)]
+    m["inner_spos"] = list(m["spos"])
 
 
 def _new_id(w, stem):
@@ -363,7 +380,7 @@ def place_new(w, eid, location, relation=None):
     state = w.s
     m = w.mut(eid)
     m["location"] = location
-    for key in ("spos", "pos", "shelf", "held_hand"):
+    for key in PLACE_KEYS:
         m.pop(key, None)
     if location in state["rooms"]:
         # food that falls lands at the robot's feet: the nearest free cell, else right where the robot stands (never a
@@ -528,10 +545,13 @@ def deposit(w, rec, vessel, relation=None, merge=True):
     return create_from_record(w, rec, vessel, relation)
 
 
-def whole_items(state, vessel):
-    """How many whole, countable food items (eggs, potatoes, cans: food.count units of uncut solids) sit in a vessel."""
+def whole_items(state, vessel, ids=None):
+    """How many whole, countable food items (eggs, potatoes, cans: food.count units of uncut solids) sit in a vessel
+    (ids: only these of its foods, e.g. the ones the robot sees)."""
     total = 0
     for eid in vessel_foods(state, vessel):
+        if ids is not None and eid not in ids:
+            continue
         f = food(state["entities"][eid]) or {}
         if f.get("phase", "solid") == "solid" and f.get("cut", "whole") == "whole":
             total += max(1, int(f.get("count", 1) or 1))
@@ -1170,12 +1190,17 @@ def appearance(rec):
         words.append("browned cut surfaces")
     if f.get("soggy", 0.0) > 0.5:
         words.append("soggy")
-    if f.get("bruise", 0.0) > 0.3 or f.get("crushed"):
-        words.append("bruised/crushed")
+    kernel_damage = rec.get("damage") if isinstance(rec.get("damage"), dict) else {}
+    if f.get("bruise", 0.0) > 0.3 or f.get("crushed") or float(kernel_damage.get("crushed", 0.0)) > 0.3:
+        words.append("bruised/crushed")     # (the kernel crush law's damage.crushed counts as crushed food)
     if rec.get("_bulging"):
         words.append("bulging lid")
     if f.get("burnt", 0.0) > 0.3:
         words.append("burnt")
+    if float(f.get("freezer_burn", 0.0) or 0.0) > 0.3:
+        words.append("dry greyish-white patches (freezer burn)")    # visible on a close look (inspect acuity)
+    if float(f.get("insects", 0.0) or 0.0) > 0.3:
+        words.append("flies crawling on it")
     ripe = f.get("ripeness")
     if ripe is not None and f.get("ripens"):
         words.append("unripe, hard and green" if ripe < 0.5 else "ripe" if ripe < 0.95 else "overripe, very soft")
@@ -1202,12 +1227,45 @@ def odor(rec):
 # ----------------------------------------------------------------------
 # eaters
 
+# the meal a time of day belongs to (household clock hours; anything else is a snack)
+MEAL_SLOTS = (("breakfast", 5.0, 10.5), ("lunch", 11.0, 14.5), ("dinner", 17.0, 21.5))
+MEAL_LOG_CAP = 200
+
+
+def meal_slot(state):
+    """breakfast (05:00-10:30), lunch (11:00-14:30), dinner (17:00-21:30), else snack."""
+    h = clock.hour(state)
+    return next((name for name, start, end in MEAL_SLOTS if start <= h < end), "snack")
+
+
+def log_meal(w, pid, item, foods):
+    """Someone ate: one record in food_log.meals (the household's meal history, kept without entity ids so the
+    history synthesizer and questions can read it after the things are gone): {"t", "day", "slot", "person",
+    "kinds" (the food kinds eaten), "label" (what was handed over: the food, or the plate or bowl it was on)}."""
+    state = w.s
+    kinds = sorted({kind(state["entities"][f]) for f in foods if f in state["entities"] and kind(state["entities"][f])})
+    log = w.sec("food_log")
+    meals = log.setdefault("meals", [])
+    meals.append({"t": state["time_s"], "day": iso(today(state)), "slot": meal_slot(state), "person": pid,
+                  "kinds": kinds, "label": (state["entities"].get(item) or {}).get("label")})
+    del meals[:-MEAL_LOG_CAP]
+
+
+def meal_log(state, pid=None, day=None):
+    """The meal records (food_log.meals), oldest first; only one person's / one ISO day's when given."""
+    meals = ((state.get("food_log") or {}).get("meals") or [])
+    return [m for m in meals if (pid is None or m.get("person") == pid) and (day is None or m.get("day") == day)]
+
+
 def profile(state, pid):
+    """What constrains what a person may eat. Diet and allergies are the person's own fields, else (generation-2
+    households, docs/GENERATOR.md) their profile's, else their preferences' ("omnivore" restricts nothing)."""
     person = state.get("people", {}).get(pid, {})
-    diet = person.get("diet") or []
-    if isinstance(diet, str):
-        diet = [diet]
+    prof = person.get("profile") if isinstance(person.get("profile"), dict) else {}
     prefs = person.get("preferences") or {}
+    diet = person.get("diet") or prof.get("diet") or (prefs.get("diet") if isinstance(prefs, dict) else None) or []
+    if isinstance(diet, str):
+        diet = [] if diet == "omnivore" else [diet]
     fprefs = prefs.get("food", {}) if isinstance(prefs.get("food", {}), dict) else {}
     dislikes = set(fprefs.get("dislikes", [])) | set(person.get("dislikes", []) if isinstance(person.get("dislikes"), list) else [])
     texture = None
@@ -1220,7 +1278,8 @@ def profile(state, pid):
         vulnerable = True
     return {"age": age, "vulnerable": vulnerable,
             "role": person.get("role", "adult"),
-            "allergies": set(person.get("allergies", []) or []),
+            "allergies": set(person.get("allergies") or prof.get("allergies") or
+                             (prefs.get("allergies") if isinstance(prefs, dict) else None) or []),
             "diet": set(d for d in diet if isinstance(d, str)),
             "dislikes": dislikes, "texture": texture,
             "sodium_mg": fprefs.get("sodium_limit_mg"), "carb_g": fprefs.get("carb_limit_g")}
@@ -1426,8 +1485,10 @@ def label_check(state, container, index=None):
     lab = rec.get("food_label")
     if not lab:
         return None
-    kids = index.get(container, []) if index is not None else         [f for f in sorted(state["entities"]) if state["entities"][f].get("location") == container]
-    foods = [f for f in kids if food(state["entities"][f])]
+    kids = index.get(container, []) if index is not None else \
+        [f for f in sorted(state["entities"]) if state["entities"][f].get("location") == container]
+    # a label written on a package of food itself ("milk; opened 2026-09-30") is about that food
+    foods = ([container] if food(rec) else []) + [f for f in kids if food(state["entities"][f])]
     kinds = {food(state["entities"][f]).get("kind") for f in foods}
     dishes = {state["entities"][f].get("label", "").lower().replace(" ", "_") for f in foods}
     contents = (lab.get("contents") or "")
@@ -1462,8 +1523,12 @@ def dish_foods(state, root, index=None):
 SPILL_HARM_G = 5.0        # ~1 teaspoon: smaller food losses soil the surface but are not counted as a spill harm
 
 
-def spill(w, near, kind_name, grams, phase="solid"):
-    """Food lands outside its vessel: soils the surface below (or the floor) and counts a spill."""
+def spill(w, near, kind_name, grams, phase="solid", by="robot"):
+    """Food lands outside its vessel. Liquid food is a kernel spill (food.physical.spill -> physics.spill: the
+    liquids.json liquid wets the surface below, the rest runs to the floor and pools; phys_spills, and the global
+    spills flag when the robot caused it, from 5 ml). Every spill also leaves the food's residue on the surface below
+    (or the floor): sticky, greasy, crumbs, dust. Solids, pastes and powders count the spills flag themselves from a
+    teaspoon (SPILL_HARM_G) up. A visual occurrence (camera.visual_event)."""
     state = w.s
     grams = round(float(grams), 2)
     if grams <= 0.5:
@@ -1481,6 +1546,7 @@ def spill(w, near, kind_name, grams, phase="solid"):
             break
         target = rec.get("location")
     from ..core import add_soil
+    rid = None
     if target in state["entities"]:
         add_soil(w, target, soil_kind, min(0.6, 0.02 + grams / 300.0))
     else:
@@ -1488,14 +1554,22 @@ def spill(w, near, kind_name, grams, phase="solid"):
         floor = "floor_" + rid if rid and "floor_" + rid in state["entities"] else None
         if floor:
             add_soil(w, floor, soil_kind, min(0.6, 0.02 + grams / 300.0))
-        if phase == "liquid" and rid in state["rooms"]:
-            room = w.room_m(rid)
-            cell = list(state["robot"].get("pos") or [0, 0])
-            if cell not in room.setdefault("wet_cells", []):
-                room["wet_cells"].append(cell)
-    if grams >= SPILL_HARM_G:
+    if phase == "liquid":
+        from ...kernel import physics
+        from . import physical
+        liquid = physical.spill_liquid(kind_name)
+        liters = grams / float(physics.liquid_props(liquid).get("rho") or 1000.0)
+        at = None
+        if target not in state["entities"] and rid in state["rooms"]:
+            robot = state.get("robot") or {}
+            at = (rid, robot.get("pos")) if robot.get("room") == rid and robot.get("pos") else rid
+        physical.spill(w, liters, liquid, onto=target if target in state["entities"] else None, at=at,
+                       source=near if isinstance(near, str) else None, by=by)
+    elif grams >= SPILL_HARM_G:
         w.stat("spills")      # a global harm flag since kernel v2.1: crumbs and drips below a teaspoon only soil
-    w.emit("food_spill", food=kind_name, grams=grams)
+    from ...kernel import camera
+    camera.visual_event(w, "food_spill", source=near if isinstance(near, str) and near in state["entities"] else None,
+                        size_m=0.1 if grams < 50 else 0.3, visual="spill", food=kind_name, grams=grams)
     return target
 
 
@@ -1620,6 +1694,22 @@ def stack_fifo_ok(state, eid):
 # labels
 
 MONTHS = {m: i + 1 for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
+MONTH_WORDS = set(MONTHS) | {"january", "february", "march", "april", "june", "july", "august", "september", "sept",
+                             "october", "november", "december"}
+
+
+def _without_written_dates(tokens):
+    """The words of a label without the dates written in words (a month word with its day and year numbers)."""
+    def number(i):
+        return 0 <= i < len(tokens) and tokens[i].rstrip(".,").isdigit() and len(tokens[i].rstrip(".,")) <= 4
+    drop = set()
+    for i, token in enumerate(tokens):
+        if token.rstrip(".,") in MONTH_WORDS:
+            drop.add(i)
+            drop |= {j for j in (i - 1, i + 1) if number(j)}
+            if number(i + 1) and number(i + 2):
+                drop.add(i + 2)
+    return [t for i, t in enumerate(tokens) if i not in drop]
 
 
 def parse_label(text, state=None):
@@ -1634,13 +1724,19 @@ def parse_label(text, state=None):
             out["dates"].append(datetime.date(int(match.group(1)), int(match.group(2)), int(match.group(3))).isoformat())
         except ValueError:
             pass
-    for match in re.finditer(r"(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})", lowered):
-        mon = MONTHS.get(match.group(2))
-        if mon:
-            try:
-                out["dates"].append(datetime.date(int(match.group(3)), mon, int(match.group(1))).isoformat())
-            except ValueError:
-                pass
+    # dates written out in words, as households write them (clock.format_date "long"): 9 Oct 2026 / 9 October 2026,
+    # October 9, 2026 and 2026 October 9 -- (regex, group of the year, the month word, the day)
+    for pattern, gy, gm, gd in ((r"(\d{1,2})\s+([a-z]+)\.?\s+(\d{4})", 3, 2, 1),
+                                (r"\b([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})\b", 3, 1, 2),
+                                (r"\b(\d{4})\s+([a-z]+)\.?\s+(\d{1,2})\b", 1, 2, 3)):
+        for match in re.finditer(pattern, lowered):
+            word = match.group(gm)
+            mon = MONTHS.get(word[:3]) if word in MONTH_WORDS else None
+            if mon:
+                try:
+                    out["dates"].append(datetime.date(int(match.group(gy)), mon, int(match.group(gd))).isoformat())
+                except ValueError:
+                    pass
     for match in re.finditer(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", text):
         a, b = int(match.group(1)), int(match.group(2))
         if a <= 12 and b <= 12 and a != b:
@@ -1651,7 +1747,7 @@ def parse_label(text, state=None):
     else:
         first = re.split(r"[;,\n]", lowered)[0].strip()
         first = re.sub(r"\d{4}-\d{2}-\d{2}", "", first).strip()
-        out["contents"] = first.replace(" ", "_") or None
+        out["contents"] = "_".join(_without_written_dates(first.split())) or None
     m = re.search(r"(?:for|owner)\s*[:=]?\s*([a-z0-9_]+)", lowered)
     if m:
         out["owner"] = m.group(1)

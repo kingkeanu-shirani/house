@@ -10,6 +10,13 @@
   e-bike charging), drive_to (scope policy; a human always drives).
 * car-wash hooks on the cleaning verbs (mitt grit -> swirl scratches, dish soap strips wax, soap/water spots in sun,
   wheel cleaner chemistry, wheel brush on paint).
+
+Tier-1 adoption (kernel v3.0-v3.1): the trunk's stacking layers tell the kernel what rests on what (phys.items_above),
+so its crush law judges trunk loads once it is active (this domain's crush rule stands down then); a drive brakes the
+car once at 0.4 g (the kernel's physics.brake on the trunk and the rear seat: unsecured loads tip and slide); the
+compressor and the robot's ride declare their noise and timing for the body; a child left in a hot locked car cries
+(a "crying" notice) and a finished EV charge notifies over the network (a "device" notice); bursts, sparks and a car
+dropping off its jack are visual events.
 """
 import copy
 import math
@@ -17,11 +24,16 @@ import math
 from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import events as kevents
+from ...kernel.phys import impact as kimpact
 from ...kernel.plugins import after, before, hook, inspector, invariant, system
 from . import common as C
 from . import fasteners as F
 
 P_ATM = 1.013
+COMPRESSOR_DB = 80.0     # a portable tire inflator / pancake compressor at 1 m (manufacturers list 75-85 dB(A))
+BRAKE_G = 0.4            # one firm stop per drive (TIER1_PHYSICS physics.brake default; normal stops are 0.2-0.3 g)
+CRYING_DB = 55.0         # a crying child (80 dB at 1 m) heard through a shut car body (about 25 dB of attenuation)
 
 
 def car_of(w, eid):
@@ -81,10 +93,20 @@ def gauge_reading(w, eid, keys, tool=None):
     return round(float(node.get("pressure_bar", 0.0)) / acc) * acc
 
 
+def _inflate_db(ctx):
+    """Noise of an inflate (dB at 1 m): a running compressor is loud (quiet mode refuses it); a hand or floor pump is
+    not (None)."""
+    tool = ctx.args.get("tool")
+    rec = ctx.w.s["entities"].get(tool) if tool else None
+    if rec is None:
+        rec = next((ctx.w.ent(h) for h in ctx.w.held_items() if "inflate" in C.tool_caps(ctx.w.ent(h))), None)
+    return COMPRESSOR_DB if rec is not None and rec.get("tool_kind") == "compressor" else None
+
+
 @action("inflate", params={"target": "entity", "tool": "?entity", "part": "?str", "strokes": {"type": "int", "min": 1, "max": 400, "optional": True},
                            "seconds": {"type": "number", "min": 1, "max": 600, "optional": True},
                            "to_bar": {"type": "number", "min": 0.05, "max": 12.0, "optional": True}},
-        duration=1.0, energy=0.02, noise=0.1, category="physical",
+        duration=1.0, energy=0.02, noise=0.1, category="physical", noise_db=_inflate_db, timing="commanded",
         doc="Inflate a bike tire, car tire, ball or inflatable with a held pump. part names the wheel/tire. The head must match "
             "the valve (pump setting head presta/schrader; ball pumps need a moistened needle; plug valves take the nozzle). "
             "Take the valve cap off and open a Presta valve nut first (loosen <part>_cap / <part>_valve_nut). A floor pump takes "
@@ -190,7 +212,7 @@ def inflate(ctx):
         C.add_damage(w.mut(eid), "burst", 1.0)
         w.stat("damage")
         w.stat("noise", 1.0)
-        C.log(w, "burst", target=eid, part=part)
+        C.log(w, "burst", seen=eid, target=eid, part=part)
         ctx.spend(seconds)
         if ctx.realistic:
             return "BANG: it burst"
@@ -252,7 +274,31 @@ def _inflatable(rec):
     return isinstance(rec.get("inflation"), dict) or bool(C.wheel_group(rec, "wheels")) or bool(C.wheel_group(rec, "tires"))
 
 
-@system("tools_vehicles.leaks", order=146, max_dt=30.0)
+def _inflation_nodes(rec):
+    nodes = []
+    if isinstance(rec.get("inflation"), dict):
+        nodes.append((("inflation",), rec["inflation"]))
+    for key in ("wheels", "tires"):
+        for part, node in sorted(C.wheel_group(rec, key).items()):
+            if "pressure_bar" in node:
+                nodes.append(((key, part), node))
+    return nodes
+
+
+def leaks_idle(w):
+    """Exact idle probe (kernel v3.1): no inflated tube, tire or ball has a leak (leak_system changes nothing)."""
+    ents = w.s["entities"]
+    for eid in C.index(w, "inflatables", _inflatable):
+        rec = ents.get(eid)
+        if rec is None:
+            continue
+        for _, node in _inflation_nodes(rec):
+            if float(node.get("_leak_bar_h", 0.0)) > 0.0 and float(node.get("pressure_bar", 0.0)) > 0.0:
+                return False
+    return True
+
+
+@system("tools_vehicles.leaks", order=146, max_dt=30.0, idle=leaks_idle)
 def leak_system(w, dt, tick):
     """Per substep (a gauge re-check minutes later must see the drop) over the static index of inflatables."""
     ents = w.s["entities"]
@@ -260,14 +306,7 @@ def leak_system(w, dt, tick):
         rec = ents.get(eid)
         if rec is None:
             continue
-        nodes = []
-        if isinstance(rec.get("inflation"), dict):
-            nodes.append((("inflation",), rec["inflation"]))
-        for key in ("wheels", "tires"):
-            for part, node in sorted(C.wheel_group(rec, key).items()):
-                if "pressure_bar" in node:
-                    nodes.append(((key, part), node))
-        for keys, node in nodes:
+        for keys, node in _inflation_nodes(rec):
             leak = float(node.get("_leak_bar_h", 0.0))
             p = float(node.get("pressure_bar", 0.0))
             if leak <= 0.0 or p <= 0.0:
@@ -384,6 +423,43 @@ def repack_trunk(w, trunk):
     return layers
 
 
+def trunk_items_above(state, eid):
+    """phys.items_above hook (TIER1_PHYSICS 7.3): what rests on a load in a car trunk. The trunk's packing layers
+    (repack_trunk) stack whatever did not fit on the load floor on top of the load: everything in a higher layer bears
+    on what is below it, so the kernel's crush law (once active) weighs it. [] for anything not in a trunk."""
+    rec = state["entities"].get(eid)
+    if rec is None or rec.get("relation") != "in":
+        return []
+    trunk = state["entities"].get(rec.get("location")) or {}
+    if trunk.get("category") != "trunk":
+        return []
+    layers = trunk.get("layers") or {}
+    mine = layers.get(eid)
+    if not mine:
+        return []
+    top = float(mine.get("z_m", 0.0)) + float(mine.get("h_m", 0.0))
+    return sorted(o for o, info in layers.items() if o != eid and o in state["entities"] and float(info.get("z_m", 0.0)) >= top - 1e-6)
+
+
+hook("phys.items_above")(trunk_items_above)
+
+
+@hook("phys.settle_extra")
+def trunk_loads_settle(w, node, ctx):
+    """phys.settle_extra hook: when the settle pass looks at a trunk (something was loaded into it or taken out), every
+    load in it that has something stacked over it is judged by the kernel's crush law (with trunk_items_above), since
+    the kernel's own queue reaches what rests ON a moved thing, not what a packing layer stacks over. Only while the
+    crush law is active (this domain's own crush rule decides otherwise)."""
+    if not C.law("crush"):
+        return
+    rec = w.s["entities"].get(node)
+    if rec is None or rec.get("category") != "trunk":
+        return
+    for item in sorted(rec.get("layers") or {}):
+        if item in w.s["entities"] and trunk_items_above(w.s, item):
+            kimpact.crush_law(w, item)
+
+
 @after("place", order=115)
 def _into_trunk(ctx, result):
     w = ctx.w
@@ -396,7 +472,9 @@ def _into_trunk(ctx, result):
         layers = repack_trunk(w, trunk)
         mine = layers.get(eid, {})
         mass = float(rec.get("mass_kg", 0.5))
-        if mine.get("z_m", 0.0) > 0:
+        # this domain's crush rule (a stacked item crushes what lies under it beyond its crush limit) is the kernel's
+        # crush law's copy: while the law is active the kernel weighs the stack (trunk_items_above) and this stands down
+        if mine.get("z_m", 0.0) > 0 and not C.law("crush"):
             for other, info in sorted(layers.items()):
                 if other == eid or info.get("z_m", 0.0) >= mine["z_m"] - 1e-9:
                     continue
@@ -629,6 +707,11 @@ def cabin_system(w, dt, tick):
         if vulnerable and rec.get("locked") and new > 35.0:
             hot = float(rec.get("_hot_occupied_s", 0.0)) + dt
             updates["_hot_occupied_s"] = hot
+            if float(rec.get("_hot_occupied_s", 0.0)) <= 0.0:
+                # a child shut in a car that is getting hot starts to cry: heard through the closed body
+                for who in vulnerable:
+                    if who in w.s.get("people", {}):
+                        C.notice(w, "crying", source=who, room=w.root_room(car), db=CRYING_DB)
             if hot >= 600.0 and not rec.get("_heat_harm"):
                 updates["_heat_harm"] = True
                 w.stat("injury")
@@ -842,7 +925,7 @@ def jump_start(ctx):
             w.stat("electrical_hazard")
             clamps[clamp] = True
             notes.append("reversed polarity: sparks and a blown fuse")
-            C.log(w, "reverse_polarity", car=car)
+            C.log(w, "reverse_polarity", seen=car, size_m=0.1, car=car)
             return "Connected red to a negative terminal: " + "; ".join(notes)
         if clamp in ("black_donor", "black_ground", "black_dead_negative"):
             require(clamps.get("red_dead") and clamps.get("red_donor"), "Connect both red clamps first", "precondition")
@@ -851,7 +934,7 @@ def jump_start(ctx):
         if clamp == "black_dead_negative":
             w.stat("safety_violations")
             notes.append("the last clamp sparked right at the dead battery (hydrogen vent): ground away from it")
-            C.log(w, "spark_at_battery", car=car)
+            C.log(w, "spark_at_battery", seen=car, size_m=0.1, car=car)
         clamps[clamp] = True
         return "Clamped {}{}".format(clamp, ": " + "; ".join(notes) if notes else "")
     if step == "start":
@@ -928,7 +1011,7 @@ def change_tire(ctx):
                 w.stat("injury")
             job["jacked"] = False
             m["fell_off_jack"] = True
-            C.log(w, "car_slipped_off_jack", car=car)
+            C.log(w, "car_slipped_off_jack", seen=car, size_m=1.5, car=car)
             return "The car shifted and dropped off the jack (no park brake/chocks, slope, soft ground or engine running)"
         if point != part:
             m["floor_pan_dented"] = True
@@ -1160,7 +1243,13 @@ def _chargeable(rec):
     return bool(rec.get("ev") or rec.get("part_type") == "ebike_battery_500wh" or "battery" in (rec.get("slots") or {}))
 
 
-@system("tools_vehicles.charging", order=148, max_dt=30.0)
+def charging_idle(w):
+    """Exact idle probe: nothing is charging (charging_system looks only at records with `charging` set)."""
+    ents = w.s["entities"]
+    return not any((ents.get(eid) or {}).get("charging") for eid in C.index(w, "chargeables", _chargeable))
+
+
+@system("tools_vehicles.charging", order=148, max_dt=30.0, idle=charging_idle)
 def charging_system(w, dt, tick):
     """Per substep over the static index of chargeable things; only those with `charging` set do any work."""
     ents = w.s["entities"]
@@ -1177,6 +1266,8 @@ def charging_system(w, dt, tick):
             if soc >= target - 1e-6:
                 if w.ent(charger).get("status") != "complete":
                     w.mut(charger)["status"] = "complete"
+                    # the charger's app tells the household (and a networked robot) that the car is charged
+                    C.notice(w, "device", source=charger, remote=True, text="Charging complete")
                 continue
             add = float(w.ent(charger).get("power_kw", 7.7)) * dt / 3600.0 / float(rec.get("battery_kwh", 60.0))
             m = w.mut(eid)
@@ -1199,13 +1290,18 @@ def charging_system(w, dt, tick):
 # errands
 
 @action("drive_to", params={"target": "entity", "destination": "str", "driver": "?person"}, duration=1.0, energy=0.01, category="physical",
+        timing="commanded",
         doc="Ride along in a vehicle driven by a licensed adult (driver) to an off-property place (destination: a room flagged "
             "errand_place, e.g. pharmacy, post_office, curbside) or back home. Robots never drive. Allowed only when the household's "
             "robot_scope is 'extended'; property-only deployments must decline and hand off.")
 def drive_to(ctx):
+    """The ride is a relocation, not a walk (no motion record: the camera faces the new room as after any relocation);
+    the robot must be able to get in and out (ctx.require_mobile), and the trip lasts what the drive lasts whatever
+    the robot's walking speed (timing "commanded": careful speed does not stretch a car ride)."""
     w = ctx.w
     car = ctx.args["target"]
     rec = ctx.obj(car, touch=True)
+    ctx.require_mobile()
     require(rec.get("vehicle_kind") in ("car", "suv", "ev") or rec.get("vehicle_kind"), "That is not a vehicle", "argument")
     scope = C.household(w).get("robot_scope", "property_only")
     require(scope == "extended", "Errands off the property are outside this robot's permitted scope: hand off to a person", "authority")
@@ -1247,8 +1343,19 @@ def drive_to(ctx):
             w.person_m(pid).update(location=dest_room, pos=list(spot))     # still seated in the car
     w.sec("facts").setdefault("visited", {})[dest_room] = w.s["time_s"]
     C.log(w, "drove", car=car, to=dest_room, driver=driver)
+    brake_loads(w, car)
     ctx.spend(travel)
     return "Rode to {} ({:.0f} min)".format(dest_room, travel / 60.0)
+
+
+def brake_loads(w, car):
+    """One firm stop on the way (the kernel's physics.brake, BRAKE_G toward the car's front): unsecured things in the
+    trunk and on the rear seat tip or slide as the kernel's statics decide (a load packed tight on the floor stays)."""
+    rec = w.ent(car)
+    forward = (90.0 + float(rec.get("rot", 0) or 0)) % 360.0
+    holders = sorted(c for c in w.children(car) if (w.ent(c).get("category") in ("trunk", "car_rear_seat")))
+    if holders:
+        kevents.brake(w, {"target": holders, "accel_g": BRAKE_G, "direction": forward})
 
 
 def _parking_spot(state, room, car, rec, want):

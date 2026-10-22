@@ -6,10 +6,18 @@ usage:
                 [--jobs N] [--seeds 0 1 2 41 97] [--shared-tree] [--reviewed FILE] [--bench-repeats N]
                 [--root DIR] [--out DIR] [--work DIR]
   python tools/orchestration/tier1_gate.py run ...          the same as record (the name used in TIER1_INTEGRATION 3.1)
-  python tools/orchestration/tier1_gate.py compare PREV ID [--package PKG] [--reviewed FILE]
+  python tools/orchestration/tier1_gate.py compare [PREV [ID]] [--package PKG] [--shared-tree] [--spec-files GLOB]
+                [--reviewed FILE]   (ID: the package's own record; PREV: the gate ID names, else the stage default)
   python tools/orchestration/tier1_gate.py scope --package PKG [--id ID] [--shared-tree]
+  python tools/orchestration/tier1_gate.py isolate --out DIR [--package PKG] [--files PATH ...] [--base REV]
   python tools/orchestration/tier1_gate.py packages [PKG ...]
   python tools/orchestration/tier1_gate.py gen1-digests [--write] [--jobs N]
+
+A package id with a colon (ADOPT:cleaning) is written with "_" in folder names (gate/ADOPT_cleaning,
+handoff_ADOPT_cleaning.md). On a shared tree (the adoption round) a package records on an isolated copy
+(`isolate --package PKG --out DIR`, then `record --root DIR --gates-root <project>/catalog/analysis/tier1/gate`), or
+records in place with --shared-tree, which attributes the files of the packages running beside it (every
+ADOPT:<domain>, K-EVAL, K-CAM) instead of failing G10.
 
 `record` runs the checks below on the working tree and writes catalog/analysis/tier1/gate/<ID>/ (meta.json,
 summary.txt, tests.json, specs_own.jsonl, specs_realistic.jsonl, specs_summary.json, audits.json, bench.json,
@@ -97,6 +105,15 @@ CODE = re.compile(r"(?<![\w-])(?:[A-Z]-)?R\d+(?![\w-])|(?<![\w-])(?:D[123]|ADOPT
 # requires features that must exist for this package (golden, kernel_core, camera_tools, fuzz_battery, bench_day)
 
 SWEEP_LIB_TESTS = ("tests/test_monitor.py", "tests/test_phases.py")
+# files `python -m house_sim --verify` rewrites besides reports/*: the coverage table (audit.report) and the compiled
+# catalog (compiler.compile_specs); the close steps regenerate them (B6 / C1 handoffs, request 2)
+VERIFY_OUTPUTS = ("coverage.csv", "tasks/specs.jsonl", "tasks/id_to_family.jsonl", "catalog/entries.jsonl",
+                  "catalog/manifest.json")
+# the compiled specs follow tasks/authored/*.json: a domain that edits its specs and recompiles rewrites them
+COMPILED_SPECS = ("tasks/specs.jsonl", "tasks/id_to_family.jsonl")
+# empty directories the project needs that git does not carry (an isolated copy made from `git archive` lacks them:
+# audit.fingerprint globs tasks/templates and tests copy it; house_sim/data/actions holds optional action files)
+EMPTY_DIRS = ("tasks/templates", "house_sim/data/actions")
 
 
 def _pkg(stage, files, allow=(), codes=(), extras=(), inert=(), bench=(1.05, "prev"), requires=(), aka=(), note=""):
@@ -221,7 +238,7 @@ PACKAGES = {
     "B-CLOSE": _pkg("B6", [
         "house_sim/eval/viewer.py", "house_sim/eval/viewer_template.html", "house_sim/eval/dataset.py",
         "docs/DATASET.md", "docs/VIEWER.md", "docs/KNOWN_LIMITS.md", "house_sim/data/types/core.json",
-        "demos/replays/*", "demos/manifest.json", "reports/*", "tests/data/spec_baseline.json"],
+        "demos/replays/*", "demos/manifest.json", "reports/*", "tests/data/spec_baseline.json"] + list(VERIFY_OUTPUTS),
         aka=["B6"], note="main session; regenerated evidence only, no verdict or digest of an existing spec changes"),
     # ---- stage C
     "TIME-EVAL": _pkg("C", [
@@ -246,8 +263,8 @@ PACKAGES = {
         "docs/PERCEPTION.md", "docs/EVAL_HARNESS.md", "docs/AUTHORING_GUIDE.md", "docs/CONVENTIONS.md"],
         allow=["fingerprint", "obs"], codes=["S-R5", "S-R6", "S-R7"], extras=["sweep"]),
     "C-CLOSE": _pkg("C1", [
-        "demos/replays/*", "demos/manifest.json", "reports/*", "datasets/*", "tests/data/spec_baseline.json"],
-        aka=["C1"], note="main session; regenerated evidence only"),
+        "demos/replays/*", "demos/manifest.json", "reports/*", "datasets/*", "tests/data/spec_baseline.json"] +
+        list(VERIFY_OUTPUTS), aka=["C1"], note="main session; regenerated evidence only"),
     # ---- stage D (after the adoption round; TIER1_INTEGRATION 2.6 and 4)
     "PHYS-FLIP": _pkg("D1", ["house_sim/data/physics/laws.json", "docs/PHYSICS.md"],
                       allow=["state", "obs", "verdict"], codes=["D1"], aka=["D1"], extras=["physics"],
@@ -262,16 +279,73 @@ PACKAGES = {
 for _d in DOMAINS:
     PACKAGES["ADOPT:" + _d] = _pkg("ADOPT", [
         "house_sim/systems/{}/*".format(_d), "house_sim/data/types/{}.json".format(_d), "tests/test_{}.py".format(_d),
-        "docs/domains/{}.md".format(_d), "tasks/authored/{}__*.json".format(_d)],
+        "docs/domains/{}.md".format(_d), "tasks/authored/{}__*.json".format(_d)] + list(COMPILED_SPECS),
         allow=["state", "obs", "verdict", "fingerprint"], codes=["ADOPT"],
-        note="domain adoption round (section 6): the domain's own files only")
+        note="domain adoption round (section 6): the domain's own files (and the compiled specs its spec edits "
+             "rewrite)")
+# the adoption round's two kernel follow-up agents (tools/orchestration/tier1_adopt.js): K-EVAL owns the evaluation
+# side (eval, audit, verify, predicates, engine, mind, tools) and may change no verdict or digest; K-CAM owns the
+# camera side and may change behaviour behind reviewed rows (code ADOPT), like the domain packages it runs beside
+PACKAGES["K-EVAL"] = _pkg("ADOPT", [
+    "house_sim/eval/*", "house_sim/audit.py", "house_sim/cli.py", "house_sim/tasks/verify.py",
+    "house_sim/kernel/predicates.py", "house_sim/kernel/engine.py", "house_sim/kernel/mind.py",
+    "house_sim/kernel/replays.py", "tools/*", "tests/test_eval_*.py", "tests/test_kernel*.py", "tests/test_mind.py",
+    "tests/test_predicates_v3.py", "tests/test_monitor.py", "tests/test_phases.py", "tests/test_body_audit.py",
+    "tests/test_camera_realism.py", "docs/KERNEL_API.md", "docs/VIEWER.md", "docs/DATASET.md",
+    "docs/EVAL_HARNESS.md", "docs/EVAL_CONTRACTS.md", "docs/KNOWN_LIMITS.md", "docs/TASK_SPEC.md",
+    "docs/design/TIER1_INTEGRATION.md",
+    ".gitignore", "demos/replays/*", "demos/manifest.json", "catalog/analysis/tier1/handoff_TIER1-GATE.md",
+    "reports/unit_tests.txt", "reports/unit_test_summary.json", "reports/cli_checks.json",
+    "reports/package_checks.json", "reports/package_build.txt", "reports/compilation_summary.json"],
+    note="adoption-round kernel follow-ups (evaluation side): no verdict, digest or fingerprint may change (its "
+         "gate runs on an isolated copy, `isolate --package K-EVAL`, against a pristine one)")
+PACKAGES["K-CAM"] = _pkg("ADOPT", [
+    "house_sim/kernel/sight.py", "house_sim/kernel/camera.py", "house_sim/kernel/perception.py",
+    "house_sim/kernel/realism.py", "house_sim/kernel/timeline.py", "house_sim/tasks/setup.py", "house_sim/agent.py",
+    "house_sim/tasks/skills.py",
+    "tests/test_camera*.py", "tests/test_sight.py", "tests/test_perception.py", "tests/test_timeline.py",
+    "tests/test_kernel.py", "docs/PERCEPTION.md", "docs/KERNEL_API.md", "docs/KNOWN_LIMITS.md", "docs/TASK_SPEC.md"],
+    allow=["state", "obs", "verdict", "fingerprint"], codes=["ADOPT"], extras=["camera"],
+    note="adoption-round kernel follow-ups (camera side)")
+# the adoption integrator (tools/orchestration/tier1_adopt.js, phase Integrate): the kernel-side fixes and kernel
+# requests of the round (with regression tests), the round's re-records (generation-1 digests, room golden, the
+# compiled specs) and the regenerated evidence; may change generation-1 digests (domain type data, reviewed)
+PACKAGES["ADOPT-INT"] = _pkg("ADOPT", [
+    "house_sim/kernel/*", "house_sim/systems/core.py", "house_sim/tasks/*", "house_sim/generator/*",
+    "house_sim/eval/*", "house_sim/audit.py", "house_sim/cli.py", "house_sim/agent.py",
+    "house_sim/data/types/core.json", "house_sim/data/physics/*", "house_sim/data/robot/*", "house_sim/data/vocab/*",
+    "house_sim/data/generator/*", "house_sim/data/calendar/*",
+    "tests/test_kernel*.py", "tests/test_physics_*.py", "tests/test_camera*.py", "tests/test_body_*.py",
+    "tests/test_sight.py", "tests/test_generator*.py", "tests/test_clock.py", "tests/test_reports.py",
+    "tests/test_dialogue.py", "tests/test_mind.py", "tests/test_timeline.py", "tests/test_room_golden.py",
+    "tests/test_perception.py", "tests/test_eval_*.py", "tests/test_requests_obs.py", "tests/test_world_savepoint.py",
+    "tests/test_monitor.py", "tests/test_phases.py", "tests/test_predicates_v3.py", "tests/data/*", "tools/*",
+    "docs/[A-Z]*.md", "docs/design/TIER1_INTEGRATION.md", "catalog/analysis/tier1/adopt_status.json",
+    "reports/*", "demos/*", "datasets/*", "coverage.csv", "catalog/entries.jsonl", "catalog/manifest.json"]
+    + list(COMPILED_SPECS),
+    allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT"],
+    extras=["physics", "camera", "body", "sweep", "gen"],
+    note="the adoption round's integrator: kernel-side fixes, re-records and evidence (docs/domains/* and the "
+         "domains' files stay the domains')")
+# the adoption integrator's union (`record --id ADOPT`): every adoption package at once
+PACKAGES["ADOPT-ALL"] = _pkg("ADOPT", sorted({f for pid, pkg in PACKAGES.items() if pkg["stage"] == "ADOPT"
+                                              for f in pkg["files"]}),
+                             allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT"], aka=["ADOPT"],
+                             extras=["physics", "camera", "body", "sweep", "gen"],
+                             note="the merged adoption round (16 domains, K-EVAL, K-CAM)")
 STAGE_ORDER = ("A0", "A", "B0", "B1", "B2", "B3", "B4", "B5", "B6", "C", "C1", "ADOPT", "D1", "D2", "D3")
-DEFAULT_PREV = {"A": "A0", "B0": "A0", "B1": "B0"}
+DEFAULT_PREV = {"A": "A0", "B0": "A0", "B1": "B0", "ADOPT": "C1"}
 # packages that run in parallel inside one sub-stage (G10 --shared-tree attributes their files instead of failing)
 SUBSTAGES = {"A": ("PHYS-DATA", "PHYS-STATICS", "PHYS-FLUIDS", "CAM-SIGHT", "BODY-MODEL", "GEN", "TIME-EVAL-LIB",
                    "PEOPLE-IO-LIB"),
              "B3": ("CAM-ACTIONS", "CAM-RENDER"), "B4": ("BODY-ENGINE", "NAV-M2"),
-             "B5": ("BODY-CORE", "NAV-M5", "BODY-FAULTS"), "C": ("TIME-EVAL", "PEOPLE-IO")}
+             "B5": ("BODY-CORE", "NAV-M5", "BODY-FAULTS"), "C": ("TIME-EVAL", "PEOPLE-IO"),
+             "ADOPT": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-EVAL", "K-CAM", "ADOPT-INT"])}
+
+
+def gate_dirname(name):
+    """A gate id as a folder name (package ids like ADOPT:cleaning carry a colon, which Windows paths forbid)."""
+    return str(name).replace(":", "_")
 # feature -> (stage that introduces it, introducing package, what it is); required for later stages
 FEATURES = {
     "golden": ("B1", "PHYS-INT", "tests/test_room_golden.py (G8)"),
@@ -331,11 +405,13 @@ def now_iso():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def write_json(path, data):
+def write_json(path, data, sort_keys=True):
+    """sort_keys=False for specs: a spec's dict order can matter to a skill (pets.report reports a fields dict in
+    order), so spec files and chunks keep the authored order (C1 handoff, request 4)."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(data, f, indent=1, sort_keys=True, default=str)
+        json.dump(data, f, indent=1, sort_keys=sort_keys, default=str)
         f.write("\n")
 
 
@@ -485,8 +561,10 @@ GEN1_DEFAULT_SEEDS = tuple(range(20))
 
 
 def gen1_entries_from_specs(root, seeds=SEEDS):
-    """TIER1_SWEEP 14.1: seeds 0-19 with default options, and every distinct house block of the authored specs on the
-    verification seeds. Returns [{"house", "seed", "specs"}] (defaults first, then sorted by house json and seed)."""
+    """TIER1_SWEEP 14.1: seeds 0-19 with default options, and every distinct generation-1 house block of the authored
+    specs on the verification seeds (a block with "gen" 2 or more is a generation-2 house, which this file does not
+    pin: the adoption round moved most specs there). Returns [{"house", "seed", "specs"}] (defaults first, then sorted
+    by house json and seed)."""
     sys.path.insert(0, str(root))
     from house_sim.tasks.spec import choose_variant, expand
     groups = defaultdict(list)
@@ -497,7 +575,13 @@ def gen1_entries_from_specs(root, seeds=SEEDS):
             continue
         for seed in seeds:
             chosen, _ = choose_variant(full, seed)
-            groups[(json.dumps(chosen.get("house", {}), sort_keys=True), seed)].append(key.split("#")[0])
+            house = chosen.get("house", {}) or {}
+            try:
+                if int(house.get("gen") or 1) >= 2:
+                    continue
+            except (TypeError, ValueError):
+                pass
+            groups[(json.dumps(house, sort_keys=True), seed)].append(key.split("#")[0])
     entries = [{"house": {}, "seed": s, "specs": []} for s in GEN1_DEFAULT_SEEDS]
     for (house, seed), keys in sorted(groups.items()):
         entries.append({"house": json.loads(house), "seed": seed, "specs": sorted(set(keys))})
@@ -934,9 +1018,29 @@ def bench_reference(policy, prev_dir, gates_root):
     return factor, (path if (path / "bench.json").exists() else prev_dir), ref
 
 
-def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root):
+def restrict_rows(rows, pattern):
+    """Trial rows of the spec files matching `pattern` (a --spec-files glob; None keeps every row)."""
+    if not pattern:
+        return list(rows)
+    return [r for r in rows if fnmatch.fnmatchcase(str(r.get("file") or ""), pattern)]
+
+
+def spec_scope(prev_meta, cur_meta, extra=None):
+    """The spec-file globs a comparison is restricted to: a record made with --spec-files only ran those files, so the
+    other side is compared on the same files (never reported as missing trials); `extra` (compare --spec-files)
+    narrows both. Returns a list of globs (each side's rows must match all of them)."""
+    return [g for g in ((prev_meta or {}).get("spec_files"), (cur_meta or {}).get("spec_files"), extra) if g]
+
+
+def scoped_rows(rows, globs):
+    for pattern in globs:
+        rows = restrict_rows(rows, pattern)
+    return rows
+
+
+def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=None):
     """Full comparison of two gate folders. Returns (sections, ok) where sections is a list of dicts
-    {"check", "status", "lines"}."""
+    {"check", "status", "lines"}. Spec trials are compared on the spec files both records ran (spec_scope)."""
     prev_dir, cur_dir = Path(prev_dir), Path(cur_dir)
     sections = []
 
@@ -944,6 +1048,7 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root):
         sections.append({"check": check, "status": status, "lines": lines})
 
     pm, cm = read_json(prev_dir / "meta.json", {}), read_json(cur_dir / "meta.json", {})
+    globs = spec_scope(pm, cm, spec_files)
     # G0 fingerprints
     pf, cf = pm.get("fingerprints", {}), cm.get("fingerprints", {})
     if pf.get("actions_fingerprint") and cf.get("actions_fingerprint"):
@@ -956,9 +1061,10 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root):
             add("G0", "PASS", ["action fingerprint unchanged ({})".format(cf["actions_fingerprint"][:12])])
     # G2 / G3
     for check, mode, name in (("G2", "own", "specs_own.jsonl"), ("G3", "realistic", "specs_realistic.jsonl")):
-        a, b = read_jsonl(prev_dir / name), read_jsonl(cur_dir / name)
+        a, b = scoped_rows(read_jsonl(prev_dir / name), globs), scoped_rows(read_jsonl(cur_dir / name), globs)
         if not a or not b:
-            add(check, "SKIP", ["no {} trials in {}".format(mode, "previous gate" if not a else "this gate")])
+            add(check, "SKIP", ["no {} trials in {}{}".format(mode, "previous gate" if not a else "this gate",
+                                                             " for spec files " + " & ".join(globs) if globs else "")])
             continue
         res = compare_specs(a, b, mode, policy, reviewed)
         lines = ["{} trials vs {}: {} verdict change(s) ({} reviewed), {} with changed state digests{}, {} with a "
@@ -966,6 +1072,8 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root):
                      len(b), len(a), len(res["verdict_changes"]), sum(c["reviewed"] for c in res["verdict_changes"]),
                      len(res["state_changes"]), " (allowed)" if "state" in policy["allow"] else "",
                      len(res["obs_changes"]), " (allowed)" if "obs" in policy["allow"] else "")]
+        if globs:
+            lines.append("  spec files: {} (both records compared on these files only)".format(" & ".join(globs)))
         for c in res["verdict_changes"][:40]:
             lines.append("  verdict {} seed {}: passed {} -> {} [{}] {}{}".format(
                 c["key"], c["seed"], c["passed"][0], c["passed"][1], ",".join(c["fields"]),
@@ -1072,8 +1180,90 @@ def render_compare(prev_dir, cur_dir, policy, sections, ok):
 # ----------------------------------------------------------------------------------------------------------------
 # G10 scope
 
+ISOLATE_MANIFEST = ".tier1_isolate.json"
+ISOLATE_FORMAT = "house-tier1-isolate-v1"
+ISOLATE_SKIP_DIRS = {"__pycache__", ".git", ".pytest_cache"}
+
+
+def _file_sha(path):
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _ignore_rules(root):
+    """The plain patterns of root/.gitignore (no negations): enough to skip what git would ignore in an isolated copy
+    (results/, *.pyc, gate records, ...)."""
+    rules = []
+    try:
+        text = (Path(root) / ".gitignore").read_text(encoding="utf-8")
+    except OSError:
+        return rules
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith(("#", "!")):
+            rules.append(line)
+    return rules
+
+
+def _ignored(rel, rules):
+    """gitignore-like test of a posix path: a pattern ending in "/" names a directory anywhere on the path (or the
+    path prefix when it contains a "/"); others match the whole path or its last component."""
+    parts = rel.split("/")
+    for rule in rules:
+        anchored = rule.startswith("/")
+        pattern = rule.strip("/")
+        if rule.endswith("/"):
+            prefixes = ["/".join(parts[:i]) for i in range(1, len(parts))]
+            if "/" in pattern or anchored:
+                if any(fnmatch.fnmatchcase(p, pattern) for p in prefixes):
+                    return True
+            elif any(fnmatch.fnmatchcase(part, pattern) for part in parts[:-1]):
+                return True
+        elif fnmatch.fnmatchcase(rel, pattern) or (not anchored and "/" not in pattern and
+                                                    fnmatch.fnmatchcase(parts[-1], pattern)):
+            return True
+    return False
+
+
+def tree_files(root, rules=None):
+    """{posix path: sha256} of every file under root that git would see (no .git, caches or ignored files)."""
+    root = Path(root)
+    rules = _ignore_rules(root) if rules is None else rules
+    out = {}
+    for folder, dirs, files in os.walk(str(root)):
+        dirs[:] = sorted(d for d in dirs if d not in ISOLATE_SKIP_DIRS)
+        base = Path(folder)
+        for name in sorted(files):
+            path = base / name
+            rel = path.relative_to(root).as_posix()
+            if rel == ISOLATE_MANIFEST or name.endswith(".pyc") or _ignored(rel, rules):
+                continue
+            out[rel] = _file_sha(path)
+    return out
+
+
+def isolated_changes(root):
+    """(changed, error) of an isolated copy (cmd_isolate): every file added, edited or deleted since the copy was made
+    from its base commit, by content hash (the copy is not a git work tree, so nothing is ever committed)."""
+    manifest = read_json(Path(root) / ISOLATE_MANIFEST)
+    if not isinstance(manifest, dict) or manifest.get("format") != ISOLATE_FORMAT:
+        return None, "not an isolated copy"
+    base = manifest.get("base_files") or {}
+    now = tree_files(root)
+    changed = {rel for rel, sha in now.items() if base.get(rel) != sha} | {rel for rel in base if rel not in now}
+    return sorted(f for f in changed if not match_any(f, TRANSIENT)), None
+
+
 def changed_files(root):
-    """(changed, error): files changed against HEAD plus untracked files, posix paths."""
+    """(changed, error): files changed against HEAD plus untracked files, posix paths. An isolated copy (cmd_isolate)
+    reports the files changed since it was made from its base commit."""
+    if (Path(root) / ISOLATE_MANIFEST).exists():
+        return isolated_changes(root)
+
     def git(*args):
         return subprocess.run(["git", "-C", str(root)] + list(args), capture_output=True, text=True,
                               encoding="utf-8", errors="replace")
@@ -1097,22 +1287,29 @@ def scope_check(root, policy, gate_id, shared_tree=False):
         return {"status": "SKIP", "note": "git unavailable: " + error}
     allowed = list(policy["files"])
     for pid in policy["packages"]:
-        for name in [pid] + PACKAGES[pid]["aka"]:
-            allowed.append("{}/handoff_{}.md".format(HANDOFF_DIR, name.replace(":", "_")))
-            allowed.append("{}/{}/*".format(GATE_DIR, name.replace(":", "_")))     # a package's own gate records
-    allowed.append("{}/{}/*".format(GATE_DIR, gate_id))
+        names = [pid] + PACKAGES[pid]["aka"]
+        members = SUBSTAGES.get(PACKAGES[pid]["stage"], ())
+        if members and pid not in members:
+            # a union package (ADOPT-ALL): its member packages' handoffs and gate records are its own
+            for member in members:
+                names += [member] + PACKAGES[member]["aka"]
+        for name in names:
+            allowed.append("{}/handoff_{}.md".format(HANDOFF_DIR, gate_dirname(name)))
+            allowed.append("{}/{}/*".format(GATE_DIR, gate_dirname(name)))     # a package's own gate records
+    allowed.append("{}/{}/*".format(GATE_DIR, gate_dirname(gate_id)))
     outside, attributed = [], {}
     peers = []
     if shared_tree:
         for members in SUBSTAGES.values():
             if any(p in members for p in policy["packages"]):
-                peers += [m for m in members if m not in policy["packages"]]
+                peers += [m for m in members if m not in policy["packages"] and m not in peers]
     for f in files:
         if match_any(f, allowed):
             continue
         # a concurrent package's files, handoff and gate folder (its own gate record) are attributed to it
         owner = next((p for p in peers if match_any(f, PACKAGES[p]["files"] + [
-            "{}/handoff_{}.md".format(HANDOFF_DIR, p), "{}/{}/*".format(GATE_DIR, p)])), None)
+            "{}/handoff_{}.md".format(HANDOFF_DIR, gate_dirname(name)) for name in [p] + PACKAGES[p]["aka"]] + [
+            "{}/{}/*".format(GATE_DIR, gate_dirname(name)) for name in [p] + PACKAGES[p]["aka"]])), None)
         if owner:
             attributed[f] = owner
         else:
@@ -1133,8 +1330,9 @@ class Gate:
         self.root = Path(args.root).resolve()
         self.gates_root = Path(args.gates_root).resolve() if args.gates_root else self.root / GATE_DIR
         self.id = args.id
-        self.out = Path(args.out).resolve() if args.out else self.gates_root / self.id
-        self.work = Path(args.work).resolve() if args.work else Path(tempfile.gettempdir()) / "house_ai_tier1" / self.id
+        self.out = Path(args.out).resolve() if args.out else self.gates_root / gate_dirname(self.id)
+        self.work = Path(args.work).resolve() if args.work else \
+            Path(tempfile.gettempdir()) / "house_ai_tier1" / gate_dirname(self.id)
         names = []
         for raw in re.split(r"[+,]", args.package or ""):
             if raw.strip():
@@ -1188,24 +1386,10 @@ class Gate:
             if not (path / "meta.json").exists():
                 raise SystemExit("previous gate {} has no meta.json".format(path))
             return path.resolve()
-        # default: stage A packages and B0 compare with A0, B1 with B0 (TIER1_INTEGRATION 2.4, 3.1); any other gate
-        # with the latest complete gate of an earlier stage (parallel packages of one sub-stage never with each other)
-        stage = self.policy["stage"]
-        fixed = DEFAULT_PREV.get(stage)
-        if fixed and (self.gates_root / fixed / "meta.json").exists():
-            return (self.gates_root / fixed).resolve()
-        best = None
-        if self.gates_root.exists():
-            for meta_path in self.gates_root.glob("*/meta.json"):
-                if meta_path.parent.resolve() == self.out.resolve():
-                    continue
-                meta = read_json(meta_path, {})
-                if meta.get("partial") or meta.get("spec_files") or                         stage_index(meta.get("stage")) >= max(1, stage_index(stage)):
-                    continue
-                key = meta.get("finished") or ""
-                if best is None or key > best[0]:
-                    best = (key, meta_path.parent.resolve())
-        return best[1] if best else None
+        # default: stage A packages and B0 compare with A0, B1 with B0, the adoption round with C1 (TIER1_INTEGRATION
+        # 2.4, 3.1); any other gate with the latest complete gate of an earlier stage (parallel packages of one
+        # sub-stage never with each other)
+        return default_prev_dir(self.gates_root, self.policy["stage"], exclude=self.out)
 
     # ---- jobs
     def test_estimates(self):
@@ -1267,7 +1451,7 @@ class Gate:
             spec_hash = None
         all_specs = {"specs": [s for _, _, _, s in specs]}
         self.work.mkdir(parents=True, exist_ok=True)
-        write_json(self.work / "all_specs.json", all_specs)
+        write_json(self.work / "all_specs.json", all_specs, sort_keys=False)
         jobs, chunk_specs = [], max(1, self.args.chunk_specs)
         for check, mode, perception in (("G2", "own", None), ("G3", "realistic", "realistic")):
             if check not in self.selected:
@@ -1279,7 +1463,7 @@ class Gate:
                          "jobs": [{"key": key, "file": fname, "own_mode": own_mode(spec), "spec": spec,
                                    "spec_hash": self._spec_hash(spec_hash, spec)} for key, fname, _, spec in part]}
                 cpath = self.work / "chunks" / "{}_{:04d}.json".format(mode, n)
-                write_json(cpath, chunk)
+                write_json(cpath, chunk, sort_keys=False)
                 opath = self.work / "chunks" / "{}_{:04d}.jsonl".format(mode, n)
                 jobs.append(Job("{} specs {}-{}".format(check, n, n + len(part) - 1), check,
                                 self.py(self.script, "_trials", str(cpath), str(opath)), self.env(),
@@ -1362,7 +1546,9 @@ class Gate:
         jobs, audit = [], self.work / "audits"
         for extra in self.extras:
             if extra == "physics" and quiet and (self.root / "tools/physics_audit.py").exists():
-                jobs.append(Job("G9 physics_audit", "G9", self.py("tools/physics_audit.py", "--data", "--bench"),
+                # the record goes into the gate folder (kept with the gate), never into the temp folder
+                jobs.append(Job("G9 physics_audit", "G9", self.py("tools/physics_audit.py", "--data", "--bench",
+                                                                   "--out", str(self.out / "physics_audit.json")),
                                 self.env(), est=60.0, meta={"extra": "physics"}))
             elif extra == "body" and not quiet and (self.root / "tools/body_audit.py").exists():
                 # the record goes into the gate folder (B0's is the baseline BODY-CORE checks --against), never over
@@ -1503,8 +1689,11 @@ class Gate:
                                                              s["passed"], s["specs"], s["trials"])
             status = "PASS"
             prev_rows = read_jsonl(prev / "specs_{}.jsonl".format(mode)) if prev else []
+            # a record narrowed by --spec-files is compared on those files only (and a narrowed previous gate on its)
+            globs = spec_scope(read_json(prev / "meta.json", {}) if prev else {}, {"spec_files": self.args.spec_files})
+            prev_rows = scoped_rows(prev_rows, globs)
             if prev_rows:
-                res = compare_specs(prev_rows, self.spec_rows[mode], mode, self.policy, reviewed)
+                res = compare_specs(prev_rows, scoped_rows(self.spec_rows[mode], globs), mode, self.policy, reviewed)
                 note += "; vs {}: {} verdict change(s) ({} reviewed), {} state-digest change(s), {} observation-digest " \
                         "change(s)".format(prev.name, len(res["verdict_changes"]),
                                            sum(c["reviewed"] for c in res["verdict_changes"]), len(res["state_changes"]),
@@ -1771,6 +1960,8 @@ class Gate:
             self.id, "+".join(self.policy["packages"]) or "none", self.policy["stage"], prev.name if prev else "none",
             self.jobs_n, self.root))
         started = now_iso()
+        for rel in EMPTY_DIRS:          # an isolated copy made from `git archive` lacks the empty directories
+            (self.root / rel).mkdir(parents=True, exist_ok=True)
         self.run_info()
         if "G0" in self.selected and prev and "G0" in self.results and self.results["G0"]["status"] == "PASS":
             pf = (read_json(prev / "meta.json", {}) or {}).get("fingerprints", {}).get("actions_fingerprint")
@@ -1873,7 +2064,10 @@ class Gate:
             ("; record incomplete: " + ",".join(recorded) if recorded != list(CHECKS) else "") +
             ("; specs limited to " + self.args.spec_files if self.args.spec_files else ""))
         files, _ = changed_files(self.root)
+        isolated = read_json(self.root / ISOLATE_MANIFEST)
         head = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD"], capture_output=True, text=True)
+        if isinstance(isolated, dict) and isolated.get("base"):
+            head = subprocess.CompletedProcess([], 0, stdout=isolated["base"])       # an isolated copy's base commit
         meta = {"id": self.id, "packages": self.policy["packages"], "stage": self.policy["stage"],
                 "prev": prev.name if prev else None, "prev_path": str(prev) if prev else None,
                 "started": old_meta.get("started", started) if partial else started, "finished": now_iso(),
@@ -1916,27 +2110,177 @@ class Gate:
 # ----------------------------------------------------------------------------------------------------------------
 # commands
 
+def _package_names(text):
+    names = [resolve_package(p) for p in re.split(r"[+,]", text or "") if p.strip()]
+    if None in names:
+        raise SystemExit("unknown package in {!r} (see: tier1_gate.py packages)".format(text))
+    return names
+
+
+def default_prev_dir(gates_root, stage, exclude=None):
+    """The default previous gate of a stage (TIER1_INTEGRATION 2.4, 3.1): A / B0 -> A0, B1 -> B0, the adoption round
+    -> C1; otherwise the latest complete, unnarrowed gate of an earlier stage."""
+    gates_root = Path(gates_root)
+    fixed = DEFAULT_PREV.get(stage)
+    if fixed and (gates_root / fixed / "meta.json").exists():
+        return (gates_root / fixed).resolve()
+    best = None
+    if gates_root.exists():
+        for meta_path in gates_root.glob("*/meta.json"):
+            if exclude is not None and meta_path.parent.resolve() == Path(exclude).resolve():
+                continue
+            meta = read_json(meta_path, {})
+            if meta.get("partial") or meta.get("spec_files") or \
+                    stage_index(meta.get("stage")) >= max(1, stage_index(stage)):
+                continue
+            key = meta.get("finished") or ""
+            if best is None or key > best[0]:
+                best = (key, meta_path.parent.resolve())
+    return best[1] if best else None
+
+
 def cmd_compare(args):
-    gates_root = Path(args.gates_root).resolve() if args.gates_root else Path(args.root).resolve() / GATE_DIR
+    """compare [PREV [CUR]] [--package PKG] [--shared-tree] [--spec-files GLOB] [--reviewed FILE]
+
+    CUR defaults to the package's own record (gate/<PKG>, a colon written as "_"), PREV to the previous gate that
+    record names, else the stage's default (the adoption round: C1); one positional names PREV. --shared-tree also
+    checks the scope (G10) of the working tree now, attributing the files of the packages running concurrently in the
+    same sub-stage (the adoption round: every ADOPT:<domain>, K-EVAL and K-CAM) instead of failing them. --spec-files
+    narrows the spec trials of both records to the matching files (a record made with --spec-files is always compared
+    on its own files only). Exit 0 on PASS, 1 on FAIL, 2 when there is no record to compare."""
+    root = Path(args.root).resolve()
+    gates_root = Path(args.gates_root).resolve() if args.gates_root else root / GATE_DIR
+    names = _package_names(args.package)
 
     def locate(name):
         path = Path(name)
         if not (path / "meta.json").exists():
-            path = gates_root / name
+            path = gates_root / gate_dirname(name)
         if not (path / "meta.json").exists():
             raise SystemExit("no gate record at {}".format(path))
         return path.resolve()
 
-    prev, cur = locate(args.prev), locate(args.cur)
+    if args.cur:
+        cur = locate(args.cur)
+    else:
+        candidates = [gates_root / gate_dirname(n) for pid in names for n in [pid] + PACKAGES[pid]["aka"]]
+        cur = next((c.resolve() for c in candidates if (c / "meta.json").exists()), None)
+        if cur is None:
+            pid = names[0] if names else None
+            print("compare: no gate record for {} in {}.".format("+".join(names) or "this package", gates_root))
+            if pid is not None:
+                print("Record one first (a domain package can narrow it to its own spec files), e.g.:\n"
+                      "  python tools/orchestration/tier1_gate.py record --id {} --package {}{}\n"
+                      "  python tools/orchestration/tier1_gate.py record --id {} --package {} --only G0,G2,G3,G10{}"
+                      "{}".format(gate_dirname(pid), "+".join(names), " --shared-tree" if args.shared_tree else "",
+                                  gate_dirname(pid), "+".join(names),
+                                  " --spec-files '{}__*'".format(pid.split(":", 1)[1]) if pid.startswith("ADOPT:")
+                                  else "", " --shared-tree" if args.shared_tree else ""))
+            if args.shared_tree and names:
+                scope = scope_check(root, policy_for(names), gate_dirname(names[0]), True)
+                print("G10  {:5} {}".format(scope["status"], scope["note"]))
+                for f in scope.get("outside", []):
+                    print("           outside: " + f)
+            return 2
     meta = read_json(cur / "meta.json", {})
-    names = [resolve_package(p) for p in re.split(r"[+,]", args.package or "") if p.strip()] or meta.get("packages", [])
-    if None in names:
-        raise SystemExit("unknown package in {!r}".format(args.package))
+    names = names or meta.get("packages", [])
     policy = policy_for(names, meta.get("stage") if not names else None)
-    reviewed = load_reviewed(Path(args.root).resolve(), cur, names, args.reviewed)
-    sections, ok = compare_dirs(prev, cur, policy, reviewed, gates_root)
+    if args.prev:
+        prev = locate(args.prev)
+    else:
+        prev = None
+        for candidate in (meta.get("prev_path"), meta.get("prev") and str(gates_root / gate_dirname(meta["prev"]))):
+            if candidate and (Path(candidate) / "meta.json").exists():
+                prev = Path(candidate).resolve()
+                break
+        prev = prev or default_prev_dir(gates_root, policy["stage"], exclude=cur)
+        if prev is None:
+            raise SystemExit("no previous gate for {} (pass PREV)".format(cur.name))
+    reviewed = load_reviewed(root, cur, names, args.reviewed)
+    sections, ok = compare_dirs(prev, cur, policy, reviewed, gates_root, spec_files=args.spec_files)
+    if args.shared_tree:
+        scope = scope_check(root, policy, cur.name, True)
+        lines = [scope["note"]] + ["outside: " + f for f in scope.get("outside", [])[:40]]
+        if scope.get("attributed"):
+            owners = Counter(scope["attributed"].values())
+            lines.append("attributed: " + ", ".join("{} {}".format(k, v) for k, v in sorted(owners.items())))
+        sections.append({"check": "G10", "status": scope["status"], "lines": lines})
+        ok = ok and scope["status"] != "FAIL"
     print(render_compare(prev, cur, policy, sections, ok))
     return 0 if ok else 1
+
+
+def cmd_isolate(args):
+    """isolate --out DIR [--package PKG[+PKG]] [--files PATH ...] [--base REV]
+
+    An isolated copy of the project for a gate run on a shared tree: the base commit's tree (`git archive`; nothing in
+    the project is committed, checked out or changed), the project's empty directories (EMPTY_DIRS), then the
+    package's changed files from the working tree and any --files (a file deleted in the working tree is deleted in
+    the copy). The copy records the hash of every base file (ISOLATE_MANIFEST), so a gate run in it (`record --root
+    DIR --gates-root <project gate folder>`) sees exactly those files as changed (G10). Without --package and --files
+    the copy is the pristine base, the reference to compare a package's copy with."""
+    import io
+    import tarfile
+    root = Path(args.root).resolve()
+    out = Path(args.out).resolve()
+    if out.exists() and any(out.iterdir()):
+        raise SystemExit("{} exists and is not empty; choose a new folder".format(out))
+    names = _package_names(args.package)
+
+    def git(*cmd, text=True):
+        return subprocess.run(["git", "-C", str(root)] + list(cmd), capture_output=True, text=text)
+    rev = git("rev-parse", args.base or "HEAD")
+    if rev.returncode != 0:
+        raise SystemExit("git rev-parse failed: " + rev.stderr.strip())
+    base = rev.stdout.strip()
+    archive = git("archive", "--format=tar", base, text=False)
+    if archive.returncode != 0:
+        raise SystemExit("git archive failed: " + archive.stderr.decode("utf-8", "replace").strip())
+    out.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        members = []
+        for member in tar.getmembers():
+            target = (out / member.name).resolve()
+            if member.issym() or member.islnk() or not str(target).startswith(str(out)):
+                continue            # only plain files and folders inside the copy
+            members.append(member)
+        if hasattr(tarfile, "data_filter"):
+            tar.extractall(str(out), members=members, filter="data")
+        else:
+            tar.extractall(str(out), members=members)
+    for rel in EMPTY_DIRS:
+        (out / rel).mkdir(parents=True, exist_ok=True)
+    rules = _ignore_rules(out)
+    base_files = tree_files(out, rules)
+    overlay, deleted = [], []
+    picks = []
+    if names:
+        changed, error = changed_files(root)
+        if changed is None:
+            raise SystemExit("cannot list the working tree's changes: " + error)
+        patterns = policy_for(names)["files"]
+        picks = [f for f in changed if match_any(f, patterns)]
+    picks += [Path(f).as_posix() for f in (args.files or [])]
+    for rel in sorted(set(picks)):
+        src, dst = root / rel, out / rel
+        if src.is_file():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(src), str(dst))
+            overlay.append(rel)
+        elif dst.is_file():
+            dst.unlink()
+            deleted.append(rel)
+    write_json(out / ISOLATE_MANIFEST, {
+        "format": ISOLATE_FORMAT, "project": str(root), "base": base, "made": now_iso(), "packages": names,
+        "overlay": overlay, "deleted": deleted, "base_files": base_files})
+    print("isolated copy {} (base {}; {} base files): {} file(s) copied from the working tree, {} deleted{}".format(
+        out, base[:12], len(base_files), len(overlay), len(deleted),
+        " for " + "+".join(names) if names else ""))
+    for rel in overlay:
+        print("  + " + rel)
+    for rel in deleted:
+        print("  - " + rel)
+    return 0
 
 
 def cmd_scope(args):
@@ -2041,7 +2385,8 @@ def build_parser():
         r.add_argument("--jobs", type=int, help="parallel slots (default: cpus - 1)")
         r.add_argument("--seeds", type=int, nargs="+", help="spec seeds (default 0 1 2 41 97)")
         r.add_argument("--shared-tree", action="store_true",
-                       help="G10: attribute files of concurrent packages of the same sub-stage instead of failing")
+                       help="G10: attribute files of concurrent packages of the same sub-stage (the adoption round: "
+                            "every ADOPT:<domain>, K-EVAL, K-CAM) instead of failing")
         r.add_argument("--reviewed", help="JSON list of reviewed differences (in addition to the handoff table)")
         r.add_argument("--bench-repeats", type=int, default=5)
         r.add_argument("--chunk-specs", type=int, default=3, help="specs per spec-trial worker")
@@ -2051,15 +2396,24 @@ def build_parser():
         r.add_argument("--chunk-timeout", type=int, default=2400)
         r.add_argument("--out", help="output folder (default: <gates-root>/<id>)")
         r.add_argument("--work", help="scratch folder (default: <tmp>/house_ai_tier1/<id>)")
-    c = sub.add_parser("compare", help="compare two recorded gates")
-    c.add_argument("prev")
-    c.add_argument("cur")
-    c.add_argument("--package")
+    c = sub.add_parser("compare", help="compare two recorded gates (default: the package's record with its previous "
+                                       "gate)")
+    c.add_argument("prev", nargs="?", help="previous gate id or folder (default: the one CUR names, else the stage's)")
+    c.add_argument("cur", nargs="?", help="gate id or folder to check (default: the package's own record)")
+    c.add_argument("--package", help="package id(s) whose rules apply, joined with + (default: CUR's)")
     c.add_argument("--reviewed")
+    c.add_argument("--shared-tree", action="store_true",
+                   help="also check the working tree's scope (G10), attributing concurrent packages' files")
+    c.add_argument("--spec-files", help="compare only the spec trials of these spec files, e.g. 'cleaning__*'")
     s = sub.add_parser("scope", help="G10 only")
     s.add_argument("--package", required=True)
     s.add_argument("--id")
     s.add_argument("--shared-tree", action="store_true")
+    i = sub.add_parser("isolate", help="make an isolated copy (base commit + a package's changed files) for a gate run")
+    i.add_argument("--out", required=True, help="new (or empty) folder for the copy")
+    i.add_argument("--package", help="package id(s) whose changed files are copied from the working tree")
+    i.add_argument("--files", nargs="+", help="further working-tree files to copy (or delete) into the copy")
+    i.add_argument("--base", help="base revision (default HEAD)")
     k = sub.add_parser("packages", help="print the package table")
     k.add_argument("names", nargs="*")
     g = sub.add_parser("gen1-digests", help="check (default) or --write tests/data/gen1_digests.json")
@@ -2102,6 +2456,8 @@ def main(argv):
         return cmd_compare(args)
     if args.cmd == "scope":
         return cmd_scope(args)
+    if args.cmd == "isolate":
+        return cmd_isolate(args)
     if args.cmd == "packages":
         return cmd_packages(args)
     if args.cmd == "gen1-digests":

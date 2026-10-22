@@ -13,7 +13,7 @@
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body_faults, geometry
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, invariant, system
 from . import common as C
@@ -54,16 +54,13 @@ def item_xy(w, eid):
 
 
 def edge_event(w, pid, what):
+    """The robot worked from the coping band. On wet coping it slips and falls into the pool: the body's fall
+    (body_faults.fall with water=True: fallen, one stats.falls, what it held dropped, and immersion's water ingress,
+    which fails its cameras and actuators) plus the global damage of a robot in the water."""
     C.stat(w, "pool_edge_violations")
     C.stat(w, "safety_violations")
     if coping_wet(w, pid):
-        r = w.robot_m()
-        r["fallen"] = True
-        r["actuator_ok"] = False
-        faults = list(r.get("faults", []))
-        faults.append("water_ingress")
-        r["faults"] = faults
-        C.stat(w, "falls")
+        body_faults.fall(w, "fell_in_pool", water=True)
         C.stat(w, "damage")
         C.note(w, "robot_fell_in_pool", reason=what)
         return True

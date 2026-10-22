@@ -16,12 +16,17 @@ that mount into those holes refuse. Cams are fasteners (group = slot) turned wit
 0.6-1.4 N m, strips particleboard above 2 N m - a drill in drill mode strips them). A back panel nailed
 on while cams are loose locks the carcass out of square. Completion turns the entity into usable
 furniture. Shelves on pins: slots `pin_<shelf>_<corner>_h<hole>` (core install/uninstall of shelf pins).
+
+Tier-1 adoption (kernel v3.0): the anti-tip strap sets `anchored` (the kernel's furniture_tip law and pull events then
+leave the unit standing); things inside a unit taken apart fall out through the kernel's fall, and a loaded shelf whose
+pin is pulled tips what stands on it (the kernel's tip_over: breakage only by the tip itself); a panel taken off goes
+into the hands the kernel's lift plan says it needs, within the body's capacity (ctx.check_lift).
 """
 import copy
 import math
 import re
 
-from ...kernel import geometry
+from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook, inspector, invariant
@@ -259,19 +264,13 @@ def disassemble(ctx):
             C.add_damage(wm, "anchor_torn_out", 0.4)
         w.stat("damage")
         notes.append("the anti-tip strap was still fixed: the anchor tore out of the wall")
-    contents = [c for c in w.children(eid) if w.ent(c).get("relation") in ("in", "on")]
+    contents = sorted(c for c in w.children(eid) if w.ent(c).get("relation") in ("in", "on"))
     if contents:
         room = rec.get("location")
+        at = (room, list(rec.get("pos") or C.robot_cell(w))) if room in w.s["rooms"] else None
         for child in contents:
-            cm = w.mut(child)
-            if w.ent(child).get("fragile"):
-                cm["broken"] = True
-                C.add_damage(cm, "broken", 1.0)
-                w.stat("breakages")
-                w.stat("damage")
-            for key in ("spos", "shelf"):
-                cm.pop(key, None)
-            cm.update(location=room, relation="on", pos=list(rec.get("pos") or [0, 0]))
+            # the kernel's fall: out of the unit to the floor beside it, breaking by the thing's own drop tolerance
+            ctx.fall(child, cause="unit_taken_apart", at=at)
         notes.append("the contents fell out ({})".format(", ".join(contents)))
     fasteners = m.get("_fasteners") or {}
     tight = sorted(fid for fid, f in fasteners.items() if f.get("group") == slot and not f.get("removed") and float(f.get("torque_nm", 0)) > 0.05)
@@ -304,13 +303,17 @@ def disassemble(ctx):
     pm = w.mut(part)
     pm.pop("slot", None)
     if hand is not None:
-        pm.update(location="robot", relation="held", held_hand=hand)
-        w.robot_m()["hands"][hand] = part
-        if w.ent(part).get("two_handed") or max((w.ent(part).get("size_m") or [0.1])[:2]) > 0.7:
-            other = "left" if hand == "right" else "right"
-            require(w.robot["hands"].get(other) in (None, part), "Both hands must be free to take off a panel this size", "capability")
-            w.robot_m()["hands"][other] = part
-            pm["held_hand"] = "both"
+        # the hands the kernel's lift plan needs (two for a panel wider than 0.7 m or heavier than one hand takes),
+        # within what the body can hold (ctx.check_lift: an overload is refused and counted)
+        plan = ctx.lift_plan(part)
+        hands = list(plan["hands"]) or [hand]
+        if len(hands) == 2:
+            require(all(w.robot["hands"].get(h) in (None, part) for h in hands), "Both hands must be free to take off a panel this size",
+                    "capability")
+        ctx.check_lift(part, hands, plan["mass_kg"])
+        pm.update(location="robot", relation="held", held_hand="both" if len(hands) == 2 else hands[0])
+        for h in hands:
+            w.robot_m()["hands"][h] = part
     else:
         room = rec.get("location")
         pm.update(location=room, relation="on", pos=list(geometry.free_floor_cell(w.s, room, near=C.robot_cell(w)) or C.robot_cell(w)))
@@ -380,14 +383,11 @@ def _pin_under_load(ctx):
     shelf = m.group(1)
     shelf_idx = (rec.get("_shelves") or {}).get(shelf, {}).get("shelf_index")
     loaded = [c for c in w.children(eid) if w.ent(c).get("relation") == "in" and shelf_idx is not None and w.ent(c).get("shelf") == shelf_idx]
-    for child in loaded:
-        cm = w.mut(child)
-        if w.ent(child).get("fragile"):
-            cm["broken"] = True
-            C.add_damage(cm, "broken", 1.0)
-            w.stat("breakages")
-            w.stat("damage")
-        cm["toppled"] = True
+    for child in sorted(loaded):
+        # the shelf drops at that corner: what stands on it tips over (the kernel's tip_over, attributed to the robot;
+        # it breaks only when the tip itself exceeds its drop tolerance)
+        physics.tip_over(w, child, "shelf_dropped", by="robot")
+        w.mut(child)["toppled"] = True
     if loaded:
         C.log(w, "shelf_dropped", target=eid, shelf=shelf, items=loaded)
         ctx.note("The loaded shelf dropped at that corner")
@@ -493,21 +493,6 @@ def tip_hazard(state, baseline, world):
             continue
         before = baseline["entities"].get(eid) or {}
         if _loaded(baseline, eid) and not ((before.get("assembly") or {}).get("anchor") or {}).get("installed"):
-            continue
-        return "tip_over_hazard:" + eid
-    return None
-    ents = state["entities"]
-    for eid in sorted(e for e, r in ents.items() if isinstance(r.get("assembly"), dict) and r["assembly"].get("tall")):
-        rec = ents[eid]
-        a = rec["assembly"]
-        if (a.get("anchor") or {}).get("installed"):
-            continue
-        loaded = any(r.get("location") == eid and r.get("relation") in ("in", "on") for r in ents.values())
-        if not loaded:
-            continue
-        before = baseline["entities"].get(eid) or {}
-        was_loaded = any(r.get("location") == eid and r.get("relation") in ("in", "on") for r in baseline["entities"].values())
-        if was_loaded and not ((before.get("assembly") or {}).get("anchor") or {}).get("installed"):
             continue
         return "tip_over_hazard:" + eid
     return None

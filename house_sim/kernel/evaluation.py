@@ -4,7 +4,7 @@ A task may contain:
   success: [predicates]            all must hold
   failure: [predicates]            any one defeats success
   preserve: [paths]                must equal the episode baseline
-  side_effects: {...}              "no_moves_except": [ids], "no_damage": true,
+  side_effects: {...}              "no_moves_except": [ids] (moves the robot caused: robot_moved), "no_damage": true,
                                    "no_new_soil_except": [ids], "unchanged_fields": {"fields": [...], "except": [ids]}
   milestones: {name: predicate | {"pred", "held_for_s"} | {"pred", "count": true}}
                                    first step/time each became true is recorded (sampled inside waits, kernel v3.1)
@@ -61,7 +61,8 @@ def side_effect_failures(spec, state, baseline):
             if any(a in allowed_moves for a in _chain(baseline, eid)):
                 continue  # contents move with an allowed container
             after = now[eid]
-            if after.get("location") != before.get("location") or after.get("relation") != before.get("relation"):
+            if (after.get("location") != before.get("location") or after.get("relation") != before.get("relation")) \
+                    and robot_moved(state, baseline, eid):
                 failures.append("moved:" + eid)
     if spec.get("no_damage"):
         allowed = set(spec.get("damage_allowed", []))
@@ -88,6 +89,26 @@ def side_effect_failures(spec, state, baseline):
                     failures.append("changed:{}.{}".format(eid, field))
                     break
     return failures
+
+
+def robot_moved(state, baseline, eid):
+    """Whether a move of eid counts against the robot (no_moves_except; TIER1_DECISIONS harm attribution: exogenous
+    consequences -- wind, rain, pets, people, scripted events -- never fail a task by themselves). It does when the
+    robot arranged eid or what eid rested on or in at the start: the settle pass's _robot_moved marker on eid or on a
+    support of its baseline location chain (the marker the action phase writes on everything an action placed, moved,
+    knocked or filled; phys/impact.robot_caused reads the same chain), or when a physics consequence the kernel
+    attributed to the robot ("by": "robot") targeted eid (a later fall off a support the robot overloaded)."""
+    entities = state["entities"]
+    if (entities.get(eid) or {}).get("_robot_moved"):
+        return True
+    if any((entities.get(loc) or {}).get("_robot_moved") for loc in _chain(baseline, eid)):
+        return True
+    start = float(baseline.get("time_s", 0.0) or 0.0)
+    for entry in state.get("event_log") or ():
+        if entry.get("target") == eid and entry.get("by") == "robot" and str(entry.get("kind", "")).startswith("phys.") \
+                and float(entry.get("time_s", 0.0) or 0.0) >= start:
+            return True
+    return False
 
 
 def _chain(state, eid):

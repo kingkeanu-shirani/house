@@ -53,6 +53,7 @@ def filter_in(state, holder):
 
 
 @hook("cycle_check:drip_coffee_maker")
+@P.plain_check
 def _cm_check(w, eid, *_):
     rec = w.ent(eid)
     if (rec.get("appliance") or {}).get("program") == "brew" and C.num(rec.get("liquid_l")) < 0.05:
@@ -107,13 +108,15 @@ def _cm_tick(w, eid, dt):
         if acid > 0:
             m["_acid"] = C.rnd(acid * (0.25 ** (vol / 1.8)), 5)
             hc["acid_in_brew"] = max(C.num(hc.get("acid_in_brew")), acid)
+    brew_c = 93.0 - 12.0 * min(1.0, scale)
+    out_liquid = "coffee" if liquid == "water" and grams > 0 else liquid
     if (grams > 110.0 or (no_filter and fine and grams > 0)) and not hc.get("basket_overflow"):
         hc["basket_overflow"] = True
-        _spill(w, eid, 0.15, rid, "basket_overflow")
+        _spill(w, eid, 0.15, rid, "basket_overflow", brew_c, out_liquid)
     carafe = carafe_on(state, eid)
     if carafe is None:
         hc["spilled_l"] = C.rnd(C.num(hc.get("spilled_l")) + vol, 4)
-        _spill(w, eid, vol, rid, "no_carafe")
+        _spill(w, eid, vol, rid, "no_carafe", brew_c, out_liquid)
     else:
         crec = state["entities"][carafe]
         cm = w.mut(carafe)
@@ -122,10 +125,9 @@ def _cm_tick(w, eid, dt):
         add = min(vol, max(0.0, room))
         if add < vol:
             hc["spilled_l"] = C.rnd(C.num(hc.get("spilled_l")) + vol - add, 4)
-            _spill(w, eid, vol - add, rid, "carafe_overflow")
+            _spill(w, eid, vol - add, rid, "carafe_overflow", brew_c, out_liquid)
         cm["liquid"] = "coffee" if liquid == "water" and grams > 0 else liquid if liquid != "water" else "hot_water"
         cm["liquid_l"] = C.rnd(cur + add, 4)
-        brew_c = 93.0 - 12.0 * min(1.0, scale)
         cm["liquid_temp_c"] = C.rnd((C.num(crec.get("liquid_temp_c"), 21.0) * cur + brew_c * add) / max(1e-6, cur + add), 2)
         cm["temperature_c"] = cm["liquid_temp_c"]
         info = dict(crec.get("_coffee") or {})
@@ -152,25 +154,32 @@ def _cm_done(w, eid, *_):
     m["_coffee"] = hc
     m["display"] = "Warming" if (m.get("settings") or {}).get("warmer", "on") == "on" else "Done"
     m["appliance"]["state"] = "done"
+    C.notice(w, "appliance_done", eid, "coffee_done")
     for c in C.children(w.s, basket_of(w.s, eid) or "", None) if basket_of(w.s, eid) else []:
         rec = w.s["entities"][c]
         if "ground_coffee" in C.food_kind(rec):
             w.mut(c)["spent"] = True
 
 
-def _spill(w, eid, liters, rid, why):
+def _spill(w, eid, liters, rid, why, temp_c=88.0, liquid="coffee"):
+    """Coffee (or water) that misses the carafe or cup: the kernel's spill takes the liquid from the machine's support
+    down to the floor (a film on the counter, the rest a puddle under it; TIER1_PHYSICS 5.7). The first portion of each
+    mishap is the robot's spill (it started the brew); a stream that keeps coming in later substeps counts again only
+    when it starts a new puddle. The coffee stains what it lands on, and scalds whoever stands next to it when it is hot
+    enough to burn skin in a splash (thermal.burn_seconds)."""
     state = w.s
     from ..core import add_soil
+    first = C.harm(w, "coffee_" + why, once="coffee:{}:{}".format(eid, why), appliance=eid)
+    if first:
+        C.counter(w, "coffee_overflows")
     parent = state["entities"][eid].get("location")
+    C.spill(w, liters, liquid=liquid, onto=parent if parent in state["entities"] else None, source=eid, by="robot",
+            cause="spill" if first else "leak")
     if parent in state["entities"]:
         add_soil(w, parent, "stain_coffee", min(1.0, 0.3 + liters))
-        pm = w.mut(parent)
-        pm["wetness"] = C.rnd(min(1.0, C.num(pm.get("wetness")) + liters * 2), 3)
-    if C.harm(w, "coffee_" + why, once="coffee:{}:{}".format(eid, why), appliance=eid):
-        w.stat("spills")
-        C.counter(w, "coffee_overflows")
-    if C.people_near(state, eid, cells=1) and liters > 0.05:
-        C.harm(w, "hot_coffee_spill_on_person", stat="burns", once="coffeeburn:" + eid)
+    near = C.people_near(state, eid, cells=1)
+    if near and liters > 0.05 and C.scalded(state, near, temp_c):
+        C.harm(w, "hot_coffee_spill_on_person", stat="burns", once="coffeeburn:" + eid, people=C.scalded(state, near, temp_c))
 
 
 def step_coffee_maker(w, eid, dt):
@@ -199,10 +208,10 @@ def step_coffee_maker(w, eid, dt):
         if C.num(crec.get("liquid_l")) < 0.05:
             hc["empty_hot_s"] = C.rnd(C.num(hc.get("empty_hot_s")) + dt, 1)
             if hc["empty_hot_s"] > 1800 and not crec.get("broken") and C.is_glass(crec):
-                cm = w.mut(carafe)
-                cm["broken"] = True
-                cm["cracked"] = True
-                w.stat("breakages")
+                # an empty glass carafe left on the 80 C plate overheats unevenly and cracks (the kernel's break: shards,
+                # the robot's breakage -- it left it there)
+                C.break_item(w, carafe, "empty_carafe_on_warmer")
+                w.mut(carafe)["cracked"] = True
                 C.harm(w, "empty_carafe_cracked_on_warmer", stat="damage", once="carafe:" + carafe, carafe=carafe)
         else:
             hc["empty_hot_s"] = 0.0
@@ -234,7 +243,7 @@ def _brew_seconds(ctx):
 
 
 @action("brew", params={"target": "entity", "yield_g": "?number", "seconds": "?number", "steep_s": "?number"},
-        duration=_brew_seconds, energy=0.005, noise=0.2, category="physical",
+        duration=_brew_seconds, energy=0.005, noise=0.2, category="physical", timing="commanded",
         doc="Brew on a coffee machine: drip/pod -> press Brew (pod: one pod in the holder, lid shut, a big enough cup on the "
             "platform); espresso -> pull a shot with the dosed, tamped portafilter locked in (yield_g target, default 36 g, or "
             "seconds); French press -> steep (steep_s, default 240) then press.")
@@ -287,15 +296,16 @@ def _pod_brew(ctx, target, rec):
         w.mut(pods[0])["pod_used"] = True
     rid = C.room_of(state, target)
     out = {"brewed_ml": ml, "strength": strength}
+    brewed = "coffee" if strength > 0 else "water"
     if cup is None:
-        _spill(w, target, ml / 1000.0, rid, "no_cup")
+        _spill(w, target, ml / 1000.0, rid, "no_cup", 85.0, brewed)
         out["spilled"] = True
     else:
         crec = state["entities"][cup]
         cap = C.num(crec.get("capacity_l"), 0.35) * 1000.0 - C.num(crec.get("liquid_l")) * 1000.0
         add = min(ml, max(0.0, cap))
         if add < ml:
-            _spill(w, target, (ml - add) / 1000.0, rid, "cup_overflow")
+            _spill(w, target, (ml - add) / 1000.0, rid, "cup_overflow", 85.0, brewed)
             out["overflowed"] = True
         cm = w.mut(cup)
         cm["liquid"] = "coffee" if strength > 0 else "hot_water"
@@ -345,7 +355,7 @@ def _espresso_shot(ctx, target, rec):
     cup = next((c for c in C.children(state, target, "on") if state["entities"][c].get("container") or state["entities"][c].get("liquid_container")), None)
     rid = C.room_of(state, target)
     if cup is None:
-        _spill(w, target, yield_g / 1000.0, rid, "no_cup")
+        _spill(w, target, yield_g / 1000.0, rid, "no_cup", 68.0)
     else:
         cm = w.mut(cup)
         cm["liquid"] = "espresso"
@@ -408,7 +418,7 @@ def _steam_seconds(ctx):
 @action("steam_milk", params={"target": "entity", "destination": "?entity", "temp_c": {"type": "number", "default": 60.0, "min": 30.0, "max": 90.0},
                               "purge_before": {"type": "bool", "default": True}, "purge_after": {"type": "bool", "default": True},
                               "wipe": {"type": "bool", "default": True}},
-        duration=_steam_seconds, energy=0.01, noise=0.5, category="physical",
+        duration=_steam_seconds, energy=0.01, noise=0.5, category="physical", timing="commanded",
         doc="Steam milk in a held pitcher on an espresso machine's wand (destination = machine): purge the wand, steam to "
             "temp_c (55-65 C; above 70 C the milk scalds), then wipe (needs a damp cloth in the other hand) and purge.")
 def steam_milk(ctx):
@@ -433,6 +443,7 @@ def _steam_milk_body(ctx):
     require(machine, "No espresso machine here", "precondition")
     mrec = ctx.obj(machine, touch=True)
     require(mrec.get("ac_kind") == "espresso", "Steam on an espresso machine's wand", "argument")
+    C.quiet_check(ctx, "espresso")
     require(mrec.get("on") and (mrec.get("espresso") or {}).get("ready"), "Switch the machine on and let the boiler heat up", "precondition")
     wand = dict(mrec.get("wand") or {})
     require(not wand.get("clogged"), "The steam wand is clogged with dried milk - clean it first", "precondition")
@@ -479,7 +490,7 @@ def _grind_seconds(ctx):
 
 @action("grind_coffee", params={"target": "entity", "destination": "entity", "grams": {"type": "number", "min": 1.0, "max": 120.0},
                                 "grind": "?str:extra_fine|fine|medium|medium_coarse|coarse", "tamp": {"type": "bool", "default": False}},
-        duration=_grind_seconds, energy=0.005, noise=0.6, category="physical",
+        duration=_grind_seconds, energy=0.005, noise=0.6, category="physical", timing="commanded",
         doc="Grind whole beans from a burr grinder's hopper into a destination (drip basket with filter, portafilter, French "
             "press, container). grind sets the burrs (espresso fine, drip medium, French press coarse). tamp=true tamps a "
             "portafilter dose level (hold a tamper).")
@@ -500,6 +511,7 @@ def _grind_coffee_body(ctx):
     rec = ctx.obj(target, touch=True)
     require(rec.get("ac_kind") == "grinder", "Use a coffee grinder", "argument")
     require(C.powered_state(state, target), "The grinder has no power", "resource")
+    C.quiet_check(ctx, "grinder")
     drec = ctx.obj(dest, touch=True) if not ctx.holding(dest) else w.ent(dest)
     require(drec.get("container") or drec.get("accepts_items"), "That cannot hold grounds", "argument")
     grams = float(ctx.args["grams"])

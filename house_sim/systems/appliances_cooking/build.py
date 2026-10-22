@@ -18,6 +18,7 @@ Spatial conventions (documented in docs/domains/appliances_cooking.md):
 import copy
 
 from ...kernel import geometry
+from ...kernel.phys import props as kprops
 from . import common as C
 
 RANGE_TYPES = {"gas": "range_gas", "electric_coil": "range_electric", "radiant": "range_radiant", "induction": "range_induction"}
@@ -211,13 +212,18 @@ STORE_SHARE = 0.4
 
 
 def shelf_rating(rec):
+    """kg one shelf of a storage piece takes: the record's own shelf_load_kg, else the lower of this domain's table and
+    the kernel's nominal shelf rating of the type (phys props, supports.json: what the kernel's overload law holds it
+    to; a base-cabinet shelf 30 kg, an upper one 20 kg). With STORE_SHARE (40 %) a stored load stays far below even an
+    instance at -15 % of its rating, so furnishing never sets up a shelf the overload law would collapse."""
     if rec.get("shelf_load_kg") is not None:
         return C.num(rec.get("shelf_load_kg"), 30.0)
     kinds = [rec.get("type")] + list(rec.get("is_a") or [])
-    for name, value in SHELF_RATINGS:
-        if name in kinds:
-            return value
-    return 30.0
+    value = next((v for name, v in SHELF_RATINGS if name in kinds), 30.0)
+    kernel = kprops.props_of(rec).shelf_rating_kg
+    if kernel is not None and 0.0 < kernel < value:
+        return float(kernel)
+    return value
 
 
 def _kids_index(ents):

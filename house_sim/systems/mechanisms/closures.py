@@ -18,7 +18,7 @@ apply_close with explicit extents and forces.
 """
 from ...kernel import geometry
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, before, run_hooks
+from ...kernel.plugins import after, before, hook, run_hooks
 from ..core import subtree_mass
 from . import common as C
 
@@ -179,25 +179,25 @@ def check_open(ctx, eid, force="normal", via="open"):
     rec = w.ent(eid)
     kind = C.kind_of(rec)
     h = C.hidden(rec)
-    newtons = C.force_n(force)
+    newtons = C.applied_n(w.s, force, "push" if via == "push" else "pull")
     if kind in C.COVERING_KINDS or kind == "overhead_door":
         return
     if C.mget(rec, "track") == "derailed":
         raise ActionError("It is off its track; re-seat it first (push_handle lift=true)", "precondition")
     # childproof knob cover on a door
     if C.mget(rec, "knob_cover") and not _latch_held(w, rec):
-        if newtons >= C.FORCE_N["yank"]:
+        if C.yanked(newtons):
             rr, mech = C.mut_mech(w, eid)
             mech["knob_cover"] = False
             mech["knob_cover_removed"] = True
             C.mark_damage(w, eid, "childproof knob cover pulled off", stat=None)
         else:
             raise ActionError("The knob cover spins freely; squeeze its sides while turning (turn part=knob squeeze=true)", "precondition")
-    if child_lock_check(ctx, rec, eid, forcing=newtons >= C.FORCE_N["yank"]):
+    if child_lock_check(ctx, rec, eid, forcing=C.yanked(newtons)):
         rec = w.ent(eid)
     # explicit latches (slide bolts, two-step pool latches, clasps, squeeze-lift baby gates)
     if is_latched(rec) and latch_kind(rec) in C.EXPLICIT_LATCHES and not rec.get("open"):
-        if newtons >= C.FORCE_N["yank"]:
+        if C.yanked(newtons):
             rr = w.mut(eid)
             rr["latched"] = False
             C.mark_damage(w, eid, "{} forced and bent".format(latch_kind(rec).replace("_", " ")))
@@ -205,7 +205,7 @@ def check_open(ctx, eid, force="normal", via="open"):
             raise ActionError("Release the {} first (unlatch)".format(latch_kind(rec).replace("_", " ")), "precondition")
     clasps = int(C.num(C.mget(rec, "clasps_closed"), 0))
     if kind == "latch_clasp" and clasps > 0 and not rec.get("open"):
-        if newtons >= C.FORCE_N["yank"]:
+        if C.yanked(newtons):
             rr, mech = C.mut_mech(w, eid)
             mech["clasps_closed"] = 0
             C.mark_damage(w, eid, "clasps ripped open")
@@ -253,7 +253,7 @@ def check_open(ctx, eid, force="normal", via="open"):
                 raise ActionError(diagnosis.FEEL[cause] + "; it will not open", "precondition")
             rm, mech = C.mut_mech(w, eid)
             mech["strain"] = int(C.num(mech.get("strain"))) + 1
-            if mech["strain"] >= 2 or newtons >= C.FORCE_N["yank"]:
+            if mech["strain"] >= 2 or C.yanked(newtons):
                 C.mark_damage(w, eid, "drawer slide damaged by yanking it")
             if cause == "item_caught":
                 for child in [c for c in w.children(eid) if w.ent(c).get("relation") == "behind"]:
@@ -287,7 +287,7 @@ def apply_open(ctx, eid, extent=1.0, force="normal", via="open", held_back=False
     kind = C.kind_of(rec)
     if kind in C.COVERING_KINDS or kind == "overhead_door":
         return
-    newtons = C.force_n(force)
+    newtons = C.applied_n(state, force, "push" if via == "push" else "pull")
     extent = max(0.02, min(1.0, float(extent)))
     if kind in C.WINDOW_KINDS:
         limit = window_limit(rec)
@@ -321,7 +321,7 @@ def apply_open(ctx, eid, extent=1.0, force="normal", via="open", held_back=False
         _leaners_fall(ctx, eid, extent, held_back)
     if kind in C.CABINET_KINDS:
         _cabinet_swing(ctx, eid, newtons)
-        if newtons >= C.FORCE_N["yank"] and (rec.get("material") == "glass" or kind == "glass_front_cabinet"):
+        if C.yanked(newtons) and (rec.get("material") == "glass" or kind == "glass_front_cabinet"):
             C.mark_damage(w, eid, "glass door cracked when yanked", broken=True)
     if kind == "high_chair":
         rr, mech = C.mut_mech(w, eid)
@@ -557,7 +557,7 @@ def _sweep_floor(ctx, eid, newtons=None):
             im["liquid_l"] = round(C.num(im.get("liquid_l")) - lost, 3)
             im["spilled_l"] = round(C.num(im.get("spilled_l")) + lost, 3)
             w.stat("spills")
-        w.emit("knocked_over", target=item, by=eid, careless=careless)
+        C.visual(w, "knocked_over", source=item, target=item, by=eid, careless=careless)
         C.tell(ctx, "The door swung into the {} and knocked it over".format(label))
     if stopped:
         # the leaf rests where it met the obstacle (about a third open: enough to look through, not to pass)
@@ -652,7 +652,7 @@ def escape(w, pid, room, cell, via=None):
 def _drawer_opened(ctx, eid, extent, newtons):
     w = ctx.w
     rec = w.ent(eid)
-    if newtons >= C.FORCE_N["yank"]:
+    if C.yanked(newtons):
         for child in contents(w, eid, "in"):
             crec = w.ent(child)
             if C.num(crec.get("liquid_l")) > 0 and not crec.get("sealed", False) and crec.get("stands_upright", True):
@@ -702,15 +702,95 @@ def dresser_of(state, eid):
     return None
 
 
+def drawers_of(state, furniture_id):
+    """The drawers that are parts of a piece of case furniture (sorted ids): its children with relation "part" (or
+    part_of) that are drawers."""
+    ents = state["entities"]
+    return [d for d in sorted(ents) if (ents[d].get("location") == furniture_id or ents[d].get("part_of") == furniture_id)
+            and dresser_of(state, d) == furniture_id]
+
+
+def drawer_arm_m(state, drawer, depth):
+    """How far an open drawer's centre of mass sits beyond its furniture's front edge (m): its extension (open
+    fraction x travel) less half the furniture's depth (TIER1_PHYSICS 5.4: x_k = extension - depth / 2); negative when
+    it is still over the base."""
+    drc = state["entities"][drawer]
+    ext = C.num(C.mget(drc, "open_frac", 1.0), 1.0)
+    travel = C.num(C.mget(drc, "travel_m"), C.num((drc.get("inner_size_m") or [0, 0.42])[1], 0.42))
+    return ext * travel - depth / 2.0
+
+
+def tipped(rec):
+    """Furniture lies tipped over: the kernel's tipped_over (furniture_tip law) or this domain's legacy `tipped`."""
+    return bool(rec.get("tipped") or rec.get("tipped_over") or rec.get("orientation") == "on_side")
+
+
+@hook("phys.tip_loads")
+def _tip_loads(state, furniture_id):
+    """Open drawers of a piece of case furniture as front loads for the kernel's furniture tip (phys.tip_loads, TIER1_
+    PHYSICS 5.4): (the drawer's mass with its contents, its arm beyond the front edge, its height). Only furniture with
+    drawer parts reports anything; anchored furniture never tips (the kernel's margin is infinite). Furniture whose
+    anchoring was never decided (no `anchored` field: generation-1 houses; generation 2 draws it per piece,
+    furnish.anchoring) keeps this domain's convention that it is anchored, so its drawers add no load."""
+    rec = state["entities"].get(furniture_id)
+    if rec is None or rec.get("anchored", True) or rec.get("portable"):
+        return []
+    drawers = [d for d in drawers_of(state, furniture_id) if state["entities"][d].get("open")]
+    if not drawers:
+        return []
+    depth = C.num((rec.get("size_m") or [1.0, 0.45, 0.9])[1], 0.45)
+    return [(round(subtree_mass_s(state, d), 4), round(drawer_arm_m(state, d, depth), 4),
+             round(C.num(state["entities"][d].get("z_m"), 0.5), 3)) for d in drawers]
+
+
+def subtree_mass_s(state, eid):
+    """The kernel's subtree mass of an entity (the drawer and everything in it) from a state."""
+    from ...kernel.phys import support
+    return support.subtree_mass(state, eid)
+
+
+@hook("phys.tipped")
+def _tipped_drawers_spill(w, eid, info):
+    """Case furniture the kernel tipped over (any cause: open drawers, a child pulling, a scripted event): what lies in
+    its open drawers is thrown out toward where it fell (the kernel only moves what rests on or in the piece itself).
+    The fall keeps the kernel's attribution of the tip."""
+    state = w.s
+    drawers = [d for d in drawers_of(state, eid) if state["entities"][d].get("open")]
+    if not drawers:
+        return
+    from ...kernel import physics
+    for d in drawers:
+        height = max(0.3, C.num(state["entities"][d].get("z_m"), 0.5))
+        for child in contents(w, d, "in"):
+            if child in state["entities"]:
+                physics.fall(w, child, height_m=height, cause="tipped_off", by=info.get("by"),
+                             direction=info.get("direction"))
+
+
 def check_tip(ctx, eid, extra_kg=0.0, extra_x_m=0.0):
-    """Unanchored case furniture tips forward when open drawers' moment exceeds its righting moment."""
+    """Unanchored case furniture tips forward when open drawers' moment exceeds its righting moment. While the kernel's
+    furniture_tip law is active the kernel decides it (TIER1_PHYSICS 10.3): its tip margin with the open drawers as
+    phys.tip_loads (above) plus a load test's extra load, and physics.tip_over (orientation on_side, tipped_over, what
+    stood on it falls, the crash; injuries are the people, pets and safety domains'). Legacy rule otherwise (an
+    unanchored piece: `anchored` false; generation-1 furniture without the field counts as anchored)."""
     w = ctx.w
     state = w.s
     dresser = dresser_of(state, eid)
     if dresser is None:
         return False
     drec = state["entities"][dresser]
-    if drec.get("anchored", True) or drec.get("tipped"):
+    if C.law_active("furniture_tip"):
+        if tipped(drec) or drec.get("anchored", True):
+            return False
+        from ...kernel import physics
+        extra = [(float(extra_kg), float(extra_x_m))] if extra_kg > 0 else []
+        if physics.tip_margin_nm(state, dresser, extra=extra) >= 0:
+            return False
+        out = physics.tip_over(w, dresser, "load_test" if extra else "overbalanced")
+        if out.get("tipped"):
+            C.tell(ctx, "The {} tipped forward!".format("dresser" if not C.realistic(ctx) else C.ref(ctx, dresser)))
+        return bool(out.get("tipped"))
+    if drec.get("anchored", True) or tipped(drec):
         return False
     depth = C.num((drec.get("size_m") or [1.0, 0.45, 0.9])[1], 0.45)
     drawers = [d for d in sorted(state["entities"]) if dresser_of(state, d) == dresser]
@@ -754,7 +834,8 @@ def _tip_over(ctx, dresser, drawers):
     near = [c for cell_ in (cells or []) for c in C.cross_cells(cell_)]
     for group, aid in C.agents_at(state, room, near):
         C.harm(w, "injury", agent=aid, cause="dresser tipped onto them")
-    w.emit("furniture_tipped", target=dresser)
+    C.visual(w, "furniture_tipped", source=dresser, size_m=1.0, target=dresser)
+    C.notice(w, "crash", source=dresser)
     C.tell(ctx, "The dresser tipped forward!")
 
 
@@ -784,7 +865,7 @@ def check_close(ctx, eid, force="normal", via="close"):
     if C.mget(rec, "track") == "derailed":
         raise ActionError("It is off its track; re-seat it first (push_handle lift=true)", "precondition")
     obstacles = close_obstructions(w, eid)
-    newtons = C.force_n(force)
+    newtons = C.applied_n(w.s, force, "pull" if via == "pull" else "push")
     if obstacles and newtons < C.FORCE_N["firm"]:
         kind0, oid = obstacles[0]
         raise ActionError("It won't close: " + describe_obstruction(w, kind0, oid, ctx), "precondition")
@@ -852,7 +933,9 @@ def apply_close(ctx, eid, force="normal", via="close", lifted=False, obstacles=(
     kind = C.kind_of(rec)
     if kind in C.COVERING_KINDS or kind == "overhead_door":
         return
-    newtons = C.force_n(force)
+    # gravity or a spring shuts it (a lid falling, a closer): its own force; otherwise what the robot's body delivers
+    unforced = via in ("fell", "drop", "self", "spring")
+    newtons = C.force_n(force) if unforced else C.applied_n(state, force, "pull" if via == "pull" else "push")
     if obstacles:
         crush(ctx, eid, obstacles, newtons)
     tracked = "mech" in rec or via != "close" or kind in C.WINDOW_KINDS and C.mget(rec, "upper_open_frac")
@@ -860,7 +943,7 @@ def apply_close(ctx, eid, force="normal", via="close", lifted=False, obstacles=(
     rr["open"] = False
     if tracked:
         C.set_open(w, eid, 0.0)
-    slam = C.speed(w) == "fast" or newtons >= C.FORCE_N["yank"] or (self_closed and C.mget(rec, "closer_speed") == "fast")
+    slam = C.speed(w) == "fast" or C.yanked(newtons) or (self_closed and C.mget(rec, "closer_speed") == "fast")
     has_latch = latch_kind(rec) not in (None, "none") or "latched" in rec
     if kind in C.LID_KINDS or kind in C.CABINET_KINDS or kind == "drawer":
         has_latch = has_latch or "latched" in rec
@@ -967,10 +1050,12 @@ def slam_event(ctx, eid):
     mech["slams"] = int(C.num(mech.get("slams"))) + 1
     w.stat("noise", 1.0)
     C.mlog(w, "slams", {"target": eid})
-    w.emit("slam", target=eid, room=C.room_of(w.s, eid))
+    C.visual(w, "slam", source=eid, size_m=1.0, target=eid, room=C.room_of(w.s, eid))
+    C.notice(w, "door_slam", source=eid)
     rec = w.ent(eid)
     if (rec.get("material") == "glass" or C.kind_of(rec) in ("glass_front_cabinet", "french_door", "storm_door")) and mech["slams"] >= 2:
         C.mark_damage(w, eid, "glass cracked by repeated slamming", broken=True)
+        C.notice(w, "glass_breaking", source=eid)
     elif mech["slams"] >= 4:
         C.mark_damage(w, eid, "hinges loosened by slamming")
 
@@ -1090,4 +1175,4 @@ def _after_move(ctx, result):
             C.mut_mech(w, door_id)[1]["rests_ajar"] = True
         if C.mget(rec, "closer_speed") == "fast":
             slam_event(ctx, door_id)
-        w.emit("door_self_closed", target=door_id)
+        C.visual(w, "door_self_closed", source=door_id, size_m=1.0, target=door_id)

@@ -6,7 +6,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T21:30:00"
+    "start": "2026-10-09T21:30:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -198,7 +199,8 @@
       "authority": 0,
       "label": "Mia (toddler)"
      }
-    ]
+    ],
+    "gen": 2
    },
    "setup": [
     {
@@ -338,7 +340,8 @@
    "title": "Close a door (cat in the coat closet)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -506,7 +509,8 @@
    "house": {
     "dwelling": "house",
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -677,7 +681,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T13:00:00"
+    "start": "2026-10-09T13:00:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -776,6 +781,7 @@
         "value": "rain"
        },
        "persistent": true,
+       "mode": "auto",
        "commands": [
         {
          "action": "approach",
@@ -788,19 +794,10 @@
        ]
       },
       {
-       "wait_until": {
-        "path": "pending",
-        "op": "len_gte",
-        "value": 1
-       },
-       "max_s": 3000,
-       "poll_s": 60
-      },
-      {
-       "do": "run_pending"
-      },
-      {
-       "do": "run_pending"
+       "wait_for": [
+        "order"
+       ],
+       "max_s": 3000
       }
      ]
     },
@@ -835,6 +832,7 @@
         "value": "rain"
        },
        "persistent": true,
+       "mode": "auto",
        "commands": [
         {
          "action": "approach",
@@ -892,6 +890,7 @@
         "value": "rain"
        },
        "persistent": true,
+       "mode": "auto",
        "commands": [
         {
          "action": "approach",
@@ -910,7 +909,8 @@
      ]
     }
    ],
-   "notes": "A persistent standing order on the observable weather; rain ingress through the open sash wets the sill book (water_damaged) if the window stays open. Dry branch: the window must stay as the resident set it."
+   "notes": "A persistent standing order on the observable weather (the robot stands in the room with the window: the rain is perceivable); rain ingress through the open sash wets the sill book (water_damaged) if the window stays open. Dry branch: the window must stay as the resident set it. Schema 3 (migration M-WAITS): the order runs on its own (mode auto) while the robot waits, and the robot's wait ends when the order fires (wait_for order) -- before, the reference polled the hidden pending-order list.",
+   "schema": 3
   },
   {
    "catalog_id": "T-259d38eb6707f0-01",
@@ -1005,7 +1005,7 @@
      ]
     }
    ],
-   "notes": "Hidden sag 8-14 mm vs a 6 mm latch tolerance: the bar only drops into the catch when the gate is lifted while latching (lift takes up to 15 mm). Inspection shows how far the bar sits below the catch."
+   "notes": "Hidden sag 8-14 mm vs a 6 mm latch tolerance: the bar only drops into the catch when the gate is lifted while latching (lift takes up to 15 mm). Inspection shows how far the bar sits below the catch. Generation 1 (M-GEN2): on generation-2 houses (seed 97) outdoor_plants' wind blows both patio chairs onto the patio's doorway cell to the backyard, which leaves no route to the gate (cross-domain bug reported to outdoor_plants); the spec moves to generation 2 once that is fixed."
   },
   {
    "catalog_id": "T-457ec84b96c1ee-01",
@@ -1016,7 +1016,8 @@
      "garage"
     ],
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1112,7 +1113,8 @@
    "title": "Turn a dial (Fahrenheit oven dial, Celsius request)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1276,7 +1278,8 @@
    "title": "Pump a dispenser (locked pump head)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1725,14 +1728,15 @@
      ]
     }
    ],
-   "notes": "Hasp + padlock: the shackle must pass through the staple with the hasp closed or the door still opens; the occupant (cat or gardener) comes out only while the door is open; locking them in is the trapped invariant. The key stays on its entry hook."
+   "notes": "Hasp + padlock: the shackle must pass through the staple with the hasp closed or the door still opens; the occupant (cat or gardener) comes out only while the door is open; locking them in is the trapped invariant. The key stays on its entry hook. Generation 1 (M-GEN2): on generation-2 houses (seed 97) outdoor_plants' wind blows both patio chairs onto the patio's doorway cell to the backyard, which leaves no route to the shed (cross-domain bug reported to outdoor_plants); the spec moves to generation 2 once that is fixed."
   },
   {
    "catalog_id": "T-0bd75d2bb80aab-01",
    "title": "Use a touchscreen (randomized thermostat menus)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1915,7 +1919,8 @@
    "title": "Close this drawer; something is blocking it",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [],
    "variants": [

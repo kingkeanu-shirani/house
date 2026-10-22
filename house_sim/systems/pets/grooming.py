@@ -55,11 +55,32 @@ def _reaction(w, pid, ctx):
     return "{} snapped at you".format(pet.get("label", pid))
 
 
+def _held_dryer(ctx):
+    """The pet dryer dry_pet would use: its tool argument when held, else the first held dryer; None with a towel."""
+    w = ctx.w
+    tool = ctx.args.get("tool")
+    tools = [tool] if tool and tool in w.held_items() else w.held_items()
+    for eid in tools:
+        rec = w.s["entities"].get(eid) or {}
+        if "dryer" in str(rec.get("label", "")).lower() or (rec.get("settings") or {}).get("heat"):
+            return eid
+    return None
+
+
+def dryer_db(ctx):
+    """ActionSpec.noise_db of dry_pet (body, TIER1_INTEGRATION 6): a held pet dryer's level (80 dB at 1 m, the type's
+    noise_db), so quiet mode refuses it (use a towel); toweling is quiet (None)."""
+    dryer = _held_dryer(ctx)
+    if dryer is None:
+        return None
+    return C.num(ctx.w.s["entities"][dryer].get("noise_db"), 80.0)
+
+
 @action("brush_pet", params={"target": "pet", "tool": "?entity", "direction": {"type": "str", "default": "with_grain", "choices": ["with_grain", "against_grain"]},
                              "pressure": {"type": "str", "default": "gentle", "choices": ["gentle", "firm"]},
                              "area": {"type": "str", "default": "body", "choices": ["body", "back", "sides", "legs", "belly", "tail", "full"]},
                              "minutes": {"type": "number", "default": 2, "min": 0.5, "max": 20}},
-        duration=lambda ctx: 60.0 * C.num(ctx.args.get("minutes"), 2.0), energy=0.02, category="physical",
+        duration=lambda ctx: 60.0 * C.num(ctx.args.get("minutes"), 2.0), energy=0.02, category="physical", timing="commanded",
         doc="Brush a calm pet with a held grooming brush for some minutes (with the grain, gentle). Stop at the first stress signs "
             "(check its mood between short sessions). Avoid hot spots, wounds and mats (check_pet aspect=coat first).")
 def brush_pet(ctx):
@@ -311,6 +332,7 @@ def bathe_pet(ctx):
 
 @action("dry_pet", params={"target": "pet", "tool": "?entity", "minutes": {"type": "number", "default": 5, "min": 1, "max": 30}},
         duration=lambda ctx: 60.0 * C.num(ctx.args.get("minutes"), 5.0), energy=0.03, noise=0.3, category="physical",
+        timing="commanded", noise_db=lambda ctx: dryer_db(ctx),
         doc="Dry a wet pet with a held towel, or a held pet dryer that is switched on (its heat setting: cool/low; high heat burns).")
 def dry_pet(ctx):
     w = ctx.w
@@ -330,6 +352,7 @@ def dry_pet(ctx):
         require(trec.get("on") and physics.is_powered(w, tool), "Switch the dryer on first", "precondition")
         heat = (trec.get("settings") or {}).get("heat", "low")
         m["wetness"] = round(wet * math.exp(-minutes / (6.0 if heat != "cool" else 10.0)), 3)
+        # the other pets in earshot hear the running dryer through the agents' noisy-device load (noise_db 80, on)
         _stress_step(w, pid, 0.04 * minutes * max(0.3, C.behavior(pet, "noise_phobia", 0.4)), "dryer noise")
         if heat == "high":
             B.add_condition(w, pid, {"kind": "burn", "since_s": C.now(state), "onset_s": C.now(state), "signs": ["red_skin"],
@@ -761,39 +784,62 @@ def _recall_unseen(ctx, pid, pet, label):
 # ----------------------------------------------------------------------
 # drying, chill and excitement over time
 
-@system("pets.body", order=141, max_dt=30.0)
+def _body_changes(state, pid, pet, dt):
+    """(changes, chill harm temperature or None) of one pet's pets.body step over dt."""
+    changes, chilled = {}, None
+    wet = C.num(pet.get("wetness"))
+    rid = pet.get("location")
+    temp = physics.room_temperature(state, rid) if rid in state["rooms"] else 21.0
+    outdoors_wet = rid in state["rooms"] and C.is_outdoor(state, rid) and (state.get("weather") or {}).get("condition") in ("rain", "storm", "thunderstorm")
+    if wet > 0.0 and not outdoors_wet:
+        changes["wetness"] = round(wet * math.exp(-dt / 7200.0), 4)
+        if wet > 0.5 and temp < 18.0:
+            chill = C.num(pet.get("_chill_s")) + dt
+            changes["_chill_s"] = round(chill, 1)
+            if chill >= 1200 and not pet.get("chilled"):
+                changes["chilled"] = True
+                chilled = temp
+    exc = C.num(pet.get("excitement"))
+    if exc > 0.2:
+        changes["excitement"] = round(0.2 + (exc - 0.2) * math.exp(-dt / 300.0), 4)
+    if C.num(pet.get("paws_wet")) > 0:
+        changes["paws_wet"] = round(C.num(pet.get("paws_wet")) * math.exp(-dt / 600.0), 3)
+    if "_escape_risk_base" in pet and C.num(pet.get("stay_until_s"), -1) < C.now(state):
+        changes["escape_risk"] = pet["_escape_risk_base"]
+        changes["_escape_risk_base"] = None
+    if pet.get("leashed"):
+        from .handling import secure_link
+        secure = secure_link(state, pid)[0]
+        if bool(pet.get("leash_secure")) != secure:
+            changes["leash_secure"] = secure
+    return changes, chilled
+
+
+def body_idle(w):
+    """Exact idle probe of pets.body (kernel v3.1): no pet would change -- every decaying value (coat and paw
+    wetness, excitement) already rounds to itself over a whole 30 s substep (so over any shorter one too), no chill
+    accumulating, no stay cue expiring, every leash's security current."""
+    state = w.s
+    for pid in C.pet_ids(state):
+        pet = state["pets"][pid]
+        if pet.get("escaped") or pet.get("away"):
+            continue
+        changes, _chilled = _body_changes(state, pid, pet, 30.0)
+        if "_chill_s" in changes or any(pet.get(k) != v for k, v in changes.items()):
+            return False
+    return True
+
+
+@system("pets.body", order=141, max_dt=30.0, idle=body_idle)
 def body_tick(w, dt, tick):
     state = w.s
     for pid in C.pet_ids(state):
         pet = state["pets"][pid]
         if pet.get("escaped") or pet.get("away"):
             continue
-        changes = {}
-        wet = C.num(pet.get("wetness"))
-        rid = pet.get("location")
-        temp = physics.room_temperature(state, rid) if rid in state["rooms"] else 21.0
-        outdoors_wet = rid in state["rooms"] and C.is_outdoor(state, rid) and (state.get("weather") or {}).get("condition") in ("rain", "storm", "thunderstorm")
-        if wet > 0.0 and not outdoors_wet:
-            changes["wetness"] = round(wet * math.exp(-dt / 7200.0), 4)
-            if wet > 0.5 and temp < 18.0:
-                chill = C.num(pet.get("_chill_s")) + dt
-                changes["_chill_s"] = round(chill, 1)
-                if chill >= 1200 and not pet.get("chilled"):
-                    changes["chilled"] = True
-                    C.harm(w, "chilled", pet=pid, temp_c=temp)
-        exc = C.num(pet.get("excitement"))
-        if exc > 0.2:
-            changes["excitement"] = round(0.2 + (exc - 0.2) * math.exp(-dt / 300.0), 4)
-        if C.num(pet.get("paws_wet")) > 0:
-            changes["paws_wet"] = round(C.num(pet.get("paws_wet")) * math.exp(-dt / 600.0), 3)
-        if "_escape_risk_base" in pet and C.num(pet.get("stay_until_s"), -1) < C.now(state):
-            changes["escape_risk"] = pet["_escape_risk_base"]
-            changes["_escape_risk_base"] = None
-        if pet.get("leashed"):
-            from .handling import secure_link
-            secure = secure_link(state, pid)[0]
-            if bool(pet.get("leash_secure")) != secure:
-                changes["leash_secure"] = secure
+        changes, chilled = _body_changes(state, pid, pet, dt)
+        if chilled is not None:
+            C.harm(w, "chilled", pet=pid, temp_c=chilled)
         if changes:
             m = w.pet_m(pid)
             m.update({k: v for k, v in changes.items()})

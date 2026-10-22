@@ -7,11 +7,14 @@ refrigerators and freezers (seals, frost, defrost), dishwashers (loading rules, 
 outdoor gas and charcoal grills, cooking timers, oven mitts and hot-item handling, appliance noises and faults.
 
 Code: `house_sim/systems/appliances_cooking/` (package). Types: `house_sim/data/types/appliances_cooking.json` (96 types).
-Tests: `tests/test_appliances_cooking.py` (152 tests, 32 of them realistic-perception, kernel v2.8 hardening and round-3
-follow-ups; pass with every other domain loaded, with `HOUSE_SIM_STRICT=1`, and isolated). Perception specs:
-`tasks/authored/appliances_cooking__perception.json` (5 realistic-mode specs, section 4a). Examples:
-`tasks/authored/appliances_cooking__examples.json` (12 specs; both files pass `--check` on seeds
-0, 1, 2, 41, 97 with every domain loaded). Cost: `tools/bench_systems.py 40 0 1 2 3 --domain appliances_cooking`
+Tests: `tests/test_appliances_cooking.py` (181 tests, 32 of them realistic-perception, kernel v2.8 hardening and round-3
+follow-ups, 24 of the tier-1 adoption round (section 10); pass with every other domain loaded, with `HOUSE_SIM_STRICT=1`,
+isolated (`HOUSE_SIM_DOMAINS=core,appliances_cooking`, also strict) and with every deferred physics law but `stack`
+forced active, section 10). Perception specs: `tasks/authored/appliances_cooking__perception.json` (5 realistic-mode
+specs, section 4a; T-22bc2280c7e6be-01 runs with the geometric camera). Examples:
+`tasks/authored/appliances_cooking__examples.json` (12 specs). Every spec of both files declares `"house": {"gen": 2}`
+and passes `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded, in its own mode, with `--camera geometric`
+(the perception file) and with those laws forced active. Cost: `tools/bench_systems.py 40 0 1 2 3 --domain appliances_cooking`
 ~0.1-0.3 ms per 30 s substep (was ~1.3 ms before the integration round; `tools/bench_systems.py 20` after the
 v2.3 layout round: 0.17 ms, whole engine 5.8 ms). Layout: `tools/layout_audit.py 20 --domain appliances_cooking` reports 0 lines
 (kernel v2.5 audit kinds included: no wall cabinet hangs where the hood is). Perception: `tools/perception_audit.py 30 80`
@@ -20,7 +23,7 @@ refusals of unfamiliar things, cook_state juices) are fixed (section 4a).
 
 | Module | Contents |
 |---|---|
-| `common.py` | state section `appliances_cooking` (log, harms, counters, once-keys, fallback air), level scales, liquids table (density, cp, boiling and smoke points, foam factor), material rules (induction, oven/broiler/microwave/dishwasher verdicts, thermal-shock limits, surface heat limits, ignition and melt points), people/children/birds helpers, air fallbacks (smoke, odour, gas %), counter edges, power state, floor-access helpers on the kernel v2.3 geometry (`approachable`: 4-connected `geometry.reachable_cells` from the doorways, radius 2 for wall-mounted things above counter height, like the kernel's `approach`; `wall_storage`: drawer fronts, wall cabinets, shelves), deferred destroy, `add_damage` (damage dict), `system_loaded`, the tick-scoped location index (`tick_index_begin/end`; `children`/`descendants` use it inside the tick) |
+| `common.py` | state section `appliances_cooking` (log, harms, counters, once-keys, fallback air), level scales, liquids table (density, cp, boiling and smoke points, foam factor), material rules (induction, oven/broiler/microwave/dishwasher verdicts, ignition and melt points; `surface_heat_limit_c` is the kernel's heat limit), the tier-1 adapters (`own_temperature` / `release_temperature` / `owns_temperature`, `law_active`, `break_item`, `spill`, `shock`, `scalded`, `quiet_check`, `visual_event`, `notice`; section 10), people/children/birds helpers, air fallbacks (smoke, odour, gas %), counter edges, power state, floor-access helpers on the kernel v2.3 geometry (`approachable`: 4-connected `geometry.reachable_cells` from the doorways, radius 2 for wall-mounted things above counter height, like the kernel's `approach`; `wall_storage`: drawer fronts, wall cabinets, shelves), deferred destroy, `add_damage` (damage dict), `system_loaded`, the tick-scoped location index (`tick_index_begin/end`; `children`/`descendants` use it inside the tick) |
 | `build.py` | builders: `build_range` (burners, oven + racks, hood; built-in cooktop fallback), `build_fridge` (door bins, crispers, gaskets and the freezer compartment as parts), `build_freezer`, `build_dishwasher` (racks, basket, cup, rinse-aid reservoir, filter, sump, gasket, brand panels), kettle, blender, coffee makers, air fryer, slow / pressure / rice cookers, espresso, food processor, stand mixer, grill + propane cylinder (a part of the grill); placement on the kernel access model: `access_targets` (the kernel's targets plus the room's mounted lights, which need a bulb change now and then) / `access_report` / `access_check` (geometry.access_report / not_worse - the rule Placer.furniture uses: doorway groups stay joined and everything that was accessible stays accessible, lights included, full protection first), `clear_hood_wall` (a wall cabinet or shelf hanging where the range hood goes moves, with its contents, to the nearest reachable free wall cell, else up above the hood), `wall_conflicts` (a floor piece never stands in front of / under a mounted thing hung lower than its top - windows, coverings, radiators, registers, switches, extinguishers, drawer fronts, wall cabinets, sinks, hoods; receptacles excepted), `place_safely`, `place_floor_appliance` (fridge, range, freezer: a wall spot keeping full access -> an empty base cabinet's place -> the end of a counter run (the counter keeps >= 1 m; loose items move along or to another surface; drawer fronts and wall cabinets move with the counter; never in front of a window/radiator/switch) -> a wall spot keeping basic access (doorways, dock, floor-standing things, operable mounts, wall storage) -> the dining table and chairs go to the next room and it tries again -> a free-standing spot as the last resort), shelf loads (`shelf_rating` ~30 kg per base-cabinet shelf, 15 kg upper; `shelf_load`, `shelf_with_room`, `store_in_cabinets`, which unplugs a corded appliance it puts away) |
 | `stove.py` | burners (gas flow/flame/CO/unlit leak, coil/radiant elements and residual heat, induction pan detection) and the lumped vessel model (boiling cap, evaporation, foam and boil-over, scorching, boil-dry, oil smoke point and autoignition, latent heat of frozen contents), attendance, handle direction, food into hot oil, `ignite` |
 | `cook.py` | cooking profiles (26), heat context per appliance, surface moisture / browning per side, lagged core, doneness labels and visible cues, danger-zone time, crowding, broiler distance, `check_doneness`, flip/shake hooks |
@@ -29,14 +32,15 @@ refusals of unfamiliar things, cook_state juices) are fixed (section 4a).
 | `coffee.py` | drip brew (flow, strength, filter/carafe mistakes, warmer), descaling, `brew` (drip, pod, espresso shot model, french press), espresso boiler, `steam_milk`, `grind_coffee`, knock box |
 | `cold.py` | fridge/freezer air model (compressor, door open/ajar UA, alarms), frost growth, `defrost` (methods, meltwater containment), door obstruction (protruding items, gasket; `unit_contents` keeps a refrigerator's check out of its freezer part), shelf clearance guard |
 | `dishwasher.py` | slot classes and loading rules, `analyse` (spray arms, detergent door, nesting, spooning, overload, exposure), `load_check` truth, `load` / `unload` verbs, cycle hooks (programs, brands, delay, household rules, detergent release, rinse aid, wash outcome, damage to unsuitable items, drying), filter access, mid-cycle opening |
-| `grill.py`, `timers.py`, `handling.py`, `status.py`, `systems.py` | `light_grill` + grill model (propane cylinder slot: install/uninstall hooks, valve-open refusal); `set_timer` + ringing; mitts, hot placement, child reach, carry warnings, detergent invariant; observer, inspector, answerer, intent checks, always-on invariant; the domain tick (static index, idle predicates, vessel hand-back) and the drying fallback |
+| `grill.py`, `timers.py`, `handling.py`, `status.py`, `routes.py`, `systems.py` | `light_grill` + grill model (propane cylinder slot: install/uninstall hooks, valve-open refusal); `set_timer` + ringing; mitts (gripper heat fault), hot placement (kernel contact heat and thermal shock, `phys.contact_heat` claims), child reach, carry warnings, detergent invariant; observer, inspector, answerer (and the `permission:self_clean:` / `permission:defrost:` answerers), intent checks, always-on invariant, watchable fields; the dialogue routes to the answerer; the domain tick (static index, idle predicates, exact idle probe, vessel hand-back), the cold system and the drying fallback |
 | `furnish.py`, `scenarios.py`, `skills.py` | furnishers (orders 45-47), 13 scenario helpers (+ kitchen workability: pets out of the way, reachable tools, counter room for appliances, dishes and props), 16 reference skills |
 
 All state-affecting iteration is over sorted ids; randomness only through `ctx.rng` / `tick.rng`. Systems (section 3):
 `appliances_cooking.tick` (order 55, max 30 s) never scans all entities: it reads one kernel static index of the
 entities it can ever act on, skips every appliance whose idle predicate holds (a check on its own record), and steps
-only active appliances and the food in/at them; `appliances_cooking.drying` (period 300 s) is a fallback that runs
-only without the cleaning domain.
+only active appliances and the food in/at them, and an exact idle probe lets the engine skip it in a quiet kitchen;
+`appliances_cooking.cold` (order 55) steps the fridges and freezers every substep; `appliances_cooking.drying`
+(period 300 s) is a fallback that runs only without the cleaning domain.
 
 -----------------------------------------------------------------------------------------------
 
@@ -48,11 +52,15 @@ only without the cleaning domain.
   `_cook`, `_pressure`, `_toaster`, `_fault`, `_intended`, `_defrost_ok`. Predicates may read both; the robot only
   sees the observable ones (inspect adds a few more, see section 4).
 * **Who owns temperature.** A pot on a burner or appliance base, and a pan on an oven rack, is owned by this domain
-  while heated (`fixed_temperature` + `_ac_heat` = heater id): a lumped energy balance with its contents (water,
+  while heated (`thermal_owner: "appliances_cooking"` + `_ac_heat` = heater id; the kernel's convention, TIER1_PHYSICS
+  5.9 - `common.own_temperature` / `release_temperature`; the older `fixed_temperature` alias is still read as
+  ownership and dropped on release): a lumped energy balance with its contents (water,
   oil, liquid foods, solids' heat capacity, ice latent heat). It is released the moment it leaves the heater, and
   also once its heater is switched off and it has cooled to <= max(room + 1 C, 40 C) with no foam (`boil_state`
   becomes `cold`; the kernel/food thermal models take over; it is re-owned as soon as the heater delivers heat).
-  A switched-off, cool slow-cooker base drops its own `fixed_temperature` the same way.
+  A switched-off, cool slow-cooker base drops its own `thermal_owner` the same way. Burner elements and the electric
+  griddle are always this domain's (type data `thermal_owner`; a generation-1 kitchen keeps the `fixed_temperature`
+  alias, section 10).
   Food items follow their vessel / cavity: with the food domain loaded its `food.thermal` (order 52) relaxes food
   toward the vessel/cavity and keeps the core node, latent heat and food-safety flags; this domain adds browning,
   moisture, doneness labels and danger-zone time in `_cook`. Without the food domain the kernel relaxes them and
@@ -150,12 +158,29 @@ breaks protruding jars), `close` (dishwasher door blocked by protruding items, a
   (`_mw.sh_watch`); toaster - not running, element back at 21 C; kettle / coffee maker - not `on`; mixer - speed 0;
   waffle maker / griddle - off and within 1 C of the room; slow cooker - level off, base <= max(room + 1, 40 C),
   contents cool; rice / pressure cooker - not running / not keeping warm, no pressure, display OFF, pot cool;
-  grill - no burner knob open, unlit, grate within 1 C of the outdoor air, ash cold; espresso - off, boiler at room;
+  grill - no burner knob open, unlit, grate within 1 C of the outdoor air, ash cold; espresso - off, not ready, boiler
+  within 1 C of the room (was 0.01 C before the adoption round: the same band as the other heaters, which the idle
+  probe's room bands rely on);
   dishwasher - running (the kernel drives the cycle) or within 0.5 C of the room; timers - none running/ringing.
-  Fridges and freezers are always stepped (compressor hysteresis, door alarms).
+  Fridges and freezers are stepped every substep by their own system `appliances_cooking.cold` (order 55, sorting
+  just before the tick: compressor hysteresis, door alarms never rest). It keeps each unit's contents (for the heat
+  load of warm things put in, section 10) in a transient memo: within a step the touch log says whether anything moved
+  in or out; after a begin() an exact scan of the locations does (`cold._unchanged`; test
+  `test_cold_contents_memo_matches_a_fresh_scan`). Cost (`tools/bench_systems.py 40 0 1 2 3`, a fresh step every
+  substep, A/B on copies of HEAD with and without this domain's adoption files): cold 0.17-0.19 ms + tick 0.14 ms
+  against the old tick's 0.19-0.20 ms; a quiet simulated day (`--day 0 1 2`, idle probes on) is unchanged for the whole
+  engine (6.9-7.4 s against 7.0-7.9 s).
+* **Exact idle probe** (kernel v3.1 `@system(idle=)`, `systems.tick_idle`): after a substep in which the tick wrote
+  nothing (`World.mutation_count` unchanged) it keeps a transient note (the world, the touch-log reset token
+  `World.phys_scratch`, its touch-log cursor, and per room the band of room temperatures within which every idle
+  appliance there stays idle). The engine then skips the tick while no entity it steps or holds was written since
+  (`World.touched_since`; the cold appliances and food chilling in them never wake it), every room stays inside its
+  band and below 38.9 C, the plate heaters are idle, no food anywhere has turned hot, no destroy is queued and the
+  fallback air is clear. `HOUSE_SIM_IDLE_PROBES=0` gives identical states (test
+  `test_idle_probes_are_exact_and_skip_a_quiet_kitchen`). `appliances_cooking.drying` has the probe `drying_idle`.
 * **Vessel hand-back.** "Cool" = <= max(room + 1 C, 40 C), no foam. Cool vessels owned by an idle burner or cooker,
   and anything owned by an idle oven, are released to the kernel/food thermal models (`_ac_heat`,
-  `fixed_temperature`, `foam_level` removed; liquid `boil_state` -> `cold`).
+  `thermal_owner`, `foam_level` removed; liquid `boil_state` -> `cold`).
 * **Contents** of active appliances come from a location index built at most once per tick (only while something is
   active) and shared by every sub-model (`common.tick_index_begin/end`).
 * **Food**: hot food anywhere (`temperature_c` > 38 C, or a hot/active `_cook`), food under an active heater, and food
@@ -178,8 +203,9 @@ Sub-models:
   as a lump with their contents (h ~18 W/m2K, 26 with the fan: a 23 cm cake is done in ~32-35 min), contents
   hazards, self-clean (480 C, lock, smoke and fumes, birds harmed, racks discoloured), air-fryer and toaster-oven
   extras.
-* **Cold**: compressor hysteresis, door open/ajar UA (a door held ajar by a jar at 21 C reaches ~10 C in 3 h), heat
-  load from warm food, door alarm after 2 min, temperature alarm, frost growth while running (+0.6 mm per hour
+* **Cold** (its own system `appliances_cooking.cold`): compressor hysteresis, door open/ajar UA (a door held ajar by a
+  jar at 21 C reaches ~10 C in 3 h), heat load from warm food (the food domain's `heat_load_w`) and from warm non-food
+  things at the kernel's own cooling rates (`cold.item_heat_load_w`, section 10), door alarm after 2 min, temperature alarm, frost growth while running (+0.6 mm per hour
   open, +0.25 mm/h ajar), defrost melting and meltwater (tray/towels contain it, otherwise a floor puddle and flood
   above 3 L).
 * **Countertop**: microwave absorption by load, toaster element 235 C, kettle boiling and auto-off (an electric kettle's
@@ -592,6 +618,207 @@ steeping and hot chocolate mixing (food), plugging in (electrical), carrying coo
 * Integration-round idling (section 3) trades exactness for cost only below thresholds nobody can observe: an idle
   appliance's internal temperature may lag the room by up to 1 C; a pot on a switched-off burner stops counting
   `_vessel.on_heat_s` / `since_stir_s` once cool; a cooled pot is relaxed by the kernel instead of the lumped model.
+* Geometric camera (checked with the camera's action-level visibility, `camera.can_see`): a pan on the rack of an open
+  oven, a mug in the open fridge or in a bowl on the counter are seen from where `approach` leaves the robot; with the
+  oven shut the pan shows through the door window only while the oven light is on.
+* Thermal shock on a wet non-conductive top (a wiped laminate or wood counter, a sink basin) is applied by this domain
+  with the kernel's contact coupling in both law states: the kernel's own exposure rule only knows wet conductive tops
+  (kernel request).
 * With the safety domain loaded, fires, smoke detectors and gas air models are safety's; this domain publishes
   `_gas_leak` / `_co_source` and calls its `ignite`. Liquids named other than oil/cooking_oil/grease (e.g.
   vegetable_oil) are handled here because safety's oil scan does not recognise them.
+
+-----------------------------------------------------------------------------------------------
+
+## 10. Tier-1 adoption round (TIER1_INTEGRATION section 6)
+
+**Physics** (kernel v3.0; every legacy copy of a law returns at once while that law is active - `common.law_active`,
+which is `lawbook.active`; TIER1_PHYSICS 10.3):
+
+* Ownership: `thermal_owner: "appliances_cooking"` replaces `fixed_temperature` where it means ownership (section 0;
+  `common.own_temperature` / `release_temperature` / `owns_temperature`; the scenario helpers' heated pots, the
+  `left_on` curling iron, space heater and slow cooker too). Generation-1 houses stay byte-identical (TIER1_INTEGRATION
+  3.2; checked: all 340 pinned generation-1 houses generate the same with these files as at HEAD): the kitchen furnisher
+  gives what it placed in a generation-1 house the old values (`furnish.GEN1_PROPS`: burners and the electric griddle
+  keep `fixed_temperature`, which the kernel reads as ownership too; a stored electric pressure cooker keeps its lid
+  open).
+* `contact_heat`: while the law is deferred, `handling._hot_placement` marks a finish at once with the kernel's numbers
+  (`common.surface_heat_limit_c` is now `thermal.heat_limit_c`: materials.json `heat`, at least 400 C for
+  heat_resistant tops, then the +-15 % per-instance variation; the contact face is `thermal.contact_temp_c`, so a pot's
+  wall is cooler than its soup; the domain's own heat-limit table and its 10 C margin are gone; things under 0.15 kg
+  still mark nothing at once). Once the law is active the kernel marks the support (accrued over the
+  first minute) and this domain claims (hook `phys.contact_heat`) only the contacts its own heat model owns: whatever
+  rests on one of its heaters or hot holders (`handling.HOT_SUPPORTS`: a pot on a burner, a kettle on its base, a
+  carafe on the warmer, a pan on an oven rack) and a vessel it is heating. The deferred rule skips the same contacts.
+* `thermal_shock`: every check goes through the kernel (`common.shock` -> `thermal.shock_check`, kernel tolerances and
+  couplings: soda-lime glass 45 K, ceramic and stoneware 100 K, porcelain 120 K, tempered glass 150 K, borosilicate
+  160 K, +-15 % per instance; contact 0.6, oven 0.5, freezer 0.3, immersion 1.0) and a failure breaks through the
+  kernel (`break_entity`: shattered, sharp, `phys_breaks`, the robot's `breakages`). The place hook covers a dish set
+  down hot on a wet top, into a hot oven or into a fridge (the kernel's own exposures, applied here only while the law
+  is deferred: its settle pass applies them once active) and the wet film on a non-conductive top (a wiped laminate or
+  wood counter, a sink basin), which the kernel's rule does not know (kernel request); a cold stoneware insert set into
+  a hot slow-cooker base uses the contact coupling. The domain's `thermal_shock_limit` table (soda-lime 90 K, ceramic
+  120 K) is gone and the tests use the kernel's tolerances.
+* Breaks and spills: glass on a burner or under the broiler, a jar burst in the microwave, stemware on the bottom
+  rack, a jar caught in a slammed fridge door and an empty carafe left on the warmer break through `common.break_item`
+  (the kernel's `break_entity`). Coffee that misses the carafe or cup, dishwasher floor water (soapy for suds) and
+  defrost meltwater go through the kernel's single spill entry (`common.spill` -> `physics.spill`: a film on the top,
+  the rest to the floor as a cleaning spill or a kernel puddle and the room's wet cells; the first portion of a coffee
+  mishap is the robot's spill, a trickle in later substeps counts only when it starts a new puddle).
+* `thermal_tau` and `phase`: the cabinet heat load of a warm non-food thing in a fridge or freezer
+  (`cold.item_heat_load_w`; the food domain reports its own food as `heat_load_w`) is the heat the kernel takes out of
+  it at its own rate (sensible heat through `kernel_tau_s` and `heat_capacity_j_k`, a freezing liquid's latent heat
+  through `phase_conductance_w_k`), which over the whole cooling adds up to its `heat_content_j`. The cooling, defrost
+  and heat-load expectations of the tests hold with both laws deferred and forced (the `thermal_tau` flip re-verified).
+* Overload: `build.shelf_rating` (furnishing and scenario storage only) is the lower of this domain's table and the
+  kernel's nominal per-shelf rating (`shelf_rating_kg`); stored loads stay at 40 % (scenarios 80 %) of it, below any
+  instance's -15 % variation, so nothing the furnisher stores can collapse under the overload law.
+* Burns: splash and steam harms (coffee, superheated water, kettle spit, hot blender, pressure-cooker steam jet) use the
+  kernel's burn time (`common.scalded`: `thermal.burn_seconds` within a 2 s contact; a child 12 or younger burns in a
+  quarter of the time), so a 60 C splash burns a child but not an adult. Hot handovers are the people domain's
+  (`_hot_handover`, burn_seconds).
+* `tools/physics_audit.py --data`: no mass, size or density gap for this domain (the countertop-appliance root now has
+  3 kg and 0.30 x 0.25 x 0.30 m; a paper coffee filter is 12 x 10 x 4 cm). The two type-level threshold overrides it
+  lists are intentional: `heat_rating_c` of oven mitts and pot holders is read off the sewn-in label (a nominal printed
+  rating; the kernel's heat limit of the instance varies around it), as tools_vehicles reads printed anchor ratings.
+* **Ready to flip** (the domain's tests and all 17 specs pass on the 5 seeds with the laws forced active together, the
+  perception specs also with the geometric camera; `lawbook.forced` around unittest and `--check` in one process):
+  `contact_heat`, `thermal_shock`, `thermal_tau`, `phase`, `overload`, and as far as this domain is concerned carry,
+  crush, edge, furniture_tip, handle, hang, melt, open_spill, setdown, slope, wet_contact and wind. With `melt` active
+  the kernel also deforms a plastic utensil this domain melts on a burner (both marks; harmless). **Not ready:**
+  `stack` - an oven rack is a portable item, so a dish on it counts as a stack and the kernel's clearance above it is
+  the next rack position (6 cm) even when no rack sits there: on opening the door the dish topples to the oven floor and
+  can no longer be lifted standing (8 tests and T-1aea0c41439b0a-01 fail with the law forced; kernel request below);
+  `rain` - not this domain's own mechanics, but on a rainy generation-2 evening (seed 41) the outdoor_plants raised
+  beds take `water_ring` damage that counts in `stats.damage`, so the preheat spec T-d8355138bcf9fb-01 fails its
+  no-damage side effect (cross-domain report).
+
+**Camera** (geometric mode; room mode is unchanged: visual events are not logged and nothing in a room-mode state
+differs):
+
+* Type `view` blocks: oven, microwave and toaster-oven bodies are opaque boxes (`porosity` 0) whose cavity shows
+  through the door window only while the light is on (`transparent`); bottom freezer drawers, crispers, door bins,
+  dishwasher racks and baskets and the detergent cup open at the top; the microwave's glass panel is glossy. Text
+  heights: displays 10 mm (the kernel's default; readable within about 0.9 m of the head camera, 0.34 m of the wrist),
+  the timer line of any appliance display 10 mm (set on both appliance roots), a kitchen timer 12 mm, an instant-read
+  thermometer 8 mm, dial thermometers, pod lids and mitt heat ratings 4 mm, a grill's lid dial 6 mm, rating plates
+  2.5 mm, an OUT OF ORDER tag 20 mm. The kernel's category rows already give refrigerators and upright freezers a front
+  opening with an interior light (chest freezers a top one) and stainless, enamel and glass ranges and cooktops their
+  gloss (checked with `sight.view_props` on every type). Per-field `acuity`: microwave arcing and grill flare-ups are
+  recognized at a glance. Browning and doneness are food fields; judging them by eye goes through the camera's inspect
+  rule (below).
+* `common.visual_event` (camera.visual_event without its event-log write) for broiler and grill flare-ups, a smoking
+  pan, a boil-over, flames on a burner (without the safety domain, which shows its own fires) and microwave arcing.
+* Reading: `percept.readable(ctx, eid, field)` uses the camera's reading rule for that field of that thing
+  (`ctx.read_check`) in geometric mode (oven, dishwasher, microwave, fridge and pressure-cooker displays, dial
+  thermometers through a door, the grill's lid dial, an OUT OF ORDER tag, a child warning label); `check_doneness` by
+  eye needs the camera's inspect rule (`ctx.inspect_check`) and any look-based method refuses an unidentified food with
+  the kernel's one unidentified message (`ctx.refuse_unidentified`; round-5 red-team item).
+* The senses observer pins a sound on an appliance only when it is in this step's visible set, which the geometric
+  camera builds from its frames; sounds and smells themselves are unchanged.
+* `tools/perception_audit.py 20 80 --verbose`: no leak in room mode; with `--camera geometric` the only lines are
+  textiles_laundry's (`drying_rack.view`).
+
+**Body**: a damp or holed mitt's burn-through marks the holding gripper (`body_faults` kind `gripper_heat_damage`,
+sided, detected at once; this fixes the stage-B crash of `sorted(set(robot.faults))` on the kernel's dict fault log);
+`brew`, `steam_milk`, `grind_coffee`, `blend` and `ignite` take `timing="commanded"` (the machine or the command sets
+their length, so the careful-speed rule does not stretch them); in quiet mode (core `set_quiet`) the blender (88 dB),
+food processor (85), grinder (80) and espresso steam wand (75) refuse to start against `body.quiet_limit_db` (55 dB)
+with the kernel's wording (`common.quiet_check`; the noise is the appliance's, not the action's `noise_db`). No verb of
+this domain moves the robot (no `ctx.motion` needed); heavy cookware is lifted through the kernel's own `pick_up`
+checks (`two_handed`, the body's capacity).
+
+**Sweep**:
+
+* Notices: done chimes and beeps (`appliance_done`: oven ready 65 dB, cycle done 62, microwave 65, dishwasher 55,
+  kettle click 50, toaster pop 60, coffee 60, rice or pressure cooker 62) and alarms (`alarm`: kitchen timer 80, fridge
+  door 68, temperature 72, fallback smoke alarm 85) go on the kernel notice bus (`common.notice`, `NOTICE_SOUNDS`; the
+  heard word never names the appliance) only while it is on; the timeline decides who hears them.
+* Questions: dialogue routes `appliance.intended` (aspect intended, a thing whose intent the household knows ->
+  `appliance:intended:<id>`) and `appliance.rules` (how / when, an appliance with household appliance rules ->
+  `appliance:rules:<kind>`), `routes.py`; permission questions reach answerers on the longer prefixes
+  `permission:self_clean:` and `permission:defrost:` (the household's actual answer when the scenario sets one, else
+  the generic permission rule). The test asks with every domain loaded: admin_inventory's `admin.intended` route,
+  registered first, now takes only things carrying its own fields (during this round it briefly took every thing and
+  shadowed this route).
+* `timeline.OBSERVABLE_FIELDS` gains `boil_state`, `foam_level`, `smoking`, `ringing`, `flare_up`, `arcing`,
+  `status_light`, `lever`, `ready_light` and `preheated`, so a plan can `wait(until=...)` on them where they are
+  perceivable (M-WAITS: the A-2bbd9d39ff1512-01 wrong plan moved from a privileged `wait_until` to such a wait; no other
+  spec of this domain had one).
+* Idle probes: section 3 (`tick_idle`, `drying_idle`; the cold appliances have their own system).
+* Generation 2: the residents' usual hot drinks (`people.<pid>.profile.drinks.hot`) choose the drink makers (a tea
+  drinker's household has an electric kettle, a coffee drinker's a coffee machine - the small pod machine when the
+  drawn one does not fit, none only on a counter with no room left (1 of 30 generated houses) - and a household where
+  nobody drinks coffee mostly none); the same random draws are taken in generation 1. No type request of the sweep is
+  addressed to this domain.
+* Report vocabulary (requested as `house_sim/data/vocab/appliances_cooking.json`, a kernel file; checked with
+  `dialogue.load_vocabulary` on core.json plus the draft: no word names two things, none collides with the words
+  safety, cleaning and textiles_laundry requested, and every evidence field is a field these records carry at a tier
+  the robot can perceive). Until it lands, typed reports keep these words as `issue_raw`; the core words `not_working`,
+  `error_code`, `noisy`, `beeping`, `overheating`, `clogged`, `gas_smell`, `smoke`, `fire`, `left_on`, `left_open` and
+  the states `on`, `off`, `running`, `done`, `idle`, `paused`, `hot`, `cold` already cover much of this domain.
+
+| class | issue | also accepted | evidence |
+|---|---|---|---|
+| condition | `frost_buildup` | iced_up, ice_buildup, frosted_up, needs_defrosting, frost | field frost_mm |
+| function | `door_not_sealing` | not_sealing, bad_seal, seal_gap, door_gap, gasket_gap, not_shut_properly | field ajar |
+| function | `too_warm` | not_cold, not_cold_enough, not_cooling, warm_inside, temperature_alarm | field temp_alarm, field display, field internal_temp_c |
+| soil | `boil_over` | boiled_over, boiling_over, foamed_over, bubbled_over, boilover | field foam_level, field boil_state, field soil (near) |
+| condition | `burnt_food` | burnt, burned, charred, blackened, overcooked, burnt_on | field charred, field cook_state, field smoking |
+| safety | `arcing` | sparks, sparking, sparks_inside, electric_arc | field arcing |
+| safety | `flare_up` | flareup, grease_flare, flames_leaping, flaring | field flare_up |
+| function | `door_alarm` | door_beeping, door_open_alarm, fridge_beeping, freezer_beeping | field door_alarm, notice alarm |
+
+`frost_buildup`, `door_not_sealing`, `too_warm`, `arcing` and `door_alarm` apply to appliances (and appliance parts
+for frost).
+
+| state | also accepted | opposite | evidence |
+|---|---|---|---|
+| `preheated` | up_to_temperature, at_temperature, preheat_done, oven_ready | preheating | field preheated, field display, notice appliance_done |
+| `preheating` | heating_up, still_preheating, not_up_to_temperature | preheated | field preheated, field display |
+| `boiling` | at_a_boil, on_the_boil, rolling_boil, boil | - | field boil_state |
+| `simmering` | simmer, gently_bubbling, low_boil | - | field boil_state |
+| `keeping_warm` | on_warm, warm_setting, keep_warm, on_keep_warm | - | field keep_warm, field display |
+| `lit` | alight, flame_on, burner_lit, lit_up | unlit | field lit, field settings |
+| `unlit` | not_lit, flame_out, blown_out, no_flame | lit | field lit, field settings |
+| `self_cleaning` | self_clean, cleaning_cycle, self_clean_cycle | - | field display, field locked, field settings |
+
+**Specs**: all 17 declare `"house": {"gen": 2}` after re-verification on generation-2 houses and pass on seeds 0, 1,
+2, 41, 97 in their own mode, the realistic ones also with `--camera geometric` (the default for realistic perception
+after this round), and with the laws above forced. T-22bc2280c7e6be-01 (is the oven off?) runs with the geometric
+camera: reading the panel is the skill, so each variant has a camera wrong plan (a look from the kitchen doorway,
+where the 10 mm digits cannot be read, then a report); its resident reads in the lounge until 23:00. T-1aea0c41439b0a-01
+now asks for the trivet in its instruction: under the kernel's tolerances a tempered casserole dish survives the wet
+counter, so that wrong plan fails on the trivet, not on a shattered dish. T-ec38fe45bca9ab-01 variant 1: the resident
+who knows the off-peak rule reads in the lit living room (a generation-2 evening may leave them in a dark room, where
+the robot cannot tell who is who). The other reference plans were already camera-aware (`approach` then `inspect`).
+The fridge and freezer door specs (T-fa29fd5df0e544-01, T-8b457901ef8a04-01) keep the room camera: a close look is
+their skill too, but the kernel's inspect acuity is per object, so the gap at a fridge door edge would read from across
+the kitchen (kernel request); a camera wrong plan would not fail honestly until then.
+
+**Residual items** (round 4, round 5, stage B):
+
+* Stage-B open item (B3): the `gripper_heat_damage` crash - fixed (above).
+* Round 5 red team: the countertop cookers of one look-alike group differed at a glance (pressure cooker lid open) -
+  both stand lid shut now (generation 1 keeps the old value); `check_doneness` branched on the true type of an
+  unresolved target - look-based methods refuse with the kernel's message.
+* Round 5: T-d8355138bcf9fb-01 seed 41 variant 2 ("no free space" on counter_1) passes on every seed; the kitchen
+  helper's `{counter2}` is still ranked by free area before the appliances go on it - unchanged on purpose (food's
+  specs bind it too; every spec of both domains passes).
+* Round 5 advisory: range hoods are still mounted at the range's cell without `Placer.mount(along_wall=True)` - that
+  changes generation-1 layouts, so it waits for the layout round.
+* Round 4: the `egg_in_shell` preset's label "egg" applies only to the generic stand-in without the food domain (with
+  it, `_type_or_generic` keeps food's own `hen_egg`, whose realistic inspect text is the group's). The start reasons
+  of an unfamiliar (novel) appliance ("put the inner pot in first", "enter a cook time first", "slide the basket in
+  first") named what it was: the cycle_check hooks now get the robot's ctx (core.start_cycle, kernel round 5) and
+  `percept.plain_check` gives the one generic reason in realistic mode (test
+  `test_start_refusals_do_not_name_an_unfamiliar_appliance`). The round-4 kernel requests (kernel_access tag, an
+  unidentified helper, a ctx for cycle_check hooks) have landed.
+* The LookalikeWarning at registry load names no group of this domain.
+
+**Kernel requests filed this round**: (1) `stack` law: clearance above a portable stack base held in rack guides
+(an oven rack) should be the gap to the next rack that is there (or the cavity top), not to the next rack position;
+(2) per-field inspect acuity (an inspect-tier field such as a fridge's `ajar` from a folded gasket should need a near
+look); (3) `thermal.shock_exposure` should know a wet film on any top, not only conductive ones; (4) the report
+vocabulary file above; (5) the realistic inspect message rewrites names word by word ("kitchen obj_...",
+"boiled obj_..." in candidates).

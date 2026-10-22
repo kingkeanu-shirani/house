@@ -107,8 +107,24 @@ def wind_direction_deg(weather):
     return ((frm + 180.0) - 90.0) % 360.0
 
 
+# rain rate (mm/h) of a weather that names its condition but gives no rain_mm_h (the setup weather op and
+# generation-1 weather; generation-2 weather always states its rate): drizzle up to about 0.5 mm/h, light-to-moderate
+# rain and sleet about 2.5 mm/h (the AMS light/moderate boundary), a storm at the generator's storm threshold
+# (climate_normals storm_mm_h 15); snow wets nothing until it melts (adoption requests admin_inventory 2,
+# textiles_laundry 4: the rain law rained nothing for condition "rain" without a rate)
+RAIN_BY_CONDITION = {"drizzle": 0.5, "rain": 2.5, "showers": 2.5, "sleet": 2.5, "storm": 15.0, "thunderstorm": 15.0}
+
+
 def rain_mm_h(weather):
-    return max(0.0, num((weather or {}).get("rain_mm_h")))
+    """The rain rate on things outdoors: the weather's rain_mm_h when positive, else its condition word's
+    RAIN_BY_CONDITION rate (0 for clear, cloudy, snow or an unknown word). A rain word with a zero rate (a spec's
+    condition merged over a dry generated day) rains at the word's rate."""
+    weather = weather or {}
+    stated = num(weather.get("rain_mm_h"))
+    if stated > 0:
+        return stated
+    condition = weather.get("condition")
+    return RAIN_BY_CONDITION.get(condition, 0.0) if isinstance(condition, str) else 0.0
 
 
 # ----- forces -------------------------------------------------------------------------------------------------------

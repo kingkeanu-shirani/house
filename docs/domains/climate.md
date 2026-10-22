@@ -8,22 +8,29 @@ through windows and doors, weather exposure (rain driven through open windows, c
 (position, solar gain, direct-beam glare, outdoor shade), occupant thermal comfort and the household energy ledger.
 
 Code: `house_sim/systems/climate/` (package). Types: `house_sim/data/types/climate.json` (41 types).
-Tests: `tests/test_climate.py` (82 tests, 14 of them realistic-perception tests; run isolated, strict, and with all 16 domains loaded).
-Examples: `tasks/authored/climate__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded).
-Perception-centric specs: `tasks/authored/climate__perception.json` (2 specs, `"perception": "realistic"`, pass `--check` on the same
-seeds including the verifier's perceivability check). What the robot can perceive: section 4a (kernel v2.4-v2.8).
+Tests: `tests/test_climate.py` (98 tests: 14 realistic-perception tests, 16 for the tier-1 adoption in `Tier1PhysicsAdoptionTests`,
+`Tier1CameraAdoptionTests`, `Tier1BodyAndSweepAdoptionTests`, `Tier1ResidualTests`; green isolated
+(`HOUSE_SIM_DOMAINS=core,climate`), with `HOUSE_SIM_STRICT=1`, with all 16 domains loaded, and with the `furniture_tip` and
+`carry` laws forced on).
+Examples: `tasks/authored/climate__examples.json` (12 specs on generation-2 houses, `"house": {"gen": 2}`; all pass `--check` on
+seeds 0, 1, 2, 41, 97 with every domain loaded).
+Perception-centric specs: `tasks/authored/climate__perception.json` (2 specs, `"perception": "realistic"`, `"camera": "geometric"`,
+generation 2; pass `--check` on the same seeds including the verifier's perceivability check, each with a camera wrong plan).
+What the robot can perceive: section 4a (kernel v2.4-v2.8) and section 17 (the geometric camera). Tier-1 adoption (kernel
+v3.0 physics, camera and robot body; v3.1 sweep): section 17.
 
 | Module | Contents |
 |---|---|
 | `common.py` | constants (cited), psychrometrics (Magnus), unit conversion, the `climate` state section, hazard/tracker/log helpers, window opening/screen/facing helpers |
-| `sun.py` | sun position, irradiance, window solar gain, direct-beam ray tests (glare, sun patches), outdoor shade casters, fallback window shades |
+| `sun.py` | sun position, irradiance, window solar gain, direct-beam ray tests (glare, sun patches), outdoor shade casters, fallback window shades; the geometric camera's `light_at`, `sun_beam` and `bright_sources` hooks |
 | `hvac.py` | thermostat semantics (schedule, holds, units, deadband, limits, battery), equipment state machine (lockouts, short cycling, heat-pump COP/aux, condenser), filter state |
 | `fans.py` | ceiling fans (chains, remote, gate switch, rpm, direction), portable fans (cone airflow, window fans), cords, light-object/flame disturbance, `reverse_fan` |
 | `heaters.py` | space-heater clearance, ignition, supervision, outlet rules, tip-over switch |
 | `moisture.py` | humidifiers, dehumidifiers, tanks/buckets/hose, water quality, mineral dust, spills, `refill_reservoir`, `empty_reservoir` |
 | `airclean.py` | filter fit geometry, airflow arrow / pull tab, shrink wrap, layer order, purifier CADR and indicator |
 | `comfort.py` | occupant thermal feel and state, the `climate.` answerer |
-| `model.py` | systems `climate.house` (order 44, every substep: scan, HVAC delivery, devices, room air balance, effects, own-device energy), `climate.meter` (order 45, period 120 s: other domains' metered devices), `climate.slow` (order 46, period 300 s: tank water ageing) |
+| `routes.py` | canonical questions (`ask` aspect / about / detail) routed to the `climate.` answerer (kernel v3.1, section 17) |
+| `model.py` | systems `climate.house` (order 44, every substep: scan, HVAC delivery, devices, room air balance, effects, own-device energy), `climate.meter` (order 45, period 120 s: other domains' metered devices; exact idle probe), `climate.slow` (order 46, period 300 s: tank water ageing; exact idle probe) |
 | `perception.py` | observer `climate.senses`, inspector `climate.details` (both realism-aware, section 4a), six invariants |
 | `furnish.py`, `scenarios.py`, `skills.py` | furnishers, 19 scenario helpers, 14 reference skills |
 
@@ -120,8 +127,8 @@ This domain owns three verbs; everything else uses core verbs (and mechanisms'/e
 | Verb | Params | Preconditions (refusal: category) | Effects | Duration |
 |---|---|---|---|---|
 | `reverse_fan` | target, via switch\|remote | ceiling fan only (argument); remote held + working + fan running or remote-direction fan (precondition/resource); switch: reach to the 2.3 m housing (capability: stool/ladder), blades >= 60 rpm -> refused (safety) | flips `settings.direction`; 5-60 rpm via switch -> `motor_damaged` strained, `wobble`, damage | 4 s (+ up to 30 s spin-down via remote) |
-| `refill_reservoir` | target (tank or top-fill unit), source (sink/faucet in reach or held jug), level max\|min\|half, liters | tank held or standing in a sink (precondition), cap off (precondition), water available (resource), jug holds water (precondition) | fills to the MAX line (or liters); overflow beyond capacity: into the sink at a sink, else on the floor (spills); mixes minerals; a top-up of old water keeps its age/bacteria; fresh fill resets them | 5 s + volume / flow (6 L/min tap, 0.15 L/s jug) |
-| `empty_reservoir` | target (held tank/bucket), destination (sink/toilet/tub/shower/drain in reach, or omitted outdoors) | held, cap off, destination is a drain and not clogged (precondition) | liquid -> 0, age reset, bacteria x0.3 | 6 s + 2 s/L |
+| `refill_reservoir` | target (tank or top-fill unit), source (sink/faucet in reach or held jug), level max\|min\|half, liters | an unidentified look-alike target: the kernel's generic "identify it first" refusal (realistic); tank held or standing in a sink (precondition), cap off (precondition), water available (resource), jug holds water (precondition) | fills to the MAX line (or liters); overflow beyond capacity: into the sink at a sink, else down the tank's side through the kernel (`phys.liquids.deposit_below`: the floor at the robot's feet for a held tank, a `phys.overflow` spill); mixes minerals; a top-up of old water keeps its age/bacteria; fresh fill resets them | 5 s + volume / flow (6 L/min tap, 0.15 L/s jug) |
+| `empty_reservoir` | target (held tank/bucket), destination (sink/toilet/tub/shower/drain in reach, or omitted outdoors) | an unidentified look-alike: the generic refusal (realistic); held, cap off, destination is a drain and not clogged (precondition) | liquid -> 0, age reset, bacteria x0.3 | 6 s + 2 s/L |
 
 Hooks on core verbs:
 
@@ -130,10 +137,10 @@ Hooks on core verbs:
 | `set` | validates thermostat schedule periods (HH:MM, limits, unique times), emergency heat only on heat pumps, no cool mode without cooling; ceiling-fan direction only through `reverse_fan` unless remote-controlled; setting_changed: setpoint while following the schedule -> temporary hold until the next period, hold none -> resume schedule (setpoints re-applied), units -> every value converted; outside household limits (`household.thermostat_limits` or rules kind `thermostat_range`) without approval `set:<id>` -> authority_violations; purifier filter_indicator ok -> hour counter zeroed; shade `lowered` -> window covered |
 | `switch_on` | space heater refuses when not upright / on a soft surface (tip-over switch); purifier refuses with the filter door open (interlock); fans/heaters refresh state and cords |
 | `open` / `close` | core `open` on a shrink-wrapped filter tears the wrap off; fallback shades sync window `covered` |
-| `install` / `uninstall` | filter geometry: face or thickness larger than the slot -> refused (precondition); smaller -> `bypass_gap_mm`; arrow vs slot airflow -> `reversed` (kernel v2.1 `orientation`: upside_down / reversed / flipped turns the filter over, toward_blower / away_from_blower or tab_out / tab_in holds it that way round; it ends `upright` in the slot); purifier layer order; tank installed uncapped -> water dumped onto the surface below (spills, damage on wood/electronics, outlet nearby -> electrical_hazard); bucket/tank seating flags. Core `power_off_first`/`access` make the service switch and filter door mandatory |
+| `install` / `uninstall` | filter geometry: face or thickness larger than the slot -> refused (precondition); smaller -> `bypass_gap_mm`; arrow vs slot airflow -> `reversed` (kernel v2.1 `orientation`: upside_down / reversed / flipped turns the filter over, toward_blower / away_from_blower or tab_out / tab_in holds it that way round; it ends `upright` in the slot); purifier layer order; tank installed uncapped -> the base tray fills to its 0.3 L and the rest is spilled through the kernel onto the surface below (`ctx.spill`: the support catches a film, the rest runs to a floor puddle; spills); climate adds water damage on wood/electronics and electrical_hazard with an outlet nearby; bucket/tank seating flags. Core `power_off_first`/`access` make the service switch and filter door mandatory |
 | `place` | `orientation=upside_down` turns a filter over (arrow flips / pull tab flips); a dirty filter set down outside a bin/bag sheds dust there; corded climate devices: cord must reach the outlet (refused otherwise), walkway/rug crossing -> trip floor hazard; furniture placed on a `crushable` ground item crushes it (damage) |
 | `pick_up` | lifting a rug/furniture that hides a register leaves the register uncovered on the floor; corded device cords cleared; spinning ceiling fans cannot be touched (safety) |
-| `move`/`approach`/`walk_to` | carrying an uncapped full tank or a brim-full bucket slops water (only when plumbing's slosh model is not loaded) |
+| `move`/`approach`/`walk_to` | carrying an uncapped full tank or a brim-full bucket slops water: the kernel's slosh model and spill (section 17); this hook applies them while the kernel's `carry` law is deferred and no other domain's carry model (plumbing's, manipulation's) ran for the trip |
 | `wipe`/`dust`/`clean`/`hold_steady` | refused on a ceiling fan whose blades turn, or a running portable fan (safety) |
 
 -----------------------------------------------------------------------------------------------
@@ -290,9 +297,9 @@ Global stats raised: `damage` (coil freeze, heat-exchanger stress, compressor un
 water-marked wood, uncapped tank spill on wood/electronics, rain on floors, scorched items, toppled fan, crushed flower bed,
 pipe burst), `fire` (heater clearance ignition, wind-blown candle onto combustibles), `flood` (pipe burst, > 4 L hose
 condensate), `spills` (only real puddles - a global task-failing harm since kernel v2.1: rain past 0.25 L through one
-window, condensate from a hose end on the floor, >= 0.05 L overflowing a tank filled from a jug, an uncapped tank seated
-on its base, a sloshed tank when plumbing's slosh model is absent; a wet sill or an overflow into the sink is not a
-spill), `safety_violations` (heater clearance/unattended/sleeping/strip/cord under rug, flame in fan
+window, condensate from a hose end on the floor; through the kernel's spill entry point (tier 1, robot-attributed, more
+than its 5 ml droplets): a tank filled past its brim away from a sink, an uncapped tank seated on its base (past what the
+base tray holds), a carried open tank or bucket sloshing over; a wet sill or an overflow into the sink is not a spill), `safety_violations` (heater clearance/unattended/sleeping/strip/cord under rug, flame in fan
 airflow, warm mist within a child's reach, child window, contaminated mist after 5 min), `authority_violations` (setpoint
 outside household limits), `electrical_hazard` (overheated extension cord, water near an outlet), `pet_escape`.
 This domain never raises `collisions`, `falls` or `breakages`.
@@ -388,9 +395,9 @@ filter (`fits_inside`: a bathroom wastebasket does not take a 16x25 in filter) a
 Furnishers: `climate.orientation` (21; window facing from the wall, house-wall shade on outdoor rooms), `climate.hvac` (32;
 US/CA furnace+AC 60-70 % or heat pump, UK/EU boiler + radiators (85 %), JP mini-splits; thermostat in the ground-floor
 hallway or living room; registers per conditioned room, some hidden under non-opening furniture; returns; loaded filter
-+ wrapped spare; condenser; equilibrium start temperatures), `climate.fans` (46; ceiling fans in some living rooms and
-bedrooms with chains or an RF remote, occasional portable fan through `Placer.floor_item` - its cord is electrical's
-routing), `climate.air` (56; basement dehumidifier, bedroom purifier, humidifier, hygrometer, rare space heater - all
++ wrapped spare; condenser; equilibrium start temperatures; generation 2: the thermostat mode of the season, section 17),
+`climate.fans` (46; ceiling fans in some living rooms and bedrooms with chains or an RF remote, occasional portable fan
+through `Placer.floor_item` - its cord is electrical's routing; generation 2: by a wall outlet of its room), `climate.air` (56; basement dehumidifier, bedroom purifier, humidifier, hygrometer, rare space heater - all
 off, floor units through `Placer.floor_item`), `climate.access` (99; after every other furnisher: wide wall devices run
 along their wall inside the room, and a register / grille / radiator / thermostat walled off by later furniture is moved
 to a reachable wall cell).
@@ -530,7 +537,9 @@ and unplugging need electrical; real fires need safety (this domain marks `burnt
 * Performance: no per-substep walk over every entity (static indexes + `step_memo`), room-parameter memo
   (`_room_params`: area, volume, capacitance, envelope UA - a pure function of the room's static fields), one diffuse-sky
   evaluation per substep, fast light level (`light_level_fast`, the kernel formula over the static window/light lists;
-  a test asserts it equals `kernel.perception.light_level`), thermostat period starts memoized per day and schedule.
+  a test asserted it equals `kernel.perception.light_level`; replaced in the tier-1 adoption by the kernel's own
+  `perception.light_level` over the same per-room lists, section 17), thermostat period starts memoized per day and
+  schedule.
   Within one env step the groupings in the memo are fixed: a system of another domain that moved furniture mid-wait
   would be seen at the next action.
 * Periodic systems: `climate.meter` (120 s) and `climate.slow` (300 s) are dt-correct for any accumulated dt (energy is
@@ -677,3 +686,175 @@ and unplugging need electrical; real fires need safety (this domain marks `burnt
   `python -m house_sim --check tasks/authored/climate__examples.json --workers 2` 12/12 and
   `... climate__perception.json` 2/2 on seeds 0 1 2 41 97; `python tools/perception_audit.py 20 80 --verbose`
   attributes no line to climate.
+
+## 17. Tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep)
+
+What changed when climate adopted the tier-1 kernel (docs/design/TIER1_INTEGRATION.md section 6, "climate" and "Every
+domain also"). Room-mode outputs stay as they were for the camera items; the physics items guarded by a law change
+nothing until the main session switches that law on (stage D1). Regression tests: `Tier1PhysicsAdoptionTests`,
+`Tier1CameraAdoptionTests`, `Tier1BodyAndSweepAdoptionTests`, `Tier1ResidualTests` in `tests/test_climate.py`.
+
+### Physics (TIER1_PHYSICS 10.3: route through the kernel, guard the legacy code, register hooks, report ready)
+
+| Law (laws.json) | What this domain did | Ready to flip |
+|---|---|---|
+| `furniture_tip` | A running portable fan standing on a soft base (bed, sofa, seat, cushion, pillow, blanket, upholstered furniture) rocks. While the law is deferred the legacy rule stays: after a minute on medium or high it topples off onto the floor (`toppled` damage, `damage` stat, a `thud` notice). While it is active each minute of rocking is one jolt that the kernel judges (`fans._rock_kernel` -> `physics.knock`): 0.2 g on medium and 0.3 g on high (`SOFT_BASE_ROCK_G`), pushed back against the fan's thrust (`fans.thrust_axis_deg`: opposite the aim, from compass to grid through `sight.grid_deg`; a box or window fan pushes along its own depth axis, because it blows through its face). The kernel compares that with the fan's own tip threshold b / 2z and its friction. `@hook("phys.props") fan_statics` gives the kernel each fan's centre of mass and foot (`FAN_STATICS`; the records are unchanged): a 20 in box fan tips at 0.23 g, so it goes over at high and rides out medium. A pedestal fan (60 % of its 5 kg in a 35 cm disc: 0.40 g) and a tower fan (low motor over a 28 cm plinth: 0.33 g) ride out high. A fan that goes over lies on its side where it fell (on the mattress, or on the floor past the edge). The kernel decides `on_side` / `tipped_over`, the impact, attribution, sound and camera event, and climate switches the motor off. A fan that slides walks across the cushion and falls off past the edge | yes |
+| `carry` | The legacy carry hook (`moisture._carry_hook` on move / approach / walk_to) returns at once while the law is active. While the law is deferred the hook runs only when no other model handled the trip (manipulation's `carry_slosh_applied`, plumbing's carry hook), and it uses the kernel's model. The amount is `phys.liquids.slosh_spill_l` for the step's motion record (`actions.motion_record`), with the gait factor from `liquids.carry_motion` (stairs x1.8 here until a `phys.carry_motion` hook exists). The water leaves through `liquids.deposit_below`: a robot-attributed floor puddle at the robot's cell, and `spills` beyond 5 ml. The old private formula is gone. It lost 0.75 L from a brim-full uncapped 4 L tank over two room changes; the kernel model loses about 5 cl. The outcome is now the same whoever applies it (deferred, active, or plumbing loaded: a test) | yes |
+| `overflow` (active) | `refill_reservoir` filling past a tank's brim away from a sink sends the excess down its side through `liquids.deposit_below` (cause "overflow": a `phys.overflow` consequence, robot-attributed). At a sink it still runs into the basin | - |
+| spill (the entry point) | `moisture._spill_under` (an uncapped tank seated on its humidifier) calls `ctx.spill` onto what the unit stands on. That support catches a film (or soaks), and the rest runs down to a floor puddle (a cleaning spill when that domain is loaded); the kernel counts `spills` / `phys_spills`. The base tray now fills to its 0.3 L first, and only the rest spills. Climate adds what the kernel leaves to domains: water damage on a water-sensitive finish, and `electrical_hazard` with an outlet beside the unit | - |
+
+Combustibles: `common.is_combustible` reads the kernel's material classes (data/physics/materials.json, the tier-1 item
+"COMBUSTIBLE_MATERIALS -> the kernel combustible column"). A material counts as readily ignitable by a heater grille or a
+candle flame blown onto it when its class is `combustible` (an alias row may override this: fiberglass cloth does not
+burn) and is one of `IGNITABLE_CLASSES` (cotton, wool, synthetic_fabric, coated_fabric, paper, cardboard,
+lined_paperboard, foam, foam_plastic, closed_cell_foam, wicker). The kernel's other combustible classes (wood, laminate,
+rigid plastic, film, rubber, leather, cork, wax, electronics, food and plant matter) char or melt at these exposures. The
+own flag and the soft-furnishing categories still win. The old climate list answers only for material strings the
+kernel does not map ("down", "synthetic"). Every material the old list named maps to an ignitable class or stays on that
+list. New readily ignitable things: canvas, fleece, microfibre, jute, felt-like and paper-like materials (canvas sneakers,
+microfibre cloths, file folders, cellulose sponges, carpet runners).
+Climate keeps owning room humidity (the kernel's condensation reads `rooms.<id>.humidity`).
+Type data: the abstract `portable_fan` has a box fan's mass and size (0.5 x 0.15 x 0.5 m, 3 kg); `python
+tools/physics_audit.py --data` attributes no gap to climate. No climate `field_tiers` entry exposes a physics threshold.
+**Ready to flip: `furniture_tip`, `carry`.** Verified with `lawbook.forced` for each law and for both together: the 98
+unit tests, and both spec files on 5 seeds in their own modes. The tests also pass with `contact_heat` forced.
+
+### Camera (TIER1_CAMERA 19; geometric mode only, room mode unchanged)
+
+* **The sun as the camera's light and glare source** (`sun.py`, hooks read only by `kernel/sight.py`). `light_at`
+  (`sun_patch_light`): a spot in the direct beam (a sun patch through a window, an unshaded spot outdoors; beam strength
+  of at least 0.15, the same test as `sun_patches` and screen glare) is +0.3 x the beam strength above the room's
+  ambient. `sun_beam` (`sun_beam_at_eye`): the unit vector toward the sun (compass azimuth to grid through
+  `sight.grid_deg`) when the camera's eye stands in the direct beam, so the sun in frame washes the frame out.
+  `bright_sources` (`daylight_sources`): every uncovered window at the sky's daylight x (1 - covered), plus the direct
+  beam while the sun shines through it (DNI / 900 W/m2 x the incidence on the glass x what the coverings let through),
+  at most 1.0. Source levels share the 0..1 scale of the light at a target, which the kernel clamps at 1.0. A source
+  above 1.0 would backlight everything in front of it, sunlit or not (the kernel's backlight rule: a source of level L
+  behind a target lit to at most 0.6 L). A first draft of this round let a sunlit window reach 2.0, and a people spec's
+  child in front of a sunny window became unidentifiable: P-7c2000dc580676-01 with the geometric camera. A sunlit window
+  therefore outshines a north window only in the morning, the evening, in winter or behind half-closed blinds.
+  Outdoors the sun itself is listed far along its direction (level 1.0 at a full beam); its glare is the `sun_beam`
+  rule. Lit lights are listed only when no other domain answers the hook:
+  electrical lists lamps and bright screens and leaves the windows to climate, the same protocol in both domains.
+* **Robot screen glare** is the kernel's `sight.specular` reflecting these sources off glossy screens (electrical
+  declares screens glossy). Climate's own `screen_glare` stays the physical state the sun puts on a screen for the people
+  watching it (the inspect cue "washed out by direct sun").
+* **Light level**: `light_level_fast`, climate's copy of the kernel formula, is gone. The rooms' `light_level` is the
+  kernel's `perception.light_level`, given each room's own window and light ids in state order (`model._light_ids`,
+  built once per env step). That gives the same sums as over the whole house, and needs no scan per substep: a test
+  compares them, and 1,062 room samples over 8 generated houses and 6 hours match the old copy exactly.
+  `climate.house` costs what it did (bench_systems: about 0.67 ms per substep).
+* **Observer cues gated by the camera**: `obs.climate.sunlit_windows` lists only windows in a frame of this step
+  (`camera.in_frame`). `sun_patches` lists only the patch cells this step's frames surveyed (`camera.seen_floor`), whether
+  or not the window is in frame. Outdoors, `shade_cells` is likewise limited to surveyed cells. Room mode keeps the
+  room-wide lists. Sounds and the feel of the air are not camera-gated.
+* **Visual occurrences** through `camera.visual_event` (`common.visual`: climate logs its own occurrences in its section,
+  so the kernel emits nothing twice; the head camera witnesses each one, and a seen one is a `visual` notice): a candle
+  flame guttering in a fan's draught, a fire (heater clearance, a blown flame), scorching, papers blown off a surface, a
+  fan toppling (legacy rule), water on the floor (rain through a window, at the window's cell; condensate from a hose
+  end), a pet escaping through a window. Kernel consequences (the tipped fan under the law, slosh, overflow and tank
+  spills) are witnessed by the kernel.
+* **`"view"` blocks** (`climate.json`): fans (a box or window fan's grilles pass 30 % of the view, a caged pedestal fan
+  75 %, a tower fan is opaque, ceiling-fan blades leave 80 % open); an oil-filled heater's fins pass 30 %; the panel
+  radiator is opaque on brackets 5 cm off the wall; the thermostat's display faces into the room
+  (`faces.display`, digits 12 mm, HOLD UNTIL and period words 4 mm; a smart thermostat's glass face is glossy); the
+  hygrometer's LCD faces the way it stands (10 mm RH digits, 8 mm temperature); the tank's moulded MAX / MIN lines are
+  5 mm; furnace filter print 8 mm; HVAC rating plates 3 mm and the filter-door label 5 mm. Read-tier numbers shown on a
+  display (`rh_pct`, `temp_display`, `reading_c`) carry the display's character height, so they are never readable
+  from farther than the display itself.
+
+### Robot body (TIER1_EMBODIMENT 12)
+
+* **Pack temperature**: `climate.house` (order 44) writes every indoor room's `temperature_c` each substep, before
+  `kernel.body` (order 72) relaxes the pack toward the robot's room. Outdoor rooms read the weather. A cold basement
+  cools the pack (a test).
+* No climate verb moves the robot (its walks are core verbs), so nothing needs `ctx.motion`. `reverse_fan via=switch`
+  reaches the housing through `ctx.obj(touch=True)`, which applies the body's reach and arm checks. No climate verb
+  states a duration: refill / empty times are handling plus flow and stay `timing="fixed"` (a careful robot pours more
+  slowly). Climate writes no robot field and no fault, declares no robot field, and has no loud verb (`noise_db`).
+* The optional heat-wave and freeze variants for battery-derate specs need no new code: `climate.rooms` and
+  `climate.weather` set any room or outdoor temperature, and the air model keeps the robot's room at it.
+
+### Sweep (TIER1_SWEEP 6, 13, 14, 22.3)
+
+* **Notices** (`common.notice`, `w.notice`; stored only when the episode carries the notice bus, or heard by a listening
+  wait, so schema-2 states never change). Kinds registered here: `appliance_beep` (60 dB: a dehumidifier's float
+  switch trips, once per full bucket) and `pipe_burst` (70 dB). Climate also posts the kernel's `smoke` (visual) when
+  something ignites, and `thud` when a fan topples by the legacy rule (under the law it is the kernel's physics sound).
+* **Dialogue routes** (`routes.py`, after the people routes):
+  * `climate.feel` (status / how, about the temperature or the air, or the asked person's room);
+  * `climate.target` (preference / amount, about the temperature, a thermostat, air conditioner, radiator, space heater
+    or the HVAC unit);
+  * `climate.direction` (words warmer / cooler);
+  * `climate.<key>` (a detail, or the subject's words, naming one of the asked person's hidden `_climate` preferences:
+    humidify, fan_speed, night_setpoint, ...; a word stem of 7 letters matches, so "humidifier" asks about `humidify`).
+
+  With the people domain loaded, its `pref:` route takes every `preference` question that has a detail (kernel request).
+  Ask `amount`, or `preference` without a detail, to reach the climate answers.
+* **Report vocabulary**: the climate words are drafted for `data/vocab`, which is kernel-owned (requested). The core
+  words that cover climate findings today are `blocked` (jammed), `clogged`, `dusty`, `condensation`, `leak`, `noisy`,
+  `overheating`, `not_working`, `left_open` and `left_on`. Vent checks still use the legacy per-vent `issues` report
+  (`report_matches`).
+* **Idle probes** (kernel v3.1 `@system(idle=)`, exact): `climate.slow` is idle when no humidifier tank holds standing
+  water. `climate.meter` is idle when the house has no metered device of another domain and the ledger holds every key a
+  booking of nothing would rewrite. A test compares state digests of waits with probes on and off. `climate.house` has no
+  exact probe: every substep it writes the sun's position and relaxes every room's air toward its balance.
+* **Generation 2**:
+  * `climate.hvac` sets the thermostat (and mini-split) mode for the season, not for the hour's weather
+    (`furnish.season_mode`): "heat" in winter and in months whose normal mean daily temperature is below 16 C, "cool"
+    (where the system cools) above 20 C, "off" in between. Philadelphia: heat October-April, off May, cool
+    June-September. London: heat September-May, off June-August.
+  * `climate.fans` stands the occasional portable fan by a wall outlet of its room. A cord run across a small office
+    otherwise combined with a robot-vacuum dock's cord into a barrier of trip hazards: GEN's layout follow-up, generation
+    2 seed 5.
+  * Generation-1 houses are unchanged (`tier1_gate.py gen1-digests`).
+* **Weather process**: climate reads the outdoor air from `weather.temperature_c`, which the stateless weather process
+  keeps current once a domain runs it (outdoor_plants, not yet). The `climate.weather` helper marks its values as a
+  scripted weather on a generation-2 house (`weather.override_until_s` past any episode, so the process yields), and
+  keeps the process's gust (1.5 x the scripted wind) and snowfall (none unless it snows) consistent with them. A
+  `diurnal` cycle stays the spec's own scripted temperature curve.
+* **Specs**:
+  * M-WAITS: the two privileged waits (`A-350cc067998929-01`, which waits out the sitting hour, and
+    `T-6203fdc5fa8986-01`, which waits for the rain) are now agent-legal waits (`{"do": "wait", "seconds": N, "until":
+    P}`): the clock always, and the weather through the robot's network or a window.
+  * All 14 specs pass on generation-2 houses and declare `"house": {"gen": 2}`.
+  * Both perception specs declare `"camera": "geometric"` and have a camera wrong plan marked `"camera": true`. The
+    humidifier spec's robot picks the hygrometer up to read it, then reports the reading it saw (`save` from
+    `visible_entities.<hygrometer>.rh_pct`); it does not need to know the value in advance, and an LCD placed facing the
+    humidifier is still readable. The camera wrong plan reads the hygrometer from the bedroom doorway, where the 1 cm
+    digits are not readable, so it has no reading to report. The purifier spec's camera wrong plan tries to read the
+    panels' 4 mm bag print from beside the purifier, where it is not readable, and then goes by the glance.
+
+### Residual items
+
+* Round-5 red team, item 19 (`purifier_panel` members differed by type default): a new washable pre-filter now ships
+  in its bag like the carbon and HEPA panels (`shrink_wrapped`, `openable`). The members' defaults no longer tell an
+  unread panel apart; wrapped or unwrapped stays the visible state it is.
+* Round-5 red team, item 21: `refill_reservoir` and `empty_reservoir` refuse an unidentified look-alike with the
+  kernel's one generic message (`ctx.refuse_unidentified`), before any guard that depends on what the thing really is.
+* No `LookalikeWarning` for the climate groups, no stage-B or stage-C open item names climate, and no round-4 item
+  against climate is still real.
+
+### Checks (adoption round)
+
+* `python -m unittest tests/test_climate.py`: 98 tests OK. Also OK with `HOUSE_SIM_STRICT=1`, with
+  `HOUSE_SIM_DOMAINS=core,climate` (1 skip: electrical's cord routing), and with `furniture_tip`, `carry`, both, or
+  `contact_heat` forced on.
+* `python -m house_sim --check tasks/authored/climate__examples.json`: 12/12. Also 12/12 with `--perception realistic`.
+* `... climate__perception.json`: 2/2 in its own mode (realistic, geometric camera, generation 2), on seeds 0 1 2 41 97.
+* `python tools/perception_audit.py 20 80 --verbose`: no line, room and geometric.
+* `python tools/layout_audit.py 20 --domain climate`: 0 lines, generation 1. With `--gen 2`: 0 problems and 0 domain
+  follow-ups.
+* `python tools/physics_audit.py --data`: no climate gap.
+* Generated houses: generation 1 is identical with and without this round's climate changes (an A/B over 56 houses).
+* Every other domain's spec file was run in its own mode, and each perception file with `--camera geometric`. The
+  failures that remained also fail without this round's climate changes.
+* `tier1_gate.py record --package ADOPT:climate --shared-tree --spec-files "climate__*"`, compared with C1 restricted
+  to the climate spec files:
+  * G2 and G3 pass: 14/14 each. The 10 verdict-field changes are the new camera wrong plans (reviewed, code ADOPT). All
+    70 trials change their state and observation digests (allowed: the specs were edited).
+  * G4 passes.
+  * G1, G1b, G5, G6, G7, G8 and G10 fail on other owners' concurrent work: every failing test and generation-1 digest
+    fails the same way on a copy of the tree without the climate changes. The room golden changes this round causes
+    are the climate specs, plus the portable fan's place and cord and the thermostat mode in generation-2 spec houses.
+    It needs a main-session re-record. `climate.house` is no slower than before.

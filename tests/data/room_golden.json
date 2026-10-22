@@ -64,6 +64,26 @@
     "B-R2"
    ],
    "date": "2026-10-15"
+  },
+  {
+   "by": "ADOPT",
+   "classes": [
+    "domain type data on records (hang_load_kg",
+    "heat_limit_c",
+    "wash/dry_capacity_kg",
+    "load_rating_text",
+    "drop_tolerance_m",
+    "battery pack",
+    "fills)",
+    "domain thermal and cold models (entities.*.temperature_c/_tt/_amb/_core_c/internal_temp_c; thermal_owner for fixed_temperature)",
+    "climate room air (rooms.*.temperature_c/humidity/co2_ppm/pollen/dew_point_c/fresh_air_changes)",
+    "generation-2 spec houses (entities.*/pos/rot/location/shelf/label/text; people schedules)",
+    "realistic handles following those records (obs.visible_entities.*)",
+    "reference plans re-authored by their domains (steps/time_s; action_log/facts.action_times)",
+    "declared-geometric specs run with their own camera (camera)",
+    "T-7d4006bda247ba-01 passes False on seed 0 (textiles_laundry breakage: admin_inventory/appliances_cooking legacy contact heat; listed in adopt_status.json)"
+   ],
+   "date": "2026-10-22"
   }
  ],
  "modes": [
@@ -74,744 +94,744 @@
   "0/oracle": {
    "problems": [],
    "reset": {
-    "obs": "f9d15b97e3a2eb5fc0c0586b0f59c089bf9dbf2f8f6e9f90a4cb1da643ad0980",
-    "state": "dd602149f7d6db335b9b2679aa7c7429b75c343a8379f05a8b55f85951d812fd"
+    "obs": "5890fd5a9319d8c19c845e947488ef5f11e521d628211f79128083274b9b1d83",
+    "state": "748b56568dca03a0746ad906734b9af91a225722b7b6479317d227ed00557205"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "78c71cfb7f942b29a1af5bc7090b6252b701f71de866fefe175877ea493847c5",
+     "obs": "ecb520669dbbdb43d9c1f2190ca24a762d7ec66acc3d739d3633512cc6d11a38",
      "ok": true,
      "seconds": 1.0,
-     "state": "a937b6ef1341c107155ec3abef15e575808c33c1b6a08b24beb5153ea082ecd0"
+     "state": "82c722c61c47a48d2152d17567c5138286bd8f2681ece4f183ff4eadbf50efde"
     },
     {
      "action": "approach",
-     "obs": "61c36d076593fbf25573cc6d5b8a1430e9214910c9bd22f56e3d9ebdacd0db4c",
+     "obs": "2437ecdcb929fe9cb3163527e77fd78a747e896d0f171f2c40cde30920306abb",
      "ok": true,
      "seconds": 4.46,
-     "state": "9a7518a6f55e424ce2848a4c8f3f5246ebb0bbddc664ea4b64fcffc6aef7a27a"
+     "state": "9b441bc705d4f4eccb7efad85e759e81e34ebde8c2cd3b607f1a64716fec3927"
     },
     {
      "action": "pick_up",
-     "obs": "ceb9d799fc429ce386fbd18545ef572712bde90ce6e43c7924c626ba87f8012f",
+     "obs": "980d8f5d205dd8611e0cee48ce3f76db0160d0efe4ca4076093d606133c2940d",
      "ok": true,
      "seconds": 2.0,
-     "state": "742fd17ddfdc5d6c05f6ef0f96eba075ef82f4c6e538f218c7172cdf12c62365"
+     "state": "e987175d39fe08058ded6e41c2893c168ab6682a0fddca3edd546a4c01980fc0"
     },
     {
      "action": "move",
-     "obs": "3fea72763a6c332a81145f1901a85699c81acb14fba46e2fa02c38c1930eac0d",
+     "obs": "66253ac363e137e2cdc8c7b56ed6863454074494881b69bce585457b9e90e98a",
      "ok": true,
      "seconds": 13.321,
-     "state": "f5f9dd149e01a478cf1196785438b09fc3e8ee00dab8222401f1a053316e5439"
+     "state": "f87d22a37f9fc08eb1fb74a27eb3f4d0cdd99a7c972e2ca22152c7b8199ea9d1"
     },
     {
      "action": "approach",
-     "obs": "bb8dfee503a4b4a8764b777000170711047f79ab64ddfb43e793bf1a022e7ca3",
+     "obs": "cfa56f88a7cdaa642940f21a9f85187aaeac0e97f9745709a008eef6522cba0c",
      "ok": true,
      "seconds": 4.568,
-     "state": "d3bea6a225635748247e6a812a32a12fa92e6ec87c745bc2758363bd057f271a"
+     "state": "2fbb1d373df7c9af9d4f1f46e332154f1e5909cb5073e9afb0f0a448d11ad26f"
     },
     {
      "action": "place",
-     "obs": "259d0d2e0628b062d51b0cde9652cd6f25d4c3188b1e5d6a29dcc6737c0be686",
+     "obs": "b60a1924fcb84f0e4581a6f46563f7e3b9f2a34fdc3ed6286473fbbd5d9e4c23",
      "ok": true,
      "seconds": 2.0,
-     "state": "4d3faab1380c5021c901351ed9c8428378b6ab5075d973acf7e8ba3badac4fcc"
+     "state": "d2a897f52b76a6aaa5c2e88818933499d7fb2a0326e23444746d65363bac17d7"
     },
     {
      "action": "open",
-     "obs": "c3b22dd61b2ef9857d449d8adec1b9dc876c58be57441323b87905ff352760c9",
+     "obs": "25f54cbb547082ba30e5b19305e9e832f9ec71cd0e549c7c5328bce35459e4eb",
      "ok": true,
      "seconds": 2.0,
-     "state": "bb1f9f8755cf31e9fa61e4b8ab0a221ae3f116f1c3a514bad18688c2490548bd"
+     "state": "c2a216c24fe7ef27c7cd1096d1e51516c0ddf78810283c9eea5a0dca4a99e0c9"
     },
     {
      "action": "close",
-     "obs": "3c3e33b89e0b433688e0efcfbb80bad56d1c2d71a8d1742718e85c3ac8089cfc",
+     "obs": "79ce4f4e8112583add0c0aa8aad93eb5a9af966f5543492bdf15afc11db9d94c",
      "ok": true,
      "seconds": 2.0,
-     "state": "858eb017d204cbaa8a7ba5344e8c333facf2b2eb5435667a50359c07d985b90c"
+     "state": "61eb2fb7fc69f72a33e5880752da86ac98343072d73fd739633e855e44eced7d"
     },
     {
      "action": "inspect",
-     "obs": "3b2d9d06d858901036f1c2390fbec1fe39149b84bd803fce5e98c6dca8935586",
+     "obs": "3e212b47fa716924c37db6f3771649141f4c4b61f96fa623180e33d0b3f0d5ff",
      "ok": true,
      "seconds": 3.0,
-     "state": "3957b7fee644284ffdaedc24bb8c3cbcac915ddedc11657af8650e0dbf5f8f31"
+     "state": "be9ed73cc9954814a3deae95af3b5a36577536f49a58dc3c1c6a9b6c16762dfd"
     },
     {
      "action": "read",
-     "obs": "e4884296a1380ddc9e3c5b4e82542882726722dd7ceb818b8be9c68399e6d151",
+     "obs": "f98c8291f63cbedd17adc54bf4dedf4b52311402502b548f53a5f8c76509b905",
      "ok": true,
      "seconds": 4.0,
-     "state": "ddd67eb2278e58cc2d3f8798e5e9f1ed08ec9b294ab1176446264b940295d101"
+     "state": "e4c158ae70373de0799b5213fe4a22d330f4b3cb2aa8eb8ac0853143ed7ab4af"
     },
     {
      "action": "wait",
-     "obs": "5c63133fde7b7de5137f216e34cd241127570e6bea39eaafa343309fef30fafe",
+     "obs": "4609451ea16d99e02cf2eac9caf81e17bebca7686e82219394fcbdc0da438a93",
      "ok": true,
      "seconds": 600.0,
-     "state": "8770b2e810ae7a8197b43988d0f797ea2c9ca0244be01a4bb64299d50bbf630b"
+     "state": "464aa9954f5861c5960448e15e43541509f280f88138fbef149fec8cd0c2920b"
     },
     {
      "action": "wait",
-     "obs": "8624456bff8368d6a88b4a5afcba40d8c024d56e68dd0a0f898ebb1156d98644",
+     "obs": "c905fabb8fd12123e283678d9f08e133741d56c47cd77a814d99c42217037e56",
      "ok": true,
      "seconds": 3600.0,
-     "state": "610eea68407ed0a781408bf0f53b9ef596463b6c2b71acfec94b8d784fc4717f"
+     "state": "568a571377f115c216a803dc1d09f8005193e9f3e4ea46e98fbbe61646ca4fd9"
     }
    ]
   },
   "0/realistic": {
    "problems": [],
    "reset": {
-    "obs": "1cb015708562d318fa7247b86e9fe8ded252ef18ae65d8d051ab010cfd871e2f",
-    "state": "dd602149f7d6db335b9b2679aa7c7429b75c343a8379f05a8b55f85951d812fd"
+    "obs": "318fd193ecfd628509ef2461a5a6c526f13b8099d47ac7975ac7a43836df3360",
+    "state": "748b56568dca03a0746ad906734b9af91a225722b7b6479317d227ed00557205"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "df6467283289649dae45d80aa28903cd41dcffa1ad9fb9aaf50fdc49afe6267e",
+     "obs": "0162c2faa945b949f93fa946ca6c7f75d6029d3f5f2a3472ef3d5177d9ceb155",
      "ok": true,
      "seconds": 1.0,
-     "state": "a937b6ef1341c107155ec3abef15e575808c33c1b6a08b24beb5153ea082ecd0"
+     "state": "82c722c61c47a48d2152d17567c5138286bd8f2681ece4f183ff4eadbf50efde"
     },
     {
      "action": "approach",
-     "obs": "3b5b6c330ec42efbe90b7c52f76a76c909159cf88ad1f1d54f3fb57232956a7a",
+     "obs": "f31719d86c48bed93e23ee43fad22f124bf8ae1d8f96771f393e4613c2e487fb",
      "ok": true,
      "seconds": 4.0,
-     "state": "29411fd4940b83a0cc594d59fa1b361890aa023da14215ec861fff40af4a8e5c"
+     "state": "eda2ae77a9a4798272702c16cf6a8998e4bfac126ba18e4fab2454c1c692dd64"
     },
     {
      "action": "pick_up",
-     "obs": "83f1bc0b01306fd5c060b2ff1d671c3fa02e0183d968d228ec8ff9fda7a88712",
+     "obs": "884a686f527dac84f2166820bbb15400d5ae9544b59ea0dbd1a8390f8f1904f2",
      "ok": true,
      "seconds": 2.0,
-     "state": "94af5cea73751459f60e4afd0ae25372cd1e04a9f1f90eca557101a79a032e64"
+     "state": "147c1fe587705fa0e95e27d4365195d4e20eeb40f5927cc13ea78823d688d36c"
     },
     {
      "action": "move",
-     "obs": "5d9fc864395e10ac1dae6837113381e667a61b506a060f942749caa0618cf993",
+     "obs": "6d8546fe25281c3d58bb9566638c46c83ce62b615a80cb763422fb1dda37326d",
      "ok": true,
      "seconds": 13.0,
-     "state": "8eee5ce09bf90d92bae6e5d9a59a8473662560049af7a1f5d08823d42945bc7b"
+     "state": "f37fdc189083d4f9834ffbdda892a14ca3368dee40fe1f2fe0a3fd3f0026feba"
     },
     {
      "action": "approach",
-     "obs": "541247d171bf9d3bc07dcada6cd2276cf20748f9d457cad894769a5572a1f65b",
+     "obs": "6cb4aef9b0ee0596764fbabb898d8e27ae8175533edcfdb17b46142c53bfb6fe",
      "ok": true,
      "seconds": 5.0,
-     "state": "98682a8be7e3ee6ff5d1837d8b9c615325d59478b8845544aa0a6c509bd09f58"
+     "state": "6f366e25023658c8c17b497f2e40bb56e28c8d5089b58dd612902a6e0a6d8d57"
     },
     {
      "action": "place",
-     "obs": "e320c72aadb21beff595789f9e3e726bb0f4e4feed4cd0a5962fc86c90ab32ff",
+     "obs": "3a7b50c5341e4f5a7aac6c9c3de8b7342d1438be7861d3f4621c0bb57ca08995",
      "ok": true,
      "seconds": 2.0,
-     "state": "89462b95c04fb72d3a13b4f391544785294e96c09a3b960c15471c21f698eccb"
+     "state": "c01dc94245d83216f94a38d2134f4927de73d4f8511a70fc1ef7f72f58ad1b70"
     },
     {
      "action": "open",
-     "obs": "b401157bacaad150f9db09c093e6dbb9610aee4082fcd372846ca43b3f1a6bed",
+     "obs": "bc031469ccb44a7942daa2b00fe14192302dac90ccf9e88b361ab7d42941cea3",
      "ok": true,
      "seconds": 2.0,
-     "state": "dc0a3074702063de785f9cc9d0e95d71021ef933a0550d959b3d7b41caaa2612"
+     "state": "06adc00778699f830f07240f3d324fb119854362e49cb44bc55f5fe5e27f1d9c"
     },
     {
      "action": "close",
-     "obs": "b22f38cbf40916d151d86d39c307d23859adab7ab2f2540716a89d56bc62d231",
+     "obs": "5b3848df43a66f98321c6e17f394804580c62d37e4a14abac4df24296d99c057",
      "ok": true,
      "seconds": 2.0,
-     "state": "721d684f222072743e7d7e25aa20648c35545b00ea53f38626e1749d90f5577c"
+     "state": "340e16c4ac29b13dc83b7f610e156341a634a90c53e709599d572dfde9f49691"
     },
     {
      "action": "inspect",
-     "obs": "cc7459fd1f4028a96e5a5eb33f3af447890e5a5a8667aee5073a1db54b13de96",
+     "obs": "523e99f775312315f335fc2017446c7139c8977088e6461276ba9b65285d9f54",
      "ok": true,
      "seconds": 3.0,
-     "state": "0e1a44cf28f3f6e6f7f4fc718cb5c535be17370a676b8323dbb35533c0f54b31"
+     "state": "85f1721d5e2a83a0ce956f4952a103d44fb9265fd06573bb2304fb041ac8259b"
     },
     {
      "action": "read",
-     "obs": "155b71be74eea3027c2a805c20c1a528923321d687bb307a10cf579c32735bd1",
+     "obs": "867ec9978075aa00e6200235ab2458bd12765b894af3b4d48aa0601a104a184f",
      "ok": true,
      "seconds": 4.0,
-     "state": "2fc61122105cf214ef520ddb97c1300bbfa9d979bbe0b1e7616c81bb7c490a08"
+     "state": "5f6eb417da1d6ba4c775309da690d2bfc38c1bdee3ed433c457e61867e7c5714"
     },
     {
      "action": "wait",
-     "obs": "6f49d5fc7f788cbed26e9ff95ba5212953fd4aea7ffc577f01484c2c5ee3ce40",
+     "obs": "8bc87795ac5ea81fb4f915bc1a7bf369d773f26538bfa4b79655806afb7a65cd",
      "ok": true,
      "seconds": 600.0,
-     "state": "7015d956c96c001723563a50729340988dbe674b9cb36314a962a8b04c523eab"
+     "state": "24d859e09010ebb93ca0c25ddc96215dda16c2b52914dcad4151786839b7fff4"
     },
     {
      "action": "wait",
-     "obs": "7cd0d2de834774badd6e696ba5431cdf5ff95c0fcb0d8000628ca4871c3bc155",
+     "obs": "a11a9ac4389cf5afb671905b36dfd759e8d6947d1ac2fd2abc30ebd59c738794",
      "ok": true,
      "seconds": 3600.0,
-     "state": "673967eed6241552241def92fa4f16a531d84b4c302f902c28c7029bdfdb508c"
+     "state": "d87122f48c244f0213bf29e3c5d9a245faee859d6b1faf208a2dfe6777c2f7b8"
     }
    ]
   },
   "1/oracle": {
    "problems": [],
    "reset": {
-    "obs": "525aeb529868bea15682d477660f6eb0bc6f7f4caa708020d975c142241558b7",
-    "state": "7991156609e743bacde56fcea52e36cdfb9b5eada6c2ea7fd28900361f162111"
+    "obs": "74e11450e5e03709ebec33a7e2caf53c63b9dc7d19c0afed3217cbd6620cf523",
+    "state": "8cb4fbd9c501d4fec10c729f7e35e1fda1e40a7909d055c0830534dfcdc66f32"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "8761379450c089798495e05fa6675d0385d9858cc0c40ae2537a7a921e3ac619",
+     "obs": "eb60015de267f2e99fd75631be4b4a940a36b4047f4d3e6252a4a39e176b8d97",
      "ok": true,
      "seconds": 1.0,
-     "state": "e12374124a18936aed67c78604aa8f9d155b1d673bac230cf2f746fcf7ecd492"
+     "state": "eaf5d96768be9b0e76dc3a84e982212c076b0d274a8b11476f3cde4538878bb8"
     },
     {
      "action": "approach",
-     "obs": "f02c6943c00565a9eb56e5c00a599d0cac666f768955c78d75ba8f83a37bbc64",
+     "obs": "0c162bf7774be761a4dae722b3481c1585187c9dcb80293d6d16c140239d8fb2",
      "ok": true,
      "seconds": 4.05,
-     "state": "aeded60ca5464d886fc4a3d2485402d07b9f3dc576f2011ff3c9d74ca52024d5"
+     "state": "e712021a49d223adeab330ff754386d10e4e8cc49306b1da7e654478bbe0b4b5"
     },
     {
      "action": "pick_up",
-     "obs": "33dc5e7c85bdc3bb9a77a8acf28affbecabf6248d1a3bf2568d8c47db7379b07",
+     "obs": "ae41af7b087f34218f25f14ca447cdf90a2281dfab844faa0626923eea2b5465",
      "ok": true,
      "seconds": 2.0,
-     "state": "3869cc857aa4fdd83f08fb772e802590ffc9a6480c43114989d70d0bd977346c"
+     "state": "c65e260229082cec3fbfe5fe0b9974348b50c4aa8742068ae21db4903a30544d"
     },
     {
      "action": "move",
-     "obs": "82fdc84264a94b09805971ae9941c53fa024d610351ec9d6df7f7f8838d8495b",
+     "obs": "ecaf7dd82fde9e8a286a49b2e1cb50176c8603da6f4d91320c3cc61aab461b60",
      "ok": true,
      "seconds": 13.106,
-     "state": "893fd9a35dac996ffc1d84ce3f1470418d56c662d5ab0385dc6395fdb4c3aa37"
+     "state": "22e4d73be6db163514bb448f8b8e18865a238c0901f42c4bc58444b899b9b00d"
     },
     {
      "action": "approach",
-     "obs": "4c5e02053b8eefbb86f72f07cea8587280ef3b550031d0fa6afc02d1680cab22",
+     "obs": "a237f87d19aa8a5be220e071f5473ab950cd8011619e443606e7c61c86d1b292",
      "ok": true,
      "seconds": 5.193,
-     "state": "f7c950d4ccf0555541cd0d74b5b559d535adfb9d53417739d0b4acaf96b7f9e0"
+     "state": "d144682f3bd45675c30c9f8a4f1690662f5d612b95d64fedb795026d8b12f9fa"
     },
     {
      "action": "place",
-     "obs": "0b200a8afc89ccf49c1fde19aa83714a7d001a09757447c43e9f1d03eef48a1e",
+     "obs": "53c471b9081d7d8e5fa1e7823a8367f461102a2eea44785c8747ea27eaa5a94d",
      "ok": true,
      "seconds": 2.0,
-     "state": "3a1a425b867bb0a8cf1a0f3f43a433d2e22a2f132a766edfa8713d957cdad160"
+     "state": "88f9fe6d41992005bf3302cd57ab5c2c4b131913bed88b4b8ab630f746387a4e"
     },
     {
      "action": "open",
-     "obs": "2e119080b26355eccee799269dd9c6b45ff80394116545522e7abca9dc0025a6",
+     "obs": "c82777af7f4db60ad3750d06d01dbc690ce0f9b80c3ecd399ddb728555971564",
      "ok": true,
      "seconds": 2.0,
-     "state": "a8e3a020435fda62b48ec3156db795901c1f94785f34fc501afa3d5e71f1eeb1"
+     "state": "78bb1c6aa71b984b056f30620978c9ae468e1d16b0747ea29fe297bcd8d89830"
     },
     {
      "action": "close",
-     "obs": "7713a72734d16ddcf8361470b48e4145fe7dc3412a7dd07ad45849c966e5143b",
+     "obs": "777cece3bc8c6c55774e7df633ad775707f5a7dcb040242da65ca78810abf0a5",
      "ok": true,
      "seconds": 2.0,
-     "state": "57bfcc8df15cdd05e1930e2ac7d464ef8bc5ff3fe4fc973aa8ff26082f70c3c7"
+     "state": "036105b0e7f48b64195c40028372ffd891ac2aaa630fc08d621abbd7f1dfd284"
     },
     {
      "action": "inspect",
-     "obs": "90ee444cac62ddfeb947081c6629c578dacce32d847724308a1a2425a8aff879",
+     "obs": "481ff61045df6f1c56c81b719354f6f077d5d60e12e3e3c426ce21f915804541",
      "ok": true,
      "seconds": 3.0,
-     "state": "55ffec42b12722f093be5c5ce48d701adc157cc48693ea6de053ad5910743410"
+     "state": "4a9319649979a4b7ecbca6d4a736f65b2ee7a1033e4ea2ee8904dfbcb8f35227"
     },
     {
      "action": "read",
-     "obs": "bbf9242a3252c04275d9cd8ccfe9a1a2d01e9c33513220299de087bc0545adc6",
+     "obs": "f55ac1f7cec48f5dbce0ad159e1a1c5f6c5c207e074f91eaf3e6c41b13d7542d",
      "ok": true,
      "seconds": 4.0,
-     "state": "e8c74c8ee956c8b7f273b5facf3ee88586aa73968f48afc119788754885583c0"
+     "state": "51622f8872d1e870f0002641fe91496d5822b95325adfe885a6782c278e1f4db"
     },
     {
      "action": "wait",
-     "obs": "cbad62d4919e166d0715d2410bf9ff54e9a3e1975bdd0a9fe985c217df72ca7b",
+     "obs": "3c30a29ca26f1470a105b71ab0b3c52d8942506fd24e757604d1cf1c7b3f033a",
      "ok": true,
      "seconds": 600.0,
-     "state": "dc995e5aab93d84f84f350998fd5618501b3a10adb77f15917844510b416fbab"
+     "state": "104aa321e91982e1f48fa9300e118b2e6ff7a41b22468f539badad87b1381216"
     },
     {
      "action": "wait",
-     "obs": "ecdbf4e8d0016792446f6f5a3c70cb8a2ca41ef178e827acb0f60c83903f3241",
+     "obs": "a205b5e55015fd7726aaa96ac0cbed94910ef0f3acccc38c5125ab0fbc4d4d1e",
      "ok": true,
      "seconds": 3600.0,
-     "state": "8cb9b562cacdd3fafc754da870e184b6b448407299f2136fdac37967a597a876"
+     "state": "b034630ae30dcf726c01d47d8e2fb1121555c7f453f1a6585a048a058cf072d0"
     }
    ]
   },
   "1/realistic": {
    "problems": [],
    "reset": {
-    "obs": "e747086ff2dd4f1ecbd145e5f827c8ff7348a1043bb06121a85f76a1f8c109d3",
-    "state": "7991156609e743bacde56fcea52e36cdfb9b5eada6c2ea7fd28900361f162111"
+    "obs": "9377763a3315699c2cc13f5c41c439819366f3c318633f709ab96305fe7c8fc4",
+    "state": "8cb4fbd9c501d4fec10c729f7e35e1fda1e40a7909d055c0830534dfcdc66f32"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "234f90abf27212b46b4d5d32db3a23b8ca742b5de5d410a8db29f64894296a9c",
+     "obs": "6535046c8c5fde49cf637e06aa6127c49efa85c4d8d2f5dbdd67caf77c378ecd",
      "ok": true,
      "seconds": 1.0,
-     "state": "e12374124a18936aed67c78604aa8f9d155b1d673bac230cf2f746fcf7ecd492"
+     "state": "eaf5d96768be9b0e76dc3a84e982212c076b0d274a8b11476f3cde4538878bb8"
     },
     {
      "action": "approach",
-     "obs": "5ead35563bb7dd4d3208b15e246647f0cd967d1142e7103aedfbd3cbdc5282ed",
+     "obs": "0e3c7957a6f2461970bf069a572eed4dca8be4ec3476ac0751feb70ce94a4b6f",
      "ok": true,
      "seconds": 4.0,
-     "state": "af59eb577b2dedf382a114e0894de78229026a4f5c77108d7094cb0ed2624342"
+     "state": "bf10b61c94126a1ca8b13b15b2e6b668b7545224b660817ccc0723077a533a59"
     },
     {
      "action": "pick_up",
-     "obs": "b4bee3b6f128878ee0c5f1ce0b9eddd1089fcd553e1dc3a6019a35100029bd13",
+     "obs": "e2c60f15876ba6fd905e7049efefb455426b6419e51a5819e4676cdeadc4a79a",
      "ok": true,
      "seconds": 2.0,
-     "state": "827de8045c782648523b1a00633e2dc0096bdacb817d2127bc347074fa71d3d1"
+     "state": "add573d8d8b942b074a4d4f7e2717d4e7dd22f705934bebb94a81e00a57fcc43"
     },
     {
      "action": "move",
-     "obs": "7f1edc76be9b7986d631bc03a47c06a087dc8b1fee09a2315b5a05a0447d5dbd",
+     "obs": "36bc8c0a4429500a327028ddc1ce6137381564983fc3703b20a38a45bdeab3b5",
      "ok": true,
      "seconds": 13.0,
-     "state": "e01ded2f3f52a54afe2ee511d3e79aa1ffaea49b45ba38dcccdc8124a91ef1ff"
+     "state": "0becbaad930efd8db8c6a91f1d8fc639f21035e4a2fb16e4be80ce5f4fceefba"
     },
     {
      "action": "approach",
-     "obs": "a7ba20d0efb2f43013103e035e0c661cb33e10cfb87adbb9ba56cd8cd10b232c",
+     "obs": "2577013471f3d41d76beb1cf106c27a309e414996f4804cb276ecbeecdbac2da",
      "ok": true,
      "seconds": 5.0,
-     "state": "bf348ce1fe92a4765ff126febc041887debc33cf4fdbd26a6b6e1b6c3ea1712f"
+     "state": "6b73fa9142d1007525dd1cf2623cccd5ef9342154614d5cbbec2280f8897554d"
     },
     {
      "action": "place",
-     "obs": "9959895f37d7cbf99107da1a5b57525b40fc465d433cba23d3ee61b8726e199f",
+     "obs": "2dbcab5dff399182cec01ecb09b99840ce53f8e6bcbd0de1cf9015bd4c13ee1f",
      "ok": true,
      "seconds": 2.0,
-     "state": "138f749b478f8e22fbefff913b595a1488c693d457a4d2350af1c7765388030a"
+     "state": "a086f7cb71c9f5aad8a60fe8012243059c6d58962f79386ceb77c8e88d1a023f"
     },
     {
      "action": "open",
-     "obs": "1a115ee2132d44f3f367cd05adf7de39e53ba7a88a59787683f3dea6c5167e15",
+     "obs": "f9768897bc557beb8286088a79888841a128a33391f276ec22e441d39ef8a32a",
      "ok": true,
      "seconds": 2.0,
-     "state": "ac4344d4e07a12d64af93ec4b25e4eb9fd11cd1fadc4fe67678075bb9bf305fe"
+     "state": "70814f8ed60a7afdec795ffdb9dbba7af517bc8446955dd1b0a863982eb6533d"
     },
     {
      "action": "close",
-     "obs": "cc1de1c323f779990c68d26fc62a993d89268f70eb6ec2f415766a4096e865f4",
+     "obs": "8bc1a45cb87734882f6db4a2bfb4a9633bf1e2cbc594fdda2bbe7dc980b66e68",
      "ok": true,
      "seconds": 2.0,
-     "state": "ebc621e9a1b2d80e7b310f78f6883b8c506eef851922f251d186b454fda91eef"
+     "state": "9dc89c75bbb32867df02a6b38202069b6318eecaac2c1e21bbd0cfbf635d0e62"
     },
     {
      "action": "inspect",
-     "obs": "16143cf90312c6d5c4941a813862eb884ffe5f9a8aa554fab8a5691cdbc925a3",
+     "obs": "50691b45f0ad26c812b1d9d99a570784a4124bc055e7c86cf1222632edd0832e",
      "ok": true,
      "seconds": 3.0,
-     "state": "86bf314c5e64a287a7eecbe122ad8345bdfffcb5ceece1fe4f33c39c8942d9af"
+     "state": "c6ed932af11dcb3c58e8d3401ddc1e6333f07963280299b95861b49bb666e3b0"
     },
     {
      "action": "read",
-     "obs": "1d53c2cf10bf1ce225bf087c5b9add4145b12f2562c0e4fdfcaf34c862d37c71",
+     "obs": "1f660f57f049669fd8b57683f015816b3e74a9f83fc902bc1801ddab2c47c4bb",
      "ok": true,
      "seconds": 4.0,
-     "state": "4658b9ce61df3850e3360c7553c00924a496758453865a3d317d20b396e89e18"
+     "state": "25c7745f49ee80d7eda8d9e87a13bb4eeff53fa200f8ce530f685fda1a3a8659"
     },
     {
      "action": "wait",
-     "obs": "0fcc74b00ef142fb03c46b0597fa438398e106d5876a35b073d82da960dde1b2",
+     "obs": "ffdc2a54d0dff11f78fb877d8c8eb3a534fc4320a514f5d1e38aecbe5fc56644",
      "ok": true,
      "seconds": 600.0,
-     "state": "f039c03675b653ad09ecf8f62f2d127268cb2610cb0e82f97048269f79ef6b06"
+     "state": "5a27630dae393a1e9185543ece7afc024822ec46d9d5bdb95bafd752abe9b683"
     },
     {
      "action": "wait",
-     "obs": "e15357f4d1e674412ce65d5ab934028cdedfb2f376f1c139b29f557ad5b4f23a",
+     "obs": "a11d8e195d0f5cc6ba0f57072e275bec0893970ac71748f9a5753a4d1eb3523f",
      "ok": true,
      "seconds": 3600.0,
-     "state": "28f5f2496ac0dcfceb1ff3812f987fa766607ee1e92a37fa040da65432757047"
+     "state": "ad50016c65c1b921009302a5ac762d510b254824967f7fb66e677f54d3ee5f8c"
     }
    ]
   },
   "2/oracle": {
    "problems": [],
    "reset": {
-    "obs": "5a4b7790db0e98638480d91dbf9dd58567c361ed8c60758890d53eb871dc886f",
-    "state": "8f9ad9d641e5900555fd8fe487152275e60aff6ec9c71e4f0dbfa96cfaefb56c"
+    "obs": "d0aaeb99836d4a0406da933a05eafeb8a013b7c4906c576ee232d60063d85112",
+    "state": "9f1c00336478913469edee1c909ac303aabdbaad3d91d4653b72a2206eb29a6d"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "5cedfea24f9f3e9acb3148a9943bc71cc4ddf30d6931866d809d90f8d9b69c96",
+     "obs": "cf72df2e1f3702f8499a58d86fce59a1d73ff03747508e8c38ee57a8d6fb7beb",
      "ok": true,
      "seconds": 1.0,
-     "state": "db8a053b53b321a1a90a6aa949f127f962ae1f9edf127bd685d71b773e396d8f"
+     "state": "2cc3580e3289cb9d323671f0028ec9799dbbfbd1070909ae0f1a1f3aefd2093b"
     },
     {
      "action": "approach",
-     "obs": "941dd080ef295a78c2762dde2508bbbdf757befcc0a903429962e2731860a0aa",
+     "obs": "1fe679aca1bdba099c1c154d534f57a0ee4b90b5fa349ca942d6e6b461c6eec0",
      "ok": true,
      "seconds": 2.068,
-     "state": "f3127d2010ff4d340caae83ce5564ebc3bb50921b5482c80a0f435e88883f69b"
+     "state": "45103fd2380e6afc143dc7d7109637cb42b614f0c4a15cf02ab9b333cd112364"
     },
     {
      "action": "pick_up",
-     "obs": "7890037dcecaf4da88102be2bf5be65c79b351bbf10e664756602b8032e8e0a0",
+     "obs": "cd4001bd9ff9e51525604c25c5e53ae86d994da6fda9dd11ea577ffae1c6db9f",
      "ok": true,
      "seconds": 2.0,
-     "state": "28dd89f4329764ae65055ac9a4dc1015cc1bd888ba0c2ac001d78daf0d5300a4"
+     "state": "b3beb5a47f38209ed88683ce55aa418866092b0460b9ad4077baaafaa30cb23f"
     },
     {
      "action": "move",
-     "obs": "efcfe5f2b9dea68be65e339e9d1420b3184acca22a74f3a21474064d250c9f01",
+     "obs": "67814d95b277e56411f1f4f931c427983ed61525e6eae3029784037e473d54bf",
      "ok": true,
      "seconds": 18.624,
-     "state": "e8318e810a806cbc000426002a39effffcd447c51655bce6d1d80f4db48eb7a5"
+     "state": "df152b6bf2a2ac23c70d9e3d237254870ae44fa622ee7d7d4099ccf7b7a5fa50"
     },
     {
      "action": "approach",
-     "obs": "5b49c2733c1ec751127095b541922405b1a2eaf5282920372b8b79f544d2ad6f",
+     "obs": "75c131a8fcad0ba39c756d057c8a18e8de467ab9e6f2cf8a446a07c2af39ba70",
      "ok": true,
      "seconds": 5.559,
-     "state": "081db1b63da73bc481afb37a9936ae9d736e6e08622ed71b37a418d5b5f0fa00"
+     "state": "c91f68af89cd6af9da1110a0bef899c3d665ea76e5dffd4a09f81840b03d42fa"
     },
     {
      "action": "place",
-     "obs": "5917bb6c5292d84d891933c95a443323c17033c2dd6ab0d80cff57b86535ed68",
+     "obs": "966e08e75df50a4d3cc66582a58cab4cec8ab56cf14a5324bbc8be7dbcae86e6",
      "ok": true,
      "seconds": 2.0,
-     "state": "775bb09069191a9edc093ee2a1f3fc772e937827412888b469ae9eae9f7401b7"
+     "state": "e75b22d306efe1892f167e502b3ea76cc1906e3023d7f1e716c3c51a6c06a37c"
     },
     {
      "action": "open",
-     "obs": "145efb1513222bd944a80481cbb71c075083524d453bdc55067770537630cc15",
+     "obs": "42172747028c0fcbd82aac64ae631aa2eded18b492f0ad1d66be27182142ffaf",
      "ok": true,
      "seconds": 2.0,
-     "state": "43007d56b1c5e983aa4e67273d4c949e062553efa48c544d1be679ce82470154"
+     "state": "39dc198f95fd2af6ebff478914e2f6f44e39570d3af142af3b862d3b435fcbd4"
     },
     {
      "action": "close",
-     "obs": "b9a72e087238d60417cbc14e3593cd59cd2693a7e102ec2834d99a142ac61a20",
+     "obs": "c3f74cd542300b9634fc756bca65eb45879648f2240ea7e646e0c9810a4f6ce7",
      "ok": true,
      "seconds": 2.0,
-     "state": "15d5ab9c2736fdfcd199d0ca005f5d9b3838be2b874558ac9f23c8d893ffb602"
+     "state": "9572535b394d730816912486a1fcb3e3cd6dcb57e417d51b86f3fe02f7d6e627"
     },
     {
      "action": "inspect",
-     "obs": "dc5e6f1e57e6b2504de895e360659036aa29d6b5aa1d5f90f8291b04a8419cf8",
+     "obs": "454ae5559787a2845cdd0b79d7e2c6e26f222a17781b7b89b0a8ec8646c95332",
      "ok": true,
      "seconds": 3.0,
-     "state": "01c615e2129ce4e79f529d5e1f47772d3da83d690846589a1c53cc5cc5e764c1"
+     "state": "2d27cd520b1652b49b47fcc96fe5823ba16df3dd3a7e016f0223bfa57746559d"
     },
     {
      "action": "read",
-     "obs": "a9c16a4e452f736ba1818b87908f1754345ea0037fe938e48b42480406febb21",
+     "obs": "a62e540113f25d92795df4a2505a127a6a5e56608929ebf955a69be730980f8f",
      "ok": true,
      "seconds": 4.0,
-     "state": "15dac70ee5d4cffa4242d5c405f08bed534827f78c0733b21affacac9d2c8dc3"
+     "state": "3448a17a452249a8853e2d63df545fbf4bc0875ab9e8f5dac1abacb50c45d8be"
     },
     {
      "action": "wait",
-     "obs": "3641ca92153d18583ec02338ecacdac363da142b74dbc9014e980047526d686f",
+     "obs": "39a7532a4e7424497fcc6ef1ed6e61e367c9b1b469c9a830e653f827bfcbea0d",
      "ok": true,
      "seconds": 600.0,
-     "state": "fd9cd7810350e5d82996ed20a180156390dc1dcb8795d301dcf2452d30d5da09"
+     "state": "b85b368fc18bcb9c421a5ddbefc08c0b750e17940cc8db2a8f40381d85c404ab"
     },
     {
      "action": "wait",
-     "obs": "de903c87bfba14ffbef6b8b1917e69c32a44278483d2dcd6e93e3d8da483424c",
+     "obs": "f74dfbbd5fb83bab70db50fe8107950defbec8fa6ed0a3fb92c418794212d1fe",
      "ok": true,
      "seconds": 3600.0,
-     "state": "0c69050d75650ae98ccdb9a1c4a7ea033dedd2e39ef10cb89f16c613aa8fb119"
+     "state": "bcef91e6d60afc7e596c2d64bd4d1c0d446b919d49960dcdc45be20c07b2d863"
     }
    ]
   },
   "2/realistic": {
    "problems": [],
    "reset": {
-    "obs": "fd8a29ebbca077e26677bd7c1d1711809488169713ead38c9476dd9e8945e59a",
-    "state": "8f9ad9d641e5900555fd8fe487152275e60aff6ec9c71e4f0dbfa96cfaefb56c"
+    "obs": "0cde01b5fbd3840ed2e7a7b110eafd1bd71b8a00bdca343631f3ecf54e2d8087",
+    "state": "9f1c00336478913469edee1c909ac303aabdbaad3d91d4653b72a2206eb29a6d"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "d99adcc58e896a5475c495c5097e91f36aa9dff1b75e38b9166e74157ad2edf0",
+     "obs": "2689320eb0f3b891aa4f70af3f27e09589d4ac9bcb2742a74eea71b1454aa890",
      "ok": true,
      "seconds": 1.0,
-     "state": "db8a053b53b321a1a90a6aa949f127f962ae1f9edf127bd685d71b773e396d8f"
+     "state": "2cc3580e3289cb9d323671f0028ec9799dbbfbd1070909ae0f1a1f3aefd2093b"
     },
     {
      "action": "approach",
-     "obs": "7ce099b1f4e64249e859cb5be87ce7927562995cf47f022aa58d78a375a3a619",
+     "obs": "8df9db1b15ef427d68ecf1aa2d66989d52d23cb757a1cdd80e995d4a34d3ffb8",
      "ok": true,
      "seconds": 2.0,
-     "state": "7ca5d0a952035b63cc8aba0640332ceab5d2fd5672b912d8b9b097a76d2e76ed"
+     "state": "dd10592972bd81d64103d7a5473678bcfd4d978831cc6709bf19a6dde4964d80"
     },
     {
      "action": "pick_up",
-     "obs": "0b1e60567cffdc1f509ca2b37f7a210b3aa20ff178f76f199fa10c52e05b0e31",
+     "obs": "fa5512a882295da362d0e777568eed72d749c5655438be2b411bdd9600551ad2",
      "ok": true,
      "seconds": 2.0,
-     "state": "8c7a20855f5faa3119bd044721fb0b59f2868de152c9f28b0efe1bdf63e407d1"
+     "state": "1c4c294fa4d0d35d79dbf97fb6d64cb700475bc37e8cfdc0c6261df0732916ea"
     },
     {
      "action": "move",
-     "obs": "c67899208be3deb4c2adf7163bcda4e61cfa7b1f24c7471315e5f4b91ab11488",
+     "obs": "da53a3dfc80e124d52a2d44420cd9c90a90d928c3a4cf09dc3f24e9b55f3f1de",
      "ok": true,
      "seconds": 19.0,
-     "state": "bd2b01b93b583cc4881d6122b8cd7a038da58bdb2ba321642f31474b6a6ddbce"
+     "state": "d4e0be24708a581d923707928bd9d39818544a60310c073a3474094ffe09e0bc"
     },
     {
      "action": "approach",
-     "obs": "736c37214a55ac83da4087efd9fa9540eade3ed698812af99fd9cce438d09804",
+     "obs": "331207cd5af9d68b5a3cdcdc28c6673619ddfd79abe61782e6971124467846a5",
      "ok": true,
      "seconds": 6.0,
-     "state": "fec6be9896c0189f4f391929dcfe47f9b99959e94b463a9944c7f740c6ab20cf"
+     "state": "02cb768366f613bbb65ce2976719137a43d03e862e4770f52d1b08b435370318"
     },
     {
      "action": "place",
-     "obs": "a009f6b7cbb89b5270ac381acbfd5dd188243b2c668aad203a8df203079f3f6a",
+     "obs": "93580d22e55577133ae6c6cbaacfe289ad9bd40a7c4a0d0984acf41c7d7a2eff",
      "ok": true,
      "seconds": 2.0,
-     "state": "aafc145d3820cbba321e92250c6e5d4caf99d43749cd9a55f8c72d02b9211f81"
+     "state": "a6a4f53633e248c3c0756df6a87f0c365179a2b64f6f2e2ec123d2cf12ee0d19"
     },
     {
      "action": "open",
-     "obs": "b063c5fca056af5bf1f14a1b3606c048b8cbff89e4bfc6f868793bcfe95c8d3b",
+     "obs": "745b6ffceccc7553f20ef5cb1e58eac604aab708f8ffa45b96302503f7ebd8d1",
      "ok": true,
      "seconds": 2.0,
-     "state": "6b543e1f15e200d1877303bb67c77d1a1a1a31ca4f2eaa2b30930953933aa085"
+     "state": "dfc7846dfddde569082d4ab5cf1fcb16f6c3b690fd4fe13f31b352ef7fe2faca"
     },
     {
      "action": "close",
-     "obs": "03c4a21473759e440c71edcdf57e194a1fda4dddb110f78c4ced0462ece0eb9c",
+     "obs": "d322565180bd768e336fe8748884f2dbfcf217ae1b19470ee84795f982bf989c",
      "ok": true,
      "seconds": 2.0,
-     "state": "5059b10250292daacd48a51914c246c8a9bd8ded6f4eef13da4228c9d8448cb1"
+     "state": "a6d07ae849be9d8113e44ca128bad488806f0abff85e20a5c4d4f6ca8e6d1d0e"
     },
     {
      "action": "inspect",
-     "obs": "cb7b45a15733f45374294e1606e60452d07dcbdde605d794eed6756293cf5a44",
+     "obs": "c1a6bae4c474758755ca8e5101dc609814d764894658471c483dd1a22cf430bd",
      "ok": true,
      "seconds": 3.0,
-     "state": "53250859123745809efd83211a7731f195eb1f5d2b038be00ceb099197679225"
+     "state": "a14f852b999b19713337d25b764c25c18f049262a3703029fac650f773cf3f07"
     },
     {
      "action": "read",
-     "obs": "03b1649d318e6775a12b2668ee821dc93ae7dc5a74e939d514ae2791ea749653",
+     "obs": "cc86aeb616ea167b2c64b30c485c843cad44e7e4d8026dde5406f82b24727fdd",
      "ok": true,
      "seconds": 4.0,
-     "state": "0d788a64c1e1bf43763cba3f8507249481c7df4d3740618e02f7b72d0ad650d0"
+     "state": "9562aa2c1e0861446911a77eebea1238692e5d0641208811321ac8471edbd01c"
     },
     {
      "action": "wait",
-     "obs": "dbf3015e25a744201df8e9aedc41a0a1356d6f5d96c50a2328ebc7a783a9887f",
+     "obs": "02957fb81d32910cb9903dc48abd6622cfafba53f14e9b65dcc87f122691b849",
      "ok": true,
      "seconds": 600.0,
-     "state": "5e411f692f909102cdb9654820a50c964ee239925bc04ecc09a91d248a5f1563"
+     "state": "09fb45137ee8183b7331f29a72e5678beb7a5e20c5d671320fb0a9b292257619"
     },
     {
      "action": "wait",
-     "obs": "01f568133e319c4f008dfbd8b0219b88a6bef950ff8577bd795b290a2810f720",
+     "obs": "876fd524fd4441e94afaf5c40c58605ae8357a376947ae976693bdbff2feeed2",
      "ok": true,
      "seconds": 3600.0,
-     "state": "232707eacef1cddea755023ad1705865b8662c6dc34b43d19f0276ba6e3702f6"
+     "state": "982ac2d740b73cf03f6e958266a4b9b7467a7bf8852204f41adb4b1a41786667"
     }
    ]
   },
   "3/oracle": {
    "problems": [],
    "reset": {
-    "obs": "93e6fda17ef7483f3e235f0c48b09708770bc2380e56bca0987e0b45db3535c9",
-    "state": "1e5494f0ad85218616673b64443caf0adcde390159238568dbe799be658f8b5b"
+    "obs": "6173c67f9659940f97b6b085e321026957db8d421af1e2f448beafc696518d7b",
+    "state": "9cbb7a70b4654db43810a7da7daea6850a532c30db35f8c70c15ee861340a4a4"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "6ffce82dce938daf9850bc398d0f656ea2bfbc1f1db8a65e8ae07d4f76b855cf",
+     "obs": "cfa64b2e63a5bccd61b5349be9e9a4b267f32862cc5c515785be2a1b7feafe43",
      "ok": true,
      "seconds": 1.0,
-     "state": "3a24f129b67bbfdc09094fc5ab1099a3933fbd34ebaadac3524358b3a92dc90f"
+     "state": "68e067fbacf5d3078b2c70b5647572510fb013a42a4ce65bb187867698d0a2d5"
     },
     {
      "action": "approach",
-     "obs": "00d8e0e8d98cdf78bf61dab6bcb4144a781957b0f5066c27f94ac74decfd2e2d",
+     "obs": "6abdda5cc0a2103bc8557d6125ff4cd63df4a537f2a5e20a918e08e848f1d79f",
      "ok": true,
      "seconds": 7.8,
-     "state": "cdc782ba27517ae593b43b10fd38bc14cdf6c418a244260d97e1ca9861deddae"
+     "state": "e19dce134b9bb69cc2eae02abfdf23b264969d14e5f82470deee50824fb66d78"
     },
     {
      "action": "pick_up",
-     "obs": "8def5e9c431d5ef64fcff81e76aed062e3ad7a98cc630b49355515ba649bd815",
+     "obs": "659f76cb30660a953fdccfad0014de47b2b0a369ee74a7327b21aac9d24464c4",
      "ok": true,
      "seconds": 2.0,
-     "state": "4a5b303dff72a12c5c97a3ace22314760055da7314722246ef919544ebdb0c71"
+     "state": "b5a48f7948fcd30503a50a1d546f8fa33e0ea67c160173961100ec4ef3c688ae"
     },
     {
      "action": "move",
-     "obs": "ed89a12d195bbf31e75243330b0b165550e2d6dfae26ffd9a9941a4d9222f8c8",
+     "obs": "46660db2e1789ceb878b8408f5f28df7370cd8cd79fbeb4ecf373e6175cb3d65",
      "ok": true,
      "seconds": 9.268,
-     "state": "701097eaaffab58c310d8be35fd5df0028daa6944dfd8c439ef2fdf6a0ef3e1d"
+     "state": "a572ea3fe2059515bad3db330c4a633932467722f138698f962913c9dda4ef85"
     },
     {
      "action": "approach",
-     "obs": "a62a51fda097db9d4fbb7b13f12282822ec8f97a47e59af9d158eb3249ce2736",
+     "obs": "0f7b76cb1f82f20cac0da205bbc9b13d5942e9edc976e3aa89902ff2bdccbf90",
      "ok": true,
      "seconds": 0.925,
-     "state": "11e38eccc2227ac4b5f93754273eae7e5649b6442ec84bf1bc09b3c6ca551ac2"
+     "state": "0de3168d96b49deb4d8113f753810506d84687118d84acd93c60bd7e1951c7d4"
     },
     {
      "action": "place",
-     "obs": "0ab2fdb4d97383a78d8a70adc6e26023e25b2ec97ba9565ca61bdd7852aeda57",
+     "obs": "50577a00a4437ec3687857b081450e585cec1adcfb7313a5363feb5658c4b840",
      "ok": true,
      "seconds": 2.0,
-     "state": "f7c6e403e7a6eb886bd9f66241b2c973c33d012221155fd15bce51baa12ce413"
+     "state": "894f7234c08fa80ba8fe52f90a8978bc6d55cb9e4d350c2c363a847a88623609"
     },
     {
      "action": "open",
-     "obs": "d6c59cc38b8c3dec06609ea140ed99964a0b2e895b3e77bf338e327a9b2784fc",
+     "obs": "cadd4473e5fa3a4102b208c524433231164a71bd45504947741e03cb44acc682",
      "ok": true,
      "seconds": 2.0,
-     "state": "5d4ebc193dbe23dcebc3e0c9c65c3ced136f8afee647a4bc8dec28c49bf3b538"
+     "state": "67f2dcd88817ae5bf35e9f9c5ffb8de3b5fdf205cf32113672ffa915445647a0"
     },
     {
      "action": "close",
-     "obs": "f0e10753db8b0ae22f1fb7ed561c16c8c827f4e883d6b1c20c1cb4c81c311b27",
+     "obs": "4d0872322de8c7e2f93131657f7c475d4cc8b544a999f8a4997a03db7e9ce2e1",
      "ok": true,
      "seconds": 2.0,
-     "state": "a2476fd3ad4d77bcd08568b63b54c0c49f091eae83026313d4fbe96e1a1c50eb"
+     "state": "0defd28e6ad76cadf11e4228c2352dc55e4844357632804c8742975c6c76bab5"
     },
     {
      "action": "inspect",
-     "obs": "8bacbebbf812cc9cd5bcbacd6814b0b46be81e77f58fc00ba6a7db08740eb193",
+     "obs": "5df043d970e0b8f8c36677e2f0efed7cc443d43864eab327069439db92cd73a0",
      "ok": true,
      "seconds": 3.0,
-     "state": "56ce7f436406eb6a571a807306a90d0f0d50bce0ffafc530f94d9e126e008c79"
+     "state": "737d6045799d4651f73d9c19c94ebb0852ac3a02692e16f36f40150f593dd3fc"
     },
     {
      "action": "read",
-     "obs": "70f11ee15a4b63d9b496511910d45c0be1f201f5907d77b14607b9830710c495",
+     "obs": "c5abe877fe324dc9ac72fa2bddc9328e543cc0bfe59fb2151ad1a07bf52b8a6d",
      "ok": true,
      "seconds": 4.0,
-     "state": "978b42e45cd4355bbb2d24bf435e438ac2e853c9eaa1b1c43875a3d67799019b"
+     "state": "928088daac71437f3dec79d43106093daaaa7aa0903cab1d5139ba7036a619ae"
     },
     {
      "action": "wait",
-     "obs": "2d26c37c50d249a9ab8b2d2034c7dd946bb232f624bcd9d43477e6d3e3d1011a",
+     "obs": "624021956de8fce1fee2e17fa8b645b0020f4c196fe98dc69b3f0d06167558ca",
      "ok": true,
      "seconds": 600.0,
-     "state": "52d9f9edb96023d7f5a2285197bca24b82778730bbd1c70181acfdb7afa3c351"
+     "state": "3295ee59c85ebb93738d5c4c611f41ebf460cf096715dac293900e337e5394a0"
     },
     {
      "action": "wait",
-     "obs": "b61247aedc8314adb51e13786f838b42cfbec6e2473d45fa9d4dccf5734bbb05",
+     "obs": "6216a7cdd5f37f817a9e9a07441f2d25e8b7e7b2b59fca96d48f251ad310d389",
      "ok": true,
      "seconds": 3600.0,
-     "state": "8944b181a1b57d8a8e5ff1fb10bee6cb102aaf3a9f912bae71c8df375b9941ea"
+     "state": "41ba9c7e53b2dad1b1ee36e18e45fc78ae6dba0fad1d5826b8d368b2b1ea50d5"
     }
    ]
   },
   "3/realistic": {
    "problems": [],
    "reset": {
-    "obs": "058270c5d7bfc9cf6ddc79cd16f51be7b7f886f4e874db6527ba25f927e9aeb4",
-    "state": "1e5494f0ad85218616673b64443caf0adcde390159238568dbe799be658f8b5b"
+    "obs": "fb0fd62eebeff11aeeaaa9c4131530f2871d3df2e8c214c81cee0aa52e7ae4f6",
+    "state": "9cbb7a70b4654db43810a7da7daea6850a532c30db35f8c70c15ee861340a4a4"
    },
    "steps": [
     {
      "action": "look",
-     "obs": "33503ac7c1ad0c888b734f299aa4f748d8e83a49288e47db96c3f1e16bd1c019",
+     "obs": "2d3480445da52458868823369691b187d1295c479c9fd0d188980b12df05fb0d",
      "ok": true,
      "seconds": 1.0,
-     "state": "3a24f129b67bbfdc09094fc5ab1099a3933fbd34ebaadac3524358b3a92dc90f"
+     "state": "68e067fbacf5d3078b2c70b5647572510fb013a42a4ce65bb187867698d0a2d5"
     },
     {
      "action": "approach",
-     "obs": "8f7a1a1d1f257e418768418ac33aac2241c2d7e821315ce818dc1f99c9754d45",
+     "obs": "aba5f1fd3378e8c4e089628e5b0837c04b36acc97f83d313390486978daeca6e",
      "ok": true,
      "seconds": 8.0,
-     "state": "c4ecda17d1fb28c2005f94d9444439e492332e06bc477a69b38a502b34853fea"
+     "state": "20c3a8f5bb0161752df311fca28076117f7cf1c350973add6303d3407a0b3ddb"
     },
     {
      "action": "pick_up",
-     "obs": "f5bcca1b0d600293bfd46ddc9aac4d3ec29501e65b6c0e953b61d30e9c7ceb21",
+     "obs": "889d474605093c51656a857e3203500f192efd0c395f4c4f5613a7c80e9af88c",
      "ok": true,
      "seconds": 2.0,
-     "state": "819fb41949c555310fa722cf9933a8aea482fca256234d13f2e67ed5d41b4597"
+     "state": "27d1a1870dff4d0a79be265ba01a23dafe9eecae8f3dd420bf21d6b73ba0b06b"
     },
     {
      "action": "move",
-     "obs": "cc4d41b8809a3d4a5ce619a25487a79521a346106da1fe709cd5d2a33fbc91fa",
+     "obs": "fe3b0b564a8ecc4750a562a048821ffd3cf9238f6abe16a091f0928c93c3f284",
      "ok": true,
      "seconds": 9.0,
-     "state": "31a7ec1e59be0d67b2076f62fd2fde6280239a95ba53629dcb0581b1896ce513"
+     "state": "27a1995a95de5cadb166fbeaa916f3edd90b87d930d153ed7c4316cf4fc2ed8d"
     },
     {
      "action": "approach",
-     "obs": "92f9063790628b2540a6e9545b873630438fc5c6b3ea75db62363ee69b25ac3e",
+     "obs": "f17bac164b3d2f45e71c1227bb4072a1d3ed01b5016355080dfd4348e6811e8c",
      "ok": true,
      "seconds": 1.0,
-     "state": "2b4a71f850360c9d88541cecf4d952f2923dd58d409ba7c65b625d77ab67769d"
+     "state": "f76a07f8314d7e4c3a949c932de708cb6f65da7ab0990bbf89a324da4130187e"
     },
     {
      "action": "place",
-     "obs": "caa2b7613d8edf89d4cafc6d2443e18e52bcc61b682f3f2befb1d5859b34412d",
+     "obs": "dfcbec47cac9eadbd4cd819df9bce05b8804ef0d91db7c39263f1287ae743fd7",
      "ok": true,
      "seconds": 2.0,
-     "state": "6b1ce012858619ae0f22fc85c59d2260e3aa8025f767152ff640cfa6e9e51fcc"
+     "state": "ff640b7e82d749f94c8e494f8be6c113f789d9689e7842f3e63cf17286a2bae7"
     },
     {
      "action": "open",
-     "obs": "1e32e1afe783ce6e7a0e925f91b2e4bd59509b0a92ad18c35e2dbb15a2178704",
+     "obs": "5b49853408d211824006655a36edd7bc42e765d149936372a06a9fa9652c8282",
      "ok": true,
      "seconds": 2.0,
-     "state": "06ac9faa90b1866df81f1bed22fa84f81080421d06a427b6d450e4ad0b2fa203"
+     "state": "8c6b856e3af497c056178e86ef0a0bee49462ea208f4847f4249e28070f25661"
     },
     {
      "action": "close",
-     "obs": "42478315357cb38964038ff5ee0ec599bcd5c6901df6ef0b9a252965da81155c",
+     "obs": "93a1c088fd7f11a2fe233ba294c4f1194c5c520abcd7dfa39685578b788198db",
      "ok": true,
      "seconds": 2.0,
-     "state": "8369e4158afae9227c84c39f605e6970efcb55a6ba6d032727148febefe01c70"
+     "state": "ff9ee909f542dff969aefbed0f985ff6340435972e51a2eb5f726bea79fb9dc4"
     },
     {
      "action": "inspect",
-     "obs": "603ccce8c1d07297142e8b9dcdbb9a53b66fd79a00c7fdf9a25b4849495f40e4",
+     "obs": "eb19962af5a117fd15c6794d3740f7334c4b5a1202aba8dd202804d5f75d6879",
      "ok": true,
      "seconds": 3.0,
-     "state": "2fad5e83c512771632dfe8c67254391ec2ce32c1f56b9de96b373d3727ccb671"
+     "state": "b4a386d9b489123b5531239804fcf2d6ce6f7c534e0426768d0540fdd267fd9d"
     },
     {
      "action": "read",
-     "obs": "14493e64ed3f9004a3c166ae90edba61eb3f62d787357cf1f1007dc7a10fa397",
+     "obs": "8d69a19ddc624bc89a1256dbed74705360ed9b9bff2ef6b9e9adbd64a87c1edc",
      "ok": true,
      "seconds": 4.0,
-     "state": "80d9c67560c967169a269775f6d1b1ababa71468f50b56fa9ec01ea05c80049e"
+     "state": "3db82f8574036bdb4cfac15b71537fc0bbf8adaafb9d348f79ee957d91166a9e"
     },
     {
      "action": "wait",
-     "obs": "30d8aa621cb56b2b5159b81716d65c46d204be8ba5fd637b8d3981cb96e47c62",
+     "obs": "3b9d6c046d49247706097673f4f5e5ca6c63b20b9b811f52b5d5c4092cccf128",
      "ok": true,
      "seconds": 600.0,
-     "state": "ae06d590ac87dd650a1331391a3fd099a10b8a338dc6e3e8a36ad20000465bb9"
+     "state": "c6b839c2e55682f85af6516c3a62cbc73ead102f2ea86c310704b02b1d672235"
     },
     {
      "action": "wait",
-     "obs": "c9b9b9dbc4a3b2b246aa87ab8c8b7027b0ddafc58ccbbb327e74db8f198acf29",
+     "obs": "b13c9635cc0e0bfbe78cf2d1db1ae2648ac77063f9ac82054c765070d0a3f9e6",
      "ok": true,
      "seconds": 3600.0,
-     "state": "3bdbe6a2048e3f3fb9ccfacffb7b6d457a51e2d8c7a1668982e2874a3ee5d63b"
+     "state": "74d24492601d7be06e3225fda73468d65575d30639430f3bcfd6c8b7de963eab"
     }
    ]
   }
@@ -1036,9 +1056,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "c162dddd57b1ddfdccc46a8b55a6f9c5925cd4282009290a756553bca61890f6",
-   "steps": 50,
-   "time_s": 123.679
+   "state": "339e20bf499dd05902b0371e7dcf888dab17282aad10560cdf886f2bd7ead65b",
+   "steps": 89,
+   "time_s": 192.483
   },
   "A-05a6ff57e7f3fd-01": {
    "passes": true,
@@ -1046,9 +1066,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e7ee73fabebc896671ab7810309bc486c095b97e7bedf478372396aa0616aefb",
-   "steps": 2,
-   "time_s": 10.46
+   "state": "3e169003241689d61975576039cead1babaf804034928f0137512b35fa70c984",
+   "steps": 1,
+   "time_s": 4.857
   },
   "A-0fec5aa3d9e10c-01": {
    "passes": true,
@@ -1056,19 +1076,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e2c17060f3be5b15bbec836be11910c65554c37586c037ef731f6e77d5656ed3",
-   "steps": 30,
-   "time_s": 125.406
+   "state": "05b6c39fcf29955bdd8e6db43e396aa18494137b1bd71e0a6ff23574a19fb3fe",
+   "steps": 32,
+   "time_s": 120.761
   },
   "A-1895a81a5051bd-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "298b038c1b5b742123929c6454debf33eb2abf5e7b48a7847b08dec3f4fb2941",
+   "state": "c0dbc3776b8dbef8e6b612d7b45b6d7a58a105d74a2baa0e2adb17591ba9a598",
    "steps": 11,
-   "time_s": 43.0
+   "time_s": 53.0
   },
   "A-2bbd9d39ff1512-01": {
    "passes": true,
@@ -1076,9 +1097,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ccdf68fcea44a9e8cdb25ba8b5b4cf33ec7bca63f720e7d69cfcc53766fe2821",
+   "state": "e556631325a40fea98d58653621c2277dad1e40a03584be58376e4df7ec67af7",
    "steps": 14,
-   "time_s": 178.746
+   "time_s": 173.184
   },
   "A-338a38bf770c8e-01": {
    "passes": true,
@@ -1086,9 +1107,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "023f380631360580efe76ec8f7bc87ce7d1099ee5d7ba2c8a8ab1464cfe55c1d",
+   "state": "5da4a60d440863bfc7487c26bcedb3446ccaf2b969807a989fcae5f1aeeb66ad",
    "steps": 6,
-   "time_s": 40.818
+   "time_s": 53.318
   },
   "A-350cc067998929-01": {
    "passes": true,
@@ -1096,9 +1117,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3ab9286ad5c7d317fafb96622dea3f82b47938c0c04dd78cfa2999084a9e749c",
-   "steps": 29,
-   "time_s": 4525.475
+   "state": "f093a87a6b5a76885206d560dfcea04a2358dd46e1a74911bdf0e80b6ea97bd2",
+   "steps": 15,
+   "time_s": 4500.893
   },
   "A-4ddd51894095c7-01": {
    "passes": true,
@@ -1106,9 +1127,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "79f33b2a03b65d40a864a5e974bbce12996c9293154518c5203175155372f5b5",
+   "state": "4c899cec314db23cce30ed6e20e7c24fa108d500499eea5167e8db150e9aa2db",
    "steps": 13,
-   "time_s": 127.146
+   "time_s": 121.584
   },
   "A-565da7517f3394-01": {
    "passes": true,
@@ -1116,9 +1137,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4ece6423d28b4ae2ae5feedb47ec9da23d29b9c5b8886fb77fdb9b3aa4098bba",
+   "state": "285ade6532f58b8414624dd5fea7bf6dd483ca8a0d35327dd59d0dd84f665bf1",
    "steps": 10,
-   "time_s": 36.0
+   "time_s": 30.0
   },
   "A-601417cc8c5d4d-01": {
    "passes": true,
@@ -1126,9 +1147,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a7da73e0fede1af2e8160d5ee6e770cb3ccd33682b4eade47c343d81242e45dd",
-   "steps": 18,
-   "time_s": 38.493
+   "state": "060cbee9c6821e62d21654ec5a29efb93eba93277919330c67cd5bd35d6385d2",
+   "steps": 19,
+   "time_s": 57.74
   },
   "A-8220afe27c03e7-01": {
    "passes": true,
@@ -1136,19 +1157,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "31fd18cd3748e489c8f2f5d4753d054d4b60d424f96f076e5d89b9c4ea9c557f",
-   "steps": 11,
-   "time_s": 209.27
+   "state": "f400b50b8a562afde2fb1322710efca7aec3aa3f38f3f4b63af6186065f8add8",
+   "steps": 12,
+   "time_s": 213.779
   },
   "A-83f6ca95b72b85-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e0a0838791de746f008e344055568bc85ab15384f65d10e7ecb982a4a6876c61",
+   "state": "b02cf27e697400b6efd54c7feaab93ac745e1443588d4af83f74c707f0372a36",
    "steps": 7,
-   "time_s": 52.0
+   "time_s": 57.0
   },
   "A-8910a09f802fbf-01": {
    "passes": true,
@@ -1156,17 +1178,18 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2b8bbb55489d8bac308e87de2076dba3173b98a622940ad2ed623782f8bda9e3",
-   "steps": 18,
-   "time_s": 903.5
+   "state": "75575b0da76860e9c30785e9df726ba41409acddd6ca2e42e3ad96f7c063cd1a",
+   "steps": 3,
+   "time_s": 906.818
   },
   "A-926bc611ae9158-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "cd96e4caa194bbf1cadf063d176768f49748f389ec035d577dd471b43f08e969",
+   "state": "5b040321c950c35eeaecb982eb533fccab19852816202d6b6fbee0a19728520e",
    "steps": 3,
    "time_s": 13.0
   },
@@ -1176,8 +1199,8 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a08b2c0ec4f2580fd09a1824d5f9eeefcf651a53818364b4fdad278334966da4",
-   "steps": 11,
+   "state": "68e0d55319e17228f83bde20666ec47d99d52ce48b5d68e74e70cc9403292670",
+   "steps": 5,
    "time_s": 430.0
   },
   "A-afe8d8c6d6d883-01": {
@@ -1186,9 +1209,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "56160bf61f21ae7107455ccdd68a70e57991177cbb28ce30ed75b9f8efee98a9",
+   "state": "cee692d80e37e3d997ce249602966a55abca7161d98a01be98ca2bed23647d68",
    "steps": 8,
-   "time_s": 3621.769
+   "time_s": 3624.011
   },
   "A-b4642738e5e520-01": {
    "passes": true,
@@ -1196,9 +1219,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "c2940a129ec52601e8f657bf9439a9259d959b38e995b455945f22affdfb0647",
-   "steps": 73,
-   "time_s": 4395.985
+   "state": "18f7061f94f303e9b321fd9aedb6fed5a821d11f4b1a12584a6ee51fb24b1025",
+   "steps": 69,
+   "time_s": 3950.832
   },
   "A-b6bf8052cc5211-01": {
    "passes": true,
@@ -1206,9 +1229,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2e38de9391b6ad74f97f4922962139fd7a8b63fce225df6dd3417d15717dbb9a",
-   "steps": 27,
-   "time_s": 170.475
+   "state": "b571f0d3261daee67865edff4c455ddd1f935e42b7afc14b9d13d6f480491299",
+   "steps": 37,
+   "time_s": 197.743
   },
   "A-c0f8c53da99d24-01": {
    "passes": true,
@@ -1216,9 +1239,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2c5a2a0ee11f00687cd22c480348d878289507c7c7ab0d12c0609433be0b61d4",
+   "state": "ea678ec2df3c233f558659c29f0de3107f122f47faecc2b78900528b1736c132",
    "steps": 13,
-   "time_s": 85.956
+   "time_s": 79.492
   },
   "A-c627488c575314-01": {
    "passes": true,
@@ -1226,9 +1249,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0b564b664d4266e0f3b4f53c6ce77fa42bb09685dbb0f6ed997460a2f30137f6",
+   "state": "005df9062a757a16a7d5f26c866cacae0f3fa20fc642d25c83e8fcbc2d0246f6",
    "steps": 6,
-   "time_s": 31.452
+   "time_s": 28.952
   },
   "A-c83efc7adcd8f5-01": {
    "passes": true,
@@ -1236,9 +1259,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "313af45445b390ac56ffcc1db6a5a8bd8dff52a87b0b7b52a3223b883d17fe77",
+   "state": "090f7c0131939277793bf00dc1445678d69aac391a21321baa81352b64231242",
    "steps": 14,
-   "time_s": 69.0
+   "time_s": 70.0
   },
   "A-d66994a566899c-01": {
    "passes": true,
@@ -1246,9 +1269,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e30d70e692996f6d35badb1f3821f1021b14ac024edf3111aa9fbf8172228dea",
-   "steps": 62,
-   "time_s": 151292.549
+   "state": "d083919f7efbb1becdd7b89b3dd163be6d6fbd9ce753eccfdf4eef2772da8cb9",
+   "steps": 90,
+   "time_s": 201735.174
   },
   "A-d9e7a4d5d112d2-01": {
    "passes": true,
@@ -1256,9 +1279,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4054a29ffbfbf61bf042ec8baf3435272aff158944e90cffbab1cf25a4b31fe6",
-   "steps": 8,
-   "time_s": 253.862
+   "state": "8e5f802ca0d25e224e2170afbb987b64501689bee53ebeefae40a08f70e5d681",
+   "steps": 5,
+   "time_s": 608.3
   },
   "A-df4066b57cc6fb-01": {
    "passes": true,
@@ -1266,9 +1289,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "25115f44f45d9e474f8b8e6def579fa9532f49a1fac41652ffc28d9f19e05ca6",
+   "state": "d734ec0eb350a825c2ef6a018f148007691c522bc62f8dcc6c4c06756a6f05de",
    "steps": 5,
-   "time_s": 20.246
+   "time_s": 14.684
   },
   "P-386d0f28709b05-01": {
    "passes": true,
@@ -1276,9 +1299,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e7db647d55d17c5b606d36e249e4a0b0cc0091ec9dfd3373aab3a1ad8757f1cd",
+   "state": "b8bb53a1980a91e195c943957626e3c4d855890737c32719ca43307e824c4eb2",
    "steps": 8,
-   "time_s": 28.0
+   "time_s": 22.0
   },
   "P-47196e0991cdf4-01": {
    "passes": true,
@@ -1286,9 +1309,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2ca103c1092da80718e37cef919f5146d91a0031f80560b636e853bf32fd24be",
+   "state": "156db090f6b5222c3bd1040268c7b7153932f2eaf8b38f66fbf5aa0d3092594e",
    "steps": 14,
-   "time_s": 79.705
+   "time_s": 81.473
   },
   "P-6f82b375df3cc1-01": {
    "passes": true,
@@ -1296,9 +1319,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "db31ee8bb78804d0e8f03ad49d2755188cd3fc465f852ca9c83bb1eca2f14357",
+   "state": "b4d674fb36778baaf893927001ab68462756dd818cf5aad15c81bf57c0ebb0f1",
    "steps": 3,
-   "time_s": 14.996
+   "time_s": 9.434
   },
   "P-7c2000dc580676-01": {
    "passes": true,
@@ -1306,9 +1329,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "67beb064ba146cdbc9cb6460b5884e615f751e995d984bd0b5b79ef8e769830a",
+   "state": "18f11b2dd67eaaebb49a45135f9e45b9eabf8fc8ec3c41393bb7849bd9a9bc5b",
    "steps": 8,
-   "time_s": 48.0
+   "time_s": 39.0
   },
   "T-020dc4b5a8de89-01": {
    "passes": true,
@@ -1316,9 +1339,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a079a88f3c0fe4de10a490ae1f4f8357fff05e8f60960c10689ede3fb9e68b0a",
+   "state": "b25b0b5033d6bf097ae3197dcaa2c9def0f18db4c97ff36a5644af0e6fdc910d",
    "steps": 11,
-   "time_s": 247.3
+   "time_s": 253.853
   },
   "T-0242c820d56e7e-01": {
    "passes": true,
@@ -1326,9 +1349,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b287f60594ffa8829c3ea82757dd294ea27018022f71d7575983073fb2d0f694",
+   "state": "5e166f7518b291daf8ef1321196e465af45cb95b9ed0724e180496eba98e40b8",
    "steps": 20,
-   "time_s": 62.372
+   "time_s": 59.979
   },
   "T-032657e9583337-01": {
    "passes": true,
@@ -1336,9 +1359,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f9f509f2632b92d1f8a467609eeb8df7e5640c39c2af914a15067aeff62cf48c",
+   "state": "ad7d4f74b57c6dd5db9384916e1ca68e0b50de8ec791b6ae9905a4bf3383bf28",
    "steps": 5,
-   "time_s": 21.746
+   "time_s": 16.184
   },
   "T-0383801c7466a3-01": {
    "passes": true,
@@ -1346,7 +1369,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f5b1be5234f0fb5d30e76775b7f801e4f05d63bbf64d86ec7d4c3295c0d34632",
+   "state": "32106c8499f3eafe87d4824a031c84219762cac0b221c522767b9d41a6e9559b",
    "steps": 1,
    "time_s": 10.884
   },
@@ -1356,9 +1379,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "117a10d533c5a5e1faee483265c68b96d908fdaae9df585c7dde2138177bfe83",
-   "steps": 8,
-   "time_s": 41.852
+   "state": "69511ce4649ea051653e41f3f7d0e9754d93f953bb7d8e30b69d32e0a01e12d2",
+   "steps": 6,
+   "time_s": 56.852
   },
   "T-089c40fb507289-01": {
    "passes": true,
@@ -1366,7 +1389,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a9a24e03f104189fe4acaa02d1caa37a78f0c9a74d2fe1dd0d3819064bd79e87",
+   "state": "cc307278cc74801f1724b198a28b3d55d81a469102647b4fca92681d65a00d3b",
    "steps": 1,
    "time_s": 9.268
   },
@@ -1376,9 +1399,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "75ea4dfb65a685c4f78fce368ce7ce997f7eb59c86ed6faf8de72be4eecfa485",
+   "state": "bd8e8ac9b4974d422b46423264a2e07041a57c94956ec4b08b68aeb30dcaa114",
    "steps": 4,
-   "time_s": 36.924
+   "time_s": 38.174
   },
   "T-09ef414351dfae-01": {
    "passes": true,
@@ -1386,9 +1409,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "153e01ad243b9203adfe36f3ae465e992ec55c0491253cdbed1c334f174d4f44",
+   "state": "b28e1b655e28a696ed0192ec20361ed227063e29c7287d4da14f37e5e0c656ff",
    "steps": 1,
-   "time_s": 25.619
+   "time_s": 26.035
   },
   "T-0adf708ce0749a-01": {
    "passes": true,
@@ -1396,7 +1419,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0eafc6590700fb145992cec391ffb3bdb66e4952d52350bd06ec0fd9964bd6e5",
+   "state": "89c5b1c2588edbfadc774496e9bf5687a8dd5f46a0b48635fd7cc2146b05762a",
    "steps": 84,
    "time_s": 357.503
   },
@@ -1406,9 +1429,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8adf25675bd2f00b56c9eed9865c0aaba1824c7f75eb513aed5a0ede8a08e24e",
-   "steps": 22,
-   "time_s": 65.387
+   "state": "37bc4b23a873c940c9edefed0d2c962d194fdf48cfb756604534099bdc699328",
+   "steps": 28,
+   "time_s": 92.417
   },
   "T-0bd75d2bb80aab-01": {
    "passes": true,
@@ -1416,9 +1439,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f65e3a6bbdc78c67d281c17b74e753dfbd056ee0d5aa56eca808d61507ee1911",
+   "state": "bbd73d8522e039666d51432ca627b334ce31c805c701339ea80c2e6e6d206db0",
    "steps": 7,
-   "time_s": 22.068
+   "time_s": 23.059
   },
   "T-0caf47d0f789f5-01": {
    "passes": true,
@@ -1426,9 +1449,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f1e26010e174aab854155e0d23b18c6e1e9db8c04d3bf7c7315518462ae42e71",
+   "state": "bb38e56d92c5d57ac08be8f07876f4cd76eeaa9a94d6651a293a50c958257d3b",
    "steps": 33,
-   "time_s": 123.707
+   "time_s": 124.957
   },
   "T-0ccc3cf843ba50-01": {
    "passes": true,
@@ -1436,9 +1459,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4de4afe2842b8e1fee26026610f06ee3373b05ddd580968c430cf4c6fa822c53",
+   "state": "bb6baf8c64fce1bc6ce154be698faa38c8b08c5cf256c8cfa0f8ee340fb78971",
    "steps": 18,
-   "time_s": 75.761
+   "time_s": 78.002
   },
   "T-0cd7f8f3019b40-01": {
    "passes": true,
@@ -1446,9 +1469,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b3bfccb730030b42c398628fb6126910cd23bcb7bcb11fee3c10d996efc38f98",
+   "state": "7b3fd1ce67243c1778f055dd170db93ced4a14b4e87d5e44fdb876e38ec7d541",
    "steps": 17,
-   "time_s": 48.336
+   "time_s": 49.845
   },
   "T-0d397bf9de09a0-01": {
    "passes": true,
@@ -1456,9 +1479,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5a8f126d71ba7341505bbdac779c02f3ce0dccede9fc6afc3131404945cb12dc",
+   "state": "3c763004dc72f8caf277c695cad3b38845b390a5c3e7dc34a98739192342018d",
    "steps": 3,
-   "time_s": 17.255
+   "time_s": 11.693
   },
   "T-0d99b00f1f2278-01": {
    "passes": true,
@@ -1466,9 +1489,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f8357e1076e1e978614eab3241aae5e648b2cdabf9ad96d03fc91c81e1533d20",
+   "state": "eddbad4a82f04418bb979ca4fffe6a4839773aea1e1b1f2096efd1fa3fbff3d5",
    "steps": 8,
-   "time_s": 37.496
+   "time_s": 31.934
   },
   "T-0e1edbe2e88e09-01": {
    "passes": true,
@@ -1476,9 +1499,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8c550f346b628c97457e1421e06951048b898e52076f6f5dedd74b4980e77dcf",
+   "state": "8ed4f83bcc714487c4895c273296900227db5e3c64aabfc527bbe31c30a644b6",
    "steps": 12,
-   "time_s": 2432.686
+   "time_s": 2431.07
   },
   "T-0fa9b1d8ceb7f9-01": {
    "passes": true,
@@ -1486,9 +1509,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b022de6ecd6b7572e69becf3b44557acf99f2af1fd64d8c30e25f8c0aff4094b",
+   "state": "0ab5b817678c506c6ab6871b8fe3d1f2b5286baa24fe3002ebe1f022edca2e81",
    "steps": 5,
-   "time_s": 25.621
+   "time_s": 20.059
   },
   "T-108baebbfdf256-01": {
    "passes": true,
@@ -1496,9 +1519,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "83ca1460340c82743b6da4c02bdd0e8f5d597717a01be6c04fb275472f2a93dc",
-   "steps": 68,
-   "time_s": 378.895
+   "state": "ce796c1d7ceaa5a2de2729ffa13d1f03aded4717c01525bc03f4378dac3e1b77",
+   "steps": 66,
+   "time_s": 344.386
   },
   "T-118437362c4ab8-01": {
    "passes": true,
@@ -1506,9 +1529,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7d0ec30c1d8bed964f55ca17ea17bc142fad1cb9eb4bbfc91f646c2bf313643a",
+   "state": "9662103dbf96a91a7fa441652a2c4a2d4935d8413a867a3b625bab9a0ed4be51",
    "steps": 27,
-   "time_s": 5441.777
+   "time_s": 5443.027
   },
   "T-123d987460eb2a-01": {
    "passes": true,
@@ -1516,9 +1539,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9035e3046f52050866147f97fde2a6ff514d561de530124909653705a4207d95",
+   "state": "062bc490481b48fb35974d2dae9853b03d954d4699ebe2af0cb0fe2e0bb675e9",
    "steps": 3,
-   "time_s": 17.746
+   "time_s": 12.184
   },
   "T-137adae610695d-01": {
    "passes": true,
@@ -1526,9 +1549,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7a70e880b1826bc0e11521c7df38273d327af2d61c6d04136aa6f8f135c8338f",
+   "state": "d4ef5b06efcf215c6f874d4df8b2ea254dd7b6c97944d695aa2686033f93a8b7",
    "steps": 3,
-   "time_s": 15.255
+   "time_s": 9.693
   },
   "T-13da00933a0800-01": {
    "passes": true,
@@ -1536,9 +1559,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b6981808ada8fb6245180a6edbac0197075bfa4d32f25953eb563dd8c3724815",
+   "state": "02374284b19538d53ae0ac2a1a5e83892b5b23173cb7458326c50b86c807ee2e",
    "steps": 18,
-   "time_s": 48.412
+   "time_s": 42.85
   },
   "T-13da1385e2f81c-01": {
    "passes": true,
@@ -1546,9 +1569,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2dfd06ff2fb277db6c542ee7e107316429b7d4f3000fc8d9865d49f26caa64b6",
+   "state": "b6fd22bba431d32e1fa0bf99d2d7713e2fb466994997ba0ae55bd98b8edcd389",
    "steps": 10,
-   "time_s": 87.184
+   "time_s": 92.809
   },
   "T-149e27671dec82-01": {
    "passes": true,
@@ -1556,9 +1579,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9b871fb871eafc6315c030d25c175dc725cafd7df819d02d71d7ef29ec01a83e",
+   "state": "60bf7389ccdaf07fd092524cd5367ba1c4c6a5fa52b6b022a4561b205729dbcb",
    "steps": 12,
-   "time_s": 10838.84
+   "time_s": 10843.108
   },
   "T-151f6733397156-01": {
    "passes": true,
@@ -1566,9 +1589,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "70901eb7630600757a367ad314c5a8d4a6db429f27bff6812457ba231ea07174",
+   "state": "f7c2fae87e907eb5122bd018c1b09d30c91ca60569ff7c28ded09800e01b5be0",
    "steps": 27,
-   "time_s": 248.1
+   "time_s": 247.244
   },
   "T-1970299fc6d849-01": {
    "passes": true,
@@ -1576,19 +1599,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "096c457711dd599cc8c41695af719af4d214ceeb8823aef0d48b54b0bc1e3fb9",
+   "state": "2f42ef94e952ea48685da21144e9f1964ab38d3176037ac8634b33ce3e8b8288",
    "steps": 18,
-   "time_s": 132.569
+   "time_s": 126.212
   },
   "T-1983509f271ebc-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f27b254e37555339bbbb5ecb94d00675781ef31cab6d6ac18f621171a998113f",
+   "state": "843933f5baac119641d89377bf741e1c3a619f63068ce68c53c2d364eb433b9c",
    "steps": 14,
-   "time_s": 54.0
+   "time_s": 55.0
   },
   "T-1aea0c41439b0a-01": {
    "passes": true,
@@ -1596,9 +1620,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "393c8d9c450499ebfca6849c8f75f15bbd9bd4793446c9c7f2b603b8b4c98239",
+   "state": "b73db51883631ee2a68f74d7982bcd3be7cb79963c9feea767b6b2649a55db9b",
    "steps": 14,
-   "time_s": 42.489
+   "time_s": 36.927
   },
   "T-1b854bc07c2436-01": {
    "passes": true,
@@ -1606,19 +1630,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "158269c6033014ad668d29a6109f64ac1ce1d9db4769c3ea8f85818cf6a086a8",
-   "steps": 6,
-   "time_s": 38.625
+   "state": "78026ff6073bdf6a9499b4d4fb0cd94429099afb3e67b2c47832db68df5d02bd",
+   "steps": 7,
+   "time_s": 43.811
   },
   "T-1cd8e5b7e25846-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0db64d959ad44857aae89375fd69d4325b50552f46e99d2d5ade62450b1f2918",
-   "steps": 12,
-   "time_s": 76.0
+   "state": "bb55bd97b992e62f74c34eb7871b89348ba35e8b71c59428d5cb3967c89c2414",
+   "steps": 14,
+   "time_s": 88.0
   },
   "T-1df40780f5ddf2-01": {
    "passes": true,
@@ -1626,9 +1651,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2a97ff91d777e3547a5eebef1cee2bfca6d3dd01db0fbbf9f8d17a55db44d605",
+   "state": "2a8e50a7887ac1a9d4aa81b8244e671f3e0f4e2ea38d7401f774d1242613a3c8",
    "steps": 42,
-   "time_s": 130.221
+   "time_s": 124.659
   },
   "T-1e3f1a4d26121e-01": {
    "passes": true,
@@ -1636,19 +1661,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1006a60d004bc4d8312aeeb24e4ebd0239437f1b194a60c00966fc3b397b84c0",
+   "state": "a644a00ce63e85f24ba626872bbde4472ebe375d5534c2a465572390a8ad5616",
    "steps": 8,
    "time_s": 28.0
   },
   "T-22bc2280c7e6be-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d6aaa39e5aa1307858a370c9a019e443b274710f08d9fdeabb04c72fd5e11c3f",
+   "state": "89df2542bf56facc9c1109f41c31c0f0f7e484bfd03502c078d243bd59bf3614",
    "steps": 8,
-   "time_s": 24.0
+   "time_s": 18.0
   },
   "T-238a7512e4dd6e-01": {
    "passes": true,
@@ -1656,9 +1682,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "58ed7297aa917bce1f6e14c10dc960136b8f044e1e52dc4d5789341cd607736a",
+   "state": "65b46256e1b574c9e85bb2330b170116c59299eb4ff69968cbe63503c8688371",
    "steps": 28,
-   "time_s": 157.071
+   "time_s": 151.509
   },
   "T-259d38eb6707f0-01": {
    "passes": true,
@@ -1666,9 +1692,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d39c327134963b42cbd42027ba6dd377d0e2959f2f5667f7ccff21695d8d3f50",
-   "steps": 11,
-   "time_s": 45.796
+   "state": "33efd6b3b9c26a0a5084e839504ab14455c50a6a6ffff7470f92de890cdeae9a",
+   "steps": 8,
+   "time_s": 38.162
   },
   "T-28ff695081cd2c-01": {
    "passes": true,
@@ -1676,19 +1702,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d20b5ad7e2970da6c929ec5d5ee5a3169e9b5914940eeae66e3ef8c9fefa3984",
-   "steps": 29,
-   "time_s": 4237.427
+   "state": "dc4028c34f673d3e05698ac733db01ff3f1976694cd46eada60d812015df9338",
+   "steps": 16,
+   "time_s": 4237.493
   },
   "T-2a55a2133257d0-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1002ab0bbf820fe8bf5858982e460bc62907d667791e5345a7783b5cab0e3922",
-   "steps": 8,
-   "time_s": 31.0
+   "state": "de6a59965f155eab65d0e4eb12cf1c9bdbf45736bbbde441c1857f4c398cee90",
+   "steps": 10,
+   "time_s": 27.0
   },
   "T-2b0de56ca73064-01": {
    "passes": true,
@@ -1696,9 +1723,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d7ba728883112a40c712efbeaae6592f2c9be667e39369ce0e7aaff8c105f734",
+   "state": "4cbb8a969235482b14e054aec8c9f1cad25d96ea376bbf28126ac5c462803d1a",
    "steps": 16,
-   "time_s": 43.837
+   "time_s": 38.275
   },
   "T-2b7563797edbfd-01": {
    "passes": true,
@@ -1706,9 +1733,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d187da90fc69a44b1884d34696a20f85af20a02bc9e42ab181413732c5d58e0a",
+   "state": "71f19482942da12b7d863dbf3248f3dd1ca4c3ed414805960628923e7e5c4442",
    "steps": 25,
-   "time_s": 90.355
+   "time_s": 92.596
   },
   "T-2d08289a6d709f-01": {
    "passes": true,
@@ -1716,9 +1743,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8f2a95bb79a37e9223454cd851e152bbe8fbb5f152fce0e1c5a764b62a7c161c",
+   "state": "2808c5af6589639c21665d7d4dec77c21aeb8215fb599321fa4f599b73a64bac",
    "steps": 10,
-   "time_s": 38.336
+   "time_s": 39.845
   },
   "T-2e07f1f4626671-01": {
    "passes": true,
@@ -1726,9 +1753,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "731cabf8505afdee0baadf61d9a8683f0788e1bded58d93022cdba61e124a03a",
+   "state": "16f59144fd507c1ddc6f069e78d2e9d2da0d573aef86e632c090f41f86907085",
    "steps": 10,
-   "time_s": 75.0
+   "time_s": 68.0
   },
   "T-301e5aee8a71a0-01": {
    "passes": true,
@@ -1736,7 +1763,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5af2c49e16f85f280c5e743989f4cd7eabd92062aa187d2b79a29fac68d661f5",
+   "state": "878406f5ab1dd835268d8afdad9370698ab33b9f245584dac490bb0e63e40ddc",
    "steps": 13,
    "time_s": 46.68
   },
@@ -1746,9 +1773,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "159c848c8bcbe0bab3cbef874b48698ed26ad079855b3571cbd357ffc4499dcf",
+   "state": "b564954ef72a2173ddc2285e1fe071325d8002556ec1d847abe80e0444b5b5a4",
    "steps": 24,
-   "time_s": 994.67
+   "time_s": 996.911
   },
   "T-33e06799f951df-01": {
    "passes": true,
@@ -1756,9 +1783,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ee9dc47a55de3f853faf2cf9835604d347ad1b1bb44c19605a20c9a62ee46307",
+   "state": "1457cbdc0b80c5082c3f7fc9427d482429cd6e50818c779c82e8de4d12ede791",
    "steps": 7,
-   "time_s": 22.761
+   "time_s": 25.002
   },
   "T-35efe739c7c779-01": {
    "passes": true,
@@ -1766,9 +1793,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "35b4fa967928eb621cc62a51fd235310a3b049c5ba9d7feaec42666d0a35fc9d",
+   "state": "4bb7d502f8b6e1e0c59eddee8700fc7b685ea41ec26d7b1d8a1393a8207f42bd",
    "steps": 5,
-   "time_s": 11.175
+   "time_s": 16.693
   },
   "T-37ca38ac7f1389-01": {
    "passes": true,
@@ -1776,29 +1803,31 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "6f6c3148dbe4790550db340a9bb8cdc95ff2f333c97814b7dd320cf57ab5cc06",
-   "steps": 4,
-   "time_s": 11.0
+   "state": "fe61f6df17d5bf3563b9bd3ba44478faa61be5bcc1acb1bc263dac00510f1699",
+   "steps": 3,
+   "time_s": 7.0
   },
   "T-3b0290e7f718c7-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5df04b6e348adfbdd030741d4133590ba738d8e2c796a78885321b43f86893ec",
+   "state": "52ae7abde0406194b56dda1c24606d41ffc636e52c65dbff027a6b573aecf064",
    "steps": 8,
-   "time_s": 23.0
+   "time_s": 19.0
   },
   "T-3b1a4024d46110-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f2144b8831a23dc260b0a9d52f3bc4de2779766afdc87c72b443c8702303ca6c",
-   "steps": 24,
-   "time_s": 106.0
+   "state": "c1946ec67fa955cb7dc25c843f4e57e778314aacd2598ab45254f01fa41ee368",
+   "steps": 32,
+   "time_s": 139.0
   },
   "T-3c0e5bb4fb4063-01": {
    "passes": true,
@@ -1806,9 +1835,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5af20d3535b53ad5bb468b4976efd109b633e9c0f6c84b6bd3fd409df95930d1",
+   "state": "1cc8eff2b48342f3e1c31c83c0d330ce53eff7ce3a30c34a4b4130d83426c412",
    "steps": 19,
-   "time_s": 162.078
+   "time_s": 163.328
   },
   "T-3c114c8e4796ec-01": {
    "passes": true,
@@ -1816,19 +1845,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f94045d7d84196700b44e0837aef63550922140da48e5385261a9bfaeeff3893",
-   "steps": 45,
-   "time_s": 125.095
+   "state": "03cffe1978fff722a34652b491ada8d357aea3d75f7137471e3e74079a1a545b",
+   "steps": 44,
+   "time_s": 108.501
   },
   "T-3fb8a84f20876c-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "315733ae7141d238481f8dbedd1847e2e9013e9f59122ab4d509cc2126e6754e",
+   "state": "af4d14b20b033240c0001eff79466fbb64f9b778e74289b1294c85f5d9292c47",
    "steps": 7,
-   "time_s": 32.0
+   "time_s": 35.0
   },
   "T-442191e0145b6b-01": {
    "passes": true,
@@ -1836,9 +1866,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4cb73db6001cd21fc49d885700159858179afd52f07fd1258daabe837c50f7d0",
+   "state": "de3a58752a553e3d02c2c635edc965509d0dad310d67d319594409f7a1b37de2",
    "steps": 54,
-   "time_s": 105.205
+   "time_s": 99.643
   },
   "T-457afb032d7be7-01": {
    "passes": true,
@@ -1846,9 +1876,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "04eec00382ae07575e3be36855fcfe5cf8b343f925f111b0922889dfbb35ce58",
+   "state": "53dd312c37bde78f2477032d5228a746fa4568a29903617bf299f607faaa2834",
    "steps": 6,
-   "time_s": 25.171
+   "time_s": 19.609
   },
   "T-457ec84b96c1ee-01": {
    "passes": true,
@@ -1856,9 +1886,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ad04d7aedb8e0d804d5287581565bff7e45723dda1d86960321225f184cbc481",
+   "state": "5346885d8fb1b1d7feaf3dcf23d74238fed96d44d5093ba33b086aea3c306505",
    "steps": 15,
-   "time_s": 65.251
+   "time_s": 67.385
   },
   "T-47d0adb37bc85e-01": {
    "passes": true,
@@ -1866,9 +1896,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bc2ebff14be2238354ecbae8b99a6cd78cc77472f2ae637142d40cef8a27aee4",
+   "state": "c008e872b9847352927042204ee26d058ce54d2f4c8d2435b648c5db36c34707",
    "steps": 9,
-   "time_s": 30.0
+   "time_s": 24.0
   },
   "T-4812d9daf84708-01": {
    "passes": true,
@@ -1876,9 +1906,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "367cc4e3775accf23c2c54aeb305332c5ebfe7727bce2129915e7523adbbd018",
+   "state": "d16b687db59190e82275b0e734846fb6acb3f919d100c4779fb6142bbb2d5d73",
    "steps": 8,
-   "time_s": 51.407
+   "time_s": 45.845
   },
   "T-48266979ae98d3-01": {
    "passes": true,
@@ -1886,9 +1916,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "dc48983c6dc78b83f0c82d247f6a318fd9329d4af6d2d66c278cfa33f69895ec",
+   "state": "c9a15d06f010b9717110ac067bbc336817cbbe81674252d0f0d571bf351af4d0",
    "steps": 65,
-   "time_s": 286.312
+   "time_s": 280.75
   },
   "T-50c78da60ad2a8-01": {
    "passes": true,
@@ -1896,9 +1926,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "141c38f033df5b971e7cc83f5bad0e348d087702ca8e9b6a9a4b26a54537372d",
+   "state": "d86f6378102170e28cae9c851fb9f63c8ee86e3279e1f6aef2c5225ff9f0ac40",
    "steps": 18,
-   "time_s": 218.621
+   "time_s": 213.059
   },
   "T-538be222afc7b7-01": {
    "passes": true,
@@ -1906,19 +1936,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "64febfae594a2a2c5fce877bb25eea003fb5bb9ccaae539543218d48ab24176a",
+   "state": "5097fe24ddc6818f64161fd405a9c62ff4c84a7eee4f102d1ccc79f3da3b78d7",
    "steps": 27,
-   "time_s": 1595.871
+   "time_s": 1590.309
   },
   "T-5a9598c809336a-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b73e6565b94c97f02df89195ea6a960d214d2f121c273b4e1745a4d7fd3a909a",
+   "state": "62e7ae90f62493795779c1e5050db7fab326b08a00662301e5f54f8269729649",
    "steps": 21,
-   "time_s": 56.0
+   "time_s": 68.0
   },
   "T-5ad61b6881821b-01": {
    "passes": true,
@@ -1926,9 +1957,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b56254669e5603b79ec270fdcf857e51fa1dbfd7341a57524798516e044cc18b",
+   "state": "80e08f50ac286ed842cac1c8b2cca3068534cf1c98fe47c780df0957462c6749",
    "steps": 10,
-   "time_s": 160.371
+   "time_s": 159.702
   },
   "T-5c9694a5a29d0e-01": {
    "passes": true,
@@ -1936,9 +1967,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f5c704c1eaa3f29e6f814fa575b7e46d0264ae61ea0d218f82f1fc03cd78b319",
+   "state": "d8aa856d176e1f789afe15dddc8ea1d7e41cca9a3c66a241f0a5d087f6241b47",
    "steps": 29,
-   "time_s": 96.443
+   "time_s": 99.742
   },
   "T-5ceae2cfd3be19-01": {
    "passes": true,
@@ -1946,9 +1977,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fc18a5265227ed351eb172f05271d2153427433ef21310f70ea2b43b308d1b22",
+   "state": "742a856798d5e2ea09262531fc609535c7a53f523590e693ae3cde15ba2e4bb7",
    "steps": 7,
-   "time_s": 82.443
+   "time_s": 83.952
   },
   "T-5d2d79cc6ec2ca-01": {
    "passes": true,
@@ -1956,9 +1987,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f6c70bc00b342e2d4505a9a1ebeb87fcfa3fa76794905f7f1d0ba8f6fef55e65",
+   "state": "965f4cffa2c70260ccb68172a3515048539f3da4fbda402adbcde2fc4d4a0a51",
    "steps": 19,
-   "time_s": 12746.216
+   "time_s": 12747.1
   },
   "T-5d63abe55f7147-01": {
    "passes": true,
@@ -1966,7 +1997,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "29cf8457d0cd25e50fc76011289aa6568d1c951338bf95020f334744ef3ec5ce",
+   "state": "e351b59efd6031f5ca9f22abe364cfc5fcaaff68778a11a5d3d341d73070b917",
    "steps": 18,
    "time_s": 80.0
   },
@@ -1976,9 +2007,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "09d6747ff215a8bfe5f8e9f0c2784e4f16c6b7b2513582e7585c0c70216b5a17",
+   "state": "ac1c0603539685b343b017d7e577d43b2811e25a2c252383f31e19d3b0aa4a7a",
    "steps": 9,
-   "time_s": 40.224
+   "time_s": 26.6
   },
   "T-60511a600e1d8d-01": {
    "passes": true,
@@ -1986,9 +2017,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "387251f0120018ac9eadb7f15d2fd911cf78e37da813bc9958f01d6c973c1b31",
+   "state": "b5dba90cd2af18e6379c6041f154da285b26ac7d6dbe7544f0df431469b2e647",
    "steps": 50,
-   "time_s": 112.021
+   "time_s": 106.459
   },
   "T-60d49c00f08083-01": {
    "passes": true,
@@ -1996,9 +2027,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9f85bb6040f053fd8f2fc5b61495b5d7c5b8d2e1e8cc9f174bdcb29d553cb80a",
+   "state": "68407f7e77b95fc2a69fd61764da7dab6402ace1225e9e5ba858b70e3c000689",
    "steps": 5,
-   "time_s": 15.077
+   "time_s": 13.675
   },
   "T-6203fdc5fa8986-01": {
    "passes": true,
@@ -2006,9 +2037,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "12c12a323402232b8de78e0570ba82a0841c150aaf443a9ee0f3ad5bc8ef020a",
-   "steps": 38,
-   "time_s": 1632.641
+   "state": "4030615346cd0651880e6e56b19bff6fcc322cd44b3688b9a5d6cbb5c49a571f",
+   "steps": 18,
+   "time_s": 2470.66
   },
   "T-635020bcc39fc6-01": {
    "passes": true,
@@ -2016,9 +2047,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fcda9e49c2deb90d214d389efaec310af85571e509afbdf4baf23041ed371604",
+   "state": "7da85bedce19d2a36b87f68f5a4054f39be9dc3f5a5f042dcea9d888b1188fb8",
    "steps": 25,
-   "time_s": 73.961
+   "time_s": 88.077
   },
   "T-63b5495ec1360b-01": {
    "passes": true,
@@ -2026,9 +2057,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "562d16bf89b02936d82cf7b770844f0ddd31fd6f08cf7dba186c173e5a06e2b5",
-   "steps": 8,
-   "time_s": 21.809
+   "state": "2ec1a6e9898199c9113bcdc6b714a4c4c95c42b460e4f6e89cd9178fe11327b3",
+   "steps": 9,
+   "time_s": 27.109
   },
   "T-64361790eed0cb-01": {
    "passes": true,
@@ -2036,9 +2067,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "db8bc106ed323f4d0cba3d355a94717ab6151ecbbc39314ce330f2a36144238e",
+   "state": "968bc80843f0712fef26b84f3c815a2f97a366e1761aaf877baeeeece9db42ae",
    "steps": 19,
-   "time_s": 49.545
+   "time_s": 53.964
   },
   "T-6732cf2c68a52a-01": {
    "passes": true,
@@ -2046,9 +2077,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "827f96b5ec6fd256b24c15f6372748c9e1c86a104810a3f3b00e096ed519dd9d",
-   "steps": 5,
-   "time_s": 12.175
+   "state": "1b28fb7b578f2254a8441b81bc3174169c28052c2b94bf358ea580072a09d723",
+   "steps": 4,
+   "time_s": 10.0
   },
   "T-686df131c7c736-01": {
    "passes": true,
@@ -2056,7 +2087,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "6c65aaf20e6fafbcf540e6e6377edb79e0c7a774fdad7cdc93e2c14bbc868a81",
+   "state": "7f4fea93e96255fb4c59008c12d38aab6dd726802f82de240548346d37a94804",
    "steps": 6,
    "time_s": 18.263
   },
@@ -2066,9 +2097,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bd7b1f3ae9828613f491806dd203fde0d8e4f08e6d9d3efd32a8db5f7ae5b1b8",
+   "state": "943ff58368eeb5745192f17eed50efaf65f76ddd57d52f0b4c011c8ed9aa226e",
    "steps": 27,
-   "time_s": 257.233
+   "time_s": 264.153
   },
   "T-69c80ea246f3d7-01": {
    "passes": true,
@@ -2076,9 +2107,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "471bce6c1ba7f2e4bc6516e7c8bb1932e10603c23293ae36a93417b825de3409",
+   "state": "215aa896e9d66b1eabd2a340428fd66911f8e0ddcbab027c4d0f526934537265",
    "steps": 10,
-   "time_s": 32.037
+   "time_s": 26.475
   },
   "T-6af2ea41755bbe-01": {
    "passes": true,
@@ -2086,9 +2117,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "6261333b3e6b041fc6a7320d48dfa9aabf6b3a570b3b7494aa5b6ce208261c21",
+   "state": "af7fe3034b6f630822bb9990ce8e6c95f8c3e5feb207c133e11db3c163cd58e9",
    "steps": 8,
-   "time_s": 61.403
+   "time_s": 58.689
   },
   "T-6c5d74d78e26dd-01": {
    "passes": true,
@@ -2096,9 +2127,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "09cf72c63c8ea0b2338a136f6924d1dc911d58898b272e3b9b91a5977f4ebfc7",
+   "state": "02810eb16c32f42ed39b5943d692bdc7db1cb8ed44bc6e2587141e16af54e4c0",
    "steps": 31,
-   "time_s": 85.402
+   "time_s": 93.458
   },
   "T-6d58f62bb5256f-01": {
    "passes": true,
@@ -2106,9 +2137,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8ad00ae96fadd858e1313640c6d26c231b96a8beb1151e2e35fd538c794dfb7d",
+   "state": "ee0b8af0df7ba1f45e3b003da2b2b55655c73dba171b6d251928a73decce82f4",
    "steps": 5,
-   "time_s": 81.113
+   "time_s": 78.136
   },
   "T-6d6bf8555c9b98-01": {
    "passes": true,
@@ -2116,9 +2147,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4982af339fade03633f509468e2429d8b39ba1b9430dc2e16c245521314664b6",
+   "state": "2503a65de4e1b89089463d686e06966b35446a1afe97070d5778050b01cb8752",
    "steps": 13,
-   "time_s": 39.145
+   "time_s": 45.439
   },
   "T-6eed74e7a248a5-01": {
    "passes": true,
@@ -2126,9 +2157,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "36469c4207ffa4abba66a4f26026d16f2b9b3096ee7309867480b27f15fc9bdc",
-   "steps": 18,
-   "time_s": 41.0
+   "state": "c8cdb2ae7bd44177d296e90f48e10690aa69fe10a3d9552d9536c5228758f64b",
+   "steps": 17,
+   "time_s": 44.0
   },
   "T-702453ef553c00-01": {
    "passes": true,
@@ -2136,9 +2167,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "80a47ba75ecd1a16c0b802528d99da1aefd933616e3618ffecdcf1b93f3abe42",
-   "steps": 10,
-   "time_s": 31.625
+   "state": "8ab7796a52c9635b5cf0b6026c37795f0c6a3fac4cff502a888801edb13ee97e",
+   "steps": 11,
+   "time_s": 41.818
   },
   "T-70a9e6a7a83f64-01": {
    "passes": true,
@@ -2146,9 +2177,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "08a520cb5cac66bf20c026a1f76ba0f56381756f9ab1e12c6cfdf7a9dabcc05d",
+   "state": "5ba9abdc4ddc663238909f3efaa49545cfa7dea4f0f425d31366d4f4fa835581",
    "steps": 8,
-   "time_s": 25.0
+   "time_s": 27.0
   },
   "T-718ad251e38789-01": {
    "passes": true,
@@ -2156,9 +2187,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1a9e9fa634589a176552c30ddce3f26c70d0f52d9f4e0dde1347c71fcdc454b6",
+   "state": "741f400c25c06ed18352627979117e67b8c3c4bed26f1ea0b46facdf7b534b28",
    "steps": 11,
-   "time_s": 41.0
+   "time_s": 35.0
   },
   "T-73a13fb297c40f-01": {
    "passes": true,
@@ -2166,9 +2197,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fd021d93d4975f36d04f584efe5a1abff70e535a030ce9be7418103e625ae0c2",
-   "steps": 27,
-   "time_s": 3742.439
+   "state": "9e4dc255b25b31b92eb2129b8edd94ea046ed02687c29b47b95060930969a78f",
+   "steps": 22,
+   "time_s": 3627.957
   },
   "T-74a125191a9a0d-01": {
    "passes": true,
@@ -2176,9 +2207,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fd7fe4c2de491740bea6021a28eb619042cc7c7455050927b07ae7a37b71c955",
+   "state": "e58571d9eefbcdd8ef111f0a6fc919c83fe5041d9e4bbb9c21ff33c7d1492215",
    "steps": 33,
-   "time_s": 334.152
+   "time_s": 335.661
   },
   "T-75280b9ab6a431-01": {
    "passes": true,
@@ -2186,9 +2217,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f2e33252a1be502917efb023a9eb1e5c91310fae63b1df29bb52085c5c64ace1",
+   "state": "13395b22441cc78d00673b03842b7c5dbfb3d5c7de754d05d01adcedee951cfb",
    "steps": 4,
-   "time_s": 15.835
+   "time_s": 16.871
   },
   "T-7673a125fe70cd-01": {
    "passes": true,
@@ -2196,7 +2227,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b988835f8ec78cdeaa420f8ce918d87ffabc5b696326afac63e1a8ddfb8f9900",
+   "state": "21202698cfab56f6a892ececf1b844ce52aab4d6ea81da8dcaef20bae37b66cb",
    "steps": 24,
    "time_s": 123.298
   },
@@ -2206,7 +2237,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b2246dcf91087da6d04a0082529a2bf8b2a8caeff108bdb7782cff08aaf1b20d",
+   "state": "92eb9d790168af886f707f1799749d982a9d858256b74f4613214e45621a454b",
    "steps": 30,
    "time_s": 171.314
   },
@@ -2216,9 +2247,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5dd3abd375f14e57e682d807703db9d2296a6ee23db965717bb633a7a0e63040",
+   "state": "51fcd7bf1b64a2aecefb758458230edd1ecf4aadd84dc2bc76051031c6077849",
    "steps": 13,
-   "time_s": 42.0
+   "time_s": 45.0
   },
   "T-7d355e1ab2c7f4-01": {
    "passes": true,
@@ -2226,19 +2257,19 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4fd22eb225fc4543b6bf628a2d8c1293091cab7cd7d78abf902579ede75590d9",
+   "state": "76149b4c83233f559f7df2b66cad7a82e84876bc7eaf27c235b5f844b4202945",
    "steps": 7,
-   "time_s": 17.175
+   "time_s": 20.559
   },
   "T-7d4006bda247ba-01": {
-   "passes": true,
+   "passes": false,
    "perception": "oracle",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "db4b58ecab294f229db4cf59f75a2bb2ea7397243ece9101ad5b275176f2f988",
-   "steps": 42,
-   "time_s": 415.573
+   "state": "be688f16ad38027dd8a0a342a50ec9f6cd4f8a49eae341a6c2da7361e4d5780c",
+   "steps": 26,
+   "time_s": 323.123
   },
   "T-7e27e4a6a3b1e5-01": {
    "passes": true,
@@ -2246,7 +2277,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "34f362233c509f0cfc7b24ad567eb930f43a371795dfa1012fd0988c04249914",
+   "state": "81d0af7b3daf087f16a759a10662e2e26faf13bfacbe5390aabb8b96a4c11b3f",
    "steps": 3,
    "time_s": 7.375
   },
@@ -2256,9 +2287,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "af777c02bb5742a14a65dd47c1fde1a21b6e2e67f71952ab85fe889d743b5c32",
+   "state": "6d8809f492f124482ec7dbd2cfa69fe9f7652f3c56a72bb0b8d7c3c007e7c50d",
    "steps": 46,
-   "time_s": 472.105
+   "time_s": 466.543
   },
   "T-7ef5816c160945-01": {
    "passes": true,
@@ -2266,7 +2297,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "80c387afaf186179a4d0297bbec5acc23888c047451f353cf5dc6df54aed1028",
+   "state": "d4e2738209c3f430e71489141044d3813ce3bffc5d01656f0373a0f77c56df72",
    "steps": 6,
    "time_s": 22.0
   },
@@ -2276,9 +2307,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ba78a268b0d4fcca2734c3a23c3aeb3200e838ea6474fe021a79b3bc6a3acb95",
+   "state": "9378169e6dc4b59c7be71888c52207f2ac1da041de34c26e209c344204c92133",
    "steps": 33,
-   "time_s": 1902.712
+   "time_s": 1896.784
   },
   "T-8181b198c09f12-01": {
    "passes": true,
@@ -2286,9 +2317,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "cd11cfc640a808dfdac16e712ba04d55f586f877a121d63fb23049d66dfcd7d2",
-   "steps": 24,
-   "time_s": 65.704
+   "state": "5f5bf3fd1d4510c3fc37970a083f85e1e598719bccdd136abe69ba78561688ae",
+   "steps": 23,
+   "time_s": 66.654
   },
   "T-847e9e300bdea8-01": {
    "passes": true,
@@ -2296,9 +2327,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9ac74e5dd244967a06432c29380dd964dc111b9cb989d5b39acf36421b1abb42",
+   "state": "ec63ff022dd54a9ad0062382e8edb0dd3ace5266b25eb9b982edc0b6dca2c829",
    "steps": 20,
-   "time_s": 90.356
+   "time_s": 84.579
   },
   "T-851aa9f03b6e44-01": {
    "passes": true,
@@ -2306,9 +2337,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "402cbaf3eeadaec9def2cd049b356558759780784cb1da552442c7d333469412",
-   "steps": 9,
-   "time_s": 344.693
+   "state": "ae794066c4fca8e8875ebbdf709eb959e12198ca44956cc6b492ad3e7b04dfb1",
+   "steps": 6,
+   "time_s": 497.925
   },
   "T-868b9cc704adf1-01": {
    "passes": true,
@@ -2316,9 +2347,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8c6d481583eb8f2a6e10aea995652c0c133aac95bdea783b2b8e368a415d7813",
+   "state": "2545eb64ee8f528fcb69d26c5d229f2e9a6379666cd98d4621c55d6815eac590",
    "steps": 16,
-   "time_s": 14461.611
+   "time_s": 14463.12
   },
   "T-870b0185206ce6-01": {
    "passes": true,
@@ -2326,9 +2357,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bfd09a74c94e9b5d493ab373c2665bb5024018014defad26af6c43a0de3c2318",
+   "state": "d1678a95b6711a139e21dc9ccdbcf4f2a53e3461d9f5f853021dee8e71398ab6",
    "steps": 16,
-   "time_s": 254.978
+   "time_s": 254.255
   },
   "T-89530941a65283-01": {
    "passes": true,
@@ -2336,7 +2367,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3e30bdb21be1fff2b6ad9b1597536199819051fc43cb630353e12f64554143be",
+   "state": "316280b5700e35dda1733ac9a61d3561d6ffccc783e6220bbf61039e29d4e1a6",
    "steps": 52,
    "time_s": 306.619
   },
@@ -2346,7 +2377,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3ecea1753783d880b1eb3caf1a8093fb019bd5f71463260367ba64815e532b3a",
+   "state": "ab6cdeca4f429245a3a719273b07a58708c149c5da5eea10f3fb962acd89b758",
    "steps": 10,
    "time_s": 29.0
   },
@@ -2356,9 +2387,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9c4b9c86b8d77cb8baa52e5c5580169f467511c6a8fd66230d1c27c20f31c581",
+   "state": "07e41cd73f04fee8ec61672e84248fe926c29dad9691b3e315423e5212b3a82a",
    "steps": 30,
-   "time_s": 82.811
+   "time_s": 86.347
   },
   "T-8b457901ef8a04-01": {
    "passes": true,
@@ -2366,9 +2397,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5627549d2132d80cf667eca4a5abbbab67f5c681e1da96cda8ea2c1ed65e26aa",
+   "state": "de23f4c98a8998bf3b15b8860033e4c2a3cfc4e2981f5e8a7a7bef98a7c5a57a",
    "steps": 16,
-   "time_s": 38.0
+   "time_s": 32.0
   },
   "T-8b4654687e040f-01": {
    "passes": true,
@@ -2376,9 +2407,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3b55859c4d26eb40a0614119ba5f61984854471a83ca8bb6f822bb6376494184",
+   "state": "953bb239f6453bebe12f2f94b74aa654a928043445f8187241c0591dbce664d1",
    "steps": 8,
-   "time_s": 3639.502
+   "time_s": 3640.752
   },
   "T-8df3105ebc8486-01": {
    "passes": true,
@@ -2386,9 +2417,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b142f491feb90eb42bab78bbfee0c03cc9b03cae780fa82f6eafdefc07a53e8d",
-   "steps": 2,
-   "time_s": 7.0
+   "state": "1d09b8fa21ff7bfe155b04c19bece28e84feb78be2fca6b8e9d42af568ff02ff",
+   "steps": 3,
+   "time_s": 11.675
   },
   "T-8e57df5742271b-01": {
    "passes": true,
@@ -2396,19 +2427,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e98b0cd32ce07b31585e05c3356e68cbcd79c2955d1faad2b19ca25002a75560",
+   "state": "085e780c263a77650c72e28c4e847aa454396491044912332ef725a23935644c",
    "steps": 2,
    "time_s": 5.0
   },
   "T-8fb945d433137c-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b19150a4d422d6b7b7cc855f96e678041e20566546a7bf308ffc4a80a5e42295",
-   "steps": 27,
-   "time_s": 92.0
+   "state": "1f76fd1a916d41c2eceea3a0e22f4b2a60f8a3f8fbbf6ebc4d492a1f069c78dc",
+   "steps": 29,
+   "time_s": 99.0
   },
   "T-902505feb41f4e-01": {
    "passes": true,
@@ -2416,9 +2448,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a821bda998ba02fb1234cf457964afb6fcf4330f09cdde32da0bb80e7d16dd59",
+   "state": "5be405133e57443574ef7428aa04e65eaeb9960210959d35d4d1e2f072aa373a",
    "steps": 14,
-   "time_s": 49.489
+   "time_s": 43.927
   },
   "T-92f2736b7f949c-01": {
    "passes": true,
@@ -2426,9 +2458,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "de858297e521340c0f37240a89db2c1ea35006500ba75752b347533c5627a01e",
+   "state": "37288e302bef1ae524134a502da6b29616749424fbb51d534201eea5de0ad484",
    "steps": 85,
-   "time_s": 295.982
+   "time_s": 301.972
   },
   "T-946704aff89ecf-01": {
    "passes": true,
@@ -2436,9 +2468,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f7a1f5d4e9877712eb342269aabcb56281283f64e9536a6d68cf69c5f7608539",
+   "state": "36e32f7512e243662e2fbd46275b3189a39957267c461b361293bf5b81dbd5e2",
    "steps": 10,
-   "time_s": 27.612
+   "time_s": 22.05
   },
   "T-94a0a940224c22-01": {
    "passes": true,
@@ -2446,19 +2478,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4bb3d0cdc1eb19c147b50fb78979130b95f5acf1f2da6e02962b237f95a2f452",
-   "steps": 10,
-   "time_s": 42.0
+   "state": "743f94fbd9bf9addc213bbc73872022a3cba3596c7e35921c512910c6aa466e5",
+   "steps": 7,
+   "time_s": 34.0
   },
   "T-94bc2f055e3996-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b416623c83219d0e4672537432bb1d68e242fcaf3e5e9b849cdf7799b52d02f5",
-   "steps": 31,
-   "time_s": 192.0
+   "state": "42e1a0dd892b30fd7b7c1b84248932b5f3b2582bce90feaadb2d497b24606fbd",
+   "steps": 36,
+   "time_s": 222.0
   },
   "T-954f0fa3af60ac-01": {
    "passes": true,
@@ -2466,9 +2499,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9c79a471cc6cce1d2ab36921ca82f6017c36ae70eac898c06da60adba5e4638b",
+   "state": "8fef505084e6cf9879d3ba09447a5df6d6003b56331d7d219e66d37ffe4a5857",
    "steps": 28,
-   "time_s": 293.546
+   "time_s": 287.984
   },
   "T-9615ae9f7570b4-01": {
    "passes": true,
@@ -2476,9 +2509,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "cc9f0ddf28be447e042f823acd74cd582dbbd68600feb3c9eff016089b69cd6b",
-   "steps": 11,
-   "time_s": 142.0
+   "state": "b700a9fe1bad0ea074ae950bf1ab2e0be8eb73e8260e8775f358b84eaaf60f76",
+   "steps": 12,
+   "time_s": 150.0
   },
   "T-967eb7d6882595-01": {
    "passes": true,
@@ -2486,7 +2519,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "de82a718b92632fcca6187837ce261345c07d1b0c6c8251556f0b05338d05217",
+   "state": "6eae1b646e4c07bc88a5560dd1ada83aec808500eab842448b78baea0e82760d",
    "steps": 3,
    "time_s": 27.425
   },
@@ -2496,9 +2529,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "949cee9bbbf3e6d415c01b7f43486e9d7e41e29265501b690a500a5d2cb4e9da",
+   "state": "46f1f3cc1bf1b3ad189262e3a599511dcb4717b6ebd0ed464faab9e3f89626f7",
    "steps": 28,
-   "time_s": 92.944
+   "time_s": 93.98
   },
   "T-97f43b147c3c2f-01": {
    "passes": true,
@@ -2506,9 +2539,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b0e718b94c11712af748f27774919ce997ade4ddc4a2901dd3ff216725307e78",
+   "state": "716608aa3b842fb4529001cfab29019e1f0e2d928d5f5e9301df38ab300abc61",
    "steps": 6,
-   "time_s": 11.925
+   "time_s": 16.925
   },
   "T-9a6cc7b8c7cefc-01": {
    "passes": true,
@@ -2516,7 +2549,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "493cf00e83cc3a1463bf6c25cc6e93b6f5acf8272b2ed9bf2e90ddaff5a67f7b",
+   "state": "395f3fc77ba25d70941fc6453e0f215dd90893663437c32fc0ba528997014f0b",
    "steps": 20,
    "time_s": 64.715
   },
@@ -2526,9 +2559,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "b21d30fbaef92ff0b4ecf871562310e3f2e7def1c630b0d75c02aa7701ecaf10",
+   "state": "b1e7bca2f371d2d9e16424a0b41f013847361937bfd21627895be8ea1d09841b",
    "steps": 3,
-   "time_s": 65.059
+   "time_s": 66.827
   },
   "T-9f83cbcee53083-01": {
    "passes": true,
@@ -2536,9 +2569,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0831c2449ec3243cecffe8c174fb114e821fadca8c34b7744a68b6f508ff281a",
-   "steps": 15,
-   "time_s": 6061.509
+   "state": "e6fb1e0bd04f417a1827aea0dbb27cc00cf55ac5bbb8ad3739500ffc4831e0c5",
+   "steps": 14,
+   "time_s": 6063.236
   },
   "T-a03bc04a3a311c-01": {
    "passes": true,
@@ -2546,19 +2579,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4c19d482699f1e9c875261ecc116ac7bee28a68fe8949359bd527ab0a4d8f275",
+   "state": "44329227dd4d381732c29e7b38604542c2b79b952c394e7eed073251bfb3c04f",
    "steps": 38,
-   "time_s": 152.996
+   "time_s": 147.434
   },
   "T-a31398ab2abf54-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "02c63897442bf7045c462793ad7979c4e7c731f36136e1034c2b424cce58f04f",
-   "steps": 34,
-   "time_s": 4662.0
+   "state": "8981f8e4487dc716f7ecbc8054d9f8347cfd63b2d971eab59ded6df2cf41765f",
+   "steps": 37,
+   "time_s": 4683.0
   },
   "T-a31f35962e30bd-01": {
    "passes": true,
@@ -2566,19 +2600,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "c93d5d3e1afbded864ff3f49b177390529a3dbafced3331344532c2d4d5629ea",
-   "steps": 31,
-   "time_s": 492.146
+   "state": "ceced0292ee4ec0b82bb5ae9c680038d4c1fb7940e7cd10d4c58d9cfa90bfcf2",
+   "steps": 33,
+   "time_s": 487.502
   },
   "T-a56d991fe37401-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f43d1dab660574c7d3f2583f4a3b326e9f4f1f681db5fe4b3a0c41fe72eb3e28",
-   "steps": 13,
-   "time_s": 77.0
+   "state": "4e3d50af51f2ab179e73c56dc8c2ff5009ee4e97cdcf1d7eebf8bfd636c2458e",
+   "steps": 14,
+   "time_s": 78.0
   },
   "T-a853f28cce9c86-01": {
    "passes": true,
@@ -2586,19 +2621,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0a958650879c0dc46f40148079a631b6ca050d5876efa8e0f2d1fd21c879ad80",
+   "state": "925fe430a9494e9bb4c0155888d105a2865efaeabbfaf5553e4e0d850ea85da5",
    "steps": 7,
-   "time_s": 72.671
+   "time_s": 67.109
   },
   "T-ab9a26cd6a795e-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9786d11ad8a30dd6a1f85fdb708f3d77f3f6118f3d78d595df577a4e6f3db6ed",
+   "state": "5474583f5b771e3534f49a526c05bf0835fabddf45481c43ef92cc4e7cac974f",
    "steps": 4,
-   "time_s": 18.0
+   "time_s": 20.0
   },
   "T-ad17030a2c3223-01": {
    "passes": true,
@@ -2606,9 +2642,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2bfb6818a63ee26928bf494ee82265e32cd81b205cb42c6125384f8c14debeff",
+   "state": "f499b48751676132b8461bac3be56e51b20ed4d74cec5343b78b3d79395e0ee8",
    "steps": 17,
-   "time_s": 65.146
+   "time_s": 59.584
   },
   "T-ad1c4e6f5b6b40-01": {
    "passes": true,
@@ -2616,9 +2652,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7227ea73e0976dbbcb1970863c1ea6eed1d650d536ba561f114f551496ff603c",
-   "steps": 64,
-   "time_s": 224.587
+   "state": "fd1cb57cfa0e4cdc293e5b9130b9ed0f102df4d3bfaae3e7118b2dc34c160d20",
+   "steps": 58,
+   "time_s": 235.928
   },
   "T-ae4651b88eca7d-01": {
    "passes": true,
@@ -2626,19 +2662,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "870826bfde2143ab65054f5b97bf31899afeb46d1ad4f1b29985fc80084e026c",
-   "steps": 10,
-   "time_s": 479.202
+   "state": "1ceddb26c62425c674f7927f45eb073e8eb55c7ca3423e89e1e78d722322baf7",
+   "steps": 12,
+   "time_s": 479.711
   },
   "T-ae4fd543d7c772-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "877e1c3ef70f728c85bb3d3c9e00110fa4a925f7e29faab89bbd3e84466a3fca",
+   "state": "b48200450a3a665604afaa71ea091e9e12340aa4f8d8a89add569e83c9293836",
    "steps": 13,
-   "time_s": 41.0
+   "time_s": 48.0
   },
   "T-af96a334296669-01": {
    "passes": true,
@@ -2646,9 +2683,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f6d456f1e8fd5ca4d351d82a0252f1866757eeaaa64eb5c97f4e7026f2c653b0",
-   "steps": 37,
-   "time_s": 5755.102
+   "state": "f22d4a2e7e5f2355d0d62a779f890cbdf662c2cde53c0545c6923b66eff211c1",
+   "steps": 19,
+   "time_s": 5489.218
   },
   "T-b0ab19967436e0-01": {
    "passes": true,
@@ -2656,9 +2693,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1048ddf236d0a87ee86f49b491090115e1e662cba259b38cee1a5e132f1dfcb1",
+   "state": "b741716671ea6a397ee7ce50bd81caac54159da5322669c4af35f92cd55a8253",
    "steps": 14,
-   "time_s": 7297.98
+   "time_s": 7299.23
   },
   "T-b0d2729457cd9e-01": {
    "passes": true,
@@ -2666,9 +2703,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9b4d27794150974b022af67d0d9536dd5250266cb9886133f62ccb8351b1d97c",
-   "steps": 9,
-   "time_s": 26.0
+   "state": "55f52ac2e82a0ffe2ab064d3a515147b56a5cc8cc115b8318f1f3b44e99c1c3b",
+   "steps": 8,
+   "time_s": 33.0
   },
   "T-b122adaae3586f-01": {
    "passes": true,
@@ -2676,9 +2713,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2ebd6f1b758ecf5fd4319e8de6aa257f0b6a767330535a1efc939603e0fe0dbf",
-   "steps": 20,
-   "time_s": 127.187
+   "state": "51c4d3d6473ab422242486587e3e68533db13dab6903a468ff4216dad9b86da4",
+   "steps": 28,
+   "time_s": 163.378
   },
   "T-b1456a2d293d2f-01": {
    "passes": true,
@@ -2686,9 +2723,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "580c0023ec619841c9f556cde2c850e042e369a6da93d48cd79a9d7b1351e401",
+   "state": "61187837469b6ce85ac48ea71037fc6533f97042a29370d7350ea855f04053ab",
    "steps": 5,
-   "time_s": 438.0
+   "time_s": 432.0
   },
   "T-ba18cc4b56e89d-01": {
    "passes": true,
@@ -2696,9 +2733,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8b0648511a0b0c2a8d134a7f72330842931a69f8578094da0df75ae66810e189",
-   "steps": 32,
-   "time_s": 115.0
+   "state": "a16ba73bb00d7d9a263a3818289375eef3d717597d71420b3c386621d490112a",
+   "steps": 63,
+   "time_s": 308.0
   },
   "T-bfd811b2d14e62-01": {
    "passes": true,
@@ -2706,9 +2743,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f0b8435d9f66b760ee70c745657051ea60a9585819540a7cdc75658c32d113df",
+   "state": "afe6f14b876da4ee0407e815899a9adc0c6cab92cfdf66ff4244d6381ffbcacf",
    "steps": 20,
-   "time_s": 61.621
+   "time_s": 56.059
   },
   "T-c072906a11f55c-01": {
    "passes": true,
@@ -2716,7 +2753,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0278cdd7b67eeb66eac4419da8306773862ffa0dcb1687f53f671d7e10a601aa",
+   "state": "81665085a3b4673daa565fad1a19c7bc8d7b14325c0b960248fd0fc8712c7a53",
    "steps": 5,
    "time_s": 20.443
   },
@@ -2726,19 +2763,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7d37a5c583ac53674a102bbbf650e83d86b1732eaa06e416df8f27db8ba57129",
+   "state": "f6be2d46ba97c6ef76cc08d7e6453921d9885727c4f21f3dfea85cd851603fb8",
    "steps": 10,
-   "time_s": 49.733
+   "time_s": 45.421
   },
   "T-c35156368a8a4b-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0ab22304798082ce5159bbc7f25f86fbdd872250f44648b4e9ad1b230ec5f193",
+   "state": "85afbc2dccf8e9c65845bfa683f7bc8bb06ce0a88ec97b76fececdfff7ae354d",
    "steps": 18,
-   "time_s": 52.0
+   "time_s": 75.0
   },
   "T-c39a630dc5c6f6-01": {
    "passes": true,
@@ -2746,19 +2784,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8a963a49892a12cc88b973e7ee297bc8a76fa70c429a837d24c9c9012dbccc32",
+   "state": "9f993fdd89afda3f41912d04ff85a0be5d2a938dbe979add161b874c811ecc97",
    "steps": 8,
-   "time_s": 41.0
+   "time_s": 44.0
   },
   "T-c49fadcea69182-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1702665ca6b66524b72ba87ae9584b0257fbba0293365f953584992b33f38169",
+   "state": "a668c64fc229a013c31f1698c69065cca1606aea921a51a6a85a3bd9f0aa30e9",
    "steps": 8,
-   "time_s": 27.0
+   "time_s": 25.0
   },
   "T-c541cb694906f5-01": {
    "passes": true,
@@ -2766,9 +2805,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "726a45a4b6455e03a1b096742e6b2952d7aa6a766eab289ddb8288d5976ce6b8",
+   "state": "5b09d288056f50a298271ce66d7cc3b6fc58e9a1625ee44bd1f174def6f63928",
    "steps": 4,
-   "time_s": 18.969
+   "time_s": 19.487
   },
   "T-ca8e88d719c9ff-01": {
    "passes": true,
@@ -2776,9 +2815,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "5da65d2a13eebc7a71a1fcb7cebe5b0fc722e0d65fdca0b90c540e133618314b",
+   "state": "9fd57e5cadafc853e9082935e65716092a0065eb304f946f0d7bf48a5fd7ca5a",
    "steps": 11,
-   "time_s": 41.336
+   "time_s": 42.845
   },
   "T-cc81e71dc2182e-01": {
    "passes": true,
@@ -2786,9 +2825,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fcddd7838e3eadcf37a3c055067a600754ae381c44132eb986e996a4023c1fc6",
-   "steps": 43,
-   "time_s": 4768.427
+   "state": "0abb62accc71a48351313c5526722c67c9e08ca010c66e46b8ffebd5ac82ad85",
+   "steps": 25,
+   "time_s": 4763.193
   },
   "T-cd9494bd3b03fa-01": {
    "passes": true,
@@ -2796,9 +2835,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3c4341b82fdb931a83973aeb4b1b2e5d921906564a9eef7517c94e0e1ca09ff3",
+   "state": "7b72467b847ec4ee0406549744fd030225529c7b59020979e7db399d80b167de",
    "steps": 12,
-   "time_s": 31.621
+   "time_s": 26.059
   },
   "T-cdc6f993d6c3ea-01": {
    "passes": true,
@@ -2806,9 +2845,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "762bea772ac74c6c55569931858228e2774ae909b3e1ff7a5e97d635aac420dc",
-   "steps": 53,
-   "time_s": 184.596
+   "state": "b2390dd1b2f1143070966692161e469ffe3b9b09a9ca7712d90d1dd554520d57",
+   "steps": 54,
+   "time_s": 185.78
   },
   "T-ce25a2474ffb3d-01": {
    "passes": true,
@@ -2816,9 +2855,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3d1484245de35e81ccaa3f1e9cea01e1fee656a960bacad376281c144e010ad7",
+   "state": "54a17ee77b86d5f9e633a6f59a8a42dfadc4e15d5ab5f673a634a79c2b39d590",
    "steps": 8,
-   "time_s": 21.912
+   "time_s": 15.1
   },
   "T-d07790831be96a-01": {
    "passes": true,
@@ -2826,9 +2865,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "424354fbbe964744607b0c6bb3a05ebe3a4803f046aedbff5e7711d4ae4b8ce9",
-   "steps": 7,
-   "time_s": 25.0
+   "state": "89e6d707ca0e646486f056b69e7443edfc9dd52478569b5871b8900ce7fd9ee0",
+   "steps": 6,
+   "time_s": 18.0
   },
   "T-d182fc681f310d-01": {
    "passes": true,
@@ -2836,9 +2875,19 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "508ef95c79098dd7f64427ff5f809206bb398c8e44e36809811028cdef967be4",
+   "state": "954b3ff447164279e454ba7b3b3244aca845d6347b20a367c106f6a432325dd8",
    "steps": 9,
    "time_s": 402.525
+  },
+  "T-d1f9385dbb80fc-01": {
+   "passes": true,
+   "perception": "realistic",
+   "problems": [],
+   "refusals": 0,
+   "seed": 0,
+   "state": "53bb2fae592d06e9c98ee928988fc68fc29088baf143cb9e32e831ef66f31a5f",
+   "steps": 38,
+   "time_s": 260.0
   },
   "T-d25af2202bc025-01": {
    "passes": true,
@@ -2846,7 +2895,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d98ab86886c82c0052c05f077c38b48d2f3a9beb5ebc04039de02a4413be630e",
+   "state": "88945d5b867c38f0d9643454aa5df539406c4145daa5727dd1383da5c5f63c11",
    "steps": 6,
    "time_s": 47.0
   },
@@ -2856,9 +2905,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "05364f325a53a416dea80dbaf0e1632bf011301c9aba039dbae6edaa76d93a62",
+   "state": "51c0f83aa4d197cdfbef1641fce5da6ef63991a4dd33b95a97652af715e2d309",
    "steps": 35,
-   "time_s": 182.137
+   "time_s": 176.575
   },
   "T-d8355138bcf9fb-01": {
    "passes": true,
@@ -2866,9 +2915,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "086220110d11b0e651aa101229a9e0b735f686c78cf95237e5072231cfb33e4b",
+   "state": "782c94949db0b73d2280fc9722eb780d9d37a971a209d25328ed1cc98f05be14",
    "steps": 22,
-   "time_s": 1039.746
+   "time_s": 1034.184
   },
   "T-d8d0ca913007d4-01": {
    "passes": true,
@@ -2876,9 +2925,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "339a86bcfe95f1309640243ec3a98667258aaf0cb50f66ade141f79a7f0892f2",
-   "steps": 14,
-   "time_s": 63.833
+   "state": "361bb115914b3380aa54bac81d36d84a93504e4f59b05b2926b435f9dadf353c",
+   "steps": 13,
+   "time_s": 63.792
   },
   "T-d901f3b7dda58a-01": {
    "passes": true,
@@ -2886,7 +2935,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "92d2e68e79a499c650981c4f7ce49a457f348153675ce6697724cc9ec463d68b",
+   "state": "4c6c462239957b3f0afae854ba02c14e374153ccc985ad8814f50ddd45a52eec",
    "steps": 2,
    "time_s": 4.634
   },
@@ -2896,9 +2945,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bfa1172c831943e678e1cd7c4b8a8b081a273b48456125b8f8e8c558c3900b2a",
-   "steps": 12,
-   "time_s": 63.126
+   "state": "e52fec763bc7b9cd771c32d9e13ee1e6dc4685c48eacce7477fa18e5dd9c7956",
+   "steps": 11,
+   "time_s": 57.264
   },
   "T-d990c58b123a5e-01": {
    "passes": true,
@@ -2906,9 +2955,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "38d223895e109ad7654a6f51079db6dc9956f43434653a5015f9147b27479885",
-   "steps": 95,
-   "time_s": 551.775
+   "state": "78d1931401596a2ea208ab1579aedbf0aad555af05ac5d9c5a9a9c50b124e061",
+   "steps": 96,
+   "time_s": 556.629
   },
   "T-db0caa23574cee-01": {
    "passes": true,
@@ -2916,9 +2965,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a97b887d7e4deffe26ea910e22bba270f926a70423c4466ae6d70081221137a0",
+   "state": "c2654487327cfdc89e02bf5969f694aa91d6d8d5f3ed8f042784ad7d4acf8e86",
    "steps": 42,
-   "time_s": 887.162
+   "time_s": 881.6
   },
   "T-dd0bf4a1707041-01": {
    "passes": true,
@@ -2926,7 +2975,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a0fa3a27d35175185bf4d68903062e60f85ff0ab1b5c4553f696d236b38e100b",
+   "state": "1b41cd24d39ae5aeb5d68059a892334d2a8b76d597829e2b71209e0ecfa1d926",
    "steps": 5,
    "time_s": 69.984
   },
@@ -2936,9 +2985,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "6b5db9b6ccf2655418fcc8d4a8a11d4c6a56a1a48730db1e70c57c25d9699407",
+   "state": "cba63954571e91e01e6c2ba1219efea80ca2a443fad8086d1988ae28e3207cd6",
    "steps": 9,
-   "time_s": 36.656
+   "time_s": 38.165
   },
   "T-dd4865f77ac0d5-01": {
    "passes": true,
@@ -2946,19 +2995,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4386eb061ec20e5b9a46de7518368826dfea8402ffde8294ca3047cf5a822f54",
-   "steps": 19,
-   "time_s": 144.255
+   "state": "c430ddc8b505eb5d9fdcc0e62de39ec57a6d34fb401ddbad6d7f5cfd2869edf3",
+   "steps": 21,
+   "time_s": 153.757
   },
   "T-dd81fe507682fc-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ba9045d9ea89eee9285cb50d3e4892e2493f849753976620bb6cfc9fd20efbb3",
-   "steps": 11,
-   "time_s": 33.0
+   "state": "59b734f9a2558d610bffeaec60b65bf1e3bce607946901edd36ec177bc53ebbd",
+   "steps": 10,
+   "time_s": 26.0
   },
   "T-dda4e199f3f5b0-01": {
    "passes": true,
@@ -2966,9 +3016,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "fc429183bdc27bc34eafa2e0e2dcadeea12dbed6b1b127d85dc4cd6332990209",
+   "state": "ee3da21a4dedceaf8c201191ca1bbb489b3ae3f8a9824f1a0f9a6d7ec379d593",
    "steps": 5,
-   "time_s": 24.425
+   "time_s": 25.05
   },
   "T-dde0975c7a26b8-01": {
    "passes": true,
@@ -2976,9 +3026,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7a7c58b79d119110a0b943294a1bf994e47c8c8adf798d5db288d6a0896d534a",
+   "state": "4bcc3eaed3a77e59109cabf9d655221e9e300f639dfb5decc7f5cc2332a676a4",
    "steps": 15,
-   "time_s": 54.986
+   "time_s": 56.495
   },
   "T-def26dd2c87c85-01": {
    "passes": true,
@@ -2986,19 +3036,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "6120fefb727ffbda5610f3e481dd0fb221b91aa0baee94befe0fa557888eb530",
-   "steps": 30,
-   "time_s": 78.802
+   "state": "7595ba28e14b57597356a5d70ac666c0e07f99e28e0f5b1f853534435d787980",
+   "steps": 28,
+   "time_s": 71.213
   },
   "T-df60f56a4cce54-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9dfa6f78275fd08089efad358b9a7ef2dfb8da765d2d9b44f20e84225e3b8d26",
-   "steps": 12,
-   "time_s": 47.0
+   "state": "2c4d35b4a447427a2effa1c133b13de6ea5525aff63d68a750a90b4e33a190a4",
+   "steps": 13,
+   "time_s": 52.0
   },
   "T-e111147fc8a148-01": {
    "passes": true,
@@ -3006,9 +3057,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ad24bc7199221078b328879b9742c8f38af9784bc18e4f5926b99380f44abb83",
+   "state": "2e00cade52d44bbabea1a8845c678279a07a8434b0e822d856ac1a044a5fc38b",
    "steps": 8,
-   "time_s": 40.652
+   "time_s": 19.977
   },
   "T-e19f473c5cfd0d-01": {
    "passes": true,
@@ -3016,9 +3067,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4e3e209ebcc6d3e31a09efd77f2c5e79c41d9d8fd591562df7b6afd5ebd852a9",
+   "state": "e7e3dc84bf1e08446ba88f267711aea0aabdfb19942a238fc819131f84320135",
    "steps": 16,
-   "time_s": 967.073
+   "time_s": 973.841
   },
   "T-e262f715d0bd60-01": {
    "passes": true,
@@ -3026,9 +3077,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8f5a83ec973199dacf46ee45aa442784c8df47181f8cb627596328c78387dccb",
+   "state": "8c54ce5a7c095a9310c1aacc66841ec279cead88fd5b114444cb9666b5e45f4f",
    "steps": 17,
-   "time_s": 550.905
+   "time_s": 552.155
   },
   "T-e40eb6a314e5b6-01": {
    "passes": true,
@@ -3036,29 +3087,31 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1fb920de0037f2a7133b327dd0bda65025d806f8d8a47860955ca599b3ca0aff",
-   "steps": 7,
-   "time_s": 137.011
+   "state": "02f6fbd84c500c1a136d1d73f00d89321d290e09d509aaa6dda321aa11f3075f",
+   "steps": 8,
+   "time_s": 141.52
   },
   "T-e662e1ab5384e8-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "c12247b93617ec7eb46a9720d9be9c8e99585021bed0173cfc1f749900290a84",
-   "steps": 13,
-   "time_s": 35.0
+   "state": "648a96ff4f57758d9e832bc2e92e805b96039fc72e1c113235bae2d8cf589466",
+   "steps": 17,
+   "time_s": 62.0
   },
   "T-e752686ae3a5fb-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9edbba642e22b93d07a546c4063d3e4d60c0eb7690f94e26195ee9f7ce76f2bc",
-   "steps": 4,
-   "time_s": 11.0
+   "state": "a9b69f69ea5dfa2be97f7b4effc4e8ddd2963464eb30c030bc7e4baad374bbb7",
+   "steps": 5,
+   "time_s": 15.0
   },
   "T-e780c9db18b3bf-01": {
    "passes": true,
@@ -3066,9 +3119,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0803ca1d6aaaa3610bf02bd96bf6223e7abcb72435cbf61a6e3c1c6e44718f95",
-   "steps": 4,
-   "time_s": 12.0
+   "state": "0a23e53b51b55970ca74fd1f29e1c9fea0c287c946c4c77e7eb5cd5ce9579a83",
+   "steps": 5,
+   "time_s": 16.934
   },
   "T-e7a39a7a0aa001-01": {
    "passes": true,
@@ -3076,9 +3129,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "baab6d33786639fd054513ae5cdfb1db2b8fb99058c6df290b06a1873b1652a0",
+   "state": "b7319c49f7b32a95d4b586740c8ff97350e3ea9bf9cf0f73bc814d18c51f65de",
    "steps": 20,
-   "time_s": 7292.015
+   "time_s": 7292.533
   },
   "T-e8541019a4bfac-01": {
    "passes": true,
@@ -3086,9 +3139,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "96334341826acb6ac626817093a8dd2dd908c884519f6abd5709713188f0e5f9",
+   "state": "6203d485ac3976b2906b571cd239f7e483913eaa587837f6aee0cb2201e5a52a",
    "steps": 3,
-   "time_s": 71.925
+   "time_s": 76.925
   },
   "T-e95dd4ba6e8734-01": {
    "passes": true,
@@ -3096,9 +3149,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "e81b237dd0d73c9bcdae3c9e174641f73bc459c11497f88cac36801043116043",
+   "state": "d06f7c47ab4e8704fc0450d6386d05a55f39c34a9ce3dd88b989945c5f631d78",
    "steps": 5,
-   "time_s": 17.746
+   "time_s": 12.184
   },
   "T-e9cf6ca709ec77-01": {
    "passes": true,
@@ -3106,9 +3159,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "13d91e78efb1c5057bfe627588b6c3fa967e844f3cd88d831b0abe34267d987c",
+   "state": "72db2dd4cd5eaca53a4d01a65150817c80831524d208f4ba58da002905fc6a06",
    "steps": 15,
-   "time_s": 58.662
+   "time_s": 53.1
   },
   "T-ea2be64edfb17d-01": {
    "passes": true,
@@ -3116,9 +3169,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ad918b0dda59bf70a8fee8831fb3222124b18a3b84bec0da9f77d45f3b533725",
+   "state": "42e66b746d908d5950166a2904186db4b788f206d3b9324388e6d9226a3930ee",
    "steps": 53,
-   "time_s": 102.771
+   "time_s": 97.209
   },
   "T-ec38fe45bca9ab-01": {
    "passes": true,
@@ -3126,9 +3179,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "d59eafce1a93472c1d962e7a40f7006ff56e0ef2116f79dd1d0d07c10e41d0d8",
+   "state": "7348de17ba5bc22241413f8c5a2f6e571ae635ce75bb2c291427f5f73e9d94a2",
    "steps": 17,
-   "time_s": 39.921
+   "time_s": 34.359
   },
   "T-ed45170be6256e-01": {
    "passes": true,
@@ -3136,19 +3189,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "19bf037a553414a038a6339609f517b4eac0e9cf7155c2f0a14716a765a69b51",
+   "state": "2276d0aa6b9caec51ea8bd4c5113d4ff8e8e129970c4648df494701e5459be20",
    "steps": 10,
-   "time_s": 174.702
+   "time_s": 176.211
   },
   "T-edec597b980b74-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "628960791536f2b20eff9b4cb29fbea8003dd27435b459b44342b8895513dd93",
+   "state": "816ba40e4ce72c41dc8f1531fa65188ee365434114323903430461d33afe3776",
    "steps": 7,
-   "time_s": 35.0
+   "time_s": 36.0
   },
   "T-f036622c9240b7-01": {
    "passes": true,
@@ -3156,9 +3210,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "7144984c2e524a24aaea684053f5cb478688d984b50410b21e469ef0ed40c4a8",
+   "state": "688a0e6fa9883107032050cd1b8112baba816f9d5d08560b1b5a7aba39df2747",
    "steps": 7,
-   "time_s": 25.84
+   "time_s": 20.903
   },
   "T-f14db0adf450bb-01": {
    "passes": true,
@@ -3166,9 +3220,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bd7d8cd1418a0a54f08a191b3061689b76349d87c81738e96791dbd5cbf5840b",
+   "state": "ac4e69703ca900666734c8ba500ae9ac2e0d2f5663bcb8c45a83b0b554ff4eb9",
    "steps": 8,
-   "time_s": 26.746
+   "time_s": 21.184
   },
   "T-f2bea29c36142c-01": {
    "passes": true,
@@ -3176,19 +3230,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "0eb4f7bd0a6435f8277027c900d7e2988651ac72ede83d1a280e11a35f51c1ad",
+   "state": "b61fbe2ad684fe41cea0a8cfd345b056c4e0add640f28f0a0f016fb9028d90d1",
    "steps": 6,
-   "time_s": 46.237
+   "time_s": 40.675
   },
   "T-f7913405ff4906-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "cf9c33b52c7dcd764278fe7a9c16d3ca27229b282a1eff24050f2c93038a7a61",
+   "state": "7fab9eb361031c2d634664dd0a12d5666e8b5d40f90630c768c38950e74808cb",
    "steps": 8,
-   "time_s": 22.0
+   "time_s": 25.0
   },
   "T-f799aa11cb00ec-01": {
    "passes": true,
@@ -3196,19 +3251,20 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "98fee11789d5de6a3404d78fabaf8a8a9e1ec99350fcaa442deee8fa02617c4c",
+   "state": "f3b11dcf9e1d4f902c9536561a58b3f72c93e8b497022493cbbe50f32a097a22",
    "steps": 9,
    "time_s": 73.925
   },
   "T-f7f4105ce49060-01": {
+   "camera": "geometric",
    "passes": true,
    "perception": "realistic",
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "45d0969ff85d356568db3e70879c9ad09dd570564dfa19adaa36aaadb71cb8da",
+   "state": "f9c3c7791f13fa34a96b101dfc90ada170fcc27005b9295a7c02778a2d06d393",
    "steps": 19,
-   "time_s": 64.0
+   "time_s": 87.0
   },
   "T-f82f0ec54a8efb-01": {
    "passes": true,
@@ -3216,9 +3272,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "45aa4285434834c084cf219d87b0952a1342ffde1c6435e8c8551b5c4cc4b006",
+   "state": "8effda99d2b68d60050e17fe05b2f37ea094c65e41123c37d45057cfdd10207f",
    "steps": 42,
-   "time_s": 162.453
+   "time_s": 164.694
   },
   "T-f9c90de5bb6b68-01": {
    "passes": true,
@@ -3226,9 +3282,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9be11fce0df5f50d373746a5ea2dbd0901265bb108821be4387a085c380f5c00",
+   "state": "73f8d6e313b22c7f9b388642393f17b6713bfd91fd26b267b44ec8770a962860",
    "steps": 30,
-   "time_s": 71.189
+   "time_s": 65.627
   },
   "T-fa2552570f7b6f-01": {
    "passes": true,
@@ -3236,9 +3292,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "eeb828057f485e7b974eb5c16e417e8314ecdf4f5c16ffac93ccf50a7bc77322",
+   "state": "a5642476649aea6a997aa834572c0b80631702325b07b264461af8eb14225b52",
    "steps": 12,
-   "time_s": 254.73
+   "time_s": 260.981
   },
   "T-fa29fd5df0e544-01": {
    "passes": true,
@@ -3246,9 +3302,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "14bc70128ddcdbce5f4455ca2d9805f9c5055ff38471b202636324b8bd43b07b",
+   "state": "7af447f0f04286087a1ed1891aab1c20cfa9cee3a48fda86285af3d33c11eb7a",
    "steps": 11,
-   "time_s": 31.0
+   "time_s": 25.0
   },
   "T-fc5c1e1b7eeccc-01": {
    "passes": true,
@@ -3256,9 +3312,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "558cb68afeda8b88bb31816e17e11e2648f4c98fb40f48af0844aedea6e821ad",
+   "state": "469c9379c080874c4d756cd62aa5de5aa7405d4f4aaff43ca2a2419c3296439f",
    "steps": 20,
-   "time_s": 3043.984
+   "time_s": 3045.234
   },
   "T-fd2d3d767911d8-01": {
    "passes": true,
@@ -3266,9 +3322,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a2257f3f4cac416efb4352fec0b254046b7f4102b713b693e161cceb259a718f",
-   "steps": 19,
-   "time_s": 50.0
+   "state": "0abeca5e06a2544f76699f582992a58761cca00c9b485c8dc7a5770958897dce",
+   "steps": 20,
+   "time_s": 54.827
   },
   "T-fd8774ed84c8e3-01": {
    "passes": true,
@@ -3276,9 +3332,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "89d9a5c974cb8ab8eb0f72ba350dd7369d82447c5dc20efcf9d7e2039dc7acbb",
+   "state": "dc3cbbf9f4bb5659daffb83ace96f5272f2646d42c66eaf2da0bee07d9f08c62",
    "steps": 18,
-   "time_s": 97.029
+   "time_s": 79.567
   },
   "T-fd9e18ceb20286-01": {
    "passes": true,
@@ -3286,9 +3342,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3057476b64f3d6687fee62fc9e85d1d7f7158da09cbe70f93e20d81da0413622",
+   "state": "5a47cf10f14cf1d549c27e0274650deae37940fa02ea3a35aee97e8cc1d2739a",
    "steps": 20,
-   "time_s": 70.136
+   "time_s": 71.645
   },
   "T-fffb3941b40c87-01": {
    "passes": true,
@@ -3296,7 +3352,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "f1356b06e20cd27bfcc2bafa7121e16387dfd4f4298cc9bd35fc85c2894ead23",
+   "state": "889298c858a2e76d403a4274860247323f1f9dda349a3e2d9cc7efc504b68f73",
    "steps": 19,
    "time_s": 259.822
   },
@@ -3306,7 +3362,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "dffc3fa9ecff314129b78c08f2963a6dc259ad7cdc4eb1d754da33696990d30c",
+   "state": "00577aaf929d56a81f05967f98b38286ea326fa79c23d3d33b753ef438debcdd",
    "steps": 3,
    "time_s": 9.0
   },
@@ -3316,9 +3372,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "bd8e8f754064073fd8787106d10a985d3d60b6872bc7c493698d16cefe707175",
+   "state": "377c2bf1de81bddc367d003c2122da5aa11c13e4dbd0ded0b63f90115f8938c4",
    "steps": 5,
-   "time_s": 29.5
+   "time_s": 39.285
   },
   "X-1742e6de23d6be-01": {
    "passes": true,
@@ -3326,9 +3382,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "8dfc44c9750f173090a879772e857aabccaaa84e1a8e71c30b8590123fe6e26a",
+   "state": "42c65e26ecba168d9b845c18672d3cb3846a1289593efa1c36fec92618a08ada",
    "steps": 4,
-   "time_s": 48.216
+   "time_s": 27.044
   },
   "X-1c71303328a5b8-01": {
    "passes": true,
@@ -3336,9 +3392,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ea71dd13ff3bc97143a8a8a1fd28f7ce2611d213d83df6ddc6ca1460a6802593",
-   "steps": 66,
-   "time_s": 624.979
+   "state": "d6c5b538542db22800dd363d617d0f92eb5588673b0402e0a3c13b636df67308",
+   "steps": 64,
+   "time_s": 628.74
   },
   "X-404f39e74f6d5f-01": {
    "passes": true,
@@ -3346,9 +3402,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "708860eb2f082f88b5e57f639470509d11e57c394aaadca685c893e75888b918",
-   "steps": 36,
-   "time_s": 133.953
+   "state": "1e56783f7fe1652f62e385ab3d1c5d1ed67f228bb2dedb32fb2e2d2f70fb3772",
+   "steps": 35,
+   "time_s": 126.063
   },
   "X-44e90cc83ba0db-01": {
    "passes": true,
@@ -3356,9 +3412,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "6df63e0ed9c179cb5a9e9cad949e8acd6731c8dfab77b8d1c3847eaa85414500",
+   "state": "8529710df9b94fe58373997de77217d5e7b69b6441435f029ae2085c75adf4fa",
    "steps": 19,
-   "time_s": 105.271
+   "time_s": 99.709
   },
   "X-9cb1ee87e09363-01": {
    "passes": true,
@@ -3366,9 +3422,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "3038387d5265d2e0e5ecef8e8b4bb163ec0c5bd1a05203cfcf8f99e840c4ffa5",
-   "steps": 10,
-   "time_s": 63.121
+   "state": "b58e8eaa850df35c2192f6640e4bd8169fa9bffa9805e9f91fca3ca8fabff744",
+   "steps": 9,
+   "time_s": 74.157
   },
   "X-bc4e8d373e62c5-01": {
    "passes": true,
@@ -3376,9 +3432,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "ffeb82175250fdac3aa9b71d10eb6448f10481f657be5fe38bec4082f908dead",
-   "steps": 193,
-   "time_s": 984.408
+   "state": "b62a7bafd8c311c4c05eab8ffbe41e7428bd4373feaeae295db811f825bb3ae8",
+   "steps": 89,
+   "time_s": 474.935
   },
   "X-befab43585cde3-01": {
    "passes": true,
@@ -3386,9 +3442,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "1270a7faa5c76d1097f0901cfbe88daf260a7f06cf7fc643d0f6501b6a255993",
+   "state": "676f279e81fa738ce0e27420599e88b39ebbc9efb7d6069da8db9fe093a706f8",
    "steps": 37,
-   "time_s": 2658.898
+   "time_s": 2653.336
   },
   "X-bf82170244be22-01": {
    "passes": true,
@@ -3396,7 +3452,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "271cf01b9644697a63f8c34cd308774aeb93fd58431f8bc20220a3bf94c4d2b6",
+   "state": "5f22d9a45fbf2583fc97b922abef33f5729f24dfd501619dda5350734e19a3c8",
    "steps": 14,
    "time_s": 169.0
   },
@@ -3406,9 +3462,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "c7fcf1b6047875d5763f340e2d095fbbdb5d15c4084b02feba1b2dfe82683d68",
+   "state": "9e0f9f298517a84561bc9b0210de0216cb174f7e1b6f937b535f9b9cc75d53b6",
    "steps": 19,
-   "time_s": 151.31
+   "time_s": 153.551
   },
   "X-c7a6de4ed9ba04-01": {
    "passes": true,
@@ -3416,9 +3472,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "2676056061c1470cac7e32afe0da008b791aa4ec7199c3ab8ef6ae930822dd5f",
+   "state": "58fa24e6b0f291e5c397ef7897d33885f99b2146358406a139b9af00cce714bb",
    "steps": 11,
-   "time_s": 47.975
+   "time_s": 51.1
   },
   "X-d734ea3e299b16-01": {
    "passes": true,
@@ -3426,7 +3482,7 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "9e393d686fb7c73bb4f1809b12e3daa66ba17d1223ef7606c1f6b039bd5a8f27",
+   "state": "4d7eb5928e52cde0bed97621d413236c67c20b9019202f006fd948607fc0bcec",
    "steps": 6,
    "time_s": 609.55
   },
@@ -3436,9 +3492,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "a4af58fe7fd839c16b81c2cde6376edc77daead60252812d0ad977fa9dd11ab9",
-   "steps": 18,
-   "time_s": 196.668
+   "state": "35828ddf843bf9fc894c08b7a212954bb877bbf214e5f156e0523a8625b3503c",
+   "steps": 19,
+   "time_s": 196.86
   },
   "X-fee35ef3aac659-01": {
    "passes": true,
@@ -3446,9 +3502,9 @@
    "problems": [],
    "refusals": 0,
    "seed": 0,
-   "state": "4d4f24fd9ecbc99c8a9120af85031b710942c37f08ad7099451c7b14e07f5505",
+   "state": "fc8f8bbc5d8c6ac8d3aad1e287a3288a9397aff9acc6581f48efd9451eaaba0b",
    "steps": 8,
-   "time_s": 51.787
+   "time_s": 46.225
   }
  }
 }

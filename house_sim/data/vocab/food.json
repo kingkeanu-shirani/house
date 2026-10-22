@@ -1,0 +1,13 @@
+{
+ "about": "food's report words (adoption request food 1): spoilage, damage and allergen findings and ripeness, with the record fields that show them (appearance carries mold, slime and insects).",
+ "issues": {
+  "freezer_burn": {"class": "supply", "synonyms": ["freezer_burned", "freezer_burnt"], "evidence": [{"field": "appearance"}]},
+  "bruised": {"class": "condition", "synonyms": ["bruise", "bruises", "bruising"], "evidence": [{"field": "appearance"}, {"field": "damage"}]},
+  "bulging": {"class": "safety", "synonyms": ["bulging_can", "swollen_can", "domed_lid"], "evidence": [{"field": "appearance"}]},
+  "stale": {"class": "supply", "synonyms": ["gone_stale", "not_fresh"], "evidence": [{"field": "appearance"}, {"field": "freshness"}]},
+  "allergen": {"class": "safety", "synonyms": ["contains_allergen", "allergy_risk"], "evidence": [{"field": "food_label"}, {"field": "label_text"}]}
+ },
+ "states": {
+  "overripe": {"synonyms": ["too_ripe", "mushy"], "evidence": [{"field": "ripeness"}, {"field": "appearance"}]}
+ }
+}

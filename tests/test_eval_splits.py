@@ -729,9 +729,10 @@ class PackagingTests(Isolated):
                      "reports/private_results/run1/viewer/T-x__test-abc__PRIVATE.html",
                      "reports/T-x__test-abc__PRIVATE.html", "reports/T-x__test-abc__PRIVATE.json"):
             self.assertTrue(gitignored(path, rules), path)
-        # demos/replays/ is ignored on purpose (about 3 MB per replay; regenerated with --demo), so it is not listed
+        # the demo replays are committed again: compact house-replay-v3 files of about 100 KB (kernel/replays.py)
         for path in ("reports/leaderboard.html", "reports/test_commitment.json", "demos/manifest.json",
-                     "house_sim/eval/splits.py", "house_sim/eval/viewer_template.html", "docs/SPLITS.md"):
+                     "demos/replays/T-x.json", "house_sim/eval/splits.py", "house_sim/eval/viewer_template.html",
+                     "docs/SPLITS.md"):
             self.assertFalse(gitignored(path, rules), path)
 
     # Regression (red team): _private_file matched only split_key, test_manifest.json, test_phrasings.json, results/

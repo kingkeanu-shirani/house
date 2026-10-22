@@ -4,6 +4,7 @@
    "catalog_id": "T-28ff695081cd2c-01",
    "title": "Start the loaded washer safely",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -299,6 +300,7 @@
    "catalog_id": "T-cdc6f993d6c3ea-01",
    "title": "Transfer wet laundry to the dryer by care label",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -743,6 +745,7 @@
    "catalog_id": "T-fd9e18ceb20286-01",
    "title": "Pair look-alike socks",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -1067,6 +1070,7 @@
    "catalog_id": "A-8220afe27c03e7-01",
    "title": "Fold a fitted sheet into a neat rectangle",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -1158,6 +1162,10 @@
      "target": "careful"
     },
     {
+     "do": "inspect",
+     "target": "{sheet}"
+    },
+    {
      "do": "fold",
      "target": "{sheet}",
      "style": "fitted_nest"
@@ -1234,12 +1242,13 @@
      ]
     }
    ],
-   "notes": "Fold geometry (fold.py): nesting the elastic corners gives a flat 0.4 x 0.43 m block; a flat-sheet fold leaves it lumpy and too big for the cubby; 5 folds at normal speed misalign the edges by ~4.5 cm."
+   "notes": "Fold geometry (fold.py): nesting the elastic corners gives a flat 0.4 x 0.43 m block; a flat-sheet fold leaves it lumpy and too big for the cubby; 5 folds at normal speed misalign the edges by ~4.5 cm. Adoption round: the reference looks the sheet over (inspect) before folding, as realistic perception requires of a look-alike (fitted, flat and crib sheets look alike at a glance)."
   },
   {
    "catalog_id": "T-e40eb6a314e5b6-01",
    "title": "Put the right fitted sheet on the bed",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -1354,6 +1363,10 @@
      "target": "{fitted}"
     },
     {
+     "do": "inspect",
+     "target": "{fitted}"
+    },
+    {
      "skill": "approach",
      "target": "{bed}"
     },
@@ -1439,12 +1452,13 @@
      ]
     }
    ],
-   "notes": "A twin sheet or a crosswise one can seat only two elastic corners; corners_seated and face_up are physical state."
+   "notes": "A twin sheet or a crosswise one can seat only two elastic corners; corners_seated and face_up are physical state. Adoption round: the reference looks the unfolded sheet over (inspect) before dressing the bed, as realistic perception requires of a look-alike."
   },
   {
    "catalog_id": "T-cc81e71dc2182e-01",
    "title": "Treat blood and coffee stains, then wash",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -1561,6 +1575,14 @@
      "agent": "{stain_remover}",
      "method": "blot",
      "water": "cold"
+    },
+    {
+     "skill": "approach",
+     "target": "{booster}"
+    },
+    {
+     "do": "read",
+     "target": "{booster}"
     },
     {
      "skill": "fetch",
@@ -1789,12 +1811,13 @@
      ]
     }
    ],
-   "notes": "Stain chemistry (care.py, wash.py): enzyme on protein in cold water, oxygen bleach on tannin, dwell 5-60 min; hot water sets blood; chlorine damages coloured cotton."
+   "notes": "Stain chemistry (care.py, wash.py): enzyme on protein in cold water, oxygen bleach on tannin, dwell 5-60 min; hot water sets blood; chlorine damages coloured cotton. Adoption round: the reference reads the booster's label before picking it up (the laundry_jug look-alike group includes chlorine bleach, so an unread jug may not be lifted without a grip safe for every member)."
   },
   {
    "catalog_id": "T-7d4006bda247ba-01",
    "title": "Iron a garment at the setting its fibre allows",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -2131,6 +2154,7 @@
    "catalog_id": "T-ae4651b88eca7d-01",
    "title": "Sew a missing shirt button back on",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -2250,7 +2274,8 @@
      "spool": "{thread_white}",
      "button": "{button_1}",
      "home": "{pincushion}",
-     "snips": "{snips}"
+     "snips": "{snips}",
+     "threader": "{threader}"
     }
    ],
    "wrong": [
@@ -2266,7 +2291,8 @@
        "button": "{button_1}",
        "home": "{pincushion}",
        "snips": "{snips}",
-       "position": "approx"
+       "position": "approx",
+       "threader": "{threader}"
       }
      ]
     },
@@ -2282,7 +2308,8 @@
        "button": "{button_1}",
        "home": "{pincushion}",
        "snips": "{snips}",
-       "layers": "both"
+       "layers": "both",
+       "threader": "{threader}"
       }
      ]
     },
@@ -2297,17 +2324,19 @@
        "spool": "{thread_navy}",
        "button": "{button_1}",
        "home": "{pincushion}",
-       "snips": "{snips}"
+       "snips": "{snips}",
+       "threader": "{threader}"
       }
      ]
     }
    ],
-   "notes": "Needle eye vs frayed thread (trim first), position error vs the original thread marks (<= 2 mm), layers caught, thread colour, needle returned to the pincushion (invariant loose_needle)."
+   "notes": "Needle eye vs frayed thread (trim first), position error vs the original thread marks (<= 2 mm), layers caught, thread colour, needle returned to the pincushion (invariant loose_needle). Tier-1 body (adoption round): aiming a thread at a needle's eye needs 0.5 mm, beyond a humanoid hand (2 mm), so the plans hold the kit's needle threader (2.5 mm) and put it back; stitching through the button holes needs 2 mm (the hand manages it with a clean lens in a lit room)."
   },
   {
    "catalog_id": "T-ed45170be6256e-01",
    "title": "Make a slept-in bed the owner's way",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -2535,6 +2564,7 @@
    "catalog_id": "T-af96a334296669-01",
    "title": "Start the dryer safely (lint screen, oily rags)",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -2736,6 +2766,7 @@
    "catalog_id": "A-d66994a566899c-01",
    "title": "Dry a shrink-prone garment by its label",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],
@@ -2806,24 +2837,18 @@
        "method": "flat"
       },
       {
-       "wait_until": {
-        "all": [
-         {
-          "path": "entities.{garment}.wetness",
-          "op": "lt",
-          "value": 0.04
-         },
-         {
-          "not": {
-           "path": "entities.{garment}._core_wetness",
-           "op": "gte",
-           "value": 0.04
-          }
-         }
-        ]
-       },
-       "max_s": 216000,
-       "poll_s": 3600
+       "repeat": 14,
+       "steps": [
+        {
+         "skill": "wait",
+         "seconds": 14400
+        },
+        {
+         "do": "inspect",
+         "target": "{garment}",
+         "where": "closely"
+        }
+       ]
       }
      ]
     },
@@ -2908,24 +2933,18 @@
        "method": "hang"
       },
       {
-       "wait_until": {
-        "all": [
-         {
-          "path": "entities.{garment}.wetness",
-          "op": "lt",
-          "value": 0.04
-         },
-         {
-          "not": {
-           "path": "entities.{garment}._core_wetness",
-           "op": "gte",
-           "value": 0.04
-          }
-         }
-        ]
-       },
-       "max_s": 72000,
-       "poll_s": 1800
+       "repeat": 4,
+       "steps": [
+        {
+         "skill": "wait",
+         "seconds": 3600
+        },
+        {
+         "do": "inspect",
+         "target": "{garment}",
+         "where": "closely"
+        }
+       ]
       }
      ]
     }
@@ -3032,12 +3051,13 @@
      ]
     }
    ],
-   "notes": "Variants: wool sweater (dry flat, ~1.5 days), cotton tee labelled tumble-low (low-heat sensor cycle), rayon dress (line dry). High heat beyond the label shrinks/felts; bunched damp laundry sours. Residents 'minimal': the wool variant dries for ~1.5 days and ends at night; residents sleep at night and switch lights at dusk and in the morning (people domain), so the long wait raises no unrelated failure."
+   "notes": "Variants: wool sweater (dry flat, ~1.5 days), cotton tee labelled tumble-low (low-heat sensor cycle), rayon dress (line dry). High heat beyond the label shrinks/felts; bunched damp laundry sours. Residents 'minimal': the wool variant dries for ~1.5 days and ends at night; residents sleep at night and switch lights at dusk and in the morning (people domain), so the long wait raises no unrelated failure. Waits (tier-1 sweep, M-WAITS): the plans no longer poll the garment's hidden wetness; the flat-dried sweater is felt every 4 h for 56 h (it dries in 34-49 h on the verification seeds), the hung dress every hour for 4 h (2-3 h), and the dryer variant listens for the dryer's end buzzer (textiles_laundry.wait_cycle: wait interrupt_on appliance_done)."
   },
   {
    "catalog_id": "T-868b9cc704adf1-01",
    "title": "Hang shirts and a silk blouse on suitable hangers",
    "house": {
+    "gen": 2,
     "require": [
      "laundry_room"
     ],

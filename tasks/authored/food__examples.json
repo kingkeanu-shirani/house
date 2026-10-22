@@ -5,7 +5,8 @@
    "title": "Crack eggs into batter without a bad egg or shell",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -271,7 +272,8 @@
    "title": "Separate whites and yolks with the three-bowl method",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -574,7 +576,8 @@
    "title": "Weigh flour on a kitchen scale (tare, units)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -802,7 +805,8 @@
    "title": "Measure flour by volume (spoon and level)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1005,7 +1009,8 @@
    "title": "Put groceries away by cold chain and storage zones",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1307,7 +1312,8 @@
    "title": "Check expiration dates and report (no discarding)",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1334,7 +1340,8 @@
       "props": {
        "temperature_c": 4.0,
        "_core_c": 4.0
-      }
+      },
+      "opened_label": true
      }
     },
     {
@@ -1515,14 +1522,15 @@
      ]
     }
    ],
-   "notes": "Dates are printed in the household's regional format (US MM/DD/YY, UK/EU DD/MM/YYYY, JP ISO, CA 'YYYY MO DD'). Opened milk is unsafe 7 days after opening even with a future sell-by date; past best-before dry pasta is quality-expired, not unsafe; use-by passed is unsafe."
+   "notes": "Dates are printed in the household's regional format (US MM/DD/YY, UK/EU DD/MM/YYYY, JP ISO, CA 'YYYY MO DD'). Opened milk is unsafe 7 days after opening even with a future sell-by date (the household wrote the opening date on the carton: a handwritten label, which realistic perception reads with `read`); past best-before dry pasta is quality-expired, not unsafe; use-by passed is unsafe. Generation-2 house."
   },
   {
    "catalog_id": "T-238a7512e4dd6e-01",
    "title": "Store leftovers in right-sized sealed containers in the fridge",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -1904,7 +1912,8 @@
    "title": "Raw chicken and salad prep without cross-contamination",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2165,7 +2174,8 @@
    "title": "Dice an onion to a medium dice",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2375,7 +2385,8 @@
    "title": "Make a snack safe to eat for a toddler and an older child",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2714,7 +2725,8 @@
    "title": "Stock new cans by date (FIFO), including a new can that expires sooner",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -2905,7 +2917,8 @@
    "title": "Thaw the chicken in the fridge on a drip tray",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {

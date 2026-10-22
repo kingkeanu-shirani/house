@@ -183,7 +183,10 @@ class WorldTouchLogTests(unittest.TestCase):
 
     def test_the_touch_log_stays_bounded_over_a_week_long_wait(self):
         """Risk 11 of TIER1_INTEGRATION: without trim_touched a week-long wait would pile up ids. A leaking jug
-        touches itself every substep for the whole week; the log never holds more than a substep's touches."""
+        touches itself every substep for the whole week; the log holds no more than the touches since its slowest
+        named reader last read. With only per-substep readers that is a substep's touches; a periodic idle probe (the
+        adoption round's textiles_laundry.fabric_idle reads every 300 s) keeps up to its period's worth, which is still
+        a constant: the log never grows with the length of the wait."""
         scene = table_scene(tank=item("table", relation="on", spos=[0.1, 0.1], label="water tank", material="plastic",
                                       mass_kg=2.0, size_m=[0.4, 0.3, 0.5], capacity_l=200.0, liquid="water",
                                       liquid_l=200.0, container=True, accepts_items=True))
@@ -201,7 +204,11 @@ class WorldTouchLogTests(unittest.TestCase):
         self.addCleanup(plugins.SYSTEMS.remove, entry)
         ok(self, env, "wait", seconds=7 * 24 * 3600)
         self.assertEqual(len(peaks), 7 * 24 * 120)
-        self.assertLessEqual(max(peaks), 16)
+        day = 24 * 120
+        self.assertLessEqual(max(peaks[-day:]), max(peaks[:day]))      # no growth: the last day holds no more than the first
+        # 16 with per-substep readers only (core); 24 measured with every domain (a 300 s reader keeps ten substeps of
+        # the jug's touches); an unbounded log would hold about 20,000 ids by the end of the week
+        self.assertLessEqual(max(peaks), 16 if os.environ.get("HOUSE_SIM_DOMAINS") == "core" else 64)
         self.assertLess(env.world.s["entities"]["tank"]["liquid_l"], 200.0 - 80.0)     # it really leaked all week
 
 
@@ -410,6 +417,55 @@ class SettleEngineTests(unittest.TestCase):
 
 # ----- deferred laws switched on ---------------------------------------------------------------------------------------------
 
+class RunawayRollTests(unittest.TestCase):
+    """Adoption-round request (manipulation 5): the slope law's roll (a) started rolling a cart the robot held tilted
+    on its wheels, and (b) stopped a runaway at the room's floor edge even where that edge is an open way out (the
+    driveway's mouth onto the street)."""
+
+    def env(self, door_open=None, **cart):
+        rooms = {"drive": room("concrete", (3.5, 10.0), ["street"], type="driveway", outdoor=True, slope_deg=6,
+                               downhill="south"),
+                 "street": room("concrete", (10.0, 1.5), ["drive"], type="sidewalk", outdoor=True)}
+        conn = {"rooms": ["drive", "street"], "cells": {"drive": [3, 19], "street": [3, 0]}, "width_m": 3.0}
+        entities = {"cart": item("drive", label="wheeled trash cart", pos=[2, 4], mass_kg=35.0, size_m=[0.6, 0.7, 1.05],
+                                 wheeled=True, portable=True, **cart)}
+        if door_open is not None:
+            conn["door"] = "gate"
+            entities["gate"] = make("generic_item", "drive", label="gate", category="gate", portable=False,
+                                    openable=True, open=door_open, connects=["drive", "street"], pos=[3, 19])
+        cfg = {"schema_version": 2, "start_room": "drive", "rooms": rooms, "connections": {"c_ds": conn},
+               "entities": entities, "robot": {"room": "drive", "pos": [0, 2]}, "people": {}, "pets": {}}
+        return HouseEnv(cfg, seed=0)
+
+    def roll(self, env):
+        w = env.world
+        w.begin()
+        with lawbook.forced(slope=True):
+            settle.begin_action(w)
+            w.mut("cart")["pos"] = [2, 5]                      # moved (a structural change the slope law looks at)
+            settle.settle(env, "action")
+            w.commit()
+            env.step("wait", seconds=60)
+        return w.s["entities"]["cart"]
+
+    def test_a_released_cart_rolls_out_through_the_open_way_down(self):
+        env = self.env()
+        cart = self.roll(env)
+        self.assertEqual((cart["location"], cart["pos"]), ("street", [3, 0]))
+        ends = [e for e in env.world.s["event_log"] if e.get("kind") == "phys.roll" and e.get("ended")]
+        self.assertEqual([(e["ended"], e["into"], e["runaway"]) for e in ends], [("through_opening", "street", True)])
+        self.assertEqual(env.world.s["logs"]["moves"][-1]["to"], "street")
+
+    def test_a_closed_gate_stops_it_at_the_edge(self):
+        cart = self.roll(self.env(door_open=False))
+        self.assertEqual((cart["location"], cart["pos"][1]), ("drive", 19))
+
+    def test_a_cart_held_tilted_on_its_wheels_does_not_roll(self):
+        cart = self.roll(self.env(tilted_on_wheels=True))
+        self.assertEqual((cart["location"], cart["pos"]), ("drive", [2, 5]))
+        self.assertNotIn("in_motion", cart)
+
+
 class DeferredLawTests(unittest.TestCase):
     """lawbook.forced turns a deferred law on, and the settle pass (or the system that applies it) applies it
     (TIER1_PHYSICS 12.5). The laws are exercised at the World level, inside one action phase, so the domains' own
@@ -424,6 +480,39 @@ class DeferredLawTests(unittest.TestCase):
             settle.begin_action(w)
             change(w)
             return settle.settle(env, "action")
+
+    def test_a_box_crushed_by_an_oversized_box_on_it_is_crushed_before_the_top_one_topples(self):
+        """Adoption-round request (manipulation 7): roots ran in id order, so the stack law toppled an oversized top
+        box before the crush law loaded the one under it. Roots run bottom-up now: the 6 kg-rated box is crushed."""
+        small = item("kitchen", pos=[1, 2], label="small box", material="cardboard", mass_kg=0.5,
+                     size_m=[0.3, 0.3, 0.3], max_load_kg=6.0, crush_kg=6.0, portable=True, accepts_items=True)
+        big = item("small", relation="on", label="medium box", material="cardboard", mass_kg=14.0,
+                   size_m=[0.45, 0.45, 0.4], portable=True)
+        env = env_of({"small": small})
+        out = self.action(env, lambda w: w.create("big", big), crush=True, stack=True)
+        kinds = [(r["kind"], r["target"]) for r in out]
+        self.assertTrue(env.world.s["entities"]["small"].get("damage", {}).get("crushed"), kinds)
+        self.assertLess(kinds.index(("phys.crush", "small")), len(kinds))
+        env.world.rollback()
+
+    def test_a_load_packed_above_a_thing_in_a_container_meets_the_crush_law(self):
+        """Adoption-round request (tools_vehicles 2): two loads in one trunk are both "in" it; a domain's
+        phys.items_above hook says the cooler rests on the cake box. Placing the cooler queues the cake box (the hook's
+        inverse), so the crush law crushes it without a domain settle_extra workaround."""
+        trunk = item("kitchen", pos=[1, 2], label="trunk", portable=False, container=True, accepts_items=True,
+                     size_m=[1.0, 0.8, 0.5], inner_size_m=[1.0, 0.8, 0.5])
+        cake = item("trunk", relation="in", label="cake box", material="cardboard", mass_kg=1.0,
+                    size_m=[0.3, 0.3, 0.12], crush_kg=3.0, portable=True)
+        cooler = item("trunk", relation="in", label="cooler", material="plastic", mass_kg=12.0,
+                      size_m=[0.5, 0.35, 0.4], portable=True)
+        entry = (100, "test.packing", lambda state, eid: ["cooler"] if eid == "cake" and "cooler" in state["entities"]
+                 else [])
+        plugins.HOOKS["phys.items_above"].append(entry)
+        self.addCleanup(plugins.HOOKS["phys.items_above"].remove, entry)
+        env = env_of({"trunk": trunk, "cake": cake})
+        out = self.action(env, lambda w: w.create("cooler", cooler), crush=True)
+        self.assertIn(("phys.crush", "cake"), [(r["kind"], r["target"]) for r in out])
+        env.world.rollback()
 
     def test_overload_a_shelf_loaded_past_its_rating_gives_way_onto_the_shelf_below(self):
         env = env_of({"shelf": make("shelf_unit", "kitchen", pos=[2, 0], phys_exact=True, shelf_load_kg=5.0)})

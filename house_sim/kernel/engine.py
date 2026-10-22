@@ -26,6 +26,7 @@ import copy
 import json
 import os
 import random
+from collections.abc import MutableMapping
 from pathlib import Path
 
 from . import body, evaluation, physics, timeline  # noqa: F401  (physics registers shared systems; timeline the time verbs)
@@ -33,12 +34,13 @@ from . import camera as camera_mod      # the camera runtime: its system, after-
 from . import mind as mind_mod
 from . import monitor as monitor_mod
 from . import phases as phases_mod
+from . import replays as replays_mod
 from .actions import Ctx, motion_records
 from .errors import ActionError
 from .phys import settle
 from .perception import Perception, current_request
-from .plugins import (ACTIONS, AFTER, BEFORE, IDLE_PROBES, SYSTEM_IDLE, SYSTEM_PERIODS, SYSTEMS, load_domains,
-                      run_hooks)
+from .plugins import (ACTIONS, AFTER, BEFORE, IDLE_PROBES, IDLE_TAKES_TICK, SYSTEM_IDLE, SYSTEM_PERIODS, SYSTEMS,
+                      load_domains, run_hooks)
 from .predicates import check, digest, validate_predicate
 from .registry import default_registry
 from .schema import normalize, validate
@@ -110,6 +112,99 @@ def _with_notes(result, notes):
         except ValueError:
             pass
     return result + " | " + " | ".join(str(n) for n in notes)
+
+
+def _legacy_map_entry(entry):
+    """A Mind map entry in the shape of the pre-v3.1 observation-time known map (exits, connections, label, type)."""
+    entry = entry or {}
+    return {"exits": list(entry.get("exits") or []), "connections": copy.deepcopy(entry.get("connections") or []),
+            "label": entry.get("label"), "type": entry.get("type"), "seen_s": entry.get("seen_s")}
+
+
+class KnownMapView(MutableMapping):
+    """env._known_map: the compatibility alias of the robot's known map (TIER1_SWEEP 7.1). The map is env.mind.map;
+    this read-only view shows it in the pre-v3.1 shape {rid: {"exits", "connections", "label", "type"}} for code that
+    still reads env._known_map (navigation_robot's known_rooms until it reads env.mind.map alone, reports' known
+    subjects). The robot's current room is always present (the observation-time table always held it). Writes and
+    deletions are ignored: the Mind is updated by the engine from what the robot perceives, never by its readers
+    (perception's and realism's observation-time writes of the old table are dropped here). Copies are plain dicts."""
+
+    __slots__ = ("_env",)
+
+    def __init__(self, env):
+        self._env = env
+
+    def _tables(self):
+        mind = getattr(self._env, "mind", None)
+        table = mind.map if mind is not None and isinstance(getattr(mind, "map", None), dict) else {}
+        world = getattr(self._env, "world", None)
+        state = world.s if world is not None else {}
+        rid = (state.get("robot") or {}).get("room")
+        current = rid if rid in (state.get("rooms") or {}) and rid not in table else None
+        return table, state, current
+
+    def __getitem__(self, rid):
+        table, state, current = self._tables()
+        if rid in table:
+            return _legacy_map_entry(table[rid])
+        if rid is not None and rid == current:
+            return _legacy_map_entry(mind_mod.map_entry(state, rid, state.get("time_s")))
+        raise KeyError(rid)
+
+    def __setitem__(self, rid, value):
+        pass
+
+    def __delitem__(self, rid):
+        pass
+
+    # the mutating helpers of MutableMapping, made consistent with a read-only view (clear() would otherwise loop:
+    # popitem deletes nothing here)
+    def clear(self):
+        pass
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def pop(self, rid, *default):
+        return self[rid] if rid in self or not default else default[0]
+
+    def popitem(self):
+        raise KeyError("the known map is a read-only view of env.mind.map")
+
+    def setdefault(self, rid, default=None):
+        return self[rid] if rid in self else default
+
+    def __iter__(self):
+        table, _, current = self._tables()
+        return iter(sorted(list(table) + ([current] if current is not None else [])))
+
+    def __len__(self):
+        table, _, current = self._tables()
+        return len(table) + (1 if current is not None else 0)
+
+    def __contains__(self, rid):
+        table, _, current = self._tables()
+        return rid in table or (rid is not None and rid == current)
+
+    def snapshot(self):
+        return {rid: self[rid] for rid in self}
+
+    def __copy__(self):
+        return self.snapshot()
+
+    def __deepcopy__(self, memo):
+        return self.snapshot()
+
+    def __reduce__(self):
+        return (dict, (self.snapshot(),))
+
+    def __repr__(self):
+        return "KnownMapView({!r})".format(sorted(self))
+
+
+def _idle(probe, name, w, tick):
+    """A system's idle probe: fn(w), or fn(w, tick) for a probe that registered with the tick (IDLE_TAKES_TICK)."""
+    return probe(w, tick) if name in IDLE_TAKES_TICK else probe(w)
 
 
 class Tick:
@@ -274,7 +369,32 @@ class HouseEnv:
         return clone(self.world.s)
 
     def known_map(self):
-        return copy.deepcopy(self._known_map)
+        """The robot's known map (TIER1_SWEEP 7.1): a copy of env.mind.map, {rid: {"label", "type", "exits",
+        "connections": [{"id", "to", "kind", "door"}], "seen_s"}} -- the rooms it has been in at the end of a step (or
+        at reset) and the rooms prior knowledge gave it, whether or not the agent observed. A tool view (the CLI's map
+        command, the viewer); no action or observation gives it to an agent (the robot's own way is recall("map")).
+        Realistic perception: a door id shows as the handle the robot was issued for it, else "something"."""
+        mind = self.mind
+        table = copy.deepcopy(mind.map) if mind is not None and isinstance(getattr(mind, "map", None), dict) else {}
+        if self.realism is not None:
+            issued = self.realism.handles.by_id
+            entities = self.world.s.get("entities", {})
+            for entry in table.values():
+                for conn in (entry or {}).get("connections") or []:
+                    door = conn.get("door")
+                    if isinstance(door, str) and door in entities:
+                        conn["door"] = issued.get(door) or "something"
+        return {rid: table[rid] for rid in sorted(table)}
+
+    @property
+    def _known_map(self):
+        """Compatibility alias of the known map (a read-only view of env.mind.map in the old table's shape; see
+        KnownMapView). Kept until no code reads env._known_map; assignments are ignored."""
+        return KnownMapView(self)
+
+    @_known_map.setter
+    def _known_map(self, value):
+        pass                # the Mind owns the map (reset and load assign the old table's slot: nothing to keep)
 
     def observe(self):
         if self.realism is not None:
@@ -651,8 +771,9 @@ class HouseEnv:
         waiting = started is None and self._phases.waiting(self)
         message = "Phase {} done{}".format(ended["id"], "; phase {} begins".format(started["id"]) if started else
                                            "; the next request comes later" if waiting else "; no phase left")
-        record = {"command": {"action": "phase_done"}, "phase_done": True, "ok": True, "category": "",
-                  "message": message, "time_s": state["time_s"]}
+        record = {"command": {"action": "phase_done"}, "phase_done": True, "phase": ended["id"],
+                  "next_phase": started["id"] if started else None, "waiting": bool(waiting), "ok": True,
+                  "category": "", "message": message, "time_s": state["time_s"]}
         if self.trace:
             record["state_hash"] = digest(state)
             record["changes"] = changes
@@ -760,12 +881,12 @@ class HouseEnv:
             if period:
                 acc = float(w.s.get("_sched", {}).get(name, 0.0)) + dt
                 if acc + 1e-9 >= period:
-                    if probe is None or not probe(w):
+                    if probe is None or not _idle(probe, name, w, tick):
                         fn(w, acc, tick)
                     acc = 0.0
                 w.sec("_sched")[name] = round(acc, 6)
                 continue
-            if probe is not None and probe(w):
+            if probe is not None and _idle(probe, name, w, tick):
                 continue
             sub = dt
             while sub > 1e-9:
@@ -929,7 +1050,7 @@ class HouseEnv:
     def save(self, path):
         payload = {"format": "house-state-v2", "initial": self._initial, "task": self._task, "seed": self.seed,
                    "state": self.world.s, "baseline": self._baseline, "history": self._history,
-                   "known_map": self._known_map, "undo": self._undo, "snapshots": self._snapshots,
+                   "known_map": self._known_map.snapshot(), "undo": self._undo, "snapshots": self._snapshots,
                    "replay_start": self._replay_start, "sensors": self.sensors, "milestones": self._milestones,
                    "actions_hash": actions_fingerprint(), "perception": self.perception_mode,
                    "camera": self.camera_mode,
@@ -969,6 +1090,15 @@ class HouseEnv:
             env.realism.load(payload.get("realism"))
         if env.mind is not None and payload.get("mind") is not None:
             env.mind.load(payload["mind"])
+        elif env.mind is not None and isinstance(payload.get("known_map"), dict):
+            # a state saved before the Mind existed: its observation-time known map seeds the Mind's map
+            for rid, entry in sorted(payload["known_map"].items()):
+                if isinstance(entry, dict):
+                    env.mind.map[rid] = {"label": entry.get("label"), "type": entry.get("type"),
+                                         "exits": sorted(entry.get("exits") or []),
+                                         "connections": [{k: c.get(k) for k in ("id", "to", "kind", "door")}
+                                                         for c in entry.get("connections") or [] if isinstance(c, dict)],
+                                         "seen_s": entry.get("seen_s")}
         env._last_score = env.evaluate()["score"]
         return env
 
@@ -985,19 +1115,22 @@ class HouseEnv:
             if text is not None:
                 self._task["instruction"] = text
 
-    def save_replay(self, path):
-        data = {"format": "house-replay-v2", "initial": self._initial, "start_state": self._replay_start,
+    def save_replay(self, path, compact=True, keep_changes=False):
+        """Write the episode's replay (kernel/replays.py): the compact house-replay-v3 by default (the states and the
+        command log exactly, with every recorded step digest, compressed together: about 60-95 KB instead of about
+        3 MB; traced steps' change lists only with keep_changes=True, since a traced re-run computes them again),
+        the plain house-replay-v2 with compact=False. HouseEnv.replay and the viewer read both."""
+        data = {"format": replays_mod.FORMAT_V2, "initial": self._initial, "start_state": self._replay_start,
                 "baseline": self._baseline, "task": self._task, "seed": self.seed, "perception": self.perception_mode,
                 "camera": self.camera_mode,
                 "actions_hash": actions_fingerprint(), "steps": self._history, "final_hash": digest(self.world.s),
                 "evaluation": self.evaluate(), "metadata": {"physics_version": physics.physics_version()}}
-        Path(path).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        replays_mod.write(path, data, compact=compact, keep_changes=keep_changes)
 
     @classmethod
     def replay(cls, path):
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
-        if data.get("format") != "house-replay-v2":
-            raise ValueError("Unsupported replay")
+        """Re-run a replay file (house-replay-v2 or v3) and check every recorded step digest and the final one."""
+        data = replays_mod.read(path)
         env = cls(data["initial"], data["task"], data["seed"], perception=data.get("perception"),
                   camera=data.get("camera") or "room")
         if actions_fingerprint() != data["actions_hash"]:

@@ -18,7 +18,7 @@ start is off or unpowered now.
 import copy
 import json
 
-from ...kernel import geometry
+from ...kernel import geometry, timeline
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, answerer, before, inspector, invariant, observer
 from . import common as C
@@ -80,6 +80,14 @@ def _unresolved_guard(ctx):
 
 for _verb in P.OPERATE_VERBS:
     before(_verb, order=5)(_unresolved_guard)
+
+
+# ----------------------------------------------------------------------------------------------
+# what waits and standing orders may watch (kernel v3.1 timeline.perceivable: an entity field the robot sees; realistic
+# perception also needs the field's glance tier, so boil_state or preheated stay unwatchable there without a closer look)
+
+timeline.OBSERVABLE_FIELDS.update(("boil_state", "foam_level", "smoking", "ringing", "flare_up", "arcing", "status_light",
+                                   "lever", "ready_light", "preheated"))
 
 
 # ----------------------------------------------------------------------------------------------
@@ -350,7 +358,11 @@ def _details_seen(w, eid, rec, out, ctx):
     state = w.s
     kind = rec.get("ac_kind")
     closely = ctx.args.get("where") == "closely"
-    legible = P.readable(ctx)
+
+    def legible(eid_, field="display"):
+        # room camera: one answer for the room (lit, clean lens); geometric camera: that field of that thing, read from
+        # where the robot stands (P.readable)
+        return P.readable(ctx, eid_, field)
     settings = rec.get("settings") or {}
     if kind == "burner":
         b = rec.get("burner") or {}
@@ -375,12 +387,12 @@ def _details_seen(w, eid, rec, out, ctx):
         view = {"mode": settings.get("mode"), "set_temp": settings.get("temp"), "unit": (rec.get("oven") or {}).get("unit"),
                 "preheated": rec.get("preheated"), "door_locked": rec.get("locked"), "hot_light": rec.get("hot_light"),
                 "light": settings.get("light")}
-        if legible:
+        if legible(eid):
             view["display"] = rec.get("display")
             ctx.grant(eid, "read", ["display"])
         see_in = rec.get("open") or rec.get("transparent")
         therm = _dial_inside(ctx, C.descendants(state, eid))
-        if therm and see_in and legible:
+        if therm and see_in and legible(therm[0]):
             # a dial thermometer read through the door/window, at its own marks (5 C on an oven dial)
             view["oven_thermometer_c"] = P.dial_reading(ctx, eid, "internal_temp_c", C.num(rec.get("internal_temp_c")), therm[1])
         if see_in:
@@ -390,7 +402,7 @@ def _details_seen(w, eid, rec, out, ctx):
                 if crec.get("ac_kind") == "oven_rack":
                     racks.append({"rack": c, "position": int(C.num(crec.get("shelf"), 0)) + 1, "items": P.ordered(ctx, C.children(state, c))})
             view["racks"] = sorted(racks, key=lambda r: r["position"])          # by rack position, never by id
-        if (C.hidden(rec, "_oven").get("broken") or rec.get("out_of_order")) and legible:
+        if (C.hidden(rec, "_oven").get("broken") or rec.get("out_of_order")) and legible(eid, "label_text"):
             view["tag"] = rec.get("label_text") or "OUT OF ORDER"
         out[SEEN_KEYS["oven"]] = view
     if kind == "dishwasher":
@@ -399,7 +411,7 @@ def _details_seen(w, eid, rec, out, ctx):
         machine = rec.get("appliance") or {}
         view = {"status_light": rec.get("status_light"), "program": settings.get("program"), "delay_h": settings.get("delay_h"),
                 "child_lock": settings.get("child_lock"), "state": machine.get("state")}
-        if legible:
+        if legible(eid):
             view["display"] = rec.get("display")
             ctx.grant(eid, "read", ["display"])
         if rec.get("open"):
@@ -433,7 +445,7 @@ def _details_seen(w, eid, rec, out, ctx):
     if kind in ("fridge", "freezer"):
         view = {"door_alarm": rec.get("door_alarm"), "temp_alarm": rec.get("temp_alarm"),
                 "door": "open" if rec.get("open") else ("not sealed - a gap at the edge" if rec.get("ajar") else "closed")}
-        if legible and rec.get("display"):
+        if rec.get("display") and legible(eid):
             view["display"] = rec.get("display")
             ctx.grant(eid, "read", ["display"])
         if kind == "freezer" and (rec.get("open") or closely):
@@ -449,7 +461,7 @@ def _details_seen(w, eid, rec, out, ctx):
             view["seal_problems"] = causes
         from .cold import unit_contents
         therm = _dial_inside(ctx, unit_contents(state, eid))
-        if therm and rec.get("open") and legible:
+        if therm and rec.get("open") and legible(therm[0]):
             # the dial thermometer inside, read to its marks (a fridge dial's 1 C marks, instrument accuracy about +-1 C;
             # an oven dial's 5 C)
             view["thermometer_c"] = P.dial_reading(ctx, eid, "internal_temp_c", C.num(rec.get("internal_temp_c")), therm[1])
@@ -457,7 +469,7 @@ def _details_seen(w, eid, rec, out, ctx):
         out["cold"] = view
     if kind == "microwave":
         view = {"power": settings.get("power"), "state": (rec.get("appliance") or {}).get("state"), "sparks": rec.get("arcing")}
-        if legible:
+        if legible(eid):
             view["display"] = rec.get("display")
             ctx.grant(eid, "read", ["display"])
         out[SEEN_KEYS["microwave"]] = view
@@ -469,7 +481,7 @@ def _details_seen(w, eid, rec, out, ctx):
         g = rec.get("grill") or {}
         view = {"lid": "open" if rec.get("open") else "closed", "lit": rec.get("lit"), "knobs": copy.deepcopy(rec.get("settings")),
                 "tank_valve": ((state["entities"].get(rec.get("tank")) or {}).get("settings") or {}).get("valve")}
-        if legible and rec.get("lid_thermometer_c") is not None:
+        if rec.get("lid_thermometer_c") is not None and legible(eid, "lid_thermometer_c"):
             view["thermometer_c"] = rec.get("lid_thermometer_c")       # the lid dial, read off
             ctx.grant(eid, "read", ["lid_thermometer_c"])
         if g.get("fuel") == "charcoal" and rec.get("open"):
@@ -482,7 +494,7 @@ def _details_seen(w, eid, rec, out, ctx):
         pr = rec.get("pressure") or {}
         view = {"float_valve": "up (pressurised)" if pr.get("float_up") else "down", "valve": settings.get("valve"),
                 "lid": "open" if rec.get("open") else "closed"}
-        if legible:
+        if legible(eid):
             view["display"] = rec.get("display")
             ctx.grant(eid, "read", ["display"])
         out["pressure_cooker"] = view
@@ -494,7 +506,7 @@ def _details_seen(w, eid, rec, out, ctx):
         # what a look shows: colour, shape, texture -- never firmness (press it) or the colour of the juices (pierce or
         # cut it: check_doneness method=fork)
         out["cooking"] = {k: copy.deepcopy(v) for k, v in rec["cook_state"].items() if k not in UNSEEN_CUES}
-    if rec.get("ingestion_hazard") == "child" and legible:
+    if rec.get("ingestion_hazard") == "child" and legible(eid, "warning"):
         out["warning_label"] = "KEEP OUT OF REACH OF CHILDREN"
 
 
@@ -555,12 +567,47 @@ def _dial_before_read(ctx):
 
 @answerer("appliance:")
 def answer(env, w, pid, topic, ctx):
-    state = w.s
     parts = topic.split(":")
     if len(parts) < 2:
         return None
-    what = parts[1]
-    arg = parts[2] if len(parts) > 2 else None
+    return _answer(w, pid, topic, parts[1], parts[2] if len(parts) > 2 else None)
+
+
+@answerer("permission:self_clean:")
+def answer_self_clean_permission(env, w, pid, topic, ctx):
+    """ask(aspect=ok, act=self_clean, about=<oven>) -- the kernel's permission route makes it this topic: the
+    household's own answer when the scenario says whether self-cleaning suits them now (_oven.self_clean_ok; a yes from
+    an adult grants the approval self_clean:<oven>, as appliance:self_clean_ok does), else None so the generic
+    permission rule answers."""
+    oven = topic[len("permission:self_clean:"):]
+    rec = w.s["entities"].get(oven)
+    if rec is None or C.hidden(rec, "_oven").get("self_clean_ok") is None:
+        return None
+    out = _answer(w, pid, topic, "self_clean_ok", oven)
+    out["granted"] = bool(C.hidden(rec, "_oven").get("self_clean_ok")) and "self_clean:" + oven in w.s.get("approvals", [])
+    return out
+
+
+@answerer("permission:defrost:")
+def answer_defrost_permission(env, w, pid, topic, ctx):
+    """ask(aspect=ok, act=defrost, about=<freezer>): whether the freezer may be switched off for a few hours now
+    (_defrost_ok; a yes grants the approval defrost:<freezer>), else None (the generic permission rule)."""
+    freezer = topic[len("permission:defrost:"):]
+    rec = w.s["entities"].get(freezer)
+    if rec is None or rec.get("_defrost_ok") is None:
+        return None
+    out = _answer(w, pid, topic, "defrost_ok", freezer)
+    granted = bool(rec.get("_defrost_ok"))
+    if granted and "defrost:" + freezer not in w.s.get("approvals", []):
+        w.sec("approvals").append("defrost:" + freezer)
+    out["granted"] = granted
+    return out
+
+
+def _answer(w, pid, topic, what, arg):
+    """The answer of a resident about an appliance (shared by the appliance: topics and the permission answers);
+    counts the question as necessary unless it was asked before or the answer was obvious, and keeps it in facts."""
+    state = w.s
     person = state.get("people", {}).get(pid) or {}
     facts = state.get("facts", {})
     key = pid + ":" + topic

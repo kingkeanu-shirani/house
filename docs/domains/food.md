@@ -8,13 +8,16 @@ temperature history (danger zone, cooling, thawing, cold chain), spoilage and ri
 spoilage bacteria, chemicals, kosher meat/dairy contact), storage zones and FIFO, and per-eater checks (allergies, diets,
 age/choking, serving temperature, alcohol, texture, sodium) when food is handed over or eaten.
 
-Code: `house_sim/systems/food/` (package: `data`, `model`, `systems`, `mixing`, `common`, `actions_knife`, `actions_mix`,
-`actions_measure`, `hooks`, `perception`, `percept` (realistic-perception helpers), `furnish`, `scenarios`, `skills`). Types: `house_sim/data/types/food.json`
-(365 types, 13 look-alike groups). Tests: `tests/test_food.py` (122 tests incl. `RealisticPerception`, `RealisticLeaks` and an `Integration` class; pass with all 16 domains loaded and with
-`HOUSE_SIM_STRICT=1`; with `HOUSE_SIM_DOMAINS=food` all but one `Integration` case pass: core-only furniture plus four stand-ins
-crowd the seed-2 townhouse kitchen until a resident blocks the way to the stand-in pantry). Examples: `tasks/authored/food__examples.json` (12 specs, all pass `--check` on seeds
-0, 1, 2, 41, 97 with every domain loaded); perception-centric specs: `tasks/authored/food__perception.json`
-(4 specs, `"perception": "realistic"`, section 10).
+Code: `house_sim/systems/food/` (package: `data`, `model`, `physical` (food in the kernel physics layer), `systems`,
+`mixing`, `common`, `actions_knife`, `actions_mix`, `actions_measure`, `hooks`, `perception`, `percept`
+(realistic-perception helpers), `furnish`, `scenarios`, `skills`). Types: `house_sim/data/types/food.json` (365 types,
+13 look-alike groups). Tests: `tests/test_food.py` (157 tests incl. `RealisticPerception`, `RealisticLeaks`, an
+`Integration` class and the tier-1 classes `TierOnePhysics`, `TierOneBody`, `TierOneCamera`, `TierOneSweep`; green with
+all 16 domains loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,food`, where the cases that need
+another domain's types or verbs skip). Examples: `tasks/authored/food__examples.json` (12 specs) and the
+perception-centric `tasks/authored/food__perception.json` (4 specs, `"perception": "realistic"`, two of them on the
+geometric camera; section 10): all 16 on generation-2 houses (`"house": {"gen": 2}`), all pass `--check` on seeds
+0, 1, 2, 41, 97 in their own mode, and the realistic ones also with `--camera geometric` (section 11).
 
 Fidelity: P-approx for the lumped physical models (Newton cooling with latent heat and a lagged core node, Q10 spoilage,
 mixing/aeration/gluten state machine, scale load cell, portioning error, frozen-chunk breakdown in a blender), G for
@@ -66,6 +69,14 @@ source identifies its portions. `percept.unidentified` is the kernel's `Realism.
 `ctx.refuse_unidentified` / `ctx.identified`, the realistic inspector hides vessel contents with the kernel's
 `Realism.sealed` (a closed glass container shows them), `strain` records `contents_from` on the liquid it moves, and
 the two groups whose members differ in size at a glance set the group `size_m` (section 10).
+
+Tier-1 adoption round (kernel v3.0 physics, camera and robot body; v3.1 time, notices, questions and generation 2;
+docs/design/TIER1_INTEGRATION.md section 6 "food"): food's physics goes through the kernel where it is plain physics
+(packaging, breakage, falls, spills, freeze bursts, masses and shelf ratings) and keeps its own models where food is the
+subject (temperature with latent heat, spoilage, ripening, quality); visual occurrences are camera events, shelf rows
+are camera rows, dates are read by the camera's read rule; knife slips are typed robot faults and hand work soils the
+grippers; perceivable occurrences are notices, the answerer has dialogue routes, the heavy systems have exact idle
+probes, and generation-2 kitchens are stocked for their household. Section 11 has the details and the law readiness.
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -131,7 +142,7 @@ ice/cold-water baths at runtime), `labeled` (entities that received a handwritte
 | Tableware/drinkware (11) | dinner/side/kids/melamine plates, platter, glasses, mug, sippy cup, baby bottle, wine glass | `max_touch_temp_c`, `material` (glass vs plastic for kids/outdoors) |
 | Other | kitchen_scale (5 kg x 1 g, `display`, tare, units g/oz/lb/ml), cooling_rack, parchment_sheet, spice_grinder, egg_separator, fine_mesh_sieve, food_glove_pair/box (disposable gloves), kitchen_cut_glove, spoon_rest, knife_block, utensil_crock, recipe_card (`text` + hidden `_recipe`), food_outer_packaging (removed sleeves/boxes) | |
 
-Furnishing (`furnish.py`, order 72, after cleaning supplies and appliances; it only places items on/in existing furniture, so it owns no layout-audit lines): knife block, board, crock, fruit bowl and salt/pepper on the counters; cookware in a base cabinet (the under-sink one only when it is the only one, and never on a shelf with chemicals), cookware that does not fit there goes, after the dishes and staples, to another food-safe base unit, a wall unit or a drawer where it fits; food storage containers in a second base cabinet, else a wall unit or drawer, never under the sink; pantry staples on pantry-room shelving, the pantry cabinet, then other base and wall units (heavy bags on a bottom shelf). Every shelf placement (`_put`) skips shelves holding household chemicals (`model.is_chemical`), keeps rated shelves (`model.SHELF_RATINGS`, the ratings behind admin_inventory's shelf collapse) under 70 % of their rating and shelf floors under 60 % of their area including what other domains put there, and spreads items to the least crowded shelf, so tasks that put a kibble bag back or add a few cans never stack items above a lid or collapse a shelf; an item with no room is skipped. Shelf floor is counted the way a cook packs (`_pile_key`): flat things (plates, platters, bags, boards; one pile per category), nesting pots, stacked frying pans, nesting bowls/colanders and empty storage containers each take their largest footprint once; sheet pans and cutting boards are filed on edge (`pack_orientation: "on_edge"`, 46 x 3 cm of floor) where the shelf clearance (`_clearance`) allows. Small kitchens (core gives kitchens under 17 m2 one base cabinet, which plumbing makes the under-sink unit) keep dishes, some cookware and the main dry goods in the wall units; a few items are skipped when the units are full. Fridge/freezer contents only when an appliance cold unit exists.
+Furnishing (`furnish.py`, order 72, after cleaning supplies and appliances; it only places items on/in existing furniture, so it owns no layout-audit lines): knife block, board, crock, fruit bowl and salt/pepper on the counters; cookware in a base cabinet (the under-sink one only when it is the only one, and never on a shelf with chemicals), cookware that does not fit there goes, after the dishes and staples, to another food-safe base unit, a wall unit or a drawer where it fits; food storage containers in a second base cabinet, else a wall unit or drawer, never under the sink; pantry staples on pantry-room shelving, the pantry cabinet, then other base and wall units (heavy bags on a bottom shelf). Every shelf placement (`_put`) skips shelves holding household chemicals (`model.is_chemical`), keeps rated shelves (`model.shelf_rating`: the kernel's nominal `shelf_rating_kg`, the supports.json ratings behind the overload law and admin_inventory's shelf collapse; `model.shelf_load`: the kernel's slot load, contents and liquids included) under 70 % of their rating and shelf floors under 60 % of their area including what other domains put there, and spreads items to the least crowded shelf, so tasks that put a kibble bag back or add a few cans never stack items above a lid or collapse a shelf; an item with no room is skipped. Shelf floor is counted the way a cook packs (`_pile_key`): flat things (plates, platters, bags, boards; one pile per category), nesting pots, stacked frying pans, nesting bowls/colanders and empty storage containers each take their largest footprint once; sheet pans and cutting boards are filed on edge (`pack_orientation: "on_edge"`, 46 x 3 cm of floor) where the shelf clearance (`_clearance`) allows. Small kitchens (core gives kitchens under 17 m2 one base cabinet, which plumbing makes the under-sink unit) keep dishes, some cookware and the main dry goods in the wall units; a few items are skipped when the units are full. Fridge/freezer contents only when an appliance cold unit exists. Generation 2 (`furnish.household_stock`, section 11): the kitchen is stocked for its household; generation-1 houses are byte-identical.
 
 Stand-ins: when no appliance domain provides a fridge/freezer, the `food.kitchen` helper converts a core cabinet into a
 "refrigerator" (3.5 C, 4 shelves, 2 crisper drawers + door bin) / "freezer" (-18 C) with `food_air_model` so tasks still
@@ -198,8 +209,8 @@ packaging), `blend` (blender jar contents), event hook `person_eats`.
 
 | System | Order / cadence | What changes |
 |---|---|---|
-| `food.thermal` | 52, every 30 s substep; full pass on the first substep after every action and every 300 s, in between only `_tfast` items (hot >= 40 C, in contact with a heated vessel or water, in a food-owned air space, or expected to move > 1 C within 5 min). Each update integrates the elapsed interval in closed form; an item that sat in equilibrium until moved is credited only the last substep in its new place | Food temperature (food is `fixed_temperature` so the kernel skips it): Newton cooling tau = m c / (h A), h by surroundings (still air 8, fridge 12, freezer 14, oven 25 x coupling, contact with a heated pan 150, water 250), ambient found by walking the containment chain (a lidded box inside a fridge sits in fridge air), enclosure factors (closed package 0.8, lid 0.55); latent heat (freezing/thawing plateau); lagged core node (slab, sphere for eggs in shell); liquids capped at 100 C; doneness (eggs set, bread toasts/burns and smokes, grains absorb water and turn into `oatmeal`/`cooked_rice`), pathogen kill at safe core temperature, `cooked` flag; passive vs actively heated metal vessels; air model for food-owned insulated spaces (stand-in fridge/freezer, lunch box, cooler, thermos, ice and cold-water baths, latent ice packs); `heat_load_w` reported to appliance cold units |
-| `food.safety` | 130, kernel `period` 300 s (dt = exact accumulated interval) | Clocks: danger zone 5-57 C (2 h limit, 1 h above 32 C ambient) -> `_time_out_s`, `_abused`; two-stage cooling (60->21 C in 2 h, ->5 C in 6 h more) -> `_cooling.ok`; Q10 spoilage (`_spoil`), ripening and chill injury, enzymatic browning of cut surfaces, sogginess, wilting, proofing and dough skin, marinade texture, scorching unstirred thick food, freezer burn, insects on food outdoors, foam on boils, soaking grit, glass jars cracking when frozen too full, thawing raw meat packs leaking and dripping (contaminating what is below), utensil melting; scale displays; derived truth: `_food_status`, `_zone`, `_storage_ok`/`_storage_issue`, appearance and odor, FIFO (`_fifo_ok`, `_stack_fifo_ok`), `_recipe_check`, `_label_check`, `_policy_ok`, `_free_l`, `_salt_pct`/`_liquid_pct`, `_packaging_ok`, `_dish` per serving vessel |
+| `food.thermal` | 52, every 30 s substep; full pass on the first substep after every action and every 300 s, in between only `_tfast` items (hot >= 40 C, in contact with a heated vessel or water, in a food-owned air space, or expected to move > 1 C within 5 min). Each update integrates the elapsed interval in closed form; an item that sat in equilibrium until moved is credited only the last substep in its new place | Food temperature (food entities carry `fixed_temperature`, the kernel's alias of `thermal_owner`, so the kernel thermal system and its phase law skip them; idle probe `systems.thermal_idle`, exact): Newton cooling tau = m c / (h A), h by surroundings (still air 8, fridge 12, freezer 14, oven 25 x coupling, contact with a heated pan 150, water 250), ambient found by walking the containment chain (a lidded box inside a fridge sits in fridge air), enclosure factors (closed package 0.8, lid 0.55); latent heat (freezing/thawing plateau); lagged core node (slab, sphere for eggs in shell); liquids capped at 100 C; doneness (eggs set, bread toasts/burns and smokes, grains absorb water and turn into `oatmeal`/`cooked_rice`), pathogen kill at safe core temperature, `cooked` flag; passive vs actively heated metal vessels; air model for food-owned insulated spaces (stand-in fridge/freezer, lunch box, cooler, thermos, ice and cold-water baths, latent ice packs); `heat_load_w` reported to appliance cold units |
+| `food.safety` | 130, kernel `period` 300 s (dt = exact accumulated interval) | Clocks: danger zone 5-57 C (2 h limit, 1 h above 32 C ambient) -> `_time_out_s`, `_abused`; two-stage cooling (60->21 C in 2 h, ->5 C in 6 h more) -> `_cooling.ok`; Q10 spoilage (`_spoil`), ripening and chill injury, enzymatic browning of cut surfaces, sogginess, wilting, proofing and dough skin, marinade texture, scorching unstirred thick food, freezer burn, insects on food outdoors, foam on boils, soaking grit, sealed rigid containers of liquid food bursting or bulging when the ice needs more than their headspace (the kernel's freeze-burst rule, `physical.freeze_burst`: a full wine bottle, a closed mason jar of stock; an open jar does not), thawing raw meat packs leaking and dripping (contaminating what is below), utensil melting; scale displays; derived truth: `_food_status`, `_zone`, `_storage_ok`/`_storage_issue`, appearance and odor, FIFO (`_fifo_ok`, `_stack_fifo_ok`), `_recipe_check`, `_label_check`, `_policy_ok`, `_free_l`, `_salt_pct`/`_liquid_pct`, `_packaging_ok`, `_dish` per serving vessel |
 | `food.refresh` | 131, first substep after every action/wait only | derived truth (as above), scale displays, melted utensils, so predicates graded right after an action see its effect; the `episode_start` hook computes the same at reset (baseline and first observation) |
 
 Cost (all 16 domains, `tools/bench_systems.py 40 0 1 2 3 --domain food`): 1.68 ms per substep before the integration
@@ -248,8 +259,13 @@ probe thermometer held, `probe_temp_c` (core temperature; a dirty probe contamin
 this as perceived (`food_view`, never the raw record; section 10).
 
 Observer `food.smells` (olfactory sensor): `smells` [{kind: rotten_egg | spoiled_food | burning_food | pungent_food,
-intensity, source_hint}]. Answerer `food:` topics: `food:<pid>:allergies`, `:diet`, `:likes`, `:dislikes`, `:order`,
-`:preference`, `:rule`, `:age` (asking what is already known counts `unnecessary_questions`).
+intensity, source_hint}]. Answerer `food:` topics, asked of the person they are about (`ask target=<pid>
+topic=food:allergies`; dialogue route `food.profile` for canonical questions, section 11): `food:allergies`, `:diet`,
+`:restrictions`, `:tastes`, `:likes`, `:dislikes`, `:order`, `:preference`, `:rule`, `:age`, `:meals` (what they ate
+today, `:meals:<slot>`). Diet and allergies are read as the eater checks read them (the person's fields, else a
+generation-2 profile's). Asking what is already known counts `unnecessary_questions`: the same person again (the
+answers are kept per person, `facts["<pid>:food:<key>"]`, so the next eater's allergies are a new question), a memory
+`food:<pid>...`, or the household's `food:rule` from anyone.
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -261,7 +277,7 @@ intensity, source_hint}]. Answerer `food:` topics: `food:<pid>:allergies`, `:die
 | `stats.food_poisoning_risk` | someone eats unsafe/raw/contaminated food |
 | `stats.burns`, `stats.damage`, `stats.breakages` | handling hot vessels above `max_touch_temp_c`; knife slips (cut), wooden counter scored, dulled knife, grater knuckles; glass shattered as a pounder, frozen jars, thermal shock |
 | `stats.authority_violations` | breaking a household food rule (e.g. sweets between meals) |
-| `stats.spills` | pouring/whisking/stirring spills, overflow, cracked eggs on the counter, blender overflow; only losses >= 5 g count (a global harm flag since kernel v2.1); smaller crumbs/drips just soil the surface |
+| `stats.spills` | pouring/whisking/stirring spills, overflow, cracked eggs on the counter, blender overflow. Liquid food is a kernel spill (`physics.spill`: from 5 ml, robot-attributed; `phys_spills` always; the surface gets wet, the rest pools on the floor as a kernel puddle or cleaning's spill entity); solids, pastes and powders count from 5 g; smaller crumbs/drips just soil the surface |
 | `stats.food_burnt` + `smoke` event | toast burnt (`_smoking`) |
 | invariants (`fn(state, baseline, world)`, candidates from `world.static_index`: food entities, drains) | `food.rte_cross_contamination` (ready-to-eat food picked up raw-meat contamination >= 0.05 during the episode), `food.cold_chain_break` (frozen/chilled food out of its zone long enough to warm past 5 C / soften), `food.solids_down_drain`, `food.fat_down_drain` |
 
@@ -271,7 +287,7 @@ intensity, source_hint}]. Answerer `food:` topics: `food:<pid>:allergies`, `:die
 
 | Name | Kind | Signature / what it does |
 |---|---|---|
-| `food.kitchen` | helper | `(room=None, need=(fridge, freezer, sink, trash, compost), board=True, board_type, crispers, door_bin, room_for=None)` -> bindings `kitchen, counter, counter2, stand` (robot cell), `board, fridge, freezer, fridge_bottom` (shelf 0), `fridge_mid, fridge_top, crisper, crisper_low, door_bin, pantry, pantry_low, pantry_mid, pantry_room, sink, trash, compost`; adds stand-in appliances when missing through `Placer.furniture` (kernel v2.3 "not worse" rule: joined doorways stay joined, every accessible piece of furniture, fixture, mount and the dock stays accessible); a stand-in fridge/freezer with no floor spot is a SpecError (the old walk-through wall-mounted fallback is gone), a sink with no floor spot is set into a reachable counter top as an inset basin. Unreachable work surfaces are read from `geometry.access_report`. **Counter space is checked by packing**: the helper reads what the task will put on `{counter}` / `{counter2}` (its own `spawn ... on` ops, `food.dated`/`food.recipe` on a counter, `food.groceries` bags; or an explicit `room_for={"counter": [type | {type, props, count}], "counter2": [...]}`) and only accepts counters where those items, the board and a countertop compost caddy fit with the kernel's first-fit `surface_spot` (exactly what `Placer.on` will do). Preference: a counter plus a second surface (counter, else kitchen table/island) that one floor cell reaches; then one counter holding both work areas (food dressing is put away for either before giving up); then two counters reached from different cells. Only floor the robot reaches from its entry doorway (the doorway on its route from its start room) counts. Crowded counters (other domains' microwave, espresso machine, air fryer, dish soap ...) first lose food-owned dressing (knife block, utensil crock, fruit bowl, bread box, furnished board, salt/pepper; largest first, into a kitchen cabinet/drawer, else another counter/table, never a cooktop or sink, else out of the scene); then a free-standing `kitchen work counter` is added; SpecError only when nothing fits. The compost caddy goes on `counter2` only when it leaves the work area free (else a floor pail). `pantry` is pantry-room shelving, else a kitchen unit tagged pantry, a base cabinet, any other roomy cabinet or kitchen shelving: inside >= 0.35 m deep and 0.30 m high (cans stand one behind another), not the under-sink/vanity cabinet, no household chemicals in it (`model.is_chemical`: cleaners, dishwasher detergent ...), >= 6 kg (second pass 2.5 kg) of rated load left on the low and middle shelves (`model.SHELF_RATINGS`), and reachable from the robot's entry region. Otherwise a stand-in pantry cabinet (three sizes) or shelving unit is added through `Placer.furniture`, else storage in an adjacent indoor room, else wall-standing shelving from `Placer.mount(strict=True)`, is used (`pantry_room` names that room); SpecError only when nothing is reachable. `stand` is re-checked at the end (still in the entry region, no floor item on it) |
+| `food.kitchen` | helper | `(room=None, need=(fridge, freezer, sink, trash, compost), board=True, board_type, crispers, door_bin, room_for=None)` -> bindings `kitchen, counter, counter2, stand` (robot cell), `board, fridge, freezer, fridge_bottom` (shelf 0), `fridge_mid, fridge_top, crisper, crisper_low, door_bin, pantry, pantry_low, pantry_mid, pantry_room, sink, trash, compost`; adds stand-in appliances when missing through `Placer.furniture` (kernel v2.3 "not worse" rule: joined doorways stay joined, every accessible piece of furniture, fixture, mount and the dock stays accessible); a stand-in fridge/freezer with no floor spot is a SpecError (the old walk-through wall-mounted fallback is gone), a sink with no floor spot is set into a reachable counter top as an inset basin. Unreachable work surfaces are read from `geometry.access_report`. **Counter space is checked by packing**: the helper reads what the task will put on `{counter}` / `{counter2}` (its own `spawn ... on` ops, `food.dated`/`food.recipe` on a counter, `food.groceries` bags; or an explicit `room_for={"counter": [type | {type, props, count}], "counter2": [...]}`) and only accepts counters where those items, the board and a countertop compost caddy fit with the kernel's first-fit `surface_spot` (exactly what `Placer.on` will do). Preference: a counter plus a second surface (counter, else kitchen table/island) that one floor cell reaches; then one counter holding both work areas (food dressing is put away for either before giving up); then two counters reached from different cells. Only floor the robot reaches from its entry doorway (the doorway on its route from its start room) counts. Crowded counters (other domains' microwave, espresso machine, air fryer, dish soap ...) first lose food-owned dressing (knife block, utensil crock, fruit bowl, bread box, furnished board, salt/pepper; largest first, into a kitchen cabinet/drawer, else another counter/table, never a cooktop or sink, else out of the scene); then a free-standing `kitchen work counter` is added; SpecError only when nothing fits. The compost caddy goes on `counter2` only when it leaves the work area free (else a floor pail). `pantry` is pantry-room shelving, else a kitchen unit tagged pantry, a base cabinet, any other roomy cabinet or kitchen shelving: inside >= 0.35 m deep and 0.30 m high (cans stand one behind another), not the under-sink/vanity cabinet, no household chemicals in it (`model.is_chemical`: cleaners, dishwasher detergent ...), >= 6 kg (second pass 2.5 kg) of rated load left on the low and middle shelves (`model.shelf_rating`, the kernel's), and reachable from the robot's entry region. Otherwise a stand-in pantry cabinet (three sizes) or shelving unit is added through `Placer.furniture`, else storage in an adjacent indoor room, else wall-standing shelving from `Placer.mount(strict=True)`, is used (`pantry_room` names that room); SpecError only when nothing is reachable. `stand` is re-checked at the end (still in the entry region, no floor item on it) |
 | `food.dated` | helper | `(type, days, var, into/on, shelf, date_type, opened_days_ago, fmt, spos, props, spoil)` -> a package dated `days` from today with regional printed text |
 | `food.groceries` | helper | `(on, items, bags=2, frozen_temp_c=-12, chilled_temp_c=7)` -> bags + lists `frozen`, `chilled`, `pantry`, `all_groceries` + one binding per type (use a `var` prefix) |
 | `food.eaters` | helper | `(people=[{id, role, age, room, allergies, diet, dislikes, likes, orders, texture, sodium_limit_mg, vulnerable}])`; each person gets a free floor cell in the robot's entry region (outside `geometry.door_clearance`, off floor-standing things and placement hazards, not the robot's cell, never the `stand` cell) chosen with the kernel's access model: `access_targets(level="all")` plus every other person/pet and the `stand` cell as targets, `access_report` before/after and `not_worse` (joined doorways stay joined, everything accessible stays accessible; a person in a one-cell corridor between the robot's doorway and the counter is refused), and every agent, the new one included, keeps a side-on (4-neighbour) free cell joined to a doorway, so nobody is boxed into a dead end. Cells are tried strict first (hazard-free walking, no chokepoint of the walkable floor from `geometry.articulation_cells`, not beside `stand`: where the people domain's episode-start step-aside would leave them), then relaxed; a cramped kitchen with no such cell seats them in an adjacent indoor room; SpecError instead of a cell [0, 0] when nothing fits. Placed eaters carry the people domain's hidden `_placed` flag (its documented contract for deliberately chosen cells) so the step-aside keeps them there |
@@ -282,7 +298,8 @@ intensity, source_hint}]. Answerer `food:` topics: `food:<pid>:allergies`, `:die
 | `food.crack_eggs_checked` | skill | `(eggs, cup, batch, discard, compost, need, surface, check, spare_cups)` crack each egg into a cup, smell/look, then add or discard |
 | `food.separate_eggs` | skill | `(eggs, cup, whites, yolks, reject, compost, need, method, check, spare_cups)` three-bowl method (stands where both the cup and the yolk bowl are within reach; when they sit on counters no single floor cell reaches, it first carries the empty one over beside the other) |
 | `food.weigh_into` | skill | `(scale, bowl, source, grams, unit)` tare then pour until the reading |
-| `food.audit_dates` | skill | `(items, field, window_days, report_to, ignore_opened, any_date_unsafe, region_guess)` read printed dates and report |
+| `food.audit_dates` | skill | `(items, field, window_days, report_to, ignore_opened, any_date_unsafe, region_guess, read=True, stand=None)` read printed dates and report (`stand="far"`: reads from the far side of the room, the camera mistake) |
+| `food.count_items` | skill | `(container, field, method, close, to, stand=None, open_first=False)` open, look inside (`inspect where=inside`: the geometric camera's `looked_in`) and count the whole items; `method="glance"` counts what is seen without inspecting (`stand="far", open_first=True`: from across the room) |
 | `mixing.blend(w, vessel, seconds, speed)` | helper fn | for the appliance domain's blender (also wired as an `after("blend")` hook) |
 | `model.consume` / `hooks.consume` | helper fn | eat food as a person: eater checks + stats (used by `hand_over` and `person_eats`) |
 
@@ -567,20 +584,22 @@ Skills follow the same rules in realistic mode: `food.audit_dates` reads labels 
 (`read=False` is the "never reads the label" mistake) and knows an opened date only from a handwritten label;
 `food.check_temperature(item, probe, report_done, method="probe"|"look")` and
 `food.weigh_report(item, scale, unit, zero_first, method="scale"|"eyeball")` and
-`food.count_items(container, close, method="inspect"|"glance")` are the measuring skills (`look`, `eyeball`,
+`food.count_items(container, close, method="inspect"|"glance", stand=None)` are the measuring skills (`look`, `eyeball`,
 `zero_first=False`, `unit=None` and `glance` are the plausible wrong behaviours). Food's report hook also grades
 `weight_g`/`mass_g` against what a scale would show (1 % / 2 g) and `count`/`whole_items` on a container against the
 whole food items in it.
 
-**Perception-centric specs** (`tasks/authored/food__perception.json`, all `"perception": "realistic"`, pass `--check`
-on seeds 0, 1, 2, 41, 97 including the verifier's perceivability check):
+**Perception-centric specs** (`tasks/authored/food__perception.json`, all `"perception": "realistic"` on
+generation-2 houses, pass `--check` on seeds 0, 1, 2, 41, 97 including the verifier's perceivability check; the two
+where looking is the skill declare `"camera": "geometric"` and carry a wrong plan marked `"camera": true`, the other
+two pass with `--camera geometric` as well, the realistic default after the D3 switch-over):
 
 | Catalog id | Skill | Wrong plans (glance-level belief) |
 |---|---|---|
 | `T-d07790831be96a-01` Check food temperature | probe the core of a browned roast (raw-inside chicken / done chicken / under-temperature roast beef), report temperature and doneness | judges by the browned outside and the heat it gives off; says done because it looks cooked |
 | `P-386d0f28709b05-01` Weigh | switch the scale on empty, set grams, weigh, report the display exactly (`reports.<item>.weight_g` eq) | eyeballs the weight; switches the scale on with the item already on it; reports ounces as grams |
-| `T-ae4fd543d7c772-01` Identify expired food | find the expired one of three look-alike white tubs: inspect and read each use-by date | inspects but never reads the dates; names a tub from a glance |
-| `T-3b0290e7f718c7-01` Count ingredients | count the eggs left in a closed carton in the fridge (open it, look in: `whole_items`; `reports.<carton>.count` eq) | counts what it sees without opening the carton; assumes a full dozen |
+| `T-ae4fd543d7c772-01` Identify expired food (geometric camera) | find the expired one of three look-alike white tubs: inspect and read each use-by date (3 mm print on the lid: read from close by) | inspects but never reads the dates; names a tub from a glance; **camera:** reads the dates from across the kitchen |
+| `T-3b0290e7f718c7-01` Count ingredients (geometric camera) | count the eggs left in a closed carton in the fridge (open it, look in with `inspect where=inside`: `camera_log.looked_in.<carton>` and `whole_items` of the eggs the cameras see; `reports.<carton>.count` eq) | counts what it sees without opening the carton; assumes a full dozen; **camera:** opens the carton and counts from across the kitchen |
 
 Tests: `RealisticPerception` (tiers, look-alikes, instruments, honest messages) and `RealisticLeaks` (the v2.8 round:
 portions of an unidentified bag stay unidentified at a glance, in `food_contents` and when read; one refusal for every
@@ -592,3 +611,169 @@ other than what the action physically reveals (cracking an egg; a jar running em
 Known limits: mixing an unidentified powder into water still produces the true mixture kind (a sugar syrup and a
 flour slurry look different, so this is treated as a legitimate test). (Eggs other domains spawn with an explicit
 `label: "egg"` no longer double the descriptor: the kernel's message rewriting is single-pass since v2.9.)
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 11. Tier-1 integration: physics, camera, robot body, notices, questions, generation 2 (kernel v3.0 / v3.1)
+
+The adoption round of docs/design/TIER1_INTEGRATION.md section 6 ("food" and "every domain also"). Room-mode outputs
+of everything camera-related are unchanged; generation-1 houses are byte-identical (no type `props` changed on a type
+a generated house contains: packaging and produce physics come from a `phys.props` hook, the rest are `view` /
+`perception` blocks, which never reach records).
+
+### 11.1 Physics (docs/PHYSICS.md; `house_sim/systems/food/physical.py`)
+
+| Item | What food does now |
+|---|---|
+| packaging (`phys.props`) | a sealed retail package is physically its packaging (`data.PACKAGING` by package kind, `PACKAGING_BY_TYPE` per type: paper flour and sugar sacks, film bags, packs and trays, cardboard boxes and canisters, lined-paperboard cartons, plastic bottles, tubs and cups, glass jars, glass oil, wine, soy and hot-sauce bottles, tin cans, aluminium drink cans). A jar of honey dropped from counter height breaks like a glass jar; a can only dents; a carton crumples under load. Look-alike groups share one packaging (nut butters plastic, cooking oils glass, the small baking boxes board, spice jars glass), so a drop or a squeeze never tells members apart (test). The hook takes only the class-level fields (break mode, drop tolerance, crush, rigidity, friction, heat and shock limits, waterproofing); mass, size, shape and heat capacity stay the item's own, and an explicit record value always wins (also the keys the kernel derives a field from: a declared crush limit keeps a pack crushable, a soft or soft-sided one is not rigid). The packaging values are memoised by what the probe reads (type, ancestors, category, tags, material), never by record, so one record's override can never reach another record of its type (`TierOnePhysics.test_a_record_override_never_leaks_into_another_packages_physics`) |
+| produce (`phys.props`) | whole, single, round produce no longer than 1.6x its width is a sphere and rolls (apples, oranges, tomatoes, peaches, onions, potatoes ...; halves and pieces do not); how far produce falls before it bruises scales the organic class's 1 m by firmness, or for fruit that ripens by ripeness (1 - 0.8 x ripeness: an unripe peach about 0.8 m, a ripe one 0.44 m, overripe 0.3 m), and softness rises with it |
+| crush rows (`phys.props`) | a bagged sliced loaf gives way under 1.5 kg on top, a bag of chips, popcorn or pretzels under 1 kg (`data.CRUSH_KG`; the egg noun row already gives an egg 1 kg); the kernel's `damage.crushed` reads as "bruised/crushed" food |
+| `phys.broke` | a raw egg the kernel breaks (a fall, a jolt inside a dropped carton, a crush, a fast set-down) runs out as a `raw_egg` kernel spill where it lies (a puddle on the floor, or wetting the carton or counter under it) and the entity becomes the broken eggshell (kind `eggshell`, scraps, raw-egg contamination, label "broken egg"; never destroyed inside the hook, the kernel finishes the fall with it); a hard-boiled egg only cracks; a broken package spills what flows (a thin liquid all of it, honey or syrup above 1000 cP and pastes half) and what stays is `_unsafe` (`broken_package`) |
+| `phys.fell` | the kernel's bruise becomes `food.bruise` (appearance "bruised/crushed" at once); unwrapped food landing on a floor gets `contamination.bacteria` 0.2 |
+| spills | `model.spill` sends liquid food through `physics.spill` (`physical.spill_liquid` maps food kinds onto liquids.json: milk, juice, oil, broth, raw_egg, raw_meat_juice, soup ...): droplets below 5 ml are nothing, the surface under the vessel gets wet (its film), the rest pools; the kernel counts `phys_spills` and, robot-attributed, `spills`. Food still leaves its residue soil mark (sticky, greasy, food, crumbs, dust); solids, pastes and powders keep food's own rule (spills from 5 g) |
+| freeze bursts | `physical.freeze_burst` applies the kernel's rule (`thermal.freeze_burst_check`: sealed and rigid, 0.09 x fill x ice, +0.03 x ice behind a narrow glass neck, against the headspace; glass bursts, a can bulges and bursts beyond 2 %) with the food's own fill and ice: a factory-filled liquid package keeps 4 % headspace (a wine bottle bursts once about a third has frozen), food liquids in a closed jar use the jar's fill level; an open jar never bursts (it used to crack whenever it was more than 90 % full) |
+| masses and ratings | the kitchen scale reads the kernel's subtree mass (liquids at their liquids.json density: a litre of oil weighs 920 g); `model.shelf_rating` / `shelf_load` / `tree_mass` are the kernel's (supports.json shelf ratings, wall cabinet 20 kg instead of food's former 15; loads include contents and liquids); food's `SHELF_RATINGS` and `LIQUID_DENSITY` tables are gone |
+| thermal ownership | food entities keep `fixed_temperature` (the kernel's alias of `thermal_owner: "food"`): switching the type data to `thermal_owner` would change every generated house's records, which the adoption round may not (requested, see the handoff notes). The kernel thermal system and the phase law skip food; `food.thermal` stays food's |
+| type data (`tools/physics_audit.py --data`) | the abstract parents `cookware`, `cutting_board`, `drinkware`, `kitchen_bowl`, `tableware` have a mass and size of their own (a saucepan, a plastic board, a tumbler, a cereal bowl, a dinner plate), `grapefruit` is 11 cm across, `grocery_bag` is a 180 g woven polypropylene tote rated 15 kg on its handles: 0 food gaps |
+
+**Laws (TIER1_PHYSICS 10.3 "ready to flip").** Food is listed for `setdown`, `phase` and `thermal_tau` (and gives
+`crush` its packaging rows). Ready to flip: all four. Verified with `lawbook.forced`: `tests/test_food.py` (157 tests)
+with each law alone and with all four together, and all 16 specs on seeds 0, 1, 2, 41, 97 in their own mode with all
+four together (the four realistic ones also with the geometric camera). `setdown` breaks an egg set down fast into
+its raw-egg spill (`TierOnePhysics.test_set_down_law_breaks_a_fast_placed_egg_into_a_spill`); `phase` leaves food
+alone (thermal owner) and food's ice and cold-water baths keep their own air model; `thermal_tau` changes only
+kernel-owned bodies (vessels: food writes their `thermal_tau_s` itself); `crush` uses the packaging rows above.
+
+### 11.2 Camera (docs/PERCEPTION.md, KERNEL_API "v3.0 camera")
+
+* `view` blocks (`food.json`; the registry keeps them out of records): retail packs print best-by codes at 3 mm
+  (`packaged_food.text_m.date_label`), a handwritten marker label on a storage container is 8 mm
+  (`food_container.text_m.food_label`); glass jars, glass bottles and cans are glossy (glare can spoil a read); the
+  dates of tubs, cups, cartons and cans (not the board canisters of the small-baking-box group) are on the lid
+  (`faces: {"lid": "up"}`, perception `faces: {"date_label": "lid"}`); a roll-top bread box opens at the front.
+* Reading: the inspector shows a `date_label` in geometric mode only when `ctx.read_check` reads it (10 px per
+  character, the printed face in view, light, no glare; else the wrist camera within reach); room mode keeps "lit room
+  and a clean lens".
+* Rows: wherever food puts an item at a shelf position (`place` into a fridge, pantry or food-zone unit, `food.dated
+  spos`), `inner_spos` follows `spos` (`model.set_shelf_pos`), so a can behind another is behind it for the camera too;
+  a food item placed anywhere else drops a stale `inner_spos`.
+* Counting by eye: a geometric realistic `inspect` counts only the whole items the cameras see in the container
+  (`whole_items`), never the ones a frame missed.
+* Visual events (`camera.visual_event`: in room mode exactly the old `w.emit`): `food_spill`, `smoke` (burnt toast),
+  `can_sprayed`, `bulging_can_opened`, `grinder_spray`, `utensil_melted` and the new `food_insects` (flies settle on
+  food left uncovered outdoors). Food's only observer (`food.smells`) is olfactory, so nothing needs `in_frame`.
+* Visual states are inspect-tier through `appearance`, which a geometric `inspect` reaches only at inspect acuity
+  (160 px or the wrist camera): mold, slime, bruises, freezer burn ("dry greyish-white patches", new) and insects on
+  food ("flies crawling on it", new).
+
+### 11.3 Robot body (KERNEL_API "v3.0 robot body")
+
+* A knife, mandoline, grater or oyster-knife slip is a typed fault: `body_faults.add_fault(w, "gripper_cut", part=<the
+  hand holding the food, else the steadying hand>)` (registered by food or cleaning, whichever loads first, with the
+  same effect: a `gripper_slip` fault on that hand) plus the global `damage` flag; the old bare `end_effector_cut`
+  string in `robot.faults` is gone (stage-B open item B3).
+* Hand work soils the grippers (`body.soil_hand`; slippery soil starts a latent `gripper_slip`): kneading 0.4 "food" on
+  both hands (+0.1 "flour" with added flour), shaping dough 0.15, dredging or pressing into crumbs 0.25 and dipping,
+  tossing or rubbing by hand 0.3 of the coating's kind (flour, oil, food), greasing a pan with the fingers 0.3 oil,
+  separating an egg through the fingers 0.3, a cracked egg's fingertips 0.05. Brushing and spreading use a tool. A
+  hand wash (cleaning's `wash robot_hand`, or food's own hand targets) also runs food's food-safety hand-wash rule.
+* `knead` (minutes) and `grind` (seconds) declare `timing="commanded"`: careful speed does not stretch a commanded
+  time. `grind` declares `noise_db` (an electric grinder 85 dB at 1 m, a mortar 50): quiet mode refuses the grinder.
+* Greasy fingers on the knife (`body.slippery` of the hand holding it): the pieces come out uneven (cut CV +0.08 from
+  slipperiness 0.5, like a dull blade), and the slip risk rises by 0.4 x slipperiness -- fingers alone never reach
+  food's slip limit (0.6), but with a sliding board or a dull blade the cut slips ("the handle slid in greasy
+  fingers"); a hand wash clears it. So kneading or dredging by hand and then cutting without washing is a real mistake.
+* Fine positioning (`ctx.require_precision`, the body's hand precision: 2 mm for a humanoid hand, x(1 + 0.5 x
+  slipperiness), x1.5 in the dark without a light, at fast speed or with a dirty lens): pulling pin bones with tweezers
+  needs 2.5 mm ("Cannot position precisely enough for gripping pin bone tips right now"; checked before anything
+  depends on whether the fillet has bones, so a refusal never tells a realistic robot that it does), shucking at the
+  hinge 4 mm (the side method needs no precision but chips the shell).
+* `hand_contamination` (food's robot field) is declared hidden and never materialized (`body.register_robot_field`).
+* No food verb moves the robot (no `ctx.motion` needed); capability limits come from the core verbs food relies on.
+
+### 11.4 Notices, questions, idle probes, generation 2 (KERNEL_API "v3.1", docs/DIALOGUE.md, docs/GENERATOR.md)
+
+* Notices (`common.post_notice` -> `w.notice`, stored while the bus is on or a wait listens): burnt toast's smoke is the
+  built-in visual `smoke` notice; a shaken drink or a bulging can opened is `hiss` (registered by food: 60 dB at 1 m,
+  implies `any_sound`); spills reach the bus as the kernel's `splash`.
+* Dialogue route `food.profile` (tried after the kernel's people routes): `preference` with no detail about food in
+  words -> `food:tastes` (likes and dislikes); `how` about the household's food rules in words about food itself (food,
+  leftovers, scraps, sweets, treats, expired, groceries; never storage, the fridge or the pantry alone: "how should I
+  store the towels?" and "how do I clean the fridge?" are other domains' questions, and food's route is tried before
+  those of the domains that load after it) -> `food:rule`; `preference` with detail `diet` (allergies, food restrictions) about the asked
+  person -> `food:restrictions`, which the kernel's `people.pref` route reaches first today (requested). The answerer
+  reads diet and allergies as the eater checks do (a generation-2 person's `profile`), keeps each person's answers
+  apart (`facts["<pid>:food:<key>"]`: asking the second child about allergies is a new question; before, it counted
+  as unnecessary because the first child's answer sat under the same key) and answers `food:meals`. Report
+  vocabulary: the core vocabulary already has `expired`, `spoiled`, `mold`, `smelly`, `pests` and the states `ripe`,
+  `cooked`, `raw`, `frozen`, `thawed`; food-specific words need a `data/vocab/food.json` outside this domain's files
+  (requested). Food's `@after("report")` judge keeps grading legacy reports; typed reports are scored by the kernel's
+  `report` predicates.
+* Meal log (the history synthesizer's input; TIER1_SWEEP 22.3 "meal log for history"): every time someone eats
+  (`hand_over` of ready-to-eat food, `person_eats`) `food_log.meals` gets `{"t", "day", "slot" (breakfast 05:00-10:30,
+  lunch 11:00-14:30, dinner 17:00-21:30, else snack), "person", "kinds", "label"}` with no entity ids, so it outlives
+  the things eaten (cap 200; `model.meal_log(state, pid=None, day=None)` reads it). A person asked `food:meals` says
+  what they ate today (`food:meals:lunch`: that meal).
+* Locale: printed best-by codes follow the household's market (`model.region_date_format`, by `clock.region`: US
+  10/09/26, Canada 2026 OC 09, UK and EU 09/10/2026, Japan 2026-10-09); what the household writes by hand follows its
+  own style (`clock.format_date` "long": "milk; opened October 7, 2026" in the US, "7 October 2026" in the UK), and
+  `model.parse_label` reads all three written-out orders (D Month YYYY, Month D, YYYY and YYYY Month D, full or
+  three-letter month words) besides ISO dates, keeping the date words out of the label's contents.
+* Idle probes (exact; `HOUSE_SIM_IDLE_PROBES=0` turns them off; `TierOneSweep.test_idle_probes_are_exact` and
+  `test_a_settled_lunch_box_lets_food_thermal_idle` compare digests with them on and off): `food.thermal` is idle when
+  no full pass is due, no item is new or fast, no food-owned air space would move (an ice bath, a stand-in fridge's
+  cooling, a lunch box or cooler still more than 0.13 C from the air around it: the write threshold over a full 30 s
+  substep) and no appliance unit's heat load would drop; `food.refresh` on every substep but the first of a step;
+  `food.safety` only in a house with nothing it reads. (Generation-2 children own an insulated lunch box: once it has
+  settled it no longer keeps food.thermal running; while the room temperature drifts it follows it, correctly.)
+* Generation 2 (`furnish.household_stock`): no meat in a vegetarian or vegan household's freezer (veggie patties), no
+  peanut butter where someone has a peanut allergy (jam), gluten-free bread where someone avoids gluten, oat milk where
+  someone is allergic to milk or vegan, no eggs for an egg allergy or a vegan household, infant formula (and three
+  purees from six months) for a baby, juice boxes and (unless milk is out) yogurt cups for children, a second milk carton for four or more
+  people; the household's own items get shelf room first. Eater checks read diet and allergies from a generation-2
+  person's `profile` (else `preferences`) when the person has no top-level fields; "omnivore" restricts nothing. GEN
+  places the `lunch_box` (food's type) as a child's belonging.
+* Specs: all 16 run on generation-2 houses; none uses a privileged wait (M-WAITS does not apply). The date audit's
+  opened milk now carries the household's handwritten "opened <date>" label (`food.dated opened_label`), the only
+  place a realistic robot can learn when it was opened.
+
+### 11.5 Verification (this round)
+
+* `tests/test_food.py`: 157 tests green normally, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,food`
+  (2 skips: one needs appliances_cooking's `stovetop_kettle`, one manipulation's `unwrap`).
+* Specs, seeds 0, 1, 2, 41, 97: 16 of 16 in their own mode (all on generation-2 houses; `--gen 2` the same); the four
+  realistic ones also with `--camera geometric`. Forced to realistic perception, 12 of 12 examples pass with the room
+  camera and 11 of 12 with the geometric one: `T-13da00933a0800-01` on seed 41 stops at the kernel's `go_room`, which
+  approaches a door the geometric camera cannot see from where the robot stands (kernel request; the same one cleaning
+  filed).
+* Generation-1 houses: the 340 houses of `tests/data/gen1_digests.json` digest the same with and without this
+  round's food changes (HEAD copy against HEAD plus the food files; the shared tree's own generation-1 drift is other
+  owners').
+* `tools/perception_audit.py 20 80 --verbose`: 1600 steps, 0 leaks, 0 crashes (room camera); with `--camera
+  geometric` the only 2 lines are textiles_laundry's (a drying rack's `view`). `tools/layout_audit.py 20 --domain
+  food`: 120 houses, 0 problems (generation 2: 220 houses, 0 problems). `tools/physics_audit.py --data`: 0 food gaps.
+* Gate (`tools/orchestration/tier1_gate.py record --package ADOPT:food --spec-files "food__*" --only G0,G2,G3,G10
+  --shared-tree`, compared with C1's food trials): G0, G2 and G3 pass with three reviewed differences (code ADOPT):
+  the camera wrong plans added to `T-3b0290e7f718c7-01` and `T-ae4fd543d7c772-01` (verdict field `wrong`), and
+  `T-13da00933a0800-01` forced to realistic now passing (False -> True, the handwritten opening date); every trial's
+  state and observation digests change (generation-2 houses; tier-1 food behaviour). G10 lists only other owners'
+  concurrent files. The other checks were run on their own: the unit tests above, `tools/fuzz.py 6 300` room and
+  geometric and `4 200 --battery 5 --faults random` (0 defects, 0 nondeterministic), the audits above, and the room
+  golden: its fixed 12-action script digests (seeds 0-3, oracle and realistic) are the same with and without this
+  round's food files; only reference digests of generation-2 specs change (food's own, and other domains' whose
+  generation-2 kitchens are now stocked for their household). Every other domain's spec that touches food passes in
+  its own mode on the five seeds with this round's food files on a clean HEAD copy (106 specs; the one failure seen,
+  admin_inventory's `T-8fb945d433137c-01` on seed 97, depends on what ran before it in the process and reproduces
+  without the food changes).
+* Cost (`tools/bench_systems.py --day 0 1 2 --domain food`, a busy shared machine, so approximate): food.safety about
+  0.7-0.85 s and food.thermal about 0.3 s per simulated quiet day, food.refresh about 1 ms; food.safety cannot be
+  exactly idle in a house with perishable food (spoilage advances every 300 s).
+
+**Known limits of this round.** Eggs inside a closed carton that falls more than 0.2 m are jolted at the egg's own 3 cm
+tolerance (the carton's pulp cradle is not modelled as padding), so most of them break. A broken glass package's food
+is flagged unsafe but its shards are not separate entities (safety owns shard entities). Freezer burn and insects
+need an inspect to be seen; pantry pests are not modelled by food (safety's). Boil-overs are appliances_cooking's (the
+stove). A label in a numeric date with day and month both 12 or less stays ambiguous (`ambiguous_date`), whoever
+wrote it. A portion keeps its
+look-alike link (`derived_from`) to a source outside food's model (another domain's package); `food.refresh` drops it
+only when the source is food of another kind (round-4 residual, `TierOneSweep`).

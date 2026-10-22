@@ -5,7 +5,7 @@ Nothing here mutates state except through the World passed in (journaled).
 import datetime
 import re
 
-from ...kernel import clock, geometry
+from ...kernel import body, camera, clock, geometry, timeline
 from ...kernel.errors import ActionError, require
 
 SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -152,7 +152,8 @@ def geometry_room(state, eid):
 
 
 def today(state):
-    return clock.now(state).date()
+    """The household's date by its wall clock (clock.wall: daylight saving time where the clock keeps it)."""
+    return clock.wall(state).date()
 
 
 def parse_date(text):
@@ -165,7 +166,7 @@ def parse_date(text):
 
 
 def weekday(state):
-    return clock.now(state).strftime("%A")
+    return clock.wall(state).strftime("%A")
 
 
 def held_with(ctx, capability):
@@ -198,15 +199,166 @@ def need_tool(ctx, capability, tool_id=None, message=None):
     return found
 
 
-def readable(ctx):
-    env = ctx.env
+# ----------------------------------------------------------------------
+# what the robot can notice (kernel v3.1 notices, TIER1_SWEEP 6.1; kernel v3.0 visual events, TIER1_CAMERA 8.6)
+
+NOTICE_KINDS = (
+    ("device_beep", "an office machine beeps for attention (a printer jammed, out of paper or ink)", 55.0),
+    ("collection_truck", "the waste collection truck works at the curb (engine, hydraulic lift, bins tipping)", 80.0),
+)
+for _kind, _doc, _db in NOTICE_KINDS:
+    timeline.register_notice_kind(_kind, _doc, implies=("any_sound",), db=_db)
+del _kind, _doc, _db
+
+
+def notice(w, kind, room=None, db=None, source=None, remote=False, text=None, data=None):
+    """Post a perceivable occurrence (w.notice): the timeline decides whether the robot hears or sees it and stores it
+    when the episode listens (schema-3 specs, a listening wait). The source is an entity only when it still exists."""
+    src = source if isinstance(source, str) and (source in w.s["entities"] or source in w.s.get("people", {})) else None
+    return w.notice(kind, room=room, db=db, source=src, remote=remote, text=text, data=data)
+
+
+def visual_event(w, kind, source=None, room=None, size_m=0.3):
+    """A visible occurrence for the geometric camera (camera.visual_event without its event-log write: callers keep
+    their own w.emit, so room-mode states stay as before); seen events reach the robot as "visual" notices."""
+    return camera.visual_event(w, kind, source=source if isinstance(source, str) and source in w.s["entities"] else None,
+                               room=room, size_m=size_m, emit=False)
+
+
+def doorbell_of(state, room=None):
+    """The household's doorbell (any domain's category "doorbell"; the one wired to a door of `room` first), or None."""
+    bells = [e for e in sorted(state["entities"]) if state["entities"][e].get("category") == "doorbell"]
+    if room is not None:
+        near = [e for e in bells if geometry_room(state, e) == room or
+                any(room in (conn.get("rooms") or ()) and conn.get("door") == state["entities"][e].get("door")
+                    for conn in state.get("connections", {}).values())]
+        bells = near or bells
+    return bells[0] if bells else None
+
+
+def inside_of(state, room):
+    """The indoor room a door of an outdoor room opens into (sorted connections; the room itself when indoors)."""
+    rooms = state["rooms"]
+    if room in rooms and not rooms[room].get("outdoor"):
+        return room
+    for _, conn in sorted(state.get("connections", {}).items()):
+        pair = conn.get("rooms") or ()
+        if room in pair:
+            other = next((r for r in pair if r != room), None)
+            if other in rooms and not rooms[other].get("outdoor"):
+                return other
+    return None
+
+
+def ring_doorbell(w, room):
+    """Someone at the door of `room` rings: a "doorbell" notice inside at the doorbell's chime (its chime_db, else the
+    kernel's 75 dB), and, for a connected video doorbell, a "device" notification over the robot's network (as the
+    people domain's ring_doorbell). Nothing posted says who rang."""
+    state = w.s
+    bell = doorbell_of(state, room)
+    inside = inside_of(state, room)
+    rec = state["entities"].get(bell) or {}
+    if inside is not None:
+        notice(w, "doorbell", room=inside, db=rec.get("chime_db"), source=bell)
+    if bell and rec.get("remote_status") and not rec.get("broken"):
+        notice(w, "device", remote=True, source=bell, text="Someone is at the front door", data={"device": "doorbell"})
+
+
+def doorbell_alert(w, room, eid, text):
+    """A connected video doorbell at the door of `room` whose own camera frames `eid` now (camera.device_frame: its
+    lens, line of sight, light or infrared) sends a "device" notification over the robot's network ("Package
+    detected at the front door", "Motion at the front door"), as home doorbells do. Nothing when no one listens
+    (no notice bus, no listening wait), without such a doorbell or when its frame misses the thing."""
+    if not timeline.active(w):
+        return None
+    state = w.s
+    bell = doorbell_of(state, room)
+    rec = state["entities"].get(bell) or {}
+    if not bell or not rec.get("remote_status") or rec.get("broken") or eid not in camera.device_frame(state, bell):
+        return None
+    return notice(w, "device", remote=True, source=bell, text=text, data={"device": "doorbell", "package": True})
+
+
+def printed_face_down(record):
+    """True when a paper's own view override turns its printed side (the type's label face, up) down."""
+    return ((record.get("view") or {}).get("faces") or {}).get("label") == "down"
+
+
+def set_face(w, eid, face):
+    """A paper's printed side up or down: `face` and, with the geometric camera, the camera's label face (sight 4.6).
+    Documents, envelopes and periodicals declare the printed side as their "label" face, up, at type level (records
+    stay as generated); a face-down paper carries its own view override {"faces": {"label": "down"}}, so the cameras
+    cannot read it until it is turned over (view is hidden in realistic perception). The room camera has no faces, so
+    a room-mode state keeps only `face` (room-mode observations are unchanged)."""
+    m = w.mut(eid)
+    m["face"] = face
+    if camera.mode(w.s) != "geometric":
+        return
+    view = dict(m.get("view") or {})
+    faces = dict(view.get("faces") or {})
+    if face == "down":
+        faces["label"] = "down"
+    else:
+        faces.pop("label", None)
+    if faces:
+        view["faces"] = faces
+    else:
+        view.pop("faces", None)
+    if view:
+        m["view"] = view
+    else:
+        m.pop("view", None)
+
+
+def camera_category(reason):
+    """Failure category of a camera refusal (as core's): perception for what the cameras cannot make out, capability
+    for reach, precondition for where the robot or the thing has to be first."""
+    if reason in (camera.CAMERA_OFF_TEXT, camera.NOT_SEEN_TEXT, camera.TOO_DARK_TEXT, camera.GLARE_TEXT,
+                  camera.DIRTY_TEXT, camera.TOO_SMALL_TEXT, "That is not visible here"):
+        return "perception"
+    return "capability" if reason and "reach" in reason.lower() else "precondition"
+
+
+def _lens_clear(state):
+    """The lens is clean enough to read text (perception's 0.4; the body field, default clean)."""
+    clean = body.get(state, "camera_clean")
+    return float(1.0 if clean is None else clean) >= 0.4
+
+
+def readable(ctx, eid=None, fields=None):
+    """True when printed text is legible now (require_readable without refusing)."""
+    try:
+        require_readable(ctx, eid, fields, spend=False)
+    except ActionError:
+        return False
+    return True
+
+
+def require_readable(ctx, eid=None, fields=None, spend=True):
+    """Printed text is legible now; returns the fields that can be read. The colour cameras must work
+    (ctx.require_imaging, TIER1_INTEGRATION 1.3 / 1.15: "Cameras are off; turn privacy mode off to look closely" with
+    privacy mode, a switch or a room policy; "Camera fault: request help"). Room camera: the robot's room is lit and
+    the lens clean enough. Geometric camera (kernel v3.0): with eid, the cameras' read rule for those printed fields
+    of it (ctx.read_check: about 10 px per character of the field's print, the face it is printed on in view, light
+    0.25, no glare, a clean lens; else the wrist camera within reach, +2 s); without eid (text the robot handles up
+    close as it works: page numbers of a stack in hand, a label it writes, date labels of stock it moves), the lens
+    clean enough -- the wrist camera brings its own light."""
+    ctx.require_imaging()
     state = ctx.w.s
-    return env.perception.lit(state, state["robot"]["room"]) and state["robot"].get("camera_clean", 1.0) >= 0.4
-
-
-def require_readable(ctx):
-    require(ctx.env.perception.lit(ctx.w.s, ctx.w.robot["room"]), "Too dark to read", "perception")
-    require(ctx.w.robot.get("camera_clean", 1.0) >= 0.4, "Camera too dirty to read text; clean the camera", "perception")
+    if ctx.camera_mode == "geometric":
+        if eid is None:
+            require(_lens_clear(state), camera.DIRTY_TEXT, "perception")
+            return list(fields or [])
+        ok, reason, via, readable_fields = ctx.read_check(eid, list(fields or ["label_text"]))
+        require(ok, reason or camera.NOT_SEEN_TEXT, camera_category(reason))
+        if spend and via == "wrist" and not ctx.holding(eid):
+            ctx.spend(camera.INSPECT_WRIST_S)
+        elif spend and ctx.holding(eid):
+            ctx.spend(camera.READ_HELD_S)
+        return list(readable_fields)
+    require(ctx.env.perception.lit(state, state["robot"]["room"]), "Too dark to read", "perception")
+    require(_lens_clear(state), "Camera too dirty to read text; clean the camera", "perception")
+    return list(fields or [])
 
 
 def admin_facts(w):

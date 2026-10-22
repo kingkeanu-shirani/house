@@ -5,6 +5,8 @@ spoilage and dates, contamination and allergens, eaters' constraints, leftovers.
 See docs/domains/food.md. Modules register on import:
     data        reference tables (real magnitudes)
     model       food access, split/merge, contamination, zones, dates/status, eaters, dishes
+    physical    food in the kernel physics layer (phys.props / phys.broke / phys.fell hooks, kernel spills,
+                freeze bursts)
     mixing      mixture state machine (homogeneity, aeration, gluten, emulsion)
     systems     time systems (food thermal with latent heat + core lag, safety clocks, spoilage)
     actions_*   the food verbs
@@ -14,7 +16,7 @@ See docs/domains/food.md. Modules register on import:
     scenarios   scenario helpers food.*
     skills      reference skills food.*
 """
-from . import data, model, mixing, systems, common  # noqa: F401
+from . import data, model, mixing, common, physical, systems  # noqa: F401
 from . import actions_knife, actions_mix, actions_measure  # noqa: F401
 from . import hooks, perception, furnish, scenarios, skills  # noqa: F401
 

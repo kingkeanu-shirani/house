@@ -4,7 +4,7 @@ dispensers and bulk jars from refills (liquid or granular) with spill/overflow, 
 foaming-clog, allergen and pest-transfer consequences and FIFO layering, napkin holder
 overstuffing, tissue boxes and bar soap on wet dishes.
 """
-from ...kernel import geometry
+from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, hook
@@ -14,6 +14,7 @@ from .perceive import approx_litres, count_seen, dumps, name_of, render, spill_w
 
 VISCOUS = {"hand_soap": 0.04, "foaming_hand_soap": 0.08, "dish_soap": 0.04, "lotion": 0.02, "shampoo": 0.04,
            "body_wash": 0.04, "laundry_detergent": 0.06, "hand_sanitizer": 0.05}
+DRY_GOODS_KG_L = 0.8        # bulk density of spilled dry goods (rice 0.75-0.85, sugar 0.85, flour 0.6, kibble 0.5 kg/L)
 CHEM_MIX_GAS = {("chlorine_bleach", "ammonia"), ("chlorine_bleach", "acid"), ("ammonia", "chlorine_bleach"), ("acid", "chlorine_bleach")}
 
 
@@ -56,9 +57,18 @@ def take_unit(ctx):
         props.update(count=210 * n)
     elif n > 1:
         props.update(units=n)
+    if n > 1 and unit_type not in ("paper_stack", "napkin_stack"):
+        # one entity stands for the n units taken: it weighs and fills what n of them do (the kernel's subtree mass and
+        # the body's carry read mass_kg)
+        unit = w.reg.make(unit_type, "robot") if w.reg is not None and w.reg.known(unit_type) else {}
+        for key in ("mass_kg", "volume_l"):
+            base = props.get(key, unit.get(key))
+            if isinstance(base, (int, float)) and not isinstance(base, bool):
+                props[key] = round(float(base) * n, 4)
     if rec.get("sku") and "sku" not in props and unit_type not in ("staple_strip",):
         props["sku"] = rec.get("sku")
     new = w.spawn(unit_type, "robot", **props)
+    ctx.check_lift(new, hand)           # the body's derated hand capacity and total carry (TIER1_INTEGRATION 1.5)
     nm = w.mut(new)
     nm["relation"], nm["held_hand"] = "held", hand
     nm["derived_from"] = target          # a portion looks like its package until that package is identified
@@ -85,6 +95,7 @@ def _split_paper(ctx, target, rec):
     new = w.spawn("paper_stack", "robot", sheets_count=n, paper_size=rec.get("paper_size", "letter"), sku=rec.get("sku"),
                   mass_kg=round(0.0045 * n, 4), volume_l=round(0.0062 * n, 4),
                   size_m=[rec["size_m"][0], rec["size_m"][1], round(0.0001 * n, 4)])
+    ctx.check_lift(new, hand)
     nm = w.mut(new)
     nm["relation"], nm["held_hand"] = "held", hand
     nm["derived_from"] = target
@@ -191,9 +202,14 @@ def _add_layers(rec, layers):
     rec["layers"] = current
 
 
-def _spill(w, near, product, liters, kind="liquid", generic=False):
-    """Spilled product lands on the surface the container stands on, or the floor. generic (realistic perception):
-    the label says only what the spill looks like (what it is shows up close: the spill's inspect-tier liquid)."""
+def _spill(w, near, product, liters, kind="liquid", generic=False, cause="spill"):
+    """Spilled product lands on the surface the container stands on, or the floor. A liquid is the kernel's spill
+    (phys.liquids.spill, TIER1_PHYSICS 5.7, attributed to the robot: the surface takes a film and keeps what it can,
+    the rest runs down to the floor as a puddle -- the cleaning domain's `spill` entity through its phys.spill_sink
+    when it is loaded -- counted in spills / phys_spills); soap leaves the surface sticky. Dry goods (rice, flour,
+    kibble) are a debris pile this domain makes. generic (realistic perception): a spill is labeled by what it looks
+    like (what it is shows up close: the spill's inspect-tier liquid). cause "overflow" logs the kernel's
+    phys.overflow (liquid over the brim), every other one phys.spill. Returns the floor spill's id (or None)."""
     rec = w.ent(near)
     parent = rec.get("location")
     if parent == "robot":
@@ -205,28 +221,29 @@ def _spill(w, near, product, liters, kind="liquid", generic=False):
         room = None
     else:
         room = parent if parent in w.s["rooms"] else w.robot["room"]
-    label = "{} spill".format(str(product or "product").replace("_", " "))
-    if generic:
-        label = "spilled liquid" if kind == "liquid" else "spilled dry goods"
-    # Liquid spills are the cleaning domain's `spill` entities (absorb/mop, evaporation, slips) when it is loaded.
-    spill_type = "spill" if kind == "liquid" and w.reg is not None and w.reg.known("spill") else "generic_item"
+    if kind == "liquid":
+        if target_surface:
+            spill = physics.spill(w, liters, liquid=product or "water", onto=target_surface, source=near, by="robot",
+                                  cause=cause)
+        else:
+            spill = physics.spill(w, liters, liquid=product or "water", at=room, source=near, by="robot", cause=cause)
+        if spill in w.s["entities"] and generic:
+            w.mut(spill)["label"] = "spilled liquid"
+        return spill
+    label = "spilled dry goods" if generic else "{} spill".format(str(product or "product").replace("_", " "))
+    pile = {"label": label, "category": "debris", "portable": False, "product": product, "amount_l": round(liters, 3),
+            "mass_kg": round(liters * DRY_GOODS_KG_L, 3), "volume_l": round(liters, 3), "soil": {"food": 0.5},
+            "waste_stream": "trash"}
     if target_surface:
-        spill = w.spawn(spill_type, target_surface, label=label, category="spill" if kind == "liquid" else "debris",
-                        portable=False, liquid=product, liquid_l=round(liters, 3), size_m=[0.15, 0.15, 0.002], mass_kg=round(liters, 3),
-                        volume_l=round(liters, 3), soil={"sticky": 0.6} if kind == "liquid" else {"food": 0.5}, waste_stream="trash",
-                        **({"area_m2": 0.02, "floor_hazard": None} if spill_type == "spill" else {}))
+        spill = w.spawn("generic_item", target_surface, size_m=[0.15, 0.15, 0.002], **pile)
         sm = w.mut(spill)
         sm["relation"] = "on"
         spot = geometry.surface_spot(w.s, target_surface, spill)
         if spot is not None:
             sm["spos"] = spot
     else:
-        spill = w.spawn(spill_type, room, label=label, category="spill" if kind == "liquid" else "debris", portable=False,
-                        liquid=product, liquid_l=round(liters, 3), size_m=[0.3, 0.3, 0.002], mass_kg=round(liters, 3), volume_l=round(liters, 3),
-                        floor_hazard="slip", soil={"sticky": 0.6} if kind == "liquid" else {"food": 0.5}, waste_stream="trash",
-                        **({"area_m2": 0.09} if spill_type == "spill" else {}))
-        sm = w.mut(spill)
-        sm["pos"] = drop_cell(w, room, w.robot.get("pos"), spill)
+        spill = w.spawn("generic_item", room, size_m=[0.3, 0.3, 0.002], floor_hazard="slip", **pile)
+        w.mut(spill)["pos"] = drop_cell(w, room, w.robot.get("pos"), spill)
     w.stat("spills")
     w.emit("spill", target=spill, product=product, liters=round(liters, 3))
     return spill
@@ -327,11 +344,17 @@ def refill(ctx):
     if funnel:
         add_soil(w, funnel, "sticky" if liquid else "food", 0.2)
     total_spill = spilled + overflow
-    if total_spill > 0.002:
-        _spill(w, dest_id, product, total_spill, "liquid" if liquid else "granular", generic=ctx.realistic)
+    if liquid:
+        # the kernel's spill (5 ml or more counts): what missed the neck, then what ran over the brim
+        if spilled > 0:
+            _spill(w, dest_id, product, spilled, "liquid", generic=ctx.realistic)
         if overflow > 0:
-            dm["overflowed"] = True
-            add_soil(w, dest_id, "sticky" if liquid else "food", 0.3)
+            _spill(w, dest_id, product, overflow, "liquid", generic=ctx.realistic, cause="overflow")
+    elif total_spill > 0.002:
+        _spill(w, dest_id, product, total_spill, "granular", generic=ctx.realistic)
+    if overflow > 0:
+        dm["overflowed"] = True
+        add_soil(w, dest_id, "sticky" if liquid else "food", 0.3)
     rate = VISCOUS.get(product, 0.25 if liquid else 0.4)
     # pouring time from the amount to the eye's 50 ml (what the message reports), so the clock is no finer a
     # measure of a hidden level than the message; the flow rate is the product's viscosity, which pouring shows

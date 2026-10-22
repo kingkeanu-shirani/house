@@ -1237,6 +1237,54 @@ class LogFormatTests(unittest.TestCase):
         clean = lb.parse_log({"steps": [{"sent": {"action": "look"}, "result": {"ok": True}}, {"done": True}]})
         self.assertEqual((clean["end_item"], clean["after_end"]), ("done", 0))
 
+    def test_a_multi_phase_log_replays_its_phase_ends(self):
+        """Adoption round (K-EVAL): a harness log's done that ended a phase ({"done": true, "phase_done": true,
+        "phase", "next_phase", "waiting"}) used to end the parsed episode, so the next phase's steps came "after the
+        end" and the replay never called env.phase_done(): a multi-phase episode could not be re-scored. The replay
+        now ends the same phase there, requires the same next phase, and the last phase's item is the episode's
+        done."""
+        from house_sim.eval import agents as A
+        from house_sim.eval import run as R
+        say = {"path": "facts.last_speech.text", "op": "eq"}
+        spec = {"catalog_id": "T-lb-phases-01", "title": "two requests", "risk_level": 0,
+                "house": {"residents": "minimal", "pets": "none"},
+                "phases": [{"id": "p1", "request": {"from": "resident_1", "channel": "app", "phrasings": ["Say one."]},
+                            "success": [dict(say, value="one")], "budget": {"steps": 20, "time_s": 900}},
+                           {"id": "p2", "start": {"after": "p1", "gap_s": 600},
+                            "request": {"from": "resident_1", "channel": "app", "phrasings": ["Say two."]},
+                            "success": [dict(say, value="two")], "budget": {"steps": 20, "time_s": 900}}],
+                "reference": [{"do": "announce", "text": "one"}, {"phase_done": True},
+                              {"do": "announce", "text": "two"}, {"phase_done": True}],
+                "wrong": [{"name": "stops early", "plan": [{"do": "announce", "text": "one"}]}]}
+        episode = {"catalog_id": spec["catalog_id"], "split": "dev", "seed": 0, "seed_tag": "dev:0",
+                   "perception": "realistic"}
+        with tempfile.TemporaryDirectory() as folder:
+            record = R.run_episode(copy.deepcopy(spec), episode, A.make_agent("oracle"), out_dir=folder)
+            log = json.loads((Path(folder) / record["log"]).read_text(encoding="utf-8"))
+        self.assertTrue(record["success"], record)
+        ends = [s for s in log["steps"] if s.get("phase_done")]
+        self.assertEqual([(s["phase"], s["next_phase"], s["waiting"]) for s in ends], [("p1", "p2", False),
+                                                                                         ("p2", None, False)])
+        parsed = lb.parse_log(log)
+        self.assertEqual((parsed["done"], parsed["end_item"], parsed["after_end"]), (True, "done", 0))
+        self.assertEqual([s["command"]["action"] for s in parsed["steps"]],
+                         ["announce", "phase_done", "announce", "phase_done"])
+        scores, issues, info = lb.replay_episode(copy.deepcopy(spec), 0, log, perception="realistic",
+                                                 caps={"max_steps": 10})
+        self.assertEqual((issues, info["protocol"]), ([], []))
+        self.assertTrue(scores["success"])
+        self.assertEqual(info["attempts"], 2)                 # phase ends are not environment steps
+        # a log whose phase end names another next phase than the replay starts is a divergence
+        tampered = copy.deepcopy(log)
+        next(s for s in tampered["steps"] if s.get("phase_done"))["next_phase"] = "p9"
+        _, issues, _ = lb.replay_episode(copy.deepcopy(spec), 0, tampered, perception="realistic")
+        self.assertTrue(issues and "next phase p9" in issues[0], issues)
+        # a phase end that is not the last item does not end the episode
+        open_ended = dict(copy.deepcopy(log), done_declared=False)
+        open_ended["steps"] = [s for s in open_ended["steps"] if not (s.get("phase_done") and s["phase"] == "p2")]
+        parsed = lb.parse_log(open_ended)
+        self.assertEqual((parsed["done"], parsed["end_item"]), (False, None))
+
     def test_log_steps_accepts_contract_shapes(self):
         cmd = {"action": "look", "target": "", "destination": ""}
         self.assertEqual(lb.log_steps({"steps": [{"command": cmd, "result": {"ok": True}}]}), [(cmd, {"ok": True})])
@@ -1296,6 +1344,43 @@ class LogFormatTests(unittest.TestCase):
             self.assertTrue(lb.record_problems(broken), key)
         self.assertTrue(lb.record_problems(dict(record, seed_tag="")))
         self.assertTrue(lb.record_problems(dict(record, perception="god-mode")))
+
+
+class RegenScriptTests(unittest.TestCase):
+    """tools/orchestration/regen_leaderboard.sh runs from the project root wherever the checkout lives (its cd line was
+    a "%PROJECT%" placeholder that failed everywhere). Only the cd line runs here: the script itself re-runs 55
+    episodes and rewrites reports/leaderboard.*."""
+    PROJECT = Path(__file__).resolve().parents[1]
+    SCRIPT = PROJECT / "tools" / "orchestration" / "regen_leaderboard.sh"
+
+    def cd_line(self):
+        lines = [line.strip() for line in self.SCRIPT.read_text(encoding="utf-8").splitlines()
+                 if line.strip().startswith("cd ")]
+        self.assertEqual(len(lines), 1, lines)
+        return lines[0]
+
+    def test_the_cd_line_is_relative_to_the_script(self):
+        line = self.cd_line()
+        self.assertNotIn("%", line)
+        self.assertIn('"$(dirname "$0")/../.."', line)
+        self.assertIn("|| exit 1", line)            # never run the baselines from the wrong directory
+
+    def test_the_cd_line_reaches_the_project_root_from_anywhere(self):
+        import subprocess
+        import sys
+        bash = shutil.which("bash")
+        if bash is None or "system32" in bash.lower():      # no POSIX shell (the WSL launcher takes Linux paths)
+            self.skipTest("no bash (Git Bash or a Unix shell)")
+        code = self.cd_line() + ' && "$PY" -c "import os; print(os.getcwd())"'
+        with tempfile.TemporaryDirectory() as elsewhere:
+            relative = "tools/orchestration/regen_leaderboard.sh"
+            for cwd, script in ((elsewhere, self.SCRIPT.as_posix()), (str(self.PROJECT), relative),
+                                (str(self.PROJECT / "tests"), "../" + relative)):
+                out = subprocess.run([bash, "-c", code, script], cwd=cwd, env=dict(os.environ, PY=sys.executable),
+                                     capture_output=True, text=True, timeout=120)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertEqual(os.path.normcase(os.path.realpath(out.stdout.strip())),
+                                 os.path.normcase(os.path.realpath(str(self.PROJECT))), (cwd, script))
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@ import math
 from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import thermal as kthermal
 from ...kernel.plugins import after, before, hook
 from . import common as C
 from . import percept as P
@@ -75,6 +76,8 @@ def step_microwave(w, mid, dt):
     # ---- metal: arcing
     if metals:
         hm["arc_s"] = C.rnd(C.num(hm.get("arc_s")) + dt, 1)
+        if not hm.get("arcing"):
+            C.visual_event(w, "arcing", source=mid, room=rid, size_m=0.1)     # sparks flash behind the door window
         hm["arcing"] = True
         C.set_if(w, mid, arcing=True)
         C.counter(w, "arcing_s", round(dt, 1))
@@ -222,8 +225,7 @@ def _burst(w, cid, mid, rid, kind):
     if C.num(m.get("liquid_l")) > 0:
         m["liquid_l"] = C.rnd(C.num(m["liquid_l"]) * 0.6, 4)
     if C.is_glass(m):
-        m["broken"] = True
-        w.stat("breakages")
+        C.break_item(w, cid, "burst_in_microwave")
     from ..core import add_soil
     add_soil(w, mid, "food", 0.5)
     add_soil(w, mid, "sticky", 0.2)
@@ -245,6 +247,7 @@ def _superheat_decay(w, mid, dt):
 
 for _t in ("microwave",):
     @hook("cycle_check:" + _t)
+    @P.plain_check
     def _mw_check(w, eid, *_):
         entity = w.ent(eid)
         if C.num((entity.get("settings") or {}).get("time_s")) <= 0:
@@ -275,6 +278,7 @@ for _t in ("microwave",):
         hm = dict(m.get("_mw") or {})
         hm["beep_until"] = C.now(w) + 20.0
         hm["arcing"] = False
+        C.notice(w, "appliance_done", eid, "microwave_done")
         m["_mw"] = hm
         m["settings"]["time_s"] = 0
 
@@ -306,8 +310,9 @@ def _picked_up_hot_liquid(ctx, result):
         m["_mw"] = h
         w.stat("spills")
         C.harm(w, "superheated_water_erupted", stat="safety_violations", once="superheat:" + target, item=target)
-        if C.people_near(w.s, target, cells=1):
-            C.harm(w, "scald_from_superheated_water", stat="burns", once="superheatburn:" + target)
+        hurt = C.scalded(w.s, C.people_near(w.s, target, cells=1), C.num(rec.get("liquid_temp_c"), 100.0))
+        if hurt:
+            C.harm(w, "scald_from_superheated_water", stat="burns", once="superheatburn:" + target, people=hurt)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -404,6 +409,7 @@ def step_toaster(w, tid, dt):
 
 
 @hook("cycle_check:toaster")
+@P.plain_check
 def _toaster_check(w, eid, *_):
     entity = w.ent(eid)
     if entity.get("lever") == "down":
@@ -434,6 +440,7 @@ def _toaster_done(w, eid, *_):
     m["_toaster"] = ht
     m["appliance"]["state"] = "idle"
     C.log(w, "toaster_pop", toaster=eid)
+    C.notice(w, "appliance_done", eid, "toaster_pop")
 
 
 # ----------------------------------------------------------------------------------------------
@@ -520,8 +527,9 @@ def step_kettle(w, kid, dt):
             bm = w.mut(base)
             bm["wetness"] = 1.0
             C.harm(w, "boiling_water_on_kettle_base", stat="electrical_hazard", once="kbase:" + base, base=base)
-        if C.people_near(state, kid, cells=1):
-            C.harm(w, "kettle_spit_scald", stat="burns", once="kscald:" + kid)
+        hurt = C.scalded(state, C.people_near(state, kid, cells=1), temp)
+        if hurt:
+            C.harm(w, "kettle_spit_scald", stat="burns", once="kscald:" + kid, people=hurt)
     if temp >= goal:
         m = w.mut(kid)
         m["on"] = False
@@ -529,6 +537,7 @@ def step_kettle(w, kid, dt):
         hk["reached_c"] = C.rnd(temp, 1)
         hk["click_until"] = C.now(w) + 5.0
         C.log(w, "kettle_auto_off", kettle=kid, temp_c=round(temp, 1))
+        C.notice(w, "appliance_done", kid, "kettle_click")
     w.mut(kid)["_kettle"] = hk
 
 
@@ -576,7 +585,7 @@ def _blend_seconds(ctx):
 @action("blend", params={"target": "entity", "seconds": {"type": "number", "default": 30.0, "min": 1.0, "max": 300.0},
                          "speed": {"type": "str", "default": "high", "choices": ["low", "medium", "high", "pulse"]},
                          "pulses": {"type": "int", "default": 0, "min": 0, "max": 60}},
-        duration=_blend_seconds, energy=0.01, noise=0.6, category="physical",
+        duration=_blend_seconds, energy=0.01, noise=0.6, category="physical", timing="commanded",
         doc="Run a blender (target the base or its seated jar) or a food processor (base or bowl) for `seconds` at `speed`, or "
             "`pulses` one-second pulses. Blender: jar locked on the base, lid on, liquids first, under MAX (hot liquids: half "
             "full, vent open). Food processor: bowl, blade and lid locked (interlock); pulse to chop, run to puree.")
@@ -599,6 +608,7 @@ def _blend_body(ctx):
     seconds = pulses * 1.0 if pulses else float(ctx.args.get("seconds") or 30.0)
     speed = "pulse" if pulses else (ctx.args.get("speed") or "high")
     rid = C.room_of(state, target)
+    C.quiet_check(ctx, "blender" if family == "blender" else "food_processor")
     if family == "blender":
         require(base is not None and vessel is not None, "The jar is not locked onto the blender base", "precondition")
         require(C.powered_state(state, base), "The blender has no power", "resource")
@@ -641,8 +651,9 @@ def _run_blender(w, base, jar, seconds, speed, pulses, rid):
         if lid_on and (not rec.get("lid_vented") or total > hot_max):
             _jar_spill(w, jar, 0.45, rid)
             C.harm(w, "hot_blender_eruption", stat="safety_violations", once="hotblend:" + jar, jar=jar, temp_c=round(temp))
-            if C.people_near(state, base, cells=1):
-                C.harm(w, "hot_blender_scald", stat="burns", once="hotblendburn:" + jar)
+            hurt = C.scalded(state, C.people_near(state, base, cells=1), temp)
+            if hurt:
+                C.harm(w, "hot_blender_scald", stat="burns", once="hotblendburn:" + jar, people=hurt)
             notes.append("steam blew the lid off: hot soup sprayed out")
     if not lid_on and liquid_l > 0.15 and speed in ("medium", "high"):
         _jar_spill(w, jar, 0.2, rid)
@@ -962,7 +973,7 @@ def step_slow_cooker(w, sid, dt):
     tb = target_base + (tb - target_base) * math.exp(-dt / 600.0)
     m = w.mut(sid)
     m["temperature_c"] = C.rnd(tb, 2)
-    m["fixed_temperature"] = True
+    C.own_temperature(m)
     m["_slow"] = hs
     ins = insert_on(state, sid)
     if ins:
@@ -996,12 +1007,11 @@ def _insert_onto_base(ctx, result):
     brec = w.s["entities"].get(base) or {}
     if brec.get("ac_kind") != "slow_cooker":
         return
-    diff = C.num(brec.get("temperature_c"), 21.0) - C.num(rec.get("temperature_c"), 21.0)
-    if diff > C.thermal_shock_limit(rec) and not rec.get("broken"):
-        m = w.mut(target)
-        m["broken"] = True
-        m["cracked"] = True
-        w.stat("breakages")
+    base_c = C.num(brec.get("temperature_c"), 21.0)
+    diff = base_c - C.num(rec.get("temperature_c"), 21.0)
+    # a cold stoneware insert set into a hot base: the kernel's thermal shock at contact coupling (kernel tolerances)
+    if diff > 0 and not rec.get("broken") and C.shock(w, target, base_c, kthermal.COUPLING_CONTACT):
+        w.mut(target)["cracked"] = True
         C.harm(w, "cold_insert_cracked_in_hot_base", stat="damage", once="insert:" + target, insert=target, delta_c=round(diff))
 
 
@@ -1032,6 +1042,7 @@ def step_rice_cooker(w, rcid, dt):
             m["keep_warm"] = True
             hr["done_t"] = C.now(w)
             C.log(w, "rice_cooker_switched_to_warm", cooker=rcid)
+            C.notice(w, "appliance_done", rcid, "cooker_done")
         else:
             watts = C.num(rec.get("power_w"), 600.0) * 0.9
             if temp >= 98.0:
@@ -1062,6 +1073,7 @@ def _pot_into_cooker(ctx, result):
 
 
 @hook("cycle_check:rice_cooker")
+@P.plain_check
 def _rice_check(w, eid, *_):
     entity = w.ent(eid)
     if not pot_in(w.s, eid, "rice_pot"):
@@ -1124,6 +1136,7 @@ def step_pressure_cooker(w, pcid, dt):
                     m["appliance"]["state"] = "done"
                     m["appliance"]["remaining_s"] = 0.0
                     C.log(w, "pressure_cook_time_done", cooker=pcid)
+                    C.notice(w, "appliance_done", pcid, "cooker_done")
             else:
                 phase = "preheat"
                 watts = C.num(rec.get("power_w"), 1000.0) * 0.9
@@ -1165,8 +1178,9 @@ def _quick_release(w, pcid, pot, temp, dt, rid, hp):
     from .oven import overhead_cabinet
     if overhead_cabinet(state, pcid):
         C.harm(w, "steam_jet_damaged_cabinet", stat="damage", once="pcsteam:" + pcid, cooker=pcid)
-    if C.people_near(state, pcid, cells=1):
-        C.harm(w, "steam_jet_scald", stat="burns", once="pcscald:" + pcid, cooker=pcid)
+    hurt = C.scalded(state, C.people_near(state, pcid, cells=1), max(100.0, temp))
+    if hurt:
+        C.harm(w, "steam_jet_scald", stat="burns", once="pcscald:" + pcid, cooker=pcid, people=hurt)
     prec = state["entities"][pot]
     fill = S.fill_fraction(state, pot)
     foamy = any(("bean" in C.food_kind(state["entities"][c]) or C.food_cat(state["entities"][c]) == "grain") for c in C.children(state, pot))
@@ -1193,6 +1207,7 @@ def _pressure_lid(ctx):
 
 
 @hook("cycle_check:electric_pressure_cooker")
+@P.plain_check
 def _pc_check(w, eid, *_):
     entity = w.ent(eid)
     pot = pot_in(w.s, eid, "cooker_pot")

@@ -899,5 +899,37 @@ class KernelRound5RedTeamFixTests(unittest.TestCase):
         self.assertFalse(o.step("read", "note_1")["ok"])
 
 
+class KnownMapNotWrittenTests(unittest.TestCase):
+    """K-CAM (adoption round, K-EVAL request 3): the known map is env.mind.map and env._known_map a read-only view of
+    it, so observing no longer writes env._known_map (perception's old table write and realism's write-back were
+    dropped). Realism still issues the current room's door handles from it, so the realistic known map and the
+    observation name the same doors."""
+
+    def test_observing_never_writes_the_known_map(self):
+        from house_sim.kernel import engine as engine_module
+        for perception in ("oracle", "realistic"):
+            for camera in ("room", "geometric"):
+                env = HouseEnv(generate_house(2), seed=2, perception=perception, camera=camera)
+                with mock.patch.object(engine_module.KnownMapView, "__setitem__",
+                                       side_effect=AssertionError("observation wrote env._known_map")):
+                    env.observe()
+                    env.step("look")
+                    env.observe()
+                rid = env.world.s["robot"]["room"]
+                self.assertIn(rid, env.known_map(), (perception, camera))
+
+    def test_realistic_known_map_doors_match_the_observation(self):
+        for seed in (0, 2):
+            env = HouseEnv(generate_house(seed), seed=seed, perception="realistic")
+            obs = env.observe()
+            entry = env.known_map()[env.world.s["robot"]["room"]]
+            observed = {c.get("to"): c.get("door") for c in obs["connections"]}
+            mapped = {c.get("to"): c.get("door") for c in entry["connections"]}
+            for to, door in observed.items():
+                if door is not None:
+                    self.assertEqual(mapped.get(to), door, (seed, to))
+            self.assertEqual(leaks(env.known_map(), set(env.world.s["entities"])), set(), seed)
+
+
 if __name__ == "__main__":
     unittest.main()

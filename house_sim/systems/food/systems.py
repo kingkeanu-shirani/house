@@ -29,13 +29,17 @@ Cost control (deterministic, keyed only on simulated time and state):
 """
 import math
 
+from ...kernel import camera, physics
 from ...kernel.plugins import hook, system
 from ...kernel.predicates import root_room
+from . import common as C
 from . import data as D
 from . import model as M
 from . import mixing as X
+from . import physical as PH
 
 FULL_PASS_S = 300.0
+THERMAL_MAX_DT = 30.0     # food.thermal integrates at most this per call (the substep)
 SAFETY_PERIOD_S = 300.0
 FAST_MOVE_C = 1.0        # an item expected to change more than this within one full-pass interval is updated every substep
 HOT_C = 40.0             # cooking, hot holding and cooling from hot are tracked every substep
@@ -58,6 +62,50 @@ def food_ids(w):
             if e in ents and M.food(ents[e]) is not None]
 
 
+def _first_substep(w):
+    """True on the first substep of a step (the engine's tick index 0, when food.thermal does a full pass and
+    food.refresh runs), False on a later one, None when the World has no engine (no probe can decide then)."""
+    ref = getattr(w, "_env_ref", None)
+    env = ref() if ref is not None else None
+    index = getattr(env, "_tick_index", None) if env is not None else None
+    if not isinstance(index, int):
+        return None
+    return index == 1           # the engine numbers the substep's Tick, then advances the index before the systems run
+
+
+def thermal_idle(w):
+    """Exact idle probe of food.thermal (kernel v3.1 @system idle): True when this substep would change nothing --
+    no full pass due (not the first substep of a step, under FULL_PASS_S since the last one), no item new to the
+    model or flagged fast, no food-owned air space that would move (an ice bath, a stand-in fridge's cooling, a lunch
+    box or cooler still settling toward the air around it) and no appliance cold unit whose reported heat load would
+    drop to zero."""
+    if _first_substep(w) is not False:
+        return False
+    state = w.s
+    last = (state.get(SYS) or {}).get("thermal_full_t")
+    if last is None or state["time_s"] - float(last) >= FULL_PASS_S - 1e-6:
+        return False
+    entities = state["entities"]
+    for eid in thermal_ids(w):
+        rec = entities.get(eid)
+        if rec is None:
+            continue
+        if not ((isinstance(rec.get("food"), dict) and rec.get("food_thermal", True)) or rec.get("latent_pack")):
+            continue
+        if rec.get("_tt") is None or rec.get("_tfast"):
+            return False
+    for eid in _cold_ids(w):
+        rec = entities.get(eid)
+        if rec is None or rec.get("internal_temp_c") is None:
+            continue
+        if rec.get("food_air_model"):
+            if not _air_settled(state, eid, rec):
+                return False
+        elif abs(float(rec.get("heat_load_w", 0.0) or 0.0)) > 0.5:
+            return False
+    return True
+
+
 def thermal_items(state):
     """Full-scan variant for callers without a World."""
     out = []
@@ -74,7 +122,7 @@ def _vessel_area(rec):
     return 2 * (a * b + a * c + b * c)
 
 
-@system("food.thermal", order=52, max_dt=30.0)
+@system("food.thermal", order=52, max_dt=THERMAL_MAX_DT, idle=lambda w: thermal_idle(w))
 def food_thermal(w, dt, tick):
     state = w.s
     entities = state["entities"]
@@ -342,6 +390,9 @@ def _doneness(w, eid, surf, core, step):
             if not rec.get("_smoking"):
                 w.mut(eid)["_smoking"] = True
                 w.emit("smoke", source=eid, reason="burnt bread")      # never a label that could name a look-alike
+                # smoke is seen (the kernel's visual "smoke" notice; the geometric camera witnesses it when in view)
+                camera.visual_event(w, "smoke", source=eid, size_m=0.4, visual="smoke", emit=False)
+                C.post_notice(w, "smoke", source=eid, visual=True)
                 w.sec("food_log").setdefault("smoke", []).append({"t": state["time_s"], "food": eid})
                 w.stat("food_burnt")
     # ---- grains absorb their liquid
@@ -402,7 +453,6 @@ def _cold_spaces(w, dt, heat_into):
     heat load reported to appliance-owned cold units."""
     state = w.s
     entities = state["entities"]
-    from ...kernel.physics import room_temperature
     for eid in _cold_ids(w):
         rec = entities.get(eid)
         if rec is None or rec.get("internal_temp_c") is None:
@@ -414,11 +464,7 @@ def _cold_spaces(w, dt, heat_into):
                 w.mut(eid)["heat_load_w"] = load
             continue
         t_in = float(rec["internal_temp_c"])
-        rid = root_room(state, eid)
-        t_out = room_temperature(state, rid) if rid in state["rooms"] else 21.0
-        outer = entities.get(rec.get("location"))
-        if outer is not None and outer.get("internal_temp_c") is not None:
-            t_out = float(outer["internal_temp_c"])
+        t_out = _air_outside(state, eid, rec)
         if rec.get("ice_bath"):
             # contents that the kernel cools (pots, bottles) dump heat into the ice water too
             for child in w.children(eid):
@@ -438,17 +484,52 @@ def _cold_spaces(w, dt, heat_into):
                     m["temperature_c"] = 2.0
                     m["heat_coupling"] = 1.0
             continue
-        ua = float(rec.get("ua_w_k", 0.8))
-        if rec.get("openable") and rec.get("open"):
-            ua += float(rec.get("open_ua_w_k", 12.0))
-        cap = float(rec.get("air_heat_capacity_j_k", 15000.0))
-        t_new = t_in + (ua * (t_out - t_in) * dt + q_food) / cap
-        setpoint = rec.get("setpoint_c")
-        if setpoint is not None and rec.get("cooling_w") and t_new > float(setpoint):
-            removed = min(float(rec["cooling_w"]) * dt, (t_new - float(setpoint)) * cap)
-            t_new -= removed / cap
-        if abs(t_new - t_in) > 0.002:
+        t_new = _air_step(rec, t_in, t_out, dt, q_food)
+        if abs(t_new - t_in) > AIR_WRITE_C:
             w.mut(eid)["internal_temp_c"] = round(t_new, 3)
+
+
+AIR_WRITE_C = 0.002         # a food-owned air space's temperature is written only when it moves more than this
+
+
+def _air_ua(rec):
+    ua = float(rec.get("ua_w_k", 0.8))
+    if rec.get("openable") and rec.get("open"):
+        ua += float(rec.get("open_ua_w_k", 12.0))
+    return ua
+
+
+def _air_step(rec, t_in, t_out, dt, q_food):
+    """Air temperature of a food-owned insulated space (lunch box, cooler, stand-in fridge) after dt: heat through
+    its walls (ua) and from its contents (q_food, J), its own cooling down to a setpoint."""
+    cap = float(rec.get("air_heat_capacity_j_k", 15000.0))
+    t_new = t_in + (_air_ua(rec) * (t_out - t_in) * dt + q_food) / cap
+    setpoint = rec.get("setpoint_c")
+    if setpoint is not None and rec.get("cooling_w") and t_new > float(setpoint):
+        removed = min(float(rec["cooling_w"]) * dt, (t_new - float(setpoint)) * cap)
+        t_new -= removed / cap
+    return t_new
+
+
+def _air_outside(state, eid, rec):
+    """The temperature around a food-owned air space: the room's, or the air of the cold unit it stands in."""
+    from ...kernel.physics import room_temperature
+    rid = root_room(state, eid)
+    t_out = room_temperature(state, rid) if rid in state["rooms"] else 21.0
+    outer = state["entities"].get(rec.get("location"))
+    if outer is not None and outer.get("internal_temp_c") is not None:
+        t_out = float(outer["internal_temp_c"])
+    return t_out
+
+
+def _air_settled(state, eid, rec):
+    """True when a passive food-owned air space (no ice bath, no cooling of its own) would not be written this
+    substep with nothing inside giving it heat: its walls move it at most AIR_WRITE_C in a full 30 s substep (the
+    change is linear in dt, so a shorter one moves it less)."""
+    if rec.get("ice_bath") or (rec.get("setpoint_c") is not None and rec.get("cooling_w")):
+        return False
+    t_in = float(rec["internal_temp_c"])
+    return abs(_air_step(rec, t_in, _air_outside(state, eid, rec), THERMAL_MAX_DT, 0.0) - t_in) <= AIR_WRITE_C
 
 
 # ----------------------------------------------------------------------
@@ -477,7 +558,17 @@ def _barrier(rec):
     return False
 
 
-@system("food.safety", order=130, max_dt=SAFETY_PERIOD_S, period=SAFETY_PERIOD_S)
+def safety_idle(w):
+    """Exact idle probe of food.safety: True only in a house with nothing the clocks and the derived truth touch (no
+    food, meltable utensil, kitchen scale, labelled, recipe or policy container, cold unit with a capacity or serving
+    vessel)."""
+    for name, pred in _SAFETY_INDEXES:
+        if w.static_index(name, pred):
+            return False
+    return not M.registered(w.s, "labeled")
+
+
+@system("food.safety", order=130, max_dt=SAFETY_PERIOD_S, period=SAFETY_PERIOD_S, idle=lambda w: safety_idle(w))
 def food_safety(w, dt, tick):
     """Slow clocks once per 300 s of simulated time; dt is the exact interval since the last run."""
     if dt > 0:
@@ -497,7 +588,7 @@ def _food_episode_start(w, env):
     _derived(w)
 
 
-@system("food.refresh", order=131, max_dt=30.0)
+@system("food.refresh", order=131, max_dt=30.0, idle=lambda w: _first_substep(w) is False)
 def food_refresh(w, dt, tick):
     """Derived truth right after an action (first substep of every step), so predicates see its effect."""
     if tick.index != 0:
@@ -672,6 +763,9 @@ def _clocks(w, dt, now, foods=None, index=None):
         # --- uncovered food outdoors draws insects within minutes
         if not rec.get("package") and _outdoors(state, eid) and zone()["zone"] == "outdoor" and not zone()["covered"]:
             fchanges["insects"] = round(min(1.0, float(f.get("insects", 0.0)) + dt / 900.0), 4)
+            if float(f.get("insects", 0.0)) <= 0.3 < fchanges["insects"]:
+                # flies and wasps settle on the food: a visual occurrence (the geometric camera witnesses it in view)
+                camera.visual_event(w, "food_insects", source=eid, size_m=0.1, visual="insects on food", target=eid)
             if float(f.get("insects", 0.0)) > 0.3:
                 changes.setdefault("contamination", dict(rec.get("contamination") or {}))
                 changes["contamination"]["bacteria"] = round(min(1.0, changes["contamination"].get("bacteria", 0.0) + 0.02), 4)
@@ -681,13 +775,6 @@ def _clocks(w, dt, now, foods=None, index=None):
             fchanges["boil_s"] = round(boiled, 1)
             if boiled < 1500:
                 fchanges["foam_g"] = round(min(0.02 * M.qty(rec), float(f.get("foam_g", 0.0)) + 0.00002 * M.qty(rec) * dt), 3)
-        # --- rigid glass jar overfilled with liquid cracks when it freezes (water expands ~9 %)
-        if f.get("phase") == "liquid" and ice > 0.5:
-            jar = entities.get(rec.get("location"), {})
-            if jar.get("material") == "glass" and not jar.get("broken") and float(jar.get("fill_level", 0) or 0) > 0.9:
-                w.mut(rec["location"]).update(broken=True, condition="cracked by freezing")
-                w.stat("breakages")
-                w.stat("damage")
         # --- thawing raw-meat packages purge liquid (drip) once partly thawed
         if info.get("raw_animal") and rec.get("package") and 0.0 < ice < 0.95 and not rec.get("_leaking"):
             changes["_leaking"] = True
@@ -708,6 +795,16 @@ def _clocks(w, dt, now, foods=None, index=None):
             m = w.mut(eid)
             for k, v in changes.items():
                 m[k] = v
+        # --- a sealed rigid container of freezing liquid food bursts (glass) or bulges (a can) when the ice (+9 %) needs
+        # more room than its headspace: the kernel's freeze-burst rule with the food's own fill and ice (checked after
+        # this item's own changes are written: a burst package spills and changes the record through phys.broke)
+        if f.get("phase") == "liquid" and ice > 0.0:
+            loc = rec.get("location")
+            if rec.get("package") and float(rec.get("full_g") or 0.0) > 0:
+                # a factory-filled package keeps about 4 % headspace
+                PH.freeze_burst(w, eid, 0.96 * M.qty(rec) / float(rec["full_g"]), ice)
+            elif loc in entities and rec.get("relation") == "in":
+                PH.freeze_burst(w, loc, float(entities[loc].get("fill_level", 0) or 0), ice)
 
 
 def _outdoors(state, eid):
@@ -756,7 +853,7 @@ def _utensil_melting(w):
             for food_id in M.vessel_foods(state, rec["location"]):
                 M.add_contam(w, food_id, "chemical", 0.3)
             w.stat("damage")
-            w.emit("utensil_melted", target=eid)
+            camera.visual_event(w, "utensil_melted", source=eid, size_m=0.15, visual="melting utensil", target=eid)
 
 
 # ----------------------------------------------------------------------
@@ -766,11 +863,9 @@ UNIT_G = {"g": 1.0, "oz": 28.3495, "lb": 453.592, "ml": 1.0}
 
 
 def _subtree_g(state, eid, index):
-    rec = state["entities"][eid]
-    total = float(rec.get("mass_kg", 0.0)) + float(rec.get("liquid_l", 0.0)) * float(rec.get("liquid_density", 1.0))
-    for child in index.get(eid, []):
-        total += _subtree_g(state, child, index) / 1000.0
-    return total * 1000.0
+    """Grams a scale feels from eid and everything on or in it: the kernel's one subtree mass (physics.subtree_mass,
+    liquids at their liquids.json density). index: a children map {parent: [ids, sorted]}."""
+    return physics.subtree_mass(state, eid, index) * 1000.0
 
 
 def scale_load_g(state, scale, index=None):
@@ -906,10 +1001,10 @@ def _derived(w):
             if rec.get("_stack_fifo_ok") != stack_ok:
                 updates["_stack_fifo_ok"] = stack_ok
         source = rec.get("derived_from")
-        if source is not None and (source not in entities or M.kind(entities[source]) != M.kind(rec)):
-            # a portion that became something else (a batter, a dish) no longer looks like the package it came from
-            if source in entities:
-                updates["derived_from"] = None
+        if source in entities and M.kind(entities[source]) not in (None, M.kind(rec)):
+            # a portion that became something else (a batter, a dish) no longer looks like the package it came from;
+            # a source outside food's model (another domain's package, no food kind) keeps its portions' link
+            updates["derived_from"] = None
         if updates:
             m = w.mut(eid)
             m.update(updates)
@@ -974,6 +1069,19 @@ def _derived(w):
             summary["prefs_ok"][pid] = not M.preference_issues(state, pid, dish)
         if rec.get("_dish") != summary:
             w.mut(eid)["_dish"] = summary
+
+
+def _is_food(r):
+    return isinstance(r.get("food"), dict)
+
+
+def _checked(r):
+    return bool(r.get("recipe") or r.get("food_label") or r.get("policy") or ("internal_temp_c" in r and r.get("capacity_l")))
+
+
+_SAFETY_INDEXES = (("food.foods", _is_food), ("food.meltable", lambda r: r.get("melt_c") is not None),
+                   ("food.scales", lambda r: r.get("tool_kind") == "kitchen_scale"), ("food.checked", _checked),
+                   ("food.serving", lambda r: bool(r.get("serving"))))
 
 
 def refresh(w):

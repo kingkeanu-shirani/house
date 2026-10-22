@@ -34,6 +34,8 @@ from . import common as C
 from . import sun as S
 
 HVAC_KINDS = ("hvac_system", "thermostat", "register", "return_grille", "radiator", "mini_split", "outdoor_condenser")
+SCRIPTED_WEATHER_S = 1.0e9     # weather.override_until_s of a scripted weather (about 32 years: past any episode)
+GUST_FACTOR = 1.5              # gusts / mean wind, as the generation-2 weather process (generator/climate.py)
 
 
 def _room(ctx, value, required=True):
@@ -176,12 +178,25 @@ def tidy_doorways_helper(ctx):
 @scenario_helper("climate.weather")
 def weather_helper(ctx, temperature_c=None, humidity=None, condition=None, wind_mps=None, wind_from_deg=None, aqi=None, pollen=None,
                    rain_mm_h=None, diurnal=None, latitude=None, tariff=None, hardness_ppm=None):
+    """The episode's outdoor conditions. On a generation-2 house (``weather.process``: the stateless weather process of
+    TIER1_SWEEP 13.2) the values given are a scripted override for the whole episode: ``weather.override_until_s`` is
+    set past any episode (SCRIPTED_WEATHER_S), so a process that runs yields to them (13.2: "scripted weather events set
+    weather.override_until_s and the process yields while it lasts"); a diurnal cycle is scripted the same way."""
     cfg = ctx.config
     wx = cfg.setdefault("weather", {})
+    given = False
     for key, val in (("temperature_c", temperature_c), ("humidity", humidity), ("condition", condition), ("wind_mps", wind_mps),
                      ("wind_from_deg", wind_from_deg), ("aqi", aqi), ("pollen", pollen), ("rain_mm_h", rain_mm_h)):
         if val is not None:
             wx[key] = val
+            given = True
+    if wx.get("process") and (given or diurnal):
+        wx["override_until_s"] = SCRIPTED_WEATHER_S
+    # a generation-2 weather carries the process's gust and snowfall too: keep them consistent with what is scripted
+    if wind_mps is not None and "gust_mps" in wx:
+        wx["gust_mps"] = round(C.num(wind_mps) * GUST_FACTOR, 1)
+    if condition is not None and condition != "snow" and "snow_cm_h" in wx:
+        wx["snow_cm_h"] = 0.0
     if condition in ("rain", "storm") and rain_mm_h is None:
         wx["rain_mm_h"] = 15.0 if condition == "storm" else 4.0
     if condition and condition not in ("rain", "storm") and rain_mm_h is None:

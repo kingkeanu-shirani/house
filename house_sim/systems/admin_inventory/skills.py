@@ -248,8 +248,11 @@ def sort_into(r, assignments):
 
 @skill("admin_inventory.count_scopes")
 def count_scopes(r, scopes, what, unit="units", include_in_use=False):
-    """Count `what` in each scope (opening closed containers first); returns the total."""
+    """Count `what` in each scope (opening closed containers first); returns the total. With the geometric camera the
+    robot walks up to a shelf or container before counting, as a real robot would (base.approach: a viewpoint that
+    sees it, then within reach), so the count's look covers the shelves and its wrist camera can look into them."""
     total = 0
+    geometric = getattr(r.env, "camera_mode", "room") == "geometric"
     for scope in scopes:
         state = r.state
         if scope in state["entities"]:
@@ -265,6 +268,8 @@ def count_scopes(r, scopes, what, unit="units", include_in_use=False):
             room = base.locate(state, scope)
             if room != r.state["robot"]["room"]:
                 _go(r, room)
+            if geometric:
+                base.approach(r, scope)
         elif scope != r.state["robot"]["room"]:
             _go(r, scope)
         r.do("count", target=scope, what=what, unit=unit, include_in_use=include_in_use)

@@ -26,7 +26,10 @@ Each op is a dict with "op". Strings may reference earlier bindings as "{name}".
                                                     until_s; choose draws one (binds f and f_id)
   event       {"op":"event","at_s":30,"changes":{...}} or {"effect":"start_rain","args":{...}}
   user_sim    {"op":"user_sim","answers":{...},"by_person":{"resident_1":{...}},"intent":{...},"facts":[...]}
-  weather / utilities / household / clock / metadata  {"op":"weather","condition":"rain",...}  (shallow update)
+  weather / utilities / household / clock / metadata  {"op":"weather","condition":"rain",...}  (shallow update;
+                                                    weather keeps itself coherent over a generated day: a wind_mps
+                                                    without gust_mps resets a generated gust to 1.5 x the wind, a
+                                                    new condition without rates drops the day's rain / snow rates)
   memory      {"op":"memory","key":"preferred_location:mug","value":"cabinet_1"}
   approvals   {"op":"approvals","add":["touch:box_1"]}
   lights      {"op":"lights","room":"{k}","on":false}
@@ -892,6 +895,32 @@ def _section(name):
     return apply
 
 
+WEATHER_RATES = ("rain_mm_h", "snow_cm_h")
+
+
+def op_weather(ctx, op):
+    """The weather section, a shallow update kept coherent with what the op says over a generation-2 day's drawn
+    weather (adoption requests manipulation 11, plumbing_liquids 4): a wind_mps given without gust_mps replaces a
+    generated gust_mps with the kernel's gust factor x the wind (a calm 2 m/s day no longer keeps a 7-10 m/s gust);
+    a condition other than the day's, given without rates, drops the day's rain_mm_h and snow_cm_h (they belonged to
+    the other condition: the rain law then rains at the new condition's own rate, phys.environment.RAIN_BY_CONDITION,
+    and a "clear" no longer rains). Keys the section does not have are left absent, so a generation-1 weather is
+    updated exactly as before."""
+    from ..kernel.phys.environment import DEFAULT_GUST_FACTOR
+    weather = ctx.config.setdefault("weather", {})
+    given = {k: copy.deepcopy(v) for k, v in op.items() if k != "op"}
+    if "wind_mps" in given and "gust_mps" not in given and "gust_mps" in weather:
+        try:
+            weather["gust_mps"] = round(float(given["wind_mps"]) * DEFAULT_GUST_FACTOR, 1)
+        except (TypeError, ValueError):
+            pass
+    if "condition" in given and given["condition"] != weather.get("condition"):
+        for key in WEATHER_RATES:
+            if key not in given:
+                weather.pop(key, None)
+    weather.update(given)
+
+
 def op_memory(ctx, op):
     ctx.config.setdefault("memory", {})[op["key"]] = {"value": copy.deepcopy(op["value"]), "time_s": -1, "scope": op.get("scope", "household")}
 
@@ -1331,7 +1360,8 @@ def op_check_physics(ctx, op):
 CAMERA_OP_KEYS = ("face", "pan", "tilt", "track", "hw")
 SENSOR_KEYS = ("camera_on", "mic_on", "privacy_policy")
 VIEWER_KEYS = {"entity": ("entity",), "person": ("person", "attention"),
-               "room": ("room", "cell", "z", "yaw", "tilt", "hfov", "range_m")}
+               "room": ("room", "cell", "z", "yaw", "tilt", "hfov", "range_m"),
+               "aperture": ("aperture", "outside_m", "eye_z")}
 CAMERA_SPEC_KEYS = ("hfov_deg", "vfov_deg", "range_m", "focal_px", "facing_deg", "tilt_deg", "height_m", "ir")
 
 
@@ -1532,13 +1562,22 @@ def op_track_view(ctx, op):
 def _check_viewer(ctx, viewer):
     if not isinstance(viewer, dict):
         raise SpecError("view_watch: viewer must be an object")
-    if "aperture" in viewer:
-        raise SpecError("view_watch: aperture viewers (outside a window or door) arrive with camera phase 3")
     forms = [form for form in VIEWER_KEYS if form in viewer]
     if len(forms) != 1 or set(viewer) - set(VIEWER_KEYS[forms[0]]):
-        raise SpecError("view_watch: viewer must be {\"entity\"}, {\"person\", \"attention\"} or {\"room\", \"cell\", "
-                        "\"z\", \"yaw\", \"tilt\", \"hfov\", \"range_m\"}")
+        raise SpecError("view_watch: viewer must be {\"entity\"}, {\"person\", \"attention\"}, {\"room\", \"cell\", "
+                        "\"z\", \"yaw\", \"tilt\", \"hfov\", \"range_m\"} or {\"aperture\", \"outside_m\", \"eye_z\"}")
     form = forms[0]
+    if form == "aperture":
+        target = viewer["aperture"]
+        entities = ctx.config["entities"]
+        window = isinstance(target, str) and target in entities and "connects" not in entities[target] and \
+            "window" in [entities[target].get("category"), entities[target].get("type")]
+        door = isinstance(target, str) and target in entities and "connects" in entities[target]
+        if not (window or door or (isinstance(target, str) and target in (ctx.config.get("connections") or {}))):
+            raise SpecError("view_watch: an aperture viewer stands outside a window, a door or a connection of the house")
+        for key in ("outside_m", "eye_z"):
+            if key in viewer and (not _is_number(viewer[key]) or viewer[key] < 0):
+                raise SpecError("view_watch: {} must be a number of at least 0".format(key))
     if form == "entity" and viewer["entity"] not in ctx.config["entities"]:
         raise SpecError("view_watch: unknown device {}".format(viewer["entity"]))
     if form == "person":
@@ -1579,7 +1618,7 @@ def op_view_watch(ctx, op):
 OPS = {"room": op_room, "find": op_find, "spawn": op_spawn, "set": op_set, "set_path": op_set_path, "move": op_move,
        "remove": op_remove, "person": op_person, "remove_people": op_remove_people, "pet": op_pet,
        "remove_pets": op_remove_pets, "robot": op_robot, "robot_fault": op_robot_fault, "event": op_event, "user_sim": op_user_sim,
-       "weather": _section("weather"), "utilities": _section("utilities"), "household": _section("household"),
+       "weather": op_weather, "utilities": _section("utilities"), "household": _section("household"),
        "clock": _section("clock"), "metadata": _section("metadata"), "memory": op_memory, "approvals": op_approvals,
        "lights": op_lights, "choose": op_choose, "randint": op_randint, "uniform": op_uniform, "bind": op_bind,
        "helper": op_helper, "assert": op_assert, "phys": op_phys, "load": op_load, "edge": op_edge,

@@ -138,3 +138,48 @@ Next steps, in order:
 4. Authoring pilot (6-10 diverse batches) with tools/orchestration/author_wf.js, then the remaining batches, gap-fix
    rounds (gapfix_wf.js) and re-authoring until dry.
 5. Final verification of all 2,720 entries, docs rewrite, packaging, final report.
+
+## Milestone 4 - tier-1 foundations, adoption round and independent review (2026-10-13 .. 10-22)
+
+Done:
+- Kernel round 5 (v2.9) and the tier-1 foundations, each stage gated and reviewed: stage A libraries (physics
+  data/statics/fluids, camera geometry, robot body model, generator gen 2, gate tool), stage B integration (physics
+  settle and laws, geometric camera, robot energy/limits/faults/proprioception), stage C sweep (interruptible waits,
+  standing orders, temporal evaluation, multi-phase episodes, dialogue, report vocabulary, robot memory). Designs and
+  plans: docs/design/TIER1_*.md; package handoffs: catalog/analysis/tier1/handoff_*.md.
+- Adoption round: all 16 domains adopted physics, camera, body and sweep; two kernel follow-up agents (camera
+  apertures/watch, eval/viewer/compact replays/gate fixes); the integrator applied 46 kernel requests and wrote
+  catalog/analysis/tier1/adopt_status.json (law readiness, per-domain spec counts, 24 domain breakages).
+- Independent review (docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md, phase records alongside): verified
+  specs are NOT yet gaming-resistant (cheat policies passed 39 of 44 attacked specs; 10 of 22 conditional specs pass a
+  constant policy), 13+ perception leak classes reproduce while the auditor reports 0 (wait-until oracle, seed in the
+  street address, positional tells, remote count, stable handles...), 3 real defects behind "stale" test pins, the
+  switch-overs (D1-D3) break more specs than planned, and the authoring workflow must not trust agent self-reports.
+- docs/design/VERIFY_HARDENING.md: the verifier anti-gaming design (default whole-house protections with mess flow
+  and attribution, an automatic gaming battery plus a must-pass battery, randomised answers, speech/report content
+  scoring, wrong-plan expect labels, evaluation-mode verification, held-out and private seeds), critiqued (21 holes,
+  all addressed).
+
+State at the end (2026-10-22, 11:58 UTC): 4,325 unit tests, 4 failing (test_people helper capacity and
+test_physics_statics wrapped-glass break, normal + strict - both known domain breakages); 241/243 authored specs pass
+in their own mode (T-d1f9385dbb80fc-01 seed 41: robot falls on a toy in the gen-2 house; T-7d4006bda247ba-01:
+ironing-board contact heat); D3 preview (forced realistic + geometric camera) 225/243; perception/layout/fuzz audits
+report 0 (see the review for what they cannot see). No paid API call was ever made; no split key exists.
+
+Open items: the 24 domain breakages (adopt_status.json); the review's findings (REVIEW_REPORT.md section 1); the
+three real defects it named (one-hand drop near the lift limit, wrapped-glass shards, privacy double count - check
+they are fixed, not baked into baselines); evidence/demos/datasets/leaderboard regeneration at the next round close.
+
+Next steps, in order (the review's sequence, adopted):
+1. Keep mass authoring frozen. Fix the 24 breakages and the 3 real defects; attribute the gen-1 digest change.
+2. Harden the gate and the workflows (absolute pass rules, wrong-plan labels in records, orchestrator-run checks,
+   file handoffs, CI matrix 3.9/3.14).
+3. Implement VERIFY_HARDENING tier 1 (expect labels, held-out seeds, variant cross-checks, seed coverage, speech
+   content, lints), then the cheap perception-leak fixes, then tier 2 (constant/ask policies, mess conservation,
+   displacement, answers, chance), with the exit test "catches every Phase-2 gaming policy".
+4. One re-baseline event for D1 (laws on, per-law global preview), D2 (gen 2 default) and D3 (geometric camera
+   default, triage of the failing specs), with one reviewed golden re-record.
+5. Re-harden the 243 specs under the new verifier as the authoring-process pilot.
+6. LLM pilot (estimate about $110-279, only with the owner's explicit approval).
+7. Author a core of about 500 entries (programmatically chosen, all sections and safety-critical entries), release
+   core-500 v1, then decide on the long tail from measured audit and pilot results.

@@ -710,7 +710,7 @@ def pot_on_burner(ctx, burner, vessel="saucepan", liquid="water", liquid_l=1.5, 
         raise SpecError("no room on the burner")
     out = {var: pot}
     if float(temp_c) > 30:
-        ents[pot]["fixed_temperature"] = True
+        C.own_temperature(ents[pot])
         ents[pot]["_ac_heat"] = burner
     brec = ents[burner]
     brec["settings"] = dict(brec.get("settings") or {}, heat=heat)
@@ -983,7 +983,7 @@ def left_on(ctx, room=None, forgotten=("toaster_oven", "kettle_warm", "curling_i
     bath = (p.rooms("bathroom") or p.rooms("half_bath") or [None])[0]
     if "curling_iron" in forgotten and bath:
         iron = dict(label="curling iron", category="appliance", switchable=True, on=True, plug_required=True, plugged_in=True,
-                    power_w=60.0, temperature_c=180.0, fixed_temperature=True, heat_source=True, material="metal",
+                    power_w=60.0, temperature_c=180.0, thermal_owner=C.OWNER, heat_source=True, material="metal",
                     size_m=[0.3, 0.04, 0.04], mass_kg=0.4, max_touch_temp_c=50.0, _intended=False, _intent_obvious=True)
         # left where it was used: on the vanity top (the floor only in a bathroom without one)
         tops = sorted(e for e in geometry.room_entities(ctx.state(), bath) if ents[e].get("surface") and not ents[e].get("ac_kind")
@@ -995,7 +995,7 @@ def left_on(ctx, room=None, forgotten=("toaster_oven", "kettle_warm", "curling_i
     bed = (p.rooms("bedroom") + p.rooms("guest_room") + p.rooms("office") or [None])[0]
     if "space_heater" in forgotten and bed:
         sh = p.floor_item(bed, "generic_item", label="space heater", category="appliance", switchable=True, on=True, plug_required=True,
-                          plugged_in=True, power_w=1500.0, temperature_c=60.0, fixed_temperature=True, heat_source=True,
+                          plugged_in=True, power_w=1500.0, temperature_c=60.0, thermal_owner=C.OWNER, heat_source=True,
                           size_m=[0.35, 0.2, 0.5], mass_kg=3.5, material="plastic", _intended=False, _intent_obvious=True)
         if sh:
             out["space_heater"] = sh
@@ -1009,7 +1009,7 @@ def left_on(ctx, room=None, forgotten=("toaster_oven", "kettle_warm", "curling_i
             ents[sc]["_intent_note"] = "That's dinner - it needs to cook until six."
             ents[sc]["_intent_obvious"] = not ask_needed
             ents[sc]["temperature_c"] = 120.0
-            ents[sc]["fixed_temperature"] = True
+            C.own_temperature(ents[sc])
             if built.get("insert"):
                 ents[built["insert"]]["temperature_c"] = 70.0
                 ents[built["insert"]]["open"] = False

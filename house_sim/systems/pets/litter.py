@@ -663,25 +663,36 @@ def _cage_step(ctx, cage, rec, step):
 # ----------------------------------------------------------------------
 # drying and odor over time
 
-@system("pets.litter", order=136, max_dt=30.0)
+def _box_changes(rec, dt):
+    changes = {}
+    wet = C.num(rec.get("wet"))
+    if wet > 0.0:
+        changes["wet"] = round(max(0.0, wet * math.exp(-dt / 5400.0) - (0.0005 * dt if wet < 0.05 else 0.0)), 4)
+    if rec.get("dust_cloud"):
+        changes["dust_cloud"] = False
+    odor = C.odor_level(rec, "litter")
+    waste = int(rec.get("clumps", 0)) + int(rec.get("feces", 0)) + int(rec.get("_buried", 0))
+    target = min(1.0, 0.08 * waste)
+    if abs(target - odor) > 0.01:
+        changes["odor"] = C.odor_with(rec, "litter", odor + (target - odor) * (1.0 - math.exp(-dt / 3600.0)))
+    changes["depth_cm"] = round(depth_cm(rec), 2)
+    return {k: v for k, v in changes.items() if rec.get(k) != v}
+
+
+def litter_idle(w):
+    """Exact idle probe of pets.litter (kernel v3.1): every box dry, no dust cloud, its odor within 0.01 of where its
+    waste holds it and its depth current. A wet box always dries a little, whatever the substep's length."""
+    entities = w.s["entities"]
+    return not any(_box_changes(entities[eid], 30.0) or C.num(entities[eid].get("wet")) > 0.0 for eid in C.litter_boxes(w.s))
+
+
+@system("pets.litter", order=136, max_dt=30.0, idle=litter_idle)
 def litter_tick(w, dt, tick):
     state = w.s
     C.bind_world(w)
     for eid in C.litter_boxes(state):
         rec = state["entities"][eid]
-        changes = {}
-        wet = C.num(rec.get("wet"))
-        if wet > 0.0:
-            changes["wet"] = round(max(0.0, wet * math.exp(-dt / 5400.0) - (0.0005 * dt if wet < 0.05 else 0.0)), 4)
-        if rec.get("dust_cloud"):
-            changes["dust_cloud"] = False
-        odor = C.odor_level(rec, "litter")
-        waste = int(rec.get("clumps", 0)) + int(rec.get("feces", 0)) + int(rec.get("_buried", 0))
-        target = min(1.0, 0.08 * waste)
-        if abs(target - odor) > 0.01:
-            changes["odor"] = C.odor_with(rec, "litter", odor + (target - odor) * (1.0 - math.exp(-dt / 3600.0)))
-        changes["depth_cm"] = round(depth_cm(rec), 2)
-        changes = {k: v for k, v in changes.items() if rec.get(k) != v}
+        changes = _box_changes(rec, dt)
         if changes:
             w.mut(eid).update(changes)
 

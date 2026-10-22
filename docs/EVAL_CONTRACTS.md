@@ -96,8 +96,10 @@ phase is active ends the episode as before (`done_declared`). The agent's option
 `{"text": <instruction>}`), also when the environment starts a phase by itself (a phase that ends on time, on a
 condition or on its budget); the next `act()` gets the new observation, whose `"instruction"` is the new phase's.
 The command log records each phase end as a step `{"i", "command", "done": true, "phase_done": true, "phase",
-"next_phase", ...}` (no environment step is counted); `replay_log` replays it in order. The scripted oracle turns
-its shadow run's phase ends into `done` commands.
+"next_phase", "waiting", ...}` (no environment step is counted; `waiting`: no phase followed at once but one that
+starts on its own is still to come); `replay_log`, the leaderboard's `replay_episode` (which also requires the same
+next phase) and the viewer replay it in order (`env.phase_done()`). The last phase's item, when no phase follows it,
+is also the episode's done. The scripted oracle turns its shadow run's phase ends into `done` commands.
 
 ## C. leaderboard.py (owner: leaderboard)
 
@@ -141,7 +143,10 @@ One self-contained offline HTML file (embedded JSON, inline CSS/JS). tools/expor
 * Verified specs: `house_sim.compiler.compile_specs()` records + `reports/verification.jsonl` evidence
   (`passed` and `implementation_hash == fingerprint()`); helper to add in `splits.verified_specs()`.
 * Realistic replays: `env.save_replay(path)` stores commands as issued (handles); `HouseEnv.replay(path)` re-runs
-  them (handles resolve deterministically).
+  them (handles resolve deterministically). Files are the compact `house-replay-v3` (kernel/replays.py; about
+  60-95 KB); readers use `house_sim.kernel.replays.read(path)`, which also reads `house-replay-v2` files.
+* Forced verification (`--verify` with `--perception`, `--camera` or `--gen`) writes
+  `reports/verification_forced.jsonl`, never `reports/verification.jsonl`: only the latter is evidence.
 
 ## As built (integration notes)
 

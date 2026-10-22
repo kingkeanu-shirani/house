@@ -44,6 +44,10 @@ Contents: 1 coverage and evidence, 2 the house model, 3 physics, 4 perception an
   abstract states. Food chemistry (cooking, spoilage) is rule-based state, not chemistry.
 * Domain mechanics (16 domains, docs/DOMAINS.md) are symbolic or lumped models; each domain document lists its own
   fidelity limits (`docs/domains/<domain>.md`, the "limits" section).
+* Furniture anchoring: a generation-2 house straps an assumed 25 % of its tall free-standing storage furniture (dressers,
+  wardrobes, bookshelves, shelf units, filing and chemical cabinets of 0.686 m or more) to the wall
+  (mechanisms.furnish ANCHORED_SHARE; TIER1_DECISIONS) until a cited survey figure is found; generation-1 houses keep
+  mechanisms' older convention (anchored), since drawing it there would re-record the generation-1 digests.
 
 ## 3. Physics (kernel v3.0, docs/PHYSICS.md)
 
@@ -96,6 +100,15 @@ Physical data: 42 material classes cover the 129 material strings of the registr
 mass or size or an implausible bulk density (`tools/physics_audit.py --data` lists them per domain for the adoption
 round).
 
+Decided in the adoption round and left as they are (catalog/analysis/tier1/adopt_status.json has the reasoning):
+a record flagged `fragile` takes the annealed-glass tolerance only when its class never breaks (a fragile plastic or
+electronics item keeps its class's 3.0 / 1.2 m: 62 calibrated types would otherwise break from a table, so a fragile
+picture frame needs its own `drop_tolerance_m` or a glass material); a fast set-down is a 6 cm drop, which chips no
+brittle ware (rim strikes against a counter edge are not modelled); thermal shock from a water film counts only on
+conductive tops (stone, metal, ceramic: TIER1_PHYSICS 5.9; a wet wooden board does not quench); a wet textile's held
+water does not add to the mass the lift plan and the support laws use (support.own_mass; textiles_laundry models wet
+laundry mass in its own verbs).
+
 ## 4. Perception and the camera
 
 * **Room mode** (the default camera) has no field of view or line-of-sight occlusion inside a room: what the robot
@@ -117,9 +130,31 @@ round).
   * light is a scalar per point: no colour temperature, no cast shadows beyond the under / behind / inside shading, no
     bounce beyond room ambient; an interior light multiplies the room's ambient rather than adding its own (an open lit
     fridge in a dark kitchen is dark inside); beams cast no shadows;
-  * views end at the room's walls: doorway and window apertures, views and captures through doorways and policy
-    masking are phase 3; controls beside a doorway in the next room stay actionable within reach but are not listed;
-  * no mirror reflections (phase 4); sound direction is out of scope;
+  * rooms are separate grids joined only through openings (camera phase 3): a head frame sees into the next room
+    through an open doorway (or a closed glazed door) of see-through kind, the two rooms abutting rigidly across
+    the doorway; the opening is clipped to where both rooms' walls overlap (a doorway between two corner cells whose
+    rooms run apart is one cell wide). The observation still lists only the robot's room and the controls beside its
+    doorways that it can reach from the threshold (listed when a frame sees them through the doorway); people and
+    pets seen through a doorway go to `StepView.beyond`, the sightings, the watch of tracked agents and privacy
+    captures, and to domain channels through `camera.through_doorways` (mechanisms' through_doorways renders them),
+    not to `obs.people`. Floor cells seen through a doorway do not count toward the next room's coverage, nothing is
+    seen through a doorway with the cameras off (no IR shapes), and a thing seen through a doorway is acted on only
+    from its own room (the controls by the doorway excepted). Stairs and hatches between floors are not openings;
+  * windows are openings only for a viewer outside looking in (`sight.aperture_viewer`: its coverings pass 5 %, and
+    by day the glass reflects what stands more than 1 m inside a room lit below half the daylight): no room lies
+    beyond an exterior window in the house model, so the robot does not look out of windows, and interior windows
+    between two rooms are not modelled (no generated house has one);
+  * a privacy policy masks what the cameras see (`camera_off`) and the microphones hear (`mic_off`) of its room
+    through a doorway; a microphone takes a private moment through an open door or doorway within a straight 4 m of
+    the robot (no sound propagation model in this rule);
+  * no mirror reflections: deferred by TIER1_DECISIONS until the glare / mirror catalog entries (mirrors appear only
+    in the 18-entry glare group, TIER1_CAMERA 21.6) need them during authoring; a mirror shows nothing it reflects and
+    an un-inspected mirror still looks like a doorway while in frame. The opening viewshed of phase 3 is the machinery
+    a mirror would reuse (the eye reflected across the mirror plane, clipped to the mirror's rectangle);
+  * visitor recognition: the kernel says whether the frames show a face well enough (`camera.face_seen`: 64 px across
+    a 16 cm face, turned within 60 degrees of the camera, at the identify level); the matching itself (enrolled faces,
+    disguises, confidence) is the people domain's, which gates on it in its adoption; sound direction is out of
+    scope;
   * the wrist camera has no arm kinematics (it looks from the support's reachable edge); head and body turn at fixed
     rates.
 * Camera approximations:
@@ -133,12 +168,25 @@ round).
     face gating judges the faces seen from the current eye only; observer percepts a domain adds to an entity are shown
     only at the identify level; a thing seen while its support is not still names its support's handle in `location`;
     people and pets below identify are anonymous shapes per sighting, including an identified resident who walks out
-    of range (no face recognition until phase 4);
+    of range (the kernel's face_seen tells a domain matcher when a face is seen well enough);
   * visual events are witnessed by the head pose at the moment they happen (during an action: the pose before its
-    motion; during a wait: the action's final pose); mic captures happen only in the robot's room; the people and
-    navigation domains' entry-based captures still count in geometric mode until their adoption;
-  * the per-substep watch costs about 0.08-0.09 ms with people in the robot's room when the daylight changes every
-    substep (budget 0.05 ms).
+    motion; during a wait: the action's final pose); the people and navigation domains' entry-based captures still
+    count in geometric mode until their adoption;
+  * open adoption-round requests (K-CAM handoff): a large flat floor covering (a whole-room floor slab, a big rug)
+    counts as seen only when one of its five sample points is in frame and in line of sight, so soil on it may go
+    unobserved while the frames survey its cells (cleaning); a geometric `inspect` renders an open bin's fill level
+    without a look inside (cleaning); inspect acuity is per thing, not per field, so a fridge door's `ajar` gap reads
+    from across the kitchen (appliances_cooking); a record's own `view` dict and the `view` key the camera adds to a
+    geometric record share a name, which the perception audit reports as a hidden field (textiles_laundry,
+    mechanisms: an audit false positive);
+  * the per-substep watch (TIER1_INTEGRATION 3.4: 0.05 ms with nobody in view, 0.1 ms with people in view) is exact
+    and memoized on what its line of sight reads, with the light judged every substep: measured inside real 2 h waits
+    of generated houses with people in the robot's room (the merged adoption round, a loaded machine, A/B against the
+    stage-C code) 0.045-0.05 ms with nobody in view and 0.075 ms with one person in view, from 0.13-0.18 ms (K-CAM
+    handoff). The rest is exact bookkeeping, not geometry: judging the 15-25 domain writes of each substep for the
+    room's geometry epoch (parts and things inside furniture are dropped on the first hop) and, per person in view,
+    the light and pixels (the daylight and the domains' light_at hooks change unseen); a domain light_at hook is
+    asked per person in view while the room is lit below 0.36.
 
 ## 5. The robot body (kernel v3.0, docs/KERNEL_API.md "v3.0 robot body")
 
@@ -191,8 +239,9 @@ Approximations to know about:
   "I have no additional information about that." There is no open-ended dialogue, speech recognition or language
   understanding beyond the command grammar and these topics. `report` writes free field names into `reports`; their
   value vocabularies are not published yet.
-* The robot's known map and snapshots live on the environment (saved with it) but not in the world state, so no spec
-  can score what the robot learned, and no action shows the known map to an agent.
+* The robot's known map, beliefs and snapshots live in its Mind (`env.mind`, kernel v3.1), saved with the episode but
+  not in the world state: specs score them only through `mind.*` evaluation paths, and the agent sees the map only
+  through `recall("map")` (`env.known_map()` is a tool view of it).
 * Privacy mode turns the cameras off and stops recording, while speech addressed to the robot is still heard (a user
   decision, so "stop" and consent answers work).
 

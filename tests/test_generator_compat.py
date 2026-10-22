@@ -1,9 +1,11 @@
 """Generation-1 houses stay byte-identical (docs/design/TIER1_SWEEP.md section 14.1).
 
-tests/data/gen1_digests.json was recorded before any generator work (tier-1 A0): the digest of generate_house(seed,
-**house) for seeds 0-19 with default options and for every distinct `house` block of the authored specs on seeds 0, 1,
-2, 41 and 97. This file checks every default entry and one entry per distinct house block (86 houses, about 35 s);
-HOUSE_SIM_GEN1_ALL=1 checks all 340 (tools/orchestration/tier1_gate.py G5 does that on every gate).
+tests/data/gen1_digests.json was recorded before any generator work (tier-1 A0) and re-recorded by the adoption round
+(ADOPT: domain type data changed record fields, never a placement): the digest of generate_house(seed, **house) for
+seeds 0-19 with default options and for every distinct generation-1 `house` block of the authored specs on seeds 0, 1,
+2, 41 and 97 (a block with gen 2 is a generation-2 house: not pinned here). This file checks every default entry and
+one entry per distinct house block; HOUSE_SIM_GEN1_ALL=1 checks all of them (tools/orchestration/tier1_gate.py G5 does
+that on every gate).
 
 Run: python -m unittest tests/test_generator_compat.py   (also with HOUSE_SIM_STRICT=1)
 """
@@ -41,11 +43,13 @@ class GenerationOneDigests(unittest.TestCase):
         load_domains()
         cls.data, cls.entries = _entries()
 
-    def test_file_is_the_a0_recording(self):
+    def test_file_pins_generation_one_houses(self):
         self.assertEqual(self.data["format"], "house-gen1-digests-v1")
         self.assertEqual(len(self.data["defaults"]), 20)
-        self.assertEqual(len(self.data["spec_houses"]), 320)
+        self.assertTrue(self.data["spec_houses"])
+        self.assertTrue(all(int(e["house"].get("gen") or 1) == 1 and e["specs"] for e in self.data["spec_houses"]))
         self.assertEqual(self.data["history"][0]["by"], "A0")
+        self.assertTrue(all(h.get("by") and h.get("reason") for h in self.data["history"][1:]))
 
     def test_generation_one_houses_are_unchanged(self):
         changed = []

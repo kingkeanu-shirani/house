@@ -1,0 +1,10 @@
+{
+ "about": "plumbing_liquids report words (docs/domains/plumbing_liquids.md section 0b; CONVENTIONS 8): findings about the water supply, fixtures and drains that the core vocabulary does not name. Each lists the fields (or notice kinds) a robot perceives it by: running toilet (its tank refill sound, the tank level a look under the lid shows), burst pipe (the spray at a glance, its hiss), no hot water (the stream's temperature, felt or measured), low water pressure (a thin stream), frozen pipe (a spigot or hose that gives no water in frost).",
+ "issues": {
+  "running_toilet": {"class": "function", "synonyms": ["toilet_running", "keeps_running", "phantom_flush", "toilet_keeps_filling"], "applies_to": ["fixture"], "evidence": [{"field": "running"}, {"field": "tank_level_l"}, {"notice": "any_sound"}]},
+  "burst_pipe": {"class": "moisture", "synonyms": ["pipe_burst", "burst", "spraying_pipe", "split_hose"], "applies_to": ["pipe", "fixture"], "evidence": [{"field": "leaking"}, {"field": "joint_spraying"}, {"field": "frozen_burst"}, {"field": "frozen_split"}, {"notice": "water_spray"}]},
+  "no_hot_water": {"class": "supply", "synonyms": ["hot_water_out", "no_hot", "water_heater_out", "cold_water_only"], "applies_to": ["fixture", "appliance"], "evidence": [{"field": "outlet_temp_c"}, {"field": "outlet_temp_c", "near": true}]},
+  "low_water_pressure": {"class": "function", "synonyms": ["low_pressure", "weak_flow", "weak_water_pressure", "poor_flow"], "applies_to": ["fixture"], "evidence": [{"field": "flow_lpm"}, {"field": "water_running"}]},
+  "frozen_pipe": {"class": "function", "synonyms": ["pipe_frozen", "frozen_spigot", "frozen_hose", "no_water_frozen"], "applies_to": ["pipe", "fixture"], "evidence": [{"field": "frozen_burst"}, {"field": "frozen_split"}, {"field": "water_running"}]}
+ }
+}

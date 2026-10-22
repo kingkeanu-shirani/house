@@ -6,7 +6,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T07:25:00"
+    "start": "2026-10-09T07:25:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -314,7 +315,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T17:50:00"
+    "start": "2026-10-09T17:50:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -658,7 +660,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T07:15:00"
+    "start": "2026-10-09T07:15:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -1249,7 +1252,8 @@
       }
      ]
     }
-   ]
+   ],
+   "notes": "Generation 2: not yet (\"house\" keeps generation 1): on seed 97 the outdoor_plants wind model blows the patio's watering can onto the patio-to-backyard doorway cell during the run, which leaves no route to the yard (cross-domain bug reported in the pets tier-1 adoption round)."
   },
   {
    "catalog_id": "T-0adf708ce0749a-01",
@@ -1428,7 +1432,8 @@
       }
      ]
     }
-   ]
+   ],
+   "notes": "Generation 2: not yet (\"house\" keeps generation 1): on seed 97 the outdoor_plants wind model blows the patio's watering can onto the patio-to-backyard doorway cell during the run, which leaves no route to the yard (cross-domain bug reported in the pets tier-1 adoption round)."
   },
   {
    "catalog_id": "T-c541cb694906f5-01",
@@ -1437,7 +1442,8 @@
     "dwelling": "house",
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T08:00:00"
+    "start": "2026-10-09T08:00:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -1671,7 +1677,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T16:00:00"
+    "start": "2026-10-09T16:00:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -2042,7 +2049,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T08:20:00"
+    "start": "2026-10-09T08:20:00",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -2263,7 +2271,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T14:00:00"
+    "start": "2026-10-09T14:00:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -2855,7 +2864,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T13:00:00"
+    "start": "2026-10-09T13:00:00",
+    "gen": 2
    },
    "setup": [],
    "variants": [
@@ -3234,7 +3244,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T12:00:00"
+    "start": "2026-10-09T12:00:00",
+    "gen": 2
    },
    "setup": [
     {
@@ -3522,7 +3533,8 @@
    "house": {
     "residents": "minimal",
     "pets": "none",
-    "start": "2026-10-09T08:10:00"
+    "start": "2026-10-09T08:10:00",
+    "gen": 2
    },
    "setup": [
     {

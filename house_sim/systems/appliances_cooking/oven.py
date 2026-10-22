@@ -138,6 +138,7 @@ def step_oven(w, oid, dt):
         C.log(w, "preheated", oven=oid, temp_c=round(T_new, 1))
         w.emit("oven_preheated", target=oid)
         ho["beep_until"] = C.now(w) + 10.0
+        C.notice(w, "appliance_done", oid, "oven_ready")
         _set(w, oid, preheated=True)
     if not on and rec.get("preheated"):
         _set(w, oid, preheated=False)
@@ -187,7 +188,7 @@ H_OVEN_FAN = 8.0       # extra with the convection fan
 def step_oven_vessels(w, oid, cavity_c, dt, rid, fan=False):
     """Pans, trays and dishes in the cavity (on a rack or the basket) heat as one lump with their contents toward the
     cavity air: tau = (m c pan + contents) / (h A); liquid in them is capped at its boiling point and evaporates, frozen
-    contents draw latent heat. Owns the vessel's temperature (fixed_temperature + _ac_heat) until it leaves the oven
+    contents draw latent heat. Owns the vessel's temperature (thermal_owner + _ac_heat) until it leaves the oven
     (stove.step_burners releases it), so the kernel/food relaxation of the contents sees a realistically heating pan.
     Oven-safety of the dish itself (melting, glass under the broiler) is _contents_hazards' job."""
     from . import stove as S
@@ -229,7 +230,7 @@ def step_oven_vessels(w, oid, cavity_c, dt, rid, fan=False):
                 if ents[fid].get("_tt") is None:
                     fm = w.mut(fid)
                     fm["food"] = dict(fm.get("food") or {}, ice=C.rnd(max(0.0, ice - q * dt / (334000.0 * 0.75 * mass)), 5))
-            m["fixed_temperature"] = True
+            C.own_temperature(m)
             m["_ac_heat"] = oid
             m["temperature_c"] = C.rnd(T1, 3)
             for fid in prof["foods"]:
@@ -317,8 +318,7 @@ def _contents_hazards(w, oid, T, mode, on, dt, ho, rid):
             m, hx = C.mut_hidden(w, c, "_ac_exposure")
             hx["broil_s"] = C.rnd(C.num(hx.get("broil_s")) + dt, 1)
             if hx["broil_s"] >= 60.0:
-                m["broken"] = True
-                w.stat("breakages")
+                C.break_item(w, c, "glass_under_broiler")
                 C.harm(w, "glass_shattered_under_broiler", stat="damage", once="glassbroil:" + c, item=c)
                 for food in C.children(state, c):
                     if C.is_food(state["entities"][food]):
@@ -592,6 +592,7 @@ def _intent_check(ctx, eid, what):
 for _t in ("range_oven", "toaster_oven", "air_fryer"):
     def _make(t):
         @hook("cycle_check:" + t)
+        @P.plain_check
         def _check(w, eid, *_):
             entity = w.ent(eid)
             kind = entity.get("ac_kind")
@@ -648,6 +649,7 @@ for _t in ("range_oven", "toaster_oven", "air_fryer"):
             C.log(w, "oven_cycle_complete", oven=eid)
             ho = dict(m.get("_oven") or {})
             ho["done_beep_until"] = C.now(w) + 30.0
+            C.notice(w, "appliance_done", eid, "cycle_done")
             if (ho.get("mode") or "") == "self_clean":
                 sc = dict(ho.get("self_clean") or {})
                 sc["completed"] = True

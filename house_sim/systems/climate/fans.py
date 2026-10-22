@@ -24,7 +24,10 @@ Portable fans (climate_kind "portable_fan", fan_type box | pedestal | tower | wi
 * consequences: loose papers (<= 50 g) in >= 1.2 m/s are blown off their surface; a lit candle in
   >= 0.6 m/s gutters (wax spatter, safety violation) and ignites combustibles within 0.5 m (fire);
   a sleeping infant in >= 0.5 m/s for 5 min is chilled (hazard); a fan running on a bed/sofa/cushion
-  is unstable and topples after a minute on medium/high.
+  is unstable: while the kernel's furniture_tip law is deferred it topples off after a minute on medium/high
+  (legacy rule); once the law is active each minute of rocking is a jolt the kernel's statics judge (physics.knock
+  along the thrust axis: SOFT_BASE_ROCK_G 0.2 g medium / 0.3 g high against the fan's own b / 2z from FAN_STATICS:
+  a box fan goes over at high, a pedestal or tower fan rides it out; or it walks across the cushion).
 * cords: the cord (cord_length_m, default 1.8 m) must reach the outlet (or nearest wall); a cord
   crossing the room's walkway becomes a trip floor hazard, under a rug a heat hazard.
 """
@@ -32,6 +35,7 @@ import math
 
 from ...kernel import geometry, physics
 from ...kernel.actions import action
+from ...kernel.phys import lawbook
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from . import common as C
@@ -53,6 +57,36 @@ PORTABLE = {
 SPEED_RANK = {"off": 0, "low": 1, "medium": 2, "high": 3}
 LIGHT_ITEM_CATS = {"paper", "document", "mail", "receipt", "napkin", "envelope", "letter", "magazine", "flyer", "note"}
 UNSTABLE_BASES = {"bed", "sofa", "seat", "cushion", "pillow", "blanket"}
+# furniture_tip adoption (TIER1_PHYSICS 10.3, kernel v3.0): a running fan on a soft base rocks with its motor's
+# imbalance and the reaction to its thrust; the rocking is a horizontal acceleration of about this many g at the base
+# (P-approx calibration: a 20 in box fan, b / 2z = 0.23 g along its thrust axis, stays up at medium and goes over at
+# high; a heavy-based pedestal fan, 0.4 g, and a tower fan, 0.33 g, ride it out). The kernel's statics decide tip
+# versus slide from the fan's own base and centre of mass (com_frac, base_m in climate.json).
+SOFT_BASE_ROCK_G = {"low": 0.0, "medium": 0.2, "high": 0.3}
+ROCK_PERIOD_S = 60.0       # the rocking builds up over a minute of running; each minute is one jolt for the kernel
+# where a portable fan's mass sits (physics com_frac: centre-of-mass height / height) and the foot it pivots on (base_m):
+# a box or window fan is a symmetric frame; a pedestal fan carries about 60 % of its 5 kg in a 35 cm weighted disc;
+# a tower fan's motor sits low over a 28 cm plinth. Given to the kernel through a phys.props hook (records unchanged).
+FAN_STATICS = {"box": {"com_frac": 0.5}, "window": {"com_frac": 0.5}, "pedestal": {"com_frac": 0.35, "base_m": 0.35},
+               "tower": {"com_frac": 0.4, "base_m": 0.28}}
+
+
+@hook("phys.props")
+def fan_statics(record, phys):
+    """Physics refinement for portable fans (TIER1_PHYSICS 7.3 phys.props; furniture_tip adoption): centre of mass and
+    base from FAN_STATICS, so the kernel's tip threshold b / 2z is the fan's own; a record's explicit com_frac or
+    base_m wins."""
+    row = FAN_STATICS.get(record.get("fan_type"))
+    if not row:
+        return None
+    out = {}
+    for key, value in row.items():
+        if record.get(key) is None:
+            out[key] = value
+    return out or None
+
+
+fan_statics.applies = lambda record: record.get("climate_kind") == "portable_fan"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -252,8 +286,11 @@ def disturb(w, rid, fans, dt):
             if SPEED_RANK.get((rec.get("settings") or {}).get("speed", "low"), 1) >= 2:
                 m = w.mut(eid)
                 m["unstable_s"] = C.rnd(C.num(rec.get("unstable_s")) + dt, 1)
-                if m["unstable_s"] >= 60.0:
-                    _topple(w, eid, rid)
+                if m["unstable_s"] >= ROCK_PERIOD_S:
+                    if lawbook.active("furniture_tip"):
+                        _rock_kernel(w, eid, rid)     # kernel owns it: statics tip / slide, impact, attribution
+                    else:
+                        _topple(w, eid, rid)
 
 
 def _flame_disturbed(w, eid, rid, x, y, v):
@@ -265,6 +302,7 @@ def _flame_disturbed(w, eid, rid, x, y, v):
     m["_flame_disturbed_logged"] = True
     m["guttering"] = True
     C.log(w, "flame_disturbed", target=eid, airspeed=v)
+    C.visual(w, "flame_guttering", eid, size_m=0.1)
     C.hazard(w, "fan_on_flame", 1.0, stat="safety_violations")
     parent = rec.get("location")
     if parent in state["entities"]:
@@ -283,6 +321,8 @@ def _flame_disturbed(w, eid, rid, x, y, v):
             C.add_damage(om, "burnt", 1.0)
             w.stat("fire")
             C.log(w, "ignition", target=other, source=eid, cause="fan blew the flame onto it")
+            C.visual(w, "fire", other)
+            C.notice(w, "smoke", other, visual=True)
             break
 
 
@@ -302,6 +342,7 @@ def _blow_paper(w, eid, rid, v):
     m["scattered"] = True
     w.log_move(eid, before, rid, by="fan_airflow")
     C.log(w, "paper_blown", target=eid, airspeed=v)
+    C.visual(w, "paper_blown", eid, size_m=0.25)
 
 
 def _topple(w, eid, rid):
@@ -322,6 +363,53 @@ def _topple(w, eid, rid):
     w.stat("damage")
     w.log_move(eid, before, rid, by="vibration")
     C.log(w, "fan_toppled", target=eid)
+    C.visual(w, "fan_toppled", eid)
+    C.notice(w, "thud", eid)
+
+
+def thrust_axis_deg(state, eid):
+    """Room-frame direction (grid degrees: 0 = +x east, 90 = +y south) of the reaction a running fan pushes back with:
+    opposite its aim (compass aim -> grid through sight.grid_deg). A flat-framed fan (box or window: its depth is
+    the short side of its footprint) blows through its face, so the push runs along its own depth axis, the side
+    of that axis nearer the aim's reverse; a round-based fan pushes straight back."""
+    from ...kernel import sight
+    from ...kernel.phys import statics
+    rec = state["entities"][eid]
+    back = sight.grid_deg((C.num((rec.get("settings") or {}).get("aim_deg"), 0.0) + 180.0) % 360.0)
+    size = rec.get("size_m") or [0.5, 0.5, 0.5]
+    if abs(C.num(size[0], 0.5) - C.num(size[1], 0.5)) < 0.05:
+        return round(back, 3)
+    yaw = statics.world_yaw(state, eid)
+    depth = (yaw + (90.0 if C.num(size[1], 0.5) < C.num(size[0], 0.5) else 0.0)) % 360.0
+    other = (depth + 180.0) % 360.0
+    return round(depth if _ang_diff(depth, back) <= _ang_diff(other, back) else other, 3)
+
+
+def _rock_kernel(w, eid, rid):
+    """furniture_tip law active: a minute of rocking on a soft base is one jolt of SOFT_BASE_ROCK_G against the fan's
+    thrust (thrust_axis_deg) handed to the kernel (physics.knock): the kernel's statics decide from the fan's base and
+    centre of mass along that axis whether it tips (on its side, tipped_over, an impact onto the bed or sofa, a fall
+    when it ends past the edge) or walks across the cushion (a slide; over the edge it falls), and who caused it (the
+    robot when it set the fan or the thing under it there: physics attribution). The physics consequence is
+    witnessed by the camera and heard as a physics sound by the kernel. A fan that went over stops (its motor stalls
+    against the bedding), as in the legacy model."""
+    state = w.s
+    rec = state["entities"][eid]
+    s = rec.get("settings") or {}
+    accel = SOFT_BASE_ROCK_G.get(s.get("speed", "low"), 0.0)
+    w.mut(eid)["unstable_s"] = 0.0
+    if accel <= 0.0:
+        return
+    out = physics.knock(w, eid, accel, direction=thrust_axis_deg(state, eid), cause="vibration")
+    rec = state["entities"].get(eid) or {}
+    if out.get("tipped") or out.get("fell") or rec.get("orientation") == "on_side":
+        m = w.mut(eid)
+        m["on"] = False
+        m["running"] = False
+        m["power_w"] = 0.0
+        C.log(w, "fan_toppled", target=eid, kernel=True)
+    elif out.get("slid_m"):
+        C.log(w, "fan_walked", target=eid, distance_m=out.get("slid_m"))
 
 
 # ---------------------------------------------------------------------------------------------

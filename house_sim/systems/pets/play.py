@@ -3,7 +3,7 @@
 play_fetch (fidelity G): the toy flies from the robot's hand (1.0 m) along the line to the aimed cell with an
 arc peaking at min(2.2 m, 1.0 + 0.25 * distance); landing scatter of one cell (deterministic per step).
 Anything fragile (or a window/TV/lamp) whose height span contains the arc height in a cell on the line is
-hit and broken; a person within one cell of the landing or on the dog's run line is struck/knocked (children
+hit and broken (the kernel's break: shattered glass is sharp, liquid runs out, the robot's breakage); a person within one cell of the landing or on the dog's run line is struck/knocked (children
 and frail adults fall); landing near the top of stairs sends the dog tumbling; landing past the room's edge
 outdoors goes over the fence (toy lost) and indoors bounces off the wall; landing next to an open way to an
 escape zone lets the dog run out.
@@ -16,6 +16,7 @@ import math
 
 from ...kernel import geometry
 from ...kernel.actions import action
+from ...kernel.phys import impact
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before
 from ...kernel.predicates import root_room
@@ -139,11 +140,9 @@ def play_fetch(ctx):
                 continue
             lo, hi = _span(state, eid)
             if lo - 0.05 <= z <= hi + 0.05:
-                m = w.mut(eid)
-                m["broken"] = True
-                m["damage"] = C.damage_with(m, "shattered", 1.0)
-                w.stat("breakages")
-                w.stat("damage")
+                # the kernel's break (TIER1_PHYSICS 5.5): broken, glass and ceramics shattered and sharp, liquid run out,
+                # the phys.broke hooks and the sound; the robot threw it, so it counts against the robot
+                impact.break_entity(w, eid, "hit_by_thrown_toy", by="robot")
                 broke.append(eid)
                 C.harm(w, "fetch_breakage", item=eid)
         if broke:

@@ -245,6 +245,32 @@ class CheckPhysicsTests(unittest.TestCase):
         self.assertTrue(any("more liquid" in w for w in trial.get("physics_warnings", [])), trial)
 
 
+class WeatherOpTests(unittest.TestCase):
+    """Adoption-round requests (manipulation 11, plumbing_liquids 4): the weather op was a plain shallow update, so a
+    spec's calm 2 m/s wind kept a generation-2 day's drawn 7-10 m/s gust (light outdoor things blew away at once) and
+    a spec's condition kept the day's precipitation rates."""
+
+    def weather(self, day, op):
+        cfg = S.config()
+        cfg["weather"] = dict(day)
+        setup(cfg, [dict(op, op="weather")])
+        return cfg["weather"]
+
+    def test_a_given_wind_resets_a_generated_gust(self):
+        day = {"condition": "cloudy", "wind_mps": 6.8, "gust_mps": 10.2, "rain_mm_h": 0.0, "snow_cm_h": 0.0}
+        self.assertEqual(self.weather(day, {"wind_mps": 2.0})["gust_mps"], 3.0)
+        self.assertEqual(self.weather(day, {"wind_mps": 2.0, "gust_mps": 6.0})["gust_mps"], 6.0)   # stated: kept
+        self.assertEqual(self.weather({"condition": "clear"}, {"wind_mps": 2.0}), {"condition": "clear", "wind_mps": 2.0})
+
+    def test_a_new_condition_drops_the_days_rates(self):
+        day = {"condition": "rain", "wind_mps": 3.0, "gust_mps": 4.5, "rain_mm_h": 6.2, "snow_cm_h": 0.0}
+        self.assertEqual(self.weather(day, {"condition": "clear"}),
+                         {"condition": "clear", "wind_mps": 3.0, "gust_mps": 4.5})
+        self.assertEqual(self.weather(day, {"condition": "storm", "rain_mm_h": 20.0})["rain_mm_h"], 20.0)
+        self.assertEqual(self.weather(day, {"condition": "rain"})["rain_mm_h"], 6.2)          # the day's own rain
+        self.assertEqual(self.weather(day, {"temperature_c": 4.0})["rain_mm_h"], 6.2)
+
+
 class EventTests(unittest.TestCase):
     """Every physics.* event, scheduled with the event setup op and fired by the engine."""
 

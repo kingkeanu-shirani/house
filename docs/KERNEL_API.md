@@ -1225,3 +1225,230 @@ gen=None)` (phase-aware initial and idle checks, the schema-3 early exit, the te
 the typed-report evidence check, whose gaps join `perceivability_gaps`; both read the phases' success too); CLI `--gen 1|2` and the interactive `phase_done`; `tools/verify.py
 --privileged-waits`; `tools/bench_systems.py --day [--no-probes]`; `tools/sweep_bench.py` (notice, until, monitor,
 calendar, ask, report and mind micro-benchmarks against their budgets; exit 1 above 3x).
+
+## v3.1 adoption-round follow-ups (K-EVAL: evaluation side)
+
+**Known map** (`kernel/engine.py`; TIER1_SWEEP 7.1): `env.known_map()` is a copy of `env.mind.map`, `{rid: {"label",
+"type", "exits", "connections": [{"id", "to", "kind", "door"}], "seen_s"}}`: the rooms the robot was in at the end of a
+step (or at reset) and those prior knowledge gave it, whether or not the agent observed (realistic perception: a door
+id shows as its issued handle, else "something"). A tool view (the CLI's `map`, the viewer); no action or observation
+gives it to an agent (`recall("map")` is the robot's own way). `env._known_map` is a read-only compatibility view of
+the same map in the old table's shape (`KnownMapView`: `{rid: {"exits", "connections", "label", "type", "seen_s"}}`,
+the robot's current room always present; writes and deletions are ignored, copies are plain dicts), kept until no code
+reads it (navigation_robot's `known_rooms` reads `env.mind.map` and the alias; reports' known subjects likewise).
+Perception's and realism's observation-time writes of the old table are dropped by the view (dead code for K-CAM to
+remove; realism's read of the current room's entry, whose door handles it issues, stays). `env.save` keeps a snapshot
+under `"known_map"`; `env.load` of a state saved before the Mind existed seeds `mind.map` from it.
+
+**Replays** (`kernel/replays.py`): `env.save_replay(path, compact=True, keep_changes=False)` writes the compact
+`house-replay-v3` (plain: `task`, `seed`, `perception`, `camera`, `actions_hash`, `final_hash`, `evaluation`,
+`metadata`, `summary`; packed: `initial`, `start_state`, `baseline`, `steps` compressed together, xz + base85 with a
+sha256), about 60-95 KB for a typical episode instead of about 3 MB; the traced steps' change lists only with
+`keep_changes=True` (a traced re-run computes them again; every step keeps its state digest). `compact=False` writes
+the plain `house-replay-v2`. `HouseEnv.replay(path)` and the viewer read both; a damaged file (checksum, codec,
+truncation) is refused. Module API: `write(path, data, compact=True, keep_changes=False)`, `read(path)` (the v2-shaped
+dict), `encode(data, keep_changes=False)`, `decode(obj)`, `pack(value)`, `unpack(codec, text, sha256=None)`,
+`is_replay(obj)`, `FORMATS`. `python tools/compact_replays.py PATH... [--drop-changes] [--check]` converts v2 files in
+place, losslessly by default (nothing is re-simulated). The demo replays (`demos/replays/*.json`, about 100 KB each)
+are committed again.
+
+**Phase ends in histories**: a `phase_done` history record carries `"phase"` (ended), `"next_phase"` and `"waiting"`;
+the harness log's phase-end item carries `"waiting"` too. The leaderboard's `replay_episode` replays phase ends
+(`env.phase_done()`, no step counted, the same next phase required; the last phase's end is the episode's done), the
+viewer re-runs them and lists them as `phase_done` steps, and the dataset exporter records them as done turns whose
+result carries `"phase"` (docs/DATASET.md "Multi-phase tasks").
+
+**Viewer milestones**: frames re-evaluated from recorded changes (after a divergence) take the milestones from the
+recording's monitor record (the final evaluation's `milestones`, with their steps), so extended forms and milestones
+reached inside waits show as recorded.
+
+**Forced verification** (`house_sim/audit.py`): `verify(..., perception=None, camera=None, gen=None)`; `python -m
+house_sim --verify --gen 2` (M-GEN2), `--camera`, `--perception`. A run without a forced mode is the catalog evidence
+(`reports/verification.jsonl`, `verification_run.json`, the coverage reports); a forced run is a check written to
+`reports/verification_forced.jsonl` / `verification_forced_run.json` (records carry `"forced"`; merged only with an
+earlier check of the same options) and never replaces the evidence the coverage, harness, dataset exporter and
+leaderboard trust. Reports are written with LF line endings.
+
+**Tools**: `tools/body_audit.py` takes the hands from `forces.lift_plan` and the capacity from `body.capacity_kg`
+(enforced and `believed=True`), and reports overload refusals, drops, energy refusals, power-downs and energy per
+trial and per task (`per_task`; STAGE-B-FIX B9). `tools/orchestration/tier1_gate.py`: packages `ADOPT:<domain>`,
+`K-EVAL`, `K-CAM`, `ADOPT-ALL` (alias `ADOPT`); `compare [PREV [ID]] --package PKG [--shared-tree] [--spec-files GLOB]`;
+`isolate`; see tools/orchestration/README.md.
+
+## v3.1 adoption-round follow-ups (K-CAM: camera side)
+
+**Doorway and window apertures** (camera phase 3; TIER1_CAMERA 5.8; `kernel/sight.py`). Rooms stay separate grids; a
+view crosses into the next room only through an opening of their shared wall. `sight.doorway_aperture(state, cid,
+rid)` -> `Aperture` (or None) for connection `cid` seen from room `rid`: see-through kinds (`APERTURE_KINDS`: doorway,
+gate, garage, elevator_door; not stairs or hatches; both rooms on one floor), the door open or none (a closed glazed
+door passes its `view` porosity as `factor`, an opaque one closes it); the opening is the connection's `width_m`
+(else the door's, else 0.85 m) centred on the doorway cell, clipped to both rooms' walls, from the floor to the
+door's height (2.0 m). Fields: `id`, `rid`, `other`, `nx`/`ny` (rid's inward normal), `wall`, `lo`/`hi` (lateral range),
+`z0`/`z1`, `factor`, the quarter-turn transform of `other`'s frame into `rid`'s (`cos`, `sin`, `bx`/`by` -> `ax`/`ay`:
+the rooms abut across the wall, `other`'s doorway cell one cell beyond `rid`'s) and `into` (the `Opening` in `other`'s
+frame). `doorway_views(state, eye)` lists the eye room's apertures; `aperture_wedge(ap, eye)`; `to_room(ap, x, y)` /
+`from_room(ap, x, y)` / `to_room_deg(ap, deg)`. `through_transmission(state, ap, eye, p, rel=None, geom=None,
+vs=None, cmap=None, world=None)`: a point of `other` seen from an eye of `rid` -- the opening must be crossed (laterally
+and in height), `rid`'s occluders up to the wall (its viewshed, agents and the carried load), `other`'s after it
+(`opening_viewshed(geom, opening, eye)`: the viewshed of a room from an eye outside its grid, through the opening;
+`opening_transmission`), times `factor`. **Windows**: `aperture_opening(state, id)` -> `(Opening, factor)` of a window
+(its footprint along its wall from its sill to its top; factor `1 - 0.95 x covered`) or a door / connection (into the
+indoor room of an exterior one); `aperture_viewer(state, id, outside_m=3.0, eye_z=1.6)` is someone standing outside
+looking in (kind `"aperture:<id>"`, human attention optics); `sees_entity` / `aperture_sees` /
+`aperture_transmission` see through the opening only, and by day not past the glass's reflection (daylight above 2 x
+the target's light hides what stands more than 1 m inside). No room lies beyond an exterior window, so the robot does
+not look out through windows (KNOWN_LIMITS).
+
+**The robot's cameras through doorways** (`kernel/camera.py`). A head frame sees into the next room through an open
+doorway of its room: `StepView.beyond` = `{"people": {id: ViewInfo}, "pets": {...}}` (via `"head"`, `"through"`: the
+connection; bearings, ranges and points in the robot room's frame) and `camera.through_doorways(env)` -> one entry per
+doorway whose opening a current frame has in frame and in line of sight, `{"connection", "to", "door", "factor",
+"people", "pets"}` (the kernel API behind a domain's through-doorway channel, e.g. mechanisms' `through_doorways`).
+The observation still lists only the robot's room, plus **the controls beside its doorways in the next room**
+(`near_connection`, reachable from the threshold, which `can_see` always allowed through wrist access): they are
+listed when a frame sees them through the doorway, `look` / `face` / the auto-gaze aim at them through it, and
+`in_frame` / `acuity` see them the same way. Sightings include people, pets and `track_ids` things seen through a
+doorway; the watch keeps tracked agents next door in view through it (supervision through a doorway). **Privacy**: a
+camera capture through an open doorway (a private person of the next room in frame and lit to 0.12, `"via":
+"doorway"`), a microphone capture within 4 m through an open door or doorway (`DOORWAY_MIC_M`); a room privacy policy
+masks what the cameras see (`camera_off`) and hear (`mic_off`) of its room through a doorway (TIER1_CAMERA 12). With
+imaging off nothing is seen through a doorway (no IR shapes). Room mode is unchanged (golden byte-identical).
+`view_watch` viewers: `{"aperture": window / door / connection id, "outside_m", "eye_z"}` (setup op and
+`camera._spec_viewer`). `camera.face_seen(env, pid)` -> `{"px", "toward", "recognizable"}`: 64 px across a 16 cm face
+turned within 60 degrees of the camera at the identify level (the camera's half of visitor recognition, phase 4; a
+domain face matcher gates on it in geometric mode). Mirrors are deferred (TIER1_DECISIONS; KNOWN_LIMITS).
+
+**The watch's cost** (STAGE-B-FIX C9; TIER1_INTEGRATION 3.4: `camera.watch` <= 0.05 ms per substep with nobody
+in view, <= 0.1 ms with people in view, whose light is judged exactly every substep). The in-view rule
+is memoized exactly in two halves: the line of sight (`_frame_geometry`, `_through_geometry`) on `_watch_signature`
+(the room's `occ_sig`, the head camera's `Viewer`, imaging, the carried load, every person and pet of the room or
+watched with `AGENT_VIEW_FIELDS`, the watched ids, the doorway openings looked through and their rooms' `occ_sig`), the
+light and pixels (`_frame_level`, `_through_level`) every substep. Domain view hooks no longer switch the memo off:
+`view_occluders` output is part of `occ_sig`'s memo key, `light_at` boosts are judged every substep (and skipped by
+`sight.acuity_light` once the hook-free light reaches `LIGHT_SATURATED` 0.36: k_light is exactly 1 and every light bar
+is met; light_at answers are boosts >= 0), `bright_sources` / `sun_beam` are not read by the in-view rule.
+`camera.ambient_light(state, rid, world)` is memoized on `sight.light_epoch(world, ids_fn)` (no window, light or thing
+they rest on written, created or destroyed), the clock's daylight value, the house power, the room's outdoor flag and
+the `light_level` hooks' answers. Occlusion signatures are memoized per **room epoch** (`sight.room_epoch(world, rid)`):
+a write to a dep of another room (a fridge or sink a domain touches every substep) waits until that room is asked
+about; a dep resting elsewhere, a creation, destruction, new source or door, a rollback or a lost log is a new global
+epoch (`sight._judge`); `sight._geom_epoch` keeps its contract. `camera.entity_view_now(env, eid)` (the timeline's
+per-substep view of a thing) is memoized on `_entity_signature` (domain hooks included through their answers) and
+returns `{"level", "px", "view"}` with the view cut to `VIEW_NOW_KEYS`; `agent_level_now` uses the watch's memo.
+The judge drops a write to a thing inside or part of an entity (relation other than `"on"`, location not a room: a
+freezer compartment, an oven cavity, a thing in a drawer, which the domains write every substep) on the first hop of
+the "on" chain, before the occluder-candidate test, with the same answer. `sight.room_geom(state, rid, world=None,
+sig=None)`: `sig` is the room's `occ_sig` when the caller has just computed it (the watch passes its signature's).
+
+**`view_occluders` hooks are cheap now.** The room's occlusion signature keys on the hook's own answer (above), so a
+registered hook no longer makes every mutation a new geometry epoch (`sight._geom_epoch`, which still counts every
+mutation while a hook is registered, is read by no kernel code). The hook is asked once per signature (once per
+watch substep and per observation) and the room geometry is rebuilt only when its answer changes; an earlier answer's
+geometry comes back from the content cache. A domain may register its smoke layer, tall grass or open umbrella
+canopies as `view_occluders` (safety and outdoor_plants held them back on the old premise); keep the hook itself
+cheap (answer `[]` at once for a room without the thing).
+
+**Reading** (`camera.read_check`, adoption-round domain requests). The wrist no longer reads an `"up"` face half
+covered by things standing on it (a box stacked on a parcel; the head's rule, `sight.faces_seen`; admin_inventory).
+A face that a type's perception block maps a field to (`sight.gated_face`) gates the head only when the entity
+declares that face (`sight._faces`: `view.faces` or `label_facing`), as realism's face gating and the wrist already
+did; without one the field reads like wrap-around text (cleaning: `product` on a bottle without a label face).
+
+**Reference skills** (`house_sim/tasks/skills.py`). `go_room` approaches a closed door on its route through
+`_approach_door(r, door_id)`: with the geometric camera a door out of sight from where the robot stands is walked
+into view first (`_to_viewpoint`, as the `approach` skill does), since core `approach` refuses a target it cannot see
+(cleaning's and food's request; safety's own `go_room` did the same). The room camera keeps the raw verb (unchanged).
+
+**The known map's old writes are gone** (K-EVAL request 3). `perception.py` no longer writes `env._known_map` at
+observation time and realism no longer assigns its rendering back; realism still renders the current room's entry
+(`out_obj(..., issue=True)`), which issues the room's door handles in their established order. With `KnownMapView`
+both writes were already ignored, so observations are unchanged.
+
+## v3.1 adoption-round integration (ADOPT-INT: the domains' kernel requests)
+
+The adoption integrator applied the precise kernel requests of the 16 domain owners (the full list, with the ones not
+applied and why, is `catalog/analysis/tier1/adopt_status.json`). Every change has a regression test.
+
+**Evaluation.** `evaluation.robot_moved(state, baseline, eid)`: a `no_moves_except` move counts against the robot only
+when it arranged eid or what eid rested on at the start (the settle pass's `_robot_moved` marker on eid or its baseline
+location chain), or a physics consequence attributed to the robot (`"by": "robot"`) targeted eid. Wind, rain, pets,
+people and scripted events moving things no longer fail a task by themselves (TIER1_DECISIONS harm attribution;
+people K-SIDE-EFFECT, admin_inventory 3).
+
+**Realistic perception.** A geometric `read` that printed a read-resolved look-alike's label raises the entity's level
+to READ as the room-mode read does (`Realism._read_identifies`, `_label_fields`; people K-READ-LEVEL, safety 4).
+`realism.read_tier_fields` removes the type's (and the record's `_perception`) `hidden` fields from the default read
+list (people K-READ-HIDDEN: a prescription bottle's patient id). Route hazards skip people and pets that are `inside`
+something (a cat in a washer is not lying on the floor; `geometry.hazard_cells` too; textiles_laundry 3).
+
+**Dialogue routes.** `dialogue.weak(topic)` / `WeakTopic`: a route's fallback topic; `find_route` keeps trying the later
+routes and answers with the first weak topic only when no route gives a plain one. The kernel's catch-all people
+routes are weak where they would shadow a domain that knows the answer: `people.pref` for a detail the person has no
+preference for, `people.wellbeing` always (safety.condition answers for a fallen or hurt person), `people.schedule`
+about a pet, a room or words, `people.where` / `people.owner` / `people.which` when a detail is given (climate 1,
+food 2, pets 6, safety 2, mechanisms 7). A domain's own catch-all may return `dialogue.weak(topic)`. The legacy topic
+path counts a person's own answer (`user_simulator.by_person`) as necessary from each person asked (food 8).
+
+**Report vocabulary.** `data/vocab/<domain>.json` for the 15 domains that drafted words (issues, states, category
+classes; validated together, `tools/vocab.py --check` clean); words two domains defined (`overloaded`, `lit`) and the
+evidence domains asked for on kernel words (mold / spoiled / pests `appearance`, expired `food_label`, flickering
+`flicker`, cracked `screen_cracked`, exposed_wire `cord_condition`, low_battery `led` and the `chirp` notice, on / off
+`lit` and `power_state`, leak `water_spray`, flooding `splash`) are in `core.json`. `dialogue.load_vocabulary()` loads
+`core.json` first, then the other files by name (kernel words first in suggestions and tables; a clashing domain
+synonym is the one dropped). The docs tables (docs/DIALOGUE.md) are regenerated.
+
+**Physics.** `liquids.puddle_label(liquid)`: a kernel puddle of a clear liquid (`liquids.json` column `clear`: water,
+vinegar, alcohol, bleach, gasoline, lighter fluid; aliases `white_vinegar`, `distilled_water`, `soda_water`) is a
+"clear liquid spill" at a glance (navigation_robot 1). A `phys.spill_sink` hook may return `(id, new)` so a grown spill
+is not counted again (cleaning 3). `_drain` leaves the ice behind (ice_frac grows over the remaining liquid;
+plumbing_liquids 1). `environment.rain_mm_h` falls back to `RAIN_BY_CONDITION` (drizzle 0.5, rain / showers / sleet 2.5,
+storm 15 mm/h) when the weather names a rain condition without a rate (admin_inventory 2, textiles_laundry 4).
+`thermal.contact_claimed(w, hot, support, temp, severity)`: the phys.contact_heat claim check, public for domains'
+legacy contact-heat code (textiles_laundry 8). `thermal.freeze_burst_check(w, eid, by=None, fill=None, ice=None)` (food
+3). `forces.tips_when_pushed(w, eid, h, direction=None)`: b along the push (grid degrees, a compass word or a vector;
+manipulation 8). `supports.json` people: a `toddler` row and `age_roles` bands for roles without a row (guests,
+visitors, contractors, couriers by age; people K-HELPER-ROLES). `materials.json`: pewter (soft metal, melts at 230 C)
+and titanium (steel class) (cleaning 12). A `phys.props` hook that changes `shape` gets `rollable` recomputed (food 7).
+`physics_audit --data` spares empty shells (containers or `hollow`) from the low bulk-density note (admin_inventory 6).
+
+**Stack, crush and slope laws.** `statics.stack_verdict`: an item centred over a base 15 mm thin or less
+(`LOW_BASE_M`: a charging pad, a puck, a coaster, a trivet, a cutting board) rests on it (electrical 1); an off-centre
+member topples only when it reaches past the one below (a receipt anywhere on a tray stays; textiles_laundry 1);
+`clearance_above_m(state, base, cmap=None)` in a cavity with removable racks reaches the next rack (or anything) above,
+else the cavity top (an empty oven rack slot is no shelf; appliances_cooking 1). The settle pass runs its roots
+bottom-up (supports first, then by id: a box under an oversized one is crushed before the top one topples;
+manipulation 7) and queues what a `phys.items_above` hook says a dirty item rests on inside a container (the hook's
+inverse; tools_vehicles 2). The roll process does not roll an item `tilted_on_wheels` (held balanced by whoever
+tilted it), and a floor roll that ends at an open connection on the downhill edge rolls through it into the next room
+(`phys.roll` `ended="through_opening"`, `into`; manipulation 5).
+
+**Setup.** The `weather` op stays coherent over a generated day: `wind_mps` without `gust_mps` resets a generated
+gust to 1.5 x the wind; a new condition without rates drops the day's `rain_mm_h` / `snow_cm_h` (manipulation 11,
+plumbing_liquids 4).
+
+**Robot body.** `body.set_network(w, ok, cause="house")`: a house-caused network outage (the router) kept apart from
+the robot's `network_down` fault (no fault logged; the network comes back only when no outage and no fault remain;
+hidden robot field `network_outages`, not materialized; electrical 3). `body.motion_result` also rewrites a core
+`move` / `approach` / `walk_to` arrival ("Moved to X", "Approached X", "Walked to [c, r]") into "Walked N m" when a
+domain's `cut_motion` stopped the walk (navigation_robot 3, safety 8). The held-load safety net leaves a bag loaded past
+its handle rating to the handle law when that law is active (the handle tears instead of the bag slipping out; cleaning
+8). `gripper_cut` is a kernel fault kind (its onset starts a gripper_slip on that hand; food 6).
+
+**Engine and plugins.** An idle probe written `fn(w, tick)` gets the substep's `Tick` (`plugins.IDLE_TAKES_TICK`;
+navigation_robot 5). `clock.occurrences` supports `freq: "yearly"` (29 February only in leap years; people K-YEARLY).
+`reports.record` appends a note to a whiteboard or chalkboard below what is on it (`BOARD_CATEGORIES`; people
+K-NOTE-APPEND); `reports.subject_known` reads the Mind's map, not the `env._known_map` alias (K-EVAL 4).
+
+**Camera.** `camera.under_gap_m(state, eid)`: the open height under furniture, slab-topped tables and desks included
+(their height less the slab), for the wrist's under access and peeks (safety 5). A floor or a floor covering (a ground
+layer: floor surface, rug, mat) is seen when a frame surveyed one of its cells (`_floors_from_survey`; cleaning 5).
+`sight.robot_beams` uses the worn headlamp's `view.beam` (navigation_robot 4). `camera._contrast` judges pets and people
+(their `color` or a pet's `coat_color`) against the furniture they are on or the floor (`sight.agent_background_color`;
+pets 5).
+
+**Tools.** `tools/golden.py` runs a spec that declares `"camera": "geometric"` with its own camera (recorded as
+`"camera"`, exempt from the room-mode state checks; food 5). `tools/perception_audit.py` does not report the geometric
+camera's own `view` (realism.view_dict) as the record's hidden view block (manipulation 9, textiles_laundry 5,
+mechanisms 9, K-CAM). The tier-1 gate: package `ADOPT-INT` (the integrator's files; part of `ADOPT-ALL`, which may now
+change generation-1 digests), `house_sim/tasks/skills.py` on K-CAM's list, and generation-1 digests pin only
+generation-1 house blocks (`tests/data/gen1_digests.json` re-recorded by ADOPT).

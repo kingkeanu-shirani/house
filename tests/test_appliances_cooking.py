@@ -2041,6 +2041,9 @@ class HandlingStatusTests(unittest.TestCase):
         ok(env, "move", "living")
         ok(env, "approach", "table_1")
         ok(env, "place", "dish", "table_1")
+        # deferred contact_heat: this domain marks the finish at once; with the kernel's law active the contact process
+        # accrues the scorch over the following minute (TIER1_PHYSICS 5.9): either way it is marked within a minute
+        ok(env, "wait", seconds=60)
         self.assertGreater(stat(env, "damage"), 0)
 
     def test_hot_item_near_edge_with_child_home(self):
@@ -3058,7 +3061,9 @@ class PerceptionHardeningTests(unittest.TestCase):
                 refused(env, "start", H(env, c), program="pressure_cook"))]
         self.assertEqual(answers["rc_1"], answers["pc_1"])                   # no program list, no "inner pot" vs "close the lid"
         ok(env, "inspect", H(env, "pc_1"))
-        self.assertNotEqual(refused(env, "start", H(env, "pc_1"))["message"], answers["pc_1"][0][0])
+        # identified: the group-level refusal is gone (both cookers stand lid shut by default since the adoption round,
+        # so the inspected pressure cooker simply starts)
+        self.assertNotEqual(env.step("start", H(env, "pc_1"))["message"], answers["pc_1"][0][0])
 
     def test_pressurised_lid_of_an_unidentified_cooker_is_just_locked(self):
         kit = Kit("electric_coil")
@@ -3317,6 +3322,399 @@ class Round3FollowUpTests(unittest.TestCase):
         built = B.build_grill(kit.p, "patio", kind="gas", near=[6, 0])
         self.assertIsNotNone(built)
         self.assertIn("patio_light_1", B.access_report(kit.p.state(), "patio")["ok"])
+
+
+# ======================================================================================================
+# tier-1 adoption round (docs/design/TIER1_INTEGRATION.md 6): physics, camera, body and sweep integration
+# ======================================================================================================
+
+def gkit_env(kit, seed=0, perception=None):
+    return HouseEnv(copy.deepcopy(kit.c), None, seed, camera="geometric", perception=perception)
+
+
+class Tier1AdoptionTests(unittest.TestCase):
+    # ---- physics ------------------------------------------------------------------------------------
+    def test_heated_vessels_carry_this_domains_thermal_owner(self):
+        kit = Kit("electric_coil")
+        bid = kit.k["burner_lf"]
+        kit.item("pot_1", bid, **dict(SAUCEPAN, liquid_container=True, liquid="water", liquid_l=1.0))
+        env = kit.env()
+        ok(env, "approach", bid)
+        ok(env, "set", bid, setting="heat", value="high")
+        env.step("wait", seconds=60)
+        pot = ent(env, "pot_1")
+        self.assertEqual((pot.get("thermal_owner"), pot.get("_ac_heat")), (AC.OWNER, bid))
+        self.assertNotIn("fixed_temperature", pot)
+        self.assertLess(pot["temperature_c"], 50.0)
+        ok(env, "set", bid, setting="heat", value="off")
+        ok(env, "pick_up", "pot_1")
+        ok(env, "approach", "counter_2")
+        ok(env, "place", "pot_1", "counter_2")
+        env.step("wait", seconds=30)
+        self.assertNotIn("thermal_owner", ent(env, "pot_1"))         # back to the kernel / food thermal models
+        self.assertEqual(ent(env, bid).get("thermal_owner"), AC.OWNER)    # a burner's element is always this domain's
+
+    def shock_kit(self):
+        kit = Kit("electric_coil")
+        kit.c["entities"]["counter_1"]["wetness"] = 0.6                 # just wiped
+        kit.add("mitts", "oven_mitts", "counter_2")
+        return kit
+
+    def test_thermal_shock_uses_the_kernel_tolerances_and_break(self):
+        """Hot glass set down on a wet top: the kernel's shock check (soda-lime glass 45 K at the contact coupling 0.6:
+        179 K x 0.6 = 107 K) cracks it through the kernel's break (shattered and sharp, phys_breaks, the robot's
+        breakage); a mug of hot tea on the same wet counter is far inside ceramic's 100 K (49 K x 0.6)."""
+        from house_sim.kernel.phys import lawbook
+        kit = self.shock_kit()
+        kit.item("dish", "counter_2", material="glass", size_m=[0.3, 0.2, 0.06], mass_kg=1.5, temperature_c=200.0,
+                 accepts_items=True, container=True, capacity_l=2.0, phys_exact=True)
+        kit.item("mug", "counter_2", material="ceramic", size_m=[0.12, 0.09, 0.1], mass_kg=0.35, temperature_c=70.0,
+                 liquid_container=True, liquid="tea", liquid_l=0.25, container=True, capacity_l=0.35, phys_exact=True)
+        env = kit.env()
+        hold(env, "mitts")
+        ok(env, "wear", "mitts")
+        for item in ("dish", "mug"):
+            ok(env, "approach", item)
+            ok(env, "pick_up", item)
+            ok(env, "approach", "counter_1")
+            ok(env, "place", item, "counter_1")
+        dish = ent(env, "dish")
+        self.assertTrue(dish["broken"] and dish.get("shattered"))
+        if not lawbook.active("thermal_shock"):     # once the law is active the kernel's settle pass breaks it (no harm row)
+            self.assertIn("thermal_shock_shattered", harms(env))
+        self.assertGreater(stat(env, "breakages"), 0)
+        self.assertGreater(stat(env, "phys_breaks"), 0)
+        self.assertFalse(ent(env, "mug").get("broken"))
+
+    def test_legacy_contact_heat_gives_way_to_the_kernel_law(self):
+        from house_sim.kernel.phys import lawbook
+
+        def run():
+            kit, oven = HandlingStatusTests().hot_dish_kit(material="steel", fragile=False, label="roasting pan")
+            env = kit.env()
+            HandlingStatusTests().take_out(env, kit, oven)
+            ok(env, "speak", text="Hot pan coming through")
+            ok(env, "move", "living")
+            ok(env, "approach", "table_1")
+            ok(env, "place", "dish", "table_1")
+            return env
+        with lawbook.forced(contact_heat=False):
+            env = run()
+            self.assertIn("hot_item_damaged_surface_heat_mark", harms(env))      # deferred: this domain's rule
+        with lawbook.forced(contact_heat=True):
+            env = run()
+            self.assertFalse([h for h in harms(env) if h.startswith("hot_item_damaged_surface")])
+            ok(env, "wait", seconds=60)
+            damage = ent(env, "table_1").get("damage") or {}
+            self.assertGreater(max(damage.get("scorch", 0), damage.get("ring_stain", 0)), 0.5)   # the kernel's mark
+
+    def test_surface_heat_limits_are_the_kernels(self):
+        """The deferred contact-heat rule reads the kernel's heat limits (instance variation included) and contact
+        temperature: a finished wood table takes about 60 C, a heat-resistant trivet about 400 C; a bare floor falls back to
+        the kernel's value for its material."""
+        from house_sim.kernel.phys import thermal as kthermal
+        kit = Kit("electric_coil")
+        kit.item("trivet", "counter_2", material="cork", heat_resistant=True, size_m=[0.2, 0.2, 0.01], mass_kg=0.1,
+                 surface=True, surface_size_m=[0.2, 0.2])
+        env = kit.env()
+        state = env.world.s
+        for sid in ("table_1", "counter_1", "trivet"):
+            self.assertEqual(AC.surface_heat_limit_c(state, sid), kthermal.heat_limit_c(state, sid))
+        self.assertAlmostEqual(AC.surface_heat_limit_c(state, "table_1"), 60.0, delta=9.0)
+        self.assertGreaterEqual(AC.surface_heat_limit_c(state, "trivet"), 400.0 * 0.85)     # 400 C, +-15 % per instance
+        self.assertEqual(AC.surface_heat_limit_c(state, "living", {"material": "wood"}), 60.0)
+
+    def test_heaters_claim_contact_heat_of_what_they_heat(self):
+        """With contact_heat active a cordless kettle boiling on its plastic base never marks the base: phys.contact_heat
+        leaves contacts on this domain's heaters and hot holders to its own model."""
+        from house_sim.kernel.phys import lawbook
+        with lawbook.forced(contact_heat=True):
+            kit = Kit("electric_coil")
+            built = B.build_kettle(kit.p, "counter_1", eid="kettle", liquid_l=1.0)
+            env = kit.env()
+            ok(env, "approach", "kettle")
+            ok(env, "switch_on", "kettle")
+            wait(env, 600)
+            self.assertGreaterEqual(ent(env, "kettle")["temperature_c"], 90.0)
+            self.assertFalse(ent(env, built["kettle_base"]).get("damage"))
+            self.assertEqual(stat(env, "damage"), 0)
+
+    def test_coffee_that_misses_the_carafe_is_a_kernel_spill(self):
+        kit, built = CoffeeTests().drip_kit(with_carafe=False)
+        env = kit.env()
+        ok(env, "approach", "cm")
+        ok(env, "brew", "cm")
+        wait(env, 600)
+        self.assertGreater(stat(env, "spills"), 0)
+        self.assertGreater(stat(env, "phys_spills"), 0)                 # through the kernel's single spill entry
+        self.assertGreater(AC.num(ent(env, "counter_1").get("wetness")), 0.0)
+        self.assertIn("coffee_no_carafe", harms(env))
+
+    def test_cold_contents_memo_matches_a_fresh_scan(self):
+        """The cold system's contents memo (touch log within a step, an exact location scan after a begin()) always
+        equals unit_contents: an item moved into the fridge between steps, into a container inside it, or taken out."""
+        from house_sim.systems.appliances_cooking import cold
+        kit = Kit("electric_coil")
+        f = B.build_fridge(kit.p, "kitchen", near=[6, 4])
+        kit.item("jar", "counter_2", material="glass", size_m=[0.08, 0.08, 0.12], mass_kg=0.4, container=True,
+                 accepts_items=True, capacity_l=0.4)
+        kit.item("olive", "counter_2", size_m=[0.02, 0.02, 0.02], mass_kg=0.01)
+        env = kit.env()
+        w = env.world
+        units = sorted(e for e, r in w.s["entities"].items() if cold.is_cold(r))
+
+        def check():
+            got = cold.contents_of_units(w, units)
+            self.assertEqual(got, {u: cold.unit_contents(w.s, u) for u in units})
+            return got
+        w.begin()
+        check()
+        steps = (([("jar", f["fridge"], "in")], {"jar"}), ([("olive", "jar", "in")], {"jar", "olive"}),
+                 ([], {"jar", "olive"}), ([("jar", "counter_2", "on")], set()))
+        for moves, inside in steps:
+            w.commit()
+            w.begin()                                   # a new step: the touch log restarts
+            for eid, where, relation in moves:
+                m = w.mut(eid)
+                m["location"], m["relation"] = where, relation
+            got = check()
+            self.assertEqual({"jar", "olive"} & set(got[f["fridge"]]), inside)
+        w.commit()
+
+    def test_freezer_heat_load_of_a_warm_pot(self):
+        """A pot of warm water (not food: the food domain reports its own) put in the fridge loads it: the cabinet ends
+        warmer than an empty one (cold.item_heat_load_w at the kernel's own cooling rate)."""
+        def run(with_pot):
+            kit = Kit("electric_coil")
+            f = B.build_fridge(kit.p, "kitchen", near=[6, 4])
+            kit.c["entities"][f["fridge"]]["internal_temp_c"] = 3.5
+            if with_pot:
+                kit.item("warm_pot", f["fridge"], **dict(SAUCEPAN, liquid_container=True, liquid="water", liquid_l=1.8,
+                                                           temperature_c=60.0, relation="in", shelf=1))
+            env = kit.env()
+            env.step("wait", seconds=900)
+            return ent(env, f["fridge"])["internal_temp_c"]
+        self.assertGreater(run(True), run(False) + 0.5)
+
+    def test_scalds_follow_the_kernel_burn_time(self):
+        state = {"people": {"kid": {"role": "child", "age": 6}, "pat": {"role": "adult", "age": 40}}}
+        self.assertEqual(AC.scalded(state, ["kid", "pat"], 60.0), ["kid"])         # 5 s on adult skin, 1.25 s on a child's
+        self.assertEqual(AC.scalded(state, ["kid", "pat"], 95.0), ["kid", "pat"])
+        self.assertEqual(AC.scalded(state, ["kid", "pat"], 42.0), [])
+
+    def test_furnishing_shelves_stay_within_the_kernel_rating(self):
+        from house_sim.kernel.phys import props
+        for name in ("cabinet", "upper_cabinet", "shelf_unit"):
+            rec = default_registry().make(name, "kitchen")
+            kernel = props.props_of(rec).shelf_rating_kg
+            self.assertLessEqual(B.shelf_rating(rec), kernel)
+
+    # ---- camera -------------------------------------------------------------------------------------
+    def test_view_blocks_describe_the_appliances(self):
+        from house_sim.kernel import sight
+        kit = Kit("electric_coil")
+        kit.add("mw", "microwave", "counter_2")
+        kit.c["entities"][kit.k["oven"]].update(transparent=True)          # light on: the cavity shows through the door
+        state = kit.p.state()
+        oven = sight.view_props(state, kit.k["oven"])
+        self.assertEqual(oven["porosity"], 0.0)                              # the box stays opaque
+        self.assertEqual(oven["text_m"]["label_text"], 0.02)
+        self.assertTrue(sight.view_props(state, "mw")["glossy"])
+        for eid in (kit.k["oven"], "mw"):
+            self.assertEqual(sight.text_m(state, eid, "timer_display"), 0.01)    # the display's own 10 mm digits
+            self.assertEqual(sight.text_m(state, eid, "display"), 0.01)
+        built = B.build_dishwasher(kit.p, "kitchen")
+        self.assertEqual(sight.view_props(kit.p.state(), built["rack_top"])["opening"], "top")
+
+    def test_visual_events_are_witnessed_in_geometric_mode_only(self):
+        kit = MicrowaveToasterKettleTests().mw_kit()
+        kit.item("gold_plate", "counter_1", material="ceramic", metal_trim="gold", size_m=[0.25, 0.25, 0.02], mass_kg=0.5,
+                 accepts_items=True, surface=True, surface_size_m=[0.24, 0.24])
+
+        def run(env):
+            hold(env, "gold_plate")
+            ok(env, "approach", "mw")
+            ok(env, "open", "mw")
+            ok(env, "place", "gold_plate", "mw")
+            ok(env, "close", "mw")
+            ok(env, "set", "mw", setting="time_s", value=60)
+            ok(env, "start", "mw")
+            env.step("wait", seconds=30)
+        room = kit.env()
+        run(room)
+        self.assertTrue(ent(room, "mw").get("arcing"))
+        self.assertNotIn("camera_log", room.world.s)                          # room mode: nothing new in the state
+        geo = gkit_env(kit)
+        run(geo)
+        events = [e for e in (geo.world.s.get("camera_log") or {}).get("events") or [] if e.get("kind") == "arcing"]
+        self.assertTrue(events)
+
+    def test_displays_need_the_camera_to_read_them(self):
+        """Geometric camera: an oven display (10 mm digits) reads from close by (about 0.9 m with the head camera, or the
+        wrist camera within reach), not from across the kitchen."""
+        kit = Kit("electric_coil")
+        oven = heated_oven(kit, 350)
+        kit.c["entities"][oven]["display"] = "BAKE 350F"
+        env = gkit_env(kit, perception="realistic")
+        far = env.step("inspect", H(env, oven))
+        if far["ok"]:
+            self.assertNotIn("display", json.loads(far["message"]).get("oven_state", {}))
+        ok(env, "approach", H(env, oven))
+        near = json.loads(ok(env, "inspect", H(env, oven))["message"])
+        self.assertEqual(near["oven_state"].get("display"), "BAKE 350F")
+
+    # ---- body ---------------------------------------------------------------------------------------
+    def test_heat_through_a_damp_mitt_is_a_typed_gripper_fault(self):
+        kit, oven = HandlingStatusTests().hot_dish_kit()
+        kit.c["entities"]["mitts"]["wetness"] = 0.6
+        env = kit.env()
+        HandlingStatusTests().take_out(env, kit, oven)
+        robot = env.world.s["robot"]
+        faults = [f for f in (robot.get("fault_state") or {}).values() if f.get("kind") == "gripper_heat_damage"]
+        self.assertEqual(len(faults), 1)
+        self.assertTrue(faults[0]["detected"])
+        self.assertTrue(all(isinstance(entry, dict) for entry in robot.get("faults") or []))
+
+    def test_machine_timed_verbs_are_commanded_durations(self):
+        for name in ("blend", "brew", "grind_coffee", "ignite", "steam_milk"):
+            self.assertEqual(ACTIONS[name].timing, "commanded", name)
+
+    def test_quiet_mode_keeps_the_blender_off(self):
+        from house_sim.kernel import body
+        kit, jar = SmallApplianceTests().blender_kit()
+        kit.c["robot"]["quiet"] = True
+        env = kit.env()
+        ok(env, "approach", "blender")
+        res = refused(env, "blend", "blender", seconds=10)
+        self.assertEqual((res["message"], res["category"]), (body.QUIET_TEXT, "social"))
+
+    # ---- sweep --------------------------------------------------------------------------------------
+    def test_chimes_and_alarms_are_notices(self):
+        kit = Kit("electric_coil")
+        kit.add("timer", "kitchen_timer", "counter_2")
+        kit.c["notices"] = []                                                  # the notice bus on (schema-3 tasks)
+        env = kit.env()
+        ok(env, "approach", "timer")
+        ok(env, "set_timer", "timer", minutes=1, label="pasta")
+        env.step("wait", seconds=120)
+        notices = env.world.s["notices"]
+        alarm = [n for n in notices if n["kind"] == "alarm"]
+        self.assertTrue(alarm)
+        self.assertEqual(alarm[0]["data"], {"sound": "beeping"})
+        self.assertEqual(alarm[0].get("room"), "kitchen")
+
+    def test_canonical_questions_reach_the_appliance_answerer(self):
+        """With every domain loaded the intended question reaches this domain's answerer (no other domain's route may
+        take a thing whose household intent only this domain knows), and permission questions its own answerers."""
+        from house_sim.kernel import dialogue
+        from house_sim.systems.appliances_cooking import routes
+        kit = Kit("electric_coil")
+        kit.person("pat", "kitchen", pos=[2, 6])
+        built = B.build_slow_cooker(kit.p, "counter_1", eid="sc")
+        kit.c["entities"]["sc"].update(_intended=True, _intent_note="That's dinner.")
+        oven = kit.k["oven"]
+        kit.c["entities"][oven]["_oven"] = {"self_clean_ok": False, "self_clean_reason": "guests at six."}
+        env = kit.env()
+        self.assertEqual(dialogue.find_route(env.world.s, "pat", dialogue.Subject("entity", "sc"), "intended", None, None),
+                         ("appliance.intended", "appliance:intended:sc"))
+        self.assertIsNone(routes.route_intended(env.world.s, "pat", dialogue.Subject("entity", oven), "intended", None,
+                                                None))                       # no household intent known: not this domain's
+        res = ok(env, "ask", target="pat", aspect="intended", about="sc")
+        self.assertIn("leave it running", res["message"])
+        res = json.loads(ok(env, "ask", target="pat", aspect="ok", act="self_clean", about=oven)["message"])
+        self.assertFalse(res.get("granted"))
+        self.assertNotIn("self_clean:" + oven, env.world.s.get("approvals", []))
+        kit.c["entities"][oven]["_oven"]["self_clean_ok"] = True
+        env = kit.env()
+        res = json.loads(ok(env, "ask", target="pat", aspect="ok", act="self_clean", about=oven)["message"])
+        self.assertTrue(res.get("granted"))
+        self.assertIn("self_clean:" + oven, env.world.s["approvals"])
+        self.assertIsNotNone(built)
+
+    def test_idle_probes_are_exact_and_skip_a_quiet_kitchen(self):
+        from house_sim.kernel import plugins
+        from house_sim.kernel.predicates import digest
+        from house_sim.systems.appliances_cooking import systems as SY
+        counted = {"skip": 0}
+        probe = SY.tick_idle
+
+        def counting(w):
+            out = probe(w)
+            counted["skip"] += bool(out)
+            return out
+
+        def run(probes, seed):
+            old, old_probe = plugins.IDLE_PROBES[0], plugins.SYSTEM_IDLE["appliances_cooking.tick"]
+            plugins.IDLE_PROBES[0] = probes
+            plugins.SYSTEM_IDLE["appliances_cooking.tick"] = counting
+            try:
+                env = HouseEnv(generate_house(seed), seed=seed, trace=False, observe_on_step=False)
+                for seconds in (3 * 3600, 1800, 2 * 3600):
+                    env.step("wait", seconds=seconds)
+                return digest(env.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = old
+                plugins.SYSTEM_IDLE["appliances_cooking.tick"] = old_probe
+        for seed in (0, 3):
+            self.assertEqual(run(True, seed), run(False, seed), seed)
+        self.assertGreater(counted["skip"], 100)
+        self.assertIn("appliances_cooking.drying", plugins.SYSTEM_IDLE)
+
+    # ---- realistic perception and type data -------------------------------------------------------
+    def test_doneness_of_an_unidentified_food_needs_a_closer_look(self):
+        from house_sim.kernel.actions import UNIDENTIFIED_MESSAGE
+        kit = Kit("electric_coil")
+        kit.item("mystery", "counter_1", food={"kind": "zorblax_loaf", "cat": "bread", "phase": "solid", "qty_g": 400.0},
+                 size_m=[0.2, 0.1, 0.1], mass_kg=0.4, novel=True, label="Zorblax loaf")
+        env = renv(kit)
+        ok(env, "approach", H(env, "mystery"))
+        res = refused(env, "check_doneness", H(env, "mystery"), method="visual")
+        self.assertEqual(res["message"], UNIDENTIFIED_MESSAGE)
+
+    def test_start_refusals_do_not_name_an_unfamiliar_appliance(self):
+        """cycle_check reasons get the robot's ctx (kernel round 5): an unfamiliar (novel) cooker started without its
+        inner pot is refused with the domain's one generic reason in realistic mode, never "put the inner pot in"."""
+        from house_sim.kernel.actions import UNIDENTIFIED_MESSAGE
+        from house_sim.systems.appliances_cooking import percept as P
+        kit = Kit("electric_coil")
+        kit.add("rc", "rice_cooker", "counter_1", novel=True, label="countertop gadget")
+        oracle = kit.env()
+        ok(oracle, "approach", "rc")
+        self.assertEqual(refused(oracle, "start", "rc")["message"], "Put the inner pot in first")
+        env = renv(kit)
+        ok(env, "approach", H(env, "rc"))
+        res = refused(env, "start", H(env, "rc"))
+        self.assertNotIn("pot", res["message"].lower())
+        self.assertIn(res["message"], (P.GENERIC_REFUSAL, UNIDENTIFIED_MESSAGE))
+
+    def test_countertop_cookers_look_alike_at_a_glance(self):
+        reg = default_registry()
+        rice, pressure = reg.make("rice_cooker", "kitchen"), reg.make("electric_pressure_cooker", "kitchen")
+        self.assertEqual(rice["open"], pressure["open"])                       # both stand lid shut
+        self.assertNotEqual(reg.resolve("countertop_appliance").get("mass_kg"), 0.4)
+
+    def test_generation_one_kitchens_keep_the_frozen_field_values(self):
+        """Generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2): a generation-1 kitchen's burners keep the
+        fixed_temperature alias (the kernel reads it as ownership too), a generation-2 kitchen's carry thermal_owner."""
+        from house_sim.generator import generate_house
+        from house_sim.kernel.phys import thermal as kthermal
+        for gen in (1, 2):
+            house = generate_house(1, gen=gen)
+            burners = [r for r in house["entities"].values() if r.get("type") == "burner"]
+            self.assertTrue(burners)
+            for rec in burners:
+                self.assertTrue(kthermal.domain_owned(rec))
+                if gen == 1:
+                    self.assertEqual((rec.get("fixed_temperature"), rec.get("thermal_owner")), (True, None))
+                else:
+                    self.assertEqual((rec.get("fixed_temperature"), rec.get("thermal_owner")), (None, AC.OWNER))
+
+    def test_generation_two_kitchens_follow_the_hot_drinks(self):
+        from house_sim.systems.appliances_cooking import furnish
+        config = {"people": {"a": {"profile": {"drinks": {"hot": "tea with milk"}}},
+                             "b": {"profile": {"drinks": {"hot": "coffee black"}}}, "c": {"profile": {}}}}
+        self.assertEqual(furnish._hot_drinks(config), {"tea", "coffee"})
+        self.assertEqual(furnish._hot_drinks({"people": {}}), set())
 
 
 if __name__ == "__main__":

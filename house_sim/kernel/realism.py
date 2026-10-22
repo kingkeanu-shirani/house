@@ -1521,19 +1521,32 @@ class Realism:
             out["material_guess"] = record.get("material")
         return out
 
-    def _labeled(self, group, record):
-        """Whether reading the record can identify it: a non-empty label field (the group's label_fields, else any
-        read-tier field that is not a content field, plus label_text/text/name_label)."""
+    def _label_fields(self, group, record):
+        """The fields whose print identifies a look-alike by reading: the group's label_fields, else any read-tier
+        field that is not a content field, plus label_text/text/name_label (none for a blank label)."""
         blank = ("label_text" in record or "text" in record) and not any(record.get(k) for k in ("label_text", "text", "name_label"))
         if group.get("label_fields"):
-            label_fields = group["label_fields"]
-        elif blank:
-            label_fields = []          # a blank label prints nothing: the item stays unidentified after reading
-        else:
-            content = _content_fields()
-            label_fields = [f for f in record if f not in content and f not in ("tags",) and self.tier(record, f) == "read"] \
-                + ["label_text", "text", "name_label"]
-        return any(record.get(k) for k in label_fields)
+            return list(group["label_fields"])
+        if blank:
+            return []                  # a blank label prints nothing: the item stays unidentified after reading
+        content = _content_fields()
+        return [f for f in record if f not in content and f not in ("tags",) and self.tier(record, f) == "read"] \
+            + ["label_text", "text", "name_label"]
+
+    def _labeled(self, group, record):
+        """Whether reading the record can identify it: a non-empty label field (_label_fields)."""
+        return any(record.get(k) for k in self._label_fields(group, record))
+
+    def _read_identifies(self, record, fields):
+        """Whether a field-by-field read (the geometric camera's core read grants exactly the fields its camera made
+        out) printed a label that tells a read-resolved look-alike apart: a non-empty label field among `fields`. Room
+        mode's read grants the whole record and raises the entity's level; this lets the geometric read do the same
+        when, and only when, it read the label (people K-READ-LEVEL, safety request 4)."""
+        _name, group = self.group_of(record)
+        if group is None or group.get("resolve") != "read":
+            return False
+        wanted = set(fields)
+        return any(record.get(k) for k in self._label_fields(group, record) if k in wanted)
 
     def _resolved(self, group, record, level):
         mode = group.get("resolve", "inspect")
@@ -1703,6 +1716,10 @@ class Realism:
                     entry["level"] = max(entry.get("level", GLANCE), level)
             else:
                 self.knowledge.grant(eid, record, level, list(fields) if fields is not None else None)
+                if level == READ and fields is not None and self._read_identifies(record, fields):
+                    entry = self.knowledge.data.get(eid)
+                    if entry is not None:
+                        entry["level"] = max(entry.get("level", GLANCE), READ)
             if level >= INSPECT and fields is None:
                 # inspecting a surface/container finds the small things on/in it
                 entry = self.knowledge.data.get(eid)
@@ -2467,7 +2484,9 @@ class Realism:
         obs["perception"] = "realistic"
         km = env._known_map.get(robot_room)
         if km is not None:
-            env._known_map[robot_room] = self.out_obj(km, visible=perceived_ids, issue=True)
+            # issues handles for the current room's door ids in their established order (the map itself is
+            # env.mind.map, which observing does not write: kernel v3.1)
+            self.out_obj(km, visible=perceived_ids, issue=True)
         if self.record_observations:
             self.observed.append(copy.deepcopy(obs))
         return obs
@@ -2533,8 +2552,8 @@ class Realism:
         agents = {}
         for group in ("people", "pets"):
             for aid, agent in (state.get(group) or {}).items():
-                if agent.get("location") == rid and aid not in agents:
-                    agents[aid] = (group, agent)
+                if agent.get("location") == rid and aid not in agents and not agent.get("inside"):
+                    agents[aid] = (group, agent)        # one inside an appliance or crate is not on the floor
         from .plugins import HOOKS
         vetoes = HOOKS.get("visible_floor_hazard", [])
         visible = {}
@@ -2805,14 +2824,20 @@ def read_tier_fields(registry, record):
     blocks), usable in both perception modes."""
     fields = set(DEFAULT_TIERS["read"])
     # domain-wide field_tiers are deliberately not used here: printed text belongs to the object's type -- or to
-    # this entity, when a domain wrote legible text onto it and said so in its own _perception "read" list
+    # this entity, when a domain wrote legible text onto it and said so in its own _perception "read" list. A type's
+    # "hidden" list removes a default read field (a prescription bottle's patient id is the type's hidden truth, not
+    # print: people K-READ-HIDDEN); ancestors first, the type last, as realism's tier table applies them
     type_name = record.get("type")
     if type_name in getattr(registry, "types", {}):
-        for name in [type_name] + registry.ancestors(type_name):
-            fields |= set((getattr(registry, "perception", {}).get(name) or {}).get("read", []))
+        perception = getattr(registry, "perception", {})
+        for name in reversed([type_name] + registry.ancestors(type_name)):
+            spec = perception.get(name) or {}
+            fields |= set(spec.get("read", []))
+            fields -= set(spec.get("hidden", []))
     own = record.get("_perception")
     if isinstance(own, dict):
         fields |= {f for f in own.get("read") or () if isinstance(f, str) and "." not in f}
+        fields -= {f for f in own.get("hidden") or () if isinstance(f, str)}
     return fields
 
 

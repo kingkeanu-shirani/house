@@ -1,0 +1,21 @@
+{
+ "about": "climate's report words (adoption request climate 2; docs/domains/climate.md 17): heating, cooling and ventilation faults and states, with the record fields a robot perceives for each.",
+ "issues": {
+  "blocked_vent": {"class": "function", "synonyms": ["vent_blocked", "covered_vent", "obstructed_vent", "register_blocked"], "evidence": [{"field": "blocked"}, {"field": "vent_issues"}]},
+  "closed_vent": {"class": "function", "synonyms": ["vent_closed", "partly_closed", "damper_closed", "shut_vent"], "evidence": [{"field": "settings"}, {"field": "vent_issues"}]},
+  "dirty_filter": {"class": "condition", "synonyms": ["filter_dirty", "clogged_filter", "change_filter", "filter_needs_changing"], "evidence": [{"field": "filter_indicator"}, {"field": "soil"}]},
+  "wrapped_filter": {"class": "function", "synonyms": ["filter_still_wrapped", "plastic_on_filter", "shrink_wrapped_filter"], "evidence": [{"field": "shrink_wrapped"}]},
+  "reversed_filter": {"class": "function", "synonyms": ["filter_backwards", "filter_reversed", "wrong_way_filter"], "evidence": [{"field": "reversed"}]},
+  "short_cycling": {"class": "function", "synonyms": ["short_cycles", "cycling_on_and_off", "keeps_turning_off"], "evidence": [{"field": "starts"}]},
+  "frozen_coil": {"class": "function", "synonyms": ["iced_coil", "coil_frozen", "ice_on_coil"], "evidence": [{"field": "fault"}]},
+  "stuffy": {"class": "living", "synonyms": ["stale_air", "airless", "close_air"], "evidence": [{"field": "co2_ppm", "near": true}]},
+  "too_humid": {"class": "moisture", "synonyms": ["humid", "muggy", "high_humidity"], "evidence": [{"field": "humidity", "near": true}]},
+  "too_dry": {"class": "moisture", "synonyms": ["dry_air", "low_humidity"], "evidence": [{"field": "humidity", "near": true}]},
+  "drafty": {"class": "living", "synonyms": ["draughty", "draft", "draught", "cold_draft"], "evidence": [{"field": "ventilating", "near": true}, {"field": "air_change_rate_ach"}]}
+ },
+ "states": {
+  "heating": {"synonyms": ["heat_on", "warming_up", "calling_for_heat"], "evidence": [{"field": "call"}, {"field": "stage"}]},
+  "cooling": {"synonyms": ["ac_on", "air_conditioning", "cooling_down"], "evidence": [{"field": "call"}, {"field": "stage"}]},
+  "spinning": {"synonyms": ["turning", "rotating", "fan_running"], "evidence": [{"field": "spinning"}]}
+ }
+}

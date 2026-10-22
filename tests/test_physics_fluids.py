@@ -464,6 +464,24 @@ class PourTests(PhysTest):
         self.assertEqual(w.s["event_log"][-1]["kind"], "phys.overflow")
         self.assertEqual(w.s["entities"]["jar"]["contents_from"], "pitcher")
 
+    def test_pouring_from_a_half_frozen_bottle_leaves_the_ice_behind(self):
+        """Adoption-round request (plumbing_liquids 1): _drain lowered liquid_l but kept ice_frac, so pouring the
+        free half of a half-frozen bottle turned half of its ice into liquid."""
+        w = self.kitchen()
+        w.s["entities"]["pitcher"].update(liquid_l=0.8, ice_frac=0.5)
+        self.assertEqual(liquids.transfer(w, "pitcher", "jar", 0.6), (0.4, 0.0))      # only the free 0.4 L flows
+        pitcher = w.s["entities"]["pitcher"]
+        self.assertAlmostEqual(pitcher["liquid_l"], 0.4)
+        self.assertEqual(pitcher["ice_frac"], 1.0)                                    # the 0.4 L of ice stays
+        self.assertEqual(liquids.transfer(w, "pitcher", "jar", 0.1), (0.0, 0.0))
+        w.s["entities"]["pitcher"].update(liquid_l=1.0, ice_frac=0.25)
+        liquids.transfer(w, "pitcher", "jar", 0.5)
+        self.assertEqual(w.s["entities"]["pitcher"]["ice_frac"], 0.5)                 # 0.25 L of ice in 0.5 L
+        w.s["entities"]["jar"].update(liquid_l=0.0)
+        w.s["entities"]["pitcher"].update(liquid_l=0.3, ice_frac=0.0)
+        liquids.transfer(w, "pitcher", "jar", 0.3)
+        self.assertEqual((w.s["entities"]["pitcher"]["liquid_l"], w.s["entities"]["pitcher"]["ice_frac"]), (0.0, 0.0))
+
     def test_overflow_past_the_film_reaches_the_floor_and_exogenous_pours_are_not_harm(self):
         w = self.kitchen(capacity_l=0.2)
         w.s["entities"]["pitcher"].update(liquid_l=2.0)
@@ -603,6 +621,22 @@ class SpillTests(PhysTest):
         self.assertEqual(liquids.spill(w, 0.1, "milk", at=("kitchen", (0, 0))), "domain_spill")
         self.assertEqual(seen, [("kitchen", [0, 0], "milk", 0.1)])
         self.assertEqual(puddles(w), [])
+        self.assertEqual(w.s["stats"]["phys_spills"], 1)
+
+    def test_a_spill_sink_can_say_a_portion_grew_its_spill(self):
+        """Adoption-round request (cleaning 3): a sink that returns (id, new) is counted once per new spill, not once
+        per portion; a plain id still counts as new."""
+        made = []
+
+        def sink(w, rid, cell, liquid, liters, source, onto):
+            new = not made
+            made.append(liters)
+            return ("domain_spill", new)
+        self.hooks.add("phys.spill_sink", sink)
+        w = world({})
+        self.assertEqual(liquids.spill(w, 0.1, "milk", at=("kitchen", (0, 0))), "domain_spill")
+        self.assertEqual(liquids.spill(w, 0.2, "milk", at=("kitchen", (0, 0))), "domain_spill")
+        self.assertEqual(made, [0.1, 0.2])
         self.assertEqual(w.s["stats"]["phys_spills"], 1)
 
     def test_spill_onto_runs_down_the_support_chain(self):
@@ -1143,6 +1177,16 @@ class RainTests(PhysTest):
         environment.rain_wet(w, "chair", 10.0, 60.0)
         self.assertAlmostEqual(w.s["entities"]["chair"]["wetness"], 0.5)
         self.assertNotIn("moisture", w.s["entities"]["chair"])
+
+    def test_a_condition_word_without_a_rate_still_rains(self):
+        """Adoption-round requests (admin_inventory 2, textiles_laundry 4): the rain law read only rain_mm_h, so the
+        setup weather op's condition "rain" (and generation-1 weather) rained nothing once the law was active."""
+        self.assertEqual(environment.rain_mm_h({"condition": "rain", "rain_mm_h": 6.0}), 6.0)
+        self.assertEqual(environment.rain_mm_h({"condition": "rain"}), environment.RAIN_BY_CONDITION["rain"])
+        self.assertEqual(environment.rain_mm_h({"condition": "rain", "rain_mm_h": 0.0}), 2.5)   # over a dry day
+        self.assertEqual(environment.rain_mm_h({"condition": "storm"}), 15.0)
+        for dry in ({}, None, {"condition": "clear"}, {"condition": "snow", "snow_cm_h": 1.0}, {"condition": 3}):
+            self.assertEqual(environment.rain_mm_h(dry), 0.0, dry)
 
 
 class EnvironmentSystemTests(PhysTest):

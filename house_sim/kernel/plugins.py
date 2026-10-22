@@ -26,6 +26,7 @@ AFTER = defaultdict(list)
 SYSTEMS = []
 SYSTEM_PERIODS = {}
 SYSTEM_IDLE = {}        # system name -> fn(w) -> True when the system provably changes nothing this substep
+IDLE_TAKES_TICK = set() # systems whose idle probe is fn(w, tick)
 # HOUSE_SIM_IDLE_PROBES=0 turns the probes off (the probe test compares state digests with them on and off)
 IDLE_PROBES = [os.environ.get("HOUSE_SIM_IDLE_PROBES", "1") != "0"]
 FURNISHERS = []
@@ -79,6 +80,18 @@ def after(action_name, order=100):
     return deco
 
 
+def _takes_tick(fn):
+    """Whether an idle probe takes the Tick: two positional parameters (fn(w, tick)), or *args."""
+    import inspect
+    try:
+        params = list(inspect.signature(fn).parameters.values())
+    except (TypeError, ValueError):
+        return False
+    if any(p.kind == p.VAR_POSITIONAL for p in params):
+        return True
+    return len([p for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]) >= 2
+
+
 def system(name, order=100, max_dt=60.0, period=None, idle=None):
     """period: run at most once per `period` simulated seconds with dt = the time accumulated since
     the last run (the system must be correct for large dt, e.g. closed-form decay). Without a period
@@ -87,7 +100,9 @@ def system(name, order=100, max_dt=60.0, period=None, idle=None):
     idle (kernel v3.1, TIER1_SWEEP 6.7): fn(w) -> True when the system would change nothing this substep (no active
     cycle, no wet entity, no running device). The engine then skips the call; a periodic system still accumulates
     its time and, at a period boundary where it is idle, starts a new period as if it had run. A probe must be exact
-    (the same states with and without it) and cheaper than the system; it must not write anything."""
+    (the same states with and without it) and cheaper than the system; it must not write anything. A probe written
+    fn(w, tick) also gets the substep's Tick (its index), so a system gated on its own substep schedule (the first
+    substep of a step, every N substeps) can have an exact probe (navigation_robot's adoption request 5)."""
     if idle is not None and not callable(idle):
         raise TypeError("System {}: idle must be a callable fn(w) -> bool".format(name))
 
@@ -98,6 +113,8 @@ def system(name, order=100, max_dt=60.0, period=None, idle=None):
             SYSTEM_PERIODS[name] = float(period)
         if idle is not None:
             SYSTEM_IDLE[name] = idle
+            if _takes_tick(idle):
+                IDLE_TAKES_TICK.add(name)
         SYSTEMS.append((order, name, float(max_dt), fn))
         SYSTEMS.sort(key=lambda t: (t[0], t[1]))
         return fn

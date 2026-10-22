@@ -20,6 +20,8 @@ from ...kernel.plugins import after, before, hook
 from ...kernel.errors import ActionError, require
 from ..core import clear_contents_from
 from . import model as M
+from . import physical as P
+from . import signals as S
 
 PROGRAM_KINDS = {
     "normal": dict(agitation=0.7, removal=0.95, temp_default=40, temp_max=90, temp_min=0, spin="high"),
@@ -270,7 +272,7 @@ def washer_start(w, eid):
              "soil": soil_setting, "extra_rinse": bool(settings.get("extra_rinse")), "load_kg": load_kg, "fill": fill,
              "unbalanced": unbalanced, "dose_ratio": ratio, "target_ml": target, "chem": chem, "start_s": M.now(w),
              "he_machine": he_machine, "suds": False, "leak": False, "occupant": None,
-             "overloaded": load_kg > float(rec.get("max_load_kg", 8.0)) + 1e-9}
+             "overloaded": load_kg > float(rec.get("wash_capacity_kg", rec.get("max_load_kg", 8.0))) + 1e-9}
     if chem["detergent_ml"] > 0 and ((he_machine and not chem["detergent_he"]) or ratio > 1.8):
         cycle["suds"] = True
     # chemistry hazards: chlorine + acid/ammonia releases chlorine/chloramine gas
@@ -376,6 +378,8 @@ def washer_tick(w, eid, dt):
         m.update(changes)
         if changes.get("error") == "SUD":
             m["appliance"]["remaining_s"] = round(float(m["appliance"].get("remaining_s", 0.0)) + 900.0, 3)
+        if changes.get("_noise") == "banging":
+            S.notice(w, "spin_banging", eid, "spin_banging")      # heard through the house (TIER1_SWEEP 6.1)
 
 
 def _leak(w, eid, litres, why):
@@ -519,6 +523,8 @@ def finish_wash(w, eid, cycle, completed=True, drained=True):
         m["appliance"]["state"] = "idle"
         m["appliance"]["remaining_s"] = 0.0
     w.emit("wash_finished", target=eid, completed=completed, error=err)
+    if completed:
+        S.notice(w, "appliance_done", eid, "washer_done")         # the end chime
 
 
 def _wash_item(w, washer, item, cycle, spec, t, base, chem, sanitize, completed, bleed, shed_level, hair_level,
@@ -915,9 +921,8 @@ def drain_filter_released(ctx, result):
             cm["liquid"], cm["liquid_l"] = "dirty_water", round(float(cm.get("liquid_l", 0.0) or 0.0) + taken, 3)
             litres -= taken
         elif M.is_textile(crec):
-            taken = min(litres, float(crec.get("mass_kg", 0.5)) * 2.0 * (1.0 - float(crec.get("wetness", 0.0))))
-            w.mut(c)["wetness"] = round(min(1.0, float(crec.get("wetness", 0.0)) + taken / max(0.1, float(crec.get("mass_kg", 0.5)) * 2.0)), 4)
-            litres -= taken
+            # a towel or rag under the filter soaks up what it can hold (the kernel's wetting: its fibre's absorption)
+            litres -= P.soak_into(w, c, litres, "water", source=target)
     if litres > 0.05:
         _leak(w, target, litres, "water from the drain-pump filter ran onto the floor")
 

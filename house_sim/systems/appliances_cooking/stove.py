@@ -234,7 +234,7 @@ def step_burners(w, dt, burner_ids, heated_ids=()):
         if rec is not None and rec.get("_ac_heat") and heater_of(state, vid) != rec.get("_ac_heat"):
             m = w.mut(vid)
             m.pop("_ac_heat", None)
-            m.pop("fixed_temperature", None)
+            C.release_temperature(m)
             if m.get("boil_state") not in (None, "cold"):
                 m["boil_state"] = "off_heat"
             m.pop("foam_level", None)
@@ -493,14 +493,17 @@ def _step_vessel(w, vid, bid, watts, dt, room_c, rid, f, notes, ua_factor=1.0, s
         C.harm(w, "hot_pan_handle_sticking_out", stat="safety_violations", once="handle_out:" + vid, vessel=vid)
     # ---- write
     m = w.mut(vid)
-    m["fixed_temperature"] = True
+    C.own_temperature(m)
     m["_ac_heat"] = bid
     m["temperature_c"] = C.rnd(T1, 3)
     if has_liq or C.num(m.get("liquid_l")) > 0:
         m["liquid_temp_c"] = C.rnd(T1, 2)
     m["boil_state"] = regime
     m["foam_level"] = foam_vis
-    m["smoking"] = bool(regime == "smoking" or (not has_liq and T1 > 260.0))
+    smoking = bool(regime == "smoking" or (not has_liq and T1 > 260.0))
+    if smoking and not rec.get("smoking"):
+        C.visual_event(w, "pan_smoking", source=vid, room=rid, size_m=0.4)   # a wisp of smoke over the pan starts
+    m["smoking"] = smoking
     m["_vessel"] = hv
     for fid in prof2["foods"]:
         if fid in state["entities"]:
@@ -587,6 +590,7 @@ def _boil_over(w, vid, bid, prof, height, rid):
     C.counter(w, "boil_overs")
     C.log(w, "boil_over", vessel=vid, burner=bid, spilled_l=round(spill_l, 3), liquid=kind)
     w.emit("boil_over", target=vid, room=rid)
+    C.visual_event(w, "boil_over", source=vid, room=rid, size_m=0.3)       # foam over the rim: the camera can see it
     brec = state["entities"][bid]
     b = brec.get("burner") or {}
     rng_rec = state["entities"].get(range_id) or {}
@@ -652,9 +656,8 @@ def _material_limits(w, vid, temp, rid):
         C.harm(w, "melted_on_burner", stat="damage", once="melt:" + vid, item=vid)
         C.add_smoke(w, rid, 2.0, odor="hot_plastic", source=vid)
     if C.is_glass(rec) and not rec.get("stovetop_safe") and temp > 150.0 and not rec.get("broken"):
-        m = w.mut(vid)
-        m["broken"] = True
-        w.stat("breakages")
+        # glass that is not made for a hob cracks over the flame or element (steep gradients across its base)
+        C.break_item(w, vid, "glass_on_burner")
         C.harm(w, "glass_shattered_on_burner", stat="damage", once="glass:" + vid, item=vid)
 
 
@@ -714,6 +717,8 @@ def ignite_item(w, item, rid, cause="ignition"):
             fire.ignite(w, item, hrr_kw=3.0, cause=cause)
         except Exception:      # pragma: no cover - defensive
             pass
+    else:
+        C.visual_event(w, "flames", source=item, room=rid, size_m=0.4)     # the safety domain shows its own fires
     m = w.mut(item)
     m["charred"] = True
     C.harm(w, "item_ignited", stat="fire", once="fire:" + item, item=item, cause=cause)
@@ -932,7 +937,7 @@ def _ignite_duration(ctx):
 
 @action("ignite", params={"target": "entity", "hold_s": {"type": "number", "default": 4.0, "min": 0.5, "max": 60.0},
                           "level": "?str", "method": "?str:igniter|lighter"},
-        duration=_ignite_duration, energy=0.005, noise=0.05, category="physical",
+        duration=_ignite_duration, energy=0.005, noise=0.05, category="physical", timing="commanded",
         doc="Light a gas burner: push the knob in, turn it to LITE and hold while the igniter sparks (hold_s seconds), then set "
             "the flame to `level` (default medium). If no flame appears the knob stays at LITE with gas flowing: turn it off and "
             "let the gas clear before retrying. method=lighter lights manually with a held long lighter (power outage; needs an "

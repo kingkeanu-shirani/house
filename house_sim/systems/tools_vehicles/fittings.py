@@ -4,12 +4,21 @@ and filters (water filter twist-lock, pressure and flushing; air filter size/byp
 
 Fidelity G (pad diameter vs leg, seal thickness vs closing clearance, filter nominal size vs slot) with
 P-approx flows (filter flush volume, leak volume).
+
+Tier-1 adoption (kernel v3.0-v3.1): a full set of bonded leg pads is the furniture's foot material for the kernel
+(`pads` {kind, count, legs, adhered}, the shape manipulation's pad sets write: felt halves the friction, rubber cups
+grip, nylon glides slide like plastic), so phys.forces.push_needed_n and floor scratching follow what was installed;
+things on a top that is tipped to fit pads fall through the kernel (landing and breakage by drop tolerance); water
+sprayed from a housing opened under pressure is a kernel spill (it runs down into the cabinet and onto the floor),
+and so is flush water that overflows its jug or runs out with nothing under the outlet; a cartridge left unlocked under pressure or a flush that overflows its jug posts a "splash" notice and is a visual
+event.
 """
 import copy
 import math
 import re
 
 from ...kernel import geometry, physics
+from ...kernel.phys import liquids
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook, inspector, system
@@ -50,21 +59,54 @@ def _tilt_for_pads(ctx):
         if crec.get("relation") not in ("on", None):
             continue
         tipped.append(child)
-        m = w.mut(child)
-        room = rec.get("location")
-        if crec.get("fragile"):
-            m["broken"] = True
-            C.add_damage(m, "broken", 1.0)
-            w.stat("breakages")
-            w.stat("damage")
-        if room in w.s["rooms"]:
-            for key in ("spos", "shelf"):
-                m.pop(key, None)
-            m.update(location=room, relation="on", pos=list(geometry.free_floor_cell(w.s, room, near=tuple(rec.get("pos") or (0, 0))) or rec.get("pos") or [0, 0]))
-            w.log_move(child, dest, room, by="gravity")
+        # tipping the piece to reach its feet slides what stands on top off it: the kernel's fall (landing beside the
+        # piece, breakage by the thing's own drop tolerance from the top's height; attributed to the robot)
+        ctx.fall(child, cause="tilted_off")
     if tipped:
         C.log(w, "tilted_loaded_furniture", target=dest, fell=tipped)
         ctx.note("Tilting it slid {} off the top".format(", ".join(tipped)))
+
+
+PAD_FEET = {"felt": "felt", "rubber": "rubber", "nylon": "plastic", "plastic": "plastic"}
+
+
+def pad_foot(rec):
+    """The kernel foot kind a leg pad gives (data/physics/floors.json feet): felt pads "felt", rubber furniture cups
+    "rubber", nylon glides "plastic"; a folded paper shim is no foot material (None)."""
+    if rec.get("temporary") or "shim" in (rec.get("tags") or []):
+        return None
+    return PAD_FEET.get(str(rec.get("material") or "").lower())
+
+
+def refresh_pads(w, eid):
+    """Keep the furniture's `pads` record (what the kernel's friction reads, phys.forces.foot_kind) equal to its leg-pad
+    slots: the kind when every installed pad is of one kind, the count installed, the legs it has, and whether every
+    pad is bonded and centred. Removed when no pad is installed (only a record this domain wrote: `_pads_slots`)."""
+    rec = w.ent(eid)
+    legs = rec.get("_legs") or {}
+    if not legs:
+        return
+    kinds, bonded, count = set(), True, 0
+    for slot, info in sorted((rec.get("slots") or {}).items()):
+        item = info.get("item") if _leg_slot(slot) else None
+        if not item or item not in w.s["entities"]:
+            continue
+        pad = w.ent(item)
+        count += 1
+        kinds.add(pad_foot(pad))
+        bonded = bonded and bool(pad.get("bond_ok", True)) and not pad.get("overhang")
+    if count == 0:
+        if rec.get("_pads_slots"):
+            m = w.mut(eid)
+            m.pop("pads", None)
+            m.pop("_pads_slots", None)
+        return
+    kind = next(iter(kinds)) if len(kinds) == 1 else None
+    want = {"kind": kind, "count": count if kind else 0, "legs": len(legs), "adhered": bonded, "centered": True}
+    if rec.get("pads") != want or not rec.get("_pads_slots"):
+        m = w.mut(eid)
+        m["pads"] = want
+        m["_pads_slots"] = True
 
 
 @hook("part_installed")
@@ -90,6 +132,7 @@ def _pad_installed(ctx, device_id, slot, part_id):
     if "felt_pad" in (part.get("tags") or []) and floor in ("carpet", "rug"):
         pm["wrong_floor"] = True
     F.refresh(w, device_id)
+    refresh_pads(w, device_id)
 
 
 @hook("part_removed")
@@ -114,13 +157,30 @@ def _pad_removed(ctx, device_id, slot, part_id):
     if w.ent(part_id).get("tags") and "felt_pad" in w.ent(part_id)["tags"]:
         w.mut(part_id)["worn"] = True
     F.refresh(w, device_id)
+    refresh_pads(w, device_id)
 
 
 def _has_legs(rec):
     return bool(rec.get("_legs") and rec.get("slots"))
 
 
-@system("tools_vehicles.pads", order=138, max_dt=60.0, period=300)
+def _weak_pad(pad):
+    return bool(pad.get("overhang") or not pad.get("bond_ok", True) or pad.get("temporary"))
+
+
+def pads_idle(w):
+    """Exact idle probe (kernel v3.1): no installed leg pad is weak (overhanging, unbonded or temporary), so none can
+    come off."""
+    ents = w.s["entities"]
+    for eid in C.index(w, "legged", _has_legs):
+        for slot, info in ((ents.get(eid) or {}).get("slots") or {}).items():
+            item = info.get("item") if _leg_slot(slot) else None
+            if item and item in ents and _weak_pad(ents[item]):
+                return False
+    return True
+
+
+@system("tools_vehicles.pads", order=138, max_dt=60.0, period=300, idle=pads_idle)
 def pad_system(w, dt, tick):
     """Every 5 min: overhanging, unbonded or temporary pads come off 6 h / 2 days after installation (timestamps)."""
     t = C.now(w)
@@ -134,7 +194,7 @@ def pad_system(w, dt, tick):
             if not _leg_slot(slot) or not item or item not in w.s["entities"]:
                 continue
             pad = w.ent(item)
-            weak = pad.get("overhang") or not pad.get("bond_ok", True) or pad.get("temporary")
+            weak = _weak_pad(pad)
             if weak and t - float(pad.get("installed_at", t)) > (6 * 3600 if not pad.get("temporary") else 2 * 86400):
                 m = w.mut(eid)
                 m["slots"][slot]["item"] = None
@@ -146,6 +206,7 @@ def pad_system(w, dt, tick):
                     pm["pos"] = list(rec.get("pos") or [0, 0])
                 C.log(w, "pad_came_off", target=eid, slot=slot, pad=item)
                 F.refresh(w, eid)
+                refresh_pads(w, eid)
 
 
 # =============================================================================================
@@ -294,7 +355,14 @@ def _has_seal(rec):
     return isinstance(rec.get("_seal"), dict)
 
 
-@system("tools_vehicles.seals", order=139, max_dt=60.0, period=300)
+def seals_idle(w):
+    """Exact idle probe: no weatherstrip segment is waiting to peel (no peel_at anywhere)."""
+    ents = w.s["entities"]
+    return not any(seg.get("peel_at") is not None for eid in C.index(w, "sealed_openings", _has_seal)
+                   for seg in (((ents.get(eid) or {}).get("_seal") or {}).get("segments") or {}).values())
+
+
+@system("tools_vehicles.seals", order=139, max_dt=60.0, period=300, idle=seals_idle)
 def seal_system(w, dt, tick):
     """Every 5 min: adhesive weatherstrip pressed onto a dusty/wet frame peels at its peel_at time."""
     t = C.now(w)
@@ -372,6 +440,10 @@ def _pressurized(w, host):
     return physics.water_available(w, host)
 
 
+SUMP_SPRAY_L = 6.0       # a 10 in sump housing opened at line pressure empties itself and sprays for seconds
+HEAD_DRIP_L = 0.15       # a fridge-style filter head drips a cupful when the cartridge comes out under pressure
+
+
 def filter_slot(rec):
     for name, info in sorted((rec.get("slots") or {}).items()):
         if info.get("water_filter") or name == "water_filter":
@@ -399,13 +471,15 @@ def _filter_out_guard(ctx):
                 cm = w.mut(child)
                 cm["wetness"] = 1.0
             w.stat("flood")
-            w.stat("spills")
-            C.log(w, "housing_opened_under_pressure", host=host)
+            # the water itself is a kernel spill: it runs down into the cabinet and out onto the floor (a puddle the
+            # cleaning domain mops up; the spill counts in `spills` for the robot)
+            ctx.spill(SUMP_SPRAY_L, "water", source=host)
+            C.log(w, "housing_opened_under_pressure", seen=host, host=host)
             ctx.note("Water sprayed out of the pressurized housing")
         else:
             m = w.mut(host)
             m["leaked_l"] = C.rnd(float(m.get("leaked_l", 0.0)) + 0.15, 2)
-            w.stat("spills")
+            ctx.spill(HEAD_DRIP_L, "water", source=host)
             ctx.note("A little water dripped from the filter head")
 
 
@@ -465,7 +539,25 @@ def _water_filter_host(rec):
     return filter_slot(rec) is not None
 
 
-@system("tools_vehicles.water_filters", order=140, max_dt=30.0)
+def water_filters_idle(w):
+    """Exact idle probe: every host with a cartridge in is unpressurized, or locked with its flush outlet shut
+    (water_filter_system changes nothing then)."""
+    ents = w.s["entities"]
+    for host in C.index(w, "water_filter_hosts", _water_filter_host):
+        rec = ents.get(host)
+        slot = filter_slot(rec) if rec else None
+        item = rec["slots"][slot].get("item") if slot else None
+        if not item or item not in ents or not _pressurized(w, host):
+            continue
+        if not filter_locked(w, host):
+            return False
+        outlet = ents.get(rec.get("flush_outlet")) if rec.get("flush_outlet") else None
+        if outlet is not None and (outlet.get("on") or outlet.get("water_running")):
+            return False
+    return True
+
+
+@system("tools_vehicles.water_filters", order=140, max_dt=30.0, idle=water_filters_idle)
 def water_filter_system(w, dt, tick):
     """Per substep (leaks and flushing follow valve/faucet actions within seconds) over the static host index."""
     ents = w.s["entities"]
@@ -487,7 +579,8 @@ def water_filter_system(w, dt, tick):
             if before < 1.0 <= m["leaked_l"]:
                 w.stat("flood")
                 w.stat("spills")
-                C.log(w, "filter_leak", host=host)
+                C.log(w, "filter_leak", seen=host, host=host)
+                C.notice(w, "splash", source=host)
             continue
         outlet = rec.get("flush_outlet")
         if not outlet or outlet not in w.s["entities"] or not pressurized:
@@ -523,15 +616,12 @@ def water_filter_system(w, dt, tick):
             om["spilled_l"] = C.rnd(float(om.get("spilled_l", 0.0)) + overflow, 3)
             if om["spilled_l"] >= 0.2 and om["spilled_l"] - overflow < 0.2:
                 w.stat("spills")
-                room = w.root_room(outlet)
-                _, cells = C.anchor_cells(w, outlet)
-                if room and cells:
-                    rm = w.room_m(room)
-                    wet = rm.setdefault("wet_cells", [])
-                    cell = [int(cells[0][0]), int(cells[0][1])]
-                    if cell not in wet:
-                        wet.append(cell)
-                C.log(w, "flush_spill", outlet=outlet)
+                C.notice(w, "splash", source=outlet)
+                # the first 0.2 l on the floor under the dispenser: a kernel spill (its puddle and wet cell)
+                liquids.spill(w, om["spilled_l"], "water", source=outlet, cause="overflow")
+                C.log(w, "flush_spill", seen=outlet, outlet=outlet)
+            elif om["spilled_l"] > 0.2:
+                liquids.spill(w, overflow, "water", source=outlet, cause="overflow")
 
 
 def _air_filter_out(ctx, host, rec, slot):
@@ -623,7 +713,23 @@ def _climate_owned(rec):
     return bool(rec.get("climate_kind"))
 
 
-@system("tools_vehicles.air_filters", order=141, max_dt=60.0)
+def air_filters_idle(w):
+    """Exact idle probe: no running host has an empty filter slot or a filter that bypasses (gap over 6 mm, reversed)."""
+    ents = w.s["entities"]
+    for host in C.index(w, "air_filter_hosts", _air_filter_host):
+        rec = ents.get(host)
+        if rec is None or not _hvac_running(rec):
+            continue
+        for info in rec["slots"].values():
+            if not info.get("fit"):
+                continue
+            part = ents.get(info.get("item")) if info.get("item") else None
+            if part is None or float(part.get("bypass_gap_mm", 0.0)) > 6.0 or part.get("reversed"):
+                return False
+    return True
+
+
+@system("tools_vehicles.air_filters", order=141, max_dt=60.0, idle=air_filters_idle)
 def air_filter_system(w, dt, tick):
     """Per substep while the host runs: filterless / bypass seconds (task predicates read them as they happen).
     Duct dust on climate-modelled equipment is the climate domain's (it accrues the same 1/36000 s rate)."""
@@ -647,7 +753,21 @@ def air_filter_system(w, dt, tick):
                     m["bypass_s"] = C.rnd(float(m.get("bypass_s", 0.0)) + dt, 1)
 
 
-@system("tools_vehicles.filter_load", order=142, max_dt=600.0, period=600)
+def filter_load_idle(w):
+    """Exact idle probe: no running host holds a filter this domain loads (climate's own filters track dirtiness)."""
+    ents = w.s["entities"]
+    for host in C.index(w, "air_filter_hosts", _air_filter_host):
+        rec = ents.get(host)
+        if rec is None or not _hvac_running(rec):
+            continue
+        for info in rec["slots"].values():
+            part = ents.get(info.get("item")) if info.get("fit") and info.get("item") else None
+            if part is not None and not _climate_owned(part):
+                return False
+    return True
+
+
+@system("tools_vehicles.filter_load", order=142, max_dt=600.0, period=600, idle=filter_load_idle)
 def filter_load_system(w, dt, tick):
     """Every 10 min: an installed air filter in a running host loads up (~90 days of run time to full, linear in dt).
     Climate-modelled filters track their own `dirtiness` instead."""

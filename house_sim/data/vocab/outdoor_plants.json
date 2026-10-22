@@ -1,0 +1,23 @@
+{
+ "about": "outdoor_plants' report words (docs/domains/outdoor_plants.md 0b): plant, lawn and yard issues beyond core's wilted, needs_water, dry_soil, pests, overgrown, clogged and overflowing.",
+ "issues": {
+  "yellowing": {"class": "living", "synonyms": ["yellow_leaves", "yellowed", "chlorosis"], "evidence": [{"field": "leaves"}]},
+  "dead_leaves": {"class": "living", "synonyms": ["brown_leaves", "dried_leaves", "dead_foliage"], "evidence": [{"field": "leaves"}]},
+  "overwatered": {"class": "living", "synonyms": ["too_much_water", "waterlogged", "soggy_soil"], "evidence": [{"field": "overwatered"}, {"field": "moisture"}]},
+  "root_bound": {"class": "living", "synonyms": ["rootbound", "pot_bound", "roots_circling"], "evidence": [{"field": "root_bound"}, {"field": "root_ball_cm"}]},
+  "leggy": {"class": "living", "synonyms": ["spindly", "too_tall_and_thin"], "evidence": [{"field": "leggy"}]},
+  "sunscald": {"class": "living", "synonyms": ["sunburned", "sun_scorched", "leaf_scorch"], "evidence": [{"field": "leaves"}]},
+  "frost_damage": {"class": "living", "synonyms": ["frost_bitten", "frostbitten", "frozen_leaves"], "evidence": [{"field": "frost_damage"}, {"field": "leaves"}]},
+  "disease": {"class": "living", "synonyms": ["diseased", "blight", "leaf_spot", "powdery_mildew"], "evidence": [{"field": "leaves"}]},
+  "leaning": {"class": "condition", "synonyms": ["tilting", "lopsided", "falling_over"], "evidence": [{"field": "lean_deg"}]},
+  "bolting": {"class": "living", "synonyms": ["bolted", "gone_to_seed", "flowering_early"], "evidence": [{"field": "flowers"}]},
+  "weeds": {"class": "living", "synonyms": ["weedy", "weed", "weeds_growing"], "evidence": [{"field": "weeds"}]},
+  "thin_patches": {"class": "living", "synonyms": ["bare_patch", "bare_spots", "thin_lawn", "patchy_lawn"], "evidence": [{"field": "thin"}, {"field": "lawn"}]},
+  "mole_hills": {"class": "living", "synonyms": ["molehills", "mole_mounds"], "evidence": [{"field": "lawn"}]},
+  "grubs": {"class": "living", "synonyms": ["lawn_grubs", "white_grubs"], "evidence": [{"field": "lawn"}]},
+  "mushrooms": {"class": "living", "synonyms": ["mushroom", "toadstools", "fungi"], "evidence": [{"field": "lawn"}]},
+  "icy": {"class": "safety", "synonyms": ["iced_over", "slippery_ice", "black_ice"], "evidence": [{"field": "ice"}]},
+  "snow_covered": {"class": "safety", "synonyms": ["snowed_in", "covered_in_snow", "snowy"], "evidence": [{"field": "snow_cm"}]},
+  "blown_over": {"class": "order", "synonyms": ["tipped_by_wind", "knocked_over_by_wind"], "evidence": [{"field": "blown_away"}, {"field": "orientation"}]}
+ }
+}

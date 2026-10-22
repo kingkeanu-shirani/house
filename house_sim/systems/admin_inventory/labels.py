@@ -15,6 +15,10 @@ from .common import domain_section, held_with, require_readable, slug
 from .perceive import dumps, has_read, name_of, unresolved
 
 FACES = "front|side|top|lid|back|tab|spine|bottom"
+# the face a label is written on -> where it faces as the thing stands (label_facing, the camera's label face): a
+# folder tab sticks up out of a drawer, a binder spine faces out of the shelf
+LABEL_FACINGS = {"front": "front", "back": "back", "side": "right", "top": "top", "lid": "top", "bottom": "bottom",
+                 "tab": "top", "spine": "front"}
 
 
 def _writer(ctx, kind, tool):
@@ -125,6 +129,10 @@ def label(ctx):
     m["label_text"] = text
     m["label_key"] = slug(text)
     m["label_face"] = face
+    if not (rec.get("recipient") or rec.get("to_text")):
+        # the camera reads the label through the side it is on (sight 4.6: label_facing): a front label shows on a
+        # shelf, a lid or top label hides under the next bin stacked on it (a shipping label keeps its own facing)
+        m["label_facing"] = LABEL_FACINGS.get(face, "front")
     m["label_conflict"] = conflict or bool(rec.get("label_conflict") and not ctx.args["replace"])
     m["label_adhered"] = adhered
     if not adhered:

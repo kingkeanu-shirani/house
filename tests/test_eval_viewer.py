@@ -5,6 +5,7 @@ module runs with a temporary HOME/USERPROFILE, a throwaway split key (HOUSE_AI_S
 file, so the user's real ~/.house_ai (key, private manifest, phrasings) is never read.
 """
 import contextlib
+import copy
 import io
 import json
 import os
@@ -23,6 +24,7 @@ if str(ROOT) not in sys.path:
 
 from house_sim.eval import viewer  # noqa: E402
 from house_sim.generator import generate_house  # noqa: E402
+from house_sim.kernel import replays  # noqa: E402
 from house_sim.kernel.engine import HouseEnv  # noqa: E402
 
 EXPLORE_TASK = {"instruction": "Explore the house and look around.", "catalog_id": "custom",
@@ -60,11 +62,13 @@ def scripted_run(env, steps):
     return env
 
 
-def make_replay(folder, name, seed, steps, perception, trace):
+def make_replay(folder, name, seed, steps, perception, trace, keep_changes=None):
+    """A compact replay (house-replay-v3). Traced episodes keep their recorded changes by default here, so the
+    recorded-change fallback of the viewer can be tested; keep_changes=False writes the default compact form."""
     env = HouseEnv(generate_house(seed=seed), dict(EXPLORE_TASK), seed, perception=perception, trace=trace)
     scripted_run(env, steps)
     path = Path(folder) / (name + ".json")
-    env.save_replay(path)
+    env.save_replay(path, keep_changes=trace if keep_changes is None else keep_changes)
     return path, env
 
 
@@ -181,7 +185,9 @@ class ViewerTests(unittest.TestCase):
     def test_size_bound_300_steps(self):
         size = os.path.getsize(self.long_html)
         self.assertLess(size, 3 * 1000 * 1000, "viewer page is {} bytes".format(size))
-        self.assertLess(size, os.path.getsize(self.long_path) / 4)
+        # far smaller than the episode's content (the replay file itself is compact: kernel/replays.py)
+        content = len(json.dumps(replays.read(self.long_path), ensure_ascii=False))
+        self.assertLess(size, content / 4)
 
     def test_no_external_urls_or_network(self):
         for text in (self.long_text, viewer.TEMPLATE_PATH.read_text(encoding="utf-8")):
@@ -294,9 +300,9 @@ class ViewerTests(unittest.TestCase):
         self.assertNotIn("stubs", both["layout"])
         # after a divergence the perceived frames stop; a perceived-only page still names no unobserved room
         path, _ = make_replay(self.tmp, "realistic_traced", 5, 16, "realistic", True)
-        replay = json.loads(path.read_text(encoding="utf-8"))
+        replay = replays.read(path)
         replay["steps"][1]["ok"] = not replay["steps"][1]["ok"]
-        path.write_text(json.dumps(replay), encoding="utf-8")
+        replays.write(path, replay, keep_changes=True)
         data = viewer.build_viewer_data(path, view="perceived")
         frames = viewer.decode_deltas(data["pframes"])
         self.assertTrue(any(f.get("na") for f in frames))
@@ -490,10 +496,10 @@ class ViewerTests(unittest.TestCase):
         self.assertFalse([w for w in data["meta"]["warnings"] if "diverge" in w or "differs" in w], data["meta"]["warnings"])
 
     def test_divergence_falls_back_to_recorded_changes(self):
-        replay = json.loads(self.oracle_path.read_text(encoding="utf-8"))
+        replay = replays.read(self.oracle_path)
         replay["steps"][2]["ok"] = not replay["steps"][2]["ok"]
         path = self.tmp / "diverged.json"
-        path.write_text(json.dumps(replay), encoding="utf-8")
+        replays.write(path, replay, keep_changes=True)
         data = viewer.build_viewer_data(path)
         n = len(replay["steps"])
         self.assertEqual(len(data["frames"]), n + 1)
@@ -553,6 +559,141 @@ class ViewerTests(unittest.TestCase):
         self.assertEqual(viewer.extract_data(html_text), nasty)
         self.assertNotIn("https://", html_text)
         self.assertEqual(html_text.count("</script>"), 2)
+
+    # ----- adoption round (K-EVAL): compact replays, multi-phase episodes, the monitor's milestones ------------------
+    def test_a_v2_replay_and_its_compact_form_render_the_same_page(self):
+        env = HouseEnv(generate_house(seed=4), dict(EXPLORE_TASK), 4, perception="realistic", trace=False)
+        scripted_run(env, 10)
+        plain, compact = self.tmp / "same_v2.json", self.tmp / "same_v3.json"
+        env.save_replay(plain, compact=False)
+        env.save_replay(compact)
+        a, b = viewer.build_viewer_data(plain), viewer.build_viewer_data(compact)
+        for key in ("frames", "pframes", "steps", "evals", "layout"):
+            self.assertEqual(a[key], b[key], key)
+        self.assertEqual(a["meta"]["warnings"], [])
+
+    def test_a_compact_traced_replay_takes_its_diffs_from_the_re_run(self):
+        path, env = make_replay(self.tmp, "lean_traced", 1, 12, "oracle", True, keep_changes=False)
+        self.assertFalse(any("changes" in s for s in replays.read(path)["steps"]))
+        lean = viewer.build_viewer_data(path)
+        full_path, _ = make_replay(self.tmp, "full_traced", 1, 12, "oracle", True, keep_changes=True)
+        full = viewer.build_viewer_data(full_path)
+        self.assertEqual(lean["diffs"], full["diffs"])            # the re-run's trace gives the recorded changes
+        self.assertTrue(any(lean["diffs"]))
+        self.assertEqual(lean["frames"], full["frames"])
+
+    def test_recorded_milestones_come_from_the_monitor_record_after_a_divergence(self):
+        """Regression (TIME-EVAL request 4): the frames after a divergence re-evaluated milestones with a plain
+        predicate check, which fails on the extended forms ({"pred": ..., "held_for_s": ...}) and misses times reached
+        inside waits; they now come from the recording's monitor record (the final evaluation's milestones)."""
+        task = dict(EXPLORE_TASK, milestones={"settled": {"pred": {"path": "time_s", "op": "gt", "value": 10},
+                                                          "held_for_s": 20}})
+        env = HouseEnv(generate_house(seed=1), task, 1, trace=True)
+        scripted_run(env, 14)
+        reached = env.evaluate()["milestones"]["settled"]
+        self.assertGreater(reached["step"], 3)
+        path = self.tmp / "milestone_diverged.json"
+        env.save_replay(path, keep_changes=True)
+        replay = replays.read(path)
+        replay["steps"][1]["ok"] = not replay["steps"][1]["ok"]          # diverges at step 2
+        replays.write(path, replay, keep_changes=True)
+        data = viewer.build_viewer_data(path, view="oracle")
+        self.assertEqual(data["meta"]["diverged_at"], 2)
+        evals = viewer.decode_deltas(data["evals"])
+        self.assertEqual(evals[-1]["m"]["settled"], [reached["step"], round(reached["time_s"], 1)])
+        self.assertNotIn("settled", evals[reached["step"] - 1].get("m", {}))
+        self.assertIn("settled", evals[reached["step"]]["m"])
+
+    def phased_episode(self, folder):
+        from house_sim.tasks.runner import build
+        spec = {"catalog_id": "T-viewer-phases-01", "title": "two requests", "risk_level": 0,
+                "house": {"residents": "minimal", "pets": "none"},
+                "phases": [{"id": "p1", "request": {"from": "resident_1", "channel": "app", "phrasings": ["Say one."]},
+                            "success": [{"path": "facts.last_speech.text", "op": "eq", "value": "one"}],
+                            "milestones": {"spoke": {"path": "facts.last_speech.text", "op": "eq", "value": "one"}},
+                            "budget": {"steps": 20, "time_s": 900}},
+                           {"id": "p2", "start": {"after": "p1", "gap_s": 600},
+                            "request": {"from": "resident_1", "channel": "app", "phrasings": ["Say two."]},
+                            "success": [{"path": "facts.last_speech.text", "op": "eq", "value": "two"}],
+                            "budget": {"steps": 20, "time_s": 900}}],
+                "reference": [{"do": "announce", "text": "one"}, {"phase_done": True},
+                              {"do": "announce", "text": "two"}, {"phase_done": True}],
+                "wrong": [{"name": "stops early", "plan": [{"do": "announce", "text": "one"}]}]}
+        config, task, _ = build(spec, 0, perception="realistic")
+        env = HouseEnv(config, task, 0, perception="realistic", trace=False)
+        env.step("announce", text="one")
+        env.phase_done()
+        env.step("announce", text="two")
+        env.phase_done()
+        self.assertTrue(env.evaluate()["success"])
+        path = Path(folder) / "phases.json"
+        env.save_replay(path)
+        return spec, env, path
+
+    def test_a_multi_phase_replay_shows_its_phase_ends(self):
+        """TIME-EVAL request 4: phase_done history records re-run as env.phase_done() (they used to be sent to
+        env.step and diverge) and are listed as phase_done steps (ended phase -> next phase)."""
+        _, env, path = self.phased_episode(self.tmp)
+        data = viewer.build_viewer_data(path)
+        self.assertEqual(data["meta"]["warnings"], [])
+        self.assertEqual([(s["a"], s.get("tg"), s.get("de")) for s in data["steps"]],
+                         [("announce", None, None), ("phase_done", "p1", "p2"), ("announce", None, None),
+                          ("phase_done", "p2", None)])
+        self.assertEqual(data["meta"]["phases"], ["p1", "p2"])
+        self.assertEqual(data["meta"]["milestones"], ["p1/spoke"])
+        evals = viewer.decode_deltas(data["evals"])
+        self.assertTrue(evals[-1]["s"])
+        self.assertIn("p1/spoke", evals[-1]["m"])
+        self.assertEqual(len(data["frames"]), len(env._history) + 1)
+        # the phase boundaries are timeline marks of the phase_done frames (a phase end shares the step number of the
+        # action before it: its frame lists only its own events, never that action's again)
+        marks = data.get("marks", {})
+        self.assertEqual([m[:2] for m in marks.get("2", [])], [["phase_end", "p1"], ["phase_start", "p2"]])
+        self.assertEqual([m[0] for m in marks.get("4", [])], ["phase_end"])
+        self.assertNotIn("1", marks)
+        page = viewer.render_html(data)
+        self.assertIn(".mk.time", page)
+
+    def test_notices_and_orders_are_time_marks(self):
+        state = {"steps": 3, "event_log": [{"step": 3, "kind": "standing_order_fired", "order": 0},
+                                           {"step": 2, "kind": "phase_start", "phase": "p1"},
+                                           {"step": 3, "kind": "phys.fall", "target": "cup_1", "by": "robot"}],
+                 "notices": [{"step": 3, "kind": "addressed", "text": "Ann: come here"},
+                             {"step": 2, "kind": "speech", "text": "earlier"}]}
+        self.assertEqual(viewer.step_marks(state), [["standing_order_fired", "order 0"], ["phys.fall", "cup_1 (robot)"],
+                                                    ["notice", "addressed: Ann: come here"]])
+
+    def test_a_multi_phase_harness_log_re_runs_its_phase_ends(self):
+        """A harness log's done that ended a phase ({"done": true, "phase_done": true, ...}) is re-run as
+        env.phase_done() (it was skipped as a plain done, so the re-run never left phase 1)."""
+        spec, env, _ = self.phased_episode(self.tmp)
+        steps, n = [], 0
+        for record in env._history:
+            if record.get("phase_done"):
+                steps.append({"i": n, "command": {"action": "done"}, "done": True, "phase_done": True,
+                              "phase": record["phase"], "next_phase": record["next_phase"], "waiting": False})
+            else:
+                n += 1
+                steps.append({"i": n, "command": record["command"], "sent": record["command"],
+                              "result": {"ok": record["ok"], "message": "", "category": record["category"]}})
+        log = {"format": "house-harness-log-v1", "catalog_id": spec["catalog_id"], "split": "dev", "seed_tag": "dev:0",
+               "seed": 0, "perception": "realistic", "agent": "scripted-test", "privileged": False,
+               "require_done": True, "steps": steps, "done_declared": True}
+        path = self.tmp / "phases_log.json"
+        path.write_text(json.dumps(log), encoding="utf-8")
+        with mock.patch.object(viewer, "_find_spec", lambda cid: copy.deepcopy(spec) if cid == spec["catalog_id"] else None):
+            data = viewer.build_viewer_data(path)
+        self.assertEqual(data["meta"]["warnings"], [])
+        self.assertEqual([s["a"] for s in data["steps"]], ["announce", "phase_done", "announce", "phase_done"])
+        self.assertTrue(data["meta"]["done_declared"])
+        self.assertTrue(viewer.decode_deltas(data["evals"])[-1]["s"])
+
+    def test_the_perceived_layout_reads_the_minds_known_map(self):
+        """The perceived-only page's known rooms come from env.known_map() (the Mind's map; env._known_map is a
+        read-only compatibility view of it)."""
+        data = viewer.build_viewer_data(self.small_path, view="perceived")
+        env = self.small_env
+        self.assertTrue(set(env.known_map()) <= set(data["layout"]["rooms"]) | set(data["layout"].get("stubs", [])))
 
 
 if __name__ == "__main__":

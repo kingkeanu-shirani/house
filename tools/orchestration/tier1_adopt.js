@@ -32,9 +32,20 @@ const RESULT = {
   required: ['owner', 'done', 'not_done', 'laws_ready', 'laws_not_ready', 'specs', 'tests', 'kernel_requests', 'cross_domain_bugs', 'notes'],
 }
 
+const COMPLETED = ['navigation_robot', 'manipulation', 'people', 'safety', 'cleaning', 'plumbing_liquids']
+const PARTIAL = ['admin_inventory', 'appliances_cooking', 'electrical', 'food', 'textiles_laundry', 'climate']
+const GATE_NOTE = '\n\nGATE USAGE (learned in this round): `tier1_gate.py compare` takes <prev> <cur> and has no --shared-tree; record your own run with --package ADOPT:<domain> and --spec-files limited to your spec files, and compare against the C1 gate restricted to those spec files. Other owners change files concurrently, so G10 lists their files as outside your package - ignore those; judge G1/G1b, G2/G3 and G4-G9 for your own files and specs.'
+const extraNote = (d) => {
+  if (COMPLETED.includes(d)) return ''
+  let note = '\n\nRESUMED RUN: an earlier run of this round was interrupted by a usage limit.'
+  if (PARTIAL.includes(d)) note += ' Its partial edits to your files are ALREADY IN THE TREE (an exact backup is archive/partial_adopt_' + d + '.patch). Review them first (git diff -- your files): keep what is correct and complete, fix or finish what is half done, and do not redo finished work.'
+  else note += ' It never reached your domain, so start fresh.'
+  note += ' Six domains (navigation_robot, manipulation, people, safety, cleaning, plumbing_liquids) already finished their adoption and are committed; their handoff notes are in their docs/domains/*.md "tier-1" sections.'
+  return note + GATE_NOTE
+}
 const domainPrompt = (d) => `${ENV(d)}
 
-You own the **${d}** mechanics domain (house_sim/systems/${d}/). This is the tier-1 ADOPTION round for your domain. ${DOCS}
+You own the **${d}** mechanics domain (house_sim/systems/${d}/). This is the tier-1 ADOPTION round for your domain. ${DOCS}${extraNote(d)}
 
 WORK LIST (all of it; quality over speed):
 1. Your section 6 block in TIER1_INTEGRATION.md ("**${d}**") and the "Every domain also" list: physics adoption protocol (physics 10.3: route your physics through the kernel functions, guard legacy code with lawbook.active, register hooks, update tests that pin old constants, fix the type data \`python tools/physics_audit.py --data\` attributes to ${d}, then decide per law whether you are "ready to flip" - verify by running your tests and specs with the law forced on (lawbook.forced) - and report laws_ready / laws_not_ready); camera items ("view" blocks, camera.visual_event, camera.in_frame gating, room mode identical); body items (capability limits via the body, sensors via body.set_sensors, ctx.motion/require_mobile for verbs that move the robot, timing="commanded" where a duration is commanded, fault writes via body_faults); sweep items (notices via w.notice, ask answerer routes and report vocabulary, exact idle probes on heavy systems, gen-2 furnishing of your types, the type requests addressed to you).
@@ -61,13 +72,15 @@ const K_CAM = `- Camera phase 3 (TIER1_CAMERA): doorway and window apertures in 
 - The open-door leaf occluder (B3-MERGE not_done; the stage-B review fixed part of it - re-check): an open hinged door must not block most of a room from the doorway cell.
 - timeline.perceivable / person_enters / person_leaves must be light-, imaging- and geometric-camera-aware in realistic perception (C-MERGE request; check whether the stage-C fix already did it, finish it if not).
 - The SearchAgent in geometric mode on test_kernel's cup-in-a-cabinet houses and seed 7 realistic (CAM-RENDER/B3-MERGE not_done).
-- Visitor recognition and mirrors only if cheap (camera phase 4 optional) - otherwise document as deferred in docs/KNOWN_LIMITS.md.`
+- Visitor recognition and mirrors only if cheap (camera phase 4 optional) - otherwise document as deferred in docs/KNOWN_LIMITS.md.
+- RESUMED RUN: your previous run was interrupted (the session ended). Partial edits you made may already be in the tree in your files (kernel/sight.py, camera.py, perception.py, realism.py, timeline.py and their tests). Review them first (git diff -- those files): keep what is correct, finish what is half done, do not redo finished work. All 16 domains and K-EVAL have finished; read their handoffs/notes.`
 const K_EVAL = `- audit.verify(gen=) so \`python -m house_sim --verify --gen 2\` works (TIME-EVAL request 3).
 - Viewer: read the episode's monitor record for milestones and show phase_done history entries (TIME-EVAL request 4); dataset export of multi-phase episodes (request 7).
 - verify.py: run dialogue.lint_facts / lint_reference / lint_plan for schema-3 specs and add reports.perceivability_gaps to the realistic perceivability check (PEOPLE-IO request 2); predicates._report_world bounds the legacy reports store or passes after/before_s through to reports.match (request 3); engine.known_map() becomes a view of env.mind.map (request 4; navigation_robot adopts it concurrently - keep env._known_map working as a compatibility alias until it does).
 - Compact replays: replays are about 3 MB per episode (demo replays total 226 MB, so demos/replays/ is git-ignored). Design and implement a compact replay format (e.g. initial config + seed + command log + periodic state digests, with full states reconstructed by deterministic re-simulation; or gzip), keep loading old replays, update the viewer/leaderboard/dataset consumers and docs; target well under 200 KB per typical episode. Then decide whether demos/replays can be committed again (if yes, remove the .gitignore entry and restore "demos/replays/T-x.json" to the not-ignored list in tests/test_eval_splits.py).
 - tools/body_audit.py takes hands from forces.lift_plan and capacity from body.capacity_kg(..., believed=) and reports overload refusals, drops and energy per task (STAGE-B-FIX B9).
 - Gate tool fixes (C1 requests): spec chunks written without sort_keys; G9 passes --out to physics_audit (nothing written to %TEMP%/house_ai_tier1); isolated copies create tasks/templates and house_sim/data/actions; add coverage.csv, tasks/specs.jsonl, tasks/id_to_family.jsonl to the B-CLOSE/C-CLOSE file lists; add an ADOPT:<domain> package family if missing.
+- Gate tool (adoption-round findings): compare must restrict the previous gate to the current record's --spec-files; record --shared-tree must attribute concurrently running ADOPT:<domain> packages; accept --shared-tree on compare or document the supported form in the gate handoff.
 - tools/orchestration/regen_leaderboard.sh: fix the \`cd %PROJECT%\` line so it runs from the project root wherever it lives.
 - Prototype-era reports (reports/unit_tests.txt, unit_test_summary.json, cli_checks.json, package_checks.json, package_build.txt, compilation_summary.json, from 2026-10-07): delete them if nothing current reads them (grep), or regenerate them from current tools; keep reports/verification.jsonl and verification_run.json current.`
 

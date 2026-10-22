@@ -369,6 +369,99 @@ class PersistenceTests(unittest.TestCase):
         self.assertTrue(env.evaluate()["success"])
 
 
+class KnownMapTests(unittest.TestCase):
+    """PEOPLE-IO request 4 (adoption round, K-EVAL): env.known_map() is a view of env.mind.map (TIER1_SWEEP 7.1) and
+    env._known_map a read-only compatibility view of it, kept until no code reads it."""
+
+    def test_known_map_is_the_minds_map_whether_or_not_the_agent_observes(self):
+        for observe in (True, False):
+            env = play(make(observe=observe))
+            self.assertEqual(env.known_map(), {rid: env.mind.map[rid] for rid in sorted(env.mind.map)})
+            self.assertEqual(sorted(env.known_map()), ["hall", "lab"])
+            self.assertEqual(env.known_map()["hall"]["exits"], ["lab"])
+            self.assertIsNotNone(env.known_map()["hall"]["seen_s"])
+            copy_ = env.known_map()
+            copy_["lab"]["exits"].append("nowhere")
+            self.assertNotIn("nowhere", env.mind.map["lab"]["exits"])          # a copy, never the live table
+
+    def test_prior_knowledge_rooms_are_on_the_map_before_any_visit(self):
+        cfg = config()
+        apply_setup(cfg, [{"op": "prior_knowledge", "map": "all"}], default_registry(), 4,
+                    {"catalog_id": "test", "setup": []})
+        env = make(cfg=cfg)
+        self.assertEqual(sorted(env.known_map()), ["hall", "lab"])
+        self.assertIn("hall", env._known_map)
+        self.assertEqual(env._known_map["hall"]["exits"], ["lab"])
+
+    def test_the_compatibility_alias_reads_the_mind_and_ignores_writes(self):
+        env = make(observe=False)
+        alias = env._known_map
+        self.assertEqual(list(alias), ["lab"])                           # the current room, observed or not
+        self.assertEqual(set(alias["lab"]), {"exits", "connections", "label", "type", "seen_s"})
+        alias["hall"] = {"exits": ["lab"]}                                 # perception's old observation-time write
+        del alias["lab"]
+        self.assertEqual(list(env._known_map), ["lab"])
+        self.assertNotIn("hall", env.mind.map)
+        env.step("move", "hall")
+        self.assertEqual(sorted(env._known_map), ["hall", "lab"])
+        self.assertEqual(copy.deepcopy(env._known_map), {rid: env._known_map[rid] for rid in ("hall", "lab")})
+        self.assertIsInstance(copy.deepcopy(env._known_map), dict)
+        env._known_map = {"elsewhere": {}}                                 # reset / load assign the old slot
+        self.assertNotIn("elsewhere", env._known_map)
+        alias = env._known_map
+        alias.clear()                                                      # no loop, nothing removed
+        alias.update({"x": {}})
+        self.assertEqual(alias.setdefault("x", 1), 1)
+        self.assertEqual(alias.pop("x", None), None)
+        self.assertEqual(alias.pop("hall")["exits"], ["lab"])
+        with self.assertRaises(KeyError):
+            alias.popitem()
+        self.assertEqual(sorted(env._known_map), ["hall", "lab"])
+
+    def test_the_alias_keeps_navigation_and_report_readers_working(self):
+        """The two readers of the old table: navigation_robot's known_rooms (keys and exits) and reports'
+        known-subject rule (keys) see the Mind's rooms through the alias."""
+        env = play(make(observe=False))
+        table = getattr(env, "_known_map", None) or {}
+        known = set()
+        for rid, entry in table.items():
+            known.add(rid)
+            known.update((entry or {}).get("exits") or [])
+        self.assertEqual(known, {"hall", "lab"})
+        self.assertTrue("hall" in getattr(env, "_known_map", {}))
+
+    def test_realistic_known_map_shows_only_issued_handles(self):
+        cfg = config()
+        cfg["entities"]["door_1"] = {"type": "door", "location": "lab", "pos": [COLS - 1, 4]}
+        cfg["connections"] = {"conn_hall__lab": {"rooms": ["hall", "lab"], "door": "door_1", "kind": "doorway"}}
+        env = make("realistic", cfg=cfg)
+        doors = [c.get("door") for e in env.known_map().values() for c in e.get("connections") or []]
+        self.assertTrue(doors)
+        for door in doors:
+            self.assertNotIn(door, env.world.s["entities"])                # never a true id
+            self.assertTrue(door is None or door == "something" or door.startswith("obj_"), door)
+        self.assertEqual(env.mind.map["lab"]["connections"][0]["door"], "door_1")     # the Mind keeps true ids
+
+    def test_save_and_load_keep_the_map_and_seed_it_from_an_old_state(self):
+        env = play(make(observe=False))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            env.save(path)
+            payload = json.loads(path.read_text(encoding="utf-8"))["payload"]
+            self.assertEqual(sorted(payload["known_map"]), ["hall", "lab"])
+            loaded = HouseEnv.load(path)
+            self.assertEqual(loaded.known_map(), env.known_map())
+            # a state saved before the Mind existed (no "mind" in the payload): its known map seeds the Mind
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+            envelope["payload"].pop("mind")
+            from house_sim.kernel.predicates import digest
+            envelope["sha256"] = digest(envelope["payload"])
+            path.write_text(json.dumps(envelope), encoding="utf-8")
+            old = HouseEnv.load(path)
+        self.assertEqual(sorted(old.known_map()), ["hall", "lab"])
+        self.assertEqual(old.known_map()["hall"]["exits"], ["lab"])
+
+
 class BudgetTests(unittest.TestCase):
     def test_update_budget_on_a_generated_house(self):
         env = HouseEnv(generate_house(1), seed=1, trace=False)

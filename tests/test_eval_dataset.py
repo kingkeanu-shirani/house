@@ -5,6 +5,7 @@ components edit the simulator. Every test runs with a temporary HOME/USERPROFILE
 so the user's real ~/.house_ai is never read; exports go to temporary directories only.
 """
 import contextlib
+import copy
 import hashlib
 import io
 import json
@@ -736,6 +737,72 @@ class ExportRoundTripTests(unittest.TestCase):
         kept, dropped = dataset._cap(recs, 2)
         self.assertEqual(([r["n"] for r in kept], dropped), ([0, 3], 2))
         self.assertEqual(dataset._cap(recs, None), (recs, 0))
+
+
+SAY = {"path": "facts.last_speech.text", "op": "eq"}
+TWO_PHASES = {
+    "catalog_id": "T-dataset-phases-01", "title": "two requests", "risk_level": 0, "fidelity": "S",
+    "house": {"residents": "minimal", "pets": "none"},
+    "phases": [
+        {"id": "p1", "request": {"from": "resident_1", "channel": "app", "phrasings": ["Say one."]},
+         "success": [dict(SAY, value="one")], "budget": {"steps": 20, "time_s": 900}},
+        {"id": "p2", "start": {"after": "p1", "gap_s": 600},
+         "request": {"from": "resident_1", "channel": "app", "phrasings": ["Say two."]},
+         "success": [dict(SAY, value="two")], "budget": {"steps": 20, "time_s": 900}}],
+    "reference": [{"do": "announce", "text": "one"}, {"phase_done": True}, {"do": "announce", "text": "two"},
+                  {"phase_done": True}],
+    "wrong": [{"name": "says one twice", "plan": [{"do": "announce", "text": "one"}, {"phase_done": True},
+                                                  {"do": "announce", "text": "one"}, {"phase_done": True}]},
+              {"name": "stops after the first request", "plan": [{"do": "announce", "text": "one"}]}]}
+
+
+class MultiPhaseTests(unittest.TestCase):
+    """TIME-EVAL request 7: a multi-phase episode is exported in the harness's protocol -- each phase ends with the
+    agent's done, a turn whose result carries "phase" -- and validates."""
+
+    @classmethod
+    def setUpClass(cls):
+        record = {"catalog_id": TWO_PHASES["catalog_id"], "spec": copy.deepcopy(TWO_PHASES), "section": "Test",
+                  "kind": "task", "domain": "core", "family": None, "title": TWO_PHASES["title"], "risk_level": 0,
+                  "fidelity": "S"}
+        cls.job = {"record": record, "seed": 0, "split": "train", "seed_tag": "train:0", "obs": "compact",
+                   "formats": list(dataset.FORMATS), "spec_hash": "0" * 64, "fingerprint": "1" * 64,
+                   "harness_fingerprint": "2" * 64, "perception_fingerprint": "3" * 64}
+        cls.out = dataset._run_job(cls.job)
+
+    def test_phase_ends_are_done_turns_carrying_the_phase(self):
+        self.assertTrue(self.out["exported"], self.out["skipped"])
+        sft = self.out["records"]["sft"][0]
+        actions = [t["action"]["action"] for t in sft["turns"]]
+        self.assertEqual(actions, ["announce", "done", "announce", "done"])     # no extra done after the last phase
+        ends = [t["result"]["phase"] for t in sft["turns"] if t["action"]["action"] == "done"]
+        self.assertEqual(ends, [{"ended": "p1", "active": "p2", "waiting": False},
+                                {"ended": "p2", "active": None, "waiting": False}])
+        self.assertEqual(sft["meta"]["phases"], ["p1", "p2"])
+        self.assertEqual([p["id"] for p in sft["outcome"]["phases"]], ["p1", "p2"])
+        self.assertTrue(all(p["success"] for p in sft["outcome"]["phases"]))
+        # the observation after the first phase end carries the second phase's instruction
+        self.assertNotEqual(sft["turns"][2]["observation"].get("request"), sft["turns"][0]["observation"].get("request"))
+        for fmt in dataset.FORMATS:
+            for rec in self.out["records"][fmt]:
+                self.assertEqual(dataset._schema_problems(rec, fmt), [], (fmt, rec.get("meta")))
+
+    def test_wrong_plans_and_their_pairs(self):
+        critiques = {c["reasons"]["wrong_plan"]: c for c in self.out["records"]["critique"]}
+        self.assertEqual(sorted(critiques), ["says one twice", "stops after the first request"])
+        self.assertIn("p2:0", critiques["says one twice"]["reasons"]["unmet_success"])
+        steps = self.out["records"]["pairs_step"]
+        self.assertEqual([p["reason"]["wrong_plan"] for p in steps], ["says one twice"])
+        self.assertEqual(steps[0]["reason"]["divergence_step"], 2)
+        # the plan that stops where the reference ends a phase gives no step pair (the same done command)
+        self.assertTrue(any("ends a phase" in s["reason"] for s in self.out["skipped"]), self.out["skipped"])
+
+    def test_the_validator_accepts_phase_ends_and_refuses_other_early_dones(self):
+        sft = copy.deepcopy(self.out["records"]["sft"][0])
+        self.assertEqual(dataset._schema_problems(sft, "sft"), [])
+        sft["turns"][1]["result"].pop("phase")
+        problems = dataset._schema_problems(sft, "sft")
+        self.assertTrue(any("done is only allowed as the last turn" in p for p in problems), problems)
 
 
 class SampleTests(unittest.TestCase):

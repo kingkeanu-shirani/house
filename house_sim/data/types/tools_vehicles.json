@@ -105,6 +105,11 @@
    "candidates": [
     "3/16 in flathead screwdriver",
     "1/4 in flathead screwdriver"
+   ],
+   "size_m": [
+    0.24,
+    0.035,
+    0.035
    ]
   },
   "star_tip_screwdriver": {
@@ -160,6 +165,11 @@
     "7/16 in combination wrench",
     "1/2 in combination wrench",
     "9/16 in combination wrench"
+   ],
+   "size_m": [
+    0.18,
+    0.03,
+    0.008
    ]
   },
   "chrome_socket": {
@@ -1219,6 +1229,10 @@
      "drop_tolerance_m",
      "opens"
     ]
+   },
+   "view": {
+    "opening": "top",
+    "doc": "The case's lid opens upward over the socket rows."
    }
   },
   "pliers": {
@@ -1822,9 +1836,11 @@
      0.5,
      0.04
     ],
-    "volume_l": 1.5
+    "volume_l": 1.5,
+    "lever_m": 0.25,
+    "lever_hands": 2
    },
-   "doc": "Cross lug wrench (17/19/21 mm, 13/16 in)."
+   "doc": "Cross lug wrench (17/19/21 mm, 13/16 in). A 4-way cross wrench (0.5 m across, 0.25 m arms) turned with both hands: one pushes an arm down, the other pulls the opposite arm up (common.body_torque_nm)."
   },
   "bike_tire_levers": {
    "is_a": "hand_tool",
@@ -2328,7 +2344,7 @@
     "material": "steel",
     "part_type": "jigsaw_blade",
     "blade": true,
-    "mass_kg": 0.01,
+    "mass_kg": 0.006,
     "size_m": [
      0.1,
      0.008,
@@ -2457,6 +2473,10 @@
      "drop_tolerance_m",
      "opens"
     ]
+   },
+   "view": {
+    "opening": "top",
+    "doc": "A toolbox opens at the top (lid and tray); what lies inside shows only with the lid up and the eye above the rim."
    }
   },
   "pegboard": {
@@ -2740,6 +2760,12 @@
      "drop_tolerance_m",
      "opens"
     ]
+   },
+   "view": {
+    "text_m": {
+     "label_text": 0.005
+    },
+    "doc": "A printed drawer-front label about 5 mm high."
    }
   },
   "parts_tray": {
@@ -2974,11 +3000,10 @@
    "doc": "Base for wall-hanging hardware.",
    "perception": {
     "read": [
-     "rated_kg",
      "max_service_temp_c",
      "cure_s",
-     "waterproof",
-     "removable"
+     "removable",
+     "load_rating_text"
     ],
     "hidden": [
      "sorted_ok",
@@ -3022,8 +3047,18 @@
      "crush_kg",
      "drop_tolerance_m",
      "opens",
-     "mount"
+     "mount",
+     "anchor"
     ]
+   },
+   "view": {
+    "text_m": {
+     "load_rating_text": 0.003,
+     "max_service_temp_c": 0.002,
+     "cure_s": 0.002,
+     "removable": 0.003
+    },
+    "doc": "Blister-card print: the rating line about 3 mm, the use notes 2 mm."
    }
   },
   "adhesive_hook_small": {
@@ -3036,7 +3071,8 @@
     "waterproof": false,
     "hang_slots": 1,
     "mass_kg": 0.005,
-    "accepts_items": true
+    "accepts_items": true,
+    "load_rating_text": "Holds up to 0.5 lb (0.23 kg). Removable: pull the tab straight down."
    },
    "doc": "small removable adhesive hook (0.5 lb)"
   },
@@ -3050,7 +3086,8 @@
     "waterproof": false,
     "hang_slots": 1,
     "mass_kg": 0.01,
-    "accepts_items": true
+    "accepts_items": true,
+    "load_rating_text": "Holds up to 3 lb (1.36 kg). Removable: pull the tab straight down."
    },
    "doc": "medium removable adhesive hook (3 lb)"
   },
@@ -3064,7 +3101,8 @@
     "waterproof": false,
     "hang_slots": 1,
     "mass_kg": 0.02,
-    "accepts_items": true
+    "accepts_items": true,
+    "load_rating_text": "Holds up to 5 lb (2.27 kg). Removable: pull the tab straight down."
    },
    "doc": "large removable adhesive hook (5 lb)"
   },
@@ -3078,7 +3116,8 @@
     "waterproof": true,
     "hang_slots": 1,
     "mass_kg": 0.012,
-    "accepts_items": true
+    "accepts_items": true,
+    "load_rating_text": "Water-resistant strips. Holds up to 3 lb (1.36 kg). Removable: pull the tab straight down."
    },
    "doc": "water-resistant adhesive hook (3 lb)"
   },
@@ -3092,7 +3131,8 @@
     "waterproof": false,
     "hang_slots": 1,
     "mass_kg": 0.01,
-    "accepts_items": true
+    "accepts_items": true,
+    "load_rating_text": "4 pairs hold up to 16 lb (7.26 kg). Removable: pull the tab straight down."
    },
    "doc": "picture-hanging strips, 4 pairs (16 lb)"
   },
@@ -3106,7 +3146,8 @@
     "waterproof": false,
     "hang_slots": 0,
     "mass_kg": 0.002,
-    "accepts_items": false
+    "accepts_items": false,
+    "load_rating_text": "For cords up to 0.2 lb (0.1 kg)."
    },
    "doc": "adhesive cord clip"
   },
@@ -3120,7 +3161,8 @@
     "waterproof": false,
     "hang_slots": 1,
     "mass_kg": 0.015,
-    "accepts_items": true
+    "accepts_items": true,
+    "load_rating_text": "Holds up to 3 lb (1.36 kg). Removable: pull the tab straight down."
    },
    "doc": "adhesive towel hook (accessory)"
   },
@@ -3134,7 +3176,8 @@
     "waterproof": false,
     "hang_slots": 0,
     "mass_kg": 0.12,
-    "accepts_items": false
+    "accepts_items": false,
+    "load_rating_text": "Mounting pad holds the 0.2 kg light."
    },
    "doc": "adhesive under-cabinet LED light"
   },
@@ -3150,7 +3193,8 @@
     "accepts_items": true,
     "needs_hammer": true,
     "makes_hole_mm": 2.0,
-    "material": "steel"
+    "material": "steel",
+    "load_rating_text": "Holds up to 30 lb (13.6 kg) in drywall or plaster. Use a hammer."
    },
    "doc": "Nail-in picture hook rated 30 lb; leaves a nail hole."
   },
@@ -3205,13 +3249,14 @@
      "plaster": 6.8,
      "masonry": 0.0
     },
-    "needs_hole_mm": 6.0
+    "needs_hole_mm": 6.0,
+    "load_rating_text": "Rated 10 lb (4.5 kg) in 1/2 in drywall, 15 lb (6.8 kg) in plaster. Drill a 6 mm (1/4 in) hole."
    },
    "doc": "Drywall anchor; rating depends on wall material.",
    "perception": {
     "read": [
-     "rated_kg",
-     "needs_hole_mm"
+     "needs_hole_mm",
+     "load_rating_text"
     ],
     "hidden": [
      "sorted_ok",
@@ -3255,8 +3300,16 @@
      "crush_kg",
      "drop_tolerance_m",
      "opens",
-     "mount"
+     "mount",
+     "anchor"
     ]
+   },
+   "view": {
+    "text_m": {
+     "load_rating_text": 0.003,
+     "needs_hole_mm": 0.003
+    },
+    "doc": "Anchor-pack print about 3 mm."
    }
   },
   "wall_anchor_toggle": {
@@ -3270,7 +3323,8 @@
      "masonry": 0.0
     },
     "needs_hole_mm": 12.7,
-    "material": "steel"
+    "material": "steel",
+    "load_rating_text": "Rated 80 lb (36 kg) in 1/2 in drywall or plaster. Drill a 1/2 in (12.7 mm) hole."
    },
    "doc": "Snap toggle anchor for 1/2 in drywall."
   },
@@ -3284,7 +3338,8 @@
      "plaster": 0.0,
      "masonry": 45.0
     },
-    "needs_hole_mm": 6.0
+    "needs_hole_mm": 6.0,
+    "load_rating_text": "Rated 100 lb (45 kg) in concrete or brick. Drill a 6 mm (1/4 in) masonry hole."
    },
    "doc": "Masonry sleeve anchor."
   },
@@ -3708,6 +3763,24 @@
      "drop_tolerance_m",
      "opens"
     ]
+   },
+   "view": {
+    "text_m": {
+     "product": 0.008,
+     "label_text": 0.004,
+     "paint_color": 0.005,
+     "sheen": 0.005,
+     "primer": 0.006,
+     "toxic_to_pets": 0.003,
+     "wax_safe": 0.003,
+     "wheel_acid": 0.003,
+     "cure_s": 0.002,
+     "recoat_s": 0.002,
+     "coverage_m2_per_l": 0.002,
+     "min_c": 0.002,
+     "max_c": 0.002
+    },
+    "doc": "Can and bottle print: the product name about 8 mm, color names and directions 4-5 mm, the fine print (cure and recoat times, coverage, temperatures) 2 mm."
    }
   },
   "lubricant": {
@@ -3923,7 +3996,14 @@
     "label": "car wash soap",
     "product": "car_shampoo",
     "wax_safe": true,
-    "label_text": "Car wash. Two-bucket method. Wash in shade; do not let dry on paint."
+    "label_text": "Car wash. Two-bucket method. Wash in shade; do not let dry on paint.",
+    "mass_kg": 0.55,
+    "size_m": [
+     0.08,
+     0.05,
+     0.22
+    ],
+    "volume_l": 0.5
    },
    "doc": "pH-neutral car wash soap (wax-safe)."
   },
@@ -3936,7 +4016,14 @@
     "hazards": [
      "corrosive"
     ],
-    "label_text": "Acid-based wheel cleaner. Not for polished, anodized, painted or clear-coated wheels. Use on cool wheels only."
+    "label_text": "Acid-based wheel cleaner. Not for polished, anodized, painted or clear-coated wheels. Use on cool wheels only.",
+    "mass_kg": 0.8,
+    "size_m": [
+     0.1,
+     0.07,
+     0.28
+    ],
+    "volume_l": 0.75
    },
    "doc": "Acid wheel cleaner (bare/chromed steel only; etches polished or coated alloys)."
   },
@@ -3946,7 +4033,14 @@
     "label": "pH-neutral wheel cleaner",
     "product": "wheel_cleaner_neutral",
     "wheel_acid": false,
-    "label_text": "pH-neutral wheel cleaner. Safe for all wheel finishes. Spray on cool wheels."
+    "label_text": "pH-neutral wheel cleaner. Safe for all wheel finishes. Spray on cool wheels.",
+    "mass_kg": 0.8,
+    "size_m": [
+     0.1,
+     0.07,
+     0.28
+    ],
+    "volume_l": 0.75
    },
    "doc": "pH-neutral wheel cleaner, safe on all finishes when cool."
   },
@@ -3955,7 +4049,14 @@
    "props": {
     "label": "chain degreaser",
     "product": "bike_degreaser",
-    "label_text": "Chain degreaser. Rinse. Keep away from disc brakes."
+    "label_text": "Chain degreaser. Rinse. Keep away from disc brakes.",
+    "mass_kg": 0.5,
+    "size_m": [
+     0.07,
+     0.07,
+     0.21
+    ],
+    "volume_l": 0.47
    },
    "doc": "Citrus chain degreaser. Keep off disc brake rotors and pads."
   },
@@ -4168,6 +4269,14 @@
      "drop_tolerance_m",
      "opens"
     ]
+   },
+   "view": {
+    "text_m": {
+     "filter_model": 0.003,
+     "flush_l": 0.002,
+     "capacity_l_rated": 0.002
+    },
+    "doc": "The model number is about 3 mm on the cartridge's label band; flush and capacity notes 2 mm."
    }
   },
   "water_filter_cartridge_alt": {
@@ -4878,6 +4987,10 @@
      "brakes",
      "bearings"
     ]
+   },
+   "view": {
+    "porosity": 0.7,
+    "doc": "A bike is a thin frame, wheels and spokes: about 70 % of the view passes through it."
    }
   },
   "kids_bicycle": {
@@ -5267,6 +5380,17 @@
      "fixed_temperature",
      "cabin_temp_fixed"
     ]
+   },
+   "view": {
+    "porosity": 0.25,
+    "clear_below_m": 0.15,
+    "glossy": true,
+    "text_m": {
+     "plate": 0.07,
+     "soc": 0.008,
+     "soc_target": 0.004
+    },
+    "doc": "A car body is opaque below the beltline and glass above it: about a quarter of the view passes through a parked car (cabin glass between pillars, not the 0.9 of an all-glass box); 15 cm of ground clearance under the sills; glossy paint and glass mirror lamps and the sun; plate characters 70 mm, the dashboard's charge 8 mm."
    }
   },
   "suv": {
@@ -5358,6 +5482,11 @@
      "drop_tolerance_m",
      "opens"
     ]
+   },
+   "view": {
+    "opening": "top",
+    "interior_light": true,
+    "doc": "An open trunk or hatch is looked into from behind and above the load floor; the cargo lamp lights it when the lid is up."
    }
   },
   "car_footwell": {

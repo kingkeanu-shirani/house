@@ -25,8 +25,8 @@ docs/EVAL_CONTRACTS.md section E, plus the two keyword options).
 
 | source | how frames are obtained |
 |---|---|
-| env replay `HouseEnv.save_replay(path)` (`house-replay-v2`, oracle or realistic) | re-run from the replay's start state, command by command (as `HouseEnv.replay` does); diffs from the recorded per-step changes when the replay was traced, else from the re-run's trace |
-| harness command log `results/<run_id>/logs/<catalog_id>__<seed_tag>.json` (`house-harness-log-v1`) | if the log names its saved replay (`"replay"`), that replay is re-run; otherwise the episode is rebuilt with `tasks.runner.build(spec, seed)` from the authored spec and every command the harness **sent** is re-issued. `done` declarations, discarded commands and simulator errors are not environment steps |
+| env replay `HouseEnv.save_replay(path)` (the compact `house-replay-v3`, or a `house-replay-v2` file from before it; kernel/replays.py; oracle or realistic) | re-run from the replay's start state, command by command (as `HouseEnv.replay` does; a multi-phase episode's `phase_done` records call `env.phase_done()`); diffs from the recorded per-step changes when the replay kept them (`keep_changes=True`, v2 files), else from the re-run's trace |
+| harness command log `results/<run_id>/logs/<catalog_id>__<seed_tag>.json` (`house-harness-log-v1`) | if the log names its saved replay (`"replay"`), that replay is re-run; otherwise the episode is rebuilt with `tasks.runner.build(spec, seed)` from the authored spec and every command the harness **sent** is re-issued. `done` declarations, discarded commands and simulator errors are not environment steps; a `done` that ended a phase of a multi-phase episode (`"phase_done": true`) is re-run as `env.phase_done()` and listed as a `phase_done` step (ended phase -> next phase) |
 | an episodes.jsonl record | `path/episodes.jsonl` (exactly one record), `path/episodes.jsonl#INDEX` (0-based), `path/episodes.jsonl#CATALOG_ID` or `#CATALOG_ID__SEED_TAG`, a record dict, or inline JSON text; its `"log"` path is resolved next to the episodes file |
 
 A bare log file finds its record in `../episodes.jsonl` (agent, success, done flag). Harness logs carry the raw seed
@@ -45,8 +45,11 @@ Every source is re-run in the current simulator, deterministically (realistic ha
 environment observes after every step as the harness does). Each step's `ok` (and the recorded state hash, when the
 replay was traced) is compared with the recording:
 
-* a traced replay that diverges continues from its **recorded changes** (the true state stays exactly what
-  happened); the perceived view and live evaluation stop at that step and the page says so;
+* a replay with recorded changes that diverges continues from them (the true state stays exactly what
+  happened); the perceived view and live evaluation stop at that step and the page says so; the evaluations of
+  those steps take the milestones from the recording's monitor record (the final evaluation's `milestones`, each
+  with the step it was reached at: also milestones reached inside waits and the extended forms `{"pred", "count"}`,
+  `{"pred", "held_for_s"}` and a phase's `<phase>/<name>`, which a predicate check on the state cannot reproduce);
 * an untraced replay or a log that diverges keeps re-running, the first divergence is listed in the warnings and
   every mismatching step is flagged in the step list;
 * a replay the current code cannot even load falls back to recorded changes (if traced) or is refused.
@@ -87,17 +90,21 @@ logged commands that never reached the environment, and true ids masked out of p
   separately, the latent ones; in the perceived view only what `obs.robot` reported (`power_state`, `battery_state`,
   the kinds in `faults`).
 * **Timeline**: scrubber, first / previous / play-pause / next / last, speed 0.25x to 8x; keys Left/Right,
-  Home/End, Space. In the oracle view a strip under the scrubber marks the steps with physics consequences (amber)
-  and robot body events (red); hover a tick for the events, click it to jump there.
+  Home/End, Space. In the oracle view a strip under the scrubber marks the steps with physics consequences (amber),
+  robot body events (red) and only time events -- notices, standing orders, phase boundaries (blue); hover a tick for
+  the events, click it to jump there.
 * **Step list**: step number, action, target/destination and parameters, ok or the refusal category, the message,
   sim time. Refused steps are highlighted, diverged steps marked; click a row to jump there. In the oracle view each
   step also lists its markers from the event log: every physics consequence (`phys.*` event kinds: fall, break, chip,
   crush, collapse, pullout, tear, tip, slide, roll, spill, overflow, scorch, ring, melt, shock, burst, blown, scratch,
   dent, budget; with the thing and whether the robot or something else caused it) and the body events `power_down`,
   `power_up`, `robot_fell`, `overload`, `fault_onset`, `fault_detected`, `fault_logged`, `fault_cleared`,
-  `battery_low` and `battery_reserve` (at most 12 per step, then "+N").
+  `battery_low` and `battery_reserve`, then (blue, kernel v3.1) the phase events `phase_start`, `phase_end`,
+  `phase_relocate`, the `standing_order_fired` orders and the notices the robot perceived in the step (`notice`:
+  kind and text) -- at most 12 per step, then "+N". A phase end counts no step, so its row lists only the events that
+  came with it (the phase's end and the next one's start), never the previous action's again.
 * **Evaluation at this step**: success / in progress / not successful, goal fraction, score, failures, milestones
-  (reached ones with step and sim time, pending ones greyed), harm flags, safety/privacy/social/authority blocks,
+  (reached ones with step and sim time from the episode's temporal monitor, pending ones greyed), harm flags, safety/privacy/social/authority blocks,
   invalid steps, questions, budget; the success criteria in the oracle view.
 * **Changes**: the state diff of the step (oracle view: the step's event markers first, then the recorded changes,
   most relevant first; bookkeeping such as action logs, the event log, battery and the body's energy counters, pack
@@ -160,13 +167,15 @@ restores every character.
 ```
 meta     {title, catalog_id, instruction, perception, camera, view, views, source_kind, source, split, seed_tag, seed?,
           agent, privileged, private, steps, step_budget, time_budget_s, risk_level, fidelity, variant,
-          milestones: [names], success_rules?, warnings: [...], done_declared, end_reason, spec_status, diverged_at?,
+          milestones: [names: the task's, then each phase's as <phase>/<name>], phases?: [ids], success_rules?,
+          warnings: [...], done_declared, end_reason, spec_status, diverged_at?,
           physics_version?, physics_recorded?}
 layout   {rooms: {rid: {l, ty, f, o, cols, rows, w, h}},
           floors: [{f, name, W, H, rooms: [[rid, x, y, w, h], ...]}],      # meters
           links: [{id, a, ax, ay, b, bx?, by?, k}],                        # doorway cells in rooms a and b
           stubs?: [rid, ...]}                                              # perceived-only pages (see above)
-steps    [{a, tg?, de?, pa?, ok, ca?, m?, am?, ts?, wl?, dv?}]            # N steps
+steps    [{a, tg?, de?, pa?, ok, ca?, m?, am?, ts?, wl?, dv?}]            # N steps (a phase end: a "phase_done",
+                                                                     #   tg the ended phase, de the next one)
 frames   N+1 oracle frames, delta-encoded                                  # "both"/"oracle"
 pframes  N+1 perceived frames, delta-encoded                               # realistic, "both"/"perceived"
 evals    N+1 evaluations, delta-encoded {s, g, sc, f, bx, m: {name: [step, t]}, hf, bl, iv, q, rs?} or {na}
@@ -224,7 +233,8 @@ and reported as a perception leak in the warnings.
 
 ## Size
 
-A 300-step realistic episode with both views is about 0.8 MB (the replay it came from is about 17 MB when traced):
+A 300-step realistic episode with both views is about 0.8 MB (the content of the replay it came from is about 17 MB
+when traced; the compact replay file about 92 KB, 470 KB with its recorded changes):
 frames are deltas with short keys, temperatures are rounded, diffs are ranked and capped, messages truncated to 600
 characters and channels to 240. The test suite checks a 300-step episode stays under 3 MB.
 

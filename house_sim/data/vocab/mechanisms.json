@@ -1,0 +1,25 @@
+{
+ "about": "mechanisms' report words (docs/domains/mechanisms.md 17): closures, locks and coverings, with the evidence a robot perceives for each. latched / unlatched and sealed / unsealed live in core.json.",
+ "issues": {
+  "latch_misaligned": {"class": "condition", "synonyms": ["sagging_gate", "sag", "misaligned_latch", "latch_not_catching", "gate_sags"], "evidence": [{"field": "latched"}, {"field": "mechanism"}]},
+  "broken_latch": {"class": "condition", "synonyms": ["latch_broken", "bent_latch_bar", "missing_keeper_screw", "latch_will_not_catch"], "evidence": [{"field": "latched"}, {"field": "mechanism"}]},
+  "strike_misaligned": {"class": "condition", "synonyms": ["strike_offset", "bolt_hits_strike", "misaligned_strike", "deadbolt_will_not_throw"], "evidence": [{"field": "locked"}, {"field": "mechanism"}]},
+  "lock_jammed": {"class": "condition", "synonyms": ["smart_lock_jammed", "cylinder_jammed", "motor_jammed", "key_will_not_turn"], "evidence": [{"field": "display"}, {"field": "locked"}]},
+  "sticking": {"class": "condition", "synonyms": ["sticks", "drags", "binds", "hard_to_open", "catching"], "evidence": [{"field": "mechanism"}]},
+  "off_track": {"class": "condition", "synonyms": ["derailed", "roller_off_track", "off_its_track", "off_the_slides"], "evidence": [{"field": "mechanism"}, {"field": "off_slides"}]},
+  "rod_down": {"class": "condition", "synonyms": ["curtain_rod_down", "rod_pulled_out", "curtain_fell"], "evidence": [{"field": "mechanism"}]},
+  "cross_threaded": {"class": "condition", "synonyms": ["lid_on_crooked", "crooked_lid"], "evidence": [{"field": "mechanism"}, {"field": "sealed"}]},
+  "sensor_misaligned": {"class": "function", "synonyms": ["photo_eye_misaligned", "safety_sensor_blinking", "eye_blinking"], "evidence": [{"field": "display"}]},
+  "unlatched": {"class": "safety", "synonyms": ["gate_not_latched", "latch_open", "left_unlatched"], "evidence": [{"field": "latched"}]},
+  "propped": {"class": "safety", "synonyms": ["wedged_open", "held_open", "fire_door_propped"], "evidence": [{"field": "propped"}, {"field": "mechanism"}]},
+  "cord_hazard": {"class": "safety", "synonyms": ["dangling_cord", "blind_cord_loop", "cord_within_reach", "loose_cord"], "evidence": [{"field": "mechanism"}]},
+  "child_lock_off": {"class": "safety", "synonyms": ["child_lock_disengaged", "childproof_lock_off", "child_lock_left_off"], "evidence": [{"field": "child_lock"}]},
+  "gas_unlit": {"class": "safety", "synonyms": ["gas_on_unlit", "burner_unlit", "unlit_burner"], "evidence": [{"field": "mechanism"}]}
+ },
+ "states": {
+  "raised": {"synonyms": ["blind_up", "pulled_up"], "evidence": [{"field": "mechanism"}], "opposite": "lowered"},
+  "lowered": {"synonyms": ["blind_down", "let_down_blind"], "evidence": [{"field": "mechanism"}], "opposite": "raised"},
+  "child_locked": {"synonyms": ["child_lock_on", "childproofed"], "evidence": [{"field": "child_lock"}], "opposite": "child_unlocked"},
+  "child_unlocked": {"synonyms": ["child_lock_released"], "evidence": [{"field": "child_lock"}], "opposite": "child_locked"}
+ }
+}

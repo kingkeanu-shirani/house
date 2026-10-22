@@ -602,7 +602,7 @@ def _pick_up_waste_on_walk(ctx, pid):
                                                           "choices": ["start", "continue", "wait_at_curb", "cross", "leave_it", "avoid",
                                                                       "shorten_leash", "wait", "pick_up_waste", "turn_back", "finish"]},
                             "route": "?str"},
-        duration=lambda ctx: ctx.data.get("seconds", 5.0), energy=0.05, category="physical",
+        duration=lambda ctx: ctx.data.get("seconds", 5.0), category="physical", timing="speed",
         doc="Walk a leashed dog along an off-property route (household.walk_routes, default 'block'). start (on the street side of "
             "the house, leash in hand, owner approval walk_pet:<pet> unless the route is approved), then one command per situation: "
             "continue to the next segment, wait_at_curb then cross at crossings, leave_it/avoid bones and litter, shorten_leash/avoid "
@@ -615,6 +615,8 @@ def walk_pet(ctx):
     require(pid in state.get("pets", {}), "No such pet", "argument")
     pet = state["pets"][pid]
     walk = copy.deepcopy(_walk_state(state))
+    if command in WALKING_COMMANDS:
+        ctx.require_mobile()        # the robot walks the route with the dog (power, actuators, legs, a fall, its pose)
     if command == "start":
         require(not walk or walk.get("done"), "A walk is already under way", "precondition")
         C.require_pet(ctx, pid)
@@ -684,7 +686,7 @@ def walk_pet(ctx):
         if pending == "hot_pavement":
             walk["handled"] = list(walk.get("handled") or []) + ["hot_pavement"]
         walk["pending"] = None
-        return _finish(ctx, pid, walk, walked / WALK_SPEED, completed=False)
+        return _finish(ctx, pid, walk, walk_leg(ctx, walked), completed=False)
     if command == "finish":
         require(walk["seg"] >= len(segs) - 1 and not pending, "Finish the route first (or turn back)", "precondition")
         return _finish(ctx, pid, walk, 0.0, completed=True)
@@ -703,6 +705,33 @@ def walk_pet(ctx):
         walk["pending"] = None
         C.section(w)["walk"] = walk
     return _advance(ctx, pid)
+
+
+WALKING_COMMANDS = ("start", "continue", "cross", "turn_back", "finish")
+
+
+def walk_leg(ctx, meters):
+    """The robot walks `meters` of the off-property route with the dog at its own walking pace (the effective speed:
+    careful 0.4, normal 0.8, fast 1.2 m/s, never faster than WALK_SPEED; quiet mode turns fast into normal, limp mode
+    walks careful) and returns the seconds. The leg goes into the step's motion record (TIER1_INTEGRATION 1.4): the
+    route lies beyond the house's grid, so the record has no cells and the robot ends where it stands, but the body
+    pays the walking work of every metre and the physics carry law sees the trip."""
+    from ...kernel import actions, body
+    state = ctx.w.s
+    mode, note = body.effective_speed(state, None)
+    pace = min(WALK_SPEED, body.speed_mps(state, mode))
+    seconds = float(meters) / max(0.1, pace)
+    record = ctx.data.get("motion")
+    if record is None:
+        robot = state["robot"]
+        record = actions.synth_motion(state, robot.get("room"), list(robot.get("pos") or []), [], None, 0.0, mode)
+        ctx.data["motion"] = record
+        if note:
+            ctx.note(note)
+    record["meters"] = round(float(record["meters"]) + float(meters), 4)
+    record["planned_m"] = record["meters"]
+    record["seconds"] = round(float(record["seconds"]) + seconds, 3)
+    return seconds
 
 
 def _unhandled(ctx, pid, pending, seg):
@@ -755,7 +784,7 @@ def _advance(ctx, pid, start=False):
         return "End of the route; finish to head home"
     seg = segs[nxt]
     walk["seg"] = nxt
-    seconds = C.num(seg.get("length_m"), 100.0) / WALK_SPEED
+    seconds = walk_leg(ctx, C.num(seg.get("length_m"), 100.0))
     event = seg.get("event")
     temp = surface_temp(state, seg)
     notes = ["{} ({:.0f} m, {})".format(seg.get("name", "segment"), C.num(seg.get("length_m")), seg.get("surface"))]

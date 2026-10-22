@@ -13,6 +13,7 @@ Magnitudes are cited where not obvious; fidelity is P-approx (lumped rooms) unle
 """
 import datetime
 import math
+from collections.abc import Mapping
 
 from ...kernel import clock
 
@@ -420,14 +421,97 @@ def combustible_ids(w):
     return static_ids(w, "climate.combustible", lambda r: is_combustible(r) and r.get("category") not in ("floor", "wall", "window", "light", "switch"))
 
 
+# the kernel material classes (data/physics/materials.json) that a space-heater grille (70-85 C, within 0.3 m for
+# minutes) or a candle flame blown onto them sets alight: fibres, fabrics, paper and card, foams and woven cane. The
+# kernel's other combustible classes (wood, engineered wood, laminate, rigid plastic, film, rubber, leather, cork, wax,
+# electronics, food and plant matter) char, melt or only burn once something else is burning at these exposures.
+IGNITABLE_CLASSES = frozenset(("cotton", "wool", "synthetic_fabric", "coated_fabric", "paper", "cardboard",
+                               "lined_paperboard", "foam", "foam_plastic", "closed_cell_foam", "wicker"))
+
+
 def is_combustible(rec):
+    """Whether a record can catch fire from a heater grille or a blown candle flame (readily ignitable): its own
+    ``combustible`` flag, else the soft furnishing / paper categories (a bed or sofa burns whatever its frame is made
+    of), else its material through the kernel physics data (tier-1 adoption: the material's kernel class must be
+    ``combustible`` in materials.json and one of IGNITABLE_CLASSES). The climate copy of the material list
+    (COMBUSTIBLE_MATERIALS) answers only for material strings the kernel does not map ("down", "synthetic")."""
     if not rec:
         return False
     if rec.get("combustible") is not None:
         return bool(rec.get("combustible"))
     if rec.get("category") in COMBUSTIBLE_CATEGORIES:
         return True
-    return rec.get("material") in COMBUSTIBLE_MATERIALS
+    material = rec.get("material")
+    if not isinstance(material, str) or not material:
+        return False
+    flag = material_ignitable(material.strip().lower())
+    return (material in COMBUSTIBLE_MATERIALS) if flag is None else flag
+
+
+_MATERIAL_FLAGS = {}
+
+
+def material_ignitable(material):
+    """Readily ignitable by the kernel physics data (phys.props: the material string's class and that class's ``comb``
+    column, which an alias row may override -- fiberglass cloth is a synthetic_fabric that does not burn), or None
+    when the kernel does not map the string (memoized: a pure function of the loaded physics data)."""
+    if material in _MATERIAL_FLAGS:
+        return _MATERIAL_FLAGS[material]
+    from ...kernel.phys import props as P
+    out = None
+    if P.class_known(material):
+        cls = P.material_class(None, {"material": material})
+        alias = P.MATERIALS["aliases"].get(material)
+        row = P.MATERIALS["classes"].get(cls) or {}
+        comb = alias.get("comb", row.get("comb")) if isinstance(alias, Mapping) else row.get("comb")
+        out = bool(comb) and cls in IGNITABLE_CLASSES
+    _MATERIAL_FLAGS[material] = out
+    return out
+
+
+# ---------------------------------------------------------------------------------------------
+# tier-1 adoption: geometric camera witnesses, notices
+
+def geometric(state):
+    """True in the geometric camera mode (the state carries robot.view); room mode is the default."""
+    return isinstance((state.get("robot") or {}).get("view"), dict)
+
+
+def visual(w, kind, eid=None, room=None, at=None, z=None, size_m=0.3):
+    """A visual occurrence (a fan toppling, water on the floor, a flame guttering) for the geometric camera: the head
+    camera, in its current pose, witnesses it (robot.view.events, camera_log.events, a "visual" notice when the bus is
+    on). Climate logs its own occurrences in the ``climate`` section, so nothing is emitted twice (emit=False); a no-op
+    in room mode, whose outputs stay identical."""
+    if not hasattr(w, "s") or not geometric(w.s):
+        return
+    from ...kernel import camera
+    camera.visual_event(w, kind, source=eid, room=room, at=at, z=z, size_m=size_m, emit=False)
+
+
+# notice kinds this domain posts (kernel v3.1 notice bus, TIER1_SWEEP 6.1); a kind registered twice must match
+NOTICE_KINDS = (
+    ("appliance_beep", "an appliance beeps for attention (a dehumidifier whose bucket is full)", 60.0),
+    ("pipe_burst", "water sprays from a burst pipe", 70.0),
+)
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind_, doc, db in NOTICE_KINDS:
+        timeline.register_notice_kind(kind_, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
+
+
+def notice(w, kind_, eid=None, room=None, db=None, visual=False, data=None):
+    """Post a perceivable occurrence at entity `eid` (its room unless `room` is given). w.notice stores a record only
+    in episodes that carry the notice bus (schema-3 tasks) or for a listening wait, so schema-2 states never change;
+    the timeline decides whether the robot hears or sees it. Returns the stored record or None."""
+    if not hasattr(w, "notice"):
+        return None
+    rid = room if room is not None else (room_of(w.s, eid) if eid else None)
+    return w.notice(kind_, room=rid, db=db, source=eid, visual=visual, data=data)
 
 
 def child_present(state):

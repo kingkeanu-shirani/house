@@ -6,6 +6,12 @@ contents. Without one, only shelf-stable food is stocked. Every placement is cap
 fit-checked by Placer and silently skipped when there is no room. Shelves are load-checked too (food stays under
 FILL of the shelf rating behind admin_inventory's collapse rule, other domains' things included), cookware and pantry
 staples avoid the under-sink cabinet and any cupboard holding cleaning chemicals.
+
+Generation 2 (opts["gen"] >= 2, docs/GENERATOR.md; generation-1 houses are unchanged): the kitchen is stocked for the
+household that lives there (household_stock: config["household"]["profile"] and each resident's profile) -- no meat in
+a vegetarian or vegan household's freezer, no peanut butter where someone has a peanut allergy, gluten-free bread
+where someone avoids gluten, a plant milk where someone is allergic to milk or vegan, infant formula (and purees from
+six months) for a baby, juice boxes and yogurt cups for children, and a second milk carton for four or more people.
 """
 import datetime
 
@@ -193,6 +199,55 @@ def _sub(config, unit, zone):
     return None
 
 
+MEATLESS = ("vegetarian", "vegan")
+
+
+def household_stock(config, opts):
+    """Generation 2: {"subs": {type: replacement type or None}, "pantry": [types], "fridge": [types]} for the
+    household's diets, allergies and members; empty for generation 1 (so the generation-1 draws are untouched)."""
+    out = {"subs": {}, "pantry": [], "fridge": []}
+    if int(opts.get("gen") or 1) < 2:
+        return out
+    people = config.get("people") or {}
+    members = ((config.get("household") or {}).get("profile") or {}).get("members") or {}
+    diets, allergies, ages = [], set(), []
+    for pid in sorted(set(people) | set(members)):
+        person = people.get(pid) or {}
+        prof = person.get("profile") if isinstance(person.get("profile"), dict) else {}
+        member = members.get(pid) or {}
+        diet = prof.get("diet") or person.get("diet") or (person.get("preferences") or {}).get("diet")
+        if isinstance(diet, str):
+            diets.append(diet)
+        allergies |= set(prof.get("allergies") or person.get("allergies") or [])
+        age = member.get("age", person.get("age"))
+        if isinstance(age, (int, float)) and not isinstance(age, bool):
+            ages.append(float(age))
+    subs = out["subs"]
+    if diets and all(d in MEATLESS for d in diets if d not in ("pescatarian",)) and \
+            not any(d == "omnivore" for d in diets):
+        subs["frozen_chicken_pack"] = "veggie_patties_box"
+    if "peanut" in allergies:
+        subs["peanut_butter_jar"] = "jam_jar"
+    if "gluten" in allergies or "wheat" in allergies or any(d == "gluten_free" for d in diets):
+        subs["bread_loaf"] = "gluten_free_bread_loaf"
+    if "milk" in allergies or any(d == "vegan" for d in diets):
+        subs["milk_carton"] = "oat_milk_carton"
+    if "egg" in allergies or any(d == "vegan" for d in diets):
+        subs["egg_carton"] = None
+    infants = [a for a in ages if a < 1.0]
+    if infants:
+        out["pantry"].append("baby_formula_can")
+        if max(infants) >= 0.5:
+            out["pantry"] += ["baby_puree_jar"] * 3          # solids from about six months
+    if any(1.0 <= a < 13.0 for a in ages):
+        out["pantry"] += ["juice_box"] * 3
+        if "milk" not in allergies and "vegan" not in diets:
+            out["fridge"] += ["yogurt_snack_cup"] * 4
+    if len(people) >= 4 and "milk_carton" not in subs:
+        out["fridge"].append("milk_carton")
+    return out
+
+
 def _on_first(p, surfaces, type_name, **props):
     """Put the item on the first surface with room for it (None when none has)."""
     for surface in surfaces:
@@ -206,6 +261,8 @@ def _on_first(p, surfaces, type_name, **props):
 def furnish_food(config, rng, opts, registry):
     p = Placer(config, registry, rng)
     ents = config["entities"]
+    stock = household_stock(config, opts)
+    subs = stock["subs"]
     for kitchen in p.rooms("kitchen"):
         counters = p.find("counter", room=kitchen)
         all_lowers = [c for c in p.find("cabinet", room=kitchen) if ents[c].get("type") == "cabinet"]
@@ -234,8 +291,9 @@ def furnish_food(config, rng, opts, registry):
                     p.inside(crock, tool)
             if rng.random() < 0.6:
                 box = _on_first(p, serve, "bread_box")
-                if box:
-                    p.inside(box, "bread_loaf", **_date_props(config, rng, "bread_loaf", registry, 2, 5))
+                loaf = subs.get("bread_loaf", "bread_loaf")
+                if box and loaf:
+                    p.inside(box, loaf, **_date_props(config, rng, loaf, registry, 2, 5))
         # ---- utensil drawer
         if utensil_drawer:
             for tool in ("vegetable_peeler", "can_opener", "measuring_spoon_tbsp", "measuring_spoon_tsp", "measuring_cup_1",
@@ -291,6 +349,9 @@ def furnish_food(config, rng, opts, registry):
                        ("olive_oil_bottle", 120, 400), ("cereal_box", 40, 200), ("crackers_box", 30, 150), ("honey_jar", 300, 900),
                        ("baking_soda_box", 200, 500), ("baking_powder_can", 120, 400), ("ground_cumin_jar", 200, 700),
                        ("cinnamon_jar", 200, 700), ("vinegar_bottle", 300, 900)]
+            # the household's own needs (formula for a baby, children's juice) get shelf room before the generic staples
+            staples = [(item, 120, 400) for item in stock["pantry"]] + \
+                [(subs.get(item, item), lo, hi) for item, lo, hi in staples if subs.get(item, item)]
             primary = shelves[:max(1, len(shelves) - len([u for u in uppers if u in shelves]))]   # wall units only as overflow
             for i, (item, lo, hi) in enumerate(staples):
                 heavy = registry.resolve(item).get("mass_kg", 0.5) > 1.5
@@ -315,14 +376,20 @@ def furnish_food(config, rng, opts, registry):
         if fridge:
             heights = ents[fridge].get("shelf_heights") or [0.0]
             top = len(heights) - 1
-            carton = p.inside(fridge, "egg_carton", shelf=min(1, top), **_date_props(config, rng, "egg_carton", registry, 15, 30))
+            carton = None
+            if subs.get("egg_carton", "egg_carton"):
+                carton = p.inside(fridge, "egg_carton", shelf=min(1, top),
+                                  **_date_props(config, rng, "egg_carton", registry, 15, 30))
             if carton:
                 exp = ents[carton].get("_expires")
                 for _ in range(rng.randint(6, 10)):
                     p.inside(carton, "hen_egg", _expires=exp, temperature_c=4.0)
-            for item, lo, hi, shelf in (("milk_carton", 4, 9, min(1, top)), ("butter_unsalted", 30, 60, top),
-                                        ("cheddar_block", 20, 60, top), ("yogurt_tub", 6, 18, min(1, top)),
-                                        ("orange_juice_carton", 4, 10, min(1, top))):
+            chilled = [("milk_carton", 4, 9, min(1, top)), ("butter_unsalted", 30, 60, top),
+                       ("cheddar_block", 20, 60, top), ("yogurt_tub", 6, 18, min(1, top)),
+                       ("orange_juice_carton", 4, 10, min(1, top))]
+            chilled = [(subs.get(item, item), lo, hi, shelf) for item, lo, hi, shelf in chilled if subs.get(item, item)]
+            chilled += [(item, 5, 14, min(1, top)) for item in stock["fridge"]]
+            for item, lo, hi, shelf in chilled:
                 p.inside(fridge, item, shelf=shelf, temperature_c=4.0, _core_c=4.0, **_date_props(config, rng, item, registry, lo, hi))
             door = _sub(config, fridge, "door")
             for item in ("ketchup_bottle", "mustard_bottle", "mayonnaise_jar"):
@@ -340,4 +407,6 @@ def furnish_food(config, rng, opts, registry):
                          _core_c=4.0, size_m=[0.19, 0.13, 0.05])
         if freezer:
             for item in ("frozen_peas_bag", "ice_cream_tub", "frozen_chicken_pack"):
-                p.inside(freezer, item, **_date_props(config, rng, item, registry, 60, 240))
+                item = subs.get(item, item)
+                if item:
+                    p.inside(freezer, item, **_date_props(config, rng, item, registry, 60, 240))

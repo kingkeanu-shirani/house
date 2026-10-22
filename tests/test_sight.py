@@ -93,12 +93,19 @@ class RegistryViewBlockTests(unittest.TestCase):
             self._registry({"bad": {"looks": {}}})
 
     def test_core_view_blocks_use_only_known_keys_and_never_reach_records(self):
+        # every loaded view block (core and the domains') uses only the keys sight reads and stays out of records; the
+        # core types (data/types/core.json) also explain theirs ("doc"). Adoption round: domain blocks are the domains'
+        # own to document (food's cartons carry none), so the "doc" pin covers the core file it was written for.
         reg = default_registry()
         self.assertTrue(reg.view)
         for name, block in reg.view.items():
             self.assertLessEqual(set(block) - {"doc"}, set(sight.VIEW_DEFAULTS), name)
-            self.assertIn("doc", block, name)
             self.assertNotIn("view", reg.make(name, "room"), name)
+        core = json.loads((ROOT / "house_sim" / "data" / "types" / "core.json").read_text(encoding="utf-8"))["types"]
+        blocks = {name: spec["view"] for name, spec in core.items() if isinstance(spec, dict) and "view" in spec}
+        self.assertTrue(blocks)
+        for name, block in blocks.items():
+            self.assertIn("doc", block, name)
 
 
 class ViewPropsTests(unittest.TestCase):
@@ -694,6 +701,18 @@ class AcuityTests(unittest.TestCase):
         s.state["rooms"]["r"]["floor_color"] = "beige"
         self.assertEqual(sight.background_color(s.state, "cable"), "beige")
         self.assertEqual(sight.k_contrast("black", "dark", 0.2), 0.5)
+        # pets and people (adoption request pets 5): their colour against the furniture they are on, else the floor
+        cat = {"location": "r", "pos": [2, 2], "species": "cat", "coat_color": "black"}
+        s.state["pets"]["cat_1"] = cat
+        del s.state["rooms"]["r"]["floor_color"]
+        self.assertEqual(sight.agent_background_color(s.state, cat), "dark")
+        from house_sim.kernel import camera
+        self.assertEqual(camera._contrast(s.state, "cat_1", 0.2), 0.5)              # a black cat on slate at dusk
+        self.assertEqual(camera._contrast(s.state, "cat_1", 0.6), 1.0)              # in good light
+        self.assertEqual(sight.agent_background_color(s.state, dict(cat, on="table")), "white")
+        s.state["pets"]["cat_1"]["coat_color"] = None
+        self.assertEqual(camera._contrast(s.state, "cat_1", 0.2), 1.0)              # no colour: no penalty
+        self.assertEqual(camera._contrast(s.state, "nobody", 0.2), 1.0)
         self.assertTrue(sight.ir_shape(0.5, 3.0, 10.0, 0.0))
         self.assertFalse(sight.ir_shape(0.3, 3.0, 10.0, 0.0))       # under the 0.4 m floor (C11)
         self.assertFalse(sight.ir_shape(0.5, 4.5, 10.0, 0.0))       # past the IR range
@@ -767,6 +786,30 @@ class FaceTests(unittest.TestCase):
 
 # ----- light and glare (17.5, 17.6) ---------------------------------------------------------------------------------
 class LightTests(unittest.TestCase):
+    def test_acuity_light_asks_the_boost_hooks_only_below_saturation(self):
+        # K-CAM (C9): light_at hooks answer boosts (>= 0); once the hook-free light reaches 0.36, k_light is exactly 1
+        # and every light bar of section 7 is met, so the per-substep watch need not ask the domains' hooks
+        s = Scene(6, 6)
+        calls = []
+
+        def hooks(name, *args):
+            if name == "light_at":
+                calls.append(args[1:])
+                return [0.2]
+            return []
+        p = (1.25, 1.25, 1.0)
+        with mock.patch.object(sight, "run_hooks", side_effect=hooks):
+            for ambient, want, asked in ((1.0, 1.0, False), (0.36, 0.36, False), (0.3, 0.5, True), (0.0, 0.2, True)):
+                del calls[:]
+                got = sight.acuity_light(s.state, "r", p, (), ambient)
+                full = sight.light_at(s.state, "r", p, (), ambient)
+                self.assertEqual(got, want, ambient)
+                self.assertEqual(bool(calls[:-1]), asked, ambient)          # light_at itself asked once more
+                self.assertEqual(sight.k_light(got), sight.k_light(full), ambient)
+                for px in (12.0, 40.0, 100.0):
+                    self.assertEqual(sight.acuity_level(px, got), sight.acuity_level(px, full), (ambient, px))
+        self.assertEqual(sight.k_light(sight.LIGHT_SATURATED), 1.0)
+
     def test_robot_beams_reach_their_rated_distances_inside_their_cones_only(self):
         torch = sight.make_beam((0.0, 0.0, 1.5), 0.0, 0.0, 1.8, 15.0)
         self.assertAlmostEqual(sight.beam_light(torch, (3.0, 0.0, 1.5)), 0.2)
@@ -786,6 +829,14 @@ class LightTests(unittest.TestCase):
         self.assertEqual(sight.robot_beams(s.state, (1, 1, 1.5), 0.0, 0.0), [])
         s.state["entities"]["torch"]["on"] = True
         s.state["robot"]["headlamp_on"] = True
+        beams = sight.robot_beams(s.state, (1, 1, 1.5), 0.0, -10.0)
+        self.assertEqual([(b.power, b.half_deg) for b in beams], [(1.8, 15.0), (0.45, 30.0)])
+        # the worn headlamp's own view.beam wins over the kernel default (navigation_robot's adoption request 4)
+        s.state["entities"]["lamp"] = {"type": "generic_item", "location": "robot", "relation": "worn",
+                                       "gear_kind": "headlamp", "view": {"beam": {"power": 0.6, "half_deg": 25.0}}}
+        beams = sight.robot_beams(s.state, (1, 1, 1.5), 0.0, -10.0)
+        self.assertEqual([(b.power, b.half_deg) for b in beams], [(1.8, 15.0), (0.6, 25.0)])
+        s.state["entities"]["lamp"]["relation"] = "held"                       # carried, not worn: the default
         beams = sight.robot_beams(s.state, (1, 1, 1.5), 0.0, -10.0)
         self.assertEqual([(b.power, b.half_deg) for b in beams], [(1.8, 15.0), (0.45, 30.0)])
 
@@ -1065,6 +1116,146 @@ class BridgeTests(unittest.TestCase):
             self.assertAlmostEqual(occ["floor_hidden_m"], 1.4 * 0.6 / (1.4 - 1.25), places=3)
             fake_env["blocks_view"] = False
             self.assertIsNone(sight.carried_occluder(s.state))
+
+
+class TwoRooms(Scene):
+    """Scene's room "r" (cols x rows) with a hall "h" (hcols x hrows) behind its west wall: a doorway between r's cell
+    (0, door_row) and the hall's cell `hall_cell` (east wall by default)."""
+
+    def __init__(self, cols=12, rows=12, hcols=6, hrows=8, door_row=5, hall_cell=(5, 3), width=0.85):
+        Scene.__init__(self, cols, rows)
+        self.state["rooms"]["h"] = {"size_m": [hcols * 0.5, hrows * 0.5], "type": "hallway", "label": "hall"}
+        self.state["connections"]["c"] = {"rooms": ["r", "h"], "kind": "doorway", "width_m": width,
+                                          "cells": {"r": [0, door_row], "h": list(hall_cell)}}
+
+    def door(self, open_=True, **props):
+        self.add("d", "door", "h", pos=list(self.state["connections"]["c"]["cells"]["h"]), connects=["h", "r"],
+                 open=open_, swing_into="h", **props)
+        self.state["connections"]["c"]["door"] = "d"
+
+
+# ----- doorway and window apertures (5.8; camera phase 3) ---------------------------------------------------------------
+class ApertureTests(unittest.TestCase):
+    def test_a_doorway_abuts_the_two_rooms_rigidly_across_the_shared_wall(self):
+        s = TwoRooms()
+        ap = sight.doorway_aperture(s.state, "c", "r")
+        self.assertEqual((ap.other, ap.nx, ap.ny, ap.wall, ap.lo, ap.hi, ap.z0, ap.z1, ap.factor),
+                         ("h", 1, 0, 0.0, 2.325, 3.175, 0.0, 2.0, 1.0))   # 0.85 m centred on r's cell (0, 5)
+        self.assertEqual(sight.to_room(ap, 2.75, 1.75), (-0.25, 2.75))       # the hall's doorway cell: one cell west
+        for p in ((0.3, 0.2), (2.9, 3.9), (1.0, 2.5)):
+            x, y = sight.to_room(ap, *p)
+            self.assertLess(x, 0.0)                                         # the whole hall lies behind the west wall
+            back = sight.from_room(ap, x, y)
+            self.assertAlmostEqual(back[0], p[0])
+            self.assertAlmostEqual(back[1], p[1])
+        self.assertEqual(ap.into, sight.Opening("h", -1, 0, 3.0, 1.325, 2.175, 0.0, 2.0))  # centred on (5, 3)
+        # seen from the hall the same opening, the other way round
+        back = sight.doorway_aperture(s.state, "c", "h")
+        self.assertEqual((back.other, back.nx, back.wall, back.lo, back.hi), ("r", -1, 3.0, 1.325, 2.175))
+        # a quarter turn: the hall's doorway on its north wall; its wall lands on r's wall, its inside behind it
+        turned = TwoRooms(hall_cell=(2, 0))
+        ap = sight.doorway_aperture(turned.state, "c", "r")
+        self.assertEqual((ap.cos, ap.sin), (0, 1))
+        wall_end = sight.to_room(ap, 1.25, 0.0)                              # the hall's north wall at the doorway
+        self.assertAlmostEqual(wall_end[0], 0.0)
+        inside = sight.to_room(ap, 1.25, 1.0)
+        self.assertLess(inside[0], 0.0)
+        self.assertEqual(sight.to_room_deg(ap, 90.0), 180.0)               # the hall's south is r's west
+
+    def test_the_opening_is_clipped_to_both_walls_and_closed_by_an_opaque_door(self):
+        s = TwoRooms(door_row=0, hall_cell=(0, 0))      # both doorways in a corner, the hall turned half round
+        ap = sight.doorway_aperture(s.state, "c", "r")
+        self.assertEqual((ap.cos, ap.lo, ap.hi), (-1, 0.0, 0.5))            # the walls overlap one cell only
+        s = TwoRooms(door_row=0, hall_cell=(5, 0))      # both in a corner, both walls running south from it
+        ap = sight.doorway_aperture(s.state, "c", "r")
+        self.assertEqual((ap.cos, ap.lo, ap.hi), (1, 0.0, 0.675))           # clipped by r's corner only
+        s = TwoRooms()
+        s.door(open_=False)
+        self.assertIsNone(sight.doorway_aperture(s.state, "c", "r"))
+        self.assertEqual(sight.doorway_views(s.state, s.eye(3, 5)), [])
+        s.state["entities"]["d"]["material"] = "glass"                      # a closed glazed door: its glass passes
+        self.assertEqual(sight.doorway_aperture(s.state, "c", "r").factor, 0.9)
+        s.state["entities"]["d"].update(open=True, size_m=[0.9, 0.05, 2.1])
+        ap = sight.doorway_aperture(s.state, "c", "r")
+        self.assertEqual((ap.factor, ap.z1, ap.door), (1.0, 2.1, "d"))
+        s.state["connections"]["c"]["kind"] = "stairs"                      # no view between floors
+        self.assertIsNone(sight.doorway_aperture(s.state, "c", "r"))
+        s.state["connections"]["c"]["kind"] = "doorway"
+        s.state["rooms"]["h"]["floor"], s.state["rooms"]["r"]["floor"] = 1, 0
+        self.assertIsNone(sight.doorway_aperture(s.state, "c", "r"))
+
+    def test_through_the_doorway_the_view_meets_both_rooms_occluders(self):
+        s = TwoRooms()
+        eye = s.eye(4, 5)                                                   # 2.25 m from the doorway, level with it
+        ap = sight.doorway_views(s.state, eye)[0]
+        target = (1.25, 1.75, 1.0)                                          # in the hall, straight through the doorway
+        self.assertEqual(sight.through_transmission(s.state, ap, eye, target), 1.0)
+        aside = (0.25, 0.25, 1.0)                                           # a corner of the hall: behind the wall
+        self.assertEqual(sight.through_transmission(s.state, ap, eye, aside), 0.0)
+        low = (2.75, 1.75, 2.4)                                             # above the 2 m doorway head line
+        self.assertEqual(sight.through_transmission(s.state, ap, eye, low), 0.0)
+        s.add("ward", "wardrobe", "h", pos=[3, 3], size_m=[0.5, 0.5, 2.0])  # in the hall, in the way
+        geom = sight.room_geom(s.state, "h")
+        self.assertIn("ward", {b[7] for b in geom.boxes})
+        self.assertEqual(sight.through_transmission(s.state, ap, eye, target), 0.0)
+        s.state["entities"]["ward"]["pos"] = [1, 6]
+        self.assertEqual(sight.through_transmission(s.state, ap, eye, target), 1.0)
+        s.add("crate", "box", "r", pos=[2, 5], size_m=[0.5, 0.5, 1.5])      # in r, between the eye and the doorway
+        self.assertEqual(sight.through_transmission(s.state, ap, eye, target), 0.0)
+        s.state["people"]["p"] = {"location": "h", "pos": [2, 3], "posture": "standing"}
+        s.state["entities"]["crate"]["pos"] = [8, 8]
+        self.assertAlmostEqual(sight.through_transmission(s.state, ap, eye, target), 0.3)   # a person attenuates
+
+    def test_the_opening_viewshed_agrees_with_exact_segment_tests(self):
+        # every free cell-centre target of the hall: the opening viewshed's answer equals an exact test of the segment
+        # (through the opening, then los against every box of the hall from the wall on). The occluders fill whole
+        # cells, where the viewshed's per-cell slope intervals are exact (its resolution is the cell, 5.2)
+        s = TwoRooms(hcols=8, hrows=8, hall_cell=(7, 3))
+        s.add("ward", "wardrobe", "h", pos=[4, 2], size_m=[0.5, 1.0, 2.0])
+        s.add("crate", "box", "h", pos=[2, 5], size_m=[1.0, 0.5, 0.8])
+        s.add("table", "table", "h", pos=[5, 5], size_m=[1.0, 1.0, 0.75])
+        blocked = set(geometry.blocked_cells(s.state, "h", include_agents=False))
+        checked = 0
+        for c, r in ((2, 5), (6, 3), (5, 8)):
+            eye = s.eye(c, r)
+            ap = sight.doorway_views(s.state, eye)[0]
+            eye_b = sight._eye_into(ap, eye)
+            for cj in range(8):
+                for ci in range(8):
+                    if (ci, cj) in blocked:
+                        continue
+                    for z in (0.1, 0.6, 1.4):
+                        checked += 1
+                        p = ((ci + 0.5) * 0.5, (cj + 0.5) * 0.5, z)
+                        got = sight.through_transmission(s.state, ap, eye, p)
+                        found = sight._crossing(ap.into, eye_b.x, eye_b.y, eye_b.z, p[0], p[1], p[2])
+                        if found is None or not (ap.into.lo <= found[1] <= ap.into.hi and found[2] <= 2.0):
+                            want = 0.0
+                        else:
+                            t = found[0]
+                            start = (eye_b.x + t * (p[0] - eye_b.x), eye_b.y + t * (p[1] - eye_b.y), found[2])
+                            want = sight.los(s.state, "h", start, p)
+                        self.assertAlmostEqual(got, want, msg=(c, r, ci, cj, z))
+        self.assertEqual(checked, 522)
+
+    def test_a_viewer_outside_a_window_sees_in_through_its_glass_not_its_wall_nor_its_coverings(self):
+        s = Scene(12, 10)
+        s.add("win", "window", pos=[5, 0], mounted=True, mount_height_m=0.9, size_m=[1.0, 0.1, 1.2], covered=0.0)
+        s.state["people"]["near"] = {"location": "r", "pos": [5, 1], "posture": "standing"}
+        s.state["people"]["aside"] = {"location": "r", "pos": [0, 1], "posture": "standing"}
+        s.state["robot"]["pos"] = [10, 8]
+        opening, factor = sight.aperture_opening(s.state, "win")
+        self.assertEqual((opening.ny, opening.wall, opening.lo, opening.hi, opening.z0, opening.z1, factor),
+                         (1, 0.0, 2.5, 3.5, 0.9, 2.1, 1.0))
+        viewer = sight.aperture_viewer(s.state, "win")
+        self.assertEqual((viewer.rid, viewer.x, viewer.y, viewer.z, viewer.yaw, viewer.kind),
+                         ("r", 3.0, -3.0, 1.6, 90.0, "aperture:win"))
+        self.assertEqual(sight.sees_entity(s.state, viewer, "near"), 1.0)
+        self.assertEqual(sight.sees_entity(s.state, viewer, "aside"), 0.0)          # behind the wall
+        s.state["entities"]["win"]["covered"] = 1.0                                     # blinds down: 5 % passes
+        self.assertEqual(sight.aperture_opening(s.state, "win")[1], 0.05)
+        self.assertEqual(sight.sees_entity(s.state, viewer, "near"), 0.0)
+        self.assertIsNone(sight.aperture_viewer(s.state, "nothing"))
 
 
 class PerformanceTests(unittest.TestCase):

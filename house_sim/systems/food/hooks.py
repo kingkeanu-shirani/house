@@ -100,7 +100,11 @@ def _after_place(ctx, result):
             if spot is None and want is not None:
                 raise ActionError("That exact shelf position is taken or off the shelf", "precondition")
             if spot is not None:
-                w.mut(eid)["spos"] = spot
+                M.set_shelf_pos(w.mut(eid), spot)
+            elif rec.get("inner_spos") is not None:
+                w.mut(eid).pop("inner_spos", None)      # no free spot: the camera's automatic packing places it
+        elif M.food(rec) and rec.get("inner_spos") is not None:
+            w.mut(eid).pop("inner_spos", None)          # a row in the container it came from means nothing here
         if float(rec.get("temperature_c", 21.0)) > 70.0 and parent.get("material") in ("wood", "laminate", "plastic") and \
                 not parent.get("heat_resistant") and rec.get("relation") == "on":
             m = w.mut(dest)
@@ -169,13 +173,15 @@ def _after_open(ctx, result):
         M.spill(w, eid, M.kind(rec) or "canned", 40.0, "liquid")
         w.stat("food_poisoning_risk")
         M.add_contam(w, M.HANDS, "bacteria", 1.0)
-        w.emit("bulging_can_opened", target=eid)
+        C.witness(w, "bulging_can_opened", source=eid, size_m=0.1, visual="can sprays", target=eid)
+        C.post_notice(w, "hiss", source=eid)
         ctx.note("Gas and liquid sprayed out of the bulging can (botulism risk).")
     agitated = rec.get("_agitated_until")
     if agitated is not None and w.s["time_s"] < float(agitated):
         M.spill(w, eid, M.kind(rec) or "soda", 120.0, "liquid")
         m["food"]["qty_g"] = round(max(0.0, M.qty(m) - 120.0), 2)
-        w.emit("can_sprayed", target=eid)
+        C.witness(w, "can_sprayed", source=eid, size_m=0.2, visual="drink sprays", target=eid)
+        C.post_notice(w, "hiss", source=eid)
         for pid, person in sorted(w.s.get("people", {}).items()):
             if person.get("location") == w.robot["room"]:
                 w.emit("sprayed_person", person=pid)
@@ -220,6 +226,7 @@ def consume(w, pid, item):
     log = w.sec("food_log")
     log.setdefault("served", []).append({"person": pid, "item": item, "foods": foods, "issues": issues, "time_s": w.s["time_s"]})
     del log["served"][:-100]
+    M.log_meal(w, pid, item, foods)
     if issues:
         w.emit("unsafe_food_served", person=pid, issues=issues[:5])
     return issues
@@ -502,7 +509,15 @@ def _wash_seconds(ctx):
         val = ctx.args.get(key)
         if isinstance(val, (int, float)):
             return float(val)
+    if isinstance(ctx.data.get("seconds"), (int, float)):
+        return float(ctx.data["seconds"])        # the washing verb's own time (cleaning's robot_hand wash)
     return 15.0
+
+
+# the robot's own hands as a washing target: food's words and cleaning's robot_hand targets (cleaning washes the body's
+# hand soil, body.clean_hand; food judges the food-safety hand wash: soap for 20 s clears the contamination)
+HAND_TARGETS = ("robot", "hands", "self", "end_effectors", "robot_hand", "robot_hands", "robot_hand_left",
+                "robot_hand_right")
 
 
 def _wash_effects(ctx, scrub=False):
@@ -510,7 +525,7 @@ def _wash_effects(ctx, scrub=False):
     target = ctx.args.get("target")
     secs = _wash_seconds(ctx)
     soap = _uses_soap(ctx)
-    if target in ("robot", "hands", "self", "end_effectors"):
+    if target in HAND_TARGETS:
         log = w.sec("food_log")
         good = soap and secs >= 20.0
         log.setdefault("hand_washes", []).append({"time_s": w.s["time_s"], "soap": soap, "seconds": secs, "ok": good})

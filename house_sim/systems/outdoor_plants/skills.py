@@ -7,13 +7,14 @@
   outdoor_plants.close_umbrella(umbrella)                 untilt, close and strap an umbrella
   outdoor_plants.cover_with(cover, target)                lay a fitted cover on target and strap it
   outdoor_plants.uncover(cover, store=None)               lift a cover by its edges, then store it
-  outdoor_plants.survey(target, field, spacing=4)         walk the room and inspect target from a grid of spots; report findings
+  outdoor_plants.survey(target, field, spacing=4)         walk the room and inspect target from a grid of spots (geometric camera:
+                                                          look around, rows=2, at each spot first); report findings
   outdoor_plants.mow_lawn(lawn, mower, deck_mm, person)   ask approval, fetch mower, set deck, mow, return mower
   outdoor_plants.dispose(item, dest)                      put held/loose debris into a bin
 """
 import json
 
-from ...kernel import geometry
+from ...kernel import camera, geometry
 from ...kernel.plugins import skill
 from ...tasks import skills as core_skills
 from . import common as C
@@ -150,6 +151,9 @@ def survey(r, target, field=None, spacing=4, key=None):
             if not kinds:
                 continue
             r.do("walk_to", cell=[int(cell[0]), int(cell[1])], avoid=kinds)
+        if camera.mode(r.state) == "geometric":
+            # a real camera sees only its frames: look all round, with the low row for the ground, before judging
+            r.do("look", target="around", rows=2)
         out = r.do("inspect", target=target)
         try:
             details = json.loads(out["message"])

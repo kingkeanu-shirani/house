@@ -6,8 +6,9 @@ packages with fill and hidden parts, per-person trays, and curbside carts with a
 Every helper returns a dict of bindings (ids) for later setup ops, predicates and plans.
 """
 import copy
+import datetime
 
-from ...kernel import geometry
+from ...kernel import clock, geometry
 from ...kernel.errors import SpecError
 from ...kernel.plugins import scenario_helper
 from .common import DEFAULT_SURNAME, flat_spot, refresh_paper, slug
@@ -282,10 +283,20 @@ def _paper_on_pile(ctx, surface_id, eid, values):
 
 @scenario_helper("admin_inventory.document")
 def document(ctx, location, key, title, kind="letter", pages=1, var="doc", eid=None, order=None, shelf=None, props=None):
-    """A paper document with numbered sheets (order lets you scramble the page order)."""
+    """A paper document with numbered sheets (order lets you scramble the page order). A dated document (props date,
+    ISO) without printed text of its own prints its heading and the date as the household writes it (clock.format_date:
+    "October 9, 2026" in the US, "9 October 2026" in the UK, TIER1_SWEEP 11.1); the read-tier `date` stays ISO, the
+    value filing by date compares."""
     sheets = [[key, p] for p in (order or list(range(1, int(pages) + 1)))]
     values = dict(doc_kind=kind, doc_key=key, title=title, label=title.lower(), sheets=sheets)
     values.update(props or {})
+    if values.get("date") and not values.get("text"):
+        try:
+            when = clock.format_date({"clock": ctx.config.get("clock") or {}, "metadata": ctx.config.get("metadata") or {}},
+                                     str(values["date"])[:10], "long")
+            values["text"] = "{} | {}".format(title, when)
+        except ValueError:
+            pass
     secret = sorted(k for k in values if k.startswith("_"))
     if secret:
         values["secret_fields"] = sorted(set(values.get("secret_fields", [])) | set(secret))
@@ -305,6 +316,27 @@ def document(ctx, location, key, title, kind="letter", pages=1, var="doc", eid=N
     if parent is not None and "order" in parent:
         parent["order"] = list(parent.get("order") or []) + [new]
     return {var: new}
+
+
+PACKAGE_SURFACES = ("shoe_rack", "bench", "storage_bench", "console_table", "side_table", "hall_table", "dresser",
+                    "table", "cabinet", "shelf_unit")
+PACKAGE_SURFACE_MAX_M = 1.0     # a top a box is set on by hand and read from above (below a standing robot's eye)
+
+
+def _package_on_furniture(ctx, rid, type_name, eid, values):
+    """A package set on a low furniture top of room rid the robot can get to from the doorways (PACKAGE_SURFACES in
+    that order, at most PACKAGE_SURFACE_MAX_M high), or None."""
+    for kind in PACKAGE_SURFACES:
+        for sid in ctx.placer.find(kind, room=rid):
+            rec = ctx.config["entities"][sid]
+            if rec.get("location") != rid or not rec.get("pos") or not reachable_from_door(ctx.placer, sid):
+                continue
+            if geometry.height_m(ctx.state(), sid) > PACKAGE_SURFACE_MAX_M:
+                continue
+            pkg = ctx.placer.on(sid, type_name, eid=eid, **values)
+            if pkg is not None:
+                return pkg
+    return None
 
 
 @scenario_helper("admin_inventory.package")
@@ -330,6 +362,10 @@ def package(ctx, location, to="household", var="pkg", type="package_box", conten
     eid = eid or var
     if location in ctx.config["rooms"]:
         pkg = p.floor_item(location, type, eid=eid, near=cell, **values)
+        if pkg is None:
+            # no floor left in a small, furnished room (a 2 x 3 m entryway with a shoe rack and an umbrella stand):
+            # the box goes on top of a reachable low piece of furniture there, as a courier or a resident leaves it
+            pkg = _package_on_furniture(ctx, location, type, eid, values)
     else:
         loc = _cfg_entity(ctx, location)
         pkg = p.inside(location, type, eid=eid, **values) if loc.get("container") else p.on(location, type, eid=eid, **values)
@@ -437,9 +473,44 @@ def carts(ctx, room="garage", streams=None, var="cart", schedule=None, fills=Non
         out["{}_{}".format(var, stream)] = eid
     if schedule is not None:
         ctx.config.setdefault("household", {})["collection"] = copy.deepcopy(schedule)
+        from .curb import add_calendar_events, collection_events
+        add_calendar_events(ctx.config, collection_events(ctx.config))     # the schedule is on the household calendar
     curbs = sorted(r for r, v in ctx.config["rooms"].items() if v.get("type") == "sidewalk")
     out["curb"] = curbs[0] if curbs else None
     out["cart_room"] = home
+    return out
+
+
+@scenario_helper("admin_inventory.calendar")
+def calendar(ctx, collection=True, pickups=None, sources=None):
+    """The household calendar entries this domain keeps (TIER1_SWEEP 11.2; the people domain renders and answers
+    them): the collection rule's days (curb.collection_events: one recurring event per stream) and carrier pickups
+    [{"at": ISO date-time, "spot": entity or room id, "carrier": name?, "id": event id?}], each also scheduled as an
+    admin_parcel_pickup event at that time. sources: household.calendar sources to merge (wall_calendar / whiteboard
+    ids, app true). Returns {"pickup_<n>_s": seconds from the episode start}."""
+    from .curb import add_calendar_events, collection_events
+    events = collection_events(ctx.config) if collection else []
+    start = datetime.datetime.fromisoformat(str((ctx.config.get("clock") or {}).get("start") or "2026-10-09T10:00:00"))
+    out = {}
+    for n, pickup in enumerate(pickups or []):
+        if not isinstance(pickup, dict) or not pickup.get("at") or not pickup.get("spot"):
+            raise SpecError("admin_inventory.calendar: a pickup needs at (ISO date-time) and spot")
+        at = datetime.datetime.fromisoformat(str(pickup["at"]))
+        at_s = (at - start).total_seconds()
+        if at_s < 0:
+            raise SpecError("admin_inventory.calendar: pickup {} is before the episode starts".format(pickup["at"]))
+        carrier = str(pickup.get("carrier") or "parcel carrier")
+        events.append({"id": pickup.get("id") or "admin_pickup_{}".format(n + 1), "kind": "carrier_pickup",
+                       "title": "{} pickup".format(carrier[:1].upper() + carrier[1:]), "start": at.isoformat(timespec="minutes"),
+                       "window": pickup.get("window"), "attributes": {"carrier": carrier}, "known_by": "everyone"})
+        if events[-1]["window"] is None:
+            events[-1].pop("window")
+        ctx.config.setdefault("events", []).append({"at_s": round(at_s, 3), "effect": "admin_parcel_pickup",
+                                                    "args": {"spot": pickup["spot"]}})
+        out["pickup_{}_s".format(n + 1)] = round(at_s, 3)
+    add_calendar_events(ctx.config, events)
+    if sources:
+        ctx.config["household"]["calendar"].setdefault("sources", {}).update(copy.deepcopy(sources))
     return out
 
 
@@ -534,7 +605,7 @@ def reachable_surface(ctx, room=None, types=("counter", "table", "desk", "dresse
                 _remove_subtree(ctx, eid)
     if fallback:
         for rid in candidates:
-            eid = safe_mount(ctx.placer, rid, fallback, height=1.0, label="added shelf", size_m=[0.8, 0.25, 0.03])
+            eid = safe_mount(ctx.placer, rid, fallback, height=1.0, label="added shelf", size_m=[0.8, 0.25, 0.03], orient=True)
             if eid is not None and _has_room_for(ctx, eid, fits):
                 return found(eid, rid)
             if eid is not None:
@@ -554,7 +625,7 @@ def wall_mount(ctx, room, type="wall_shelf", height=1.0, var="mounted", near=Non
         target = sorted(geometry.footprint(ctx.config["entities"][near])) or None
     elif near is not None:
         target = [list(near)]
-    new = safe_mount(ctx.placer, rid, type, height=height, near=target, eid=eid, **dict(props or {}))
+    new = safe_mount(ctx.placer, rid, type, height=height, near=target, eid=eid, orient=True, **dict(props or {}))
     if new is None:
         raise SpecError("No reachable wall for a {} in {}".format(type, rid))
     return {var: new}

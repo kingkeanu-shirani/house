@@ -35,34 +35,83 @@ def harness_fingerprint():
     return digest({p.relative_to(source.parent).as_posix(): p.read_text(encoding="utf-8") for p in paths})
 
 
-def _evidence(root):
-    path = root / "reports/verification.jsonl"
+EVIDENCE = "reports/verification.jsonl"
+EVIDENCE_RUN = "reports/verification_run.json"
+# a run that forces a mode (perception, camera or house generation) for every spec is a check of the specs under
+# that mode, not evidence of the specs as authored: its records go here and never replace the catalog's evidence
+FORCED_EVIDENCE = "reports/verification_forced.jsonl"
+FORCED_RUN = "reports/verification_forced_run.json"
+
+
+def _evidence(root, path=EVIDENCE):
+    path = root / path
     return {r["catalog_id"]: r for r in read_jsonl(path)} if path.exists() else {}
 
 
-def verify(root=ROOT, seeds=SEEDS, emit=print, only=None, workers=None, perception=None):
+def verify(root=ROOT, seeds=SEEDS, emit=print, only=None, workers=None, perception=None, camera=None, gen=None):
+    """Verify the authored candidate entries (tasks/verify.py verify_many) and write the evidence.
+
+    Each spec runs in its own modes unless forced: perception ("oracle" | "realistic"), camera ("room" | "geometric")
+    and gen (house generation 1 | 2; the M-GEN2 migration check, TIER1_SWEEP 19.3). A run without a forced mode is
+    the catalog's evidence: reports/verification.jsonl and verification_run.json, then the coverage reports
+    (report()). A forced run checks the specs under that mode instead: its records carry "forced" and go to
+    reports/verification_forced.jsonl / verification_forced_run.json (merged with an earlier forced run of the same
+    options when `only` narrows it), so the evidence the harness, the dataset exporter and the coverage count stays
+    the evidence of the specs as authored. Returns the run record."""
+    forced = {k: v for k, v in (("perception", perception), ("camera", camera), ("gen", gen)) if v is not None}
     entries, records, manifest = compile_specs(root)
     implementation = fingerprint(root)
-    evidence = _evidence(root) if only else {}
+    evidence_path, run_path = (FORCED_EVIDENCE, FORCED_RUN) if forced else (EVIDENCE, EVIDENCE_RUN)
+    evidence = {}
+    if only:
+        evidence = _evidence(root, evidence_path)
+        if forced:
+            previous = _read_json(root / run_path) or {}
+            if previous.get("forced") != forced:
+                evidence = {}           # a different forced mode: never mix the records of two checks
     candidates = [r for r in records if r["status"] == "CANDIDATE" and (only is None or r["catalog_id"] in only or r["section"] in only or r.get("source_file") in only)]
     started = time.monotonic()
     def progress(i, total, result):
         if i % 100 == 0 or i == total:
             emit("Verified {}/{} candidate entries ({:.0f}s)".format(i, total, time.monotonic() - started), flush=True)
-    results = verify_many([r["spec"] for r in candidates], seeds=seeds, workers=workers, progress=progress, perception=perception)
+    results = verify_many([r["spec"] for r in candidates], seeds=seeds, workers=workers, progress=progress,
+                          perception=perception, camera=camera, gen=gen)
     for record in results:
         record["implementation_hash"] = implementation
+        if forced:
+            record["forced"] = dict(forced)
         evidence[record["catalog_id"]] = record
     ordered = [evidence[r["catalog_id"]] for r in records if r["catalog_id"] in evidence]
-    write_jsonl(root / "reports/verification.jsonl", ordered)
+    write_jsonl(root / evidence_path, ordered)
     run = {"generated_at": datetime.now(timezone.utc).isoformat(), "elapsed_seconds": round(time.monotonic() - started, 3),
            "implementation_hash": implementation, "source_sha256": manifest["source_sha256"], "seeds": list(seeds),
            "candidate_entries": len(candidates), "passed_entries": sum(r["passed"] for r in results),
            "failed_entries": [r["catalog_id"] for r in results if not r["passed"]], "partial": only is not None}
-    (root / "reports/verification_run.json").write_text(json.dumps(run, indent=2) + "\n", encoding="utf-8")
+    if forced:
+        run["forced"] = dict(forced)
+        run["evidence"] = evidence_path
+    _write_text(root / run_path, json.dumps(run, indent=2) + "\n")
+    if forced:
+        emit("Forced check ({}): {}/{} candidate entries pass; records in {} (the catalog evidence {} and the "
+             "coverage reports are unchanged)".format(", ".join("{}={}".format(k, v) for k, v in sorted(forced.items())),
+                                                      run["passed_entries"], len(candidates), evidence_path, EVIDENCE))
+        return run
     summary = report(root)
     emit(json.dumps(summary, indent=2))
     return run
+
+
+def _read_json(path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _write_text(path, text):
+    """Reports are LF text on every platform (Path.write_text would write CRLF on Windows)."""
+    with open(path, "w", encoding="utf-8", newline="\n") as stream:
+        stream.write(text)
 
 
 def report(root=ROOT):
@@ -106,7 +155,7 @@ def report(root=ROOT):
                "fidelity_done": dict(Counter(r["fidelity"] for r in rows if r["status"] == "DONE")),
                "by_kind": {k: dict(Counter(r["status"] for r in rows if r["kind"] == k)) for k in sorted({r["kind"] for r in rows})},
                "full_catalog_complete": all(r["status"] == "DONE" for r in rows), "implementation_hash": current}
-    (root / "reports/coverage_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    _write_text(root / "reports/coverage_summary.json", json.dumps(summary, indent=2) + "\n")
     sections = defaultdict(Counter)
     fidelity = defaultdict(Counter)
     for row in rows:
@@ -123,7 +172,7 @@ def report(root=ROOT):
     lines.extend(["", "## STUB and BLOCKED entries", ""])
     lines.extend("- {} — {}: {} ({})".format(r["id"], r["status"], r["text"], r["reason"]) for r in rows if r["status"] in ("STUB", "BLOCKED"))
     lines.extend(["", "TODO entries and reasons are retained in coverage.csv and reports/pending.jsonl."])
-    (root / "reports/COVERAGE.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _write_text(root / "reports/COVERAGE.md", "\n".join(lines) + "\n")
     write_jsonl(root / "reports/pending.jsonl", [r for r in rows if r["status"] != "DONE"])
     return summary
 
@@ -185,6 +234,6 @@ def demo(root=ROOT, emit=print, seed=701):
                           "evaluation": {k: result[k] for k in ("success", "steps", "time_s", "score")}})
     result = {"demonstrated_sections": len(seen), "total_sections": len(sections),
               "missing_sections": [s for s in sections if s not in seen], "failures": failures, "scenarios": scenarios}
-    (root / "demos/manifest.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    _write_text(root / "demos/manifest.json", json.dumps(result, indent=2) + "\n")
     emit("Demonstrated and replay-verified {}/{} sections on held-out seed {}.".format(len(seen), len(sections), seed))
     return result

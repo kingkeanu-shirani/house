@@ -550,6 +550,51 @@ class StaticsTests(PhysCase):
         self.assertEqual(statics.stack_verdict(s, "b1"), [("b2", "topple")])
         self.assertIsNone(statics.clearance_above_m(s, "shelf"))
 
+    def test_a_thin_flat_base_is_part_of_the_surface(self):
+        """Adoption-round request (electrical 1): the oversize rule toppled a 0.155 m phone centred on a 0.10 m, 12 mm
+        Qi pad (and a watch on its puck). An item centred over a base 15 mm thin or less rests on it and the surface
+        around; off the pad's footprint, or on a plate (25 mm), the rules apply as before."""
+        s = house()
+        put(s, "table", "table", "room", pos=[0, 4])
+        put(s, "pad", "generic_item", "table", relation="on", spos=[0.2, 0.2], size_m=[0.1, 0.1, 0.012])
+        put(s, "phone", "generic_item", "pad", relation="on", size_m=[0.075, 0.155, 0.008])
+        self.assertEqual(statics.stack_verdict(s, "pad"), [])
+        s["entities"]["phone"]["stack_offset_m"] = [0.0, 0.06]                         # its centre beyond the pad
+        self.assertEqual(statics.stack_verdict(s, "pad"), [("phone", "topple")])
+        s["entities"]["phone"].pop("stack_offset_m")
+        s["entities"]["pad"]["size_m"] = [0.1, 0.1, 0.025]                             # as thick as a plate
+        self.assertEqual(statics.stack_verdict(s, "pad"), [("phone", "topple")])
+
+    def test_a_small_item_anywhere_on_a_larger_one_stays(self):
+        """Adoption-round request (textiles_laundry 1): the centre-offset rule (0.3 of the lower footprint) toppled a
+        receipt lying near the edge of a 0.5 m tray. A member wholly on the one below stays; one that reaches past it
+        and is far enough off centre still topples."""
+        s = house()
+        put(s, "table", "table", "room", pos=[0, 4])
+        put(s, "tray", "tray", "table", relation="on", spos=[0.1, 0.1], size_m=[0.5, 0.35, 0.03])
+        put(s, "receipt", "generic_item", "tray", relation="on", size_m=[0.08, 0.12, 0.002], stack_offset_m=[0.2, 0.0])
+        self.assertEqual(statics.stack_verdict(s, "tray"), [])                         # 0.2 + 0.04 <= 0.25
+        s["entities"]["receipt"]["stack_offset_m"] = [0.23, 0.0]                       # reaches 2 cm past the rim
+        self.assertEqual(statics.stack_verdict(s, "tray"), [("receipt", "topple")])
+
+    def test_the_gap_above_an_oven_rack_is_to_the_next_rack(self):
+        """Adoption-round request (appliances_cooking 1): an empty rack position is no shelf. In a cavity whose shelves
+        are removable racks, the room above a rack reaches the next position a rack takes, else the cavity top; fixed
+        shelf boards keep the next board (test_nested_bowls_and_the_shelf_gap)."""
+        s = house()
+        put(s, "oven", "generic_item", "room", pos=[2, 0], portable=False, container=True, accepts_items=True,
+            size_m=[0.76, 0.66, 0.55], inner_size_m=[0.62, 0.46, 0.4], shelf_heights=[0.03, 0.09, 0.15, 0.21, 0.27, 0.33])
+        rack = dict(size_m=[0.6, 0.42, 0.02], surface=True, accepts_items=True, portable=True, relation="in")
+        put(s, "rack_a", "generic_item", "oven", shelf=1, **rack)
+        put(s, "rack_b", "generic_item", "oven", shelf=3, **rack)
+        put(s, "dish", "generic_item", "rack_b", relation="on", size_m=[0.3, 0.2, 0.08])
+        self.assertAlmostEqual(statics.clearance_above_m(s, "rack_b"), 0.4 - 0.21)
+        self.assertAlmostEqual(statics.clearance_above_m(s, "rack_a"), 0.21 - 0.09 - statics.SHELF_GAP_MARGIN_M)
+        self.assertEqual(statics.stack_verdict(s, "rack_b"), [])
+        put(s, "rack_c", "generic_item", "oven", shelf=4, **rack)                       # a rack 6 cm above
+        self.assertAlmostEqual(statics.clearance_above_m(s, "rack_b"), 0.27 - 0.21 - statics.SHELF_GAP_MARGIN_M)
+        self.assertEqual(statics.stack_verdict(s, "rack_b"), [("dish", "topple")])
+
     def test_stability_report(self):
         s = house()
         put(s, "table", "table", "room", pos=[0, 4])

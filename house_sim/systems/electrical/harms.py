@@ -237,31 +237,14 @@ def _light_share(state, rec):
 
 
 def _room_level(state, rid, world=None):
-    """kernel.perception.light_level computed from the static light/window indexes (same formula and hooks)."""
-    from ...kernel import clock
+    """kernel.perception.light_level, fed the window and light ids from the static indexes (the kernel's `ids`
+    argument: the same sums and hooks without a scan of every entity; the TIER1_CAMERA 19 follow-up that retired this
+    module's private copy of the formula)."""
     from ...kernel.perception import light_level
-    from ...kernel.plugins import run_hooks
     if world is None or world.s is not state:
         return light_level(state, rid)
-    ents = state["entities"]
-    room = state["rooms"].get(rid, {})
-    if room.get("outdoor"):
-        level = clock.daylight(state)
-    else:
-        exposure = 0.0
-        for wid in C.ids(world, "windows", lambda r: r.get("category") == "window"):
-            rec = ents.get(wid)
-            if rec is not None and rec.get("location") == rid:
-                exposure += 0.45 * (1.0 - float(rec.get("covered", 0.0)))
-        level = clock.daylight(state) * min(1.0, exposure)
-    for eid in C.ids(world, "lights"):
-        rec = ents.get(eid)
-        if rec is not None and rec.get("on") and C.room_of(state, eid) == rid:
-            level += _light_share(state, rec)
-    for extra in run_hooks("light_level", state, rid):
-        if isinstance(extra, (int, float)):
-            level += extra
-    return round(max(0.0, min(1.0, level)), 3)
+    ids = C.ids(world, "windows", lambda r: r.get("category") == "window") + C.ids(world, "lights")
+    return light_level(state, rid, ids)
 
 
 def _baseline_room_facts(baseline):

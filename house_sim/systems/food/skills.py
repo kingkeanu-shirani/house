@@ -7,14 +7,15 @@ food.put_groceries_away(items, kitchen, order=["frozen","chilled","pantry"])
 food.crack_eggs_checked(eggs, cup, batch, discard)   crack each egg into a cup, smell it, then add or discard
 food.separate_eggs(eggs, cup, whites, yolks, reject) three-bowl separation; a broken yolk's white is rejected
 food.weigh_into(scale, bowl, source, grams)          bowl on scale, tare, pour until the display reads grams
-food.audit_dates(items, region=None)                 inspect + read each item and report its status
+food.audit_dates(items, region=None, stand=None)     inspect + read each item and report its status
+food.count_items(container, method="inspect")       open, look in and count the whole items, report the count
 food.knife(tool)                                     fetch a knife by the handle
 """
 import datetime
 import json
 import re
 
-from ...kernel import geometry
+from ...kernel import clock, geometry
 from ...kernel.plugins import skill
 from ...tasks import skills as S
 from . import model as M
@@ -185,8 +186,31 @@ def _pour_into(r, cup, dest):
         r.do("close", target=dest)
 
 
-def _inspect(r, eid, where=None):
-    S.approach(r, eid)
+def far_cell(state, eid):
+    """The reachable floor cell of the robot's room farthest from eid (privileged routing: the viewpoint of a wrong
+    plan that looks from across the room), or None."""
+    room = state["robot"]["room"]
+    aroom, cells = geometry.anchor(state, eid)
+    if aroom != room or not cells:
+        return None
+    blocked = set(geometry.blocked_cells(state, room))
+    free = [c for c in sorted(geometry.reachable_cells(state, room)) if c not in blocked]
+    if not free:
+        return None
+    return max(free, key=lambda c: min(abs(c[0] - t[0]) + abs(c[1] - t[1]) for t in cells))
+
+
+def _stand_far(r, eid):
+    """Walk to the far side of the room from eid and look at it from there (wrong plans' viewpoint)."""
+    cell = far_cell(r.state, eid)
+    if cell is not None and tuple(r.state["robot"].get("pos") or ()) != tuple(cell):
+        r.do("walk_to", cell=[int(cell[0]), int(cell[1])])
+    r.do("look", target=eid)
+
+
+def _inspect(r, eid, where=None, approach=True):
+    if approach:
+        S.approach(r, eid)
     args = {"target": eid}
     if where:
         args["where"] = where
@@ -326,19 +350,26 @@ OPENED_LIFE_HINT = {"milk": 7, "yogurt": 7, "salsa": 10, "pesto": 7, "hummus": 7
 
 @skill("food.audit_dates")
 def audit_dates(r, items, field="status", window_days=3, report_to=None, ignore_opened=False, any_date_unsafe=False,
-                region_guess=None, read=True):
-    """Reveal, inspect and read each item; classify from what is printed/visible and report it."""
-    region = region_guess or r.state.get("metadata", {}).get("region", "us")
+                region_guess=None, read=True, stand=None):
+    """Reveal, inspect and read each item; classify from what is printed/visible and report it. stand="far" (a
+    plausible mistake): open what holds the items, then inspect and read each one from the far side of the room, where
+    3 mm best-by print is too small for the cameras (geometric camera) -- it reports from what it could make out."""
+    region = region_guess or clock.region(r.state)       # the household's market: how its packs print dates
     today = M.today(r.state)
     realistic = getattr(r.env, "realism", None) is not None
     for eid in items:
         S.reveal(r, eid)
-        S.approach(r, eid)
-        details = _inspect(r, eid, where="closely")
+        if stand == "far":
+            _stand_far(r, eid)
+            details = _inspect(r, eid, where="closely", approach=False)
+        else:
+            S.approach(r, eid)
+            details = _inspect(r, eid, where="closely")
         food = details.get("food") or details.get("food_view") or {}
         label = details.get("date_label") or food.get("date_label")
+        printed = {}
         if not label and realistic and read:
-            # realistic perception: printed dates are legible only to `read`
+            # realistic perception: printed dates (and a handwritten label) are legible only to `read`
             printed = parse_message(r.do("read", target=eid).get("message"))
             label = printed.get("date_label")
         dtype, day = parse_printed_date(label, region) if label else (None, None)
@@ -347,7 +378,8 @@ def audit_dates(r, items, field="status", window_days=3, report_to=None, ignore_
         unsafe = any(w in appearance for w in ("mold", "slimy", "bulging")) or odor != "normal"
         days_left = (day - today).days if day else None
         # when it was opened is not printed anywhere: realistic perception knows it only from a handwritten label
-        opened = r.state["entities"][eid].get("opened_on") if not realistic else _label_opened(details, food)
+        opened = r.state["entities"][eid].get("opened_on") if not realistic else \
+            (_label_opened(details, food) or _label_opened(printed, printed))
         kind = food.get("kind")
         if opened and kind in OPENED_LIFE_HINT and not ignore_opened:
             left = (datetime.date.fromisoformat(opened) + datetime.timedelta(days=OPENED_LIFE_HINT[kind]) - today).days
@@ -465,10 +497,18 @@ def weigh_report(r, item, scale=None, field="weight_g", method="scale", containe
 
 
 @skill("food.count_items")
-def count_items(r, container, field="count", method="inspect", close=False, to=None):
+def count_items(r, container, field="count", method="inspect", close=False, to=None, stand=None, open_first=False):
     """Count the whole food items in a container and report the number. method="inspect": open it (and what holds
     it), look closely and count (the inspector's whole_items); method="glance" (a plausible mistake): count the items
-    the robot can see in it from where it stands, without opening or inspecting anything."""
+    the robot can see in it, without inspecting anything -- from where it stands, or (stand="far", with open_first)
+    after opening it, from the far side of the room, where the geometric camera cannot make out eggs inside a carton."""
+    if method == "glance" and open_first:
+        S.reveal(r, container)
+        S.approach(r, container)
+        if r.state["entities"][container].get("openable") and not r.state["entities"][container].get("open"):
+            r.do("open", target=container)
+    if method == "glance" and stand == "far":
+        _stand_far(r, container)
     if method == "inspect":
         S.reveal(r, container)
         S.approach(r, container)
@@ -477,7 +517,8 @@ def count_items(r, container, field="count", method="inspect", close=False, to=N
         if rec.get("openable") and not rec.get("open"):
             r.do("open", target=container)
             opened = True
-        details = _inspect(r, container)
+        # a look inside (the geometric camera: the wrist camera over the open box, camera_log.looked_in)
+        details = _inspect(r, container, where="inside")
         value = details.get("whole_items")
         if value is None:
             value = len(details.get("food_contents") or [])
@@ -490,7 +531,8 @@ def count_items(r, container, field="count", method="inspect", close=False, to=N
             obs = realism.from_handles(obs)
         value = sum(1 for rec in obs.get("visible_entities", {}).values() if rec.get("location") == container)
         if container not in (r.state.get("facts", {}).get("inspected", {})):
-            S.approach(r, container)
+            if stand != "far":
+                S.approach(r, container)
             r.do("inspect", target=container)
     args = {"target": container, "field": field, "value": int(value)}
     if to:

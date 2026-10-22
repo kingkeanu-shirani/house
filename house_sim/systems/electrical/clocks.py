@@ -71,6 +71,7 @@ def clocks_system(w, dt, tick):
     if not clocks:
         return
     now_local = C.local_seconds(state)
+    shift = C.dst_shift_s(state, dt)
     for eid in clocks:
         rec = ents.get(eid)
         if rec is None or not has_clock(rec):
@@ -79,12 +80,16 @@ def clocks_system(w, dt, tick):
         running = _running(state, eid, rec)
         if not running:
             m = w.mut(eid)
-            m["clock"]["offset_s"] = round(norm(C.num(clk.get("offset_s"), 0.0) - dt), 1)
+            m["clock"]["offset_s"] = round(norm(C.num(clk.get("offset_s"), 0.0) - dt - shift), 1)
             if clk.get("running", True):
                 m["clock"]["running"] = False
             continue
         if not clk.get("running", True):
             w.mut(eid)["clock"]["running"] = True
+        if shift and not clk.get("auto_sync"):
+            # the wall clock jumped for daylight saving time: a manually set clock keeps its own count (it shows the
+            # old time until someone resets it); auto-sync clocks (phones, smart speakers, radio clocks) follow
+            w.mut(eid)["clock"]["offset_s"] = round(norm(C.num(clk.get("offset_s"), 0.0) - shift), 1)
         if clk.get("auto_sync") and C.num(clk.get("offset_s"), 0.0) != 0.0:
             prev = (now_local - dt) % 86400
             if prev <= 3 * 3600 < prev + dt or (prev > now_local and now_local >= 3 * 3600 and prev - 86400 + dt >= 3 * 3600):
@@ -109,6 +114,7 @@ def clocks_system(w, dt, tick):
                 m["ring_until_s"] = state["time_s"] + 600.0
                 m.setdefault("rang", []).append({"alarm": name, "time_s": state["time_s"], "shown": C.fmt_hhmm(t)})
                 C.event(w, "alarm_clock_ringing", eid, alarm=name)
+                C.notice(w, "alarm_clock", eid)
         if rec.get("ringing") and C.num(rec.get("ring_until_s"), 0) <= state["time_s"]:
             w.mut(eid)["ringing"] = False
     sync_clock_display(w)

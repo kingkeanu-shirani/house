@@ -35,6 +35,9 @@ STACK_OFFSET_FRAC = 0.3       # centre offset beyond this fraction of the lower 
 STACK_WOBBLY = 4.0            # height / base beyond which a stack is wobbly (a glance cue)
 STACK_TOPPLE = 6.0            # height / base beyond which a stack topples
 SHELF_GAP_MARGIN_M = 0.02     # a stack must clear the shelf above by this much (manipulation's clearance_for)
+LOW_BASE_M = 0.015            # a flat base this thin (a charging pad 12 mm, a watch puck, a coaster, a trivet, a
+                              # cutting board) is part of the surface: an item centred over it rests on both, it does
+                              # not rock off (a plate, 25 mm, or a book is a stack member as before)
 NEST_STEP_M = 0.02            # height a nested item adds (bowls in bowls)
 # rolling resistance on a support (floors.json c_rr): a hard finished top rolls like tile or wood (0.01), a soft one
 # (cushion, mattress, upholstery) like carpet (0.06)
@@ -307,9 +310,23 @@ def _centre_offset(state, upper):
     return x0 + fw / 2.0 - sw / 2.0, y0 + fd / 2.0 - sd / 2.0
 
 
-def clearance_above_m(state, base_id):
+def _rack_slots(state, parent_id, cmap=None):
+    """The shelf positions taken inside a parent whose shelves are removable racks in rack guides (an oven's or a
+    toaster oven's: a portable surface sits in it at a shelf position), else None (fixed shelf boards)."""
+    entities = state["entities"]
+    kids = support._map(state, cmap).get(parent_id, ())
+    inside = [c for c in kids if entities[c].get("relation") == "in"]
+    if not any(entities[c].get("portable") and entities[c].get("surface") and entities[c].get("accepts_items")
+               for c in inside):
+        return None
+    return {support._shelf_index(entities[c]) for c in inside}
+
+
+def clearance_above_m(state, base_id, cmap=None):
     """Vertical room (m) above a stack base: the gap to the next shelf, a container's inner height or a surface's
-    clearance_above_m; None when unlimited."""
+    clearance_above_m; None when unlimited. In a parent with removable racks the next shelf is the next position a
+    rack (or anything) takes, else the cavity top: an empty rack position is no shelf (adoption request
+    appliances_cooking 1: a dish on an oven rack was toppled by the empty slot 6 cm above)."""
     entities = state["entities"]
     rec = entities[base_id]
     parent = entities.get(rec.get("location"))
@@ -320,6 +337,14 @@ def clearance_above_m(state, base_id):
         inner = parent.get("inner_size_m")
         if heights:
             k = support._shelf_index(rec)
+            taken = _rack_slots(state, rec.get("location"), cmap)
+            if taken is not None and 0 <= k < len(heights):
+                above = [j for j in taken if k < j < len(heights)]
+                if above:
+                    return support.num(heights[min(above)]) - support.num(heights[k]) - SHELF_GAP_MARGIN_M
+                if inner and len(inner) > 2:
+                    return support.num(inner[2]) - support.num(heights[k])
+                return None
             if 0 <= k and k + 1 < len(heights):
                 return support.num(heights[k + 1]) - support.num(heights[k]) - SHELF_GAP_MARGIN_M
             if inner and len(inner) > 2 and parent.get("openable") and 0 <= k < len(heights):
@@ -354,21 +379,30 @@ def stack_verdict(state, base_id, cmap=None):
     unstable_at = None
     for i in range(1, len(members)):
         upper, lower = entities[members[i]], entities[members[i - 1]]
-        u_long, u_short = sorted(footprint_wd(state, members[i]), reverse=True)
-        l_long, l_short = sorted(footprint_wd(state, members[i - 1]), reverse=True)
+        uw, ud = footprint_wd(state, members[i])
+        lw, ld = footprint_wd(state, members[i - 1])
+        dx, dy = _centre_offset(state, members[i])
+        if i == 1 and support.resting_size(state, members[0])[2] <= LOW_BASE_M + 1e-9 and                 abs(dx) <= lw / 2.0 + 1e-9 and abs(dy) <= ld / 2.0 + 1e-9:
+            # a low flat base under an item centred over it (a phone on a Qi pad, a watch on its puck): the item rests
+            # on the base and the surface around it, so neither the oversize nor the offset rule applies (adoption
+            # request electrical 1)
+            continue
+        u_long, u_short = sorted((uw, ud), reverse=True)
+        l_long, l_short = sorted((lw, ld), reverse=True)
         if not _nests(upper, lower) and (u_long > l_long * STACK_OVERSIZE + 1e-6 or u_short > l_short * STACK_OVERSIZE + 1e-6):
             unstable_at = i
             break
-        lw, ld = footprint_wd(state, members[i - 1])
-        dx, dy = _centre_offset(state, members[i])
-        if abs(dx) > STACK_OFFSET_FRAC * lw + 1e-9 or abs(dy) > STACK_OFFSET_FRAC * ld + 1e-9:
+        inside = abs(dx) + uw / 2.0 <= lw / 2.0 + 1e-9 and abs(dy) + ud / 2.0 <= ld / 2.0 + 1e-9
+        if not inside and (abs(dx) > STACK_OFFSET_FRAC * lw + 1e-9 or abs(dy) > STACK_OFFSET_FRAC * ld + 1e-9):
+            # an off-centre member topples only when it reaches past the one below: a receipt anywhere on a tray
+            # lies wholly on it (adoption request textiles_laundry 1)
             unstable_at = i
             break
     height = stack_height_m(state, members)
     slender = height / max(0.05, min(footprint_wd(state, members[0])))
     if unstable_at is None and len(members) > 1 and slender > STACK_TOPPLE:
         unstable_at = max(1, len(members) // 2)
-    clearance = clearance_above_m(state, members[0])
+    clearance = clearance_above_m(state, members[0], cmap)
     if clearance is not None and len(members) > 1 and height > clearance + 1e-6:
         unstable_at = len(members) - 1 if unstable_at is None else min(unstable_at, len(members) - 1)
     if unstable_at is not None:

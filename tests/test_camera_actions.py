@@ -33,6 +33,7 @@ from house_sim.kernel.engine import HouseEnv
 from house_sim.kernel.errors import SpecError
 from house_sim.kernel.plugins import ACTIONS
 from house_sim.kernel.predicates import digest
+from house_sim.kernel.realism import LEVELS
 from house_sim.kernel.registry import default_registry
 from house_sim.systems import core
 from house_sim.tasks import setup as setup_mod
@@ -386,6 +387,42 @@ class PeekTests(unittest.TestCase):
         self.assertTrue(env.step("pick_up", "toy_1")["ok"])
         self.assertFalse(env.step("pick_up", "toy_2")["ok"])
 
+    def test_a_kneeling_robot_looks_under_a_slab_topped_table(self):
+        """Adoption-round request (safety 5): the under gap read only view.clear_below_m, so tables and desks (a 4 cm
+        slab on legs, clear_below_m 0) refused "No gap to look under it" over 0.7 m of open space."""
+        scene = {"table_1": {"type": "table", "location": "lab", "pos": [6, 4], "accepts_items": True,
+                             "size_m": [1.2, 0.8, 0.75]},
+                 "coin_1": item("table_1", size=(0.03, 0.03, 0.005), label="coin", relation="under")}
+        env = env_of(scene, pos=(5, 4), facing=0.0)
+        self.assertAlmostEqual(camera.under_gap_m(env.world.s, "table_1"), 0.71)
+        self.assertEqual(camera.wrist_access(env.world.s, "coin_1")[1], camera.NO_GAP_TEXT)    # standing: too high
+        self.kneel(env)
+        self.assertEqual(camera.wrist_access(env.world.s, "coin_1"), (True, None))
+        result = env.step("peek", "table_1", where="under")
+        self.assertTrue(result["ok"], result["message"])
+        wrist = [f for f in frames(env) if f[6] == "wrist"]
+        self.assertEqual(wrist[-1][9]["lift"], None)                       # looked in, the table was not lifted
+        self.assertLessEqual(wrist[-1][3], 0.13)
+        self.assertEqual(camera.under_gap_m(env.world.s, "light_1"), 0.0)
+
+    def test_a_surveyed_floor_is_seen_even_when_its_sample_points_are_not(self):
+        """Adoption-round request (cleaning 5): a whole-room floor slab was listed only when one of its five sample
+        points was in frame, so looking down at the floor dropped the floor (and its soil) from the observation. A
+        floor or rug a frame surveyed a cell of is seen now; one with no surveyed cell is not."""
+        floor = {"type": "floor_surface", "location": "lab", "pos": [0, 0], "ground_layer": True,
+                 "size_m": [COLS * 0.5, ROWS * 0.5, 0.01], "material": "tile"}
+        rug = {"type": "generic_item", "label": "rug", "category": "rug", "location": "lab", "pos": [9, 7],
+               "ground_layer": True, "portable": False, "size_m": [1.0, 1.0, 0.01]}
+        env = env_of({"floor_lab": floor, "rug_1": rug}, pos=(3, 3), facing=90.0)
+        self.assertTrue(env.step("look", "down")["ok"])
+        seen_cells = {c for rid, c in camera.seen_floor(env.world.s, env.world) if rid == "lab"}
+        self.assertTrue(seen_cells - {(3, 3)})
+        vis = seen(env)
+        self.assertIn("floor_lab", vis)
+        self.assertEqual(vis["floor_lab"]["view"]["via"], "head")
+        rug_cells = {(x, y) for x in (9, 10) for y in (7, 8)}
+        self.assertEqual("rug_1" in vis, bool(rug_cells & seen_cells))
+
     def test_peek_takes_its_documented_time_whichever_way_the_head_looks(self):
         """Stage-B review (camera, low): peek charged the head's auto-gaze on top of its 9.1 time (9.334 s for a 6 + 2 s
         peek under a bed with the body turned away). The wrist camera does the looking; the head stays put."""
@@ -661,6 +698,56 @@ class ReadTests(unittest.TestCase):
         env.world.rollback()
         self.assertEqual(granted, [("parcel_1", "read", ["display"])])
 
+    def pill_scene(self):
+        # two amber pill bottles (the kernel's read-resolved look-alike group, by category) on a table within reach
+        pill = dict(size=(0.05, 0.05, 0.09), category="pill_bottle", material="plastic", color="amber")
+        return {"table_1": {"type": "table", "location": "lab", "pos": [6, 4], "accepts_items": True},
+                "pills_1": item("table_1", label="pill bottle", label_text="Lisinopril 10 mg, one daily", spos=[0.1, 0.1],
+                                **pill),
+                "pills_2": item("table_1", label="pill bottle", label_text="Ibuprofen 200 mg", spos=[0.4, 0.1], **pill)}
+
+    def test_a_geometric_read_of_the_label_identifies_a_read_resolved_look_alike(self):
+        """Adoption-round request (people K-READ-LEVEL, safety 4): the geometric read grants only the fields its camera
+        made out, which left a read-resolved look-alike unresolved (pick_up then refused 'You cannot tell what this is
+        yet'). A read that printed its label now raises the entity's level as the room-mode read does."""
+        if not realistic_geometric_available():
+            self.skipTest("realistic + geometric not available")
+        env = env_of(self.pill_scene(), perception="realistic", pos=(5, 4), facing=0.0)
+        realism = env.realism
+        record = env.world.s["entities"]["pills_1"]
+        self.assertTrue(realism.unresolved("pills_1"))
+        result = env.step("read", realism.to_handles("pills_1"))
+        self.assertTrue(result["ok"], result["message"])
+        self.assertIn("label_text", json.loads(result["message"]))
+        self.assertFalse(realism.unresolved("pills_1"))
+        self.assertEqual(realism.knowledge.entity_level("pills_1", record), LEVELS["read"])
+        self.assertTrue(realism.unresolved("pills_2"))                  # its twin was not read
+        result = env.step("pick_up", realism.to_handles("pills_1"))
+        self.assertTrue(result["ok"], result["message"])
+
+    def test_read_never_prints_a_field_the_type_hides(self):
+        """Adoption-round request (people K-READ-HIDDEN): read_tier_fields merged the default read list (which has
+        patient and prescribed_to) without the type's hidden list, so a read printed the hidden patient id."""
+        from house_sim.kernel.realism import read_tier_fields
+        registry = default_registry()
+        name = "test_rx_bottle"
+        saved_types, saved_perception = dict(registry.types), dict(getattr(registry, "perception", {}))
+        try:
+            registry.types[name] = dict(registry.types["generic_item"], label="rx bottle")
+            registry.perception[name] = {"hidden": ["patient"]}
+            record = {"type": name, "label_text": "Amoxicillin", "patient": "resident_1", "prescribed_to": "Ann"}
+            fields = read_tier_fields(registry, record)
+            self.assertNotIn("patient", fields)
+            self.assertIn("prescribed_to", fields)
+            self.assertIn("patient", read_tier_fields(registry, dict(record, type="generic_item")))
+            own = dict(record, type="generic_item", _perception={"hidden": ["prescribed_to"]})
+            self.assertNotIn("prescribed_to", read_tier_fields(registry, own))
+        finally:
+            registry.types.clear()
+            registry.types.update(saved_types)
+            registry.perception.clear()
+            registry.perception.update(saved_perception)
+
     def test_big_text_reads_from_afar_and_small_print_needs_reach(self):
         sign = {"poster_1": item("lab", size=(0.6, 0.02, 0.8), pos=[9, 4], label="poster", display="EXIT",
                                  mounted=True, mount_height_m=1.2, view={"text_m": {"display": 0.03}})}
@@ -812,7 +899,10 @@ class SetupOpTests(unittest.TestCase):
         self.assertNotIn("camera_log", room_config)
         bad = [({"op": "track_view", "ids": []}, "track_view: ids"),
                ({"op": "track_view", "ids": ["ghost_1"]}, "track_view: ids"),
-               ({"op": "view_watch", "name": "a", "viewer": {"aperture": "window_1"}, "targets": ["robot"]}, "phase 3"),
+               ({"op": "view_watch", "name": "a", "viewer": {"aperture": "ghost_window"}, "targets": ["robot"]},
+                "an aperture viewer stands outside"),            # phase 3: aperture viewers exist (K-CAM)
+               ({"op": "view_watch", "name": "a", "viewer": {"aperture": "ghost", "eye_z": -1}, "targets": ["robot"]},
+                "an aperture viewer"),
                ({"op": "view_watch", "name": "a", "viewer": {"entity": "ghost"}, "targets": ["robot"]}, "unknown device"),
                ({"op": "view_watch", "name": "a", "viewer": {"room": start, "cell": [99, 0]}, "targets": ["robot"]},
                 "a room viewer"),

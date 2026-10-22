@@ -473,6 +473,37 @@ def initial_mode(t_out, cooling):
     return "cool" if t_out > 22.0 else "auto"
 
 
+# Generation 2 (TIER1_SWEEP 13.3, docs/GENERATOR.md): households set the thermostat for the season, not for the
+# hour's weather. It is on "heat" in winter and in the months whose mean daily temperature (the region's 1991-2020
+# normals, generator/climate_normals.json) is below 16 C, on "cool" (where the system cools) in the months above 20 C,
+# and "off" in between. Assumptions, order of magnitude: heating degree days use a 15.5 C (UK) to 18.3 C (US, 65 F)
+# base, so a house needs heat on some days of every month whose mean is below about 16 C (Philadelphia October-April,
+# London October-May, Toronto October-May); cooling degree days use 18.3 C and air conditioning runs in the months
+# whose mean exceeds about 20 C (Philadelphia and Tokyo June-September, Toronto July-August, never in London).
+HEAT_SEASON_BELOW_C = 16.0
+COOL_SEASON_ABOVE_C = 20.0
+
+
+def month_mean_c(config, region):
+    """Mean daily temperature (C) of the start month in the region's normals, or None without them."""
+    from ...generator import climate as gclimate
+    try:
+        row = gclimate.normals()["regions"][region]
+        month = int(str((config.get("clock") or {}).get("start") or "")[5:7]) - 1
+        return (float(row["high_c"][month]) + float(row["low_c"][month])) / 2.0
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None
+
+
+def season_mode(season, mean_c, cooling):
+    """The thermostat mode a household keeps in a season (generation 2): heat, cool or off."""
+    if season == "winter" or (mean_c is not None and mean_c < HEAT_SEASON_BELOW_C):
+        return "heat"
+    if cooling and mean_c is not None and mean_c > COOL_SEASON_ABOVE_C:
+        return "cool"
+    return "off"
+
+
 @furnisher("climate.hvac", order=32)
 def furnish_hvac(config, rng, opts, registry):
     if any(e.get("climate_kind") in ("hvac_system", "mini_split") for e in config["entities"].values()):
@@ -483,15 +514,21 @@ def furnish_hvac(config, rng, opts, registry):
     dwelling = (opts.get("plan") or {}).get("dwelling") or meta.get("dwelling_type", "house")
     units = "F" if meta.get("units") == "imperial" else "C"
     kind = system_choice(region, dwelling, rng)
+    mode_rule = None
+    if int(opts.get("gen") or 1) >= 2:
+        mean_c = month_mean_c(config, region)
+        mode_rule = lambda cooling: season_mode(opts.get("season"), mean_c, cooling)      # noqa: E731
     build_hvac(config, p, rng, kind, units, None, tstat_type="smart_thermostat" if rng.random() < 0.35 else "thermostat",
                condenser=dwelling != "apartment", merv=rng.choice([8, 8, 11]), filter_dirt=round(rng.uniform(0.15, 0.85), 2),
-               spare=rng.random() < 0.7)
+               spare=rng.random() < 0.7, mode_rule=mode_rule)
 
 
 def build_hvac(config, p, rng, kind, units, mode=None, heat_c=21.0, cool_c=24.5, tstat_type="thermostat", therm_room=None,
                register_kind=None, condenser=True, merv=8, filter_dirt=0.3, spare=True, nominal=None, set_temps=True, setback_c=0.0,
-               night_c=1.5):
-    """Build a complete HVAC installation; returns {"thermostat", "hvac", "thermo_room", "registers", "returns", "radiators", "filter"}."""
+               night_c=1.5, mode_rule=None):
+    """Build a complete HVAC installation; returns {"thermostat", "hvac", "thermo_room", "registers", "returns", "radiators", "filter"}.
+    mode: the thermostat mode; else mode_rule(cooling) (generation 2: the season's mode), else initial_mode from the
+    outdoor temperature now."""
     rooms = config["rooms"]
     t_out = C.num((config.get("weather") or {}).get("temperature_c"), 15.0)
     indoor = [r for r in sorted(rooms) if not rooms[r].get("outdoor") and not rooms[r].get("shared")]
@@ -508,7 +545,7 @@ def build_hvac(config, p, rng, kind, units, mode=None, heat_c=21.0, cool_c=24.5,
             next((r for r in conditioned if rooms[r]["type"] == "living_room"), conditioned[0])
     out["thermo_room"] = therm_room
     if kind == "mini_split":
-        out["mini_splits"] = _mini_splits(config, p, rng, conditioned, units, t_out, mode)
+        out["mini_splits"] = _mini_splits(config, p, rng, conditioned, units, t_out, mode or (mode_rule(True) if mode_rule else None))
         if set_temps:
             _initial_temps(config, None, t_out)
         return out
@@ -527,7 +564,7 @@ def build_hvac(config, p, rng, kind, units, mode=None, heat_c=21.0, cool_c=24.5,
     if nominal and isinstance((rec.get("slots") or {}).get("filter"), dict):
         rec["slots"]["filter"]["fit"]["nominal"] = nominal
     cooling = C.num(rec.get("cooling_capacity_w")) > 0
-    mode = mode or initial_mode(t_out, cooling)
+    mode = mode or (mode_rule(cooling) if mode_rule else initial_mode(t_out, cooling))
     settings, options = hvac.thermostat_settings(units, mode, heat_c, cool_c, heat_pump=kind == "heat_pump", cooling=cooling,
                                                  setback_c=setback_c, night_c=night_c)
     tid = wall_mount(p, therm_room, rng, tstat_type, 1.5, controls_hvac=sid, settings=settings, setting_options=options)
@@ -778,9 +815,21 @@ def furnish_fans(config, rng, opts, registry):
         if options:
             rid = rng.choice(options)
             # a loose floor item placed by the kernel rule (keep_access: off doorway clearance, cuts no route); the
-            # cord is routed by electrical when it plugs the fan in
-            p.floor_item(rid, rng.choice(["box_fan", "pedestal_fan", "tower_fan"]), settings={"speed": "low", "oscillate": False,
-                                                                                         "aim_deg": float(rng.choice([0, 90, 180, 270]))})
+            # cord is routed by electrical when it plugs the fan in. Generation 2: the fan stands by a wall outlet of
+            # the room (where people put one: a short cord, so a later robot-vacuum dock or desk lamp cord does not
+            # combine with a cord run across the room into a barrier of trip hazards)
+            near = _outlet_cell(config, rid) if int(opts.get("gen") or 1) >= 2 else None
+            p.floor_item(rid, rng.choice(["box_fan", "pedestal_fan", "tower_fan"]), near=near,
+                         settings={"speed": "low", "oscillate": False, "aim_deg": float(rng.choice([0, 90, 180, 270]))})
+
+
+def _outlet_cell(config, rid):
+    """The cell of the room's first wall outlet (sorted ids), or None."""
+    for eid in sorted(config["entities"]):
+        rec = config["entities"][eid]
+        if rec.get("location") == rid and rec.get("category") == "outlet" and rec.get("pos"):
+            return tuple(rec["pos"])
+    return None
 
 
 ACCESS_KINDS = ("register", "return_grille", "radiator", "thermostat")

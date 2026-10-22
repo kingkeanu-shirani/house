@@ -9,11 +9,15 @@ Fields:
   tile:       grout {state, cracked_m, raked, filled_at, cure_s}
   outdoor:    sealable, area_m2, seal {applied_at, quality, coverage, cured, failed}, soil, wetness, gouged
 States: hole open -> filled_wet -> filled (dry) [-> recessed if > 12.7 mm after one pass] -> sanded -> primed -> painted.
+
+Tier-1 adoption (kernel v3.0): the pressure washer declares its noise (80 dB at 1 m: the body's quiet mode refuses it;
+the hand-written quiet check is gone) and needs both arms on the wand; a window the jet breaks breaks through the
+kernel (physics.break_entity: shattered glass, a sharp floor hazard, the break event the camera can see).
 """
 import copy
 import math
 
-from ...kernel import geometry
+from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import ACTIONS, inspector, system
@@ -23,6 +27,7 @@ HARDNESS_BAR = {"cedar": 14.0, "redwood": 14.0, "pine": 22.0, "pressure_treated_
                 "vinyl": 35.0, "car_paint": 45.0, "steel": 45.0, "aluminum": 40.0, "brick": 70.0, "stone": 110.0, "concrete": 120.0,
                 "glass": 40.0, "fabric": 8.0, "screen": 6.0}
 NOZZLE = {"0": 1.0, "15": 0.3, "25": 0.15, "40": 0.07, "soap": 0.01, "shower": 0.005, "jet": 0.03}
+PRESSURE_WASHER_DB = 80.0    # an electric 1900 psi washer at 1 m, pump and jet (manufacturers list 76-85 dB(A))
 
 
 def _soil(w, eid, kind, amount):
@@ -516,14 +521,13 @@ def _surface_hardness(rec):
 
 @action("pressure_wash", params={"target": "entity", "tool": "?entity", "nozzle": "?str:0|15|25|40|soap",
                                  "distance_m": {"type": "number", "min": 0.05, "max": 5.0, "optional": True}},
-        duration=1.0, energy=0.03, noise=0.7, category="physical",
+        duration=1.0, energy=0.03, noise=0.7, category="physical", noise_db=PRESSURE_WASHER_DB, arms=2,
         doc="Spray a surface (deck, patio, siding, driveway, car, bike) with a held pressure washer. Effective pressure = pump "
             "pressure x nozzle factor (0 deg 1.0, 15 0.3, 25 0.15, 40 0.07, soap 0.01) x distance falloff (0.2/d)^1.5. Above the surface's "
             "tolerance it gouges/etches (cedar ~14 bar, concrete ~120 bar); never at people, pets, glass, outlets or bike/car "
             "bearings and seals. Leaves the surface soaked (wood needs ~48 h to dry before sealing). Power-tool rules apply.")
 def pressure_wash(ctx):
     w = ctx.w
-    require(not w.robot.get("quiet"), "Quiet mode: the pressure washer is too loud now", "social")
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True, reach=False)
     room = w.root_room(eid)
@@ -531,7 +535,6 @@ def pressure_wash(ctx):
     tool = C.resolve_tool(ctx, ctx.args.get("tool"), lambda r: r.get("tool_kind") == "pressure_washer", "Hold the pressure washer wand")
     trec = w.ent(tool)
     notes = list(C.power_tool_gate(ctx, tool))
-    from ...kernel import physics
     require(physics.water_available(w), "No water supply to the washer", "resource")
     nozzle = ctx.args.get("nozzle") or str((trec.get("settings") or {}).get("nozzle", "40"))
     distance = float(ctx.args.get("distance_m") or 0.3)
@@ -553,12 +556,9 @@ def pressure_wash(ctx):
         if near and C.is_outlet(orec):
             w.stat("electrical_hazard")
             notes.append("sprayed toward an outdoor outlet")
-        if near and orec.get("category") == "window" and p_eff > 15:
-            om = w.mut(other)
-            om["broken"] = True
-            C.add_damage(om, "broken", 1.0)
-            w.stat("breakages")
-            w.stat("damage")
+        if near and orec.get("category") == "window" and p_eff > 15 and not orec.get("broken"):
+            # the kernel breaks it (glass shatters: shards, a sharp hazard, the break event; the robot's breakage)
+            physics.break_entity(w, other, "pressure_jet", by="robot")
             notes.append("the jet broke a window")
     if p_eff > hardness:
         m["gouged"] = True
@@ -713,7 +713,34 @@ def _foreign_drying(rec):
     return (owner is not None and owner != C.DOMAIN) or (owner is None and rec.get("_wet_mine") is not None)
 
 
-@system("tools_vehicles.cure", order=145, max_dt=30.0)
+def _cure_pending(rec):
+    """Something on a surface is still setting: a wet patch, an uncured caulk bead, grout or sealer."""
+    joint, grout, seal = rec.get("caulk_joint"), rec.get("grout"), rec.get("seal")
+    return (any(h.get("state") == "filled_wet" for h in C.hole_list(rec))
+            or (isinstance(joint, dict) and joint.get("state") == "bead" and not joint.get("cured"))
+            or (isinstance(grout, dict) and grout.get("state") == "filled" and not grout.get("cured"))
+            or (isinstance(seal, dict) and not seal.get("cured") and not seal.get("failed")))
+
+
+def cure_idle(w):
+    """Exact idle probe (kernel v3.1): no patch registered as drying, and no curable surface is setting, drying (when
+    this domain dries it) or a sealable one out in the rain (cure_system skips every surface then)."""
+    if C.active(w, "curing"):
+        return False
+    wet_weather = raining(w)
+    cleaning = "wipe" in ACTIONS
+    ents = w.s["entities"]
+    for eid in C.index(w, "curable", _curable):
+        rec = ents.get(eid)
+        if rec is None:
+            continue
+        drying = not cleaning and float(rec.get("wetness", 0.0) or 0.0) > 0.0 and not _foreign_drying(rec)
+        if _cure_pending(rec) or drying or (wet_weather and rec.get("sealable")):
+            return False
+    return True
+
+
+@system("tools_vehicles.cure", order=145, max_dt=30.0, idle=cure_idle)
 def cure_system(w, dt, tick):
     """Per substep (a shower running onto fresh caulk or rain on fresh sealer acts within the minute) over the static
     curable-surface index plus surfaces patched during the episode (facts.tools_vehicles.active.curing)."""
@@ -727,11 +754,7 @@ def cure_system(w, dt, tick):
         if rec is None:
             continue
         holes = C.hole_list(rec)
-        joint, grout, seal = rec.get("caulk_joint"), rec.get("grout"), rec.get("seal")
-        pending = (any(h.get("state") == "filled_wet" for h in holes)
-                   or (isinstance(joint, dict) and joint.get("state") == "bead" and not joint.get("cured"))
-                   or (isinstance(grout, dict) and grout.get("state") == "filled" and not grout.get("cured"))
-                   or (isinstance(seal, dict) and not seal.get("cured") and not seal.get("failed")))
+        pending = _cure_pending(rec)
         if eid in patched and not any(h.get("state") == "filled_wet" for h in holes):
             C.deactivate(w, "curing", eid)
         drying = not cleaning and float(rec.get("wetness", 0.0) or 0.0) > 0.0 and not _foreign_drying(rec)

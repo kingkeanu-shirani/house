@@ -337,13 +337,163 @@ def visible_pet(state, pid):
     pet = state.get("pets", {}).get(pid)
     if pet is None or pet.get("location") != state["robot"]["room"]:
         return False
+    return not hidden_now(state, pet)
+
+
+def hidden_now(state, pet):
+    """A pet hiding under or behind furniture (not yet revealed) or shut in a closed, opaque holder (a dryer drum, a
+    cupboard): nobody sees it."""
     if pet.get("hiding_under") and not pet.get("revealed"):
-        return False
+        return True
     if pet.get("inside") and pet["inside"] in state["entities"]:
         holder = state["entities"][pet["inside"]]
         if holder.get("openable") and not holder.get("open") and not holder.get("transparent"):
-            return False
-    return True
+            return True
+    return False
+
+
+def hidden_synced(state, pid):
+    """True when sync_hidden would write nothing for this pet."""
+    pet = state["pets"][pid]
+    hidden = hidden_now(state, pet)
+    if hidden or pet.get("hiding_under"):
+        return bool(pet.get("concealed")) and not (hidden and pet.get("revealed"))
+    return not pet.get("concealed")
+
+
+def sync_hidden(w, pid):
+    """Mirror a pet's hiding onto the kernel's agent fields (concealed / revealed: the rule kernel perception, the
+    timeline's agent_seen, the geometric camera's agent_visible and the robot's memory read), so a hidden pet is hidden
+    in every one of them, not only in this domain's observer and guards. Writes only when something changed."""
+    pet = w.s.get("pets", {}).get(pid)
+    if pet is None:
+        return
+    hidden = hidden_now(w.s, pet)
+    if hidden or pet.get("hiding_under"):
+        if not pet.get("concealed") or (hidden and pet.get("revealed")):
+            m = w.pet_m(pid)
+            m["concealed"] = True
+            if hidden and m.get("revealed"):
+                m["revealed"] = False       # shut in a closed holder: an earlier look under the sofa no longer counts
+    elif pet.get("concealed"):
+        m = w.pet_m(pid)
+        m.pop("concealed", None)
+        m.pop("revealed", None)
+
+
+# ----------------------------------------------------------------------
+# tier 1: geometric camera, notices (kernel v3.0 camera, v3.1 notice bus)
+
+def geometric(state):
+    """True with the geometric camera (camera.mode: the state carries robot.view)."""
+    return isinstance((state.get("robot") or {}).get("view"), dict)
+
+
+# Height (m) of the top of a pet standing or sitting up, by species and size (AKC breed standards for the withers plus
+# the head above them: toy breeds 15-23 cm at the withers, small 30-40, medium 45-55, large 55-65; domestic cats 23-25
+# cm at the withers; a cockatiel about 0.3 m long; a hamster 6 cm, a guinea pig 12 cm, a rabbit 20 cm; a bearded dragon
+# 8 cm; a laying hen about 0.4 m). The kernel's table has no toy dogs, birds, small animals, reptiles or hens.
+PET_TOP_M = {"dog": {"toy": 0.28, "small": 0.42, "medium": 0.62, "large": 0.76}, "cat": 0.32, "bird": 0.3,
+             "hamster": 0.06, "guinea_pig": 0.12, "rabbit": 0.2, "reptile": 0.08, "chicken": 0.4}
+LYING_TOP_FRAC = 0.55       # a dog or cat lying down (head up or curled): about half its standing height
+
+
+def view_height_m(pet):
+    """Top of the pet's body as the geometric camera sees it (occluder and target height): by species and size, about
+    half that while it lies down (lying, sleeping, resting, hiding)."""
+    sp = species(pet)
+    table = PET_TOP_M.get(sp)
+    if isinstance(table, dict):
+        height = table.get(size_of(pet), table["medium"])
+    elif table is not None:
+        height = float(table)
+    else:
+        height = 0.2
+    if sp in ("dog", "cat") and (pet.get("posture") in ("lying", "sleeping", "resting", "pinned") or not pet.get("awake", True)):
+        height *= LYING_TOP_FRAC
+    return round(height, 3)
+
+
+def view_synced(state, pid):
+    """True when the pet's view.height_m is what view_height_m says (always True in room mode)."""
+    if not geometric(state):
+        return True
+    pet = state["pets"][pid]
+    return (pet.get("view") or {}).get("height_m") == view_height_m(pet)
+
+
+def sync_view(w, pid):
+    """Geometric camera only: keep the pet's view.height_m (sight.agent_top reads it) at its species, size and posture
+    height. Room-mode states never gain the field."""
+    if view_synced(w.s, pid):
+        return
+    m = w.pet_m(pid)
+    view = dict(m.get("view") or {})
+    view["height_m"] = view_height_m(m)
+    m["view"] = view
+
+
+def sync_all(w):
+    """Hidden and view fields of every pet (episode start, end of the pets tick)."""
+    for pid in pet_ids(w.s):
+        sync_hidden(w, pid)
+        sync_view(w, pid)
+
+
+def seen_event(w, kind, source=None, room=None, at=None, size_m=0.3):
+    """A visual occurrence for the geometric camera (camera.visual_event without an event-log entry of its own: the
+    caller's log entry is the record; room mode: nothing). The camera log records whether the head camera saw it and a
+    seen one becomes a "visual" notice."""
+    if not geometric(w.s):
+        return None
+    from ...kernel import camera
+    return camera.visual_event(w, kind, source=source, room=room, at=at, size_m=size_m, emit=False)
+
+
+# Pet sounds as notices (TIER1_SWEEP 6.1-6.2): (kind, doc, dB at 1 m). Levels: a dog's bark 80-90 dB at 1 m, an
+# insistent whine 55-65; a cat's demanding or distressed meow 60-75, a hiss about 45; a cockatiel's or parakeet's alarm
+# call 70-90; claws raking a door rattle it on both sides, about 60. Through one closed door (-20 dB: the timeline's
+# propagation) a shut-in cat's meows and scratching still reach the 40 dB hearing threshold next door, as the domain's
+# sound channel ("behind the door") has always said; a hiss does not.
+PET_NOTICE_KINDS = (
+    ("barking", "a dog barks (at the door, at a visitor, excited)", 85.0),
+    ("whining", "a dog whines (wants out, shut in, anxious)", 60.0),
+    ("meowing", "a cat meows insistently (shut in, wants in or out)", 65.0),
+    ("hissing", "a cat hisses or growls (frightened, defensive)", 45.0),
+    ("squawking", "a pet bird gives alarm calls (frightened, panicking)", 80.0),
+    ("pet_scratching", "an animal scratches at a door to be let in or out", 60.0),
+)
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind, doc, db in PET_NOTICE_KINDS:
+        timeline.register_notice_kind(kind, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
+
+
+def notice(w, kind, pid, room=None):
+    """Post a pet's sound on the kernel notice bus when it starts (w.notice: the timeline decides whether the robot
+    hears it and stores it only while the episode has the notice bus or a wait listens). No-op for an unknown room."""
+    pet = w.s.get("pets", {}).get(pid) or {}
+    room = room or pet.get("location")
+    if room not in w.s.get("rooms", {}) or not hasattr(w, "notice"):
+        return None
+    return w.notice(kind, room=room, source=pid)
+
+
+def pet_sound_kind(pet, why):
+    """The notice kind of a pet's vocal reaction: why is "anxious", "wants", "shut_in" or "excited"."""
+    sp = species(pet)
+    if sp == "dog":
+        return "barking" if why == "excited" else "whining"
+    if sp == "cat":
+        return "hissing" if why == "anxious" else "meowing"
+    if sp == "bird" and why in ("anxious", "excited"):
+        return "squawking"
+    return None
 
 
 def stress_signs(anxiety, pet=None):
@@ -1039,6 +1189,10 @@ def move_pet(w, pid, rid, near=None, why=None, mode="settle"):
         m.pop("hiding_under", None)
         m.pop("revealed", None)
         log(w, "pet_moved", pet=pid, frm=before, to=rid, why=why)
+    sync_hidden(w, pid)
+    if species(m) == "dog" and num(m.get("excitement")) >= 0.7:
+        from . import physical
+        physical.tail_sweep(w, pid)     # an excited dog's tail sweeps what stands round where it stops
 
 
 def robot_near(state, target, cells=1):
@@ -1060,15 +1214,24 @@ def adults_here(state, rid):
 # action guards
 
 def require_pet(ctx, pid, reach=True, touch=True):
-    """The standard guard for actions on a pet agent (in the room, visible, within arm's reach)."""
+    """The standard guard for actions on a pet agent: in the room and visible (with the geometric camera also made out
+    from where the robot stands, and the head turned to it, charged once per step: core inspect's rule for people and
+    pets), able to handle it (touch: the body's manipulation check, Ctx.obj's wording), and within arm's reach."""
     state = ctx.w.s
     require(isinstance(pid, str) and pid in state.get("pets", {}), "No such pet here", "perception")
     pet = state["pets"][pid]
     require(visible_pet(state, pid), "That pet is not visible here", "perception")
     robot = state["robot"]
+    if geometric(state):
+        from ...kernel import camera
+        from ...kernel.actions import require_access
+        require_access(camera.agent_visible(state, pid, ctx.w), camera.NOT_SEEN_TEXT, "perception")
+        camera.auto_gaze(ctx, pid)
     if touch:
-        require(robot.get("actuator_ok", True) and not robot.get("fallen") and robot.get("battery", 100) > 0,
-                "The robot cannot handle animals right now", "capability")
+        from ...kernel import body
+        problem = body.manip_problem(state)
+        if problem is not None:
+            raise ActionError(problem[0], problem[1])
     if reach:
         rpos = tuple(robot.get("pos") or (0, 0))
         ppos = tuple(pet.get("pos") or (0, 0))

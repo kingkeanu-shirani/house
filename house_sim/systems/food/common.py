@@ -149,23 +149,130 @@ def slip_check(ctx, fid, knife, surface, technique, style):
         reasons.append("dull blade skidded")
     if f.get("slippery") and technique not in ("claw",):
         risk += 0.2
+    hand = ctx.hand_of(knife) if knife else None
+    if hand is not None:
+        # dough, oil or egg left on the fingers holding the handle (body.soil_hand; washed off by a hand wash)
+        from ...kernel import body
+        greasy = body.slippery(w.s, hand)
+        if greasy > 0.0:
+            risk += round(D.GREASY_HANDLE_RISK * greasy, 4)
+            if greasy >= 0.5:
+                reasons.append("the handle slid in greasy fingers")
     if risk >= D.SLIP_RISK_LIMIT:
-        knife_slip(ctx, fid, "; ".join(reasons))
+        knife_slip(ctx, fid, "; ".join(reasons), tool=knife)
         return True
     return False
 
 
-def knife_slip(ctx, fid, why):
+# ----------------------------------------------------------------------
+# tier-1 adapters (TIER1_INTEGRATION 6): robot faults and soiled fingers (body), visual occurrences (camera),
+# notices (the kernel notice bus)
+
+GRIPPER_CUT = "gripper_cut"
+
+
+def _register_faults():
+    """The robot fault a slipping blade causes (body_faults: a typed record, the fault log, detection). cleaning
+    raises the same kind when a knife is wiped toward its edge; whichever domain loads first registers it, with the
+    same effect: the gashed pad grips worse (a gripper_slip fault on that hand) until service replaces it."""
+    from ...kernel import body_faults
+    if GRIPPER_CUT not in body_faults.FAULT_KINDS:
+        body_faults.register_fault_kind(
+            GRIPPER_CUT, "gripper", lambda robot, record: None, onset=_cut_pad_slips,
+            doc="A blade cut a gripper pad (a knife, mandoline, grater or oyster knife slipped into the holding hand): "
+                "the gashed pad grips worse (a gripper_slip fault on that hand) until service replaces it")
+
+
+def _cut_pad_slips(w, record):
+    from ...kernel import body, body_faults
+    if body.fault(w.s, "gripper_slip_" + record["part"]) is None:
+        body_faults.add_fault(w, "gripper_slip", part=record["part"], source=GRIPPER_CUT)
+
+
+_register_faults()
+
+
+def cut_hand(ctx, fid, tool=None):
+    """The hand a slipping blade reaches: the one holding the food (grater, mandoline, peeling toward the hand, an
+    oyster), else the steadying hand opposite the held blade, else the free hand."""
+    hand = ctx.hand_of(fid)
+    if hand is None and tool and ctx.hand_of(tool):
+        hand = "left" if ctx.hand_of(tool) == "right" else "right"
+    return hand or ctx.free_hand() or "left"
+
+
+def knife_slip(ctx, fid, why, tool=None):
+    """The blade slipped into the robot's hand: a cut gripper pad (body_faults gripper_cut, which starts a gripper_slip
+    fault on that hand) and the global damage flag."""
+    from ...kernel import body_faults
     w = ctx.w
     w.stat("damage")
-    r = w.robot_m()
-    faults = list(r.get("faults", []))
-    if "end_effector_cut" not in faults:
-        faults.append("end_effector_cut")
-    r["faults"] = faults
+    hand = cut_hand(ctx, fid, tool)
+    body_faults.add_fault(w, GRIPPER_CUT, part=hand, source="food")
     w.emit("knife_slip", target=fid, reason=why)
     ctx.note("The knife slipped: " + why)
     ctx.data["slipped"] = why
+
+
+def soil_hands(ctx, kind, amount, hands=None):
+    """Food left on the robot's fingers (body.soil_hand: the body owns the coating; slippery soil can start a latent
+    gripper_slip fault): flour or crumbs ("flour"), oil or fat ("oil"), wet or sticky food ("food"). hands: "both",
+    a hand, or None for the working hand (the free one, else the right)."""
+    from ...kernel import body
+    if amount <= 0:
+        return
+    hand = hands or ctx.free_hand() or "right"
+    body.soil_hand(ctx.w, hand, kind, amount)
+
+
+def coating_soil(rec):
+    """The kind of hand soil a food leaves on fingers that work it (None: none worth counting)."""
+    f = M.food(rec) or {}
+    k = f.get("kind") or ""
+    if k in ("oil", "olive_oil", "vegetable_oil", "butter", "salted_butter", "unsalted_butter", "bacon_grease", "fat",
+             "lard", "shortening") or f.get("cat") in ("oil", "butter"):
+        return "oil"
+    if f.get("phase") in ("powder", "granular"):
+        return "flour"
+    if f.get("phase") in ("liquid", "paste", "dough") or f.get("cat") in ("egg", "poultry", "meat", "ground_meat", "fish"):
+        return "food"
+    return None
+
+
+def witness(w, kind, source=None, size_m=0.3, visual=None, **data):
+    """A visual food occurrence (a spill, smoke, a spraying can): camera.visual_event, which is exactly
+    w.emit(kind, **data) in room mode; in geometric mode the head camera's current pose witnesses it (camera_log.events,
+    obs.camera.events and a "visual" notice when seen). size_m: how big the occurrence looks; visual: the perceived
+    words ("spill", "smoke")."""
+    from ...kernel import camera
+    return camera.visual_event(w, kind, source=source if isinstance(source, str) and source in w.s["entities"] else None,
+                               size_m=size_m, visual=visual, **data)
+
+
+def post_notice(w, kind, source=None, room=None, db=None, visual=False):
+    """Something perceivable happened (w.notice): the timeline decides whether the robot hears or sees it and stores
+    it while the notice bus is on or a wait listens. Cheap when nobody listens. Returns the stored record or None."""
+    from ...kernel import timeline
+    if not timeline.active(w):
+        return None
+    if room is None and isinstance(source, str) and source in w.s["entities"]:
+        from ...kernel.predicates import root_room
+        room = root_room(w.s, source)
+    return w.notice(kind, room=room, db=db, source=source if isinstance(source, str) else None, visual=visual)
+
+
+# notices this domain posts beyond the kernel's built-ins ("smoke" is built in): (kind, doc, db at 1 m)
+NOTICE_KINDS = (
+    ("hiss", "something hisses or sprays out under pressure as it is opened (a shaken drink, a bulging can)", 60.0),)
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind, doc, db in NOTICE_KINDS:
+        timeline.register_notice_kind(kind, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
 
 
 def dull(ctx, knife, amount):

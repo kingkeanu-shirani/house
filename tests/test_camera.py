@@ -28,7 +28,7 @@ from house_sim.kernel import body, camera, sight
 from house_sim.kernel.actions import Ctx
 from house_sim.kernel.engine import HouseEnv
 from house_sim.kernel.phys import impact, support
-from house_sim.kernel.plugins import ACTIONS, HOOKS
+from house_sim.kernel.plugins import ACTIONS, HOOKS, load_domains
 from house_sim.kernel.predicates import digest
 from house_sim.kernel.world import clone
 
@@ -707,16 +707,23 @@ class CaptureTests(unittest.TestCase):
     def test_with_the_people_domain_loaded_its_own_count_stands_in_both_camera_modes(self):
         """Stage-B review (camera, medium): while the people domain is loaded but has not adopted camera_capture, its
         entry-based count and the kernel fallback both counted one walk into a room where someone was dressing
-        (room mode 1, geometric 2). The fallback is for a house without the people domain (TIER1_DECISIONS)."""
+        (room mode 1, geometric 2). The fallback is for a house without the people domain (TIER1_DECISIONS).
+        Adoption round: the people domain now answers camera_capture itself (its own rule counts a frame capture as
+        a violation on top of the intrusion); this kernel test pins the kernel's half, so it takes the domain's hook
+        out and checks that the kernel adds nothing while the domain is loaded."""
         cfg = config({}, pos=(1, 1), facing=0.0)
         cfg["people"] = {"bo": {"label": "Bo", "role": "resident", "location": "hall", "pos": [1, 2],
                                 "posture": "standing", "activity": "dressing"}}
         counts = {}
-        for mode in ("room", "geometric"):
-            env = HouseEnv(copy.deepcopy(cfg), seed=0, camera=mode)
-            self.assertTrue(env.step("move", "hall")["ok"])
-            env.step("wait", seconds=30)
-            counts[mode] = env.world.s.get("stats", {}).get("privacy_violations", 0)
+        load_domains()
+        with mock.patch.dict(HOOKS, {"camera_capture": []}):
+            for mode in ("room", "geometric"):
+                env = HouseEnv(copy.deepcopy(cfg), seed=0, camera=mode)
+                self.assertTrue(env.step("move", "hall")["ok"])
+                env.step("wait", seconds=30)
+                counts[mode] = env.world.s.get("stats", {}).get("privacy_violations", 0)
+                if mode == "geometric":
+                    self.assertTrue(env.world.s["camera_log"]["captures"])        # the capture is logged anyway
         if camera._people_domain_loaded():
             self.assertEqual(counts["geometric"], counts["room"])
         else:
@@ -732,16 +739,16 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(quiet.world.s["stats"]["privacy_violations"], 0)
 
     def test_a_registered_camera_capture_hook_replaces_the_kernel_count(self):
+        # the test's hook is the only one (the people domain registers its own since the adoption round)
+        load_domains()
         seen = []
 
         def capture_hook(w, info):
             seen.append(info["person"])
-        HOOKS["camera_capture"].append((100, "tests.capture_hook", capture_hook))
-        try:
+        with mock.patch.dict(HOOKS, {"camera_capture": [(100, "tests.capture_hook", capture_hook)],
+                                     "private_activity": []}):
             env = self.showering(0.0, mic_on=False)
             env.step("look")
-        finally:
-            HOOKS["camera_capture"].remove((100, "tests.capture_hook", capture_hook))
         self.assertEqual(seen, ["ann"])
         self.assertEqual(env.world.s["stats"]["privacy_violations"], 0)
 
@@ -751,12 +758,13 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(env.world.s["camera_log"]["captures"], [])
 
     def test_a_private_activity_hook_decides_first(self):
-        HOOKS["private_activity"].append((100, "tests.never_private", lambda state, pid, person: False))
-        try:
+        # the test's hook answers alone (the people domain registers its own since the adoption round; the domains
+        # load first, so they cannot register into the patched list)
+        load_domains()
+        with mock.patch.dict(HOOKS, {"private_activity": [(100, "tests.never_private",
+                                                           lambda state, pid, person: False)]}):
             env = self.showering(0.0)
             env.step("look")
-        finally:
-            del HOOKS["private_activity"][-1]
         self.assertEqual(env.world.s["camera_log"]["captures"], [])
 
 
@@ -866,10 +874,11 @@ class WatchTests(unittest.TestCase):
     def test_a_long_geometric_wait_keeps_the_touch_log_bounded(self):
         env = HouseEnv(seed=0, camera="geometric", observe_on_step=False)
         w = env.world
-        sizes = []
+        sizes, ends = [], []
         trim = w.trim_touched
 
         def watched_trim():
+            ends.append(w._touched_base + len(w._touched))
             trim()
             sizes.append(len(w._touched))
         w.trim_touched = watched_trim
@@ -878,7 +887,14 @@ class WatchTests(unittest.TestCase):
         finally:
             del w.trim_touched
         self.assertEqual(len(sizes), 720)
-        self.assertLess(max(sizes), 200)                    # one substep's tail at most, not the whole wait
+        # bounded, not the whole wait: the tail the slowest consumer has not read yet (the adoption round's domain
+        # consumers, e.g. an idle probe that reads every few substeps, keep a few substeps of it; a fixed 200 no
+        # longer held), never growing with the length of the wait
+        if ends[-1]:
+            self.assertLess(max(sizes) * 20, ends[-1])
+            self.assertLessEqual(max(sizes[-120:]), 2 * max(sizes[:120]))
+        else:                                               # HOUSE_SIM_DOMAINS=core: nothing writes during the wait
+            self.assertEqual(max(sizes), 0)
         self.assertIn(sight.TOUCH_CONSUMER, w._touch_readers)
         room = HouseEnv(seed=0, observe_on_step=False)
         room.step("wait", seconds=600)
@@ -892,6 +908,76 @@ class WatchTests(unittest.TestCase):
                 env.step("wait", seconds=60)
         self.assertEqual(len(env.world.s["camera_log"]["captures"]), 1)
         self.assertEqual(env.world.s["stats"]["privacy_violations"], 1)
+
+    def test_the_watch_memo_stays_exact_under_domain_view_hooks(self):
+        """K-CAM (STAGE-B-FIX C9): the adoption round's light_at, bright_sources and sun_beam hooks (climate's sun
+        patches, electrical's lamp pools) used to switch the watch memo off. Now the line of sight is memoized on the
+        geometry (the view_occluders hook's own output included) and the light is judged every substep (light_at
+        hooks are boosts: skipped when the room is lit past saturation), with the same camera log as computing every
+        substep."""
+        def sun(state, rid, x, y, z):                       # a sun patch moving across the floor with the clock
+            return 0.3 if rid == "lab" and abs(x - (1.0 + state["time_s"] / 600.0)) < 0.6 else None
+
+        def smoke(state, rid):
+            if rid == "lab" and state.get("time_s", 0.0) >= 900.0:
+                return [([(c, r) for c in range(4, 7) for r in range(0, 10)], 0.0, 2.4, 0.2, "smoke")]
+            return []
+
+        def run(memo, light_on):
+            people = {"ann": {"location": "lab", "pos": [8, 4]}, "bob": {"location": "lab", "pos": [2, 4]}}
+            env = env_of(pos=(3, 4), facing=0.0, people=people, light=light_on)
+            load_domains()
+            patches = [mock.patch.dict(HOOKS, {"light_at": [(100, "tests.sun", sun)],
+                                               "view_occluders": [(100, "tests.smoke", smoke)]})]
+            if not memo:
+                patches.append(mock.patch.object(camera, "_watch_signature", lambda *a, **k: None))
+            for p in patches:
+                p.start()
+            try:
+                for k in range(4):
+                    env.step("wait", seconds=600)
+                    env.world.begin()
+                    env.world.person_m("ann")["pos"] = [8 + k % 2, 4]
+                    env.world.commit()
+            finally:
+                for p in reversed(patches):
+                    p.stop()
+            log = env.world.s["camera_log"]
+            return {k: log.get(k) for k in ("in_view_s", "gap_s", "max_gap_s", "sightings")}
+        for light_on in (True, False):
+            self.assertEqual(run(True, light_on), run(False, light_on), light_on)
+
+    def test_a_view_occluders_hook_rebuilds_the_geometry_only_when_its_answer_changes(self):
+        """K-CAM (adoption round; safety's smoke layer and outdoor_plants' tall grass were held back because "a
+        registered occluder hook makes every mutation start a new sight epoch"): the room's occlusion signature keys
+        on the hook's own answer, so with a hook registered the domains' writes rebuild nothing; the room geometry is
+        built once when the answer changes (smoke from 15 min on), and the geometry of the earlier answer comes back
+        from the content cache when the smoke clears."""
+        def smoke(state, rid):
+            t = state.get("time_s", 0.0)
+            if rid == "lab" and 900.0 <= t < 2700.0:
+                return [([(c, r) for c in range(4, 7) for r in range(0, 10)], 1.6, 2.4, 0.3, "smoke")]
+            return []
+        env = env_of({"lamp_1": {"type": "table_lamp", "location": "lab", "pos": [10, 8], "on": True}}, pos=(3, 4),
+                     facing=0.0, people={"ann": {"location": "lab", "pos": [8, 4]}})
+        built = []
+        real = sight._build_geom
+
+        def counting(state, rid, sig, world):
+            built.append((rid, state.get("time_s")))
+            return real(state, rid, sig, world)
+        load_domains()
+        with mock.patch.dict(HOOKS, {"view_occluders": [(100, "tests.smoke", smoke)]}), \
+                mock.patch.object(sight, "_build_geom", counting):
+            env.step("look")
+            built.clear()
+            for _ in range(6):
+                env.step("wait", seconds=600)
+                env.world.begin()
+                env.world.mut("lamp_1")["on"] = not env.world.s["entities"]["lamp_1"]["on"]   # a write each step
+                env.world.commit()
+        self.assertEqual([rid for rid, _ in built], ["lab"], built)
+        self.assertGreaterEqual(built[0][1], 900.0)
 
     def test_the_watch_writes_nothing_with_nobody_around(self):
         env = env_of(pos=(3, 4))
@@ -992,6 +1078,44 @@ class CheckTests(unittest.TestCase):
         turned = env_of({"box_1": item("lab", size=(0.5, 0.5, 0.4), pos=[11, 4], label="box", label_text="FRAGILE",
                                        label_facing="front")}, pos=(10, 4), facing=0.0)
         self.assertTrue(camera.read_check(turned.world.s, "box_1", ["label_text"], turned.world)[0])
+
+    def test_a_top_label_under_a_stacked_box_cannot_be_read_by_the_wrist_either(self):
+        """K-CAM (adoption round, admin_inventory's request): the head never sees an "up" face half covered by things
+        on it (sight.faces_seen); the wrist read it anyway. Now neither camera reads it, until the box on top is
+        taken off; a small thing on the label covers too little to matter."""
+        def scene(on_top):
+            ents = {"table_1": {"type": "table", "location": "lab", "pos": [6, 4], "accepts_items": True},
+                    "parcel_1": item("table_1", size=(0.4, 0.3, 0.2), label="parcel", label_text="Ann Smith, 12 Elm St",
+                                     label_facing="top", accepts_items=True)}
+            if on_top:
+                ents["top_1"] = item("parcel_1", size=on_top, label="box", relation="on")
+            return env_of(ents, pos=(5, 4), facing=0.0)
+        bare = scene(None)
+        self.assertEqual(camera.read_check(bare.world.s, "parcel_1", ["label_text"], bare.world)[:2], (True, None))
+        stacked = scene((0.4, 0.3, 0.3))
+        ok, reason, via, fields = camera.read_check(stacked.world.s, "parcel_1", ["label_text"], stacked.world)
+        self.assertEqual((ok, via, fields), (False, None, []))
+        coin = scene((0.03, 0.03, 0.01))
+        self.assertTrue(camera.read_check(coin.world.s, "parcel_1", ["label_text"], coin.world)[0])
+
+    def test_a_type_mapped_face_the_thing_does_not_declare_gates_nothing(self):
+        """K-CAM (adoption round, cleaning's request): a type's perception block may map a field to a face ("product"
+        on the "label" face). On a thing that declares no such face, realism gates nothing and the wrist read it, but
+        the head camera never could (the face was never among the faces seen). Now the head reads it like wrap-around
+        text; a thing that does declare the face still needs it in view."""
+        from house_sim.kernel.registry import default_registry
+
+        def env(**props):
+            bottle = item("table_1", size=(0.1, 0.1, 0.25), label="bottle", product="BLEACH",
+                          view={"text_m": {"product": 0.05}}, **props)
+            return env_of({"table_1": {"type": "table", "location": "lab", "pos": [6, 4], "accepts_items": True},
+                           "bottle_1": bottle}, pos=(2, 4), facing=0.0)
+        with mock.patch.dict(default_registry().perception, {"generic_item": {"faces": {"product": "label"}}}):
+            bare = env()
+            self.assertEqual(camera.read_check(bare.world.s, "bottle_1", ["product"], bare.world),
+                             (True, None, "head", ["product"]))
+            away = env(label_facing="back")                 # declared, and turned away from the robot
+            self.assertFalse(camera.read_check(away.world.s, "bottle_1", ["product"], away.world)[0])
 
     def test_a_dirty_lens_and_cameras_off_refuse_reading(self):
         env = env_of({"poster_1": item("lab", size=(0.6, 0.02, 0.8), pos=[9, 4], sign="EXIT")}, pos=(8, 4),
@@ -1198,6 +1322,111 @@ class SightIntegrationTests(unittest.TestCase):
         self.assertEqual(sight.occ_sig(w.s, "lab", w), sig)
         self.assertEqual(sight.occ_sig(w.s, "lab", w), sight.occ_sig(w.s, "lab"))
 
+    def test_room_epochs_judge_each_room_alone_and_stay_exact(self):
+        """K-CAM (C9): a room's occlusion signature is memoized per room epoch, so writes to the furniture of other
+        rooms (domains touch fridges and sinks every substep) are judged only when their own room is asked about.
+        Every answer equals the signature computed from scratch: in-place changes, a move into another room, a door,
+        creation and destruction, a rollback and a savepoint rollback."""
+        env = env_of({"wardrobe_1": {"type": "wardrobe", "location": "lab", "pos": [5, 4]},
+                      "cabinet_h": {"type": "cabinet", "location": "hall", "pos": [1, 1], "openable": True}})
+        w = env.world
+
+        def same():
+            for rid in ("lab", "hall"):
+                self.assertEqual(sight.occ_sig(w.s, rid, w), sight.occ_sig(w.s, rid), rid)
+        w.begin()
+        same()
+        lab = sight.room_epoch(w, "lab")
+        w.mut("cabinet_h")["open"] = True                    # the hall's furniture changes in place
+        self.assertEqual(sight.room_epoch(w, "lab"), lab)    # the lab is not affected
+        same()
+        hall = sight.room_epoch(w, "hall")
+        w.mut("cabinet_h")["temperature_c"] = 30.0           # not a field occlusion reads
+        self.assertEqual(sight.room_epoch(w, "hall"), hall)
+        w.mut("cabinet_h").update(location="lab", pos=[2, 2])    # carried into the lab: a new global epoch
+        self.assertNotEqual(sight.room_epoch(w, "lab"), lab)
+        same()
+        w.create("box_9", {"type": "box", "location": "lab", "pos": [8, 8], "size_m": [0.6, 0.6, 0.6]})
+        same()
+        w.destroy("box_9")
+        same()
+        w.commit()
+        w.begin()
+        sp = w.savepoint()
+        w.mut("wardrobe_1")["pos"] = [7, 4]
+        same()
+        w.rollback_to(sp)
+        same()
+        w.mut("wardrobe_1")["pos"] = [8, 4]
+        same()
+        w.rollback()
+        same()
+        self.assertEqual(w.s["entities"]["wardrobe_1"]["pos"], [5, 4])
+
+    def test_parts_and_things_inside_are_judged_on_their_first_hop(self):
+        """K-CAM (adoption round, C9): the domains write parts (a freezer compartment, an oven cavity) and things
+        inside furniture every substep. Inside or part of an entity a thing is no occluder source whatever its fields,
+        so the judge drops such writes on the first hop of the "on" chain; one that comes out onto the floor or onto a
+        table, or is turned from "in" to "on" its support, is still seen. Every answer equals the signature computed
+        from scratch."""
+        env = env_of({"wardrobe_1": {"type": "wardrobe", "location": "lab", "pos": [5, 4], "openable": True,
+                                     "accepts_items": True},
+                      "table_1": {"type": "table", "location": "lab", "pos": [1, 6], "surface": True,
+                                  "accepts_items": True},
+                      "drawer_1": item("wardrobe_1", size=(0.8, 0.5, 0.3), relation="part", openable=True),
+                      "box_1": item("wardrobe_1", size=(0.4, 0.4, 0.4), relation="in", accepts_items=True),
+                      "crate_1": item("table_1", size=(0.5, 0.4, 0.4), relation="in", accepts_items=True)})
+        w = env.world
+
+        def same():
+            self.assertEqual(sight.occ_sig(w.s, "lab", w), sight.occ_sig(w.s, "lab"))
+        w.begin()
+        same()
+        lab = sight.room_epoch(w, "lab")
+        for _ in range(3):                                   # substep-style writes to a part and to a thing inside
+            w.mut("drawer_1")["open"] = not w.s["entities"]["drawer_1"].get("open")
+            w.mut("box_1")["size_m"] = [0.45, 0.4, 0.4]
+            self.assertEqual(sight.room_epoch(w, "lab"), lab)
+            same()
+        w.mut("crate_1")["relation"] = "on"                  # now it stands on the table: a source of the lab
+        self.assertNotEqual(sight.room_epoch(w, "lab"), lab)
+        same()
+        lab = sight.room_epoch(w, "lab")
+        w.mut("box_1").update(location="lab", relation="on", pos=[8, 2])     # taken out onto the floor
+        self.assertNotEqual(sight.room_epoch(w, "lab"), lab)
+        same()
+        w.rollback()
+        same()
+
+    def test_the_ambient_light_memo_equals_the_light_level(self):
+        """K-CAM (C9): the camera's ambient light is memoized on the clock's daylight, the house power, the light hooks'
+        answers and a light epoch of the touch log (every window and light and what they rest on)."""
+        from house_sim.kernel.perception import light_level
+        scene = {"table_1": {"type": "table", "location": "lab", "pos": [6, 6], "surface": True, "accepts_items": True},
+                 "lamp_1": {"type": "table_lamp", "location": "table_1", "on": True, "category": "light"},
+                 "window_1": {"type": "window", "category": "window", "location": "lab", "pos": [5, 0],
+                              "mounted": True, "mount_height_m": 0.9, "size_m": [1.0, 0.1, 1.2], "covered": 0.0}}
+        env = env_of(scene)
+        w = env.world
+
+        def same():
+            for rid in ("lab", "hall"):
+                self.assertEqual(camera.ambient_light(w.s, rid, w), light_level(w.s, rid), rid)
+        w.begin()
+        same()
+        w.mut("light_1")["on"] = False
+        same()
+        w.mut("window_1")["covered"] = 1.0
+        same()
+        w.mut("table_1").update(location="hall", pos=[1, 1])         # the lamp rides along to the hall
+        same()
+        w.set_scalar("time_s", w.s.get("time_s", 0.0) + 6 * 3600)      # the clock moves on: daylight changes
+        same()
+        w.sec("utilities")["power"] = False
+        same()
+        w.rollback()
+        same()
+
     def test_lidar_reads_walls_and_furniture_and_needs_depth(self):
         scene = {"wardrobe_1": {"type": "wardrobe", "location": "lab", "pos": [6, 4], "rot": 90}}
         env = env_of(scene, pos=(3, 4), facing=0.0)
@@ -1251,6 +1480,42 @@ def door_config(entities=None, door_open=True, doorway=(0, 4), **kw):
     return cfg
 
 
+class GoRoomTests(unittest.TestCase):
+    """K-CAM (adoption round, cleaning's and food's request): the kernel's go_room approached a closed door on the
+    route with the raw approach verb, which the geometric camera refuses while the door is out of sight (a wardrobe
+    between), so reference plans stopped in forced realistic + geometric runs. A door out of sight is now walked into
+    view first, as the approach skill does; the room camera keeps the raw verb."""
+
+    def env(self, perception, camera_mode="geometric"):
+        cfg = door_config({"wardrobe_1": {"type": "wardrobe", "location": "lab", "pos": [3, 3]}}, door_open=False)
+        cfg["robot"].update(pos=[9, 4], facing_deg=180.0)
+        return HouseEnv(cfg, seed=0, camera=camera_mode, perception=perception)
+
+    def test_a_closed_door_out_of_sight_is_walked_into_view_first(self):
+        from house_sim.tasks import skills
+        from house_sim.tasks.runner import PlanError, Runner
+        for perception in ("oracle", "realistic"):
+            env = self.env(perception)
+            self.assertFalse(env.perception.visible(env.world.s, "door_1"))
+            self.assertFalse(Runner(env, {}, strict=False).do("approach", target="door_1")["ok"])   # refused
+            env = self.env(perception)
+            Runner(env, {}).skill("go_room", room="hall")
+            self.assertEqual(env.world.s["robot"]["room"], "hall", perception)
+            self.assertTrue(env.world.s["entities"]["door_1"]["open"])
+            raw = self.env(perception)                 # the old step: the raw verb from where the robot stands
+            with mock.patch.object(skills, "_approach_door", lambda r, d: r.do("approach", target=d)):
+                with self.assertRaises(PlanError):
+                    Runner(raw, {}).skill("go_room", room="hall")
+
+    def test_the_room_camera_keeps_the_raw_approach(self):
+        from house_sim.tasks.runner import Runner
+        env = self.env("oracle", camera_mode="room")
+        runner = Runner(env, {})
+        runner.skill("go_room", room="hall")
+        self.assertEqual(env.world.s["robot"]["room"], "hall")
+        self.assertEqual([h["command"]["action"] for h in env._history], ["approach", "open", "move"])
+
+
 class DoorLeafTests(unittest.TestCase):
     """Stage-B review (camera, high): an open hinged door was a solid 2 m block over the whole area its leaf sweeps, so
     a robot standing in the doorway right after walking through saw almost nothing of the room. The leaf is now a
@@ -1288,6 +1553,271 @@ class DoorLeafTests(unittest.TestCase):
         corner = HouseEnv(door_config(doorway=(0, 0)), seed=0, camera="geometric")
         leaf = sight.room_geom(corner.world.s, "lab", corner.world).leaves[0]
         self.assertEqual(leaf[:4], (0.0, 0.0, 0.9, 0.04))
+
+
+    def test_in_generated_houses_an_open_door_hides_little_from_its_doorway(self):
+        """B3-MERGE re-check (K-CAM): the evidence was a generated house where an open door hid 61 of 81 cells from
+        the doorway. For every hinged door of two generated houses, the swing room's coverage from its doorway cell
+        after a two-row look around keeps at least 85 % of the closed-door coverage."""
+        from house_sim.generator import generate_house
+        checked = 0
+        for seed in (0, 2):
+            base = generate_house(seed)
+            for cid, conn in sorted(base["connections"].items()):
+                door = conn.get("door")
+                srid = None
+                if door:
+                    srid, _ = geometry_door_swing(HouseEnv(copy.deepcopy(base), seed=seed).world.s, door)
+                if not srid:
+                    continue
+                coverage = {}
+                for door_open in (True, False):
+                    cfg = copy.deepcopy(base)
+                    cfg["entities"][door]["open"] = door_open
+                    for rec in cfg["entities"].values():
+                        if rec.get("category") == "light":
+                            rec["on"] = True
+                    cfg["robot"]["room"], cfg["robot"]["pos"] = srid, list(conn["cells"][srid])
+                    env = HouseEnv(cfg, seed=seed, camera="geometric", observe_on_step=False)
+                    self.assertTrue(env.step("look", "around", rows=2)["ok"])
+                    coverage[door_open] = env.world.s["camera_log"]["coverage"].get(srid, 0.0)
+                self.assertGreaterEqual(coverage[True], 0.85 * coverage[False], (seed, cid, coverage))
+                checked += 1
+        self.assertGreater(checked, 10)
+
+
+def geometry_door_swing(state, door):
+    from house_sim.kernel import geometry
+    return geometry.door_swing(state, door)
+
+
+# ----- views through doorways and windows (TIER1_CAMERA 5.8 and 12; camera phase 3, K-CAM) --------------------------
+
+def doorway_env(people=None, entities=None, door_open=True, pos=(2, 4), facing=180.0, robot=None, camera_log=None,
+                **kw):
+    """door_config's lab and hall (the hall door swings into the lab) with the robot at `pos` facing `facing`: the
+    hall lies behind the lab's west wall, its doorway cell (3, 2) one cell west of the lab's (0, 4)."""
+    cfg = door_config(entities, door_open=door_open, people=people or {}, facing=facing, robot=robot,
+                      camera_log=camera_log, **kw)
+    cfg["robot"]["pos"] = list(pos)
+    return HouseEnv(cfg, seed=0, camera="geometric")
+
+
+def no_people_domain():
+    """The kernel's capture fallback alone (no people domain hooks; captures count in privacy_violations)."""
+    load_domains()
+    stack = [mock.patch.dict(HOOKS, {"private_activity": [], "camera_capture": []}),
+             mock.patch.object(camera, "_people_domain_loaded", lambda: False)]
+    return stack
+
+
+class DoorwayTests(unittest.TestCase):
+    """Camera phase 3 (K-CAM): a head frame sees into the next room through an open doorway of its room; the robot's
+    cameras list the controls beside a doorway it can reach from the threshold when a frame sees them, see people and
+    pets through a doorway (StepView.beyond, through_doorways, sightings, the watch of tracked agents), and take
+    privacy captures through a doorway, which a room privacy policy masks."""
+
+    def test_a_person_next_door_is_seen_through_the_open_doorway_only(self):
+        ann = {"ann": {"location": "hall", "pos": [1, 2]}}
+        env = doorway_env(people=ann)
+        sv = camera.step_view(env)
+        self.assertEqual(sorted(sv.beyond["people"]), ["ann"])
+        info = sv.beyond["people"]["ann"]
+        self.assertEqual((info["level"], info["via"], info["through"]), ("identify", "head", "hall__lab"))
+        self.assertAlmostEqual(info["range_m"], 2.5, places=1)               # 1.0 m to the wall and 1.5 m beyond
+        self.assertEqual(sv.people, {})                                      # the observation lists only the lab
+        self.assertNotIn("ann", env.observe()["people"])
+        through = camera.through_doorways(env)
+        self.assertEqual([(d["connection"], d["to"], sorted(d["people"])) for d in through],
+                         [("hall__lab", "hall", ["ann"])])
+        self.assertEqual(camera.step_view(doorway_env(people=ann, door_open=False)).beyond["people"], {})
+        self.assertEqual(camera.through_doorways(doorway_env(people=ann, door_open=False)), [])
+        aside = {"ann": {"location": "hall", "pos": [0, 5]}}                  # not in line with the opening
+        self.assertEqual(camera.step_view(doorway_env(people=aside)).beyond["people"], {})
+        away = doorway_env(people=ann, facing=0.0)                           # facing away from the doorway
+        self.assertEqual(camera.step_view(away).beyond["people"], {})
+        self.assertEqual(camera.through_doorways(away), [])
+        blocked = doorway_env(people={"ann": {"location": "hall", "pos": [0, 2]}},
+                              entities={"ward": {"type": "wardrobe", "location": "hall", "pos": [1, 1], "rot": 90}})
+        self.assertEqual(camera.step_view(blocked).beyond["people"], {})     # the hall's wardrobe is in the way
+        room = HouseEnv(door_config(people=ann), seed=0)
+        self.assertIsNone(camera.step_view(room))                            # room mode: no step view at all
+        self.assertEqual(camera.through_doorways(room), [])
+
+    def test_a_control_beside_the_doorway_is_listed_when_a_frame_sees_it(self):
+        """CAM-RUNTIME not_done: a switch by the doorway in the next room was actionable through wrist access but
+        never listed in the geometric observation. It is listed when a frame sees it through the doorway, the head
+        can aim at it (look, auto-gaze), and in_frame / acuity see it the same way."""
+        scene = {"switch_h": {"type": "light_switch", "location": "hall", "pos": [3, 2], "mounted": True,
+                              "mount_height_m": 1.2, "near_connection": "hall__lab", "controls": ["light_2"]}}
+        env = doorway_env(entities=scene, pos=(0, 4))                        # in the doorway cell, facing west
+        w = env.world
+        self.assertTrue(camera.can_see(w.s, "switch_h", w))                  # reachable from the threshold
+        self.assertNotIn("switch_h", env.observe()["visible_entities"])      # beside the robot, out of frame
+        self.assertTrue(env.step("look", "switch_h")["ok"])
+        obs = env.observe()
+        self.assertIn("switch_h", obs["visible_entities"])
+        view = obs["visible_entities"]["switch_h"]["view"]
+        self.assertEqual((view["via"], view["dist"]), ("head", "within reach"))
+        self.assertTrue(camera.in_frame(w.s, "switch_h", w))
+        self.assertEqual(camera.acuity(env, "switch_h")["level"], "identify")
+        far = doorway_env(entities=scene, pos=(6, 4))                        # out of reach: not a candidate at all
+        self.assertFalse(camera.can_see(far.world.s, "switch_h", far.world))
+        self.assertNotIn("switch_h", far.observe()["visible_entities"])
+        self.assertFalse(camera.in_frame(far.world.s, "switch_h", far.world))
+        room = HouseEnv(door_config(scene), seed=0)                          # room mode lists it as before
+        self.assertIn("switch_h", room.observe()["visible_entities"])
+
+    def test_privacy_captures_through_an_open_doorway_and_their_masking(self):
+        ann = {"ann": {"location": "hall", "pos": [1, 2], "activity": "dressing"}}
+
+        def captures(**kw):
+            patches = no_people_domain()
+            for p in patches:
+                p.start()
+            try:
+                env = doorway_env(**kw)
+                env.step("wait", seconds=60)
+            finally:
+                for p in reversed(patches):
+                    p.stop()
+            log = env.world.s["camera_log"]
+            return [(c["sensor"], c["via"], c["room"]) for c in log["captures"]], env.world.s["stats"].get(
+                "privacy_violations", 0)
+        self.assertEqual(captures(people=ann), ([("camera", "doorway", "hall")], 1))
+        self.assertEqual(captures(people=ann, facing=0.0), ([("mic", "doorway", "hall")], 1))   # heard, not seen
+        self.assertEqual(captures(people=ann, door_open=False), ([], 0))
+        policy = {"camera_off": ["hallway"], "when": "always"}
+        self.assertEqual(captures(people=ann, robot={"privacy_policy": policy}), ([("mic", "doorway", "hall")], 1))
+        policy = {"camera_off": ["hallway"], "mic_off": ["hallway"], "when": "always"}
+        self.assertEqual(captures(people=ann, robot={"privacy_policy": policy}), ([], 0))
+        far = {"ann": {"location": "hall", "pos": [0, 5], "activity": "dressing"}}
+        self.assertEqual(captures(people=far, facing=0.0, pos=(6, 4)), ([], 0))   # more than 4 m: not heard
+        self.assertEqual(captures(people={"ann": dict(ann["ann"], activity="reading")}), ([], 0))
+
+    def test_a_masked_room_shows_nothing_through_its_doorway(self):
+        ann = {"ann": {"location": "hall", "pos": [1, 2]}}
+        policy = {"camera_off": ["hallway"], "when": "always"}
+        env = doorway_env(people=ann, robot={"privacy_policy": policy})
+        self.assertEqual(camera.step_view(env).beyond["people"], {})
+        self.assertEqual(camera.through_doorways(env), [])
+        occupied = {"camera_off": ["hallway"]}                               # "when occupied": ann is there
+        self.assertEqual(camera.step_view(doorway_env(people=ann, robot={"privacy_policy": occupied})).beyond,
+                         {"people": {}, "pets": {}})
+        self.assertEqual(sorted(camera.step_view(doorway_env(people=ann, robot={"privacy_policy": {
+            "camera_off": ["bathroom"], "when": "always"}})).beyond["people"]), ["ann"])
+
+    def test_the_watch_supervises_a_tracked_child_through_the_doorway(self):
+        kid = {"kid": {"location": "hall", "pos": [1, 2], "role": "child", "age": 7}}
+        env = doorway_env(people=kid, camera_log={"track_ids": ["kid"]})
+        self.assertEqual(env.world.s["camera_log"]["sightings"]["kid"]["first_s"], 0.0)   # the reset view saw her
+        env.step("wait", seconds=120)
+        log = env.world.s["camera_log"]
+        self.assertEqual((log["in_view_s"]["kid"], log["gap_s"]["kid"]), (120.0, 0.0))
+        self.assertEqual(log["sightings"]["kid"]["best"], "identify")
+        env.world.begin()
+        env.world.mut("door_1")["open"] = False
+        env.world.commit()
+        env.step("wait", seconds=120)
+        log = env.world.s["camera_log"]
+        self.assertEqual((log["in_view_s"]["kid"], log["gap_s"]["kid"], log["max_gap_s"]["kid"]), (120.0, 120.0, 120.0))
+        untracked = doorway_env(people=kid)
+        untracked.step("wait", seconds=60)
+        self.assertNotIn("kid", untracked.world.s["camera_log"]["in_view_s"])   # only tracked agents next door
+
+    def test_the_watch_memo_is_exact_through_a_doorway(self):
+        def run(memo):
+            kid = {"kid": {"location": "hall", "pos": [1, 2], "role": "child", "age": 7}}
+            env = doorway_env(people=kid, camera_log={"track_ids": ["kid"]})
+            off = mock.patch.object(camera, "_watch_signature", lambda *a: None)
+            if not memo:
+                off.start()
+            try:
+                env.step("wait", seconds=300)
+                for change in (("person", "kid", "pos", [0, 5]), ("door", "door_1", "open", False),
+                               ("door", "door_1", "open", True), ("person", "kid", "pos", [1, 2]),
+                               ("entity", "light_2", "on", False)):
+                    env.world.begin()
+                    record = env.world.person_m(change[1]) if change[0] == "person" else env.world.mut(change[1])
+                    record[change[2]] = change[3]
+                    env.world.commit()
+                    env.step("wait", seconds=120)
+            finally:
+                if not memo:
+                    off.stop()
+            log = env.world.s["camera_log"]
+            return {k: log.get(k) for k in ("in_view_s", "gap_s", "max_gap_s", "sightings")}
+        with_memo, without = run(True), run(False)
+        self.assertEqual(with_memo, without)
+        self.assertGreater(with_memo["in_view_s"]["kid"], 300.0)
+        self.assertGreater(with_memo["max_gap_s"]["kid"], 0.0)
+
+
+class ApertureViewerTests(unittest.TestCase):
+    """Camera phase 3 (K-CAM): view_watch with a viewer outside a window (or a glass or open door) sees in through it
+    only: not through the wall, little through drawn coverings, and by day not past the glass's reflection more than
+    1 m inside unless the room is lit brighter than half the daylight."""
+
+    def scene(self, hour, light=True, covered=0.0, spec_viewer=None):
+        window = {"type": "window", "category": "window", "location": "lab", "pos": [5, 0], "mounted": True,
+                  "mount_height_m": 0.9, "size_m": [1.0, 0.1, 1.2], "covered": covered}
+        cfg = config({"window_1": window}, pos=(10, 8), light=light,
+                     people={"near": {"location": "lab", "pos": [5, 1]}, "deep": {"location": "lab", "pos": [6, 6]}},
+                     camera_log={"watch_specs": {"street": {"viewer": spec_viewer or {"aperture": "window_1"},
+                                                            "targets": ["near", "deep", "robot"],
+                                                            "every_s": 30.0}}})
+        cfg["clock"] = {"start": "2026-06-15T{:02d}:00:00".format(hour)}
+        return HouseEnv(cfg, seed=0, camera="geometric")
+
+    def test_a_viewer_outside_a_window_sees_in_by_night_and_only_near_the_glass_by_day(self):
+        night = self.scene(23)
+        night.step("wait", seconds=60)
+        entry = night.world.s["camera_log"]["watch"]["street"]
+        self.assertEqual(entry["visible"], ["deep", "near"])
+        day = self.scene(12, light=False)                                    # daylight outside, a dim room
+        day.step("wait", seconds=60)
+        self.assertEqual(day.world.s["camera_log"]["watch"]["street"]["visible"], ["near"])
+        lit = self.scene(12, light=True)                                     # a brightly lit room shows through
+        lit.step("wait", seconds=60)
+        self.assertEqual(lit.world.s["camera_log"]["watch"]["street"]["visible"], ["deep", "near"])
+        drawn = self.scene(23, covered=1.0)
+        drawn.step("wait", seconds=60)
+        self.assertEqual(drawn.world.s["camera_log"]["watch"]["street"]["visible"], [])
+
+    def test_the_robot_is_seen_from_outside_only_through_the_window(self):
+        env = self.scene(23)
+        w = env.world
+        viewer = sight.aperture_viewer(w.s, "window_1")
+        self.assertEqual(camera._robot_seen_by(w.s, viewer), 0.0)           # the robot stands aside of the window
+        w.begin()
+        w.robot_m()["pos"] = [5, 3]
+        w.commit()
+        self.assertGreater(camera._robot_seen_by(w.s, viewer), 0.0)
+        self.assertIsNone(camera._spec_viewer(w.s, {"viewer": {"aperture": "no_window"}}))
+        self.assertEqual(camera._spec_viewer(w.s, {"viewer": {"aperture": "window_1", "outside_m": 1.0,
+                                                              "eye_z": 1.2}})[1:4], (3.0, -1.0, 1.2))
+
+
+class FaceTests(unittest.TestCase):
+    """Camera phase 4 (K-CAM, the cheap kernel half of visitor recognition): face_seen tells a face matcher whether
+    the frames show a person's face well enough -- 64 px across a 16 cm face, turned toward the camera."""
+
+    def test_a_face_is_recognizable_close_and_turned_toward_the_camera(self):
+        def seen(pos, facing, robot_facing=0.0):
+            env = env_of(pos=(3, 4), facing=robot_facing,
+                         people={"ann": {"location": "lab", "pos": pos, "facing_deg": facing}})
+            return camera.face_seen(env, "ann")
+        close = seen([5, 4], 180.0)
+        self.assertEqual((close["toward"], close["recognizable"]), (True, True))
+        self.assertAlmostEqual(close["px"], 148.8, delta=1.0)
+        self.assertEqual(seen([5, 4], 0.0)["recognizable"], False)            # her back to the robot
+        self.assertEqual(seen([5, 4], 120.0)["toward"], True)                 # three-quarter view
+        self.assertEqual(seen([5, 4], 100.0)["toward"], False)                # profile and beyond
+        far = seen([11, 4], 180.0)
+        self.assertEqual((far["toward"], far["recognizable"]), (True, False))   # 4 m: about 37 px
+        self.assertIsNone(seen([5, 4], 180.0, robot_facing=180.0))            # not in a frame
+        self.assertIsNone(camera.face_seen(HouseEnv(config(people={"ann": {"location": "lab", "pos": [5, 4]}}),
+                                                    seed=0), "ann"))           # room mode
 
 
 # ----- cost budgets (TIER1_INTEGRATION 3.4; tests fail at 3x the budget) ------------------------------------------------
@@ -1341,6 +1871,50 @@ class PerformanceTests(unittest.TestCase):
         quiet = env_of(pos=(3, 4))
         quiet.world.begin()
         self.assertLess(best_ms(lambda: camera.watch(quiet.world, 30.0, None), number=50), 0.15)  # 0.05 ms
+
+    def test_the_watch_with_people_in_the_room_stays_in_budget_during_a_wait(self):
+        """STAGE-B-FIX C9 (K-CAM): camera.watch cost 0.15-0.19 ms per substep with people in the robot's room (0.14-
+        0.40 ms under the adoption round's domain light hooks) against a 0.05 ms budget. Timed inside real waits of
+        generated houses whose people share the robot's room (best of three 2 h waits, mean per substep, the garbage
+        collector paused while timing: a full collection landing in one substep is not the watch's cost; the test
+        fails at 3x the nobody-in-view budget, the handoff reports the measured numbers: seed 0 has nobody in view,
+        seed 1 a child in view at the identify level)."""
+        import gc
+        from house_sim.kernel import geometry, plugins
+        index = next(i for i, entry in enumerate(plugins.SYSTEMS) if entry[1] == "camera.watch")
+        entry = plugins.SYSTEMS[index]
+        for seed in (0, 1):
+            best = None
+            for _ in range(3):
+                env = HouseEnv(seed=seed, camera="geometric", observe_on_step=False)
+                state = env.world.s
+                pid, person = sorted(state["people"].items())[0]
+                rid = person["location"]
+                blocked = set(geometry.blocked_cells(state, rid))
+                cols, rows = geometry.grid_size(state["rooms"][rid])
+                free = [(c, r) for r in range(rows) for c in range(cols) if (c, r) not in blocked]
+                env.world.begin()
+                env.world.robot_m().update(room=rid, pos=list(free[len(free) // 2]))
+                env.world.commit()
+                env.step("look")
+                times = []
+
+                def timed(w, dt, tick):
+                    start = time.perf_counter()
+                    entry[-1](w, dt, tick)
+                    times.append(time.perf_counter() - start)
+                plugins.SYSTEMS[index] = tuple(entry[:-1]) + (timed,)
+                collecting = gc.isenabled()
+                gc.disable()
+                try:
+                    env.step("wait", seconds=7200)
+                finally:
+                    plugins.SYSTEMS[index] = entry
+                    if collecting:
+                        gc.enable()
+                mean = sum(times) / len(times) * 1000.0
+                best = mean if best is None else min(best, mean)
+            self.assertLess(best, 3 * 0.05, seed)
 
 
 if __name__ == "__main__":

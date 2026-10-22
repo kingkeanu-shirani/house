@@ -34,6 +34,7 @@ import math
 from ...kernel import geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import lawbook
 from ...kernel.plugins import SYSTEMS, after, hook
 from ..core import add_soil, clear_contents_from, mark_contents_from
 from . import common as C
@@ -277,8 +278,12 @@ def dehumidifier_tick(w, eid, dt, room_rh, room_t):
         changes["display"] = "{}% RH".format(int(round(room_rh * 100)))
     power = (C.num(rec.get("rated_w"), 550.0) if running else (55.0 if on and can_drain else (2.0 if on else 0.0)))
     changes["power_w"] = power
+    beeps = changes["full_light"] and not rec.get("full_light") and bucket is not None
     if any(rec.get(k) != v for k, v in changes.items()):
         w.mut(eid).update(changes)
+    if beeps:
+        # the float switch trips: the unit stops and beeps (a notice when someone listens; schema-2 states unchanged)
+        C.notice(w, "appliance_beep", eid)
     if removed_l > 0:
         if drain == "bucket" and bucket:
             bm = w.mut(bucket)
@@ -304,6 +309,7 @@ def _hose_discharge(w, dev, hose, liters):
     if prev <= 0.0:
         w.stat("spills")
         C.log(w, "condensate_on_floor", hose=hose, device=dev)
+        C.visual(w, "water_on_floor", hose, size_m=0.3)
     if floor_l >= 4.0 and prev < 4.0:
         w.stat("flood")
         C.log(w, "floor_flooded", hose=hose)
@@ -353,35 +359,46 @@ def _tank_installed(ctx, result):
     prec = w.s["entities"].get(part) or {}
     drec = w.s["entities"].get(dev) or {}
     if C.kind(prec) == "humidifier_tank" and C.kind(drec) == "humidifier":
+        base_cap = C.num(drec.get("base_capacity_l"), 0.3)
         if prec.get("open") and C.num(prec.get("liquid_l")) > 0.05:
-            spill = C.num(prec.get("liquid_l"))
+            # seated mouth-down without its cap the tank empties at once: the base tray fills and the rest runs over
+            dump = C.num(prec.get("liquid_l"))
             pm = w.mut(part)
             pm["liquid_l"] = 0.0
-            _spill_under(ctx, dev, spill, "an uncapped tank emptied into the base")
+            pm.pop("contents_from", None)
+            into_base = max(0.0, min(dump, base_cap - C.num(drec.get("base_water_l"))))
+            if into_base > 0:
+                w.mut(dev)["base_water_l"] = C.rnd(C.num(drec.get("base_water_l")) + into_base, 4)
+            if dump - into_base > 0.0:
+                _spill_under(ctx, dev, dump - into_base, "an uncapped tank emptied into the base", prec.get("liquid") or "water")
         dm = w.mut(dev)
-        dm["base_water_l"] = C.rnd(min(C.num(drec.get("base_capacity_l"), 0.3), C.num(drec.get("base_water_l")) + C.num(w.ent(part).get("liquid_l"))), 4)
+        dm["base_water_l"] = C.rnd(min(base_cap, C.num(w.ent(dev).get("base_water_l")) + C.num(w.ent(part).get("liquid_l"))), 4)
     if C.kind(prec) == "dehumidifier_bucket" and C.kind(drec) == "dehumidifier":
         w.mut(dev)["full_light"] = C.num(prec.get("liquid_l")) >= C.num(prec.get("full_at_l"), 6.0)
 
 
-def _spill_under(ctx, dev, liters, cause):
+def _spill_under(ctx, dev, liters, cause, liquid="water"):
+    """Water dumped out of a unit's base (an uncapped tank seated on it): the kernel's single spill entry point
+    (tier-1 physics adoption, physics.spill through ctx.spill: by the robot) puts it onto what the unit stands on, which
+    catches what it can (a top takes a film, a soft body soaks) and the rest runs down to a floor puddle (a cleaning
+    spill when that domain is loaded); the kernel counts the spill (stats.spills, phys_spills) and wets what it lands on.
+    Climate adds what the kernel leaves to the domains: a water-sensitive finish under the unit is marked (damage) and
+    water standing near an outlet is an electrical hazard."""
     w = ctx.w
     state = w.s
     rec = state["entities"][dev]
     parent_id = rec.get("location")
     parent = state["entities"].get(parent_id)
-    w.stat("spills")
     C.log(w, "spill", target=dev, liters=round(liters, 2), cause=cause)
-    if parent is not None:
-        pm = w.mut(parent_id)
-        pm["wetness"] = 1.0
-        if water_sensitive(parent):
-            C.add_damage(pm, "water", 0.5)
-            w.stat("damage")
     rid = C.room_of(state, dev)
     _, cells = geometry.anchor(state, dev)
-    if rid and cells and liters > 0.2:
-        _wet_cell(w, rid, list(cells[0]))
+    if parent is not None:
+        ctx.spill(liters, liquid, onto=parent_id, source=dev)
+        if water_sensitive(parent):
+            C.add_damage(w.mut(parent_id), "water", 0.5)
+            w.stat("damage")
+    else:
+        ctx.spill(liters, liquid, at=(rid, list(cells[0])) if rid and cells else None, source=dev)
     if rid and liters > 0.2:
         for oid in sorted(state["entities"]):
             orec = state["entities"][oid]
@@ -418,35 +435,54 @@ def _other_slosh_model():
     return any(name.startswith("plumbing") for _, name, _, _ in SYSTEMS)
 
 
+def trip_motion(w, record):
+    """Gait motion factor of a robot trip (phys.liquids.carry_motion: the effective speed's factor times the
+    phys.carry_motion hooks). Without such a hook (navigation_robot registers the stairs factor) a flight of stairs
+    counts x1.8 here, as it does there."""
+    from ...kernel.phys import liquids as L
+    from ...kernel.plugins import HOOKS
+    factor = L.carry_motion(w, record)
+    if not HOOKS.get("phys.carry_motion"):
+        conn = w.s.get("connections", {}).get((record or {}).get("connection") or "", {})
+        if conn.get("kind") == "stairs" or (record or {}).get("stairs_up") or (record or {}).get("stairs_down"):
+            factor *= 1.8
+    return factor
+
+
 def _carry_hook(name):
     def hook_fn(ctx, result):
+        """Carrying an open (uncapped) tank or a bucket sloshes water out (tier-1 physics adoption: the kernel's slosh
+        model, phys.liquids.slosh_spill_l on the step's motion record, and its spill: a floor puddle at the robot's
+        cell, robot-attributed). While the carry law is active the kernel does exactly this for every held container
+        in the action-phase settle; while it is deferred this hook does it for this domain's tanks and buckets
+        unless another domain's model of the same trip ran (manipulation's flag, plumbing's carry hook)."""
+        if lawbook.active("carry"):
+            return  # kernel owns it: the carry law sloshes held open containers (tanks, buckets) at settle
         if ctx.data.get("carry_slosh_applied") or _other_slosh_model():
             return
-        if name != "move" and not ctx.data.get("path"):
+        from ...kernel.actions import motion_record
+        from ...kernel.phys import liquids as L
+        record = motion_record(ctx)
+        if not record or not (record.get("path") or record.get("from_room") != record.get("to_room")):
             return  # "already within reach": nothing was carried anywhere
         w = ctx.w
+        motion = None
         for eid in w.held_items():
             rec = w.ent(eid)
             if not C.is_kind(rec, "humidifier_tank", "dehumidifier_bucket"):
                 continue
-            liquid = C.num(rec.get("liquid_l"))
-            cap = C.num(rec.get("capacity_l"), 4.0)
-            capped = rec.get("openable") and not rec.get("open")
-            if capped or liquid <= 0:
+            if motion is None:
+                motion = trip_motion(w, record)
+            spill = L.slosh_spill_l(rec, motion)
+            if spill <= 0.0:
                 continue
-            motion = {"careful": 0.4, "normal": 1.0, "fast": 1.8}.get(ctx.args.get("speed") or w.robot.get("speed_mode", "normal"), 1.0)
-            if name == "move" and (w.s.get("connections", {}).get(ctx.data.get("connection") or "", {}).get("kind") == "stairs"):
-                motion *= 1.8
-            if rec.get("openable"):
-                spill = max(0.0, liquid - (0.8 - 0.1 * motion) * cap) * 0.5
-            else:
-                spill = max(0.0, liquid - (0.95 - 0.07 * motion) * cap)
-            if spill <= 0.005:
-                continue
-            w.mut(eid)["liquid_l"] = C.rnd(liquid - spill, 4)
+            liquid = rec.get("liquid") or "water"
+            m = w.mut(eid)
+            m["liquid_l"] = C.rnd(max(0.0, C.num(rec.get("liquid_l")) - spill), 4)
+            if m["liquid_l"] <= 0.0:
+                m.pop("contents_from", None)
             ctx.data["carry_slosh_applied"] = True
-            w.stat("spills")
-            _wet_cell(w, w.robot["room"], w.robot.get("pos"))
+            L.deposit_below(w, eid, spill, liquid, source=eid, by="robot", cause="slosh")
             C.log(w, "carry_spill", item=eid, liters=round(spill, 3))
     hook_fn.__name__ = "climate_carry_" + name
     after(name, order=168)(hook_fn)
@@ -486,6 +522,9 @@ def refill_reservoir(ctx):
     state = w.s
     tid = ctx.args["target"]
     trec = ctx.obj(tid, touch=True)
+    # realistic: whether a thing has a reservoir depends on what it really is, so an unidentified look-alike (a spray
+    # bottle among its group) gets the one generic refusal every member of its group gets (kernel v2.9 rule)
+    ctx.refuse_unidentified(tid)
     require(trec.get("liquid_container") or C.is_kind(trec, "humidifier_tank", "dehumidifier_bucket") or trec.get("top_fill"),
             "That has no water reservoir", "argument")
     target_id = tid
@@ -567,9 +606,11 @@ def refill_reservoir(ctx):
         if at_sink:
             C.log(w, "overflow_into_sink", target=target_id, liters=round(overflow, 2))
         else:
-            if overflow >= 0.05:   # more than a few drops reaches the floor: a puddle (global harm)
-                w.stat("spills")
-                _wet_cell(w, w.robot["room"], w.robot.get("pos"))
+            # what runs over the brim lands where the tank is (the floor at the robot's feet for a held tank, the
+            # unit's support for a top-fill reservoir): the kernel's overflow (tier-1 physics adoption: spill law,
+            # robot-attributed; more than droplets is a puddle and counts stats.spills)
+            from ...kernel.phys import liquids as L
+            L.deposit_below(w, target_id, overflow, m.get("liquid") or liquid, source=target_id, by="robot", cause="overflow")
             C.log(w, "overflow", target=target_id, liters=round(overflow, 2))
     # pouring time follows the amount to the quarter litre (an exact duration would give the hidden starting level away)
     poured = round(add * 4.0) / 4.0 if ctx.realistic else add
@@ -597,6 +638,7 @@ def empty_reservoir(ctx):
     state = w.s
     tid = ctx.args["target"]
     trec = ctx.obj(tid, touch=True)
+    ctx.refuse_unidentified(tid)       # as refill_reservoir: no guard on an unidentified look-alike's true type
     require(trec.get("liquid_container") or C.is_kind(trec, "humidifier_tank", "dehumidifier_bucket"), "That has no reservoir to empty", "argument")
     require(ctx.holding(tid), "Hold it first (uninstall it from the unit)", "precondition")
     require(not trec.get("openable") or trec.get("open"), "Unscrew the cap first", "precondition")

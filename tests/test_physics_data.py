@@ -339,6 +339,44 @@ class PropsResolutionTests(unittest.TestCase):
         self.assertEqual(p.size_m, [0.2, 0.1, 0.1])
         self.assertEqual(p.drop_tol_m, P.MATERIALS["classes"]["plastic"]["drop_tol_m"])
 
+    def test_the_density_audit_spares_empty_shells_only(self):
+        """Adoption-round request (admin_inventory 6): physics_audit --data's bulk-density check (mass over the bounding
+        box) flagged film and fabric containers whose box is their filled shape (bags, retail wraps, air pillows).
+        A light container or a record marked hollow is no gap now; a solid that light, or anything too dense, still is."""
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+        import physics_audit
+        from house_sim.kernel.registry import default_registry
+        reg = default_registry()
+        saved = dict(reg.types)
+        probes = {"t_bag": {"label": "bag", "capacity_l": 20.0, "mass_kg": 0.02, "size_m": [0.4, 0.3, 0.5]},
+                  "t_pillow": {"label": "air pillow", "hollow": True, "mass_kg": 0.002, "size_m": [0.2, 0.1, 0.1]},
+                  "t_foam": {"label": "foam block", "mass_kg": 0.02, "size_m": [0.4, 0.3, 0.5]},
+                  "t_lead": {"label": "lead bin", "capacity_l": 1.0, "mass_kg": 50.0, "size_m": [0.1, 0.1, 0.1]}}
+        try:
+            for name, props in probes.items():
+                reg.types[name] = {"is_a": "portable_object", "props": dict(props, portable=True)}
+                reg.sources[name] = "probe_domain.json"
+            _, gaps, _ = physics_audit.audit_registry()
+        finally:
+            for name in probes:
+                reg.types.pop(name, None)
+                reg.sources.pop(name, None)
+                reg._cache.pop(name, None)
+            reg.types.update(saved)
+        listed = " ".join(gaps.get("probe_domain", {}).get("bulk_density", []))
+        self.assertNotIn("t_bag", listed)
+        self.assertNotIn("t_pillow", listed)
+        self.assertIn("t_foam", listed)
+        self.assertIn("t_lead", listed)
+
+    def test_pewter_and_titanium_are_metals(self):
+        """Adoption-round request (cleaning 12): both fell back to plastic. Pewter is a soft tin alloy that melts at
+        about 230 C; titanium a hard, light metal."""
+        pewter, titanium = P.props_of(rec(material="pewter")), P.props_of(rec(material="titanium"))
+        self.assertEqual((pewter.cls, pewter.melt_c, pewter.heat_limit_c), ("soft_metal", 230.0, 170.0))
+        self.assertEqual((titanium.cls, titanium.melt_c), ("steel", 1668.0))
+        self.assertTrue(P.class_known("pewter") and P.class_known("titanium"))
+
     def test_undeclared_material_uses_the_row_then_the_category(self):
         book = rec(category="book")                                   # generic_item declares no material
         self.assertEqual(P.material_class(None, book), "paper")
@@ -571,6 +609,19 @@ class PropsResolutionTests(unittest.TestCase):
         with mock.patch.dict(plugins.HOOKS, {"phys.props": [(100, "test.bad", bad)]}):
             with self.assertRaises(ValueError):
                 P.props(state, "fork")
+
+        # a hook that changes the shape gets rollable recomputed from it (food's adoption request 7) unless it sets
+        # rollable itself
+        def round_fruit(record, phys):
+            return {"shape": "sphere"}
+
+        def round_but_stuck(record, phys):
+            return {"shape": "sphere", "rollable": False}
+        self.assertFalse(P.props(state, "pear").rollable)
+        with mock.patch.dict(plugins.HOOKS, {"phys.props": [(100, "test.round", round_fruit)]}):
+            self.assertTrue(P.props(state, "pear").rollable)
+        with mock.patch.dict(plugins.HOOKS, {"phys.props": [(100, "test.stuck", round_but_stuck)]}):
+            self.assertFalse(P.props(state, "pear").rollable)
 
     def test_props_is_fast(self):
         state = tiny_state(entities={"bottle": {"type": "generic_item", "location": "kitchen", "material": "glass",
@@ -877,6 +928,17 @@ class LiquidAndFloorTests(unittest.TestCase):
         self.assertTrue(P.liquid_props("gasoline")["flammable"] is True and P.liquid_props("oil")["flammable"] == "hot")
         P.liquid_props("water")["rho"] = 1                            # a fresh dict: the data is untouched
         self.assertEqual(P.liquid_props("water")["rho"], 1000)
+
+    def test_a_clear_liquids_puddle_is_labelled_by_its_look(self):
+        """Adoption-round request (navigation_robot 1): a kernel puddle's label named the liquid ("spilled white
+        vinegar"), which a realistic observer sees at a glance; clear liquids now read as "clear liquid spill"."""
+        from house_sim.kernel.phys import liquids
+        for name in ("water", "tap_water", "white_vinegar", "chlorine_bleach", "rubbing_alcohol", "gasoline"):
+            self.assertTrue(P.liquid_props(name)["clear"], name)
+            self.assertEqual(liquids.puddle_label(name), "clear liquid spill", name)
+        for name, label in (("milk", "spilled milk"), ("orange_juice", "spilled orange juice"), ("plasma", "spilled plasma")):
+            self.assertFalse(P.liquid_props(name)["clear"], name)
+            self.assertEqual(liquids.puddle_label(name), label)
 
     def test_every_liquid_named_by_the_type_files_resolves(self):
         names = {r.get("liquid") for r in (default_registry().resolve(t) for t in default_registry().names())}

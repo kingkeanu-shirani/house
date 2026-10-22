@@ -5,14 +5,16 @@ behaviour and health, and everything a household robot does for them: feeding an
 leashes, crates and walks, grooming, examining and calming, play and toys, aquariums, terrariums, cages and
 coops, owner-directed medication, and reporting what it notices.
 
-Code: `house_sim/systems/pets/` (package, ~10 700 lines). Types: `house_sim/data/types/pets.json` (105 types, 73 with a
-realistic-perception block, 5 look-alike groups plus the shared pill-bottle group, a file-level `field_tiers` block for
-fields pets writes onto other entities and rooms).
-Tests: `tests/test_pets.py` (209 tests, 32 of them in realistic perception; pass normally and with HOUSE_SIM_STRICT=1,
-every domain loaded).
+Code: `house_sim/systems/pets/` (package, ~12 400 lines). Types: `house_sim/data/types/pets.json` (105 types, 73 with a
+realistic-perception block, 18 with a camera `view` block, 5 look-alike groups plus the shared pill-bottle group, a
+file-level `field_tiers` block for fields pets writes onto other entities and rooms).
+Tests: `tests/test_pets.py` (247 tests; pass normally, with HOUSE_SIM_STRICT=1, every domain loaded, and with only
+core and pets loaded: HOUSE_SIM_DOMAINS=core,pets).
 Examples: `tasks/authored/pets__examples.json` (12 oracle specs) and `tasks/authored/pets__perception.json` (3 realistic
-specs); all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded. See section 5a for what the robot can
-perceive (kernel v2.4 - v2.8).
+specs); all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded, the realistic ones also with
+`--camera geometric`; 13 of them run in generation-2 houses (`"house.gen": 2`). See section 5a for what the robot can
+perceive (kernel v2.4 - v2.8) and section 11 for the tier-1 kernel (physics, camera, robot body, notices, questions,
+generation 2).
 
 | Module | Contents |
 |---|---|
@@ -33,6 +35,9 @@ perceive (kernel v2.4 - v2.8).
 | `perception.py` | observer `pets.cues`, inspector `pets.details`, invariants, answerer `pet:`, event effects, greeting arrivals |
 | `furnish.py` | furnisher `pets.household` (order 93); floor items through `Placer.floor_item` at a kernel keep_access cell (never cutting a hazard-free route or anyone's last access; items >= 0.15 m outside doorway clearance and door leaves) whose own keep-out ring cuts nothing either (`scenarios._floor_spot`); the litter scoop is kept with the litter when no floor spot beside the box qualifies; the feeding mat and the litter box go to the first candidate room with floor space for them (the box never in the room the cat eats in when there is another); kibble goes into a reachable low cabinet (kitchen, else pantry) with room on its bottom shelf (load rating, volume) and nothing crushable inside, else stands on the pantry/kitchen floor; the litter bag likewise; the wand toy into a reachable drawer; each generated pet gets a `Placer.agent_cell` resting cell (a room too cramped for one: another living-area room); the generator's repair pass re-checks everything after the last furnisher |
 | `scenarios.py`, `skills.py` | scenario helpers `pets.*`, reference skills `pets.*` |
+| `physical.py` | the kernel physics layer: crashes startle pets, things landing on a pet, cats knocking things off, a dog's tail sweep, event `pets.knock` (section 11) |
+| `routes.py` | dialogue routes to the `pet:` answerer (section 11) |
+| `gen2.py` | furnisher `pets.habitats` (order 94): generation-2 habitats for the caged pets in `household.profile.pets_pending` (section 11) |
 
 Determinism: all loops iterate sorted ids; randomness comes only from `ctx.rng`, `tick.rng(name)` and the setup rng.
 Safety-relevant outcomes that wrong plans must hit are deterministic thresholds (door dash >= 0.8 escapes on
@@ -95,7 +100,7 @@ outdoor room (`room.fenced`, `room.escape_zone`); for indoor-only pets (cats by 
 
 | Group | Types (key fields, magnitudes) |
 |---|---|
-| Bowls | `pet_bowl` > `pet_food_bowl` > `dog_food_bowl` (1.4 l), `cat_food_bowl` (0.25 l), `bird_seed_dish` (0.06 l, `hull_g`); `pet_water_bowl` > `dog_water_bowl` (1.9 l), `cat_water_bowl` (0.5 l), `outdoor_water_bowl` (3.8 l), `bird_water_dish`, `cage_water_bottle` (`_nozzle_stuck`), `coop_waterer`. Bowls: `owner`, `home`, `food_g {kind: g}`, `food_meta`, `stale_wet`, `ants`, `med_in_food`; water: `liquid_l`, `water_level` (fill fraction, observable), `_water_age_s` (hidden), `biofilm`, `debris`, `droppings`, `liquid_temp_c`, `medicated`, `slosh_frac` 0.85 |
+| Bowls | `pet_bowl` > `pet_food_bowl` > `dog_food_bowl` (1.4 l), `cat_food_bowl` (0.25 l), `bird_seed_dish` (0.06 l, `hull_g`); `pet_water_bowl` > `dog_water_bowl` (1.9 l), `cat_water_bowl` (0.5 l), `outdoor_water_bowl` (3.8 l), `bird_water_dish`, `cage_water_bottle` (`_nozzle_stuck`), `coop_waterer`. Bowls: `owner`, `home`, `food_g {kind: g}`, `food_meta`, `stale_wet`, `ants`, `med_in_food`; water: `liquid_l`, `water_level` (fill fraction, observable), `_water_age_s` (hidden), `biofilm`, `debris`, `droppings`, `liquid_temp_c`, `medicated` (`slosh_frac` 0.85 stays on the type, unread, so generation-1 houses keep their pinned digests: section 11) |
 | Fountain | `pet_water_fountain` (2.0 l, MIN 0.6 / MAX 1.8 l, pump = switch, `flowing`, `pump_ok`, `filter_due`, slot `filter`), `fountain_filter` (`service_life_days` 28, `installed_s`) |
 | Food | `pet_food_bag` > `dog_kibble_bag` (6.8 kg, 3.6 kcal/g, 0.43 g/ml, label feeding guide), `cat_kibble_bag`, `rx_kibble_bag`, `bird_seed`, `chicken_feed_bag`; `pet_food_bin` (airtight, pet-proof); `wet_food_can` > `cat_wet_food_can` (85 g), `dog_wet_food_can` (370 g) (`opened`, `covered`, `spoiled`); `pet_food_can_lid`; `pet_treat_jar` (40 x 4 g, 15 kcal), `cat_treat_pouch`, `pill_pocket_pack`; `pet_food_scoop` (237 ml); `automatic_pet_feeder` (hopper, `settings.times/portion_g`, display); `feeding_mat` (0.6 x 0.38 m); `pet_care_log` (`entries`, `logged ["pet:slot"]`, `text`); `pet_care_note` (`text`) |
 | Litter & waste | `litter_box` (inner 0.171 m2, `litter_kg`, `litter_kind`, `litter_mix`, `clumps`, `feces`, `_buried`, `_abnormal`, `observed_abnormal`, `odor`, `wet`, `residue`, `home`, `home_pos`, `depth_cm`), `litter_scoop`, `cat_litter_bag` (9 kg), `litter_mat`, `poop_bag_roll` (`count`), `pet_waste_bag` (`tied`, `contents`, `waste_g`, `waste_stream` trash, or compost for herbivore bedding where the household rule allows), `dog_waste` (floor hazard `waste`, `concealed`), `pooper_scooper` |
@@ -456,7 +461,8 @@ route, outside)`, `pets.let_out(pet, door)`, `pets.let_in(pet, door, lock)`, `pe
 `pets.collect_toys(basket, toys)`, `pets.fetch(pet, toy, throws)`, `pets.medicate(pet, med, carrier, owner)`,
 `pets.feed_fish(tank, food, pinches)`, `pets.enclosure_check(enclosure, gun, owner)`, `pets.refill_seed(cage, dish,
 seed_bag, tray, grams)`, `pets.replace_liner(cage, tray, new_liner, roll_or_bag)`, `pets.collect_eggs(coop, basket,
-dest)`, `pets.crate(pet, crate, lure)`, `pets.report(target, fields, to)`.
+dest)`, `pets.crate(pet, crate, lure)`, `pets.report(target, fields, to)`, `pets.check_on(pet)` (geometric camera:
+light a dim room, step next to the pet and inspect it; room camera: inspect; section 11).
 
 `pets.scoop_box` carries the scoop and the roll of bags to the box together and sets the roll down right there (walking
 off for the scoop afterwards kicks a roll lying on the floor of a cramped room out of reach).
@@ -651,3 +657,128 @@ approval, due/given).
 * Fidelity: S for schedules, logs and behaviour; G for reach envelopes, throw lines, yard coverage and paths;
   P-approx for portions, liquids/slosh, litter depth, water chemistry and enclosure temperatures. The walk is an
   abstract segment model (no street geometry); the bird/small-animal/chicken flocks are lumped.
+
+## 11. Tier-1 adoption (kernel v3.0 physics, camera and robot body; v3.1 sweep)
+
+What changed when pets adopted the tier-1 kernel (docs/design/TIER1_INTEGRATION.md section 6, "pets" and "Every domain
+also"). Room-mode outputs stay as they were for the camera items: every camera field and visual event is written in
+geometric mode only. The carry item guarded by the law changes nothing until the main session switches that law on
+(stage D1). Regression tests: `Tier1PhysicsAdoption`, `Tier1ResidualFixes`, `Tier1BodyAdoption`, `Tier1CameraAdoption`
+and `Tier1SweepAdoption` in `tests/test_pets.py`.
+
+### Physics (TIER1_PHYSICS 10.3 and 13: route through the kernel, guard the legacy code, register hooks, report ready)
+
+| Item | What this domain did | Ready to flip |
+|---|---|---|
+| `carry` (law) | `water._slosh` (hooks on move / approach / walk_to with a pet water bowl, fountain or cage bottle in hand) returns at once while the law is active: the kernel sloshes every held open container in the action-phase settle. While it is deferred it runs only when no other model handled the trip (manipulation's `carry_slosh_applied`, plumbing's carry hook), and it uses the kernel model: `phys.liquids.slosh_spill_l` for the step's motion record with `liquids.carry_motion`, and the water leaves through `liquids.deposit_below` (a robot-attributed puddle at the robot's cell, cause "slosh"). The private formula is gone; the bowl types keep their old `slosh_frac` value only so generation-1 houses stay byte-identical (TIER1_SWEEP 14.1), and no pets code reads it. Whoever sloshed it, `carry_noted` (a `phys.settle_extra` hook, after every after-hook and the carry law) records the pets harm `carry_spill` and keeps `water_level` in step. A brim-full bowl carried at a normal walk spills; one at 70 % carried carefully keeps its water | yes |
+| crashes startle pets | `physical.py`: hooks on `phys.fell`, `phys.broke`, `phys.tipped`. The consequence's sound (the kernel's loudness words, phys/observe.py) reaches the pets in its room, 10 dB quieter next door through an open way and 25 dB through a closed door; from 40 dB anxiety rises by (dB - 40) / 40 x noise phobia x 0.5, and a sleeping pet wakes from 55 dB | - |
+| a thing lands on a pet | the kernel's struck ids: the pet yelps (+0.4 anxiety); from 20 J of impact (2 kg from 1 m) or a toppling body of 5 kg or more it is hurt (condition "struck": yelping, limping; harm `struck`). The injury stat is the safety domain's when it hooks the same event; otherwise pets counts it, for robot-caused consequences only | - |
+| pets knock things over | through the kernel's `impact.fall` / `impact.knock`, so drops, breaks, spills and attribution follow its rules. A cat with `behaviors.knocks_items` (opt-in; generated pets never do) pushes the reachable loose item of 1 kg or less nearest an edge off its counter, table or shelf after 600 s / knocks_items of awake access. An excited dog (excitement 0.7 or more) sweeps the things within one cell of where it stops, at most 0.6 m up, with a 0.3 g tail bump. Both pass `by=None`, so the consequence is exogenous unless the robot arranged the item or its support: the glass the robot left at the counter edge counts against it, a centrepiece that stood there from the start does not. Event `pets.knock {"pet", "item"}` forces one | - |
+| fetch breaks glass | `play.play_fetch` breaks what the thrown toy hits with `impact.break_entity(..., by="robot")` (shards, spill, sound and camera event are the kernel's) | - |
+| shelf load | `scenarios._shelf_rating` reads `physics.props(...).shelf_rating_kg` (supports.json, with its per-entity variation) and `_config_mass` delegates to `physics.subtree_mass`; the private copies are gone. The helpers stage cupboards at no more than 0.8 x the kernel rating | - |
+
+**Ready to flip: `carry`.** Verified with `lawbook.forced(carry=True)`: the unit tests (all pass) and both spec files
+on seeds 0, 1, 2, 41 and 97 in their own modes, the realistic ones also with the geometric camera (no failure).
+No pets type is at the default mass or size and no pets `field_tiers` entry exposes a physics threshold
+(`python tools/physics_audit.py --data` attributes nothing to pets).
+
+### Camera (TIER1_CAMERA 19; geometric mode only, room mode unchanged)
+
+* **Pet heights** (`common.PET_TOP_M`, `sync_view`): in geometric mode every pet record carries `view.height_m`, which
+  `sight.agent_top` reads for occlusion and for the shape the camera sees: dogs by size (toy 0.28, small 0.42, medium
+  0.62, large 0.76 m), cat 0.32, bird 0.30, hamster 0.06, guinea pig 0.12, rabbit 0.20, reptile 0.08, hen 0.40; a lying,
+  resting or sleeping pet is 0.55 of that. The kernel's own table knows only dogs and cats of one size (kernel request).
+  Room-mode records carry no `view` field.
+* **Hidden pets are concealed for the kernel** (`common.sync_hidden`): a pet hiding under furniture or shut inside a
+  closed opaque holder (a dryer drum, a closed carrier) has the kernel's `concealed` field, so perception,
+  `timeline.agent_seen`, `camera.agent_visible` and `perceived_ids` leave it out until the robot finds it
+  (`revealed`: `perception.reveal_hiding` on an inspect or peek under the furniture, or opening the holder). The fields
+  are kept in step at episode start, after every pet move and at the end of each pets tick.
+* **Actions on a pet need it made out**: `require_pet` uses the body's `manip_problem` check and, in geometric mode,
+  `camera.agent_visible` (refused with the kernel's not-seen text, category perception), then `camera.auto_gaze` turns
+  the head onto the pet. The `pets.cues` observer gives stress signs, coat state and other body language only for pets
+  `camera.agent_identified` says the robot can tell apart.
+* **Visual events** (`common.seen_event` -> `camera.visual_event(emit=False)`: the pets log entry stays the record; a
+  seen one becomes a `visual` notice): escapes (at the door, window, cage or enclosure left), the house-soiling squat,
+  counter-surfing (0.6 m or higher), a bird loose from its cage, and a raid on another pet's bowl while that pet is
+  awake in the room (`pets.food_squabble`, once per raid: the fight the pets model has).
+* **`"view"` blocks** (`pets.json`): the pet carrier passes 25 % of the view through its grille, the chicken coop 20 %
+  through its vents with an opening at the front; aquariums (glass) and the bird and small-animal cages (`transparent`)
+  get the kernel's 0.9 porosity, aquariums are glossy. Printed text: pet food bag name 12 mm and lot 2.5 mm, pet
+  medication drug 3 mm, wet food can, scoop and log 5 mm, feeder display 8 mm, litter and bedding bags 12 mm, collar
+  and harness tags 2.5 mm, fountain filter, fish food, conditioner, lamps and the terrarium thermometer 8 mm.
+* **New skill** `pets.check_on(pet)`: in geometric mode it switches on a room light first when the room is dim (light
+  level below 0.6), walks next to the pet and inspects it; in room mode it only inspects. T-7ef5816c160945-01 uses it:
+  a freed cat on the floor of a dark utility room cannot be identified from the doorway.
+* Not done here: dark coats driving `k_contrast` needs the kernel to read a colour for agents (`camera._contrast`
+  returns 1.0 for people and pets: kernel request). Supervision through `track` needs nothing from this domain: core
+  `watch` with pet ids sets `view.track` (`camera.set_track` accepts pets).
+
+### Robot body (TIER1_EMBODIMENT 12)
+
+* **Footsteps startle by loudness** (`behavior.robot_gait`, `_startle_along`): the step's motion record gives the
+  effective speed (quiet mode turns fast into normal; limp mode or weak legs walk careful) and `body.noise_db(state,
+  "footsteps", speed)` its level. Passing within one cell of a resting or sleeping pet startles it from 33 dB (a normal
+  walk), an awake one from 40 dB (a fast walk); +0.25 anxiety at normal, +0.45 at fast; rushing past a resting pet at
+  fast speed bumps it. Careful speed never does, and quiet mode short of fast does not.
+* **Loud robot actions** (`@hook("robot_sound")` in `exposure.py`): an action that declares `noise_db` stresses
+  noise-phobic pets in its room once per step, unless the room's pets were already stressed this step through
+  `noise_event` or a loud device (70 dB or more) is running there. The pet dryer is that device: `dry_pet` declares
+  `noise_db` from the held dryer (80 dB default) and is refused in quiet mode by the kernel; its noise counts once.
+* **Timing and capability**: `walk_pet` is `category="physical"`, `timing="speed"`; the walking commands need
+  `ctx.require_mobile()` (failed legs: refused), and each leg extends the step's motion record at the robot's pace
+  (min(1.2 m/s, `body.speed_mps`)), so the battery and wear are the kernel's (the legacy energy charge is gone).
+  `brush_pet` and `dry_pet` take commanded minutes (`timing="commanded"`), not stretched by careful speed.
+* **Robot field**: `yard.py` declares `pet_waste_on_feet` (hidden, default 0.0) with `body.register_robot_field`.
+
+### Sweep (TIER1_SWEEP 6, 13, 14, 22.3)
+
+* **Notices** (`common.notice` -> `w.notice`; kinds registered at import with `implies any_sound`): `barking` 85 dB (a
+  dog excited by an arrival), `whining` 60 dB (wants out, shut in, anxious), `meowing` 65 dB, `hissing` 45 dB,
+  `squawking` 80 dB (a bird panicking) and `pet_scratching` 60 dB, at 1 m. A pet crossing anxiety 0.6 gives its
+  species' cry; a dog that starts wanting out whines; shut-in pets cry and scratch in bouts at every 10-minute boundary
+  of the clock (stateless), and a dog waiting at the door whines. Through one closed door the meows and scratching still
+  reach the 40 dB hearing threshold next door; a hiss does not.
+* **Dialogue routes** (`routes.py`, after the people routes and the kernel permission route): `pets.feeding` (which /
+  how / amount / when: diet, treats, meds, portion), `pets.status` (fed, health), `pets.confined` (intended / keep /
+  why), `pets.stash` (where), `pets.walk` (how / which / when / ok without an act), `pets.things` (pet medication,
+  litter, pet-waste words, a reptile enclosure's setpoint, an aquarium's light schedule) and the `dog_ok` question. Each
+  returns the legacy `pet:<key>[:<id>]` topic only for a question the answerer answers. With the people domain loaded,
+  its schedule route takes "when" about a pet and its preference route "preference" with a detail (kernel request:
+  route priority).
+* **Report vocabulary**: drafted for `data/vocab/pets.json` (kernel-owned; requested, the draft loads with no index
+  problems). Issues: vomiting, limping, lethargic, not_eating, drooling, breathing_trouble, trembling, wound,
+  parasites (evidence: the pet's `signs` / `stress_signs`), muddy_paws, pet_accident (glance field near the subject).
+  States: fed / hungry, leashed / unleashed, crated / loose (`confined_in`), hiding, shut_in (the meowing, whining
+  and scratching notices), calm / anxious (`stress_signs`). Until it lands, `pets.report` checks reports as before.
+* **Exact idle probes** (kernel v3.1 `@system(idle=)`): `pets.agents` (no pet at home, every record complete and the
+  concealed / view fields in step), `pets.body`, `pets.food`, `pets.litter`, `pets.water`, `pets.water_levels`,
+  `pets.exposure`, `pets.habitats` and `pets.cages`; a test compares state digests of waits with probes on and off.
+* **Generation 2** (`gen2.py`, furnisher `pets.habitats`, order 94): the caged species in
+  `household.profile.pets_pending` get their habitats: a 75 l community aquarium on a stand, a bird cage per bird, a
+  bin cage per small animal, a terrarium with its lamps for a bearded dragon, a backyard coop with nest box, waterer
+  and egg basket. Each goes through the strict Placer rules in the first candidate room with space, or is skipped with
+  a generation-2 layout note; `household.profile.pets_housed` lists what was built. Generation 1 is untouched.
+  `python tools/layout_audit.py 20 --domain pets` reports 0 problems for both generations.
+
+### Residual items
+
+* `settle_spot` counts people and other pets as obstacles: a pet never settles on a passage a person leaves one cell
+  wide (safety's X-befab43585cde3-01 report).
+* `pet_medication` is amber polypropylene like the other `pill_bottle` members, so the group matches at a glance; the
+  `rx_kibble_bag` overrides that split its look-alike group are gone (it is the adult bag's 6.8 kg size).
+* `pets.report` reads a `fields` dict in sorted field order, so a gate that re-serialises plans with sorted keys gives
+  the same digests (X-c7a6de4ed9ba04-01).
+* `h_person` wakes a sleeping resident it moves (awake, standing, out of bed), so generation-2 houses with residents
+  asleep at the start do not block the kitchen route (T-e9cf6ca709ec77-01).
+
+### Specs
+
+All 15 specs pass on seeds 0, 1, 2, 41 and 97 in their own modes; the 3 realistic specs also pass with
+`--camera geometric` (T-a56d991fe37401-01 now runs in geometric mode itself, with a camera wrong plan that only looks
+from the door). 13 specs set `"house.gen": 2` and pass on it. T-79a861877a2a67-01 and T-0adf708ce0749a-01 stay on
+generation 1: in generation-2 houses the outdoor_plants wind moves a watering can onto the patio doorway on seed 97 and
+the yard references find no route (reported to outdoor_plants). Forced realistic perception (not the specs' own mode)
+fails T-79a861877a2a67-01, T-dda4e199f3f5b0-01 and X-fee35ef3aac659-01 on some seeds, as in the C1 baseline.
+Generation-1 houses are unchanged by this domain: all 340 houses pinned in `tests/data/gen1_digests.json` digest the
+same with and without the pets changes.

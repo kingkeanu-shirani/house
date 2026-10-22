@@ -14,12 +14,15 @@ drag on the floor and pick up dust.
 import json
 import math
 
-from ...kernel import geometry
+from ...kernel import body, geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import place_item, release_from_hands, check_handling
 from . import model as M
+from . import physical as P
+from . import signals as S
+from . import views as V
 
 TOPS = {"t_shirt", "long_sleeve_shirt", "dress_shirt", "blouse", "polo_shirt", "sweater", "cardigan", "hoodie",
         "tank_top", "athletic_shirt", "sweatshirt", "pajamas", "undershirt", "top"}
@@ -178,12 +181,18 @@ def fold(ctx):
     require(not rec.get("on_hanger"), "Take it off the hanger first")
     require(not rec.get("paired_with") or style in ("pair_fold", "ball", "file", "thirds", "square"), "Unpair it first")
     support, sid = _support(w, target)
+    if support in ("surface", "floor") and min(float(v) for v in (rec.get("size_m") or [0.1, 0.1, 0.1])[:3]) * 1000.0 < body.THIN_FLAT_MM:
+        # folding starts by lifting an edge of a paper-thin cloth lying flat: the core thin-flat grasp rule (a parallel
+        # gripper takes it by the edges; a hand slides it to the edge first, +3 s)
+        hand = ctx.free_hand() or "right"
+        ctx.require_grasp(target, hand, "edges" if body.gripper(w.s, hand).get("thin_flat_needs") else None)
     fw, fl = M.flat_size(rec)
     big = max(fw, fl)
     others = [h for h in w.held_items() if h != target]
     if big > 1.0:
         require(support != "held", "Lay it on a table, bed or counter to fold something this large")
         require(not others, "Both hands must be free to fold something this large", "capability")
+        M.require_both_arms(ctx, "Both hands are needed to fold something this large")
     if support == "container":
         raise ActionError("Take it out of {} to fold it".format(sid))     # by id: translated to a handle, never a label
     speed = _speed(w)
@@ -267,22 +276,28 @@ def fold(ctx):
     return "Folded {} ({}) to {:.2f} x {:.2f} x {:.3f} m{}".format(target, style, dims[0], dims[1], dims[2], note)
 
 
-def _knock_items_on(w, surface_id, keep=(), why="knocked over"):
+def _knock_items_on(w, surface_id, cloth, pulled, keep=(), why="knocked over"):
+    """Things standing on a table when a cloth is pulled out from under them (pulled: the cloth is lifted off, dragging
+    them over the edge: each falls to the floor, kernel physics.fall, so glass breaks, liquids spill and a sturdy item
+    survives) or slid under them (spread: a horizontal jolt as large as the friction between the item and the cloth,
+    kernel physics.knock: tall narrow things tip over, others slide). Attributed to the robot. Returns the ids moved."""
     knocked = []
+    state = w.s
+    crec = state["entities"].get(cloth) or {}
     for child in w.children(surface_id):
         c = w.ent(child)
         if child in keep or c.get("relation") != "on" or M.is_textile(c) and c.get("spread_on") == surface_id:
             continue
-        if c.get("fragile"):
-            m = w.mut(child)
-            m["broken"] = True
-            w.stat("breakages")
-            w.stat("damage")
-        else:
-            w.mut(child)["orientation"] = "on_side"
-        knocked.append(child)
+        if pulled:
+            physics.fall(w, child, cause="tablecloth_pulled", by="robot")
+            knocked.append(child)
+            continue
+        jolt = physics.friction(c, crec) if crec else 0.5
+        out = physics.knock(w, child, jolt, cause="tablecloth_spread", by="robot")
+        if out.get("tipped") or out.get("fell") or out.get("slid_m"):
+            knocked.append(child)
     if knocked:
-        w.emit("items_knocked", surface=surface_id, items=knocked, why=why)
+        S.seen(w, "items_knocked", surface_id, surface=surface_id, items=knocked, why=why)
     return knocked
 
 
@@ -371,7 +386,7 @@ def unfold(ctx):
     m["shape_match"] = (shape == table_shape) or (shape == "square" and table_shape == "rect" and abs(tw - td) < 0.1)
     if min(drop.values()) < 0:
         m["drop_short"] = True
-    knocked = _knock_items_on(w, dest, keep=(target,), why="cloth spread under items on the table")
+    knocked = _knock_items_on(w, dest, target, False, keep=(target,), why="cloth spread under items on the table")
     if drec.get("category") == "bed" and rec.get("bed_role"):
         from .bedding import refresh_bed
         refresh_bed(w, dest)
@@ -636,16 +651,16 @@ def unroll_sleeves(ctx):
 # hangers (garments), hooks/rings (curtains), clothespins (lines)
 
 def hanger_risk(rec, hrec):
-    """Static risks of a garment on a given hanger (applied over time once it hangs)."""
+    """Static risks of a garment on a given hanger (applied over time once it hangs). The load is the garment's wet
+    mass (physical.wet_mass: dry mass plus the water it holds); whether it slides off is the kernel's dry friction
+    between garment and hanger (physical.slips_off_hanger)."""
     risk = {}
-    mass = float(rec.get("mass_kg", 0.3)) * (1.0 + 1.5 * float(rec.get("wetness", 0.0)))
+    mass = P.record_wet_mass(rec)
     knit = M.is_knit(rec) or rec.get("knit_heavy")
     method = rec.get("hang_method")
     if knit and method != "bar_fold":
         risk["stretch_per_day"] = round(0.01 * (3.0 if mass > 0.5 else 1.0), 4)
-    slippery = M.fabric(rec).get("slippery") or rec.get("strapless") or rec.get("slips_on_hangers")
-    grippy = hrec.get("non_slip") or hrec.get("clips") or (rec.get("strappy") and hrec.get("notches") and method == "straps")
-    if slippery and not grippy:
+    if P.slips_off_hanger(rec, hrec, method):
         risk["slip_after_s"] = 3600.0 if rec.get("strapless") else 3.0 * 3600.0
     if method == "bar_fold" and fold_class(rec) == "bottom" and not hrec.get("non_slip"):
         risk["slip_after_s"] = 6.0 * 3600.0
@@ -855,7 +870,8 @@ def carrying_textiles(ctx, result):
             _floor_touch(w, h, "a loose sheet trailed down the stairs while carried", 0.03)
         w.stat("safety_violations")
         w.emit("trailing_textile_on_stairs", items=trailing)
-    if stairs and volume >= 40.0 and (ctx.args.get("speed") or w.robot.get("speed_mode")) != "careful":
+    # the speed the robot actually walked (body.effective_speed: quiet mode, limp mode and weak legs change it)
+    if stairs and volume >= 40.0 and body.effective_speed(w.s, ctx.args.get("speed"))[0] != "careful":
         w.stat("safety_violations")
         w.emit("view_blocked_on_stairs", volume_l=round(volume, 1))
 
@@ -980,12 +996,14 @@ def textile_placed(ctx, result):
             if M.is_textile(rec) and "_hang_risk" not in rec and not rec.get("on_hanger"):
                 if M.is_knit(rec) and fold_class(rec) == "top":
                     m["_hang_risk"] = {"stretch_per_day": 0.02}
-                elif float(rec.get("mass_kg", 0.3)) * (1.0 + float(rec.get("wetness", 0.0))) > 1.5 and rec.get("category") == "garment":
+                elif P.wet_mass(w.s, target) > 1.5 and rec.get("category") == "garment":
                     m["_hang_risk"] = {"stretch_per_day": 0.03}     # a heavy coat hung by its loop on a hook
+            # hooks and bars over their rating pull out of the wall: this domain's rule while the kernel's hang law is
+            # deferred (it reads the same max_load_kg as the hang rating); the load is the wet mass of what hangs there
             limit = parent.get("max_load_kg", 10.0 if parent.get("category") == "hooks" and not parent.get("type") in ("closet_rod",) else None)
-            if limit is not None:
+            if limit is not None and not P.law("hang"):
                 hung = [c for c in w.children(loc) if w.ent(c).get("relation") == "hung"]
-                total = sum(float(w.ent(c).get("mass_kg", 0.3)) * (1.0 + float(w.ent(c).get("wetness", 0.0))) for c in hung)
+                total = sum(P.wet_mass(w.s, c) for c in hung)
                 if total > float(limit):
                     pm = w.mut(loc)
                     pm["broken"] = True
@@ -997,7 +1015,8 @@ def textile_placed(ctx, result):
                         cm["_hung_at"] = None
                         _floor_touch(w, c, "hooks pulled out of the wall")
                     w.stat("damage")
-                    w.emit("hooks_pulled_out", target=loc, load_kg=round(total, 2))
+                    S.seen(w, "hooks_pulled_out", loc, target=loc, load_kg=round(total, 2))
+                    S.notice(w, "crash", loc, "hooks_pulled_out")
                     return
             length = float(rec.get("hang_length_m", 0.0) or 0.0)
             if length:
@@ -1037,7 +1056,7 @@ def textile_lifted(ctx, result):
         m["spread_on"] = None
         m.pop("drape_cm", None)
         if surface in w.s["entities"]:
-            _knock_items_on(w, surface, keep=(target,), why="cloth pulled out from under items")
+            _knock_items_on(w, surface, target, True, keep=(target,), why="cloth pulled out from under items")
         if M.soil_level(rec, "crumbs") > 0 and not rec.get("gathered"):
             _shed_crumbs(w, target, M.room_of(w, surface) or w.robot["room"], "cloth lifted without gathering the corners")
         if before in w.s["entities"] and w.ent(before).get("category") == "bed":
@@ -1047,6 +1066,8 @@ def textile_lifted(ctx, result):
         m = w.mut(target)
         m["soaking"] = None
         m["wetness"] = 1.0
+    if before in w.s["entities"] and w.ent(before).get("drying_rack"):
+        V.refresh_rack_view(w, before)          # the rack's view opens up again (whatever put it there)
     if rec.get("drying_mode"):
         m = w.mut(target)
         if rec.get("pins") and before in w.s["entities"] and w.ent(before).get("clothesline"):

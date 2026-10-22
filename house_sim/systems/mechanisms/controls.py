@@ -154,7 +154,7 @@ def rotary_turn(ctx, eid, turns, direction, force):
                         "grip_force_n": {"type": "number", "default": 120.0, "min": 5.0, "max": 600.0}, "grip_aid": "?entity",
                         "start": {"type": "str", "default": "aligned", "choices": ["aligned", "tilted"]}, "torque_nm": "?number",
                         "pages": "?int"},
-        duration=lambda ctx: 2.0 + ctx.data.get("extra_s", 0.0), energy=0.004, category="physical",
+        duration=lambda ctx: 2.0 + ctx.data.get("extra_s", 0.0), energy=0.004, category="physical", timing="commanded",
         doc="Rotate a control or part. setting+value sets a knob/dial/handle to a labelled or numeric position (push=true for "
             "push-to-turn gas knobs; hold_s holds it at the ignition position; direction cw|ccw; one-way timers turn cw only). "
             "turns+direction work valves, faucet handles and casement cranks (cw closes a valve). part=deadbolt|knob_lock|"
@@ -170,7 +170,7 @@ def turn(ctx):
     part = ctx.args.get("part")
     force = ctx.args["force"]
     value = ctx.args.get("value")
-    C.note_force(w, eid, C.force_n(force))
+    C.note_force(w, eid, C.applied_n(w.s, force, "pull"))
     if ctx.args.get("code") is not None:
         return _combination(ctx, eid, rec, ctx.args["code"])
     if ctx.args.get("pages") is not None:
@@ -442,9 +442,22 @@ def apply_effect(ctx, eid, effect, button, seconds=0.0):
     raise ActionError("Unknown button effect " + effect, "argument")
 
 
+LOUD_TOOLS = {"rubber_mallet", "mallet", "hammer", "claw_hammer"}
+
+
+def press_noise_db(ctx):
+    """Sound of a press at 1 m (kernel v3.0 body noise_db): tapping a lid home with a mallet or hammer is a sharp
+    80-90 dB knock (quiet mode refuses it); a button or a hand press is quiet (None)."""
+    tool = ctx.args.get("tool")
+    rec = ctx.w.s["entities"].get(tool) if isinstance(tool, str) else None
+    if rec is not None and (C.tags(rec) | {rec.get("tool_kind")}) & LOUD_TOOLS:
+        return 85.0
+    return None
+
+
 @action("press", params={"target": "entity", "button": "?str", "tool": "?entity", "where": "?str",
                          "force": {"type": "str", "default": "normal", "choices": list(C.FORCES)}},
-        duration=lambda ctx: 1.0 + ctx.data.get("extra_s", 0.0), energy=0.002, category="physical",
+        duration=lambda ctx: 1.0 + ctx.data.get("extra_s", 0.0), energy=0.002, category="physical", noise_db=press_noise_db,
         doc="Press a momentary button (button=<label> on a device panel, a garage-door wall button or remote), a flip-top cap, a "
             "hidden catch (button=hidden), a press-fit lid (tool=<rubber mallet> taps it home), snap-lid tabs, or a jar lid edge "
             "(where=lid_edge: tap it, or lever it with tool=<spoon> to break the vacuum). Verify the device's response.")
@@ -453,7 +466,7 @@ def press(ctx):
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
     kind = C.kind_of(rec)
-    C.note_force(w, eid, C.force_n(ctx.args["force"]))
+    C.note_force(w, eid, C.applied_n(w.s, ctx.args["force"], "pull"))
     if rec.get("category") in ("garage_button", "garage_remote") or "garage_door_button" in C.tags(rec) or "garage_door_remote" in C.tags(rec):
         from . import garage
         return garage.command(ctx, rec.get("controls_door"), hold_s=0.0)
@@ -494,7 +507,7 @@ def press(ctx):
 
 
 @action("hold_press", params={"target": "entity", "button": "?str", "seconds": {"type": "number", "default": 3.0, "min": 0.5, "max": 120.0}},
-        duration=lambda ctx: float(ctx.args["seconds"]) + 0.5, energy=0.003, category="physical",
+        duration=lambda ctx: float(ctx.args["seconds"]) + 0.5, energy=0.003, category="physical", timing="commanded",
         doc="Press and hold a button for a duration: hold-to-start panels, child-lock combos (e.g. Stop 3 s), pairing (5 s) vs "
             "factory reset (15-30 s), blender pulse, garage-door constant-pressure close (overrides the safety sensors).")
 def hold_press(ctx):
@@ -685,7 +698,7 @@ def mixer_temp(rec, temp):
 
 @action("move_lever", params={"target": "entity", "position": "?any", "setting": "?str", "flow": "?number", "temp": "?number",
                               "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 30.0}},
-        duration=lambda ctx: 1.5 + ctx.data.get("extra_s", 0.0), energy=0.003, category="physical",
+        duration=lambda ctx: 1.5 + ctx.data.get("extra_s", 0.0), energy=0.003, category="physical", timing="commanded",
         doc="Move a lever: single-lever faucet (flow 0..1 = lift, temp -1 cold..1 hot; read mech.outlet_temp_c), toaster carriage "
             "(position=down latches only when powered), flush lever (hold_s for a full flush), recliner lever (position=recline|"
             "upright; check nobody's feet are in the mechanism), vent louvers or any lever-controlled setting (setting+position).")

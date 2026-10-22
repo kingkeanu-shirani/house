@@ -347,11 +347,15 @@ class TruncationTests(BodyTestCase):
             self.assertEqual(env.world.s["time_s"], 8.0 / 0.4)
             self.assertAlmostEqual(r["energy_wh_used"], 3.0 * 0.264 + P_MOTION * 20.0 / 3600.0, places=8)
             self.assertGreater(body.gauge(env.world.s), 0.0)
-        # an affordable walk the hook stops keeps its own message; a battery cut nobody stopped keeps the cut text
-        self.assertTrue(make().step("walk_to", cell=[30, 0])["message"].startswith("Walked to [30, 0]"))
+        # an affordable walk the hook stops says what was walked, not the arrival core rendered before the hook ran
+        # (adoption requests navigation_robot 3, safety 8); a battery cut nobody stopped keeps the cut text
+        stopped = make().step("walk_to", cell=[30, 0])["message"]
+        self.assertTrue(stopped.startswith(body.STOPPED_FIRST_TEXT.format(3.0)), stopped)
+        self.assertNotIn("Walked to [30, 0]", stopped)
         patcher.stop()
         result = make({"battery": battery_for(8.0)}).step("walk_to", cell=[30, 0])
         self.assertTrue(result["message"].startswith(body.BATTERY_CUT_TEXT.format(8.0)), result["message"])
+        self.assertTrue(make().step("walk_to", cell=[30, 0])["message"].startswith("Walked to [30, 0]"))   # not cut
         patcher.start()
         self.assertEqual(body.motion_result(type("C", (), {"data": {}})(), {"a": 1}), {"a": 1})
 

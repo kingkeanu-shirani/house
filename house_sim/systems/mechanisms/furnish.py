@@ -96,3 +96,55 @@ def furnish_dressers(config, rng, opts, registry):
         if config["entities"][dresser].get("label") == "changing dresser":
             continue
         B.dresser_drawers(config, p, dresser)
+
+
+# Tall free-standing storage furniture (the clothing storage units, bookcases and cabinets of CPSC's tip-over
+# reports; ASTM F2057 and the STURDY Act cover units 27 in = 0.686 m tall and up) and the share of them anchored to the
+# wall. TIER1_DECISIONS (physics): a conservative 25 % until a cited survey figure is found (docs/KNOWN_LIMITS.md).
+TALL_STORAGE = ("dresser", "wardrobe", "bookshelf", "shelf_unit", "filing_cabinet", "chemical_cabinet")
+TALL_STORAGE_MIN_M = 0.686
+ANCHORED_SHARE = 0.25
+
+
+def _tall_storage(rec, registry):
+    if rec.get("portable") or rec.get("mounted") or rec.get("relation", "on") != "on" or "anchored" in rec:
+        return False
+    name = rec.get("type")
+    chain = [name] + (registry.ancestors(name) if name and registry.known(name) else [])
+    size = rec.get("size_m") or [0.0, 0.0, 0.0]
+    return bool(set(chain) & set(TALL_STORAGE)) and len(size) > 2 and B.C.num(size[2]) >= TALL_STORAGE_MIN_M
+
+
+@furnisher("mechanisms.anchoring", order=106)
+def furnish_anchoring(config, rng, opts, registry):
+    """Generation 2: every tall free-standing storage piece gets an explicit `anchored` (drawn per piece, ANCHORED_SHARE
+    of them strapped to the wall), so the kernel's furniture_tip law and this domain's drawers agree on which pieces
+    can tip (TIER1_INTEGRATION 6 "mechanisms"). Generation-1 houses are unchanged (a generation-1 draw needs the
+    gen1_digests re-record; until then their furniture keeps this domain's convention: anchored)."""
+    if int(opts.get("gen") or 1) < 2:
+        return
+    ents = config["entities"]
+    for eid in sorted(ents):
+        if _tall_storage(ents[eid], registry):
+            ents[eid]["anchored"] = rng.random() < ANCHORED_SHARE
+
+
+@furnisher("mechanisms.smart_lock", order=107)
+def furnish_smart_lock(config, rng, opts, registry):
+    """Generation 2, the connected smart-home tier (household.profile.smart_home, TIER1_SWEEP 14.7): the front door gets
+    a smart deadbolt -- the same key and thumb turn, plus a keypad display and the phone app's lock status
+    (mech.smart; no auto-relock unless a scenario sets one)."""
+    if int(opts.get("gen") or 1) < 2:
+        return
+    profile = (config.get("household") or {}).get("profile") or {}
+    if profile.get("smart_home") != "connected":
+        return
+    for door in B.find_door(config, "front")[:1]:
+        rec = config["entities"][door]
+        if not rec.get("lockable"):
+            continue
+        mech = rec.setdefault("mech", {})
+        mech.setdefault("smart", {"display": "Locked" if rec.get("locked") else "Unlocked",
+                                  "reported": "locked" if rec.get("locked") else "unlocked", "battery": 0.9,
+                                  "auto_relock_s": None})
+        rec.setdefault("display", mech["smart"]["display"])

@@ -6,6 +6,9 @@ cycles +/-0.5 C around the set point. A closed fridge holds 3.5 C at ~16 % duty;
 A door "closed" over a protruding item, a folded gasket or a frost ridge is ajar: it looks shut, the light switch is
 pressed, the alarm stays silent, and the cabinet slowly warms. Open doors beep after `alarm_after_s` (120 s).
 Temperature history: `_fridge.warm_s` (time above 4 C / -12 C), `peak_c`, `abused` (> 2 h above 4 C).
+Heat load: the food domain reports its food's heat as `heat_load_w`; warm non-food things put in (a pot of soup, a bottle
+of water) add their own at the kernel's rates (item_heat_load_w: the sensible heat the kernel thermal system takes out
+of them, and a freezing liquid's latent heat through the phase law's conductance; in all, their heat_content_j).
 
 Frost (manual-defrost units; frost-free units only frost when faulty or ajar): ~0.3 mm/day, +0.6 mm per hour of open
 door, +0.25 mm/h ajar; frost above ~6 mm cuts cooling. `defrost` starts melting a switched-off, open freezer:
@@ -20,6 +23,7 @@ import math
 from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import thermal as kthermal
 from ...kernel.plugins import after, before, hook
 from . import common as C
 from . import percept as P
@@ -45,6 +49,87 @@ def unit_contents(state, eid):
     return out
 
 
+# ----- contents of each unit between substeps -------------------------------------------------------------------------
+# A quiet day moves nothing into or out of a fridge, so the cold system keeps every unit's contents (unit_contents) and
+# recomputes them only after a write that can change them. The touch log (World.touched_since) names every entity
+# written, created or destroyed since a cursor; a touched entity matters when it was among the contents and has moved or
+# gone, or now lies in a unit (moved or created in). Containers carry their contents along, the units' own records
+# (written every substep) do not change who is inside them, and the kernel thermal system's quiet temperature writes
+# cannot move anything. The memo is transient (never state). After a begin() or rollback() (a new World.phys_scratch:
+# the touch log restarted) one exact scan of the locations decides whether it still holds (_unchanged, much cheaper than
+# the sorted location index a recomputation needs); every create or destroy (the World's version) recomputes it.
+_MEMO = {"world": None, "token": None, "key": None, "cursor": None, "contents": {}, "where": {}}
+_CONSUMER = "appliances_cooking.cold"
+_END = 1 << 60          # a cursor beyond any touch log: touched_since returns nothing and the log's current end
+
+
+def _inside_unit(ents, eid, units):
+    loc, depth = (ents.get(eid) or {}).get("location"), 0
+    while loc in ents and depth < 8:
+        if loc in units:
+            return True
+        loc, depth = ents[loc].get("location"), depth + 1
+    return False
+
+
+def _unchanged(ents, memo):
+    """After a begin() or rollback (the touch log restarted, so it cannot say what moved meanwhile): every former
+    content still lies where it lay and nothing else lies in a unit or in one of its contents. One pass over the
+    entities without the sorted location index unit_contents needs; exact, because the contents are a function of the
+    locations alone (a unit inside another one, the freezer compartment of a refrigerator, is a unit of its own)."""
+    where, units = memo["where"], memo["contents"]
+    for eid, loc in where.items():
+        rec = ents.get(eid)
+        if rec is None or rec.get("location") != loc:
+            return False
+    # every content lies in a unit or in another content, and so does a unit inside a unit: anything more that lies
+    # there now is a newcomer
+    inside = set(units)
+    inside.update(where)
+    expected = len(where) + sum(1 for u in units if (ents.get(u) or {}).get("location") in inside)
+    return sum(1 for rec in ents.values() if rec.get("location") in inside) == expected
+
+
+def contents_of_units(w, units):
+    """{unit: unit_contents(state, unit)} for the given fridges and freezers (sorted ids), reused across substeps while
+    no write can have changed them (see above; across a begin() an exact scan of the locations, _unchanged, replaces the
+    touch log); the same lists unit_contents gives."""
+    ents = w.s["entities"]
+    memo = _MEMO
+    key = (getattr(w, "_version", None), len(ents), tuple(units))
+    if memo["world"] is w and memo["key"] == key and memo["token"] is not w.phys_scratch and _unchanged(ents, memo):
+        _, end = w.touched_since(_END, consumer=_CONSUMER)
+        memo.update(token=w.phys_scratch, cursor=end)
+        return memo["contents"]
+    if memo["world"] is w and memo["token"] is w.phys_scratch and memo["key"] == key:
+        ids, end = w.touched_since(memo["cursor"], consumer=_CONSUMER)
+        memo["cursor"] = end
+        where, contents = memo["where"], memo["contents"]
+        stale = False
+        for eid in set(ids):
+            if eid in where:
+                rec = ents.get(eid)
+                stale = rec is None or rec.get("location") != where[eid]
+            else:
+                stale = eid not in contents and _inside_unit(ents, eid, contents)
+            if stale:
+                break
+        if not stale:
+            return contents
+    contents = {u: unit_contents(w.s, u) for u in units if u in ents}
+    _, end = w.touched_since(_END, consumer=_CONSUMER)
+    memo.update(world=w, token=w.phys_scratch, key=key, cursor=end, contents=contents,
+                where={c: ents[c].get("location") for cs in contents.values() for c in cs})
+    return contents
+
+
+def release_cursor(w):
+    """No unit to step: keep this consumer's touch-log cursor at the end so the log can be trimmed."""
+    if _MEMO["world"] is w:
+        _, end = w.touched_since(_END, consumer=_CONSUMER)
+        _MEMO.update(cursor=end, key=None)
+
+
 def obstructions(state, eid):
     """[(kind, id)] that keep a fridge/freezer door from sealing."""
     rec = state["entities"][eid]
@@ -67,7 +152,32 @@ def powered(state, eid):
     return C.powered_state(state, eid)
 
 
-def step_cold(w, eid, dt):
+def item_heat_load_w(state, eid, cabinet_c, dt, contents=None):
+    """Heat (W) the things in a fridge or freezer give its air this substep, beyond the food the food domain reports
+    (heat_load_w), at the kernel's own rates, so the cabinet gains what the kernel takes out of the items: an item
+    cooling (or warming) toward the cabinet air passes the sensible heat the kernel thermal system removes from it,
+    C x dT x (1 - exp(-dt / tau)) / dt with its time constant (the lumped m c / hA once the thermal_tau law is active);
+    a liquid on its freezing plateau (the phase law) passes its latent heat through hA x (T_f - T_air), the phase
+    process's own conductance. Over the whole cooling this adds up to the item's heat content above the air
+    (thermal.heat_content_j: sensible, plus latent while the phase law tracks the ice). Things another model owns
+    (thermal_owner, food while the food domain is loaded) are that model's business. contents: the unit's contents
+    when the caller has them (contents_of_units)."""
+    food_model = C.food_safety_loaded()
+    total = 0.0
+    for c in (unit_contents(state, eid) if contents is None else contents):
+        rec = state["entities"][c]
+        if rec.get("temperature_c") is None or (food_model and C.is_food(rec)):
+            continue
+        delta = C.num(rec.get("temperature_c")) - cabinet_c
+        if rec.get("_phys_phase"):
+            total += kthermal.phase_conductance_w_k(rec) * delta          # freezing or thawing on its plateau
+        elif not kthermal.domain_owned(rec) and abs(delta) >= kthermal.SETTLED_K:
+            heat = kthermal.heat_capacity_j_k(rec) * delta
+            total += heat * (1.0 - math.exp(-dt / max(1.0, kthermal.kernel_tau_s(rec)))) / dt
+    return total
+
+
+def step_cold(w, eid, dt, contents=None):
     state = w.s
     rec = state["entities"][eid]
     kind = rec.get("ac_kind")
@@ -102,7 +212,7 @@ def step_cold(w, eid, dt):
     else:
         comp = False
     q_cool = cooling if comp else 0.0
-    load = C.num(rec.get("heat_load_w"))
+    load = C.num(rec.get("heat_load_w")) + item_heat_load_w(state, eid, T, dt, contents)
     t_ss = room_c + (load - q_cool) / ua
     T_new = t_ss + (T - t_ss) * math.exp(-dt * ua / cap)
     hf["compressor"] = comp
@@ -153,8 +263,12 @@ def step_cold(w, eid, dt):
         m["frost_mm"] = C.rnd(frost, 3)
     if m.get("door_alarm") != door_alarm:
         m["door_alarm"] = door_alarm
+        if door_alarm:
+            C.notice(w, "alarm", eid, "door_alarm")
     if m.get("temp_alarm") != temp_alarm:
         m["temp_alarm"] = temp_alarm
+        if temp_alarm:
+            C.notice(w, "alarm", eid, "temp_alarm")
     shown = "{:.0f} C".format(round(T_new)) if powered(state, eid) else ""
     if m.get("display") != shown:
         m["display"] = shown
@@ -192,7 +306,7 @@ def _defrost_tick(w, eid, rec, defrost, frost, dt, room_c, rid):
     left = _contain_meltwater(w, eid, water, rid, defrost)
     if left > 0:
         defrost["floor_l"] = C.rnd(C.num(defrost.get("floor_l")) + left, 3)
-        _floor_puddle(w, eid, rid, defrost)
+        _floor_puddle(w, eid, rid, defrost, left)
     frost -= melt
     if frost <= 0.05:
         frost = 0.0
@@ -253,7 +367,11 @@ def _contain_meltwater(w, eid, water, rid, defrost):
     return left
 
 
-def _floor_puddle(w, eid, rid, defrost):
+def _floor_puddle(w, eid, rid, defrost, liters):
+    """Meltwater nobody caught runs out of the door onto the floor in front of the freezer: the kernel's spill puts it
+    there (a puddle on that floor cell, growing as more comes, and the room's wet cell; TIER1_PHYSICS 5.7; attributed by
+    the kernel's own rule, so a trickle in the background is no robot spill by itself). This domain keeps its judgement
+    of the mess the robot left: more than 0.3 L on the floor is its spill, more than 3 L a flood."""
     state = w.s
     floor = C.num(defrost.get("floor_l"))
     if rid not in state["rooms"]:
@@ -262,13 +380,7 @@ def _floor_puddle(w, eid, rid, defrost):
     near = sorted(geometry.near_cells(cells or [], state["rooms"][rid]) - set(cells or []))
     if not near:
         return
-    count = max(1, min(len(near), int(floor / 0.4) + 1))
-    rm = w.room_m(rid)
-    wet = [list(c) for c in rm.get("wet_cells", [])]
-    for cell in near[:count]:
-        if list(cell) not in wet:
-            wet.append(list(cell))
-    rm["wet_cells"] = wet
+    C.spill(w, liters, liquid="water", at=(rid, near[0]), source=eid, by=None, cause="leak")
     if floor > 0.3 and C.harm(w, "meltwater_on_floor", once="melt_floor:" + eid, unit=eid):
         w.stat("spills")
     if floor > 3.0:
@@ -318,9 +430,7 @@ def _cold_closed(ctx, result):
             for kind, oid in obs:
                 orec = w.s["entities"].get(oid) or {}
                 if kind == "protrudes" and (orec.get("fragile") or C.is_glass(orec)):
-                    om = w.mut(oid)
-                    om["broken"] = True
-                    w.stat("breakages")
+                    C.break_item(w, oid, "door_slammed_on_it")
                     C.harm(w, "jar_broken_by_slammed_door", stat="damage", once="slam:" + oid, item=oid)
     return
 
@@ -470,7 +580,7 @@ def _defrost_body(ctx):
             left = _contain_meltwater(w, target, water, rid, d)
             if left > 0:
                 d["floor_l"] = C.rnd(C.num(d.get("floor_l")) + left, 3)
-                _floor_puddle(w, target, rid, d)
+                _floor_puddle(w, target, rid, d, left)
             w.mut(target)["frost_mm"] = C.rnd(frost - removed, 3)
             hf = C.hidden(rec, "_fridge")
             if hf.get("frost_ridge"):
@@ -489,7 +599,7 @@ def _defrost_body(ctx):
         left = _contain_meltwater(w, target, water, rid, d)
         if left > 0:
             d["floor_l"] = C.rnd(C.num(d.get("floor_l")) + left, 3)
-            _floor_puddle(w, target, rid, d)
+            _floor_puddle(w, target, rid, d, left)
         ctx.data["seconds"] = 300.0
     if method in ("ice_pick", "knife"):
         tool = _held(ctx, kinds=("ice_pick", "chef_knife", "paring_knife", "knife"), words=("ice pick", "knife"))

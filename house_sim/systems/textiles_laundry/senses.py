@@ -23,6 +23,7 @@ Invariants: loose_needle (a needle left outside a pincushion/kit), iron_left_on.
 """
 import copy
 
+from ...kernel import body, camera
 from ...kernel.plugins import answerer, before, inspector, invariant, observer
 from ...kernel.predicates import root_room
 from . import model as M
@@ -56,6 +57,24 @@ def _smell_weight(state, eid):
             weight = min(weight, 0.5)
         current = rec.get("location")
     return weight
+
+
+VIEW_RECOGNIZE, VIEW_IDENTIFY = 2, 3
+LARGE_STAIN = 0.3       # a stain at this level or above is a large mark (a wine spill), visible across a room
+
+
+def _view_level(env, eid):
+    """The geometric camera's acuity level for an entity this step: 0 shape or unseen, 1 detect, 2 recognize, 3
+    identify (camera.acuity; held things count as identified)."""
+    info = camera.acuity(env, eid)
+    if not info:
+        return 0
+    return {"detect": 1, "recognize": 2, "identify": 3}.get(info.get("level"), 0)
+
+
+def _large_stain(rec):
+    soil = rec.get("soil") if isinstance(rec.get("soil"), dict) else {}
+    return any(float(soil.get(k, 0.0) or 0.0) >= LARGE_STAIN for k in M.stains(rec))
 
 
 @observer("textiles_laundry.senses", order=120)
@@ -109,14 +128,22 @@ def laundry_observer(env, w, obs):
     if smells:
         obs.setdefault("smells", []).extend(smells)
     visible = obs.get("visible_entities", {})
+    geometric = camera.mode(state) == "geometric"
+    imaging = body.imaging(state)
     for eid in sorted(visible):
         rec = state["entities"].get(eid, {})
         if not (rec.get("textile") or rec.get("umbrella")):
             continue
         wet = float(rec.get("wetness", 0.0) or 0.0)
         look = "dripping wet" if wet >= M.DRIPPING else ("visibly wet" if wet >= 0.4 else None)
-        if look is None or (realistic and obs.get("dark")):
+        level = _view_level(env, eid) if geometric else None
+        if geometric and level >= VIEW_IDENTIFY and _large_stain(rec):
+            # a big stain shows at a glance to a camera that makes the thing out (identify); small ones need a close look
+            look = "stained" if look is None else look + ", stained"
+        if look is None or not imaging or (realistic and obs.get("dark")):
             continue
+        if geometric and level < VIEW_RECOGNIZE:
+            continue        # a far or dim view shows an object, not whether it drips (TIER1_CAMERA 7 / 11.1)
         # kernel v2.6: keys an observer adds to a visible record are kept in realistic mode (only for things the robot
         # actually perceives; textile wetness itself stays secret, this is the visible cue)
         if isinstance(visible.get(eid), dict):
@@ -127,6 +154,13 @@ def laundry_observer(env, w, obs):
             app = state["entities"].get(inside, {})
             if app.get("open") or app.get("glass_door"):
                 obs["pets"][pid]["inside"] = inside
+
+
+def _readable(ctx, eid, field):
+    """Geometric camera mode: True when the robot's cameras can read `field` (printed text) on eid from here
+    (ctx.read_check: 10 px a character with the head camera, else the wrist within reach; TIER1_CAMERA 4.5)."""
+    ok, _, _, readable = ctx.read_check(eid, [field])
+    return bool(ok) and field in (readable or ())
 
 
 def _feel(wet):
@@ -250,19 +284,31 @@ def laundry_inspector(w, eid, rec, details, ctx):
         stains = M.stains(rec)
         if stains:
             details["stains"] = stains
-        if rec.get("care_label") and ctx is not None and ctx.env.perception.lit(w.s, w.robot["room"]):
-            details["care_label"] = rec["care_label"]
+        if rec.get("care_label") and ctx is not None:
+            if getattr(ctx, "camera_mode", "room") == "geometric":
+                # 2.5 mm print: only what a camera reads from here (the wrist up close, or the item held; core inspect
+                # already applied ctx.read_check to the label it shows)
+                if _readable(ctx, eid, "care_label"):
+                    details["care_label"] = rec["care_label"]
+                else:
+                    details.pop("care_label", None)
+            elif ctx.env.perception.lit(w.s, w.robot["room"]):
+                details["care_label"] = rec["care_label"]
         pockets = [c for c in w.children(eid) if w.ent(c).get("pocket")]
         if pockets:
             details["pockets"] = {p: {"open": bool(w.ent(p).get("open")), "looks_empty": bool(w.ent(p).get("looks_empty", True))} for p in pockets}
         if close:
+            printed = ("brand", "size_label")
+            legible = set(printed)
+            if ctx is not None and getattr(ctx, "camera_mode", "room") == "geometric":
+                legible = {k for k in printed if k in rec and _readable(ctx, eid, k)}      # 4 mm marks: up close only
             for key in ("brand", "size_label", "knit_grade", "fiber_content", "length", "pattern", "model"):
-                if key in rec:
+                if key in rec and (key not in printed or key in legible):
                     details[key] = copy.deepcopy(rec[key])
             if realistic:
                 # brand/size marks knitted or printed on the sole and cuff: legible up close (the record fields stay
                 # secret, so the close look reports them as marks)
-                marks = {k: rec[k] for k in ("brand", "size_label") if rec.get(k)}
+                marks = {k: rec[k] for k in printed if rec.get(k) and k in legible}
                 if marks:
                     details["marks"] = marks
             if rec.get("_thread_kinds"):

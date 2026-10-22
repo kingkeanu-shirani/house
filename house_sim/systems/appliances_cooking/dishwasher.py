@@ -601,6 +601,7 @@ def canonical(rec, program):
 
 
 @hook("cycle_check:dishwasher")
+@P.plain_check
 def _dw_check(w, eid, *_):
     entity = w.ent(eid)
     if (entity.get("settings") or {}).get("child_lock"):
@@ -805,20 +806,18 @@ def _dispense_rinse_aid(w, eid, hd, rid):
 
 
 def _floor_water(w, eid, liters, rid, why):
+    """Water (or suds) out of the dishwasher onto the floor in front of it: the kernel's spill puts it on that floor
+    cell (a puddle and the room's wet cell; attributed by the kernel's own rule); this domain counts it and keeps its
+    judgement of the mess (the first of each kind is the robot's spill, more than 3 L a flood)."""
     state = w.s
     m, hd_unused = C.mut_hidden(w, eid, "_dw_floor")
     hd_unused["l"] = C.rnd(C.num(hd_unused.get("l")) + liters, 3)
     if rid in state["rooms"]:
         room, cells = geometry.anchor(state, eid)
-        if cells:
-            near = sorted(geometry.near_cells(cells, state["rooms"][rid]) - set(cells))
-            if near:
-                rm = w.room_m(rid)
-                wet = [list(c) for c in rm.get("wet_cells", [])]
-                cell = list(near[0])
-                if cell not in wet:
-                    wet.append(cell)
-                    rm["wet_cells"] = wet
+        near = sorted(geometry.near_cells(cells, state["rooms"][rid]) - set(cells)) if cells else []
+        if near:
+            liquid = "soapy_water" if why in ("suds_overflow", "foam_leak") else "water"
+            C.spill(w, liters, liquid=liquid, at=(rid, near[0]), source=eid, by=None, cause="leak")
     C.counter(w, "floor_water_l", round(liters, 3))
     if C.harm(w, "water_on_floor_" + why, once="dwspill:" + eid + ":" + why, dishwasher=eid, litres=round(liters, 3)):
         w.stat("spills")
@@ -830,6 +829,7 @@ def _floor_water(w, eid, liters, rid, why):
 def _dw_complete(w, eid, *_):
     entity = w.ent(eid)
     state = w.s
+    C.notice(w, "appliance_done", eid, "dishwasher_done")
     rec = state["entities"][eid]
     hd = dict(rec.get("_dw") or {})
     info = analyse(state, eid)
@@ -955,8 +955,7 @@ def _unsuitable(w, item, irec, meta, temp, heated):
         m["warped"] = True
         C.harm(w, "plastic_warped_on_bottom_rack", stat="damage", once="dwwarp:" + item, item=item)
     if meta["class"] == "stemware" and rk != "top" and not irec.get("broken"):
-        m["broken"] = True
-        w.stat("breakages")
+        C.break_item(w, item, "stemware_on_bottom_rack")
         C.harm(w, "stemware_broke_on_bottom_rack", stat="damage", once="dwstem:" + item, item=item)
     if "sharp" in (irec.get("hazards") or []) and meta["class"] in ("cutlery",) and meta["orient"] != "handle_up":
         C.harm(w, "knife_blade_up_in_basket", stat="safety_violations", once="dwknife:" + item, item=item)

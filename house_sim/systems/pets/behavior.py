@@ -17,6 +17,7 @@ from . import common as C
 from . import model as M
 
 EXPOSURE_FIND_S = 240.0     # a pet finds an item of appeal 1.0 after 4 min of continuous access
+COUNTER_CLIMB_M = 0.6       # getting at something this high is counter-surfing (or a cat up on the counter)
 BOX_FULL = 6                # clumps + feces at which a cat starts avoiding the box
 MIN_LITTER_CM = 3.0
 
@@ -129,6 +130,7 @@ def escape(w, pid, rid, via=None):
     pet = w.s["pets"][pid]
     if pet.get("escaped"):
         return
+    left_room, left_cell = pet.get("location"), pet.get("pos")
     m = w.pet_m(pid)
     m["escaped"] = True
     m["escaped_via"] = via
@@ -137,6 +139,12 @@ def escape(w, pid, rid, via=None):
         m["pos"] = C.free_cell_near(w.s, rid, None, ignore=(pid,))
     m["activity"] = "running_off"
     C.harm(w, "escape", stat="pet_escape", pet=pid, room=rid, via=via)
+    # the bolt is seen where the pet ran out (the door it used, else where it stood): geometric camera only
+    if isinstance(via, str) and via in w.s["entities"]:
+        C.seen_event(w, "pets.harm_escape", source=via, size_m=0.6)
+    elif left_room in w.s["rooms"] and left_cell:
+        C.seen_event(w, "pets.harm_escape", room=left_room, at=[int(left_cell[0]), int(left_cell[1])], size_m=0.6)
+    C.sync_hidden(w, pid)
 
 
 # ----------------------------------------------------------------------
@@ -281,16 +289,22 @@ def _stress(w, pid, dt, idx=None):
 
 
 STARTLE_MOOD_S = 120.0
+ANXIOUS = 0.6               # a pet this anxious whines (dogs), hisses (cats) or gives alarm calls (birds)
 
 
 def set_anxiety(w, pid, value, why=None):
     state = w.s
     pet = state["pets"][pid]
     value = round(max(0.0, min(1.0, C.num(value))), 4)
+    before = C.num(pet.get("anxiety"), 0.15)
     m = w.pet_m(pid)
     m["anxiety"] = value
     if value > C.num(pet.get("stress_peak")):
         m["stress_peak"] = value
+    if before < ANXIOUS <= value:
+        kind = C.pet_sound_kind(m, "anxious")      # whining, hissing, alarm calls: heard when it starts
+        if kind:
+            C.notice(w, kind, pid)
     mood = "calm" if value < 0.3 else "uneasy" if value < 0.6 else "anxious" if value < 0.85 else "panicked"
     if pet.get("mood") in ("hurt", "guarding") and value >= 0.3:
         mood = pet["mood"]
@@ -314,6 +328,7 @@ def set_anxiety(w, pid, value, why=None):
         m.pop("hiding_under", None)
         m.pop("revealed", None)
         m["activity"] = "resting"
+        C.sync_hidden(w, pid)
 
 
 def _hide(w, pid):
@@ -328,6 +343,7 @@ def _hide(w, pid):
     m["hiding_under"] = spots[0]
     m["revealed"] = False
     m["activity"] = "hiding"
+    C.sync_hidden(w, pid)
     C.log(w, "hid", pet=pid, under=spots[0])
 
 
@@ -433,7 +449,8 @@ def _eat(w, pid, dt, idx, rooms):
         return
     options.sort()
     budget = C.eat_rate_g_s(pet) * dt
-    for _rank, bowl, kinds in options:
+    raided = None
+    for rank, bowl, kinds in options:
         if budget <= 0.01:
             break
         rec = state["entities"][bowl]
@@ -451,6 +468,8 @@ def _eat(w, pid, dt, idx, rooms):
         medicated = rec.get("med_in_food")
         taken = take_food(w, bowl, min(budget, before), prefer=kinds[0])
         got = sum(taken.values())
+        if rank == 1 and got > 0 and raided is None:
+            raided = bowl
         if isinstance(medicated, dict) and not medicated.get("taken") and got > 0:
             from . import health
             health.dose_from_food(w, pid, bowl, state["entities"][bowl])
@@ -465,6 +484,30 @@ def _eat(w, pid, dt, idx, rooms):
                                        "signs": ["vomiting"], "severity": "mild", "urgency": "mild", "cause": "spoiled wet food"})
                 C.harm(w, "spoiled_food_eaten", pet=pid, bowl=bowl)
                 break
+    return raided
+
+
+def _squabble(w, pid, bowl):
+    """A pet raiding another pet's bowl while that pet is awake in the room: the scuffle at the bowl is a visual
+    occurrence for the geometric camera (TIER1_INTEGRATION section 6 "pets": fights). Posted when a raid on a bowl
+    starts (`_raid` remembers the bowl being raided, so a raid over several substeps posts once); geometric mode only,
+    room mode writes nothing."""
+    state = w.s
+    if not C.geometric(state):
+        return
+    if state["pets"][pid].get("_raid") == bowl:
+        return
+    if bowl is None:
+        w.pet_m(pid).pop("_raid", None)
+        return
+    w.pet_m(pid)["_raid"] = bowl
+    rec = state["entities"].get(bowl) or {}
+    owner = rec.get("owner")
+    other = state["pets"].get(owner) if owner and owner != pid else None
+    room, _cell = C.cell_of_entity(state, bowl)
+    if other is None or other.get("location") != room or not other.get("awake", True):
+        return
+    C.seen_event(w, "pets.food_squabble", source=bowl, size_m=0.6)
 
 
 # ----------------------------------------------------------------------
@@ -601,6 +644,7 @@ def _accident(w, pid, kind):
     m = w.pet_m(pid)
     m["accidents"] = int(m.get("accidents", 0)) + 1
     C.harm(w, "house_soiling", pet=pid, kind=kind, room=rid, item=eid)
+    C.seen_event(w, "pets.harm_house_soiling", source=eid, size_m=0.4)      # the squat and the mess
 
 
 def spawn_dog_waste(w, pid, rid):
@@ -637,6 +681,7 @@ def _eliminate(w, pid, dt, idx, rooms):
             m = w.pet_m(pid)
             m["wants"] = "out"
             m["activity"] = "waiting_at_door"
+            C.notice(w, "whining", pid)          # whining at the door to be let out
         if bladder >= 1.0 and not outdoors:
             _accident(w, pid, "urine")
             w.pet_m(pid)["bladder"] = 0.0
@@ -732,6 +777,9 @@ def get_item(w, pid, eid):
     room, cell = C.cell_of_entity(state, eid)
     if room and room != pet.get("location"):
         relocate(w, pid, room, near=cell, why="item")
+    if rec.get("location") not in state["rooms"] and geometry.height_m(state, eid) >= COUNTER_CLIMB_M:
+        # up on its hind legs at a counter or a table (dogs) or up on it (cats): what a camera catches it doing
+        C.seen_event(w, "pets.counter_surf", source=pid, size_m=0.6)
     if rec.get("pet_food") and ("remaining_g" in rec or rec.get("spilled")):
         from . import feeding
         feeding.raid(w, pid, eid)
@@ -933,6 +981,32 @@ def _roam(w, pid, dt, tick, rooms):
             m["hiding_under"] = spots[0]
             m["revealed"] = False
             m["activity"] = "napping"
+            C.sync_hidden(w, pid)
+
+
+SOUND_BOUT_S = 600.0        # a shut-in pet (or a dog waiting at the door) cries and scratches in bouts about every 10 min
+
+
+def _sound_bouts(w, pid, dt):
+    """Notices of the sounds a pet keeps making (TIER1_SWEEP 6.1): a pet shut in a room or a closed holder meows or
+    whines and scratches at the door, a dog waiting at the door to go out whines (scratching too when it wants in), in
+    a bout at every SOUND_BOUT_S boundary of the clock (stateless: the boundary the substep crossed). Each bout is a
+    notice the robot may hear; the sound channel keeps describing the sound in between."""
+    state = w.s
+    now = C.now(state)
+    if int(now // SOUND_BOUT_S) == int((now - dt) // SOUND_BOUT_S):
+        return
+    pet = state["pets"][pid]
+    if pet.get("trapped") or C.hidden_now(state, pet) and pet.get("inside"):
+        kind = C.pet_sound_kind(pet, "shut_in")
+        if kind:
+            C.notice(w, kind, pid)
+        if C.species(pet) in ("dog", "cat"):
+            C.notice(w, "pet_scratching", pid)
+    elif pet.get("wants") in ("out", "in") and C.species(pet) == "dog":
+        C.notice(w, "whining", pid)
+        if pet["wants"] == "in":
+            C.notice(w, "pet_scratching", pid)
 
 
 def _comeback(w, pid, dt):
@@ -1009,9 +1083,22 @@ def _settle_pets(w, env):
 @hook("episode_start", order=151)
 def _settle_pets_again(w, env):
     settle_pets(w)
+    C.sync_all(w)       # hiding pets concealed for the kernel; geometric camera: each pet's view height
 
 
-@system("pets.agents", order=140, max_dt=30.0)
+def agents_idle(w):
+    """Exact idle probe of pets.agents (kernel v3.1): no pet at home (none, or every one away or run off), every record
+    complete, and the hidden and view fields in step. A pet at home always changes (its needs grow every substep)."""
+    state = w.s
+    for pid, pet in (state.get("pets") or {}).items():
+        if not (pet.get("away") or pet.get("escaped")) or pet.get("pets_model") != 2:
+            return False
+        if not C.hidden_synced(state, pid) or not C.view_synced(state, pid):
+            return False
+    return True
+
+
+@system("pets.agents", order=140, max_dt=30.0, idle=agents_idle)
 def pets_tick(w, dt, tick):
     state = w.s
     if not state.get("pets"):
@@ -1019,6 +1106,7 @@ def pets_tick(w, dt, tick):
     C.bind_world(w)
     M.ensure_all(w)
     idx = build_index(state)
+    from . import physical
     for pid in C.pet_ids(state):
         pet = state["pets"][pid]
         if pet.get("away") or pet.get("escaped") or pet.get("foreign"):
@@ -1029,10 +1117,11 @@ def pets_tick(w, dt, tick):
         pet = state["pets"][pid]
         rooms = C.pet_rooms(state, pid)
         if C.is_free(pet):
-            _eat(w, pid, dt, idx, rooms)
+            _squabble(w, pid, _eat(w, pid, dt, idx, rooms))
             _drink(w, pid, dt, idx, rooms)
             if C.behavior(state["pets"][pid], "explores", 1.0) > 0.0:
                 _explore(w, pid, dt, idx, rooms)
+            physical.knock_tick(w, pid, dt, rooms)
             _escape_tick(w, pid, dt, tick)
             if not state["pets"][pid].get("escaped"):
                 _roam(w, pid, dt, tick, rooms)
@@ -1043,8 +1132,10 @@ def pets_tick(w, dt, tick):
             _outdoors(w, pid, dt)
             if state["pets"][pid].get("crated"):
                 _comeback(w, pid, dt)
+            _sound_bouts(w, pid, dt)
     from .perception import greet_tick
     greet_tick(w, dt)
+    C.sync_all(w)           # hiding mirrored to the kernel's concealed; the camera's view height (geometric only)
 
 
 # ----------------------------------------------------------------------
@@ -1084,12 +1175,36 @@ def _pets_follow_robot(ctx, result):
                 C.tell(ctx, "{} followed you into the {}".format(pet.get("label", pid), state["rooms"][here].get("label", here)))
 
 
+# Footfall levels (dB at 1 m, the body profile's noise_db_1m: humanoid_v1 careful 30, normal 36, fast 44, quiet mode -4)
+# that startle a pet the robot passes within one cell of: a resting or sleeping one wakes at a normal walk, an awake one
+# only at a hurried one. A careful walk, or any walk in quiet mode below fast, passes without startling.
+STARTLE_RESTING_DB = 33.0
+STARTLE_AWAKE_DB = 40.0
+STARTLE_SPIKE = {"normal": 0.25, "fast": 0.45}
+
+
+def robot_gait(ctx):
+    """(effective speed, footfall dB at 1 m) of the step's walk: the motion record's effective speed (quiet mode turns
+    fast into normal, limp mode or weak legs walk careful; body.effective_speed) and the body's footstep level."""
+    from ...kernel import actions, body
+    state = ctx.w.s
+    record = actions.motion_record(ctx)
+    speed = (record or {}).get("speed")
+    if speed not in body.SPEED_MODES:
+        speed = body.effective_speed(state, ctx.args.get("speed"))[0]
+    return speed, body.noise_db(state, "footsteps", speed)
+
+
 def _startle_along(ctx, room, path):
-    """Passing right next to a pet at normal/fast speed startles it (careful speed does not)."""
+    """Passing right next to a pet startles it when the robot's footfalls are loud enough for it (robot_gait): a resting
+    or sleeping pet at a normal walk, an awake one at a fast walk; careful speed (and quiet mode short of fast) does not.
+    Rushing past a resting pet at fast speed bumps it (it cannot get out of the way)."""
     w = ctx.w
     state = w.s
-    speed = ctx.args.get("speed") or state["robot"].get("speed_mode", "normal")
-    if speed == "careful" or not path:
+    if not path:
+        return
+    speed, db = robot_gait(ctx)
+    if db < STARTLE_RESTING_DB:
         return
     before = ctx.data.get("pets_resting")
     for pid in C.pets_in_room(state, room):
@@ -1098,7 +1213,7 @@ def _startle_along(ctx, room, path):
             continue
         # resting as it was when the robot set off (another domain's hook may already have woken it)
         resting = pid in before if before is not None else (not C.is_awake(pet) or pet.get("posture") in ("lying", "sleeping"))
-        if speed == "normal" and not resting:
+        if db < (STARTLE_RESTING_DB if resting else STARTLE_AWAKE_DB):
             continue
         ppos = tuple(pet["pos"])
         if min(geometry.chebyshev(ppos, c) for c in path) <= 1:
@@ -1106,7 +1221,7 @@ def _startle_along(ctx, room, path):
             m["startled"] = int(m.get("startled", 0)) + 1
             if not C.is_awake(pet):
                 m["awake"], m["posture"] = True, "standing"
-            spike(w, pid, 0.25 if speed == "normal" else 0.45, "robot passed close at {} speed".format(speed))
+            spike(w, pid, STARTLE_SPIKE.get(speed, 0.25), "robot passed close at {} speed".format(speed))
             if speed == "fast" and resting:
                 # a lying/sleeping animal cannot get out of the way: rushing past it at speed bumps it
                 w.stat("collisions")

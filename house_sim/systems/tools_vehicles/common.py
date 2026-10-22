@@ -8,8 +8,10 @@ import copy
 import math
 import re
 
-from ...kernel import geometry
+from ...kernel import body as kbody
+from ...kernel import camera, geometry
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import lawbook
 
 DOMAIN = "tools_vehicles"
 CHILD_REACH_M = 1.4      # standing reach of a 4-6 year old incl. tiptoe/climbing a low step (~1.2-1.5 m)
@@ -38,15 +40,79 @@ def tv_facts(w):
     return w.sec("facts").setdefault(DOMAIN, {})
 
 
-def log(w, kind, **data):
-    """Domain event log entry (facts.tools_vehicles.log, capped) plus the global event log."""
+def log(w, kind, seen=None, size_m=0.3, **data):
+    """Domain event log entry (facts.tools_vehicles.log, capped) plus the global event log. seen: the entity (or person)
+    where a visible occurrence happened (a burst tube, water spraying from a filter housing, sparks at a battery): the
+    geometric camera witnesses it as a visual event (kernel v3.0 camera.visual_event; a seen one becomes a "visual"
+    notice). The event log entry is the same in both camera modes and with or without `seen`."""
     facts = tv_facts(w)
     entry = {"t": now(w), "kind": kind}
     entry.update(data)
     facts.setdefault("log", []).append(entry)
     del facts["log"][:-300]
     w.emit("tv_" + kind, **data)
+    if seen is not None:
+        camera.visual_event(w, "tv_" + kind, source=seen, size_m=size_m, emit=False)
     return entry
+
+
+def law(name):
+    """True while the kernel applies a physics law (data/physics/laws.json, or lawbook.forced in tests): the domain's
+    own copy of that law then stands down (TIER1_PHYSICS 10.3)."""
+    return lawbook.active(name)
+
+
+def notice(w, kind, source=None, room=None, db=None, remote=False, text=None, data=None):
+    """A perceivable occurrence of this domain's time systems as a notice (kernel v3.1 w.notice, TIER1_SWEEP 6.1): the
+    timeline decides whether the robot hears or sees it and stores it while the notice bus is on. Only the systems
+    post: an action's own outcome is in its message. Kinds are the kernel's (splash, clatter, crash, crying, device)."""
+    return w.notice(kind, room=room, db=db, source=source, remote=remote, text=text, data=data)
+
+
+# ---------------------------------------------------------------------------------------------
+# the robot body (kernel v3.0 body.py): capability limits come from the body profile, never from constants here
+
+def wrist_limit_nm(w):
+    """Twisting torque of the robot's wrist (body profile wrist_nm: 6 N m for humanoid_v1): a bare-handed twist, or a
+    driver (screwdriver, nut driver) turned in line with the forearm."""
+    return kbody.limit(w.s, "wrist_nm")
+
+
+LEVER_GRIP_FRAC = 0.85   # a hand grips a wrench or a lever about 85 % of the way along it from the head
+
+
+def lever_tool(rec):
+    """A tool turned as a lever (a wrench, a ratchet, a lug wrench, an L-shaped hex key, pliers) rather than twisted
+    in line with the wrist (a screwdriver or a nut driver)."""
+    if not rec:
+        return False
+    tip = rec.get("tip") or {}
+    return bool(rec.get("lever_m") or tip.get("drive") in ("hex_nut", "grip") or rec.get("tool_category") in ("wrench", "pliers", "hex_key")
+                or rec.get("tool_kind") in ("ratchet", "lug_wrench", "adjustable_wrench", "allen_key", "pliers"))
+
+
+def body_torque_nm(w, tool_rec):
+    """The most torque the robot's body can put on a fastener through a hand tool (kernel v3.0 body profile;
+    TIER1_INTEGRATION 6 "tools_vehicles": torque inputs clamped to the body): bare-handed or a driver turned in line,
+    the wrist (body.limit wrist_nm); a lever tool, the force the body can bring to its grip times the lever arm
+    (lever_m, else 0.85 x the tool's length): its push (push_n), or, pushing a lever down, its weight leaned on the
+    grip (the profile's mass_kg x g, as a person leans on or steps on a lug wrench), and with both hands on a cross
+    wrench (lever_hands 2) the other hand pulling the opposite arm up (+ pull_n). A powered driver's clutch is the
+    motor's, not the body's (None)."""
+    if not tool_rec:
+        return wrist_limit_nm(w)
+    if tool_rec.get("power_tool") or tool_rec.get("tool_kind") == "drill":
+        return None
+    if not lever_tool(tool_rec):
+        return wrist_limit_nm(w)
+    arm = tool_rec.get("lever_m")
+    if arm is None:
+        size = tool_rec.get("size_m") or [0.15, 0.03, 0.01]
+        arm = LEVER_GRIP_FRAC * max(float(v) for v in size[:2])
+    force = max(kbody.limit(w.s, "push_n"), float(kbody.profile(w.s)["mass_kg"]) * kbody.G)
+    if int(tool_rec.get("lever_hands", 1) or 1) >= 2:
+        force += kbody.limit(w.s, "pull_n")
+    return force * float(arm)
 
 
 def index(w, name, predicate):

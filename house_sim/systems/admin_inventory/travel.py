@@ -30,7 +30,14 @@ def weigh_luggage(ctx):
     mass = subtree_mass(w, target)
     require(mass <= float(s.get("capacity_kg", 50.0)), "Over the scale's capacity", "precondition")
     if ctx.args["lift"]:
-        require(mass <= float(w.robot.get("max_mass_kg", 20.0)) * 1.6, "Too heavy for the robot to lift on the scale; use a bathroom scale", "safety")
+        # lifting the bag clear on the hook scale is a lift by the hand on the scale (both hands on its grip when the
+        # other one is free): the body's derated capacity and total carry decide (ctx.check_lift; an overload is
+        # refused, counted and felt)
+        held = w.robot.get("hands") or {}
+        hand = next((h for h in ("right", "left") if held.get(h) == scale), None)
+        other = "left" if hand == "right" else "right"
+        hands = "both" if hand is None or held.get(other) is None else hand
+        ctx.check_lift(target, hands, mass)
         reading = mass
     else:
         reading = mass * 0.35

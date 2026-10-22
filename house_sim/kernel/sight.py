@@ -29,10 +29,19 @@ Robot numbers. Eye heights come from body.eye_height_m, the carry geometry of he
 "carry" block, the carried load from phys.support.held_envelope and resting sizes from phys.support.resting_size
 (TIER1_INTEGRATION 1.2 and 1.6: one source for each). Tests may replace those siblings through _BRIDGES.
 
-Caches. Room geometry is keyed by its occlusion signature (occ_sig), which a World memoizes per geometry epoch: the
-epoch changes when an entity that can occlude (an occluder or container candidate, a thing it rests on, a door) was
-written, created or destroyed, read from the World's touch log, and with every mutation when a view_occluders hook
-(which may read room fields) is registered. Caches are keyed by content and never change results.
+Doorway and window apertures (5.8; camera phase 3). Rooms are separate grids, joined for the eye only through an
+opening: an open doorway (a closed glazed door passes its porosity) places the next room beyond the wall by a rigid
+transform (doorway_views, doorway_aperture, to_room / from_room), and through_transmission traces a point there
+through both rooms' occluders (the eye's room by its viewshed, the next one by an opening viewshed from the eye's
+image outside its grid). aperture_viewer stands outside a window or door looking in (its coverings and the glass's
+daylight reflection apply); sees_entity and aperture_transmission see through the opening only.
+
+Caches. Room geometry is keyed by its occlusion signature (occ_sig), which a World memoizes per room epoch and the
+view_occluders hook output: a room's epoch changes when a source of that room (an occluder or container candidate),
+a thing it rests on or one of its doors was written in place (judged lazily, only when that room is asked about),
+and a global epoch when something was created, destroyed, moved to another place or became or stopped being a
+source, on a rollback or when track of the World's touch log was lost (_judge). light_epoch does the same for the
+camera's ambient-light memo. Caches are keyed by content and never change results.
 
 Fidelity: G for line of sight and occlusion at cell-and-box resolution; P-approx for light, glare and acuity (closed
 forms, not calibrated against a real detector).
@@ -1213,9 +1222,10 @@ def _source_candidate(rec):
     floor or ceiling surface); containers of any size join for their interior shading."""
     if rec.get("ground_layer") or "connects" in rec or rec.get("category") in ("wall", "floor", "ceiling"):
         return False
-    size = rec.get("size_m") or ()
-    big = any(_num(v) >= OCCLUDER_MIN_M - EPS for v in size[:3])
-    return big or bool(rec.get("accepts_items") or rec.get("openable"))
+    for v in (rec.get("size_m") or ())[:3]:
+        if _num(v) >= OCCLUDER_MIN_M - EPS:
+            return True
+    return bool(rec.get("accepts_items") or rec.get("openable"))
 
 
 def _on_chain(state, eid):
@@ -1236,14 +1246,24 @@ def _on_chain(state, eid):
 
 class _Epoch(object):
     """Geometry epoch of one World: the touch log it last read (the list object, the absolute position, the list
-    index and the last id read there) and the World's version then; the epoch number; the ids the current occlusion
-    signatures depend on (deps: id -> _dep_sig when the epoch began; None: unknown); the distinct ids touched since
-    the last judgement (pending) and whether track of the log was lost (dirty)."""
-    __slots__ = ("log", "pos", "idx", "last", "version", "n", "deps", "pending", "dirty")
+    index and the last id read there) and the World's version then; the global epoch number n (a new set of sources:
+    something created, destroyed, moved to another place or turned into or out of a source or a door; a rollback; a
+    lost log), a counter per room (room_n: a source of that room, a thing it rests on or one of its doors changed in
+    place) and of every change (total); what the current signatures depend on: deps (id -> _dep_sig when last
+    judged; None: unknown), where each dep rests (anchor: id -> (location, relation)), whether it is a source
+    candidate (cand) and the rooms that read it (rooms); the distinct ids touched since they were last looked at
+    (pending), the deps written in place whose rooms were not asked about yet (later: room -> ids; they rest where
+    they did, so only their own rooms can change) and whether track of the log was lost (dirty); and for the
+    camera's ambient-light memo the ids it watches (light_ids: every window and light and what they rest on; None
+    until asked), the World version they were taken at (light_version) and a counter of writes to them (light_n)."""
+    __slots__ = ("log", "pos", "idx", "last", "version", "n", "deps", "pending", "dirty", "anchor", "cand", "rooms",
+                 "room_n", "total", "later", "light_n", "light_ids", "light_version")
 
     def __init__(self, log, n, version):
         self.log, self.pos, self.idx, self.last, self.version, self.n = log, 0, 0, None, version, n
         self.deps, self.pending, self.dirty = None, set(), False
+        self.anchor, self.cand, self.rooms, self.room_n, self.total, self.later = {}, {}, {}, {}, 0, {}
+        self.light_n, self.light_ids, self.light_version = 0, None, None
 
 
 _EPOCHS = weakref.WeakKeyDictionary()
@@ -1256,6 +1276,11 @@ def _dep_sig(rec):
         return marshal.dumps(values)
     except ValueError:              # a value marshal cannot take (records are JSON-like; never in practice)
         return repr(values)
+
+
+def _anchor(rec):
+    """Where a record rests: (location, relation) -- what decides its room and whether it reaches it on "on"s."""
+    return rec.get("location"), rec.get("relation")
 
 
 def _geom_relevant(state, eid, deps):
@@ -1274,6 +1299,12 @@ def _geom_relevant(state, eid, deps):
 TOUCH_CONSUMER = "sight"     # the touch-log consumer name of the geometry epoch (geometric camera mode only)
 
 
+def _lost(ep):
+    """Track of the touch log was lost (a rollback, a shrunk or over-trimmed log): everything is unknown."""
+    ep.dirty = True
+    ep.light_n += 1
+
+
 def _read_touches(world):
     """Read the World's touch log up to now into its _Epoch (the distinct ids touched, or dirty when track was
     lost), as the "sight" consumer in geometric camera mode; returns the _Epoch, or None when the World keeps no
@@ -1285,6 +1316,8 @@ def _read_touches(world):
     version = getattr(world, "_version", 0)
     end = world.touched_since(1 << 62)[1]
     ep = _EPOCHS.get(world)
+    if ep is not None and ep.log is log and end == ep.pos and version == ep.version:
+        return ep                       # nothing written since the last read (and the consumer cursor is there)
     if ep is None:
         ep = _EPOCHS[world] = _Epoch(log, 0, version)
         ep.pos = end - len(log)
@@ -1292,15 +1325,15 @@ def _read_touches(world):
         # a begin() (the step committed: nothing rolled back) or a rollback (the version moved) replaced the log
         old, i = ep.log, ep.idx
         if version != ep.version or i > len(old) or (i and old[i - 1] != ep.last):
-            ep.dirty = True
+            _lost(ep)
         else:
-            ep.pending.update(old[i:])
+            _note_fresh(ep, old[i:])
         ep.log, ep.version, ep.pos = log, version, end - len(log)
     if end != ep.pos:
         if end < ep.pos or ep.pos < end - len(log):
-            ep.dirty = True             # a savepoint rollback shrank the log, or a trim passed the last read
+            _lost(ep)                   # a savepoint rollback shrank the log, or a trim passed the last read
         else:
-            ep.pending.update(world.touched_since(ep.pos)[0])
+            _note_fresh(ep, world.touched_since(ep.pos)[0])
         ep.pos = end
     if isinstance(state["robot"].get("view"), dict):
         world.touched_since(end, TOUCH_CONSUMER)    # read up to here: the trim may drop it
@@ -1309,28 +1342,119 @@ def _read_touches(world):
     return ep
 
 
+def _note_fresh(ep, ids):
+    if not ids:
+        return
+    ep.pending.update(ids)
+    if ep.light_ids is None or not ep.light_ids.isdisjoint(ids):
+        ep.light_n += 1
+
+
+def _global_bump(ep):
+    ep.n += 1
+    ep.total += 1
+    ep.deps = None
+    ep.anchor, ep.cand, ep.rooms, ep.room_n, ep.later = {}, {}, {}, {}, {}
+    ep.pending.clear()
+    ep.dirty = False
+
+
+def _judge(world, ep, rid=None):
+    """Judge the touches of an _Epoch, for one room (rid) or for every room (None). Exact: a dep (a source, what it
+    rests on, a door) that still rests where it did is compared with its snapshot (_dep_sig) -- when one of the rooms
+    that read it is asked about; until then it waits in `later` -- and, changed, bumps the counters of those rooms (a
+    global epoch when it turned into or out of a source candidate); a dep that rests somewhere else, something
+    destroyed, a new source or door, a rollback or a lost log start a new global epoch. Anything else touched cannot
+    change occlusion and is dropped."""
+    if ep.dirty or (ep.pending and ep.deps is None):
+        _global_bump(ep)            # track lost, or nothing to compare with yet
+        return
+    state = world.s
+    entities, rooms = state["entities"], state["rooms"]
+    deps, anchors, rooms_of, later = ep.deps, ep.anchor, ep.rooms, ep.later
+    if ep.pending:
+        for eid in ep.pending:
+            rec = entities.get(eid)
+            if rec is None:
+                _global_bump(ep)
+                return
+            anchor = anchors.get(eid)
+            if anchor is None:          # not a dep (every dep has an anchor)
+                if "connects" in rec:
+                    _global_bump(ep)
+                    return
+                # _on_chain's first hop, inlined: inside or part of an entity (not "on" it), the thing is no source
+                # whatever its fields; the domains write such parts (freezers, ovens, things in drawers) every substep
+                if rec.get("relation", "on") != "on" and rec.get("location") not in rooms:
+                    continue
+                if _source_candidate(rec) and _on_chain(state, eid):
+                    _global_bump(ep)
+                    return
+                continue
+            if rec.get("location") != anchor[0] or rec.get("relation") != anchor[1]:
+                _global_bump(ep)
+                return
+            for room in rooms_of.get(eid, ()):
+                waiting = later.get(room)
+                if waiting is None:
+                    waiting = later[room] = set()
+                waiting.add(eid)
+        ep.pending.clear()
+    if not later:
+        return
+    for room in (list(ep.later) if rid is None else [rid]):
+        for eid in sorted(ep.later.pop(room, ())):
+            rec = entities.get(eid)
+            if rec is None:
+                _global_bump(ep)
+                return
+            new = _dep_sig(rec)
+            if new == deps[eid]:
+                continue
+            if _source_candidate(rec) != ep.cand.get(eid):
+                _global_bump(ep)
+                return
+            deps[eid] = new
+            for other in ep.rooms.get(eid, ()):
+                ep.room_n[other] = ep.room_n.get(other, 0) + 1
+                if other != room:
+                    ep.later.get(other, set()).discard(eid)
+            ep.total += 1
+
+
 def _geom_epoch(world):
     """A token that stays equal while nothing that can change occlusion changed in a World, or None without one.
     Entity writes, creations and destructions come from the World's touch log (TIER1_INTEGRATION 1.8): a write that
-    changed what occlusion reads (_geom_relevant), a rollback (the World's version moved), a log that shrank (a
-    savepoint rollback) or was trimmed past the last read start a new epoch; temperature-only quiet writes, section
-    writes and writes to other fields never do. While a view_occluders hook is registered (it may read room fields)
-    every mutation counts. In geometric camera mode the reads are a named touch-log consumer ("sight"), so the
-    engine's trim keeps what has not been read; the camera's watch system reads every substep (geometry_epoch), which
-    keeps the log bounded. Elsewhere the reads are anonymous and a trim past the last read starts a new epoch."""
+    changed what occlusion reads (_judge), a rollback (the World's version moved), a log that shrank (a savepoint
+    rollback) or was trimmed past the last read change it; temperature-only quiet writes, section writes and writes
+    to other fields never do. While a view_occluders hook is registered (it may read room fields) every mutation
+    counts here (occ_sig and room_epoch instead key on the hook's own output). In geometric camera mode the reads are
+    a named touch-log consumer ("sight"), so the engine's trim keeps what has not been read; the camera's watch
+    system reads every substep (geometry_epoch), which keeps the log bounded. Elsewhere the reads are anonymous and a
+    trim past the last read starts a new epoch."""
     count = getattr(world, "mutation_count", None)
     if count is None:
         return None
     ep = _read_touches(world)
     if ep is None or HOOKS.get("view_occluders"):
         return ("count", count)
-    if ep.dirty or (ep.pending and (ep.deps is None or
-                                    any(_geom_relevant(world.s, eid, ep.deps) for eid in ep.pending))):
-        ep.n += 1
-        ep.deps = None
-    ep.pending.clear()
-    ep.dirty = False
-    return ("epoch", ep.n)
+    _judge(world, ep)
+    return ("epoch", ep.total)
+
+
+def room_epoch(world, rid):
+    """A token that stays equal while nothing that can change the occlusion of room rid changed (its sources, what
+    they rest on, the doors of its doorways; anything structural anywhere), or None without a World. Writes to the
+    deps of other rooms are judged when those rooms are asked about, so the camera's per-substep watch judges only
+    the robot's room (TIER1_INTEGRATION 3.4). A World without a touch log gives its mutation count. The
+    view_occluders hook output is not part of it: occ_sig keys on it."""
+    if world is None or getattr(world, "mutation_count", None) is None:
+        return None
+    ep = _read_touches(world)
+    if ep is None:
+        return ("count", world.mutation_count)
+    _judge(world, ep, rid)
+    return ("epoch", ep.n, ep.room_n.get(rid, 0))
 
 
 def geometry_epoch(world):
@@ -1339,10 +1463,33 @@ def geometry_epoch(world):
     _read_touches(world)
 
 
+def light_epoch(world, ids_fn):
+    """A token that stays equal while no window, light or thing they rest on was written (the touch log), nothing
+    was created or destroyed (the World's version) and track of the log was kept, or None without a touch log.
+    ids_fn() -> the ids to watch (the camera's ambient-light memo: every window and light and their location
+    chains), called when they are unknown or the World's version moved."""
+    ep = _read_touches(world) if world is not None else None
+    if ep is None:
+        return None
+    version = getattr(world, "_version", 0)
+    if ep.light_ids is None or ep.light_version != version:
+        ep.light_ids, ep.light_version = frozenset(ids_fn()), version
+        ep.light_n += 1
+    return ("light", ep.light_n)
+
+
 def _sources(state, rid, world=None):
     """Ids of a room's occluder and container candidates that reach it through "on" relations, sorted. One pass sorts
-    every candidate into its room; with a World it uses the static index and keeps the pass per geometry epoch."""
-    epoch = _geom_epoch(world) if world is not None else None
+    every candidate into its room; with a World it uses the static index and keeps the pass per global geometry
+    epoch, snapshotting each source and what it rests on, and the doors, for the per-room judgement."""
+    ep = epoch = None
+    if world is not None and getattr(world, "mutation_count", None) is not None:
+        ep = _read_touches(world)
+        if ep is None:
+            epoch = ("count", world.mutation_count)
+        else:
+            _judge(world, ep, rid)
+            epoch = ("epoch", ep.n)
     memo = _SOURCES_MEMO.get(world) if epoch is not None else None
     if memo is not None and memo[0] == epoch:
         return memo[1].get(rid, [])
@@ -1352,7 +1499,7 @@ def _sources(state, rid, world=None):
     else:
         ids = sorted(eid for eid, rec in entities.items() if _source_candidate(rec))
     by_room = {}
-    chain = set()
+    chain = {}
     for eid in ids:
         room = root_room(state, eid)
         if room is not None and _on_chain(state, eid):
@@ -1360,18 +1507,23 @@ def _sources(state, rid, world=None):
             # a source and what it rests on: their fields are what occ_sig digests (_geom_key)
             cur, depth = eid, 0
             while cur in entities and cur not in chain and depth < 20:
-                chain.add(cur)
+                chain[cur] = room
                 cur, depth = entities[cur].get("location"), depth + 1
     if epoch is not None:
         _SOURCES_MEMO[world] = (epoch, by_room)
-        ep = _EPOCHS.get(world)
-        if ep is not None and epoch[0] == "epoch" and epoch[1] == ep.n:
-            deps = {eid: _dep_sig(entities[eid]) for eid in chain}
-            for _, conn in state.get("connections", {}).items():
+        if ep is not None and ep.deps is None:
+            deps, anchor, cand, rooms = {}, {}, {}, {}
+            for eid, room in chain.items():
+                rec = entities[eid]
+                deps[eid], anchor[eid], cand[eid], rooms[eid] = (_dep_sig(rec), _anchor(rec), _source_candidate(rec),
+                                                                 (room,))
+            for _, conn in sorted(state.get("connections", {}).items()):
                 door = conn.get("door")
                 if door in entities:
-                    deps[door] = _dep_sig(entities[door])
-            ep.deps = deps
+                    rec = entities[door]
+                    deps[door], anchor[door], cand[door] = _dep_sig(rec), _anchor(rec), _source_candidate(rec)
+                    rooms[door] = tuple(sorted(set(rooms.get(door, ())) | set(conn.get("rooms") or ())))
+            ep.deps, ep.anchor, ep.cand, ep.rooms = deps, anchor, cand, rooms
     return by_room.get(rid, [])
 
 
@@ -1389,9 +1541,11 @@ def _geom_key(state, eid):
 def occ_sig(state, rid, world=None):
     """Occlusion signature of a room: a digest of the room grid, the geometry of every occluder and container source
     (and the chain it rests on), the doors of its doorways and the @hook("view_occluders") output. With a World it is
-    memoized per (room, geometry epoch)."""
-    count = _geom_epoch(world) if world is not None else None
+    memoized per (room, room_epoch, the hook output): the hook may read anything, so its output itself is the key."""
+    hooked = repr(_hook_occluders(state, rid))
+    count = room_epoch(world, rid) if world is not None else None
     if count is not None:
+        count = (count, hooked)
         memo = _SIG_MEMO.get(world)
         hit = memo.get(rid) if memo is not None else None
         if hit is not None and hit[0] == count:
@@ -1406,7 +1560,7 @@ def occ_sig(state, rid, world=None):
             door = state["entities"].get(conn.get("door") or "") or {}
             digest.update(repr((cid, conn.get("door"), conn.get("cells"), conn.get("rooms"),
                                 tuple(repr(door.get(f)) for f in DOOR_FIELDS))).encode("utf-8"))
-    digest.update(repr(_hook_occluders(state, rid)).encode("utf-8"))
+    digest.update(hooked.encode("utf-8"))
     sig = digest.hexdigest()
     if count is not None:
         _SIG_MEMO.setdefault(world, {})[rid] = (count, sig)
@@ -1435,9 +1589,11 @@ def _hook_occluders(state, rid):
     return out
 
 
-def room_geom(state, rid, world=None):
-    """The RoomGeom of a room for its current occ_sig (cached by content, 64 rooms)."""
-    sig = occ_sig(state, rid, world)
+def room_geom(state, rid, world=None, sig=None):
+    """The RoomGeom of a room for its current occ_sig (cached by content, 64 rooms). sig: the room's occ_sig when the
+    caller has just computed it (nothing written since), which spares a second signature."""
+    if sig is None:
+        sig = occ_sig(state, rid, world)
     geom = _GEOM_CACHE.get(sig)
     if geom is None:
         geom = _build_geom(state, rid, sig, world)
@@ -2032,6 +2188,8 @@ def bearing_elev(viewer, p):
 def sees_entity(state, viewer, eid, geom=None, cmap=None):
     """Visible fraction of an entity in one viewer's frame: line of sight x field of view x range per sample point,
     rounded to a quarter (0.0 when it is in another room or out of frame)."""
+    if str(getattr(viewer, "kind", "")).startswith("aperture:"):
+        return aperture_sees(state, viewer, eid, cmap)      # a viewer outside, looking in through an opening (5.8)
     placed = _place(state, eid, cmap)
     if placed is None or placed[0].rid != viewer.rid:
         return 0.0
@@ -2159,6 +2317,458 @@ def device_viewer(state, eid):
                   _num(spec.get("range_m"), DEVICE_CAMERA["range_m"]), focal, "device", (eid,))
 
 
+# ----- doorway and window apertures (5.8; camera phase 3) ----------------------------------------------------------------
+# Rooms are separate grids. A view crosses from one into another only through an opening in their shared wall: an open
+# doorway (no door, or its door open; a closed glazed door passes its glass porosity) or a window. A doorway view places
+# room B against room A by the rigid transform that abuts their doorway cells across the wall (B's inward normal onto
+# the opposite of A's; B's doorway cell one cell beyond A's), so a ray from an eye in A that crosses the opening goes
+# on into B: A's occluders up to the wall (A's viewshed), B's after it (an opening viewshed of B from the eye's image
+# outside B's grid, kept to the rays that enter through the opening). A viewer outside a window (aperture_viewer) sees
+# into the window's room the same way, through the window's glass and coverings and past the glass's daylight
+# reflection. Connections between floors (stairs, hatches) are not openings.
+APERTURE_KINDS = ("doorway", "gate", "garage", "elevator_door")     # connections a camera sees through when open
+DOOR_HEIGHT_M = 2.0         # an opening without a door record (or a height) is 2.0 m high
+DOORWAY_WIDTH_M = 0.85      # ... and 0.85 m wide (geometry's doorway width)
+COVER_BLOCK = 0.95          # a fully covered window still passes 5 %
+REFLECT_RATIO = 2.0         # glass reflects in daylight: an outdoor light above 2 x the target's light ...
+REFLECT_DEPTH_M = 1.0       # ... hides what stands more than 1 m inside from a viewer outside (at night it shows)
+APERTURE_VIEW = {"hfov_deg": 120.0, "vfov_deg": 120.0, "range_m": 15.0, "focal_px": PERSON_VIEW["focal_px"]}
+OPENING_VS_CACHE_SIZE = 512
+# The opening as the room seen into has it: its inward normal (nx, ny), the wall line (x when nx else y), the lateral
+# range along the wall (y when nx else x) and the height range, in that room's frame
+Opening = collections.namedtuple("Opening", "room nx ny wall lo hi z0 z1")
+# One opening seen from room rid into room other (a doorway view): the opening in rid's frame (nx, ny inward, wall, lo,
+# hi, z0, z1), what it passes (factor), the transform of other's frame into rid's (a quarter-turn rotation cos / sin
+# and other's doorway cell centre bx, by landing on ax, ay) and the opening in other's frame (into); id: the connection
+Aperture = collections.namedtuple("Aperture", "id rid other nx ny wall lo hi z0 z1 factor cos sin bx by ax ay into door")
+_QUARTERS = ((1, 0), (0, 1), (-1, 0), (0, -1))
+
+
+def _wall_line(cell, inward):
+    """The wall coordinate of a perimeter cell's wall side: x for a west / east wall, y for a north / south one."""
+    if inward[0] > 0:
+        return int(cell[0]) * CELL
+    if inward[0] < 0:
+        return (int(cell[0]) + 1) * CELL
+    if inward[1] > 0:
+        return int(cell[1]) * CELL
+    return (int(cell[1]) + 1) * CELL
+
+
+def to_room(ap, x, y):
+    """A point of the room an Aperture looks into (ap.other's frame) in the frame of the room it looks from."""
+    dx, dy = x - ap.bx, y - ap.by
+    return ap.ax + ap.cos * dx - ap.sin * dy, ap.ay + ap.sin * dx + ap.cos * dy
+
+
+def from_room(ap, x, y):
+    """A point of the room an Aperture looks from in the frame of the room it looks into (the inverse of to_room)."""
+    dx, dy = x - ap.ax, y - ap.ay
+    return ap.bx + ap.cos * dx + ap.sin * dy, ap.by - ap.sin * dx + ap.cos * dy
+
+
+def to_room_deg(ap, deg):
+    """A grid direction of the room looked into, in the frame of the room looked from."""
+    return (float(deg) + math.degrees(math.atan2(ap.sin, ap.cos))) % 360.0
+
+
+def doorway_aperture(state, cid, rid):
+    """The Aperture of connection cid seen from room rid, or None: not a see-through kind (APERTURE_KINDS), rooms on
+    different floors, a cell missing, its door closed and opaque (a closed glazed door passes its porosity), or the
+    rooms' walls not overlapping at the doorway. The opening is the connection's width_m (else the door's width, else
+    0.85 m) centred on the doorway cell, clipped to both rooms' walls, from the floor to the door's height (2.0 m)."""
+    conn = (state.get("connections") or {}).get(cid) or {}
+    rooms = state["rooms"]
+    pair = list(conn.get("rooms") or ())
+    if rid not in pair or len(pair) != 2 or conn.get("kind", "doorway") not in APERTURE_KINDS:
+        return None
+    other = pair[1] if pair[0] == rid else pair[0]
+    ra, rb = rooms.get(rid), rooms.get(other)
+    cells = conn.get("cells") or {}
+    ca, cb = cells.get(rid), cells.get(other)
+    if ra is None or rb is None or ca is None or cb is None or other == rid:
+        return None
+    if ra.get("floor") is not None and rb.get("floor") is not None and ra.get("floor") != rb.get("floor"):
+        return None
+    door_id = conn.get("door")
+    door = state["entities"].get(door_id or "")
+    factor, height = 1.0, DOOR_HEIGHT_M
+    width = _num(conn.get("width_m"), 0.0)
+    if door is not None:
+        size = door.get("size_m") or ()
+        if len(size) > 2 and _num(size[2], 0.0) > 0.0:
+            height = _num(size[2])
+        if width <= 0.0 and len(size) > 0:
+            width = _num(size[0], 0.0)
+        if not door.get("open"):
+            factor = _num(view_props(state, door_id).get("porosity"), 0.0)
+            if factor < 0.5:
+                return None             # a closed opaque door
+    if width <= 0.0:
+        width = DOORWAY_WIDTH_M
+    na, _ = geometry.wall_inward(ra, ca)
+    nb, _ = geometry.wall_inward(rb, cb)
+    for cos, sin in _QUARTERS:
+        if (cos * nb[0] - sin * nb[1], sin * nb[0] + cos * nb[1]) == (-na[0], -na[1]):
+            break
+    bx, by = (int(cb[0]) + 0.5) * CELL, (int(cb[1]) + 0.5) * CELL
+    ax, ay = (int(ca[0]) + 0.5 - na[0]) * CELL, (int(ca[1]) + 0.5 - na[1]) * CELL
+    wall = _wall_line(ca, na)
+    cols_a, rows_a = geometry.grid_size(ra)
+    cols_b, rows_b = geometry.grid_size(rb)
+    centre = (int(ca[1]) + 0.5) * CELL if na[0] else (int(ca[0]) + 0.5) * CELL
+    lo, hi = max(0.0, centre - width / 2.0), min((rows_a if na[0] else cols_a) * CELL, centre + width / 2.0)
+    wall_b = _wall_line(cb, nb)
+    ends = ((wall_b, 0.0), (wall_b, rows_b * CELL)) if nb[0] else ((0.0, wall_b), (cols_b * CELL, wall_b))
+    probe = Aperture(cid, rid, other, na[0], na[1], wall, lo, hi, 0.0, height, factor, cos, sin, bx, by, ax, ay,
+                     None, door_id)
+    lat = sorted((to_room(probe, x, y)[1] if na[0] else to_room(probe, x, y)[0]) for x, y in ends)
+    lo, hi = max(lo, lat[0]), min(hi, lat[1])
+    if hi - lo < 1e-6:
+        return None
+    ends_b = [from_room(probe, wall, v) if na[0] else from_room(probe, v, wall) for v in (lo, hi)]
+    lat_b = sorted((y if nb[0] else x) for x, y in ends_b)
+    into = Opening(other, nb[0], nb[1], wall_b, _r3(lat_b[0]), _r3(lat_b[1]), 0.0, round(height, 3))
+    return probe._replace(lo=_r3(lo), hi=_r3(hi), z1=round(height, 3), into=into)
+
+
+def doorway_views(state, eye):
+    """The doorway Apertures an eye's room sees through into its neighbours now (5.8; camera phase 3), in connection-id
+    order: open doorways (and closed glazed doors) of see-through kinds between rooms of one floor. aperture_wedge
+    gives each one's angular extent from the eye, to_room / from_room its transform."""
+    rid = _eye_of(eye)[0]
+    out = []
+    for cid, conn in sorted((state.get("connections") or {}).items()):
+        if rid in (conn.get("rooms") or ()):
+            ap = doorway_aperture(state, cid, rid)
+            if ap is not None:
+                out.append(ap)
+    return out
+
+
+def aperture_wedge(ap, eye):
+    """(yaw_deg, half_deg) of the horizontal wedge an opening covers from an eye in the room it is seen from (the
+    directions to its two ends)."""
+    _, ex, ey, _, _ = _eye_of(eye)
+    ends = [(ap.wall, ap.lo), (ap.wall, ap.hi)] if ap.nx else [(ap.lo, ap.wall), (ap.hi, ap.wall)]
+    a = [math.degrees(math.atan2(y - ey, x - ex)) for x, y in ends]
+    span = wrap_deg(a[1] - a[0])
+    return round((a[0] + span / 2.0) % 360.0, 2), round(abs(span) / 2.0, 2)
+
+
+def _crossing(op, ex, ey, ez, px, py, pz):
+    """(t, lateral, z) where the segment from an eye outside an Opening's room to a point inside crosses the opening's
+    wall line, or None when it does not cross it from outside to inside."""
+    e_n, p_n = (ex, px) if op.nx else (ey, py)
+    sign = op.nx or op.ny
+    if (e_n - op.wall) * sign > 1e-9 or (p_n - op.wall) * sign <= 0.0:
+        return None
+    t = (op.wall - e_n) / (p_n - e_n)
+    lateral = (ey + t * (py - ey)) if op.nx else (ex + t * (px - ex))
+    return t, lateral, ez + t * (pz - ez)
+
+
+def _through(op, ex, ey, ez, px, py, pz):
+    """True when the segment from an eye outside an Opening's room to a point inside passes through the opening."""
+    found = _crossing(op, ex, ey, ez, px, py, pz)
+    if found is None:
+        return False
+    _, lateral, z = found
+    return op.lo - EPS <= lateral <= op.hi + EPS and op.z0 - EPS <= z <= op.z1 + EPS
+
+
+_OPENING_VS = _LRU(OPENING_VS_CACHE_SIZE)
+
+
+def opening_viewshed(geom, op, eye, range_m=None):
+    """The interval viewshed (5.2) of an Opening's room from an eye outside its grid: per cell whose centre ray enters
+    through the opening (laterally; heights are judged per point) the slope intervals of the spans it crosses from the
+    wall on, with horizontal distances from the eye; None for the other cells. Rounded inputs, content-keyed cache."""
+    _, ex, ey, ez, _ = _eye_of(eye)
+    ex, ey, ez = round(ex, 3), round(ey, 3), round(ez, 2)
+    range_m = float(range_m if range_m is not None else getattr(eye, "range_m", HW["head"]["max_range_m"]))
+    key = (geom.sig, ex, ey, ez, op, round(range_m, 2))
+    found = _OPENING_VS.get(key)
+    if found is None:
+        found = _compute_opening_viewshed(geom, op, ex, ey, ez, range_m)
+        _OPENING_VS.put(key, found)
+    return found
+
+
+def _compute_opening_viewshed(geom, op, ex, ey, ez, range_m):
+    cols, rows = geom.cols, geom.rows
+    n = cols * rows
+    data, entry = [None] * n, [0.0] * n
+    spans = geom.spans
+    r2 = range_m * range_m
+    e_n, e_l = (ex, ey) if op.nx else (ey, ex)
+    sign = op.nx or op.ny
+    if (e_n - op.wall) * sign <= 1e-9:
+        for cj in range(rows):
+            cy = (cj + 0.5) * CELL
+            for ci in range(cols):
+                cx = (ci + 0.5) * CELL
+                dx, dy = cx - ex, cy - ey
+                l2 = dx * dx + dy * dy
+                if l2 > r2:
+                    continue
+                c_n, c_l = (cx, cy) if op.nx else (cy, cx)
+                if abs(c_n - e_n) < 1e-12:
+                    continue
+                t0 = (op.wall - e_n) / (c_n - e_n)
+                lateral = e_l + t0 * (c_l - e_l)
+                if not 0.0 <= t0 < 1.0 or lateral < op.lo - EPS or lateral > op.hi + EPS:
+                    continue
+                walked = _walk_in(ex, ey, dx, dy, t0, ci, cj, cols, rows)
+                if walked is None:
+                    continue
+                crossed, t_in = walked
+                length = math.sqrt(l2)
+                idx = cj * cols + ci
+                entry[idx] = max(t_in * length, 1e-3)
+                hits = {}
+                for k, (ta, tb) in crossed.items():
+                    if not spans[k]:
+                        continue
+                    d_in = max(ta * length, 1e-3)
+                    d_out = max(tb * length, d_in)
+                    for z_lo, z_hi, porosity, src, key in spans[k]:
+                        hi = (z_hi - ez) / (d_out if z_hi <= ez else d_in)
+                        lo = NEG_INF if z_lo <= 0.0 else (z_lo - ez) / (d_in if z_lo <= ez else d_out)
+                        prev = hits.get(key)
+                        if prev is None:
+                            hits[key] = [lo, hi, porosity, src]
+                        else:
+                            prev[0], prev[1] = min(prev[0], lo), max(prev[1], hi)
+                data[idx] = tuple(sorted((v[0], v[1], v[2], v[3]) for v in hits.values()))
+    vs = Viewshed()
+    vs.x, vs.y, vs.z, vs.cell, vs.data, vs.entry, vs.wedge, vs.range_m = ex, ey, ez, -1, data, entry, None, range_m
+    return vs
+
+
+def _walk_in(ex, ey, dx, dy, t0, ti, tj, cols, rows):
+    """The cells a ray eye + t (dx, dy) crosses from t0 (where it enters the grid through a wall) until it enters cell
+    (ti, tj): ({cell index: (t_in, t_out)}, t at the target's entry), or None when it leaves the grid first."""
+    length = math.hypot(dx, dy)
+    nudge = t0 + 1e-9 / max(length, 1e-9)
+    i = min(cols - 1, max(0, int(math.floor((ex + nudge * dx) / CELL))))
+    j = min(rows - 1, max(0, int(math.floor((ey + nudge * dy) / CELL))))
+    if dx > 0:
+        sx, tdx, tmx = 1, CELL / dx, ((i + 1) * CELL - ex) / dx
+    elif dx < 0:
+        sx, tdx, tmx = -1, -CELL / dx, (i * CELL - ex) / dx
+    else:
+        sx, tdx, tmx = 0, INF, INF
+    if dy > 0:
+        sy, tdy, tmy = 1, CELL / dy, ((j + 1) * CELL - ey) / dy
+    elif dy < 0:
+        sy, tdy, tmy = -1, -CELL / dy, (j * CELL - ey) / dy
+    else:
+        sy, tdy, tmy = 0, INF, INF
+    t = t0
+    out = {}
+    for _ in range(cols + rows + 4):
+        if i == ti and j == tj:
+            return out, t
+        nxt = tmx if tmx < tmy else tmy
+        out[j * cols + i] = (t, nxt)
+        if tmx < tmy - 1e-12:
+            tmx, i = tmx + tdx, i + sx
+        elif tmy < tmx - 1e-12:
+            tmy, j = tmy + tdy, j + sy
+        else:
+            tmx, tmy, i, j = tmx + tdx, tmy + tdy, i + sx, j + sy
+        t = nxt
+        if not (0 <= i < cols and 0 <= j < rows):
+            return None
+    return None
+
+
+def opening_transmission(state, op, geom, vs, eye, p, rel):
+    """Fraction of the view from an eye outside an Opening's room (in that room's frame) that reaches point p inside:
+    0 unless the segment passes through the opening; else the relation rule (5.4) of p (rel: a _Rel, or None for a
+    free point) against the room's occluders after the wall (vs: opening_viewshed of the eye) and its agents."""
+    _, ex, ey, ez, ignore = _eye_of(eye)
+    if not _through(op, ex, ey, ez, p[0], p[1], p[2]):
+        return 0.0
+    if rel is None:
+        rel = _Rel("point", None, frozenset(ignore), None, None)
+    agents = _agents(state, op.room, rel.skip)
+    return _sample_transmission(geom, vs, p, rel, agents)
+
+
+def _eye_into(ap, eye):
+    """An eye of the room an Aperture is seen from, as an Eye of the room it looks into (its image outside that
+    room's grid)."""
+    rid, ex, ey, ez, ignore = _eye_of(eye)
+    x, y = from_room(ap, ex, ey)
+    return Eye(ap.other, x, y, ez, ignore)
+
+
+def through_transmission(state, ap, eye, p, rel=None, geom=None, vs=None, cmap=None, world=None):
+    """Fraction of the view from an eye in room ap.rid that reaches point p of room ap.other (in ap.other's frame)
+    through a doorway Aperture: ap.factor x the transmission in the eye's room from the eye to the opening (its
+    viewshed, agents and, for the robot's head camera, its carried load) x the transmission in the other room from the
+    opening on (opening_transmission with p's relation rule: rel None for a free point, else the id of the entity,
+    person or pet p belongs to). 0 when the segment misses the opening. geom / vs: the eye room's geometry and
+    viewshed when the caller has them; world: the World whose geometry memo to use."""
+    rid, ex, ey, ez, ignore = _eye_of(eye)
+    qx, qy = to_room(ap, p[0], p[1])
+    flipped = Opening(rid, -ap.nx, -ap.ny, ap.wall, ap.lo, ap.hi, ap.z0, ap.z1)     # the wall seen from inside
+    found = _crossing(flipped, ex, ey, ez, qx, qy, p[2])
+    if found is None:
+        return 0.0
+    t, lateral, z = found
+    if not (ap.lo - EPS <= lateral <= ap.hi + EPS and ap.z0 - EPS <= z <= ap.z1 + EPS):
+        return 0.0
+    if rel is None:
+        info = _Rel("point", None, frozenset(ignore), None, None)
+    else:
+        placed = _place(state, rel, cmap)
+        if placed is None or placed[0].rid != ap.other:
+            return 0.0
+        info = _with_ignore(state, rel, placed[1], ignore)
+    geom_b = room_geom(state, ap.other, world)
+    eye_b = _eye_into(ap, eye)
+    vs_b = opening_viewshed(geom_b, ap.into, eye_b, getattr(eye, "range_m", None))
+    t_b = opening_transmission(state, ap.into, geom_b, vs_b, eye_b, p, info)
+    if t_b <= 0.0:
+        return 0.0
+    # the eye's room up to the wall: the point 1 mm short of the crossing on the way from the eye
+    s = max(0.0, t - 1e-3 / max(math.hypot(qx - ex, qy - ey), 1e-6))
+    cx, cy, cz = ex + s * (qx - ex), ey + s * (qy - ey), ez + s * (p[2] - ez)
+    geom = geom or room_geom(state, rid, world)
+    vs = vs or viewshed(geom, eye)
+    skip = frozenset(ignore)
+    t_a = _transmission(geom, vs, ex, ey, ez, cx, cy, cz, skip, None, _occluders(state, eye, skip, cmap))
+    return ap.factor * t_a * t_b
+
+
+def _is_window(rec):
+    words = [rec.get("category"), rec.get("type")] + list(rec.get("is_a") or [])
+    return any(w == "window" for w in words)
+
+
+def aperture_opening(state, aperture_id):
+    """(Opening, factor) of something a viewer outside can look in through, in the frame of the room it opens into,
+    or (None, 0.0): a window (its footprint along its wall from its sill to its top; factor 1 - 0.95 x covered: glass
+    passes the view, coverings do not) or a door / connection (into the indoor room of an exterior one, else the
+    door's own room; the doorway's opening, factor 1 open, its glass porosity closed, nothing when closed and
+    opaque)."""
+    entities = state["entities"]
+    rec = entities.get(aperture_id)
+    if rec is not None and _is_window(rec) and "connects" not in rec:
+        rid = rec.get("location")
+        room = state["rooms"].get(rid)
+        placed = _place(state, aperture_id)
+        if room is None or not rec.get("pos") or placed is None:
+            return None, 0.0
+        box = placed[0]
+        inward, _ = geometry.wall_inward(room, rec["pos"])
+        lo, hi = (box.y0, box.y1) if inward[0] else (box.x0, box.x1)
+        covered = max(0.0, min(1.0, _num(rec.get("covered"), 0.0)))
+        return Opening(rid, inward[0], inward[1], _wall_line(rec["pos"], inward), lo, hi, box.z0, box.z1), \
+            round(1.0 - COVER_BLOCK * covered, 4)
+    cid = aperture_id if aperture_id in (state.get("connections") or {}) else None
+    if cid is None and rec is not None:
+        cid = next((c for c, conn in sorted((state.get("connections") or {}).items())
+                    if conn.get("door") == aperture_id), None)
+    if cid is None:
+        return None, 0.0
+    pair = list(state["connections"][cid].get("rooms") or ())
+    if len(pair) != 2:
+        return None, 0.0
+    rooms = state["rooms"]
+    outdoor = [bool((rooms.get(r) or {}).get("outdoor")) for r in pair]
+    if outdoor[0] != outdoor[1]:
+        into = pair[1] if outdoor[0] else pair[0]
+    else:
+        door = entities.get(state["connections"][cid].get("door") or "") or {}
+        into = door.get("location") if door.get("location") in pair else pair[0]
+    other = pair[1] if into == pair[0] else pair[0]
+    ap = doorway_aperture(state, cid, other)
+    if ap is None:
+        return None, 0.0
+    return ap.into, ap.factor
+
+
+def aperture_viewer(state, aperture_id, outside_m=3.0, eye_z=1.6):
+    """A viewer standing outside_m outside a window or a glass or open door (aperture_opening), level at eye_z, looking
+    straight in (human attention: 120 x 120 degrees, 15 m, 1 arcminute), in the frame of the room it opens into:
+    kind "aperture:<id>"; sees_entity and aperture_transmission see through the opening only. None when there is no
+    such opening (a closed opaque door, an unplaced window)."""
+    op, factor = aperture_opening(state, aperture_id)
+    if op is None or factor <= 0.0:
+        return None
+    mid = (op.lo + op.hi) / 2.0
+    out = max(0.0, float(outside_m))
+    x, y = (op.wall - op.nx * out, mid) if op.nx else (mid, op.wall - op.ny * out)
+    yaw = math.degrees(math.atan2(op.ny, op.nx)) % 360.0
+    view = APERTURE_VIEW
+    return Viewer(op.room, round(x, 3), round(y, 3), float(eye_z), round(yaw, 2), 0.0, view["hfov_deg"],
+                  view["vfov_deg"], view["range_m"], view["focal_px"], "aperture:" + str(aperture_id), ())
+
+
+def viewer_opening(state, viewer):
+    """(Opening, factor) of an aperture viewer (kind "aperture:<id>"), or (None, 0.0) for any other viewer."""
+    kind = str(getattr(viewer, "kind", "") or "")
+    if not kind.startswith("aperture:"):
+        return None, 0.0
+    return aperture_opening(state, kind[len("aperture:"):])
+
+
+def _reflects(state, op, p, light):
+    """Glass reflects in daylight (5.8): an outdoor light above REFLECT_RATIO x the light at a point that stands more
+    than REFLECT_DEPTH_M inside the wall hides it from a viewer outside."""
+    depth = ((p[0] if op.nx else p[1]) - op.wall) * (op.nx or op.ny)
+    return depth > REFLECT_DEPTH_M + EPS and clock.daylight(state) > REFLECT_RATIO * light + EPS
+
+
+def aperture_transmission(state, viewer, p, rel=None, cmap=None, world=None, ignore=()):
+    """Fraction of an aperture viewer's view that reaches point p of the room it looks into: in its frame, through
+    the opening (opening_transmission with p's relation rule: rel None for a free point, else the id p belongs to;
+    ignore: ids that never occlude a free point, e.g. the robot whose own head is p), times what the opening passes,
+    and 0 when the glass reflects (_reflects). 0 for any other viewer."""
+    op, factor = viewer_opening(state, viewer)
+    if op is None or factor <= 0.0 or not in_frame(viewer, p):
+        return 0.0
+    if rel is None:
+        info = _Rel("point", None, frozenset(viewer.ignore or ()) | frozenset(ignore), None, None)
+    else:
+        placed = _place(state, rel, cmap)
+        if placed is None or placed[0].rid != op.room:
+            return 0.0
+        info = _with_ignore(state, rel, placed[1], viewer.ignore)
+    if _reflects(state, op, p, light_at(state, op.room, p)):
+        return 0.0
+    geom = room_geom(state, op.room, world)
+    vs = opening_viewshed(geom, op, viewer, viewer.range_m)
+    return factor * opening_transmission(state, op, geom, vs, viewer, p, info)
+
+
+def aperture_sees(state, viewer, eid, cmap=None, world=None):
+    """Visible fraction of an entity, person or pet in an aperture viewer's frame (sees_entity's rule through the
+    opening): the in-frame samples' transmissions through it, times what it passes, rounded to a quarter; 0 when its
+    middle stands deeper than 1 m behind daylit glass (_reflects) or in another room."""
+    op, factor = viewer_opening(state, viewer)
+    placed = _place(state, eid, cmap)
+    if op is None or factor <= 0.0 or placed is None or placed[0].rid != op.room:
+        return 0.0
+    box, rel = placed
+    centre = ((box.x0 + box.x1) / 2.0, (box.y0 + box.y1) / 2.0, (box.z0 + box.z1) / 2.0)
+    if _reflects(state, op, centre, light_at(state, op.room, centre)):
+        return 0.0
+    rel = _with_ignore(state, eid, rel, viewer.ignore or ())
+    geom = room_geom(state, op.room, world)
+    vs = opening_viewshed(geom, op, viewer, viewer.range_m)
+    points = _samples(state, eid, box, rel, viewer)
+    total = 0.0
+    for p in points:
+        if in_frame(viewer, p):
+            total += opening_transmission(state, op, geom, vs, viewer, p, rel)
+    return quarter(factor * total / len(points)) if points else 0.0
+
+
 # ----- light -------------------------------------------------------------------------------------------------------------
 def make_beam(origin, yaw_deg, tilt_deg, power, half_deg):
     """A light beam from origin (x, y, z) along (yaw, tilt) with power and half-angle (6.1)."""
@@ -2188,8 +2798,23 @@ def robot_beams(state, eye, yaw_deg, tilt_deg):
             out.append(make_beam(eye, yaw_deg, tilt_deg, _num(spec.get("power"), BEAMS["flashlight"]["power"]),
                                  _num(spec.get("half_deg"), BEAMS["flashlight"]["half_deg"])))
     if state["robot"].get("headlamp_on"):
-        out.append(make_beam(eye, yaw_deg, tilt_deg, BEAMS["headlamp"]["power"], BEAMS["headlamp"]["half_deg"]))
+        spec = _worn_headlamp_beam(state) or BEAMS["headlamp"]
+        out.append(make_beam(eye, yaw_deg, tilt_deg, _num(spec.get("power"), BEAMS["headlamp"]["power"]),
+                             _num(spec.get("half_deg"), BEAMS["headlamp"]["half_deg"])))
     return out
+
+
+def _worn_headlamp_beam(state):
+    """The view.beam of the headlamp the robot wears (navigation_robot's robot_headlamp: location robot, relation worn,
+    gear_kind headlamp), or None (then BEAMS["headlamp"]): a data change to the worn lamp's beam takes effect
+    (navigation_robot's adoption request 4). Scanned only while the headlamp is on."""
+    found = None
+    for eid, rec in state["entities"].items():
+        if rec.get("location") == "robot" and rec.get("relation") == "worn" and rec.get("gear_kind") == "headlamp" \
+                and (found is None or eid < found):
+            found = eid
+    beam = view_props(state, found).get("beam") if found is not None else None
+    return beam if isinstance(beam, dict) else None
 
 
 def _ambient(state, rid):
@@ -2217,7 +2842,8 @@ def _shade(state, geom, p):
 
 def light_at(state, rid, p, beams=(), ambient=None, geom=None):
     """Light at a point (6.1): room ambient (perception.light_level, or `ambient` when the caller has it) x the shade
-    factor, plus @hook("light_at") fn(state, rid, x, y, z) boosts and the beams, clamped to [0, 1]."""
+    factor, plus @hook("light_at") fn(state, rid, x, y, z) boosts and the beams, clamped to [0, 1]. A light_at hook
+    answers a boost (a number >= 0, or None): local light on top of the uniform ambient (sun patches, lamp pools)."""
     level = (_ambient(state, rid) if ambient is None else float(ambient)) * \
         _shade(state, geom or room_geom(state, rid), p)
     for extra in run_hooks("light_at", state, rid, p[0], p[1], p[2]):
@@ -2226,6 +2852,25 @@ def light_at(state, rid, p, beams=(), ambient=None, geom=None):
     for beam in beams:
         level += beam_light(beam, p)
     return round(max(0.0, min(1.0, level)), 3)
+
+
+LIGHT_SATURATED = 0.36      # k_light is exactly 1 (0.35 and a margin for float rounding) and every light bar is met
+
+
+def acuity_light(state, rid, p, beams=(), ambient=None, geom=None):
+    """light_at for a judgement that reads the light only through k_light and the light bars of acuity_level and the
+    capture rule (no contrast, no reading): light_at itself, except that when the light without the light_at hooks
+    already reaches LIGHT_SATURATED the hooks are not asked -- their answers are boosts (>= 0), so the level, the
+    pixels and every bar come out the same. It spares the domains' per-point light hooks (sun patches, lamp pools)
+    in the camera's per-substep watch whenever the room is well lit (TIER1_INTEGRATION 3.4)."""
+    level = (_ambient(state, rid) if ambient is None else float(ambient)) * \
+        _shade(state, geom or room_geom(state, rid), p)
+    for beam in beams:
+        level += beam_light(beam, p)
+    level = round(max(0.0, min(1.0, level)), 3)
+    if level >= LIGHT_SATURATED:
+        return level            # the hooks could only add: light_at >= this (float sums and rounding are monotone)
+    return light_at(state, rid, p, beams, ambient, geom)
 
 
 def bright_sources(state, rid):
@@ -2521,6 +3166,19 @@ def background_color(state, eid):
         return parent["color"]
     rid = root_room(state, eid)
     room = state["rooms"].get(rid) or {}
+    if room.get("floor_color"):
+        return room["floor_color"]
+    return "dark" if room.get("floor_material") in DARK_FLOOR_MATERIALS else None
+
+
+def agent_background_color(state, agent):
+    """Colour behind a person or pet: the furniture they are on (on / seat / bed / in_bed naming an entity with a
+    colour), else their room's floor_color, else "dark" on a dark floor material, else None."""
+    for key in ("on", "seat", "bed", "in_bed"):
+        ref = agent.get(key)
+        if isinstance(ref, str) and (state["entities"].get(ref) or {}).get("color"):
+            return state["entities"][ref]["color"]
+    room = state["rooms"].get(agent.get("location")) or {}
     if room.get("floor_color"):
         return room["floor_color"]
     return "dark" if room.get("floor_material") in DARK_FLOOR_MATERIALS else None

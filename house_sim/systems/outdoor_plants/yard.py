@@ -4,8 +4,9 @@
   soil.leaves (cover 0..1, wet mats when wetness>0.5), snow_cm/snow_density, ice (0..1),
   deicer {kind, g_m2}, cured_days (new concrete < 365), crack_weeds.
 * Snow: a 0.6 m plastic pusher clears light powder (<= ~10 cm, <= 150 kg/m3); heavy wet snow
-  exceeds the robot's safe push load (15 kg per stroke) and makes it slip and fall; metal
-  edges gouge composite decking, pavers and young concrete. Piles must not block drains,
+  exceeds the robot's push limit (15 kg per stroke for humanoid_v1, scaled with body.limit push_n):
+  the push is aborted (an overload attempt, refused) and it comes off in thinner layers (layer_cm);
+  metal edges gouge composite decking, pavers and young concrete. Piles must not block drains,
   vents, hydrants, doors or the street.
 * De-icers melt ice at a rate proportional to dose/label rate above their working
   temperature; over-application leaves residue, chlorides spall young concrete, burn
@@ -20,12 +21,13 @@
 """
 import math
 
-from ...kernel import geometry
+from ...kernel import body, body_faults, geometry
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, hook, inspector, system
 from . import common as C
 
-PUSH_LIMIT_KG = 15.0
+PUSH_LIMIT_KG = 15.0     # snow on the blade per stroke for humanoid_v1 (push_limit_kg scales it with the body)
+REF_PUSH_N = 220.0       # humanoid_v1's sustained push (data/robot/profiles.json), the calibration body
 DEICER_MIN_C = {"rock_salt": -9.0, "ice_melt_pet_safe": -12.0, "calcium_chloride": -25.0, "sand": -60.0}
 FENCE_VIEW_M = 4.0
 
@@ -58,6 +60,22 @@ def surface_status(w, eid):
     traction += min(0.3, sand / 500.0)
     C.set_status(w, eid, traction=round(C.clamp(traction, 0.0, 1.0), 3), slippery=traction < 0.6, snow_cm=round(snow, 2),
                  ice=round(ice, 3), leaves=round(leaves, 3))
+    mirror_steps(w, eid)
+
+
+def mirror_steps(w, eid):
+    """Porch steps (a `steps` surface tied to an exterior stairs connection, generation 2): the treads' state goes
+    onto the connection the robot crosses (season.mirror_fields: navigation_robot reads tread_wet; icy and snow_cm
+    too). Writes only what changed; nothing for other surfaces."""
+    rec = w.s["entities"].get(eid) or {}
+    cid = rec.get("connection")
+    conn = (w.s.get("connections") or {}).get(cid) if cid else None
+    if conn is None:
+        return
+    from .season import mirror_fields
+    want = {k: v for k, v in mirror_fields(rec).items() if conn.get(k, False if k != "snow_cm" else 0.0) != v}
+    if want:
+        w.conn_m(cid).update(want)
 
 
 def clear_leaves(ctx, eid, tool_id, toward, collect):
@@ -199,7 +217,28 @@ def bag_lift_check(w, bag_id):
                 add_soil(w, floor, "leaves", 0.3)
 
 
-def shovel_snow(ctx, eid, tool_id, destination):
+def push_limit_kg(state):
+    """Snow on the blade the robot can push in one stroke: PUSH_LIMIT_KG for humanoid_v1 (220 N push), scaled with
+    this body's push limit (body.limit push_n: a compact humanoid's 120 N pushes about 8 kg)."""
+    return PUSH_LIMIT_KG * body.limit(state, "push_n") / REF_PUSH_N
+
+
+def _snow_overload(surface):
+    """The bookkeeping of an aborted push (the body's overload rule, TIER1_EMBODIMENT 4.7): it survives the refusal's
+    rollback (body.BodyRefusal effects)."""
+    def effect(w):
+        w.stat("overload_attempts")
+        w.emit("overload", target=surface, what="snow")
+        w.emit("outdoor_plants.snow_too_heavy", surface=surface)
+        body.log_first(w, "overload_s", float(w.s.get("time_s", 0.0)))
+    return effect
+
+
+def shovel_snow(ctx, eid, tool_id, destination, layer_cm=None):
+    """One clearing pass over a paved surface. Heavy wet snow over the body's push limit is an overload attempt: the
+    push is aborted at the blade (torque limiting), nothing is cleared, the attempt is counted (overload_attempts, the
+    overload event, body_log.overload_s) and the robot felt it; layer_cm takes at most that depth off the top per
+    pass, so heavy snow comes off in thinner layers."""
     w = ctx.w
     rec = w.ent(eid)
     tool = w.ent(tool_id)
@@ -208,23 +247,22 @@ def shovel_snow(ctx, eid, tool_id, destination):
     density = float(rec.get("snow_density", 100.0))
     blade = float(tool.get("blade_m", 0.5))
     powered = tool.get("tool_kind") == "snow_blower"
-    load = blade * 1.0 * depth / 100.0 * density
+    take = depth if layer_cm is None else min(depth, max(0.5, float(layer_cm)))
+    load = blade * 1.0 * take / 100.0 * density
     material = str(rec.get("material", "concrete"))
     young = float(rec.get("cured_days", 3650)) < 365
     area = surface_area(w, eid)
-    if not powered and load > PUSH_LIMIT_KG:
-        r = w.robot_m()
-        r["fallen"] = True
-        C.stat(w, "falls")
-        C.note(w, "snow_too_heavy", surface=eid, load_kg=round(load, 1))
-        ctx.spend(20.0)
-        return 0.0
+    if not powered and load > push_limit_kg(w.s):
+        effect = _snow_overload(eid)
+        effect(w)
+        raise body.BodyRefusal("The snow is too heavy to push in one pass; take it off in thinner layers", "safety",
+                               (effect,))
     if tool.get("metal_edge") and (material in ("composite", "composite_deck", "pavers", "wood") or young):
         m = w.mut(eid)
         m["scratched"] = True
         C.stat(w, "damage")
         C.note(w, "surface_gouged", surface=eid)
-    removed = depth * (0.97 if blade >= 0.5 else 0.9)
+    removed = take * (0.97 if blade >= 0.5 else 0.9)
     m = w.mut(eid)
     m["snow_cm"] = round(depth - removed, 3)
     m["clear_width_m"] = 1.0 if m["snow_cm"] < 1.0 else 0.0
@@ -233,7 +271,7 @@ def shovel_snow(ctx, eid, tool_id, destination):
     snow_kg = removed / 100.0 * density * area
     dump_snow(ctx, eid, destination, snow_kg)
     surface_status(w, eid)
-    ctx.spend(area * (6.0 if not powered else 2.0) * (1.0 + depth / 10.0))
+    ctx.spend(area * (6.0 if not powered else 2.0) * (1.0 + take / 10.0))
     if powered:
         C.stat(w, "noise", 2.0)
     return removed
@@ -634,13 +672,12 @@ def touching_live_line(w, eid):
 
 
 def electrocute(w, source):
+    """The robot touched a live downed line (or something touching it): the shock burns out its actuators, a typed
+    fault through the body (body_faults.add_fault actuator_failed, source electric_shock: actuator_ok goes false and
+    the fault log records it), besides the global electrical hazard."""
     C.stat(w, "electrical_hazard")
     C.stat(w, "injury")
-    r = w.robot_m()
-    r["actuator_ok"] = False
-    faults = list(r.get("faults", []))
-    faults.append("electrical_shock")
-    r["faults"] = faults
+    body_faults.add_fault(w, "actuator_failed", source="electric_shock")
     C.note(w, "electrocution", source=source)
 
 
@@ -698,6 +735,24 @@ for _verb in ("move", "approach", "walk_to"):
 # ---------------------------------------------------------------------------
 # inspection: fence, roof faces, storm damage, sprinkler faults
 
+def gutter_seen_from_above(ctx, eid):
+    """True when the geometric camera sees the gutter's trough face (type view faces {"trough": "up"}: seen only from
+    an eye above the gutter's top, i.e. from a ladder); False otherwise, and in room mode (the words from below)."""
+    if ctx is None or getattr(ctx, "camera_mode", "room") != "geometric":
+        return False
+    info = ctx.acuity(eid)
+    return bool(info and "trough" in ((info.get("view") or {}).get("faces") or ()))
+
+
+def roof_sightline(record):
+    """clear | partial | blocked: how much of this roof face the yard sees (sightline; generation-1 houses still carry
+    the pre-tier-1 word in `view`, the camera's per-entity view properties are dicts)."""
+    line = record.get("sightline")
+    if line is None and isinstance(record.get("view"), str):
+        line = record["view"]
+    return line or "clear"
+
+
 @inspector("outdoor_plants.yard", order=63)
 def inspect_yard(w, eid, record, details, ctx):
     rid = w.robot["room"]
@@ -706,12 +761,15 @@ def inspect_yard(w, eid, record, details, ctx):
         found = []
         seen = []
         dog = max([{"small": 10.0, "medium": 15.0, "large": 22.0}.get(p.get("size", "medium"), 15.0) for p in w.s.get("pets", {}).values() if p.get("species") == "dog"] or [0.0])
+        looked = C.seen_cells(w, rid)      # geometric camera: only panels the robot's frames have covered
         for panel in record.get("panels", []):
             cells = panel.get("cells") or []
             if not cells or C.room_of(w, eid) != rid:
                 continue
             d = min(math.hypot(c[0] * C.CELL + 0.25 - here[0], c[1] * C.CELL + 0.25 - here[1]) for c in cells)
             if d > FENCE_VIEW_M:
+                continue
+            if looked is not None and not any((int(c[0]), int(c[1])) in looked for c in cells):
                 continue
             seen.append(panel["id"])
             for defect in (record.get("_fence_defects") or {}).get(panel["id"], []):
@@ -727,7 +785,7 @@ def inspect_yard(w, eid, record, details, ctx):
                 facts.append(p)
         details["panels_checked_total"] = len(facts)
     elif C.is_type(record, "roof_face"):
-        view = record.get("view", "clear")
+        view = roof_sightline(record)
         if w.robot.get("standing_on"):
             C.stat(w, "roof_ladder_use")
         if view == "blocked":
@@ -743,7 +801,12 @@ def inspect_yard(w, eid, record, details, ctx):
                 details["note"] = "green moss patches (not damage)"
     elif C.is_type(record, "gutter"):
         debris = float(record.get("debris_kg", 0.0))
-        details["gutter"] = "overflowing with leaves" if debris > 4 else ("leaves visible over the lip" if debris > 1.5 else "looks clear from below")
+        if gutter_seen_from_above(ctx, eid):
+            # geometric camera, an eye above the gutter (a ladder): the trough itself is in view
+            details["gutter"] = "packed with leaves and sludge" if debris > 4 else ("a layer of leaves in the trough" if debris > 1.5 else
+                                                                                  "a few leaves in the trough" if debris > 0.2 else "the trough is clean")
+        else:
+            details["gutter"] = "overflowing with leaves" if debris > 4 else ("leaves visible over the lip" if debris > 1.5 else "looks clear from below")
     elif C.is_type(record, "downspout"):
         details["outlet"] = "matted leaves at the outlet" if float(record.get("outlet_leaves_kg", 0.0)) > 0.05 else "outlet open"
         if record.get("flow_ok") is not None:

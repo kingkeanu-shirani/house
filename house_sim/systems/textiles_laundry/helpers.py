@@ -129,9 +129,9 @@ def rack_spot(config, item, rooms, set_up=False):
                     for key in ("spos", "shelf", "stored_upright", "pack_orientation"):
                         rec.pop(key, None)
                     if set_up:
-                        rec.update(open=True, size_m=list(open_size), blocks_path=True)
+                        rec.update(open=True, size_m=list(open_size), blocks_path=True, portable=False)
                     else:
-                        rec.update(open=False, size_m=list(folded_size), blocks_path=False)
+                        rec.update(open=False, size_m=list(folded_size), blocks_path=False, portable=True)
                     return rid
     return None
 

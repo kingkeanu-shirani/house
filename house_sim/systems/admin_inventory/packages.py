@@ -3,13 +3,14 @@ roster, authorized opening with a blade whose depth can cut the contents, removi
 (small parts hide in it; peanuts scatter; streams differ), protective film/tape/clips, crushing
 under stacked loads, 'this side up' and fragile handling consequences.
 """
-from ...kernel import geometry
+from ...kernel import camera, geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import impact as phys_impact, lawbook, statics as phys_statics, support as phys_support
 from ...kernel.plugins import after, hook, observer
-from ..core import add_soil, release_from_hands, subtree_mass
-from .common import (address_matches, admin_facts, authority, drop_cell, is_waste_bin, requester, require_readable,
-                     resolve_name, slug)
+from ..core import add_soil
+from .common import (address_matches, admin_facts, authority, doorbell_alert, drop_cell, is_waste_bin, requester,
+                     require_readable, resolve_name, ring_doorbell, slug, visual_event)
 from .paper import drop_debris
 from .perceive import dumps, name_of, order_ids, perceives, privacy_violation, was_read
 
@@ -38,16 +39,27 @@ def package_addressee(state, record):
 @action("verify_label", params={"target": "entity"}, duration=4.0, energy=0.0, category="perception",
         doc="Read a package or mail label and compare the addressee and street address with the household roster (aliases, maiden names) and address.")
 def verify_label(ctx):
+    """Room camera: within reach (or a crouch), the room lit and the lens clean. Geometric camera: the cameras must
+    read the name on the label from where the robot is (ctx.read_check through the label face: about 0.37 m for the
+    head camera, else the wrist within reach; a label facing down onto its support, against a wall or a neighbouring
+    box, or under another box stacked on top, cannot be read -- turn, unstack or rotate it)."""
     w = ctx.w
     target = ctx.args["target"]
     rec = ctx.obj(target)
-    problem = geometry.reach_problem(w.s, target)
-    require(problem is None or "Crouch" in problem, problem or "", "precondition")
-    require_readable(ctx)
-    require(rec.get("recipient") is not None or rec.get("to_text") is not None, "There is no shipping label on it", "perception")
-    if rec.get("label_facing") in ("bottom", "down"):
+    geometric = ctx.camera_mode == "geometric"
+    if not geometric:
+        problem = geometry.reach_problem(w.s, target)
+        require(problem is None or "Crouch" in problem, problem or "", "precondition")
+    name_field = "recipient" if rec.get("recipient") is not None else "to_text"
+    if rec.get("label_facing") in ("bottom", "down") and not ctx.holding(target):
+        require_readable(ctx)
         raise ActionError("The label is underneath; turn the box over first", "perception")
-    if float(rec.get("wetness", 0.0)) > 0.6 or rec.get("label_smudged"):
+    fields = [f for f in (name_field, "address", "order_id", "markings") if f in rec]
+    readable_fields = require_readable(ctx, target if geometric else None, fields or ["label_text"])
+    require(rec.get("recipient") is not None or rec.get("to_text") is not None, "There is no shipping label on it", "perception")
+    if geometric:
+        require(name_field in readable_fields, camera.TOO_SMALL_TEXT, "perception")
+    if rec.get("label_smudged"):
         raise ActionError("The label is soaked and illegible", "perception")
     state = w.s
     printed_name = rec.get("recipient") or rec.get("to_text")
@@ -248,26 +260,44 @@ def remove_packing(ctx):
 # ----------------------------------------------------------------------
 # stacking and orientation consequences
 
-def _load_on(w, eid):
-    total = 0.0
-    for child in w.children(eid):
-        c = w.ent(child)
-        if c.get("relation") == "on":
-            total += subtree_mass(w, child)
-    return total
+FILL_PADDING_MM = 15.0      # loose fill around the contents (peanuts, air pillows, kraft paper, bubble fill) cushions
+                            # like a 15 mm wrap: a drop survived scales with 1 + padding / 3 mm (kernel statics)
 
 
-def _break_fragile(w, container, reason):
+def _fill_padding(w, box):
+    """Cushioning factor the box's own packing fill gives what is packed in it (1.0 without fill). The kernel's
+    padding reads wraps on the item only (statics.padding_factor), not loose fill beside it."""
+    filled = any(w.ent(c).get("packing_fill") for c in w.children(box))
+    return 1.0 + FILL_PADDING_MM / 3.0 if filled else 1.0
+
+
+def _tumble(w, box, cause):
+    """A packed box turned over or onto its side (this side up ignored): what is inside drops onto the new bottom
+    through the box's free inner height, cushioned by its own padding and the box's fill; the kernel's impact decides
+    each item (drop tolerance, break mode, breakage stats and events: phys.impact.impact). Returns the ids that
+    broke."""
+    state = w.s
+    rec = state["entities"][box]
+    inner = rec.get("inner_size_m") or rec.get("size_m") or [0.3, 0.3, 0.3]
+    try:
+        free_m = max(float(v) for v in inner[:3])
+    except (TypeError, ValueError):
+        free_m = 0.3
+    hard = phys_support.num(physics.props(state, box).hard, 1.0)
+    fill = _fill_padding(w, box)
     broken = []
-    for item in w.descendants(container):
-        rec = w.ent(item)
-        if rec.get("fragile") and not rec.get("broken") and not rec.get("padded") and not rec.get("wrapped_for_transport"):
-            w.mut(item)["broken"] = True
+    for item in phys_support.descendants(state, box):
+        irec = state["entities"].get(item)
+        if irec is None or irec.get("relation") not in ("in", "on") or irec.get("packing_fill"):
+            continue
+        size = irec.get("size_m") or [0.1, 0.1, 0.1]
+        try:
+            drop = max(0.0, free_m - min(float(v) for v in size[:3]))
+        except (TypeError, ValueError):
+            drop = free_m
+        h_eff = drop * hard / (phys_statics.padding_factor(irec) * fill)
+        if phys_impact.impact(w, item, h_eff, cause, by="robot"):
             broken.append(item)
-    if broken:
-        w.stat("breakages", len(broken))
-        w.stat("damage")
-        w.emit("contents_broken", target=container, items=broken, reason=reason)
     return broken
 
 
@@ -304,25 +334,27 @@ def _blade_exposure(ctx, eid, name, old, new):
 
 @after("place", order=80)
 def _stack_and_orientation(ctx, result):
+    """Stacking and orientation of packed boxes. A box loaded on top past its crush limit is crushed (the kernel's
+    crush law, TIER1_PHYSICS 5.3: crush_kg with per-instance variation, x0.4 when soaked; a crushed box passes the load
+    to its contents, which break when it exceeds theirs) -- this hook applies it while the law is deferred and steps
+    aside once the settle pass does. A box marked this side up and set down upside down or on its side tumbles its
+    contents (kernel impact through their padding and the box's fill) and open bottles in it leak."""
     w = ctx.w
     eid = ctx.args["target"]
     rec = w.ent(eid)
     parent_id = rec.get("location")
     parent = w.s["entities"].get(parent_id)
-    crush = (parent.get("crush_kg") or parent.get("crush_load_kg")) if parent is not None else None   # conventions 5: crush_kg
-    if parent is not None and rec.get("relation") == "on" and crush and parent.get("portable"):
-        load = _load_on(w, parent_id)
-        if load > float(crush) and not parent.get("crushed"):
-            pm = w.mut(parent_id)
-            pm["crushed"] = True
-            w.emit("box_crushed", target=parent_id, load_kg=round(load, 2))
-            _break_fragile(w, parent_id, "crushed")
-        elif ("FRAGILE" in [str(x).upper() for x in parent.get("markings", [])] or parent.get("fragile_contents")) and subtree_mass(w, eid) >= 5.0:
-            _break_fragile(w, parent_id, "heavy box on a fragile box")
+    if parent is not None and rec.get("relation") == "on" and parent.get("portable") and not lawbook.active("crush"):
+        phys_impact.crush_law(w, parent_id, env=ctx.env)
+        if phys_impact.damage_map(w.ent(parent_id).get("damage")).get("crushed", 0.0) > 0.0:
+            # crushed (by the law just now, or by another domain's crush rule earlier in this step): what is inside
+            # takes the load it passes on, as the law's own cascade does (each item is crushed at most once a step)
+            for item in phys_support.slot_children(w.s, parent_id, ("in",)):
+                phys_impact.crush_law(w, item, env=ctx.env)
     if is_package(rec) or rec.get("this_side_up"):
         orientation = ctx.args.get("orientation") or rec.get("orientation")
         if rec.get("this_side_up") and orientation in ("upside_down", "on_side"):
-            _break_fragile(w, eid, "this side up ignored")
+            _tumble(w, eid, "this side up ignored")
             for item in w.descendants(eid):
                 c = w.ent(item)
                 if c.get("liquid_container") and float(c.get("liquid_l", 0)) > 0 and not c.get("sealed_cap", True):
@@ -381,15 +413,23 @@ def _event_delivery(w, args, env):
     pkg = spawn_package(w, room, args.get("package", {}), cell=args.get("cell"))
     if args.get("ring", True):
         admin_facts(w)["doorbell_s"] = w.s["time_s"]
+        ring_doorbell(w, room)                  # the courier rings: a doorbell notice inside (kernel v3.1)
     admin_facts(w).setdefault("deliveries", []).append({"package": pkg, "room": room, "time_s": w.s["time_s"]})
     w.emit("package_delivered", target=pkg, room=room)
+    visual_event(w, "package_delivered", source=pkg, room=room, size_m=0.4)     # a parcel appears at the door
+    doorbell_alert(w, room, pkg, "Package detected at the front door")        # a video doorbell that frames it
     return pkg
 
 
 @hook("event:admin_doorbell")
 def _event_doorbell(w, args, env):
+    """Someone rings at the front door: args {kind?, room? (outside the door; default the porch, else the front
+    yard, else the entryway)}."""
     admin_facts(w)["doorbell_s"] = w.s["time_s"]
     admin_facts(w)["doorbell_kind"] = args.get("kind", "visitor")
+    room = _resolve_room(w.s, args.get("room", "porch")) or _resolve_room(w.s, "front_yard") or _resolve_room(w.s, "entryway")
+    if room is not None:
+        ring_doorbell(w, room)
     return True
 
 
@@ -422,7 +462,7 @@ def _event_parcel_pickup(w, args, env):
             reason = "not sealed"
         elif not (rec.get("return_label_ok") or rec.get("shipping_label_ok")):
             reason = "label missing, unscannable or for another order"
-        elif float(rec.get("wetness", 0.0)) > 0.6 or rec.get("label_smudged"):
+        elif rec.get("label_smudged"):
             reason = "label soaked"
         if reason:
             left[eid] = reason

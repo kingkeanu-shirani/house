@@ -89,7 +89,12 @@ def audit_registry():
                 density = float(record.get("mass_kg", 0.0)) / volume if volume > 0 else 0.0
             except (TypeError, ValueError, IndexError):
                 density = 0.0
-            if density and not DENSITY_RANGE[0] <= density <= DENSITY_RANGE[1] and props.material_class(None, record) != "intangible":
+            # an empty shell whose box is its filled shape (a bag, a wrap, an air pillow: a container, or hollow: true)
+            # is legitimately lighter than any solid (admin_inventory's adoption request 6); too dense is still a gap
+            shell = float(record.get("capacity_l", 0) or 0) > 0 or record.get("container") is True or \
+                record.get("hollow") is True
+            if density and not DENSITY_RANGE[0] <= density <= DENSITY_RANGE[1] and \
+                    props.material_class(None, record) != "intangible" and not (shell and density < DENSITY_RANGE[0]):
                 gaps[domain]["bulk_density"].append("{} ({:.0f} kg/m3)".format(name, density))
         container = float(record.get("capacity_l", 0) or 0) > 0 or record.get("container") is True
         if container:

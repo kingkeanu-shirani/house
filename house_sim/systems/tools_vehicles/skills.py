@@ -2,6 +2,9 @@
 
 Skills are composed from core verbs, this domain's verbs and the core skills in house_sim.tasks.skills.
 They are used by reference and wrong plans in task specs; evaluated agents do not get them.
+
+Geometric camera (kernel v3.0): the core approach verb only goes to what the robot can see, so these skills walk to a
+viewpoint first when a target (a thing, a door on the route) is out of sight, as the core approach skill does.
 """
 import json
 
@@ -229,6 +232,13 @@ def _detour_via_doorway(state, rid, start, goals, contact):
     return best
 
 
+def see_first(r, target):
+    """Geometric camera: a target out of the robot's sight is walked into view first (the core approach skill's
+    viewpoint walk); a no-op in room mode or once it is in sight."""
+    if base._geometric(r) and target in r.state["entities"] and not base._in_sight(r, target):
+        base._to_viewpoint(r, target)
+
+
 def go_room(r, room):
     """base.go_room, hop by hop, first walking to each doorway around loose floor items."""
     route = base.room_route(r.state, r.state["robot"]["room"], room)
@@ -246,6 +256,7 @@ def go_room(r, room):
         door = conn.get("door")
         drec = r.state["entities"].get(door) if door else None
         if drec is not None and not drec.get("open") and any(v is None for v in r.state["robot"]["hands"].values()):
+            see_first(r, door)
             r.do("approach", target=door)
             if drec.get("locked"):
                 r.do("unlock", target=door)
@@ -271,6 +282,7 @@ def _door_with_full_hands(r, door, nxt):
     if not held:
         return False
     here = state["robot"]["room"]
+    see_first(r, door)
     r.do("approach", target=door)
     if len(held) == 1:
         set_down(r, held[0])
@@ -300,6 +312,9 @@ def approach(r, target):
         raise _err("Cannot locate " + target)
     if room != state["robot"]["room"]:
         go_room(r, room)
+    if target in r.state["entities"] and geometry.reach_problem(r.state, target) is None:
+        return
+    see_first(r, target)
     if target in r.state["entities"] and geometry.reach_problem(r.state, target) is None:
         return
     rid, cells = geometry.anchor(r.state, target)

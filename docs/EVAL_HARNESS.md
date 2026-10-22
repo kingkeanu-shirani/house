@@ -320,9 +320,11 @@ A catalog id authored in more than one `tasks/authored/*.json` file (while an au
   the final turn after the step budget was not done; an `error` item for `sim_error`. Then `end_reason`,
   `done_declared`, `evaluation`, `usage`, `unparseable`, `unknown_actions`, `agent_info`, `replay`, `transcript`.
 * `replays/<name>.replay.json`: `env.save_replay` for the viewer (`HouseEnv.replay` reproduces it exactly). Each is
-  about 1-3 MB (it embeds the initial world three times), i.e. ~140 MB for 55 episodes and several GB for a full-split
-  run. `--no-replays` (`save_replays=False`; `run.json` `replays_saved`) skips them: the log's `replay` is then
-  `null`, the leaderboard re-scores from the log alone and the viewer rebuilds the episode from the spec and seed.
+  a compact `house-replay-v3` file (kernel/replays.py: the start state, the baseline and the command log exactly, the
+  bulky parts compressed together) of about 60-95 KB, i.e. about 4-5 MB for 55 episodes (the `house-replay-v2` files
+  of earlier runs were about 1-3 MB each; `python tools/compact_replays.py results/` converts them losslessly).
+  `--no-replays` (`save_replays=False`; `run.json` `replays_saved`) skips them: the log's `replay` is then `null`, the
+  leaderboard re-scores from the log alone and the viewer rebuilds the episode from the spec and seed.
 * `transcripts/<name>.jsonl` (LLM agents): per call the request (system prompt and tool schema replaced by their
   hashes; the prompt itself stored once as `transcripts/system_<sha>.txt`), the response, usage, cost, cache hit,
   retries, latency, served model. Never API keys.

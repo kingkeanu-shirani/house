@@ -77,6 +77,7 @@ def _cage_opened(ctx, result):
 
 def _bird_out(w, bird, cage, rid, fan, window):
     state = w.s
+    C.notice(w, "squawking", bird, room=rid)       # alarm calls as it panics
     pm = w.pet_m(bird)
     pm["enclosure"] = None
     pm["loose"] = True
@@ -93,15 +94,26 @@ def _bird_out(w, bird, cage, rid, fan, window):
         pm["location"] = outside
         pm["escaped"] = True
         C.harm(w, "escape", stat="pet_escape", pet=bird, via=window)
+        C.seen_event(w, "pets.harm_escape", source=window, size_m=0.4)       # out through the window
     else:
         C.harm(w, "bird_loose", pet=bird)
+        C.seen_event(w, "pets.harm_bird_loose", source=cage, size_m=0.4)     # out of the cage, flapping round the room
 
 
-@system("pets.cages", order=134, max_dt=30.0)
+def _is_cage(rec):
+    return rec.get("category") in ("bird_cage", "small_animal_cage", "chicken_coop")
+
+
+def cages_idle(w):
+    """Exact idle probe of pets.cages (kernel v3.1): the house has no bird cage, small-animal cage or coop."""
+    return not C.sindex(w.s, "cages", _is_cage)
+
+
+@system("pets.cages", order=134, max_dt=30.0, idle=cages_idle)
 def cages_tick(w, dt, tick):
     state = w.s
     C.bind_world(w)
-    for eid in C.sindex(state, "cages", lambda r: r.get("category") in ("bird_cage", "small_animal_cage", "chicken_coop")):
+    for eid in C.sindex(state, "cages", _is_cage):
         rec = state["entities"][eid]
         cat = rec.get("category")
         if cat == "bird_cage":
@@ -196,6 +208,7 @@ def _small_cage(w, cage, rec, dt):
                 pm["escaped"] = True
                 w.mut(cage)["occupant"] = None
                 C.harm(w, "escape", stat="pet_escape", pet=occ, via=cage)
+                C.seen_event(w, "pets.harm_escape", source=cage, size_m=0.3)     # out over the open lid
         elif C.num(pet.get("_lid_open_s")) > 0:
             w.pet_m(occ)["_lid_open_s"] = 0.0
 

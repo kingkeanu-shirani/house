@@ -7,6 +7,7 @@ domains' objects (sinks, outlets, TVs, candles, papers), so they also run when e
 """
 import copy
 import json
+import math
 import unittest
 
 from house_sim.generator import generate_house
@@ -270,13 +271,14 @@ class RegistrationTests(unittest.TestCase):
                 self.assertAlmostEqual(sc["gains"][rid], gains[rid], places=6)
             for eid in sc["kind_ids"]:
                 self.assertEqual(sc["room"].get(eid), rmap.get(eid))
-            # the fast light level is the kernel formula
-            sc["lights"] = {}
-            for eid in sorted(st["entities"]):
-                if st["entities"][eid].get("category") == "light" and rmap.get(eid):
-                    sc["lights"].setdefault(rmap[eid], []).append(eid)
+            # the room light level the model writes is the kernel's (tier-1 camera adoption: climate's own fast copy of the
+            # formula is gone); given each room's own window and light ids it is the same value as over the whole house
+            ids = M._light_ids(w, sc)
             for rid in sorted(st["rooms"]):
-                self.assertAlmostEqual(M.light_level_fast(w, sc, rid), light_level(st, rid), places=2, msg=(seed, rid))
+                self.assertEqual(light_level(st, rid, ids.get(rid, ())), light_level(st, rid), (seed, rid))
+                if "light_level" in st["rooms"][rid]:
+                    self.assertEqual(st["rooms"][rid]["light_level"], light_level(st, rid), (seed, rid))
+            self.assertFalse(hasattr(M, "light_level_fast"))
 
 
 
@@ -2111,6 +2113,367 @@ def go_to(test, env, rid):
                 ok(test, env.step("unlock", door))
             ok(test, env.step("open", door))
         ok(test, env.step("move", nxt))
+
+
+# ---------------------------------------------------------------------------------------------
+# tier-1 adoption (kernel v3.0 physics, camera, robot body; v3.1 sweep): docs/domains/climate.md section 17
+
+def fan_on_bed(ftype="box_fan", speed="high", aim=0.0):
+    h = House(outdoor_c=28.0, system=None)
+    h.add("outlet", "generic_item", "bedroom", pos=[6, 1], label="wall outlet", category="outlet", outlet_kind="wall", portable=False,
+          size_m=[0.07, 0.03, 0.12], mounted=True)
+    h.add("pfan", ftype, "bed", relation="on", spos=[0.3, 0.8], outlet="outlet", on=True,
+          settings={"speed": speed, "oscillate": False, "aim_deg": aim})
+    return h
+
+
+class Tier1PhysicsAdoptionTests(unittest.TestCase):
+    """TIER1_PHYSICS 10.3: climate's copies of the kernel laws route through the kernel (furniture_tip for fans on soft
+    bases, carry for open tanks and buckets, spill for water a unit dumps, overflow for a tank filled past its brim) and
+    the combustible rule reads the kernel's material classes."""
+
+    def test_combustible_rule_reads_the_kernel_material_classes(self):
+        reg = default_registry()
+        rec = lambda **kw: dict(reg.make("generic_item", "living"), **kw)      # noqa: E731
+        for material in ("cotton", "canvas", "polyester", "fleece", "microfiber", "paper", "cardstock", "cardboard", "foam",
+                         "wicker", "wool", "felt", "jute"):
+            self.assertTrue(CC.is_combustible(rec(material=material)), material)      # fibres, sheets, foams: kernel classes
+        for material in ("wood", "plastic", "glass", "steel", "rubber", "leather", "organic", "film", "fiberglass", "silicone"):
+            self.assertFalse(CC.is_combustible(rec(material=material)), material)     # char, melt or do not burn at a grille
+        self.assertTrue(CC.is_combustible(rec(material="down")))      # unmapped by the kernel: climate's own list answers
+        self.assertTrue(CC.is_combustible(rec(material="steel", category="sofa")))   # a sofa burns whatever its frame is
+        self.assertFalse(CC.is_combustible(rec(material="cotton", combustible=False)))   # an explicit flag wins
+        self.assertTrue(CC.is_combustible(reg.make("sneaker", "living")) if reg.known("sneaker") else True)
+
+    def test_a_running_fan_on_a_bed_rocks_over_by_its_own_statics_under_the_kernel_law(self):
+        from house_sim.kernel import physics
+        from house_sim.kernel.phys import lawbook
+        from house_sim.systems.climate import fans as FN
+        env = fan_on_bed().env()
+        st = env.world.s
+        self.assertAlmostEqual(physics.props(st, "pfan").com_frac, 0.5)           # phys.props hook: the fan's own statics
+        self.assertAlmostEqual(physics.tip_accel_g(st, "pfan"), 0.12 / (2 * 0.26), places=3)    # b / 2z on its 12 cm depth
+        ped = fan_on_bed("pedestal_fan").env().world.s
+        self.assertAlmostEqual(physics.props(ped, "pfan").base_m, 0.35)
+        self.assertGreater(physics.tip_accel_g(ped, "pfan"), FN.SOFT_BASE_ROCK_G["high"])
+        # aimed sideways the flat fan still pushes back through its face: along its own depth axis
+        side = fan_on_bed(aim=90.0).env().world.s
+        self.assertIn(FN.thrust_axis_deg(side, "pfan"), (90.0, 270.0))
+        # deferred law (today): a minute on medium topples any portable fan off the bed onto the floor, damaged
+        with lawbook.forced(furniture_tip=False):
+            env = fan_on_bed(speed="medium").env()
+            wait(env, 180)
+        self.assertEqual((ent(env, "pfan")["location"], ent(env, "pfan")["orientation"]), ("bedroom", "on_side"))
+        self.assertGreater(stat(env, "damage"), 0)
+        # the kernel's statics: a box fan goes over at high (0.3 g > 0.23 g) onto the bed and stops; it rides out
+        # medium (0.2 g); a heavy-based pedestal fan (0.4 g) and a tower fan (0.33 g) ride out high
+        with lawbook.forced(furniture_tip=True):
+            cases = (("box_fan", "high", True), ("box_fan", "medium", False), ("pedestal_fan", "high", False),
+                     ("tower_fan", "high", False))
+            for ftype, speed, tips in cases:
+                env = fan_on_bed(ftype, speed).env()
+                wait(env, 180)
+                rec = ent(env, "pfan")
+                self.assertEqual(rec.get("orientation") == "on_side", tips, (ftype, speed))
+                self.assertEqual(rec["location"], "bed", (ftype, speed))       # it lies where it fell: on the mattress
+                self.assertEqual(bool(rec.get("on")), not tips, (ftype, speed))
+                self.assertEqual(stat(env, "damage"), 0, (ftype, speed))          # a soft landing breaks nothing
+
+    def test_carrying_an_open_tank_sloshes_by_the_kernel_model_with_or_without_the_law(self):
+        from house_sim.kernel.phys import lawbook
+
+        def trip(law, cap_off=True, liters=3.8):
+            with lawbook.forced(carry=law):
+                env = HumidityTests().house(tank_l=liters, on=False).env()
+                w = env.world
+                w.begin()
+                m = w.mut("tank")
+                m["open"], m["location"] = cap_off, "bedroom"
+                m.pop("slot", None)
+                w.commit()
+                hold(env, "tank")
+                ok(self, env.step("move", "hall"))
+                ok(self, env.step("move", "living"))
+                return ent(env, "tank")["liquid_l"], stat(env, "spills")
+
+        deferred, active = trip(False), trip(True)
+        self.assertEqual(deferred, active)                 # the same physics whoever applies it
+        self.assertLess(deferred[0], 3.8)
+        self.assertGreater(deferred[0], 3.6)               # a brim-full open tank loses a few centilitres per walk
+        self.assertGreater(deferred[1], 0)                 # robot-caused puddles: spills
+        self.assertEqual(trip(False, cap_off=False), (3.8, 0))     # capped: nothing
+        self.assertEqual(trip(False, liters=2.0), (2.0, 0))        # half full: the wave stays inside
+
+    def test_an_uncapped_tank_fills_the_base_and_the_rest_spills_through_the_kernel(self):
+        h = HumidityTests().house(tank_l=0.0, tray=False)
+        h.c["entities"]["hum"]["base_water_l"] = 0.1
+        env = h.env()
+        go_to(self, env, "bedroom")
+        near(self, env, "hum")
+        ok(self, env.step("uninstall", "hum", slot="tank"))
+        ok(self, env.step("open", "tank"))
+        near(self, env, "jug")
+        ok(self, env.step("open", "jug"))
+        ok(self, env.step("pick_up", "jug", hand="left"))
+        ok(self, env.step("refill_reservoir", "tank", source="jug", liters=3.0))
+        ok(self, env.step("place", "jug", destination="dresser"))
+        near(self, env, "hum")
+        ok(self, env.step("install", "tank", destination="hum", slot="tank"))
+        self.assertAlmostEqual(ent(env, "hum")["base_water_l"], 0.3, places=3)    # the base tray takes what it holds
+        self.assertEqual(ent(env, "tank")["liquid_l"], 0.0)
+        self.assertGreater(stat(env, "phys_spills"), 0)                           # the kernel's spill: counted once
+        self.assertGreater(stat(env, "spills"), 0)
+        self.assertGreater(ent(env, "nightstand")["wetness"], 0.9)                # what it ran onto is wet
+        self.assertIn("water", ent(env, "nightstand").get("damage") or {})          # and the wood is marked
+
+    def test_filling_a_held_tank_past_its_brim_overflows_through_the_kernel(self):
+        env = HumidityTests().house(tank_l=3.5).env()
+        go_to(self, env, "bedroom")
+        near(self, env, "hum")
+        ok(self, env.step("uninstall", "hum", slot="tank"))
+        ok(self, env.step("open", "tank"))
+        near(self, env, "jug")
+        ok(self, env.step("open", "jug"))
+        ok(self, env.step("pick_up", "jug", hand="left"))
+        ok(self, env.step("refill_reservoir", "tank", source="jug", liters=1.0))
+        self.assertAlmostEqual(ent(env, "tank")["liquid_l"], 4.0, places=3)
+        self.assertGreater(stat(env, "spills"), 0)                                # 0.5 L down the side onto the floor
+        overflows = [e for e in env.world.s["event_log"] if e["kind"] == "phys.overflow"]
+        self.assertEqual(len(overflows), 1)
+        self.assertAlmostEqual(overflows[0]["liters"], 0.5, places=3)
+
+
+class Tier1CameraAdoptionTests(unittest.TestCase):
+    """TIER1_CAMERA 19 / TIER1_INTEGRATION 6 "climate": the sun as the geometric camera's light and glare source, the
+    camera-gated observer cues, the type view blocks and visual events; room mode unchanged."""
+
+    def sunny(self):
+        h = House(start="2026-10-09T16:00:00", outdoor_c=18.0, system=None)
+        h.c["entities"]["light_living"]["on"] = False
+        return h
+
+    def test_sun_hooks_give_patches_beams_and_daylight_sources(self):
+        env = self.sunny().env()
+        env.step("wait", seconds=30)
+        st = env.world.s
+        cells = SUN.sunlit_cells(st, "living")
+        self.assertTrue(cells)
+        x, y = CC.cell_center(cells[len(cells) // 2])
+        self.assertAlmostEqual(SUN.sun_patch_light(st, "living", x, y, 0.0), SUN.SUN_PATCH_GAIN * SUN.direct_sun(st, "living", x, y, 0.0), 3)
+        dark = [c for c in ((x0, y0) for x0 in range(10) for y0 in range(12)) if list(c) not in cells]
+        dx, dy = CC.cell_center(dark[0])
+        self.assertIsNone(SUN.sun_patch_light(st, "living", dx, dy, 0.0))
+        beam = SUN.sun_beam_at_eye(st, "living", x, y, 0.1)
+        self.assertIsNotNone(beam)
+        az, alt = SUN.sun_position(st)
+        self.assertAlmostEqual(beam[2], math.sin(math.radians(alt)), 3)
+        self.assertTrue(180.0 < az < 360.0 and beam[0] < 0.0, (az, beam))         # an afternoon sun is in the west: -x
+        sources = {s["id"]: s for s in SUN.daylight_sources(st, "living") if s["kind"] == "window"}
+        self.assertEqual(set(sources), {"win_n", "win_w"})
+        self.assertLessEqual(max(s["level"] for s in sources.values()), 1.0)    # the camera's 0..1 light scale
+        for wid in ("win_n", "win_w"):                     # behind half-closed blinds the sunlit west window is brighter
+            env.world.begin()
+            env.world.mut(wid)["covered"] = 0.5
+            env.world.commit()
+        sources = {s["id"]: s for s in SUN.daylight_sources(env.world.s, "living") if s["kind"] == "window"}
+        self.assertAlmostEqual(sources["win_n"]["level"], 0.5 * clock_daylight(env.world.s), 3)
+        self.assertGreater(sources["win_w"]["level"], sources["win_n"]["level"])
+        patio = SUN.daylight_sources(st, "patio")
+        self.assertEqual([s["kind"] for s in patio if s["kind"] == "sun"], ["sun"])
+        # the room light level the model writes is unchanged by the hooks (room mode never calls them)
+        from house_sim.kernel.perception import light_level
+        self.assertEqual(room(env, "living")["light_level"] if "light_level" in room(env, "living") else light_level(st, "living"),
+                         light_level(st, "living"))
+
+    def test_observer_sun_cues_follow_the_geometric_camera(self):
+        h = self.sunny()
+        oracle = HouseEnv(copy.deepcopy(h.c), None, 0)
+        oracle.step("wait", seconds=30)
+        room_obs = oracle.observe()["climate"]
+        self.assertEqual(set(room_obs["sunlit_windows"]), {"win_w"})
+        self.assertTrue(room_obs["sun_patches"])
+        geo = HouseEnv(copy.deepcopy(h.c), None, 0, camera="geometric")
+        geo.step("wait", seconds=30)
+        st = geo.world.s
+        from house_sim.kernel import camera
+        seen = camera.seen_floor(st, geo.world)
+        obs = geo.observe()["climate"]
+        in_frame = {w for w in ("win_n", "win_w") if camera.in_frame(st, w, geo.world)}
+        self.assertEqual(set(obs.get("sunlit_windows") or []), in_frame & {"win_w"})
+        for c in obs.get("sun_patches") or []:
+            self.assertIn(("living", tuple(c)), seen)
+        self.assertLessEqual(len(obs.get("sun_patches") or []), len(room_obs["sun_patches"]))
+        patch = room_obs["sun_patches"][len(room_obs["sun_patches"]) // 2]
+        ok(self, geo.step("face", "{},{}".format(*patch)))             # turn to the patch on the floor: now it is seen
+        obs = geo.observe()["climate"]
+        self.assertTrue(obs.get("sun_patches"))
+        self.assertLessEqual({tuple(c) for c in obs["sun_patches"]}, {tuple(c) for c in room_obs["sun_patches"]})
+        ok(self, geo.step("face", "win_w"))
+        self.assertIn("win_w", geo.observe()["climate"]["sunlit_windows"])
+
+    def test_view_blocks_and_display_faces(self):
+        from house_sim.kernel import sight
+        reg = default_registry()
+        self.assertGreater(reg.view_props("pedestal_fan")["porosity"], reg.view_props("box_fan")["porosity"])
+        self.assertEqual(reg.view_props("tower_fan")["porosity"], 0.0)
+        self.assertGreater(reg.view_props("ceiling_fan")["porosity"], 0.5)
+        h = RealisticPerceptionTests().humid_house()
+        st = h.env().world.s
+        self.assertEqual(sight.gated_face(st, "hygro_1", "rh_pct"), "display")
+        self.assertAlmostEqual(sight.text_m(st, "hygro_1", "rh_pct"), 0.01)
+        self.assertAlmostEqual(sight.text_m(st, "hum_tank", "max_fill_l"), 0.005)
+        # a new washable pre-filter ships in its bag like the other panels of its look-alike group
+        panels = [reg.make(t, "living") for t in ("purifier_prefilter", "purifier_hepa_filter", "purifier_carbon_filter")]
+        self.assertEqual({(p["shrink_wrapped"], p["openable"]) for p in panels}, {(True, True)})
+
+    def test_visual_occurrences_are_witnessed_by_the_geometric_camera_only(self):
+        h = FanTests().house(speed="high")
+        h.add("letter", "generic_item", "table", relation="on", spos=[0.5, 0.3], label="letter", category="paper", mass_kg=0.01,
+              size_m=[0.21, 0.29, 0.001])
+        room_env = h.env()
+        room_env.step("wait", seconds=120)
+        self.assertEqual(ent(room_env, "letter")["location"], "living")
+        self.assertNotIn("camera_log", room_env.world.s)
+        geo = HouseEnv(copy.deepcopy(h.c), None, 0, camera="geometric")
+        geo.step("wait", seconds=120)
+        events = [e for e in geo.world.s["camera_log"]["events"] if e["kind"] == "paper_blown"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["source"], "letter")
+
+
+class Tier1BodyAndSweepAdoptionTests(unittest.TestCase):
+    """The robot body reads climate's room temperatures; notices, dialogue routes, exact idle probes, generation-2
+    thermostats and the scripted-weather override (TIER1_SWEEP 6, 13, 14, 22.3)."""
+
+    def test_the_robot_pack_follows_the_room_climate_keeps(self):
+        h = House(outdoor_c=-8.0, system=None, people=False)
+        h.c["rooms"]["basement"]["temperature_c"] = -2.0
+        h.c["rooms"]["basement"]["conditioned"] = False
+        env = h.env()
+        go_to(self, env, "basement")
+        before = env.world.s["robot"]["battery_temp_c"]
+        wait(env, 2 * 3600)
+        t_room = room(env, "basement")["temperature_c"]
+        self.assertLess(t_room, 12.0)
+        self.assertLess(env.world.s["robot"]["battery_temp_c"], before)       # the pack cools toward the room's air
+
+    def test_a_full_dehumidifier_beeps_a_notice_and_a_burst_pipe_is_heard(self):
+        h = DehumidifierTests().house(bucket_l=5.95)
+        h.c["notices"] = []
+        env = h.env()
+        go_to(self, env, "basement")
+        wait(env, 1800)
+        self.assertTrue(ent(env, "dehu")["full_light"])
+        kinds = [n["kind"] for n in env.world.s["notices"]]
+        self.assertEqual(kinds.count("appliance_beep"), 1)
+        # a listening wait is interrupted by it (any_sound)
+        h2 = DehumidifierTests().house(bucket_l=5.95)
+        env2 = h2.env()
+        go_to(self, env2, "basement")
+        r = env2.step("wait", seconds=3600, interrupt_on=["appliance_beep"])
+        self.assertIn("interrupted", r["message"])
+        # no bus, no listener: schema-2 states are unchanged
+        env3 = DehumidifierTests().house(bucket_l=5.95).env()
+        wait(env3, 1800)
+        self.assertNotIn("notices", env3.world.s)
+
+    def test_canonical_questions_reach_the_climate_answers(self):
+        h = House()
+        h.c["people"]["resident_1"]["_climate"] = {"humidify": "yes please", "fan_speed": "medium", "night_setpoint": 18, "stated": []}
+        h.add("hum", "ultrasonic_humidifier", "living", pos=[2, 2])
+        env = h.env()
+        env.step("wait", seconds=60)
+
+        def ask(**kw):
+            return json.loads(ok(self, env.step("ask", "resident_1", **kw))["message"])
+        self.assertEqual(ask(aspect="status", about="temperature")["value"], comfort_text(env))
+        self.assertEqual(ask(aspect="amount", about="thermostat")["value"], 22.0)      # the middle of 20.5-23 C, to 0.5
+        self.assertEqual(ask(aspect="ok", about="humidifier", detail="humidify")["value"], "yes please")
+        self.assertEqual(ask(aspect="ok", about="hum")["value"], "yes please")
+        self.assertEqual(ask(aspect="amount", about="thermostat", detail="night_setpoint")["value"], 18)
+        self.assertEqual(stat(env, "necessary_questions"), 4)       # the first time each topic is asked; repeats are not
+        self.assertGreaterEqual(stat(env, "unnecessary_questions"), 1)
+
+    def test_idle_probes_of_the_meter_and_the_slow_system_are_exact(self):
+        from house_sim.kernel import plugins
+        from house_sim.systems.climate import model as M
+
+        def run(probes, make):
+            old = plugins.IDLE_PROBES[0]
+            plugins.IDLE_PROBES[0] = probes
+            try:
+                env = make()
+                for seconds in (600, 7200, 30, 4 * 3600):
+                    env.step("wait", seconds=seconds)
+                return digest(env.world.s)
+            finally:
+                plugins.IDLE_PROBES[0] = old
+
+        cases = [lambda: HumidityTests().house(tank_l=0.0).env(), lambda: HumidityTests().house(tank_l=2.0).env(),
+                 lambda: HouseEnv(generate_house(0), None, 0)]
+        for make in cases:
+            self.assertEqual(run(True, make), run(False, make))
+        quiet = HumidityTests().house(tank_l=0.0).env()
+        self.assertTrue(M.slow_idle(quiet.world))
+        self.assertFalse(M.slow_idle(HumidityTests().house(tank_l=2.0).env().world))
+
+    def test_generation_two_thermostats_follow_the_season(self):
+        from house_sim.systems.climate import furnish as F
+        self.assertEqual(F.season_mode("winter", 9.0, True), "heat")
+        self.assertEqual(F.season_mode("autumn", 14.9, True), "heat")
+        self.assertEqual(F.season_mode("spring", 18.2, True), "off")
+        self.assertEqual(F.season_mode("summer", 26.2, True), "cool")
+        self.assertEqual(F.season_mode("summer", 26.2, False), "off")      # a boiler has nothing to cool with
+        for start, want in (("2026-01-15T09:00:00", {"heat"}), ("2026-07-15T09:00:00", {"cool"}), ("2026-05-15T09:00:00", {"off"})):
+            cfg = generate_house(3, gen=2, region="us", start=start)
+            modes = {(e.get("settings") or {}).get("mode") for e in cfg["entities"].values()
+                     if e.get("climate_kind") in ("thermostat", "mini_split")}
+            self.assertEqual(modes, want, start)
+        # generation 1 keeps the hour's rule (cool above 22 C, heat below 16 C, else auto)
+        self.assertEqual(F.initial_mode(18.0, True), "auto")
+
+    def test_scripted_weather_overrides_a_weather_process(self):
+        from house_sim.tasks.runner import build
+        spec = {"catalog_id": "T-test", "instruction": "x", "house": {"gen": 2, "start": "2026-01-15T07:30:00", "region": "ca"},
+                "setup": [{"op": "helper", "name": "climate.weather", "args": {"temperature_c": -5.0, "condition": "clear",
+                                                                               "wind_mps": 2.0}}],
+                "success": [{"path": "weather.temperature_c", "op": "lt", "value": 0.0}], "budget": {"steps": 5, "time_s": 60}}
+        config, _, _ = build(spec, 0)
+        self.assertEqual(config["weather"]["temperature_c"], -5.0)
+        self.assertGreater(config["weather"]["override_until_s"], 1e8)
+        self.assertEqual(config["weather"]["gust_mps"], 3.0)            # the process's gust follows the scripted wind
+        self.assertEqual(config["weather"]["snow_cm_h"], 0.0)           # and a clear sky has no snowfall
+        self.assertEqual(config["weather"]["rain_mm_h"], 0.0)
+        spec["house"] = {"gen": 1}
+        config, _, _ = build(spec, 0)
+        self.assertNotIn("override_until_s", config["weather"])
+
+
+class Tier1ResidualTests(unittest.TestCase):
+    """Round-5 red team residuals: the reservoir verbs never branch on an unidentified look-alike's true type."""
+
+    def test_reservoir_verbs_refuse_an_unidentified_thing_with_the_generic_words(self):
+        from house_sim.kernel.actions import UNIDENTIFIED_MESSAGE
+        rp = RealisticPerceptionTests()
+        h = PurifierTests().house(layered=True)
+        env = rp.renv(h)
+        rp.go(env, "bedroom")
+        ok(self, rp.step(env, "approach", "new_hepa"))
+        hold(env, "new_hepa")
+        for verb in ("refill_reservoir", "empty_reservoir"):
+            r = rp.step(env, verb, "new_hepa")
+            self.assertFalse(r["ok"])
+            self.assertEqual(r["message"], UNIDENTIFIED_MESSAGE)
+
+
+def clock_daylight(state):
+    from house_sim.kernel import clock
+    return clock.daylight(state)
+
+
+def comfort_text(env):
+    from house_sim.systems.climate import comfort as CF
+    return CF.FEEL_TEXT.get(env.world.s["people"]["resident_1"]["climate"]["state"])
 
 
 if __name__ == "__main__":

@@ -97,6 +97,8 @@ NO_STAIRS_TEXT = "This robot cannot climb stairs"
 WEAK_LEGS_STAIRS_TEXT = "Weak legs: stairs are not safe now"
 BATTERY_CUT_TEXT = "Battery depleted after {:.1f} m; the robot powered down"
 STOPPED_FIRST_TEXT = "Walked {:.1f} m"       # a battery-cut walk that a domain stopped (or a fall ended) first
+# the arrival message heads of core's motion verbs, which a domain's cut of the walk makes false (motion_result)
+ARRIVAL_TEXTS = {"move": "Moved to ", "approach": "Approached ", "walk_to": "Walked to "}
 POWERED_DOWN_NOTE = "Battery depleted as it finished; the robot powered down"
 GASP_TEXT = {"battery": "Robot powered down: battery depleted"}
 
@@ -1140,6 +1142,31 @@ def check_policy(policy):
     return copy.deepcopy(policy)
 
 
+def set_network(w, ok, cause="house"):
+    """A network outage the house causes (the router or the Wi-Fi going down: electrical's smart-home model), kept
+    apart from the robot's own network_down fault so that it logs no robot fault (electrical's adoption request 3).
+    ok=False records `cause` in robot.network_outages and takes the network down; ok=True removes it, and the network
+    comes back only when no outage cause is left and no network_down fault is active (a fault's end likewise leaves
+    the network down while a house outage lasts). Returns the robot's network state."""
+    r = w.robot_m()
+    causes = sorted(set(r.get("network_outages") or ()))
+    if not ok:
+        if cause not in causes:
+            causes = sorted(causes + [cause])
+        r["network_outages"] = causes
+        r["network"] = False
+    else:
+        if cause in causes:
+            causes.remove(cause)
+        if causes:
+            r["network_outages"] = causes
+        else:
+            r.pop("network_outages", None)
+        if not causes and fault(w.s, "network_down") is None:
+            r["network"] = True
+    return bool(r.get("network"))
+
+
 def set_sensors(w, camera=None, mic=None, policy=None):
     """Switch the cameras or microphones on or off and set (a dict) or clear (False or {}) the room privacy policy;
     None leaves a setting as it is. Returns the resulting {camera_on, mic_on, privacy_policy}."""
@@ -1460,10 +1487,21 @@ def motion_result(ctx, result):
     """A leaf's result once its after-hooks ran (the engine calls it in step and perform). A verb returns
     BATTERY_CUT_TEXT when ctx.motion cut its walk; when a domain then stopped the walk first (cut_motion: a blocker, a
     fall), the robot pays only what it walked and stays on, so that text would be false: it becomes STOPPED_FIRST_TEXT
-    with the meters actually walked (the domain's notes say why). Every other result is returned unchanged."""
+    with the meters actually walked (the domain's notes say why). Likewise a core move / approach / walk_to arrival
+    ("Moved to X", "Approached X", "Walked to [c, r]") that a domain's cut_motion made false. Every other result is
+    returned unchanged."""
     planned = ctx.data.get("motion_battery_cut_m")
     record = ctx.data.get("motion")
-    if planned is None or record is None or record.get("exhausts") or not isinstance(result, str):
+    if record is None or not isinstance(result, str):
+        return result
+    cut = record.get("cut")
+    if cut and cut != "battery" and getattr(ctx.spec, "name", None) in ARRIVAL_TEXTS and \
+            result.startswith(ARRIVAL_TEXTS[ctx.spec.name]):
+        # a core move / approach / walk_to rendered its arrival before a domain's after-hook stopped the walk (a
+        # blocker, a fall, a collapse): the robot did not arrive, it walked what the cut record keeps (adoption
+        # requests navigation_robot 3, safety 8; the domain's note says why)
+        return STOPPED_FIRST_TEXT.format(record["meters"])
+    if planned is None or record.get("exhausts"):
         return result
     if result != BATTERY_CUT_TEXT.format(planned):
         return result
@@ -1509,6 +1547,17 @@ def _energy_effect(w):
     w.stat("energy_refusals")
 
 
+def _handle_tears_first(state, eid):
+    """With the handle law active, a held bag or bucket loaded past its handle rating tears before the robot loses
+    hold of it (cleaning's adoption request 8: the hold safety net, which runs before the settle pass, dropped a 12 kg
+    liner whole instead of letting its handle tear)."""
+    from .phys import lawbook, statics
+    if not lawbook.active("handle"):
+        return False
+    status = statics.handle_status(state, eid)
+    return status is not None and status["contents_kg"] > status["limit"] + 1e-9
+
+
 def _hold_check(w, ctx, loads):
     """Safety net for loads that grew after the lift (a filled container, a weakening arm): above 1.5 x what the
     hand can hold (hold_capacity_kg: no lift-off derates) the item slips out, above 1.0 x the robot strains. Returns
@@ -1519,6 +1568,8 @@ def _hold_check(w, ctx, loads):
     for eid, hands, kg in loads:
         cap = hold_capacity_kg(state, "both" if len(hands) == 2 else hands[0])
         ratio = kg / cap if cap > 0 else float("inf")
+        if ratio > OVERLOAD_DROP and _handle_tears_first(state, eid):
+            continue            # the settle pass's handle law tears the bag: its contents fall, the handle stays held
         if ratio > OVERLOAD_DROP:
             body_faults.drop_held(w, eid, hand_drop_m(state), "overload")
             ctx.note("Lost hold of {}: too heavy to keep holding".format(eid))
@@ -1711,7 +1762,7 @@ def system_tick(w, dt, tick):
             body_faults.clear_fault(w, "network_down", "restored")
         else:
             r = w.robot_m()
-            r["network"] = True
+            r["network"] = not r.get("network_outages")       # a house outage (set_network) outlasts it
             r.pop("network_until_s", None)
 
 
@@ -1879,6 +1930,8 @@ for _name, _default_value, _owner, _tier, _doc, _materialize in (
         ("privacy_policy", None, _KERNEL, "exact", "Room-type camera / microphone policy (body.set_sensors)", False),
         ("profile_overrides", None, _KERNEL, "hidden", "Per-episode profile overrides", False),
         ("network_until_s", None, _KERNEL, "hidden", "When the network comes back", False),
+        ("network_outages", None, _KERNEL, "hidden", "House-caused network outages by cause (body.set_network)",
+         False),
         ("water_exposure_s", {}, _KERNEL, "hidden", "Cumulative water exposure by kind", False),
         ("facing_deg", None, "camera", "exact", "Body yaw (grid convention), geometric camera mode", False),
         ("view", None, "camera", "hidden", "Head pose, frames and events, geometric camera mode", False),

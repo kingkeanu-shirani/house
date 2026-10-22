@@ -6,7 +6,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -183,7 +184,7 @@
      ]
     }
    ],
-   "notes": "Realistic perception: at a glance and on inspection the robot sees only a temperature bucket (thermal camera) and the surface ('looks cooked on the outside' once the surface got hot); the core temperature is learned only with the probe thermometer (inspect where=closely while holding it; +-0.25 C from its accuracy_c). Graded by food's report hook: probe_temp_c within 2 C of the true core (_core_c) at report time, done = core >= the safe core temperature (poultry 74 C, whole cuts 63 C). Whole birds and roasts have a core lag of hours, so the core barely moves during the episode. Variants: a raw-inside chicken with a browned skin, a done chicken, an under-temperature roast beef."
+   "notes": "Realistic perception: at a glance and on inspection the robot sees only a temperature bucket (thermal camera) and the surface ('looks cooked on the outside' once the surface got hot); the core temperature is learned only with the probe thermometer (inspect where=closely while holding it; +-0.25 C from its accuracy_c). Graded by food's report hook: probe_temp_c within 2 C of the true core (_core_c) at report time, done = core >= the safe core temperature (poultry 74 C, whole cuts 63 C). Whole birds and roasts have a core lag of hours, so the core barely moves during the episode. Variants: a raw-inside chicken with a browned skin, a done chicken, an under-temperature roast beef. Generation-2 house; passes with the geometric camera (realistic default after the D3 switch-over)."
   },
   {
    "catalog_id": "P-386d0f28709b05-01",
@@ -191,7 +192,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -372,7 +374,7 @@
      ]
     }
    ],
-   "notes": "Realistic perception: a glance or an inspection gives only a visual estimate (about +-15 %, two significant figures: inspect food_view.approx_g; holding it gives light/medium/heavy). The scale's display is the measurement (weigh grants read of the display and measure of the item's mass). The scale starts off and in ounces: switching it on zeroes it with whatever is on the platform, so it must be switched on (and set to grams) before the item goes on. The reported value must equal the display (the verifier also checks that the number appeared in what the robot observed)."
+   "notes": "Realistic perception: a glance or an inspection gives only a visual estimate (about +-15 %, two significant figures: inspect food_view.approx_g; holding it gives light/medium/heavy). The scale's display is the measurement (weigh grants read of the display and measure of the item's mass). The scale starts off and in ounces: switching it on zeroes it with whatever is on the platform, so it must be switched on (and set to grams) before the item goes on. The reported value must equal the display (the verifier also checks that the number appeared in what the robot observed). Generation-2 house; passes with the geometric camera (realistic default after the D3 switch-over)."
   },
   {
    "catalog_id": "T-ae4fd543d7c772-01",
@@ -380,7 +382,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -672,9 +675,26 @@
        "target": "{fridge}"
       }
      ]
+    },
+    {
+     "name": "reads_the_dates_from_across_the_kitchen",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "food.audit_dates",
+       "items": "{tubs}",
+       "field": "expired",
+       "stand": "far"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: the yogurt, sour cream and hummus tubs share the look-alike group 'white plastic tub' (identity resolves on inspect); printed use-by dates are read-tier, so inspect alone does not show them (the food view omits date_label until the tub has been read). The reference inspects and reads each tub (food.audit_dates) and reports expired=true/false, graded by food's report hook (_report_check) against the hidden date truth; a wrong yes on a good tub is a failure. Dates are printed in the household's regional format."
+   "notes": "Realistic perception: the yogurt, sour cream and hummus tubs share the look-alike group 'white plastic tub' (identity resolves on inspect); printed use-by dates are read-tier, so inspect alone does not show them (the food view omits date_label until the tub has been read). The reference inspects and reads each tub (food.audit_dates) and reports expired=true/false, graded by food's report hook (_report_check) against the hidden date truth; a wrong yes on a good tub is a failure. Dates are printed in the household's regional format. Geometric camera: the tubs' use-by codes are 3 mm print on their lids, read only from close by (the head camera at about a quarter of a metre, else the wrist camera within reach); the camera wrong plan opens the fridge and tries to read them from the far side of the kitchen. Generation-2 house.",
+   "camera": "geometric"
   },
   {
    "catalog_id": "T-3b0290e7f718c7-01",
@@ -682,7 +702,8 @@
    "perception": "realistic",
    "house": {
     "residents": "minimal",
-    "pets": "none"
+    "pets": "none",
+    "gen": 2
    },
    "setup": [
     {
@@ -790,6 +811,11 @@
      "path": "entities.{fridge}.open",
      "op": "is_false",
      "value": true
+    },
+    {
+     "path": "camera_log.looked_in.{carton}",
+     "op": "exists",
+     "value": true
     }
    ],
    "side_effects": {
@@ -858,9 +884,31 @@
        "target": "{fridge}"
       }
      ]
+    },
+    {
+     "name": "opens_the_carton_and_counts_from_across_the_kitchen",
+     "camera": true,
+     "plan": [
+      {
+       "skill": "open",
+       "target": "{fridge}"
+      },
+      {
+       "skill": "food.count_items",
+       "container": "{carton}",
+       "method": "glance",
+       "open_first": true,
+       "stand": "far"
+      },
+      {
+       "skill": "close",
+       "target": "{fridge}"
+      }
+     ]
     }
    ],
-   "notes": "Realistic perception: eggs inside a closed carton are not visible; each egg is a small object that can be missed at a glance from a distance, and a look into the open carton (inspect) finds them all and gives whole_items (counted by eye: exact up to 12). Food's report hook grades count against the number of whole food items in the container; the reported number must also appear in what the robot observed."
+   "notes": "Geometric camera, realistic perception: eggs inside a closed carton are not visible; with the carton open the robot must look into it from close by (its head camera above the rim, or the wrist camera) -- camera_log.looked_in records the look -- and inspect counts the eggs the cameras see in it (whole_items, counted by eye: exact up to 12). From across the kitchen a 4.5 cm egg low in a carton on a fridge shelf covers too few pixels and sits behind the rim (the camera wrong plan). Food's report hook grades count against the number of whole food items in the container; the reported number must also appear in what the robot observed. Generation-2 house.",
+   "camera": "geometric"
   }
  ]
 }

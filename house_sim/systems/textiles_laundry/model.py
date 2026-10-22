@@ -12,7 +12,9 @@ import math
 
 from ...kernel import clock, geometry
 from ...kernel.actions import lookalike_group
+from ...kernel.errors import ActionError
 from ...kernel.predicates import root_room
+from ...kernel.realism import WORD_BUCKETS
 
 DRY = 0.05          # wetness below which a textile counts as dry (fold/store OK)
 DAMP = 0.15         # above this, bunched/enclosed textiles start to sour
@@ -649,6 +651,14 @@ def flat_size(rec):
     return float(size[0]), float(size[1])
 
 
+def require_both_arms(ctx, message):
+    """Refuse (capability) a two-handed job when either arm has failed (kernel v3.0 body: body.arm_health; a failed arm
+    still lets the robot use the other hand for one-handed work)."""
+    from ...kernel import body
+    if any(body.arm_health(ctx.w.s, hand) <= 0 for hand in body.HANDS):
+        raise ActionError(message, "capability")
+
+
 def person_pref(w, pid, key, default=None):
     person = w.s.get("people", {}).get(pid, {})
     prefs = person.get("preferences") or {}
@@ -658,16 +668,19 @@ def person_pref(w, pid, key, default=None):
 # ---------------------------------------------------------------------------
 # realistic perception helpers (all False / identity in oracle mode)
 
-SMELL_WORDS = ((0.35, "faint"), (0.7, "noticeable"))
+# the kernel's odor scale (realism.WORD_BUCKETS["odor"]: below 0.3 faint, below 0.6 noticeable, else strong), so a
+# room's laundry smell and an odor dict the kernel renders use the same words for the same strength
+_ODOR_EDGES, _ODOR_WORDS = WORD_BUCKETS["odor"]
+SMELL_WORDS = tuple(zip(_ODOR_EDGES, _ODOR_WORDS))
 
 
 def smell_word(intensity):
-    """A nose gives a smell's kind and a rough strength, never a concentration (shared faint/noticeable/strong)."""
+    """A nose gives a smell's kind and a rough strength, never a concentration (the kernel's faint/noticeable/strong)."""
     value = float(intensity or 0.0)
     for edge, word in SMELL_WORDS:
         if value < edge:
             return word
-    return "strong"
+    return _ODOR_WORDS[-1]
 
 
 def group_varies(env, eid, key):

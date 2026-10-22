@@ -19,11 +19,15 @@ import math
 from ...kernel import geometry
 from ...kernel.predicates import root_room
 
-# Push/pull force levels (newtons at the handle). A person opens a latched interior door with
-# ~20-40 N; a sticky drawer needs 60-80 N; 200 N is a yank that breaks child latches and
-# pulls curtain rods out of drywall anchors (~150 N per bracket).
+# Push/pull force levels (newtons at the handle) the robot is commanded to apply. A person opens a latched interior
+# door with ~20-40 N; a sticky drawer needs 60-80 N; a yank (200 N commanded) breaks child latches and bends bolts. What
+# reaches the handle is the level clamped to the robot body's whole-body limit (kernel v3.0 body: push_n for pushes,
+# pull_n for pulls; humanoid_v1 220 / 180 N, the compact humanoid 120 / 100 N): applied_n. A pull or push of YANK_N
+# or more is a yank as far as light hardware is concerned (an assumption between the firm 80 N that never breaks it and
+# the humanoid's 180 N pull limit).
 FORCE_N = {"gentle": 20.0, "normal": 40.0, "firm": 80.0, "yank": 200.0}
 FORCES = tuple(FORCE_N)
+YANK_N = 150.0
 LATCH_TOLERANCE_MM = 6.0       # latch bar vs catch misalignment that still engages
 LIFT_COMPENSATION_MM = 15.0    # lifting a sagging gate while latching
 CORD_SAFE_HEIGHT_M = 1.5       # lowest cord point out of a small child's reach (CPSC guidance)
@@ -230,7 +234,44 @@ def set_open(w, eid, frac):
 
 
 def force_n(level):
+    """The commanded force of a level (newtons), before the body's limit (applied_n)."""
     return FORCE_N.get(level or "normal", FORCE_N["normal"])
+
+
+def body_limit(state, name, default):
+    """A whole-body force or torque limit of the robot's profile (kernel v3.0 body.limit: push_n, pull_n, wrist_nm);
+    `default` for a state the body cannot read."""
+    try:
+        from ...kernel import body
+        return float(body.limit(state, name))
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return float(default)
+
+
+def applied_n(state, level, how="pull"):
+    """Newtons the robot actually puts on a handle for a force level: the commanded level clamped to the body's
+    whole-body limit (push_n for a push, pull_n for a pull; TIER1_EMBODIMENT 12, TIER1_INTEGRATION 6 "mechanisms")."""
+    return min(force_n(level), body_limit(state, "push_n" if how == "push" else "pull_n", force_n(level)))
+
+
+def yanked(newtons):
+    """A pull or push hard enough to break or bend light hardware (child latches, bolts, rod brackets, slides)."""
+    return float(newtons) >= YANK_N - 1e-9
+
+
+def clamp_note(ctx, level, newtons, how="pull"):
+    """Tell the robot when its body could not deliver the commanded level (the action goes on at the limit)."""
+    if newtons + 1e-9 < force_n(level):
+        tell(ctx, "That is as hard as this body can {} (about {:.0f} N)".format(how, newtons))
+
+
+def grip_limit(state):
+    """The strongest working hand's power-grip cap (kernel v3.0 body.grip_limit_n; 0 when no arm works)."""
+    try:
+        from ...kernel import body
+        return max(float(body.grip_limit_n(state, hand, "power")) for hand in body.HANDS)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return 150.0
 
 
 def note_force(w, eid, newtons):
@@ -686,24 +727,22 @@ def lift_out_of_reach(state):
 
 
 def fall_item(w, eid, room, cell, height_m, cause):
-    """An item falls to the floor: fragile items break above their drop tolerance, liquids spill."""
-    rec = w.mut(eid)
-    for key in ("spos", "shelf", "held_hand", "pos"):
-        rec.pop(key, None)
-    before = rec.get("location")
-    rec["location"], rec["relation"] = room, "on"
-    rec["pos"] = list(cell) if cell else [0, 0]
-    rec["fell"] = True
-    tolerance = num(rec.get("drop_tolerance_m"), 0.3 if rec.get("material") in ("glass", "ceramic", "porcelain") else 1.2)
-    if rec.get("fragile") and height_m > tolerance:
-        rec["broken"] = True
-        w.stat("breakages")
-        w.stat("damage")
-        w.emit("broke", target=eid, cause=cause)
-    if num(rec.get("liquid_l")) > 0 and not rec.get("sealed", True):
-        w.stat("spills")
-    w.log_move(eid, before, room, by=cause)
-    w.emit("fell", target=eid, cause=cause, height_m=round(height_m, 2))
+    """An item falls height_m to the floor of `room` at (or beside) `cell` -- the kernel's fall (kernel v3.0 physics,
+    TIER1_INTEGRATION 6 "mechanisms"): where it lands (the nearest free floor cell), whether it breaks (its material
+    class's drop tolerance, the floor's hardness, its padding), an open container's liquid running out as a real
+    spill, what it held scattering, the crash or thud the robot hears, and who caused it (during the robot's action
+    it is the robot's; in a tick or an event only when the robot arranged the item). height_m None: from the height it
+    rests at; cell None: the kernel's landing cell beside its support. Before v3.0 this domain broke fragile things
+    above 0.3 / 1.2 m and counted a spill for any open liquid without making one. Returns the kernel's record
+    ({"fell", "outcome", ...})."""
+    from ...kernel import physics
+    if eid not in w.s["entities"]:
+        return {"fell": False}
+    if room not in w.s.get("rooms", {}):
+        room = w.robot.get("room")
+    spot = (int(cell[0]), int(cell[1])) if cell is not None and len(cell) >= 2 else None
+    drop = None if height_m is None else max(0.0, float(height_m))       # None: from where it rests now
+    return physics.fall(w, eid, height_m=drop, cause=cause, at=(room, spot))
 
 
 def gap_cm(rec):
@@ -764,6 +803,65 @@ def tell(ctx, text):
     notes = sec.setdefault("notes", [])
     notes.append({"step": w.s.get("steps", 0), "text": text})
     del notes[:-20]
+
+
+# ----------------------------------------------------------------------------------
+# tier-1 adapters (kernel v3.0 physics, camera and body; v3.1 notices): docs/domains/mechanisms.md section 16
+
+def law_active(name):
+    """True while the kernel applies a physics law itself (laws.json state, or lawbook.forced in tests)."""
+    from ...kernel.phys import lawbook
+    return lawbook.active(name)
+
+
+def geometric(state):
+    """The episode runs the geometric camera (robot.view exists; room mode otherwise)."""
+    return isinstance((state.get("robot") or {}).get("view"), dict)
+
+
+def visual(w, kind, source=None, at_room=None, size_m=0.3, log=True, **data):
+    """A visual occurrence (a door swinging shut, a gate blown open, a dresser tipping): exactly w.emit(kind, **data)
+    (room mode unchanged; log=False: no event-log entry, for occurrences that had none before); with the geometric
+    camera its current pose may also witness it (camera.visual_event: the camera log, robot.view.events and a "visual"
+    notice when seen). source / at_room / size_m are the occurrence's place and size for the camera only (never
+    logged)."""
+    entry = w.emit(kind, **data) if log else None
+    if geometric(w.s):
+        from ...kernel import camera
+        camera.visual_event(w, kind, source=source, room=at_room, size_m=size_m, emit=False)
+    return entry
+
+
+# sounds this domain posts on the kernel notice bus (TIER1_SWEEP 6.1-6.3): kind, doc, dB at 1 m. A slammed interior
+# door peaks at about 80-90 dB at 1 m; a residential opener's motor and chain about 70 dB (the same row as
+# navigation_robot's garage_door, which registers it identically); a pet-door flap about 50 dB.
+NOTICE_KINDS = (
+    ("door_slam", "a door, gate or lid slams shut", 85.0),
+    ("garage_door", "a garage door motor runs (the door opening or closing)", 70.0),
+    ("pet_door", "a pet door's flap swings as an animal pushes through", 50.0),
+)
+
+
+def _register_notice_kinds():
+    from ...kernel import timeline
+    for kind, doc, db in NOTICE_KINDS:
+        timeline.register_notice_kind(kind, doc, implies=("any_sound",), db=db)
+
+
+_register_notice_kinds()
+
+
+def notice(w, kind, source=None, room=None, db=None, data=None, visual=False):
+    """Post a perceivable occurrence (w.notice: the timeline decides whether the robot hears or sees it, and stores it
+    only while the notice bus is on or a wait listens). room defaults to the source's room."""
+    if not hasattr(w, "notice"):
+        return None
+    if room is None and isinstance(source, str) and source in w.s["entities"]:
+        room = room_of(w.s, source)
+    if room not in w.s.get("rooms", {}):
+        return None
+    return w.notice(kind, room=room, db=db, source=source if isinstance(source, str) else None, visual=bool(visual),
+                    data=data)
 
 
 # ----------------------------------------------------------------------------------

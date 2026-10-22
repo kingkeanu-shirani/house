@@ -1,28 +1,40 @@
 """Handling hot things (fidelity P-approx thermal contact, S rules).
 
 * Oven mitts: core `wear` lets the robot grip up to ~260 C; a DAMP mitt (wetness > 0.3) or one with a hole conducts
-  heat straight through - grabbing anything above 60 C with it is a burn (stats.burns) and the gripper pad is damaged.
+  heat straight through - grabbing anything above 60 C with it is a burn (stats.burns) and the gripper pad is damaged
+  (robot fault gripper_heat_damage on that hand, kernel body_faults).
   Mitts dropped on a burner scorch/ignite (see stove._hot_surface_items).
-* Setting a hot item down: the surface must tolerate it (finished wood marks above ~60 C, laminate ~110 C, plastic
-  boards/melamine melt ~90 C, quartz resin ~150 C, fabric scorches ~150 C; trivets, racks, stone and metal are fine).
-  Hot glass/ceramic shatters from thermal shock on a wet or cold surface (sink, wet counter, fridge) or when the
-  quench (temperature difference x surface severity: 1.0 wet/cold/metal, 0.45 dry stone/laminate, 0 trivet/wood/
-  towel) exceeds its limit (~90 C soda-lime glass, 120 C stoneware, 160 C borosilicate).
+* Setting a hot item down: the surface must tolerate it, by the kernel's heat limits (materials.json `heat`, +-
+  instance variation: finished wood and engineered wood 60 C, plastic 100 C, laminate 120 C, synthetic fabric 150 C,
+  cotton 200 C, stone 300 C; trivets, racks and other heat_resistant tops about 400 C; metal 500-800 C) at the kernel's contact
+  temperature (a vessel's wall is cooler than its liquid). This is the kernel's contact_heat law once it is active
+  (TIER1_PHYSICS 5.9; the legacy rule below, which marks at once, then returns and phys.contact_heat claims only the
+  contacts this domain's heat model owns: hot cookware on its own heater or holder).
+* Thermal shock (kernel thermal.shock_check, kernel tolerances: soda-lime glass 45 K, tempered glass 150 K, ceramic
+  100 K, stoneware 60-100 K, borosilicate 160 K, each +-15 % per instance): hot glass or ceramic set down on a wet
+  top (a water film quenches the rim: the kernel's contact coupling 0.6), into a fridge or freezer (0.3) or a hot oven
+  (0.5), or into liquid (1.0 colder / 0.6 hotter). The kernel's thermal_shock law applies the interior, immersion and
+  wet stone/metal cases itself once active; this domain keeps the wet film on any other top.
 * With a young child in the home, hot items (> 60 C) must not sit within 30 cm of the front edge of a surface lower
   than 1 m (spos y = depth is the front edge of counters; every edge of a table).
 * Carrying something hot (> 60 C, >= 0.15 kg with contents) past a person needs a spoken warning within the last minute.
 * Invariant appliances_cooking.detergent_within_child_reach: a toddler (<= 5 y) at home and dishwasher pods left open
   or below 1.2 m outside a child-locked cabinet, when that was not already so at the start.
 """
-from ...kernel import geometry
+from ...kernel import body_faults, geometry
 from ...kernel.errors import ActionError, require
-from ...kernel.plugins import after, before, invariant
+from ...kernel.phys import thermal as kthermal
+from ...kernel.plugins import after, before, hook, invariant
 from . import common as C
 
 HOT_C = 60.0
 CARRY_MASS_KG = 0.15     # below this a hot item (toast, a cookie) is no hazard to people it passes
-METALS = ("steel", "stainless_steel", "aluminum", "aluminium", "cast_iron", "iron", "copper", "metal")
-INSULATORS = ("cork", "wood", "bamboo", "fabric", "cotton", "linen", "felt", "silicone", "towel")
+GRIPPER_HEAT_FAULT = "gripper_heat_damage"
+# the gripper pad scorched by heat conducted through a damp or holed mitt: a typed robot fault (kernel body_faults,
+# TIER1_EMBODIMENT 4.11), detected at once (the pad's temperature sensor), cleared by service
+if GRIPPER_HEAT_FAULT not in body_faults.FAULT_KINDS:
+    body_faults.register_fault_kind(GRIPPER_HEAT_FAULT, "gripper", lambda robot, record: None,
+                                    doc="Gripper pad heat-damaged through a damp or holed oven mitt (service replaces it)")
 
 
 def worn_mitts(state):
@@ -50,6 +62,59 @@ def _heat_mass_kg(state, eid):
     return total + C.num(state["entities"][eid].get("liquid_l"))
 
 
+def shock_exposure(state, eid, dest_id, dest, rid):
+    """(other temperature, coupling) a brittle item just set down is thermally shocked by, or None. The kernel's own
+    exposures (thermal.shock_exposure: an oven or fridge interior, immersion in a holder's liquid, a wet stone, metal or
+    ceramic top) are applied here while the thermal_shock law is deferred, and by the kernel's settle pass once it is
+    active (None here then, so nothing is checked twice). A water film on any other top -- a wiped laminate or wood
+    counter, a sink basin -- quenches a hot rim whatever lies under it: this domain applies the kernel's contact
+    coupling to it in both states (the kernel's rule only knows conductive tops; kernel request)."""
+    rec = state["entities"][eid]
+    kernel = kthermal.shock_exposure(state, eid)
+    if kernel is not None:
+        return None if C.law_active("thermal_shock") else kernel
+    if rec.get("relation", "on") != "on" or not dest:
+        return None
+    wet = C.num(dest.get("wetness")) >= kthermal.WET_ITEM or C.num(dest.get("liquid_l")) > 0.05 or \
+        bool(dest.get("drain") and dest.get("water_source"))
+    if not wet:
+        return None
+    return C.num(dest.get("temperature_c"), C.room_temp(state, rid)), kthermal.COUPLING_CONTACT
+
+
+# supports whose heat this domain models: a vessel or food resting on them is on its own heater or holder (a pot on a
+# burner, a kettle on its base, a carafe on the warming plate, a pan on an oven rack, food on a griddle or grate)
+HOT_SUPPORTS = ("burner", "kettle_base", "slow_cooker", "coffee_maker", "griddle", "waffle_maker", "grill", "oven_rack",
+                "fryer_basket", "espresso", "toaster_oven", "stovetop_griddle", "range")
+
+
+@hook("phys.contact_heat")
+def _claim_contact(w, hot, support, temp_c, severity):
+    """The kernel's contact_heat law (TIER1_PHYSICS 5.9) leaves to this domain the contacts its own heat model owns:
+    whatever rests on one of its heaters or hot holders (HOT_SUPPORTS: built for it; a hot base under its own pot is
+    not marked by it), and a vessel this domain is heating. Every other support -- a counter, a table, a cutting board,
+    the top of a cold toaster -- is the kernel's to mark."""
+    srec = w.s["entities"].get(support) or {}
+    if srec.get("ac_kind") in HOT_SUPPORTS:
+        return True
+    hrec = w.s["entities"].get(hot) or {}
+    return bool(hrec.get("_ac_heat") == support and C.owns_temperature(hrec))
+
+
+def _marks_support(w, hot, sid, dest):
+    """The legacy rule's test (contact_heat deferred): the face of `hot` resting on sid is hotter than the finish takes,
+    by the kernel's own numbers (thermal.contact_temp_c: a vessel's wall is cooler than its liquid; the support's heat
+    limit, C.surface_heat_limit_c), and the contact is not one this domain's heat model owns (_claim_contact)."""
+    state = w.s
+    limit = C.surface_heat_limit_c(state, sid, dest)
+    if limit is None:
+        return False
+    contact = kthermal.contact_temp_c(state, hot)
+    if contact <= limit:
+        return False
+    return not (sid in state["entities"] and _claim_contact(w, hot, sid, contact, 0.0))
+
+
 @after("pick_up", order=82)
 def _mitt_conduction(ctx, result):
     w = ctx.w
@@ -67,10 +132,11 @@ def _mitt_conduction(ctx, result):
     if bad:
         mrec = state["entities"][bad[0]]
         why = "damp" if C.num(mrec.get("wetness")) > 0.3 else "holed"
-        C.harm(w, "burn_through_{}_oven_mitt".format(why), stat="burns", once="mitt:" + target, item=target, mitt=bad[0],
-               temp_c=round(temp))
-        robot = w.robot_m()
-        robot["faults"] = sorted(set(robot.get("faults", [])) | {"gripper_heat_damage"})
+        if C.harm(w, "burn_through_{}_oven_mitt".format(why), stat="burns", once="mitt:" + target, item=target, mitt=bad[0],
+                  temp_c=round(temp)):
+            hands = sorted(h for h, held in (state["robot"].get("hands") or {}).items() if held == target)
+            for hand in hands or ["right"]:
+                body_faults.add_fault(w, GRIPPER_HEAT_FAULT, part=hand, source="event")
 
 
 @after("place", order=84)
@@ -81,9 +147,6 @@ def _hot_placement(ctx, result):
     rec = state["entities"].get(target)
     if rec is None:
         return
-    temp = _hottest(state, target)
-    if temp <= 45.0:
-        return
     dest_id = rec.get("location")
     dest = state["entities"].get(dest_id) or {}
     rid = C.room_of(state, target)
@@ -91,7 +154,23 @@ def _hot_placement(ctx, result):
         floor = "floor_" + dest_id
         dest = state["entities"].get(floor) or {"material": state["rooms"][dest_id].get("floor_material", "wood")}
         dest_id = floor if floor in state["entities"] else dest_id
-    if rec.get("relation") == "on" and temp > C.surface_heat_limit_c(dest) + 10.0 and C.num(rec.get("mass_kg"), 0.3) >= 0.15:
+    temp = _hottest(state, target)
+    if not rec.get("broken"):
+        # thermal shock of a brittle item where it was set down (hot glass on a wet top, a cold dish into a hot oven,
+        # a hot jar into the fridge): the kernel's tolerances and couplings (thermal.shock_check)
+        exposure = shock_exposure(state, target, dest_id, dest, rid)
+        if exposure is not None and C.shock(w, target, exposure[0], exposure[1], by="robot"):
+            C.harm(w, "thermal_shock_shattered", stat="damage", once="shock:" + target, item=target, surface=dest_id,
+                   temp_c=round(C.num(rec.get("temperature_c"), 21.0)), other_c=round(exposure[0]))
+            for c in C.children(state, target):
+                if C.is_food(state["entities"][c]):
+                    C.mut_hidden(w, c, "_cook")[1]["glass_shards"] = True
+    if temp <= 45.0:
+        return
+    if rec.get("relation") == "on" and not C.law_active("contact_heat") and C.num(rec.get("mass_kg"), 0.3) >= 0.15 \
+            and _marks_support(w, target, dest_id, dest):
+        # legacy contact-heat rule while the kernel's contact_heat law is deferred (TIER1_PHYSICS 10.3): the kernel's
+        # heat limit and contact temperature, marked at once (the law accrues the mark over its first minute)
         mark = "melted" if C.is_plastic(dest) else "scorched" if C.mat(dest) in ("fabric", "cotton", "linen", "paper", "cardboard") else "heat_mark"
         if dest_id in state["entities"]:
             dm = C.add_damage(w, dest_id, mark, 1.0 if mark == "melted" else 0.5)
@@ -99,26 +178,6 @@ def _hot_placement(ctx, result):
                 dm["melted"] = True
         C.harm(w, "hot_item_damaged_surface_" + mark, stat="damage", once="surf:{}:{}".format(dest_id, target), surface=dest_id, item=target,
                temp_c=round(temp))
-    if (C.is_glass(rec) or C.mat(rec) in ("ceramic", "stoneware", "porcelain")) and not rec.get("broken"):
-        dest_t = C.num(dest.get("temperature_c"), C.room_temp(state, rid))
-        wet = C.num(dest.get("wetness")) > 0.2 or bool(dest.get("drain") and dest.get("water_source")) or C.num(dest.get("liquid_l")) > 0.05
-        cold = dest_t < 12.0
-        limit = C.thermal_shock_limit(rec)
-        # quench severity: water, cold and metal pull heat out of the rim fast; a dry counter only partly; a trivet,
-        # wood board or folded towel barely at all
-        conductive = wet or cold or C.mat(dest) in METALS or bool(dest.get("drain"))
-        insulating = bool(dest.get("heat_resistant") or dest.get("trivet")) or C.mat(dest) in INSULATORS
-        severity = 1.0 if conductive else 0.0 if insulating else 0.45
-        if (temp - dest_t) * severity > limit or ((wet or cold) and temp > 120.0):
-            m = w.mut(target)
-            m["broken"] = True
-            m["shattered"] = True
-            w.stat("breakages")
-            C.harm(w, "thermal_shock_shattered", stat="damage", once="shock:" + target, item=target, surface=dest_id,
-                   temp_c=round(temp))
-            for c in C.children(state, target):
-                if C.is_food(state["entities"][c]):
-                    C.mut_hidden(w, c, "_cook")[1]["glass_shards"] = True
     if temp > HOT_C and rec.get("relation") == "on" and dest and C.children_home(state, 10.0):
         height = C.surface_height(state, dest_id) if dest_id in state["entities"] else 0.0
         edge = C.front_edge_distance(state, target)
