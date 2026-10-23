@@ -1,0 +1,129 @@
+{
+ "id": "appliances_cooking",
+ "fixed": [
+  {
+   "item": "adopt_status breakage (appliances_cooking): T-7d4006bda247ba-01 - the upright iron on its heel rest got damage.heat_mark 0.5 on the ironing board from this domain's legacy contact-heat rule",
+   "how": "handling._marks_support (contact_heat deferred) now returns when kernel thermal.contact_claimed(w, hot, support, contact_c, severity) is true, which runs every domain's phys.contact_heat hook exactly as the law's contact_check does (it used to ask only this domain's own _claim_contact). The spec itself still fails on seeds 0/41 through admin_inventory's _hot_contact (listed breakage) and manipulation's legacy copy (request below); with both of those stepped aside in-process it passes",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_legacy_contact_heat_honours_every_domains_claim"
+  },
+  {
+   "item": "review M3 / p4_arch row 15: static index appliances_cooking.relevant went stale (save/load divergence class)",
+   "how": "systems.groups_of read the tick's groups off the records of the moment the union index changed and memoised them on its identity, so a record already in the union that later became a vessel (gained liquid_l) or a timer holder stayed out of its group in the live run only. Groups are now read off one kernel static index per group (systems.INDEXES: relevant, appliances, timer_holders, vessels, foods) under the kernel's index contract; a per-step audit of all 17 reference runs (live groups vs a fresh World on a copy of the state) finds no difference",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_tick_groups_are_a_function_of_the_state_not_of_the_caches_history"
+  },
+  {
+   "item": "review G10 / L3: at boil-over a litre of milk vanished in one 30 s step, then the empty pot heated to ~400 C with _vessel.scorched unset",
+   "how": "stove._boil_over caps what goes over per substep at BOIL_OVER_L_PER_KJ = 5 ml per kJ of boiling power (foam is mostly steam; min 20 ml; never more than stands above the rim): ~0.26 l per 30 s on a coil on high; a pot that boils dry by boiling over is boil_dry too, and a pot that boiled dry with milk, stock, sauce or food in it scorches its bottom above 150 C (_vessel.residue, _vessel.scorched, burnt soil). Plain water leaves nothing to scorch; the empty pan's own scorched/damage at 260 C is unchanged",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_a_boil_over_spills_what_the_boiling_carries_over_the_rim; tests/test_appliances_cooking.py ReviewStabiliseTests.test_water_boiling_dry_leaves_nothing_to_scorch_but_the_pan_overheats"
+  },
+  {
+   "item": "review G11 / L3: any adult in the room counted as attending the stove (a robot asked to watch the milk could walk away while the resident stood in the kitchen)",
+   "how": "scenario helper pot_on_burner(watcher=\"robot\") records the hand-over in the burner's hidden _burner.watcher; stove._attendance then counts only the robot. Opt-in: no spec uses it yet (spec repair of A-2bbd9d39ff1512-01 is the verifier-driven next phase; VERIFY_HARDENING 23.3 lists this prerequisite)",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_a_watch_handed_to_the_robot_is_attended_by_the_robot_alone"
+  },
+  {
+   "item": "remote knowledge grant: inspecting a fridge/oven granted inspect of the first dial thermometer inside even with the door shut (room mode also from across the kitchen), resolving the fridge/oven thermometer look-alike unseen",
+   "how": "status._dial_inside reads (and grants) a dial only through an open door / lit window and only when the dial itself is legible from where the robot stands (new percept.dial_legible: geometric read_check of that dial; room camera in realistic mode also arm's reach, as core read needs); first in handle order",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_a_dial_thermometer_is_identified_only_when_its_face_is_read"
+  },
+  {
+   "item": "remote inspect: check_doneness method=visual (inspect-tier cook_state cues) worked from anywhere in the room with the room camera",
+   "how": "cook.check_doneness visual in room mode now needs core inspect's reach rule for a small thing (require_access on geometry.reach_problem 'Approach'); geometric already used inspect_check",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_judging_doneness_by_eye_needs_a_close_look_in_room_mode"
+  },
+  {
+   "item": "review I4 / M1: unfamiliar (novel) objects identified by inspect keys - this domain's inspector added kind-named views (kettle_state, pressure_cooker, oven_state) for a novel thing",
+   "how": "status._details_seen returns no view for a novel, unidentified thing (realistic mode); identified appliances keep their views",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_an_unfamiliar_appliance_gets_no_appliance_view_on_inspect"
+  },
+  {
+   "item": "review L4 / M1: type defaults differing inside this domain's look-alike groups (twin differential over every verb on the 3 groups): lifted rice cooker 'moderate' vs pressure cooker 'heavy' load word; the rice cooker's pot labelled 'rice cooker inner pot' (seen on opening); dial thermometers of different true size/mass (depth range differed)",
+   "how": "type data: rice_cooker 3.5 -> 5.4 kg (a heavy-bodied 10-cup, matching its 1.8 L pot), rice_cooker_pot 0.6 -> 0.95 kg and label 'inner pot' (within 0.1 kg of the pressure cooker bare and with parts); fridge_thermometer and oven_thermometer both 0.07 x 0.04 x 0.08 m, 0.07 kg, 0.08 l. Generation-1 kitchens keep the old values via furnish.GEN1_PROPS (verified in-process: 112 generation-1 houses, 27 with rice cookers, identical digests with and without the edits). LookalikeWarning: none for this domain's groups (unchanged)",
+   "test": "tests/test_appliances_cooking.py ReviewStabiliseTests.test_countertop_cooker_look_alikes_load_the_arm_and_show_their_pot_alike"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "geometric view.px / range_m of unresolved cookers and kettles follow their true sizes (review L2; twin probe: cooker px 560 vs 650 at range 0.6 vs 0.5 m, kettle px 460 vs 440)",
+   "why": "kernel fix (px from the displayed group size; approach standoff from the displayed footprint); member true sizes cannot change here without moving generation-1 layouts (placement uses size before GEN1_PROPS restore). Request filed"
+  },
+  {
+   "item": "exact mass through the battery gauge (review L3) for look-alikes differing by <= 0.1 kg",
+   "why": "kernel (hold power from the shown load word); the load words and touch buckets now agree"
+  },
+  {
+   "item": "harms of inaction charged to the robot in idle runs (review C8/M9: unattended_cooking, pot_scorched_dry, gas_leak_ignored in T-032657e9583337-01 / T-123d987460eb2a-01 idle trials)",
+   "why": "needs the kernel's single harm API with an explicit cause and a documented failure-to-prevent rule (M9); the owner's question in p1_claims is still open. Request filed"
+  },
+  {
+   "item": "appliances -> safety coupling through sys.modules (common.safety_module; review M2)",
+   "why": "needs a kernel capabilities registry; request filed"
+  },
+  {
+   "item": "novel thing's glance openable and core open outcome (review I4, kettle row)",
+   "why": "kernel (fixed key set for novel types; core verb); this domain's own view is fixed"
+  },
+  {
+   "item": "wait(until)/watch on true values of boil_state/foam_level (review H6)",
+   "why": "kernel (evaluate on rendered values)"
+  },
+  {
+   "item": "per-field inspect acuity (adopt_status appliances_cooking-2) and wet-film thermal shock (appliances_cooking-3, design decision kept)",
+   "why": "kernel/camera decisions recorded in adopt_status; the domain keeps its own wet-film rule"
+  },
+  {
+   "item": "realistic outbound message rewriting garbles a label word equal to an entity id (adopt_status appliances_cooking-5); still reproduces",
+   "why": "kernel (realism outbound rewrite); request re-filed with a repro"
+  },
+  {
+   "item": "spec weaknesses found by the review (memorised burner T-032657e9583337-01, fixed 165 s milk timer A-2bbd9d39ff1512-01, oven clock unguarded T-0d397bf9de09a0-01, delayed start accepted T-ec38fe45bca9ab-01, constant variants)",
+   "why": "next phase (hardened verifier drives spec repair); no spec of this domain failed because of these fixes"
+  },
+  {
+   "item": "generation-1 room/house digests (tests/test_generator_compat.py fails on every pinned house)",
+   "why": "other owners' concurrent edits; this domain's edits leave generation-1 houses byte-identical (checked in-process by patching this round's type values back)"
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 190,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 17,
+  "passed": 17
+ },
+ "requests": [
+  {
+   "owner": "manipulation",
+   "request": "manipulation/handling.py place hook, legacy contact-heat copy (the 'heat damage to finishes' block, C.mark_damage(loc, 'scorch') while contact_heat is deferred) must return when phys.thermal.contact_claimed(w, eid, loc, temp, severity) is true, as admin_inventory's listed breakage. Repro: textiles T-7d4006bda247ba-01 seed 0 own mode - with admin_inventory's _hot_contact stubbed out the ironing board still gets damage.scorch 0.5 from this copy; with both stubbed the spec passes (appliances_cooking's copy is fixed)"
+  },
+  {
+   "owner": "admin_inventory",
+   "request": "Listed breakage still open: admin_inventory/handling._hot_contact marks damage.scorch 0.8145 on the ironing board under the upright iron (T-7d4006bda247ba-01 seeds 0, 41); return when thermal.contact_claimed(...) for relation 'on'"
+  },
+  {
+   "owner": "food",
+   "request": "food/hooks.py _after_place writes heat_mark 0.4 (and stats.damage) for any item > 70 C set on wood, laminate or plastic: a legacy contact-heat copy that ignores the kernel heat limits, thermal.contact_claimed and lawbook contact_heat. Repro: appliances_cooking test ReviewStabiliseTests.test_legacy_contact_heat_honours_every_domains_claim with every domain loaded: a claimed 200 C steel pan on table_1 still gets heat_mark 0.4"
+  },
+  {
+   "owner": "kernel",
+   "request": "Review L2 for this domain's groups: while a look-alike is unresolved, compute view.px from the group's displayed size and the approach standoff from the displayed footprint. Repro (twins differing only in the member at counter_2, realistic + geometric, approach): rice_cooker vs electric_pressure_cooker px 560 vs 650 at range_m 0.6 vs 0.5; electric_kettle vs stovetop_kettle px 460 vs 440 (scratch twins.py / twins_diff.py)"
+  },
+  {
+   "owner": "kernel",
+   "request": "Realistic outbound message rewrite still garbles label words equal to an entity id (adopt_status appliances_cooking-5): a hand-written house with a stovetop_kettle whose id is 'kettle' -> inspect message label 'stovetop obj_1570b45e'. Never id-translate DESCRIPTIVE_KEYS values inside JSON messages either"
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M9: one harm API with an explicit cause (robot / exogenous / failure_to_prevent) so this domain's system-side harms of inaction (unattended_cooking, pot_scorched_dry, gas_leak_ignored with its 5 min grace) can say so; until then C.harm raises stats directly"
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M2: a capabilities registry (plugins.provides / provider) so common.safety_module (sys.modules 'house_sim.systems.safety.' + name for fire/air) and system_loaded checks can be replaced"
+  }
+ ],
+ "notes": "All 190 domain tests pass normal, HOUSE_SIM_STRICT=1, HOUSE_SIM_DOMAINS=core,appliances_cooking (also strict) and with all 19 deferred physics laws forced (stack and rain included). --check: examples 12/12, perception 5/5 own mode and 5/5 --camera geometric; all 17 also pass on held-out seeds 3, 6, 500-504 and with all 19 laws forced (perception file in both cameras). perception_audit 20 80 --verbose: 0 leaks; layout_audit 20 --domain appliances_cooking: 0 problems. Other domains' specs that run this domain's heat mechanics (safety X-d734ea3e299b16-01, T-e95dd4ba6e8734-01, A-d9e7a4d5d112d2-01; people T-0908068a0b4269-01; cleaning T-538be222afc7b7-01; manipulation T-f036622c9240b7-01; electrical T-702453ef553c00-01; mechanisms T-137adae610695d-01; food T-d07790831be96a-01; textiles T-cc81e71dc2182e-01) pass; T-7d4006bda247ba-01 still fails through admin_inventory and manipulation (requests). A realistic leak sweep over every reference and wrong-plan run of the 17 specs found no id or unresolved label in any message. The milk spec A-2bbd9d39ff1512-01 keeps its outcome; its wrong plan that leaves for 1500 s now boils over four times and scorches the milk film instead of losing the litre at once. Docs: docs/domains/appliances_cooking.md section 11 (and sections 3, 4a, 6, 10 updated). Scratch tools: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_appliances_cooking/ (twins.py, leak_sweep.py, stale_audit.py, forced_laws.py, gen1_mine.py, milk_probe.py)."
+}

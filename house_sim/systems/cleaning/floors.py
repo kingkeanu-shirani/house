@@ -240,11 +240,14 @@ def spill_record(liquid, liters):
 
 
 def make_spill(w, location, liquid, liters, near=None, cell=None, surface=None, eid=None, origin=None, quiet=False,
-               **props):
+               robot=None, **props):
     """Create a spill entity (other domains may import this). Returns its id. origin: the container the liquid came
     out of (its provenance: core.mark_contents_from, so realistic perception names the liquid only once that container
     is identified). The robot's camera may see it happen (camera.visual_event, geometric mode) and it may be heard as a
-    splash (a "splash" notice); quiet=True leaves that to the caller (the kernel's spill already announced it)."""
+    splash (a "splash" notice); quiet=True leaves that to the caller (the kernel's spill already announced it).
+    robot=True: the robot caused it although no robot action is running (a pot it put on the heat boiling over later):
+    its harms (a resident slipping, a pet licking it) are the robot's (S.spill_is_robots); one made during a robot
+    action carries the kernel's marker anyway."""
     liters = max(0.001, float(liters))
     record = spill_record(liquid, liters)
     record.update(props)
@@ -270,6 +273,8 @@ def make_spill(w, location, liquid, liters, near=None, cell=None, surface=None, 
     if origin and origin in w.s["entities"] and origin != spill:
         from ..core import mark_contents_from
         mark_contents_from(w, spill, origin)
+    if robot:
+        m["_cl_robot"] = True
     resize_spill(w, spill)
     S.glog(w, "spill", spill=spill, liquid=liquid, liters=liters)
     if not quiet:
@@ -299,7 +304,9 @@ def spill_sink(w, rid, cell, liquid, liters, source, onto):
     """Liquid the kernel puts on a floor (TIER1_PHYSICS 5.7: overflow, tilt and tip spills, carry slosh, drips, leaks,
     broken containers) is a cleaning spill while this domain is loaded: it dries, wicks, stains and leaves its residue
     like any other. More of the same liquid on that cell grows the spill there. The kernel already logged the
-    consequence (event, camera, sound), so nothing is announced again. Returns the spill id."""
+    consequence (event, camera, sound), so nothing is announced again. Returns (spill id, new): False when the portion
+    grew an existing spill (kernel request cleaning-3), so a drip or a second pour onto the same puddle is not counted
+    as another spill (phys_spills, and spills when it is the robot's)."""
     if rid not in w.s["rooms"]:
         return None
     here = [int(cell[0]), int(cell[1])]
@@ -315,8 +322,11 @@ def spill_sink(w, rid, cell, liquid, liters, source, onto):
                 from ..core import mark_contents_from
                 mark_contents_from(w, eid, origin)
             resize_spill(w, eid)
-            return eid
-    return make_spill(w, rid, liquid, liters, cell=here, origin=origin, quiet=True)
+            return eid, False
+    # a portion that leaves something the robot arranged (an overfilled bucket, a bottle it set on an edge) is the
+    # robot's spill even when it lands in a later substep (the kernel's blame on the source)
+    robot = bool(origin) and S.robot_caused(w, origin)
+    return make_spill(w, rid, liquid, liters, cell=here, origin=origin, quiet=True, robot=robot), True
 
 
 # what this domain adds to a spill of each liquid: dried residue (soil kinds left on the floor or surface), germs,
@@ -578,7 +588,7 @@ def apply_to_floor(ctx, floor_id, product, amount, strength, classes, bottle=Non
     S.watch(w, "chem", floor_id)
     per_cell = amount / max(1, len(chosen))
     for key in chosen:
-        applied.append({"p": product, "face": "cell:" + key, "t": t, "wet_until": t + float(pinfo.get("wet_s", 300.0)),
+        applied.append({"p": product, "by": S.actor(w), "face": "cell:" + key, "t": t, "wet_until": t + float(pinfo.get("wet_s", 300.0)),
                         "s": S.rnd(strength, 3), "ml": S.rnd(per_cell, 2)})
     E.check_chemicals(w, floor_id, classes, product)
     S.add_residue(w, floor_id, classes, 0.2)
@@ -666,7 +676,7 @@ def disinfect_floor(ctx, target, product, strength, tool, bottle=None):
         cont = m.get("contamination") or {}
         for kind in sorted(cont):
             cont[kind] = S.rnd(float(cont[kind]) * 0.7)
-        m.setdefault("cl_applied", []).append({"p": product, "face": "main", "t": S.now(w), "wet_until": S.now(w) + 600, "s": strength})
+        m.setdefault("cl_applied", []).append({"p": product, "by": S.actor(w), "face": "main", "t": S.now(w), "wet_until": S.now(w) + 600, "s": strength})
         S.watch(w, "chem", target)
         ctx.data["seconds"] = SPILL_DISINFECT_S
         return spill_disinfect_text(ctx, product, bottle)
@@ -676,7 +686,7 @@ def disinfect_floor(ctx, target, product, strength, tool, bottle=None):
     m = w.mut(target)
     S.watch(w, "chem", target)
     for key in chosen:
-        m.setdefault("cl_applied", []).append({"p": product, "face": "cell:" + key, "t": t, "wet_until": t + float(pinfo.get("wet_s", 600)),
+        m.setdefault("cl_applied", []).append({"p": product, "by": S.actor(w), "face": "cell:" + key, "t": t, "wet_until": t + float(pinfo.get("wet_s", 600)),
                                                "s": S.rnd(strength, 3), "kill_s": pinfo["kill_s"]})
     classes = {c: p * strength for c, p in M.product_classes(product).items()}
     E.check_chemicals(w, target, classes, product)
@@ -1769,7 +1779,8 @@ ABSORB_TOOLS = ("towel", "cloth", "paper", "sponge", "mop", "wipe")
 
 def _unread_bottle(ctx):
     """Realistic perception: a held product bottle (or refill) whose label the robot has not read (or that has none),
-    named as the tool or else the first such bottle held; None in oracle mode."""
+    or any other unidentified bottle of a look-alike group (mechanisms' trigger bottle), named as the tool or else the
+    first such bottle held; None in oracle mode."""
     if not S.realistic(ctx):
         return None
     w = ctx.w
@@ -1777,8 +1788,9 @@ def _unread_bottle(ctx):
     named = ctx.args.get("tool")
     for eid in ([named] if named in held else held):
         rec = w.ent(eid)
-        if (rec.get("product") or rec.get("cl_chem")) and S.tool_spec(rec).get("kind") not in ABSORB_TOOLS \
-                and not S.label_known(ctx, eid):
+        bottle = rec.get("product") or rec.get("cl_chem") or \
+            (ctx.unresolved(eid) and (rec.get("liquid_l") is not None or isinstance(rec.get("trigger"), dict)))
+        if bottle and S.tool_spec(rec).get("kind") not in ABSORB_TOOLS and not S.label_known(ctx, eid):
             return eid
     return None
 
@@ -1798,7 +1810,8 @@ def _pour_unread_over(ctx, target, bottle):
         floor = S.floor_of(w, loc) if loc in w.s["rooms"] else None
         require(floor is not None, "Pour it out only over a spill", "argument")
         amount = min(float(brec.get("amount_ml", 1500.0)), max(250.0, liters * 1300.0))
-        w.mut(bottle)["amount_ml"] = S.rnd(max(0.0, float(brec.get("amount_ml", 1500.0)) - amount), 1)
+        left = float(brec.get("amount_ml", 1500.0))
+        S.set_product_ml(w, bottle, left - amount, before=left)
         absorb_with_granules(ctx, floor, spill_cells(w, target), amount)
     else:
         from .surfaces import bottle_product, take_from_bottle
@@ -1816,7 +1829,7 @@ def _pour_unread_over(ctx, target, bottle):
             S.gas_event(w, w.root_room(target), hazard, target)
         m = w.mut(target)
         m["liquid_l"] = S.rnd(liters + amount / 1000.0, 4)
-        m.setdefault("cl_applied", []).append({"p": product, "face": "main", "t": S.now(w),
+        m.setdefault("cl_applied", []).append({"p": product, "by": S.actor(w), "face": "main", "t": S.now(w),
                                                "wet_until": S.now(w) + float(M.PRODUCTS.get(product, {}).get("wet_s", 300.0)),
                                                "s": S.rnd(strength, 3), "ml": S.rnd(amount, 1)})
         S.watch(w, "chem", target)
@@ -1838,9 +1851,12 @@ def absorb(ctx):
     bottle = _unread_bottle(ctx)
     if bottle is not None:
         return _pour_unread_over(ctx, target, bottle)
-    tool = S.held_tool(ctx, predicate=lambda r: S.tool_spec(r).get("kind") in ABSORB_TOOLS or bool(r.get("product") == "oil_absorbent" or r.get("absorbent")),
-                       message="Hold an absorbent towel, paper towels, sponge, mop or absorbent granules")
+    def absorbs(r):
+        return S.tool_spec(r).get("kind") in ABSORB_TOOLS or r.get("product") == "oil_absorbent" or bool(r.get("absorbent"))
+    message = "Hold an absorbent towel, paper towels, sponge, mop or absorbent granules"
+    tool = S.held_tool(ctx, predicate=absorbs, message=message)
     trec = w.ent(tool)
+    require(absorbs(trec), message, "capability")      # a named bottle or brush blots nothing up
     rec = w.s["entities"].get(target)
     require(rec is not None and ctx.visible(target), "That is not visible here", "perception")
     method = ctx.args.get("method") or "blot"
@@ -1853,7 +1869,8 @@ def absorb(ctx):
         if rec.get("category") == "spill":
             ctx.obj(target, touch=True)
             amount = min(float(trec.get("amount_ml", 1500.0)), max(250.0, float(rec.get("liquid_l", 0.2)) * 1300.0))
-            w.mut(tool)["amount_ml"] = S.rnd(max(0.0, float(trec.get("amount_ml", 1500.0)) - amount), 1)
+            left = float(trec.get("amount_ml", 1500.0))
+            S.set_product_ml(w, tool, left - amount, before=left)
             loc = rec["location"]
             floor = S.floor_of(w, loc) if loc in w.s["rooms"] else None
             require(floor is not None, "Spread granules on floor spills", "precondition")

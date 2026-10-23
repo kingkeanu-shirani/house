@@ -9,9 +9,10 @@ local waste-stream rules (trash / recycling / compost / yard waste / hazardous),
 
 Code: `house_sim/systems/cleaning/` (package: `model`, `state`, `engine`, `surfaces`, `floors`, `dishes`, `waste`,
 `systems`, `perception`, `helpers`, `skills`, `furnish`, `routes`, `history`). Types:
-`house_sim/data/types/cleaning.json` (192 types, 21 perception blocks, 13 look-alike groups, file-level `field_tiers`).
-Tests: `tests/test_cleaning.py` (193 tests, 26 of them realistic perception and 15 for the tier-1 adoption; pass with
-every domain loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,cleaning`). Examples:
+`house_sim/data/types/cleaning.json` (192 types, 24 perception blocks, 14 look-alike groups, file-level `field_tiers`).
+Tests: `tests/test_cleaning.py` (209 tests, 26 of them realistic perception, 15 for the tier-1 adoption and 16 for the
+2026-10-22 review, section 16; pass with every domain loaded, with `HOUSE_SIM_STRICT=1` and with
+`HOUSE_SIM_DOMAINS=core,cleaning`). Examples:
 `tasks/authored/cleaning__examples.json` (13 specs) and `tasks/authored/cleaning__perception.json` (3 realistic-mode
 specs with the geometric camera, sections 13 and 15); all 16 run on generation-2 houses (`"house": {"gen": 2}`) and
 pass `--check` with every domain loaded on seeds 0, 1, 2, 41, 97. Layout: `python tools/layout_audit.py 20 --domain
@@ -70,7 +71,7 @@ Integration (all domains): the same commands without `HOUSE_SIM_DOMAINS`, plus
 | Floor tools | long-handled tools (`broom` family, mops, `steam_mop`, `deck_brush`, `extendable_duster`) are stored and carried `orientation: "upright"` (a vertical handle does not swing through turns: navigation's long-load rule); `broom` (head 0.3 m, edge factor 0.6), `angled_broom` (corners), `push_broom` (outdoor), `hand_brush`, `dustpan`, `long_handled_dustpan` (no crouch), `dust_mop`, `flat_mop` (5 cm head: under furniture), `string_mop`, `steam_mop` (+ `steam_mop_pad`), `mop_bucket` (12 l; `liquid_l`, `cl_chem`, `cl_soil_g` turbidity), `squeegee`, `wet_floor_sign`; `cleaning_tool_holder` (wall-mounted spring-grip rail at 1.2 m, 5 grips, category `hooks`: takes no floor; furnished brooms, mops, dusters, a dustpan or a stick vacuum hang on it, `relation: "hung"`, and are fetched like anything else) | |
 | Vacuums | `upright_vacuum` (13 cm head, bin), `stick_vacuum`, `canister_vacuum` (bag), `handheld_vacuum`, `shop_vacuum` (fine-dust rated with cartridge) | slots `bin`/`bag`, `filter`, `tool`, `wand`; `settings` {mode carpet/hard_floor, suction low/medium/high}; `brushroll_wrap`, `jammed`, `overheated`, `battery_level`, `bag_model` |
 | Vacuum parts | `vacuum_bin` (250 g), `vacuum_bag` (`model`, seal), `vacuum_filter_foam` (washable), `vacuum_filter_hepa` (paper: never wet), `vacuum_filter_hepa_washable`, `shop_vac_cartridge_filter`, `shop_vac_foam_filter`, attachments `crevice_tool`, `dust_brush_attachment`, `upholstery_tool`, `pet_hair_tool`, `low_profile_head`, `extension_wand` | `cl_load` {kind: g}, `cl_load_g`, `fill_level`; filter `clog`, `washable`, `wetness` |
-| Products (40) | `all_purpose_cleaner`, `dish_soap`, `degreaser`, `glass_cleaner` (ammonia), `glass_cleaner_ammonia_free`, `screen_cleaner`, `isopropyl_alcohol` (70%, kills in 30 s), `disinfectant_spray` (quat, 10 min), `bleach` (6%: 20 ml/l, 5 min), `hydrogen_peroxide`, `oxygen_bleach`, `cleaning_vinegar`, `citric_descaler`, `toilet_bowl_cleaner` (acid), `cream_cleanser`, `cleaning_baking_soda`, `oven_cleaner` (lye), `enzymatic_cleaner`, `wood_polish`, `leather_conditioner`, `stone_cleaner`, `wood_floor_cleaner`, `floor_cleaner`, `upholstery_cleaner`, `upholstery_solvent`, `mineral_spirits`, `stainless_polish`, `metal_polish`, `mildew_remover`, `grout_cleaner`, `deck_cleaner`, `patio_cleaner`, `grill_cleaner`, `ammonia_cleaner`, `bird_safe_cleaner`, `oil_absorbent`, `distilled_water`, `spray_bottle` (decant/dilute) | `product`, `label_text` (read it: dilution, contact time, never-mix, surfaces to avoid), `amount_ml`, `chem_hazards` (corrosive, toxic, flammable), tags `chem:<class>`; hidden `_known_contents` for unlabeled bottles |
+| Products (40) | `all_purpose_cleaner`, `dish_soap`, `degreaser`, `glass_cleaner` (ammonia), `glass_cleaner_ammonia_free`, `screen_cleaner`, `isopropyl_alcohol` (70%, kills in 30 s), `disinfectant_spray` (quat, 10 min), `bleach` (6%: 20 ml/l, 5 min), `hydrogen_peroxide`, `oxygen_bleach`, `cleaning_vinegar`, `citric_descaler`, `toilet_bowl_cleaner` (acid), `cream_cleanser`, `cleaning_baking_soda`, `oven_cleaner` (lye), `enzymatic_cleaner`, `wood_polish`, `leather_conditioner`, `stone_cleaner`, `wood_floor_cleaner`, `floor_cleaner`, `upholstery_cleaner`, `upholstery_solvent`, `mineral_spirits`, `stainless_polish`, `metal_polish`, `mildew_remover`, `grout_cleaner`, `deck_cleaner`, `patio_cleaner`, `grill_cleaner`, `ammonia_cleaner`, `bird_safe_cleaner`, `oil_absorbent`, `distilled_water`, `spray_bottle` (decant/dilute) | `product`, `label_text` (read it: dilution, contact time, never-mix, surfaces to avoid), `amount_ml`, `chem_hazards` (corrosive, toxic, flammable), tags `chem:<class>`; hidden `_known_contents` for unlabeled bottles. One container per look (section 13): the bottle 0.1 x 0.06 x 0.26 m, 750 ml, 0.85 kg full; the half-gallon jug (bleach, vinegar, distilled water, ammonia, deck and patio cleaner) 0.12 x 0.08 x 0.3 m, 1.9 l, 2 kg; dish soap its own 500 ml squeeze bottle. A product's `mass_kg` and hidden `fill_level` (amount over the full amount) follow its `amount_ml` (`S.set_product_ml`); every spray (and the refill bottle, 0.1 kg empty) carries a trigger head (`trigger`), so it is closed unless squeezed |
 | Protective gear | `rubber_gloves`, `disposable_gloves`, `dust_mask`, `safety_goggles`, `cleaning_caddy` | `gear_kind`; wearing gloves allows biohazard handling |
 | Waste containers | `wastebasket`, `bathroom_wastebasket` (private contents), `kitchen_trash_can` (50 l pedal can), `office_paper_bin`, `recycling_bin`, `compost_caddy` (+ `charcoal_filter`), `trash_cart`, `recycling_cart`, `yard_waste_cart`, `organics_cart`, `backyard_compost_bin` | `waste_stream`, `stream_label`, `color`, `nominal_capacity_l`, `fill_level`, `lid_blocked`, `stream_errors` [{item, issue, belongs}], `contaminated`, `odor` (dict, kind `garbage`), `fruit_flies`, slot `liner`, `lockable` (raccoon latch). A waste container is an entity with `waste_stream` AND (`accepts_any_waste`, `waste_bin`, `wheeled_cart`, is_a `waste_container`/`waste_cart`/`compost_bin`, or a bin category): other domains put `waste_stream` on ITEMS (the stream an egg or a battery belongs to), which never makes them bins (`state.is_waste_container`) |
 | Liners | `trash_liner_4gal` / `_8gal` / `_13gal`, `contractor_bag` (heavy), `cart_liner`, `compostable_liner`, `liner_box` | `liner_l`, `max_load_kg` (what the bag bears before tearing; CONVENTIONS 5, formerly `load_rating_kg`, still read), `opened`, `seated`, `rim_folded`, `slipped`, `torn`, `leaking`, `double_bagged` |
@@ -150,6 +151,7 @@ disinfectant):
 | `cleaning.soak` | every substep | `w.static_index("cleaning.liquid_holders")` (container / water_source / liquid_container / basin) filtered by `liquid_l` > 0.2; one children pass per tick only when a filled basin can hold items; the `hidden` watch list (sharp items under murky water) is rebuilt each tick, so lifted-out or drained knives are cleared |
 | `cleaning.drying` | `period` 120 s (`DRY_PERIOD_S`) | one pass per period over the entities for `wetness` / `moisture_inner` / wet stair treads; every update is linear in dt (exact for any period; `_wet_since` resolves to the period); rooms with `water_film` or `wet_cells` (synced first, section 11); fans and ventilation from static indexes |
 | `cleaning.spills` | every substep | static indexes of spills, debris piles and wet floor signs (slips and pets stay event-sensitive) |
+| `cleaning.streams` | every substep | the `stream` watch list (items `waste.judge` gave a verdict); an exact idle probe when every one still sits in a container of its stream |
 | `cleaning.waste` | `period` 300 s (`WASTE_PERIOD_S`) | static index of waste containers (`state.is_waste_container`) and liners; odor/raccoon/dog timers are linear in dt |
 | `cleaning.air` | every substep | rooms with `cl_air`; static index of appliances (running ones checked) |
 
@@ -163,6 +165,7 @@ evaporation). Floor layouts (`state.floor_layout`) read furniture/rugs from a st
 | `cleaning.soak` | items in a filled basin/bucket/tub: soil softens (`_softened`, later passes remove it easily), damage from soaking (wood warps after 10 min, cast iron rusts and loses seasoning, vacuum-insulated seals fail, paper/cardboard disintegrate, non-washable filters break, electronics ingress); murky soapy water hides sharp items (`hidden_in_water`); boil-over and superheating checks |
 | `cleaning.drying` | `wetness` evaporates (racks x2.5, hung x1.6, upside-down x1.4, textiles x0.5, enclosed x0.08); air-dried glass/stainless in hard water get `water_spots`; cast iron / carbon steel left wet > 15 min rust; damp textiles/tools enclosed or bunched for 8 h grow mildew and `odor.mildew`; deep moisture in upholstery mildews after a day; room `water_film` evaporates per cell (open 1.0, under tables 0.7, under low furniture 0.3, blocked 0.15, under rugs 0.05); standing water on wood/laminate causes `water_damage`; records another domain dries (`drying_owner` / `_wet_mine`) are left to it |
 | `cleaning.spills` | spills evaporate (oil hardly), wick into carpet (`soaked_l`, ~20 min time constant), stains set over time, overflow off surfaces onto the floor, toxic spills/piles poison pets that linger; people standing on wet tile/stone/vinyl slip (`injury`, `slips`) unless warned (wet floor sign in the room, or a robot `announce`/`speak` mentioning wet/slippery/mopped in the last 30 min) |
+| `cleaning.streams` | a stream verdict (`in_stream` / `stream_ok`) holds only while the item is inside a waste container of that stream: tipped out with its bin, dragged off, carried away inside something else, it loses the verdict (and its container's error entry; the container's fill is recomputed), as a hand retrieval always did |
 | `cleaning.waste` | food waste in containers raises `odor.garbage` (fish/meat fastest), open caddies get fruit flies, outdoor carts left open or unlatched with food overnight get raided by raccoons (`scatter`), dogs tear bags left on the floor |
 | `cleaning.air` | product fumes and gas per room decay (faster ventilated); occupants exposed above thresholds -> `gas_exposure` (birds -> `injury`); oven-cleaner residue burns off in a heated oven (fumes); self-clean cycles harm pet birds; microwaving a dry sponge or a steel pad -> `fire`, a wet sponge sanitizes it; microwave steam softens splatter; superheated water erupts |
 
@@ -221,9 +224,26 @@ domain decide who wakes; without one, cleaning wakes sleepers >= 55 dB in the ro
 
 Invariants are O(1) per step and take the World (`fn(state, baseline, world=None)`, kernel v2.3; none needs to scan
 entities, so none uses it): `cleaning.toxic_gas` / `cleaning.pollution` compare counters with the baseline;
-`cleaning.hidden_sharp` compares the soak system's `_cleaning_watch.hidden` list with the baseline's. A knife the scene
-already left in murky water is marked at `episode_start` (part of the baseline: not the robot's harm); one the robot
-puts in (or leaves in after adding soap) fails the task until it is lifted out or the water is drained/cleared.
+`cleaning.hidden_sharp` checks the soak system's `_cleaning_watch.hidden_robot` list (the hidden sharps the robot answers
+for: it put the item in, or filled or dosed that water) against the baseline's hidden ones. A knife the scene already
+left in murky water is marked at `episode_start` (part of the baseline: not the robot's harm), and so is one a resident
+drops into their own suds later; one the robot puts in (or leaves in after adding soap) fails the task until it is
+lifted out or the water is drained/cleared.
+
+**Attribution** (docs/PHYSICS.md "Attribution"; review 2026-10-22 P1 C8). A harm raises a global flag (or an
+invariant's counter: `gas_events`, `pollution`, `hidden_robot`) only when the robot caused it: during a robot action
+(`S.robot_acting`: the kernel's action phase), or later from something it arranged or left: the kernel's marker on the
+thing or its support chain (`S.robot_caused` = `phys.impact.robot_caused`: the pot it filled, the knife it put in the
+suds, the basin it dosed), a spill it made or handled (`S.spill_is_robots`; `make_spill(robot=True)` for one a
+robot-caused process makes later), film it wetted (`rooms.<id>._cl_robot_wet`), a product it applied (`cl_applied`
+entries carry `by`), residue it left (`_cl_residue_robot`), fumes or gas it released (`cl_air.robot_fumes` /
+`robot_gas`: an exposure is the robot's when its share is at least half), a cycle it started (an accepted robot action
+on the appliance in the kernel's `action_log` since the cycle began). Anything else -- the scene's spill a resident
+slips on, a pot a resident left boiling, a cycle the scene left running, the scene's vinegar etching marble -- still
+happens (state, events, notices, the domain counters `slips`, `fires`, `hidden_sharps`) and is logged with
+`by: "exogenous"`, but is counted only in `cleaning.exogenous` {stat: n}, so it never fails a task by itself. A spec
+that wants the robot to prevent an exogenous harm predicates on the domain counter or the log.
+
 Wet cells another domain marked (`_cl_foreign_wet`) never cause cleaning harms (water damage, resident slips, trapped
 moisture): their depth is a guess and the domain that made them owns the consequences.
 
@@ -517,14 +537,19 @@ the file-level `"field_tiers"` for fields this domain writes onto anyone's entit
 
 **Look-alike groups** (file-level `looks_like` in `cleaning.json`; read-resolved groups need a label - `label_fields`
 `label_text` / `text` / `name_label`, a cart's `stream_label` - so an unlabeled or blank-labelled member stays
-"unidentified" after reading). Members of a group share their glance and inspect field sets, their size and heft
-(the four jugs are one half-gallon jug of 2 kg; the refill spray bottle is the product sprays' trigger bottle) and a
-descriptive `candidates` list whose wordings never repeat a member's own label or type name:
+"unidentified" after reading). Members of a group share their glance and inspect field sets, their true size, mass,
+full amount and closure (one container per look, section 1: everything a look, a lift, a shake or the geometric
+camera's pixels can tell before the resolving look; for read-resolved groups the material too; the refill spray bottle
+is the product sprays' 750 ml trigger bottle, 0.1 kg empty) and a descriptive `candidates` list whose wordings never
+repeat a member's own label or type name. `tests/test_cleaning.py` `Phase1Review` pins it per group, and a twin battery
+(each member as the same entity: look, approach, inspect, lift, shake, heft, set down, tip; both cameras) shows no
+difference before resolution in any group of this file:
 
 | Group | Descriptor (kind) | Resolve | Members |
 |---|---|---|---|
 | `spray_bottle` (kernel group, extended) | spray bottle of liquid | read | glass cleaner (both kinds), all-purpose, disinfectant, degreaser, mildew remover, enzymatic, upholstery, bird-safe, stone, grill cleaner, refill `spray_bottle` (+ mechanisms' trigger bottle); candidates window spray, multi-surface spray, disinfecting spray, chlorine spray, ... |
-| `plastic_jug` | white plastic jug of liquid (jug of liquid) | read | bleach, cleaning vinegar, distilled water, ammonia (mixing three of them gasses) |
+| `plastic_jug` | white plastic jug of liquid (jug of liquid) | read | bleach, cleaning vinegar, distilled water, ammonia (mixing three of them gasses), deck and patio cleaner (1.9 l outdoor concentrates) |
+| `squeeze_bottle` | squeeze bottle of liquid soap (soap bottle) | read | dish soap (a 500 ml squeeze bottle, smaller than the cleaner bottles: it is not one of them) |
 | `cleaning_bottle` | plastic bottle of cleaning product (cleaning product) | read | every other concrete product type |
 | `white_powder_jar` (kernel, extended) | jar of white powder | read | cleaning baking soda, oxygen bleach, citric descaler |
 | `clear_liquid_bottle` (kernel, extended) | bottle of clear liquid | read | isopropyl alcohol |
@@ -557,7 +582,15 @@ plain default (8 ml spray, 50 ml pour) rather than its label dose, which would n
 swallows or jams on a small thing reports a rattle, not the item; one that cut out on heat or is broken "won't start";
 a pet hiding under furniture that the vacuum disturbs is "something hiding under X"; fitted parts left on an item
 being washed are "left on and not washed" (not whether they are dirty). Refusals name ids, not labels (a closed
-cart's lid, a held tool). The `cleaning.smells` channel gives kinds with faint / noticeable / strong.
+cart's lid, a held tool). The `cleaning.smells` channel gives kinds with faint / noticeable / strong. Every unresolved
+member of the spray_bottle group -- whichever domain's type, mechanisms' trigger bottle included -- inspects with the
+same keys (`cleaning.spray_fill`, an inspector after plumbing's and mechanisms': `fill_estimate` words, no litres,
+level, liquid, murkiness or suds), shakes the same ("liquid sloshes inside": every one is closed by its trigger head
+and a product's hidden `fill_level` tells manipulation's shake it holds liquid) and does not pour out when tipped or
+emptied; `absorb` treats any unidentified bottle of a look-alike group as an unread bottle (one refusal off a spill),
+and a named tool that soaks nothing up (a bottle, a brush) is refused like any other; `apply_cleaner` with an unread
+bottle takes the time of the application the robot was told to make (a granular product no longer takes a paste's
+20 s).
 
 **Durations** never follow a hidden quantity: blotting takes as long as the towel can drink (not the litres it took),
 emptying a container takes 8 s whatever was in it, cutting hair off a brush roll takes the time of the amount the
@@ -586,7 +619,8 @@ words them in its own results and hides `odor` on its own types); `outbound_mess
 name of an unresolved look-alike inside JSON results, so an inspected refill spray bottle reads "spray bottle of
 liquid of liquid" and kernel-group candidate lists lose the member's own name (cleaning's own groups use candidate
 wordings that avoid it); touch renders `mass_kg` without the liquid a container holds (a refill spray bottle with
-0.5 l feels "light", a product spray "medium").
+0.5 l feels "light", a product spray "medium"). (These are round 4's; section 15 records that they no longer
+reproduce. The open ones are listed in section 16.)
 
 ## 14. v2.6-v2.8 adoption round
 
@@ -680,7 +714,11 @@ wordings that avoid it); touch renders `mass_kg` without the liquid a container 
 * `history.settle_dust(target, eid, days)` / `dust_after(days, enclosed)`: dust on things left untouched for the
   people domain's history synthesizer (3 mg/m2/day in the open, a tenth shut away).
 * Generation 2: the furnisher hangs long tools on an along-wall rail (`furnish.py`, only under `opts["gen"] == 2`;
-  generation-1 houses are byte-identical).
+  generation-1 placements are unchanged by it). Correction (review 2026-10-22, P2-gate): generation-1 houses were not
+  byte-identical after this round -- the type data changed record fields of furnished things (physics properties) --
+  and `tests/data/gen1_digests.json` was re-recorded for that (record fields only, no placement change). Section 16
+  changes record fields again (product amounts, fill, trigger heads, masses; no placement), checked by generating
+  seeds 0-19 of both generations with the old and the new type file.
 * Report vocabulary: cleaning's issue and state words (streaky, water spots, fingerprints, crumbs, rusty, etched,
   wrong bin, lid blocked, hair wrapped, cross-contaminated, fruit flies; soapy, rinsed, sanitized, air dried) are drafted
   for `data/vocab/cleaning.json`, which is kernel-owned (requested).
@@ -708,3 +746,60 @@ cells; `sight.gated_face` returns a type-mapped face even for an entity that dec
 can); `tasks/skills.go_room` approaches a closed door or gate on the route with the raw `approach` verb, which the
 geometric camera refuses when the door is out of sight (`T-6d6bf8555c9b98-01` forced to realistic + geometric, seeds
 2 and 41); the report vocabulary file.
+
+## 16. Phase 1 (stabilise): independent review 2026-10-22 and the adoption round's open items
+
+Sources: `docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md` (section 1) with its phase records, and
+`catalog/analysis/tier1/adopt_status.json`. Each item has a regression test in `tests/test_cleaning.py`
+(`Phase1Review` unless named).
+
+* **Harms are the robot's only when it caused them** (review P1 C8: `systems.py` raised `spills`, `injury`, `fire`,
+  `burns` from time-driven causes; section 5 "Attribution"). Changed: the spills system (a resident slipping, a pet at
+  a toxic spill or absorbent pile), the air system (fume and gas exposures, a bird and a self-clean cycle, a microwave
+  fire), boil-overs, standing-water damage to floors, dwelling acid etching or dulling a finish, soak damage and liquid
+  ingress, a torn bag's juice, the toxic-gas and pollution invariants' counters and the hidden-sharp invariant. The
+  scene's version of each still happens and is logged `by: "exogenous"` (counted in `cleaning.exogenous`). Tests:
+  `WetFloorSafety` (scene film vs the robot's mopped film), `Appliances` (scene microwave vs one the robot loaded and
+  started), etching, pet, fumes, gas outside an action, knife dropped by a resident, hardwood water damage, boil-over.
+* **The spray_bottle look-alike group** (adopt_status breakage, round-5 identity finding: "manipulation's shake and
+  heft still tell cleaning's sprays from mechanisms' trigger_bottle"; review I8). Every spray and the refill bottle
+  carry the trigger head mechanisms already assumed (`trigger`: the kernel's `container_closed`), so a refill no longer
+  sprays out when shaken, tipped or emptied; a product's hidden `fill_level` (kept with `amount_ml` and `mass_kg` by
+  `S.set_product_ml`, and synced at episode start from a scene's amount) lets manipulation's shake feel its liquid like
+  the others'; the refill bottle weighs 0.1 kg empty (0.85 kg full like a product); `cleaning.spray_fill` gives every
+  unresolved member, mechanisms' included, the same inspect keys. The trigger bottle's own data (true size, default
+  fill and mass) is mechanisms' (request below).
+* **One container per look-alike group** (review M1 "type defaults differ inside look-alike groups", P3-side L2/L4):
+  the cleaner bottles share size, mass and full amount (750 ml), the 1.9 l outdoor concentrates are jugs, dish soap has
+  its own squeeze-bottle look, the powder jars are one plastic jar, the sponges, grill brushes and the refill match
+  their groups; a rolled-bag candidate repeated a member's label. Record fields only on furnished things (no placement
+  change on seeds 0-19 of either generation).
+* **Stream verdicts follow the item** (review H2 "do, then undo"; P2-b's open question on `in_stream`): the
+  `cleaning.streams` system drops `in_stream` / `stream_ok` (and the container's error entry, and refills it) as soon as
+  the item is no longer in a container of that stream, by any route (a tipped bin, a pet, a bag carried away).
+* **Adopted kernel request cleaning-3**: `phys.spill_sink` returns `(id, new)`, so a portion that grows a puddle is not
+  counted as another spill (`phys_spills`, `spills`).
+* **Unread bottles**: `absorb` treats any unidentified bottle of a look-alike group as an unread bottle and refuses a
+  named tool that soaks nothing up (a spray bottle "blotted" a counter); `apply_cleaner` with an unread granular bottle
+  took a paste's 20 s; `empty_into` leaves a closed container's liquid in it.
+* **Conservation**: superheated water erupting from a lifted cup lands on the floor through the kernel's spill (it used
+  to vanish).
+* **Static indexes** (review M3: `cleaning.floor_cover_candidates`, `cleaning.liquid_holders` went stale): both
+  predicates read only their record, which the kernel's per-field invalidation now keeps exact from the next step on;
+  the systems re-check the dynamic fields (`liquid_l`, `pos`) on the returned records.
+* **Spec** `T-c49fadcea69182-01`: its first wrong plan read a glance bucket the geometric camera never shows and raised
+  before its mistake (the hardened verifier no longer counts such a plan); it now inspects each bin from where it stands
+  and reports what shows (fails on the missing look into the recycling bin).
+* **Docs**: section 15's "generation-1 houses are byte-identical" corrected.
+
+Left for the verifier redesign (spec weaknesses, docs/design/VERIFY_HARDENING.md): the sweep spec's pile moved to the
+next room, the dustpan never emptied and the earring tipped down the sink (M-CONSERVE, the lost-valuable invariant);
+the glass-cleaner spec's fixed `spos` order (R3); `T-c49fadcea69182-01` constant answers.
+
+**Requests filed** (owner): re-record `tests/data/gen1_digests.json` for the record-field changes above, and recompile
+`tasks/specs.jsonl` (kernel); a contained-liquid accessor so products' `amount_ml` is the kernel's contents and the
+`fill_level` mirror can go (kernel; adoption request cleaning-10); an unresolved look-alike's hazard kind in
+`grid.hazards` (an oil or soap puddle shows `slip`, water `wet`, before inspection) and the held view / elevation of an
+unresolved look-alike at its true size (kernel); trigger bottle size, empty mass and default fill, and squeeze_trigger
+emptying a product (mechanisms); `pour` from a closed source (plumbing_liquids); the adoption round's unapplied
+cleaning-1/4 (look-inside gate for fill levels), cleaning-9 and cleaning-11 (kernel).

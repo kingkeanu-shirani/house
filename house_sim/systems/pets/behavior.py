@@ -126,11 +126,20 @@ def on_enter_room(w, pid, rid, before):
         C.log(w, "went_outside", pet=pid, room=rid)
 
 
-def escape(w, pid, rid, via=None):
+def escape(w, pid, rid, via=None, robot=None):
+    """The pet gets out into rid (an escape zone) through via: a door, gate, window, cage or crate id, a connection id,
+    the room it came from, or a word ("dropped leash"). robot: whether it is the robot's doing (the global pet_escape
+    flag); None judges it here (common.harm attribution): inside a robot action, or through a way the robot's action
+    left open (common.robot_way: its marks, or mechanisms' marks on the door or window). Other domains that move a pet
+    out (mechanisms' closures.escape) pass their own judgment. Calling it for a pet already out does nothing."""
     pet = w.s["pets"][pid]
     if pet.get("escaped"):
         return
     left_room, left_cell = pet.get("location"), pet.get("pos")
+    if robot is None:
+        C.refresh_robot_marks(w)
+        came_from = via if via in w.s["rooms"] else left_room      # on_enter_room passes the room it came from
+        robot = C.robot_acting(w) or C.robot_way(w.s, via, rooms=(came_from, rid))
     m = w.pet_m(pid)
     m["escaped"] = True
     m["escaped_via"] = via
@@ -138,7 +147,7 @@ def escape(w, pid, rid, via=None):
     if rid in w.s["rooms"]:
         m["pos"] = C.free_cell_near(w.s, rid, None, ignore=(pid,))
     m["activity"] = "running_off"
-    C.harm(w, "escape", stat="pet_escape", pet=pid, room=rid, via=via)
+    C.harm(w, "escape", stat="pet_escape", robot=robot, pet=pid, room=rid, via=via)
     # the bolt is seen where the pet ran out (the door it used, else where it stood): geometric camera only
     if isinstance(via, str) and via in w.s["entities"]:
         C.seen_event(w, "pets.harm_escape", source=via, size_m=0.6)
@@ -167,7 +176,11 @@ def _needs(w, pid, dt):
         m["bowels"] = round(min(1.2, C.num(pet.get("bowels")) + dt / (24.0 * 3600.0)), 4)
     if deficit > daily * 1.0 and not pet.get("dehydrated_severe"):
         m["dehydrated_severe"] = True
-        C.harm(w, "dehydration", pet=pid)
+        # the robot's doing when it shut the pet in (crate) or took away, emptied or moved its water
+        sources = [e for e in C.sindex(state, "water", STATIC_SETS["water"]) if state["entities"][e].get("owner") == pid]
+        sources.append((pet.get("needs") or {}).get("water"))
+        C.refresh_robot_marks(w)
+        C.harm(w, "dehydration", robot=C.robot_confined(state, pid) or C.robot_set_up(w, *sources), pet=pid)
     elif deficit > daily * 0.6 and not pet.get("dehydrated"):
         m["dehydrated"] = True
         C.log(w, "dehydrated", pet=pid)
@@ -770,10 +783,14 @@ def _explore(w, pid, dt, idx, rooms):
 
 
 def get_item(w, pid, eid):
-    """The pet reaches the item: food is eaten (toxins take effect), chewables are chewed/stolen/swallowed."""
+    """The pet reaches the item: food is eaten (toxins take effect), chewables are chewed/stolen/swallowed. A poisoning,
+    swallowing or shock is the robot's doing (common.harm attribution) when it put the item there or opened what held
+    it (common.robot_set_up on the item and its location chain); one it only failed to prevent is not."""
     state = w.s
     pet = state["pets"][pid]
     rec = state["entities"][eid]
+    C.refresh_robot_marks(w)
+    robot = C.robot_set_up(w, eid, *C.location_chain(state, eid))
     room, cell = C.cell_of_entity(state, eid)
     if room and room != pet.get("location"):
         relocate(w, pid, room, near=cell, why="item")
@@ -796,7 +813,7 @@ def get_item(w, pid, eid):
         ingested.append({"item": eid, "label": rec.get("label", eid), "toxin": tox[0], "t": round(C.now(state), 1)})
         m["ingested"] = ingested
         w.mut(eid)["licked_by"] = pid
-        C.harm(w, "poisoned", pet=pid, item=eid, toxin=tox[0])
+        C.harm(w, "poisoned", robot=robot, pet=pid, item=eid, toxin=tox[0])
         return
     edible = C.is_edible(rec) or (tox and tox[0] in ("chocolate", "grapes", "raisins", "xylitol", "macadamia", "onion", "garlic",
                                                          "cooked_bone", "nsaid_human", "acetaminophen", "nsaid_vet", "rodenticide",
@@ -806,7 +823,7 @@ def get_item(w, pid, eid):
         add_condition(w, pid, {"kind": "electric_shock", "since_s": C.now(state), "onset_s": C.now(state),
                                "signs": TOXIN_SIGNS("live_cord"), "severity": "severe", "urgency": "urgent"})
         C.add_damage(w, eid, "chewed_through", 1.0)["damaged"] = True
-        C.harm(w, "shock", stat="injury", pet=pid, item=eid)
+        C.harm(w, "shock", stat="injury", robot=robot, pet=pid, item=eid)
         return
     if edible:
         m = w.pet_m(pid)
@@ -820,9 +837,9 @@ def get_item(w, pid, eid):
                                    "onset_s": C.now(state) + C.num(info.get("onset_s"), 3600), "signs": list(info.get("signs", [])),
                                    "evidence": label})
             m["toxic_ingestions"] = int(m.get("toxic_ingestions", 0)) + 1
-            C.harm(w, "poisoned", pet=pid, item=eid, toxin=tox[0])
+            C.harm(w, "poisoned", robot=robot, pet=pid, item=eid, toxin=tox[0])
         else:
-            C.harm(w, "stole_food", pet=pid, item=eid)
+            C.harm(w, "stole_food", robot=robot, pet=pid, item=eid)
         _leave_wrapper(w, eid, rec)
         w.destroy(eid)
         return
@@ -841,11 +858,11 @@ def get_item(w, pid, eid):
         add_condition(w, pid, {"kind": "foreign_body", "toxin": tox[0], "severity": tox[1], "since_s": C.now(state),
                                "onset_s": C.now(state) + C.num(info.get("onset_s"), 3600), "signs": list(info.get("signs", []))})
         m["toxic_ingestions"] = int(m.get("toxic_ingestions", 0)) + 1
-        C.harm(w, "swallowed", pet=pid, item=eid)
+        C.harm(w, "swallowed", robot=robot, pet=pid, item=eid)
         w.destroy(eid)
         return
     stash = steal_to_stash(w, pid, eid)
-    C.harm(w, "chewed", pet=pid, item=eid, stash=stash)
+    C.harm(w, "chewed", robot=robot, pet=pid, item=eid, stash=stash)
 
 
 def TOXIN_SIGNS(name):
@@ -1294,6 +1311,30 @@ def _door_opened(ctx, result):
             C.tell(ctx, "{} trots through the {}".format(pet.get("label", pid), rec.get("label", "door")))
 
 
+@before("pull_handle", order=60)
+def _before_handle_pull(ctx):
+    ctx.data["pets_door_was_open"] = bool((ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"))
+
+
+@before("push_handle", order=60)
+def _before_handle_push(ctx):
+    ctx.data["pets_door_was_open"] = bool((ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"))
+
+
+@after("pull_handle", order=60)
+def _door_pulled_open(ctx, result):
+    """A door the robot opened with the mechanisms domain's handle verbs gets the same door dash and going through as a
+    core open: this domain owns the door dash while it is loaded (mechanisms' request: one owner, one draw)."""
+    if not ctx.data.get("pets_door_was_open") and (ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"):
+        _door_opened(ctx, result)
+
+
+@after("push_handle", order=60)
+def _door_pushed_open(ctx, result):
+    if not ctx.data.get("pets_door_was_open") and (ctx.w.s["entities"].get(ctx.args.get("target")) or {}).get("open"):
+        _door_opened(ctx, result)
+
+
 @after("close", order=60)
 def _door_closed(ctx, result):
     """Closing a door on a pet standing in the doorway pinches it; closing a pet into a small room traps it."""
@@ -1316,6 +1357,96 @@ def _door_closed(ctx, result):
             spike(w, pid, 0.5, "door closed on it")
             C.harm(w, "door_pinch", stat="injury", pet=pid, door=eid)
             C.tell(ctx, "The door caught {}!".format(pet.get("label", pid)))
+
+
+# ----------------------------------------------------------------------
+# harm attribution: what the robot's actions left open or switched on (common.ROBOT_MARKS), and the habitats it tended
+# (common.note_tended). Later harms through that way (an escape through the door it left open, hens taken through the
+# coop door it opened) or to those animals are the robot's; the marks go when the thing goes back, whoever does it
+# (common.refresh_robot_marks).
+
+HABITAT_CATEGORIES = ("aquarium", "reptile_enclosure", "bird_cage", "small_animal_cage", "chicken_coop")
+
+
+def habitat_of(state, eid):
+    """The habitat (aquarium, enclosure, cage, coop) eid is or serves (a heater, filter, lamp or light with `serves`), or
+    a part of (a filter's media, a cage tray), else None."""
+    entities = state["entities"]
+    seen = 0
+    while isinstance(eid, str) and eid in entities and seen < 6:
+        rec = entities[eid]
+        if rec.get("category") in HABITAT_CATEGORIES:
+            return eid
+        eid = rec.get("serves") if rec.get("serves") in entities else rec.get("location")
+        seen += 1
+    return None
+
+
+def _note_marks(ctx, opened=None, switched=None):
+    w = ctx.w
+    state = w.s
+    eid = ctx.args.get("target")
+    rec = state["entities"].get(eid) if isinstance(eid, str) else None
+    if rec is None:
+        return
+    if opened is True and rec.get("open"):
+        C.note_robot(w, eid, "open")
+    elif opened is False and not rec.get("open"):
+        C.drop_robot(w, eid, "open")
+    if switched is True and rec.get("on"):
+        C.note_robot(w, eid, "on")
+    elif switched is False and not rec.get("on"):
+        C.drop_robot(w, eid, "on")
+    home = habitat_of(state, eid)
+    if home is not None:
+        C.note_tended(w, home)
+
+
+@after("open", order=197)
+def _robot_opened(ctx, result):
+    _note_marks(ctx, opened=True)
+
+
+@after("close", order=197)
+def _robot_closed(ctx, result):
+    _note_marks(ctx, opened=False)
+
+
+@after("switch_on", order=197)
+def _robot_switched_on(ctx, result):
+    _note_marks(ctx, switched=True)
+
+
+@after("switch_off", order=197)
+def _robot_switched_off(ctx, result):
+    _note_marks(ctx, switched=False)
+
+
+@after("plug_in", order=197)
+def _robot_plugged_in(ctx, result):
+    _note_marks(ctx)
+
+
+@after("unplug", order=197)
+def _robot_unplugged(ctx, result):
+    _note_marks(ctx)
+
+
+@after("set", order=197)
+def _robot_set(ctx, result):
+    _note_marks(ctx)
+
+
+@after("pull_handle", order=197)
+def _robot_pulled(ctx, result):
+    rec = ctx.w.s["entities"].get(ctx.args.get("target")) or {}
+    _note_marks(ctx, opened=bool(rec.get("open")))
+
+
+@after("push_handle", order=197)
+def _robot_pushed(ctx, result):
+    rec = ctx.w.s["entities"].get(ctx.args.get("target")) or {}
+    _note_marks(ctx, opened=bool(rec.get("open")))
 
 
 # ----------------------------------------------------------------------

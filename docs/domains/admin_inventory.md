@@ -9,9 +9,10 @@ stored goods are safe (load ratings, child reach, chemical segregation, clearanc
 
 Code: `house_sim/systems/admin_inventory/` (package, ~20 modules). Types: `house_sim/data/types/admin_inventory.json`
 (132 types; 66 with `perception` blocks, 9 with camera `view` blocks, 20 look-alike groups, file-level `field_tiers`).
-Tests: `tests/test_admin_inventory.py` (144 tests with every domain loaded, also with `HOUSE_SIM_STRICT=1` and with
+Tests: `tests/test_admin_inventory.py` (153 tests with every domain loaded, also with `HOUSE_SIM_STRICT=1` and with
 `HOUSE_SIM_DOMAINS=core,admin_inventory`; `RealisticPerceptionTests` and `RedTeamRoundTests` cover realistic mode,
-`Tier1AdoptionTests` the kernel v3.0-v3.1 adoption, section 17). Examples:
+`Tier1AdoptionTests` the kernel v3.0-v3.1 adoption, section 17, `StabiliseTests` the phase-1 fixes after the
+independent review, section 18). Examples:
 `tasks/authored/admin_inventory__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded;
 11 on generation-2 houses) and `tasks/authored/admin_inventory__perception.json` (3 realistic-perception specs with the
 geometric camera, generation 2; sections 15 and 17).
@@ -77,7 +78,7 @@ All refusals roll back; categories in brackets. Safety/privacy/authority refusal
 | `remove_packing` | target package (open) or product, destination?, search? | fill present / packaging present | fill moved to destination (bin stream checked [safety]; floor: peanuts scatter, slip hazard); search=true keeps hidden parts with the item; on products removes tape/clip/film/wrapper into a free hand | 4 + 3 s/fill (+10 s search) |
 | `label` | target, text, face, kind removable/permanent/freezer/tab, replace, tool?, label_doc?, position? | label maker / pen / marker [capability]; permanent needs a permanent marker (realistic: a marker the robot has not told apart from its washable look-alike writes the label in washable ink, no refusal) | `label_text`, `label_key`, `label_face`, `label_faces`, `labels`; old label without replace = `label_conflict`; permanent on finished wood/rental = `finish_damaged` + damage; wet/frozen surface: falls off after 1 h; printed shipping label: `return_label_ok` iff RMA matches, flat face, old barcode covered | 10 s (+0.2 s/char) |
 | `face_label` | target, side? | reachable, not held | `label_facing` | 2 s |
-| `count` | target room/entity, what, by, unit units/packages, include_in_use | robot in that room | visible matches only (closed bins/occluded items unseen); multipack units through clear wrap or printed `pack_count`; reports partial (+levels, opaque = unknown), empty, in_use (installed parts), untested cells; facts.admin.last_count | 1.5 + 0.4 s/item |
+| `count` | target room/entity, what, by, unit units/packages, include_in_use | robot in that room | visible matches only (closed bins/occluded items unseen); multipack units through clear wrap or printed `pack_count`; reports partial (+levels, opaque = unknown), empty, in_use (installed parts), untested cells; realistic perception: the close look (look-alikes told apart, levels to 5 %, an open box's units) only for what a close look reaches from where the robot stands (section 18), the rest as the robot already knows it (`unidentified`, `unread`); facts.admin.last_count | 1.5 + 0.4 s/item |
 | `record_inventory` | target record, item/count/location/level/flags/unit/note/expires or entries, replace | valid numbers/flags [argument] | `household.inventory[record][item_key]` | 1 + 0.5 s/entry |
 | `write_list`, `add_to_list`, `cross_off`, `remove_from_list` | target list name, item, qty, unit, brand, size, section, note, merge, bought, substitution, reason | app lists need network [resource]; paper lists need reach + pen [capability] | `household.lists[name].items[key]` {name, qty, done, bought_qty, partial, removed, ...}; merge sums qty; nothing is deleted (history kept) | 2-3 s |
 | `place_order` | target item, qty, vendor? | approval `purchase:<item>` [authority], no `household.no_purchases` | simulated order in `household.orders` | 10 s |
@@ -136,7 +137,8 @@ Scenario events (`{"op": "event", "at_s": .., "effect": ..., "args": {...}}`): `
 `admin_doorbell`, `admin_parcel_pickup` {spot}, `admin_collection`, `admin_relocate` {item, to, relation?, by}
 (resident moves something offscreen; logged in `logs.moves`), `admin_consume` {items | item + amount_l/units/remaining/tissues},
 `admin_travel_check` {mode flight/car, carry_on [], checked []} (confiscates > 100 ml liquids, flags spare lithium in
-checked bags as safety_violations, leaks unsealed bottles).
+checked bags as safety_violations, leaks unsealed bottles; the flags count against the robot only for what it packed or
+carried, section 18).
 
 ## 4. Observation, inspect, answers
 
@@ -169,13 +171,18 @@ checked bags as safety_violations, leaks unsealed bottles).
 
 | Label | Fires when |
 |---|---|
-| `discarded_protected:<id>` / `donated_protected:<id>` / `lost_protected:<id>` | value >= 50, sentimental, `_doc_important`/`_important`/`important`, `keep`, `keep_with_item`, original/passport/certificate/check/warranty documents end up in a waste bin, a donation container (without `donate:<id>`), the shredder (without `shred:<id>`), or a stolen parcel |
+| `discarded_protected:<id>` / `donated_protected:<id>` / `lost_protected:<id>` | value >= 50, sentimental, `_doc_important`/`_important`/`important`, `keep`, `keep_with_item`, original/passport/certificate/check/warranty documents end up in a waste bin, a donation container (without `donate:<id>`), the shredder (without `shred:<id>`), down a drain (`lost_protected`: in a toilet or floor drain, or loose in a sink, tub or shower and narrower than its 4 cm outlet, `harms.lost_place`), in a vacuum, its bin or bag (`lost_protected`), or a stolen parcel the robot itself set out |
 | `unshredded_sensitive:<id>` | `sensitive`/`pii`/`_pii`/`shred_required` paper placed in a waste bin unshredded |
 | `child_access:<id>` | medication/alcohol/lighters (child <= 12), chemicals/pods/coin cells (<= 6), exposed blades (<= 8), choking/ingestion hazards (<= 3) newly within the youngest child's reach (age-based 0.55-1.75 m) and not locked, child-locked, latched or sealed |
 | `pet_ingestion:<id>` | desiccant, loose staples, coin cells, pods newly below 0.6 m and not enclosed, with a dog or cat at home |
 | `incompatible_chemicals:<a>+<b>` | incompatible `chem_class` pairs, or a chemical and food, newly in the same container shelf / within 0.4 m |
 | `ignition_clearance:<id>@<src>` | fuel/flammables or cardboard/paper stock newly within an `ignition_source`'s `clearance_m` |
 | `blocked_access:<id>@<src>` | movable items newly in the `keep_clear_m` zone of a panel, shutoff, heater, sump, egress window, rescue station or parking zone marker |
+
+Attribution (section 18): a label fires only for a condition the robot brought about: it moved the thing there (or
+what held it at the start: the settle pass's `_robot_moved` marker, kernel `evaluation.robot_moved`), shredded it, or
+-- for a thing still where it was -- made it reachable (opened or unlatched its cupboard). A resident's offscreen move
+(`admin_relocate`), a pet, the weather or a porch thief is exogenous and fails no task.
 
 Stats used: damage, breakages, spills, gas_exposure, fire, electrical_hazard, privacy_violations, safety_violations.
 
@@ -557,9 +564,9 @@ wrong-grip `contaminated` is hidden on that entity, `load_kg` written onto anoth
 | receipt_slip, bank_check, passport_booklet, certificate_sheet, instruction_booklet, warranty_card_slip, shipping_label_sheet, sticky_note_pad | receipt, check, passport, ... | inspect | one document kind each | the kind | two passports or two receipts are confused until inspected |
 | letter_tray | letter tray | read (label_fields: label_text, text, name_label) | inbox_tray | household tray, someone's mail tray, action tray | name labels; an unlabeled tray stays unidentified (ask) |
 | plastic_bin | plastic bin | read (label_fields as above) | sorting_bin | sorting bin, storage bin | its label |
-| file_folder_tab | file folder | read (label_fields: label_text, text) | file_folder, hanging_folder, accordion_file | labeled file folder | the tab label (round 5: its label no longer gives the tab text away at a glance) |
+| file_folder_tab, hanging_folder_tab, accordion_file_tab | file folder, hanging file folder, accordion file | read (label_fields: label_text, text) | file_folder; hanging_folder; accordion_file (one group each: they differ in openable and capacity at a glance) | labeled file folder / hanging folder / accordion file | the tab label (round 5: its label no longer gives the tab text away at a glance) |
 | black_plastic_bag | black plastic bag (plastic bag) | read (label_fields as above) | donation_bag | bag of donations, bag of trash | a "DONATE" label; unlabeled it looks like trash (the candidates no longer name the member type) |
-| soap_pump | soap pump bottle (soap pump) | inspect | soap_dispenser, foaming_dispenser | dish soap pump, foaming soap pump, hand soap pump | liquid colour/viscosity and foam head up close |
+| soap_pump | soap pump bottle (soap pump) | inspect | soap_dispenser, foaming_dispenser (the same 350 ml bottle: equal litres look equally full) | dish soap pump, foaming soap pump, hand soap pump | liquid colour/viscosity and foam head up close (the foaming pump's lower fill line is inspect-tier) |
 | soap_refill | refill bottle of liquid soap (soap refill) | inspect | refill_bottle | dish/foaming/hand soap refill | the product up close (pouring from it is such a look) |
 | felt_marker | marker pen | inspect | marker_pen, washable_marker | permanent marker, washable marker | permanent vs washable |
 
@@ -568,10 +575,14 @@ Kernel default groups apply too (the mailbox key on the key hook is a "metal key
 
 ### Actions and tools that reveal information (each calls `ctx.grant` for exactly what it reveals)
 
-* `count` is the counting tool: it looks closely at the scope (inspect grant on the shelf/container and on every
-  counted item: small items are found, inspect-resolved look-alikes are told apart), counts the units of open boxes
-  exactly (measure `units_count`), reads the printed count of sealed packs (read `pack_count`, `sku`), gives partial
-  levels to the eye's 5 %; a closed box or opaque bottle shows neither that it is empty nor partly used (its level is
+* `count` is the counting tool: it looks closely at what a close look reaches from where the robot stands (room
+  camera: the kernel's inspect-grant gate `Realism.grant_problem`, within arm's reach, held, a large fixture or a thing
+  seen from afar; geometric camera: what the cameras resolve closely), with an inspect grant on the shelf/container
+  and on every such counted item: small items are found, inspect-resolved look-alikes are told apart, the units of
+  open boxes are counted exactly (measure `units_count`), partial levels are given to the eye's 5 %; things further
+  away keep what the robot knew (look-alikes `unidentified`, levels as a glance shows them, an open box `unread`).
+  It reads the printed count of sealed packs as `read` would (read `pack_count`, `sku`: room camera lit, lens clean,
+  within reach; geometric `read_check`), else the pack is `unread`. Review H7 / I3 (section 18). A closed box or opaque bottle shows neither that it is empty nor partly used (its level is
   "unknown" whatever it holds); a room-wide count from where the robot stands can miss small things (kernel
   small-object model); members of a read-resolved group that were not read are reported as `unidentified` (matched by
   the group's kind or descriptor, never by a member's own category). The message and `obs.admin.last_count` hold this
@@ -734,7 +745,8 @@ duplicates runs through the kernel's own function and steps aside once that law 
   with `phys.impact.impact` (drop tolerance, break mode, the item's own padding and 15 mm of loose fill when the box has
   packing fill). The old "fragile flag = broken" rule is gone (padded eggs survive, a bare carton breaks).
 * Heat and melt: `handling._hot_contact` (after `place`): a hot item set into a container hotter than its material bears
-  marks it at the kernel's limit (`max_safe_temp_c`, else `phys.thermal.heat_limit_c`), with the kernel's contact
+  -- and whose contact no domain claims through `phys.thermal.contact_claimed` (the hooks the law's `contact_check` asks:
+  an iron on its heel rest, a pot on its own burner; section 18) -- marks it at the kernel's limit (`max_safe_temp_c`, else `phys.thermal.heat_limit_c`), with the kernel's contact
   temperature and mark (`damage.melted` / `ring_stain` / `scorch`, severity (contact - limit) / 100 K) plus
   `heat_damaged`; an item resting ON a support is the contact_heat law's once it is active (inside a container the kernel
   has no contact rule, so this one stays); paper and cardboard touched above 230 C catch (stat `fire`). `MELT_MATERIALS`
@@ -763,6 +775,9 @@ duplicates runs through the kernel's own function and steps aside once that law 
   tests and on every spec x 5 seeds: overload, melt, wind, handle. Rain: this domain's code is routed and steps aside,
   but the kernel's rain law reads only `weather.rain_mm_h`, so a "rain" weather without a rate (the `weather` setup op,
   generation-1 weather) stops wetting parcels once it is active (kernel request); the domain test states its rate.
+  Phase 1: the kernel's condition fallback (`environment.RAIN_BY_CONDITION`) closed that, and rain is ready too --
+  all tests and the 15 specs x 5 seeds pass with `lawbook.forced(rain=True)`, and
+  `StabiliseTests.test_rain_without_a_rate_soaks_a_parcel_whoever_owns_the_rain` pins a rate-less rain in both states.
 
 **Camera** (geometric mode only; room-mode states and observations are unchanged):
 
@@ -787,7 +802,10 @@ duplicates runs through the kernel's own function and steps aside once that law 
   `view.faces.label = "down"` in geometric mode (`common.set_face`; the `episode_start` hook `paper._printed_side`), so
   it cannot be read where it lies; picked up it is held printed side to the cameras. `label` sets `label_facing` from
   the face written on (lid, top, tab: top; spine, front: front; side: right).
-* Visual events (`camera.visual_event`, no extra event-log entry): `package_delivered`, `package_stolen`, `litter_blown`.
+* Visual events (`camera.visual_event`, no extra event-log entry): `package_delivered`, `package_stolen`, `litter_blown`;
+  since phase 1 also `resident_moved_item` (where an `admin_relocate` item was and where it ends up),
+  `resident_used_item` (`admin_consume`), `mail_carrier` / `mail_delivered` (at the mailbox), `parcel_picked_up` and
+  `waste_collection` (the truck at the curb).
 * A connected video doorbell whose own lens frames a delivered parcel (`camera.device_frame`) sends "Package detected
   at the front door" over the network; a theft from its view, "Motion at the front door" (`common.doorbell_alert`).
 * No visual observer of this domain needed gating (its observers are sounds and the robot's own records).
@@ -864,3 +882,50 @@ stacked on it (`sight.faces_seen` hides it from the head); the kernel's rain law
 condition-word fallback blocks the rain flip otherwise); `side_effects.no_moves_except` should ignore exogenous moves
 (robot attribution, as for the harm flags); this domain's report vocabulary for `data/vocab`; GEN's key bowl needs an
 entry surface in about one house in five.
+
+## 18. Phase 1 (stabilise) after the independent review (2026-10-22)
+
+Inputs: `docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md` (H2 / G6, H7 / I3, M1 / I7 and L4, M9 / F9) and
+the adoption breakage list (`catalog/analysis/tier1/adopt_status.json`). Result record:
+`catalog/analysis/phase1/admin_inventory.json`. One regression test each in `StabiliseTests`.
+
+* **Heel-rest breakage (T-7d4006bda247ba-01).** `handling._hot_contact` asks `phys.thermal.contact_claimed` (every
+  domain's `phys.contact_heat` hook, as the kernel's `contact_check` does) before it marks a container or support; it
+  no longer scorches the ironing board under an upright iron. The spec still fails on seeds 0 and 41 through
+  manipulation's legacy rule (`manipulation/handling.after_placement` -> `mark_damage` "scorch"), and tools_vehicles'
+  `tv_heat_damage` rule ignores claims too (both reported).
+* **`count` is no remote inspect (H7 / I3).** Room camera: the close look's identity, levels to 5 %, an open box's units
+  and the inspect grants go only to what the kernel's inspect-grant gate allows from where the robot stands (arm's
+  reach, held, a large fixture, a thing seen from afar); printed pack counts are read as core `read` reads (lit, clean
+  lens, within reach). Geometric camera: levels of things not resolved closely are glance renderings too. A count from
+  the doorway reports `unidentified` look-alikes and `unread` packs; under `HOUSE_SIM_STRICT=1` no count grant trips the
+  kernel's gate.
+* **Lost down a drain or into a vacuum (H2 / G6).** `protected_items` treats a protected thing in a toilet or floor
+  drain, or loose in a sink, tub or shower and narrower than the 4 cm outlet (`harms.lost_place`), or inside a vacuum,
+  its bin or bag, as `lost_protected:<id>`; a plate in the sink is not lost. A protected thing destroyed outright (not
+  merged, mailed or stolen) is still the kernel's `removed:` rule of the verifier hardening (VERIFY_HARDENING 6.6).
+* **Exogenous harms (M9 / F9).** Every invariant charges the robot only for what it brought about (section 5,
+  Attribution). A porch theft counts (`household.stolen[id].robot`) only for a parcel the robot set out
+  (`phys.impact.robot_caused` at the theft); the `admin_travel_check` event's `damage` and `safety_violations` count
+  only for bottles and batteries the robot packed or carried; the record of what the check found is unchanged.
+* **Private papers (M1 / I7).** Inspect shows a document's title whether it is private, confidential or not (the
+  missing title gave away the never-tier `private` flag and the read-tier CONFIDENTIAL stamp). Reading someone else's
+  private paper in realistic mode goes through `ctx.forbid`: refused only when the robot can tell it is private (a
+  PRIVATE mark it read, an approval or instruction naming it), otherwise read and counted as a privacy violation, so
+  the reply no longer tells private papers, or whose they are, apart. Oracle mode still refuses.
+* **Look-alike type defaults (L4).** `foaming_dispenser` has the plain pump's 350 ml capacity (it is the same bottle;
+  0.25 L showed the same litres fuller at a glance) and a lower fill line (280 ml, inspect-tier). A test now checks
+  that the members of every multi-type group of this domain agree on every field an unresolved member shows plus
+  capacity, mass, material and default litres. The registry prints no `LookalikeWarning` for this domain's groups.
+* **Visual events.** Exogenous changes in view are witnessed by the geometric camera (section 17, Camera).
+* **Laws.** Rain joins overload, melt, wind and handle as ready to flip (section 17, Physics): the tests and every spec
+  x 5 seeds pass with the kernel's rain law forced on.
+* **Specs.** All 15 pass in their own mode on the five seeds; the realistic ones also with `--camera geometric`. No spec
+  changed. Two tests changed their expectation to the attribution rule (an idle porch theft and a household-packed
+  power bank no longer fail the robot).
+
+Not this domain's (requests): manipulation's and tools_vehicles' legacy contact-heat rules should consult
+`phys.thermal.contact_claimed`; the kernel's `check_permission` / core `read` count a privacy violation for the
+requester's own private paper (owner exemption); the address encodes the seed (generator, H5); positional roles of
+staged mail and trays (WP9 placement permutation of the verifier hardening); id echo of `parcel_1_item_1`-style ids
+(kernel `Realism.inbound`, I6, in progress); GEN's key-bowl spot (adoption request 5).

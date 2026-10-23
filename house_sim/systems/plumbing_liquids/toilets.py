@@ -101,6 +101,7 @@ def do_flush(ctx, eid, fraction=1.0):
         C.plog(w, "flush_empty_tank", toilet=eid)
         return "The handle moves but nothing happens: the tank is empty (supply off?)"
     release = tank * C.clamp(fraction, 0.2, 1.0)
+    C.mark_robot_water(w, eid, "flow")       # until the tank has refilled, what the flush sends over the rim is the robot's
     m = w.mut(eid)
     m["tank_level_l"] = C.rnd(tank - release, 3)
     m["flushes"] = int(C.num(m.get("flushes"))) + 1
@@ -375,6 +376,8 @@ def toilet_step(w, eid, dt, cache):
         to_bowl = add * 0.15
         flow += add + to_bowl
         add_to_bowl(w, eid, to_bowl)
+        if level + add >= tank_l - 1e-6:
+            C.mark_robot_water(w, eid, "flow", False)       # the flush's refill is done
     if on and not tank.get("fill_valve_ok", True):
         stuck = C.num(tank.get("stuck_lpm"), 2.0) * dt / 60.0
         flow += stuck

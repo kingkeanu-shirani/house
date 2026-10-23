@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 
 from ..kernel.plugins import furnisher
-from .furnishings import Index, first_known, floor, gen2, note, put, rooms_of, weighted
+from .furnishings import Index, first_known, floor, front_door, gen2, note, put, rooms_of, weighted
 from .place import Placer
 from .profile import age_of, asleep_at
 
@@ -262,7 +262,7 @@ class _Run(object):
         if item.get("label"):
             props["label"] = item["label"]
         if item.get("opens"):
-            props["opens"] = list(item["opens"])
+            props["opens"] = [self.door_named(name) for name in item["opens"]]
         if item.get("name_label"):
             props["name_label"] = first_name(person, pid)
         if item.get("phone_of"):
@@ -270,6 +270,20 @@ class _Run(object):
             # when the people domain is not loaded)
             props.update(phone_of=pid, _perception={"hidden": ["phone_of"]})
         return props
+
+    def door_named(self, name):
+        """The id of the house's door a key ring's data names ("front door": the front door, an apartment's door
+        included; another name: the lockable entity with that label), else the name itself. Core lock / unlock accept a
+        held key whose opens names the lock (mechanisms' kernel request 6), so a copy of the key works the door."""
+        if name == "front door":
+            door = front_door(self.c)[0]
+            if door is not None:
+                return door
+        for eid in sorted(self.c["entities"]):
+            rec = self.c["entities"][eid]
+            if rec.get("lockable") and rec.get("label") == name:
+                return eid
+        return name
 
     def resident(self, pid):
         person = self.people[pid]

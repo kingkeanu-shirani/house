@@ -1,0 +1,98 @@
+{
+ "id": "tools_vehicles",
+ "fixed": [
+  {
+   "item": "Review C1 / H2 / P2-b F1 (High): sorted_ok on fastener lots was latched by an @after('place') hook, so 'sort the screws, then pick two piles back out' and 'sort, then throw one pile' passed T-f7f4105ce49060-01 on 5/5 seeds",
+   "how": "perception.lot_sorted(state, eid) derives sorted_ok from the current state alone (compartment holds_kind == lot _kind -> True, other kind -> False, anywhere else None); the place hook and a new phys.settle_extra hook (_lots_settle: the kernel's settle pass runs it on everything any action or substep moved, its old and new supports and what rests on them) write it. With both review games added as wrong plans, T-f7f4105ce49060-01 passes --check (both games fail on all 5 seeds; scratch screw_games.json). The recompute is what VERIFY_HARDENING 8.2's @derived_field needs.",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_sorted_ok_follows_the_pile_whatever_moves_it, test_sorted_ok_follows_an_exogenous_move_too"
+  },
+  {
+   "item": "Same latch class (review H2) in other derived goal fields of this domain: trunk layers / stack_top_m / protrudes / blocks_rear_view, footwell mat_state, pegboard on_outline / outline_ok, tool _stowed, disposal ran_ok, chemical _hazmat were re-derived only by the verbs that wrote them",
+   "how": "phys.settle_extra hooks re-derive each after any move: vehicles.trunk_loads_settle (repack when the load differs; refresh_footwell), tools._tool_settle (tools.refresh_outline clears the outline judge anywhere but on the board; stowage), fixes._hopper_settle (ran_ok False when something it cannot grind lies in the hopper; fixes.disposal_runs_free is the state recompute), perception._hazmat_settle (refresh_hazmat). Modelling hole closed with it: a disposal jammed only on the setup's object; now anything in the hopper that is not food waste (fixes._grindable) wedges the plate when it runs and clears ran_ok. Latched/derived/event-kind table in docs/domains/tools_vehicles.md 12.1.",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_trunk_layers_and_mat_state_follow_an_exogenous_move, test_outline_judge_and_storage_state_follow_the_tool, test_a_disposal_fixed_then_fed_a_spoon_is_no_longer_fixed, test_a_chemical_someone_else_knocks_down_is_not_the_robots_harm"
+  },
+  {
+   "item": "Review M9 (exogenous harms charged to the robot): drain_system (basin overflow -> spills/flood), water_filter_system (unlocked housing leak -> flood/spills, flush overflow -> spills) and cabin_system (child heat stress in a locked car -> injury) raised global flags while an idle robot waited; the invariants child_left_in_car and chemical_within_reach fired for a car / chemical someone else locked / moved",
+   "how": "common.consequence(w, label, stats, ids): flags only when common.robot_caused over the harm's causal set (action phase; a successful physical non-walking action of the engine's action trail on it, realistic handles mapped back to ids; or the kernel's _robot_moved marker on it or its supports via phys.impact.robot_caused); otherwise noted once under facts.tools_vehicles.exogenous. Causal sets: basin + taps running into it; housing + cartridge + supply valve (+ outlet and catch); the car. Invariants: child_left_in_car needs a robot action on the car (robot_acted_on), chemical_within_reach needs common.robot_arranged or a robot action on the chemical.",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_a_tap_someone_left_running_overflows_without_failing_the_robot, test_a_tap_the_robot_turned_on_overflows_as_its_spill, test_a_filter_housing_staged_unlocked_leaks_without_failing_an_idle_robot, test_a_child_left_in_a_hot_locked_car_is_not_charged_to_an_idle_robot, test_a_child_the_robot_locked_in_a_hot_car_is_its_injury, test_the_action_trail_is_read_through_the_handles_in_realistic_mode, test_a_chemical_someone_else_knocks_down_is_not_the_robots_harm; CrossDomainRoundTests.test_invariants_take_the_world (updated: a lock by someone else is not the robot's); FilterTests.test_opening_under_pressure_floods_and_unlocked_leaks still charges the robot's leak"
+  },
+  {
+   "item": "Remote knowledge through an inspect (review: remote knowledge grants / measurement leaks): a held spirit level gave a hung item's tilt and a shelf's slope in degrees, and a switched-on stud finder gave stud centres and live-cable offsets, through an inspect from several cells away (room camera: walls and bookcases inspect from a few cells; geometric: wherever the head camera resolves it)",
+   "how": "common.at_hand(w, eid): held or within arm's reach (geometry.reach_problem none or only a crouch); hanging.inspect_mounts, assembly shelf view and tools.inspect_wall read the instrument only then, else the eye's words ('looks crooked', 'visibly sloped') or stud_finder: 'hold it against the wall: come within reach'",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_a_stud_finder_reads_only_the_wall_it_is_held_against, test_a_level_reads_only_the_shelf_it_is_laid_on"
+  },
+  {
+   "item": "Adoption-phase request from admin_inventory (catalog/analysis/phase1/admin_inventory.json requests[1]): tools.py _after_place melted and broke any plastic parent above 70 C without asking phys.thermal.contact_claimed and double-charged admin_inventory's container rule",
+   "how": "tools._hot_on_support: the kernel's own contact model while contact_heat is deferred (contact_temp_c, max_safe_temp_c else heat_limit_c, contact_mark, severity over CONTACT_SPAN_K, phys.impact.damage by robot), contact_claimed asked first, only for a hot item resting ON a support (relation on); containers left to admin_inventory's rule; heat_damaged shared so a support is marked once",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_a_hot_tool_on_a_plastic_support_marks_it_by_the_kernels_model, test_a_contact_another_domain_claims_is_not_marked, test_a_hot_tool_put_into_a_container_is_left_to_the_container_rule"
+  },
+  {
+   "item": "Review H10 / p2_conditional held-out seeds: setup errors 'No room to park a car in garage_1' (T-0b4f248ae32c87-01, T-3c114c8e4796ec-01; seed 501, and seed 126 found by this phase's 0-239 sweep) and 'No bathroom with space for the toilet and sink fixes' (X-1c71303328a5b8-01; seeds 12, 31, 84 and more)",
+   "how": "scenarios._park_spot wheels bins aside (_rolls_aside: wheeled, movable, not anchored), and when the car would cut a doorway off only because of a bin elsewhere wheels that one aside too (checked with _doors_connected); small_fixes falls back to rebuilding the bathroom's own toilet and sink in place (_refit_fixture: same ids, cells, rotation, mounting). Both run only where the helper used to fail: the initial-state digests of all 75 verification trials are unchanged (scratch cmp_build.py). The winder-stair reference falls of X-1c71303328a5b8-01 / T-ad1c4e6f5b6b40-01 on seeds 501/502 no longer occur (kernel).",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_the_car_helper_wheels_the_bins_aside_to_park, test_small_fixes_refits_a_full_bathrooms_own_toilet_and_sink, test_the_held_out_houses_that_failed_setup_build; --check of the two car specs on seeds 126 and 501 and of X-1c71303328a5b8-01 on seeds 12, 31, 84: PASS"
+  },
+  {
+   "item": "K-GATE request (catalog/analysis/phase1/K-GATE.json requests[5]): the coverage fuzz never drove 15 of this domain's 28 actions to success (caulk, change_tire, connect_charger, cut_with, disassemble, drill, drive_to, jump_start, paint, patch, pressure_wash, regrout, sand, scrape_ice, seal_surface)",
+   "how": "Recorded why (no authored spec stages their preconditions; authoring is frozen until Verification v2) and mapped each to the unit test that stages it and drives it to success (docs/domains/tools_vehicles.md 12.7); a meta test runs those tests and asserts every one of the 28 VERBS succeeds",
+   "test": "tests/test_tools_vehicles.py ReviewStabiliseTests.test_every_action_of_the_domain_has_a_tested_success_path"
+  },
+  {
+   "item": "Review L4 / L2 / I8 / I9 (look-alike groups) and the LookalikeWarning at registry load, for this domain's 17 groups",
+   "how": "No change needed: census (scratch census.py) - members share every glance-tier default but the group-replaced label, true-size spreads are within camera resolution or the group sets size_m, masses in one touch bucket, perception blocks inherited along is_a; twin differ (scratch twins.py, room and geometric) over glance, approach, pick_up, place, inspect, inspect closely (+ lubricate/open/close/shake/count for read-resolved groups): 0 differences while unresolved (the only geometric difference is the touch-level wetness noise draw, keyed by the house digest, not a type channel). Registry: 0 LookalikeWarnings.",
+   "test": "scratch census.py / twins.py (room 0 diffs, geometric 0 type diffs); existing RealisticHardeningTests.test_unresolved_look_alikes_inspect_identically"
+  },
+  {
+   "item": "Housekeeping: house_sim/systems/tools_vehicles/scenarios.py was CRLF in the working tree (LF in the index)",
+   "how": "normalised to LF (content unchanged)",
+   "test": "git ls-files --eol: i/lf w/lf"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Spec weaknesses on this domain's specs (review p2_gaming_b 3.16, 4; p2_conditional): X-1c71303328a5b8-01 toilet 'adjust both chain and float every time' passes (setting a correct float to the correct value is physically harmless: a diagnosis the spec cannot see); T-b122adaae3586f-01 a false puncture report on the no-leak branch passes; T-f7f4105ce49060-01 notes still say 'the place hook sets sorted_ok'",
+   "why": "Spec repair is the hardened verifier's (next phase, VERIFY_HARDENING); the task excludes spec gaming unless a code fix makes a spec fail. No spec changed (editing notes would change the spec hash)."
+  },
+  {
+   "item": "T-108baebbfdf256-01 variant 1 fails setup on studio houses without a bedroom (seeds 186, 214, 230 in the 0-239 sweep): its person op puts the child in 'bedroom'",
+   "why": "The spec's house.require (or the op's room) - a spec repair, not a helper; left for the V-HELD-driven spec repair."
+  },
+  {
+   "item": "Coverage fuzz still reaches only 13 of 28 actions from authored specs",
+   "why": "Needs authored specs (frozen) or a helper-staged fuzz walk (kernel request filed). Every action has a tested success path (12.7)."
+  },
+  {
+   "item": "adopt_status kernel requests tools_vehicles-3 (generator equal-height hiding rule) and tools_vehicles-4 (rolling-aid lift plan)",
+   "why": "Kernel/generator items the adoption round deferred (layout audit agrees with the current rule; optional feature); not domain work."
+  },
+  {
+   "item": "A decoration's `fallen` stays true after it is re-hung (T-9f83cbcee53083-01 reads fallen is_false)",
+   "why": "Event-kind by intent ('it fell at some point' is a mistake the spec penalises); whether a re-hang should clear it is a spec decision for the verifier phase."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 166,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "kernel/engine.py step: the action trail (state['action_log']) records the command's raw `target` argument, which in realistic perception is the agent's handle (obj_xxxxxxxx), not the entity id; domains attributing harms by 'the robot acted on X' (tools_vehicles.common.robot_acted_on, electrical.common.robot_acted_on) cannot match it without the env's handle map. Record the resolved id (ctx.args['target'] after realism.inbound) - repro: tests/test_tools_vehicles.py ReviewStabiliseTests.test_the_action_trail_is_read_through_the_handles_in_realistic_mode (env.world.s['action_log'][-1]['target'] is the handle)."
+  },
+  {
+   "owner": "kernel",
+   "request": "tools/fuzz.py --coverage builds only authored specs' setups, so actions whose preconditions no spec stages yet never succeed (tools_vehicles: 15 of 28). A helper-staged walk (run each domain's scenario helpers, e.g. tools_vehicles.wall_repair / car(ev=True) / flatpack / power_drill, then the targeted walk) would cover them without new specs; until then this domain's unit tests drive each one (docs/domains/tools_vehicles.md 12.7)."
+  },
+  {
+   "owner": "kernel",
+   "request": "VERIFY_HARDENING 8.2 @derived_field: when it lands, register tools_vehicles' recomputes - sorted_ok = perception.lot_sorted(state, eid), ran_ok = fixes.disposal_runs_free(state, eid) - and treat the settle-derived trunk/footwell/outline/_stowed/_hazmat fields as derived (table in docs/domains/tools_vehicles.md 12.1)."
+  }
+ ],
+ "notes": "GREEN (final code, shared tree): python -m unittest tests/test_tools_vehicles.py 166 OK (normal, HOUSE_SIM_STRICT=1, HOUSE_SIM_DOMAINS=core,tools_vehicles: 1 skip); --check tools_vehicles__examples.json --workers 2: 12/12; --check tools_vehicles__perception.json (own mode, 5 seeds): 3/3; with --camera geometric: 3/3; --gen 2 forced (mid-phase run, before the last fixes): 12/12 examples; python tools/perception_audit.py 20 80 --verbose: 0 leaks, 0 crashes, nothing attributed to tools_vehicles; python tools/layout_audit.py 20 --domain tools_vehicles: 120 houses, 0 problems; registry: 0 LookalikeWarnings. Held-out: on the review's 10 held-out seeds (3-8, 500-503) every spec passed at the start of this phase except the two car specs on seed 501 (setup); after the fix both pass on 501 and 126, and X-1c71303328a5b8-01 passes on 12, 31, 84; a setup-only build sweep of all 15 specs on seeds 0-239 leaves only T-108baebbfdf256-01 variant 1 on 4 bedroom-less seeds (spec). Verification-seed initial-state digests of all 75 trials unchanged by the helper fallbacks (scratch cmp_build.py); state digests of trials change where the new derived-field refreshes write (sorted_ok/_stowed/_hazmat on moved things), no verdict changed. Regression evidence: scratch old_*.py run the key test(s) of every fix against the old behaviour (monkeypatched back): each fails. One run was disturbed by a concurrent outdoor_plants SyntaxError (other owner mid-edit) and re-run after it parsed. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_tools_vehicles/. Nothing committed; nothing under %USERPROFILE%/.house_ai; no network or paid calls."
+}

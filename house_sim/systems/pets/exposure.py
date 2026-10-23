@@ -194,7 +194,10 @@ def exposure_tick(w, dt, tick):
             continue
         if C.species(pet) == "cat" and C.is_free(pet) and rid in state["rooms"] and not C.is_outdoor(state, rid):
             win = _open_unscreened_window(state, rid)
-            if win and tick.rng("pets.window:" + pid).random() < 1.0 - pow(2.718281828, -dt * max(0.05, C.behavior(pet, "door_dash")) / 120.0):
+            # the bolt risk is the shared escape_risk or the door_dash behaviour, whichever is higher (as _escape_tick;
+            # mechanisms stands its own window escapes down while pets is loaded and sets escape_risk in its scenes)
+            risk = max(0.05, C.num(pet.get("escape_risk")), C.behavior(pet, "door_dash"))
+            if win and tick.rng("pets.window:" + pid).random() < 1.0 - pow(2.718281828, -dt * risk / 120.0):
                 outside = next((o for o, _c, _x in C.neighbors(state, rid) if C.is_outdoor(state, o)), None) or \
                     next((r for r in sorted(state["rooms"]) if C.is_outdoor(state, r)), rid)
                 B.escape(w, pid, outside, via=win)

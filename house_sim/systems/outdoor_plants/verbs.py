@@ -10,7 +10,7 @@ to avoid a duplicate registration the granular verb is registered as `spread_gra
 import json
 import math
 
-from ...kernel import geometry, physics
+from ...kernel import geometry, physics, realism
 from ...kernel.actions import action
 from ...kernel.plugins import after
 from ...kernel.errors import ActionError, require
@@ -732,6 +732,12 @@ def deadhead(ctx):
     return json.dumps({"removed_spent": spent, "buds_lost": lost_buds}, sort_keys=True)
 
 
+TRIM_LEAF_S = 5.0           # picking off one leaf (dead, yellowing, fallen): the count the result reports
+TRIM_CUT_S = 5.0            # one cut of tips, buds or leggy stems
+TRIM_FIXED_S = 20.0         # infested leaves: three leaves cut off whatever lives on them
+TRIM_SIZE_CUTS = {"tiny": 0.5, "small": 1.0, "medium": 2.0, "large": 3.0, "huge": 4.0}
+
+
 @action("trim_plant", params={"target": "entity", "part": "str:dead_leaves|yellow_leaves|discolored|fallen_leaves|tips|flower_buds|infested|lower_leaves|stem|leggy|hedge|grass|vines",
                               "method": "?str:snip|pinch|pull|shear", "tool": "?entity", "fraction": {"type": "number", "optional": True, "min": 0.0, "max": 1.0},
                               "length_m": {"type": "number", "optional": True, "min": 0.05, "max": 3.0}, "height_m": {"type": "number", "optional": True, "min": 0.2, "max": 4.0},
@@ -765,6 +771,7 @@ def trim_plant(ctx):
     leaves = m.setdefault("leaves", {"healthy": 20, "yellowing": 0, "dead": 0})
     out = {"plant": target, "part": part}
     kg = 0.0
+    work_s = TRIM_FIXED_S         # what the robot sees itself do (TRIM_LEAF_S per leaf, TRIM_CUT_S per cut), never kg
     if method in ("snip", "shear"):
         tool = cutting_tool(ctx)
         infect_from_tool(w, tool, target)
@@ -774,6 +781,7 @@ def trim_plant(ctx):
         leaves["dead"] = 0
         kg = 0.005 * dead
         out["removed_dead"] = dead
+        work_s = TRIM_LEAF_S * dead
         if method == "pull" and not p.get("woody"):
             m["torn_stems"] = int(rec.get("torn_stems", 0)) + max(1, dead // 3)
             P.add_symptom(m, "torn stem")
@@ -785,6 +793,7 @@ def trim_plant(ctx):
         leaves["yellowing"] = 0
         kg = 0.005 * (yellow + int(leaves.get("dead", 0)))
         if part == "discolored":
+            out["removed_dead"] = int(leaves.get("dead", 0))
             leaves["dead"] = 0
         removed_live = yellow
         if part == "discolored" and rec.get("variegated"):
@@ -796,6 +805,7 @@ def trim_plant(ctx):
             C.stat(w, "live_leaves_removed", removed_live)
             P.harm(w, target, 0.02 * removed_live, "living leaves stripped")
         out["removed_live"] = removed_live
+        work_s = TRIM_LEAF_S * (removed_live + int(out.get("removed_dead", 0)))
     elif part == "fallen_leaves":
         pot = P.container_of(w, target)
         fallen = int((w.ent(pot).get("fallen_leaves", 0)) if pot else 0)
@@ -803,6 +813,7 @@ def trim_plant(ctx):
         w.mut(pot)["fallen_leaves"] = 0
         kg = 0.005 * fallen
         out["collected"] = fallen
+        work_s = TRIM_LEAF_S * fallen
     elif part in ("tips", "flower_buds", "leggy"):
         fraction = float(ctx.args.get("fraction") if ctx.args.get("fraction") is not None else (0.15 if part == "tips" else 0.05))
         if part == "flower_buds":
@@ -827,6 +838,8 @@ def trim_plant(ctx):
         if method == "pull" or ctx.args.get("angle") == "straight" and False:
             m["bad_cuts"] = int(rec.get("bad_cuts", 0)) + 2
         m["bushy"] = True
+        # the cuts the fraction asks for over a canopy of this size at a glance (not the hidden foliage mass)
+        work_s = TRIM_CUT_S * max(1, int(round(fraction * 20 * TRIM_SIZE_CUTS.get(realism.size_class(rec), 1.0))))
     elif part == "infested":
         pests = rec.get("pests")
         # pests are a secret field: in realistic mode the robot cuts the leaves it chose whether or not anything lives
@@ -858,7 +871,8 @@ def trim_plant(ctx):
         sap_on_hands(ctx, p)                # a live cut bleeds latex on figs, rubber plants and dandelions
     C.set_status(w, target, trimmed=True, dead_leaves=int(leaves.get("dead", 0)), removed_frac=float(m.get("_removed_frac", 0.0)))
     P.plant_status(w, target)
-    ctx.spend(5.0 * max(1, int(kg * 200)) + 10.0)
+    # review P3-side minor note: the clock no longer reads the trimmed mass back (it was 5 s per 5 g of trimmings)
+    ctx.spend(max(TRIM_LEAF_S, work_s) + 10.0)
     return json.dumps(C.drop_keys(ctx, out, CUT_VERDICTS), sort_keys=True)
 
 

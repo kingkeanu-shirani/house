@@ -154,10 +154,15 @@ See `house_sim/tasks/spec.py` (schema), `house_sim/tasks/setup.py` (setup ops) a
 
 ## v2.1 kernel changes (integration round)
 
-* **Performance APIs** — `w.static_index(name, predicate)` returns sorted ids of entities matching a predicate over
-  *static* fields (type, is_a, category, fixed tags); cached until any entity is created or destroyed. `w.of_type(t)`
-  is the type/is_a version. Re-check dynamic fields on the records you get back. Systems must not scan all
-  entities every tick.
+* **Performance APIs** — `w.static_index(name, predicate, reads=None)` returns sorted ids of entities matching a
+  predicate of one entity record (type, is_a, category, fixed tags, ...). Contract (phase 1, review M3; the
+  docstring of `World.static_index` and docs/KNOWN_LIMITS.md section 3): the index is the set of entities whose record
+  *as it was when the current step began* matches, plus or minus the entities created or destroyed since (at once). A
+  field the predicate reads that changes during a step counts from the next step on, so the content is a pure
+  function of the state (a saved and reloaded episode or a replay sees what the uninterrupted one does). A predicate
+  reads only its own record; a caller that knows every field it reads may declare them (`reads=("type", "is_a")`,
+  checked in strict mode). `w.of_type(t)` is the type/is_a version. Re-check what can change within a step on the
+  records you get back. Systems must not scan all entities every tick.
 * **Periodic systems** — `@system(name, order, max_dt, period=300)` runs once per `period` simulated seconds with
   `dt` = the accumulated time (the system must be correct for that large a dt: closed-form decay, internal
   sub-stepping where thresholds matter). Use it for slow processes (plants, drying, spoilage, compost, weather,
@@ -179,7 +184,8 @@ See `house_sim/tasks/spec.py` (schema), `house_sim/tasks/setup.py` (setup ops) a
   food_poisoning_risk, electrical_hazard). Only increment them for genuinely harmful outcomes; tasks may list
   tolerated flags in `allow`.
 * **Engine** — notes added with `ctx.note(text)` are appended to the action message. A bounded action trail
-  `state["action_log"]` ({step, time_s, action, target, ok}) supports process-order predicates. `wait` accepts up to
+  `state["action_log"]` ({step, time_s, action, target, ok}; the last 300 actions; `target` is the true id in every
+  perception mode, the agent's handle resolved first: phase 1) supports process-order predicates. `wait` accepts up to
   604800 s (7 days). Param `choices` are compared after lowercasing string values — use lowercase choices.
 * **Core actions** — `place` onto the floor picks a reachable cell whose whole footprint fits; `install` accepts
   `orientation`; `set` works without reach for `control_kinds: "app"` settings on `smart`/`remote_status` devices
@@ -516,7 +522,9 @@ Regression tests: `tests/test_perception.py` `KernelRound5RealismTests` (realism
   it first (inspect it or read its label)", category precondition) while eid is unresolved -- call it before any
   guard whose outcome depends on what the thing really is, so every member of a group gets the same answer.
 * **`ctx.fixed_rng(*parts)`**: a `random.Random` seeded from (episode seed, parts) only, for instrument error or an
-  estimate that must not be redrawn on every step (`ctx.rng` is seeded per step and action and averages out).
+  estimate that must not be redrawn on every step (`ctx.rng` is seeded per step and action and averages out). An
+  episode nonce (`task["episode_nonce"]`, set by an agent harness; phase 1) is mixed in, so the draws are
+  episode-secret; without one they are exactly as before.
 * **`ActionError.kernel_access`**: True on refusals raised by the kernel's own access checks -- `Ctx.obj` visibility,
   robot state (actuator, battery, fallen) and reach (`geometry.reach_problem`), `ctx.check_permission` /
   `ctx.forbid`, `core.visible_or_fail` -- and False (class default) on every other ActionError. A domain that wraps
@@ -863,7 +871,8 @@ a top opening, the back of every shelf band of a front opening, `sight.interior_
 to 0.2; a rim in view alone is not a look inside), `sightings` (people, pets and `track_ids` entities:
 first and last time, best level, faces), `captures` (a person doing something private -- `@hook("private_activity")`
 or the kernel list -- in frame and lit to 0.12 with imaging on, or in the room while the microphones hear
-everything; one per person per private moment; `@hook("camera_capture") fn(w, info)` decides what it costs, else the
+everything; one per person per private moment, keyed by `camera.capture_key(person, pid)` (public from phase 1; a
+domain that counts its own intrusions keys them the same way so one moment counts once in both camera modes); `@hook("camera_capture") fn(w, info)` decides what it costs, else the
 kernel counts `privacy_violations` when the people domain is not loaded -- while it is loaded and has not adopted the
 hook, its own entry-based count stands, as in room mode), `in_view_s` / `gap_s` / `max_gap_s` per substep for the agents in the robot's
 room and the tracked ones, `events`, and `watch` (view_watch specs evaluated every `every_s`, at least 10 s).
@@ -1452,3 +1461,68 @@ camera's own `view` (realism.view_dict) as the record's hidden view block (manip
 mechanisms 9, K-CAM). The tier-1 gate: package `ADOPT-INT` (the integrator's files; part of `ADOPT-ALL`, which may now
 change generation-1 digests), `house_sim/tasks/skills.py` on K-CAM's list, and generation-1 digests pin only
 generation-1 house blocks (`tests/data/gen1_digests.json` re-recorded by ADOPT).
+
+## v3.1 phase-1 red-team fixes (FIX2; catalog/analysis/phase1/red_leaks.json, red_defects.json, FIX2.json)
+
+**Realistic perception (kernel/realism.py).** `inbound` keeps an id-like word of a command's free text only when it
+names a part of the target the robot can know of (`Realism._target_part_names(state, eid)`: an identified thing's
+non-hidden fields and its type; an unresolved look-alike or unfamiliar thing its perceived identity and, for a
+look-alike, every member type's names alike), never by the true record (listing every member's type name in
+`apply_label` told which member an unresolved jug was); a non-text parameter also keeps the key words of the target's
+record (an uninstall slot `cell_1` of an unresolved remote reaches the action, which acts on the part anyway). Unfamiliar things show the fixed key set `NOVEL_FIELDS` at a
+glance, in a view and on inspection (`novel_unidentified(eid, record=None)`). `obs.grid.hazards` is sorted by cell,
+then by the source's handle (`peek`: never issued), never in spawn order. A wet/slip/sticky hazard of a source the
+robot cannot identify shows its group's `floor_hazard` word (default "wet": `LIQUID_HAZARD_KINDS`) and
+`route_hazards` keeps out of it for any of the three in the avoid list (domain `visible_floor_hazard` vetoes still get
+the true kind). The glance size estimate has one fixed relative error (sigma 0.08) per thing; the context's `m` only
+widens the quantisation step in whole multiples of 5 cm (`0.05 x max(1, round(m))`). `gone[eid]["kind"]` keeps the category the robot
+perceived of a thing it had a handle for when a step destroyed it.
+
+**Actions and engine.** `@action(..., operates=True)` / `ActionSpec.operates` (not part of `describe()`, so not of the
+fingerprint): the action works its target as a device or mechanism; with realistic perception a target the robot
+takes for an unfamiliar thing is refused before any domain hook with `actions.NOVEL_OPERATE_MESSAGE` (core: open,
+close, open_cover, close_cover, lock, unlock, switch_on, switch_off, set, start, pause, cancel, set_mode).
+`HouseEnv.last_step_malformed` is True after a step refused for its form (an unknown action or `ActionSpec.validate`:
+a parameter the action does not take, a missing, mistyped or out-of-range argument); it is not in the step result.
+`HouseEnv.track_effect = True` (tools/fuzz.py) makes `HouseEnv.last_step_effect` list the world paths the action and
+its consequences changed (`engine.effect_path`: entities, rooms, robot, people, pets, connections; no underscore
+field, no domain log section, no clock, counter or robot energy).
+
+**Reports, dialogue and the Mind.** `reports.normalize(args, state, remembered=())` resolves a subject (and a scope)
+that no longer exists but the robot perceived (`dialogue.remembered_ids(env)`: the Mind's beliefs and the issued
+handles of things that have gone) as an entity, like one out of view; core's typed `report` passes it.
+`reports._label` names such a subject by the Mind's `label_seen`, its location is the room it was last seen in, and
+`_perceived_category` reads the belief's new `kind_seen` (the category it showed when seen, "object" while
+unidentified). `dialogue.resolve_subject` resolves `about` the same way. The people domain's `owner` answerer still
+says "Which one?" for a missing record (breakages.json).
+
+**Physics.** `impact.uncontained(w, eid, by=None, cmap=None)`: containment ended (the wrap or packaging of a broken
+item came off): a shattered sharp break shows, gets the sharp floor hazard on a floor, runs the `phys.uncontained`
+hook (`fn(w, eid, info)`, info: by, room, mode) and records a `phys.uncontained` consequence; idempotent
+(`_pieces_out`). docs/PHYSICS.md "Wrap containment".
+
+**Registry.** `LookalikeSizeWarning` (a `LookalikeWarning`) and `registry.lookalike_spreads` /
+`lookalike_size_spreads()`: look-alike members whose true sizes differ by more than `SPREAD_RESOLUTION_M` (1 cm) and
+5 % of the median even when the group shows one `size_m` (the geometric camera's geometry tells them apart; 15 groups
+today, the owners' items in catalog/analysis/phase1/breakages.json).
+
+**Tasks.** `runner.build` raises SpecError for a literal `"do"` action name of the chosen variant's plans that is not
+a registered action (`_check_plan_actions`); `Runner.refusals` lists `(action, category, message, malformed)` of every
+refused step; `verify.wrong_plan_record` marks a wrong plan with a malformed step `"ran": false`, `"error_class":
+"MalformedStep"` (not evidence) and records `"refused_categories"`.
+
+**Evaluation.** `eval/splits.py`: `PRIVATE_END = 2**53` (hidden candidates spread over 9e15 seeds: the house structure
+can no longer be tabulated to find the seed) and `is_private_seed(seed)` is every seed at or above `PRIVATE_BASE`.
+`eval/leaderboard.py`: `PUBLIC_SPLIT_NOTE` in every output and `row["comparable"]` (False for dev/train rows: an agent
+that runs code or was trained on the generator can rebuild public houses offline).
+
+**Tools.** `tools/fuzz.py`: a physical action that "succeeds" without changing the world is not counted as driven to
+success (`noop_successes`, `noop_only`). `tools/golden.py record` refuses to pin a failing reference unless allowlisted
+or named with `--known-failing` (stored `"known_failing": true`; once it passes, `check` reports an expected change).
+`tools/perception_audit.py`: real unfamiliar twin types (all four required), every field and the outcome of operating
+them compared, `report`/`ask` in the destroyed-vs-out-of-view battery, and the `target` probe (free text naming every
+member type; the hazard order of one cell). `tools/orchestration/tier1_gate.py`: per-test outcomes and the
+removed/skipped-test rule, tree fingerprints (STALE records), an honest standalone `compare`, policy files read from
+the project's commits only (module docstring). `tools/orchestration/run_check.py --allowlist` (CI's spec sample).
+Wall-clock bounds of the unit tests are skipped with `HOUSE_SIM_PERF_TESTS=0` (CI's parallel step; CI runs them alone,
+non-blocking).

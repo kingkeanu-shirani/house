@@ -104,7 +104,10 @@ def _claim_contact(w, hot, support, temp_c, severity):
 def _marks_support(w, hot, sid, dest):
     """The legacy rule's test (contact_heat deferred): the face of `hot` resting on sid is hotter than the finish takes,
     by the kernel's own numbers (thermal.contact_temp_c: a vessel's wall is cooler than its liquid; the support's heat
-    limit, C.surface_heat_limit_c), and the contact is not one this domain's heat model owns (_claim_contact)."""
+    limit, C.surface_heat_limit_c), and no domain claims the contact: the kernel's thermal.contact_claimed runs every
+    phys.contact_heat hook, exactly as the law's contact_check does -- this domain's own heaters and hot holders
+    (_claim_contact), and every other domain's (textiles_laundry's iron upright on its heel rest; adoption breakage:
+    this rule used to ask only _claim_contact and scorched the ironing board)."""
     state = w.s
     limit = C.surface_heat_limit_c(state, sid, dest)
     if limit is None:
@@ -112,7 +115,10 @@ def _marks_support(w, hot, sid, dest):
     contact = kthermal.contact_temp_c(state, hot)
     if contact <= limit:
         return False
-    return not (sid in state["entities"] and _claim_contact(w, hot, sid, contact, 0.0))
+    if sid not in state["entities"]:
+        return True                     # a bare floor (no floor entity): nothing can claim it
+    severity = round(min(1.0, (contact - limit) / kthermal.CONTACT_SPAN_K), 4)
+    return not kthermal.contact_claimed(w, hot, sid, contact, severity)
 
 
 @after("pick_up", order=82)

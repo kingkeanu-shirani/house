@@ -1229,6 +1229,7 @@ def seen_patch_fn(w, rid):
 
 # small things lying in the grass (TIER1_CAMERA 19: occluders plus contrast)
 GRASS_CLOSE_M = 1.5                 # within this the robot looks down into the grass
+GRASS_PATCH_M = 1.0                 # longer than a lawn patch, a thing lying in the grass stands out of it
 _LAWN_OF = {}                       # id(entities) -> (entities, {room: lawn id})
 
 
@@ -1252,7 +1253,10 @@ def hidden_in_grass(state, eid, entity):
     """Geometric camera only (room mode is unchanged): a small thing lying on a lawn patch whose grass stands taller
     than the thing is hidden in the blades from a standing robot more than 1.5 m away (the blades occlude it and its
     colour blends in); up close the robot looks down into the grass. Things on the lawn's hardscape, beds and
-    blocked patches, held or carried things and anything 15 cm or taller are never hidden."""
+    blocked patches, held or carried things, anything 15 cm or taller and anything longer than a lawn patch (1 m: a
+    garden bed's low edging, a hose run, a rake handle stand out of the grass) are never hidden, nor are fixtures,
+    path-blocking pieces and mounted things (a garden bed added by a scenario helper is 5 cm tall but 3 m long; the
+    D3 preview's 'That is not visible here' for T-d182fc681f310d-01)."""
     robot = state["robot"]
     if not isinstance(robot.get("view"), dict):
         return False
@@ -1260,12 +1264,15 @@ def hidden_in_grass(state, eid, entity):
     room = state["rooms"].get(rid) if isinstance(rid, str) else None
     if room is None or not room.get("outdoor") or entity.get("ground_layer") or not entity.get("pos"):
         return False
+    if entity.get("blocks_path") or entity.get("mounted") or "fixture" in (entity.get("is_a") or ()):
+        return False
     size = entity.get("size_m") or [0.1, 0.1, 0.1]
     try:
         height = min(float(v) for v in size[:3]) if entity.get("orientation") == "on_side" else float(size[2])
+        length = max(float(v) for v in size[:3])
     except (TypeError, ValueError, IndexError):
         return False
-    if height >= 0.15:
+    if height >= 0.15 or length > GRASS_PATCH_M:
         return False
     lawn = _lawn_in(state, rid)
     grid = (lawn or {}).get("grid")

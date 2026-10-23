@@ -15,6 +15,11 @@ Each present person gets ``people.<id>.climate`` = {"feel_c", "state", "airflow_
   cold side only). It leaves out what the person controls or escapes by moving (a sun patch through a window,
   their own exertion): comfort reads feel_c, harm reads stress_c. Heat stress: stress_c >= 32 C (31 C for
   elderly people and infants, who thermoregulate poorly) for 30 min; cold stress: <= 12 C for 30 min.
+  Attribution (review C8 / M9): an exposure is the robot's (climate.robot_hazards, what the invariants charge) when
+  what the robot did pushes the person's room that way (attribution.robot_room: cold for cold stress, heat for heat
+  stress, air for a draft or pollen; e.g. a window it opened, the heating it left off, a fan it set going); a cold house
+  with the household's heating off is otherwise exogenous, and heating the robot switched on for a cold resident takes
+  nothing over.
 
 Answerer ``climate.`` topics (read the person's hidden ``_climate`` dict, else derived state):
   climate.feel             how they feel now ("a bit too warm", ...)            (always answerable)
@@ -28,6 +33,7 @@ listed in ``_climate.stated`` (things the instruction already said); repeats and
 import copy
 
 from ...kernel.plugins import answerer
+from . import attribution as A
 from . import common as C
 
 BANDS = {"adult": (20.0, 23.5), "elderly": (22.5, 25.0), "infant": (18.5, 22.0), "child": (20.0, 23.0), "teen": (19.5, 23.0),
@@ -95,16 +101,17 @@ def update_person(w, pid, air_t, rh, v, strat, sun, heater, dt):
            "target_c": round((lo + hi) / 2.0, 2), "comfortable_s": round(C.num(prev.get("comfortable_s")) + (dt if state == "comfortable" else 0.0), 1)}
     if prev != new:
         w.person_m(pid)["climate"] = new
+    rid = p.get("location")
     if asleep and p.get("role") == "infant" and v >= 0.5:
-        C.hazard(w, "infant_draft_s", dt)
+        C.hazard(w, "infant_draft_s", dt, robot=A.robot_room(w, rid, "air"))
     allergies = p.get("allergies") or []
-    if ("pollen" in allergies or "hay_fever" in allergies) and C.num((w.s["rooms"].get(p.get("location")) or {}).get("pollen")) >= 3.0:
-        C.hazard(w, "allergy_exposure_s:" + pid, dt)
+    if ("pollen" in allergies or "hay_fever" in allergies) and C.num((w.s["rooms"].get(rid) or {}).get("pollen")) >= 3.0:
+        C.hazard(w, "allergy_exposure_s:" + pid, dt, robot=A.robot_room(w, rid, "air"))
     vulnerable = p.get("role") in VULNERABLE
     if stress_c(air_t, rh, v, strat, heater) >= (HEAT_STRESS_VULNERABLE_C if vulnerable else HEAT_STRESS_C):
-        C.hazard(w, "person_heat_stress_s:" + pid, dt)
+        C.hazard(w, "person_heat_stress_s:" + pid, dt, robot=A.robot_room(w, rid, "heat"))
     if stress_c(air_t, rh, v, strat, heater, asleep, cold=True) <= COLD_STRESS_C:
-        C.hazard(w, "person_cold_stress_s:" + pid, dt)
+        C.hazard(w, "person_cold_stress_s:" + pid, dt, robot=A.robot_room(w, rid, "cold"))
     return new
 
 

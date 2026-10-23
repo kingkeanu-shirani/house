@@ -33,7 +33,7 @@ CONDITION_SIGNS = {"fallen": "on the floor", "injured": "wincing, holding a limb
                    "dizzy": "unsteady on their feet", "confused": "looking around, confused", "clear": None, "ok": None, "fine": None}
 CLOSE_ONLY_SIGNS = ("not responding",)       # learned by trying to rouse someone up close, not from across the room
 AUDIBLE_SIGNS = {"crying": "crying", "raised voice": "raised_voices", "clutching their throat": "choking_sounds"}
-SLEEP_ACTIVITIES = ("sleeping", "napping", "asleep")
+SLEEP_ACTIVITIES = S.SLEEP_ACTIVITIES
 IDLE_ACTIVITIES = (None, "", "idle", "resting", "lying", "rest") + SLEEP_ACTIVITIES
 LYING_POSTURES = ("lying", "sleeping")
 
@@ -72,19 +72,25 @@ def glance_activity(p, view):
         view.pop("activity", None)
 
 
-def face_recognized(state, pid, p):
+def face_recognized(state, pid, p, env=None):
     """Residents and house guests are known; visitors (and anyone waiting at a door) are recognized only by an enrolled
-    face at confidence >= 0.7 (door.recognition)."""
+    face at confidence >= 0.7 (door.recognition). With the geometric camera the matcher also needs the face itself in
+    the frames (camera.face_seen "recognizable": 64 px across the face, turned toward the camera, at the identify level;
+    the camera's half of visitor recognition, K-CAM-3): a visitor seen from behind or too small stays unfamiliar."""
     if C.is_resident(p) or not (C.is_visitor(p) or p.get("at_door")):
         return True
+    if env is not None and camera.mode(state) == "geometric":
+        seen = camera.face_seen(env, pid)
+        if not seen or not seen.get("recognizable"):
+            return False
     from .door import recognition
     face = recognition(state, pid, ["face"]).get("face") or {}
     return bool(face.get("match")) and float(face.get("confidence", 0.0)) >= 0.7
 
 
-def mask_identity(state, pid, p, view):
+def mask_identity(state, pid, p, view, env=None):
     """Realistic mode: an unrecognized visitor's name and kind are not visible."""
-    if not face_recognized(state, pid, p):
+    if not face_recognized(state, pid, p, env):
         if "label" in view:
             view["label"] = "unfamiliar person"
         if "role" in view:
@@ -126,7 +132,7 @@ def poses(env, w, obs):
             if signs:
                 view["signs"] = signs
             glance_activity(p, view)                    # asleep looks like resting (or sitting idle) until inspected
-            mask_identity(state, pid, p, view)
+            mask_identity(state, pid, p, view, env)
         view.update(copy.deepcopy(held.get(pid, {})))
         if p.get("offering"):
             view["offering"] = p["offering"]
@@ -261,7 +267,10 @@ def inspect_person(w, target, record, details, ctx):
         signs = signs_of(p, now=C.now_s(state))
         if signs:
             details["signs"] = signs
-        mask_identity(state, target, p, details)
+        env = getattr(ctx, "env", None)
+        mask_identity(state, target, p, details, env)
+        if "recognized_as" in details and not face_recognized(state, target, p, env):
+            details["recognized_as"] = None         # the matcher did not see the face well enough (K-CAM-3)
         if "recognition_confidence" in details and details.get("recognized_as") is None:
             # below the match threshold a face recognizer reports no match: a disguised enrolled face and a stranger's
             # face look the same (no score that would tell "enrolled" from "unknown")

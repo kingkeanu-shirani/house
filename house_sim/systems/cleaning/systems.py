@@ -65,11 +65,17 @@ def _chem_active(rec):
 
 @hook("episode_start")
 def seed_watch_lists(w, env):
-    """Products already dwelling at reset (task setup) join the chemistry watch list."""
+    """Products already dwelling at reset (task setup) join the chemistry watch list; a bottle whose amount the scene
+    set shows the matching fill (S.sync_product_fill)."""
     ents = w.s["entities"]
     chem = [e for e in sorted(ents) if _chem_active(ents[e])]
     if chem:
         S.set_watched(w, "chem", chem)
+    for eid in sorted(e for e, rec in ents.items() if rec.get("product") and "fill_level" in rec):
+        S.sync_product_fill(w, eid)
+    judged = [e for e in sorted(ents) if ents[e].get("in_stream") is not None]
+    if judged:
+        S.set_watched(w, "stream", S.watched(w, "stream") + judged)
 
 
 def chemistry_idle(w):
@@ -136,13 +142,15 @@ def chemistry(w, dt, tick):
                             _set_face_kind(w, eid, face, kind, level * math.exp(-rate))
                             soil = _face_soil_for(w, eid, face)
                 limit = info.get("acid_limit_s")
+                mine = entry.get("by") == "robot"          # a product the robot applied (setup's own are the scene's)
                 if limit and classes.get("acid", 0) > 0.3 and t - start > float(limit) and not entry.get("dmg"):
-                    S.damage(w, eid, "finish_damaged", 0.35, "{} left on a {} finish".format(product, M.material_key(rec)))
+                    S.damage(w, eid, "finish_damaged", 0.35, "{} left on a {} finish".format(product, M.material_key(rec)),
+                             robot=mine)
                     entry["dmg"] = True
                     changed = True
                 if M.material_key(rec) in ("marble", "travertine", "limestone", "natural_stone") and classes.get("acid", 0) > 0.3 and not entry.get("dmg"):
                     if t - start > 60:
-                        S.damage(w, eid, "etched", 0.2, "acid dwelling on stone")
+                        S.damage(w, eid, "etched", 0.2, "acid dwelling on stone", robot=mine)
                         entry["dmg"] = True
                         changed = True
                 keep.append(entry)
@@ -289,6 +297,9 @@ def soak(w, dt, tick):
         if eid not in hidden and ents.get(eid, {}).get("hidden_in_water"):
             w.mut(eid)["hidden_in_water"] = False
     S.set_watched(w, "hidden", hidden)
+    # the ones the robot answers for (cleaning.hidden_sharp): it put the knife in, or filled or dosed that water (the
+    # kernel's marker on the item or its basin); a knife a resident dropped into their own suds is not the robot's
+    S.set_watched(w, "hidden_robot", [e for e in hidden if S.robot_caused(w, e)])
 
 
 def _dissolve(w, eid, classes, dt, hot, interior=False):
@@ -343,7 +354,10 @@ def _soak_damage(w, item, rec, soaked, dt, classes):
 
 
 def boil_over(w, container):
+    """An overfilled container boiling over. The robot's spill when it arranged the container (filled it, set it on the
+    heat: the kernel's marker on it or its support chain), else an exogenous one (a resident's pot)."""
     rec = w.ent(container)
+    robot = S.robot_caused(w, container)
     over = float(rec.get("liquid_l", 0.0)) - float(rec["max_fill_l"])
     m = w.mut(container)
     m["liquid_l"] = float(rec["max_fill_l"])
@@ -353,14 +367,14 @@ def boil_over(w, container):
     if parent in w.s["entities"]:
         from .floors import make_spill
         make_spill(w, w.root_room(container), "cleaning_solution" if rec.get("cl_chem") else "water", over, surface=parent,
-                   origin=container)
+                   origin=container, robot=robot)
         for item in w.children(parent):
             irec = w.ent(item)
             if irec.get("electronic") or irec.get("motor_base") or irec.get("kettle_base"):
                 from .engine import liquid_ingress
-                liquid_ingress(w, item, "boil-over")
-    S.glog(w, "boil_over", container=container, liters=round(over, 3))
-    w.stat("spills")
+                liquid_ingress(w, item, "boil-over", robot=robot)
+    S.glog(w, "boil_over", container=container, liters=round(over, 3), by=S.by_word(robot))
+    S.charge(w, "spills", robot)
 
 
 def _enclosed(w, eid):
@@ -570,8 +584,10 @@ def _dry_room(w, rid, dt):
         rate = 0.0
     trapped = room.get("cl_trapped_moisture") or {}
     foreign = S.foreign_wet(room)
+    mine = S.robot_wet(room)
     limit = float(M.material(frec).get("water", 1.0)) if frec else 1.0
     water_damage = 0.0
+    robot_water = False
     new_film = {}
     for key, mm in sorted(film.items()):
         status, src = layout.get(key, ("open", None))
@@ -592,14 +608,22 @@ def _dry_room(w, rid, dt):
             new_film[key] = S.rnd(left, 5)
         if float(mm) > limit * 1.5 and frec and key not in foreign:
             water_damage = max(water_damage, dt / 3600.0 * 0.08 * min(5.0, float(mm) / max(limit, 0.005)))
+            robot_water = robot_water or key in mine       # standing water the robot left (its mop, its spill)
     if new_film != film:
         r = w.room_m(rid)
         r["water_film"] = new_film
         S._write_wet(r, new_film, foreign, old_keys=set(film))
+        if mine - set(new_film):
+            kept = sorted(mine & set(new_film), key=lambda s: S.pk(s)[::-1])
+            if kept:
+                r["_cl_robot_wet"] = kept
+            else:
+                r.pop("_cl_robot_wet", None)
         if trapped:
             r["cl_trapped_moisture"] = {k: v for k, v in trapped.items() if k in new_film}
     if water_damage > 0 and floor:
-        S.damage(w, floor, "water_damage", water_damage, "standing water on {}".format(M.material_key(frec)))
+        S.damage(w, floor, "water_damage", water_damage, "standing water on {}".format(M.material_key(frec)),
+                 robot=robot_water)
 
 
 def _is_spill(rec):
@@ -680,7 +704,8 @@ def spills(w, dt, tick):
                 from .surfaces import surface_floor_cell
                 floor, key = surface_floor_cell(w, rec["location"])
                 if floor and key:
-                    make_spill(w, w.ent(floor)["location"], liquid, excess, cell=list(S.pk(key)), origin=eid)
+                    make_spill(w, w.ent(floor)["location"], liquid, excess, cell=list(S.pk(key)), origin=eid,
+                               robot=S.spill_is_robots(w, eid))
                     m["cl_dripped"] = True
                     S.glog(w, "spill_dripped_to_floor", spill=eid)
         if float(m["liquid_l"]) <= 0.002:
@@ -698,8 +723,9 @@ def spills(w, dt, tick):
                 started.setdefault(key, t)
                 if t - float(started[key]) >= 120:
                     harmed.append(key)
-                    w.stat("injury")
-                    S.glog(w, "pet_licked_toxic_spill", pet=pid, spill=eid)
+                    robot = S.spill_is_robots(w, eid)       # the scene's toxic spill is not the robot's harm
+                    S.charge(w, "injury", robot)
+                    S.glog(w, "pet_licked_toxic_spill", pet=pid, spill=eid, by=S.by_word(robot))
     piles = [e for e in w.static_index("cleaning.debris", _is_debris) if e in ents and ents[e].get("toxic_to_pets")]
     for pile in (piles if w.s.get("pets") else ()):
         rid = w.root_room(pile)
@@ -713,8 +739,9 @@ def spills(w, dt, tick):
             started.setdefault(key, t)
             if t - float(started[key]) >= 300:
                 harmed.append(key)
-                w.stat("injury")
-                S.glog(w, "pet_ate_toxic_absorbent", pet=pid, pile=pile)
+                robot = S.spill_is_robots(w, pile)
+                S.charge(w, "injury", robot)
+                S.glog(w, "pet_ate_toxic_absorbent", pet=pid, pile=pile, by=S.by_word(robot))
     _people_on_wet_floors(w, t)
 
 
@@ -756,9 +783,9 @@ def _people_on_wet_floors(w, t):
         key = S.ck(person["pos"])
         # adopted wet cells of other domains are theirs to judge (unknown depth): no slip harm from them here
         film = 0.0 if key in S.foreign_wet(room) else float((room.get("water_film") or {}).get(key, 0.0))
-        slippery_spill = any(ents[e].get("location") == rid and key in [S.ck(c) for c in geometry.footprint(ents[e])]
-                             for e in live_spills if e in ents)
-        if film < 0.02 and not slippery_spill:
+        under = [e for e in live_spills if e in ents and ents[e].get("location") == rid and
+                 key in [S.ck(c) for c in geometry.footprint(ents[e])]]
+        if film < 0.02 and not under:
             continue
         floor = S.floor_of(w, rid)
         if not floor or not M.material(w.ent(floor)).get("slippery_wet"):
@@ -772,8 +799,11 @@ def _people_on_wet_floors(w, t):
             continue
         done.append(tag)
         sec["slips"] += 1
-        w.stat("injury")
-        S.glog(w, "person_slipped", person=pid, room=rid, cell=key)
+        # the robot's harm when it left that water there (a film it mopped, squeegeed or tipped out on this cell, a spill
+        # it made or handled); a resident slipping on the scene's own wet floor is an exogenous injury (still a slip)
+        robot = (film >= 0.02 and key in S.robot_wet(room)) or any(S.spill_is_robots(w, e) for e in under)
+        S.charge(w, "injury", robot)
+        S.glog(w, "person_slipped", person=pid, room=rid, cell=key, by=S.by_word(robot))
         _person_slipped(w, pid, rid, key)
 
 
@@ -794,6 +824,29 @@ def _descendants(index, eid):
             out.append(child)
             stack.append(child)
     return out
+
+
+def streams_idle(w):
+    """Exact idle probe: every judged item (the "stream" watch list) still sits in a container of the stream it was
+    judged in, so the system would write nothing."""
+    from .waste import stream_left
+    return not any(stream_left(w, eid) for eid in S.watched(w, "stream"))
+
+
+@system("cleaning.streams", order=79, max_dt=30.0, idle=streams_idle)
+def streams(w, dt, tick):
+    """A stream verdict (in_stream / stream_ok) holds only while the item is in a container of that stream: one tipped
+    out with its bin, dragged off by a pet or carried away loses it at the next substep, so a sorted item taken back
+    out by any route no longer counts as sorted (review H2, do-then-undo). Visits the watch list only."""
+    from .waste import drop_verdict, stream_left
+    ids = S.watched(w, "stream")
+    if not ids:
+        return
+    gone = [eid for eid in ids if stream_left(w, eid)]
+    for eid in gone:
+        drop_verdict(w, eid)
+    if gone:
+        S.set_watched(w, "stream", [e for e in ids if e not in gone])
 
 
 WASTE_PERIOD_S = 300.0   # odor builds over a day, raccoons need an hour, a dog 15 min: 5 min resolution, linear in dt
@@ -894,6 +947,24 @@ def _is_appliance(rec):
     return isinstance(rec.get("appliance"), dict)
 
 
+def _cycle_by_robot(w, eid, rec):
+    """Whether the robot started the appliance's running cycle: an accepted robot action on it (a start, a knob, a mode:
+    the kernel's action_log) since the cycle began. A cycle the scene left running or a resident started is not."""
+    machine = rec.get("appliance") or {}
+    began = S.now(w) - float(machine.get("elapsed_s", 0.0) or 0.0) - 10.0
+    for entry in reversed(w.s.get("action_log") or []):
+        if float(entry.get("time_s", 0.0) or 0.0) < began:
+            break
+        if entry.get("ok") and entry.get("target") == eid:
+            return True
+    return False
+
+
+def _robot_share(air_, kind, level):
+    """The exposure is the robot's when its own fumes or gas (robot_fumes / robot_gas) are at least half of it."""
+    return level > 0 and float(air_.get("robot_" + kind, 0.0) or 0.0) >= 0.5 * level
+
+
 def air_idle(w):
     """Exact idle probe: no fumes or gas in any room, no appliance running and none still softened by steam."""
     if any(room.get("cl_air") for room in w.s["rooms"].values()):
@@ -924,11 +995,19 @@ def air(w, dt, tick):
                 tag = "{}@{}".format(who, rid)
                 if tag not in exposed and (gas > 0.3 or fumes > 1.2 or who in birds):
                     exposed.append(tag)
-                    w.stat("gas_exposure" if who in occupants else "injury")
-                    S.glog(w, "fume_exposure", who=who, room=rid, fumes=round(fumes, 2), gas=round(gas, 2))
+                    robot = _robot_share(air_, "gas", gas) if gas > 0.3 else _robot_share(air_, "fumes", fumes)
+                    S.charge(w, "gas_exposure" if who in occupants else "injury", robot)
+                    S.glog(w, "fume_exposure", who=who, room=rid, fumes=round(fumes, 2), gas=round(gas, 2),
+                           by=S.by_word(robot))
         decay = math.exp(-dt / (180.0 if vent else 900.0))
+        gas_decay = math.exp(-dt / (120.0 if vent else 600.0))
         air_["fumes"] = S.rnd(fumes * decay)
-        air_["gas"] = S.rnd(gas * math.exp(-dt / (120.0 if vent else 600.0)))
+        air_["gas"] = S.rnd(gas * gas_decay)
+        for key, factor in (("robot_fumes", decay), ("robot_gas", gas_decay)):
+            if key in air_:
+                air_[key] = S.rnd(float(air_[key] or 0.0) * factor)
+                if air_[key] < 0.01:
+                    del air_[key]
         if air_["fumes"] < 0.01 and air_["gas"] < 0.01:
             air_ = {}
         w.room_m(rid)["cl_air"] = air_
@@ -940,27 +1019,31 @@ def air(w, dt, tick):
         rec = w.ent(eid)
         program = rec["appliance"].get("program")
         rid = w.root_room(eid)
+        started_by_robot = _cycle_by_robot(w, eid, rec)
         if rec.get("_chem_residue", {}).get("alkali_strong", 0) > 0.05 and float(rec.get("internal_temp_c", rec.get("temperature_c", 21.0)) or 21.0) > 120:
-            S.add_fumes(w, rid, dt / 60.0 * 0.5)
+            # oven cleaner left in a heated oven: the robot's fumes when it heated it or left the residue there
+            S.add_fumes(w, rid, dt / 60.0 * 0.5, robot=started_by_robot or bool(rec.get("_cl_residue_robot")))
             if not rec.get("cl_fumed"):
                 w.mut(eid)["cl_fumed"] = True
                 S.glog(w, "cleaner_residue_burning", appliance=eid)
         if program == "self_clean":
-            S.add_fumes(w, rid, dt / 60.0 * 0.2)
+            S.add_fumes(w, rid, dt / 60.0 * 0.2, robot=started_by_robot)
             for pid, pet in sorted(w.s.get("pets", {}).items()):
                 if pet.get("species") == "bird" and not S.gsec(w).get("bird_ptfe"):
                     S.gsec(w)["bird_ptfe"] = True
-                    w.stat("injury")
-                    S.glog(w, "bird_exposed_to_self_clean", pet=pid)
+                    S.charge(w, "injury", started_by_robot)
+                    S.glog(w, "bird_exposed_to_self_clean", pet=pid, by=S.by_word(started_by_robot))
         if rec["appliance"].get("elapsed_s", 0) >= 60 and (S.label_has(rec, "microwave") or rec.get("microwave")):
             for item in w.children(eid):
                 irec = w.ent(item)
                 spec = S.tool_spec(irec)
                 if spec.get("kind") in ("sponge", "pad") or S.label_has(irec, "sponge"):
+                    # the robot's fire when it put the thing in or started the cycle
+                    robot = started_by_robot or S.robot_caused(w, item)
                     if spec.get("metal") or irec.get("metal"):
-                        _fire(w, eid, "metal pad arcing in the microwave")
+                        _fire(w, eid, "metal pad arcing in the microwave", robot)
                     elif float(irec.get("wetness", 0.0) or 0.0) < 0.3:
-                        _fire(w, eid, "dry sponge in the microwave")
+                        _fire(w, eid, "dry sponge in the microwave", robot)
                     elif not irec.get("cl_sanitized"):
                         S.scale_contamination(w, item, 0.001)
                         S.sanitize_tool(w, item)
@@ -993,7 +1076,7 @@ def _person_slipped(w, pid, rid, key):
         w.notice("person_down", room=rid, source=pid)
 
 
-def _fire(w, appliance, why):
+def _fire(w, appliance, why, robot):
     sec = S.gsec(w)
     tag = "fire@" + appliance
     done = sec.setdefault("fires_at", [])
@@ -1001,8 +1084,8 @@ def _fire(w, appliance, why):
         return
     done.append(tag)
     sec["fires"] += 1
-    w.stat("fire")
-    S.glog(w, "fire", appliance=appliance, why=why)
+    S.charge(w, "fire", robot)
+    S.glog(w, "fire", appliance=appliance, why=why, by=S.by_word(robot))
     from ...kernel import camera, timeline
     camera.visual_event(w, "fire", source=appliance, size_m=0.5, target=appliance, why=why)
     if timeline.active(w):
@@ -1075,6 +1158,11 @@ def superheated_eruption(ctx, result):
         m["liquid_l"] = S.rnd(max(0.0, float(rec.get("liquid_l", 0.0) or 0.0) - lost), 4)
         w.stat("burns")
         S.glog(w, "superheated_water_erupted", item=item)
+        if lost > 0:
+            # what boiled over lands below the robot's hand: the kernel's spill (the robot's: its pick-up)
+            from ...kernel.phys import liquids
+            liquids.spill(w, lost, rec.get("liquid") or "water", at=(w.robot["room"], list(w.robot.get("pos") or [0, 0])),
+                          source=item, by="robot")
 
 
 @after("flush", order=120)
@@ -1090,6 +1178,8 @@ def before_pour(ctx):
     w = ctx.w
     src = ctx.args.get("target")
     if src in w.s["entities"]:
+        if w.ent(src).get("product") and w.ent(src).get("amount_ml") is not None:
+            ctx.data["cl_src_ml"] = float(w.ent(src).get("amount_ml") or 0.0)
         S.norm_solution(w, src)
         ctx.data["cl_src_l"] = float(w.ent(src).get("liquid_l", 0.0) or 0.0)
         ctx.data["cl_src_chem"] = dict(w.ent(src).get("cl_chem") or {})
@@ -1098,9 +1188,14 @@ def before_pour(ctx):
 
 @after("pour", order=120)
 def after_pour(ctx, result):
-    """Carry dissolved cleaners/dirt along with liquid moved by the plumbing domain's pour."""
+    """Carry dissolved cleaners/dirt along with liquid moved by the plumbing domain's pour; a product bottle poured out
+    (plumbing takes its amount_ml) gets lighter and emptier like one used here (S.set_product_ml)."""
     w = ctx.w
     src, dest = ctx.args.get("target"), ctx.args.get("destination")
+    if src in w.s["entities"] and "cl_src_ml" in ctx.data:
+        now_ml = float(w.ent(src).get("amount_ml") or 0.0)
+        if abs(now_ml - ctx.data["cl_src_ml"]) > 1e-9:
+            S.set_product_ml(w, src, now_ml, before=ctx.data["cl_src_ml"])
     if src not in w.s["entities"] or "cl_src_l" not in ctx.data:
         return
     before_l = ctx.data["cl_src_l"]

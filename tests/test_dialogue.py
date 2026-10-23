@@ -30,6 +30,7 @@ the people domain and skip without it.
 """
 import copy
 import json
+import os
 import time
 import unittest
 
@@ -102,6 +103,8 @@ class VocabularyTests(unittest.TestCase):
         self.assertIs(vocab, dialogue.vocabulary())
         self.assertEqual(vocab["_index"]["problems"], [])
         self.assertEqual(set(vocab["aspects"]), set(dialogue.ASPECTS))
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         start = time.perf_counter()
         dialogue.load_vocabulary()
         self.assertLess(time.perf_counter() - start, 0.06)          # budget 20 ms, 3x
@@ -991,6 +994,8 @@ class BudgetTests(unittest.TestCase):
         questions = [{"target": pid, "aspect": "where", "about": "thing%d" % i} for i in range(10)]
         questions += [{"target": pid, "aspect": "owner", "about": "towel"}] * 10       # a word naming many things
         best = None
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for _ in range(3):
             total = 0.0
             for args in questions:

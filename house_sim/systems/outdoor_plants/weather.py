@@ -36,8 +36,8 @@ import hashlib
 import math
 from statistics import NormalDist
 
-from ...kernel import camera, clock, timeline
-from ...kernel.phys import lawbook
+from ...kernel import camera, clock, geometry, timeline
+from ...kernel.phys import environment as kenv, impact as phys_impact, lawbook, processes as phys_processes
 from ...kernel.plugins import after, hook, observer, system
 from . import common as C
 
@@ -542,6 +542,10 @@ def wind_effects(w, dt):
     for eid in sorted(rooms_of):
         loc = state["entities"].get(eid, {}).get("location")
         kids.setdefault(loc, []).append(eid)
+    # loose things are the kernel's wind model's (routed through it below while the law is deferred, its own system's
+    # once the law is active); the static candidates are built once per entity set
+    loose = set() if lawbook.active("wind") else set(C.static_ids(w, "wind_loose", wind_candidate))
+    gusts = WindPass(w, kids)
     for eid in sorted(rooms_of):
         record = state["entities"].get(eid)
         if record is None:
@@ -555,12 +559,17 @@ def wind_effects(w, dt):
             kind = "plant_cover"
         elif C.is_type(record, "leaf_pile"):
             kind = "pile"
-        elif record.get("portable") or C.is_type(record, "chair") or C.is_type(record, "table"):
-            kind = "object" if record.get("movable", True) else None
+        elif eid in loose:
+            kind = "object"
         if kind is None:
             continue
         rid = rooms_of.get(eid)
-        if rid is None or C.is_roofed(w, rid) and g < 15.0:
+        if rid is None:
+            continue
+        if kind == "object":
+            _object_wind(w, eid, rid, gusts)       # the kernel's exposure rule decides (porch roofs, covers, boxes)
+            continue
+        if C.is_roofed(w, rid) and g < 15.0:
             continue
         if kind == "umbrella":
             _umbrella_wind(w, eid, g)
@@ -570,8 +579,6 @@ def wind_effects(w, dt):
             _pile_wind(w, eid, g, dt)
         elif kind == "plant_cover":
             _plant_cover_wind(w, eid, g, kids)
-        elif g >= 8.0:
-            _object_wind(w, eid, rid, g, (vx, vy), kids)
 
 
 def _current_kids(w, kids, eid):
@@ -580,90 +587,165 @@ def _current_kids(w, kids, eid):
     return [c for c in kids.get(eid, ()) if c in ents and ents[c].get("location") == eid]
 
 
-def _subtree_mass(w, kids, eid):
-    """core.subtree_mass without walking every entity: descendants of an outdoor object are outdoors too."""
-    ents = w.s["entities"]
-    total, stack, seen = 0.0, [eid], set()
-    while stack:
-        cur = stack.pop()
-        if cur in seen or cur not in ents:
-            continue
-        seen.add(cur)
-        rec = ents[cur]
-        total += float(rec.get("mass_kg", 0.0)) + float(rec.get("liquid_l", 0.0)) * float(rec.get("liquid_density", 1.0))
-        stack.extend(_current_kids(w, kids, cur))
-    return total
+# Loose things in the wind (adoption breakage: generation-2 wind blew hung rescue gear off its post, 4 kg chairs
+# 1.5-2.6 m and watering cans onto the patio's doorway cell, a 1.5 kg doormat 11 m). While the kernel's `wind` law is
+# deferred this domain still moves loose outdoor things, but with the kernel's own model and calibration
+# (phys.environment.wind_effect at the wind at the item, object_wind_mps: 0.4 of the 10 m mean, 0.6 of the 10 m gust
+# near the ground; sustained wind slides, gusts lift sheets and tip tall things; hung, held, inside, worn, mounted and
+# anchored things never move): one copy of the physics, so the flip changes nothing for them. This domain adds only
+# where a blown thing comes to rest (rest_cell): it fetches up against the first path-blocking piece of furniture or
+# fixture on its downwind line and never comes to rest in a doorway's clearance (the doorway cell, its four neighbours
+# and a door's leaf sweep), so wind never blocks a route through a doorway (kernel request: the same rule in
+# environment.wind_effect for the active law).
+
+MAX_RAY_STEPS = 64          # cells along a downwind line (12 m at 45 degrees with the rounding repeats)
 
 
-def _secured_rating_n(record):
-    sec = record.get("secured")
-    if not sec:
-        return 0.0
-    if isinstance(sec, dict):
-        return float(sec.get("rating_n", 400.0))
-    return 400.0
+def wind_candidate(record):
+    """Static part of what the wind can move at all (phys.environment's free-standing rule): portable things, things
+    on wheels or casters, free-standing furniture and loose covers. Manipulation's light sheets (an explicit
+    wind_lift_mps) and covers laid over things are its own copy of the law's while the law is deferred."""
+    if record.get("wind_lift_mps") is not None:
+        return False
+    return bool(record.get("portable") or record.get("wheeled") or record.get("casters") or record.get("category") in ("furniture", "cover")
+                or "furniture" in (record.get("is_a") or ()))
 
 
-def _object_wind(w, eid, rid, g, vec, kids=None):
-    """This domain's copy of the wind law for loose objects (drag and lift with the weather's gust against friction,
-    tie-downs and ballast). Once the kernel's `wind` law is active its environment system moves loose outdoor items
-    (TIER1_PHYSICS 5.10: the wind at the item, sustained wind slides, gusts lift and tip) and this copy steps aside."""
+class WindPass(object):
+    """Per-substep scratch of the loose-object wind: the children map of the outdoor things (the outdoor map's
+    location -> sorted ids: every child of an outdoor thing is outdoors too, so it is the kernel's children map
+    restricted to them, without its O(all entities) pass), the room's rest-cell blockers (rebuilt after anything in
+    that room moved) and the weather at the item. kids: that map when the caller has built it."""
+
+    def __init__(self, w, kids=None):
+        self.w = w
+        self.weather = w.s.get("weather") or {}
+        self.direction = kenv.wind_direction_deg(self.weather)
+        self._kids = kids
+        self._rooms = {}
+
+    def cmap(self):
+        if self._kids is None:
+            self._kids = {}
+            for eid in sorted(C.outdoor_map(self.w)):
+                loc = self.w.s["entities"].get(eid, {}).get("location")
+                self._kids.setdefault(loc, []).append(eid)
+        return self._kids
+
+    def blockers(self, rid):
+        """(door clearance cells, {cell: [ids of path-blocking things]}) of room rid (geometry.blocked_cells over the
+        room's own things, agents left out)."""
+        if rid not in self._rooms:
+            state = self.w.s
+            blocked = {}
+            for eid in self.cmap().get(rid, ()):
+                rec = state["entities"].get(eid)
+                if rec is not None and rec.get("location") == rid and geometry.blocks(rec):
+                    for cell in geometry.footprint(rec):
+                        blocked.setdefault(cell, []).append(eid)
+            self._rooms[rid] = (set(geometry.door_clearance(state, rid)), blocked)
+        return self._rooms[rid]
+
+    def moved(self, rid):
+        self._rooms.pop(rid, None)
+
+
+def _support_chain(state, eid):
+    """eid and everything it rests on or in, up to its room."""
+    chain, cur = [eid], state["entities"].get(eid, {}).get("location")
+    while cur in state["entities"] and cur not in chain:
+        chain.append(cur)
+        cur = state["entities"][cur].get("location")
+    return chain
+
+
+def ray_cell(state, rid, start, direction_deg, k):
+    """The k-th cell on the downwind line from cell start (phys.environment._downwind_cell's rounding), or None past
+    the room's edge."""
+    cols, rows = geometry.grid_size(state["rooms"][rid])
+    rad = math.radians(direction_deg)
+    col = int(round(float(start[0]) + math.cos(rad) * k))
+    row = int(round(float(start[1]) + math.sin(rad) * k))
+    if not (0 <= col < cols and 0 <= row < rows):
+        return None
+    return col, row
+
+
+def rest_cell(state, rid, start, direction_deg, blockers, ignore=(), steps=None, until=None):
+    """(cell, how) where a thing blown downwind from cell `start` comes to rest: along the downwind line, the last cell
+    before the first cell in the doorway clearance or under path-blocking furniture or a fixture (other than the thing
+    and what it rests on: `ignore`) -- how "blocked" --, or before the room's edge -- "edge" --; else at `steps` cells
+    or at `until` (the cell the kernel's law sent it to) -- how None. `start` itself (how "blocked" / "edge") when the
+    first cell on the line is already one of those: the thing is pressed against it."""
+    clearance, blocked = blockers
+    here, last = tuple(start), tuple(start)
+    limit = MAX_RAY_STEPS if steps is None else max(1, int(steps))
+    for k in range(1, limit + 1):
+        cell = ray_cell(state, rid, start, direction_deg, k)
+        if cell is None:
+            return here, "edge"
+        if cell == last:
+            continue                # the rounding repeats a cell on a diagonal line
+        last = cell
+        if cell in clearance or any(i not in ignore for i in blocked.get(cell, ())):
+            return here, "blocked"
+        here = cell
+        if until is not None and cell == tuple(until):
+            return here, None
+    return (here, None) if until is None else (tuple(until), None)
+
+
+def _object_wind(w, eid, rid, gusts):
+    """A loose outdoor thing in the wind while the kernel's `wind` law is deferred: the kernel's model decides and
+    moves it (see the note above); this domain stops it short of a doorway's clearance and the first path-blocking
+    thing on its line, and keeps its own bookkeeping (_wind_moved_m, wind_displaced, blown_away, a thud against the
+    house wall). The kernel's phys.blown consequence is the camera's visual event and the event log entry, with its
+    attribution (exogenous unless the robot arranged the thing). Once the law is active its environment system moves
+    loose things and this copy steps aside."""
     if lawbook.active("wind"):
         return      # the kernel owns loose objects
     state = w.s
     record = state["entities"][eid]
-    if record.get("location") == "robot" or record.get("relation") in ("in", "part", "attached", "held", "hung", "under", "behind"):
-        if record.get("relation") != "hung":
-            return
-    if C.enclosed(w, eid) or C.covering(w, eid):
+    if record.get("location") == "robot" or record.get("relation", "on") in kenv.FIXED_RELATIONS or record.get("covering"):
+        return      # held, hung (hang ratings are the statics law's), inside, worn, attached; a laid cover is manipulation's
+    if not kenv.exposed(state, eid):
+        return      # under a porch roof, a cover, a table, in a closed box, or a plant / soil-water holder (phys.exposed)
+    sustained, gust = kenv.object_wind_mps(state, eid, gusts.weather)
+    frid, start = phys_processes.floor_cell(state, eid)
+    if frid != rid or start is None:
         return
-    if record.get("blown_away"):
+    chain = _support_chain(state, eid)
+    blockers = gusts.blockers(rid)
+    on_floor = record.get("location") == rid
+    if on_floor:
+        first, how = rest_cell(state, rid, start, gusts.direction, blockers, ignore=chain, steps=1)
+        if how is not None:
+            return  # pressed against the room's edge, furniture or the doorway clearance: it stays where it is
+    result = kenv.wind_effect(w, eid, sustained, gusts.direction, cmap=gusts.cmap(), gust_mps=gust)
+    if result.get("effect") not in ("lift", "slide") or not result.get("moved_to"):
         return
-    if kids is None:
-        from ..core import subtree_mass
-        mass = max(0.05, subtree_mass(w, eid))
-        children = w.children(eid)
-    else:
-        mass = max(0.05, _subtree_mass(w, kids, eid))
-        children = _current_kids(w, kids, eid)
-    size = record.get("size_m") or [0.1, 0.1, 0.1]
-    w_m, d_m, h_m = float(size[0]), float(size[1]), float(size[2]) if len(size) > 2 else 0.1
-    drag = C.drag_force(g, max(w_m, d_m) * h_m, 1.1)
-    lift = C.drag_force(g, w_m * d_m, 0.5) if h_m < 0.25 else 0.0
-    loc = record.get("location")
-    mu = 0.45 if loc in state["entities"] else 0.55
-    if loc in state["entities"]:
-        parent = state["entities"][loc]
-        if C.is_type(parent, "chair") or C.is_type(parent, "outdoor_chair") or C.is_type(parent, "sofa"):
-            mu = 0.6
-    resist = mu * max(0.0, mass * C.G - lift) + _secured_rating_n(record)
-    weight_held = sum(float(state["entities"][c].get("mass_kg", 0.0)) for c in children if state["entities"][c].get("ballast"))
-    resist += weight_held * C.G * mu
-    force = drag + lift * 0.6
-    if force <= resist or (lift > mass * C.G * 0.98 and record.get("tied")):
+    rec = state["entities"].get(eid)
+    if rec is None or rec.get("location") != rid or not rec.get("pos"):
         return
-    excess = (force - resist) / max(1.0, mass * C.G * mu)
-    distance = C.clamp(1.0 + 2.5 * excess, 0.5, 12.0)
-    _displace(w, eid, rid, vec, distance, mass)
+    landed = tuple(rec["pos"])
+    rest, how = rest_cell(state, rid, start, gusts.direction, blockers, ignore=chain, until=landed)
+    if rest != landed and how is None:
+        rest = landed           # the kernel's landing search put it off the line: keep it unless it blocks a doorway
+    if rest in blockers[0]:
+        free = geometry.free_floor_cell(state, rid, near=rest, ignore=(eid,), record=rec)
+        rest = tuple(free) if free is not None else rest
+    if rest != landed:
+        w.mut(eid)["pos"] = [int(rest[0]), int(rest[1])]
+    gusts.moved(rid)
+    moved = max(0.5 if not on_floor else 0.0, math.hypot(rest[0] - start[0], rest[1] - start[1]) * C.CELL)
+    _blown_bookkeeping(w, eid, rid, moved, how == "edge", sum(float(state["entities"][c].get("mass_kg", 0.0))
+                                                               for c in [eid] + w.descendants(eid) if c in state["entities"]))
 
 
-def _displace(w, eid, rid, vec, distance, mass):
-    from ...kernel import geometry
+def _blown_bookkeeping(w, eid, rid, moved, hit_edge, mass):
+    """This domain's record of a blown thing: _wind_moved_m on it and what it carries, stats wind_displaced and (once
+    past 1 m) blown_away, and a thud when a heavy one fetches up against the house wall."""
     state = w.s
-    record = state["entities"][eid]
-    x, y = C.center_m(w, eid)
-    room = state["rooms"][rid]
-    cols, rows = geometry.grid_size(room)
-    nx, ny = x + vec[0] * distance, y + vec[1] * distance
-    lim_x, lim_y = cols * C.CELL - 0.25, rows * C.CELL - 0.25
-    hit_edge = nx < 0.25 or ny < 0.25 or nx > lim_x or ny > lim_y
-    nx, ny = C.clamp(nx, 0.25, lim_x), C.clamp(ny, 0.25, lim_y)
-    moved = math.hypot(nx - x, ny - y)
-    on_something = record.get("location") in state["entities"]
-    if moved < 0.25 and not on_something:
-        return
-    moved = max(moved, 0.5 if on_something else moved)
-    cell = [int(nx // C.CELL), int(ny // C.CELL)]
     for child in w.descendants(eid):
         cm = w.mut(child)
         cm["_wind_moved_m"] = round(float(cm.get("_wind_moved_m", 0.0)) + moved, 2)
@@ -671,24 +753,54 @@ def _displace(w, eid, rid, vec, distance, mass):
             cm["_counted_blown"] = True
             C.stat(w, "blown_away")
     m = w.mut(eid)
-    m["location"], m["relation"], m["pos"] = rid, "on", cell
-    for key in ("spos", "shelf"):
-        m.pop(key, None)
     m["_wind_moved_m"] = round(float(m.get("_wind_moved_m", 0.0)) + moved, 2)
     C.stat(w, "wind_displaced")
     if m["_wind_moved_m"] > 1.0 and not m.get("_counted_blown"):
         m["_counted_blown"] = True
         C.stat(w, "blown_away")
-    edge = C.house_wall_edge(w, rid)
-    if hit_edge and mass >= 1.0 and C.distance_to_edge_m(room, edge, (nx, ny)) < 0.6:
+    room = state["rooms"][rid]
+    pos = m.get("pos") or [0, 0]
+    centre = ((int(pos[0]) + 0.5) * C.CELL, (int(pos[1]) + 0.5) * C.CELL)
+    if hit_edge and mass >= 1.0 and C.distance_to_edge_m(room, C.house_wall_edge(w, rid), centre) < 0.6:
         C.stat(w, "wind_impacts")
         C.note(w, "wind_impact", target=eid, room=rid)
         C.notice(w, "thud", room=rid, source=eid)        # it slams into the house wall
-    if record.get("fragile") and mass >= 0.3:
-        m["broken"] = True
-        C.stat(w, "breakages")
-    size = record.get("size_m") or [0.3]
-    C.visual(w, "blown", source=eid, room=rid, size_m=max(float(v) for v in size[:3]), target=eid, distance_m=round(moved, 2))
+
+
+def _displace(w, eid, rid, vec, distance, visual=True):
+    """A cover the wind tore off (a furniture cover or a plant cover, this domain's at any law state) blows downwind
+    by `distance` m along the same line rule as loose things (rest_cell: never into a doorway's clearance, stopped by
+    path-blocking furniture). Off what it covered it falls through the kernel (phys.impact.fall at the rest cell: the
+    relocation, landing and attribution of any fall); along the ground its cell changes. visual: log the "blown"
+    visual event (a caller with its own, more specific event passes False)."""
+    state = w.s
+    record = state["entities"][eid]
+    rid_now, start = phys_processes.floor_cell(state, eid)
+    if rid_now != rid or start is None:
+        start = tuple(C.floor_cell_of(w, eid))
+    direction = math.degrees(math.atan2(vec[1], vec[0]))
+    gusts = WindPass(w)
+    clearance = gusts.blockers(rid)[0]
+    rest, how = rest_cell(state, rid, start, direction, gusts.blockers(rid), ignore=_support_chain(state, eid),
+                          steps=int(round(distance / C.CELL)))
+    if rest in clearance:
+        free = geometry.free_floor_cell(state, rid, near=rest, ignore=(eid,), record=record)
+        rest = tuple(free) if free is not None else rest
+    on_something = record.get("location") in state["entities"]
+    moved = math.hypot(rest[0] - start[0], rest[1] - start[1]) * C.CELL
+    if moved < 0.25 and not on_something:
+        return
+    moved = max(moved, 0.5 if on_something else moved)
+    if on_something:
+        phys_impact.fall(w, eid, cause="wind", at=(rid, [int(rest[0]), int(rest[1])]))
+    else:
+        w.mut(eid)["pos"] = [int(rest[0]), int(rest[1])]
+    if state["entities"].get(eid, {}).get("location") != rid:
+        return
+    _blown_bookkeeping(w, eid, rid, moved, how == "edge", float(record.get("mass_kg", 1.0)))
+    if visual:
+        size = record.get("size_m") or [0.3]
+        C.visual(w, "blown", source=eid, room=rid, size_m=max(float(v) for v in size[:3]), target=eid, distance_m=round(moved, 2))
 
 
 def umbrella_tip_check(w, eid, g):
@@ -748,17 +860,17 @@ def _umbrella_wind(w, eid, g):
     C.stat(w, "tip_overs")
     C.stat(w, "wind_damage")
     shattered = False
-    base = record.get("in_base")
-    if base and base in w.s["entities"]:
-        table = w.s["entities"][base].get("under_table")
-        if table and table in w.s["entities"]:
-            trec = w.s["entities"][table]
-            tm = w.mut(table)
-            tm["tipped"] = True
-            if trec.get("material") == "glass" or trec.get("glass_top"):
-                tm["broken"] = True
-                C.stat(w, "breakages")
-                shattered = True
+    from . import patio
+    base = patio.umbrella_base_of(w, eid)       # (was the never-written in_base / under_table fields: no table broke)
+    table = patio.table_of_base(w, base) if base else None
+    if table:
+        trec = w.s["entities"][table]
+        w.mut(table)["tipped"] = True
+        if trec.get("material") == "glass" or trec.get("glass_top"):
+            # through the kernel (phys.impact.break_entity: broken, shattered glass, its sharp floor hazard and the
+            # global flags only for the robot's): the robot's when it opened the umbrella or set it up, else exogenous
+            who = "robot" if C.robot_caused(w, eid, "open") else "exogenous"
+            shattered = bool(phys_impact.break_entity(w, table, "wind", by=who))
     C.visual(w, "umbrella_tipped", source=eid, room=rid, size_m=canopy, target=eid, moment=round(moment, 1), resist=round(resist, 1))
     # an 8.5 kg pole and canopy going over is loud; a glass table top under it shatters
     C.notice(w, "glass_breaking" if shattered else "crash", room=rid, db=80.0 if shattered else 70.0, source=eid)
@@ -781,7 +893,7 @@ def _cover_wind(w, eid, g):
     patio.remove_cover(w, eid, reason="wind")
     rid = C.room_of(w, eid)
     if rid:
-        _displace(w, eid, rid, C.wind_vector(w), 6.0, 1.0)
+        _displace(w, eid, rid, C.wind_vector(w), 6.0)
     C.stat(w, "covers_blown_off")         # _displace logged it as a visual "blown" event
 
 
@@ -799,12 +911,9 @@ def _plant_cover_wind(w, eid, g, kids=None):
     from . import garden
     garden.uncover_bed(w, eid)
     rid = C.room_of(w, eid)
-    m = w.mut(eid)
-    if m.get("relation") in ("on", "over") and rid:
-        m["location"], m["relation"] = rid, "on"
-        m["pos"] = list(m.get("pos") or [0, 0])
-        m.pop("spos", None)
-        _displace(w, eid, rid, C.wind_vector(w), 6.0, 1.0)
+    if record.get("relation") in ("on", "over") and rid:
+        # off the bed it covered, downwind (was: moved to the room's [0, 0] corner cell first and blown from there)
+        _displace(w, eid, rid, C.wind_vector(w), 6.0, visual=False)
     C.stat(w, "covers_blown_off")
     C.visual(w, "plant_cover_blown_off", source=eid, room=rid, size_m=max(float(size[0]), float(size[1]) if len(size) > 1 else 1.0),
              cover=eid, bed=target)

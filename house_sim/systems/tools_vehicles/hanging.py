@@ -765,6 +765,8 @@ def inspect_mounts(w, eid, record, details, ctx):
                                 "rated_kg": mount.get("rated_kg", record.get("rated_kg"))}
     if "tilt_deg" in record and record.get("relation") == "hung":
         level = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
+        if level and not C.at_hand(w, eid):
+            level = None            # a level reads only what it is laid on: from farther the eye judges the tilt
         if C.realistic(ctx):
             details["tilt"] = _tilt_seen(ctx, eid, record["tilt_deg"], level)
             C.mark_perceived(ctx, details, "tilt")

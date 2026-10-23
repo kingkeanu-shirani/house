@@ -605,14 +605,25 @@ ROUTE_ASPECTS = {"keep": "keep", "status": "in_use", "who": "recipient", "intend
 
 def _route_manip(state, pid, subject, aspect, detail, act):
     """ask about one of the household's things -> manip:<key>:<id> (keep it? still in use? who is it for? how to
-    handle it? what is inside? which way should it face?)."""
+    handle it? what is inside? which way should it face?).
+
+    The topic is this domain's own answer only for a thing that carries the hidden truth it answers from (`_<key>`,
+    or a spec's `_ambiguous_<key>` / `_ask_<key>` marker). For any other thing it is a catch-all (dialogue.weak): a
+    later domain route that knows the specific answer (plants:care for a garden plant, laundry's rewear / hang_or_fold
+    for a coat) wins, and this domain's default ("No preference.", not to keep...) answers only when none does."""
     if subject is None or subject.kind != "entity" or not subject.id:
         return None
     if aspect in ROUTE_DETAILS:
         key = ROUTE_DETAILS[aspect].get(detail)
     else:
         key = ROUTE_ASPECTS.get(aspect) if detail in (None, "") else None
-    return "manip:{}:{}".format(key, subject.id) if key else None
+    if not key:
+        return None
+    topic = "manip:{}:{}".format(key, subject.id)
+    rec = (state.get("entities") or {}).get(subject.id) or {}
+    if HIDDEN_TOPICS[key] in rec or rec.get("_ambiguous_" + key) or rec.get("_ask_" + key):
+        return topic
+    return dialogue.weak(topic)
 
 
 dialogue.route("manipulation.items", tuple(sorted(set(ROUTE_DETAILS) | set(ROUTE_ASPECTS))), _route_manip)

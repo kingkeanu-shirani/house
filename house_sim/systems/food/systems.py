@@ -30,6 +30,7 @@ Cost control (deterministic, keyed only on simulated time and state):
 import math
 
 from ...kernel import camera, physics
+from ...kernel.phys import impact
 from ...kernel.plugins import hook, system
 from ...kernel.predicates import root_room
 from . import common as C
@@ -440,10 +441,29 @@ def _doneness(w, eid, surf, core, step):
                 m["appearance"] = M.appearance(m)
 
 
+COLD_KINDS = ("fridge", "freezer")     # appliances_cooking's ac_kind of a refrigerator / freezer compartment
+
+
+def cold_unit(r):
+    """A space whose air food models or reports to: a food air model (lunch box, cooler, thermos, food's stand-in
+    fridge or freezer, a bowl turned into an ice bath) or an appliance refrigerator / freezer compartment (ac_kind),
+    whose cold system takes food's heat load. Reads only fields that say what the thing is, never the internal
+    temperature: an oven, a dishwasher or a toaster that warms up has one too and is none of these (independent review
+    M3: a toaster that gained an internal temperature at run time was given a fridge's heat load and free volume)."""
+    return bool(r.get("food_air_model")) or r.get("ac_kind") in COLD_KINDS
+
+
+def cold_storage(r):
+    """A refrigerator or freezer food is stored in (its free volume `_free_l` is derived truth): an appliance cold
+    compartment or food's stand-in (an air model that cools to a setpoint; a lunch box, cooler or ice bath has none)."""
+    return r.get("ac_kind") in COLD_KINDS or bool(r.get("food_air_model") and r.get("setpoint_c") is not None
+                                                     and not r.get("insulated"))
+
+
 def _cold_ids(w):
-    """Cold/hot units that may hold food: anything with an internal temperature or a food air model (static), plus
-    bowls turned into ice/water baths at runtime (registered)."""
-    static = w.static_index("food.cold", lambda r: "internal_temp_c" in r or bool(r.get("food_air_model")))
+    """Cold units that may hold food (cold_unit: static candidates), plus bowls turned into ice/water baths at runtime
+    (registered the moment they become one)."""
+    static = w.static_index("food.cold", cold_unit)
     extra = M.registered(w.s, "air")
     return sorted(set(static) | set(extra)) if extra else static
 
@@ -455,7 +475,7 @@ def _cold_spaces(w, dt, heat_into):
     entities = state["entities"]
     for eid in _cold_ids(w):
         rec = entities.get(eid)
-        if rec is None or rec.get("internal_temp_c") is None:
+        if rec is None or rec.get("internal_temp_c") is None or not cold_unit(rec):
             continue
         q_food = heat_into.get(eid, 0.0)
         if not rec.get("food_air_model"):
@@ -840,6 +860,10 @@ def _drips(w, dt, foods=None):
 
 
 def _utensil_melting(w):
+    """A plastic or nylon utensil resting in a pan hotter than its melting point melts (and taints the food in the pan).
+    The damage goes through the kernel (impact.damage): the global damage flag counts only when the robot caused it
+    (it put the utensil or the pan there; TIER1_PHYSICS 6.4), not for a spatula someone else left in a hot pan while
+    the robot waited (independent review M9: domain systems raised harm flags for harms of inaction)."""
     state = w.s
     for eid in w.static_index("food.meltable", lambda r: r.get("melt_c") is not None):
         rec = state["entities"].get(eid)
@@ -852,7 +876,7 @@ def _utensil_melting(w):
             m["condition"] = "melted"
             for food_id in M.vessel_foods(state, rec["location"]):
                 M.add_contam(w, food_id, "chemical", 0.3)
-            w.stat("damage")
+            impact.damage(w, eid, "melted", 1.0, detail="melted in a hot pan", note="{} melted".format(eid))
             camera.visual_event(w, "utensil_melted", source=eid, size_m=0.15, visual="melting utensil", target=eid)
 
 
@@ -964,6 +988,10 @@ def _derived(w):
     shelves = set()
     for eid in foods:
         rec = entities[eid]
+        if rec.get("relation") == "in":
+            vessel = entities.get(rec.get("location"))
+            if vessel is not None and vessel.get("liquid_l") and PH.soak_from_vessel(w, eid, rec, vessel):
+                rec = entities[eid]         # lying in bleach or mop water (whoever poured it): it carries it now
         st = M.status(state, rec, day)
         z = zones[eid]
         ok, issue = M.storage_check(state, eid, groups, z, index)
@@ -1014,8 +1042,7 @@ def _derived(w):
         for eid, ok in sorted(_fifo_flags(state, container, shelf, index).items()):
             if entities[eid].get("_fifo_ok") != ok:
                 w.mut(eid)["_fifo_ok"] = ok
-    checked = w.static_index("food.checked", lambda r: bool(r.get("recipe") or r.get("food_label") or r.get("policy")
-                                                              or ("internal_temp_c" in r and r.get("capacity_l"))))
+    checked = w.static_index("food.checked", _checked)
     labeled = M.registered(state, "labeled")
     for eid in (sorted(set(checked) | set(labeled)) if labeled else checked):
         rec = entities.get(eid)
@@ -1035,7 +1062,7 @@ def _derived(w):
             if rec.get("_policy_issues") != issues:
                 updates["_policy_issues"] = issues
                 updates["_policy_ok"] = not issues
-        if rec.get("internal_temp_c") is not None and not rec.get("insulated") and rec.get("capacity_l"):
+        if rec.get("internal_temp_c") is not None and rec.get("capacity_l") and cold_storage(rec):
             used = sum(float(entities[c].get("volume_l", 0.0)) for c in index.get(eid, []))
             free = round(max(0.0, float(rec["capacity_l"]) - used), 2)
             if rec.get("_free_l") != free:
@@ -1076,7 +1103,9 @@ def _is_food(r):
 
 
 def _checked(r):
-    return bool(r.get("recipe") or r.get("food_label") or r.get("policy") or ("internal_temp_c" in r and r.get("capacity_l")))
+    """Containers with derived truth of their own: a recipe bowl, a labelled container, a packed-lunch policy, a
+    refrigerator or freezer (its free volume). Never keyed on the internal temperature (independent review M3)."""
+    return bool(r.get("recipe") or r.get("food_label") or r.get("policy") or (r.get("capacity_l") and cold_storage(r)))
 
 
 _SAFETY_INDEXES = (("food.foods", _is_food), ("food.meltable", lambda r: r.get("melt_c") is not None),

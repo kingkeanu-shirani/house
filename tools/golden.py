@@ -25,7 +25,11 @@ What tests/data/room_golden.json pins (tests/test_room_golden.py checks it; G8 o
   `facing_deg`, and `look` lasts 1 s.
 
 `record` re-runs everything and rewrites the digests (a new file also chooses the scripts and the fixed specs) and
-appends {"by", "classes", "date"} to `history`. A package records only when every changed path belongs to its
+appends {"by", "classes", "date"} to `history`. It refuses to pin a reference plan that fails (phase-1 red team: the
+golden pinned T-7d4006bda247ba-01's scorch as the expected outcome) unless the spec is on the gate's committed
+allowlist (tools/orchestration/gate_policy/known_failing.json, kind "spec", covering seed 0 in its own mode) or named
+with --known-failing (recorded in `history`); such an entry is stored with "known_failing": true, and once its
+reference passes, `check` reports it as an expected change (to re-record), not as a difference. A package records only when every changed path belongs to its
 reviewed classes (3.5): `dump` before the first edit, `dump` again before hand-over, then `diff BEFORE AFTER` prints the
 leaf differences grouped by path pattern (entity, room, person and handle ids and list indexes become `*`, so a
 pattern reads like `entities.*._robot_moved` or `obs.visible_entities.*.state`).
@@ -387,8 +391,30 @@ def _strip(result):
     return {k: v for k, v in result.items() if k != "full"}
 
 
-def record(by, classes, new=False, workers=1, path=GOLDEN_FILE):
-    """Re-run everything and rewrite the digests; a new file (or --new) also chooses the scripts and fixed specs."""
+def allowlisted_failing(keys):
+    """The catalog ids among `keys` that the tier-1 gate's committed allowlist excuses on the golden's seed in their
+    own mode (tier1_gate.load_known_failing, read from the project's commits)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("tier1_gate_for_golden", str(ROOT / "tools" / "orchestration" /
+                                                                               "tier1_gate.py"))
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    allow = gate.load_known_failing(gate.policy_root())
+    return {k for k in keys if gate.spec_allowed(allow, str(k).split("#")[0], SPEC_SEED, "own")}
+
+
+def failing_references(specs, known=(), allowlisted=None):
+    """(refused, known) keys of specs whose reference fails: refused unless allowlisted or named in `known`."""
+    failing = sorted(k for k, v in specs.items() if not v.get("passes"))
+    excused = set(known) | set(allowlisted(failing) if allowlisted is not None and failing else ())
+    return [k for k in failing if k not in excused and k.split("#")[0] not in excused], \
+        [k for k in failing if k in excused or k.split("#")[0] in excused]
+
+
+def record(by, classes, new=False, workers=1, path=GOLDEN_FILE, known_failing=()):
+    """Re-run everything and rewrite the digests; a new file (or --new) also chooses the scripts and fixed specs. A
+    failing reference is refused (SystemExit) unless allowlisted or named in known_failing; it is stored with
+    "known_failing": true."""
     _quiet_imports()
     if new or not Path(path).exists():
         specs = collect_specs()
@@ -399,9 +425,18 @@ def record(by, classes, new=False, workers=1, path=GOLDEN_FILE):
     else:
         golden = load(path)
     runs, specs = compute(golden, None, workers)
+    refused, known = failing_references(specs, known_failing, allowlisted_failing)
+    if refused:
+        raise SystemExit("golden: refusing to pin failing reference plan(s) as the expected outcome: {} (fix them, put "
+                         "them on the gate's committed allowlist, or name them with --known-failing)".format(
+                             ", ".join(refused)))
     golden["runs"] = {key: _strip(value) for key, value in sorted(runs.items())}
-    golden["specs"] = {key: _strip(value) for key, value in sorted(specs.items())}
-    golden["history"].append({"by": by, "classes": list(classes), "date": datetime.date.today().isoformat()})
+    golden["specs"] = {key: dict(_strip(value), **({"known_failing": True} if key in known else {}))
+                       for key, value in sorted(specs.items())}
+    entry = {"by": by, "classes": list(classes), "date": datetime.date.today().isoformat()}
+    if known:
+        entry["known_failing"] = list(known)
+    golden["history"].append(entry)
     save(golden, path)
     return golden
 
@@ -434,12 +469,21 @@ def compare(golden, runs, specs):
         if want is None:
             out.append("spec {}: not in the golden file".format(key))
             continue
+        if want.get("known_failing") and not want.get("passes") and got.get("passes"):
+            continue        # a known-failing reference now passes: an expected change (expected_changes), re-record
         fields = [f for f in ("state", "steps", "time_s", "passes", "refusals", "error", "camera")
                   if want.get(f) != got.get(f)]
         if fields:
             out.append("spec {}: {} differ{}".format(key, ", ".join(fields), "" if "passes" not in fields else
                                                      " (passes {} -> {})".format(want.get("passes"), got.get("passes"))))
     return out
+
+
+def expected_changes(golden, specs):
+    """Known-failing references (pinned with "known_failing") that pass now: the fix the entry waited for."""
+    return ["spec {}: known-failing reference now passes (expected change: re-record the golden)".format(key)
+            for key in sorted(specs) if (golden["specs"].get(key) or {}).get("known_failing")
+            and not golden["specs"][key].get("passes") and specs[key].get("passes")]
 
 
 def check(all_specs=False, workers=1, path=GOLDEN_FILE):
@@ -554,6 +598,8 @@ def main(argv=None):
     rec.add_argument("--by", required=True, help="package id recording (history)")
     rec.add_argument("--classes", required=True, help="comma-separated difference classes reviewed (history)")
     rec.add_argument("--new", action="store_true", help="choose the scripts and the fixed specs again")
+    rec.add_argument("--known-failing", default="", help="comma-separated catalog ids whose failing reference may be "
+                                                         "pinned (recorded in history; else the gate's allowlist)")
     chk = sub.add_parser("check", help="compare fresh results with the file")
     chk.add_argument("--all", action="store_true", help="every spec, not only the fixed ones")
     dmp = sub.add_parser("dump", help="write full checkpoint states and observations")
@@ -570,7 +616,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.cmd == "record":
         golden = record(args.by, [c.strip() for c in args.classes.split(",") if c.strip()], args.new, args.workers,
-                        Path(args.file))
+                        Path(args.file), [c.strip() for c in args.known_failing.split(",") if c.strip()])
         print("recorded {} runs and {} specs into {}".format(len(golden["runs"]), len(golden["specs"]), args.file))
         return 0
     if args.cmd == "check":

@@ -604,7 +604,9 @@ class Settlement(PhysicsFakes):
         w = world()
         hold(w, "pot", hand="both", mass_kg=4.0)
         body.settle_energy(w, FakeCtx(w, FakeSpec("stir", "physical"), {"target": "pot"}), 36.0)
-        self.assertAlmostEqual(w.s["robot"]["energy_wh_used"], (115 + 80 + 12) * 36 / 3600, places=6)
+        # hold power of the felt load (review L3, INT): 4 kg in both hands (20 kg) reads "light" on each, felt as
+        # 0.125 x 20 = 2.5 kg, 7.5 W
+        self.assertAlmostEqual(w.s["robot"]["energy_wh_used"], (115 + 80 + 7.5) * 36 / 3600, places=6)
         w = world()
         body.settle_energy(w, FakeCtx(w, FakeSpec("scrub", "physical", energy=0.02)), 3.6)
         self.assertAlmostEqual(w.s["robot"]["energy_wh_used"], 155 * 3.6 / 3600 + 0.48, places=6)
@@ -768,8 +770,11 @@ class Settlement(PhysicsFakes):
         hold(w, "crate", hand="both", mass_kg=12.0)
         ctx = FakeCtx(w, FakeSpec("move", "physical"))
         body.motion(ctx, [[5, 1], [5, 2]], [5, 0])
-        self.assertEqual(ctx.data["motion"]["load_kg"], 12.0)
-        self.assertAlmostEqual(body.motion_work_wh(w.s, ctx.data["motion"]), 1.0 * 0.288 * (1 + 12 / 40))
+        self.assertEqual(ctx.data["motion"]["load_kg"], 12.0)            # physics keeps the exact load
+        # the walking work's load term is the felt load (review L3, INT): 12 of 20 kg in both hands reads "heavy",
+        # felt as 0.75 x 20 = 15 kg
+        self.assertEqual(ctx.data["motion"]["energy_kg"], 15.0)
+        self.assertAlmostEqual(body.motion_work_wh(w.s, ctx.data["motion"]), 1.0 * 0.288 * (1 + 15 / 40))
 
 
 # ----------------------------------------------------------------------
@@ -1564,6 +1569,8 @@ class DeterminismAndBudget(PhysicsFakes):
         hold(w, "jug", mass_kg=2.0)
         body.refresh_held(w)
         idle_env, covered = FakeEnv(w, mode="idle"), FakeEnv(w, mode="covered")
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         tick_idle = self.best_us(lambda: body.system_tick(w, 30.0, Tick(idle_env)))
         w.s["robot"].update(battery=100.0, power_state="on")
         tick_covered = self.best_us(lambda: body.system_tick(w, 30.0, Tick(covered)))

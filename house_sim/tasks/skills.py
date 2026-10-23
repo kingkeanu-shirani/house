@@ -166,14 +166,55 @@ def go_room(r, room, avoid=None, speed=None):
             args["speed"] = speed
         elif door_id and float(r.state["entities"][door_id].get("open_angle_deg", 90) or 90) < 75:
             args["speed"] = "careful"   # a door held partly open by something in its swing: pass slowly
+        elif _unguided_winders(r, cid, here, nxt):
+            args["speed"] = "careful"   # down winders without a hand on the rail or lit treads: every foot placed
         r.do("move", **args)
         _powered(r)                     # the battery ran out on the way: the walk stopped where it was cut
         if r.state["robot"]["room"] != nxt:
             raise _plan_error("Could not move from {} to {}: {}".format(here, nxt, (r.last or {}).get("message")))
 
 
+def _unguided_winders(r, cid, here, nxt):
+    """go_room's pace down a flight with winder treads (navigation_robot's stairs rule, review H10): at a walking pace
+    a hand on the rail and lit treads keep the robot on the walk line; without a free working hand, a usable rail or
+    light in both rooms (or a light it carries), a heel lands on a narrow inner end. The reference then descends
+    carefully (phase 1, navigation_robot's kernel request; plumbing_liquids' and safety's skills already do)."""
+    state = r.state
+    conn = state["connections"][cid]
+    if not int(conn.get("winders", 0) or 0) or body.stairs_direction(state, conn, here, nxt) != "down":
+        return False
+    hands = state["robot"].get("hands") or {}
+    hand_free = any(not hands.get(h) and body.arm_health(state, h) > 0 for h in body.HANDS)
+    rails = [rec for rec in state["entities"].values()
+             if rec.get("on_stairs") == cid and rec.get("category") == "handrail"]
+    rail = conn.get("handrail", True) is not False and not any(rec.get("broken") for rec in rails)
+    carried_light = any((state["entities"].get(eid) or {}).get("category") == "flashlight" and
+                        (state["entities"].get(eid) or {}).get("on") for eid in hands.values() if eid)
+    lit = carried_light or state["robot"].get("headlamp_on") or         (r.env.perception.lit(state, here) and r.env.perception.lit(state, nxt))
+    return not (hand_free and rail and lit)
+
+
 def _approach_cell(r, cell):
-    return r.do("walk_to", cell=[int(cell[0]), int(cell[1])], adjacent=True)
+    """Walk within reach of a cell (a doorless doorway's threshold, to reach the light switch beside it): onto a free
+    cell next to it by the most cautious hazard list that leaves a route (safe_avoid). A raw walk_to ... adjacent=true
+    plans over floor items: on seed 41 of T-d1f9385dbb80fc-01 it ended on a rolling toy car and the robot fell (phase
+    1, the people domain's kernel request; people's routing._beside_cell). Without such a route the lenient walk stays."""
+    state = r.state
+    rid = state["robot"]["room"]
+    start = tuple(state["robot"].get("pos") or (0, 0))
+    target = (int(cell[0]), int(cell[1]))
+    blocked = geometry.blocked_cells(state, rid)
+    goals = sorted(c for c in geometry.near_cells([target], state["rooms"][rid]) if c != target and c not in blocked)
+    if start in goals:
+        return None
+    kinds = safe_avoid(state, rid, start, goals) if goals else None
+    path = geometry.find_path(state, rid, start, goals, avoid_kinds=tuple(kinds or ())) if goals else None
+    if path:
+        args = {"cell": list(path[-1])}
+        if kinds:
+            args["avoid"] = kinds
+        return r.do("walk_to", **args)
+    return r.do("walk_to", cell=list(target), adjacent=True)
 
 
 def locate(state, target):

@@ -227,6 +227,7 @@ def lead(ctx):
     gap, seconds, status = 0.0, 0.0, "arrived"
     with_robot = True
     from . import hazards as H
+    from . import traverse as T
     from ..core import say
     for nxt, cid in hops:
         state = w.s
@@ -246,15 +247,18 @@ def lead(ctx):
                 break
         # the route the robot plans with what it perceives (ctx.route_filter in realistic mode); a frail person still
         # trips on what lies on it
-        path = geometry.find_path(state, here, C.cell(state["robot"].get("pos") or [0, 0]), [C.cell(conn["cells"][here])],
-                                  avoid_kinds=tuple(avoid), hazard_filter=ctx.route_filter) or []
+        path = T.plan_path(ctx, here, C.cell(state["robot"].get("pos") or [0, 0]), [C.cell(conn["cells"][here])],
+                           avoid_kinds=tuple(avoid)) or []
+        state = w.s
         hz = H.cell_map(state, here)
         risky = sorted({h["kind"] for c in path for h in hz.get(C.cell(c), []) if h.get("kind") in TRIP_FOR_PEOPLE})
         # the robot can only call out what it sees (realistic perception: no black ice, no damp film from afar, nothing
-        # in the dark); an unseen hazard still trips a frail person it leads
+        # in the dark, no rug_slip under a rug it has not checked for a pad); an unseen hazard still trips a frail person
         frames = H.seen_cells(state, here, w) if C.realistic(ctx) else None
+        unknown = H.unknown_margins(ctx.env, state, here) if C.realistic(ctx) else set()
         seen = risky if not C.realistic(ctx) else sorted({h["kind"] for c in path for h in hz.get(C.cell(c), [])
                                                           if h.get("kind") in TRIP_FOR_PEOPLE and
+                                                          (h.get("kind"), h.get("source")) not in unknown and
                                                           H.visible_hazard(state, here, C.cell(c), h, frames)})
         if with_robot and risky:
             if ctx.args["warn"] and seen:

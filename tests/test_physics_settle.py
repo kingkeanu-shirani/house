@@ -15,6 +15,7 @@ import time
 import unittest
 import warnings
 from pathlib import Path
+from unittest import mock
 
 from house_sim.kernel import plugins
 from house_sim.kernel.actions import Ctx, motion_record, motion_records
@@ -904,6 +905,98 @@ class DeterminismAndReplayTests(unittest.TestCase):
         self.assertLess(env.world.s["entities"]["m"]["liquid_l"], 0.3)
 
 
+# ----- cross-layer contracts (independent review 2026-10-22, H11 and section 4.6) -------------------------------------------
+
+class CrossLayerContractTests(unittest.TestCase):
+    """Metamorphic checks of the kernel's contracts that hold whatever domains are loaded: they run the whole engine
+    (every hook and system of the loaded domains), so a domain that breaks a kernel contract fails here. With
+    HOUSE_SIM_DOMAINS=core they check the kernel alone."""
+
+    WRAPS = {"newspaper": {"coverage": 1.0, "padding_mm": 0.0, "material": "newspaper"},
+             "bubble_wrap": {"coverage": 1.0, "padding_mm": 0.0, "material": "bubble_wrap"}}
+
+    def dropped(self, **props):
+        """A drinking glass on the kitchen floor, dropped from 1 m by a scripted event at 30 s, then 5 minutes of the
+        whole engine (the domains' break hooks and their systems, which tick every substep)."""
+        env = env_of({"jar": glass("kitchen", pos=[3, 2], **props)},
+                     events=[{"at_s": 30, "effect": "physics.drop", "args": {"target": "jar", "height_m": 1.0}}])
+        before = set(env.world.s["entities"])
+        ok(self, env, "wait", seconds=300)
+        return env, sorted(set(env.world.s["entities"]) - before)
+
+    def test_a_fully_wrapped_glass_breaks_inside_its_wrap(self):
+        """Wrap containment: breaking an item whose wrap covers it creates no entity and no floor hazard outside the
+        wrap (the defect: safety's phys.broke hook scattered 15 shards, 7 of them floor hazards)."""
+        for name, wrap in sorted(self.WRAPS.items()):
+            with self.subTest(wrap=name):
+                env, created = self.dropped(wrapped=dict(wrap))
+                jar = env.world.s["entities"]["jar"]
+                self.assertTrue(jar["broken"])
+                self.assertTrue(impact.contained(jar))
+                self.assertEqual(created, [], "pieces left the wrap")
+                hazards = [e for e, rec in env.world.s["entities"].items() if rec.get("floor_hazard") == "sharp"]
+                self.assertEqual(hazards, [])
+                self.assertEqual(env.world.s["stats"].get("breakages", 0), 0)      # a scripted drop: exogenous
+        # control: the same drop of an unwrapped glass leaves sharp pieces on the floor (the kernel's own floor hazard;
+        # with the safety domain loaded, its shard field as well)
+        env, created = self.dropped()
+        self.assertEqual(env.world.s["entities"]["jar"].get("floor_hazard"), "sharp")
+        if "house_sim.systems.safety" in sys.modules:
+            self.assertTrue(created)
+
+    def test_containment_ends_when_the_wrap_comes_off(self):
+        """Phase-1 red team (red_defects, wrap containment hand-back): a contained break unwrapped on the floor left
+        no floor hazard and no pieces. impact.uncontained releases them: shattered, the sharp floor hazard, the
+        phys.uncontained hook (the domains' shards), once."""
+        env, created = self.dropped(wrapped=dict(self.WRAPS["newspaper"]))
+        w = env.world
+        self.assertIsNone(w.s["entities"]["jar"].get("floor_hazard"))
+        seen = []
+        hook = (99, "test", lambda world, eid, info: seen.append((eid, info["mode"])))
+        w.begin()
+        self.assertFalse(impact.uncontained(w, "jar"))                  # still wrapped: nothing comes out
+        w.mut("jar").pop("wrapped")
+        with mock.patch.dict(plugins.HOOKS, {"phys.uncontained": list(plugins.HOOKS.get("phys.uncontained", [])) +
+                                             [hook]}):
+            self.assertTrue(impact.uncontained(w, "jar"))
+            self.assertFalse(impact.uncontained(w, "jar"))              # once
+        w.commit()
+        jar = w.s["entities"]["jar"]
+        self.assertEqual((jar.get("shattered"), jar.get("floor_hazard")), (True, "sharp"))
+        self.assertEqual(seen, [("jar", "shatter")])
+
+    def test_exogenous_wind_and_bumps_raise_none_of_the_robots_harm_flags(self):
+        """TIER1_DECISIONS harm attribution: exogenous consequences (scripted events, pets, people, the weather)
+        never fail a task by themselves; they are counted in phys_* statistics only. The same generated house is left
+        idle for two hours twice, once calm and once with gale gusts over the yard and pets' and people's bumps on
+        every surface of two rooms (physics.wind_gust, physics.bump by "exogenous") in a gale (wind slamming doors and
+        gates is the mechanisms domain's): the robot's global harm flags must be the same in both runs, while the
+        perturbed run shows the physical consequences."""
+        from house_sim.generator import generate_house
+        from house_sim.kernel import evaluation, geometry
+        house = generate_house(1)
+        rooms = [r for r in sorted(house["rooms"]) if house["rooms"][r].get("type") in ("living_room", "kitchen")]
+        cell = geometry.free_floor_cell(house, rooms[0], clearance=False, reachable=False)
+        house["entities"]["test_glass"] = glass(rooms[0], pos=list(cell))         # a sure consequence: dropped below
+        events = [{"at_s": t, "effect": "physics.wind_gust", "args": {"outdoor": True, "mps": 30.0}}
+                  for t in (600, 1800, 3000)]
+        events += [{"at_s": 900 + 600 * i, "effect": "physics.bump", "args": {"room": rid, "g": 0.9, "by": "exogenous"}}
+                   for i, rid in enumerate(rooms)]
+        events.append({"at_s": 1200, "effect": "physics.drop", "args": {"target": "test_glass", "height_m": 1.0}})
+        runs = {}
+        for name, extra in (("calm", []), ("perturbed", events)):
+            config = dict(house, events=list(house.get("events") or []) + extra)
+            if extra:       # a gale, too: what the weather does to doors, gates and yards is exogenous as well
+                config["weather"] = dict(house.get("weather") or {}, wind_mps=14.0, gust_mps=22.0)
+            env = HouseEnv(config, seed=1)
+            ok(self, env, "wait", seconds=7200)
+            stats = env.world.s["stats"]
+            runs[name] = ({flag: stats.get(flag, 0) for flag in evaluation.GLOBAL_FLAGS},
+                          sum(v for k, v in stats.items() if k.startswith("phys_")))
+        self.assertEqual(runs["perturbed"][0], runs["calm"][0])
+        self.assertGreater(runs["perturbed"][1], runs["calm"][1])          # the perturbations did something
+
+
 # ----- cost budgets (TIER1_INTEGRATION 3.4; tests fail at 3x the budget) ----------------------------------------------------
 
 def best_ms(fn, repeats=7, inner=20):
@@ -922,6 +1015,8 @@ class BudgetTests(unittest.TestCase):
         env = HouseEnv(generate_house(seed=0), seed=0)
         w = env.world
         w.begin()
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         idle = best_ms(lambda: settle.settle(env, "substep"))
         self.assertLess(idle, 3 * 0.02, idle)                       # nothing touched: <= 0.02 ms
         portable = sorted(e for e, r in w.s["entities"].items() if r.get("portable") and r.get("relation") == "on"
@@ -953,6 +1048,8 @@ class BudgetTests(unittest.TestCase):
                 settle.begin_action(w)
                 settle.settle(env, "action")
             w.rollback()
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         cost = best_ms(cascade, repeats=3, inner=2)
         self.assertLess(cost, 3 * 10.0, cost)                          # 64 consequences: <= 10 ms
 
@@ -962,6 +1059,8 @@ class BudgetTests(unittest.TestCase):
         env = HouseEnv(generate_house(seed=0), seed=0)
         w = env.world
         w.begin()
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         idle = best_ms(lambda: processes.run(w, 30.0, 0))
         self.assertLess(idle, 3 * 0.02, idle)                          # physics.processes idle: <= 0.02 ms
         calm = best_ms(lambda: environment.run(w, 30.0, 0))

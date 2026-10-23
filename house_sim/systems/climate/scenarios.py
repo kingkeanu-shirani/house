@@ -773,7 +773,10 @@ def purifier_helper(ctx, room="master_bedroom", model="combo", dirt=0.9, indicat
             # the other model's filter looks like this unit's own (realistic perception: the purifier_cartridge or, for a
             # panel, the purifier_panel look-alike group) until its label is read
             extra = {} if model == "combo" else {"looks_like": "purifier_panel"}
-            wf = _floor_item_near(ctx, rid, "purifier_filter", label="AP-200 replacement filter (other model)", filter_model="AP-200",
+            # a panel is built on the HEPA panel's type (its weight, feel and bulk), so only its print and its slightly
+            # smaller frame differ from this unit's panels: nothing but reading (or measuring) tells it apart
+            base = "purifier_filter" if model == "combo" else "purifier_hepa_filter"
+            wf = _floor_item_near(ctx, rid, base, label="AP-200 replacement filter (other model)", filter_model="AP-200",
                               size_m=[0.18, 0.18, 0.22] if model == "combo" else [0.33, 0.21, 0.04],
                               filter_layer="combo" if model == "combo" else "hepa",
                               label_text="AP-200 3-in-1 filter - fits AP-200 purifiers only." if model == "combo" else

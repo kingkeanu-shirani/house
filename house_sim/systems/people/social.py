@@ -109,7 +109,8 @@ def ray_surface_hits(state, origin, heading_deg, elev_deg, room, tolerance_m=0.3
 @action("point", params={"target": "target", "ask": {"type": "bool", "default": True}, "to": "?person"}, duration=3.0, energy=0.0,
         category="communication",
         doc="Point at an entity, person or cell-sized spot so people can see what the robot means; with ask=true, also ask "
-            "'this one?' and the person whose request is pending answers yes or no (counts as a clarifying question).")
+            "'this one?' and the person whose request is pending answers yes or no (counts as a clarifying question); "
+            "when they are not here or asleep nobody answers (answer null).")
 def point(ctx):
     w = ctx.w
     state = w.s
@@ -127,7 +128,11 @@ def point(ctx):
     intent = C.intent(state)
     asker = ctx.args.get("to") or intent.get("requester") or state.get("requester")
     p = C.person(state, asker)
-    require(p is not None and p.get("location") == state["robot"]["room"] and not S.asleep(p), "Nobody here to confirm", "precondition")
+    if p is None or p.get("location") != state["robot"]["room"] or S.asleep(p):
+        # nobody answers "this one?": a normal outcome, not a refusal (review P3-id I10: in the dark the refusal told a
+        # shape that is the requester from anyone else; the silence is what the robot would really hear). No question
+        # was answered, so none is counted.
+        return {"pointed_at": target, "answer": None}
     truth = intent.get("target")
     candidates = [c for c in intent.get("candidates") or [] if c in state["entities"]]
     resolved = intent.get("resolved")

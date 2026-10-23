@@ -25,7 +25,7 @@ Tests: `tests/test_manipulation.py`. Examples: `tasks/authored/manipulation__exa
 
 All iteration is over sorted ids; randomness only through `ctx.rng`/`tick.rng`. No time system
 scans every entity: static props (`dries_uncapped_s`, `wind_lift_mps`) come from `w.static_index`,
-dynamic fields (`falling`, `rolling`, `covering`, `label_peels_at_s`, `pads_fall_off_at_s`,
+dynamic fields (`falling`, `rolling`, `covering`, `tilted_on_wheels`, `label_peels_at_s`, `pads_fall_off_at_s`,
 `*_wet_since_s`) from the journaled watch list `state.manipulation.watch` (seeded by an
 `episode_start` hook from the initial state, extended by `common.watch(w, eid)` wherever the domain
 sets one of those fields, pruned by the timers system). Benchmark (`tools/bench_systems.py 40 0 1 2 3
@@ -157,13 +157,20 @@ spills and stats are never undone.
 
 ### Verb notes (preconditions, refusals, effects)
 
-* `stack`: Put a held item on top of a stack (destination = any item in it) or start a stack on a surface/shelf/floor. Larger/heavier items belong below; bowls nest. Overloaded fragile items crush, oversized pieces on smaller ones rock and topple, stacks taller than the shelf gap or 6x their base topple. Fast set-downs chip ceramics.
+* `stack`: Put a held item on top of a stack (destination = any item in it) or start a stack on a surface/shelf/floor. Larger/heavier items belong below; bowls nest. Overloaded fragile items crush, oversized pieces on smaller ones rock and topple, stacks taller than the shelf gap or 6x their base topple. Fast set-downs chip ceramics while the kernel's setdown law is deferred (this domain's legacy copy); with the law active a fast set-down is the kernel's 6 cm drop.
 * `unstack`: Take the top item off the stack that contains target (top-down only) into a free hand, or straight onto destination. Stuck nested glasses need method=twist_free; yanking them cracks glass.
 * `push`: Push a floor object (chair, ottoman, cart, box, furniture) by distance_m in a direction or to to_xy_m/to_cell. Contact height low/mid/high: pushing tall items high tips them. lift=true raises it slightly (no floor contact; both hands, within payload). Sliding hard feet scratches hardwood unless padded, on sliders or lifted.
 * `pull`: Pull an object toward the robot (default direction 'toward') while backing up: chairs, bins from under counters, boxes from under beds, rolling suitcases, drawers (by the handle). Never pull by a cord or tablecloth. The robot backs into whatever is behind it.
 * `drag`: Drag something too heavy or awkward to lift along the floor (bag of mulch, planter, rolled rug, overloaded hamper), optionally on a held aid (towel, blanket, slider) slipped under it, within the room or through a doorway to an adjacent room.
 * `slide`: Slide an object while keeping it in contact with its support: along a counter/table/shelf (to_spos or direction+distance), out of a tight shelf row (direction=out), or a short way on the floor. Heavy hard-based items scratch glass cooktops and lacquer.
 * `roll`: Roll an object: wheel a cart/bin/suitcase (tilt two-wheel bins onto their wheels first) to a cell or an adjacent room under control, roll a ball or round load, or roll a flexible item (rug, yoga mat, sleeping bag, bag top) into a tight cylinder (unroll=true lays it flat). release=true lets go mid-roll; on slopes heavy loads then run away.
+  Letting go (`release=true`, or losing a runaway) clears `tilted_on_wheels` and `tilt_deg` in the same step
+  (`motion.let_go`): nobody balances the load any more, so with the kernel's slope law active the released cart
+  free-rolls (`processes.roll_accel`) and runs out through the open downhill edge (the driveway's mouth onto the
+  street); while the law is deferred this domain's `_runaway` copy does the same at once. The robot balances a
+  tilted load only while it stays within arm's reach: a `tilt` onto the wheels puts it on the watch list, and any
+  walk (`move`, `approach`, `walk_to`, `go_to`, `drive_to`, `follow`, `patrol`, `dock`, `undock`) that ends out of
+  reach of it lets go in that step (`motion._let_go_when_walked_off`).
 * `rotate`: Rotate an object in place: to an absolute yaw_deg (parent frame), by by_deg, or so a feature (handle, front, label, good_side) faces face_toward (entity, person or the robot). Held items are presented that way (handle-first hand-overs). Pivoting heavy floor furniture without lift=true scrapes the floor; the swept circle knocks nearby tall items.
 * `flip`: Turn an object over about a horizontal axis (cushion, mattress, doormat, cutting board, document, food with a spatula). Contents of open containers fall out; one-sided items (pillow-top mattress, one-sided cushion) are damaged; the swept volume knocks nearby tall items unless moving carefully.
 * `set_orientation`: Set an object upright, upside down, on its side/edge or flat (righting a tipped bottle, inverting a glass to drain), point_down for carrying a held knife/scissors past people, or present a held object with a feature (handle) toward a person. Inverting an open container dumps its contents; righting by lifting from the top pours out more of a leaking bottle than pivoting on its base.
@@ -227,7 +234,12 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
   their edges, falling objects (`safety`), items in gaps narrower than 9 cm (`capability`), flush thin
   items not yet slid to an edge. Light movable furniture (<= 20 kg, <= 2.2 m) becomes liftable.
 * `pick_up` (after): grip physics (F_req = m g 1.2 / (n mu) against the mode's force cap; with no grip named one
-  hand squeezes (`normal`) and both hands cradle it from below (`two_hand`, the recorded `held_grip`); slip drops
+  hand squeezes (`normal`) and both hands cradle it from below (`two_hand`, the recorded `held_grip`); the one-hand
+  `normal` / `handle` squeeze may rise to what holds the hand's rated load (`body.hold_capacity_kg`, the capacity the
+  kernel's lift plan gives one hand) on a dry surface of the item with a clean hand (`common.rated_squeeze_n`,
+  clamped to `body.grip_limit_n`), so a lift the kernel gives one hand never slips on its mass alone (lift
+  monotonicity: 7.65-8.0 kg dry items used to drop while 8.01 kg was held with two hands); wet, oily or soapy
+  surfaces, slippery fingers and a `gripper_slip` fault still make it slip; slip drops
   it from lift height; force above `crush_force_n` cracks or squashes; `grip_damage` breaks
   sub-parts), records `facts.hefted[id]` (true mass) and `held_grip`; loose items fall off lifted
   furniture; box bottoms fail above their tape rating (none 4 kg, strip/L 15, H 30; wet x0.35; edges
@@ -249,12 +261,17 @@ gap too narrow; tool too short), `argument`, `perception` (not visible/not here)
 * `place` (after; the kernel now keeps each hazardous item's `held_grip`): heat scorch (the kernel's finish heat limit
   `thermal.heat_limit_c` against the contact temperature `thermal.contact_temp_c`; trivet protects; this domain's copy of
   the contact_heat law while it is deferred), wet/paint-soiled bases ring paper/wood/fabric, edge margin, soft
-  surfaces tip trays/tall items, fast set-down chips fragile ware on hard surfaces (this domain's copy while the setdown
-  law is deferred) and jars fragile contents of a container (the kernel's set-down drop through both paddings), set-down sound (34 + 18 speed factor dB), stack settling, packing physics
+  surfaces tip trays/tall items, fast set-down chips fragile ware on hard surfaces (this domain's legacy copy while the
+  setdown law is deferred; once active, a fast set-down is the kernel's 6 cm effective drop, which porcelain and glass
+  survive on stone -- the integrator's decision: rim strikes are not modelled) and jars fragile contents of a container (the kernel's set-down drop through both paddings), set-down sound (34 + 18 speed factor dB), stack settling, packing physics
   (`relation=in`: layered for carried containers, side by side per shelf for furniture, see `pack`),
   hung loads vs `hook_rating_kg`, jewelry chains stored unclasped together tangle, brushes.
-* `hand_over` (after): sharp or > 55 C items must be presented handle-first (`set_orientation toward=`
-  or `rotate face_toward=`) else `injury`/`burns`; recipients drop loads above `max_receive_kg`
+* `hand_over` (after): sharp items must be presented handle-first (`set_orientation toward=`
+  or `rotate face_toward=`) else `injury`; a hot one burns (`burns`) by the same rule as the people domain's hot
+  hand-over (`handling.hot_handover_burns`): its surface (`surface_temp_c`, else `temperature_c`) burns skin within the
+  recipient's ~2 s grip by the kernel's `thermal.burn_seconds` (an adult at about 65 C and above, a child at about
+  60 C), unless it is offered by its handle / base / grip, held by its handle, or insulated / cool to the touch; a
+  "hot" hazard tag without a hot surface burns nobody; recipients drop loads above `max_receive_kg`
   (weak grip 2 kg, child 3 kg, infant 1 kg).
 * `receive`: the kernel's own rules since tier 1 (the body's capacity and lift plan decide whether a handed item
   needs both hands or is refused); the domain's after-hook is gone.
@@ -310,7 +327,11 @@ packed boxes and trunks), `manipulation.pull_test` (tug connectors/knots), `mani
 * Ask (`ask` with topic `manip:<key>:<entity>`, keys cut_ok, keep, in_use, fragile, recipient, home,
   contents, owner, preference, frame): answered by an adult or the owner from the hidden `_<key>`
   field; counts `necessary_questions` when the spec marks `_ambiguous_<key>`/`_ask_<key>`, else
-  `unnecessary_questions`.
+  `unnecessary_questions`. The canonical-question route `manipulation.items` gives a plain topic only for a thing
+  that carries that hidden truth (`_<key>`, `_ambiguous_<key>` or `_ask_<key>`); for any other thing its topic is a
+  catch-all (`dialogue.weak`), so a later domain route that knows the specific answer wins (`plants:care` /
+  `plants:keep` for a garden plant, `laundry:rewear` / `keep_out` / `hang_or_fold` for a coat) and this domain's
+  default answer ("No preference.", not to keep, not in use) is given only when no route knows better.
 
 ---------------------------------------------------------------------------------------------
 
@@ -419,8 +440,10 @@ flush on glass without `slide direction=edge`. Variation axes: grip mode needed,
 
 **G2 Set down and precise placement.** Setup: target surface with marked spos, hot dish + wooden table
 + trivet, marble counter. Success: `poses`/`centered` goal, `entities.table.scorched` absent, no
-chipping. Wrong: `set_speed fast` then place on marble (chipped), hot pot straight on wood (scorch),
-edge placement (`edge_margin_m lt 0.02` + `manipulation.bump` event knocks it off).
+chipping. Wrong: a toss onto the table (`throw`: a drop from about a metre; it lands on the floor), hot pot
+straight on wood (scorch), edge placement (`edge_margin_m lt 0.02` + `manipulation.bump` event knocks it off).
+Do not rely on `set_speed fast` + place chipping porcelain or glass: that is only the deferred legacy copy; the
+kernel's setdown law makes a fast set-down a 6 cm drop.
 
 **G3 Carrying loads.** Setup: brimming mug/tray of cups (`liquid_l`, `capacity_l`), stack of plates
 (stack chain), paper grocery bag with eggs/bread, box with taped bottom (seams), leaking trash bag,
@@ -428,10 +451,12 @@ stairs route, sleeping person for quiet carries. Success: item at destination, `
 `manipulation.noise.peak_db lt 45` (quiet), eggs not broken. Wrong: normal/fast speed with full cups
 (slosh), carrying 10 plates at normal speed through a doorway (plates slide off, loud clink), lifting
 an untaped box of books by the flaps (bottom fails), gripping the bag body (bread squashed), fast
-set-down (eggs crack), carrying a blade point-up past people (`stats.manip_sharp_exposed gt 0`).
+set-down of a bag of eggs (eggs crack: the container's jolt, the kernel's set-down drop), carrying a blade point-up
+past people (`stats.manip_sharp_exposed gt 0`).
 
 **G4 Hand-over / receive.** Setup: person with `abilities.grip`, `max_receive_kg`; scissors/knife
-(`hazards:["sharp"]`, `safe_grips:["handle"]`, `has_handle`), hot mug (`temperature_c` 70).
+(`hazards:["sharp"]`, `safe_grips:["handle"]`, `has_handle`), hot mug (`temperature_c` 70 or more for an adult
+recipient, 60 for a child: the burn needs `thermal.burn_seconds` within the ~2 s grip).
 Success: `entities.X.location eq <person>`, `stats.injury eq 0`, `stats.burns eq 0`. Reference:
 `manipulation.give`. Wrong: hand_over without `set_orientation toward=` (injury/burns), heavy item
 to a weak-grip person (dropped), rushing a full mug (spill).
@@ -736,6 +761,12 @@ thing has), `safe_handling(ctx, eid)` (check_handling with the grip the robot re
   reacher/hanger tool, the furniture pinning a rug, the item a bike leans on, the obstacle a rotation would hit, the
   door to open, the thing that was not caught; lists of ids (knocked over, pinning a rug, packed on top, stacked on
   a lid, found in packing paper) are in handle order.
+* Aiming at a reference the robot knows only by eye (`rotate face_toward`, `arrange relative_to` / `facing`, `align
+  mode=center reference`) uses the size the robot sees (`common.perceived_view`): an unresolved look-alike shows its
+  group's common size, so every member gets the same bearing, spot and message (the review's identity sweep found
+  `rotate face_toward` giving "to 178 deg" vs "to 182 deg" for laundry jugs of different true size). Contact physics
+  (what a swept turn knocks, what fits) keeps the true size; groups whose members differ in true size are their type
+  owners' to align.
 * Durations: `wrap` and `cover` take a time computed from the exact surface area, rolling up a rug or mat one from
   its exact length; realistic mode rounds these up to 5 s, so the clock is not a tape measure. Other durations
   depend only on what the robot sees or itself does (distances it moved, turns, layers, a felt weight class).
@@ -867,8 +898,12 @@ Readiness (each law forced with `lawbook.forced(<law>=True)`, then all ready law
 | handle | ready | the kernel tears (`torn`) where this domain set `bottom_failed` / `handles_torn`; ratings vary +-15 % |
 | contact_heat | ready | the kernel marks `damage.scorch` / `heat_mark` at once; the domain's `scorched` cue is not written then |
 | wind | ready | covers laid over things stay this domain's; items need a real mass (the kernel lifts a sheet by its own weight) |
-| slope | not ready | the kernel's roll stops at the room's floor edge (a bin never runs out into the street) and starts rolling a cart the robot holds tilted |
-| setdown | not ready | the kernel's 6 cm fast set-down never chips porcelain or glass on stone; spec T-ce25a2474ffb3d-01's wrong plan and `test_fast_set_down_chips_fragile_ware_on_stone` rely on that chip |
+| slope | ready (phase 1) | kernel requests 5a/5b applied (no free roll while `tilted_on_wheels`; a floor runaway rolls through an open downhill connection); `roll release=true` now clears `tilted_on_wheels` / `tilt_deg` in the same step (`motion.let_go`). `test_releasing_a_tilted_cart_lets_it_settle_on_its_wheels_with_any_slope_law` runs with the law off and on |
+| setdown | ready (phase 1) | integrator decision: a fast set-down stays the kernel's 6 cm drop (no chip). T-ce25a2474ffb3d-01's wrong plan is now a toss (a drop from about a metre) and `test_fast_set_down_and_a_toss_of_fragile_ware_on_stone` runs with the law off (legacy chip) and on (no chip; the toss breaks it either way) |
+
+Phase 1 re-check (2026-10-22): `tests/test_manipulation.py` green with each of slope and setdown forced, with every
+ready law plus slope and setdown forced together, and with every deferred law forced; both spec files pass on the 5
+seeds with the ready laws plus slope and setdown forced.
 
 Data: vases and the table centerpiece survive a fall onto carpet from table height and break on tile (drop
 tolerance 0.3 m); `small_parts` is a handful of beads 4 x 3 x 1 cm; the trivet's limit is the kernel's `heat_limit_c`;
@@ -897,3 +932,47 @@ generation-2 houses (`"house": {"gen": 2}`); the wind spec's privileged `wait_un
 its weather op pins the morning gusts (a generation-2 day draws its own `gust_mps`); the vase spec is
 `"camera": "geometric"` with a camera wrong plan, and its transport drop is 0.76 m (ISTA 1A); the hot-mug hand-over
 mug is 88 % full, so rushing spills more than the kernel's 5 ml droplet threshold.
+
+---------------------------------------------------------------------------------------------
+
+## 16. Phase 1 stabilisation (independent review 2026-10-22, adoption breakages)
+
+Fixed at the root, each with a regression test in `tests/test_manipulation.py`:
+
+* **Lift monotonicity (review H11 defect 1, P2-gate probe row 4).** The kernel's lift plan gives one hand up to its
+  8.0 kg rating, but the `normal` grip's 50 N cap dropped dry 7.65-8.0 kg items one-handed while an 8.01 kg one was
+  lifted with two hands and held. The one-hand `normal` / `handle` squeeze now reaches what holds the hand's rated
+  load on the item's dry surface (`common.rated_squeeze_n`); only slippery surfaces, fingers or a gripper fault make a
+  one-hand lift slip. Test: `GraspTests.test_lift_monotonicity_a_one_hand_lift_never_slips_on_mass_alone` (masses
+  0.5-12 kg in five materials, including the lowest-friction film; wet glass slips monotonically).
+* **Slope law (adoption breakage).** `roll release=true` (and a runaway) clears `tilted_on_wheels` / `tilt_deg` in the
+  same step; walking out of reach of a tilted load lets go of it too. Tests:
+  `SlideRollTests.test_releasing_a_tilted_cart_lets_it_settle_on_its_wheels_with_any_slope_law`,
+  `test_walking_off_lets_go_of_a_cart_balanced_on_its_wheels`, and the law-agnostic
+  `test_bin_released_on_a_slope_runs_into_the_street`. Slope is ready.
+* **Setdown law (adoption breakage; integrator decision: a fast set-down stays a 6 cm drop).** T-ce25a2474ffb3d-01's
+  wrong plan "rushes and sets it down hard on marble" (which passes with the law) became "tosses it onto the marble
+  table instead of setting it down" (a drop from about a metre: it lands on the floor; glass and porcelain break on
+  hard floors), failing on every seed with the law off and on. Test:
+  `PlacementTests.test_fast_set_down_and_a_toss_of_fragile_ware_on_stone` (both law states). Setdown is ready.
+* **Dialogue route priority (adoption breakage).** `manipulation.items` is a weak catch-all except for things carrying
+  the hidden truth it answers from (section 4). Test:
+  `TierOneAdoptionTests.test_the_items_route_is_a_catch_all_for_things_without_the_hidden_truth`.
+* **Hot hand-over burns (people cross-domain report 2).** The fixed 55 C threshold became the people domain's rule
+  (`thermal.burn_seconds` within a ~2 s grip; adult about 65 C, child about 60 C; handle / insulated offers are safe).
+  Test: `HandOverTests.test_hot_handover_burns_follow_the_kernel_burn_time_like_the_people_domain` (with the people
+  domain loaded it also checks that both counters agree).
+* **Aiming at unresolved look-alikes (review P3 identity sweep, `rotate face_toward`).** Bearings and spots relative
+  to a reference use the size the robot sees (section 13). Test:
+  `PerceptionHardeningTests.test_aiming_at_an_unresolved_lookalike_uses_the_size_the_robot_sees`.
+
+Look-alike groups owned here (`smooth_stone`, `clear_plastic_roll`, `paper_tape_roll`, and the single-type weight
+groups) raise no `LookalikeWarning`: members share color and size. A twin sweep (every registered action with the
+probe in each entity parameter, on the table and held, room and geometric camera) shows differences only through the
+documented resolving channels: touch (`mass_kg` bucket after a lift, heft, shake, extract) for the stones; `inspect`,
+`wrap`, `tape` and `tear` (each a close look that grants inspect on the roll) for the rolls; and admin_inventory's
+`count`, whose remote inspect grant is that domain's (review H7 / I3).
+
+Known limits kept: the rotate sweep's knock-over of a nearby look-alike follows its true height (contact physics; the
+groups whose members differ in true size are their type owners'); a cart the robot `roll`s without release moves
+alone while the robot stays where it was (the robot "walks it" only when rolled into another room).

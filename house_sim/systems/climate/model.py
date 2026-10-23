@@ -30,6 +30,7 @@ import math
 from ...kernel import geometry, physics
 from ...kernel.plugins import SYSTEMS, system
 from . import airclean, comfort, fans, heaters, hvac, moisture
+from . import attribution as A
 from . import common as C
 from . import sun as S
 
@@ -412,8 +413,9 @@ def _ducted(w, dt, sc, sid, info, out, tcalls):
         changes["strain_s"] = round(C.num(rec.get("strain_s")) + dt, 1)
         if changes["strain_s"] >= 1200.0 and not frozen:
             changes["fault"] = "coil_frozen"
-            w.stat("damage")
-            C.log(w, "coil_frozen", target=sid, airflow_ratio=round(ratio, 2))
+            robot = A.robot_hvac(w, sid)
+            C.charge(w, "damage", robot)
+            C.log(w, "coil_frozen", target=sid, airflow_ratio=round(ratio, 2), by=C.by_word(robot))
     elif info["blower"] and stage == "heat" and rec.get("system_kind") == "furnace_ac" and ratio < 0.6:
         heat_w *= 0.5
         info["gas_w"] *= 0.5
@@ -424,18 +426,18 @@ def _ducted(w, dt, sc, sid, info, out, tcalls):
             C.log(w, "high_limit_trip", target=sid, trips=trips)
             if trips >= 5 and not rec.get("heat_exchanger_stressed"):
                 changes["heat_exchanger_stressed"] = True
-                w.stat("damage")
+                C.charge(w, "damage", A.robot_hvac(w, sid))
     if closed_frac > 0.3 and info["blower"]:
-        C.hazard(w, "static_pressure_s", dt)
+        C.hazard(w, "static_pressure_s", dt, robot=A.robot_hvac(w, sid))
     if info["blower"]:
         if missing:
-            C.hazard(w, "hvac_no_filter_s", dt)
+            C.hazard(w, "hvac_no_filter_s", dt, robot=A.robot_hvac(w, sid))
             changes["duct_dust"] = round(min(1.0, C.num(rec.get("duct_dust")) + dt / 36000.0), 4)
         elif bypass:
             C.hazard(w, "hvac_filter_bypass_s", dt)
             changes["duct_dust"] = round(min(1.0, C.num(rec.get("duct_dust")) + dt / 180000.0), 4)
         elif wrapped:
-            C.hazard(w, "hvac_filter_wrapped_s", dt)
+            C.hazard(w, "hvac_filter_wrapped_s", dt, robot=A.robot_hvac(w, sid))
     if any(rec.get(k) != v for k, v in changes.items()):
         w.mut(sid).update(changes)
     total_w = sum(v[0] for v in weights.values())
@@ -472,7 +474,7 @@ def _ducted(w, dt, sc, sid, info, out, tcalls):
                 # return air drawn from this room is replaced by air from the rest of the house
                 out["room_flow"][rid] = out["room_flow"].get(rid, 0.0) + 0.5 * flow_total / len(open_returns)
         if returns and not open_returns:
-            C.hazard(w, "returns_blocked_s", dt)
+            C.hazard(w, "returns_blocked_s", dt, robot=A.robot_hvac(w, sid))
         if fid and fid in state["entities"] and not state["entities"][fid].get("shrink_wrapped"):
             pm = sum(C.num((state["rooms"].get(rid) or {}).get("pm25"), 8.0) for rid in out["room_flow"]) / max(1, len(out["room_flow"]))
             rate = dt / (90 * 86400.0) * (pm + 10.0) / 25.0 * ratio
@@ -1045,15 +1047,18 @@ def _effects_step(w, dt, sc, az, alt):
                     C.tracker(w, "open_in_rain_s:" + wid, dt)
                     C.tracker(w, "open_in_rain_s", dt)
                     if changes["rain_in_l"] >= RAIN_PUDDLE_L and C.num(wrec.get("rain_in_l")) < RAIN_PUDDLE_L:
-                        # the sill catches the first splashes; past ~0.25 L water runs onto the floor (a puddle)
+                        # the sill catches the first splashes; past ~0.25 L water runs onto the floor (a puddle): the
+                        # robot's spill when it opened the window (attribution), else the household's
+                        robot = C.robot_enabled(w, wid)
                         moisture._wet_cell(w, rid, wrec.get("pos"))
-                        w.stat("spills")
-                        C.log(w, "rain_ingress", window=wid)
+                        C.charge(w, "spills", robot)
+                        C.log(w, "rain_ingress", window=wid, by=C.by_word(robot))
                         C.visual(w, "water_on_floor", wid, room=rid, at=list(wrec.get("pos") or [0, 0]), z=0.02, size_m=0.4)
                     if changes["rain_in_l"] >= 0.5 and not wrec.get("water_damage") and room.get("floor_material") in ("carpet", "hardwood", "laminate", None):
                         changes["water_damage"] = True
-                        w.stat("damage")
-                        C.log(w, "rain_damage", window=wid, liters=round(changes["rain_in_l"], 2))
+                        robot = C.robot_enabled(w, wid)
+                        C.charge(w, "damage", robot)
+                        C.log(w, "rain_damage", window=wid, liters=round(changes["rain_in_l"], 2), by=C.by_word(robot))
                 screened = C.window_screened(wrec)
                 if not screened and area >= 0.03:
                     for pid in C.pets_in(state, rid):
@@ -1061,12 +1066,12 @@ def _effects_step(w, dt, sc, az, alt):
                         # a pet shut in a closed cage / crate / carrier cannot reach the window
                         if pet.get("species") in ("cat", "dog", "bird", "rabbit") and not pet.get("away") and \
                                 not C.pet_confined(state, pet):
-                            secs = C.hazard(w, "pet_at_open_window_s:" + pid, dt)
+                            secs = C.hazard(w, "pet_at_open_window_s:" + pid, dt, robot=C.robot_enabled(w, wid))
                             if secs >= 60.0 and not _pets_domain():
                                 _pet_escape(w, pid, rid, wid)
                 height = area / max(0.1, C.num((wrec.get("size_m") or [1.0])[0], 1.0))
                 if child and C.num(room.get("floor"), 0) >= 1 and height > 0.1:
-                    C.hazard(w, "child_window_fall_risk_s", dt, stat="safety_violations")
+                    C.hazard(w, "child_window_fall_risk_s", dt, stat="safety_violations", robot=C.robot_enabled(w, wid))
             if changes:
                 w.mut(wid).update(changes)
     if any_open_conditioned and cooling_or_heating:
@@ -1077,17 +1082,18 @@ def _effects_step(w, dt, sc, az, alt):
             continue
         t = C.num(room.get("temperature_c"), 21.0)
         if t < 3.0 and (room.get("type") in C.PLUMBED_ROOMS or room.get("plumbing")):
-            secs = C.hazard(w, "pipe_freeze_s:" + rid, dt)
+            robot = A.robot_room(w, rid, "cold")
+            secs = C.hazard(w, "pipe_freeze_s:" + rid, dt, robot=robot)
             if secs >= 7200.0 and not room.get("pipe_burst"):
                 w.room_m(rid)["pipe_burst"] = True
-                w.stat("damage")
-                w.stat("flood")
-                C.log(w, "pipe_burst", room=rid)
+                C.charge(w, "damage", robot)
+                C.charge(w, "flood", robot)
+                C.log(w, "pipe_burst", room=rid, by=C.by_word(robot))
                 C.notice(w, "pipe_burst", room=rid)
         if t > 27.0:
             for pid in C.pets_in(state, rid):
                 if t > C.PET_HEAT_C.get(state["pets"][pid].get("species", "dog"), C.PET_HEAT_DEFAULT_C):
-                    C.hazard(w, "pet_heat_s:" + pid, dt)
+                    C.hazard(w, "pet_heat_s:" + pid, dt, robot=A.robot_room(w, rid, "heat"))
         watched = (C.section(state).get("watch_rooms") or [])
         if rid in watched:
             tr = C.sec(w)["trackers"]
@@ -1132,8 +1138,9 @@ def _pet_escape(w, pid, rid, wid):
         m["location"] = outdoor[0]
         m["pos"] = None
         m["pos"] = geometry.free_floor_cell(state, outdoor[0], clearance=False, reachable=False) or [0, 0]
-    w.stat("pet_escape")
-    C.log(w, "pet_escaped", pet=pid, window=wid)
+    robot = C.robot_enabled(w, wid)       # the robot opened the window or pushed its screen out (attribution)
+    C.charge(w, "pet_escape", robot)
+    C.log(w, "pet_escaped", pet=pid, window=wid, by=C.by_word(robot))
     C.visual(w, "pet_escaped", wid)
 
 

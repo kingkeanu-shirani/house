@@ -201,6 +201,14 @@
        "target": "{item}"
       },
       {
+       "do": "read",
+       "target": "{item}"
+      },
+      {
+       "skill": "people.approach",
+       "target": "{owner}"
+      },
+      {
        "do": "report",
        "target": "{item}",
        "field": "owner",
@@ -327,11 +335,11 @@
      "+wrong": []
     }
    ],
-   "instruction": "Whose is this? Please tell me who it belongs to.",
+   "instruction": "Whose is {item_desc}? Please tell me who it belongs to.",
    "phrasings": [
-    "Whose is this? Please tell me who it belongs to.",
-    "Can you figure out who owns {item}?",
-    "Find out whose this is and report the owner."
+    "Whose is {item_desc}? Please tell me who it belongs to.",
+    "Can you figure out who owns {item_desc}?",
+    "Find out who {item_desc} belongs to and report the owner."
    ],
    "success": [
     {

@@ -23,7 +23,8 @@ thermometer, a cake tester, a fork, by pressing, by eye, or with a water drop on
 import json
 import math
 
-from ...kernel.actions import action
+from ...kernel import geometry
+from ...kernel.actions import action, require_access
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after
 from . import common as C
@@ -638,6 +639,11 @@ def check_doneness(ctx):
         ok, reason, _via = ctx.inspect_check(target)
         if not ok:
             raise ActionError(reason or "Too far to judge it by eye: get closer", "perception")
+    elif method == "visual":
+        # room camera: the look shows inspect-tier cues (cook_state), so it needs what core inspect needs for a small
+        # thing -- arm's reach (a crouch or a stretch is fine) -- never a judgement from across the room
+        problem = geometry.reach_problem(ctx.w.s, target)
+        require_access(not (problem and "Approach" in problem), problem or "", "precondition")
     # kernel access refusals (visibility, reach, permission) above pass unchanged; this domain's own reasons below
     # are generic for an unidentified (look-alike or unfamiliar) target, so they cannot name what it is
     with P.plain_refusals(ctx, target):

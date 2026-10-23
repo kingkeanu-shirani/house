@@ -102,8 +102,8 @@ def struck(w, eid, info, event, hurt):
             continue
         B.add_condition(w, pid, {"kind": "struck", "since_s": C.now(state), "onset_s": C.now(state), "signs": ["yelping", "limping"],
                                  "severity": "moderate", "urgency": "moderate", "cause": label})
-        counted = info.get("by") == "robot" and not _safety_judges(event)
-        C.harm(w, "struck", stat="injury" if counted else None, pet=pid, item=eid, by=info.get("by"))
+        # the injury flag is the safety domain's when it hooks the event; the attribution is the kernel's (info["by"])
+        C.harm(w, "struck", stat=None if _safety_judges(event) else "injury", robot=info.get("by") == "robot", pet=pid, item=eid)
 
 
 @hook("phys.fell")

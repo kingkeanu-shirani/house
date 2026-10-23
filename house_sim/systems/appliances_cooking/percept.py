@@ -190,6 +190,20 @@ def readable(ctx, eid=None, field="display"):
     return bool(lit and w.robot.get("camera_clean", 1.0) >= 0.4)
 
 
+def dial_legible(ctx, eid, field="display"):
+    """The face of a small instrument read in passing -- a dial thermometer inside the oven or fridge the robot is
+    inspecting -- needs what core `read` needs for that small thing itself: geometric camera, the camera's reading rule
+    for it (readable); room camera, the room rule plus arm's reach in realistic mode (core read refuses a small thing
+    out of reach, and the kernel's grant gate would refuse the inspect knowledge the reading gives). Oracle mode keeps
+    the room rule alone."""
+    if not readable(ctx, eid, field):
+        return False
+    if getattr(ctx, "camera_mode", "room") == "geometric" or not getattr(ctx, "realistic", False):
+        return True
+    problem = geometry.reach_problem(ctx.w.s, eid)
+    return problem is None or "Crouch" in problem
+
+
 def liquid_estimate(ctx, eid, litres):
     """A look at the water window / into a pot: the kernel's inspect-level liquid estimate (about +-8 % of capacity,
     to 0.1 L)."""

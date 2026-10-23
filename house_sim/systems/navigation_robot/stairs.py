@@ -9,7 +9,9 @@ A stair crossing (core move through a connection of kind "stairs") is safe only 
   unless the robot descends at a careful pace; on stairs narrower than 0.9 m there is no room
   to step around them;
 * the pace suits the stair: fast is a fall without rail support or when descending; winders
-  (narrow inner ends) need a careful descent; steep stairs (rise/run > 0.8) need the rail;
+  (narrow inner ends) are descended at a walking pace only on the walk line, with a hand on the
+  rail and the treads in light (else, or fast, a heel comes off a narrow end; a careful descent is
+  always fine); steep stairs (rise/run > 0.8) need the rail;
 * wet or polished treads offer enough friction (the rail adds about 0.12 of effective grip);
 * a loose rail (hidden until inspected) is not loaded: unknowingly loading it tears it from the
   wall; once inspected the robot only lets its hand slide along it (no support).
@@ -125,7 +127,10 @@ def plan(w, cid, a, b, speed, realistic=False):
         causes.append("the load carried in front pitched it forward going down")
     if not up and blocked and speed != "careful":
         causes.append("the load hid the treads while descending")
-    if int(conn.get("winders", 0) or 0) and not up and speed != "careful":
+    if int(conn.get("winders", 0) or 0) and not up and (speed == "fast" or (speed != "careful" and not (support and lit))):
+        # at a walking pace the robot keeps to the walk line, where winder treads are as deep as straight ones, while a
+        # hand on the rail and the treads in light guide its feet; without either (or hurrying) a heel lands on a narrow
+        # inner end. A careful descent places every foot deliberately.
         causes.append("heel came off a winder tread's narrow end")
     if steep and not support and (not up or mass > 0):
         causes.append("steep stair (rise {:.2f} / run {:.2f}) without the rail".format(rise, run))

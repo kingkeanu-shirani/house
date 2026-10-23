@@ -25,6 +25,7 @@ from . import common as C
 from . import power as P
 
 INGRESS_L = 0.02        # litres reaching a device before liquid gets inside (a mouthful from a tipped cup; drops do not)
+WET_BY_ROBOT = C.WET_BY_ROBOT
 DRY = C.DRY_WETNESS     # wetness at or below which a water-logged device works again
 SCREEN_CATEGORIES = ("tv", "monitor", "phone", "tablet", "computer", "watch", "smartwatch")
 GEAR_CATEGORIES = ("outlet", "breaker", "breaker_panel", "switch", "light", "light_bulb", "detector", "charger", "tv",
@@ -80,7 +81,14 @@ monitor_props.applies = lambda record: record.get("type") == "computer_monitor" 
 def _liquid_ingress(w, eid, liters, liquid, source):
     state = w.s
     rec = state["entities"].get(eid)
-    if rec is None or not electrical_gear(rec) or splash_proof(rec) or C.num(liters) < INGRESS_L or rec.get("broken"):
+    if rec is None or not electrical_gear(rec):
+        return
+    if not rec.get(WET_BY_ROBOT) and (C.robot_acting(w) or C.robot_acted_on(w, [source])):
+        # the robot wetted it (its action spilled, poured or wiped, or it arranged the source): a ground fault this
+        # water causes later (power.shock_check in a time step, a GFCI breaker cutting the circuit) is the robot's
+        # (common.robot_acted_on reads the marker; sync_dry_devices clears it once the gear is dry)
+        w.mut(eid)[WET_BY_ROBOT] = True
+    if splash_proof(rec) or C.num(liters) < INGRESS_L or rec.get("broken"):
         return
     from ...kernel.phys import impact
     live = energized(state, eid, rec)
@@ -103,8 +111,10 @@ def _liquid_ingress(w, eid, liters, liquid, source):
             else:
                 P.trip_gfci(w, protector, "ground_fault")
         else:
-            w.stat("electrical_hazard")
-            C.harm(w, "electrical.shock_risk:" + eid, cause="liquid_ingress")
+            # the robot's when its action spilled it, or it arranged the source or acted on the device or its supply;
+            # rain or a resident's spill on gear the robot never touched is exogenous (common.consequence)
+            C.consequence(w, "electrical.shock_risk:" + eid, P.causal_ids(state, eid) | {source},
+                          stat="electrical_hazard", cause="liquid_ingress")
     else:
         impact.break_entity(w, eid, "short_circuit")
     C.refresh(w)
@@ -134,11 +144,16 @@ def _device_broken(w, eid, info):
 
 @C.refresher(5)
 def sync_dry_devices(w):
-    """A water-logged device works again once it is dry (cleaning's drying, a towel): clear water_ingress."""
+    """A water-logged device works again once it is dry (cleaning's drying, a towel): clear water_ingress, and the
+    robot-wetting marker of any dry gear."""
     state = w.s
     for eid in C.ids(w, "water_logged", lambda r: bool(r.get("plug_required") or r.get("battery_powered")
                                                          or r.get("rechargeable") or "power_state" in r
                                                          or r.get("category") in GEAR_CATEGORIES)):
         rec = state["entities"].get(eid)
-        if rec is not None and rec.get("water_ingress") and C.num(rec.get("wetness"), 0.0) <= DRY:
+        if rec is None or C.num(rec.get("wetness"), 0.0) > DRY:
+            continue
+        if rec.get("water_ingress"):
             w.mut(eid)["water_ingress"] = False
+        if rec.get(WET_BY_ROBOT):
+            w.mut(eid).pop(WET_BY_ROBOT, None)

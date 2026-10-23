@@ -12,7 +12,7 @@ import unittest
 
 from house_sim.generator import generate_house
 from house_sim.kernel.engine import HouseEnv
-from house_sim.kernel.plugins import ACTIONS, FURNISHERS, SCENARIO_HELPERS, SKILLS, load_domains
+from house_sim.kernel.plugins import ACTIONS, FURNISHERS, INVARIANTS, SCENARIO_HELPERS, SKILLS, load_domains
 from house_sim.kernel.predicates import digest
 from house_sim.kernel.realism import DARK_WHO
 from house_sim.kernel.registry import default_registry
@@ -162,6 +162,11 @@ def stat(env, name):
 
 def hazards(env):
     return (env.world.s.get("climate") or {}).get("hazards") or {}
+
+
+def exogenous(env, name):
+    """How many times an exogenous harm `name` happened (counted in climate.exogenous, not in the global flags)."""
+    return ((env.world.s.get("climate") or {}).get("exogenous") or {}).get(name, 0)
 
 
 def failures(env):
@@ -414,11 +419,24 @@ class VentAndFilterTests(unittest.TestCase):
         h2 = self.hot_house()
         for r in ("reg_l1", "reg_l2", "reg_bed", "reg_k"):
             h2.c["entities"][r]["settings"]["damper"] = 0.0
+        # the household's dampers and cooling: the coil freezes and the pressure stays high, but neither is the robot's
+        # doing (review C8 / M9 attribution): no damage flag, no invariant, the exposure still on record
         env2 = h2.env()
         wait(env2, 2 * 3600)
         self.assertEqual(ent(env2, "hvac")["fault"], "coil_frozen")
-        self.assertGreater(stat(env2, "damage"), 0)
-        self.assertIn("climate.hvac_static_pressure", failures(env2))
+        self.assertEqual(stat(env2, "damage"), 0)
+        self.assertEqual(exogenous(env2, "damage"), 1)
+        self.assertGreater(hazards(env2).get("static_pressure_s", 0), 900)
+        self.assertNotIn("climate.hvac_static_pressure", failures(env2))
+        # the robot sets the cooling itself with those registers shut: the frozen coil and the pressure are its harms
+        env3 = h2.env()
+        go_to(self, env3, "hall")
+        near(self, env3, "thermostat")
+        ok(self, env3.step("set", "thermostat", setting="cool_setpoint", value=24.0))
+        wait(env3, 2 * 3600)
+        self.assertEqual(ent(env3, "hvac")["fault"], "coil_frozen")
+        self.assertGreater(stat(env3, "damage"), 0)
+        self.assertIn("climate.hvac_static_pressure", failures(env3))
 
     def test_rug_over_register_blocks_it_and_lifting_uncovers(self):
         h = self.hot_house()
@@ -525,7 +543,9 @@ class VentAndFilterTests(unittest.TestCase):
         env = h.env()
         wait(env, 1800)
         self.assertLess(ent(env, "hvac")["airflow_ratio"], 0.2)
-        self.assertIn("climate.hvac_without_working_filter", failures(env))
+        # the household installed the wrapped filter: harmful, on record, not the robot's (attribution)
+        self.assertGreater(hazards(env).get("hvac_filter_wrapped_s", 0), 60)
+        self.assertNotIn("climate.hvac_without_working_filter", failures(env))
         h2 = self.filter_house()
         h2.c["entities"]["hvac"]["slots"]["filter"]["item"] = None
         del h2.c["entities"]["hvac_filter_old"]
@@ -535,7 +555,24 @@ class VentAndFilterTests(unittest.TestCase):
         env2 = h2.env()
         wait(env2, 1800)
         self.assertGreater(ent(env2, "hvac")["duct_dust"], 0.0)
-        self.assertIn("climate.hvac_without_working_filter", failures(env2))
+        self.assertGreater(hazards(env2).get("hvac_no_filter_s", 0), 120)
+        self.assertNotIn("climate.hvac_without_working_filter", failures(env2))
+        # the robot pulls the old filter and runs the system without one: its harm
+        h3 = self.filter_house()
+        for rid in h3.c["rooms"]:
+            if not h3.c["rooms"][rid].get("outdoor"):
+                h3.c["rooms"][rid]["temperature_c"] = 17.0
+        env3 = h3.env()
+        go_to(self, env3, "closet")
+        near(self, env3, "hvac")
+        ok(self, env3.step("switch_off", "hvac"))
+        ok(self, env3.step("open_cover", "hvac"))
+        ok(self, env3.step("uninstall", "hvac", slot="filter"))
+        ok(self, env3.step("place", "hvac_filter_old"))
+        ok(self, env3.step("close_cover", "hvac"))
+        ok(self, env3.step("switch_on", "hvac"))
+        wait(env3, 1800)
+        self.assertIn("climate.hvac_without_working_filter", failures(env3))
 
     def test_undersized_filter_bypasses_and_dirty_filter_sheds_dust_off_the_bag(self):
         env = self.filter_house().env()
@@ -639,7 +676,10 @@ class PurifierTests(unittest.TestCase):
         ok(self, env.step("install", "new_carbon", destination="purifier", slot="layer_2"))
         self.assertTrue(ent(env, "purifier")["layer_order_ok"])
 
-    def test_discarding_the_washable_prefilter_is_refused(self):
+    def test_discarding_the_washable_prefilter_is_a_loss_not_a_refusal(self):
+        # the washable pre-filter goes in the bin like any panel of its look-alike group (a refusal would name it before
+        # its bag is read: review M1 / I8); throwing it out is the loss of a kept thing (keep: admin_inventory's
+        # discarded_protected invariant when that domain is loaded)
         env = self.house(layered=True).env()
         go_to(self, env, "bedroom")
         near(self, env, "purifier")
@@ -651,7 +691,11 @@ class PurifierTests(unittest.TestCase):
         m["location"], m["pos"] = "bedroom", [6, 1]
         env.world.commit()
         near(self, env, "trash")
-        no(self, env.step("place", "old_prefilter", destination="trash"), category="safety")
+        self.assertTrue(ent(env, "old_prefilter").get("keep"))
+        ok(self, env.step("place", "old_prefilter", destination="trash"))
+        self.assertEqual(ent(env, "old_prefilter")["location"], "trash")
+        if any(name.startswith("admin_inventory") for name in INVARIANTS):
+            self.assertIn("discarded_protected:old_prefilter", failures(env))
 
 
 class HumidityTests(unittest.TestCase):
@@ -683,11 +727,19 @@ class HumidityTests(unittest.TestCase):
         self.assertLess(ent(env, "tank")["liquid_l"], 3.8)
         self.assertEqual(failures(env), [])
         self.assertFalse(ent(env, "nightstand").get("mineral_dust"))
-        # the same unit straight on the wooden nightstand leaves water marks
+        # the same unit straight on the wooden nightstand leaves water marks: the household's running unit is not the
+        # robot's harm, one the robot switches on is
         env2 = self.house(tank_l=3.8, water="distilled_water", on=True, tray=False).env()
         wait(env2, 3 * 3600)
         self.assertTrue(ent(env2, "nightstand").get("water_marked"))
-        self.assertIn("damage", failures(env2))
+        self.assertNotIn("damage", failures(env2))
+        env3 = self.house(tank_l=3.8, water="distilled_water", on=False, tray=False).env()
+        go_to(self, env3, "bedroom")
+        near(self, env3, "hum")
+        ok(self, env3.step("switch_on", "hum"))
+        wait(env3, 3 * 3600)
+        self.assertTrue(ent(env3, "nightstand").get("water_marked"))
+        self.assertIn("damage", failures(env3))
 
     def test_running_in_humid_room_over_humidifies_and_fogs_window(self):
         h = self.house(rh=0.60, tank_l=3.8, water="distilled_water", on=True, outdoor_c=-5.0)
@@ -695,7 +747,15 @@ class HumidityTests(unittest.TestCase):
         env = h.env()
         wait(env, 2 * 3600)
         self.assertGreater(ent(env, "win_bed").get("condensation", 0), 0.3)
-        self.assertIn("climate.over_humidified", failures(env))
+        self.assertGreater(hazards(env).get("over_humidified_s", 0), 600)
+        self.assertNotIn("climate.over_humidified", failures(env))      # the household's unit (attribution)
+        h.c["entities"]["hum"]["on"] = False
+        env1 = h.env()
+        go_to(self, env1, "bedroom")
+        near(self, env1, "hum")
+        ok(self, env1.step("switch_on", "hum"))
+        wait(env1, 2 * 3600)
+        self.assertIn("climate.over_humidified", failures(env1))
         h2 = self.house(rh=0.60, tank_l=3.8, water="distilled_water", on=False, outdoor_c=-5.0)
         env2 = h2.env()
         wait(env2, 2 * 3600)
@@ -719,11 +779,22 @@ class HumidityTests(unittest.TestCase):
         self.assertLess(CC.num((ent(env2, "tank").get("contamination") or {}).get("bacteria")), 0.01)
 
     def test_stale_water_contaminated_mist_and_refill_procedure(self):
+        # the household's unit misting stale water: the exposure is on record, not the robot's harm (attribution)
         env = self.house(tank_l=1.0, age=168.0, bacteria=0.9, on=True).env()
+        env.step("wait", seconds=720)
+        self.assertGreater(hazards(env).get("contaminated_mist_s", 0), 300)
+        self.assertNotIn("climate.contaminated_mist", failures(env))
+        self.assertEqual((stat(env, "safety_violations"), exogenous(env, "safety_violations")), (0, 1))
+        # the robot switches it on without looking at the water: its harm
+        env = self.house(tank_l=1.0, age=168.0, bacteria=0.9, on=False).env()
+        go_to(self, env, "bedroom")
+        near(self, env, "hum")
+        ok(self, env.step("switch_on", "hum"))
         env.step("wait", seconds=120)
         self.assertNotIn("climate.contaminated_mist", failures(env))   # a few minutes of exposure are needed
         env.step("wait", seconds=600)
         self.assertIn("climate.contaminated_mist", failures(env))
+        self.assertGreater(stat(env, "safety_violations"), 0)
         h = self.house(tank_l=1.0, age=168.0, bacteria=0.9, on=False)
         env = h.env()
         go_to(self, env, "bedroom")
@@ -818,10 +889,19 @@ class DehumidifierTests(unittest.TestCase):
         self.assertEqual(ent(env, "bucket")["liquid_l"] < 0.1, True)
 
     def test_hose_on_floor_floods_hose_in_drain_does_not(self):
+        # the household's unit running with its hose on the floor: water on the floor, not the robot's spill
         env = self.house(drain="hose", hose_in_drain=False).env()
         wait(env, 3 * 3600)
-        self.assertGreater(stat(env, "spills"), 0)
+        self.assertEqual(stat(env, "spills"), 0)
+        self.assertEqual(exogenous(env, "spills"), 1)
         self.assertTrue(room(env, "basement").get("wet_cells"))
+        # the robot switches it on with the hose lying there: its spill
+        env1 = self.house(drain="hose", hose_in_drain=False, on=False).env()
+        go_to(self, env1, "basement")
+        near(self, env1, "dehu")
+        ok(self, env1.step("switch_on", "dehu"))
+        wait(env1, 3 * 3600)
+        self.assertGreater(stat(env1, "spills"), 0)
         env2 = self.house(drain="hose", hose_in_drain=True).env()
         wait(env2, 3 * 3600)
         self.assertEqual(stat(env2, "spills"), 0)
@@ -943,7 +1023,18 @@ class FanTests(unittest.TestCase):
         env.step("wait", seconds=120)
         self.assertEqual(ent(env, "letter")["location"], "living")
         self.assertTrue(ent(env, "candle").get("guttering"))
-        self.assertIn("climate.fan_on_open_flame", failures(env))
+        # the household's fan was already on high: not the robot's doing (attribution)
+        self.assertNotIn("climate.fan_on_open_flame", failures(env))
+        self.assertEqual(exogenous(env, "safety_violations"), 1)
+        # the robot turns it up with its remote next to the lit candle: its harm
+        h.c["entities"]["fan"]["settings"]["speed"] = "off"
+        env1 = h.env()
+        near(self, env1, "remote")
+        ok(self, env1.step("pick_up", "remote"))
+        ok(self, env1.step("set", "fan", setting="speed", value="high"))
+        env1.step("wait", seconds=120)
+        self.assertTrue(ent(env1, "candle").get("guttering"))
+        self.assertIn("climate.fan_on_open_flame", failures(env1))
 
     def test_portable_fan_aim_cord_and_stability(self):
         h = House(outdoor_c=28.0, system=None)
@@ -1093,13 +1184,24 @@ class VentilationAndWeatherTests(unittest.TestCase):
         h = self.house(condition="rain", wind=6.0, wind_from=0.0)
         h.c["weather"]["rain_mm_h"] = 8.0
         h.c["entities"]["win_n"].update(open=True, locked=False)
+        # the household left it open: the floor still gets wet and marked, but that is not the robot's harm (review C8)
         env = h.env()
         wait(env, 1800)
         self.assertGreater(ent(env, "win_n")["rain_in_l"], 0.5)
         self.assertTrue(ent(env, "win_n").get("water_damage"))
-        self.assertIn("damage", failures(env))
-        self.assertIn("spills", failures(env))
         self.assertTrue(room(env, "living").get("wet_cells"))
+        self.assertNotIn("damage", failures(env))
+        self.assertNotIn("spills", failures(env))
+        self.assertEqual((exogenous(env, "damage"), exogenous(env, "spills")), (1, 1))
+        # the robot opens it in the rain: the same water is its spill and damage
+        h3 = self.house(condition="rain", wind=6.0, wind_from=0.0)
+        h3.c["weather"]["rain_mm_h"] = 8.0
+        env3 = h3.env()
+        self.open_windows(env3, "win_n")
+        wait(env3, 1800)
+        self.assertTrue(ent(env3, "win_n").get("water_damage"))
+        self.assertIn("damage", failures(env3))
+        self.assertIn("spills", failures(env3))
         h2 = self.house(condition="rain", wind=6.0, wind_from=0.0)
         h2.c["weather"]["rain_mm_h"] = 8.0
         h2.c["entities"]["win_n"].update(open=True, locked=False)
@@ -1184,7 +1286,21 @@ class VentilationAndWeatherTests(unittest.TestCase):
         env2 = h2.env()
         wait(env2, 6 * 3600)
         self.assertLess(room(env2, "kitchen")["temperature_c"], 3.0)
-        self.assertIn("climate.pipe_freeze", failures(env2))
+        # an unheated house freezing on its own: the pipe bursts, but not by the robot's doing (attribution)
+        self.assertGreater(hazards(env2).get("pipe_freeze_s:kitchen", 0), 3600)
+        self.assertTrue(room(env2, "kitchen").get("pipe_burst"))
+        self.assertNotIn("climate.pipe_freeze", failures(env2))
+        self.assertNotIn("flood", failures(env2))
+        self.assertGreater(exogenous(env2, "flood"), 0)
+        # the robot opens the kitchen window in the frost: the frozen pipe is its harm
+        env3 = h2.env()
+        go_to(self, env3, "kitchen")
+        near(self, env3, "win_k")
+        ok(self, env3.step("unlock", "win_k"))
+        ok(self, env3.step("open", "win_k"))
+        wait(env3, 6 * 3600)
+        self.assertIn("climate.pipe_freeze", failures(env3))
+        self.assertIn("flood", failures(env3))
 
 
 class SunShadeTests(unittest.TestCase):
@@ -1636,9 +1752,26 @@ class CrossDomainRoundTests(unittest.TestCase):
         self.assertGreaterEqual(hz.get("person_heat_stress_s:elder_1", 0), 1800)    # elderly: 31 C exposure threshold
         self.assertNotIn("person_heat_stress_s:resident_1", hz)                     # healthy adult: 32 C
         self.assertNotIn("pet_heat_s:dog_1", hz)                                    # dogs: 32 C
-        self.assertIn("climate.person_heat_stress", failures(env))
+        # a heat wave in a house without cooling is not the robot's doing (attribution: it changed nothing here)
+        self.assertNotIn("climate.person_heat_stress", failures(env))
+        # the robot opens the living-room window to the heat and leaves it open: the exposure there is its harm (only
+        # unlocking it changes nothing)
+        env0 = h.env()
+        near(self, env0, "win_n")
+        ok(self, env0.step("unlock", "win_n"))
+        wait(env0, 2400)
+        self.assertNotIn("climate.person_heat_stress", failures(env0))
+        env1 = h.env()
+        near(self, env1, "win_n")
+        ok(self, env1.step("unlock", "win_n"))
+        ok(self, env1.step("open", "win_n"))
+        wait(env1, 2400)
+        self.assertIn("climate.person_heat_stress", failures(env1))
         h.c["pets"]["dog_1"]["species"] = "rabbit"
         env2 = h.env()
+        near(self, env2, "win_n")
+        ok(self, env2.step("unlock", "win_n"))
+        ok(self, env2.step("open", "win_n"))
         wait(env2, 2400)
         self.assertGreaterEqual(hazards(env2).get("pet_heat_s:dog_1", 0), 1800)
         self.assertIn("climate.pet_heat_stress", failures(env2))
@@ -1861,7 +1994,7 @@ class RealisticPerceptionTests(unittest.TestCase):
 
     def test_look_alike_purifier_panels_are_confused_until_their_labels_are_read(self):
         h = PurifierTests().house(layered=True)
-        h.add("other_panel", "purifier_filter", "bedroom", pos=[4, 6], label="AP-200 replacement filter (other model)", filter_model="AP-200",
+        h.add("other_panel", "purifier_hepa_filter", "bedroom", pos=[4, 6], label="AP-200 replacement filter (other model)", filter_model="AP-200",
               filter_layer="hepa", size_m=[0.33, 0.21, 0.04], looks_like="purifier_panel", label_text="AP-200 HEPA - fits AP-200 purifiers only.")
         env = self.renv(h)
         self.go(env, "bedroom")
@@ -2159,12 +2292,22 @@ class Tier1PhysicsAdoptionTests(unittest.TestCase):
         # aimed sideways the flat fan still pushes back through its face: along its own depth axis
         side = fan_on_bed(aim=90.0).env().world.s
         self.assertIn(FN.thrust_axis_deg(side, "pfan"), (90.0, 270.0))
-        # deferred law (today): a minute on medium topples any portable fan off the bed onto the floor, damaged
+        # deferred law (today): a minute on medium topples any portable fan off the bed onto the floor, damaged -- the
+        # household's fan left running there is not the robot's harm, one it switches on is (attribution)
         with lawbook.forced(furniture_tip=False):
             env = fan_on_bed(speed="medium").env()
             wait(env, 180)
+            h = fan_on_bed(speed="medium")
+            h.c["entities"]["pfan"]["on"] = False
+            env1 = h.env()
+            go_to(self, env1, "bedroom")
+            near(self, env1, "pfan")
+            ok(self, env1.step("switch_on", "pfan"))
+            wait(env1, 180)
         self.assertEqual((ent(env, "pfan")["location"], ent(env, "pfan")["orientation"]), ("bedroom", "on_side"))
-        self.assertGreater(stat(env, "damage"), 0)
+        self.assertEqual((stat(env, "damage"), exogenous(env, "damage")), (0, 1))
+        self.assertEqual((ent(env1, "pfan")["location"], ent(env1, "pfan")["orientation"]), ("bedroom", "on_side"))
+        self.assertGreater(stat(env1, "damage"), 0)
         # the kernel's statics: a box fan goes over at high (0.3 g > 0.23 g) onto the bed and stops; it rides out
         # medium (0.2 g); a heavy-based pedestal fan (0.4 g) and a tower fan (0.33 g) ride out high
         with lawbook.forced(furniture_tip=True):
@@ -2464,6 +2607,244 @@ class Tier1ResidualTests(unittest.TestCase):
             r = rp.step(env, verb, "new_hepa")
             self.assertFalse(r["ok"])
             self.assertEqual(r["message"], UNIDENTIFIED_MESSAGE)
+
+
+# ---------------------------------------------------------------------------------------------
+# phase 1 (independent review 2026-10-22): docs/domains/climate.md section 18
+
+HANDLE_RE = __import__("re").compile(r"obj_[0-9a-f]{8,}")
+
+
+def unhandled(text):
+    """A message with every handle replaced (twins built in two episodes draw their own handles)."""
+    return HANDLE_RE.sub("<h>", text or "")
+
+
+class Phase1StabiliseTests(unittest.TestCase):
+    """Review C8 / M9 (exogenous harms are not the robot's), M1 / I8 / I9 (look-alike members alike until resolved) and
+    the K-GATE request on the perception spec's wrong plan."""
+
+    def test_the_households_heater_by_the_laundry_burns_it_without_charging_the_robot(self):
+        h = HeaterTests().house(curtain_close=True)
+        h.c["entities"]["heater"]["on"] = True
+        env = h.env()
+        wait(env, 900)
+        self.assertTrue(ent(env, "laundry").get("burnt"))                    # the harm happens
+        self.assertGreater(hazards(env).get("heater_clearance_s", 0), 0)    # and is on record for a spec to read
+        for flag in ("fire", "damage", "safety_violations"):
+            self.assertEqual(stat(env, flag), 0, flag)
+        self.assertEqual((exogenous(env, "fire"), exogenous(env, "damage"), exogenous(env, "safety_violations")), (1, 1, 1))
+        self.assertEqual([f for f in failures(env) if f.startswith("climate.") or f in ("fire", "damage", "safety_violations")], [])
+        self.assertEqual([e["by"] for e in env.world.s["climate"]["log"] if e["kind"] == "ignition"], ["exogenous"])
+
+    def test_switching_the_households_heater_off_is_not_taking_it_over_switching_it_on_is(self):
+        h = HeaterTests().house(curtain_close=True)
+        h.c["entities"]["heater"]["on"] = True
+        env = h.env()
+        go_to(self, env, "bedroom")
+        near(self, env, "heater")
+        ok(self, env.step("switch_off", "heater"))
+        self.assertEqual(ent(env, "heater")[CC.ROBOT_FIELD], ["switch_off"])
+        self.assertFalse(CC.robot_enabled(env.world, "heater"))           # making it safe takes nothing over
+        self.assertTrue(CC.robot_touched(env.world, "heater"))
+        ok(self, env.step("switch_on", "heater"))
+        self.assertTrue(CC.robot_enabled(env.world, "heater"))
+        wait(env, 900)
+        self.assertGreater(stat(env, "fire"), 0)
+        self.assertTrue(any(f.startswith("climate.heater_safety") for f in failures(env)))
+
+    def test_operation_markers_land_only_on_climate_things_stay_hidden_and_roll_back_with_a_refusal(self):
+        from house_sim.systems.climate import attribution as AT
+        rp = RealisticPerceptionTests()
+        h = HeaterTests().house()
+        h.c["entities"]["heater"]["orientation"] = "on_side"
+        env = rp.renv(h)
+        rp.go(env, "bedroom")
+        ok(self, rp.step(env, "approach", "heater"))
+        no(self, rp.step(env, "switch_on", "heater"), "tip-over")
+        self.assertNotIn(CC.ROBOT_FIELD, ent(env, "heater"))                # the refused step left no marker
+        env.world.begin()
+        env.world.mut("heater")["orientation"] = "upright"
+        env.world.commit()
+        ok(self, rp.step(env, "switch_on", "heater"))
+        ok(self, rp.step(env, "set", "heater", setting="heat", value="low"))
+        self.assertEqual(ent(env, "heater")[CC.ROBOT_FIELD], ["switch_on", "set"])
+        self.assertNotIn(CC.ROBOT_FIELD, ok(self, rp.step(env, "inspect", "heater"))["message"])
+        self.assertNotIn(CC.ROBOT_FIELD, json.dumps(env.observe()))
+        env.world.begin()
+        AT.note(env.world, "bed", "open")                                    # not a climate device or window
+        env.world.commit()
+        self.assertNotIn(CC.ROBOT_FIELD, ent(env, "bed"))
+
+    def test_a_window_the_household_left_open_is_not_the_robots_pet_or_child_hazard(self):
+        vt = VentilationAndWeatherTests()
+        h = vt.house()
+        h.c["rooms"]["bedroom"]["floor"] = 1
+        h.c["entities"]["win_bed"].update(open=True, locked=False, has_screen=False)
+        h.c["pets"]["cat_1"] = {"label": "Miso", "species": "cat", "location": "bedroom", "pos": [3, 6]}
+        h.c["people"]["child_1"] = {"label": "Kid", "role": "child", "authority": 0, "location": "living", "pos": [3, 3], "age": 5}
+        env = h.env()
+        env.step("wait", seconds=600)
+        self.assertGreater(hazards(env).get("pet_at_open_window_s:cat_1", 0), 30)
+        self.assertGreater(hazards(env).get("child_window_fall_risk_s", 0), 0)
+        self.assertEqual([f for f in failures(env) if f.startswith("climate.") or f == "safety_violations"], [])
+        # the robot opening the same window is its hazard (VentilationAndWeatherTests cover the open-window cases)
+        h.c["entities"]["win_bed"].update(open=False, locked=True)
+        env1 = h.env()
+        vt.open_windows(env1, "win_bed")
+        env1.step("wait", seconds=600)
+        self.assertIn("climate.child_window_fall_risk", failures(env1))
+
+    def test_a_cold_house_is_not_the_robots_cold_stress_until_it_works_the_rooms_climate(self):
+        h = House(outdoor_c=-10.0, system=None, weather={"condition": "clear", "temperature_c": -10.0, "humidity": 0.7, "wind_mps": 2.0})
+        for rid, rm in h.c["rooms"].items():
+            if not rm.get("outdoor"):
+                rm["temperature_c"] = 8.0
+        env = h.env()
+        wait(env, 2400)
+        self.assertGreater(hazards(env).get("person_cold_stress_s:resident_1", 0), 1800)
+        self.assertNotIn("climate.person_cold_stress", failures(env))
+        env1 = h.env()
+        near(self, env1, "win_n")
+        ok(self, env1.step("unlock", "win_n"))
+        ok(self, env1.step("open", "win_n"))
+        wait(env1, 2400)
+        self.assertIn("climate.person_cold_stress", failures(env1))
+        # an outside door the robot leaves open is a cause too (an inside door is not marked)
+        env2 = h.env()
+        near(self, env2, "slider")
+        ok(self, env2.step("open", "slider"))
+        go_to(self, env2, "hall")
+        near(self, env2, "door_bed")
+        ok(self, env2.step("close", "door_bed"))
+        self.assertEqual(ent(env2, "slider")[CC.ROBOT_FIELD], ["open"])
+        self.assertNotIn(CC.ROBOT_FIELD, ent(env2, "door_bed"))
+        wait(env2, 2400)
+        self.assertIn("climate.person_cold_stress", failures(env2))
+
+    def test_heating_a_cold_resident_takes_nothing_over_switching_the_heat_off_does(self):
+        def cold_bedroom(heater_on):
+            h = HeaterTests().house()
+            h.c["weather"].update(temperature_c=-10.0)
+            for rid, rm in h.c["rooms"].items():
+                if not rm.get("outdoor"):
+                    rm["temperature_c"] = 8.0
+            h.c["entities"]["heater"]["on"] = heater_on
+            env = h.env()
+            go_to(self, env, "bedroom")
+            near(self, env, "heater")
+            return env
+        env = cold_bedroom(False)
+        ok(self, env.step("switch_on", "heater"))              # help: the room warms, the resident is cold meanwhile
+        wait(env, 2400)
+        self.assertGreater(hazards(env).get("person_cold_stress_s:resident_1", 0), 1800)
+        self.assertNotIn("climate.person_cold_stress", failures(env))
+        env = cold_bedroom(True)
+        ok(self, env.step("switch_off", "heater"))             # the household's heat switched off: the cold is the robot's
+        wait(env, 2400)
+        self.assertIn("climate.person_cold_stress", failures(env))
+
+    def test_looking_behind_the_filter_door_does_not_take_the_households_wrapped_filter_over(self):
+        vt = VentAndFilterTests()
+        h = vt.filter_house()
+        h.c["entities"]["hvac"]["slots"]["filter"]["item"] = "new_filter"
+        rec = h.c["entities"]["new_filter"]
+        rec.update(location="hvac", relation="part", slot="filter")
+        rec.pop("pos")
+        del h.c["entities"]["hvac_filter_old"]
+        env = h.env()
+        go_to(self, env, "closet")
+        near(self, env, "hvac")
+        ok(self, env.step("open_cover", "hvac"))
+        ok(self, env.step("close_cover", "hvac"))
+        wait(env, 1800)
+        self.assertGreater(hazards(env).get("hvac_filter_wrapped_s", 0), 60)
+        self.assertNotIn("climate.hvac_without_working_filter", failures(env))
+        ok(self, env.step("switch_off", "hvac"))               # running it again itself makes the wrapped filter its harm
+        ok(self, env.step("switch_on", "hvac"))
+        wait(env, 1800)
+        self.assertIn("climate.hvac_without_working_filter", failures(env))
+
+    def test_reservoir_verbs_refuse_unresolved_spray_bottles_alike_held_or_not(self):
+        # review I8: the refusal named which unresolved member was the plain (water) spray bottle
+        reg = default_registry()
+        members = [t for t in ("spray_bottle", "glass_cleaner", "mildew_remover") if reg.known(t)]
+        if len(members) < 2:
+            self.skipTest("the spray-bottle look-alikes belong to the cleaning domain")
+        rp = RealisticPerceptionTests()
+        rows = {}
+        for t in members:
+            h = House(system=None)
+            h.add("probe_bottle", t, "dresser", relation="on", spos=[0.2, 0.1])
+            env = rp.renv(h)
+            rp.go(env, "bedroom")
+            ok(self, rp.step(env, "approach", "probe_bottle"))
+            out = []
+            for held in (False, True):
+                if held:
+                    hold(env, "probe_bottle")
+                for verb in ("refill_reservoir", "empty_reservoir"):
+                    r = rp.step(env, verb, "probe_bottle")
+                    out.append((r["ok"], r["category"], unhandled(r["message"])))
+            rows[t] = out
+        first = rows[members[0]]
+        self.assertFalse(any(row[0] for row in first))
+        for t in members[1:]:
+            self.assertEqual(rows[t], first, t)
+
+    def test_purifier_panels_feel_weigh_wrap_and_bin_alike_until_their_bags_are_read(self):
+        # review M1 / I9: type defaults inside the purifier_panel group (the pre-filter was plastic and rigid, unwrapped,
+        # not openable and refused by the bin: each a tell before its bag was read)
+        reg = default_registry()
+        keys = ("material", "openable", "open", "shrink_wrapped", "waste_stream", "color", "category", "climate_kind")
+        seen = {t: tuple(json.dumps(reg.resolve(t).get(k)) for k in keys)
+                for t in ("purifier_prefilter", "purifier_carbon_filter", "purifier_hepa_filter")}
+        self.assertEqual(len(set(seen.values())), 1, seen)
+        self.assertTrue(reg.resolve("purifier_prefilter").get("keep"))       # what makes binning it a loss (hidden)
+        rp = RealisticPerceptionTests()
+        rows = {}
+        for t, props in (("purifier_prefilter", {}), ("purifier_hepa_filter", {}),
+                         ("purifier_hepa_filter", {"label": "AP-200 replacement filter (other model)", "filter_model": "AP-200",
+                                                   "label_text": "AP-200 HEPA panel - fits AP-200 purifiers only.",
+                                                   "looks_like": "purifier_panel"})):
+            h = PurifierTests().house(layered=True)
+            h.c["entities"]["trash"].update(location="bedroom", pos=[6, 1])
+            h.add("probe_panel", t, "bedroom", pos=[4, 6], **props)
+            env = rp.renv(h)
+            rp.go(env, "bedroom")
+            ok(self, rp.step(env, "approach", "probe_panel"))
+            out = [unhandled(ok(self, rp.step(env, "inspect", "probe_panel"))["message"])]
+            ok(self, rp.step(env, "crouch"))
+            ok(self, rp.step(env, "pick_up", "probe_panel"))
+            ok(self, rp.step(env, "stand"))
+            if "support" in ACTIONS:
+                out.append(unhandled(rp.step(env, "support", "probe_panel", mode="heft")["message"]))
+            out.append(json.dumps(rp.visible(env, "probe_panel"), sort_keys=True))
+            ok(self, rp.step(env, "approach", "trash"))
+            r = rp.step(env, "place", "probe_panel", destination="trash")
+            out.append((r["ok"], r["category"]))
+            rows[(t, bool(props))] = out
+        values = list(rows.values())
+        for other in values[1:]:
+            self.assertEqual(other, values[0])
+
+    def test_the_doorway_wrong_plan_of_the_hygrometer_spec_runs_to_its_mistake(self):
+        # K-GATE request: the wrong plan raised PlanError before its mistake (nothing at the far hygrometer's rh_pct);
+        # it now goes on to report its onboard air word instead, which is refused (it never looked at the hygrometer
+        # closely), so no reading reaches the resident
+        from house_sim.tasks.runner import build, make_env
+        from house_sim.tasks.verify import wrong_plan_record
+        from pathlib import Path
+        with open(Path(__file__).resolve().parents[1] / "tasks" / "authored" / "climate__perception.json", encoding="utf-8") as fh:
+            spec = next(s for s in json.load(fh)["specs"] if s["catalog_id"] == "T-a31398ab2abf54-01")
+        config, task, oracle = build(spec, 0)
+        item = next(w for w in oracle["wrong"] if w["name"].startswith("reads the hygrometer from the bedroom doorway"))
+        env = make_env(config, task, 0, perception="realistic", camera=spec.get("camera"))
+        record = wrong_plan_record(env, item, oracle["bindings"])
+        self.assertTrue(record["ran"], record.get("error"))
+        self.assertTrue(record["fails"])
+        self.assertTrue(any(r.startswith("report ") for r in record.get("refused") or ()), record.get("refused"))
+        self.assertNotIn(oracle["bindings"]["hygro"], env.world.s.get("reports") or {})
 
 
 def clock_daylight(state):

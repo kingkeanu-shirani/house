@@ -237,9 +237,11 @@ def _seen_view(w, eid, rec, closely, ctx, at=P.INSPECT):
 
 
 def _by_handle(ctx, ids):
-    """Realistic listings follow handles, never true ids (the order must not identify look-alikes)."""
+    """Realistic listings follow handles, never true ids (the order must not identify look-alikes). The sort key only
+    peeks at a handle (Handles.peek): issuing one makes it a handle the agent may act on (independent review I5)."""
     handles = ctx.env.realism.handles
-    return sorted(ids, key=lambda e: handles.handle(e))
+    key = getattr(handles, "peek", handles.handle)
+    return sorted(ids, key=key)
 
 
 def _seen_inspector(w, eid, rec, details, ctx):

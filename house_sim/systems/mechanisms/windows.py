@@ -76,6 +76,10 @@ def raise_sash(ctx, eid, to_frac, part, force):
         value = 0.0 if to_frac is None else C.clamp(float(to_frac), 0.0, 1.0)
         mech["upper_open_frac"] = round(value, 3)
         rm["open"] = value > 0.005 or C.num(mech.get("open_frac")) > 0.005
+        if rm["open"]:
+            C.note_robot(w, eid, "open")
+        else:
+            C.drop_robot(w, eid, "open")
         refresh(w, eid)
         return "Pushed the upper sash up to {}".format("fully closed" if value <= 0.005 else "{:.0f}% open".format(100 * value))
     require(kind in ("sash_window", "hopper_window"), "This window does not open by lifting: {}".format(
@@ -105,6 +109,8 @@ def lower_sash(ctx, eid, to_frac, part, force, speed):
         value = 0.3 if to_frac is None else C.clamp(float(to_frac), 0.0, 1.0)
         mech["upper_open_frac"] = round(value, 3)
         rm["open"] = value > 0.005 or C.num(mech.get("open_frac")) > 0.005
+        if rm["open"]:
+            C.note_robot(w, eid, "open")
         refresh(w, eid)
         return "Lowered the upper sash to {:.0f}% open".format(100 * value)
     target = 0.0 if to_frac is None else C.clamp(float(to_frac), 0.0, 1.0)
@@ -164,6 +170,7 @@ def push_out_screen(ctx, eid):
     require(C.num(C.mget(rec, "open_frac", 1.0 if rec.get("open") else 0.0)) >= 0.3, "Open the window wide first", "precondition")
     rm, mech = C.mut_mech(w, eid)
     mech["screen"] = "removed"
+    C.note_robot(w, eid, "screen")             # harm attribution: a cat out through this opening is the robot's doing
     refresh(w, eid)
     w.emit("screen_removed", window=eid)
     return "Pushed the screen out of the frame"

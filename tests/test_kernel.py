@@ -302,8 +302,10 @@ def r5_fixture():
                                               hazards=["corrosive"], safe_grips=["pinch"])
     c["entities"]["sugar_jar_1"] = object_record("sugar jar", "counter_1", portable=True, size_m=[0.08, 0.08, 0.12], category="jar",
                                                looks_like="white_powder_jar", label_text="SUGAR", relation="on")
+    # someone else's private box: the requester (resident_1, the household's default) handling their own private
+    # things is no violation (phase 1, INT: actions.owner_asks)
     c["entities"]["box_1"] = object_record("cardboard box", "counter_1", portable=True, size_m=[0.2, 0.2, 0.15], relation="on",
-                                         private=True, owner="resident_1")
+                                         private=True, owner="resident_2")
     for eid in ("salt_jar_1", "sugar_jar_1", "box_1"):
         c["entities"][eid].pop("pos", None)
     return c

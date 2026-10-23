@@ -39,7 +39,20 @@ usage so far), `transcript()` (LLM requests/responses, never keys) and `info()` 
    oracle's shadow, re-scoring, leaderboard replays and the viewer rebuild the same way); a test phrasing replaces the
    instruction (placeholders bound like `runner.build`, as `splits.apply_phrasing`). Non-test episodes pass
    `splits.guard_not_test`.
-2. `HouseEnv(config, task, seed, perception="realistic", camera=<--camera, else None>, trace=False,
+2. The episode's secret nonce goes into the task (`task["episode_nonce"]`, `run.episode_nonce`; harness version 3,
+   review H8): handles and every fixed draw follow it, so nothing public recomputes them and another episode of the
+   same spec and seed shows other handles. A dev/train episode draws a fresh random nonce and records it in its log
+   (`episode_nonce`; `replay_log` and the leaderboard re-inject it) -- unless the agent has a persistent response cache,
+   whose secret `episode_nonce.key` (kept in the cache directory, scoped by the agent's cache namespace) derives it, so
+   a rerun against the same cache sees the same handles and makes no calls. A test-split episode's nonce is an HMAC of
+   the episode under a subkey of the split key (`episode_nonce_scheme`, never the nonce, is logged); the key holder
+   recomputes it to re-score (`run.log_nonce`). A privileged agent's shadow episode gets the same nonce. The nonce
+   covers handles and fixed draws only: the world of a public (spec, seed) is a pure function of public data, so an
+   agent that runs code or was trained on the generator can rebuild a dev/train house offline and decode what it sees
+   by content (label, cell, slot, container) -- phase-1 red team. Public-split scores are therefore labelled not
+   comparable across agents (`leaderboard.PUBLIC_SPLIT_NOTE`, `row["comparable"]`); only test-split rows are (hidden
+   seeds, one attempt per hidden seed: docs/SPLITS.md).
+   `HouseEnv(config, task, seed, perception="realistic", camera=<--camera, else None>, trace=False,
    observe_on_step=True)`; one `env.observe()`. With `camera=None` the spec's own `"camera"` decides, else
    `camera.default_mode("realistic")` ("room" until the D3 switch-over makes realistic episodes geometric; kernel
    v3.0, docs/PERCEPTION.md "Geometric camera"). The mode the episode ran in is recorded (`camera`).
@@ -196,7 +209,9 @@ or edited, so there are no history-editing or thinking-block replay issues, and 
   at 3 characters per token at the higher of the input and cache-write prices, plus `max_output_tokens` of output).
   After each step the harness also checks the recorded totals. When the run ledger is exhausted, remaining episodes
   are skipped (`run.json`: `episodes_skipped`, `skipped_reason`).
-* **Response cache**: on disk (`--cache-dir`, `--no-cache`), so a rerun makes no calls (`usage.cache_hits`). The key
+* **Response cache**: on disk (`--cache-dir`, `--no-cache`), so a rerun makes no calls (`usage.cache_hits`): the
+  cache directory also keeps the secret `episode_nonce.key` from which a rerun's episodes get the same nonces and so
+  the same handles (deleting it, or a fresh cache, gives new ones). The key
   is the SHA-256 of (namespace, source, URL without credentials, request body): the namespace is the provider name
   for `LLMAgent` and `mock` for `MockLLMAgent`; the source is where answers come from (`llm.cache_source`:
   `network` for the real `UrllibTransport`, also read by a network-disabled agent; `mock`, `fake` or `custom:<class>`
@@ -269,7 +284,9 @@ matches. While the domain code changes that evidence goes stale, so:
 
 * `--verify-on-the-fly` verifies the selected specs now with `house_sim.tasks.verify.verify_many` on the dev seeds
   (`--verify-seeds`), in each spec's own perception mode (`--verify-perception realistic` forces the mode the
-  harness episodes run in); failing specs are dropped.
+  harness episodes run in) and, with `--camera room|geometric`, in the camera mode the episodes run in (a spec whose
+  reference fails with the geometric camera is not kept for a geometric run); failing specs are dropped. `run.json`
+  records the verification's perception and camera (`"verification": {"perception", "camera", ...}`).
 * `--allow-unverified` runs them anyway, marked `"verification": {"mode": "unverified"}` in `run.json`.
 
 Unverified specs are never silently treated as verified; `run.json` lists the verification source and detail per
@@ -278,6 +295,28 @@ spec. A dry run without `--verify-on-the-fly` estimates every selected spec and 
 A catalog id authored in more than one `tasks/authored/*.json` file (while an author moves a spec) is left out of
 `load_specs()` with a warning and listed in `run.json` `authored_conflicts`, instead of making every spec unusable
 (`house_sim.eval.common.load_authored`).
+
+## How a spec becomes "verified": the release gate and orchestrator checks
+
+Verification (`house_sim/tasks/verify.py`) runs on every seed: the initial state and waiting out the budget must not
+satisfy the task, the reference plan must (strictly), and every wrong plan must run fully and fail. A wrong plan that
+raises (PlanError or any exception) never performs its mistake, so it is not evidence: its spec fails, with a
+`wrong_not_run` message naming the plan and the step. Each wrong plan's record keeps its failure labels, their
+classes (`reasons`) and its goal fraction.
+
+Three tools stand between an edit and a spec counted as verified; none of them trusts an agent's own report:
+
+* **The tier-1 gate** (`tools/orchestration/tier1_gate.py`, `tools/orchestration/README.md`): every package records
+  the whole check list before hand-over. Absolute rules: every authored spec passes in its own mode on every seed
+  (G2-ABS) and every test passes, except unexpired entries of the main session's dated allowlist. Every verdict
+  change and every edited spec needs the package's reviewed row (bound to the spec files the package owns) and the
+  main session's committed signature. Audits fail on any leak, crash, defect or nondeterministic replay; a check that
+  should have run and did not counts as a failure; the fuzzer reports per-action success coverage.
+* **Orchestrator checks** (`tools/orchestration/run_check.py`): the authoring workflow re-runs `--check` itself
+  after every author and review step and appends the verdicts to a hash-chained log
+  (`catalog/review/check_log/orchestrator.jsonl`); the batch's result is the tool's passing set.
+* **CI** (`.github/workflows/ci.yml`): the unit suite and every spec on one seed, on Python 3.9 and 3.14, Windows and
+  Linux, offline (`HOUSE_AI_FORBID_NETWORK=1`), no secrets.
 
 ## Results (`results/<run_id>/`)
 

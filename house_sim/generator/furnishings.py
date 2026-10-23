@@ -4,7 +4,8 @@ data/generator/furnishings.json), plus the placement helpers the belongings furn
     gen.bedrooms      (order 60)   a crib for every infant (the nursery's, its own bedroom, else its parents' room)
                                    and a second bed in each shared bedroom: after the domains' fixtures and wall mounts
                                    (so it never seals one), before textiles dresses the beds and cribs (order 75)
-    gen.furnishings   (order 101)  living-room textiles and decor, entry mats, key bowl, umbrella stand, garage cooler,
+    gen.furnishings   (order 101)  living-room textiles and decor, entry mats, key bowl (on an entry bench or side
+                                   table, else the shoe rack or a console top: SPOT_FALLBACKS), umbrella stand, garage cooler,
                                    a high chair for an infant (or, 0.6, a toddler) and one material and colour per set
                                    of dining chairs
     gen.belongings    (order 102)  generator/belongings.py
@@ -26,6 +27,10 @@ from .profile import asleep_at
 
 DATA = Path(__file__).resolve().parent.parent / "data" / "generator" / "furnishings.json"
 FRONT_DOOR_LABELS = ("front door", "apartment door")
+# entry surfaces an item falls back to when its own spots are missing (an item's "fallback_spot" list in the data wins):
+# a key bowl goes on the shoe rack or a console top when the entryway has no bench or side table (47 of 220 houses;
+# admin_inventory's adoption request 5, the layout audit's "no spot for key_bowl")
+SPOT_FALLBACKS = {"key_bowl": ("shoe_rack", "console_table", "wall_shelf")}
 
 
 @functools.lru_cache(maxsize=1)
@@ -257,6 +262,11 @@ def _place_item(p, idx, config, item, kind):
             near = tuple(conn["cells"][inside]) if inside == room else None
         return floor(p, idx, room, kind, near=near, **props)
     for spot in [e for name in item["spot"] for e in idx.find(room, (name,))]:
+        eid = put(p, idx, spot, kind, shelf=item.get("shelf"), **props)
+        if eid:
+            return eid
+    fallbacks = item.get("fallback_spot") or SPOT_FALLBACKS.get(item.get("kind"), ())
+    for spot in [e for name in fallbacks for e in idx.find(room, (name,))]:
         eid = put(p, idx, spot, kind, shelf=item.get("shelf"), **props)
         if eid:
             return eid

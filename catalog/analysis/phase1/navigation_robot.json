@@ -1,0 +1,115 @@
+{
+ "id": "navigation_robot",
+ "fixed": [
+  {
+   "item": "Adoption breakage 14 (pets cross-domain report 2): a careful or quiet-mode robot woke and startled every sleeping pet within one cell",
+   "how": "traverse._proximity: a sleeping pet within one cell wakes and is startled only when the footfalls at the pace actually walked reach common.PET_WAKE_DB = 33 dB at 1 m (body.noise_db, so quiet mode's -4 dB counts; the pets domain's STARTLE_RESTING_DB, so both models agree: normal 36 wakes, careful 30 and quiet normal 32 do not); along a core approach / walk_to the pets domain decides when it is loaded (its _startle_along), so nothing is startled twice (common.pets_domain_loaded, traverse.PETS_OWN_STARTLE)",
+   "test": "tests/test_navigation_robot.py TestMarginsAndSocial.test_sleeping_dog_woken_by_footfalls_not_by_a_careful_or_quiet_pass (replaces test_sleeping_dog_startled_even_careful, which pinned the defect)"
+  },
+  {
+   "item": "Adoption breakage 20 (D3 triage): T-0383801c7466a3-01 and T-089c40fb507289-01 failed under forced realistic + geometric (the reference stepped on a cord / wet patch it never saw; the cord lies behind a cabinet from the start corner, and a look around surveys 3-29 floor cells)",
+   "how": "new reference skill navigation_robot.move_watching (skills.py): room camera = one move with avoid (unchanged own-mode behaviour); geometric camera = two-cell legs toward the doorway, aiming the head at the end of each leg before planning it with the robot's own route filter (no privileged knowledge). Both references use it. Forced realistic + geometric: 12/12 specs of navigation_robot__examples.json pass (was 10/12)",
+   "test": "tests/test_navigation_robot.py TestPhase1Stabilise.test_move_watching_sees_the_floor_before_each_leg; python -m house_sim --check tasks/authored/navigation_robot__examples.json --perception realistic --camera geometric: 12 passed"
+  },
+  {
+   "item": "Review H10 / P2-cond F-C2: descending winder stairs at normal speed was a fall by rule (stairs.py:128), so 12 reference runs fell on held-out seeds 501/502 (8 specs)",
+   "how": "stairs.plan: at a walking pace the robot keeps to the walk line (winder treads as deep as straight ones there) while a hand is on the rail and the treads are lit; without the rail (both hands full, broken rail, known loose rail), in poor light, or fast, a heel comes off a narrow inner end; careful is always fine; climbing winders is not a hazard. Verified: T-92f2736b7f949c-01 and T-89d7a649052266-01 (admin_inventory) pass on seeds 501 and 502",
+   "test": "tests/test_navigation_robot.py TestStairs.test_winders_at_a_walking_pace_need_the_rail_and_light"
+  },
+  {
+   "item": "Review M1 'Derived floor hazards' / P3-side L5: hazards.derived wrote fragile rings and rug_slip areas from inspect-tier fields (fragile, topple_prone, non_slip_pad), so twins differing only in a hidden value showed different hazard maps at the first glance and planned different routes",
+   "how": "hazards.knows_margin / unknown_margins: under realistic perception a fragile ring (inputs fragile, topple_prone; wall_decor for wall-hung decor) and a rug_slip area (non_slip_pad, anchored) exist for the robot only once it knows a true input at its tier. The observer scrubs unknown ones from obs.grid.hazards / room.floor_hazards; traverse.hide_unperceived_margins (generalising the mirror stash) keeps them out of every core motion's planning, robot field _nav_plan_unknown keeps the path_blocked hook from adding them back, traverse.plan_path does the same for go_to social walks and lead, and lead's spoken warnings leave out an unknown rug_slip. Consequences are unchanged (truth). Oracle mode unchanged",
+   "test": "tests/test_navigation_robot.py TestRealisticPerception.test_derived_margins_wait_for_the_fields_they_come_from"
+  },
+  {
+   "item": "Review P2-c 4.14 / H4: measure add_case=true added the tape's hidden case_length_mm for the robot, so reading the label was decorative (T-c39a630dc5c6f6-01 passed 5/5 without reading)",
+   "how": "measure.case_length_known: under realistic perception add_case is refused ('Read the tape's case length first') until the robot has read the tape (label_text or case_length_mm at read level); asked whatever the reading, so the refusal tells nothing; oracle mode unchanged",
+   "test": "tests/test_navigation_robot.py TestRealisticPerception.test_add_case_needs_the_case_length_read"
+  },
+  {
+   "item": "measure_report skill reported an earlier reading or crashed the lenient wrong-plan runner with KeyError when its measurement was refused (found through the add_case fix)",
+   "how": "skills.measure_report raises PlanError when measure is refused (the lenient runner records the failed step)",
+   "test": "tests/test_navigation_robot.py TestPhase1Stabilise.test_measure_report_never_reports_without_a_reading"
+  },
+  {
+   "item": "Adoption breakage 12's pattern in this domain: doors.py marked tag-along / wandering pets escaped by a direct write (no pets escape harm, no visual event at the door, hiding fields not re-synced)",
+   "how": "doors.pet_through: with the pets domain loaded its behavior.escape (escape harm, pets.harm_escape visual event at the door, sync_hidden) and behavior.relocate move the pet; standalone this domain's own path; the robot's incident log records it either way; pet_escape counted once",
+   "test": "tests/test_navigation_robot.py TestDoorsPets.test_a_pet_slipping_out_takes_the_pets_escape_path"
+  },
+  {
+   "item": "Review M1 'Refusal wording inside groups' (robot_vacuum look-alike group): refill_robot_tank refused the plain model 'no mop tank' before checking the container, a free probe of which look-alike it is",
+   "how": "robots.refill_robot_tank checks the type-agnostic preconditions (container held, not empty) before the mop tank",
+   "test": "tests/test_navigation_robot.py TestRealisticPerception.test_refill_refusal_waits_for_a_real_pour"
+  },
+  {
+   "item": "Glance-field audit of this domain's type data: robot_headlamp listed battery_level at glance tier, so a look showed its exact charge (0.37)",
+   "how": "house_sim/data/types/navigation_robot.json: robot_headlamp battery_level is measure tier (battery_tester), like the robot vacuum's. Perception metadata only: no record or digest changes (the golden A/B dump shows this as the only difference this domain makes: obs.visible_entities.*.battery_level in realistic runs)",
+   "test": "tests/test_navigation_robot.py TestRealisticPerception.test_headlamp_charge_needs_a_tester"
+  },
+  {
+   "item": "Review M5 / M13: docs/domains/navigation_robot.md claimed 'generation 1 is unchanged'",
+   "how": "claim removed and replaced by what this domain does guarantee (its gen-2 furnishing draws from its own streams); doc section 4c lists the phase-1 changes; stairs, margins, measuring, harms, skills, perception and known limits updated",
+   "test": "doc only"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Review M9 harm attribution for this domain's system-side harms (a wandering or following pet escaping through a door the scenario left open, a household robot vacuum eating a cord or mopping a wool rug on its own schedule, a wet mop pad damaging the floor after 8 h docked, a walking washer)",
+   "why": "they are harms of inaction charged as global stats; whether they count against the robot is the kernel's rule to state (one harm API with a cause, review M9). Listed in Known limits and as a request; this domain will route them through that API"
+  },
+  {
+   "item": "Look-alike members differ in exact mass (robot_vacuum 3.6 kg vs robot_vacuum_mop 4.0 kg; spirit_level 0.40 vs digital_level 0.45 kg)",
+   "why": "mass is measure tier and the touch bucket is the same; it leaks only through the kernel's hold-power channel (review M1 row 2 / P3 L3), whose kernel fix (power from the shown load word) closes it for every group. Aligning the types would change every generation-1 house that has these items (furnished in gen 1) and force a kernel digest re-record, so it is left for that fix. No LookalikeWarning is printed for this domain's groups (0 warnings at registry load)"
+  },
+  {
+   "item": "Spec weaknesses in this domain's specs named by the review: A-926bc611ae9158-01 wrong plan passes on held-out seed 6 (route does not cross the mirror), A-04b40946bea880-01 clutter relocated to another room passes, T-c39a630dc5c6f6-01 every tape's case length is 76 mm (constant answer), free predicates (robot.room) in T-0383801c7466a3-01 / T-089c40fb507289-01",
+   "why": "out of scope for phase 1 (the hardened verifier drives spec repair); the add_case leak behind the tape spec was a code leak and is fixed"
+  },
+  {
+   "item": "Geometric camera: floor hazards are forgotten one step after they were seen, and core motion never re-plans when an avoided hazard comes into view mid-walk",
+   "why": "kernel camera / core motion behaviour (requests below); move_watching works around both for references"
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-0383801c7466a3-01 (navigation_robot__examples): reference uses navigation_robot.move_watching; own mode unchanged (one move), now passes forced realistic + geometric on 5/5 seeds (was 1/5)",
+  "T-089c40fb507289-01 (navigation_robot__examples): same; forced realistic + geometric 5/5 (was 1/5)",
+  "T-9615ae9f7570b4-01 (navigation_robot__perception): wrong plan 'measures the width once at mid height' now reads the tape's label first (it used add_case without reading, which is refused after the add_case fix, so it no longer performed its named mistake); spec passes 5/5 in own mode and with the geometric camera"
+ ],
+ "tests": {
+  "count": 218,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "Geometric camera has no memory of floor hazards it saw: Realism.route_hazards, obs.grid.hazards and cleaning's wet_floor_seen veto use only this step's frames (camera.seen_floor), so a wet patch looked at one step is walked through the next. Repro: build tasks/authored/navigation_robot__examples.json T-089c40fb507289-01 seed 41 with perception realistic, camera geometric; plan walk_to [3,8]; look [3,5]; walk_to [3,6] avoid [wet]; look [3,3]; walk_to [3,4] avoid [wet] -> nav.terrain.wet_cells_walked 1 (it crossed the wet cell [3,5] it had looked at). Suggested: a per-episode floor map of what the frames surveyed (cell -> last seen hazard kinds, invalidated when seen again or after a time), used by route planning and the hazard list"
+  },
+  {
+   "owner": "kernel",
+   "request": "Core move / walk_to plan once from the frames at the start of the step; with the geometric camera a hazard of an avoided kind that comes into view during the walk is stepped on (a real robot's local planner re-plans or stops). Repro: tests/test_navigation_robot.py TestPhase1Stabilise.screened_cables(): env(pos=(1,4), perception='realistic', camera='geometric'), move kitchen avoid=['cord'] -> nav.contacts.cords 1. Suggested: during the motion, when a frame shows a source of an avoided kind on the remaining path, stop short and note it (cut the motion record) or re-plan from there. navigation_robot.move_watching is the reference-side workaround meanwhile"
+  },
+  {
+   "owner": "kernel",
+   "request": "tasks/skills.py go_room: descending a winder flight is now safe at normal pace only with a free hand on the rail and lit treads (stairs.plan, review H10 fix); choose speed='careful' for a stairs hop that descends a flight with winders > 0 when the robot has no free hand (as plumbing_liquids and safety skills already do), so a reference carrying something in both hands down winders does not fall"
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M9: one harm API with an explicit cause (robot / exogenous / failure to prevent) and the rule for system-side harms. This domain's sites to classify once it exists: doors.pet_through (pet_escape when the scenario left the door open), robots.rv_system (damage: wet mop pad after 8 h docked) and robots._encounters (damage: a wool rug mopped, a cord chewed, on a scheduled run), measure.leveling_system (damage: walking washer), traverse (robot caused, keep)"
+  },
+  {
+   "owner": "kernel",
+   "request": "Room golden (tests/test_room_golden.py) re-record classification: this domain's phase-1 changes alter only obs.visible_entities.*.battery_level of the robot headlamp in realistic runs (glance -> measure tier; golden A/B dump with HEAD vs phase-1 navigation_robot files: 8 of 52 files, 1 path pattern). The golden currently fails on far more paths (every reset state) from other packages' in-progress work"
+  },
+  {
+   "owner": "kernel",
+   "request": "tools/perception_audit.py: add the hazard-kind tier rule the review asks for (P3-side blind class 5): an obs.grid.hazards kind derived from a source's fields shows only when those fields are known at their tier (this domain's hazards.knows_margin can serve as the reference rule for fragile and rug_slip)"
+  }
+ ],
+ "notes": "GREEN (final code): unittest tests/test_navigation_robot.py 218 tests OK in normal mode, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,navigation_robot; --check navigation_robot__examples 12/12 (own mode), navigation_robot__perception 3/3 (own) and 3/3 with --camera geometric; examples forced --perception realistic --camera geometric 12/12 (was 10/12: the D3 breakage); perception_audit 20 80 --verbose: 1600 steps, 0 leaks, 0 crashes (and 10 60 --camera geometric: 0 leaks); layout_audit 20 --domain navigation_robot: 120 gen-1 houses 0 problems, --gen 2: 220 houses 0 problems, 0 domain follow-ups; LookalikeWarning: none for robot_vacuum, robot_mower, bubble_level (0 warnings at registry load). Cross-domain: every other authored file in its own mode (228 specs): all pass except T-c49fadcea69182-01 (cleaning) and T-a31398ab2abf54-01 (climate), where the verifier now rejects a wrong plan that raises PlanError before its mistake (review H17, not this domain), T-7d4006bda247ba-01 (adoption breakage 0/1, the iron), and T-3b1a4024d46110-01 seed 97 (plumbing) / A-d66994a566899c-01 seed 1 (textiles), which fail identically in a snapshot with HEAD's navigation_robot files (so not caused by these changes). pets__examples 12/12 and pets__perception 3/3 pass with the new pet-waking rule. Room golden A/B (HEAD vs phase-1 navigation_robot files, same snapshot of everything else): the only difference is the headlamp battery_level in realistic observations. Not run: the 10 held-out seeds for every spec (only the two winder specs on 501/502)."
+}

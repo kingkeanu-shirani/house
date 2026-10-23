@@ -125,12 +125,13 @@ class LiftPlanMatchesCorePickUpTests(unittest.TestCase):
                 self.assertEqual(plan["ok"], result["ok"], (plan, result["message"]))
                 self.assertAlmostEqual(plan["mass_kg"], core_subtree_mass(env.world, "item"))
                 if result["ok"]:
-                    # core accepted the lift; a domain's grip physics may then let it slip (manipulation: the 8 kg
-                    # cube in a one-hand friction grip), which body_faults.drop_held reports after " | "
-                    self.assertEqual(result["message"].split(" | ")[0], "Picked up item")
+                    # core accepted the lift, and a lift the plan accepts holds: no domain's grip physics may drop a
+                    # clean, dry item the plan gives one hand (lift monotonicity; independent review H11 defect 1:
+                    # manipulation's 50 N normal grip dropped 7.65-8 kg items the plan handed to one hand)
+                    self.assertEqual(result["message"], "Picked up item")
                     record = env.world.ent("item")
-                    if record["location"] == "robot":     # a domain's grip physics may drop it again at once
-                        self.assertEqual(record["held_hand"], "both" if len(plan["hands"]) == 2 else plan["hands"][0])
+                    self.assertEqual(record["location"], "robot")
+                    self.assertEqual(record["held_hand"], "both" if len(plan["hands"]) == 2 else plan["hands"][0])
                 else:
                     key = "over_capacity" if plan["reason"] == "over_capacity" else (2 if plan["hands"] == ["left", "right"] else 1)
                     self.assertEqual(result["message"], LIFT_MESSAGES[key])
@@ -145,6 +146,38 @@ class LiftPlanMatchesCorePickUpTests(unittest.TestCase):
             reasons.add((plan["reason"], len(plan["hands"])))
         self.assertTrue({(None, 1), (None, 2), ("over_capacity", 2), ("hands_busy", 2), ("hands_busy", 0),
                          ("arm_failed", 2), ("arm_failed", 0)} <= reasons, reasons)
+
+
+class LiftMonotonicityTests(unittest.TestCase):
+    """Independent review H11 defect 1 and section 4.6 cross-layer test 1: for masses m1 < m2 within the robot's
+    capacity, if pick_up holds m2 it holds m1. The defect: a one-hand pick_up dropped clean, dry items of 7.65-8.0 kg
+    (manipulation's grip slip at 7.645 kg against the plan's 8.0 kg hand) while an 8.01 kg item was held with two
+    hands. The whole engine runs (every loaded domain's pick_up hooks), so a domain's grip model that breaks the
+    kernel's lift plan fails here; with HOUSE_SIM_DOMAINS=core it checks the kernel alone."""
+
+    MASSES = (0.5, 2.0, 4.0, 6.0, 7.0, 7.5, 7.6, 7.65, 7.7, 7.8, 7.9, 7.95, 8.0, 8.01, 9.0, 12.0, 16.0, 20.0)
+
+    def held(self, mass, **item):
+        env = LiftPlanMatchesCorePickUpTests().env_for(dict({"mass_kg": mass}, **item), {})
+        result = env.step("pick_up", "item")
+        record = env.world.ent("item")
+        return result["ok"] and record["location"] == "robot", env
+
+    def test_a_heavier_item_held_means_every_lighter_one_is_held(self):
+        for item in ({}, {"material": "wood"}, {"material": "glass", "size_m": [0.25, 0.25, 0.25]}):
+            with self.subTest(item=item):
+                held = [(mass, self.held(mass, **item)[0]) for mass in self.MASSES]
+                for i, (heavy, ok_heavy) in enumerate(held):
+                    if ok_heavy:
+                        self.assertEqual([m for m, ok in held[:i] if not ok], [], "held {} kg".format(heavy))
+                self.assertTrue(all(ok for _, ok in held), held)      # all within capacity: all held
+
+    def test_at_the_hand_limit_one_hand_holds_it(self):
+        for mass in (7.65, 7.9, 8.0):
+            ok, env = self.held(mass)
+            self.assertTrue(ok, mass)
+            self.assertEqual(env.world.ent("item")["held_hand"], "right")
+            self.assertEqual(env.world.s["stats"].get("robot_drops", 0), 0)
 
 
 class TeamLiftTests(unittest.TestCase):

@@ -33,6 +33,7 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import system
 from . import batteries as B
 from . import common as C
+from . import percept
 from . import power as P
 
 CO_ALARM_DOSE = 210000.0
@@ -377,6 +378,7 @@ def test_detector(ctx):
     state = w.s
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True, reach=False)
+    percept.refuse_unfamiliar(ctx, eid)
     require(is_detector(rec), "That is not a smoke or CO alarm", "argument")
     tool = ctx.args.get("tool")
     if tool:

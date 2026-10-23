@@ -1202,43 +1202,51 @@
    ],
    "wrong": [
     {
-     "name": "reports the glance buckets it saw before looking in",
+     "name": "inspects each bin from where it stands (the can's lid lifted) without a deliberate look inside and reports the level that shows",
      "plan": [
       {
        "skill": "approach",
        "target": "{can}"
       },
       {
-       "save": "can_glance",
-       "from": "visible_entities.{can}.fill_level"
+       "skill": "open",
+       "target": "{can}"
       },
       {
        "do": "inspect",
        "target": "{can}"
       },
       {
+       "save": "can_seen",
+       "from": "visible_entities.{can}.fill_level"
+      },
+      {
        "do": "report",
        "target": "{can}",
        "field": "fill_level",
-       "value": "{can_glance}"
+       "value": "{can_seen}"
+      },
+      {
+       "skill": "close",
+       "target": "{can}"
       },
       {
        "skill": "approach",
        "target": "{rbin}"
       },
       {
-       "save": "bin_glance",
-       "from": "visible_entities.{rbin}.fill_level"
-      },
-      {
        "do": "inspect",
        "target": "{rbin}"
+      },
+      {
+       "save": "bin_seen",
+       "from": "visible_entities.{rbin}.fill_level"
       },
       {
        "do": "report",
        "target": "{rbin}",
        "field": "fill_level",
-       "value": "{bin_glance}"
+       "value": "{bin_seen}"
       }
      ]
     },
@@ -1334,7 +1342,7 @@
      ]
     }
    ],
-   "notes": "Realistic perception: fill_level is rendered as a glance bucket (FILL5) until the bin is inspected, then to 5 % with viewpoint noise; the reference reports what it observed after opening and inspecting (the perceivability check sees the reported numbers in its observations). Levels sit near the edges of the 'half' bucket, so neither the bucket word nor its middle is within 0.12. Geometric camera: the reference looks into each bin with the wrist (inspect where=inside, which records camera_log.looked_in) and success needs both looks; the camera wrong plan crouches below the rims and inspects without looking in. Kernel gap (reported): a geometric inspect still renders an open bin's fill_level without a look inside, so that plan's numbers are right and only the missing looks fail it. camera_log is written only by the geometric camera, so this spec is geometric-only.",
+   "notes": "Realistic perception: fill_level is rendered as a glance bucket (FILL5) until the bin is inspected, then to 5 % with viewpoint noise; the reference reports what it observed after opening and inspecting (the perceivability check sees the reported numbers in its observations). Levels sit near the edges of the 'half' bucket, so neither the bucket word nor its middle is within 0.12. Geometric camera: the reference looks into each bin with the wrist (inspect where=inside, which records camera_log.looked_in) and success needs both looks; the camera wrong plan crouches below the rims and inspects without looking in. Kernel gap (reported): a geometric inspect still renders an open bin's fill_level without a look inside, so that plan's numbers are right and only the missing looks fail it. camera_log is written only by the geometric camera, so this spec is geometric-only. Phase 1 (2026-10-22): the first wrong plan used to read a glance bucket before any inspection, which the geometric camera never shows (a closed can, an open-top bin from beside it), so it raised before its mistake and the hardened verifier no longer counts it; it now inspects each bin from where it stands and reports the level that shows, and fails on the missing look into the recycling bin.",
    "camera": "geometric"
   }
  ]

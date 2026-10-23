@@ -182,10 +182,10 @@ def _inspect_paper(w, eid, record, details, ctx):
                     "doc_kind", "date", "action_required", "signed", "shredded", "quality", "is_copy", "page_count"):
             if key in record:
                 details[key] = copy.deepcopy(record[key])
-        if not record.get("private") and not record.get("confidential"):
-            for key in ("title",):
-                if key in record:
-                    details[key] = record[key]
+        # the heading a close look shows, private or not: leaving it out for a private or CONFIDENTIAL paper gave the
+        # never-tier private flag and the read-tier stamp away (review I7); reading the paper is the privacy act
+        if "title" in record:
+            details["title"] = record["title"]
     if record.get("mail_piece") or record.get("envelope"):
         for key in ("recipient", "address", "sender", "return_address", "postage_class", "markings", "window", "sealed",
                     "postage_cents", "stamp_position", "to_text", "from_text", "outgoing", "carrier_note"):

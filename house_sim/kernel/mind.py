@@ -2,7 +2,8 @@
 (docs/design/TIER1_SWEEP.md sections 7 and 16.1; TIER1_INTEGRATION.md 1.9 rule 5 and 1.14).
 
     Mind = {"map":   {rid: {"label", "type", "exits", "connections", "seen_s"}},
-            "seen":  {id: {"room", "location", "relation", "pos", "spos", "shelf", "seen_s", "ident", "label_seen"}},
+            "seen":  {id: {"room", "location", "relation", "pos", "spos", "shelf", "seen_s", "ident", "label_seen",
+                           "kind_seen"}},
             "snapshots": {name: {"room", "time_s", "entities": {eid: {location, relation, spos, pos, shelf,
                                                                       orientation, open, on}}}},
             "prior": {"from_s", "source"}}
@@ -17,7 +18,8 @@ Beliefs are refreshed only by perception: a thing moved while the robot looked e
 (recall marks it "stale" unless it is perceived now). People and pets the robot identified are remembered too (their
 belief has "agent": "people" / "pets"); a shape the robot could not identify (dark room, too far) is not attributed to
 anyone. label_seen is the label rendered at the identity level the robot had then (realistic perception: an
-unresolved look-alike's descriptor, never its true label). Evaluation reads the Mind through view() as "mind.*"
+unresolved look-alike's descriptor, never its true label); kind_seen the category it showed then ("object" while
+unidentified), so a report about a thing that has gone since suggests what one about it out of view would. Evaluation reads the Mind through view() as "mind.*"
 paths (read-only), e.g. {"path": "mind.map", "op": "len_gte", "value": 9}.
 
 Prior knowledge (setup op prior_knowledge, tasks/setup.py) is the config section "prior_knowledge":
@@ -209,7 +211,8 @@ class Mind:
                     belief["seen_s"] = t
                     continue
                 belief = {k: copy.deepcopy(record.get(k)) for k in BELIEF_FIELDS}
-                belief.update(room=mark[3], seen_s=t, ident=ident, label_seen=label)
+                belief.update(room=mark[3], seen_s=t, ident=ident, label_seen=label,
+                              kind_seen=str(record.get("category") or "object") if ident == "identified" else "object")
                 if has_hook:
                     for _, _, fn in _hooks():
                         changed = fn(state, aid, record, belief)

@@ -248,12 +248,59 @@ def hold_capacity_l(state, eid, phys=None):
     return None
 
 
+# walls that let liquid through (phase 1; independent review L3, the food and plumbing_liquids requests): an open weave
+# (wire and coated-wire racks and baskets, mesh, wicker) drains like a perforated body; a holder opening at the front,
+# side, back or bottom (a roll-top bread box: its view "opening") lets poured liquid run straight out
+OPEN_WEAVE_MATERIALS = ("wire", "mesh", "mesh_synthetic", "stainless_mesh", "nylon_coated_steel", "wicker", "rattan")
+SIDE_OPENINGS = ("front", "side", "back", "bottom")
+
+
+def drains_through(rec):
+    """Liquid poured into rec runs straight through to what is below it: perforated (a colander: `perforated`, or
+    `holes_mm` > 0) or an open weave (OPEN_WEAVE_MATERIALS by the record's material word). An explicit
+    `watertight: true` (a lined basket) decides."""
+    if rec.get("watertight") is True:
+        return False
+    if rec.get("perforated") or num(rec.get("holes_mm")) > 0:
+        return True
+    return str(rec.get("material") or "").lower() in OPEN_WEAVE_MATERIALS
+
+
+def opening_of(rec):
+    """Where a container opens: the record's own view block, else its type's (registry view metadata, never copied
+    into records): "front" for a roll-top bread box; None when neither declares one."""
+    own = rec.get("view")
+    if isinstance(own, dict) and own.get("opening"):
+        return own["opening"]
+    name = rec.get("type")
+    if not name:
+        return None
+    from ..registry import default_registry
+    reg = default_registry()
+    if not reg.known(name):
+        return None
+    return reg.view_props(name).get("opening")
+
+
+def liquid_tight(rec):
+    """Whether a holder's walls and floor keep liquid in (the rule plumbing_liquids' verbs use, so kernel pours,
+    drips and spills agree with them): an explicit `watertight` decides; else it does not drain through, is neither
+    porous nor soft-sided (a canvas tote, a paper or woven bag), is no open shelving (a shelving unit's capacity is
+    storage, not a vessel) and does not open at the front, side, back or bottom."""
+    if "watertight" in rec:
+        return bool(rec.get("watertight"))
+    if drains_through(rec) or rec.get("porous") or rec.get("soft_sided") or rec.get("open_shelving"):
+        return False
+    return opening_of(rec) not in SIDE_OPENINGS
+
+
 def holds_liquid(state, eid, phys=None):
-    """Whether liquid arriving at eid pools in it: an open, waterproof, unperforated holder."""
+    """Whether liquid arriving at eid pools in it: an open, waterproof (or explicitly watertight), liquid-tight
+    holder (liquid_tight)."""
     rec = state["entities"][eid]
     p = phys if phys is not None else props.props(state, eid)
-    return (bool(p.waterproof) and not rec.get("perforated") and not container_closed(rec)
-            and hold_capacity_l(state, eid, p) is not None)
+    return ((bool(p.waterproof) or rec.get("watertight") is True) and liquid_tight(rec)
+            and not container_closed(rec) and hold_capacity_l(state, eid, p) is not None)
 
 
 def absorb_capacity_l(p):
@@ -338,7 +385,8 @@ def _mark_provenance(w, dst, src):
 def pour_in(w, dst, liters, liquid="water", temp_c=None, source=None, density=None, by=None):
     """Pour liters of liquid into dst (from a faucet, or transfer's source). Returns (delivered, spilled).
 
-    A perforated destination lets everything through to what is below it; a non-holder is spilled onto. Into a
+    A destination that drains through (perforated, an open weave: drains_through) lets everything through to what is
+    below it; a non-holder (not liquid-tight: a roll-top bread box, a soft-sided bag) is spilled onto. Into a
     holder: the thermal-shock check runs first while the thermal_shock law is active (thermal.pour_shock_check: cold
     into a hot vessel couples 1.0, hot into a colder one 0.6; a cracked holder spills it all), the bulk temperature
     mixes by heat capacity, the liquid is added, and what does not fit overflows where dst stands."""
@@ -348,7 +396,7 @@ def pour_in(w, dst, liters, liquid="water", temp_c=None, source=None, density=No
     state = w.s
     rec = w.ent(dst)
     origin = source or dst
-    if rec.get("perforated"):
+    if drains_through(rec):
         deposit_below(w, dst, liters, liquid, source=origin, by=by, cause="pour_through")
         return 0.0, round(liters, 4)
     p = props.props(state, dst)
@@ -490,11 +538,18 @@ def _resolve_at(state, at, source):
     return rid, (int(cell[0]), int(cell[1]))
 
 
+PUDDLE_FIELDS = ("_phys_spill",)        # the one field the kernel's puddle index reads (World.static_index reads=)
+
+
+def _is_puddle(record):
+    return bool(record.get("_phys_spill"))
+
+
 def _puddle_at(w, rid, cell, liquid):
-    """The kernel puddle of this liquid already on the cell, if any (puddles never move, so the World's static index
-    of them, rebuilt only when an entity is created or destroyed, is exact)."""
+    """The kernel puddle of this liquid already on the cell, if any (the World's static index of puddles: a puddle is
+    one from its creation on)."""
     entities = w.s["entities"]
-    for eid in w.static_index("phys:puddles", lambda r: bool(r.get("_phys_spill"))):
+    for eid in w.static_index("phys:puddles", _is_puddle, reads=PUDDLE_FIELDS):
         rec = entities.get(eid)
         if rec is not None and rec.get("location") == rid and rec.get("liquid") == liquid and \
                 tuple(rec.get("pos") or ()) == cell:
@@ -527,7 +582,7 @@ def _remove_puddle(w, eid):
     w.destroy(eid)
     if rid not in w.s["rooms"]:
         return
-    others = [e for e in w.static_index("phys:puddles", lambda r: bool(r.get("_phys_spill")))
+    others = [e for e in w.static_index("phys:puddles", _is_puddle, reads=PUDDLE_FIELDS)
               if e in w.s["entities"] and w.s["entities"][e].get("location") == rid and
               list(w.s["entities"][e].get("pos") or ()) == cell]
     wet_cells = [list(c) for c in w.s["rooms"][rid].get("wet_cells") or []]
@@ -657,14 +712,19 @@ def deposit_below(w, eid, liters, liquid, source=None, by=None, cause="spill"):
 
 # ----- drips and leaks (processes "dripping" and "leaking") ---------------------------------------------------------
 
-def drip_start(w, eid, l_per_h, until_l=None):
+def drip_start(w, eid, l_per_h, until_l=None, by=None):
     """eid drips l_per_h litres per hour onto what is below it (5.7 drip law: a wet umbrella, a thawing ice pack, a
     watered plant pot). The water comes out of eid's own liquid, else (until_l given) from an outside budget such as
     meltwater, else out of its wetness; it stops when that runs out or after until_l litres. Shows dripping: true
-    (unless a domain already set it: plumbing's faucet flag is never clobbered). False when there is nothing to drip."""
+    (unless a domain already set it: plumbing's faucet flag is never clobbered). False when there is nothing to drip.
+    by: "robot" or "exogenous" for every portion it deposits (a pot the robot over-watered drains as the robot's,
+    outdoor_plants' adoption request 2; watering is no structural change the settle marks); None decides per portion
+    as any consequence (impact.robot_caused)."""
     values = {"l_per_h": round(num(l_per_h), 4)}
     if until_l is not None:
         values["left_l"] = round(max(0.0, num(until_l)), 4)
+    if by is not None:
+        values["by"] = "robot" if by == "robot" else "exogenous"
     return processes.start(w, "dripping", eid, **values)
 
 
@@ -672,10 +732,13 @@ def drip_stop(w, eid):
     return processes.stop(w, "dripping", eid)
 
 
-def leak_start(w, eid, l_per_h=LEAK_L_PER_H):
+def leak_start(w, eid, l_per_h=LEAK_L_PER_H, by=None):
     """A cracked or torn container loses its liquid at l_per_h onto what is below it until empty; shows leaking.
-    False when it holds no free liquid."""
-    return processes.start(w, "leaking", eid, l_per_h=round(num(l_per_h), 4))
+    False when it holds no free liquid. by: as drip_start's."""
+    values = {"l_per_h": round(num(l_per_h), 4)}
+    if by is not None:
+        values["by"] = "robot" if by == "robot" else "exogenous"
+    return processes.start(w, "leaking", eid, **values)
 
 
 def leak_stop(w, eid):
@@ -719,6 +782,8 @@ def _flow_begin(w, eid, values, flag_field, liquid_only):
         thermal.wet_contact_check(w, eid, rec["location"])      # dripping, it is wet on what it stands on from now
     merged = {"l_per_h": num(values["l_per_h"]), "src": mode, "buf_l": round(num(values.get("buf_l")), 6),
               "flag": bool(owns_flag)}
+    if values.get("by") in ("robot", "exogenous"):
+        merged["by"] = values["by"]             # who started it, for every portion it deposits
     if mode == "wet" and values.get("left_l") is None:
         held, cap = _held_water_l(state, eid)
         merged.update(left_l=round(held, 6), wet_l=round(held, 6), wet_cap_l=round(cap, 6),
@@ -770,7 +835,7 @@ def _flow_tick(w, eid, dt, kind):
         if mode == "liquid":
             portion = min(portion, round(free_liquid_l(rec), 4))
             _drain(w, eid, portion)
-        deposit_below(w, eid, portion, rec.get("liquid") or "water", source=eid,
+        deposit_below(w, eid, portion, rec.get("liquid") or "water", source=eid, by=p.get("by"),
                       cause="drip" if kind == "dripping" else "leak")
         buf -= portion
     if done or eid not in state["entities"]:

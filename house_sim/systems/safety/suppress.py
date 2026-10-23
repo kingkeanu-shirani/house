@@ -10,7 +10,7 @@ and every exit), too_close (< 0.9 m from a liquid fire), unaimed_discharge.
 """
 import math
 
-from ...kernel import body, geometry
+from ...kernel import body, camera, geometry, sight
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after
@@ -335,14 +335,24 @@ def distance_to_fire(state, fid):
     return C.robot_distance_m(state, fid)
 
 
+STANDOFF_SLACK_M = 0.8          # a standoff this much nearer or farther than wanted still counts as the wanted one
+
+
 def standoff_cell(state, fid, want_m=2.2, max_m=None):
-    """A reachable floor cell ~want_m from the fire with a clear exit behind (used by reference skills)."""
+    """A reachable floor cell ~want_m from the fire with a clear exit behind (used by reference skills). With the
+    geometric camera, among those, one from which the head camera sees the fire (sight.best_viewpoints) when one lies
+    within STANDOFF_SLACK_M of want_m: `aim` refuses a fire the camera cannot see, and a cabinet or an island between
+    the standoff and a low wastebasket hides its flames (X-bf82170244be22-01 seed 1). Room camera: unchanged."""
     rid, cells = geometry.anchor(state, fid)
     if rid is None or not cells:
         return None
     _, fx, fy, _ = C.entity_xyz(state, fid)
-    room = state["rooms"][rid]
     reach = C.reachable_cells(state, rid, start=state["robot"].get("pos") if state["robot"].get("room") == rid else None)
+    views = None
+    if camera.mode(state) == "geometric":
+        here = state["robot"].get("room") == rid           # else walking costs start from the room's doorways
+        probe = state if here else dict(state, robot=dict(state["robot"], room=None, pos=None))
+        views = set(sight.best_viewpoints(probe, rid, fid, k=len(reach) + 1))
     best = None
     for cell in sorted(reach):
         cx, cy = C.cell_center_m(cell)
@@ -354,7 +364,8 @@ def standoff_cell(state, fid, want_m=2.2, max_m=None):
         probe = dict(state)
         probe["robot"] = dict(state["robot"], room=rid, pos=list(cell))
         clear = exit_clear(probe, fid)
-        score = (0 if clear else 1, abs(d - want_m), cell[1], cell[0])
+        unseen = views is not None and not (tuple(cell) in views and abs(d - want_m) <= STANDOFF_SLACK_M)
+        score = (0 if clear else 1, 1 if unseen else 0, abs(d - want_m), cell[1], cell[0])
         if best is None or score < best[0]:
             best = (score, list(cell))
     return best[1] if best else None

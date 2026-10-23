@@ -1,0 +1,515 @@
+{
+ "id": "K-GATE",
+ "fixed": [
+  {
+   "item": "G2-ABS: every authored spec passes in its own mode on every seed, new specs included, in record and compare (review E0/E1: a carried failure and a new spec failing on every seed passed)",
+   "how": "tier1_gate.failing_specs / describe_failing; evaluate_specs and compare_dirs add a G2-ABS problem; the only exception is an unexpired spec entry of the dated allowlist",
+   "test": "tests/test_gate_tool.py AbsoluteRuleTests (e0, e1, allowlist with expiry)"
+  },
+  {
+   "item": "Every test passes except a dated allowlist with owner and expiry (G1, G1b now absolute, G8; record and compare)",
+   "how": "tools/orchestration/gate_policy/known_failing.json (format house-gate-known-failing-v1; kind test|spec, owner, expires YYYY-MM-DD, reason; expired or malformed entries excuse nothing; an unparsed failing run is never excused); load_known_failing, test_allowed, unexplained_test_failures",
+   "test": "tests/test_gate_tool.py AuditAndRecordTests.test_failing_tests_need_an_unexpired_allowlist_entry, TrustedPolicyTests.test_allowlist_entries_are_validated_and_dated"
+  },
+  {
+   "item": "Review codes bound to the files a package owns (review E3: the cleaning package could review an admin_inventory regression; every ADOPT package shared code ADOPT)",
+   "how": "reviewed rows carry their package (handoff table: that package; reviewed.json / --reviewed: the row's package or the policy's); package_covers_spec: a package owning tasks/authored globs reviews only those specs, a kernel package any spec",
+   "test": "tests/test_gate_tool.py SecondSignatureTests.test_e3_a_package_cannot_review_another_domains_spec"
+  },
+  {
+   "item": "Second signature: every verdict change, every edited spec (spec_hash changed; review E4) and every coverage loss needs a main-session row naming the exact new verdict digest / spec hash / action",
+   "how": "gate_policy/signoffs/<ID>.json (house-gate-signoff-v1); policy files are read only as committed (git show HEAD:..., or unchanged since the base in an isolated copy) so an agent's working-tree edit counts for nothing; G10 fails any package (except K-GATE and the P1-ALL union) that edits them; `signoff` drafts the file from two records, `policy` prints what the gate reads",
+   "test": "tests/test_gate_tool.py SecondSignatureTests (e2, e4, signoff draft), TrustedPolicyTests (committed-only in a real git repo, isolated copy), ScopeTests.test_only_the_main_session_changes_the_policy_files"
+  },
+  {
+   "item": "Wrong-plan failure labels recorded in trial records and compared (review T3f / P1 F1: goal -> harm-flag drift was invisible)",
+   "how": "verify.py records labels, reasons (label classes + goal), goal_fraction, ran (fully), error_class, steps_run/steps_total; the gate worker keeps reasons, goal_fraction, error_class, steps and the first labels (run_trial(capture=) replaces the run_plan spy); trial_verdict includes each wrong plan's reasons when both records have them (old records compare without)",
+   "test": "tests/test_gate_tool.py WrongPlanReasonTests (reason change is a verdict change; old records; the _trials worker subprocess end to end)"
+  },
+  {
+   "item": "SKIP counts as FAIL; N/A for checks that do not apply; a record passes only when no check FAILs or SKIPs and its comparison passes; partial or narrowed records end INCOMPLETE (meta handover false)",
+   "how": "FAILING = (FAIL, SKIP); G1c/G8/G9/G10 not-applicable cases are N/A; Gate.write computes verdict, handover, compare_ok; compare marks unrecorded checks N/R",
+   "test": "tests/test_gate_tool.py AuditAndRecordTests.test_skip_counts_as_fail_in_a_record, test_a_partial_record_is_never_a_hand_over"
+  },
+  {
+   "item": "G4/G6 regressions fail compare (review E6: 57 leaks and 9 fuzz defects were INFO)",
+   "how": "audit_regressions: absolute (any leak, crash, defect, nondeterministic replay, non-zero exit), every increase and every variant the previous gate ran but this one did not",
+   "test": "tests/test_gate_tool.py AuditAndRecordTests.test_e6_leaks_and_defects_fail_compare, test_a_variant_the_previous_gate_ran_must_run_again"
+  },
+  {
+   "item": "G10 fails without git (review T5: SKIP, exit 0)",
+   "how": "scope_check returns FAIL when changed_files cannot list changes (an isolated copy needs no git); N/A without --package; `scope` exits 1",
+   "test": "tests/test_gate_tool.py ScopeTests.test_g10_fails_without_git"
+  },
+  {
+   "item": "The adoption-style `compare --package ADOPT:<d> --shared-tree` works; compare also fails on the record's own G1c/G9/G10 failures and when --package is not the record's own package",
+   "how": "resolve_records shared by compare and signoff; REC and POL sections in compare_dirs / cmd_compare; tier1_adopt.js now prescribes record then compare",
+   "test": "tests/test_gate_tool.py ScopeTests.test_the_adoption_style_shared_tree_compare_works, AuditAndRecordTests.test_the_records_own_failing_checks_fail_compare, test_compare_uses_the_records_own_package"
+  },
+  {
+   "item": "Per-action success coverage reported (review T2/H13)",
+   "how": "fuzz.py JSON adds actions {name: [succeeded, tried]}, coverage (registered, succeeded, never_succeeded, never_tried) and refusals; the gate's G6 note reports the union over variants, audits.json G6.union, and compare lists coverage and fails on actions lost without a signature",
+   "test": "tests/test_gate_tool.py FuzzCoverageTests.test_the_random_fuzz_reports_per_action_coverage_and_replays_every_house, AuditAndRecordTests.test_coverage_lost_needs_a_signature"
+  },
+  {
+   "item": "tools/fuzz.py --coverage drives every registered action toward its success path (review measured 46 of 427)",
+   "how": "per spec (243, seeds rotated 0/1/2/41/97): reference and every wrong plan through a Recorder (counts, privileged-form log, strict-mode defects), then two targeted walks (from the setup and after the reference) over the actions nothing drove to success yet, domain first: arguments ranked by shared words, the task runner's reveal/approach/fetch skills to reach things across rooms and out of containers, refusal-reading repairs; every reference is replayed in-process and every walk in a fresh process with another PYTHONHASHSEED. Measured: 283 of 427 actions succeed (random fuzz 46), 0 nondeterministic, 2 strict-mode defects found",
+   "test": "tests/test_gate_tool.py FuzzCoverageTests.test_the_coverage_mode_walks_from_spec_setups_and_replays_them, test_the_walker_reads_refusals"
+  },
+  {
+   "item": "The fuzzer's determinism check replays every house, not the first 4 (review T9)",
+   "how": "--replay N|all (default all), parallel fresh-process replays",
+   "test": "tests/test_gate_tool.py FuzzCoverageTests.test_the_random_fuzz_reports_per_action_coverage_and_replays_every_house"
+  },
+  {
+   "item": "A wrong plan that raises (PlanError or any exception) is not evidence: the spec fails with a clear message (review H17; verify.py:185 counted PlanError as ran; any other exception aborted the whole trial)",
+   "how": "verify.run_wrong_plan / wrong_plan_record: one top-level step at a time (state identical to run_plan(strict=False)); ran false, error_class, error, steps_run/steps_total, not_evidence; non-PlanError exceptions are harness_error with a trace; the other wrong plans still run; trial wrong_not_run lists the messages (VERIFY_HARDENING 14.5)",
+   "test": "tests/test_verify_records.py WrongPlanRecordTests (PlanError, TypeError in a skill, realistic perception with room and geometric cameras, step-by-step equivalence, labels/reasons, capture)"
+  },
+  {
+   "item": "--verify-on-the-fly honours --camera (review P5-6)",
+   "how": "eval/run.py verify_on_the_fly(camera=) passes it to verify_many and records it per spec; run() passes the forced camera only when one is forced; run.json verification.camera",
+   "test": "tests/test_verify_records.py VerifyOnTheFlyCameraTests"
+  },
+  {
+   "item": "CI: .github/workflows/ci.yml, unit suite and a spec sample on Python 3.9 and 3.14, Windows and Linux",
+   "how": "matrix ubuntu-latest/windows-latest x 3.9/3.14; autocrlf off; throwaway HOME/USERPROFILE; HOUSE_AI_FORBID_NETWORK=1; green_tests.py (exit 1 on failure) and run_check.py run --all --seeds 41; artifacts; no secrets, no paid services",
+   "test": "tests/test_gate_tool.py ProcessToolTests.test_the_ci_workflow_covers_both_pythons_and_both_systems"
+  },
+  {
+   "item": "Python 3.9 compatibility guard (grammar and common 3.10+ runtime features)",
+   "how": "an ast check of every .py in house_sim, tools, tests and the root with feature_version=(3, 9) plus zip(strict=), isinstance(x, A | B), X | Y annotations without the future import, itertools.pairwise, int.bit_count, math.cbrt/exp2, enum.StrEnum, aiter/anext, tomllib, datetime.UTC; 0 problems today",
+   "test": "tests/test_gate_tool.py ProcessToolTests.test_every_python_file_is_python_3_9"
+  },
+  {
+   "item": "ORCHESTRATOR-VERIFY: an orchestration helper that runs --check itself and records the result (review H15, P4 A3)",
+   "how": "tools/orchestration/run_check.py run/verify/show: verifies the files itself, compares with the claimed list, appends a sha256-sealed, hash-chained entry to catalog/review/check_log/orchestrator.jsonl (files with sha256, options, code fingerprints, per-spec verdicts and reasons); verify --rerun N re-runs entries whose files and code are unchanged; author_wf.js runs it after the author and the reviewer and reports the tool's verdicts and the claim mismatches",
+   "test": "tests/test_gate_tool.py RunCheckTests (claim mismatch, chaining, rerun reproduces, forged entry breaks the chain)"
+  },
+  {
+   "item": "green_tests.py exits non-zero on a failure (it always exited 0, so CI could not use it)",
+   "how": "exit 1 on any failing run, 2 when no file matches; --modes, --tests-dir, --json; same default JSON for the gate",
+   "test": "tests/test_gate_tool.py ProcessToolTests.test_green_tests_exits_non_zero_on_a_failure"
+  },
+  {
+   "item": "Workflow templates: the adoption round's gate command and truncated inline reports (review T4, P4 A3 item 5)",
+   "how": "tier1_adopt.js: record then compare (the forms that work), the absolute rules and signatures explained, full reports written to catalog/analysis/tier1/adopt/<owner>.json and passed to the integrator as files (no .slice(0, 30000)); author_wf.js: KERNEL_API pointer updated to every version section and TASK_SPEC schema 3",
+   "test": "none automated (JS; no node on this machine) - reviewed by reading the diff"
+  },
+  {
+   "item": "Phase-1 packages for the gate",
+   "how": "K-GATE (stage P1, previous gate ADOPT, may change verdicts behind reviewed rows code P1 plus signatures) and the main session's union P1-ALL (`record --id P1 --package P1 --prev ADOPT`); sub-stage P1 = every ADOPT:<domain> + K-GATE for --shared-tree",
+   "test": "tests/test_gate_tool.py ScopeTests.test_the_phase_1_packages"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "V-EXPECT (expect labels, mistake steps, mistake attribution)",
+   "why": "Next phase (docs/design/VERIFY_HARDENING.md 14). This phase records what it needs (labels, reasons, steps_run, refused) without deciding expected reasons."
+  },
+  {
+   "item": "144 registered actions are never driven to success by any harness walk (list per domain in this file)",
+   "why": "Their preconditions are multi-step domain states (a nest box with eggs, a coffee machine with water and grounds, a car with a flat tire) that neither the specs' setups nor generic walks create; each needs a scenario helper or a spec. Reported to the domains with the most common refusals in the coverage JSON."
+  },
+  {
+   "item": "One git worktree per agent; independent auditor with acceptance sampling and planted defects",
+   "why": "Process design for the authoring wave (review section 2 Q6, VERIFY_HARDENING); not in this package's files. The workflow API supports isolation: 'worktree', but authors' files and the orchestrator check must then share the worktree - left for the authoring-workflow rewrite."
+  },
+  {
+   "item": "CI has not run",
+   "why": "No network from this machine; Linux and Python 3.9 runtime behaviour (as opposed to grammar) is unverified until the main session pushes. Expected first findings: line-ending and float-dependent goldens (review M7)."
+  },
+  {
+   "item": "Gate cost",
+   "why": "The coverage fuzz adds about 20-40 minutes (4 workers) to G6 on this machine; it is the determinism replay of every walk plus the reference runs. Narrowing per package would break coverage comparison, so it runs in full."
+  },
+  {
+   "item": "Previous gate records (C1, ADOPT) have no wrong-plan reasons",
+   "why": "Reason drift is compared only when both records carry reasons: from the first phase-1 record on."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-c49fadcea69182-01 (cleaning__perception.json): pass -> fail on all 5 seeds (wrong plan raises PlanError before its mistake; verify.py crash policy)",
+  "T-a31398ab2abf54-01 (climate__perception.json): pass -> fail on all 5 seeds (wrong plan raises PlanError before its mistake; verify.py crash policy)"
+ ],
+ "tests": {
+  "count": 4441,
+  "passed": false,
+  "strict_passed": false,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 238
+ },
+ "requests": [
+  {
+   "owner": "main session",
+   "request": "Commit tools/orchestration/gate_policy/ (README.md, known_failing.json with entries [], signoffs/.gitkeep): the gate reads only the committed versions. Then record the phase-1 gate (`python tools/orchestration/tier1_gate.py record --id P1 --package P1 --prev ADOPT`), draft and review the signatures (`signoff --by main --out draft.json`), commit gate_policy/signoffs/P1.json, and add dated allowlist entries (owner, expiry) only for failures you accept for a bounded time. Push to see the first CI run (Python 3.9 / Linux unverified here)."
+  },
+  {
+   "owner": "main session",
+   "request": "Behaviour changes to note before committing: (1) house_sim/tasks/verify.py: a wrong plan that raises now fails its spec (2 specs today, below); a non-PlanError exception in a wrong plan no longer aborts the trial; trial records gain labels/reasons/goal_fraction/steps_run/steps_total/refused/not_evidence/error_class/harness_error/trace and wrong_not_run. (2) tier1_gate.py: absolute rules, signatures, SKIP=FAIL, G10 FAIL without git, G1b absolute (carried isolated-domain failures are no longer excused), compare FAILs on G4/G6/REC/POL, the coverage fuzz in G6. (3) green_tests.py exits 1 on a failure. (4) fuzz.py replays every house (G6 slower) and has --coverage. (5) eval/run.py: --verify-on-the-fly with --camera verifies in that camera; run.json verification.camera."
+  },
+  {
+   "owner": "cleaning",
+   "request": "T-c49fadcea69182-01 (tasks/authored/cleaning__perception.json) now fails: its wrong plan 'reports the glance buckets it saw before looking in' raises PlanError at top-level step 2 of 8 on all 5 seeds (save from visible_entities.kitchen_trash_can_1.fill_level: Nothing observable), so it never performs its mistake. Make the plan report the glance-level value it can actually read (or drop the save)."
+  },
+  {
+   "owner": "climate",
+   "request": "T-a31398ab2abf54-01 (tasks/authored/climate__perception.json) now fails: its wrong plan 'reads the hygrometer from the bedroom doorway as it walks in...' raises PlanError on all 5 seeds (Nothing observable at visible_entities.hygrometer_1.rh_pct) before its mistake. Make it read what the doorway view shows (or report without the save)."
+  },
+  {
+   "owner": "owner of the grant gate in house_sim/kernel/actions.py (ActionContext.grant, HOUSE_SIM_STRICT) + core (move, inspect) + navigation_robot",
+   "request": "Two strict-mode defects found by the coverage fuzz and reproduced with verify.run_trial under HOUSE_SIM_STRICT=1: (a) `move` with avoid ['glass'] raises 'move granted inspect of floor_to_ceiling_glass_partition_1 the robot cannot have learned from where it is (Go to the room containing it first)' - repro A-926bc611ae9158-01 (navigation_robot__perception.json) seed 2, wrong plans 1-3; (b) `inspect` where='closely' raises 'inspect granted touch of spare_soap_jug ... (Approach it first; it is out of arm's reach)' - repro T-ab9a26cd6a795e-01 (admin_inventory__perception.json) seed 97, wrong plan 'checks the shelf from the closet doorway without walking up'. Without strict mode the grant is silently dropped."
+  },
+  {
+   "owner": "all 16 domains",
+   "request": "The coverage fuzz never drove these actions to success (refusals in the coverage JSON, `python tools/fuzz.py --coverage --json OUT`): admin_inventory: 17 of 34 (address_envelope, bind, collate, copy, cross_off, mount_roll, open_package, place_order, print, remove_from_list, remove_packing, rotate_stock, ...); appliances_cooking: 6 of 12 (blend, brew, defrost, grind_coffee, light_grill, steam_milk); cleaning: 4 of 22 (condition, descale, polish, squeegee); core: 4 of 51 (diff, forget, pause, receive); electrical: 1 of 10 (pair_device); food: 22 of 38 (carve, crush, cube, fillet, grate, grind, juice, knead, marinate, mince, mix, plate, ...); kernel: 2 of 4 (cancel_watch, run_pending); manipulation: 19 of 52 (catch, drag, insert, remove_tape, roll, screw_together, seal, twist, uncover, unfasten, unpack, unscrew_apart, ...); mechanisms: 2 of 14 (move_lever, squeeze_trigger); navigation_robot: 5 of 27 (free_stuck_robot, get_up, patrol, undock, use_reacher); outdoor_plants: 18 of 30 (aerate, bag_leaves, clear_gutter, deadhead, dig, edge, fertilize, harvest, overseed, plant, prune, repot, ...); people: 9 of 24 (assist_sit, call, check_calendar, decline_visitor, dress_assist, log_medication, offer_arm, play_game, sign_for); pets: 10 of 22 (brush_pet, change_aquarium_water, change_litter, collect_eggs, crate, play_fetch, refill_litter, uncrate, walk_pet, wipe_paws); plumbing_liquids: 1 of 15 (connect_hose); safety: 1 of 14 (relocate_pest); textiles_laundry: 8 of 27 (depill, lace_shoes, polish_shoes, repair_seam, soak, steam, take_off_hanger, tuck); tools_vehicles: 15 of 28 (caulk, change_tire, connect_charger, cut_with, disassemble, drill, drive_to, jump_start, paint, patch, pressure_wash, regrout, ...). Give each a reachable success path from an authored spec's setup or a scenario helper, or record why it cannot succeed in a generated house."
+  },
+  {
+   "owner": "next phase (verification hardening)",
+   "request": "Build V-EXPECT and the check log of VERIFY_HARDENING 12.4 on the fields this phase records (wrong-plan labels, reasons, goal_fraction, steps_run, refused, error_class) and on verify.run_trial(capture=); run_check.py's log lives beside the per-domain check logs in catalog/review/check_log/."
+  }
+ ],
+ "notes": "Final runs (2026-10-22, shared tree with 16 domain owners and two kernel agents editing concurrently; the machine was at 100 % CPU throughout, 40-50 python processes).\nUNIT SUITE: `python tools/orchestration/green_tests.py 5` = 63 files x normal+strict = 126 runs, 4,441 tests (normal), 44 min. 15 failing runs, 12 distinct failing tests, none in K-GATE's files: test_admin_inventory RedTeamRoundTests.test_private_print_refusal_names_no_owner; test_camera SightIntegrationTests (3: first hop, room epochs, geometry epoch); test_camera_realism test_geometric_realistic_observe_overhead_is_small (strict only) and test_perception test_realistic_observe_overhead_is_small (wall-clock bounds under load); test_generator_compat (2, generation-1 digests: generator files are being edited); test_physics_settle CrossLayerContractTests.test_a_fully_wrapped_glass_breaks_inside_its_wrap and test_physics_statics test_break_modes_follow_the_material (the review's wrapped-glass defect, being fixed by its owners); test_room_golden (2). K-GATE's own files are green in both modes: test_gate_tool.py 33 tests, test_verify_records.py 10, and the existing test_eval_tier1_gate.py 10 (re-run after the last edits; one strict run of test_gate_tool failed once on T-run-check-01 while other agents were editing kernel files and passed on three re-runs, alone and in full). With HOUSE_SIM_DOMAINS=core they pass too (the coverage-walk test skips: its spec is a navigation_robot spec); `isolated_passed` refers to that.\nSPECS: every authored spec combined into one file, `python -m house_sim --check <combined> --workers 4` = 238 / 243 pass (30 min). Failing: T-c49fadcea69182-01 (cleaning) and T-a31398ab2abf54-01 (climate), both by the new crash policy (their wrong plans raise PlanError before their mistake on every seed; requests filed); T-7d4006bda247ba-01 (textiles_laundry, reference 'damage'; a listed adoption breakage); T-3b1a4024d46110-01 (plumbing_liquids, seed 97, geometric: reference 'approach cabinet_5: That is not visible here') and A-d66994a566899c-01 (textiles_laundry, seed 1: reference 'inspect sweater_2: That is not visible here') - reference failures, which K-GATE's changes cannot cause (the reference path of verify.py is unchanged); both passed in K-GATE's baseline run earlier the same day, so a concurrent kernel / generator edit is the likely cause. The baseline with the original verify.py (same day) was 241 / 243.\nFUZZ: `python tools/fuzz.py --coverage --workers 4` drove 283 of 427 registered actions to success (random fuzz 12x300 in the review: 46; an earlier walker without the routing skills: 257), replayed every reference in-process and all 486 walks in fresh processes with other hash seeds identically (0 nondeterministic), and found 2 strict-mode defects (requests filed). 37 min on the loaded machine.\nREGRESSION EVIDENCE: the new tests were run against the original files (a copy with HEAD's tools and the original verify.py / run.py): test_verify_records 9 of 9 failed before, test_gate_tool 30 of 32 failed before (the 2 that passed are the Python 3.9 guard, which is a guard, and the forged-entry test of the then non-existent run_check.py copied in).\nGATE: a narrowed real record (`record --id K-GATE --package K-GATE --prev ADOPT --only G0,G2,G3,G10 --spec-files 'cleaning__perception*'`, in the scratch folder) exercised worker capture, G2-ABS, the unsigned verdict changes, REC/G10 and `signoff`; it fails, as it should on a shared tree (other packages' files, the 2 crash-policy specs).\nNothing was committed; no file under %USERPROFILE%\\.house_ai was touched; no network or paid call.\n",
+ "unit_suite": {
+  "runs": 126,
+  "failing_runs": 15,
+  "failing_tests": {
+   "tests.test_admin_inventory.RedTeamRoundTests.test_private_print_refusal_names_no_owner": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_camera.SightIntegrationTests.test_parts_and_things_inside_are_judged_on_their_first_hop": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_camera.SightIntegrationTests.test_room_epochs_judge_each_room_alone_and_stay_exact": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_camera.SightIntegrationTests.test_the_geometry_epoch_ignores_temperature_writes_and_sees_moves": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_camera_realism.DeterminismTests.test_geometric_realistic_observe_overhead_is_small": [
+    "strict"
+   ],
+   "tests.test_generator_compat.GenerationOneDigests.test_explicit_gen_1_is_the_default": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_generator_compat.GenerationOneDigests.test_generation_one_houses_are_unchanged": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_perception.RealisticPerceptionTests.test_realistic_observe_overhead_is_small": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_physics_settle.CrossLayerContractTests.test_a_fully_wrapped_glass_breaks_inside_its_wrap": [
+    "normal",
+    "normal",
+    "strict",
+    "strict"
+   ],
+   "tests.test_physics_statics.FallAndBreakTests.test_break_modes_follow_the_material": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_room_golden.RoomGoldenTests.test_reference_plan_digests_match": [
+    "normal",
+    "strict"
+   ],
+   "tests.test_room_golden.RoomGoldenTests.test_script_digests_match": [
+    "normal",
+    "strict"
+   ]
+  },
+  "mine": {
+   "test_gate_tool.py": [
+    0,
+    0
+   ],
+   "test_verify_records.py": [
+    0,
+    0
+   ],
+   "test_eval_tier1_gate.py": [
+    0,
+    0
+   ]
+  }
+ },
+ "combined_check": {
+  "passed": 238,
+  "failed": 5,
+  "failing": [
+   "T-c49fadcea69182-01",
+   "T-a31398ab2abf54-01",
+   "T-3b1a4024d46110-01",
+   "T-7d4006bda247ba-01",
+   "A-d66994a566899c-01"
+  ]
+ },
+ "coverage_fuzz": {
+  "registered": 427,
+  "succeeded": 283,
+  "never_succeeded_by_domain": {
+   "admin_inventory": {
+    "registered": 34,
+    "succeeded": 17,
+    "never": [
+     "address_envelope",
+     "bind",
+     "collate",
+     "copy",
+     "cross_off",
+     "mount_roll",
+     "open_package",
+     "place_order",
+     "print",
+     "remove_from_list",
+     "remove_packing",
+     "rotate_stock",
+     "scan",
+     "shred",
+     "staple",
+     "tag_luggage",
+     "unstaple"
+    ]
+   },
+   "appliances_cooking": {
+    "registered": 12,
+    "succeeded": 6,
+    "never": [
+     "blend",
+     "brew",
+     "defrost",
+     "grind_coffee",
+     "light_grill",
+     "steam_milk"
+    ]
+   },
+   "cleaning": {
+    "registered": 22,
+    "succeeded": 18,
+    "never": [
+     "condition",
+     "descale",
+     "polish",
+     "squeegee"
+    ]
+   },
+   "climate": {
+    "registered": 3,
+    "succeeded": 3,
+    "never": []
+   },
+   "core": {
+    "registered": 51,
+    "succeeded": 47,
+    "never": [
+     "diff",
+     "forget",
+     "pause",
+     "receive"
+    ]
+   },
+   "electrical": {
+    "registered": 10,
+    "succeeded": 9,
+    "never": [
+     "pair_device"
+    ]
+   },
+   "food": {
+    "registered": 38,
+    "succeeded": 16,
+    "never": [
+     "carve",
+     "crush",
+     "cube",
+     "fillet",
+     "grate",
+     "grind",
+     "juice",
+     "knead",
+     "marinate",
+     "mince",
+     "mix",
+     "plate",
+     "portion",
+     "remove_part",
+     "roll_dough",
+     "shape",
+     "shuck",
+     "sift",
+     "stir",
+     "strain",
+     "whisk",
+     "zest"
+    ]
+   },
+   "kernel": {
+    "registered": 4,
+    "succeeded": 2,
+    "never": [
+     "cancel_watch",
+     "run_pending"
+    ]
+   },
+   "manipulation": {
+    "registered": 52,
+    "succeeded": 33,
+    "never": [
+     "catch",
+     "drag",
+     "insert",
+     "remove_tape",
+     "roll",
+     "screw_together",
+     "seal",
+     "twist",
+     "uncover",
+     "unfasten",
+     "unpack",
+     "unscrew_apart",
+     "unseal",
+     "unsnap",
+     "untie",
+     "untwist",
+     "unwrap",
+     "unzip",
+     "zip"
+    ]
+   },
+   "mechanisms": {
+    "registered": 14,
+    "succeeded": 12,
+    "never": [
+     "move_lever",
+     "squeeze_trigger"
+    ]
+   },
+   "navigation_robot": {
+    "registered": 27,
+    "succeeded": 22,
+    "never": [
+     "free_stuck_robot",
+     "get_up",
+     "patrol",
+     "undock",
+     "use_reacher"
+    ]
+   },
+   "outdoor_plants": {
+    "registered": 30,
+    "succeeded": 12,
+    "never": [
+     "aerate",
+     "bag_leaves",
+     "clear_gutter",
+     "deadhead",
+     "dig",
+     "edge",
+     "fertilize",
+     "harvest",
+     "overseed",
+     "plant",
+     "prune",
+     "repot",
+     "shovel",
+     "skim",
+     "sow",
+     "thin_seedlings",
+     "transplant",
+     "turn_compost"
+    ]
+   },
+   "people": {
+    "registered": 24,
+    "succeeded": 15,
+    "never": [
+     "assist_sit",
+     "call",
+     "check_calendar",
+     "decline_visitor",
+     "dress_assist",
+     "log_medication",
+     "offer_arm",
+     "play_game",
+     "sign_for"
+    ]
+   },
+   "pets": {
+    "registered": 22,
+    "succeeded": 12,
+    "never": [
+     "brush_pet",
+     "change_aquarium_water",
+     "change_litter",
+     "collect_eggs",
+     "crate",
+     "play_fetch",
+     "refill_litter",
+     "uncrate",
+     "walk_pet",
+     "wipe_paws"
+    ]
+   },
+   "plumbing_liquids": {
+    "registered": 15,
+    "succeeded": 14,
+    "never": [
+     "connect_hose"
+    ]
+   },
+   "safety": {
+    "registered": 14,
+    "succeeded": 13,
+    "never": [
+     "relocate_pest"
+    ]
+   },
+   "textiles_laundry": {
+    "registered": 27,
+    "succeeded": 19,
+    "never": [
+     "depill",
+     "lace_shoes",
+     "polish_shoes",
+     "repair_seam",
+     "soak",
+     "steam",
+     "take_off_hanger",
+     "tuck"
+    ]
+   },
+   "tools_vehicles": {
+    "registered": 28,
+    "succeeded": 13,
+    "never": [
+     "caulk",
+     "change_tire",
+     "connect_charger",
+     "cut_with",
+     "disassemble",
+     "drill",
+     "drive_to",
+     "jump_start",
+     "paint",
+     "patch",
+     "pressure_wash",
+     "regrout",
+     "sand",
+     "scrape_ice",
+     "seal_surface"
+    ]
+   }
+  },
+  "defects": 2,
+  "nondeterministic": 0
+ }
+}

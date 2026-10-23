@@ -36,6 +36,7 @@ import datetime
 from ...kernel import physics
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
+from . import attribution as A
 from . import common as C
 
 PERIODS = ("wake", "leave", "return", "sleep")
@@ -474,7 +475,7 @@ def system_tick(w, sid, calls, dt, out_t):
             m["starts"] = [C.rnd(t, 1) for t in starts]
             m["last_start_s"] = C.rnd(now, 1)
             if len(starts) > 4:
-                C.hazard(w, "short_cycling", 1.0)
+                C.hazard(w, "short_cycling", 1.0, robot=A.robot_hvac(w, sid))
                 C.log(w, "short_cycling", target=sid, starts=len(starts))
         if stage in ("heat", "cool", "aux") and want not in ("heat", "cool", "aux"):
             m["last_stop_s"] = C.rnd(now, 1)
@@ -526,8 +527,9 @@ def system_tick(w, sid, calls, dt, out_t):
             if C.num(C.section(w.s).get("hazards", {}).get("condenser_blocked_s")) > 600 and not rec.get("compressor_damaged"):
                 mm = w.mut(sid)
                 mm["compressor_damaged"] = True
-                w.stat("damage")
-                C.log(w, "compressor_overheated", target=sid, cause="covered outdoor unit")
+                robot = A.robot_hvac(w, sid)        # the robot covered the outdoor unit or set the cooling (attribution)
+                C.charge(w, "damage", robot)
+                C.log(w, "compressor_overheated", target=sid, cause="covered outdoor unit", by=C.by_word(robot))
         if rec.get("compressor_damaged"):
             info["cool_w"] *= 0.3
     return info

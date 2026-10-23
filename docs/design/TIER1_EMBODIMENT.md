@@ -376,6 +376,10 @@ motion leaves: P = hotel_awake + hold_per_kg * held_kg + hooks     (stance is re
 docked on a live charge source (seated, source rate > 0): P = 0    (the dock carries the hotel load)
 ```
 
+Phase 1 (2026-10-22, review L3): `held_kg` in these formulas and the walking work's load term is the *felt* load,
+`proprio.felt_load_kg` (each hand's load word as the middle of its band of the hand's believed capacity), not the exact
+mass, so the battery cannot weigh what the robot holds; physics keeps the exact mass (docs/PERCEPTION.md).
+
 Resulting rates at 2400 Wh:
 
 | Activity | Power | Energy |

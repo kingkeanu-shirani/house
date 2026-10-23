@@ -201,8 +201,10 @@ def state_words():
 # ----------------------------------------------------------------------------------------------------------------
 # normalize
 
-def _subject_ref(state, value):
-    """{"kind", "id"} of one report subject: an entity, room, person or pet id, or "house"."""
+def _subject_ref(state, value, remembered=()):
+    """{"kind", "id"} of one report subject: an entity, room, person or pet id, "house", or a thing the robot
+    perceived this episode that no longer exists (`remembered`, remembered_ids: reported like one out of view, so the
+    refusal does not tell what was destroyed out of sight -- phase-1 red team)."""
     if not isinstance(value, str) or not value.strip():
         raise ActionError("Name what the report is about (subject)", "argument")
     text = value.strip()
@@ -212,20 +214,34 @@ def _subject_ref(state, value):
                         ("person", state.get("people") or {}), ("pet", state.get("pets") or {})):
         if text in table:
             return {"kind": kind, "id": text}
+    if text in remembered:
+        return {"kind": "entity", "id": text}
     raise ActionError("You have not seen that", "precondition")
 
 
-def _subjects(state, value):
+def remembered_ids(env):
+    """dialogue.remembered_ids: things the robot perceived this episode that no longer exist."""
+    return dialogue.remembered_ids(env)
+
+
+def remembered_belief(env, eid):
+    """The Mind's last belief of a thing (None when it has none): label_seen, room, ident."""
+    mind = getattr(env, "mind", None) if env is not None else None
+    belief = (getattr(mind, "seen", None) or {}).get(eid)
+    return belief if isinstance(belief, dict) else None
+
+
+def _subjects(state, value, remembered=()):
     if isinstance(value, list):
         require(0 < len(value) <= 50, "List 1..50 subjects", "argument")
-        refs = [_subject_ref(state, v) for v in value]
+        refs = [_subject_ref(state, v, remembered) for v in value]
         seen, out = set(), []
         for ref in refs:
             if ref["id"] not in seen:
                 seen.add(ref["id"])
                 out.append(ref)
         return out
-    return [_subject_ref(state, value)]
+    return [_subject_ref(state, value, remembered)]
 
 
 def _number(value, name):
@@ -234,12 +250,12 @@ def _number(value, name):
     return float(value) if isinstance(value, float) else value
 
 
-def normalize(args, state):
+def normalize(args, state, remembered=()):
     """The canonical report record for a typed `report` command's arguments (sweep 5.1): kind, subject ({"kind", "id"},
     or a list of them for a list subject), issue / issue_raw, severity / severity_raw, quantity / value / unit /
     value_si, state / state_raw, of, scope, location, to (a list: person ids or "household"), channel, detail.
     Raises ActionError (argument) for a missing or malformed field and (precondition) for a subject that is no
-    room, person, pet, the house or a thing."""
+    room, person, pet, the house, a thing or a thing the robot remembers (`remembered`: remembered_ids(env))."""
     kind = args.get("kind")
     require(kind in KINDS, "kind must be one of " + ", ".join(KINDS), "argument")
     rec = {"kind": kind, "subject": None, "issue": None, "issue_raw": None, "severity": None, "quantity": None,
@@ -249,7 +265,7 @@ def normalize(args, state):
     if kind in ("finding", "measurement", "status"):
         require(subject not in (None, "", []), "A {} report needs a subject".format(kind), "argument")
     if subject not in (None, "", []):
-        subjects = _subjects(state, subject)
+        subjects = _subjects(state, subject, remembered)
         rec["subject"] = subjects if isinstance(subject, list) else subjects[0]
     if kind in ("finding", "none_found"):
         word = args.get("issue")
@@ -299,7 +315,7 @@ def normalize(args, state):
         require(isinstance(args["of"], str), "of must be a word or a type", "argument")
         rec["of"] = dialogue.phrase(args["of"]) or args["of"].strip().lower()
     if args.get("scope") not in (None, "", []):
-        rec["scope"] = _subject_ref(state, args["scope"])
+        rec["scope"] = _subject_ref(state, args["scope"], remembered)
     elif kind == "none_found":
         raise ActionError("none_found needs a scope (a room, a container or the house)", "argument")
     if args.get("location"):
@@ -354,8 +370,15 @@ def _perceived_category(env, ref):
         return "pet"
     if kind in ("room", "house"):
         return kind
-    record = env.world.s.get("entities", {}).get(sid) or {}
+    record = env.world.s.get("entities", {}).get(sid)
     realism = getattr(env, "realism", None)
+    if record is None:
+        # a thing destroyed since the robot saw it: the category it perceived then (an unresolved one: "object")
+        gone = (getattr(realism, "gone", None) or {}).get(sid) or {} if realism is not None else {}
+        belief = remembered_belief(env, sid) or {}
+        if gone.get("unresolved") or belief.get("ident") in ("unresolved", "shape", "detected"):
+            return "object"
+        return belief.get("kind_seen") or gone.get("kind") or "object"
     if realism is not None and realism.unresolved(sid, record):
         return "object"
     return record.get("category") or "object"
@@ -372,9 +395,14 @@ def _label(env, ref):
         return str((state["rooms"].get(sid) or {}).get("label") or sid).replace("_", " ")
     if kind in ("person", "pet"):
         return str(((state.get("people" if kind == "person" else "pets") or {}).get(sid) or {}).get("label") or sid)
-    record = state["entities"].get(sid) or {}
+    record = state["entities"].get(sid)
+    if record is None:
+        belief = remembered_belief(env, sid) or {}
+        if isinstance(belief.get("label_seen"), str):
+            return belief["label_seen"]     # a thing destroyed since: the label it showed when last seen
+        record = {}
     realism = getattr(env, "realism", None)
-    if realism is not None:
+    if realism is not None and record:
         try:
             ident = realism._identify(sid, record, realism.knowledge.entity_level(sid, record))[0]
             if isinstance(ident.get("label"), str):
@@ -562,6 +590,8 @@ def record(ctx, rec):
             anchor = ref["id"] if ref and ref["kind"] in ("entity", "person", "pet") else None
             if ref and ref["kind"] == "room":
                 item["location"] = ref["id"]
+            elif anchor is not None and ref["kind"] == "entity" and anchor not in state["entities"]:
+                item["location"] = (remembered_belief(env, anchor) or {}).get("room")   # where it was last seen
             elif anchor is not None:
                 item["location"] = root_room(state, anchor)
             elif rec.get("scope") and rec["scope"]["kind"] == "room":

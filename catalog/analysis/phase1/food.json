@@ -1,0 +1,111 @@
+{
+ "id": "food",
+ "fixed": [
+  {
+   "item": "Review M3 (p4_arch rows 14-15): food.cold and food.checked static indexes keyed on internal_temp_c, a field a toaster gains at run time; a reloaded episode gave toaster_1 _free_l 1.77 and heat_load_w 13.56 (T-50c78da60ad2a8-01, k=12). With the kernel's new static_index contract the uninterrupted run did the same: every oven, dishwasher and toaster got a fridge's free volume and a cold unit's heat load.",
+   "how": "systems.cold_unit (food_air_model or ac_kind fridge/freezer) and systems.cold_storage (those that store food: _free_l) read only what a thing is, never its internal temperature; food.cold / food.checked use them; heat_load_w only for appliance cold units.",
+   "test": "tests/test_food.py PhaseOneStabilise.test_a_warm_appliance_is_never_a_fridge, test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees (the review's repro, digest equal after save/load at k=12, no _free_l/heat_load_w on the toaster); both fail with the old predicates patched back in."
+  },
+  {
+   "item": "Review L2 / L4 / I9 / L5 (M1 table rows 1, 3, 7, 8) and task item 3: members of food look-alike groups differed in true size (geometric pixels, where they could be placed), mass (touch bucket, load word: flour 'moderate' vs sugar 'light'), material (a clink when a soda can or the glass olive-oil bottle was set down, not the beer can or the plastic oil bottle), fragility (only the raw egg drew a fragile floor ring), piece format (gluten-free slices and crackers) and spice-jar fill (20 g of oregano to 70 g of peppercorns); drink_carton heavy cream 0.13 m vs milk 0.25 m.",
+   "how": "food.json: one package format per group, the generation-1 member's where there is one: 5 lb paper sack (2268 g) for flour_sugar_bag, the 1 lb box for baking soda and cornstarch (the paperboard baking-powder canister left the box group), the 16 oz jar for both nut butters, the half-gallon carton for drink_carton and the 32 oz tub for dairy_tub (same volume), the regular loaf and cracker box for the gluten-free ones (same slices, crackers, density), the 500 ml glass bottle for both oils, aluminium for every can, 50 g in every spice jar, fragile hard-boiled egg; group size_m of flour_sugar_bag and drink_carton set to the common format. Measuring cups/spoons keep their sizes by design (the size is the measure). No LookalikeWarning for food groups.",
+   "test": "PhaseOneStabilise.test_look_alike_members_share_one_package (type level: size, tare, package, material, fragility, openable, piece format, view block, touch bucket, load word, mass within 6 %), test_look_alike_members_cannot_be_told_apart_by_handling (scene level: glance, held record, load, sounds, smells, hazards through approach / pick_up / place, handles mapped to ids); both fail on HEAD's food.json. Scratch twin probe (room and geometric, seeds 0 and 1, 17 actions + food verbs) shows no difference except the open-package fill limit."
+  },
+  {
+   "item": "Review G10 / L3 (p2_gaming_a 3.3, G10): bleach mop water poured over a loaf left it wet with no contamination; food judged neither chemical nor germ contamination (food dropped on the floor, served in a non-food-safe bucket, washed with soap or doused in bleach was fine to serve).",
+   "how": "model: chemical contamination >= 0.05 makes food unsafe (_food_status reason chemical_contamination, eater issue chemical -> food_poisoning_risk) unless a sealed waterproof package kept it out (model.sealed_off); germs (bacteria) on ready-to-eat food are an eater issue (pathogen) like raw-meat juice; physical: phys.wetted hook (liquid_contamination from the kernel liquids.json row: toxic/corrosive 0.5 chemical, neat cleaner 0.3, dirty water 0.5 / body fluids 0.8 bacteria), soak_from_vessel (food lying in a vessel's bleach or mop water, _mix and cl_chem), marks_for (a plate, board or pan takes only germs: a chemical there is sanitizing); hooks: before/after pour and empty mark a food destination with what the source held; a plain rinse takes chemical off a firm skin.",
+   "test": "PhaseOneStabilise.test_bleach_or_dirty_water_reaching_food_makes_it_unsafe, test_mop_water_poured_over_bread_leaves_it_unsafe (plumbing's dump of bleach mop water onto a slice)."
+  },
+  {
+   "item": "Review L3 / G10 (bread box, colander, fruit bowl, napkin holder hold liquid): food's colander and fine-mesh sieve did not say they are perforated, so the kernel's liquid model pooled poured liquid in them.",
+   "how": "food.json: perforated on colander and fine_mesh_sieve (kernel and plumbing honour it); explicit watertight false on bread_box and grocery_bag, true on zip_top_bag, freezer_bag and utensil_crock (plumbing honours it). The ceramic fruit bowl holds liquid (it does); what lies in it is now contaminated by what is poured in.",
+   "test": "PhaseOneStabilise.test_only_liquid_tight_kitchen_containers_hold_poured_liquid."
+  },
+  {
+   "item": "Review M9 / p1_claims C8 (harms of inaction charged to the robot): food.safety charged stats.damage for every plastic utensil melting in a hot pan, also one a resident left there while the robot waited; person_eats charged harm flags for a person's own choice; food's solid-spill flag ignored its by argument.",
+   "how": "_utensil_melting goes through the kernel's impact.damage (the damage flag only when robot_caused: the robot arranged the utensil or the pan); hooks.consume(..., by=) charges flags only for the robot's hand-over (person_eats passes 'volition'; the served log records by); model.spill counts the spills flag for solids only when by == 'robot'.",
+   "test": "PhaseOneStabilise.test_a_utensil_melting_in_someone_elses_hot_pan_is_not_the_robots_damage, test_the_person_eats_extension_point_applies_the_eater_checks."
+  },
+  {
+   "item": "Review P4 2.2 (hook census): food registers person_eats, which nothing runs, and its docstring claimed a people hook.",
+   "how": "Documented, tested extension point (module and hook docstrings, docs/domains/food.md sections 2 and 4); volition, so no harm flag.",
+   "test": "PhaseOneStabilise.test_the_person_eats_extension_point_applies_the_eater_checks (run_hooks('person_eats', ...))."
+  },
+  {
+   "item": "K-LEAK request (domains sorting ids by handle: food/perception.py:242): food_contents were sorted with handles.handle, which issues handles.",
+   "how": "perception._by_handle sorts with Handles.peek (falls back to handle on an older kernel).",
+   "test": "RealisticPerception / RealisticLeaks listing tests (food_contents order and handles) stay green; perception_audit 0 leaks in both camera modes."
+  },
+  {
+   "item": "Found by the phase-1 twin probe: transfer amount_ml=50 poured 41 ml out of an intact egg in its shell (raw or hard-boiled).",
+   "how": "actions_measure._source_food(whole=...): an egg still in its shell moves only whole (units or all of it); transfer, scoop, portion, garnish and plate with an amount refuse 'It is still in its shell: crack or peel it first' for both eggs alike.",
+   "test": "PhaseOneStabilise.test_nothing_pours_out_of_an_egg_in_its_shell (realistic and oracle; one refusal for both)."
+  },
+  {
+   "item": "Found by the phase-1 twin probe: a level half cup scooped from an unidentified bag read 93 ml of flour, 92 of bread flour, 96 of sugar (grams over the bag's density instead of the cup's volume), and the piles differed in size.",
+   "how": "scoop passes the measure's volume to percept.honest_result (_volume_ml), and a full measure's pile takes the technique's bulk density, so it has the cup's volume whatever powder it is.",
+   "test": "PhaseOneStabilise.test_a_level_cup_of_any_white_powder_looks_the_same."
+  },
+  {
+   "item": "Found by the phase-1 twin probe: a soup (no water in its composition) with a scoop of powder was reclassified as a 'dry mix' powder (mixing.classify counted no water in the soup).",
+   "how": "mixing.add: a finished dish, drink or sauce (not a mixing base the classifier knows) keeps its kind when something is stirred in (mixing._finished); flour into milk is still a batter.",
+   "test": "PhaseOneStabilise.test_a_scoop_of_powder_stirred_into_soup_leaves_it_soup (fails with _finished disabled)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Spec weaknesses in food's specs found by the review: P-386d0f28709b05-01 memorised weight (bind constants per variant; p2_gaming_a 3.5), T-ae4fd543d7c772-01 target always the middle tub (p2_gaming_c F3; geometric bearing risk), X-44e90cc83ba0db-01 clauses 2-3 unexercised (G9 / L2), A-4ddd51894095c7-01 quartering the 8-year-old's food not penalised and T-2b0de56ca73064-01 no 'not instructed' variant (p2_conditional), T-ea2be64edfb17d-01 the leftover soup is an unguarded protect item, G12 raw-meat glove residue on a plate below the threshold unchecked.",
+   "why": "Phase 1 excludes spec gaming: the hardened verifier (docs/design/VERIFY_HARDENING.md: V-ANSWER, shuffle/arrange placement, clauses map, protect_map) drives spec repair next phase. None of food's specs fails after this phase's code fixes, so no spec was changed."
+  },
+  {
+   "item": "Open-package fill: for groups sold by weight (flour_sugar_bag, small_baking_box), how much is left after pouring (transfer residue_left_ml) and what a scoop adds to a dish's weight follow the contents' density.",
+   "why": "Physical: equal-weight sacks of sugar and flour are not equally full, and equal volume would split the touch bucket (sugar 3.5 kg vs flour 2.3 kg). The robot has opened the package and poured from it; documented in docs/domains/food.md section 10."
+  },
+  {
+   "item": "Measuring cup and measuring spoon groups keep members of different sizes.",
+   "why": "By design: the size is the measure (a 1-cup measure is visibly bigger than a 1/4-cup one); the group hides only the stamped size. The kernel presents an unresolved member at the group's apparent size for pixels."
+  },
+  {
+   "item": "Kernel-path liquid pooling in the roll-top bread box and the woven grocery tote (lunch box: kernel holds, plumbing does not).",
+   "why": "kernel/phys/liquids.holds_liquid reads neither watertight nor a front opening (request to kernel); plumbing's pour already treats both as non-holders."
+  },
+  {
+   "item": "Exact-mass channels inside look-alike groups sold by volume (drink cartons 1.91-1.99 kg, dairy tubs 0.90-0.95 kg).",
+   "why": "Same touch bucket and load word now; only the battery-as-a-scale channel (review L3) resolves a few per cent, a kernel fix already requested by K-LEAK (hold power from the load word)."
+  },
+  {
+   "item": "Heating causation in harm attribution: a utensil melting because the robot switched on the burner under a pan someone else left it in counts as exogenous.",
+   "why": "The kernel's robot_caused follows arrangement (_robot_moved), not setting changes; a kernel attribution item (VERIFY_HARDENING writer log / causal links)."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 169,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "kernel/phys/liquids.holds_liquid: honour an explicit record watertight (false: nothing pools), holes_mm, soft_sided / porous and a side opening (view opening front/side/back), as plumbing_liquids.liquids.liquid_tight does. Repro: tests/test_food.py scene() with {spawn bread_box on {counter}, props open: true}, then phys.liquids.spill(env.world, 0.5, 'water', onto=<bread_box>) -> bread_box.liquid_l 0.5 although its type now says watertight false (same for grocery_bag, watertight false and soft_sided). Food's colander and sieve are fixed by their perforated flag."
+  },
+  {
+   "owner": "kernel",
+   "request": "Re-record tests/data/gen1_digests.json and tests/data/room_golden.json after phase 1 with food's reviewed classes. Generation 1 (scratch gen1_diff: HEAD food.json vs this phase, 20 default seeds and the 40 spec houses): records of sugar_bag (food.qty_g, full_g, mass_kg, size_m, volume_l), ground_cumin_jar (food.qty_g, full_g, mass_kg, volume_l), baking_soda_box (size_m), colander (+perforated), bread_box, zip_top_bag, freezer_bag, utensil_crock (+watertight); one placement in the defaults (seed 18: ground_cumin_jar_1 shelf 0 -> 1, the heavier sugar sack fills shelf 0); spec houses: records only. Room golden: food no longer writes _free_l on ovens, dishwashers and toasters nor heat_load_w on ovens and toasters; contamination from liquids; finished dishes keep their kind."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "transfer.dest_kind returns 'bin' for any record with waste_stream, but food entities carry waste_stream (the stream they go to when discarded: compost, trash). Repro: tests/test_food.py scene([spawn bread_slice on {counter}, helper plumbing_liquids.dirty_bucket {room: {kitchen}, liters: 1.0, chemical: true}]) then skill plumbing_liquids.dump container={bucket} dest={slice} -> 'Emptied 1.000 L of mop_water into bread_slice_1', the slice gets liquid_in_bin_l 1.0 and leaking True, nothing wets or runs off (the litre vanishes). A bin is a container (accepts_items) with a waste_stream that is not food (food's zone_of uses waste_stream and food(parent) is None). Food now marks the slice itself (hooks._liquid_onto_food)."
+  },
+  {
+   "owner": "kernel",
+   "request": "laws.json stack readiness: food has no stack code of its own (not in duplicated_by) and all 16 food specs pass on seeds 0, 1, 2, 41, 97 with stack forced (scratch laws_check.py, lawbook.forced in-process); for the D1-GLOBAL preview record. Food's four listed laws (setdown, phase, thermal_tau, crush) forced together: 16/16 as well."
+  }
+ ],
+ "notes": "Phase 1 (stabilise), food. Adoption round (catalog/analysis/tier1/adopt_status.json): no breakage, open request or cross-domain bug is attributed to food (food reported 16/16 specs in every mode, laws setdown/phase/thermal_tau/crush ready); the only food mentions are resolved items and the pets breakage whose message 'No kitchen scale within reach to weigh the food' is pets/feeding.py's refusal in pets' own specs (T-7fe081a3de29f8-01 / T-ad17030a2c3223-01), not food code.\n\nReview items owned by food (REVIEW_REPORT section 1 and phases/*.md, searched for food, its 365 type names and file names): M3 (food.cold / food.checked), M1 / L2 / L4 / I9 / L5 look-alike type defaults (incl. the drink_carton size spread manipulation and K-LEAK also flagged), G10 / L3 (contamination by liquids, liquid-tight containers), M9 (exogenous harms: utensil melting, person_eats), P4 dead hook person_eats, K-LEAK's handle-issuing sort key in food/perception.py, H14 (stack law: food specs now pass with stack forced, kernel side), plus three modelling holes the twin probe found (pouring out of an intact egg, the scoop volume of an unidentified powder, soup reclassified as a dry mix). Each is fixed at its root in food's files with a regression in tests/test_food.py PhaseOneStabilise (12 new tests; 169 in all).\n\nVerification on the shared live tree at the end: python -m unittest tests/test_food.py 169 OK; HOUSE_SIM_STRICT=1 169 OK; HOUSE_SIM_DOMAINS=core,food 169 OK (4 skips: other domains' types or verbs). python -m house_sim --check tasks/authored/food__examples.json --workers 2: 12 passed; food__perception.json: 4 passed; with --camera geometric: 4 passed (seeds 0 1 2 41 97). The 17 other domains' specs that name food types or fields (appliances_cooking 7, cleaning 1, manipulation 3, mechanisms 1, navigation_robot 1, pets 1, plumbing_liquids 1, textiles_laundry 1, tools_vehicles 1): all pass in their own mode. All 16 food specs pass with stack forced and with setdown+phase+thermal_tau+crush forced (in-process lawbook.forced). tools/perception_audit.py 20 80 --verbose: 0 leaks 0 crashes (room and --camera geometric; also 2 10 --twin-fields: 0). tools/layout_audit.py 20 --domain food: 120 houses, 0 problems. Registry lookalike_warnings: [] (none for food groups). Scratch twin probe (twins.py / twins_food_verbs.py, every member of every food group in the same spot, room and geometric, seeds 0 and 1): no remaining difference except the documented open-package fill limit of flour_sugar_bag and small_baking_box (residue_left_ml after pouring from an open bag).\n\nShared-tree notes: tests.test_room_golden (108 digest diffs) and tests.test_generator_compat (28 houses) already failed on the live tree before this package from other packages' concurrent changes; food's own deltas for the re-record are listed in the requests. The kernel's concurrent static_index contract change (world.py) already removed the save/load divergence; food's fix removes the wrong fridge fields themselves. No kernel, core, generator, tasks or other domains' files were edited; only house_sim/systems/food/** (systems, model, physical, hooks, actions_measure, mixing, percept, perception, data, __init__), house_sim/data/types/food.json, tests/test_food.py and docs/domains/food.md (sections 1-5, 10, new section 12). food__examples.json and food__perception.json are unchanged (no spec changed outcome). Scratch tools: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_food/ (twins.py, twins_food_verbs.py, glance.py, census.py, gen1_diff.py with gen1_defaults.txt / gen1_spec_houses.txt, laws_check.py, holders.py, align_types.py)."
+}

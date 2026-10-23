@@ -78,6 +78,8 @@ def ask(r, person, topic, by_phone=False):
     p = state["people"][person]
     if not by_phone and p.get("location") != state["robot"]["room"]:
         RT.go_room(r, p["location"])
+    if not by_phone:
+        RT.identify(r, person, near=False)      # geometric camera: look until it can tell who they are (else a no-op)
     r.do("ask", target=person, topic=topic)
     return _answer(r)
 

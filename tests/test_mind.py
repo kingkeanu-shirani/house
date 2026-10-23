@@ -22,6 +22,7 @@ Hand-built houses with core types only: the file passes with HOUSE_SIM_DOMAINS=c
 """
 import copy
 import json
+import os
 import random
 import tempfile
 import time
@@ -467,6 +468,8 @@ class BudgetTests(unittest.TestCase):
         env = HouseEnv(generate_house(1), seed=1, trace=False)
         ids = perception.perceived_ids(env)
         fresh = mind_mod.Mind()
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         start = time.perf_counter()
         for _ in range(20):
             fresh.update(env, ids)

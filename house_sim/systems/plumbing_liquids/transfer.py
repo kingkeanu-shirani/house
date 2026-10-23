@@ -95,6 +95,33 @@ def source_parcel(w, eid, amount, carry_chem=True):
     raise ActionError("It is empty", "resource")
 
 
+SOLUTION_STAMP = "cl_src_l"
+
+
+def solution_carried_by_hook(ctx, srec, verb):
+    """True when a pour hook moves the dissolved-solution model (cl_chem, cl_soil_g) itself: the solution model's
+    owner stamps ctx.data[SOLUTION_STAMP] (the source's liters) in its before("pour") hook and, after the pour, moves
+    the share of the source's solution that left with the liquid (cleaning's solution model). This domain then carries
+    only liquid, so nothing is counted twice; without the stamp (that model not loaded, a fill or empty verb, a product
+    bottle measured in ml) it carries the solution itself. A behaviour contract read from this command's data, not
+    from which module registered a hook (independent review M2: plumbing changed its pour when a module named
+    house_sim.systems.cleaning hooked pour)."""
+    return verb == "pour" and SOLUTION_STAMP in ctx.data and L.liters(srec) > 0
+
+
+@after("pour", order=130)
+def solution_moved(ctx, result):
+    """After the solution model's own pour hook (order 120) moved the dissolved products, re-derive what this domain
+    derives from them (liquid name, potability, soap_ml_per_l, chem_ml_per_l) on the source and the destination, so a
+    bucket that received bleach solution is mop water and a half-poured solution keeps its strength."""
+    if SOLUTION_STAMP not in ctx.data or not (ctx.data.get("cl_src_chem") or ctx.data.get("cl_src_soil")):
+        return
+    w = ctx.w
+    for eid in (ctx.args.get("target"), ctx.args.get("destination")):
+        if isinstance(eid, str) and eid in w.s["entities"] and L.liters(w.ent(eid)) > 0:
+            L.refresh_derived(w, eid)
+
+
 def available_l(rec):
     """Liters that can come out of a source: its unfrozen liquid (L.free_l), else a product's amount."""
     if L.liters(rec) > 0:
@@ -192,7 +219,7 @@ def spill_near(w, eid, parcel, why):
         return spill_near(w, surface, over, why) if over else surface
     if surface and not w.ent(surface).get("container"):
         spill = C.make_spill(w, rid, name, parcel["liters"], surface=surface, source=eid, unidentified=unknown, origin=parcel.get("origin"))
-        _surface_effects(w, surface, name, parcel["liters"])
+        _surface_effects(w, surface, name, parcel["liters"], cause=eid)
         return spill
     if rid is None:
         return None
@@ -204,7 +231,9 @@ def unidentified(parcel):
     return bool(parcel and (parcel.get("flags") or {}).get(C.UNIDENTIFIED))
 
 
-def _surface_effects(w, surface, name, liters_):
+def _surface_effects(w, surface, name, liters_, cause=None):
+    """Liquid on a surface: unsealed wood grows a water ring; books, paper and electronics on it get wet and water
+    damaged (the robot's damage when it set up the cause: common.harm with cause, the thing the liquid came from)."""
     rec = w.ent(surface)
     if rec.get("material") in ("wood", "paper", "fabric") and not rec.get("sealed"):
         m = w.mut(surface)
@@ -215,7 +244,7 @@ def _surface_effects(w, surface, name, liters_):
             C.wet(w, child, 0.5)
             if not crec.get("water_damaged"):
                 w.mut(child)["water_damaged"] = True
-                w.stat("damage")
+                C.harm(w, "damage", cause or child)
 
 
 # ----------------------------------------------------------------------------------
@@ -294,17 +323,74 @@ def deliver(ctx, dest, parcel, source=None, how="pour"):
         product_checks(w, dest, rec, name, parcel)
         if shock_cracked(w, dest, C.num(parcel.get("temp_c"), 21.0)):
             return dict(parcel, cracked=True)        # it cracked: what was poured runs out where it stood
+        reached_contents(w, dest, name, liters_, soak=False)
         over = L.add(w, dest, parcel)
         return over
-    # a surface or appliance that cannot hold liquid
+    # a surface, appliance or container that cannot hold liquid (a roll-top bread box, a colander): it runs over it
+    # and over what it holds, then on to what it stands on
     C.plog(w, "poured_onto", target=dest, liters=C.rnd(liters_, 3), liquid=name)
     rec = w.ent(dest)
     C.wet(w, dest, 1.0)
     if rec.get("electronic") or rec.get("water_safe") is False:
         if not rec.get("water_damaged"):
             w.mut(dest)["water_damaged"] = True
-            w.stat("damage")
-    return parcel
+            C.harm(w, "damage", dest)
+    if rec.get("container"):
+        reached_contents(w, dest, name, liters_, soak=True)      # a container's contents are in the way; a table's are not
+    return dict(parcel, ran_off=True)
+
+
+FOOD_CONTACT_CATEGORIES = ("dish", "cookware", "drinkware", "cup", "glass", "mug", "food_container", "pet_bowl",
+                           "utensil", "bakeware")
+
+
+def contamination_of(name):
+    """{kind: level} a liquid leaves on food or a food-contact surface it reaches (the kitchen-sink rule's levels):
+    sewage and toilet water carry germs and a biohazard, dirty water and condensate germs, mop water germs and its
+    cleaner, a chemical product (bleach, drain cleaner, fertilizer) its chemical. Plain, soapy, hose and rain water
+    leave nothing to count."""
+    data = C.info(name)
+    out = {}
+    if data.get("biohazard"):
+        out.update(bacteria=0.8, biohazard=0.6)
+    elif name in ("dirty_water", "mop_water", "condensate"):
+        out["bacteria"] = 0.5
+    if data.get("chemical") or data.get("fertilizer") and data.get("product") or data.get("caustic"):
+        out["chemical"] = 0.5 if data.get("product") else 0.3
+    return out
+
+
+def _food_contact(rec):
+    return isinstance(rec.get("food"), dict) or bool(rec.get("food_safe")) or rec.get("category") in FOOD_CONTACT_CATEGORIES
+
+
+def reached_contents(w, holder, liquid, liters_, soak=False):
+    """Liquid poured into a vessel, or over a container that cannot hold it, reaches what the holder holds (independent
+    review L3: bleach mop water poured over a loaf left it only wet). Food and food-contact things it reaches are
+    contaminated by what the liquid carries (contamination_of), and so is a food-contact holder; soak: the liquid ran
+    over the contents rather than pooling around them, so they get wet too (a vessel's contents are left to its
+    owners: plain water poured into a pot of pasta joins the food, the food domain's contract). Returns the ids
+    reached."""
+    if liters_ <= 0.005 or holder not in w.s["entities"]:
+        return []
+    marks = contamination_of(liquid)
+    reached = []
+    for child in sorted(w.children(holder)):
+        crec = w.ent(child)
+        if crec.get("relation") not in ("in", "on") or crec.get("category") == "spill":
+            continue
+        reached.append(child)
+        if soak:
+            C.wet(w, child, 1.0)
+        if marks and _food_contact(crec):
+            for kind_, level in sorted(marks.items()):
+                C.contaminate(w, child, kind_, level)
+    if marks and _food_contact(w.ent(holder)):
+        for kind_, level in sorted(marks.items()):
+            C.contaminate(w, holder, kind_, level)
+    if marks and reached:
+        C.plog(w, "contents_contaminated", holder=holder, liquid=liquid, reached=reached)
+    return reached
 
 
 def product_checks(w, dest, rec, name, parcel):
@@ -428,8 +514,7 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
     # an unidentified jug it is just "liquid", wherever it ends up (see common.UNIDENTIFIED)
     shown_name = V.liquid_word(ctx, src, name)
     unknown = V.realistic(ctx) and name is not None and shown_name == "liquid" and name != "liquid"
-    cleaning_moves_chem = C.after_hook_present("pour", "house_sim.systems.cleaning") and verb == "pour" and L.liters(srec) > 0
-    parcel = source_parcel(w, src, actual, carry_chem=not cleaning_moves_chem)
+    parcel = source_parcel(w, src, actual, carry_chem=not solution_carried_by_hook(ctx, srec, verb))
     if unknown:
         parcel.setdefault("flags", {})[C.UNIDENTIFIED] = True
     ctx.data["liquid"] = name
@@ -500,12 +585,15 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
         scale = min(1.0, spilled / max(1e-9, parcel["liters"]))
         lost = dict(parcel, liters=parcel["liters"] * scale, mix={k: v * scale for k, v in parcel["mix"].items()},
                     chem={k: v * scale for k, v in parcel.get("chem", {}).items()}, solids={})
-        for key in ("mix", "chem"):
-            parcel[key] = {k: v * (1.0 - scale) for k, v in parcel.get(key, {}).items()}
+        if parcel.get("named_chem"):
+            lost["named_chem"] = {k: v * scale for k, v in parcel["named_chem"].items()}
+        for key in ("mix", "chem", "named_chem"):
+            if key in parcel:
+                parcel[key] = {k: v * (1.0 - scale) for k, v in parcel.get(key, {}).items()}
         parcel["liters"] *= (1.0 - scale)
         spill_near(w, dest if dest in w.s["entities"] else src, lost, "pour")
         if holder and C.num(srec.get("temperature_c"), 21.0) >= 60.0:
-            w.stat("burns")
+            C.harm(w, "burns", src)
     over = deliver(ctx, dest, parcel, source=src, how=verb)
     if foam_l > 0 and dest in w.s["entities"] and over is None and L.holds_liquid(w.ent(dest)):
         rec = w.ent(dest)
@@ -519,11 +607,14 @@ def do_pour(ctx, src, dest, amount=None, rate="normal", to_frac=None, until=None
     if over and over.get("cracked"):
         spill_near(w, dest, over, "cracked")
         notes.append("it cracked and the liquid ran out")
+    elif over and over.get("ran_off") and over.get("liters", 0.0) > 1e-5:
+        spill_near(w, dest, over, "ran_off")
+        notes.append("it ran out over it (it does not hold liquid)")
     elif over and over.get("liters", 0.0) > 1e-5:
         spill_near(w, dest, over, "overflow")
         notes.append("it overflowed" if V.realistic(ctx) else "it overflowed ({:.2f} L)".format(over["liters"]))
         if holder and C.num(srec.get("temperature_c"), 21.0) >= 50.0:
-            w.stat("burns")
+            C.harm(w, "burns", src)
     seconds = 2.0 + parcel["liters"] / max(0.01, flow)
     if V.realistic(ctx):
         # the clock must not tell more than the message: the estimated amount at the pour rate the robot can know

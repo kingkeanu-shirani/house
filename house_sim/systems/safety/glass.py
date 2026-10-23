@@ -15,17 +15,21 @@ clean_shards target=<floor or room> method=pick|sweep|damp_wipe|vacuum [radius=0
   damp_wipe  damp paper towel / tape (`sliver_pickup` or a wet paper towel) held, crouched: small + slivers
   vacuum     a vacuum held: small + slivers (large pieces cut the hose/bag: vacuum damaged)
 Collected shards go into the held dustpan/box/bag (destination) - then stage_hazardous prep=wrap_label to bundle them.
-Loose shards put in a trash bag are a harm (safety.loose_sharps_in_trash). Driving over shards pushes them along
-(spreading the field). People/pets stepping on shard cells barefoot get cut (walkers.py, evac, toddler).
+Loose shards put in a trash bag are a harm (safety.loose_sharps_in_trash). Driving over shards pushes them along the
+cells the robot actually walked (the motion record, cut short by a slip or a stop), never shards that broke during that
+same motion (spreading the field). People/pets stepping on shard cells barefoot get cut (walkers.py, evac, toddler).
+Wrap containment (kernel phys/impact.contained; independent review H11): a break inside a full wrap or intact packaging
+keeps its pieces in it -- no shard field is made while it holds, whoever breaks the item.
 """
 import math
 import random
 
 from ...kernel import geometry, sight
-from ...kernel.actions import action
+from ...kernel.actions import action, motion_record
 from ...kernel.errors import ActionError, require
 from ...kernel.perception import light_level, flashlight_on
-from ...kernel.plugins import after, hook, inspector, observer, system
+from ...kernel.phys import impact as KI
+from ...kernel.plugins import after, before, hook, inspector, observer, system
 from . import common as C
 
 GLASS_MATERIALS = ("glass", "ceramic", "porcelain", "crystal", "stoneware")
@@ -99,13 +103,26 @@ def has_shard_field(state, eid):
     return ("glass:" + eid) in (C.ledger_r(state).get("zones") or {})
 
 
+def contained(rec):
+    """The kernel's wrap containment (phys/impact.contained): a full wrap of any material or intact factory packaging
+    keeps the pieces of a break inside, so nothing may scatter, spread or spawn them while it holds."""
+    return KI.contained(rec or {})
+
+
 def shatter(w, eid, impact_cell=None, seed=None, floor_material=None, kernel_break=False):
     """Turn a glass item into a shard field around impact_cell (defaults to where it lies). Returns shard ids.
 
     kernel_break: the kernel physics layer already broke it (phys.broke: it set broken / shattered and emitted the
-    breaking sound), so only the shard field is added here (no second sound)."""
+    breaking sound), so only the shard field is added here (no second sound).
+    A contained item (a full wrap or intact packaging, see contained) breaks inside its cover through the kernel
+    (phys/impact.break_entity: sharp to handle, no floor hazard, the kernel's attribution) and makes no shard field:
+    returns []."""
     state = w.s
     rec = state["entities"][eid]
+    if contained(rec):
+        if not rec.get("broken") and not kernel_break:
+            KI.break_entity(w, eid, "contained_break")
+        return []
     if has_shard_field(state, eid) or (rec.get("shattered") and not kernel_break):
         return []
     rid = C.root_room(state, eid)
@@ -195,10 +212,10 @@ def shatter(w, eid, impact_cell=None, seed=None, floor_material=None, kernel_bre
 
 def breaks_into_shards(state, eid, rec):
     """A brittle break that leaves a shard field on the floor: a portable glass / ceramic item (not a shard, a window
-    or something marked no_shards) lying on a room floor."""
+    or something marked no_shards) lying on a room floor, not contained in a full wrap or its packaging."""
     return bool(rec.get("portable")) and str(rec.get("material", "")) in GLASS_MATERIALS and not is_shard(rec) and \
         not rec.get("no_shards") and rec.get("category") not in ("window",) and rec.get("location") in state["rooms"] \
-        and not has_shard_field(state, eid)
+        and not has_shard_field(state, eid) and not contained(rec)
 
 
 @hook("phys.broke")
@@ -206,8 +223,10 @@ def kernel_glass_break(w, eid, info):
     """Kernel physics adoption (TIER1_PHYSICS 10.3; phys.broke): a glass or ceramic item the kernel broke by shattering
     -- dropped by the robot, knocked off a shelf, tipped over, fallen with a toppling piece of furniture -- lands on the
     floor as this module's shard field (large pieces, small shards, hidden slivers, the cleared-zone bookkeeping). The
-    kernel already marked it broken and shattered and emitted the sound; attribution stays the kernel's."""
-    if (info or {}).get("mode") != "shatter":
+    kernel already marked it broken and shattered and emitted the sound; attribution stays the kernel's. A contained
+    break (info contained: a full wrap or intact packaging keeps the pieces in) scatters nothing."""
+    info = info or {}
+    if info.get("mode") != "shatter" or info.get("contained"):
         return
     state = w.s
     rec = state["entities"].get(eid)
@@ -218,13 +237,14 @@ def kernel_glass_break(w, eid, info):
 
 @system("safety.glass", order=350, max_dt=30.0)
 def glass_system(w, dt, tick):
-    """Items that other domains broke (dropped glasses, knocked frames) shatter into shard fields."""
+    """Items that other domains broke (dropped glasses, knocked frames) shatter into shard fields, unless a full wrap or
+    their packaging still contains the pieces (contained)."""
     state = C.bind_world(w).s
     for eid in C.sindex(state, "glassy", _glassy):
         rec = state["entities"][eid]
         if rec.get("broken") and not rec.get("shattered") and not rec.get("no_shards") and \
                 str(rec.get("material", "")) in GLASS_MATERIALS and rec.get("portable") and not is_shard(rec) and \
-                rec.get("location") != "robot" and rec.get("category") not in ("window",):
+                rec.get("location") != "robot" and rec.get("category") not in ("window",) and not contained(rec):
             if (rec.get("location") in state["rooms"]) or rec.get("fell"):
                 shatter(w, eid)
     _clear_zones(w)
@@ -473,7 +493,9 @@ def _across_threshold(state, rid, pos):
 # spreading under wheels
 
 
-def _spread_along(w, path, rid):
+def _spread_along(w, path, rid, skip_origins=()):
+    """Shards lying on the walked cells are pushed ahead of the wheels (two cells on along the direction of travel).
+    skip_origins: items whose shard field appeared during this very motion (they broke where the robot already was)."""
     state = w.s
     if not path or len(path) < 2:
         return
@@ -481,7 +503,7 @@ def _spread_along(w, path, rid):
     on_path = {}
     for sid in shards(state, rid):
         rec = state["entities"][sid]
-        if rec.get("location") == rid and rec.get("pos"):
+        if rec.get("location") == rid and rec.get("pos") and rec.get("origin") not in skip_origins:
             on_path.setdefault(tuple(rec["pos"]), []).append(sid)
     moved = 0
     for i, cell in enumerate(cells[:-1]):
@@ -499,18 +521,33 @@ def _spread_along(w, path, rid):
         C.log(w, "shards_spread_by_robot", count=moved, room=rid)
 
 
+def _glass_zones(state):
+    return sorted(name for name in (C.ledger_r(state).get("zones") or {}) if name.startswith("glass:"))
+
+
 def _spread_hook(name):
-    @after(name, order=70)
-    def hook(ctx, result):
-        path = ctx.data.get("path")
+    """Driving over glass (adoption breakage: the planned path was used even when the walk was cut short). The before
+    hook remembers which shard fields existed; the after hook (after navigation's and safety's own motion cuts, orders
+    30 and 75) follows the motion record -- the cells actually walked, in the room the walk started in -- and leaves
+    alone the fields of items that broke during this motion (a glass dropped in a slip lands where the robot already
+    is; the wheels never rolled over those pieces)."""
+    def remember(ctx):
+        ctx.data["_glass_fields"] = _glass_zones(ctx.w.s)
+    remember.__name__ = "glass_fields_" + name
+    before(name, order=70)(remember)
+
+    def spread(ctx, result):
+        record = motion_record(ctx)
+        path = (record or {}).get("path")
         if not path:
             return
         w = ctx.w
-        rid = ctx.data.get("from_room") if name == "move" else w.robot["room"]
-        start = ctx.data.get("start")
-        _spread_along(w, path, rid)
-    hook.__name__ = "spread_" + name
-    return hook
+        known = set(ctx.data.get("_glass_fields") or ())
+        new = {zone[6:] for zone in _glass_zones(w.s) if zone not in known}
+        _spread_along(w, path, record.get("from_room") or w.robot["room"], skip_origins=new)
+    spread.__name__ = "spread_" + name
+    after(name, order=80)(spread)
+    return spread
 
 
 for _n in ("approach", "walk_to", "move"):

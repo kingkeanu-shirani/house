@@ -135,13 +135,13 @@
    "reference": [],
    "wrong": [
     {
-     "name": "reads the hygrometer from the bedroom doorway as it walks in, without going over to it: its 1 cm digits are not readable from there, so there is no reading to report",
+     "name": "reads the hygrometer from the bedroom doorway as it walks in, without going over to it: its 1 cm digits are not readable from there (the read is refused), and its report of its own onboard air word instead of the instrument's percentage is refused too (it never got close enough to look at the hygrometer), so the resident gets no reading",
      "camera": true,
      "plan": [
       {"skill": "go_room", "room": "{br}"},
       {"do": "look", "target": "{hygro}"},
       {"do": "read", "target": "{hygro}"},
-      {"save": "rh_far", "from": "visible_entities.{hygro}.rh_pct"},
+      {"save": "rh_far", "from": "room.humidity"},
       {"do": "report", "target": "{hygro}", "field": "humidity_pct", "value": "{rh_far}", "to": "resident_1"},
       {"do": "wait", "seconds": 600}
      ]

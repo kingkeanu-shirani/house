@@ -661,6 +661,8 @@ class DeterminismTests(unittest.TestCase):
         geo = HouseEnv(generate_house(7), seed=7, perception="realistic", camera="geometric", trace=False)
         room = HouseEnv(generate_house(7), seed=7, perception="realistic", trace=False)
 
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         def timed(e, fresh=False):
             t = time.perf_counter()
             for _ in range(10):

@@ -35,7 +35,7 @@ from . import mind as mind_mod
 from . import monitor as monitor_mod
 from . import phases as phases_mod
 from . import replays as replays_mod
-from .actions import Ctx, motion_records
+from .actions import NOVEL_OPERATE_MESSAGE, Ctx, motion_records
 from .errors import ActionError
 from .phys import settle
 from .perception import Perception, current_request
@@ -119,6 +119,19 @@ def _legacy_map_entry(entry):
     entry = entry or {}
     return {"exits": list(entry.get("exits") or []), "connections": copy.deepcopy(entry.get("connections") or []),
             "label": entry.get("label"), "type": entry.get("type"), "seen_s": entry.get("seen_s")}
+
+
+# what an action's effect on the world is (HouseEnv.track_effect): a change to a thing, a room, the robot's body, a
+# person, a pet or a connection -- not to an underscore bookkeeping field, a domain's log section, the clock, the
+# counters or the robot's energy, which change with any step whatever it did
+EFFECT_SECTIONS = ("entities", "rooms", "robot", "people", "pets", "connections")
+EFFECT_BOOKKEEPING = ("robot.battery", "robot.energy", "robot.soc", "robot.runtime", "robot.power", "robot.body_log")
+
+
+def effect_path(path):
+    """True when a changed world path is an effect of the action (EFFECT_SECTIONS minus bookkeeping)."""
+    parts = path.split(".")
+    return parts[0] in EFFECT_SECTIONS and not any(p.startswith("_") for p in parts) and         not path.startswith(EFFECT_BOOKKEEPING)
 
 
 class KnownMapView(MutableMapping):
@@ -269,6 +282,11 @@ class HouseEnv:
         self._uses_mind = '"mind.' in json.dumps(task or {})     # mind.* paths: evaluate with the Mind's view
         self.realism = None
         self.raw_results = False   # the task runner sets this to also receive untranslated messages
+        # tools/fuzz.py sets track_effect: after each successful step, last_step_effect lists the world paths the action
+        # and its consequences changed, bookkeeping excepted (EFFECT_BOOKKEEPING; phase-1 red team: actions that
+        # "succeeded" without changing anything counted as driven to success). Off by default: it costs a diff
+        self.track_effect = False
+        self.last_step_effect = None
         self.action_file = action_file
         self.reset()
 
@@ -537,9 +555,17 @@ class HouseEnv:
         rng = random.Random("{}:{}:{}".format(self.seed, state["steps"], action))
         undo_record = None
         ctx, popped = None, False
+        logged_target = target          # the action trail's target: the true id once realistic handles are resolved
+        # a command refused for its form -- an unknown action or arguments the action does not take (ActionSpec.
+        # validate) -- never reached the action: the verifier does not count such a wrong-plan step as evidence
+        # (tasks/verify.py; phase-1 red team). Not part of the step result (the agent reads the message)
+        self.last_step_malformed = False
+        self.last_step_effect = None
+        malformed = True
         try:
             if spec is None:
                 raise ActionError("Unknown action: " + action, "argument")
+            malformed = False
             raw = {"target": target, "destination": destination}
             raw.update(kwargs)
             if self.realism is not None and not scheduled:
@@ -547,13 +573,22 @@ class HouseEnv:
                                            entity_keys=tuple(k for k, v in spec.params.items()
                                                              if v.get("type") in ("entity", "target", "agent", "person", "pet")))
                 self.realism.involved = {v for v in raw.values() if isinstance(v, str) and v in state["entities"]}
+                logged_target = raw.get("target", target)
+            malformed = True
             args = spec.validate(raw)
+            malformed = False
             robot = state["robot"]
             if robot.get("stopped") and not spec.stopped_ok:
                 raise ActionError("Robot is stopped; resume first", "precondition")
             body.power_guard(state, spec)           # PowerOff unless the action may run powered down (wait)
             body.quiet_guard(state, spec)           # quiet mode: a declared noise_db over the quiet limit
             ctx = Ctx(self, spec, args, rng)
+            if self.realism is not None and spec.operates:
+                # an unfamiliar thing is not operated (review I4): one refusal for every one, before any domain hook
+                target_id = args.get("target")
+                record = state["entities"].get(target_id) if isinstance(target_id, str) else None
+                if record is not None and self.realism.novel_unidentified(target_id, record):
+                    raise ActionError(NOVEL_OPERATE_MESSAGE, "precondition")
             before_state = None
             if spec.reversible or spec.inverse:
                 before_state = {"robot": clone(state["robot"])}
@@ -598,6 +633,8 @@ class HouseEnv:
             body.settle_energy(w, ctx, max(0.0, seconds - ctx.nested_s), hold_check=body.HOLD_SAFETY_NET)
             # physical consequences of the action (TIER1_INTEGRATION 1.9): never raises; adds id-only notes
             consequences = settle.settle(self, "action", ctx)
+            if self.track_effect:
+                self.last_step_effect = sorted({d["path"] for d in w.changes() if effect_path(d["path"])})
             # temporal predicates see the action and its consequences; what it reaches is stamped at its end (an
             # action completes when its time is spent; a wait's own sample is its start)
             self._monitor.sample(self, "action", at=None if spec.idle else state["time_s"] + seconds)
@@ -639,6 +676,7 @@ class HouseEnv:
                 camera_mod.begin_step(w)
                 self._advance_mode = "idle"         # the refused step's second is idle time
                 category, message, seconds = exc.category, str(exc), 1.0
+                self.last_step_malformed = malformed
                 w.stat("invalid")
                 if category in ("safety", "privacy", "social", "authority"):
                     w.stat(category + "_blocks")
@@ -657,9 +695,12 @@ class HouseEnv:
         if undo_record:
             self._undo.append(undo_record)
             del self._undo[:-50]
+        # the trail (hidden state, never observed) names what the robot acted on by its true id in every perception
+        # mode: in realistic episodes the agent's handle is resolved first (phase 1, climate's and tools_vehicles'
+        # kernel request: domain attribution that reads the trail never matched a handle against its ids)
         trail = w.sec("action_log")
         trail.append({"step": state["steps"], "time_s": state["time_s"], "action": action,
-                      "target": target if isinstance(target, str) else "", "ok": ok})
+                      "target": logged_target if isinstance(logged_target, str) else "", "ok": ok})
         if len(trail) > 300:
             del trail[:len(trail) - 300]
         # a wait that can end early (until / interrupt_on) or, in an episode with the notice bus, lists what it heard;

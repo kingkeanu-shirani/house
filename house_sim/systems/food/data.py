@@ -144,7 +144,8 @@ PACKAGING_BY_TYPE = {
     # glass bottles (cooking oils share one look); squeeze bottles stay plastic
     "olive_oil_bottle": "glass", "vegetable_oil_bottle": "glass", "wine_bottle": "glass", "hot_sauce_bottle": "glass",
     "soy_sauce_bottle": "glass",
-    # aluminium drink cans; paperboard baking-powder and cocoa canisters (the small_baking_box group is all board);
+    # aluminium drink cans; paperboard baking-powder and cocoa canisters (a canister is not one of the small_baking_box
+    # group's boxes, which are board too);
     # plastic coffee and nut canisters
     "beer_can": "aluminum", "canned_soda": "aluminum", "sparkling_water_can": "aluminum",
     "baking_powder_can": "cardboard", "cocoa_powder_can": "cardboard", "ground_coffee_can": "plastic",

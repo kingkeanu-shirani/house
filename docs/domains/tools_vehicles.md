@@ -9,7 +9,7 @@ kit, tires, jump-starts, flat changes, ice, washing, EV charging), bikes and inf
 
 Code: `house_sim/systems/tools_vehicles/` (package). Types: `house_sim/data/types/tools_vehicles.json` (183 types, 60
 perception blocks, 23 look-alike groups, domain-wide `field_tiers`: section 10).
-Tests: `tests/test_tools_vehicles.py` (145 tests, incl. `Tier1AdoptionTests` (section 11), `RealisticPerceptionTests` and `RealisticHardeningTests` (section 10), incl. `IntegrationTests` for structural hooks, the curing registry, settled cabins, crush limits and climate-owned duct dust, `CrossDomainRoundTests` for foreign field shapes, presented hand-overs, door-swing-free scenario placement and invariant arity, and `LayoutRound2Tests` (kernel v2.3) for foreign `_defects` shapes, wall-parked path-blocking bikes that seal nothing, nose-in cars that keep serviceable lights accessible, the pegboard at the bench, keep_access scenario bikes and errand parking; pass with ALL domains loaded and with only this domain loaded, normally
+Tests: `tests/test_tools_vehicles.py` (166 tests, incl. `ReviewStabiliseTests` (section 12), `Tier1AdoptionTests` (section 11), `RealisticPerceptionTests` and `RealisticHardeningTests` (section 10), incl. `IntegrationTests` for structural hooks, the curing registry, settled cabins, crush limits and climate-owned duct dust, `CrossDomainRoundTests` for foreign field shapes, presented hand-overs, door-swing-free scenario placement and invariant arity, and `LayoutRound2Tests` (kernel v2.3) for foreign `_defects` shapes, wall-parked path-blocking bikes that seal nothing, nose-in cars that keep serviceable lights accessible, the pegboard at the bench, keep_access scenario bikes and errand parking; pass with ALL domains loaded and with only this domain loaded, normally
 and with `HOUSE_SIM_STRICT=1`). Examples: `tasks/authored/tools_vehicles__examples.json` (12 specs, all generation-2
 houses (`"house": {"gen": 2}`), all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded). Perception-centric
 specs (`"perception": "realistic"`): `tasks/authored/tools_vehicles__perception.json` (3 specs, generation 2, section 10.5;
@@ -26,7 +26,7 @@ before the v2.1 refactor; whole engine ~5.6 ms with every domain), and
 
 | Module | Contents |
 |---|---|
-| `common.py` | rooms/people/geometry helpers, size parsing (13mm, 1/2in, t20), `use_tool` (hidden damage consequences), `power_tool_gate` (adult/approval, battery, wet tool, eye protection, bystanders); tier-1 helpers (section 11): `log(..., seen=)` (domain event + camera visual event), `law`, `notice`, `wrist_limit_nm`, `body_torque_nm` |
+| `common.py` | rooms/people/geometry helpers, size parsing (13mm, 1/2in, t20), `use_tool` (hidden damage consequences), `power_tool_gate` (adult/approval, battery, wet tool, eye protection, bystanders); tier-1 helpers (section 11): `log(..., seen=)` (domain event + camera visual event), `law`, `notice`, `wrist_limit_nm`, `body_torque_nm`; review phase 1 (section 12): harm attribution `robot_acting`, `robot_acted_on`, `robot_caused`, `consequence`, and `at_hand` (a contact instrument reads only what it touches) |
 | `fasteners.py` | `tighten`, `loosen`; fastener truth model, tool fit, cam-out, strip/crack, restricted fasteners, handle play/alignment, racking, leg rocking, tilt, wobble; wiggle-test inspector |
 | `tools.py` | storage state `_stowed`, pegboard outlines, blade hazards, hand-over pose, dead flashlights, blade/battery rules, rain and rust (`tools_vehicles.tool_exposure`), hinges (`tools_vehicles.hinges`); `lubricate`, `drill`, `hammer`, `cut_with` (incl. pencil sharpening) |
 | `hanging.py` | `hang_decoration`; mounts (adhesive, nail, tape, anchor), spot hazard geometry, capacity/creep/falls (`tools_vehicles.adhesive`), door swing and bumpers |
@@ -35,7 +35,7 @@ before the v2.1 refactor; whole engine ~5.6 ms with every domain), and
 | `assembly.py` | `assemble`, `disassemble`; part-slot graph, cams, squareness, completion, anti-tip, shelf pins; invariant `tools_vehicles.tip_over_hazard` |
 | `surfaces.py` | `patch`, `sand` (incl. knives on stones), `paint`, `caulk`, `regrout`, `pressure_wash`, `seal_surface`; cure/dry system `tools_vehicles.cure` |
 | `vehicles.py` | `inflate`, `check_tire`, `jump_start`, `change_tire`, `scrape_ice`, `connect_charger`, `drive_to`; trunk packing, mats, wipers, occupants, cabin heat (`tools_vehicles.cabin`), charging (`.charging`), leaks (`.leaks`), car-wash hooks on cleaning verbs; invariant `tools_vehicles.child_left_in_car` |
-| `perception.py` | report mirroring and report judges, `_hazmat` chemical storage state, defects/fastener-lot inspector, invariants `tools_vehicles.mount_hazard`, `tools_vehicles.chemical_within_reach`, answerer `tools_vehicles.`; realistic-perception helpers live in `common.py` (`realistic`, `seen_key`, `reading`, `bucket`, section 10) |
+| `perception.py` | report mirroring and report judges, `_hazmat` chemical storage state, defects/fastener-lot inspector, the fastener-lot judge `sorted_ok` (`lot_sorted(state, eid)`, re-derived after any move: section 12), invariants `tools_vehicles.mount_hazard`, `tools_vehicles.chemical_within_reach`, answerer `tools_vehicles.`; realistic-perception helpers live in `common.py` (`realistic`, `seen_key`, `reading`, `bucket`, section 10) |
 | `routes.py` | kernel v3.1 dialogue route `tools_vehicles.job`: canonical `ask(target, aspect, about, detail)` questions reach the `tools_vehicles.<key>` answerer (section 11.4) |
 | `scenarios.py`, `skills.py`, `furnish.py` | scenario helpers, reference skills, furnishers (section 6.1): `tools_vehicles.vehicles` (order 32: the car through `Placer.furniture` + light guard, parked nose-in through the overhead garage door or along the driveway; path-blocking bikes parked along a wall through `Placer.floor_item` keep_access; the floor pump beside them) and `tools_vehicles.tools` (order 74: the pegboard on the wall at the workbench, outside door clearance and clear of other wall fixtures) |
 
@@ -191,7 +191,7 @@ ruined) -> `edge_damaged` + `damage`. Pencils: see cut_with.
 
 | Core verb | Hook |
 |---|---|
-| `place` | pegboard outline judge (`on_outline`, `outline_ok`); hot items (> 70 C) melt plastic containers; wet tools stored (`_stored_wet_at`); rakes/hoes on the floor tines-up (`floor_hazard` trip unless orientation upside_down); trunk packing (layers, crushing: an item stacked on top crushes one below whose crush limit it exceeds - `crush_kg`, else `crush_force_n`/9.81, else `max_load_kg` as a fallback, else 2 kg for fragile/crushable - sightline); mats on footwells (stacking); EV connector holstered; fastener lots into compartments (`sorted_ok`); `_stowed`, `_hazmat` refresh |
+| `place` | pegboard outline judge (`on_outline`, `outline_ok`; cleared by the settle pass as soon as the tool is anywhere else: section 12); a hot item resting ON a support hotter than its finish bears marks it with the kernel's contact model while the `contact_heat` law is deferred (heat limit, face temperature, mark and severity; every domain's `phys.contact_heat` claim asked first; a hot thing put INTO a container is admin_inventory's container rule); wet tools stored (`_stored_wet_at`); rakes/hoes on the floor tines-up (`floor_hazard` trip unless orientation upside_down); trunk packing (layers, crushing: an item stacked on top crushes one below whose crush limit it exceeds - `crush_kg`, else `crush_force_n`/9.81, else `max_load_kg` as a fallback, else 2 kg for fragile/crushable - sightline); mats on footwells (stacking); EV connector holstered; fastener lots into compartments (`sorted_ok`); `_stowed`, `_hazmat` refresh. Every derived goal field these hooks write is also re-derived by a `phys.settle_extra` hook whatever moved the thing (section 12.1) |
 | `pick_up` | grip remembered for hand-over (`_grip`, also written by manipulation's `present`); tools picked up are marked `_tv_handled` (the robot is then responsible for leaving them out in the rain); crowded racks knock a neighbour off at normal speed; live disposal hopper -> `injury`; trunk repacked; kit leaves its cargo pocket |
 | `hand_over` | a before-hook (order 5) captures manipulation's `presented` and the kernel's `held_grip` (both are cleared before after-hooks run); `handover_pose`: a presentation toward the recipient decides (handle/grip/base = handle_first, anything else = tip_first), else the grip (held by the handle = tip_first); `handover_ok`; tip first, extended blade, open pointed jaws or a lit beam -> `safety_violations` |
 | `switch_on` / `switch_off` | dead flashlights stay dark (`lit`); stud finder calibrates |
@@ -217,15 +217,15 @@ timestamp- or linear-in-dt based, so any dt is exact. Candidate index (static pr
 | `tools_vehicles.adhesive` | substep [`hardware`: hardware_kind/tape_kind] | mounted hardware with a `mount.method` (pre-existing household hooks are structural and skipped): heat decay (heat sources from the `heat_sources` index in the same room), wet decay; with the kernel's hang law deferred, overload creep and the fall (`impact.collapse`); with it active, a lowered rating is re-judged by `impact.hang_law` at once |
 | `tools_vehicles.pads` | period 300 s [`legged`: `_legs` + slots] | overhanging, unbonded or temporary pads come off (6 h / 2 days after `installed_at`) |
 | `tools_vehicles.seals` | period 300 s [`sealed_openings`: `_seal` dict] | adhesive weatherstrip on a dusty/wet frame peels at its `peel_at` (a day) |
-| `tools_vehicles.water_filters` | substep [`water_filter_hosts`: slot with water_filter] | unlocked cartridge under pressure leaks (0.5 or 2 l/min; 1 l -> `flood`; a seen event and a `splash` notice); flushing through the outlet counts `flushed_l`, `water_quality` fines/clear, overflow from a dispenser container spills (seen, `splash` notice) |
+| `tools_vehicles.water_filters` | substep [`water_filter_hosts`: slot with water_filter] | unlocked cartridge under pressure leaks (0.5 or 2 l/min; 1 l -> `flood` + `spills` when the robot caused it, section 5; a seen event and a `splash` notice); flushing through the outlet counts `flushed_l`, `water_quality` fines/clear, overflow from a dispenser container spills (seen, `splash` notice; `spills` when the robot caused it) |
 | `tools_vehicles.air_filters` | substep [`air_filter_hosts`: slot with `fit`] | running host without a filter: `ran_filterless_s` (+ `duct_dust` 1/36000 s unless the host is climate-modelled: `climate_kind` hosts get duct dust from the climate model); bypass gap > 6 mm or reversed: `bypass_s` |
 | `tools_vehicles.filter_load` | period 600 s [`air_filter_hosts`] | installed filter in a running host: `_load` += dt / 90 days (climate's `hvac_filter`s track `dirtiness` instead) |
-| `tools_vehicles.drains` | substep [`clogged_drains`: `_clog` dict, except basins the plumbing domain simulates (a `plumb` record: plumbing fills, drains and overflows those from the same `_clog`); faucets from `water_fixtures`] | running water through a clogged drain fills the basin and overflows (`spills`, > 5 l `flood`; the first overflow is a seen event and a `splash` notice); 8 l flushes drain cleaner |
+| `tools_vehicles.drains` | substep [`clogged_drains`: `_clog` dict, except basins the plumbing domain simulates (a `plumb` record: plumbing fills, drains and overflows those from the same `_clog`); faucets from `water_fixtures`] | running water through a clogged drain fills the basin and overflows (`spills`, > 5 l `flood`, when the robot caused it: section 5; the first overflow is a seen event and a `splash` notice); 8 l flushes drain cleaner |
 | `tools_vehicles.toilets` | substep [`toilets`: `_tank` dict] | `wasted_l` at the leak rate (0.25 phantom, 2-7 l/min running) |
-| `tools_vehicles.disposals` | substep [`disposals`: `_jam` dict] | jammed + switched on hums and trips the thermal reset after 20 s; free + on runs (`ran_ok`) |
+| `tools_vehicles.disposals` | substep [`disposals`: `_jam` dict] | jammed + switched on hums and trips the thermal reset after 20 s; anything in the hopper the plate cannot grind (a spoon: not food waste) jams it when it runs; free + on runs (`ran_ok`; jamming again, or something it cannot grind dropped in, clears it) |
 | `tools_vehicles.cure` | substep [`curable`: setup `holes`, caulk_joint, grout, seal, sealable; + `facts.tools_vehicles.active.curing`] | spackle dries (filled / recessed), caulk cures or washes out, grout cures/fails (skim), sealer cures or washes out in rain, outdoor sealable surfaces wet in rain and (without cleaning) dry in ~36 h. Settled surfaces are skipped after a few field reads; `patch` registers the surface it wets and the system drops it when dry |
 | `tools_vehicles.leaks` | substep [`inflatables`: inflation/wheels/tires] | punctured tubes/balls lose pressure (`_leak_bar_h`) |
-| `tools_vehicles.cabin` | substep [`cars`: vehicle_kind car] | cabin temperature relaxes exactly (exp, 15 min) to ambient +22 C in sun with doors shut, else +2 C; cars start the episode at that steady temperature (`episode_start`; a scenario keeps a preset `cabin_temp_c` with `cabin_temp_fixed: true`), so a parked car is not rewritten every substep; a child/pet locked inside above 35 C for 10 min -> `injury` (the first overheating posts a `crying` notice); car-wash soap dries in 4 min in sun (soap spots), water in 10 min (water spots), wet jambs drip |
+| `tools_vehicles.cabin` | substep [`cars`: vehicle_kind car] | cabin temperature relaxes exactly (exp, 15 min) to ambient +22 C in sun with doors shut, else +2 C; cars start the episode at that steady temperature (`episode_start`; a scenario keeps a preset `cabin_temp_c` with `cabin_temp_fixed: true`), so a parked car is not rewritten every substep; a child/pet locked inside above 35 C for 10 min -> `injury` when the robot shut or locked them in (section 5; the first overheating posts a `crying` notice); car-wash soap dries in 4 min in sun (soap spots), water in 10 min (water spots), wet jambs drip |
 | `tools_vehicles.charging` | substep [`chargeables`: ev / e-bike pack / battery slot] | only records with `charging` set: EV soc at 7.7 kW to its target (charger `status` complete, a remote `device` notice); e-bike pack at 4 A x 36 V |
 
 `episode_start` hooks (kernel v2.1, run at reset before the baseline): cabin temperatures settle (above); toilets and
@@ -250,7 +250,10 @@ nothing, `HOUSE_SIM_IDLE_PROBES` checks it): `exposure_idle`, `hinges_idle`, `ad
   filter loading and flush volume, hidden fasteners under stickers/feet (revealed), assembly squareness/anchor, car-seat
   installation, car occupants (also `where=inside`), tire punctures (while inflated), chain/brake state, defects with
   severity, fastener-lot gauge (head, thread, length).
-* `inspect` with a switched-on stud finder held: `studs_m` (shifted 4 cm when miscalibrated) and live-cable warnings.
+* `inspect` with a switched-on stud finder held against the wall (within arm's reach: `common.at_hand`; from farther
+  `stud_finder: "hold it against the wall: come within reach"`): `studs_m` (shifted 4 cm when miscalibrated) and
+  live-cable warnings. A held level reads a hung item's tilt or a shelf's slope the same way, only within reach (from
+  farther the eye's "looks level" / "looks crooked" / "visibly sloped").
 * Sounds (observer `tools_vehicles.sounds`, current room only): water trickling (running toilet), motor humming (jammed
   disposal), dripping (leaking filter).
 
@@ -266,6 +269,19 @@ gun, hand in a live disposal, car off a jack near people, child heat stress), `b
 spray near people), `flood` (filter housings, unlocked cartridges, drain overflow, pipe strike), `gas_exposure`,
 `electrical_hazard`, `fire` (swollen e-bike pack), `safety_violations`, `authority_violations`. Knocking a non-fragile
 thing over is never a harm here.
+
+**Attribution** (review M9; `common.consequence`). What an action and its settle cause is the robot's. A harm one of
+this domain's time systems causes counts only when the robot caused it: it acted on something in the harm's causal set
+this episode (a successful physical, non-walking action of the engine's action trail targeted it; realistic handles are
+mapped back to ids) or the kernel's `_robot_moved` marker sits on it or under it (`phys.impact.robot_caused`). Causal
+sets: a basin overflow - the basin and the taps running into it; a filter leak or flush overflow - the housing, its
+cartridge, its supply valve (and the outlet and what catches the flush); heat stress in a locked car - the car.
+Otherwise the harm is exogenous (staged, a person, a pet, the weather): it still happens (puddles, notices, the domain
+log) and is noted once under `facts.tools_vehicles.exogenous` {label: {t, stats, ...}}, but raises no global flag. The
+invariants `tools_vehicles.child_left_in_car` and `tools_vehicles.chemical_within_reach` likewise fire only for a car the
+robot locked and a chemical the robot moved or opened (`common.robot_arranged`, or an action on it). Whether failing
+to prevent an exogenous harm should fail a task is the owner's open question (VERIFY_HARDENING 27.3); a spec about
+preventing one reads the note.
 
 Entity `damage` (CONVENTIONS 5: a dict {kind: severity 0..1}, merged with `common.add_damage`, legacy lists converted) is
 recorded on whatever was damaged: broken / crushed / melted (1.0), cracked (0.7), stripped_hole (0.4-0.5),
@@ -299,13 +315,13 @@ Scenario helpers (`{"op": "helper", "name": ...}`), all return entity bindings:
 | `tools_vehicles.flatpack` | room (a kind falls back to office/bedroom/garage/dining/hall rooms with a free wall stretch), kind side_table/bookcase, missing (hardware kind) | assembly, asm_room, kit_box, hardware_pack, manual, parts, <part_type>_<n>, wall, stud_m (tall) |
 | `tools_vehicles.wall`, `.wall_repair` | finish, paint_age_days, material, holes, scuffs | wall (+ spackle, putty_knife, sanding_block, primer, paint, wrong_paint, brush, drop_cloth, holes) |
 | `tools_vehicles.decor` | item, mass_kg, approved, hooks, nails, rental, height_m | wall, decoration, hardware_tray, <hook types>, nail_hook, hammer, level, spot_offset_m |
-| `tools_vehicles.car` | room garage/driveway (a kind falls back to the driveway when the garage is full; portable clutter in the chosen spot is moved aside), kind car/suv, mats out/in/old_in, seat, child_inside, kit, ev | car, car_room, car_spot ("garage floor"/"driveway", for instructions), trunk, footwell_<pos>, rear_seat, fob, mat_<pos>, old_mat, car_seat, child, kit, kit_<item>, kit_flashlight, charger, connector |
+| `tools_vehicles.car` | room garage/driveway (a kind falls back to the driveway when the garage is full; portable clutter in the chosen spot is moved aside, and so are wheeled bins - trash, recycling, organics carts: `_rolls_aside`, section 12), kind car/suv, mats out/in/old_in, seat, child_inside, kit, ev | car, car_room, car_spot ("garage floor"/"driveway", for instructions), trunk, footwell_<pos>, rear_seat, fob, mat_<pos>, old_mat, car_seat, child, kit, kit_<item>, kit_flashlight, charger, connector |
 | `tools_vehicles.load_items` | room (a kind may fall back to a mudroom/hallway where the load stays out of door swings), items | suitcase, cooler, duffel, cake_box, staged, load_room |
 | `tools_vehicles.bike` (room kind falls back through garage, shed, basement, porch, balcony, entryway, mudroom, hallway, living room; long items try both orientations), `.ball` | preset road/hybrid/kids, start_bar, leak, pump_head, gauge, compressor; kind soccer/basketball/beach | bike, pump, gauge, compressor, valve, range_lo, range_hi, target_bar; ball, ball_pump, needle |
 | `tools_vehicles.undersink_filter` | room | housing, faucet, sink_cabinet, old_filter, new_filter, lookalike_filter, trash, today |
 | `tools_vehicles.hinge` | approved_available, decoy | door, approved_lube, penetrant, rag, olive_oil |
 | `tools_vehicles.door_seals` | failing, include_windows, ensure_compressed | seal_targets, failing, failing_by_target, first_target, first_window |
-| `tools_vehicles.small_fixes` | toilet_fault chain/float/flapper/fill_valve, clog, chemical, disposal_object, radiator, printer | bath (the first bathroom with room for both fixtures; a full one has its wastebasket/plunger moved aside), toilet, sink, disposal, sink_cabinet, spoon, snake, hex_key, new_flapper, radiator, bleed_key, towel, printer, jam |
+| `tools_vehicles.small_fixes` | toilet_fault chain/float/flapper/fill_valve, clog, chemical, disposal_object, radiator, printer | bath (the first bathroom with room for both fixtures; a full one has its wastebasket/plunger moved aside; when no bathroom has floor for two more fixtures, the bathroom's own toilet and sink are rebuilt in place as this helper's fixtures: `_refit_fixture`, section 12), toilet, sink, disposal, sink_cabinet, spoon, snake, hex_key, new_flapper, radiator, bleed_key, towel, printer, jam |
 | `tools_vehicles.hardware_sort` | room, kinds (fastener `_kind`s: wood/drywall/machine/sheet-metal screws, finishing nails) | organizer, sort_room, sort_surface, lots, compartments, lot_<short>, comp_<short> (short = wood, drywall, machine, sheet_metal, nail); drawers and piles in shuffled order on a reachable bench (`_bench`: workbench/table/desk/counter, never closet shelving) |
 | `tools_vehicles.tool_inspection` | room, damaged (count), dirty | inspect_room, bench, tools, damaged, intact, damaged_<n>, dirty_tool, quarantine_bin, <type>; which tools carry closely-visible `_damage` follows the seed; one intact tool is greasy |
 
@@ -761,7 +777,7 @@ not taken over (each guarded with `C.law(name)` = `lawbook.active`):
 | Leg pads (`fittings.py`) | `refresh_pads` writes `pads` {kind felt/rubber/plastic, count, legs, adhered, centered} (manipulation's pad-set shape), so `forces.foot_kind` / `push_needed_n` and floor scratching follow what was installed | - |
 | Falls and breaks | tilting a loaded top to fit pads (`ctx.fall`, cause tilted_off), a crowded rack knocked at normal speed (`ctx.fall`), contents of a unit taken apart (`ctx.fall`), a pinned shelf dropping its load (`physics.tip_over`), a fragile item brushed while reaching into a cabinet (`events.nudge` 5 N: it topples only when the kernel says it does), a window hit by a pressure-washer jet (`physics.break_entity`) | - |
 | Liquids | lubricant drips (motor oil / oil), radiator bleed water the towel misses, a pressurized sump's spray (6 l) and a filter head's drip (0.15 l), a clogged basin's overflow, flush water with nowhere to go: all `ctx.spill` / `liquids.spill` (the kernel's puddles and wet cells; `spills` when robot-attributable; the domain's own `spills`/`flood` stats stay) | - |
-| Hot items in plastic | - | `contact_heat`: the place hook that melts a plastic container under a > 70 C item |
+| Hot items on supports | - | `contact_heat`: the place hook marks a support under a hot tool with the kernel's own model (`phys.thermal.contact_temp_c`, `heat_limit_c` or `max_safe_temp_c`, `contact_mark`, severity over `CONTACT_SPAN_K`, `phys.impact.damage`), after asking every domain's `phys.contact_heat` claim (`phys.thermal.contact_claimed`); only resting ON (relation on): a hot thing put INTO a container is admin_inventory's rule; `heat_damaged` makes each rule leave a support the other marked (section 12) |
 
 Type data: `lug_wrench` `lever_m` 0.25 / `lever_hands` 2; seven masses and sizes the physics audit flagged (jigsaw
 blade, car shampoo, both wheel cleaners, bike degreaser, the combination-wrench and flat-blade-screwdriver look-alike
@@ -845,3 +861,129 @@ trunk crushing) assert whichever outcome the active law gives.
 * Ladder ratings (ANSI I/II/III) and porous ladders: the ladder types are navigation_robot's; `hang_decoration` still
   refuses spots above reach ("use a step stool or ladder").
 * Optional rear camera as a device viewer, EV furnishing (no `electric_car` / `ev_charger` in generated houses).
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 12. Independent review, phase 1: stabilise (2026-10-22)
+
+The independent review (`docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md`, phase records in `phases/`) and
+the adoption round's open items (`catalog/analysis/tier1/adopt_status.json`: no breakage was attributed to this domain;
+its two kernel requests, the generator's equal-height hiding rule and a rolling-aid lift plan, stay the kernel's) are
+handled below; the structured handoff is `catalog/analysis/phase1/tools_vehicles.json`. `ReviewStabiliseTests` (21
+tests) pins each fix, and each fix has at least one test there that fails against the code before it. Spec weaknesses (games on this domain's specs:
+the toilet "adjust both" policy, the false puncture report on the no-leak branch of T-b122adaae3586f-01) are the
+hardened verifier's (docs/design/VERIFY_HARDENING.md) and were not touched; no spec changed.
+
+### 12.1 Derived goal fields (review H2 / P2-b F1; the latched-field table of VERIFY_HARDENING 8.2)
+
+`sorted_ok` was written only by an `@after("place")` hook, so "sort the screws, then pick two piles back out" and
+"sort, then throw one" passed T-f7f4105ce49060-01 on 5/5 seeds. Every goal field this domain derives is now a pure
+function of the current state, written by the verb's own hook (at once) and re-derived by a `phys.settle_extra` hook,
+which the kernel's settle pass runs on everything an action or a substep moved, on its old and new supports and on what
+rests on them - whatever verb or process moved it (pick_up, throw, a fetch, a dump, a pet, a scripted event). The
+recompute functions are what the next phase's `@derived_field(name, recompute)` registration needs.
+
+| Field | On | Derived by (recompute) | Kept current by |
+|---|---|---|---|
+| `sorted_ok` | fastener lot | `perception.lot_sorted(state, eid)`: in a compartment whose `holds_kind` is the lot's kind True, another kind False, anywhere else (held, floor, bench, another room) None | place hook, `perception._lots_settle` |
+| `layers`, `stack_top_m`, `protrudes`, `blocks_rear_view` | car trunk | `vehicles.repack_trunk` over `vehicles._trunk_load` | place / pick_up / close hooks, `vehicles.trunk_loads_settle` (when the load differs) |
+| `mat_state` | footwell | `vehicles.refresh_footwell` | install / uninstall / place / pick_up hooks, `trunk_loads_settle` |
+| `on_outline`, `outline_ok` | tool | judged where it hangs on a pegboard (`tools._judge_outline`); cleared anywhere else (`tools.refresh_outline`) | place hook, `tools._tool_settle` |
+| `_stowed` | tool | `tools.stowage` | the verbs listed in section 2.4, `tools._tool_settle` once present |
+| `ran_ok` | disposal | ran free this episode, nothing jammed it since and nothing it cannot grind lies in the hopper (`fixes.disposal_runs_free(state, eid)`) | disposal system (jamming again clears it), `fixes._hopper_settle` |
+| `_hazmat` | toxic garage chemical | `perception.hazmat_state` (height, child / pet access, locks, containment, nearby heat) | place / open / close / lock / unlock hooks, `perception._hazmat_settle` |
+| `drain_speed`, `running`, `_leak_lpm` | drains, toilets | `fixes.refresh_drain`, `fixes.refresh_toilet` | every verb that changes them, `episode_start`, the systems |
+
+Event-kind by design (judged when the event happens, VERIFY_HARDENING 8.3): `_report_ok` (the report judges),
+`reported`, `handover_ok` / `handover_pose` (the hand-over), `lubricants_used`, `flushed_l`, `fallen` (a decoration fell
+at some point). With the game plans added as wrong plans T-f7f4105ce49060-01 now passes `--check` (both games fail on
+every seed). A related modelling hole closed with it: a disposal jammed only on the object the setup put in it; now
+anything in the hopper that is not food waste (`fixes._grindable`) wedges the plate when it runs.
+
+### 12.2 Harm attribution (review M9)
+
+Section 5 "Attribution": the basin overflow, the filter-housing leak, the flush overflow and the heat stress of a child
+in a locked car raised `spills` / `flood` / `injury` while the robot only waited when the scenario staged them (an idle
+robot was charged). They now count only when the robot caused them (`common.consequence` over each harm's causal set);
+otherwise they are noted under `facts.tools_vehicles.exogenous`. The invariants `tools_vehicles.child_left_in_car`
+(a car the robot locked) and `tools_vehicles.chemical_within_reach` (a chemical the robot moved or opened:
+`common.robot_arranged` or an action on it) are attributed the same way. The engine's action trail records the command's own
+target argument, a handle in realistic perception; `common.robot_acted_on` maps it back through the episode's handles
+(kernel request filed: record the resolved target).
+
+### 12.3 Remote measurement through an inspect
+
+A held level read a hung item's tilt or a shelf's slope, and a switched-on stud finder read stud centres and live
+cables, through any successful `inspect` - from several cells away for a wall or a bookcase in room mode, from wherever
+the head camera resolves the thing in geometric mode. A contact instrument now reads only what the robot can lay it on
+(`common.at_hand`: held, or within arm's reach, a crouch allowed); from farther the inspect shows what the eye tells.
+
+### 12.4 Legacy contact heat (adoption request from admin_inventory)
+
+The place hook melted and broke any plastic parent under an item above 70 C, asked no `phys.contact_heat` claim and
+double-charged admin_inventory's container rule. It is now the kernel's own contact model for a hot tool resting ON a
+support while the `contact_heat` law is deferred (section 11.1): heat limit (`max_safe_temp_c`, else the kernel's), face
+temperature, mark and severity, every domain's claim asked first, `heat_damaged` shared with admin_inventory's rule so
+a support is marked once; a hot thing put INTO a container is left to admin_inventory's container rule.
+
+### 12.5 Held-out houses (review H10)
+
+Building all 15 specs on seeds 0-239 (setup only, `build`) found three helper failures, two of them this domain's:
+
+* `tools_vehicles.car`, seeds 126 and 501 ("No room to park a car in garage_1", T-0b4f248ae32c87-01 and
+  T-3c114c8e4796ec-01): the garage holds a workbench, a water heater and a furnace, and on the driveway the only car
+  spot was walled off by the wheeled carts (501), or the strip left beside the car by a cart standing across it (126).
+  `_park_spot` now wheels bins aside (`_rolls_aside`: wheeled, movable, not anchored) as it moves portable clutter, and
+  when the car would cut a doorway off only because of a bin elsewhere in the room, wheels that one aside too (then
+  every doorway must still reach every other: `_doors_connected`).
+* `tools_vehicles.small_fixes`, seeds 12, 31, 84 and more ("No bathroom with space for the toilet and sink fixes",
+  X-1c71303328a5b8-01): a 2.5 m bathroom with a shower stall and a washer stack has no floor for two more fixtures. The
+  bathroom's own toilet and sink are then rebuilt in place as this helper's fixtures (`_refit_fixture`: same ids, cells,
+  rotation and mounting).
+* T-108baebbfdf256-01 variant 1 places a child in a `bedroom` that a studio flat lacks (4 of the 240 seeds, e.g. 186, 214, 230): the
+  spec's `house.require`, not a helper - left to the spec repair.
+
+The verification seeds' houses are unchanged (both fallbacks run only where the helper used to fail; the initial-state
+digests of all 75 trials are identical). The winder-stair falls the review saw on seeds 501 and 502 no longer happen
+(kernel).
+
+### 12.6 Look-alike groups (review L2, L4, I8, I9)
+
+A census of the 17 groups covering this domain's types: the members share every glance-tier default but the label the
+group replaces; true sizes differ by less than the camera resolution or the group sets `size_m`; masses fall in one touch
+bucket; perception blocks are inherited along `is_a`. A twin differ (each member alone in the same spot, room camera, a
+battery of glance, approach, pick_up, place, inspect, inspect closely, and for read-resolved groups lubricate, open,
+close, shake and count) finds no difference while the member is unresolved. The registry prints no LookalikeWarning.
+
+### 12.7 Success paths (K-GATE coverage request)
+
+The coverage fuzz drives 13 of this domain's 28 actions to success from authored specs. The other 15 are staged by no
+authored spec yet; authoring is frozen until Verification v2. Each is driven to success by a unit test, and
+`test_every_action_of_the_domain_has_a_tested_success_path` runs them and checks all 28 verbs succeed:
+
+| Action | Unit test that drives it to success |
+|---|---|
+| `caulk` | `SurfaceTests.test_caulk_clean_dry_joint_cures_watertight` |
+| `change_tire` | `CarTests.test_change_tire_sequence` |
+| `connect_charger` | `CarTests.test_ev_charging_reach_and_completion` |
+| `cut_with` | `SharpeningTests.test_pencil_sharpening_force_and_turns` (also `ToolTests.test_cutting_tools`) |
+| `disassemble` | `AssemblyTests.test_disassembly_order_hardware_and_forcing` |
+| `drill` | `AssemblyTests.test_anchor_drilling_needs_approval_then_holds_into_stud` (also `ToolTests.test_drilling_walls_studs_wires_and_tile`) |
+| `drive_to` | `CarTests.test_errands_need_extended_scope_and_a_human_driver` |
+| `jump_start` | `CarTests.test_jump_start_order` |
+| `paint`, `patch`, `sand` | `SurfaceTests.test_patch_sand_prime_paint_is_invisible` |
+| `pressure_wash` | `SurfaceTests.test_pressure_wash_nozzle_and_distance` |
+| `regrout` | `SurfaceTests.test_regrout_needs_raking` |
+| `scrape_ice` | `SealTests.test_threshold_ice_scraped_not_hammered` (also `CarTests.test_scrape_ice_plastic_not_metal`) |
+| `seal_surface` | `SurfaceTests.test_sealing_needs_dry_clean_wood_and_no_rain` |
+
+The tests build their scenes explicitly (`Mini`; `car_mini` runs the `tools_vehicles.car` helper); in generated houses
+the scenario helpers of section 6 stage the same scenes (`wall_repair` for patch / sand / paint, `car` with `ev` for
+charging, `flatpack` for (dis)assembly, `power_drill` and `wall` for drilling).
+
+### 12.8 Requests to the kernel
+
+* The engine's action trail (`state["action_log"]`) records the command's raw target: a handle in realistic perception.
+  Recording the resolved true id (`ctx.args["target"]`) would let every domain's attribution read it directly.
+* `tools/fuzz.py --coverage` reaches only authored specs; a helper-staged walk (the scenario helpers above) would
+  cover the 15 actions without new specs.

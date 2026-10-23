@@ -240,12 +240,13 @@ def msec(w):
 
 WATCH_TIMED = ("label_peels_at_s", "pads_fall_off_at_s")
 WATCH_WET = ("stacked_wet_since_s", "rolled_wet_since_s", "moisture_trap_since_s", "sealed_wet_since_s")
-WATCH_FIELDS = ("falling", "rolling", "covering") + WATCH_TIMED + WATCH_WET
+WATCH_FIELDS = ("falling", "rolling", "covering", "tilted_on_wheels") + WATCH_TIMED + WATCH_WET
 
 
 def watch_live(rec):
-    """True while a record still carries a dynamic field one of the systems must follow."""
-    if rec.get("falling") or rec.get("rolling") or rec.get("covering"):
+    """True while a record still carries a dynamic field one of the systems (or the walk-off release of a load
+    balanced on its wheels, motion._let_go_when_walked_off) must follow."""
+    if rec.get("falling") or rec.get("rolling") or rec.get("covering") or rec.get("tilted_on_wheels"):
         return True
     if any(rec.get(k) is not None for k in WATCH_TIMED):
         return True
@@ -376,6 +377,54 @@ def set_floor_xy(w, eid, x, y, yaw=None):
 def rotate_vec(u, v, deg):
     t = math.radians(deg)
     return u * math.cos(t) - v * math.sin(t), u * math.sin(t) + v * math.cos(t)
+
+
+class _StateView(object):
+    """A w-like view (only .s) for the geometry helpers below."""
+    __slots__ = ("s",)
+
+    def __init__(self, s):
+        self.s = s
+
+
+def perceived_size(ctx, eid):
+    """The size [w, d, h] the robot sees eid at when that is not its true size, else None: an unresolved look-alike
+    (realistic perception) shows its group's common size (realism.group_glance), never the member's own, until it is
+    identified or measured."""
+    realism = getattr(ctx.env, "realism", None)
+    w = ctx.w
+    if realism is None or not isinstance(eid, str) or eid not in w.s["entities"] or not ctx.unresolved(eid):
+        return None
+    rec = w.s["entities"][eid]
+    gname, group = realism.group_of(rec)
+    if gname is None:
+        return None
+    size = realism.group_glance(gname, group).get("size_m")
+    if not isinstance(size, list) or len(size) < 3:
+        return None
+    from ...kernel.realism import MEASURE
+    if realism.knowledge.level(eid, rec, "size_m") >= MEASURE:
+        return None
+    size = [float(v) for v in size[:3]]
+    return None if size == [num(v) for v in (rec.get("size_m") or [])[:3]] else size
+
+
+def perceived_view(ctx, *eids):
+    """A view of the world in which every listed unresolved look-alike has the size the robot sees (perceived_size):
+    for aiming at a reference the robot only knows by eye (rotate face_toward, arrange relative_to / facing, align to a
+    reference), so every member of a group gets the same answer. Contact physics (knocks, fits) keeps the true size.
+    Returns ctx.w itself when nothing is hidden."""
+    sizes = {}
+    for eid in eids:
+        size = perceived_size(ctx, eid)
+        if size is not None:
+            sizes[eid] = size
+    if not sizes:
+        return ctx.w
+    entities = dict(ctx.w.s["entities"])
+    for eid, size in sizes.items():
+        entities[eid] = dict(entities[eid], size_m=size)
+    return _StateView(dict(ctx.w.s, entities=entities))
 
 
 def world_pose(w, eid, _depth=0):
@@ -528,6 +577,21 @@ def grasp_mu(w, eid, hand=None):
     return max(0.02, friction(w.ent(eid)) * kbody.grip_mu(w.s, hand) / REF_PAD_MU)
 
 
+RATED_GRIPS = ("normal", "handle")    # the adaptive one-hand squeeze the kernel's lift plan presumes
+
+
+def rated_squeeze_n(w, eid, hand, contacts):
+    """Squeeze (N) the normal adaptive one-hand grip may reach on eid: what holds the hand's rated load
+    (body.hold_capacity_kg, the capacity the kernel's lift plan gives one hand) on a dry surface of eid with a clean
+    hand, F = m g s / (n mu_dry). So whatever the lift plan hands to one hand never slips on its mass alone (lift
+    monotonicity: an 8.0 kg item held one-handed like a 7.5 kg one, not dropped where an 8.01 kg one is held with both
+    hands); a wet, oily or soapy surface, slippery fingers or a gripper_slip fault still make it slip. The hardware
+    limit (body.grip_limit_n) clamps it afterwards."""
+    rated = kbody.hold_capacity_kg(w.s, hand)
+    mu_dry = max(0.02, kforces.friction(w.ent(eid), wet=False) * kbody.gripper(w.s, hand)["mu"] / REF_PAD_MU)
+    return rated * G * GRIP_SAFETY / (max(1, contacts) * mu_dry)
+
+
 def supportable_from_below(rec):
     w, d, _ = dims(rec)
     return min(w, d) <= 0.45 and rec.get("supportable", True)
@@ -560,6 +624,8 @@ def grip_outcome(w, eid, grip, hands):
     if hands == 2 and grip not in ("pinch", "gentle"):
         contacts = max(contacts, 8)
         cap = max(cap, 60.0)
+    if hands == 1 and grip in RATED_GRIPS and not supported:
+        cap = max(cap, rated_squeeze_n(w, eid, hand, contacts))
     cap = min(cap, kbody.grip_limit_n(w.s, hand, "pinch" if grip in PINCH_GRIPS else "power"))
     required = 0.0 if supported else mass * G * GRIP_SAFETY / (contacts * mu)
     if adaptive:

@@ -18,6 +18,7 @@ State owned by this domain (all journaled through the World):
 Hidden ground truth is always in underscore keys or `secret_fields`.
 """
 import math
+import os
 import weakref
 
 from ...kernel import geometry, timeline
@@ -86,8 +87,10 @@ def identified(env, eid, record=None):
         return False
     try:
         ident = realism.identity(eid, rec, realism.knowledge.entity_level(eid, rec))
-    except Exception:       # a malformed record must never break an action
-        return True
+    except Exception:       # a malformed record must never break an action: treat it as not identified (show less);
+        if os.environ.get("HOUSE_SIM_STRICT") == "1":      # strict mode raises (review A9)
+            raise
+        return False
     return "candidates" not in ident
 
 

@@ -45,6 +45,13 @@ is judged per referenced id: a thing's glance field while the robot sees it (not
 camera's view at the level the field needs), a person's or pet's location / posture while it can tell who they are,
 "X comes in / leaves" (a location compared with the robot's room) while it watches that room, an alarm by its sound,
 the weather by the weather rule (never the process's bookkeeping).
+
+Realistic perception judges what it observes on the rendered value, never the true one (review L1, K-LEAK): an entity
+atom compares the field as the observation shows it now (realism.shown_entity: buckets and words such as "looks dry" or
+"half", an unresolved look-alike's group values; a status app's or audible status's glance rendering), a person's or
+pet's posture as shown (asleep and lying awake are both "lying"; a pet asleep, lying or resting is "resting"), an alarm
+known by its sound as "alarm" while it sounds and "quiet" otherwise; and holds_perceived is that answer alone. So a
+wait, a standing order or a guard tells the agent nothing its observation does not.
 """
 import copy
 import heapq
@@ -163,24 +170,23 @@ def _room_dark(w, rid):
     return dark
 
 
-def _max_dim(record):
-    size = record.get("size_m") or [0.1, 0.1, 0.1]
-    try:
-        return max(float(v) for v in size[:3])
-    except (TypeError, ValueError):
-        return 0.1
-
-
 def entity_seen(w, eid, realism=None, env=None, field=None):
     """Whether the robot sees entity eid now well enough to read its glance fields (TIER1_INTEGRATION 1.3, per
     referenced id). Held things always. Room camera: perception's visibility, not a dark shape (the room lit and
     imaging on: a dark shape shows no field), realistic perception also not a small thing missed from this viewpoint
     (realism.missed). Geometric camera: the head camera at its current eye detects it above a shape (camera.acuity);
-    realistic perception applies the detection band and the view level the field needs (realism.acuity_need)."""
+    realistic perception applies the detection band and the view level the field needs (realism.acuity_need), at the
+    apparent size of an unresolved look-alike (realism.apparent_view)."""
+    return _seen_view(w, eid, realism, env, field) is not None
+
+
+def _seen_view(w, eid, realism=None, env=None, field=None):
+    """entity_seen's answer with what it saw: None when the robot does not see eid well enough; else the realistic
+    geometric camera's ViewInfo of it (apparent size applied), or True (room camera, held things, oracle)."""
     state = w.s
     record = state["entities"].get(eid)
     if record is None or not body.is_on(state):
-        return False
+        return None
     robot = state["robot"]
     if record.get("location") == "robot" or eid in [v for v in (robot.get("hands") or {}).values() if v]:
         return True
@@ -189,26 +195,33 @@ def entity_seen(w, eid, realism=None, env=None, field=None):
         from . import camera
         found = camera.entity_view_now(env, eid) if env is not None else camera.acuity(state, eid)
         if found is None:
-            return False
+            return None
         info = found["view"]
-        level = info.get("level")
         if realism is None:
-            return info.get("detected", True) is not False and level != "shape"
+            return True if info.get("detected", True) is not False and info.get("level") != "shape" else None
         from .realism import VIEW_LEVELS
+        # the full ViewInfo (light, glare, faces: what renders the field), at an unresolved look-alike's apparent size;
+        # entity_view_now's cut view only says that the camera sees it at all
+        full = camera.entity_view_full(env, eid) if env is not None else info
+        info = realism.apparent_view(state, eid, record, full)
+        if info is None:
+            return None
         need = realism.acuity_need(record, field) if field else "recognize"
         need = "identify" if need == "inspect" else need
-        return VIEW_LEVELS.get(level, 0) >= VIEW_LEVELS.get(need, VIEW_LEVELS["identify"]) and \
-            bool(realism.geo_detected(state, eid, record, info))
+        if VIEW_LEVELS.get(info.get("level"), 0) >= VIEW_LEVELS.get(need, VIEW_LEVELS["identify"]) and \
+                realism.geo_detected(state, eid, record, info):
+            return info
+        return None
     if env is not None and getattr(env, "perception", None) is not None:
         perception = env.perception
     else:
         from .perception import Perception
         perception = Perception(None)
     if not perception.visible(state, eid) or _room_dark(w, robot.get("room")):
-        return False
-    if realism is not None and _max_dim(record) < SMALL_M and \
+        return None
+    if realism is not None and realism.apparent_max(eid, record) < SMALL_M and \
             realism.missed(state, eid, record, realism.context(state, eid, record)):
-        return False
+        return None
     return True
 
 
@@ -300,21 +313,46 @@ def _weather_observable(w, rule, realism):
 
 
 def _entity_observable(w, rule, parts, realism, env):
+    """How the robot observes an entity atom now: "heard" (an alarm by its sound), "remote" (a status app over the
+    network), "audible" (a device's audible status), the realistic geometric camera's ViewInfo or True when it sees the
+    thing (_seen_view), or None when it cannot observe it."""
     state = w.s
     eid = parts[1]
     entity = state["entities"][eid]
     field = ".".join(parts[2:])
     if field not in OBSERVABLE_FIELDS and field not in ("appliance.state", "appliance.remaining_s"):
-        return False
+        return None
     if field in ALARM_FIELDS and _alarm_heard(w, eid, rule):
-        return True
+        return "heard"
     if realism is not None and (realism.tier(entity, parts[2]) != "glance" or rule.get("op") in NUMERIC_OPS):
-        return False
+        return None
     if entity.get("remote_status") and state["robot"].get("network", True):
-        return True
+        return "remote"
     if entity.get("audible_status") and body.can_hear(state) != "none":
-        return True
-    return bool(state["robot"].get("room")) and entity_seen(w, eid, realism, env, parts[2])
+        return "audible"
+    if not state["robot"].get("room"):
+        return None
+    return _seen_view(w, eid, realism, env, parts[2])
+
+
+def _shown_atom(w, rule, parts, realism, how):
+    """Realistic perception (review L1): an entity atom judged on the value the robot perceives -- the field as the
+    observation renders it (buckets, words, look-alike group values; realism.shown_entity) -- never on the true value,
+    so an accepted condition is no exact-value oracle. None when that rendering shows no such field (the robot cannot
+    tell). An alarm known only by its sound is "alarm" while it sounds (a test sounds the same) and "quiet" otherwise;
+    a status app or an audible status reports the glance rendering."""
+    state = w.s
+    eid, top = parts[1], parts[2]
+    if how == "heard":
+        sounding = state["entities"][eid].get(top) in ALARM_STATES
+        shown = {top: "alarm" if sounding else "quiet"}
+    else:
+        shown = realism.shown_entity(state, eid, info=how if isinstance(how, dict) else None,
+                                     remote=how in ("remote", "audible"))
+    from .predicates import MISSING
+    if not isinstance(shown, dict) or shown.get(top, MISSING) is MISSING:
+        return None
+    return bool(check({"entities": {eid: {top: shown[top]}}}, rule))
 
 
 def _observe_atom(w, rule, realism, env):
@@ -331,16 +369,25 @@ def _observe_atom(w, rule, realism, env):
     if head in ("time_s", "clock"):
         return bool(check(state, rule))
     if head == "entities":
-        if len(parts) >= 3 and parts[1] in state["entities"] and _entity_observable(w, rule, parts, realism, env):
+        if len(parts) < 3 or parts[1] not in state["entities"]:
+            return None
+        how = _entity_observable(w, rule, parts, realism, env)
+        if how is None:
+            return None
+        if realism is None:
             return bool(check(state, rule))
-        return None
+        return _shown_atom(w, rule, parts, realism, how)
     if head in ("people", "pets") and len(parts) == 3:
         aid, field = parts[1], parts[2]
         fields = REALISTIC_WATCH_AGENT_FIELDS if realism is not None else AGENT_OBSERVABLE_FIELDS
         if aid not in (state.get(head) or {}) or field not in fields:
             return None
         if agent_seen(w, aid, realism, env):
-            return bool(check(state, rule))
+            if realism is None:
+                return bool(check(state, rule))
+            # what the observation shows (review L1): asleep and lying awake are both "lying", a pet asleep "resting"
+            shown = realism.agent_shown(head, field, state[head][aid].get(field))
+            return bool(check({head: {aid: {field: shown}}}, rule))
         if _room_atom(rule, state["robot"].get("room")) and _absence_seen(w, aid, realism):
             return rule.get("op") == "ne"       # not in the room: "== my room" is false, "!= my room" true
     return None
@@ -380,8 +427,13 @@ def observed(w, rule, realism=None, env=None):
 
 
 def holds_perceived(w, rule, realism=None, env=None):
-    """True when `rule` holds and the robot observes it holding now (an until ends a wait, a standing order fires, a
-    guard passes): check(state, rule) and observed(...) is True."""
+    """True when the robot observes `rule` holding now (an until ends a wait, a standing order fires, a guard passes).
+    Oracle perception: check(state, rule) and observed(...) is True. Realistic perception: observed(...) is True alone
+    -- the atoms are judged on what the robot perceives (rendered values), and the true state must not gate the
+    answer either, or every wait would still be a yes/no question about it (review L1)."""
+    realism = realism if realism is not None else _realism_of(_env_of(w, env))
+    if realism is not None:
+        return observed(w, rule, realism, env) is True
     return bool(check(w.s, rule)) and observed(w, rule, realism, env) is True
 
 

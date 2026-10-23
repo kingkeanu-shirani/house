@@ -278,6 +278,10 @@ def garden_bed(ctx, room="backyard", bed_type="garden_bed", size=(3.0, 1.0), sun
         rec["mulch"] = {"cell_m": 0.25, "cols": cols, "rows": rows, "depth_cm": [float(mulch_cm)] * (cols * rows), "kind": "mulch"}
     for s in sowings or []:
         rec.setdefault("sowings", []).append(dict(s))
+    for lid in sorted(e for e, r in cfg["entities"].items() if r.get("type") == "lawn" and r.get("location") == rid):
+        # the yard's lawn learns about the new bed, as the finishing furnisher does for generated beds: its patches are
+        # bed ("B"), not turf (a mower or the tall-grass rule would otherwise treat the bed as lawn)
+        F.rebuild_lawn_kinds(cfg, lid)
     out["n_weeds"] = len(out["weeds"])
     out["side_cell"] = _side_cell(ctx, rid, rec)
     return out
@@ -700,7 +704,7 @@ def fence_defects(ctx, room="backyard", count=3, kinds=None, weathered=2, gap_cm
     fence = next((e for e in sorted(cfg["entities"]) if cfg["entities"][e].get("type") == "fence" and cfg["entities"][e].get("location") == rid), None)
     if fence is None:
         edge = F.house_wall(cfg, rid)
-        rec = ctx.reg.make("fence", rid, panels=F.fence_panels(cfg, rid, edge), label="backyard fence")
+        rec = ctx.reg.make("fence", rid, panels=F.fence_panels(cfg, rid, edge), label="backyard fence", size_m=F.fence_extent(cfg["rooms"][rid]))
         rec["pos"] = [0, 0]
         rec["ground_layer"] = True
         fence = ctx.placer.new_id("fence")

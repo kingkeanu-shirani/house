@@ -215,6 +215,8 @@ def _voltage_test(w, eid, details, ctx, field, live, where="here"):
 
 @inspector("electrical.outlets", order=55)
 def _inspect_outlets(w, eid, rec, details, ctx):
+    if percept.unfamiliar(ctx, eid):
+        return      # an unfamiliar thing shows only what any unfamiliar thing shows (review I4)
     state = w.s
     real = ctx is not None and percept.active(ctx)
     if rec.get("category") == "outlet" or P.is_provider(rec):
@@ -252,6 +254,8 @@ def _inspect_outlets(w, eid, rec, details, ctx):
 
 @inspector("electrical.devices", order=56)
 def _inspect_devices(w, eid, rec, details, ctx):
+    if percept.unfamiliar(ctx, eid):
+        return
     state = w.s
     where = ctx.args.get("where") if ctx is not None else None
     real = ctx is not None and percept.active(ctx)
@@ -336,7 +340,7 @@ def _inspect_devices(w, eid, rec, details, ctx):
 @inspector("electrical.detectors", order=57)
 def _inspect_detectors(w, eid, rec, details, ctx):
     state = w.s
-    if rec.get("category") != "detector":
+    if rec.get("category") != "detector" or percept.unfamiliar(ctx, eid):
         return
     details["led"] = rec.get("led")
     details["chirping"] = bool(rec.get("chirping"))
@@ -356,7 +360,7 @@ def _inspect_detectors(w, eid, rec, details, ctx):
 def _inspect_clocks(w, eid, rec, details, ctx):
     """Realistic mode only: the alarm times a close look at the clock shows (the clock's internal offset and whose
     alarm is whose stay hidden). Oracle inspect output is unchanged (the record carries `alarms`)."""
-    if ctx is None or not percept.active(ctx) or not isinstance(rec.get("clock"), dict):
+    if ctx is None or not percept.active(ctx) or not isinstance(rec.get("clock"), dict) or percept.unfamiliar(ctx, eid):
         return
     alarms = rec.get("alarms")
     if isinstance(alarms, dict) and alarms:

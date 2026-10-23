@@ -13,7 +13,7 @@ opens it. Combination locks: three wrong codes on one lock counts as brute-forci
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import hook
-from ..core import hands_free_count, release_from_hands
+from ..core import hands_free_count, held_key_for, release_from_hands
 from . import closures as K
 from . import common as C
 
@@ -31,7 +31,9 @@ def _padlock_key_ok(ctx, padlock, code):
             return wrong_code(ctx, padlock)
         return None
     key = rec.get("key")
-    require(key is None or ctx.holding(key), "Hold the padlock's key", "precondition")
+    # its own key, or (as core lock / unlock: held_key_for) a held key whose `opens` names it
+    require(key is None or ctx.holding(key) or held_key_for(w, padlock, rec) is not None, "Hold the padlock's key",
+            "precondition")
     return None
 
 
@@ -262,6 +264,7 @@ def _gate_latch(ctx, eid, engage, lift):
     rm = w.mut(eid)
     if catches:
         rm["latched"] = True
+        C.drop_robot(w, eid, "unlatch")
         return "The latch bar dropped into the catch"
     rm["latched"] = False
     off = C.num(C.hidden(rec).get("sag_mm")) + C.num(C.hidden(rec).get("latch_offset_mm"))
@@ -357,6 +360,7 @@ def unlatch(ctx):
     if rec.get("category") == "padlock" or "padlock" in C.tags(rec):
         return _padlock_off(ctx, eid, ctx.args.get("code"))
     require(hands_free_count(w) >= 1, "You need a free hand", "capability")
+    C.note_robot(w, eid, "unlatch", *(("release",) if part == "hold_open" else ()))     # harm attribution
     if part in ("child_lock", "childlock"):
         return _child_lock(ctx, eid, False)
     if kind in C.COVERING_KINDS and part:

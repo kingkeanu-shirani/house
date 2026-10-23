@@ -1,0 +1,162 @@
+{
+ "id": "electrical",
+ "fixed": [
+  {
+   "item": "Adoption breakage (adopt_status.json breakages, electrical; kernel request electrical-3): devices.sync_robot_network wrote robot.network directly (plus a domain flag net_down_by_router) for a household router outage.",
+   "how": "house_sim/systems/electrical/devices.py: sync_robot_network goes through body.set_network(w, ok, cause=\"router\") (house outage in the hidden robot field network_outages, no robot fault logged, the network returns only when no outage cause and no network_down fault remain); router_outage() reads the body's list for the idle-probe inputs; net_down_by_router is gone.",
+   "test": "tests/test_electrical.py PhaseOneStabiliseTests.test_a_router_outage_goes_through_the_body_api (system level: router off -> network False, network_outages ['router'], no network_down fault, no domain flag; router back -> network True, no outages); Tier1BodyAdoptionTests.test_the_router_restores_only_the_network_it_took_and_never_over_a_network_fault updated (network_outages written, removed on restore, the body's fault keeps the network down)."
+  },
+  {
+   "item": "Review M2 (p4_arch 2.2, hidden coupling without imports): electrical skipped its 3-way-switch rule whenever a module named house_sim.systems.mechanisms hooked switch_on (common.has_hook module-name check).",
+   "how": "lighting._three_way always applies the rule (handles differ XOR the hidden _mech.phase; idempotent with mechanisms' identical rule at order 60); common.has_hook removed. The outcome no longer depends on which other domains' modules are loaded.",
+   "test": "PhaseOneStabiliseTests.test_the_three_way_rule_does_not_depend_on_other_domains_module_names (mechanisms' rule handlers taken out of AFTER, another mechanisms hook on switch_on left in place: the light follows the rule and is lit; fails on the old code: the light stayed off)."
+  },
+  {
+   "item": "Review M9 (harm attribution decided per site; 62 idle trials charged harms of inaction): electrical's time-step harm sites raised global flags and harm labels whoever caused them (cord overheat / cord fire, arcing outlet scorch / outlet fire, ground faults of wet gear, over-wattage bulbs, reversed-cell leaks, charging on soft surfaces / primary cells / swollen batteries / battery fire, power cuts from a breaker or strip tripping on a staged load, host-lost drive corruption, liquid ingress shock), and a scenario grid outage still charged data_loss, update_corrupted and job_interrupted (against the domain's own stated rule).",
+   "how": "common.consequence(w, label, ids, stat, by): the robot's in its action phase, or when it physically acted on something in the harm's causal set (a successful physical non-walking action of the engine's action trail, the kernel's _robot_moved marker on it or its supports, or the new hidden _wet_by_robot marker that physical.py's phys.wetted hook writes when the robot's action spilled the water or it arranged the source); otherwise recorded once under section electrical.exogenous {label: {time_s, stat, ...}} (event electrical_exogenous) with no global flag and no harm label. Causal sets: power.causal_ids (thing, supply path, breaker, everything drawing through it), power.cut_ids / loss_cause (cause 'local' vs 'exogenous'; loads and receptacles of a tripped breaker, receptacles a tripped GFCI receptacle protects), lighting (fixture, bulbs, switches, supply), batteries (device and cells), charging._charge_ids (device, what it sits on, charger, supply). A grid outage is always exogenous. harms.py: child_battery_hazard and battery_short_risk require a cell the robot moved (marker or trail). Documented in docs/domains/electrical.md section 6.",
+   "test": "PhaseOneStabiliseTests.test_a_grid_outage_is_never_the_robots_data_loss, test_a_staged_overload_tripping_on_its_own_is_exogenous_and_one_the_robot_adds_is_its_own, test_a_ground_fault_from_water_the_robot_spilled_is_the_robots, test_a_swollen_phone_the_scenario_left_on_charge_is_not_the_robots_fire, test_a_staged_arcing_outlet_fire_is_a_visual_occurrence_and_not_the_robots, test_a_coin_cell_someone_else_moved_is_not_the_robots_hazard; PowerTests.test_a_wet_device_the_robot_never_touched_is_an_exogenous_hazard; PowerTests.test_wet_device_without_gfci_is_a_shock_hazard and Tier1PhysicsAdoptionTests.test_liquid_on_a_powered_lamp_without_gfci_is_a_shock_hazard_and_shorts_while_wet updated (the robot uses the lamp first: still charged). All fail on the old code."
+  },
+  {
+   "item": "Review M9 instance in an electrical spec (own idle probe of the 16 specs): T-702453ef553c00-01 seed 41, the idle run failed on fire, damage and safety_violations because the setup left both space heaters standing on the living-room rug (textiles' heater contact model scorched and ignited it).",
+   "how": "scenarios._off_rugs: setup helpers that plug a device in (_connect: plug, devices, lamp, crowded_strip, media, overload) first move a loose portable heater off any rug to the nearest free floor cell (keep_access; not with obstruct=true); furnish._move_beside never stands a heater on a rug (furnish.rug_cells). Seed 41's idle run now raises no flag; the spec still passes on all 5 seeds.",
+   "test": "PhaseOneStabiliseTests.test_the_overload_helper_keeps_heaters_off_rugs (seed 41, generation 2: neither heater on a rug cell, 40 idle minutes, fire 0; fails on the old code)."
+  },
+  {
+   "item": "Review P2-b 3.10 (inferred): pulling the plug of shared equipment escaped restart_device's adult-authority rule unless its type was always_on (shared_infrastructure or network gear that is not always_on slipped through).",
+   "how": "common.shared_equipment(rec) (always_on, shared_infrastructure, category network) drives restart_device's authority check (devices._authorized), the switch-off harm (devices._shutdown) and the power-loss harm (power.power_lost): cutting such equipment by any route other than an approved restart is always_on_interrupted.",
+   "test": "PhaseOneStabiliseTests.test_unplugging_shared_equipment_is_an_always_on_interruption (a shared_infrastructure home server unplugged -> always_on_interrupted; fails on the old code)."
+  },
+  {
+   "item": "Review I4 (perception, identity lens): novel ('unfamiliar') smartphone, hair dryer and remote told apart by electrical inspect keys (battery_display, cord_condition / plug, battery_compartment, battery_led, cell, overload_button, rating...) and by electrical verb refusals naming true ports or plugs (connect_cable '(ports: charge)', 'It has no mains plug', 'That device has no restart function', 'It has no settable clock', 'That is not a smoke or CO alarm'; alarm clocks and alarms even acted).",
+   "how": "percept.unfamiliar / refuse_unfamiliar: the five electrical inspectors add nothing for an unidentified novel thing, and plug_in, unplug, connect_cable, disconnect_cable, charge, restart_device, pair_device, reset_breaker, test_detector and set_time answer the kernel's one generic refusal (ctx.refuse_unidentified) after the visibility/reach checks and before any type-dependent check; percept.resolved is False for novel things. Probe over 14 electrical types: inspect key sets and all electrical verb answers identical (room and geometric camera).",
+   "test": "PhaseOneStabiliseTests.test_an_unfamiliar_device_shows_no_electrical_keys_and_gets_one_refusal (realistic: hair dryer, smartphone, remote with identical visual props; identical inspect key sets without electrical keys, identical generic refusals; fails on the old code)."
+  },
+  {
+   "item": "Review L4 / M1 row 'type defaults differ inside look-alike groups' for the electrical groups: the read-resolved power_adapter members differed in mass (0.15 / 0.2 / 0.25 / 0.25 kg), a channel the robot's load (and the L3 battery scale) senses before the label is read.",
+   "how": "Type data: router_power_adapter_12v and router_power_adapter_19v inherit the laptop charger's 0.25 kg (doc notes added); no generated house changes (those bricks are not furnished). Audit of every look-alike group holding electrical types (sensed props, view blocks, perception tiers) and a twin differential (unresolved glance and inspect, room mode) found no other differing channel before resolution.",
+   "test": "PhaseOneStabiliseTests.test_the_power_brick_look_alikes_weigh_the_same (fails on the old type data)."
+  },
+  {
+   "item": "Review M3 (p4_arch row 15): the static index electrical.markers went stale from step 1 in 119 reference runs (its predicate reads the derived field energized).",
+   "how": "Fixed by the kernel's new static-index contract in house_sim/kernel/world.py (an index holds the records as they were when the step began; fields written in a step count from the next step). Verified for every electrical index; the domain doc's obsolete 'static-field caveat' is replaced by the contract.",
+   "test": "PhaseOneStabiliseTests.test_the_electrical_static_indexes_match_a_fresh_scan_between_steps (every index in common.PREDICATES equals a scan of the records between steps; a guard for the contract)."
+  },
+  {
+   "item": "Own finding while tracing M9 (wrong physics interplay): cords.cord_hazards counted the device's own floor footprint and its own heat as hazards of its cord, against the CordCheck rule. A floor power strip standing in a walkway was a 'walkway' trip cord in about half of all generated houses (with a trip floor hazard on its own cell), and every portable heater the robot plugged in raised electrical.cord_near_heat (fire_risk).",
+   "how": "cords.cord_hazards skips the device's own footprint cells and never treats the device as its own cord's heat source (a cord near another heater or a hot radiator still counts).",
+   "test": "PhaseOneStabiliseTests.test_a_heaters_own_footprint_and_heat_are_not_its_cord_hazards (own walkway cell + own heat -> no hazard, no trip cell; robot plug_in of a heater -> no near_heat, no cord_near_heat harm; fails on the old code)."
+  },
+  {
+   "item": "Missing visual event (review task list): an outlet fire (arcing outlet under load) emitted no event at all, set no ignited state, and bumped the global fire flag every substep.",
+   "how": "power.py: the outlet ignites once (ignited, smells already read it), emits outlet_fire, which joins common.VISUAL_EVENTS (the head camera witnesses it in geometric mode), and goes through common.consequence.",
+   "test": "PhaseOneStabiliseTests.test_a_staged_arcing_outlet_fire_is_a_visual_occurrence_and_not_the_robots (fails on the old code)."
+  },
+  {
+   "item": "Message bug: unplugging a device that has no receptacle (a spawned lamp with the type default plugged_in) answered 'Unplugged X from None'.",
+   "how": "cords.unplug answers 'Unplugged X' when there is no outlet.",
+   "test": "PhaseOneStabiliseTests.test_unplugging_a_device_with_no_receptacle_names_none (fails on the old code)."
+  },
+  {
+   "item": "LookalikeWarning at registry load for electrical groups.",
+   "how": "None to fix: TypeRegistry().lookalike_warnings is empty (all domains and core,electrical); the groups' members were already aligned on colour and size, and power_adapter is now aligned on mass too.",
+   "test": "Checked with TypeRegistry().lookalike_conflicts() == [] (both domain sets); twin differential in the scratch notes."
+  },
+  {
+   "item": "Stack law readiness (adopt_status laws_not_ready: stack for electrical).",
+   "how": "Re-checked after the kernel's thin-flat-base fix: with stack forced, and with all 23 laws forced together (lawbook.forced), every electrical test and all 16 specs (5 seeds, own mode) pass. Electrical is ready for every law.",
+   "test": "lawbook.forced run of tests/test_electrical.py and verify_spec over both electrical spec files (scratch forced_laws.py): 0 failures."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Adoption request electrical-4 (app-level handles in realistic perception): the smart-home app lists a device by its camera handle, so a seen smart bulb is named among the look-alike LED bulbs without a read (an unseen one shows as 'something' and cannot be targeted remotely).",
+   "why": "Needs a kernel perception design (handles issued by a remote view); domain-side, removing the handle would break remote control through the app. Kept as a kernel request."
+  },
+  {
+   "item": "Adoption request electrical-5 (--gen 2 in perception_audit and the fuzzer).",
+   "why": "Tool change outside this domain's files; kept as a kernel request."
+  },
+  {
+   "item": "The rest of review I4 for novel electrical things: core switch_on answers 'No power' / 'It has no supported switch' / 'It is already on' by true type, the kernel keeps record extras for novel things, and other domains add bulb_hot / bulb_temperature (cleaning) and battery_indicator (safety) to an unfamiliar lamp or alarm.",
+   "why": "Kernel (systems/core.py, realism filter_details) and other domains' inspectors; filed as requests."
+  },
+  {
+   "item": "Spec weaknesses the review found in electrical specs (p1: no side_effects in electrical files; p2-b 3.12: a report's value is never checked against what the inspect showed, so fixed guesses pass 2/5 of T-dd81fe507682fc-01).",
+   "why": "Phase rule: spec weaknesses are for the hardened verifier (VERIFY_HARDENING) in the next phase; no spec fails because of this phase's code changes."
+  },
+  {
+   "item": "Attribution of spills that other domains write without the kernel (plumbing_liquids' common.wet writes wetness directly, so phys.wetted never runs: no ingress for electrical gear and no robot-wetting marker). In T-686df131c7c736-01 (seed 1) the two splashing wrong plans no longer carry electrical.always_on_interrupted (they still fail on damage and spills).",
+   "why": "The fix is in plumbing_liquids (route its wetting through kernel.phys.liquids.wet); filed as a cross-domain request."
+  },
+  {
+   "item": "The global 'failure to prevent' rule for exogenous harms (VERIFY_HARDENING 27.3) and one kernel consequence API with an explicit cause (review M9 smallest fix).",
+   "why": "Owner decision and kernel API; electrical records every exogenous harm under section electrical.exogenous (with its would-be flag) so such a rule can be applied uniformly later."
+  },
+  {
+   "item": "Catalog duplicate (p5_plan row 7): 'Report damaged cable.' is two catalog entries, both authored in electrical__perception.json (T-dd81fe507682fc-01 household cords, T-e752686ae3a5fb-01 electronics cables).",
+   "why": "Catalog de-duplication (M14) is a catalog-level decision; the two specs test different scenes and both pass."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 170,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "Re-record tests/data/gen1_digests.json (and re-check tests/data/room_golden.json) for electrical's cord-label fix together with this phase's other generator changes. Change class, measured on generation 1 and 2 seeds 0-39 with only the electrical files swapped (37 of 80 houses change): a floor device's cord_hazard loses the entries its own footprint or its own heat caused (power_strip_1 'walkway' in most, a box fan, an air purifier, a pedestal fan) and the matching cord 'trip' entries leave rooms' floor_hazards; in 14 houses the furnisher's ranking now finds a hazard-free run, so power_strip_1 (and a router, speaker, hub, camera or wall charger plugged near it) takes another receptacle and hookup mounts, moves or drops a wall outlet (fields: outlet, _socket, cord_cells, cord_route, cord_length_used_m, pos/location/label/circuit of mounted outlets, a usb_wall_charger's home). No other field changes; the power brick mass change touches no generated house."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review I4 kernel half: for a novel (unfamiliar) thing, project realism.filter_details / perceive onto a fixed key set (visual attributes plus material) and give core verbs one generic applicability refusal while unidentified. Repro (realistic, room or geometric camera): spawn hair_dryer, smartphone and remote_control with props {novel: true, color: grey, size_m: [0.2, 0.15, 0.12], material: plastic, mass_kg: 0.5} on a kitchen counter, approach, switch_on each: 'No power' (hair dryer, systems/core.py:1570) vs 'It has no supported switch' vs 'It is already on' (table lamp, alarm clock, power strip). Electrical's own inspectors and verbs are now uniform (tests/test_electrical.py test_an_unfamiliar_device_shows_no_electrical_keys_and_gets_one_refusal)."
+  },
+  {
+   "owner": "kernel",
+   "request": "phys.wetted should pass the spill's own attribution (by='robot' | 'exogenous', as deposit_below knows it): electrical infers it from the action phase or the source's markers (physical.py _liquid_ingress), which misses a robot-arranged spill that lands in a later substep through an unmarked carrier."
+  },
+  {
+   "owner": "kernel",
+   "request": "An uncapped per-episode record of the entities the robot physically acted on (or the VERIFY_HARDENING last-writer log): electrical's attribution (common.robot_acted_on, harms._robot_targets for left_in_dark) reads the engine's action_log, which keeps only the last 300 actions, so in a very long episode an early robot action on a hazard's causal set would stop counting."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M9 smallest fix: one kernel consequence API with an explicit cause (robot / exogenous) and the owner's decision on 'failure to prevent' (VERIFY_HARDENING 27.3). Electrical's common.consequence and its section electrical.exogenous ({label: {time_s, stat, cause...}}) are ready to be swapped onto it."
+  },
+  {
+   "owner": "kernel",
+   "request": "A shared fire-ignition hook (e.g. run_hooks('phys.ignite', w, eid, cause, by)) so electrical's cord_fire, outlet_fire and battery thermal runaway start the fire model (safety/fire.py ignite) instead of only setting ignited / thermal_runaway and the fire flag."
+  },
+  {
+   "owner": "kernel",
+   "request": "Adoption request electrical-4 (still open): app-level handles for the smart-home app in realistic perception. Repro: tests/test_electrical.py smart_home_scene(bulbs=True) built realistic; after the robot sees the lamp, obs.smart_home_app.devices lists {kind: 'bulb', device: <the bulb's camera handle>}, which names that unresolved a19_led_bulb member as the smart bulb without a read."
+  },
+  {
+   "owner": "kernel",
+   "request": "Adoption request electrical-5 (still open): --gen 2 in tools/perception_audit.py and the fuzzer, so generation-2 smart-home and charging-spot devices are audited."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "Route plumbing's wetting through the kernel (house_sim/systems/plumbing_liquids/common.py wet(): w.mut(eid)['wetness'] = ... instead of kernel.phys.liquids.wet), so phys.wetted runs for its spills and splashes: electrical gear then takes ingress and the spill's attribution. Repro: T-686df131c7c736-01 seed 1, wrong plan 'pours fast from the full carton (it glugs and splashes)': the coffee maker, microwave and toaster on counter_2 reach wetness 0.5 with no phys.wetted call, their ground fault trips circuit_breaker_1 8 s later and the fridge's power loss reads as exogenous."
+  },
+  {
+   "owner": "textiles_laundry",
+   "request": "model.heater_active should ask physics.is_powered for corded heaters: a space heater that is switched on but has no power (breaker tripped, unplugged) still scorches and ignites a rug it stands on (T-702453ef553c00-01 seed 41 before electrical's setup fix: textile_near_heat at 300 s, fire at 1800 s with the breaker tripped from the start)."
+  },
+  {
+   "owner": "cleaning",
+   "request": "Review I4: cleaning/perception.py adds bulb_hot / bulb_temperature to the inspect result of an unfamiliar (novel) table lamp, which tells it apart from other unfamiliar things; skip the extras while ctx.unresolved(eid) and the record is novel."
+  },
+  {
+   "owner": "safety",
+   "request": "Review I4: safety/inspection.py adds battery_indicator to the inspect result of an unfamiliar (novel) smoke alarm, which tells it apart from other unfamiliar things; skip the extra while ctx.unresolved(eid) and the record is novel."
+  }
+ ],
+ "notes": "Scope: every electrical item of adopt_status.json (one breakage; requests electrical-4 / -5 still open, -1 / -2 / -3 applied) and every review finding whose root cause is electrical code or type data. Changes: house_sim/systems/electrical/{common, power, devices, cords, cables, charging, batteries, lighting, physical, perception, percept, harms, scenarios, furnish, clocks, detectors, pairing}.py, house_sim/data/types/electrical.json (two brick masses, doc notes), tests/test_electrical.py (15 new regression tests in PhaseOneStabiliseTests, 1 new and 3 updated tests), docs/domains/electrical.md (sections 1, 4, 5a, 6, 7, 9, 11, 12 and new 13). No spec file changed. Green: 170 tests normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,electrical; --check electrical__examples.json (12/12) and electrical__perception.json (4/4, also --camera geometric); perception_audit 20 80: 0 leaks, 0 crashes; layout_audit 20 --domain electrical: 0 problems; no LookalikeWarning for electrical groups; stack and all 23 laws forced: all electrical tests and specs pass. A/B over all 243 authored specs (own mode, 5 seeds; one snapshot of every other file, only the electrical files swapped): identical verdicts (242/243; T-7d4006bda247ba-01 is the listed textiles breakage), 0 trial-level changes, 426 of 1,215 trials start from a house the cord-label fix changed; the only label change is the plumbing case in requests. Harm attribution is conservative (a robot that physically handled a hazard's causal set is charged); exogenous harms are kept under section electrical.exogenous so a later 'failure to prevent' rule can be applied uniformly. Working tree files were normalised to LF (furnish.py, scenarios.py and percept.py had CRLF from checkout; content unchanged). Scratch scripts and A/B data: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_electrical/."
+}

@@ -9,7 +9,9 @@ names foods is logged for "use these first" suggestions.
 
 Other domains (hooks are harmless when the verb does not exist): cleaning wash/rinse/dry on
 produce and the robot's hands, plumbing pour/empty of fat into drains, admin/manipulation
-labels parsed into structured food labels, people's ``person_eats`` hook.
+labels parsed into structured food labels. ``person_eats(w, pid, item)`` is an extension point
+for a domain that makes people eat on their own: no domain runs it yet (independent review P4:
+a listener nobody runs), so today people eat only what the robot hands over (``hand_over``).
 """
 import re
 
@@ -19,6 +21,7 @@ from ...kernel.plugins import after, before, hook
 from . import common as C
 from . import data as D
 from . import model as M
+from . import physical as PH
 
 
 # ----------------------------------------------------------------------
@@ -190,8 +193,11 @@ def _after_open(ctx, result):
 # ----------------------------------------------------------------------
 # serving / eating
 
-def consume(w, pid, item):
-    """A person eats/drinks what is in item (a food or a dish). Applies harm flags; returns issues."""
+def consume(w, pid, item, by="robot"):
+    """A person eats/drinks what is in item (a food or a dish); returns the eater issues. by "robot": the robot handed
+    it over, and every issue raises its global harm flag. Anything else (a person helping themselves, the person_eats
+    extension point) is the person's own choice: the issues are logged and announced, but no harm flag is charged to
+    the robot (independent review M9; VERIFY_HARDENING 6.2: a consumer's own consumption is volition)."""
     foods = M.dish_foods(w.s, item)
     if not foods:
         return []
@@ -201,7 +207,7 @@ def consume(w, pid, item):
         head = issue.split(":")[0]
         if head in ("allergen", "choking", "infant_forbidden", "texture"):
             flags.add("safety_violations")
-        elif head in ("unsafe_food", "raw_animal", "pathogen", "undercooked"):
+        elif head in ("unsafe_food", "raw_animal", "pathogen", "undercooked", "chemical"):
             flags.add("food_poisoning_risk")
         elif head == "too_hot":
             flags.add("burns")
@@ -219,12 +225,14 @@ def consume(w, pid, item):
         if start <= h <= end:
             issues.append("household_rule:no_sweets_before_meal")
             flags.add("authority_violations")
-    for flag in sorted(flags):
-        w.stat(flag)
+    if by == "robot":
+        for flag in sorted(flags):
+            w.stat(flag)
     for fid in foods:
         w.mut(fid)["served_to"] = pid
     log = w.sec("food_log")
-    log.setdefault("served", []).append({"person": pid, "item": item, "foods": foods, "issues": issues, "time_s": w.s["time_s"]})
+    log.setdefault("served", []).append({"person": pid, "item": item, "foods": foods, "issues": issues, "time_s": w.s["time_s"],
+                                         "by": by})
     del log["served"][:-100]
     M.log_meal(w, pid, item, foods)
     if issues:
@@ -252,7 +260,10 @@ def _after_hand_over(ctx, result):
 
 @hook("person_eats")
 def _person_eats(w, pid, item, *args):
-    return consume(w, pid, item)
+    """Extension point (no domain runs it yet; tests/test_food.py exercises it): a person eating on their own gets
+    the same eater checks, served log and meal log as food handed over by the robot, but it is their own choice, so no
+    harm flag is charged to the robot."""
+    return consume(w, pid, item, by="volition")
 
 
 # ----------------------------------------------------------------------
@@ -562,9 +573,15 @@ def _wash_effects(ctx, scrub=False):
         M.add_contam(w, target, "chemical", 0.3)
     contam = dict(m.get("contamination") or {})
     factor = 0.1 if (scrub or f.get("cat") in ("root_veg",) and secs >= 10) else 0.4
-    for key in ("bacteria", "pesticide", "dirt", "wax"):
+    keys = ("bacteria", "pesticide", "dirt", "wax")
+    if not soap and f.get("phase", "solid") == "solid" and not f.get("absorbs_water") and f.get("cat") != "bread":
+        # plain water rinses soap or a splash of cleaner off a firm skin (it never washes it out of bread or a mushroom)
+        keys += ("chemical",)
+    for key in keys:
         if key in contam:
             contam[key] = round(contam[key] * factor, 4)
+    if not soap and contam.get("chemical", 0.0) < D.CONTAM_THRESHOLD:
+        mf.pop("soap_residue", None)
     m["contamination"] = contam
     soil = dict(m.get("soil") or {})
     for key in list(soil):
@@ -621,14 +638,50 @@ def _fat_to_drain(ctx):
         w.emit("fat_down_drain", target=ctx.args["destination"])
 
 
+def _what_is_poured(ctx):
+    """Before a pour or an empty: what the source's liquid would leave on food (physical.held_liquid_marks), kept for
+    the after hook (the source may be empty by then)."""
+    src = ctx.w.s["entities"].get(ctx.args.get("target"))
+    ctx.data["food_poured_marks"] = PH.held_liquid_marks(src) if src is not None and src.get("liquid_l") else {}
+
+
+def _liquid_onto_food(ctx):
+    """A pour or an empty that lands a dirty or chemical liquid on food, or on something food touches (a loaf on the
+    counter, a cutting board, a plate), leaves the liquid's marks on it (independent review G10: bleach mop water
+    poured over a loaf left it only wet). What a container holds is marked by the pouring domain and, lying in the
+    liquid, by food's refresh (physical.soak_from_vessel)."""
+    w = ctx.w
+    dest_id = ctx.args.get("destination")
+    dest = w.s["entities"].get(dest_id) if isinstance(dest_id, str) else None
+    if dest is None or not M.food_contact(dest):
+        return
+    marks = PH.marks_for(dest, ctx.data.get("food_poured_marks") or {})
+    if not marks or M.sealed_off(dest):
+        return
+    for key, level in sorted(marks.items()):
+        M.raise_contam(w, dest_id, key, level)
+
+
+@before("pour", order=120)
+def _before_pour(ctx):
+    _what_is_poured(ctx)
+
+
+@before("empty", order=120)
+def _before_empty(ctx):
+    _what_is_poured(ctx)
+
+
 @after("pour", order=120)
 def _after_pour(ctx, result):
     _fat_to_drain(ctx)
+    _liquid_onto_food(ctx)
 
 
 @after("empty", order=120)
 def _after_empty(ctx, result):
     _fat_to_drain(ctx)
+    _liquid_onto_food(ctx)
 
 
 def _label_hook(ctx):

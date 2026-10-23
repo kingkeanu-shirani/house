@@ -1834,6 +1834,8 @@ def best_ms(fn, repeat=5, number=1):
 
 class PerformanceTests(unittest.TestCase):
     def test_end_step_and_observe_overhead(self):
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for seed in (0, 7):
             geo = HouseEnv(seed=seed, camera="geometric", observe_on_step=False)
             room = HouseEnv(seed=seed, observe_on_step=False)
@@ -1866,6 +1868,8 @@ class PerformanceTests(unittest.TestCase):
         def warm():
             for e in ids:
                 camera.can_see(state, e, w, env.perception)
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         self.assertLess(best_ms(warm) / len(ids), 0.15)                     # budget 0.05 ms
         self.assertLess(best_ms(lambda: camera.lidar(state, w)), 1.2)       # budget 0.4 ms
         quiet = env_of(pos=(3, 4))
@@ -1883,6 +1887,8 @@ class PerformanceTests(unittest.TestCase):
         from house_sim.kernel import geometry, plugins
         index = next(i for i, entry in enumerate(plugins.SYSTEMS) if entry[1] == "camera.watch")
         entry = plugins.SYSTEMS[index]
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for seed in (0, 1):
             best = None
             for _ in range(3):

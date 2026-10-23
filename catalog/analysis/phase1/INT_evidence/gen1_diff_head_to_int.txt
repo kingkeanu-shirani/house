@@ -1,0 +1,232 @@
+   158  entities.*.fill_level  {'glass_cleaner': 40, 'all_purpose_cleaner': 20, 'dish_soap': 20, 'toilet_bowl_cleaner': 20, 'floor_cleaner': 16, 'disinfectant_spray': 14}
+           house_00.json entities.all_purpose_cleaner_1.fill_level: '<absent>' -> 1.0
+           house_00.json entities.degreaser_1.fill_level: '<absent>' -> 1.0
+    99  entities.*.mass_kg  {'chlorine_bleach_bottle': 22, 'fabric_softener': 22, 'dish_soap': 20, 'ground_cumin_jar': 20, 'sugar_bag': 8, 'snow_pusher': 5}
+           house_00.json entities.chlorine_bleach_bottle_1.mass_kg: 0.15 -> 0.17
+           house_00.json entities.chlorine_bleach_bottle_2.mass_kg: 0.15 -> 0.17
+    88  entities.*.size_m  {'chlorine_bleach_bottle': 22, 'fabric_softener': 22, 'baking_soda_box': 15, 'fence': 14, 'sugar_bag': 8, 'snow_pusher': 5}
+           house_00.json entities.baking_soda_box_1.size_m: [0.1, 0.06, 0.13] -> [0.1, 0.06, 0.15]
+           house_00.json entities.chlorine_bleach_bottle_1.size_m: [0.15, 0.1, 0.3] -> [0.15, 0.1, 0.28]
+    85  entities.*.trigger.ml_per_squeeze  {'glass_cleaner': 40, 'all_purpose_cleaner': 20, 'disinfectant_spray': 14, 'degreaser': 10, 'stone_cleaner': 1}
+           house_00.json entities.all_purpose_cleaner_1.trigger.ml_per_squeeze: '<absent>' -> 1.1
+           house_00.json entities.degreaser_1.trigger.ml_per_squeeze: '<absent>' -> 1.1
+    85  entities.*.trigger.modes  {'glass_cleaner': 40, 'all_purpose_cleaner': 20, 'disinfectant_spray': 14, 'degreaser': 10, 'stone_cleaner': 1}
+           house_00.json entities.all_purpose_cleaner_1.trigger.modes: '<absent>' -> ['off', 'spray', 'stream']
+           house_00.json entities.degreaser_1.trigger.modes: '<absent>' -> ['off', 'spray', 'stream']
+    85  entities.*.trigger.nozzle  {'glass_cleaner': 40, 'all_purpose_cleaner': 20, 'disinfectant_spray': 14, 'degreaser': 10, 'stone_cleaner': 1}
+           house_00.json entities.all_purpose_cleaner_1.trigger.nozzle: '<absent>' -> 'spray'
+           house_00.json entities.degreaser_1.trigger.nozzle: '<absent>' -> 'spray'
+    74  entities.*.volume_l  {'chlorine_bleach_bottle': 22, 'fabric_softener': 22, 'ground_cumin_jar': 20, 'sugar_bag': 8, 'wall_outlet': 2}
+           house_00.json entities.chlorine_bleach_bottle_1.volume_l: 3.2 -> 3.0
+           house_00.json entities.chlorine_bleach_bottle_2.volume_l: 3.2 -> 3.0
+    66  entities.*.com_frac  {'chlorine_bleach_bottle': 22, 'fabric_softener': 22, 'liquid_detergent': 22}
+           house_00.json entities.chlorine_bleach_bottle_1.com_frac: '<absent>' -> 0.5
+           house_00.json entities.chlorine_bleach_bottle_2.com_frac: '<absent>' -> 0.5
+    66  entities.*.shape  {'chlorine_bleach_bottle': 22, 'fabric_softener': 22, 'liquid_detergent': 22}
+           house_00.json entities.chlorine_bleach_bottle_1.shape: '<absent>' -> 'box'
+           house_00.json entities.chlorine_bleach_bottle_2.shape: '<absent>' -> 'box'
+    59  entities.*.watertight  {'utensil_crock': 20, 'bread_box': 13, 'freezer_bag': 13, 'zip_top_bag': 13}
+           house_00.json entities.bread_box_1.watertight: '<absent>' -> False
+           house_00.json entities.utensil_crock_1.watertight: '<absent>' -> True
+    44  entities.*.mouth_frac  {'fabric_softener': 22, 'liquid_detergent': 22}
+           house_00.json entities.fabric_softener_1.mouth_frac: '<absent>' -> 0.3
+           house_00.json entities.fabric_softener_2.mouth_frac: '<absent>' -> 0.3
+    40  entities.*.amount_ml  {'toilet_bowl_cleaner': 20, 'floor_cleaner': 16, 'wood_floor_cleaner': 4}
+           house_00.json entities.floor_cleaner_1.amount_ml: 950.0 -> 750.0
+           house_00.json entities.toilet_bowl_cleaner_1.amount_ml: 710.0 -> 750.0
+    28  entities.*.food.qty_g  {'ground_cumin_jar': 20, 'sugar_bag': 8}
+           house_00.json entities.ground_cumin_jar_1.food.qty_g: 45.0 -> 50.0
+           house_01.json entities.ground_cumin_jar_1.food.qty_g: 45.0 -> 50.0
+    28  entities.*.full_g  {'ground_cumin_jar': 20, 'sugar_bag': 8}
+           house_00.json entities.ground_cumin_jar_1.full_g: 45.0 -> 50.0
+           house_01.json entities.ground_cumin_jar_1.full_g: 45.0 -> 50.0
+    20  entities.*.perforated  {'colander': 20}
+           house_00.json entities.colander_1.perforated: '<absent>' -> True
+           house_01.json entities.colander_1.perforated: '<absent>' -> True
+    20  household.address  
+           house_00.json household.address: '100 Example Lane' -> '962 Example Lane'
+           house_01.json household.address: '101 Example Lane' -> '474 Example Lane'
+    20  metadata.address  
+           house_00.json metadata.address: '100 Example Lane' -> '962 Example Lane'
+           house_01.json metadata.address: '101 Example Lane' -> '474 Example Lane'
+    17  entities.*.sightline  {'roof_face': 17}
+           house_01.json entities.roof_face_1.sightline: '<absent>' -> 'clear'
+           house_01.json entities.roof_face_2.sightline: '<absent>' -> 'clear'
+    17  entities.*.view  {'roof_face': 17}
+           house_01.json entities.roof_face_1.view: 'clear' -> '<absent>'
+           house_01.json entities.roof_face_2.view: 'clear' -> '<absent>'
+    11  rooms.*.floor_hazards.*.cell  
+           house_02.json rooms.living_room_1.floor_hazards.0.cell: [8, 6] -> '<absent>'
+           house_03.json rooms.living_room_1.floor_hazards.0.cell: [1, 2] -> '<absent>'
+    11  rooms.*.floor_hazards.*.cord  
+           house_02.json rooms.living_room_1.floor_hazards.0.cord: True -> '<absent>'
+           house_03.json rooms.living_room_1.floor_hazards.0.cord: True -> '<absent>'
+    11  rooms.*.floor_hazards.*.kind  
+           house_02.json rooms.living_room_1.floor_hazards.0.kind: 'trip' -> '<absent>'
+           house_03.json rooms.living_room_1.floor_hazards.0.kind: 'trip' -> '<absent>'
+    11  rooms.*.floor_hazards.*.source  
+           house_02.json rooms.living_room_1.floor_hazards.0.source: 'power_strip_1' -> '<absent>'
+           house_03.json rooms.living_room_1.floor_hazards.0.source: 'box_fan_1' -> '<absent>'
+    10  entities.*.cord_hazard  {'power_strip': 8, 'box_fan': 1, 'air_purifier': 1}
+           house_02.json entities.power_strip_1.cord_hazard: ['walkway'] -> []
+           house_03.json entities.box_fan_1.cord_hazard: ['walkway'] -> []
+     8  entities.*.chocked  {'wheelbarrow': 8}
+           house_02.json entities.wheelbarrow_1.chocked: '<absent>' -> True
+           house_06.json entities.wheelbarrow_1.chocked: '<absent>' -> True
+     8  entities.*.pos  {'wall_outlet': 7, 'snow_pusher': 1}
+           house_05.json entities.wall_outlet_11.pos: [2, 0] -> [0, 2]
+           house_06.json entities.snow_pusher_1.pos: [7, 9] -> [10, 5]
+     6  entities.*.outlet  {'power_strip': 2, 'wifi_router': 2, 'rice_cooker': 1, 'upright_vacuum': 1}
+           house_13.json entities.power_strip_1.outlet: 'wall_outlet_13' -> 'wall_outlet_20'
+           house_13.json entities.rice_cooker_1.outlet: 'wall_outlet_20' -> 'wall_outlet_21'
+     6  entities.*.circuit  {'wall_outlet': 6}
+           house_13.json entities.wall_outlet_20.circuit: 'circuit_breaker_1' -> 'circuit_breaker_8'
+           house_13.json entities.wall_outlet_21.circuit: 'circuit_breaker_9' -> 'circuit_breaker_1'
+     6  entities.*.label  {'wall_outlet': 6}
+           house_13.json entities.wall_outlet_20.label: 'kitchen outlet' -> 'living room outlet'
+           house_13.json entities.wall_outlet_21.label: 'utility closet outlet' -> 'kitchen outlet'
+     6  entities.*.location  {'wall_outlet': 6}
+           house_13.json entities.wall_outlet_20.location: 'kitchen_1' -> 'living_room_1'
+           house_13.json entities.wall_outlet_21.location: 'utility_closet_1' -> 'kitchen_1'
+     5  entities.*.blade_m  {'snow_pusher': 5}
+           house_06.json entities.snow_pusher_1.blade_m: 0.6 -> 0.5
+           house_09.json entities.snow_pusher_1.blade_m: 0.6 -> 0.5
+     4  entities.*.cord_cells  {'power_strip': 4}
+           house_05.json entities.power_strip_1.cord_cells: [] -> [['living_room_1', [1, 1]], ['living_room_1', [0, 2]]]
+           house_11.json entities.power_strip_1.cord_cells: [['living_room_1', [7, 4]], ['living_room_1', [8, 3]]] -> [['living_room_1', [7, 4]], ['living_room_1', [8, 4]]]
+     4  entities.*.cord_route  {'power_strip': 4}
+           house_05.json entities.power_strip_1.cord_route: 'dressed' -> 'direct'
+           house_11.json entities.power_strip_1.cord_route: 'along_wall' -> 'direct'
+     4  entities.*.mount_height_m  {'wall_outlet': 4}
+           house_13.json entities.wall_outlet_20.mount_height_m: 1.07 -> 0.3
+           house_13.json entities.wall_outlet_21.mount_height_m: 0.3 -> 1.07
+     3  entities.*.cord_length_used_m  {'power_strip': 3}
+           house_05.json entities.power_strip_1.cord_length_used_m: 0.0 -> 0.8
+           house_13.json entities.power_strip_1.cord_length_used_m: 0.0 -> 0.8
+     2  entities.*.pack_orientation  {'fabric_softener': 2}
+           house_12.json entities.fabric_softener_1.pack_orientation: '<absent>' -> 'flat'
+           house_16.json entities.fabric_softener_1.pack_orientation: '<absent>' -> 'flat'
+     2  entities.*.accepts_items  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.accepts_items: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.accepts_items: '<absent>' -> False
+     2  entities.*.affordances  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.affordances: '<absent>' -> ['plug_in']
+           house_14.json entities.wall_outlet_29.affordances: '<absent>' -> ['plug_in']
+     2  entities.*.blocks_path  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.blocks_path: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.blocks_path: '<absent>' -> False
+     2  entities.*.broken  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.broken: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.broken: '<absent>' -> False
+     2  entities.*.capacity_l  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.capacity_l: '<absent>' -> 0.0
+           house_14.json entities.wall_outlet_29.capacity_l: '<absent>' -> 0.0
+     2  entities.*.category  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.category: '<absent>' -> 'outlet'
+           house_14.json entities.wall_outlet_29.category: '<absent>' -> 'outlet'
+     2  entities.*.color  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.color: '<absent>' -> None
+           house_14.json entities.wall_outlet_29.color: '<absent>' -> None
+     2  entities.*.energized  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.energized: '<absent>' -> True
+           house_14.json entities.wall_outlet_29.energized: '<absent>' -> True
+     2  entities.*.fragile  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.fragile: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.fragile: '<absent>' -> False
+     2  entities.*.freshness  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.freshness: '<absent>' -> 1.0
+           house_14.json entities.wall_outlet_29.freshness: '<absent>' -> 1.0
+     2  entities.*.gfci  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.gfci: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.gfci: '<absent>' -> False
+     2  entities.*.gfci_tripped  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.gfci_tripped: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.gfci_tripped: '<absent>' -> False
+     2  entities.*.grounded  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.grounded: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.grounded: '<absent>' -> False
+     2  entities.*.hazards  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.hazards: '<absent>' -> []
+           house_14.json entities.wall_outlet_29.hazards: '<absent>' -> []
+     2  entities.*.home  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.home: '<absent>' -> None
+           house_14.json entities.wall_outlet_29.home: '<absent>' -> None
+     2  entities.*.is_a  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.is_a: '<absent>' -> ['electrical_fixture', 'fixture', 'object']
+           house_14.json entities.wall_outlet_29.is_a: '<absent>' -> ['electrical_fixture', 'fixture', 'object']
+     2  entities.*.live  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.live: '<absent>' -> True
+           house_14.json entities.wall_outlet_29.live: '<absent>' -> True
+     2  entities.*.locked  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.locked: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.locked: '<absent>' -> False
+     2  entities.*.material  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.material: '<absent>' -> 'plastic'
+           house_14.json entities.wall_outlet_29.material: '<absent>' -> 'plastic'
+     2  entities.*.mounted  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.mounted: '<absent>' -> True
+           house_14.json entities.wall_outlet_29.mounted: '<absent>' -> True
+     2  entities.*.off_limits  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.off_limits: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.off_limits: '<absent>' -> False
+     2  entities.*.open  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.open: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.open: '<absent>' -> False
+     2  entities.*.openable  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.openable: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.openable: '<absent>' -> False
+     2  entities.*.outlet_kind  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.outlet_kind: '<absent>' -> 'wall'
+           house_14.json entities.wall_outlet_29.outlet_kind: '<absent>' -> 'wall'
+     2  entities.*.owner  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.owner: '<absent>' -> None
+           house_14.json entities.wall_outlet_29.owner: '<absent>' -> None
+     2  entities.*.portable  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.portable: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.portable: '<absent>' -> False
+     2  entities.*.private  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.private: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.private: '<absent>' -> False
+     2  entities.*.receptacles  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.receptacles: '<absent>' -> 2
+           house_14.json entities.wall_outlet_29.receptacles: '<absent>' -> 2
+     2  entities.*.relation  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.relation: '<absent>' -> 'on'
+           house_14.json entities.wall_outlet_29.relation: '<absent>' -> 'on'
+     2  entities.*.requires_approval  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.requires_approval: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.requires_approval: '<absent>' -> False
+     2  entities.*.risk  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.risk: '<absent>' -> 0
+           house_14.json entities.wall_outlet_29.risk: '<absent>' -> 0
+     2  entities.*.sentimental  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.sentimental: '<absent>' -> False
+           house_14.json entities.wall_outlet_29.sentimental: '<absent>' -> False
+     2  entities.*.socket_type  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.socket_type: '<absent>' -> 'type_a_jp'
+           house_14.json entities.wall_outlet_29.socket_type: '<absent>' -> 'type_a_jp'
+     2  entities.*.soil  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.soil: '<absent>' -> {}
+           house_14.json entities.wall_outlet_29.soil: '<absent>' -> {}
+     2  entities.*.tags  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.tags: '<absent>' -> []
+           house_14.json entities.wall_outlet_29.tags: '<absent>' -> []
+     2  entities.*.temperature_c  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.temperature_c: '<absent>' -> 21.0
+           house_14.json entities.wall_outlet_29.temperature_c: '<absent>' -> 21.0
+     2  entities.*.type  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.type: '<absent>' -> 'wall_outlet'
+           house_14.json entities.wall_outlet_29.type: '<absent>' -> 'wall_outlet'
+     2  entities.*.value  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.value: '<absent>' -> 1.0
+           house_14.json entities.wall_outlet_29.value: '<absent>' -> 1.0
+     2  entities.*.water_safe  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.water_safe: '<absent>' -> True
+           house_14.json entities.wall_outlet_29.water_safe: '<absent>' -> True
+     2  entities.*.wetness  {'wall_outlet': 2}
+           house_13.json entities.wall_outlet_23.wetness: '<absent>' -> 0.0
+           house_14.json entities.wall_outlet_29.wetness: '<absent>' -> 0.0
+     1  entities.*._socket  {'power_strip': 1}
+           house_14.json entities.power_strip_1._socket: 2 -> 1
+     1  entities.*.shelf  {'ground_cumin_jar': 1}
+           house_18.json entities.ground_cumin_jar_1.shelf: 0 -> 1

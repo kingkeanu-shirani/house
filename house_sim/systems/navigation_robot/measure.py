@@ -164,6 +164,17 @@ def instrument(ctx, tool_id):
     return None, None
 
 
+CASE_LENGTH_SOURCES = ("case_length_mm", "label_text")     # fields that tell a tape's case length when known at read tier
+
+
+def case_length_known(ctx, tool_id, trec):
+    """Oracle mode: always. Realistic perception: the robot has read the tape's case length (its label text, or the
+    case_length_mm field should a type expose it, known at read level or better)."""
+    if not C.realistic(ctx):
+        return True
+    return any(field in trec and C.knows_field(ctx.env, ctx.w.s, tool_id, field, level="read") for field in CASE_LENGTH_SOURCES)
+
+
 def reading(ctx, true_mm, inside, span_mm, method, trec, rng=None):
     """One instrument reading. `rng` is the quantity's fixed stream (fixed_rng): the same quantity read with the same
     instrument gives the same error every time."""
@@ -234,6 +245,12 @@ def measure(ctx):
             kind = "laser" if trec.get("tool_kind") == "laser_meter" else "tape"
             require(method in (None, kind), "That tool is a {}".format(kind), "argument")
             method = kind
+    if method == "tape" and ctx.args.get("add_case"):
+        # adding the case length is arithmetic the robot does with the number printed on the case: realistic perception
+        # needs that number read first (the tape's case_length_mm is hidden; its label states it), else add_case would
+        # apply a value the robot never learned (review P2-c 4.14). Asked whatever the reading, so it tells nothing.
+        require(case_length_known(ctx, tool_id, trec), "Read the tape's case length first (it is printed on the case)",
+                "precondition")
     true, inside, span, quantities = true_value(state, target, ctx.args.get("dimension"), ctx.args.get("destination"), ctx.args.get("at"))
     units = ctx.args.get("units") or "mm"
     values, notes = [], []

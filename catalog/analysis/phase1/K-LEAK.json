@@ -1,0 +1,665 @@
+{
+ "id": "K-LEAK",
+ "fixed": [
+  {
+   "item": "L1 / review H6 (C-ORACLE): wait(until), watch and guards were exact-value and asleep/awake oracles",
+   "how": "kernel/timeline.py: in realistic perception every entity atom is judged on the value the observation renders now (Realism.shown_entity: perceive_record / perceive_view at the robot's viewpoint; a status app's or audible status's glance rendering), a person's or pet's posture on the shown posture (Realism.agent_shown: asleep and lying awake are both 'lying', a pet 'resting'), an alarm known by its sound as 'alarm' while it sounds and 'quiet' otherwise; holds_perceived is observed() alone in realistic mode (the true check no longer gates it); a field the rendering does not show is not watchable. Geometric camera: camera.entity_view_full (the full ViewInfo from entity_view_now's memo) renders the field. Oracle perception unchanged.",
+   "test": "tests/test_leaks_review.py ConditionsJudgeWhatTheRobotPerceivesTests (6 tests, room + geometric); tools/perception_audit.py probe 'oracle'; review scripts probe_until_oracle.py / probe_watch_oracle.py: before 0.1732 in 18 steps, 0.4371 in 20, asleep vs awake in 1 step; after both twins answer alike (digits not recoverable, posture eq sleeping never holds, the auto order fires for neither)"
+  },
+  {
+   "item": "I1 / review H5 (V-VAR): the printed address encoded the seed and with it the hidden variant",
+   "how": "generator/__init__.py: metadata.address = generator.house_address(rooms, connections), a domain-separated SHA-256 of the house structure the robot sees anyway (adds nothing to a seed search, unlike a hash of the seed, which would be a free 900x prefilter). tasks/spec.py: variant_index(catalog_id, seed, n) = (seed % n + rotation) % n with the rotation a domain-separated SHA-256 of (catalog id, n, seed // n): nothing short of the whole seed predicts the variant, while every block of n consecutive seeds still holds every variant once (verification seeds 0,1,2 cover every 2- and 3-variant spec as before; coverage is equal or better than seed % n for all 139 variant specs); choose_variant uses it; select_variant(spec, index) for callers that hold an index. Deterministic.",
+   "test": "tests/test_leaks_review.py AddressAndVariantTests (5 tests); addr_variant.py: (address - 100) % 3 == variant on 32/32 seeds before (incl. 900000123, 1234567890), 9/32 and 13/32 after (chance)"
+  },
+  {
+   "item": "I5 / review H8 (R5, SECRECY): handles and fixed-draw noise were the same in every episode of a spec and seed, and any existing thing's handle was accepted, also one never shown this episode",
+   "how": "kernel/realism.py: a per-episode nonce (task['episode_nonce'], realism.NONCE_KEY; new_nonce()) is mixed into the handle salt and into every fixed draw (_rng: noise, bucket slips, missed small things, the detection band, range noise); without one, handles and draws are exactly as before (verification, goldens and replays stay deterministic; saved states and replays carry the task, so they reproduce it). Agent arguments resolve only handles this episode issued (Realism._resolve_handle reads Handles.by_handle, no lazy recomputation): another episode's handle, or one computed offline, is refused like anything out of view in every parameter (geometric and room). Handles.peek(eid) gives a sort key that issues nothing.",
+   "test": "tests/test_leaks_review.py EpisodeHandleTests (4 tests: nonce changes every handle and draw, same nonce reproduces, another episode's handle refused in approach/inspect/speak/remember in both camera modes, save/load/replay keep the nonce); tools/perception_audit.py probe 'episode'; review repro_handle_memo.py: before the glass spec passed with 0 looks on a remembered handle, after approach/pick_up/read are refused; probe_handle_reuse.py (made non-issuing): all refused"
+  },
+  {
+   "item": "I6 / review I6 (R6): free text and handle-taking text parameters were an existence oracle (parcel contents, off-screen events, a spec's variant; destroyed vs out-of-view)",
+   "how": "kernel/realism.py inbound: free text neutralises every id-like word (an underscore or a digit) whether or not it exists; other non-entity parameters every true id and every word shaped like a generated id (a numeric part), keeping names of parts of the command's target (record names and the words of its record keys: a printer's file 'tax_2025.pdf', a slot 'layer_2'); an issued handle of a destroyed thing resolves in non-entity parameters (refused alike in entity parameters); every thing the command named by handle is echoed as that handle, also when a domain writes the unknown id out in words (_gone_phrases: 'apple 3').",
+   "test": "tests/test_leaks_review.py EchoExistenceTests (4 tests); tools/perception_audit.py probe 'echo'; review probe_echo.py, probe_echo_contents.py (42/42 parcel-content rows matched the truth before, all 'something' after), repro_runtime_event_echo.py, probe_refusal.py (remember/explain/speak/wait/recall answer a destroyed and an out-of-view thing alike)"
+  },
+  {
+   "item": "L2 / review M1: geometric view.px followed the true size (px x range / focal told look-alike members apart: bleach 0.306 / detergent 0.286 / booster 0.206 m behind one group record)",
+   "how": "kernel/realism.py: view.px is the camera's pixels for the size the record shows (_shown_px: the 5 cm estimate, a look-alike's group size estimate, a measured size exactly); an unresolved look-alike whose size comes from its type is seen at its group's apparent size (apparent_view: pixels scaled by apparent / true, view level re-derived with the frame's light and glare, so the level, the detection band, the noise term and the fill threshold follow the group size), applied at every ViewInfo entry point (observe, note_step, perceived_in, _view_info, timeline); realism.missed uses the apparent size too (room camera).",
+   "test": "tests/test_leaks_review.py ApparentSizeTests (3 tests, geometric); tools/perception_audit.py probe 'twin' (6 most size-spread groups: 34 leaks on the pre-fix tree, 0 after); review probe_px_size.py: implied sizes now equal the shown group size (0.30 / 0.30 / 0.30 m, cartons 0.20, bags 0.50)"
+  },
+  {
+   "item": "I3 kernel side / review H7 (R4): an action's grant could be a remote inspection (count <room>)",
+   "how": "kernel/actions.py Ctx.grant -> Realism.grant_problem: an inspect or touch grant applies only when the robot could have looked closely at / touched the thing -- held, arm's reach (room camera: or a 1 m+ fixture or inspect_from_afar, as core inspect), geometric inspect via camera.inspect_check -- or it lay within reach of a cell the robot walked this step (actions.motion_records; K-GATE's strict-mode report (a), navigation_robot's walk into a glass panel). A refused grant is dropped; under HOUSE_SIM_STRICT=1 it raises an AssertionError naming the action. Read and measure grants pass.",
+   "test": "tests/test_leaks_review.py GrantGateTests (5 tests: room + geometric, within reach and a large fixture, walk contact, strict raise, oracle no-op); tools/perception_audit.py kind 'grant' (74 count leaks on the pre-fix tree, room mode; 0 after); review repro_count_inspect*.py: cartons stay 'paper drink carton' after count (before: milk / oat milk / heavy cream)"
+  },
+  {
+   "item": "Auditor / review H13: tools/perception_audit.py could not see differential leaks, condition oracles, laundered grants, cross-episode state or existence echoes",
+   "how": "tools/perception_audit.py: a grant check on every walk step that left the robot in place (and count <room> commands in the walk), plus differential probes per run in its camera mode (--no-probes skips, --twin-fields compares every field): oracle (C-ORACLE twins), twin (R1: the 6 most size-spread look-alike groups and novel things with equal visual props; rendering, listing, px-implied size), episode (R5 and SECRECY: another episode's handle accepted; handles shared across nonces), echo (R6). Also fixed a false positive: the realistic view's 'dist' key made a record's own view dict (drying_rack_1.view) count as a hidden-field leak.",
+   "test": "pre-fix tree (scratch prefix_tree, never edited, + the new auditor) 6x150: room 136 leaks (grant 74, oracle 42, echo 15, episode 5), geometric 68 (twin 34, oracle 13, episode 11, echo 10); fixed tree 0 and 0; live tree 0 and 0"
+  },
+  {
+   "item": "docs/PERCEPTION.md",
+   "how": "handles and the episode nonce, issued-only handles and peek, the grant gate, noise keying (the doc's 'viewpoint' claim corrected), messages and the free-text rule, waits on rendered values, apparent size and view.px, the new audit kinds and probes, seeds/variants/address, the open battery-as-scale item",
+   "test": "n/a (documentation)"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "L3 (battery as a scale)",
+   "why": "Not closable from proprio.py or any K-LEAK file: idle/standby/walk power includes hold_per_kg x the exact held mass (kernel/body.py activity_power_w, _idle_drain). Any monotone readout of the true charge times the drain exactly (one gauge interval gives the power to ~1 s / 1 h), and the exact charge-to-full event ('charging' flag) measures the charge, so quantising runtime_min_est (the review's second suggestion) only slows the attack ~2.5x; it would also break test_body_model's pinned estimates. The fix is in body.py (hold power by the load word) -> request. tests/test_leaks_review.py BatteryScaleTests pins it as an expected failure (it turns into an unexpected success when fixed)."
+  },
+  {
+   "item": "I5 harness half: the nonce is not yet set by the agent harness",
+   "why": "The kernel mechanism is in place and tested; injecting a fresh secret nonce per episode, recording it in private logs and re-injecting it on replay are in house_sim/eval/run.py, agents.py (ScriptedOracle shadow env) and leaderboard.py, which K-LEAK may not edit -> request. Until then episodes without a nonce keep public-seed handles/noise (offline reconstruction on dev seeds, review L7); the issued-only rule (R5) already holds without it."
+  },
+  {
+   "item": "Domain instrument errors (ctx.fixed_rng) are keyed by the seed only",
+   "why": "kernel/actions.py outside the grant guard -> request (add the episode nonce when non-empty)."
+  },
+  {
+   "item": "I6 residuals",
+   "why": "(1) a hand-written id without a number (spare_soap_jug, m9) in a NON-text parameter still echoes existence (neutralising every underscore word there would break field names such as fill_level); free text is closed; remedy: authored eids id-shaped (spec lint, next phase). (2) ask about a destroyed thing's handle gets the people domain's answer ('I don't know', known false) vs 'Wherever it usually is' for an unseen one: what a person says is a people-domain channel -> request."
+  },
+  {
+   "item": "L2 residuals: physical channels of look-alike members of different true size",
+   "why": "Where the thing is and what occludes it (bearing, elevation, range, occlusion, lidar, the 0.4 m depth-shape threshold in the dark) follow the true shape; the kernel will not falsify geometry. The fix is type data (align member sizes or split groups; registry LookalikeWarning for true-size spreads even when the group sets size_m: also requested by manipulation) -> request."
+  },
+  {
+   "item": "Review items outside K-LEAK's list (I2 positions, I4 novel inspect keys and action outcomes, I7 private documents, I8 refusal order, I9 glance openable, I10, I11, L4 type defaults, L5 derived hazard kinds, L8 size regression)",
+   "why": "Not assigned to K-LEAK (domain data, core/domain verbs, setup runner); the auditor's --twin-fields mode lists the type-data tells for their owners."
+  },
+  {
+   "item": "G5 / G8 re-records",
+   "why": "tests/data/gen1_digests.json (0/60 equal: the address is in every generated house) and tests/data/room_golden.json (address, handle renames from the initial-house digest, seed-0 variant reassignments) are not K-LEAK's files -> request with commands and the golden diff."
+  }
+ ],
+ "specs_changed_outcome": [
+  "A-d66994a566899c-01 [own mode]: pass -> fail; seed 1 (now variant 0): inspect sweater_2  failed: That is not visible here",
+  "T-3b1a4024d46110-01 [own mode]: pass -> fail; seed 97 (now variant 0): approach cabinet_5  failed: That is not visible here",
+  "A-d66994a566899c-01 [forced realistic]: pass -> fail; seed 1 (now variant 0): inspect sweater_2  failed: That is not visible here",
+  "T-3b1a4024d46110-01 [forced realistic]: pass -> fail; seed 97 (now variant 0): approach cabinet_5  failed: That is not visible here",
+  "A-c627488c575314-01 [forced realistic + geometric]: pass -> fail; seed 97 (now variant 2): approach utility_bucket_2  failed: That is not visible here",
+  "T-3b1a4024d46110-01 [forced realistic + geometric]: pass -> fail; seed 97 (now variant 0): approach cabinet_5  failed: That is not visible here",
+  "T-e9cf6ca709ec77-01 [forced realistic + geometric]: pass -> fail; seed 1 (now variant 0): feed dog_food_bowl_1  failed: No kitchen scale within reach to weigh the food",
+  "X-bf82170244be22-01 [forced realistic + geometric]: pass -> fail; seed 1 (now variant 0): aim fire_1  failed: There is no visible fire there",
+  "Every trial verdict change above coincides with a variant reassignment, and with the old rule (seed % n) forced on the fixed tree the changed specs give the pre-fix results exactly (own, realistic and geometric attribution runs): they are references or wrong plans of a variant that never ran on that house before, not perception changes.",
+  "Variant reassignment: 132 of the 139 variant specs run another variant on some verification seed (390 of 1215 trials per mode); the full per-trial list is in catalog/analysis/phase1/K-LEAK.json (evidence.spec_outcome_changes_isolated)."
+ ],
+ "tests": {
+  "count": 4493,
+  "passed": false,
+  "strict_passed": false,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 239
+ },
+ "requests": [
+  {
+   "owner": "eval (house_sim/eval/run.py, agents.py, leaderboard.py)",
+   "request": "Give every agent episode a secret nonce: task['episode_nonce'] = house_sim.kernel.realism.new_nonce() after build/apply_phrasing and before HouseEnv; keep it out of public logs (dev/train: in the episode log for replay_log; test split: private log only) and re-inject it in replay_log and leaderboard.replay_episode; ScriptedOracle.prepare must build its shadow env with the same nonce. Note: handles now resolve only when issued in the episode, so a ScriptedOracle command naming a thing the harness episode never showed (one the shadow's to_handles issued) is refused there (it is counted in info['divergences'])."
+  },
+  {
+   "owner": "eval (house_sim/eval/splits.py, tests/test_eval_splits.py)",
+   "request": "Variants are no longer seed % n: _select must compute a candidate's variant with house_sim.tasks.spec.variant_index(catalog_id, seed, n); _variant_phrasings(expanded, index) must use spec.select_variant(expanded, index) (choose_variant now takes a seed); train_seeds' docstring ('seed % len(variants) cycles') -> blocks of n consecutive seeds still hold every variant once; the tests asserting variants == [s % n ...] (test_eval_splits lines ~267, ~345) should use variant_index. The hashed rule is what makes the variant unpredictable on the hidden seeds (review H5)."
+  },
+  {
+   "owner": "body (house_sim/kernel/body.py)",
+   "request": "Review L3 (the battery as a scale): make hold power follow the load word, not the exact mass -- activity_power_w / _idle_drain: hold_per_kg x the nominal mass of each hand's load bucket (proprio.bucket_load: none / light / moderate / heavy / at_limit relative to the believed capacity) instead of the cached exact _held_kg. Then remove @unittest.expectedFailure from tests/test_leaks_review.py BatteryScaleTests. No readout change can close it (exact gauge transitions and the exact charge-to-full time measure the drain)."
+  },
+  {
+   "owner": "main session (owner of house_sim/kernel/actions.py outside the grant guard)",
+   "request": "ctx.fixed_rng: include the episode nonce when the env's realism has one ('kernel-fixed|{seed}|n:{nonce}|...', unchanged without a nonce) so domain instrument errors are episode-secret too (review H8)."
+  },
+  {
+   "owner": "main session (tests/data/gen1_digests.json, tests/data/room_golden.json)",
+   "request": "Re-record after review: the printed address is now a hash of the house structure (every generated house's metadata.address and household.address change; realistic handles change with the initial-house digest; spec reference states change with the reassigned variants). Commands: python tools/orchestration/tier1_gate.py gen1-digests --write --by K-LEAK --reason \"address from the structure hash (review H5)\"; python tools/golden.py record --by K-LEAK --classes address,handles,variant. Golden diff before/after (isolated trees): scratch golden_diff.txt -- script runs change only metadata/household address and handle renames."
+  },
+  {
+   "owner": "admin_inventory",
+   "request": "(1) systems/admin_inventory/knowledge.py:253 grants touch (liquid_l, mass_kg: 'a heft and a tilt') on a close look from out of reach (geometric head camera from the closet doorway); the kernel gate drops it and HOUSE_SIM_STRICT=1 raises (K-GATE report (b), T-ab9a26cd6a795e-01 seed 97): grant the heft only within reach. (2) count: the kernel now drops its remote inspect grants (strict raises); count itself should only report identities the robot can tell (your I3 fix)."
+  },
+  {
+   "owner": "safety",
+   "request": "systems/safety/helpers.py:740 falls back to DEFAULT_ADDRESS_FMT.format(100 + int(ctx.seed) % 900) when metadata has no address: that re-encodes the seed (review H5); use house_sim.generator.house_address(config['rooms'], config['connections']) or no fallback."
+  },
+  {
+   "owner": "people (kernel/dialogue.py owner)",
+   "request": "ask(about=<handle of a thing destroyed since>) answers 'I don't know' (known false) because the record is gone, while an unseen live thing gets 'Wherever it usually is': answer from the person's knowledge (realism._ever / the last record) so the reply is not an existence oracle; the kernel already echoes the handle alike."
+  },
+  {
+   "owner": "domains sorting ids by handle (appliances_cooking/percept.py:124, food/perception.py:242, manipulation/common.py:1168, manipulation/world.py:522, mechanisms/common.py:935, navigation_robot/paths.py:1082, navigation_robot/world.py:239, core.py:647)",
+   "request": "Use realism.handles.peek(eid) as the sort key: handles.handle(eid) issues the handle, and an issued handle is one the agent may act on (and memory messages name it)."
+  },
+  {
+   "owner": "registry / domains with look-alike groups of different true sizes (16 groups: laundry_jug, granule_bag, drink_carton, soil_bag, felt_pad, water_valve, ...)",
+   "request": "Align member sizes (or split the group): the kernel now presents an unresolved member at the group's apparent size (pixels, level, detection), but occlusion, elevation, range, lidar and the 0.4 m dark shape threshold follow the true shape (review L2/L4; manipulation asks for the same registry lint). tools/perception_audit.py --twin-fields lists the type-data tells."
+  },
+  {
+   "owner": "verify-hardening (next phase) / spec authors",
+   "request": "(1) Authored eids should be id-shaped (end in _<n>): a hand-written id without a number in a non-text parameter still echoes existence. (2) The isolated verdict changes are variant-coverage defects the hashed variants exposed (a variant's reference failing on a house it never ran on): A-d66994a566899c-01, T-3b1a4024d46110-01, A-c627488c575314-01, T-e9cf6ca709ec77-01, X-bf82170244be22-01 -- for their owners and for V-SEEDS / V-HELD."
+  }
+ ],
+ "notes": "Live tree at the end (shared with the concurrent owners): unit suite 4493 tests, 3 failing files in both modes -- test_generator_compat and test_room_golden are the expected re-records K-LEAK causes (address in every generated house; handles follow the initial-house digest; reassigned variants), test_perception test_realistic_observe_overhead_is_small is a wall-clock bound that failed on the untouched pre-fix tree under the same load too (extra measured 3.1-3.7 ms in calm moments vs 3.5 ms pre-fix; bound 10 ms). Kernel files with HOUSE_SIM_DOMAINS=core pass (isolated_passed). All authored specs on the live tree (combined file, --check --workers 4): 239/243; failing T-c49fadcea69182-01 and T-a31398ab2abf54-01 (K-GATE's verify change: wrong plans that raise), T-7d4006bda247ba-01 (pre-existing heel-rest breakage) and A-d66994a566899c-01 (K-LEAK: variant 0's reference on seed 1's house, see specs_changed_outcome). Isolated attribution (pre-fix copy vs pre-fix + K-LEAK's files only, every spec x 5 seeds in own, forced realistic and forced realistic+geometric modes): every verdict change comes from the variant reassignment (with seed % n forced, the fixed tree reproduces the pre-fix results exactly); the perception fixes change no verdict. Perception audit 6x150: pre-fix tree with the new auditor 136 leaks (room: grant 74, oracle 42, echo 15, episode 5) and 68 (geometric: twin 34, oracle 13, episode 11, echo 10); fixed tree 0 / 0; live tree 0 / 0. Behaviour changes domains may notice (listed): realistic wait/watch/guard compare rendered words (eq 'half', not 0.43); an alarm heard while testing reads 'alarm'; free text turns every id-like word into 'something' (incl. 'layer_2', 'm9'), other non-entity strings every id-shaped word not naming a part of the target; handles resolve only when issued this episode (harness code that computes handles with handles.handle() issues them, so tests keep working); an issued handle of a destroyed thing resolves in non-entity parameters; geometric view.px follows the shown size for every thing and unresolved look-alikes are seen at the group's apparent size; inspect/touch grants beyond reach are dropped (strict: AssertionError -- admin_inventory's close-look heft is the one known strict raise left); every generated address and every variant assignment changed. Evidence and per-trial lists: catalog/analysis/phase1/K-LEAK.json and the scratch dir <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK/.",
+ "evidence": {
+  "scratch_dir": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK",
+  "isolated_trees": {
+   "pre_fix": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK/prefix_tree (copy of the live tree before any K-LEAK edit; git HEAD 42533e2 for every file K-LEAK owns)",
+   "fixed": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK/mine_tree (the pre-fix copy plus K-LEAK's files only: sync_mine.sh)"
+  },
+  "perception_audit_6x150": {
+   "pre_fix_tree_room": {
+    "summary": "houses 6  steps 900  probes 10  leaks 136  crashes 0",
+    "by_kind": {
+     "grant": 74,
+     "oracle": 42,
+     "echo": 15,
+     "episode": 5
+    }
+   },
+   "pre_fix_tree_geometric": {
+    "summary": "houses 6  steps 900  probes 10  leaks 68  crashes 0  camera geometric",
+    "by_kind": {
+     "twin": 34,
+     "oracle": 13,
+     "episode": 11,
+     "echo": 10
+    }
+   },
+   "fixed_tree_room": {
+    "summary": "houses 6  steps 900  probes 10  leaks 0  crashes 0",
+    "by_kind": {}
+   },
+   "fixed_tree_geometric": {
+    "summary": "houses 6  steps 900  probes 10  leaks 0  crashes 0  camera geometric",
+    "by_kind": {}
+   },
+   "live_tree_room": {
+    "summary": "houses 6  steps 900  probes 10  leaks 0  crashes 0",
+    "by_kind": {}
+   },
+   "live_tree_geometric": {
+    "summary": "houses 6  steps 900  probes 10  leaks 0  crashes 0  camera geometric",
+    "by_kind": {}
+   }
+  },
+  "review_repro_scripts": {
+   "before": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK/before/*.out (pre-fix tree)",
+   "after": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK/after/*.out (fixed tree)",
+   "notes": [
+    "probe_until_oracle room/geometric: before 0.1732 (18 waits), 0.4371 (20), asleep vs awake in 1 step; after, both camera modes: the waits are accepted and answer on the shown word ('looks dry', 'half'), no digit is recovered, posture 'eq sleeping' never holds, asleep and lying-awake twins answer alike",
+    "probe_watch_oracle: before the auto order ran only for the sleeper; after for neither",
+    "probe_px_size: implied sizes before 0.306/0.286/0.206 (jugs), 0.131/0.245 (cartons), 0.619/0.347 (bags); after ~0.30 for every jug, ~0.20 for both cartons, ~0.50 for both bags (the shown group sizes)",
+    "repro_handle_memo: before 0-look pass on a remembered handle; after approach/pick_up/read refused",
+    "probe_handle_reuse (made non-issuing; the original issued the handles it tested): after every typed handle of the other episode refused in approach/inspect/pick_up/speak",
+    "probe_echo / probe_echo_contents / repro_runtime_event_echo / probe_echo_variant: every id-like word echoes 'something' whether or not it exists",
+    "probe_refusal: destroyed vs out-of-view now alike in remember/explain/report/wait/speak/recall (ask differs in the person's answer: people request)",
+    "repro_count_inspect (room, geometric): cartons stay 'paper drink carton' after count from afar",
+    "probe_reconstruct.py and gaming_mail_sort.py do not run on this tree (spec paths / scene changed since bc0417b); I1 is shown by addr_variant.py instead"
+   ]
+  },
+  "spec_outcome_changes_isolated": {
+   "own": {
+    "specs": 243,
+    "passed_before": 241,
+    "passed_after": 239,
+    "verdict_changes": [
+     {
+      "catalog_id": "A-d66994a566899c-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 1,
+        "variant": 0,
+        "why": "inspect sweater_2  failed: That is not visible here"
+       }
+      ]
+     },
+     {
+      "catalog_id": "T-3b1a4024d46110-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 97,
+        "variant": 0,
+        "why": "approach cabinet_5  failed: That is not visible here"
+       }
+      ]
+     }
+    ],
+    "trial_verdict_changes": [
+     {
+      "catalog_id": "A-d66994a566899c-01",
+      "seed": 1,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-3b1a4024d46110-01",
+      "seed": 97,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-7d4006bda247ba-01",
+      "seed": 2,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     }
+    ],
+    "trials_with_a_new_variant": 390
+   },
+   "real": {
+    "specs": 243,
+    "passed_before": 236,
+    "passed_after": 234,
+    "verdict_changes": [
+     {
+      "catalog_id": "A-d66994a566899c-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 1,
+        "variant": 0,
+        "why": "inspect sweater_2  failed: That is not visible here"
+       }
+      ]
+     },
+     {
+      "catalog_id": "T-3b1a4024d46110-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 97,
+        "variant": 0,
+        "why": "approach cabinet_5  failed: That is not visible here"
+       }
+      ]
+     }
+    ],
+    "trial_verdict_changes": [
+     {
+      "catalog_id": "A-d66994a566899c-01",
+      "seed": 1,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-3b1a4024d46110-01",
+      "seed": 97,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-79a861877a2a67-01",
+      "seed": 2,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-7d4006bda247ba-01",
+      "seed": 2,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     },
+     {
+      "catalog_id": "T-c072906a11f55c-01",
+      "seed": 0,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     },
+     {
+      "catalog_id": "T-c072906a11f55c-01",
+      "seed": 2,
+      "variant": [
+       2,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-dda4e199f3f5b0-01",
+      "seed": 0,
+      "variant": [
+       0,
+       2
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     },
+     {
+      "catalog_id": "T-dda4e199f3f5b0-01",
+      "seed": 2,
+      "variant": [
+       2,
+       1
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "X-fee35ef3aac659-01",
+      "seed": 41,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     }
+    ],
+    "trials_with_a_new_variant": 390
+   },
+   "geo": {
+    "specs": 243,
+    "passed_before": 225,
+    "passed_after": 221,
+    "verdict_changes": [
+     {
+      "catalog_id": "A-c627488c575314-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 97,
+        "variant": 2,
+        "why": "approach utility_bucket_2  failed: That is not visible here"
+       }
+      ]
+     },
+     {
+      "catalog_id": "T-3b1a4024d46110-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 97,
+        "variant": 0,
+        "why": "approach cabinet_5  failed: That is not visible here"
+       }
+      ]
+     },
+     {
+      "catalog_id": "T-e9cf6ca709ec77-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 1,
+        "variant": 0,
+        "why": "feed dog_food_bowl_1  failed: No kitchen scale within reach to weigh the food"
+       }
+      ]
+     },
+     {
+      "catalog_id": "X-bf82170244be22-01",
+      "before": true,
+      "after": false,
+      "failing": [
+       {
+        "seed": 1,
+        "variant": 0,
+        "why": "aim fire_1  failed: There is no visible fire there"
+       }
+      ]
+     }
+    ],
+    "trial_verdict_changes": [
+     {
+      "catalog_id": "A-c627488c575314-01",
+      "seed": 97,
+      "variant": [
+       1,
+       2
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-3b1a4024d46110-01",
+      "seed": 97,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-79a861877a2a67-01",
+      "seed": 2,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-7d4006bda247ba-01",
+      "seed": 2,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     },
+     {
+      "catalog_id": "T-c072906a11f55c-01",
+      "seed": 0,
+      "variant": [
+       0,
+       1
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     },
+     {
+      "catalog_id": "T-c072906a11f55c-01",
+      "seed": 2,
+      "variant": [
+       2,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-dda4e199f3f5b0-01",
+      "seed": 0,
+      "variant": [
+       0,
+       2
+      ],
+      "passed": [
+       false,
+       true
+      ]
+     },
+     {
+      "catalog_id": "T-dda4e199f3f5b0-01",
+      "seed": 2,
+      "variant": [
+       2,
+       1
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "T-e9cf6ca709ec77-01",
+      "seed": 1,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "X-bf82170244be22-01",
+      "seed": 1,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     },
+     {
+      "catalog_id": "X-fee35ef3aac659-01",
+      "seed": 41,
+      "variant": [
+       1,
+       0
+      ],
+      "passed": [
+       true,
+       false
+      ]
+     }
+    ],
+    "trials_with_a_new_variant": 390
+   }
+  },
+  "address_predicts_variant": {
+   "script": "addr_variant.py (T-c35156368a8a4b-01, T-8fb945d433137c-01; seeds 0-29, 900000123, 1234567890)",
+   "pre_fix": "(address - 100) % 3 == variant on 32/32 and 32/32 seeds",
+   "fixed": "9/32 and 13/32 (chance 1/3)"
+  },
+  "golden_diff": "<home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-LEAK/golden_diff.txt (tools/golden.py diff before/after: address, handle renames from the initial-house digest, and the seed-0 variant reassignments)",
+  "unit_suites": {
+   "pre_fix_tree": {
+    "tests_normal": 4325,
+    "failing_normal": [
+     "test_camera_realism.py",
+     "test_people.py",
+     "test_perception.py",
+     "test_physics_statics.py"
+    ],
+    "failing_strict": [
+     "test_camera_realism.py",
+     "test_mind.py",
+     "test_people.py",
+     "test_perception.py",
+     "test_physics_statics.py"
+    ]
+   },
+   "fixed_tree": {
+    "tests_normal": 4352,
+    "failing_normal": [
+     "test_camera_realism.py",
+     "test_generator_compat.py",
+     "test_people.py",
+     "test_physics_statics.py",
+     "test_room_golden.py"
+    ],
+    "failing_strict": [
+     "test_camera_realism.py",
+     "test_generator_compat.py",
+     "test_people.py",
+     "test_physics_statics.py",
+     "test_room_golden.py"
+    ]
+   },
+   "live_tree": {
+    "tests_normal": 4493,
+    "failing_normal": [
+     "test_generator_compat.py",
+     "test_perception.py",
+     "test_room_golden.py"
+    ],
+    "failing_strict": [
+     "test_generator_compat.py",
+     "test_perception.py",
+     "test_room_golden.py"
+    ]
+   }
+  },
+  "benchmarks": {
+   "observe_overhead (bench_overhead.py, seed 7, interleaved, least-loaded round)": "room 5.51 -> 5.53 ms; geometric 9.11 -> 9.40 ms (extra over room 3.59 -> 3.87 ms, test bound 10 ms); fresh-view extra 5.56 -> 6.24 ms",
+   "wait_until_1h (bench_kleak.py, best)": "room 0.467 -> 0.475 s; geometric 0.495 -> 0.592 s (only waits with an until on an entity: the rendering of the watched field per 30 s substep); plain waits unchanged",
+   "note": "machine shared with the other phase-1 agents: every number is noisy; G7's room-mode substep and plain 1 h wait paths are untouched"
+  }
+ }
+}

@@ -312,8 +312,11 @@ def apply_cleaner(ctx):
     if S.is_floor(trec) or S.is_stairs(trec):
         from . import floors
         return floors.apply_to_floor(ctx, target, product, amount, strength, classes, bottle=bottle)
+    # an unread bottle takes as long as the application the robot was told to make (a granular product would otherwise
+    # take a paste's 20 s and name itself)
+    timing = None if S.label_known(ctx, bottle) else (method or "spray")
     return apply_to_face(ctx, target, product, amount, strength, classes, method or ("paste" if pinfo.get("granular") else "spray"),
-                         bottle=bottle)
+                         bottle=bottle, timing=timing)
 
 
 def bottle_product(w, bottle):
@@ -340,8 +343,7 @@ def take_from_bottle(w, bottle, amount_ml):
     if rec.get("product"):
         left = float(rec.get("amount_ml", 500.0))
         require(left > 0, "The bottle is empty", "resource")
-        m["amount_ml"] = S.rnd(max(0.0, left - amount_ml), 1)
-        m["mass_kg"] = S.rnd(max(0.05, float(rec.get("mass_kg", 0.5)) - amount_ml / 1000.0), 3)
+        S.set_product_ml(w, bottle, left - amount_ml, before=left)
         return
     S.norm_solution(w, bottle)
     liters = float(w.ent(bottle).get("liquid_l", 0.0) or 0.0)
@@ -396,7 +398,8 @@ def dose_container(ctx, target, product, amount, strength, classes, bottle=None)
     return "Added {} ml of {} to {}{}".format(round(amount), S.product_text(ctx, product, bottle), target, note)
 
 
-def apply_to_face(ctx, target, product, amount, strength, classes, method, bottle=None):
+def apply_to_face(ctx, target, product, amount, strength, classes, method, bottle=None, timing=None):
+    """Put a product on faces of target by method. timing: the method whose time the step takes (default method)."""
     w = ctx.w
     rec = w.ent(target)
     pinfo = M.PRODUCTS.get(product, {})
@@ -433,7 +436,7 @@ def apply_to_face(ctx, target, product, amount, strength, classes, method, bottl
         m = w.mut(target)
         applied = m.setdefault("cl_applied", [])
         S.watch(w, "chem", target)
-        applied.append({"p": product, "face": face, "t": t, "wet_until": t + wet_s * min(1.0, amount / 8.0 + 0.4),
+        applied.append({"p": product, "by": S.actor(w), "face": face, "t": t, "wet_until": t + wet_s * min(1.0, amount / 8.0 + 0.4),
                         "s": S.rnd(strength, 3), "ml": S.rnd(amount, 1), "method": method})
         S.add_residue(w, target, classes, 0.3)
         E.check_chemicals(w, target, classes, product, face)
@@ -450,7 +453,8 @@ def apply_to_face(ctx, target, product, amount, strength, classes, method, bottl
         overspray(ctx, target, product, amount, classes)
     if pinfo.get("oily") and method == "spray":
         oily_overspray(ctx, target)
-    ctx.data["seconds"] = 2.0 + 1.5 * len(faces) + (20.0 if method == "paste" else 0.0) + (30.0 if method == "wrap" else 0.0)
+    timing = timing or method
+    ctx.data["seconds"] = 2.0 + 1.5 * len(faces) + (20.0 if timing == "paste" else 0.0) + (30.0 if timing == "wrap" else 0.0)
     return "Applied {} to {} ({}); dwell until wiped".format(S.product_text(ctx, product, bottle), target, ", ".join(faces))
 
 
@@ -1276,7 +1280,7 @@ def disinfect(ctx):
             wet_s *= 0.2
         m = w.mut(target)
         S.watch(w, "chem", target)
-        m.setdefault("cl_applied", []).append({"p": product, "face": face, "t": t, "wet_until": t + wet_s, "s": S.rnd(strength, 3),
+        m.setdefault("cl_applied", []).append({"p": product, "by": S.actor(w), "face": face, "t": t, "wet_until": t + wet_s, "s": S.rnd(strength, 3),
                                                "ml": 10.0, "method": method, "kill_s": pinfo["kill_s"]})
         E.check_face_liquid(w, target, face, 0.6 if method == "spray" else 0.3, classes, product)
         S.add_residue(w, target, classes, 0.4)
@@ -1321,7 +1325,7 @@ def _disinfect_with_other(ctx, target, tool, trec, product, strength):
             ctx.obj(target, touch=True)
             _use_disinfectant(w, tool, trec, 1)
             m = w.mut(target)
-            m.setdefault("cl_applied", []).append({"p": product, "face": "main", "t": S.now(w), "wet_until": S.now(w) + 600,
+            m.setdefault("cl_applied", []).append({"p": product, "by": S.actor(w), "face": "main", "t": S.now(w), "wet_until": S.now(w) + 600,
                                                    "s": S.rnd(strength, 3)})
             S.watch(w, "chem", target)
             ctx.data["seconds"] = floors.SPILL_DISINFECT_S

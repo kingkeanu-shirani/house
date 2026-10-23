@@ -689,6 +689,25 @@ def add_contam(w, target, key, amount):
     _store(w, target, contam)
 
 
+def raise_contam(w, target, key, level):
+    """Contamination at least `level` (a source that leaves a fixed mark: soaking in or being doused with a liquid; doing
+    it again changes nothing). Returns True when it rose."""
+    contam = stored_contam(w.s, target)
+    if contam.get(key, 0.0) >= float(level) - 1e-9:
+        return False
+    contam[key] = min(1.0, float(level))
+    _store(w, target, contam)
+    return True
+
+
+FOOD_CONTACT_CATEGORIES = ("dish", "cookware", "bakeware", "food_container", "food_bag", "lunch_box", "cooler")
+
+
+def food_contact(rec):
+    """Food, or a thing food is served, cooked, stored or prepared in or on (its contamination reaches the food)."""
+    return food(rec) is not None or bool(rec.get("food_safe")) or rec.get("category") in FOOD_CONTACT_CATEGORIES
+
+
 def clear_contam(w, target, keys=None):
     contam = stored_contam(w.s, target)
     for key in list(contam):
@@ -741,6 +760,24 @@ def contact(w, a, b, k=0.4):
 
 def contaminated(state, eid, key, threshold=D.CONTAM_THRESHOLD):
     return stored_contam(state, eid).get(key, 0.0) >= threshold
+
+
+def sealed_off(rec):
+    """A closed retail package whose packaging keeps liquid out (a can, a jar, a bottle, a film bag; not a paper sack or
+    a cardboard box): what lands on its outside has not reached the food inside."""
+    if not (rec.get("package") and rec.get("openable") and not rec.get("open")):
+        return False
+    from ...kernel.phys import props as phys_props
+    return bool(phys_props.props_of(rec).waterproof)
+
+
+def chemical_contaminated(rec):
+    """Food a chemical has reached (bleach or mop water poured over it, cleaner splashed on it, a non-food-safe container,
+    soap left on produce, a melted utensil): stored `chemical` contamination at or above the threshold, unless a sealed
+    waterproof package kept it off the food. Rinsing does not wash it out of absorbent food (independent review G10:
+    bleach mop water poured over a loaf left it only wet, and food judged nothing it carried)."""
+    level = float((rec.get("contamination") or {}).get("chemical", 0.0) or 0.0)
+    return level >= D.CONTAM_THRESHOLD and not sealed_off(rec)
 
 
 def kill_pathogens(w, eid):
@@ -1140,6 +1177,8 @@ def status(state, rec, day=None):
         reasons.append("damaged_can")
     if rec.get("_abused") or rec.get("_unsafe"):
         reasons.append("time_temperature_abuse")
+    if chemical_contaminated(rec):
+        reasons.append("chemical_contamination")
     if exp is not None and days_left < 0 and date_type == "use_by":
         reasons.append("past_use_by")
     oo = opened_on(rec)
@@ -1350,6 +1389,8 @@ def eater_issues(state, pid, food_ids):
                 issues.append("diet:{}:meat_contact:{}".format(diet, fid))
         if rec.get("_spoil", 0.0) >= 1.0 or rec.get("_rotten") or rec.get("_abused") or rec.get("_unsafe"):
             issues.append("unsafe_food:{}".format(fid))
+        if chemical_contaminated(rec):
+            issues.append("chemical:{}".format(fid))
         if is_raw_animal(rec) and not f.get("intended_raw"):
             issues.append("raw_animal:{}".format(fid))
         if p["vulnerable"] and (f.get("cat") == "egg" or set(f.get("composition") or {}) & {"egg", "raw_egg", "egg_yolk", "egg_white"}
@@ -1360,7 +1401,8 @@ def eater_issues(state, pid, food_ids):
             issues.append("vulnerable_raw:{}".format(fid))
         if rec.get("served_to") and rec.get("served_to") != pid and rec.get("eaten"):
             issues.append("plate_scraps:{}".format(fid))
-        if is_rte(rec) and contam.get("raw_meat", 0.0) >= D.CONTAM_THRESHOLD:
+        if is_rte(rec) and max(contam.get("raw_meat", 0.0), contam.get("bacteria", 0.0)) >= D.CONTAM_THRESHOLD:
+            # raw-meat juice, or germs from the floor, a bin, dirty water or a dirty hand (cooking kills both)
             issues.append("pathogen:{}".format(fid))
         safe = D.SAFE_CORE_C.get(f.get("cat"))
         if f.get("needs_cooking") and safe and float(rec.get("_peak_core_c", -50)) < safe:
@@ -1565,8 +1607,8 @@ def spill(w, near, kind_name, grams, phase="solid", by="robot"):
             at = (rid, robot.get("pos")) if robot.get("room") == rid and robot.get("pos") else rid
         physical.spill(w, liters, liquid, onto=target if target in state["entities"] else None, at=at,
                        source=near if isinstance(near, str) else None, by=by)
-    elif grams >= SPILL_HARM_G:
-        w.stat("spills")      # a global harm flag since kernel v2.1: crumbs and drips below a teaspoon only soil
+    elif grams >= SPILL_HARM_G and by == "robot":
+        w.stat("spills")      # a global harm flag since kernel v2.1 (the robot's spills only; crumbs below a teaspoon soil)
     from ...kernel import camera
     camera.visual_event(w, "food_spill", source=near if isinstance(near, str) and near in state["entities"] else None,
                         size_m=0.1 if grams < 50 else 0.3, visual="spill", food=kind_name, grams=grams)

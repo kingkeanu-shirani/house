@@ -3,10 +3,11 @@
 HouseEnv(..., perception="realistic") routes every observation, action message and action argument through this
 module; perception="oracle" (the default, used by the verification pipeline) is untouched.
 
-  * Opaque handles: entities are exposed as per-episode handles ("obj_7f3a19c2" = short hash of seed and true id).
-    Arguments must use handles (true entity ids are refused as "not visible"); results and observations are
-    translated back (ids of things destroyed during a step included; JSON results re-serialised in handle order).
-    Room, person and pet ids stay readable (the robot knows the house and its residents).
+  * Opaque handles: entities are exposed as per-episode handles ("obj_7f3a19c2" = short hash of seed, initial house,
+    episode nonce and true id). Arguments must use handles this episode issued (true entity ids and handles of other
+    episodes are refused as "not visible"); results and observations are translated back (ids of things destroyed
+    during a step included; JSON results re-serialised in handle order). Room, person and pet ids stay readable (the
+    robot knows the house and its residents).
   * Field tiers: every entity field is learnable at "glance" (seen from the room), "inspect" (examined within
     reach), "read" (printed text), "measure" (needs a tool; touch gives a coarse bucket) or "never" (ground truth
     such as owner, home, value, intent, secret and underscore fields). Kernel defaults by field name, overridable
@@ -21,8 +22,13 @@ module; perception="oracle" (the default, used by the verification pipeline) is 
     inspected or read; "novel" objects are described only by visual attributes; mirrors look like doorways until
     inspected.
 
-This is symbolic perception: no pixels, no learned detector. Everything here is a pure function of (seed, true id,
-observation context, knowledge level); it never mutates world state.
+This is symbolic perception: no pixels, no learned detector. Everything here is a pure function of (seed, episode
+nonce, true id, observation context, knowledge level); it never mutates world state.
+
+K-LEAK (independent review, 2026-10-22): conditions (kernel/timeline.py) read shown_entity / agent_shown, never true
+values (L1); the episode nonce (NONCE_KEY) and issued-only handles (I5); id-like words and destroyed things echo alike
+(I6); the geometric camera presents unresolved look-alikes at their group's apparent size and view.px follows the
+shown size (apparent_view, _shown_px: L2); grant_problem gates inspect and touch grants (I3).
 
 Geometric camera (kernel v3.0; docs/design/TIER1_CAMERA.md 10.6 and 11, TIER1_INTEGRATION 1.12 and 1.14). With
 HouseEnv(camera="geometric") the camera's step view decides what is rendered and how much of it: a thing a current
@@ -79,6 +85,9 @@ AGENT_LYING_KINDS = ("sleeping", "person_down", "lying")
 LYING_POSTURES = {"people": ("sleeping", "lying"), "pets": ("sleeping", "lying", "resting")}
 # floor hazards a camera does not see
 HIDDEN_HAZARD_KINDS = {"damp", "film", "black_ice", "residue", "invisible"}
+# what a puddle does to a floor (data/physics/liquids.json floor_hazard): a puddle the robot cannot identify yet shows
+# its group's word (default "wet") and every avoid list naming one of these keeps out of it (review L4)
+LIQUID_HAZARD_KINDS = ("wet", "slip", "sticky")
 
 
 def id_shaped(word):
@@ -86,19 +95,45 @@ def id_shaped(word):
     return bool(ID_WORD_RE.match(word)) and ID_NUMBER_RE.search(word) is not None
 
 
-def _typed_id(word, stems):
-    """An id-shaped word whose part before one of its numeric parts is a type name in `stems`
-    ("dishwasher_1_basket" -> dishwasher; "combination_wrench_1_2in_3" -> combination_wrench_1_2in)."""
-    if not id_shaped(word):
+def _id_like(word):
+    """True for a word that could be an entity id, generated or hand-written: it has an underscore or a digit
+    (letter_6, m9, main_water_valve). Free text neutralises such words whether or not a thing with that id exists."""
+    return "_" in word or any(c.isdigit() for c in word)
+
+
+def _walked_past(state, eid, motions):
+    """True when entity eid lies within arm's reach of a cell of the step's motion records (the start cell and every
+    cell walked, in the room walked through), so a contact the walk made is something the robot could learn."""
+    room, cells = geometry.anchor(state, eid)
+    if room is None or not cells:
         return False
-    pos = 0
-    while True:
-        m = ID_NUMBER_RE.search(word, pos)
-        if m is None:
-            return False
-        if word[:m.start()] in stems:
-            return True
-        pos = m.start() + 1
+    for record in motions or ():
+        if not isinstance(record, dict) or record.get("from_room") != room:
+            continue
+        walked = [record.get("start")] + list(record.get("path") or [])
+        for cell in walked:
+            if not (isinstance(cell, (list, tuple)) and len(cell) == 2):
+                continue
+            if min(geometry.chebyshev(tuple(cell), tuple(c)) for c in cells) <= geometry.REACH_CELLS:
+                return True
+    return False
+
+
+def _record_key_words(record, depth=0):
+    """The words of a record's dict keys, a few levels deep ("tax_2025" and "pdf" of a printer's file "tax_2025.pdf"):
+    names of parts of that very thing that a command about it may write inside a longer value."""
+    out = set()
+    if depth > 4:
+        return out
+    if isinstance(record, dict):
+        for key, value in record.items():
+            if isinstance(key, str):
+                out.update(w.lower() for w in TOKEN_RE.findall(key))
+            out |= _record_key_words(value, depth + 1)
+    elif isinstance(record, list):
+        for value in record[:64]:
+            out |= _record_key_words(value, depth + 1)
+    return out
 
 
 def _record_names(record, depth=0):
@@ -186,6 +221,11 @@ LOOKALIKE_FIELDS = {"label", "kind", "candidates", "shape", "material_guess", "c
                     "spos", "shelf", "relation", "rot", "open", "openable", "container", "surface", "portable", "held_hand",
                     "soil", "wetness", "temperature_c", "fill_level", "level", "liquid_l", "broken", "shattered",
                     "label_text", "text"}
+# what an unfamiliar (novel) thing shows while unidentified: how it looks and where it is, never a field whose presence
+# or value comes from its type (openable, container, surface, portable, fill, a domain inspector's extras): review I4
+NOVEL_FIELDS = {"label", "kind", "shape", "material_guess", "color", "size_class", "size_m", "location", "pos", "spos",
+                "shelf", "relation", "rot", "held_hand", "soil", "wetness", "temperature_c", "broken", "shattered",
+                "label_text", "text"}
 # descriptive text fields: never id-translated (a label may coincide with an id in hand-written houses)
 DESCRIPTIVE_KEYS = {"label", "kind", "candidates", "descriptor", "category", "material", "color", "shape", "cues",
                     "posture", "activity", "role", "species", "size_class", "material_guess", "label_text", "text"}
@@ -271,6 +311,17 @@ def _field_value(record, name):
     return current
 
 
+def _size_max(size):
+    """The largest of a size_m list's first three dimensions, or None when it is not a usable size."""
+    if not isinstance(size, (list, tuple)) or not size:
+        return None
+    try:
+        largest = max(float(v) for v in size[:3])
+    except (TypeError, ValueError):
+        return None
+    return largest if math.isfinite(largest) and largest > 0 else None
+
+
 def size_class(entity):
     size = entity.get("size_m") or [0.1, 0.1, 0.1]
     try:
@@ -303,11 +354,37 @@ BRIGHT4 = ((0.05, 0.35, 0.7), ("off", "dim", "medium", "bright"))
 CHARGE4 = ((0.1, 0.4, 0.8), ("empty", "low", "half", "full"))
 
 
+# The per-episode secret an agent harness puts in the task (task["episode_nonce"], any non-empty string; new_nonce()
+# makes one): it is mixed into the handle salt and into every fixed draw (noise, bucket slips, missed small things,
+# the detection band, range noise), so two episodes of the same spec and seed share neither handles nor noise, and
+# neither can be recomputed offline from the public spec, seed and code. Without one (verification, tests, tools) both
+# follow (seed, initial house) exactly as before: deterministic and replayable. Saved states and replays keep the task,
+# so they reproduce the episode's nonce (the harness keeps it private, as it keeps a test seed).
+NONCE_KEY = "episode_nonce"
+
+
+def episode_nonce(env):
+    """The episode's nonce from its task (task["episode_nonce"]), or "" when the task carries none."""
+    task = getattr(env, "_task", None)
+    value = task.get(NONCE_KEY) if isinstance(task, dict) else None
+    if isinstance(value, bool) or value is None:
+        return ""
+    return str(value).strip()
+
+
+def new_nonce():
+    """A fresh episode nonce for a harness: 128 bits from the operating system's random source (never seeded, so it
+    cannot be guessed from anything an agent sees)."""
+    import secrets
+    return secrets.token_hex(16)
+
+
 class Handles:
     """Per-episode opaque handles: obj_ + 8 hex digits of sha256(salt, id) (longer on a collision). The salt mixes
-    the seed with a digest of the initial house, which agents never see, so handles cannot be computed from guessed
-    ids. An unknown handle is resolved by recomputing the handles of the current entities (replays and loaded
-    states need no stored map)."""
+    the seed with a digest of the initial house, which agents never see, and the episode nonce when the task carries
+    one, so handles cannot be computed from guessed ids. Agent arguments resolve only handles this episode issued
+    (by_handle; Realism._resolve_handle); resolve() also recomputes the handle of any current entity, for tools that
+    read a log (replays and loaded states need no stored map)."""
 
     def __init__(self, seed, salt=""):
         self.seed, self.salt = seed, salt
@@ -325,6 +402,20 @@ class Handles:
             width += 2
             candidate = "obj_" + digest[:width]
         self.by_id[eid], self.by_handle[candidate] = candidate, eid
+        return candidate
+
+    def peek(self, eid):
+        """eid's handle without issuing it (a sort key for things the robot may never have been shown: handle() issues,
+        and an issued handle is one the agent may act on)."""
+        found = self.by_id.get(eid)
+        if found:
+            return found
+        digest = _h("handle", self.seed, self.salt, eid)
+        width = 8
+        candidate = "obj_" + digest[:width]
+        while candidate in self.by_handle and self.by_handle[candidate] != eid:
+            width += 2
+            candidate = "obj_" + digest[:width]
         return candidate
 
     def resolve(self, text):
@@ -449,7 +540,13 @@ class Knowledge:
 class Realism:
     def __init__(self, env):
         self.env = env
-        self.handles = Handles(env.seed, salt=_digest(getattr(env, "_initial", None) or {}))
+        # the episode nonce (NONCE_KEY): mixed into the handle salt and every fixed draw (_rng); "" keeps both exactly
+        # as they were without one
+        self.nonce = episode_nonce(env)
+        salt = _digest(getattr(env, "_initial", None) or {})
+        if self.nonce:
+            salt = _h("episode", salt, self.nonce)[:16]
+        self.handles = Handles(env.seed, salt=salt)
         self.handles.entities = lambda: self.env.world.s["entities"].keys()
         self.knowledge = Knowledge()
         self._tiers = {}
@@ -469,6 +566,7 @@ class Realism:
         self.gone = {}
         self._step_gone = {}       # records destroyed by the step in progress (their message still names them)
         self._agent_text = ()      # the agent's own free-text arguments of the step in progress (as converted)
+        self._named = set()        # ids the agent named by handle in the step in progress (echoed as those handles)
         self._names = {}           # look-alike group -> true names of its member types (message substitution)
         # darkness: people/pets in the robot's dark room are shapes keyed by a handle that changes with every dark
         # spell (a spell starts whenever the robot's view of a room turns dark)
@@ -843,13 +941,14 @@ class Realism:
             return self._geo_infos.get(eid)
         from . import camera
         w = self.env.world
-        key = (w.s.get("steps", 0), w.s.get("time_s", 0.0), getattr(w, "mutation_count", None))
+        # the knowledge version too: an unresolved look-alike's apparent size changes once the robot identifies it
+        key = (w.s.get("steps", 0), w.s.get("time_s", 0.0), getattr(w, "mutation_count", None), self.version)
         memo = getattr(self, "_acuity_memo", None)
         if memo is None or memo[0] != key:
             memo = self._acuity_memo = (key, {})
         if eid not in memo[1]:
             found = camera.acuity(self.env, eid) if eid in w.s["entities"] else None
-            memo[1][eid] = found["view"] if found else None
+            memo[1][eid] = self.apparent_view(w.s, eid, w.s["entities"].get(eid), found["view"]) if found else None
         return memo[1][eid]
 
     def geo_detected(self, state, eid, record, info):
@@ -885,13 +984,84 @@ class Realism:
         sector = int((_num(info.get("frame_yaw"), 0.0) % 360.0) // 45.0)
         return self._rng("detect", eid, pos, sector, info.get("via") or "head").random() < p
 
-    def view_dict(self, aid, info, depth=True):
+    # ----- geometric camera: the apparent size of what the robot cannot tell apart (review L2) -----------------------
+    def _apparent_size(self, eid, record):
+        """(apparent size list, apparent largest dimension, true largest dimension) the camera presents for a thing:
+        an unresolved look-alike whose size comes from its type presents its group's typical size (the size its record
+        shows, _group_values; a size the instance was given itself, or one the robot measured, is its own); anything
+        else its own size. (None, None, None) without a usable size_m."""
+        size = record.get("size_m")
+        true = _size_max(size)
+        if true is None:
+            return None, None, None
+        own = (list(size[:3]), true, true)
+        if self.group_of(record)[1] is None:
+            return own          # no look-alike group (cached per type): the common case, without identifying it
+        if eid in self.knowledge.data and self.knowledge.level(eid, record, "size_m") >= MEASURE:
+            return own
+        ident, gname, group, portion = self._identify(eid, record, self.knowledge.entity_level(eid, record))
+        if group is None or portion or not _unidentified(ident, record):
+            return own
+        common = self.group_glance(gname, group)
+        typed = "size_m" in common["explicit"] or size == self._type_default(record, "size_m")
+        if common["size_m"] is MISSING or not typed:
+            return own
+        apparent = _size_max(common["size_m"])
+        return (list(common["size_m"][:3]), apparent, true) if apparent is not None else own
+
+    def apparent_max(self, eid, record):
+        """The largest dimension the cameras judge a thing by (0.1 m without a usable size): _apparent_size's."""
+        _size, apparent, _true = self._apparent_size(eid, record)
+        return apparent if apparent is not None else 0.1
+
+    def apparent_view(self, state, eid, record, info):
+        """The ViewInfo the camera presents for entity eid (review L2): an unresolved look-alike is seen at its
+        group's apparent size -- pixels scaled by apparent / true size, the view level re-derived from them with the
+        frame's light and glare (sight.acuity_level) -- so neither the level nor the detection band nor the noise term
+        tells members of different true size apart. A depth shape, a thing of its own apparent size and anything the
+        robot can tell apart keep the camera's view. Idempotent (a returned copy is marked)."""
+        if not isinstance(info, dict) or info.get("_apparent") or record is None or info.get("level") == "shape" \
+                or info.get("via") == "held":
+            return info
+        _size, apparent, true = self._apparent_size(eid, record)
+        if apparent is None or abs(apparent - true) <= 1e-9:
+            return info
+        out = dict(info, _apparent=True)
+        px = _num(info.get("px"), 0.0) * apparent / true
+        out["px"] = round(px, 1)
+        light = _num(info.get("light"), 0.0)
+        glare = info.get("glare")
+        level = sight.acuity_level(px, light, sun_cone=glare == "sun", backlit=glare == "backlit")
+        out["level"] = level or "detect"
+        out["detected"] = level in ("recognize", "identify") or \
+            (level == "detect" and px >= sight.PX["detect_oracle"] - 1e-9)
+        if level is None:
+            out["px"] = min(out["px"], sight.PX["detect_min"] - 0.1)     # below the band: never detected
+        return out
+
+    def _shown_px(self, eid, record, info, ctx):
+        """view.px for the size the record shows (review L2): the camera's pixels (at the apparent size) scaled by the
+        shown size estimate (the camera's 5 cm estimate, a look-alike's group size estimate, a measured size exactly),
+        so px x range / focal gives back no more than size_m does."""
+        px = _num(info.get("px"), 0.0)
+        if record is None or info.get("via") == "held":
+            return px
+        size, apparent, _true = self._apparent_size(eid, record)
+        if size is None or apparent is None or apparent <= 0:
+            return px
+        known = self.knowledge.level(eid, record, "size_m") if eid in self.knowledge.data else GLANCE
+        shown = self.render(eid, record, "size_m", size, known, ctx)
+        shown_max = _size_max(shown) if isinstance(shown, list) else None
+        return px * shown_max / apparent if shown_max else px
+
+    def view_dict(self, aid, info, depth=True, px=None):
         """The realistic "view" of a ViewInfo (TIER1_CAMERA 10.6): bearing and elevation to 5 degrees, a distance
         bucket, range_m only within the depth camera's 0.2-6 m for targets of 24 px or more (a fixed draw per target
-        with sigma 0.01 + 0.005 d^2, to 0.1 m), pixels to 2 significant figures, occlusion in quarters, the camera that
-        saw it and the light at it as a word (not for the depth camera's dark shapes: it measures no light)."""
+        with sigma 0.01 + 0.005 d^2, to 0.1 m), pixels to 2 significant figures (px: the pixels to show, by default
+        the ViewInfo's), occlusion in quarters, the camera that saw it and the light at it as a word (not for the depth
+        camera's dark shapes: it measures no light)."""
         d = _num(info.get("range_m"), 0.0)
-        px = _num(info.get("px"), 0.0)
+        px = _num(info.get("px"), 0.0) if px is None else _num(px, 0.0)
         out = {"bearing_deg": _step_round(_num(info.get("bearing_deg"), 0.0), VIEW_ANGLE_STEP),
                "elev_deg": _step_round(_num(info.get("elev_deg"), 0.0), VIEW_ANGLE_STEP),
                "px": _sig2(px), "occluded": round(max(0.0, 1.0 - _num(info.get("visible"), 1.0)), 2),
@@ -921,6 +1091,9 @@ class Realism:
                    for e in windows)
 
     def _rng(self, *parts):
+        if self.nonce:
+            # the episode nonce makes every fixed draw episode-specific (and secret): see NONCE_KEY
+            return _FastRng("{}|n:{}|{}".format(self.env.seed, self.nonce, "|".join(str(p) for p in parts)))
         return _FastRng("{}|{}".format(self.env.seed, "|".join(str(p) for p in parts)))
 
     def _noisy(self, value, sigma, eid, field, level, ctx, digits=2, lo=None, hi=None):
@@ -1032,12 +1205,17 @@ class Realism:
             if known >= MEASURE:
                 return copy.deepcopy(value)
             rng = self._rng(eid, field, GLANCE)
+            # a camera estimates sizes to about 5 cm (finer only with a tape measure): one fixed relative error per
+            # thing; worse viewing conditions (m) only read it more coarsely, in whole multiples of 5 cm (a step off
+            # that grid would show sizes like 7.5 cm exactly). An error that grew with m was a line in the
+            # agent-controlled m whose intercept is the true size: a regression over a few viewing conditions recovered
+            # it to millimetres (review L8)
+            step = 0.05 * max(1, int(round(ctx["m"])))
             out = []
             for v in value[:3]:
                 n = _num(v, 0.1)
-                # a camera estimates sizes to about 5 cm (finer only with a tape measure)
-                est = n * (1.0 + rng.gauss(0.0, 0.08 * ctx["m"]))
-                out.append(max(0.05, round(est * 20.0) / 20.0))
+                est = n * (1.0 + rng.gauss(0.0, 0.08))
+                out.append(max(0.05, round(round(est / step) * step, 3)))
             return out
         if field == "count" and isinstance(value, int) and not isinstance(value, bool):
             return self._count(value, known, eid, field, ctx)
@@ -1292,7 +1470,8 @@ class Realism:
             # an unresolved look-alike (or unfamiliar thing) shows only what every member of its group shows, so
             # the set of fields cannot give its identity away -- plus what the robot itself felt or measured
             felt = {k for k in out if has_knowledge and self.knowledge.level(eid, record, k) >= TOUCH and self.tier(record, k) == "measure"}
-            out = {k: v for k, v in out.items() if k in LOOKALIKE_FIELDS or k in felt}
+            shown = NOVEL_FIELDS if group is None and _novel_identity(ident) else LOOKALIKE_FIELDS
+            out = {k: v for k, v in out.items() if k in shown or k in felt}
             if group is not None and not portion:
                 self._group_values(eid, record, out, gname, group, ctx, felt, always=True)
         return dict(sorted(out.items()))     # field order must not reveal the type
@@ -1347,7 +1526,7 @@ class Realism:
             out = self.perceive_record(state, eid, record, ctx, geo=geo)
         else:
             out = self._perceive_below(state, eid, record, info, ctx, level)
-        out["view"] = self.view_dict(eid, info, depth=sv_depth)
+        out["view"] = self.view_dict(eid, info, depth=sv_depth, px=self._shown_px(eid, record, info, ctx))
         return dict(sorted(out.items()))
 
     def _perceive_below(self, state, eid, record, info, ctx, level):
@@ -1374,7 +1553,8 @@ class Realism:
             # what an action let the robot learn about it (an inspection, a reading, a measurement) and still holds
             keep |= {k for k in full if k not in IDENTITY_KEYS and self.knowledge.level(eid, record, k) >= INSPECT}
         if unresolved:
-            keep &= LOOKALIKE_FIELDS | {k for k in full if self.knowledge.level(eid, record, k) >= TOUCH}
+            shown = NOVEL_FIELDS if group is None and _novel_identity(ident) else LOOKALIKE_FIELDS
+            keep &= shown | {k for k in full if self.knowledge.level(eid, record, k) >= TOUCH}
         for key in sorted(keep):
             if key in full and key not in out:
                 out[key] = full[key]
@@ -1580,6 +1760,15 @@ class Realism:
             return True
         return _unidentified(self._identify(eid, record, self.knowledge.entity_level(eid, record))[0], record)
 
+    def novel_unidentified(self, eid, record=None):
+        """True when the robot takes eid for an unfamiliar thing (a novel object, or a portion of one), whatever it is."""
+        if record is None:
+            record = self.env.world.s["entities"].get(eid)
+            if record is None:
+                return bool((self.gone.get(eid) or {}).get("novel"))
+        ident, gname, _group, _portion = self._identify(eid, record, self.knowledge.entity_level(eid, record))
+        return gname is None and _novel_identity(ident)
+
     def sealed(self, record):
         """A closed opaque container (lidded bin, closed jar, sealed box): its fill and contents are not visible."""
         see_through = record.get("transparent") or str(record.get("material") or "") in ("glass", "clear_plastic", "acrylic")
@@ -1595,11 +1784,7 @@ class Realism:
             # geometric camera: the detection band replaces this rule (11.2); a thing in no current frame is missed
             info = self._view_info(eid)
             return info is None or not self.geo_detected(state, eid, record, info)
-        size = record.get("size_m") or [0.1, 0.1, 0.1]
-        try:
-            largest = max(float(v) for v in size[:3])
-        except (TypeError, ValueError):
-            largest = 0.1
+        largest = self.apparent_max(eid, record)       # an unresolved look-alike: its group's size (review L2)
         if largest >= 0.15 or ctx["dist"] <= 1:
             return False
         if self.knowledge.entity_level(eid, record) >= INSPECT:
@@ -1634,6 +1819,64 @@ class Realism:
         except Exception:  # noqa: BLE001
             return [k for k, e in state["entities"].items() if e.get("location") == eid]
 
+    # ----- what a condition sees (wait until, watch, guards: kernel/timeline.py; review L1) ----------------------
+    def shown_entity(self, state, eid, info=None, remote=False):
+        """The record of entity eid as the robot perceives it now, for judging a condition: the geometric camera's
+        rendering of ViewInfo `info` (perceive_view), else the room camera's (perceive_record from the robot's
+        viewpoint, the context of the observation); remote=True: what a status app or an audible status reports --
+        the glance rendering in a near, lit, clear view. None for an unknown id. Never the true values: a condition
+        compares these, so a wait answers no more than the observation shows."""
+        record = state["entities"].get(eid)
+        if record is None:
+            return None
+        if remote:
+            return self.perceive_record(state, eid, record, {"dist": 0, "light": 1.0, "m": 1.0, "key": "remote"})
+        if isinstance(info, dict):
+            return self.perceive_view(state, eid, record, info)
+        return self.perceive_record(state, eid, record)
+
+    @staticmethod
+    def agent_shown(group, field, value):
+        """A person's or pet's field as a realistic observation shows it: posture "lying" for a person asleep or lying
+        awake, "resting" for a pet asleep, lying or resting (observe); everything else as it is."""
+        if field == "posture" and value in LYING_POSTURES.get(group, ()):
+            return "lying" if group == "people" else "resting"
+        return value
+
+    # ----- the grant gate (review I3 / R4) -----------------------------------------------------------------------
+    def grant_problem(self, state, eid, level, world=None, motions=()):
+        """None when the robot can have learned `level` of entity eid where it is now; else why not. A close look
+        (inspect) needs what core inspect needs: the thing held, or the geometric camera's inspect_check (the head
+        resolving it to 160 px in light, or the wrist within reach), or -- room camera -- arm's reach, a large
+        fixture (1 m or more) or an inspect_from_afar thing in the robot's room; a touch needs arm's reach (or the
+        thing held). Either is also granted for a thing within arm's reach of a cell the robot walked this step
+        (`motions`: the step's motion records, actions.motion_records: walking into a glass panel settles what it
+        is). Read and measure grants are the domains' (a display, a meter) and pass. Rooms, people and pets are not
+        gated here."""
+        lvl = LEVELS.get(level, level) if isinstance(level, str) else level
+        if lvl not in (INSPECT, TOUCH):
+            return None
+        record = state["entities"].get(eid)
+        if record is None:
+            return None
+        robot = state["robot"]
+        if record.get("location") == "robot" or eid in [v for v in (robot.get("hands") or {}).values() if v]:
+            return None
+        if motions and _walked_past(state, eid, motions):
+            return None
+        if lvl == INSPECT and isinstance(robot.get("view"), dict):
+            from . import camera
+            ok, reason, _via = camera.inspect_check(state, eid, world)
+            return None if ok else (reason or "not resolved by the cameras")
+        problem = geometry.reach_problem(state, eid)
+        if problem is None or "Crouch" in problem or (lvl == INSPECT and "Too high" in problem):
+            return None
+        if lvl == INSPECT and "Approach" in problem and (_size_max(record.get("size_m")) or 0.0) >= 1.0 - 1e-9:
+            return None
+        if lvl == INSPECT and "Approach" in problem and record.get("inspect_from_afar"):
+            return None
+        return problem
+
     # ----- knowledge grants (from handlers, applied when the step succeeds) ------------------------------
     def grant(self, eid, level, fields=None):
         level = LEVELS.get(level, level) if isinstance(level, str) else int(level)
@@ -1645,6 +1888,7 @@ class Realism:
         self.pending = []
         self._memory_out = False
         self._named_plain = set()       # people the command named over a remote channel (kept plain in its message)
+        self._named = set()             # things the command named by handle (_resolve_handle)
         state = self.env.world.s
         self._held_before = {v for v in (state["robot"].get("hands") or {}).values() if v}
         self._ever.update(state["entities"])      # ids of things this step destroys still get translated
@@ -1673,6 +1917,12 @@ class Realism:
                     ident, gname, _group, _portion = self._identify(eid, before, self.knowledge.entity_level(eid, before))
                     self.gone[eid] = {"group": gname, "unresolved": _unidentified(ident, before),
                                       "novel": bool(before.get("novel")) or (ident.get("kind") == "unknown" and "shape" in ident)}
+                if eid in self.handles.by_id:
+                    # the category the robot perceived of a thing it was shown (a report about it after it is gone
+                    # suggests the same issue words as for one out of view: reports._perceived_category)
+                    entry = self.gone.setdefault(eid, {})
+                    entry["kind"] = "object" if entry.get("unresolved") or self.unresolved(eid, before) else \
+                        str(before.get("category") or "object")
             elif ok and after.get("displaced") is True and before.get("displaced") is not True:
                 entry = self.knowledge.data.get(eid)
                 if entry is not None and entry["sig"] == self.knowledge.signature(before):
@@ -1790,32 +2040,58 @@ class Realism:
                         out[aid] = self.handles.handle("shape:{}:g{}".format(aid, self._geo_spell.get(aid, 0)))
         return out
 
-    def _type_stems(self):
-        """Lower-case registry type names: an id-shaped word built on one ("fabric_softener_1") is what a generated id
-        looks like, so free text neutralises it whether or not such a thing exists."""
-        found = getattr(self, "_stems", None)
-        if found is None:
-            found = self._stems = frozenset(str(t).lower() for t in getattr(self.env.registry, "types", {}) or ())
-        return found
-
-    def _resolve_handle(self, text, state, dark):
-        eid = self.handles.resolve(text)
+    def _resolve_handle(self, text, state, dark, entity_param=True):
+        """A handle the agent typed -> the true id. Only handles this episode issued resolve: one remembered from
+        another episode of the same house, or computed offline from the public spec and seed, is refused exactly like
+        anything out of view (review I5 / R5). In an entity parameter the thing must still exist (else "not visible",
+        as for anything out of view); in any other parameter (free text, a memory key, a predicate path, ask's about)
+        a thing destroyed since resolves too, so the reply never says that something seen earlier is gone (review
+        I6)."""
+        eid = self.handles.by_handle.get(text)
         if isinstance(eid, str) and eid.startswith("shape:"):
             pid = eid.split(":")[1]
             if dark.get(pid) == text:
                 return pid          # a shape the robot sees now (people/pets in the dark are addressed by their shape)
             raise ActionError("That is not visible here", "perception")
-        if eid is None or eid not in state["entities"]:
+        if eid is None or (eid not in state["entities"] and (entity_param or eid not in self._ever)):
             raise ActionError("That is not visible here", "perception")
+        self._named.add(eid)
         return eid
+
+    def _target_part_names(self, state, eid):
+        """Words a command about entity eid may use for parts of it (a slot "layer_2", a burner key, a program name),
+        kept verbatim by inbound -- built only from what the robot can know of it, never from its true record alone
+        (phase-1 red team: free text naming an unresolved look-alike echoed its true type, liquid or product, because an
+        id-like word was kept exactly when the true record held it). An identified thing: the keys and short string
+        values of its fields that are not hidden (tier "never"), and its type. An unresolved look-alike or unfamiliar
+        thing: the identity the robot perceives (label, kind, candidates) and, for a look-alike, the names of every
+        member of its group alike -- the outbound substitution shows each of them as the group label, so the echo is
+        the same for every member -- and nothing of its own record."""
+        record = state["entities"].get(eid)
+        if record is None:
+            return set()
+        if self.unresolved(eid, record):
+            ident, gname, _group, _portion = self._identify(eid, record, self.knowledge.entity_level(eid, record))
+            found = _record_names(ident)
+            if gname:
+                found |= {str(name).lower() for name in self._group_names(gname)}
+            return found
+        shown = {k: v for k, v in record.items()
+                 if isinstance(k, str) and k[:1] != "_" and self.tier(record, k) != "never"}
+        found = _record_names(shown) | _record_key_words(shown)
+        if isinstance(record.get("type"), str):
+            found.add(record["type"].lower())
+        return found
 
     def inbound(self, raw, text_keys=(), entity_keys=()):
         """Agent arguments -> true ids. Handles (exact or inside strings such as predicate paths, any letter case)
         are translated. A true entity id (any letter case) in an entity-valued parameter is refused exactly like an
-        invisible object; anywhere else (free text, keys, lists) it is neutralised to "something" -- and so is every
-        word shaped like a generated id on a registry type name (fabric_softener_1, dishwasher_1_basket) whether or not
-        such a thing exists, unless it names a part of the command's own target (a slot "layer_2") -- so guessing ids
-        neither works nor tells anything (the echo of the agent's own text is the same either way). Rooms, people and
+        invisible object; anywhere else (free text, keys, lists) it is neutralised to "something" -- and so, whether
+        or not such a thing exists, is every word shaped like a generated id (a numeric part: fabric_softener_1,
+        dishwasher_1_basket, letter_6) and, in free text (text parameters), every id-like word (an underscore or a
+        digit: main_water_valve, m9), unless it names a part of the command's own target (a slot "layer_2") -- so
+        guessing ids neither works nor tells anything (the echo of the agent's own text is the same either way).
+        Handles resolve only when this episode issued them (_resolve_handle). Rooms, people and
         pets keep their ids, but in the dark a person or pet named by id is refused (DARK_WHO): the robot sees shapes,
         addressed by their shape handle. That holds for every parameter (about, subject, options, a predicate path...),
         not only the person-typed ones: a typed id never comes back as a shape handle; in free text (text parameters)
@@ -1852,14 +2128,17 @@ class Realism:
             lowered = ((len(state["entities"]), len(self._ever)), {e.lower() for e in state["entities"]} | {e.lower() for e in self._ever})
             self._lower_ids = lowered
         entities = lowered[1]
-        stems = self._type_stems()
         names = set()             # names of parts of the command's own targets (slot "layer_2", key "burner_1")
+        # the key words of the targets' records (a slot "battery_1" of a remote the robot cannot tell from the other
+        # remotes): kept in non-text parameters only, where an action naming a part acts on it anyway; free text keeps
+        # only `names`, what the robot can know of the target (phase-1 red team)
+        struct_names = set()
 
         def conv(value, entity_param=False, text_param=False):
             if isinstance(value, str):
                 low_value = value.strip().lower()
                 if HANDLE_RE.match(value.lower()):
-                    return self._resolve_handle(value.lower(), state, dark)
+                    return self._resolve_handle(value.lower(), state, dark, entity_param)
                 if low_value in unnamed and not text_param:
                     raise who_refusal()
                 if entity_param and low_value in entities and low_value not in public:
@@ -1869,14 +2148,19 @@ class Realism:
                     word = match.group(0)
                     low = word.lower()
                     if HANDLE_RE.match(low):
-                        return self._resolve_handle(low, state, dark)
+                        return self._resolve_handle(low, state, dark, entity_param)
                     if low in unnamed:
                         if text_param:
                             return UNNAMED_TEXT
                         raise who_refusal()
                     if low in public:
                         return word
-                    if low in entities or (low not in names and _typed_id(low, stems)):
+                    # neutralised whether or not such a thing exists, so the echo never tells (review I6): a true id;
+                    # in free text every id-like word (an underscore or a digit: letter_6, parcel_1_item_2, m9,
+                    # main_water_valve); in other parameters every word shaped like a generated id (a numeric part) --
+                    # except the names of parts of the command's own target (a slot "layer_2")
+                    if low in entities or (low not in names and (text_param or low not in struct_names) and
+                                           (id_shaped(low) or (text_param and _id_like(low)))):
                         if entity_param:
                             raise ActionError("That is not visible here", "perception")
                         return "something"
@@ -1891,7 +2175,8 @@ class Realism:
         out = {key: conv(value, True) for key, value in raw.items() if key in entity_keys}
         for value in out.values():
             if isinstance(value, str) and value in state["entities"]:
-                names |= _record_names(state["entities"][value]) - entities
+                names |= self._target_part_names(state, value) - entities
+                struct_names |= _record_key_words(state["entities"][value]) - entities
         out.update({key: conv(value, False, key in text_keys) for key, value in raw.items() if key not in entity_keys})
         out = {key: out[key] for key in raw}
         said = getattr(self, "_agent_said", None)
@@ -2033,9 +2318,15 @@ class Realism:
                                     + list(record.get("is_a") or []))
             if group is not None:
                 words -= self._shared_words(gname, group)
-            keep = LOOKALIKE_FIELDS | {"object", "contents", "under", "behind"} | exact
-            out = {k: v for k, v in out.items()
-                   if k in keep or (k not in record and not any(str(w) in k for w in words))}
+            if group is None and _novel_identity(ident):
+                # an unfamiliar thing: a fixed key set whatever it is (review I4: a kettle's fill, a lamp's bulb_hot or a
+                # detector's battery_indicator told the types apart), plus the instrument readings passed as exact
+                keep = NOVEL_FIELDS | {"object", "under", "behind"} | exact
+                out = {k: v for k, v in out.items() if k in keep}
+            else:
+                keep = LOOKALIKE_FIELDS | {"object", "contents", "under", "behind"} | exact
+                out = {k: v for k, v in out.items()
+                       if k in keep or (k not in record and not any(str(w) in k for w in words))}
             if group is not None and not portion:
                 self._group_values(eid, record, out, gname, group, ctx)
         return out
@@ -2060,12 +2351,18 @@ class Realism:
 
         named_plain = getattr(self, "_named_plain", None) or ()
 
+        named = self._named
+
         def tok(m):
             word = m.group(0)
             if word in dark and word not in named_plain:
                 return dark[word]
             if word in plain or word in named_plain:
                 return word
+            if word in named and word in by_id:
+                # a thing the agent itself named by handle comes back as that handle, whether it is in view, out of
+                # view or destroyed since (the echo of the agent's own words must not tell which: review I6)
+                return by_id[word]
             if word not in entities:
                 if word in ever or word in by_id:
                     # destroyed during the step (merged, consumed, pulled): its handle if issued, else "something"
@@ -2092,10 +2389,22 @@ class Realism:
             out.append(sub(text[pos:], key))
             return "".join(out)
 
+        gone_re, gone_handle = self._gone_phrases(named, entities, by_id)
+
+        def tok_descriptive(m):
+            # a descriptive value (a label, a kind) of a JSON result: only id-like words are ids there; a plain word
+            # that merely equals a hand-written id ("kettle") is the label's own word (appliances_cooking's report:
+            # "stovetop kettle" came out as "stovetop obj_..."), as observations already treat DESCRIPTIVE_KEYS
+            return tok(m) if _id_like(m.group(0)) else m.group(0)
+
         def conv(text, key=None, ids_only=False):
             if sub is not None and not ids_only:
                 text = substitute(text, key)
-            return TOKEN_RE.sub(tok, text)
+            if gone_re is not None:
+                # a destroyed thing the agent named, written out as words by a domain that no longer finds it
+                # ("apple 3" for apple_3): its handle, as for a thing out of view
+                text = gone_re.sub(lambda m: gone_handle[m.group(0).lower()], text)
+            return TOKEN_RE.sub(tok_descriptive if key in DESCRIPTIVE_KEYS and not ids_only else tok, text)
 
         stripped = message.strip()
         if stripped[:1] in ("{", "["):
@@ -2109,6 +2418,28 @@ class Realism:
                 out = self._out_json(data, conv, None, entities, plain)
                 return json.dumps(out, sort_keys=True, ensure_ascii=message.isascii())
         return conv(message)
+
+    @staticmethod
+    def _gone_phrases(named, entities, by_id):
+        """(pattern, {phrase: handle}) for the destroyed things the command named by handle: their ids as a domain
+        writes an unknown id out in words ("apple 3", the dialogue's normalised words), so that a reply about a thing
+        the robot saw earlier names it by its handle whether it still exists or not (review I6); (None, None) when the
+        command named nothing destroyed."""
+        gone = sorted(e for e in named if e not in entities and e in by_id)
+        if not gone:
+            return None, None
+        from .dialogue import words_of
+        phrases = {}
+        for eid in gone:
+            for phrase in (eid.replace("_", " "), " ".join(words_of(eid, stop=False))):
+                phrase = phrase.strip().lower()
+                if phrase and " " in phrase:
+                    phrases.setdefault(phrase, by_id[eid])
+        if not phrases:
+            return None, None
+        pattern = re.compile(r"(?i)(?<![A-Za-z0-9_])(?:" + "|".join(
+            re.escape(p) for p in sorted(phrases, key=lambda s: (-len(s), s))) + r")(?![A-Za-z0-9_])")
+        return pattern, phrases
 
     def _label_substitution(self, involved):
         """fn(text, json key, protected=False) replacing true names of unresolved look-alikes and unfamiliar things the
@@ -2275,6 +2606,8 @@ class Realism:
             from . import camera
             self._geo_view = camera.step_view(self.env)
             self._geo_infos = self._view_infos(self._geo_view)
+            for eid, info in self._geo_view.entities.items():
+                self._geo_infos[eid] = self.apparent_view(state, eid, state["entities"].get(eid), info)
             self._geo_m = self._geo_global_m(state)
         self._room_ctx = self.room_context(state)
         self._dark_now = self._dark_agents(state)
@@ -2310,7 +2643,7 @@ class Realism:
             base_rec = base["visible_entities"][eid]
             if geo:
                 # geometric camera: what a current frame detected, at its view level (11.1), after the detection band
-                info = base_rec.get("_view")
+                info = self.apparent_view(state, eid, record, base_rec.get("_view"))
                 if not isinstance(info, dict) or not self.geo_detected(state, eid, record, info):
                     continue
                 perceived_ids.add(eid)
@@ -2382,6 +2715,9 @@ class Realism:
             vetoes = HOOKS.get("visible_floor_hazard", [])
             if vetoes and any(fn(state, robot_room, tuple(item["cell"]), item.get("kind"), src) is False for _, _, fn in vetoes):
                 continue
+            shown_kind = self._liquid_kind_shown(state, src, item.get("kind"))
+            if shown_kind != item.get("kind"):
+                item = dict(item, kind=shown_kind)
             hazards.append(item)
         if not dark:
             # a pet resting on the floor gets the same marker as a sleeping one (geometry marks only sleep/lying)
@@ -2396,6 +2732,10 @@ class Realism:
                 if vetoes and any(fn(state, robot_room, tuple(cell), "lying", pid) is False for _, _, fn in vetoes):
                     continue
                 hazards.append({"cell": cell, "kind": "lying", "source": pid})
+        # listing order must not follow the spawn order of the sources (review I11): by cell, then by the handle a
+        # source has or would get (peek issues nothing), people and pets by id, then kind
+        hazards.sort(key=lambda h: (list(h.get("cell") or ()), self._source_order(state, h.get("source")),
+                                    str(h.get("kind"))))
         obs["grid"]["hazards"] = hazards
         if isinstance(obs.get("room"), dict):
             for key in ("floor_hazards", "wet_cells", "dirt_cells", "soil_cells"):
@@ -2511,6 +2851,35 @@ class Realism:
         out["events"] = events
         return out
 
+    def _source_order(self, state, src):
+        """Sort key of a hazard's source that says nothing about spawn order or true ids: an entity's handle (peeked,
+        not issued), a person's or pet's shape handle in the dark (else its id, which is public), anything else."""
+        if isinstance(src, str) and src in state["entities"]:
+            return (0, self.handles.peek(src))
+        if isinstance(src, str):
+            return (1, str((self._dark_now or {}).get(src, src)))
+        return (2, str(src))
+
+    def _liquid_unidentified(self, state, src, kind):
+        """True for a wet/slip/sticky hazard whose source entity the robot cannot identify yet (review L4)."""
+        if kind not in LIQUID_HAZARD_KINDS or not isinstance(src, str):
+            return False
+        record = state["entities"].get(src)
+        return record is not None and self.unresolved(src, record)
+
+    def _liquid_kind_shown(self, state, src, kind):
+        """The floor-hazard kind the robot sees for a puddle-like source: its own kind once the source is identified,
+        but while the robot cannot tell what the source is (an unidentified puddle, the spill of an unresolved jug)
+        a wet/slip/sticky kind would name the liquid (chlorine bleach 'wet' vs detergent 'slip'): it shows its group's
+        `floor_hazard` word, default "wet" (review L4). Other kinds and non-entity sources are unchanged."""
+        if not self._liquid_unidentified(state, src, kind):
+            return kind
+        record = state["entities"][src]
+        name = self._entity_group(state, record)
+        group = self.groups().get(name) if name else None
+        word = (group or {}).get("floor_hazard")
+        return word if word in LIQUID_HAZARD_KINDS else "wet"
+
     @staticmethod
     def _agent_hazard_kind(group, agent):
         """The hazard kind a camera shows for a sleeping/lying/fallen marker of a person or pet: "person_down" for
@@ -2561,6 +2930,7 @@ class Realism:
             for kind, src in items:
                 if src in ignore or kind in HIDDEN_HAZARD_KINDS:
                     continue
+                veto_kind = None
                 if src in agents:
                     shown = self._agent_hazard_kind(*agents[src]) if kind in AGENT_LYING_KINDS else \
                         (None if agents[src][1].get("concealed") and not agents[src][1].get("revealed") else kind)
@@ -2570,13 +2940,20 @@ class Realism:
                         visible[src] = self.env.perception.visible(state, src) and not (
                             (srec.get("category") == "mirror" or srec.get("reflective")) and self.knowledge.entity_level(src, srec) < INSPECT)
                     shown = kind if visible[src] else None
+                    veto_kind = kind
+                    if shown is not None and self._liquid_unidentified(state, src, shown):
+                        # an unidentified puddle: any liquid kind in the avoid list keeps out of it, whatever its
+                        # true liquid, so route probing does not tell the liquid either (review L4)
+                        if not any(k in LIQUID_HAZARD_KINDS for k in kinds):
+                            continue
+                        shown = next(k for k in kinds if k in LIQUID_HAZARD_KINDS)
                 else:
                     shown = "lying" if kind == "sleeping" else kind
                 if shown is None:
                     continue
                 if not (shown in kinds or (lyingish and shown in ("lying", "person_down"))):
                     continue
-                if vetoes and any(fn(state, rid, tuple(cell), shown, src) is False for _, _, fn in vetoes):
+                if vetoes and any(fn(state, rid, tuple(cell), veto_kind or shown, src) is False for _, _, fn in vetoes):
                     continue
                 cells.add(tuple(cell))
         if lyingish:
@@ -2635,8 +3012,8 @@ class Realism:
         self.version += 1
         state = self.env.world.s
         for eid in sorted(view.entities):
-            info = view.entities[eid]
             record = state["entities"].get(eid)
+            info = self.apparent_view(state, eid, record, view.entities[eid])
             level = VIEW_LEVELS.get(info.get("level"), 0)
             if record is None or level < VIEW_LEVELS["detect"] or not self.geo_detected(state, eid, record, info):
                 continue
@@ -2662,6 +3039,8 @@ class Realism:
         for table, entity in ((view.entities, True), (view.people, False), (view.pets, False)):
             for aid, info in table.items():
                 record = state["entities"].get(aid) if entity else None
+                if entity and record is not None:
+                    info = self.apparent_view(state, aid, record, info)
                 if (not entity or record is not None) and self.geo_detected(state, aid, record, info):
                     out.add(aid)
         return out
@@ -2903,6 +3282,11 @@ def _inner_volume_l(record):
 def _fraction_field(field):
     return field.endswith(("_level", "_fill", "_fraction", "_frac", "_ratio")) or field in ("level", "fill_level", "battery_level", "bag_fill") \
         or field in UNIT_FIELDS
+
+
+def _novel_identity(ident):
+    """An identity the kernel renders for an unfamiliar thing (Realism._novel): kind "unknown" with a shape word."""
+    return ident.get("kind") == "unknown" and "shape" in ident
 
 
 def _unidentified(ident, record):

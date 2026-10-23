@@ -129,21 +129,43 @@ def _geometric_view(ctx, scope, members):
     return counted, unclear, close
 
 
-def _realistic_matches(ctx, realism, scope, visible, what, by, close=None):
+def _room_close(ctx, realism, members):
+    """Room camera (realistic): the members counting can look at closely from where the robot stands -- exactly the
+    things an inspect grant may reach there (Realism.grant_problem, the kernel's gate on every inspect grant: within
+    arm's reach or held, a large fixture, or a thing seen in detail from afar). Review I3 / H7: counting a room from
+    its doorway used to give every counted thing the close look's identity, levels and fields."""
+    return {e for e in members if _may_look_closely(ctx, realism, e)}
+
+
+def _may_look_closely(ctx, realism, eid):
+    """A close look (an inspect grant) at eid can be had from here: the kernel's grant gate (Realism.grant_problem:
+    arm's reach, held, a large fixture or a thing seen from afar; the geometric camera's inspect_check)."""
+    gate = getattr(realism, "grant_problem", None)
+    if gate is not None:
+        return gate(ctx.w.s, eid, INSPECT, ctx.w) is None
+    if ctx.holding(eid):
+        return True
+    if ctx.camera_mode == "geometric":
+        return bool(ctx.inspect_check(eid)[0])
+    return geometry.reach_problem(ctx.w.s, eid) is None
+
+
+def _realistic_matches(ctx, realism, scope, visible, what, by, close, geometric=False):
     """Realistic perception: (seen, matched, unidentified). A room-wide count from where the robot stands can miss
-    small things (the kernel's small-object model; counting a shelf or container looks closely and finds them).
-    Counting looks at each item closely (inspect), so inspect-resolved look-alikes are told apart; members of a
-    read-resolved group that were not read are matched only when every member of the group fits `what`,
-    otherwise they are reported as unidentified, never counted by their hidden identity. Geometric camera (close:
-    the ids the cameras looked at closely, see _geometric_view): `visible` is already what the frames made out, and
-    only the closely seen ones get the close look's identity (the rest keep what the robot knew)."""
+    small things (the kernel's small-object model, room camera; counting a shelf or container looks closely and finds
+    them; geometric camera: `visible` is already what the frames made out). Counting looks closely only at what is
+    close (close: the ids within a close look's reach, _room_close, or that the cameras resolved closely,
+    _geometric_view): those get the close look's identity, so inspect-resolved look-alikes are told apart; everything
+    else keeps what the robot knew. Members of a group the robot has not told apart are matched only when every member
+    of the group fits `what`, otherwise they are reported as unidentified, never counted by their hidden identity."""
     state = ctx.w.s
     reg = ctx.w.reg
     seen = []
     room_scope = scope in state["rooms"]
     for eid in visible:
         rec = state["entities"][eid]
-        if close is None and room_scope and realism.missed(state, eid, rec, realism.context(state, eid, rec)):
+        if not geometric and room_scope and eid not in close and \
+                realism.missed(state, eid, rec, realism.context(state, eid, rec)):
             continue
         seen.append(eid)
     matched, unidentified = [], []
@@ -151,7 +173,7 @@ def _realistic_matches(ctx, realism, scope, visible, what, by, close=None):
     for eid in seen:
         rec = state["entities"][eid]
         known = realism.knowledge.entity_level(eid, rec)
-        level = max(INSPECT, known) if close is None or eid in close else known
+        level = max(INSPECT, known) if eid in close else known
         ident = realism.identity(eid, rec, level)
         if "candidates" not in ident:
             if matches(rec, eid, what, by):
@@ -175,13 +197,23 @@ def _realistic_matches(ctx, realism, scope, visible, what, by, close=None):
 
 
 def _printed_count_legible(ctx, eid):
-    """The printed count on a sealed pack can be read now: room camera, the room is lit; geometric camera, the
-    read rule of the cameras for its pack_count print (ctx.read_check: about 2 cm figures on retail packs, the face
-    in view; a pack under another one or turned to the wall does not show it)."""
+    """The printed count on a sealed pack can be read now: room camera, the room is lit -- and with realistic
+    perception what core `read` asks of the room camera too (a lens clean enough to read, the pack within reach: a
+    count is no remote read); geometric camera, the read rule of the cameras for its pack_count print
+    (ctx.read_check: about 2 cm figures on retail packs, the face in view; a pack under another one or turned to the
+    wall does not show it)."""
     if ctx.camera_mode == "geometric":
         ok, _, _, fields = ctx.read_check(eid, ["pack_count"])
         return bool(ok and "pack_count" in fields)
-    return ctx.env.perception.lit(ctx.w.s, ctx.w.robot["room"])
+    w = ctx.w
+    if not ctx.env.perception.lit(w.s, w.robot["room"]):
+        return False
+    if not ctx.realistic or ctx.holding(eid):
+        return True
+    if w.robot.get("camera_clean", 1.0) < 0.4:
+        return False
+    problem = geometry.reach_problem(w.s, eid)
+    return problem is None or "Crouch" in problem
 
 
 @action("count", params={"target": "target", "what": "?str", "by": "?str:any|sku|type|category|label",
@@ -205,7 +237,9 @@ def count(ctx):
     realism = ctx.env.realism
     unidentified = []
     if realism is not None:
-        visible, matched, unidentified = _realistic_matches(ctx, realism, scope, visible, what, by, close=close)
+        if close is None:
+            close = _room_close(ctx, realism, visible)
+        visible, matched, unidentified = _realistic_matches(ctx, realism, scope, visible, what, by, close, geometric)
     else:
         matched = [e for e in visible if matches(state["entities"][e], e, what, by)]
     matched_set = set(matched)
@@ -220,7 +254,8 @@ def count(ctx):
               "in_use": 0, "untested": 0, "packages": 0, "from_label": 0, "ids": []}
     if geometric:
         result["unclear"] = len(unclear)        # shapes seen but too small, far or dim to tell what they are
-        result["unread"] = 0                    # sealed packs whose printed count cannot be read from here
+    if geometric or realism is not None:
+        result["unread"] = 0                    # packs whose count cannot be read or counted from here
     counted_ids = []
     for eid in matched:
         rec = state["entities"][eid]
@@ -240,7 +275,7 @@ def count(ctx):
                     result["from_label"] += int(rec.get("pack_count", 0))
                     counted_ids.append(eid)
                     ctx.grant(eid, "read", ["pack_count", "sku", "label_text"])    # the printed count was read
-                elif geometric:
+                elif "unread" in result:
                     result["unread"] += 1
             continue
         if unit == "packages" and inside_pack:
@@ -260,13 +295,13 @@ def count(ctx):
         if "units_count" in rec and rec.get("unit_name") and unit == "units":
             inside = int(rec["units_count"])
             printed = int(rec.get("pack_count", inside))
-            if (rec.get("open") or not rec.get("openable")) and geometric and eid not in close:
+            if (rec.get("open") or not rec.get("openable")) and close is not None and eid not in close:
                 result["unread"] += 1           # the units in an open box are counted only on a close look
                 continue
             if rec.get("open") or not rec.get("openable"):
                 result["count"] += inside
                 ctx.grant(eid, "measure", ["units_count"])          # counted unit by unit
-            elif not geometric or _printed_count_legible(ctx, eid):
+            elif (realism is None and not geometric) or _printed_count_legible(ctx, eid):
                 result["count"] += printed
                 result["from_label"] += printed
                 ctx.grant(eid, "read", ["pack_count", "sku", "label_text"])
@@ -283,8 +318,10 @@ def count(ctx):
             if not observable:
                 result["levels"][eid] = "unknown (lift or inspect closely)"
             elif realism is not None:
-                # counting looks at each item closely: levels to the eye's 5 % (a measurement needs a tool)
-                result["levels"][eid] = render(ctx.env, eid, "level", round(level, 4), "inspect")
+                # counting looks closely at what is close: levels to the eye's 5 % (a measurement needs a tool); from
+                # further away only what a glance shows (review I3: no close look from across the room)
+                shown = render(ctx.env, eid, "level", round(level, 4), "inspect" if eid in close else "glance")
+                result["levels"][eid] = "unknown (look closely)" if shown is None else shown
             else:
                 result["levels"][eid] = round(level, 2)
         counted_ids.append(eid)
@@ -294,10 +331,10 @@ def count(ctx):
     if realism is not None:
         # look-alikes counting cannot tell apart (a read-resolved group, unread) are reported, never guessed
         result["unidentified"] = len(unidentified)
-        if scope in state["entities"]:
+        if scope in state["entities"] and _may_look_closely(ctx, realism, scope):
             ctx.grant(scope, "inspect")                              # a close look at the shelf finds small items
         for eid in counted_ids + unidentified:
-            if close is None or eid in close:
+            if eid in close:
                 ctx.grant(eid, "inspect")
     # counting time by what the robot looked at (everything it perceives in the scope), never by hidden things
     ctx.data["seconds"] = 1.5 + 0.4 * len(visible if len(visible) < 60 else visible[:60])

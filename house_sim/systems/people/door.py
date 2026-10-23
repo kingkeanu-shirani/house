@@ -12,7 +12,7 @@ household.registry (enrolled faces/voices) hold what the household knows.
 import copy
 import random
 
-from ...kernel import body, geometry
+from ...kernel import body, camera, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.perception import light_level
@@ -115,6 +115,12 @@ def answer_door(ctx):
     if channel == "door" and state["entities"][door].get("open"):
         modalities = ["face", "voice"]
     rec = recognition(state, pid, modalities)
+    if "face" in rec and channel == "door" and state["entities"][door].get("open") and camera.mode(state) == "geometric":
+        # face to face through the open door: the robot's own cameras must show the face well enough
+        # (camera.face_seen, K-CAM-3); the peephole and the video doorbell keep their own view
+        seen = camera.face_seen(ctx.env, pid)
+        if not seen or not seen.get("recognizable"):
+            rec["face"] = {"match": None, "confidence": 0.0}
     question = ctx.args["ask"]
     answers = p.get("answers") or {}
     ident = _identity(p)

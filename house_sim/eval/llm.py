@@ -415,6 +415,32 @@ class ResponseCache:
         except (OSError, ValueError, KeyError, AttributeError):
             return None
 
+    NONCE_KEY_FILE = "episode_nonce.key"
+
+    def nonce_key(self, namespace):
+        """A secret (bytes) for the harness's episode nonces of runs served by this cache (run.episode_nonce): a random
+        32-byte key kept in <dir>/episode_nonce.key (created on first use; never part of a response or a log), scoped
+        by the agent's cache namespace. Reruns against the same cache then see the same handles, so they are served
+        from it; a fresh cache, or another namespace, gives other handles."""
+        path = self.dir / self.NONCE_KEY_FILE
+        secret = None
+        try:
+            text = path.read_text(encoding="ascii").strip()
+            secret = bytes.fromhex(text) if len(text) == 64 else None
+        except (OSError, ValueError):
+            secret = None
+        if secret is None:
+            import secrets
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".{}.tmp".format(threading.get_ident()))
+            tmp.write_text(secrets.token_hex(32), encoding="ascii")
+            try:
+                os.replace(str(tmp), str(path))
+            except OSError:
+                pass
+            secret = bytes.fromhex(path.read_text(encoding="ascii").strip())
+        return hashlib.sha256(secret + b"|" + str(namespace).encode("utf-8")).digest()
+
     def put(self, key, response, meta=None):
         path = self.path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -879,6 +905,14 @@ class LLMAgent(Agent):
     def _cache_ids(self):
         """(namespace, source) of this agent's response-cache entries (see ResponseCache)."""
         return self.cache_namespace or self.provider.name, cache_source(self.transport)
+
+    def episode_nonce_key(self):
+        """The secret the harness derives a public episode's nonce from (run.episode_nonce), so a rerun against this
+        agent's response cache sees the same handles: the cache's nonce_key for this agent's (namespace, source);
+        None without a cache (every episode then gets a fresh random nonce)."""
+        if self.cache is None:
+            return None
+        return self.cache.nonce_key("|".join(str(part) for part in self._cache_ids()))
 
     def _price_guard(self):
         """Refuse a request whose cost cannot be estimated when a cost cap is set, or when it would go to a real,

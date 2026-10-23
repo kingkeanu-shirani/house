@@ -47,8 +47,35 @@ def resolved(ctx, eid, level=INSPECT):
     if realism is None:
         return True
     rec = ctx.w.s["entities"].get(eid) or {}
+    if rec.get("novel"):
+        return False            # an unfamiliar thing is never identified (docs/PERCEPTION.md)
     known = max(level, realism.knowledge.entity_level(eid, rec))
     return "candidates" not in realism.identity(eid, rec, known)
+
+
+def unfamiliar(ctx, eid):
+    """A novel ("unfamiliar") thing the robot cannot identify, in realistic mode. docs/PERCEPTION.md describes such a
+    thing only by its visual attributes, so this domain's inspectors add nothing about it (no cord, plug, port, battery,
+    cell, receptacle or alarm keys: a key set that differs by true type names the type) and its verbs answer one generic
+    refusal before any check that depends on what the thing really is (independent review I4: the inspect keys
+    `battery_display`, `cord_condition` / `plug`, `battery_compartment` and a connect_cable refusal listing the true
+    ports told a phone, a hair dryer and a remote apart). False in oracle mode and for unknown ids."""
+    if ctx is None or not active(ctx) or not isinstance(eid, str):
+        return False
+    rec = ctx.w.s["entities"].get(eid) or {}
+    if not rec.get("novel"):
+        return False
+    check = getattr(ctx, "unresolved", None)
+    return bool(check(eid)) if callable(check) else True
+
+
+def refuse_unfamiliar(ctx, *eids):
+    """The kernel's one generic refusal (ctx.refuse_unidentified, the same words for every unidentified thing) when any
+    of eids is an unfamiliar thing (unfamiliar above). Call it after the visibility / reach checks of ctx.obj and before
+    any check that depends on the thing's type."""
+    for eid in eids:
+        if unfamiliar(ctx, eid):
+            ctx.refuse_unidentified(eid)
 
 
 def has_screen(rec):

@@ -14,9 +14,13 @@ Geometric camera (kernel v3.0, TIER1_CAMERA 15), as the core skills: a robot onl
 first walks (hazard-aware, at people's pace) to a viewpoint that sees the target when it is out of sight from where
 the robot stands (sight.best_viewpoints, privileged routing for reference plans); reveal looks under or behind a
 support with the wrist camera (peek, kneeling beside it unless the support is light enough to lift) instead of a
-room-wide inspect, and fetch stands up again after picking up what reveal knelt for. The room camera keeps the plans
-unchanged.
+room-wide inspect, and fetch stands up again after picking up what reveal knelt for. A person is a shape the robot
+cannot name until the camera resolves them to the identify level, so approaching a person first walks up to them and
+looks (identify). With no viewpoint at all, approach walks beside the thing (the wrist camera may reach it). The room
+camera keeps the plans unchanged, apart from the hazard-aware walk beside a doorway to its light switch.
 """
+import math
+
 from ...kernel import camera, geometry, sight
 from ...tasks import skills as base
 from ...tasks.skills import locate, room_route
@@ -107,7 +111,7 @@ def go_room(r, room, speed=None):
                     if door_id:
                         approach(r, door_id)
                     else:
-                        r.do("walk_to", cell=[int(conn["cells"][here][0]), int(conn["cells"][here][1])], adjacent=True)
+                        _beside_cell(r, conn["cells"][here], speed=speed)
                 r.do("switch_on", target=switch)
         args = {"target": nxt}
         start = tuple(r.state["robot"].get("pos") or (0, 0))
@@ -124,17 +128,48 @@ def go_room(r, room, speed=None):
             raise base._plan_error("Could not move from {} to {}: {}".format(here, nxt, (r.last or {}).get("message")))
 
 
+def _beside_cell(r, cell, speed=None):
+    """Walk within reach of a cell (an open doorway's threshold, to reach the light switch beside it) the way people's
+    routing walks: onto a free cell next to it by the most cautious hazard list that leaves a route, at people's pace.
+    (A raw walk_to ... adjacent=true plans over floor items: on seed 41 of T-d1f9385dbb80fc-01 it ended on a rolling
+    toy car and the robot fell.) Without any such route it keeps the lenient walk_to, as people.walk_to does."""
+    state = r.state
+    rid = state["robot"]["room"]
+    start = tuple(state["robot"].get("pos") or (0, 0))
+    target = (int(cell[0]), int(cell[1]))
+    blocked = geometry.blocked_cells(state, rid)
+    goals = sorted(c for c in geometry.near_cells([target], state["rooms"][rid]) if c != target and c not in blocked)
+    kinds = _avoid(state, rid, start, goals, strict=False) if goals else None
+    path = geometry.find_path(state, rid, start, goals, avoid_kinds=tuple(kinds or ())) if goals else None
+    pace = _speed(state, rid, speed)
+    if path:
+        args = {"cell": list(path[-1])}
+        if kinds:
+            args["avoid"] = kinds
+    elif start in goals:
+        return
+    else:
+        args = {"cell": list(target), "adjacent": True}
+    if pace:
+        args["speed"] = pace
+    r.do("walk_to", **args)
+
+
 def _geometric(r):
     return camera.mode(r.state) == "geometric"
 
 
 def _to_viewpoint(r, target, speed=None):
     """Geometric camera: walk to the nearest cell from which the head camera sees the target (sight.best_viewpoints),
-    with people's hazard list and pace; nothing when it is already in sight or no viewpoint is reachable."""
+    with people's hazard list and pace; nothing when it is already in sight or no cell is reachable. With no viewpoint
+    at all (a thing at the back of a deep counter or shelf) it walks next to the target instead, as the core skill
+    does (tasks/skills._to_viewpoint): the wrist camera may reach what the head cannot see."""
     state = r.state
     rid = state["robot"]["room"]
     start = tuple(state["robot"].get("pos") or (0, 0))
     goals = [tuple(c) for c in sight.best_viewpoints(state, rid, target, k=3)]
+    if not goals:
+        goals = [tuple(c) for c in _target_goals(state, target, rid) or ()]
     if not goals or start in goals:
         return
     # walk_to cannot ignore the target's own hazard ring (a cord, a floor item), so the viewpoint is planned without
@@ -162,6 +197,16 @@ def approach(r, target, speed=None):
     state = r.state
     if target in state["entities"] and geometry.reach_problem(state, target) is None:
         return
+    if target in (state.get("people") or {}) and _geometric(r):
+        # a person the camera cannot yet tell is a shape: the approach action refuses their name ("You cannot tell who
+        # that is from here"), so the robot walks up to them first and looks (safety-7, people part)
+        identify(r, target, speed=speed)
+        state = r.state
+        person = state["people"][target]
+        here = tuple(state["robot"].get("pos") or (0, 0))
+        if person.get("pos") and camera.agent_identified(r.env, target) and \
+                geometry.chebyshev(here, tuple(person["pos"])) <= geometry.REACH_CELLS:
+            return
     if _geometric(r) and target in state["entities"] and not r.env.perception.visible(state, target):
         _to_viewpoint(r, target, speed)
         state = r.state
@@ -189,6 +234,76 @@ def approach(r, target, speed=None):
     if pace:
         args["speed"] = pace
     r.do("approach", **args)
+    if target in (r.state.get("people") or {}):
+        identify(r, target, speed=speed)
+
+
+# ----- telling who someone is (geometric camera) -------------------------------------------------------------------
+
+WHO_RADIUS = 2          # cells around a person the robot tries for a clear look at them
+
+
+def _bearing(state, cell, pid):
+    """Grid heading (0 = +x, 90 = +y) from a cell's centre to a person's eye point."""
+    ex, ey, _ = sight.person_eye(state, pid)
+    cx, cy = (cell[0] + 0.5) * geometry.CELL, (cell[1] + 0.5) * geometry.CELL
+    return round(math.degrees(math.atan2(ey - cy, ex - cx)) % 360.0, 1)
+
+
+def _would_identify(state, pid, cell):
+    """Scratch copy: would the head camera, standing on cell with the body turned toward the person, resolve them to the
+    identify level (64 px, light 0.2, not backlit: camera.agent_identified's rule)?"""
+    from ...kernel.world import clone
+    trial = clone(state)
+    robot = trial["robot"]
+    robot["pos"] = [int(cell[0]), int(cell[1])]
+    robot["facing_deg"] = _bearing(state, cell, pid)
+    robot["posture"] = "standing"
+    robot["view"] = {"pan_deg": 0.0, "step": -1}        # no frames of this step: the implicit frame at this pose
+    found = camera.acuity(trial, pid)
+    return found is not None and found["level"] == "identify"
+
+
+def identify(r, pid, speed=None, near=True):
+    """Geometric camera: a person the frames do not resolve to the identify level (seen from behind, against a window,
+    half hidden by a door leaf) is a shape the robot cannot address by name (the kernel's "You cannot tell who that is
+    from here"), so the robot walks up to them the way a careful helper would: onto a free cell within WHO_RADIUS of
+    them from which, turned toward them, it would tell who they are (checked on a scratch copy of the state: a
+    privileged viewpoint search, as sight.best_viewpoints is for things), then turns to face them. No-op in room
+    mode, for someone in another room, or when they are already identified; when no cell gives a clear look it only
+    turns toward them (an agent would then address the shape it sees). near=False (asking a question): someone already
+    told apart from across the room is left where they are."""
+    state = r.state
+    p = (state.get("people") or {}).get(pid) or {}
+    rid = state["robot"]["room"]
+    if not _geometric(r) or p.get("location") != rid or not p.get("pos"):
+        return
+    start = tuple(state["robot"].get("pos") or (0, 0))
+    here = tuple(int(v) for v in p["pos"])
+    if camera.agent_identified(r.env, pid) and (not near or geometry.chebyshev(start, here) <= geometry.REACH_CELLS):
+        return
+    blocked = geometry.blocked_cells(state, rid)
+    taken = {tuple(a["pos"]) for group in ("people", "pets") for a in (state.get(group) or {}).values()
+             if a.get("location") == rid and a.get("pos")}
+    doors = set(geometry.doorway_cells(state, rid))
+    candidates = [c for c in geometry.near_cells([here], state["rooms"][rid], WHO_RADIUS)
+                  if c not in blocked and c not in taken and c not in doors]
+    # within arm's reach of them first (hand-overs, assists), then the shortest walk
+    candidates.sort(key=lambda c: (geometry.chebyshev(c, here) > geometry.REACH_CELLS, geometry.chebyshev(c, start),
+                                   geometry.chebyshev(c, here), c[1], c[0]))
+    goal = None
+    for cell in candidates[:16]:
+        if cell != start and not _feasible(state, rid, start, [cell]) and \
+                geometry.find_path(state, rid, start, [cell]) is None:
+            continue
+        if _would_identify(state, pid, cell):
+            goal = cell
+            break
+    if goal is None and camera.agent_identified(r.env, pid):
+        return          # already told apart from here; the approach action brings the robot within reach
+    if goal is not None and goal != start:
+        walk_to(r, goal, speed=speed)
+    r.do("face", deg=_bearing(r.state, tuple(r.state["robot"]["pos"]), pid))
 
 
 def walk_to(r, cell, speed=None):

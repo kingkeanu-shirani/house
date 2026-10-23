@@ -6,7 +6,7 @@ A spec (one per catalog entry, authored in tasks/authored/*.json):
   "extends": "template_name",          "params": {"dish": "mug"},      (optional)
   "house": {"dwelling": "house", "require": ["garage"], "residents": "minimal", "pets": "none", "start": "2026-10-09T21:00:00"},
   "setup": [ops...],                   (see tasks/setup.py)
-  "variants": [{"+setup": [...], "success": [...]} , ...],   seed % len(variants) selects one
+  "variants": [{"+setup": [...], "success": [...]} , ...],   variant_index(catalog_id, seed, n) selects one
   "instruction": "...", "phrasings": ["...", "...", "..."],
   "success": [...], "failure": [...], "preserve": [...], "side_effects": {...}, "milestones": {...},
   "order": [...], "deadlines": {...}, "rubric": {...}, "questions": {...}, "allow": [...],
@@ -37,6 +37,7 @@ Templates live in tasks/templates/*.json as {"templates": {name: partial spec}} 
 "{{param}}" placeholders; the authored spec's fields override the template's.
 """
 import copy
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -142,13 +143,45 @@ def expand(spec):
     return merge(base, own)
 
 
-def choose_variant(spec, seed):
+VARIANT_SALT = "house_ai/variant/v1"
+
+
+def variant_index(catalog_id, seed, n):
+    """The variant a seed selects among n (review H5 / I1: with seed % n every authored n divided 900, and the printed
+    address 100 + seed % 900 gave the variant away, on the hidden test seeds too). The seeds are taken in blocks of n
+    consecutive seeds; within block b = seed // n the variants are rotated by a domain-separated SHA-256 of (catalog
+    id, n, b): variant = (seed % n + rotation) % n. Knowing seed % n, or anything short of the whole seed, tells nothing
+    about the variant (the rotation is uniform and independent per block), while every block of n consecutive seeds
+    still holds every variant once -- so the verification seeds 0, 1, 2 cover every variant of a 2- or 3-variant spec,
+    as seed % n did. Deterministic: the same (catalog id, seed) always selects the same variant. None when n is 0."""
+    n = int(n)
+    if n <= 0:
+        return None
+    block, offset = divmod(int(seed), n)
+    text = "{}|{}|{}|{}".format(VARIANT_SALT, catalog_id if catalog_id is not None else "", n, block)
+    rotation = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big") % n
+    return (offset + rotation) % n
+
+
+def select_variant(spec, index):
+    """(the spec merged with its variant `index`, index); (a copy of the spec, None) without variants."""
     variants = spec.get("variants")
     if not variants:
         return copy.deepcopy(spec), None
-    index = seed % len(variants)
+    index = int(index)
+    if not 0 <= index < len(variants):
+        raise SpecError("{}: no variant {}".format(spec.get("catalog_id"), index))
     chosen = merge({k: v for k, v in spec.items() if k != "variants"}, variants[index])
     return chosen, index
+
+
+def choose_variant(spec, seed):
+    """(the spec merged with the variant `seed` selects, its index): variant_index of the spec's catalog id and the
+    seed; (a copy of the spec, None) without variants. Callers that hold a variant index use select_variant."""
+    variants = spec.get("variants")
+    if not variants:
+        return copy.deepcopy(spec), None
+    return select_variant(spec, variant_index(spec.get("catalog_id"), seed, len(variants)))
 
 
 def substitute(value, bindings):

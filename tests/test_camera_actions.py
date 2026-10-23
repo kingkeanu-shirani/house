@@ -1238,6 +1238,8 @@ class PerformanceTests(unittest.TestCase):
         return best_ms(run)
 
     def test_look_around_and_peek_frames_stay_within_budget(self):
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for seed in (0, 7):
             env = HouseEnv(seed=seed, camera="geometric", observe_on_step=False)
             env.step("look")

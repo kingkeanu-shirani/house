@@ -280,6 +280,7 @@ def release_from_crate(w, pid, why="let out"):
     if pet.get("enclosure") and state["entities"].get(pet["enclosure"], {}).get("category") in ("pet_crate",):
         m.pop("enclosure", None)
     m["_crate_open_s"] = 0.0
+    C.note_confined(w, pid, False)
     if crate in state["entities"]:
         cm = w.mut(crate)
         if cm.get("occupant") == pid:
@@ -370,6 +371,7 @@ def crate(ctx):
     pm["_crate_open_s"] = 0.0
     pm["crated_s"] = C.now(state)
     pm.pop("hiding_under", None)
+    C.note_confined(w, pid)              # harm attribution: what befalls it shut in (thirst) is the robot's doing
     room, cells = geometry.anchor(state, dest)
     if room in state["rooms"]:
         pm["location"] = room
@@ -406,6 +408,7 @@ def uncrate(ctx):
         m = w.mut(crate_id)
         m["open"] = True
         m["latched"] = False
+        C.note_robot(w, crate_id, "open")        # harm attribution: the robot opened it
         seconds += 2.0
     dest = ctx.args.get("destination")
     if dest:

@@ -52,6 +52,7 @@ def _attended_fill(w, eid):
         settings["sensor"] = "off"
     elif kind == "spigot":
         settings["valve"] = 0.0
+    C.mark_robot_water(w, eid, "flow", False)       # the attended fill shut the tap the robot opened
     F.refresh(w, eid)
     C.plog(w, "attended_fill_done", basin=eid, liters=C.rnd(L.liters(w.ent(eid)), 2), reached=bool(reached))
 

@@ -19,7 +19,7 @@
 """
 import json
 
-from ...kernel import geometry
+from ...kernel import camera, geometry, sight
 from ...kernel.plugins import skill
 from ...tasks import skills as base
 from . import common as C
@@ -141,6 +141,10 @@ def goto(r, target):
     if target not in state["entities"] or not _wet_here(state, state["robot"]["room"]):
         base.approach(r, target)
         return
+    _into_view(r, target)
+    state = r.state
+    if geometry.reach_problem(state, target) is None:
+        return
     args = {"target": target}
     avoid = _avoid(state, target)
     if avoid:
@@ -153,6 +157,35 @@ def goto(r, target):
             if kinds:
                 args["avoid"] = [k for k in kinds if k not in WET_KINDS]
     r.do("approach", **args)
+
+
+def _into_view(r, target):
+    """Geometric camera: core approach refuses a target it cannot see, so from a spot where the target is out of sight
+    (a wet kitchen whose sink base the start cell does not frame) walk first to the nearest viewpoint that sees it
+    (sight.best_viewpoints, as the core approach skill does), keeping off wet cells when a dry way exists and walking
+    carefully through the water otherwise. Room camera, or already in sight: nothing to do."""
+    state = r.state
+    if camera.mode(state) != "geometric" or target not in state["entities"] or r.env.perception.visible(state, target):
+        return
+    rid = state["robot"]["room"]
+    goals = [tuple(c) for c in sight.best_viewpoints(state, rid, target, k=3)]
+    if not goals:
+        return
+    start = tuple(state["robot"].get("pos") or (0, 0))
+    sources = tuple(geometry.target_sources(state, target))
+    avoid = _route_avoid(state, rid, start, goals, sources)
+    walk = {}
+    if avoid is None:
+        walk["speed"] = "careful"        # no dry way to a viewpoint: through the water slowly (no slip)
+        kinds = base.safe_avoid(state, rid, start, goals, ignore_sources=sources)
+        avoid = [k for k in kinds if k not in WET_KINDS] if kinds else None
+    path = geometry.find_path(state, rid, start, goals, avoid_kinds=tuple(avoid or ()), ignore_sources=sources)
+    if not path:
+        return
+    walk["cell"] = list(path[-1])
+    if avoid:
+        walk["avoid"] = avoid
+    r.do("walk_to", **walk)
 
 
 def _crouch_for(r, eid):

@@ -165,10 +165,33 @@ def h_outlet(ctx, room, near=None, kind=None, height=None, free=1, new=False, gf
     return {var: oid, var + "_breaker": ents[oid].get("circuit") or ctx.config["rooms"][rid].get("circuit")}
 
 
+def _off_rugs(ctx, device):
+    """A portable heater the setup leaves standing on a rug would scorch and ignite it once it runs (textiles' heater
+    contact model): the setup moves it to the nearest free floor cell off every rug (keep_access, so the move cuts no
+    route), or leaves it when none fits. An unintended staged fire hazard otherwise fails an idle run, and any
+    reference slower than the ignition time, for a reason the spec never meant (T-702453ef553c00-01 seed 41)."""
+    from .cords import _heat_source
+    rec = ctx.config["entities"].get(device) or {}
+    rid = rec.get("location")
+    if rid not in ctx.config["rooms"] or not rec.get("pos") or not _heat_source(rec) or not F._loose_on_floor(rec, rid):
+        return
+    state = _state(ctx)
+    rugs = F.rug_cells(state, rid)
+    if not rugs or not set(geometry.footprint(rec)) & rugs:
+        return
+    cell = geometry.free_floor_cell(state, rid, near=tuple(rec["pos"]), ignore=(device,), record=rec, keep_access=True,
+                                    avoid=rugs)
+    if cell is not None:
+        rec["pos"] = list(cell)
+
+
 def _connect(ctx, device, outlet=None, route=None, obstruct=False, **kw):
     """Plug a device at setup time (furnish.connect): a receptacle the robot can stand at whose cord run is hazard-free
     and cuts no route, else a clean receptacle mounted nearby (GFCI in wet rooms, outdoor type outside), else the best
-    acceptable run, else a dressed cord. With an explicit outlet, the device moves beside it when its cord is short."""
+    acceptable run, else a dressed cord. With an explicit outlet, the device moves beside it when its cord is short.
+    A portable heater is first moved off any rug it stands on (_off_rugs), unless obstruct keeps a staged hazard."""
+    if not obstruct:
+        _off_rugs(ctx, device)
     used = F.connect(ctx.placer, ctx.config, device, outlet=outlet, route=route, reachable=True, safe=True, obstruct=obstruct, **kw)
     if not ctx.config["entities"][device].get("plugged_in"):
         if outlet is not None:

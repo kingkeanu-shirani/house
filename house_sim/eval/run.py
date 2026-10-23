@@ -39,9 +39,12 @@ from ..catalog import ROOT, read_jsonl
 from .agents import (Budget, BudgetExceeded, CostLedger, action_catalog, canonical_name, filter_result, is_done, make_agent,
                      parse_agent_spec, redact_url_credentials)
 
-HARNESS_VERSION = "2"     # 2: keyed private-text digests (instruction_hmac), harness_fingerprint, cache provenance
+HARNESS_VERSION = "3"     # 2: keyed private-text digests (instruction_hmac), harness_fingerprint, cache provenance;
+#                           3: a secret per-episode nonce (episode_nonce: handles and fixed draws; review H8)
 PRIVATE_DIGEST_SCHEME = "hmac-sha256/split-key-subkey/house-harness-private-text-v1"
 _PRIVATE_DIGEST_INFO = b"house-harness/private-text-digest/v1"
+NONCE_SCHEME = "hmac-sha256/split-key-subkey/house-harness-episode-nonce-v1"
+_NONCE_INFO = b"house-harness/episode-nonce/v1"
 DEFAULT_CAPS = {"max_steps": None, "max_sim_s": None, "max_wall_s": 3600.0, "max_tokens": None, "max_cost_usd_episode": None,
                 "max_cost_usd": None, "require_done": True, "max_consecutive_invalid": None}
 UNPARSEABLE = "__unparseable__"          # an unknown action: the environment refuses it and counts an invalid step
@@ -146,6 +149,48 @@ def private_text_digest(purpose, catalog_id, tag, text, key=None):
     message = json.dumps([str(purpose), catalog_id, tag, text if isinstance(text, str) else str(text)],
                          ensure_ascii=False, separators=(",", ":"))
     return hmac.new(subkey, message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def episode_nonce(private, catalog_id, tag, key=None, public_key=None):
+    """The episode's secret nonce (house_sim.kernel.realism.NONCE_KEY; review H8, the harness half of K-LEAK's fix):
+    handles and every fixed draw (noise, slips, detection, domain instrument errors) follow it, so they cannot be
+    recomputed offline from the public spec, seed and code, and a model that memorised one run's handles finds others.
+
+    * A private (test-split) episode: HMAC-SHA256 of the episode (catalog id, seed tag) under a subkey of the split key
+      (NONCE_SCHEME), written nowhere; the key holder recomputes it to re-score (log_nonce), and a rerun of the same
+      episode reproduces it (its private response cache still serves it). Without the key: as a public episode's
+      below, but never logged (kept only in the episode's private replay).
+    * A public (dev/train) episode: recorded in its log (replay_log and the leaderboard read it). With public_key (an
+      agent's persistent response cache: llm.ResponseCache.nonce_key, a random secret kept beside the cached
+      responses and scoped by the agent's cache namespace) it is an HMAC of the episode under that key, so a rerun
+      against the same cache sees the same handles and makes no calls; otherwise a fresh random one."""
+    from ..kernel.realism import new_nonce
+    message = json.dumps([catalog_id, tag], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if private and key is None:
+        key = _split_key()
+    if not private or key is None:
+        if not public_key:
+            return new_nonce()
+        return hmac.new(bytes(public_key), message, hashlib.sha256).hexdigest()[:32]
+    if isinstance(key, str):
+        key = bytes.fromhex("".join(key.split()))
+    subkey = hmac.new(bytes(key), _NONCE_INFO, hashlib.sha256).digest()
+    return hmac.new(subkey, message, hashlib.sha256).hexdigest()[:32]
+
+
+def log_nonce(log, seed=None, key=None):
+    """The nonce of a logged episode: the log's own (public splits), else, for a private log under NONCE_SCHEME, the
+    one the split key derives (key holder only); None for a log from before harness version 3 (it ran without)."""
+    if not isinstance(log, dict):
+        return None
+    if log.get("episode_nonce"):
+        return str(log["episode_nonce"])
+    if log.get("episode_nonce_scheme") == NONCE_SCHEME:
+        key = key if key is not None else _split_key()
+        if key is None:
+            return None             # only the split-key holder can rebuild a test-split episode
+        return episode_nonce(True, log.get("catalog_id"), log.get("seed_tag"), key)
+    return None
 
 
 def versions():
@@ -274,18 +319,22 @@ def verification_evidence(records, root=ROOT):
     return status
 
 
-def verify_on_the_fly(records, seeds=None, perception=None, workers=None):
+def verify_on_the_fly(records, seeds=None, perception=None, workers=None, camera=None):
     """Verify the given specs now with house_sim.tasks.verify.verify_many on the dev seeds (by default) in each spec's
     own perception mode (perception=None, the definition used by the verification evidence and splits), or in a
-    forced mode ("realistic": the mode harness episodes run in)."""
+    forced mode ("realistic": the mode harness episodes run in). camera: the run's forced camera mode (--camera
+    room | geometric), so a spec whose reference fails in the camera mode the episodes run in is dropped; None
+    verifies each spec in its own camera (REVIEW_REPORT P5-6)."""
     from ..tasks.verify import SEEDS, verify_many
     seeds = tuple(seeds) if seeds else tuple(getattr(_splits(), "DEV_SEEDS", SEEDS) or SEEDS)
-    results = verify_many([r["spec"] for r in records], seeds=seeds, workers=workers, perception=perception)
+    results = verify_many([r["spec"] for r in records], seeds=seeds, workers=workers, perception=perception,
+                          camera=camera)
     status = {}
     for record, result in zip(records, results):
         failed = [t["seed"] for t in result.get("trials", []) if not t.get("passed")]
         status[record["catalog_id"]] = {"verified": bool(result.get("passed")), "source": "on_the_fly", "seeds": list(seeds),
-                                        "perception": perception or "spec", "detail": "passed" if result.get("passed") else "failed on seeds {}".format(failed)}
+                                        "perception": perception or "spec", "camera": camera or "spec",
+                                        "detail": "passed" if result.get("passed") else "failed on seeds {}".format(failed)}
     return status
 
 
@@ -482,6 +531,17 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
         config, task, plans = build(raw_spec, seed, camera=camera, perception=mode)
         task = apply_phrasing(task, episode.get("phrasing"), plans["bindings"])
         del plans                       # privileged reference/wrong plans and bindings: never shown to the agent
+        # the episode's secret nonce (episode_nonce): public logs keep it for replays, private ones only its scheme
+        from ..kernel.realism import NONCE_KEY
+        key_of = getattr(agent, "episode_nonce_key", None)
+        nonce = str(episode.get(NONCE_KEY) or "") or episode_nonce(
+            private, cid, tag, split_key, public_key=key_of() if callable(key_of) else None)
+        task[NONCE_KEY] = nonce
+        if private:
+            if split_key is not None and not episode.get(NONCE_KEY):
+                log["episode_nonce_scheme"] = NONCE_SCHEME
+        else:
+            log["episode_nonce"] = nonce
         record["risk_level"], record["fidelity"] = task.get("risk_level"), task.get("fidelity")
         instruction = task.get("instruction", "")
         if private:
@@ -517,10 +577,12 @@ def _run_episode(spec, episode, agent, caps=None, out_dir=None, perception=None,
     consecutive_invalid = 0
     try:
         if record["privileged"] and hasattr(agent, "prepare"):
+            # a privileged agent's shadow episode runs with the same nonce (its handles are the episode's)
+            shown = dict(episode, **{NONCE_KEY: task[NONCE_KEY]})
             if _accepts(agent.prepare, "camera"):
-                agent.prepare(copy.deepcopy(raw_spec), dict(episode), perception=mode, camera=env.camera_mode)
+                agent.prepare(copy.deepcopy(raw_spec), shown, perception=mode, camera=env.camera_mode)
             else:
-                agent.prepare(copy.deepcopy(raw_spec), dict(episode), perception=mode)
+                agent.prepare(copy.deepcopy(raw_spec), shown, perception=mode)
         agent.reset(instruction, copy.deepcopy(observation), copy.deepcopy(catalog))
     except BudgetExceeded as exc:
         end_reason = exc.reason
@@ -735,11 +797,12 @@ def _write_outputs(record, log, env, agent, out_dir, name, private, private_dir,
     record["log"] = path.relative_to(out_dir).as_posix()
 
 
-def replay_log(log, spec, seed=None, phrasing=None, perception=None, camera=None):
+def replay_log(log, spec, seed=None, phrasing=None, perception=None, camera=None, nonce=None):
     """Re-score a command log: rebuild the episode, re-issue every command the harness sent, and recompute the
     evaluation and success under the done protocol. Test-split logs carry no seed: pass it explicitly (recovered
     by the split-key holder from the seed tag). The camera mode is the log's (a log from before kernel v3.0 has
-    none: the spec's own, as then). The result also says whether the log was produced by the current
+    none: the spec's own, as then). The episode nonce is the log's (log_nonce: recorded in a public log, derived with
+    the split key for a private one; nonce= overrides; a log from before harness version 3 ran without one). The result also says whether the log was produced by the current
     simulation code and harness code ("code_fingerprint_match", "harness_fingerprint_match"; None when the log does
     not record them): a re-score under different code is not evidence for the original run."""
     from ..kernel.engine import HouseEnv
@@ -752,6 +815,10 @@ def replay_log(log, spec, seed=None, phrasing=None, perception=None, camera=None
     mode, camera = perception or log.get("perception") or "realistic", camera or log.get("camera")
     config, task, plans = build(as_record(spec)["spec"], seed, camera=camera, perception=mode)
     task = apply_phrasing(task, phrasing, plans["bindings"])
+    nonce = nonce or log_nonce(log)
+    if nonce:
+        from ..kernel.realism import NONCE_KEY
+        task[NONCE_KEY] = nonce
     env = HouseEnv(config, task, seed, perception=mode, camera=camera, trace=False, observe_on_step=True)
     env.observe()
     for step in log.get("steps", []):
@@ -884,8 +951,12 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
     if verify == "fly":
         # also in a dry run: verification is offline simulator work (no LLM calls, nothing written), and the estimate
         # must cover exactly the specs the real run would keep
-        say("Verifying {} spec(s) on the fly ({} perception)...".format(len(needed), mode_for_verify or "each spec's own"))
-        verification = verify_on_the_fly(needed, filters.get("verify_seeds"), mode_for_verify, filters.get("verify_workers"))
+        say("Verifying {} spec(s) on the fly ({} perception, {} camera)...".format(
+            len(needed), mode_for_verify or "each spec's own", filters.get("camera") or "each spec's own"))
+        # the episodes' forced camera mode (--camera) is the mode verification must pass in; passed only when forced
+        forced_camera = {"camera": filters["camera"]} if filters.get("camera") else {}
+        verification = verify_on_the_fly(needed, filters.get("verify_seeds"), mode_for_verify, filters.get("verify_workers"),
+                                         **forced_camera)
         failed = sorted(c for c, v in verification.items() if not v.get("verified"))
         if failed:
             say("  {} spec(s) failed verification and are dropped: {}".format(len(failed), ", ".join(failed[:20])))
@@ -986,6 +1057,7 @@ def run(agent_spec, split, specs, out_dir, workers=1, caps=None, dry_run=False, 
                 "replays_saved": bool(filters.get("save_replays", True)),
                 "verification": {"mode": {"evidence": "evidence", "fly": "on_the_fly", "none": "unverified"}[verify],
                                  "perception": (mode_for_verify or "spec") if verify == "fly" else None,
+                                 "camera": (filters.get("camera") or "spec") if verify == "fly" else None,
                                  "seeds": list(filters.get("verify_seeds") or []) if verify == "fly" else None,
                                  "per_spec": _jsonable(verification),
                                  "excluded": sorted(cid for cid, v in verification.items() if not v.get("verified")) if verify != "none" else []},

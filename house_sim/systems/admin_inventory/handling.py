@@ -20,7 +20,7 @@ from ...kernel.phys import impact as phys_impact, lawbook, statics as phys_stati
 from ...kernel.phys import props as phys_props, thermal as phys_thermal
 from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
-from .common import admin_facts, drop_cell, sheet_count
+from .common import admin_facts, drop_cell, sheet_count, visual_event
 from .common import require_readable
 from .perceive import dumps, hide_on, order_ids, realism_of, tier_on
 
@@ -215,7 +215,12 @@ def _hot_contact(ctx, eid, parent_id):
     and wax; a heat ring in a wood finish below 150 C; else scorched), recorded as damage.<mark> with the kernel's
     severity, plus heat_damaged. Resting ON a support is the kernel's contact_heat law, which owns it once active;
     INSIDE a container the kernel has no contact rule, so this domain keeps it whatever the law's state. Paper and
-    cardboard touched by something above about 230 C catch (stat fire)."""
+    cardboard touched by something above about 230 C catch (stat fire).
+
+    Before marking anything it asks every domain's phys.contact_heat hook, exactly as the law's contact_check does
+    (phys.thermal.contact_claimed): a contact another domain owns is not this rule's to mark -- an iron standing on
+    its heel rest (textiles_laundry), a pot on its own burner (appliances_cooking), a support that catches fire
+    instead (safety). Adoption breakage: this rule asked no one and scorched the ironing board under an upright iron."""
     w = ctx.w
     state = w.s
     parent = state["entities"][parent_id]
@@ -229,13 +234,15 @@ def _hot_contact(ctx, eid, parent_id):
         limit = phys_thermal.heat_limit_c(state, parent_id)
     if limit is None or temp <= limit:
         return
+    severity = round(min(1.0, (temp - limit) / HEAT_MARK_SPAN_K), 4)
+    if phys_thermal.contact_claimed(w, eid, parent_id, temp, severity):
+        return      # another domain's heat model owns this contact (the kernel's contact_check asks the same hooks)
     cls = phys_props.props(state, parent_id).cls
     mark = phys_thermal.contact_mark(cls, temp)
     pm = w.mut(parent_id)
     pm["heat_damaged"] = True
     pm["damaged"] = True
-    phys_impact.damage(w, parent_id, mark, min(1.0, (temp - limit) / HEAT_MARK_SPAN_K), detail="hot item inside",
-                       by="robot")
+    phys_impact.damage(w, parent_id, mark, severity, detail="hot item inside", by="robot")
     if cls in ("paper", "cardboard") and temp > IGNITES_C:
         w.stat("fire")
     w.emit("container_heat_damage", target=parent_id, item=eid, temperature_c=round(temp, 1), mark=mark)
@@ -283,6 +290,9 @@ def _event_relocate(w, args, env):
     item, to = args["item"], args["to"]
     if item not in w.s["entities"]:
         return False
+    # a person carrying something off is seen where it was and where it ends up (geometric camera: a "visual" notice
+    # when a frame of the robot's covers it): an exogenous change in view never happens unseen
+    visual_event(w, "resident_moved_item", source=item, size_m=0.5)
     m = w.mut(item)
     before_loc = m.get("location")
     for key in ("spos", "pos", "shelf", "held_hand", "revealed"):
@@ -305,6 +315,7 @@ def _event_relocate(w, args, env):
         if relation == "in" and parent.get("shelf_heights"):
             m["shelf"] = int(args.get("shelf", 0))
     w.log_move(item, before_loc, to, by=args.get("by", "resident"))
+    visual_event(w, "resident_moved_item", source=item, size_m=0.5)
     admin_facts(w).setdefault("offscreen_moves", []).append({"item": item, "to": to, "by": args.get("by", "resident"), "time_s": w.s["time_s"]})
     return True
 
@@ -315,6 +326,7 @@ def _event_consume(w, args, env):
     used = []
     for item in args.get("items", []):
         if item in w.s["entities"]:
+            visual_event(w, "resident_used_item", source=item, size_m=0.5)      # someone takes it and uses it up
             for child in w.descendants(item):
                 w.destroy(child)
             w.destroy(item)

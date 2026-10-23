@@ -1277,6 +1277,8 @@ class PerformanceTests(unittest.TestCase):
     def test_viewsheds_lidar_and_warm_visibility_stay_in_budget(self):
         st = self.state
         indoor = outdoor = lidar = 0.0
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for rid in sorted(st["rooms"]):
             geom = sight.room_geom(st, rid)
             for c, r in ((0, 0), (geom.cols - 1, geom.rows - 1), (geom.cols // 2, geom.rows // 2)):

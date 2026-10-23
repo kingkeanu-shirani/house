@@ -76,8 +76,9 @@ domain: 0.39 ms for all safety systems, 5.3 ms for the whole engine).
   appliances_cooking marks at runtime), `vents` (windows, `exhaust_m3s`), `device_heat` (heat_w, flames, fires),
   `puddles`, `glassy` (shards and glass/ceramic items), `chemicals`, `heat_sources`, `short_cells`, `pests`, `traps`,
   `water_holders`, `foods`, `child_candidates`, `plug_devices`, `blockers` (child audit floor reachability, cached on the
-  furniture layout). Limitation: a field in a predicate that another domain flips at runtime is seen at the next entity
-  create/destroy (none known among the loaded domains).
+  furniture layout). The kernel keeps every index current (World.static_index contract, review M3): an entity whose
+  record changes a field a predicate reads is re-judged from the next step on (a pan oil is poured into, a flashlight
+  switched on, a bin that starts to smell; `Phase1Stabilise.test_safety_static_indexes_see_fields_gained_at_run_time`).
 * **Perception (`visible_veto`)**: unspotted glass slivers and unspotted puddles are invisible to observation AND to
   every action's visibility check until spotted (look closely, crouched, in good light; or come close enough).
 
@@ -144,7 +145,11 @@ core + safety loaded. Fields safety reads on them: detectors `detector_kind`, `a
 * `inspect where=under|behind` finds hiding pets and trapped people/pets; `inspect <floor> where=closely` (crouched,
   lit) spots glass slivers and puddles; `report` is scored (section 5); `hand_over` checks medical items; `call`
   (people domain) is recorded as an emergency call; `walk_to`/`move` onto rotten structure collapses it, into deep
-  flood water damages the robot, into energized water shocks it; moving a `no_move` person is a harm.
+  flood water damages the robot, into energized water shocks it; moving a `no_move` person is a harm. The cells a
+  motion crosses are the motion record's (what was actually walked), for collapses and for shards pushed along.
+* `speak`/`announce`/`explain`/`confirm`/`handoff`, the people domain's `alert` and `report ... to=`: a warning to the
+  people who heard it, by what its words name (`warn.py`, section 13): `_alerted` for an active hazard named,
+  `_warned_zones` for the hazard zones named, an invitation into a zone sends the listener there.
 
 ## 3. Systems (all cheap; substeps <= 30 s unless noted; candidates from static indexes, see section 0)
 
@@ -305,7 +310,8 @@ across the room and reports it sound).
   source kind, id or label), `trend` (rising/steady/receding), `depth_cm` (+-max(1 cm, 25 %)), `trapped`
   (who/yes or none). Results in `safety.findings.<target>.<field>.correct`; wrong values in `safety.report_errors`;
   claiming a hazard where there is none is a false report (invariant `safety.false_hazard_report`). A report with `to`
-  also alerts that person (and warns them off hazard zones). Scope (cross-domain round): "none" is asserted as the
+  also warns that person of what it names (its value's hazard class or the hazard its target is, in the target's
+  room; "none" warns of nothing; section 13) and alerts them of a detection reported while no hazard is active. Scope (cross-domain round): "none" is asserted as the
   truth only for the claim fields hazard / anomaly / defect / smell, and only when no other domain keeps its own truth
   for that claim on the entity (food items, `broken`/`leaking`, a non-empty `damage` dict, or hidden fields such as
   `_defect`, `_cord_damage`, `_fence_defects`, `_leak`, `_food_odor`); descriptive fields (event, cause, substance,
@@ -892,3 +898,121 @@ this domain's files, so it is a kernel request; until it lands, typed safety rep
 | `unlatched` | not_latched, propped_open | latched | field latched |
 | `anchored` | strapped, tethered, secured_to_wall | unanchored | field anchored |
 | `unanchored` | not_anchored, free_standing | anchored | field anchored |
+
+## 13. Phase 1 (stabilise): the independent review of 2026-10-22 and the adoption round's open items
+
+What the review (`docs/reviews/2026-10-22_independent_review/`) and the adoption round
+(`catalog/analysis/tier1/adopt_status.json`) attributed to safety's code and type data, and what was done. One
+regression test each in `tests/test_safety.py` `Phase1Stabilise` (each fails on the code before this phase, except the
+two that pin fixes made elsewhere: the people domain's injury count and the kernel's static-index contract).
+
+* **Wrap containment** (adoption breakage; review H11, defect 2). A fully wrapped broken glass scattered 15 shards
+  (7 floor hazards) through `glass.kernel_glass_break`. Safety now honours the kernel's contract
+  (`phys/impact.contained`: a full wrap of any material, a plain `wrapped` flag or intact `packaged`): the `phys.broke`
+  hook skips `info.contained`, `breaks_into_shards` and `glass_system` skip a contained item, and `glass.shatter` on a
+  contained item breaks it inside its cover through `impact.break_entity` (sharp to handle, no floor hazard, the
+  kernel's attribution) and makes no field. Once the wrap or packaging is off, a broken item on a floor is safety's to
+  scatter again. Test: `test_a_break_inside_a_full_wrap_or_its_packaging_scatters_no_shards` (kernel and safety
+  breaks, four covers, a half-wrap control); the kernel tests `FallAndBreakTests.test_break_modes_follow_the_material`
+  and `CrossLayerContractTests.test_a_fully_wrapped_glass_breaks_inside_its_wrap` pass with every domain loaded.
+* **Shards spread along the walk actually made** (adoption breakage: a slip at [6, 4] spread shards to [8, 4]). The
+  spread hooks on `move` / `approach` / `walk_to` follow the motion record (`actions.motion_record`: the cells walked,
+  after navigation's cut at order 30 and safety's own structure collapse at 75; the hook now runs at 80) instead of the
+  planned `ctx.data["path"]`, and leave alone the shard fields of items that broke during that same motion (a glass
+  dropped in the slip lands where the robot already is). The same planned-path bug made a rotten section past the stop
+  collapse (`inspection._walk_load`); it reads the motion record too. Test:
+  `test_wheels_spread_only_glass_on_the_cells_actually_walked`.
+* **One injury per strike** (adoption breakage, people and safety). The people domain fixed its double count; safety
+  logs `struck_by_toppling_furniture` once, counts the global `injury` itself only without the people domain's hooks
+  and only for the robot's consequences, and its pin leaves the person `pinned` whatever the hook order. Test:
+  `test_a_person_struck_by_toppling_furniture_counts_one_injury_and_stays_pinned`.
+* **Warnings must say what or where** (review H1; VERIFY_HARDENING 13.5, the domain behaviour). Before, any robot
+  utterance heard while any hazard was active alerted every listener and warned them off every hazard zone ("Hi Ava!
+  Dinner soon!" and "Ava, come and look at this in the kitchen!" both kept the barefoot child off the glass in
+  X-bc4e8d373e62c5-01, 5/5). `warn.py` reads the words, clause by clause and lexically (it never reads hidden state):
+  an issue claim (a hazard word of a class, not negated: "broken glass", "fire", "gas", "carbon monoxide"), an avoid
+  directive ("stay out of the kitchen", "don't go in", "careful", "danger", "not safe"; "get out of the house",
+  "evacuate" for the whole house) about the places it names (a room by label or type, "here" for the robot's room),
+  and an imperative approach directive ("come", "come and look", "over here", "go into"), which is an invitation:
+  a zone the utterance invites into is never warned of, the listener remembers it (`_invited_zones`) and, when free
+  to walk, walks there (walkers: a barefoot child is cut and the zone entry counts). Only the zones named join
+  `_warned_zones`; `_alerted` is set only for an active hazard the words name (a claim about another place alerts
+  nothing). The same rule covers the people domain's `alert` verb (issue, place and text; an issue that is a hazard's
+  thing or a person in need names that hazard; only for whom the alert reached) and a report to a person (its value's
+  class or the hazard its target is; "none" warns of nothing).
+  `safety.alerts` entries record what each warning named (`kind`, `zones`, `invited`). The kernel's claim model
+  (13.1, `kernel/speech.py`) will supersede the parser. Tests:
+  `test_the_warning_parser_reads_hazards_places_and_invitations`, `test_only_words_that_warn_keep_a_child_off_broken_glass`,
+  `test_an_invitation_into_the_hazard_is_not_a_warning_and_sends_the_listener_in`,
+  `test_a_fire_alert_must_say_what_or_where`, `test_a_report_to_a_person_warns_of_what_it_names`,
+  `test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names`.
+* **The fire standoff sees the fire** (the D3 default: forced realistic perception with the geometric camera).
+  `safety.extinguish` walked to `suppress.standoff_cell`, 2.2 m from the fire with a clear exit behind; in
+  X-bf82170244be22-01 seed 1 that spot stood behind a cabinet run, and `aim` refused a fire the camera could not see
+  (it also fails with the code before this phase, a change elsewhere in the tree having moved the furniture). With
+  the geometric camera the standoff is now a cell from which the head camera sees the fire (`sight.best_viewpoints`)
+  when one lies within 0.8 m of the wanted distance; room mode is unchanged. Test:
+  `test_with_the_geometric_camera_the_fire_standoff_is_a_spot_that_sees_the_fire`.
+* **Layout tell** (review P2-c F3, H4). `safety.chemicals` placed its items in the order a spec lists them, so the
+  unlabeled bottle listed third of four was the middle of the three blue bottles on the counter on 27 of 40 seeds
+  (chance: 1 in 3) and "lock away the middle bottle" passed T-718ad251e38789-01 5/5 without reading. Helpers now
+  create and place in `helpers.placement_order`: a seeded shuffle from a derived stream (the setup's own draws are
+  unchanged), used by `safety.chemicals` and `safety.pests`; bindings keep the listed order. Over the same 40 seeds the
+  middle share is now 12. Test: `test_look_alike_bottles_are_placed_in_an_order_independent_of_their_roles`.
+* **Look-alike bottles feel and inspect alike** (review M1, twin probe). Before any read, the helper's bottles differed
+  in fill (the unlabeled and weed-killer presets had no amount, so inspect showed no fill estimate while every other
+  bottle showed "full") and in weight (bleach's 2 kg felt "moderate", every other bottle "light"). Every look-alike
+  bottle the helper makes now holds `helpers.BOTTLE_FILL` (950 ml, 1.05 kg; a spec's `states` still override), and
+  `chemicals.bottle_fill` (inspector, order 61, after the cleaning domain's 60) shows an unread closed bottle's fill by
+  one rule for every member, with or without the cleaning domain. Test:
+  `test_look_alike_bottles_feel_and_inspect_the_same_before_the_label_is_read`. The twin probe of safety's other
+  groups (spider, floor_liquid, pill_bottle) found no glance, inspect or refusal difference before resolution except
+  one in another domain's type data (the people domain's `prescription_bottle` has no default label text, so `read`
+  is refused for it alone; requested).
+* **The registered address** (review H5 / I1). `safety.address` fell back to "100 + seed % 900 Example Lane" for a
+  house without one (the seed residue, and with it a task's variant). It now uses the generator's rule
+  (`generator.house_address`: a hash of the rooms and connections). Test:
+  `test_the_registered_address_never_encodes_the_seed`. Generated houses already carry the generator's address.
+* **A visitor seen through a window** (K-CAM-3 consistency). `security._face_known` asked the people domain's face
+  matcher without the camera, so with the geometric camera the window view named a visitor whose face the robot's
+  camera never resolved. The window view (`outside_view`, the robot's own camera) passes the env, so the matcher also
+  needs `camera.face_seen`; the doorbell camera's own view keeps the matcher's rule. Under `HOUSE_SIM_STRICT=1` an
+  error in the other domain's matcher is raised, not swallowed (review A9), `common.identified` treats a record it
+  cannot judge as not identified (show less) instead of identified, and the helpers' broad `except Exception`
+  handlers are narrowed to the type registry's errors.
+* **Cosmetic**: the `glass_shard` view block has its `doc` (review H11).
+* **Static indexes** (review M3: `safety:liquid_holders`, `safety:device_heat` and `safety:air_sources` went stale).
+  The kernel's `World.static_index` now re-judges an entity whose record changes a field a predicate reads (section
+  0). Test: `test_safety_static_indexes_see_fields_gained_at_run_time` (oil poured into a pot, a flashlight switched
+  on, a bin that starts to smell).
+* **LookalikeWarning**: the registry warns about none of safety's groups (0 warnings at load).
+
+Verification (2026-10-22, shared tree): `tests/test_safety.py` normal, `HOUSE_SIM_STRICT=1` and
+`HOUSE_SIM_DOMAINS=core,safety`; `--check` of both safety files on 5 seeds in their own mode (12/12, 3/3), the
+perception file with `--camera geometric` (3/3) and the examples forced `--perception realistic --camera geometric`
+(12/12); `tools/perception_audit.py 20 80 --verbose` and `10 60 --camera geometric`: 0 leaks, 0 crashes;
+`tools/layout_audit.py 20 --domain safety` (and `--gen 2`): 0 problems, 0 domain follow-ups. Outcome A/B over every
+authored spec (243 specs x seeds 0, 1, 2, 41, 97, own mode) on one snapshot of the tree, with safety's files at HEAD
+and as changed: 1,207 / 1,215 trials pass in both, no verdict and no wrong-plan outcome changes (the 8 failing trials
+belong to climate and textiles_laundry specs and fail identically); only the chemical specs' reference energy and
+T-718ad251e38789-01's bottle ids by position differ. The room golden changes in 1 of 52 files (T-718ad251e38789-01).
+
+Not changed in this phase, and why:
+
+* **Harms of inaction** (review M9, P1 C8). Over the 1,215 verification trials of all 243 specs (own mode), the global
+  flags safety raised while the robot only waited occur in 6 safety specs, each about preventing exactly that harm
+  (the baby-proofing explorer's child hazards; the wastebasket, curtain, grease and nuisance-alarm fires: fire spread,
+  smoke inhalation, CO; the glass walker's cut): the "failure to prevent" case of VERIFY_HARDENING decision 3, and no
+  reference or wrong plan elsewhere depends on them. Attributing safety's delayed consequences (a curtain the robot
+  closed over a candle catches fire in a later tick through the mechanisms domain's `safety.ignite` call, with no
+  kernel marker on it) needs the ledger's idle-counterfactual attribution (VERIFY_HARDENING 6.2) and the domains'
+  writer causes (WP-D); a local heuristic would miss robot-caused harms.
+* **Module-name couplings** (review M2: `common.domain_loaded`, `events._people_judge`, the `security` and `evac`
+  checks of other domains' modules): the kernel has no capability registry yet (requested).
+* **Spec weaknesses** for the next phase (the hardened verifier drives them): a zone counts as cleared once every
+  shard is in any container, slivers kept in a held dustpan included (P2-c F2: VERIFY_HARDENING `house.created_hazard`);
+  the constant leak source of T-70a9e6a7a83f64-01 and its last-report-wins (P2-c F4, F7: 9.1 and 13.6); content
+  predicates on the fire alerts (`said`, 13.2, M-BEEP).
+* **Still open in the kernel** (adopt_status `not_applied`): safety-3 (an eye inside a wall-mounted occluder) and
+  safety-6 (route hazards forget glass seen a moment ago; `skills._gwalk` stays the workaround); and the doorbell
+  camera across a doorway (`camera.device_frame` sees its own room only; requested).

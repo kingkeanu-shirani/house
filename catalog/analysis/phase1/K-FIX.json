@@ -1,0 +1,131 @@
+{
+ "id": "K-FIX",
+ "fixed": [
+  {
+   "item": "H11 defect 1: one-hand pick_up of 7.65-8.0 kg dropped the item (8.01 kg held with two hands)",
+   "how": "Kernel side checked at the root: forces.lift_plan (believed capacity), body.check_lift (true derated capacity), the hold safety net (1.5 x hold capacity) and the handle law agree, and with HOUSE_SIM_DOMAINS=core every mass up to 8 kg is held one-handed. The drop came from manipulation's grip model (the adaptive normal grip capped at 50 N slips above 7.645 kg at default friction). The kernel contract is now written down (docs/PHYSICS.md section 8 'Lift monotonicity'): a lift the plan accepts holds for a clean, dry item with the default grip; and two cross-layer tests run the whole engine. The manipulation owner's concurrent change (common.rated_squeeze_n: the one-hand normal grip may squeeze what holds the hand's rated load, clamped to body.grip_limit_n) makes them pass on the shared tree.",
+   "test": "tests/test_physics_forces.py LiftMonotonicityTests (2 tests: monotone over 18 masses x 3 materials; 7.65 / 7.9 / 8.0 kg held in the right hand, 0 robot_drops) and LiftPlanMatchesCorePickUpTests.test_every_case_matches_core tightened (an accepted lift must be held). Fail on HEAD (with HEAD's manipulation), pass on the shared tree; pass with HOUSE_SIM_DOMAINS=core."
+  },
+  {
+   "item": "H11 defect 2 (kernel side): a fully wrapped broken glass scattered shards",
+   "how": "physics.impact.contained(record) (a full wrap: coverage >= 0.95 of any material or a plain wrapped flag; or intact packaging). A contained break gets the sharp handling hazard but no floor hazard; phys.broke hooks and the phys.break event carry contained: true (the key is absent otherwise, so no other event changes); a fallen fully wrapped container keeps its loose contents (jolted, not thrown out). The contract for domains is in docs/PHYSICS.md section 4 'Wrap containment' and the impact module docstring. The safety owner applied the contract concurrently (glass.contained -> impact.contained in kernel_glass_break and shatter): on the shared tree the review's probe now leaves 0 shards and no floor hazard for a wrapped glass (15 shards and 7 floor hazards before).",
+   "test": "tests/test_physics_statics.py FallAndBreakTests.test_a_break_inside_a_full_wrap_is_contained, test_a_fallen_fully_wrapped_box_keeps_what_is_in_it (kernel; fail on HEAD, pass now); tests/test_physics_settle.py CrossLayerContractTests.test_a_fully_wrapped_glass_breaks_inside_its_wrap (whole engine: fails on HEAD, passes on the shared tree and with HOUSE_SIM_DOMAINS=core); the existing test_break_modes_follow_the_material passes again too."
+  },
+  {
+   "item": "H11 defect 3 (kernel side): one privacy intrusion counted 1 in room mode and 2 with the geometric camera",
+   "how": "The double count was the people domain's (its entry intrusion plus its camera_capture hook); the people owner's concurrent fix (harms._count_privacy keyed by the camera's capture key) removes it. Kernel side: the section-4.6 cross-layer test 'camera-mode invariance of harm counts' added (whole engine, both camera modes, every GLOBAL_FLAG), and the one remaining camera-dependent case documented in docs/KNOWN_LIMITS.md section 6 (a robot already in the room when a private moment begins counts 0 in room mode, 1 with the geometric camera; without the people domain the kernel counts captures in geometric mode only).",
+   "test": "tests/test_kernel_contracts.py CameraModeHarmTests (3 tests; walk-in fails on HEAD with HEAD's people domain: room 1 vs geometric 2; passes on the shared tree; skipped with HOUSE_SIM_DOMAINS=core because the privacy rules are the people domain's)."
+  },
+  {
+   "item": "M3 / A4: stale static-index caches outside the journal (save/load divergence of T-50c78da60ad2a8-01; 10 stale indexes in 6 domains)",
+   "how": "World.static_index has a contract that makes its content a pure function of the state: the set of entities whose record as it was when the current step began matches the predicate, plus or minus the entities created or destroyed since (at once). Every predicate evaluation reads the record through a view that notes the fields it reads; when a step commits, a changed entity becomes pending in exactly the indexes that read one of its changed fields (thermal's temperature writes, read by no index, cost nothing); creations, destructions and rollbacks (rollback, rollback_to) are applied at the next lookup; a caller may declare its read fields (reads=, used by of_type and the kernel's puddle index). Strict mode also checks that a predicate answers the same on its read view and that declared reads are complete. World._version is kept unchanged for the camera and sight memos.",
+   "test": "tests/test_kernel_contracts.py StaticIndexTests (5 tests incl. a save/load equivalence episode; 4 fail on HEAD). Probes: SAVELOAD-EQ (review S/saveload_probe.py) over all 243 specs, 471 save points: 0 state, observation, verdict or step-message differences (HEAD: 1, the toaster); STATIC-INDEX audit (every 5th of 1,252,518 lookups over all 243 reference runs checked against a fresh computation): 0 stale."
+  },
+  {
+   "item": "H14 / A1: the stack law broke 8 specs under the forced 'ready' laws (bowl on a kitchen scale; ironing board's folded size)",
+   "how": "statics.stack_verdict judges each member against the top of the one below it (statics.top_wd: its declared surface_size_m while upright, else its footprint, in that member's own frame, which is also the frame its offset is measured in) by the part that bears on it (statics.contact_wd: its footprint, or its foot base_m when upright); support.dims gives an open folding stand its in-use size (open_size_m while open). laws.json: textiles_laundry added to stack.duplicated_by (its fold.textile_stack_fit is a copy of the clearance rule, review A1).",
+   "test": "tests/test_physics_statics.py test_a_member_is_judged_against_the_top_it_rests_on, test_offsets_are_measured_on_the_lower_members_own_top, test_a_folding_stand_set_up_has_its_in_use_size (fail on HEAD). D1-GLOBAL for stack (base + K-FIX only): all 243 specs x 5 seeds with stack forced: 241/243, the same two failures as the unforced HEAD check (T-d1f9385dbb80fc-01 people, T-7d4006bda247ba-01 textiles scorch; neither stack-related); HEAD: 8 specs broken by stack. Unit tests of physics_statics, physics_settle, manipulation, textiles_laundry, appliances_cooking, electrical, food and tools_vehicles with stack forced: no stack-caused failure."
+  },
+  {
+   "item": "Adoption request mechanisms-6: core lock / unlock with a held key whose 'opens' names the door",
+   "how": "systems/core.py held_key_for(w, target, record): a held key whose opens names the lock by id or by its label (any case, spaces normalized) works it when the lock's own key is not held; the refusal text is unchanged.",
+   "test": "tests/test_kernel_contracts.py HeldKeyTests (2 tests; fail on HEAD)."
+  },
+  {
+   "item": "Adoption request admin_inventory-5: generation-2 key bowl with no entry bench or side table",
+   "how": "generator/furnishings.py SPOT_FALLBACKS (key_bowl: shoe_rack, console_table, wall_shelf; a 'fallback_spot' list in the item data wins). Layout audit gen 2 (220 houses): 'no spot for key_bowl' 47 -> 22 (the rest have a full shoe rack), 0 problems; generation 1 unchanged (test_generator_compat green on base + K-FIX).",
+   "test": "tests/test_generator_gen2.py EntryKeysTests.test_a_key_bowl_falls_back_to_the_shoe_rack (fails on HEAD)."
+  },
+  {
+   "item": "GEN key rings (with mechanisms-6): a resident's key ring opens the front door",
+   "how": "generator/belongings.py door_named: a key ring's data name 'front door' becomes the id of the house's front door (an apartment door included), another name the lockable entity with that label; generation 2 only.",
+   "test": "tests/test_generator_gen2.py EntryKeysTests.test_key_rings_open_the_front_door (generated houses incl. an apartment: the ring names the front door's id and unlocks it in the engine; fails on HEAD)."
+  },
+  {
+   "item": "Adoption request outdoor_plants-2: drip attribution",
+   "how": "phys.liquids.drip_start / leak_start take by= ('robot' | 'exogenous'), kept in the process parameters and passed with every portion deposited; None keeps the per-portion rule. Documented in docs/PHYSICS.md section 5.",
+   "test": "tests/test_physics_fluids.py test_a_drip_or_leak_started_by_the_robot_is_the_robots (errors on HEAD)."
+  },
+  {
+   "item": "Harm attribution for exogenous events in kernel code paths (wind, pets, scripted events; TIER1_DECISIONS)",
+   "how": "Audited every kernel site that raises a global harm flag (impact._damage / _break, liquids.spill, body_faults, camera fallback, core): all go through robot_caused / explicit by=, and physics events, the wind law and bumps by pets or people are exogenous unless the robot arranged the thing. No kernel defect found; a metamorphic guard added. The wind-slam and pet-escape cases of adopt_status are mechanisms-domain code (requests below; impact.damage(..., by='exogenous') is the kernel path they should use).",
+   "test": "tests/test_physics_settle.py CrossLayerContractTests.test_exogenous_wind_and_bumps_raise_none_of_the_robots_harm_flags (a generated house idle for 2 h, calm vs gale gusts, bumps on every surface of two rooms and windy weather: equal global harm flags, more phys_* consequences)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Adoption request textiles_laundry cross-domain 5: generation-2 sofa cushions ('no spot for sofa_cushions' in 220/220 houses)",
+   "why": "Not precise as requested: the sofa is a flat 2 m strip with no layering, so placing 2-3 cushions of 0.6 m before textiles' dressing (order 75) would push textiles' folded throw and both pillows off the sofa (0.2 m left), which textiles' specs and docs rely on; after the dressing only one fits (today). The physically right fix is layering (textiles puts its throw and pillows on the cushions) or a data change (furnishings.json 'at_least' counting textiles' pillows), neither in K-FIX's files. Request filed."
+  },
+  {
+   "item": "Room golden re-record (tests/data/room_golden.json); gen1 digests",
+   "why": "Not re-recorded. With base + K-FIX only, the golden diff is confined to the 19 generation-2 fixed specs and the classes of the two intended generation-2 generator changes (entities.key_bowl_1 added; key ring opens names door ids; keys, wallets and sunglasses homed in the bowl; handle renames and walking-time shifts that follow); the 8 scripted generation-1 runs and every generation-1 house are unchanged, and the kernel changes alone change no golden digest (0 of 52 files). On the shared tree test_room_golden and test_generator_compat also fail from other owners' concurrent generation-1 changes, which are not reviewed, so a re-record now would bake them in; it belongs to the phase's single reviewed re-record."
+  },
+  {
+   "item": "Performance budget (TIER1_INTEGRATION 3.4) measured on a quiet machine",
+   "why": "The machine ran about 45 Python processes of other agents, so wall-clock G7 numbers swung 1.4-3.6 s for the same code. CPU-time measurement: steady substep cost unchanged (3.1-3.6 ms both); the static indexes' first lookups in an episode cost about +20 ms of CPU (read views; 184 indexes x 649 records: 15 ms plain vs 35 ms viewed), the 1 h wait 0.266 -> 0.281 s CPU (one 15.6 ms timer tick, about +5 %). G7 must be re-measured on a quiet machine; if the +20 ms per episode matters, more callers can declare their read fields (static_index reads=) to skip the view."
+  },
+  {
+   "item": "Privacy counting in room mode without the people domain; the 'already in the room' case",
+   "why": "camera.py is not a K-FIX file and the people domain owns what a private moment costs in room mode. Kernel only: room mode counts no privacy captures (the kernel fallback is geometric). With people loaded, a robot already present when a private moment begins counts 0 in room mode and 1 with the geometric camera. Both documented in docs/KNOWN_LIMITS.md section 6; requests filed."
+  },
+  {
+   "item": "Wind slams counted as robot damage; a pet escaping without pets' escape path (adopt_status breakages, mechanisms)",
+   "why": "Domain code (systems/mechanisms/world.py _slam -> common.mark_damage; closures.escape). The kernel path they should use exists (impact.damage(..., by='exogenous'), idempotent per level); the kernel's own paths were audited and guarded by a metamorphic test. Request to mechanisms."
+  },
+  {
+   "item": "Remaining shared-tree spec failures (5 of 243)",
+   "why": "None is K-FIX's: T-7d4006bda247ba-01 (textiles/appliances scorch breakage, fails at HEAD); A-d66994a566899c-01 seed 1 'inspect sweater_2: That is not visible here' (fails on a snapshot of the shared tree with every K-FIX file reverted to HEAD: other owners' changes); T-c49fadcea69182-01 and T-a31398ab2abf54-01 (wrong plans that raise a PlanError are no longer counted as having run: the concurrent tasks/verify.py change); T-3b1a4024d46110-01 seed 97 failed during the run while other owners were editing and passes on a snapshot taken right after, with and without K-FIX's generator changes."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 4456,
+  "passed": false,
+  "strict_passed": false,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 238
+ },
+ "requests": [
+  {
+   "owner": "safety",
+   "request": "Done concurrently (glass.contained / KI.contained in kernel_glass_break and shatter): keep every shard path (glass_system, _spread_hook, walkers) behind impact.contained(rec); the cross-layer tests test_physics_settle CrossLayerContractTests and test_physics_statics test_break_modes_follow_the_material now pass on the shared tree."
+  },
+  {
+   "owner": "manipulation",
+   "request": "Keep common.rated_squeeze_n (the lift-monotonicity contract, docs/PHYSICS.md section 8); stacking.py stack_reason still compares C.dims of the members (the old oversize rule): use kernel statics.top_wd and statics.contact_wd so the domain's stack explanation agrees with the kernel's stack law (a mixing bowl on a kitchen scale's platform is stable)."
+  },
+  {
+   "owner": "people",
+   "request": "Room mode counts only entering a room where someone is in a private moment; a robot already present when the moment begins (or watching for minutes) counts 0 in room mode but 1 with the geometric camera. Count a private moment the robot's sensors witness in room mode too (one per person per moment, the camera's capture key) so tests/test_kernel_contracts.py CameraModeHarmTests can assert equality in that case as well; then remove the KNOWN_LIMITS note. Drop the camera._capture_key fallback once camera exposes a public capture_key."
+  },
+  {
+   "owner": "K-CAM (camera.py owner)",
+   "request": "Expose camera.capture_key(person, pid) publicly (people's _moment_key falls back to the private _capture_key); consider a room-mode capture rule for the kernel fallback without the people domain (today kernel-only privacy counting happens in geometric mode only)."
+  },
+  {
+   "owner": "mechanisms",
+   "request": "world._slam: record wind slams as exogenous (impact.damage(w, door, kind, level, by='exogenous'): idempotent per level, so a repeated slam counts once) instead of common.mark_damage (robot damage, counted on every slam); closures.escape: go through pets.behavior.escape or camera.visual_event. Core lock / unlock now accept a held key whose 'opens' names the lock (your request 6); generation-2 key rings name the front door's id."
+  },
+  {
+   "owner": "textiles_laundry / main session (data/generator/furnishings.json)",
+   "request": "Sofa cushions: either layer the sofa dressing on the cushions (textiles puts its throw and pillows on the sofa_cushion entities, which the stack law handles: 0.45 m pillows on 0.6 m cushions are stable) and let the generator place the cushions first, or give the sofa_cushions item 'at_least' semantics counting what fits. stack.duplicated_by now includes textiles_laundry (fold.textile_stack_fit duplicates the clearance rule): report stack readiness for D1."
+  },
+  {
+   "owner": "outdoor_plants",
+   "request": "Your request 2 is in: phys.liquids.drip_start(..., by='robot') / leak_start(..., by=...) attribute every portion; pot drainage may become a timed drip without losing the robot's attribution."
+  },
+  {
+   "owner": "main session (docs/KERNEL_API.md, docs/GENERATOR.md; golden)",
+   "request": "KERNEL_API.md 'Performance APIs' still says static indexes are 'cached until any entity is created or destroyed': replace with the World.static_index contract (step-start records, creations and destructions at once, reads= declarations; docs/KNOWN_LIMITS.md section 3). GENERATOR.md: the key bowl falls back to the shoe rack or a console top (furnishings.SPOT_FALLBACKS) and key rings name the front door's id. One reviewed golden re-record after the phase (K-FIX's classes listed in not_fixed)."
+  },
+  {
+   "owner": "D1 owner (law flips)",
+   "request": "D1-GLOBAL preview for stack with K-FIX: 243 specs x 5 seeds with stack forced: 241/243 (the two HEAD failures, unrelated); 8 domain test files pass with stack forced except the wrap tests that safety has since fixed. stack can flip once manipulation and textiles_laundry report ready."
+  }
+ ],
+ "notes": "Shared tree at the end (16 domain owners and two kernel agents editing concurrently): full unit suite (tools/orchestration/green_tests.py 5): 4456 tests per mode, 5 of 63 files failing in normal mode and 6 in strict (test_camera_realism overhead and test_mind update budget: wall-clock bounds that pass when re-run alone; test_generator_compat and test_room_golden: other owners' generation-1 changes plus K-FIX's intended generation-2 golden classes; test_plumbing_liquids: the plumbing owner's work in progress, 168/168 green on re-run; test_safety look-alike bottles: safety / realism work in progress). Every K-FIX test file (test_kernel_contracts, test_physics_forces / statics / settle / fluids, test_generator_gen2, test_kernel, test_kernel_layout, test_world_savepoint, test_camera) passes per file in normal and strict mode, and the kernel files pass with HOUSE_SIM_DOMAINS=core. All authored specs (combined file, --check --workers 4): 238/243 (HEAD 241/243); none of the 5 is K-FIX's (not_fixed). Attribution runs on base (HEAD) + K-FIX only: all authored specs unforced 241/243, the same two failures as HEAD (T-d1f9385dbb80fc-01 people, T-7d4006bda247ba-01 textiles scorch), so K-FIX changes no spec verdict; with the stack law forced 241/243 (HEAD with stack forced: 8 specs broken by it); SAVELOAD-EQ 0/471 divergences; STATIC-INDEX 0 stale; golden diff only the generation-2 classes; generation 1 unchanged (test_generator_compat green). The three H11 probes on the shared tree: 7.65-8.0 kg held one-handed, a wrapped glass leaves no shard and no floor hazard, one entry is one privacy violation in both camera modes. A regression test fails on HEAD and passes now for every fix (verified by running the new tests against a HEAD snapshot). Behaviour changes other code may notice: World.static_index content now changes when a read field changes (from the next step; it no longer stays stale until a create or destroy); phys.break events and phys.broke info carry contained: true for wrapped breaks, which get no floor_hazard; generation-2 houses gain a key bowl on the shoe rack in some houses and key rings' opens name door ids; stack_verdict compares tops and feet (only matters with the deferred stack law forced). Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_K-FIX (base = HEAD snapshot, mine = HEAD + K-FIX overlay, probes and logs). Files changed: house_sim/kernel/world.py, house_sim/kernel/phys/impact.py, statics.py, support.py, liquids.py, house_sim/systems/core.py, house_sim/generator/furnishings.py, belongings.py, house_sim/data/physics/laws.json, tests/test_kernel_contracts.py (new), tests/test_physics_forces.py, test_physics_statics.py, test_physics_settle.py, test_physics_fluids.py, tests/test_generator_gen2.py, docs/PHYSICS.md, docs/KNOWN_LIMITS.md. No commit, no golden or digest re-record, nothing under %USERPROFILE%\\.house_ai."
+}

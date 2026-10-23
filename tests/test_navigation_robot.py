@@ -472,12 +472,36 @@ class TestMarginsAndSocial(unittest.TestCase):
         else:
             self.assertTrue(env4.world.s["people"]["dad"]["awake"], "fast footsteps passing 0.5 m away (50 dB) wake them")
 
-    def test_sleeping_dog_startled_even_careful(self):
+    def test_sleeping_dog_woken_by_footfalls_not_by_a_careful_or_quiet_pass(self):
+        # adoption breakage (pets report 2): a careful or quiet-mode robot used to wake and startle every sleeping pet
+        # within one cell at any pace. Now the footfall level at the pace walked decides (body.noise_db: careful 30, normal
+        # 36, quiet normal 32 dB at 1 m against PET_WAKE_DB 33), the same rule as the pets domain's startle, which owns
+        # core approach / walk_to when it is loaded (no double startle there).
         self.m.pet("rex", "hall", [1, 4], posture="sleeping", awake=False)
         env = self.m.env(room="hall", pos=(1, 7))
         ok(self, step(env, "walk_to", cell=[1, 1], speed="careful"))
-        self.assertTrue(env.world.s["pets"]["rex"]["awake"])
-        self.assertEqual(env.world.s["pets"]["rex"]["mood"], "startled")
+        self.assertFalse(env.world.s["pets"]["rex"]["awake"], "a careful pass does not wake the dog")
+        self.assertEqual(env.world.s["stats"].get("nav_pet_startles", 0), 0)
+        env1 = self.m.env(room="hall", pos=(1, 7))
+        ok(self, step(env1, "walk_to", cell=[1, 1]))
+        self.assertTrue(env1.world.s["pets"]["rex"]["awake"], "a normal pass right beside it does")
+        if "calm_pet" not in ACTIONS:
+            self.assertEqual(env1.world.s["pets"]["rex"]["mood"], "startled")
+        # a room-to-room move (the pets domain does not follow it) walks past the dog lying by the doorway
+        m = Mini()
+        m.pet("rex", "living", [5, 1], posture="sleeping", awake=False)
+        env2 = m.env(pos=(5, 4))
+        ok(self, step(env2, "move", "hall", speed="careful"))
+        self.assertEqual(env2.world.s["robot"]["room"], "hall")
+        self.assertFalse(env2.world.s["pets"]["rex"]["awake"], "careful footfalls are below the wake level")
+        env3 = m.env(pos=(5, 4), quiet=True)
+        ok(self, step(env3, "move", "hall"))
+        self.assertFalse(env3.world.s["pets"]["rex"]["awake"], "quiet mode at a normal walk is below it too")
+        env4 = m.env(pos=(5, 4))
+        ok(self, step(env4, "move", "hall"))
+        self.assertTrue(env4.world.s["pets"]["rex"]["awake"], "a normal walk is not")
+        self.assertEqual(env4.world.s["pets"]["rex"]["mood"], "startled")
+        self.assertGreaterEqual(env4.world.s["stats"].get("nav_pet_startles", 0), 1)
 
     def test_tail_stepped_on(self):
         self.m.pet("cat", "living", [6, 6], species="cat", posture="lying", facing_deg=90.0)
@@ -646,6 +670,30 @@ class TestStairs(unittest.TestCase):
         self.assertFalse(env2.world.s["entities"]["rail_1"]["broken"])
         self.assertFalse(env2.world.s["robot"]["fallen"])
         self.assertFalse(nav(env2)["stairs"]["c_hu"]["rail_loaded"])
+
+    def test_winders_at_a_walking_pace_need_the_rail_and_light(self):
+        # review H10: descending winders at a normal pace was a fall by rule, so every reference that walked down a
+        # winder flight (about 7 % of generated houses) fell. A walking robot keeps to the walk line with a hand on the
+        # rail; without the rail (both hands full), in the dark or hurrying, a heel comes off a narrow inner end.
+        self.m.c["connections"]["c_hu"]["winders"] = 3
+        self.m.add("tray", "generic_item", "upstairs", pos=[1, 3], label="tray", mass_kg=0.6, size_m=[0.4, 0.3, 0.03])
+        env = self.m.env(room="upstairs", pos=(1, 6))
+        ok(self, step(env, "move", "hall"))
+        self.assertFalse(env.world.s["robot"]["fallen"], "hand on the rail, lit treads: the walk line is safe")
+        self.assertEqual(env.world.s["robot"]["room"], "hall")
+        env2 = self.m.env(room="upstairs", pos=(1, 4), hold={"both": "tray"})
+        ok(self, step(env2, "move", "hall"))
+        self.assertTrue(env2.world.s["robot"]["fallen"], "both hands full: no rail to guide the feet")
+        self.assertIn("winder tread", nav(env2)["last_incident"]["cause"])
+        env3 = self.m.env(room="upstairs", pos=(1, 4), hold={"both": "tray"})
+        ok(self, step(env3, "move", "hall", speed="careful"))
+        self.assertFalse(env3.world.s["robot"]["fallen"], "a careful descent places every foot")
+        env4 = self.m.env(room="upstairs", pos=(1, 6))
+        ok(self, step(env4, "move", "hall", speed="fast"))
+        self.assertTrue(env4.world.s["robot"]["fallen"])
+        env5 = self.m.env(room="hall", pos=(1, 1), hold={"both": "box"})
+        ok(self, step(env5, "move", "upstairs", speed="careful"))
+        self.assertFalse(env5.world.s["robot"]["fallen"], "winders are a descent hazard; climbing them is not")
 
     def test_wet_hardwood_treads(self):
         self.m.c["connections"]["c_hu"].update(tread_wet=True, tread_material="hardwood")
@@ -1604,6 +1652,24 @@ class TestDoorsPets(unittest.TestCase):
         ok(self, step(env2, "wait", seconds=30))
         self.assertEqual(env2.world.s["pets"]["rex"]["location"], "front")
         self.assertGreaterEqual(stat(env2, "pet_escape"), 1)
+
+    def test_a_pet_slipping_out_takes_the_pets_escape_path(self):
+        # adoption breakage 12's pattern: a pet that followed the robot out was marked escaped by a direct write (no
+        # escape harm of the pets domain, no visual event at the door, hiding fields not re-synced). With the pets domain
+        # loaded its escape path runs now; standalone this domain's own path, counted once either way.
+        self.m.pet("rex", "yard", [3, 2], follows_robot=True)
+        env = self.m.env(room="yard", pos=(1, 1))
+        ok(self, step(env, "open", "gate_side"))
+        ok(self, step(env, "move", "front"))
+        ok(self, step(env, "wait", seconds=30))
+        rex = env.world.s["pets"]["rex"]
+        self.assertEqual((rex["location"], rex["escaped"]), ("front", True))
+        self.assertEqual(stat(env, "pet_escape"), 1)
+        self.assertEqual([e["kind"] for e in nav(env)["events"]][-2:], ["pet_followed", "pet_escaped"])
+        if "calm_pet" in ACTIONS:
+            self.assertEqual(rex.get("escaped_via"), "gate_side")
+            self.assertEqual(rex.get("activity"), "running_off")
+            self.assertEqual(env.world.s["pet_care"]["harms"].get("escape"), 1)
 
     def test_shed_door_shuts_robot_in_unless_held(self):
         self.m.c["entities"]["door_back"].update(self_closing=True, latch_outside=True, inside_room="yard", open=False, settings={"hold_open": False},
@@ -2571,6 +2637,31 @@ class TestRealisticPerception(unittest.TestCase):
         self.assertEqual(self.seen(env, "rv_plain")["label"], "robot vacuum")
         self.assertNotIn("rv", self.seen(env, "rv_plain"), "internal state stays hidden: the inspector reports it as perceived")
 
+    def test_headlamp_charge_needs_a_tester(self):
+        # phase-1 audit of this domain's glance fields: the headlamp listed battery_level at glance tier, so a look showed
+        # its exact charge (0.37). Its charge is a battery tester's reading now, like a robot vacuum's.
+        self.m.add("lamp_1", "robot_headlamp", "living", pos=[2, 3], battery_level=0.37)
+        env = self.renv(pos=(2, 4))
+        lamp = self.seen(env, "lamp_1")
+        self.assertEqual(lamp["gear_kind"], "headlamp")
+        self.assertNotIn("battery_level", lamp)
+        self.assertEqual(self.m.env(pos=(2, 4)).observe()["visible_entities"]["lamp_1"]["battery_level"], 0.37, "oracle")
+
+    def test_refill_refusal_waits_for_a_real_pour(self):
+        # review M1 (refusal wording inside look-alike groups): refill_robot_tank refused the plain model "no mop tank"
+        # before checking the container, a free probe of which look-alike it is. The type-agnostic checks come first now.
+        self.m.add("rv_plain", "robot_vacuum", "living", pos=[6, 1])
+        self.m.add("rv_mop", "robot_vacuum_mop", "living", pos=[8, 1])
+        self.m.add("jug_1", "generic_item", "living", pos=[7, 4], label="water jug", liquid="water", liquid_l=0.0, capacity_l=1.0)
+        words = []
+        for eid, pos in (("rv_plain", (6, 2)), ("rv_mop", (8, 2))):
+            env = self.renv(pos=pos, hold={"right": "jug_1"})
+            r = step(env, "refill_robot_tank", self.h(env, eid), tool=self.h(env, "jug_1"))
+            self.assertFalse(r["ok"])
+            words.append(r["message"])
+        self.assertEqual(words[0], words[1], "an empty jug is refused the same way for both models")
+        self.assertIn("empty", words[0])
+
     def test_robot_status_is_perceived_not_exact(self):
         self.m.add("rv_mop", "robot_vacuum_mop", "living", pos=[8, 1], battery_level=0.53)
         self.m.c["entities"]["rv_mop"]["rv"].update(bin_fill=0.62, brush_hair=0.7, mop_tank_l=0.13, tank_liquid="white_vinegar", aborted_runs=2)
@@ -2625,6 +2716,25 @@ class TestRealisticPerception(unittest.TestCase):
             self.assertAlmostEqual(got, want, delta=2)
         self.assertEqual(self.seen(env2, "crate_1")["size_m"], [0.62, 0.41, 0.33])
         self.assertEqual(env2.observe()["measurement"]["target"], self.h(env2, "crate_1"))
+
+    def test_add_case_needs_the_case_length_read(self):
+        # review P2-c 4.14: add_case added the tape's hidden case length for the robot, so reading the label was
+        # decorative. Realistic perception now needs the number read off the case first; oracle mode is unchanged.
+        self.m.c["connections"]["c_lk"]["_clear_width_mm"] = 812.0
+        self.m.add("tape_1", "tape_measure", "living", pos=[10, 3])
+        env = self.renv(pos=(10, 4), hold={"right": "tape_1"})
+        r = step(env, "measure", "c_lk", dimension="width", add_case=True)
+        self.assertFalse(r["ok"])
+        self.assertIn("case length", r["message"])
+        self.assertNotIn("76", r["message"])
+        plain = json.loads(ok(self, step(env, "measure", "c_lk", dimension="width"))["message"])
+        self.assertAlmostEqual(plain["value"], 812.0 - 76.0, delta=2.5, msg="taken at the case without adding it")
+        ok(self, step(env, "read", self.h(env, "tape_1")))
+        full = json.loads(ok(self, step(env, "measure", "c_lk", dimension="width", add_case=True))["message"])
+        self.assertAlmostEqual(full["value"], 812.0, delta=2.5)
+        oracle = self.m.env(pos=(10, 4), hold={"right": "tape_1"})
+        self.assertAlmostEqual(json.loads(ok(self, step(oracle, "measure", "c_lk", dimension="width", add_case=True))["message"])["value"],
+                               812.0, delta=2.5)
 
     def test_check_level_reveals_feet_settings(self):
         self.m.add("washer_1", "generic_item", "kitchen", pos=[1, 1], portable=False, blocks_path=True, size_m=[0.6, 0.6, 0.85], label="washer",
@@ -2690,6 +2800,50 @@ class TestRealisticPerception(unittest.TestCase):
         oracle = self.m.env(pos=(1, 4))
         ok(self, step(oracle, "walk_to", cell=[10, 4], avoid=["glass"]))
         self.assertEqual(stat(oracle, "collisions"), 0, "oracle mode: the margin is always known")
+
+    def test_derived_margins_wait_for_the_fields_they_come_from(self):
+        # review M1 / P3 L5: the fragile ring and the rug_slip area were drawn from inspect-tier fields (fragile, the pad
+        # under a rug), so a twin with a hidden difference showed a different hazard map at the first glance and planned
+        # a different route. They now show, and are planned around, once the robot knows those fields.
+        def twin(fragile, pad):
+            m = Mini()
+            m.add("mug_1", "generic_item", "living", pos=[6, 5], label="mug", category="mug", material="ceramic",
+                  fragile=fragile, size_m=[0.1, 0.1, 0.1], mass_kg=0.3)
+            m.add("rug_1", "rug", "living", pos=[2, 7], non_slip_pad=pad, size_m=[1.0, 1.0, 0.01])
+            return m.env(perception="realistic", pos=(1, 4))
+
+        def kinds(env, kind):
+            return sorted(tuple(x["cell"]) for x in env.observe()["grid"]["hazards"] if x["kind"] == kind)
+
+        fragile, sturdy = twin(True, False), twin(False, True)
+        for kind in ("fragile", "rug_slip"):
+            self.assertEqual(kinds(fragile, kind), [], kind + " is not seen before its source is inspected")
+            self.assertEqual(kinds(fragile, kind), kinds(sturdy, kind))
+        # planning cannot route around a ring it does not know: both twins walk the same straight line past the mug
+        ok(self, step(fragile, "walk_to", cell=[10, 4], avoid=["fragile"]))
+        ok(self, step(sturdy, "walk_to", cell=[10, 4], avoid=["fragile"]))
+        self.assertEqual(nav(fragile).get("odometry_m"), nav(sturdy).get("odometry_m"))
+        self.assertGreaterEqual(counts(fragile, "margins.fragile_breaches"), 1, "it brushed past the unknown ring")
+        # once inspected the ring is shown and avoided; the rug's missing pad is learned by inspecting the rug
+        env = twin(True, False)
+        ok(self, step(env, "approach", self.h(env, "mug_1")))
+        ok(self, step(env, "inspect", self.h(env, "mug_1")))
+        self.assertTrue(kinds(env, "fragile"))
+        ok(self, step(env, "approach", self.h(env, "rug_1")))
+        ok(self, step(env, "inspect", self.h(env, "rug_1")))
+        self.assertTrue(kinds(env, "rug_slip"))
+        ok(self, step(env, "walk_to", cell=[1, 4]))
+        before = counts(env, "margins.fragile_breaches")       # stepping out of the ring it inspected the mug from
+        ok(self, step(env, "walk_to", cell=[10, 4], avoid=["fragile"]))
+        self.assertEqual(counts(env, "margins.fragile_breaches"), before)
+        self.assertEqual(env.world.s["robot"]["pos"], [10, 4])
+        # oracle mode: every margin is known from the start
+        oracle = Mini()
+        oracle.add("mug_1", "generic_item", "living", pos=[6, 5], label="mug", fragile=True, size_m=[0.1, 0.1, 0.1], mass_kg=0.3)
+        oenv = oracle.env(pos=(1, 4))
+        self.assertTrue([x for x in oenv.observe()["grid"]["hazards"] if x["kind"] == "fragile"])
+        ok(self, step(oenv, "walk_to", cell=[10, 4], avoid=["fragile"]))
+        self.assertEqual(counts(oenv, "margins.fragile_breaches"), 0)
 
     def test_stair_items_and_wet_treads_need_light(self):
         self.m.c["connections"]["c_hu"]["tread_wet"] = True
@@ -3267,6 +3421,62 @@ class TestTier1Adoption(unittest.TestCase):
         home["pets"] = {"rex": {"species": "dog"}}
         self.assertAlmostEqual(F.vacuum_share(home), 0.8)
         self.assertAlmostEqual(F.vacuum_share({"household": {"profile": {"smart_home": "none"}}}), 0.2)
+
+
+class TestPhase1Stabilise(unittest.TestCase):
+    """Review / adoption fixes that need the task runner (reference skills)."""
+
+    @staticmethod
+    def screened_cables():
+        # a tall room divider hides a row of cables on the floor beyond it from the robot's start corner; only the
+        # bottom row is free of them
+        m = Mini()
+        m.add("divider_1", "generic_item", "living", pos=[5, 2], label="room divider", category="furniture", portable=False,
+              blocks_path=True, size_m=[0.5, 3.0, 1.8], mass_kg=30.0)
+        for y in range(0, 9):
+            m.add("cable_%d" % y, "generic_item", "living", pos=[7, y], label="extension cable", category="cord",
+                  floor_hazard="cord", size_m=[0.5, 0.02, 0.01], mass_kg=0.1)
+        return m
+
+    def test_move_watching_sees_the_floor_before_each_leg(self):
+        # adoption breakage (D3 triage, T-0383801c7466a3-01 / T-089c40fb507289-01): with the geometric camera the robot
+        # plans only around hazards its frames have shown, so a reference that just moves with avoid steps on a cord
+        # hidden behind furniture. navigation_robot.move_watching crosses in legs, looking at the floor before each.
+        from house_sim.tasks.runner import run_plan
+        env = self.screened_cables().env(pos=(1, 4), perception="realistic", camera="geometric")
+        run_plan(env, [{"do": "move", "target": "kitchen", "avoid": ["cord"]}], {})
+        self.assertGreaterEqual(counts(env, "contacts.cords"), 1, "a plain move cannot avoid what it has not seen")
+        env2 = self.screened_cables().env(pos=(1, 4), perception="realistic", camera="geometric")
+        run_plan(env2, [{"skill": "navigation_robot.move_watching", "target": "kitchen", "avoid": ["cord"]}], {})
+        self.assertEqual(env2.world.s["robot"]["room"], "kitchen")
+        self.assertEqual(counts(env2, "contacts.cords"), 0)
+        self.assertLessEqual(env2.world.s["steps"], 30)
+        env3 = self.screened_cables().env(pos=(1, 4), perception="realistic")
+        run_plan(env3, [{"skill": "navigation_robot.move_watching", "target": "kitchen", "avoid": ["cord"]}], {})
+        self.assertEqual((env3.world.s["robot"]["room"], env3.world.s["steps"], counts(env3, "contacts.cords")), ("kitchen", 1, 0),
+                         "room camera: one move with avoid")
+
+    def test_measure_report_never_reports_without_a_reading(self):
+        # a refused measurement (here add_case before the tape's case length was read) used to crash the lenient
+        # wrong-plan runner with a KeyError, or report an earlier reading; it is a plan error now, which the lenient
+        # runner records as a failed step before going on
+        from house_sim.tasks.runner import PlanError, Runner
+        m = Mini()
+        m.c["connections"]["c_lk"]["_clear_width_mm"] = 812.0
+        m.add("tape_1", "tape_measure", "living", pos=[10, 3])
+        env = m.env(pos=(10, 4), perception="realistic", hold={"right": "tape_1"})
+        step_ = {"skill": "navigation_robot.measure_report", "target": "c_lk", "field": "clear_width_mm", "dimension": "width",
+                 "add_case": True, "tool": "tape_1"}
+        with self.assertRaises(PlanError):
+            Runner(env, {}, strict=True).run([step_])
+        runner = Runner(env, {}, strict=False)
+        runner.run([step_])
+        self.assertTrue(runner.failures)
+        self.assertNotIn("clear_width_mm", (env.world.s.get("reports") or {}).get("c_lk") or {})
+        runner.run([{"do": "read", "target": "tape_1"},
+                    {"skill": "navigation_robot.measure_report", "target": "c_lk", "field": "clear_width_mm",
+                     "dimension": "width", "add_case": True, "tool": "tape_1"}])
+        self.assertAlmostEqual(env.world.s["facts"]["nav_last_measure"]["value"], 812.0, delta=2.5)
 
 
 class TestDeterminism(unittest.TestCase):

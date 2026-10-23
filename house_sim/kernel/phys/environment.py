@@ -260,14 +260,42 @@ def _is_cover(rec):
     return rec.get("category") == "cover" or bool(rec.get("covering"))
 
 
-def _downwind_cell(state, rid, cell, direction_deg, distance_m):
-    """The cell distance_m downwind of cell, clamped to the room's grid (min(room edge, d))."""
+def _downwind_cell(state, rid, cell, direction_deg, distance_m, eid=None):
+    """Where a thing blown distance_m downwind of cell comes to rest: along the downwind line, the last cell before the
+    room's edge, a doorway's clearance (geometry.door_clearance) or a path-blocking footprint (geometry.blocks; the
+    thing itself and what it rests on excepted), else distance_m away. The cell itself when the first cell on the line
+    is already one of those: it is pressed against it (phase 1, outdoor_plants' request: with the wind law active a
+    blown thing came to rest on a doorway cell and cut every route through it)."""
     cols, rows = geometry.grid_size(state["rooms"][rid])
     rad = math.radians(direction_deg)
     steps = max(1, int(round(distance_m / geometry.CELL)))
-    col = int(round(cell[0] + math.cos(rad) * steps))
-    row = int(round(cell[1] + math.sin(rad) * steps))
-    return [min(cols - 1, max(0, col)), min(rows - 1, max(0, row))]
+    start = (int(cell[0]), int(cell[1]))
+    entities = state["entities"]
+    own = set()
+    cur = eid
+    while cur in entities and cur not in own:
+        own.add(cur)
+        cur = entities[cur].get("location")
+    stops = None
+    here, last = start, start
+    for k in range(1, steps + 1):
+        col = int(round(start[0] + math.cos(rad) * k))
+        row = int(round(start[1] + math.sin(rad) * k))
+        if not (0 <= col < cols and 0 <= row < rows):
+            break
+        nxt = (col, row)
+        if nxt == last:
+            continue                # the rounding repeats a cell on a diagonal line
+        last = nxt
+        if stops is None:
+            stops = set(geometry.door_clearance(state, rid))
+            for other, rec in entities.items():
+                if other not in own and rec.get("location") == rid and geometry.blocks(rec):
+                    stops.update(tuple(c) for c in geometry.footprint(rec))
+        if nxt in stops:
+            break
+        here = nxt
+    return [here[0], here[1]]
 
 
 def contact_mu(state, eid):
@@ -350,7 +378,7 @@ def wind_effect(w, eid, v, direction_deg, by=None, cmap=None, gust_mps=None):
     rid, cell = processes.floor_cell(state, eid)
     excess = (push - slide_resist) / max(1.0, weight * mu)
     distance = min(BLOWN_MAX_M, max(BLOWN_MIN_M, 1.0 + 2.5 * excess))
-    target = _downwind_cell(state, rid, cell or (0, 0), direction_deg, distance)
+    target = _downwind_cell(state, rid, cell or (0, 0), direction_deg, distance, eid)
     on_support = rec.get("location") in state["entities"]
     if not on_support and list(rec.get("pos") or ()) == target:
         result["effect"] = None             # already pressed against the room's downwind edge

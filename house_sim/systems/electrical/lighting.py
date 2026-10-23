@@ -256,7 +256,11 @@ def _lights_step(w, dt, tick):
             m["_overheat_s"] = round(C.num(m.get("_overheat_s"), 0.0) + dt, 1)
             if m["_overheat_s"] >= 600 and not m.get("socket_scorched"):
                 m["socket_scorched"] = True
-                C.harm(w, "electrical.overwattage_bulb:" + eid, bulb=over[0])
+                # the robot's when it fitted the bulb, switched the fixture on or acted on its supply (a staged
+                # over-wattage bulb burning in a lamp nobody touched is exogenous: common.consequence)
+                ids = {eid} | set(bulbs(state, eid)) | set(controllers(state, eid, switch_index(state, w)))
+                ids |= P.causal_ids(state, eid)
+                C.consequence(w, "electrical.overwattage_bulb:" + eid, ids, bulb=over[0])
                 C.event(w, "fixture_overheating", eid)
 
 
@@ -333,8 +337,10 @@ def _three_way_restore(ctx, result):
 
 
 def _three_way(w, switch_id):
-    if C.has_hook("switch_on", "house_sim.systems.mechanisms"):
-        return  # the mechanisms domain applies the same rule to the loads
+    """The loads of a 3-way pair follow the rule (handles differ XOR the hidden phase). Always applied here: the
+    mechanisms domain applies the identical rule later (order 60) and writes nothing when the loads already follow it,
+    so the outcome never depends on which other domain's modules are loaded (independent review M2: this used to skip
+    itself when a module named house_sim.systems.mechanisms hooked switch_on)."""
     state = w.s
     load_on = three_way_on(state, switch_id)
     if load_on is None:

@@ -25,6 +25,7 @@ without the food domain).
 """
 import copy
 import json
+import os
 import random
 import time
 import unittest
@@ -494,6 +495,8 @@ class BudgetTests(unittest.TestCase):
         args = {"kind": "finding", "subject": ["jar_1", "jar_2", "pipe_1"], "issue": "dripping", "severity": "high",
                 "to": "ann"}
         runs, total = 30, 0.0
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for _ in range(runs):
             env.world.begin()
             ctx = Ctx(env, ACTIONS["report"], ACTIONS["report"].validate(dict(args)), random.Random(0))

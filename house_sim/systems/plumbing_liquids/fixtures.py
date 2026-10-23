@@ -170,6 +170,46 @@ def faucet_setting_changed(ctx, eid, name, old, new):
     refresh(w, eid)
 
 
+FLOW_SETTINGS = ("flow", "left", "right", "valve", "sensor", "dispense", "trigger")
+OPEN_WORDS = ("on", "open")
+
+
+def _opened_more(old, new):
+    """True when a setting change lets more water through: a larger opening, or off/closed to on/open."""
+    if isinstance(new, (int, float)) and not isinstance(new, bool):
+        return C.num(new) > C.num(old) + 1e-9
+    return new in OPEN_WORDS and old not in OPEN_WORDS
+
+
+def control_opening(rec):
+    """How far a water control lets water through now (0 = shut): a valve's position, a tap's total handle opening, a
+    nozzle's trigger."""
+    if rec.get("valve_kind") or "supply_valve" in (rec.get("settings") or {}):
+        return S.valve_position(rec)
+    if rec.get("hose_nozzle"):
+        return 1.0 if (rec.get("settings") or {}).get("trigger") in OPEN_WORDS else 0.0
+    return sum(handle_fracs(rec))
+
+
+@hook("setting_changed", order=105)
+def robot_water_setting(ctx, eid, name, old, new):
+    """Harm attribution (common.harm_by): a robot action that opens or turns up a tap, spigot, nozzle or dispenser
+    ("flow"), or opens a valve or supply stop ("supply"), marks it; the control shut again clears the mark. Whatever
+    the time systems later do through a marked control (a basin running over, a re-pressurized leak) is the robot's."""
+    w = ctx.w
+    rec = w.s["entities"].get(eid) or {}
+    if name in ("position", "supply_valve") and (rec.get("valve_kind") or C.is_mine(rec)):
+        reason = "supply"
+    elif name in FLOW_SETTINGS and (faucet(rec) or rec.get("hose_nozzle")):
+        reason = "flow"
+    else:
+        return
+    if control_opening(rec) <= 1e-6:
+        C.mark_robot_water(w, eid, reason, False)
+    elif _opened_more(old, new):
+        C.mark_robot_water(w, eid, reason, True)
+
+
 # ----------------------------------------------------------------------------------
 # helpers for actions
 
@@ -346,7 +386,7 @@ def _scald_users(w, eid):
         scalded = C.pget(w, "scalded") or []
         if temp > limit and pid + ":" + eid not in scalded:
             C.psec(w).setdefault("scalded", []).append(pid + ":" + eid)
-            w.stat("burns")
+            C.harm(w, "burns", eid)         # the robot's when it opened the tap that hot (a resident's own tap is not)
             C.plog(w, "scald", person=pid, fixture=eid, temp_c=temp)
 
 
@@ -388,6 +428,7 @@ def plug_drain(ctx):
             m.pop(key, None)
         w.log_move(tool, "robot", eid)
     w.mut(eid)["plug"] = "closed"
+    C.mark_robot_water(w, eid, "plug")      # what runs over this basin from now on is the robot's doing
     refresh_drain(w, eid)
     ctx.grant(eid, "inspect", ["plug"])
     return "Plugged the drain of {}".format(eid)
@@ -442,6 +483,7 @@ def drain(ctx):
                 else:
                     m.update(relation="on")
         w.mut(eid)["plug"] = "open"
+        C.mark_robot_water(w, eid, "plug", False)
         refresh_drain(w, eid)
         ctx.grant(eid, "inspect", ["plug"])
         ctx.data["seconds"] = 4.0
@@ -493,6 +535,7 @@ def outlet_step(w, eid, dt, cache):
     if fkind(rec) == "touchless" and (rec.get("settings") or {}).get("sensor") == "on":
         if C.now(w) >= C.num(rec.get("_sensor_until")):
             w.mut(eid)["settings"]["sensor"] = "off"
+            C.mark_robot_water(w, eid, "flow", False)
     hot_running = C.num(rec.get("_hot_lpm")) > 0.01
     run = C.num(rec.get("_hot_run_s"))
     warm_up = C.num(faucet(rec).get("warm_up_s"), 20.0)

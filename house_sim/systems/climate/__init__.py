@@ -4,7 +4,8 @@ air purifiers, ventilation through windows, weather exposure (rain ingress), sun
 outdoor shade, occupant thermal comfort and household energy.
 
 See docs/domains/climate.md. Modules register on import:
-  common      constants, psychrometrics, units, state helpers (section ``climate``)
+  common      constants, psychrometrics, units, state helpers (section ``climate``), harm attribution helpers
+  attribution the robot's operation markers on climate devices, windows and outside doors; the harms' cause sets
   sun         solar geometry, window beams (glare, sun patches), outdoor shade, fallback window coverings
   hvac        thermostat semantics (schedule/hold/units/limits) and equipment state machines
   fans        ceiling/portable fans, airflow fields, cords, reverse_fan verb
@@ -19,4 +20,4 @@ See docs/domains/climate.md. Modules register on import:
   scenarios   scenario helpers (climate.*)
   skills      reference skills (climate.*)
 """
-from . import common, sun, hvac, fans, heaters, moisture, airclean, comfort, routes, model, perception, furnish, scenarios, skills  # noqa: F401
+from . import common, attribution, sun, hvac, fans, heaters, moisture, airclean, comfort, routes, model, perception, furnish, scenarios, skills  # noqa: F401

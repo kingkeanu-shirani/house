@@ -14,6 +14,9 @@ through the kernel:
   lands) and its eggshell; a package that breaks spills what flows out of it and leaves the rest unsafe.
 * phys.fell (`_fell`): the kernel's bruise becomes the food's bruise; unwrapped food landing on a floor picks up
   bacteria (as food set down on the floor does).
+* phys.wetted (`_wetted`): a liquid the kernel brings onto food, or onto something food touches, leaves what it carries
+  (`liquid_contamination`: a toxic or corrosive liquid or a neat cleaner a chemical, dirty water and body fluids germs);
+  `soak_from_vessel` does the same for food lying in a vessel's liquid (independent review G10).
 * `spill`: liquid food that leaves its vessel is a kernel spill (physics.spill: the liquids.json liquid, a puddle or a
   wet surface, the spill statistics and their attribution); the residue it leaves stays a food soil mark.
 * `freeze_burst`: a sealed rigid container of liquid food bursts (or a can bulges) by the kernel's freeze-burst rule
@@ -270,6 +273,96 @@ def _fell(w, eid, info):
     if info.get("landed_on") is None and info.get("cell") is not None and not rec.get("package") \
             and rec.get("location") in state["rooms"]:
         M.add_contam(w, eid, "bacteria", 0.2)
+
+
+# ----------------------------------------------------------------------
+# liquids reaching food
+
+DIRTY_LIQUIDS = ("dirty_water", "mop_water", "grey_water", "gray_water", "sewage", "toilet_water", "flood_water",
+                 "mud_water")
+DIRTY_RESIDUES = ("dirt", "mud")            # liquids.json residues of dirty water (germs)
+BODY_RESIDUES = ("urine", "biohazard")      # body fluids (more germs)
+CLEANER_LIQUIDS = ("dish_soap", "laundry_detergent")    # neat cleaning products (soapy water leaves nothing)
+TRACE_FRAC = 0.005          # a kind of liquid under 0.5 % of a vessel's mix leaves no mark of its own
+
+
+def liquid_contamination(liquid):
+    """{tag: level} a liquid leaves on food, or on a thing food touches, that it reaches (food's contamination tags),
+    from the kernel's liquids.json row: a toxic or corrosive liquid (bleach, antifreeze, fuel, motor oil) a chemical
+    0.5, a neat cleaning product 0.3, dirty water germs 0.5 and body fluids 0.8. Food liquids, clean water and soapy
+    water leave nothing (the same levels as plumbing_liquids' rule for what its pours leave)."""
+    name = str(liquid or "water").strip().lower()
+    row = physics.liquid_props(name)
+    canon = row.get("name")
+    out = {}
+    if row.get("toxic") or row.get("corrosive"):
+        out["chemical"] = 0.5
+    elif canon in CLEANER_LIQUIDS:
+        out["chemical"] = 0.3
+    if row.get("residue") in BODY_RESIDUES:
+        out["bacteria"] = 0.8
+    elif name in DIRTY_LIQUIDS or canon in DIRTY_LIQUIDS or row.get("residue") in DIRTY_RESIDUES:
+        out["bacteria"] = 0.5
+    return out
+
+
+@hook("phys.wetted")
+def _wetted(w, eid, liters, liquid, source):
+    """A liquid the kernel brings onto something (a spill running down, a drip or a leak from above, a tipped bottle, a
+    film seeping from a wet item): food takes what the liquid carries, and anything food is served, cooked or stored
+    in its germs (marks_for; independent review G10: bleach water over a loaf left it only wet). A sealed waterproof
+    package keeps it off the food inside."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or float(liters or 0.0) <= 0.0 or not M.food_contact(rec):
+        return
+    marks = marks_for(rec, liquid_contamination(liquid))
+    if not marks or M.sealed_off(rec):
+        return
+    for key, level in sorted(marks.items()):
+        M.raise_contam(w, eid, key, level)
+
+
+def marks_for(rec, marks):
+    """The marks a liquid leaves on rec: everything on food; on a plate, board or pan only germs. A chemical on a
+    food-contact surface is what sanitizing it is (a bleach solution on a cutting board), so it is not counted against
+    the food that later touches it; dirty water on it is."""
+    if M.food(rec) is not None:
+        return marks
+    return {k: v for k, v in marks.items() if k == "bacteria"}
+
+
+def held_liquid_marks(holder):
+    """{tag: level} the liquid a holder holds would leave on food: its liquid (by name: "mop_water" is dirty), every kind
+    in its mix (`_mix`) above a trace, and any cleaning product dissolved in it (`cl_chem`, the plumbing and cleaning
+    solution model: bleach by its own row, any other cleaner a chemical 0.3). {} for a holder with nothing in it."""
+    mix = holder.get("_mix") if isinstance(holder.get("_mix"), dict) else {}
+    total = sum(float(v or 0.0) for v in mix.values())
+    kinds = {str(k) for k, v in mix.items() if total > 0 and float(v or 0.0) >= TRACE_FRAC * total}
+    kinds.add(str(holder.get("liquid") or "water"))
+    out = {}
+    for kind in sorted(kinds):
+        for key, level in liquid_contamination(kind).items():
+            out[key] = max(out.get(key, 0.0), level)
+    chem = holder.get("cl_chem") if isinstance(holder.get("cl_chem"), dict) else {}
+    for product, ml in sorted(chem.items()):
+        if float(ml or 0.0) > 0.0:
+            level = liquid_contamination(product).get("chemical", 0.3)
+            out["chemical"] = max(out.get("chemical", 0.0), level)
+    return out
+
+
+def soak_from_vessel(w, eid, rec, vessel):
+    """Food lying in a vessel's liquid takes what that liquid carries (a bottle of bleach tipped into a salad bowl, mop
+    water poured over the bread in a bin; held_liquid_marks). Returns True when the food's contamination rose."""
+    if not vessel or float(vessel.get("liquid_l") or 0.0) <= 0.0:
+        return False
+    marks = held_liquid_marks(vessel)          # (clean water, the usual case, leaves nothing: no packaging lookup)
+    if not marks or M.sealed_off(rec):
+        return False
+    rose = False
+    for key, level in sorted(marks.items()):
+        rose = M.raise_contam(w, eid, key, level) or rose
+    return rose
 
 
 # ----------------------------------------------------------------------

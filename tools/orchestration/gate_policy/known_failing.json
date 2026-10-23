@@ -1,0 +1,5 @@
+{
+ "format": "house-gate-known-failing-v1",
+ "about": "The tier-1 gate's dated allowlist of known failures (tools/orchestration/tier1_gate.py; REVIEW_REPORT H12 G2-ABS). Every test passes and every authored spec passes in its own mode, except an entry here: {\"kind\": \"test\", \"test\": \"tests.test_x.Class[.test_name]\", \"modes\": [\"normal\", \"strict\", \"isolated\", \"core\", \"golden\", \"golden_all\"] (default all), \"owner\", \"expires\": \"YYYY-MM-DD\", \"reason\"} or {\"kind\": \"spec\", \"catalog_id\", \"seeds\": [..] or \"all\", \"mode\": \"own\" | \"realistic\" | \"both\" (default own), \"owner\", \"expires\", \"reason\"}. An expired or malformed entry excuses nothing. Main session only: the gate reads the committed version (git HEAD) and fails G10 for any package that edits this file.",
+ "entries": []
+}

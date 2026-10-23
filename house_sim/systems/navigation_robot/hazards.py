@@ -85,11 +85,14 @@ def fresh_margins(state, rid, avoid_kinds, ignore_sources=()):
     kinds = set(avoid_kinds) & set(DERIVED_KINDS)
     if not kinds:
         return out
-    hidden = set((state.get("robot") or {}).get(PLAN_HIDDEN) or ())
+    robot = state.get("robot") or {}
+    hidden = set(robot.get(PLAN_HIDDEN) or ())
+    unknown = {(k, s) for k, s in robot.get(PLAN_UNKNOWN) or ()}
     written = {(int(e["cell"][0]), int(e["cell"][1]), e.get("kind"), e.get("source"))
                for e in state["rooms"][rid].get("floor_hazards") or () if e.get("nav_derived")}
     return out + [tuple(e["cell"]) for e in derived(state, rid, exclude, kinds=kinds)
-                  if (e["cell"][0], e["cell"][1], e["kind"], e["source"]) not in written and e["source"] not in hidden]
+                  if (e["cell"][0], e["cell"][1], e["kind"], e["source"]) not in written and e["source"] not in hidden
+                  and (e["kind"], e["source"]) not in unknown]
 
 
 # derived margins a careful robot routes around (kernel SAFE_AVOID kinds): generation and setup placement must see them
@@ -325,12 +328,62 @@ SEEN_CELLS = 10          # 5 m: farther floor detail is not resolved
 
 
 PLAN_HIDDEN = "_nav_plan_hidden"   # robot field: sources whose margins the motion in progress cannot plan around
+PLAN_UNKNOWN = "_nav_plan_unknown"  # robot field: [kind, source] margins whose inputs the robot has not learned (realistic)
 
 # this domain's transient robot fields (kernel v3.0 field registry; underscore fields are never observed)
 body.register_robot_field(PLAN_EXCLUDE, None, "navigation_robot", "hidden",
                           "Sources whose keep-out rings the motion in progress plans without (an approach's target)")
 body.register_robot_field(PLAN_HIDDEN, None, "navigation_robot", "hidden",
                           "Mirrors and reflective panels the motion in progress takes for openings (realistic)")
+body.register_robot_field(PLAN_UNKNOWN, None, "navigation_robot", "hidden",
+                          "[kind, source] margins derived from fields the robot has not learned, which the motion in "
+                          "progress cannot plan around (realistic)")
+
+# derived kinds whose existence follows from a source's fields that a glance does not show (review M1 / P3 L5): a
+# "fragile" ring from fragile / topple_prone / wall_decor (inspect tier), a "rug_slip" area from the pad under a rug
+# (non_slip_pad, anchored: inspect tier). Realistic perception shows and plans around them only once the robot knows
+# those fields at their tier (knows_margin); before that a fragile mug and a sturdy one, or a padded rug and a loose
+# one, look the same.
+TIERED_KINDS = ("fragile", "rug_slip")
+
+
+def _knows(realism, eid, rec, field):
+    """Realistic perception: the robot knows rec's `field` at its tier (glance-tier fields always; a field the record
+    lacks once the robot has looked at the thing at that level, e.g. inspected a rug without a pad field)."""
+    from ...kernel.realism import INSPECT, TIER_NEED
+    tier = realism.tier(rec, field)
+    if tier == "never":
+        return False
+    need = TIER_NEED.get(tier, INSPECT)
+    if field in rec:
+        return realism.knowledge.level(eid, rec, field) >= need
+    return realism.knowledge.entity_level(eid, rec) >= need
+
+
+def knows_margin(realism, kind, eid, rec, wall=False):
+    """Realistic perception: does the robot know enough about eid to tell its derived `kind` margin is there? A fragile
+    ring needs a true input it knows (fragile, topple_prone, or wall_decor for wall-hung decor); a rug_slip area needs
+    the pad and anchoring known. Other kinds follow what the camera sees of their source."""
+    if kind == "fragile":
+        inputs = ("fragile", "wall_decor") if wall else ("fragile", "topple_prone")
+        return any(rec.get(f) and _knows(realism, eid, rec, f) for f in inputs)
+    if kind == "rug_slip":
+        return _knows(realism, eid, rec, "non_slip_pad") and _knows(realism, eid, rec, "anchored")
+    return True
+
+
+def unknown_margins(env, state, rid):
+    """Realistic perception: {(kind, source)} of room rid's derived margins (TIERED_KINDS) whose inputs the robot has
+    not learned; empty in oracle mode."""
+    realism = getattr(env, "realism", None)
+    if realism is None or rid not in state.get("rooms", {}):
+        return set()
+    out = set()
+    for e in derived(state, rid, kinds=TIERED_KINDS):
+        rec = state["entities"].get(e["source"])
+        if rec is not None and not knows_margin(realism, e["kind"], e["source"], rec, wall=bool(e.get("wall"))):
+            out.add((e["kind"], e["source"]))
+    return out
 
 
 def looks_like_opening(rec):
@@ -381,15 +434,18 @@ def scrub_observation(env, state, obs):
     camera cannot see that this domain put there - black ice and loose boards, and the glass margins of mirrors and
     reflective panels the robot still takes for an opening - and show every lying person or pet the same way: their
     cell and keep-out ring as kind "lying", whether asleep or awake (this domain's "sleeping" ring exists only around
-    sleepers, and sleepers sitting up get one too, so the ring itself would tell sleep apart)."""
+    sleepers, and sleepers sitting up get one too, so the ring itself would tell sleep apart). Fragile rings and
+    rug_slip areas show only once the robot knows the fields they come from (unknown_margins: whether a mug is
+    fragile, whether a rug has a pad; inspect tier)."""
     rid = state["robot"].get("room")
     hidden = unperceived_glass(env, state, rid)
+    unknown = unknown_margins(env, state, rid)
     agents = set(state.get("people", {})) | set(state.get("pets", {}))
 
     def keep(item):
         if not isinstance(item, dict):
             return True
-        if item.get("kind") in INVISIBLE_KINDS:
+        if item.get("kind") in INVISIBLE_KINDS or (item.get("kind"), item.get("source")) in unknown:
             return False
         if item.get("kind") in ("sleeping", "person_down", LYING_KIND) and item.get("source") in agents:
             src = item.get("source")

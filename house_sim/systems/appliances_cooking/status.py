@@ -354,7 +354,12 @@ def _details_seen(w, eid, rec, out, ctx):
     """Realistic perception (env.realism set): what a close look at the appliance shows. Displays only when legible,
     amounts as estimates, dial instruments at their resolution, entities by id (never by a label that could resolve a
     look-alike), no model internals, a dishwasher's load state only through its open door or its clean light, no
-    meat firmness without pressing it (check_doneness method=press)."""
+    meat firmness without pressing it (check_doneness method=press). An unfamiliar (novel) thing gets no view at all:
+    each view's key and fields are the appliance kind's ("kettle_state" with its min/max marks, "pressure_cooker" with
+    its float valve, "oven_state"...), so they would name what the robot does not know (independent review I4: a
+    novel kettle was told apart by its inspect keys); a close look at it shows only what the kernel shows of anything."""
+    if rec.get("novel") and P.unidentified(ctx.env, eid):
+        return
     state = w.s
     kind = rec.get("ac_kind")
     closely = ctx.args.get("where") == "closely"
@@ -391,8 +396,8 @@ def _details_seen(w, eid, rec, out, ctx):
             view["display"] = rec.get("display")
             ctx.grant(eid, "read", ["display"])
         see_in = rec.get("open") or rec.get("transparent")
-        therm = _dial_inside(ctx, C.descendants(state, eid))
-        if therm and see_in and legible(therm[0]):
+        therm = _dial_inside(ctx, C.descendants(state, eid), see_in)
+        if therm:
             # a dial thermometer read through the door/window, at its own marks (5 C on an oven dial)
             view["oven_thermometer_c"] = P.dial_reading(ctx, eid, "internal_temp_c", C.num(rec.get("internal_temp_c")), therm[1])
         if see_in:
@@ -460,8 +465,8 @@ def _details_seen(w, eid, rec, out, ctx):
                                                    "frost_ridge": "has a frost ridge on the rim"}[k]))
             view["seal_problems"] = causes
         from .cold import unit_contents
-        therm = _dial_inside(ctx, unit_contents(state, eid))
-        if therm and rec.get("open") and legible(therm[0]):
+        therm = _dial_inside(ctx, unit_contents(state, eid), rec.get("open"))
+        if therm:
             # the dial thermometer inside, read to its marks (a fridge dial's 1 C marks, instrument accuracy about +-1 C;
             # an oven dial's 5 C)
             view["thermometer_c"] = P.dial_reading(ctx, eid, "internal_temp_c", C.num(rec.get("internal_temp_c")), therm[1])
@@ -514,16 +519,20 @@ def _details_seen(w, eid, rec, out, ctx):
 UNSEEN_CUES = ("firmness", "juices")
 
 
-def _dial_inside(ctx, ids):
-    """(thermometer id, marks in C) of the first dial thermometer (oven or fridge kind, look-alikes) among ids, or None.
-    Reading its face means looking at it closely: the scale shows which kind it is (inspect knowledge of the dial), and
-    it is read at its own marks."""
+def _dial_inside(ctx, ids, see_in):
+    """(thermometer id, marks in C) of the dial thermometer (oven or fridge kind, look-alikes) among ids whose face the
+    robot reads now, or None: the compartment open or see-through (see_in) and the dial legible from where the robot
+    stands (P.dial_legible: what core read needs for that small thing). Reading its face means looking at it closely:
+    the scale shows which kind it is (inspect knowledge of the dial, granted only then -- never for a dial behind a
+    shut door or out of reach), and it is read at its own marks. Several readable: the first in handle order."""
+    if not see_in:
+        return None
     state = ctx.w.s
-    for c in ids:
-        kind = state["entities"][c].get("tool_kind")
-        if kind in DIAL_STEP_C:
+    dials = [c for c in ids if state["entities"][c].get("tool_kind") in DIAL_STEP_C]
+    for c in P.ordered(ctx, dials):
+        if P.dial_legible(ctx, c):
             ctx.grant(c, "inspect")
-            return c, DIAL_STEP_C[kind]
+            return c, DIAL_STEP_C[state["entities"][c]["tool_kind"]]
     return None
 
 

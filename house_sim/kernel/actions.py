@@ -29,6 +29,7 @@ time); the careful-speed rule of BODY-CORE skips "speed" and "commanded". None o
 fingerprint.
 """
 import math
+import os
 import random
 
 from . import geometry
@@ -58,6 +59,11 @@ def require_access(condition, message, category="precondition"):
 
 
 UNIDENTIFIED_MESSAGE = "You cannot tell what it is yet: identify it first (inspect it or read its label)"
+# an unfamiliar (novel) thing is handled as an object -- looked at, inspected, moved, carried, placed -- but not operated:
+# an action declared operates=True on one is refused with this one message, before any domain hook, whatever it is
+# (review I4: switch_on answered "That does not work on it", "No power" or "It has no supported switch" by its type).
+# It is the kernel's identify-first refusal, the one domains already give unidentified things (ctx.refuse_unidentified)
+NOVEL_OPERATE_MESSAGE = UNIDENTIFIED_MESSAGE
 # words of a printed or spoken cue that a permission rule applies (a "PRIVATE" label, a "do not touch" sign)
 PERMISSION_CUE_WORDS = ("private", "personal", "confidential", "do not touch", "don't touch", "do not open",
                         "don't open", "do not move", "don't move", "do not disturb", "keep out", "keep away",
@@ -142,7 +148,7 @@ TIMINGS = ("fixed", "speed", "commanded")
 
 class ActionSpec:
     def __init__(self, name, fn, params, duration, energy, noise, category, reversible, inverse, stopped_ok, doc, irreversible,
-                 arms=None, idle=False, power_off_ok=False, noise_db=None, timing="fixed"):
+                 arms=None, idle=False, power_off_ok=False, noise_db=None, timing="fixed", operates=False):
         self.name, self.fn = name, fn
         self.params = {k: _parse_param(k, v) for k, v in (params or {}).items()}
         self.duration, self.energy, self.noise = duration, energy, noise
@@ -158,6 +164,10 @@ class ActionSpec:
             raise ValueError("Action {!r}: timing must be one of {}".format(name, ", ".join(TIMINGS)))
         self.arms, self.idle, self.power_off_ok = arms, bool(idle), bool(power_off_ok)
         self.noise_db, self.timing = noise_db, timing
+        # operates: the action works its target as a device or mechanism (switches, doors and lids, settings): with
+        # realistic perception an unfamiliar target is refused first (NOVEL_OPERATE_MESSAGE; engine.step). Not part of
+        # describe(), so not of the action fingerprint
+        self.operates = bool(operates)
 
     def describe(self):
         info = {"name": self.name, "category": self.category, "doc": self.doc,
@@ -249,6 +259,7 @@ def synth_motion(state, from_room, start, path, connection=None, seconds=0.0, sp
     return {"path": [list(c) for c in path or ()], "start": list(start) if start else [], "from_room": from_room,
             "to_room": to_room, "connection": connection if conn is not None else None, "meters": round(meters, 4),
             "planned_m": round(meters, 4), "seconds": float(seconds or 0.0), "speed": mode, "load_kg": round(load, 4),
+            "energy_kg": body.felt_load_kg(state) if held else 0.0,
             "stairs_up": up, "stairs_down": down, "cut": None, "exhausts": False}
 
 
@@ -285,12 +296,14 @@ def motion_records(ctx):
 
 def action(name, params=None, duration=1.0, energy=None, noise=0.0, category="physical", reversible=False,
            inverse=None, stopped_ok=False, doc="", irreversible=False, arms=None, idle=False, power_off_ok=False,
-           noise_db=None, timing="fixed"):
+           noise_db=None, timing="fixed", operates=False):
     """Register an action. energy=None (kernel v3.0): the body charges the action's activity power over its seconds
-    and its walking work; a number is extra work in the old % units (see the module docstring)."""
+    and its walking work; a number is extra work in the old % units (see the module docstring). operates=True: the
+    action works its target as a device or mechanism (ActionSpec.operates)."""
     def deco(fn):
         spec = ActionSpec(name, fn, params, duration, energy, noise, category, reversible, inverse, stopped_ok, doc, irreversible,
-                          arms=arms, idle=idle, power_off_ok=power_off_ok, noise_db=noise_db, timing=timing)
+                          arms=arms, idle=idle, power_off_ok=power_off_ok, noise_db=noise_db, timing=timing,
+                          operates=operates)
         if name in ACTIONS:
             raise ValueError("Action {!r} registered twice ({} and {})".format(name, OWNERS.get(("action", name)), _owner(fn)))
         ACTIONS[name] = spec
@@ -345,6 +358,16 @@ MIC_FAULT_TEXT = "Microphone fault: request help"
 MIC_PRIVACY_TEXT = "Privacy mode is on: only speech addressed to the robot is heard"
 MIC_POLICY_TEXT = "A privacy policy limits the microphones here to speech addressed to the robot"
 PRECISION_TEXT = "Cannot position precisely enough for {} right now"
+
+
+def owner_asks(state, record):
+    """True when a private thing's owner gave the current instruction (dialogue.requester: the current request's
+    "from", else the intent's or the state's requester): handling it for them is no privacy violation."""
+    owner = record.get("owner") if isinstance(record, dict) else None
+    if not isinstance(owner, str) or not owner:
+        return False
+    from .dialogue import requester
+    return owner == requester(state)
 
 
 class Ctx:
@@ -662,10 +685,23 @@ class Ctx:
     def grant(self, eid, level, fields=None):
         """Record what this action let the robot learn about eid: level "inspect" | "touch" | "read" | "measure"
         (fields=None: every field of that tier; or a list of fields, e.g. measure ["temperature_c"] with a
-        thermometer). Applied only if the step succeeds; no-op in oracle mode."""
+        thermometer). Applied only if the step succeeds; no-op in oracle mode.
+
+        The grant gate (review I3 / R4): an inspect or touch grant is applied only when the robot could have learned
+        it where it is now, or on its walk this step (Realism.grant_problem: within reach, or resolved by the
+        cameras' close-look check), for every domain, so no action becomes a remote inspection; a refused grant is
+        dropped, and under HOUSE_SIM_STRICT=1 it raises (the gate's strict tests then name the action that tried)."""
         realism = getattr(self.env, "realism", None)
-        if realism is not None:
-            realism.grant(eid, level, fields)
+        if realism is None:
+            return
+        gate = getattr(realism, "grant_problem", None)
+        problem = gate(self.w.s, eid, level, self.w, motion_records(self)) if gate is not None else None
+        if problem is not None:
+            if os.environ.get("HOUSE_SIM_STRICT") == "1":
+                raise AssertionError("{} granted {} of {} the robot cannot have learned from where it is ({})".format(
+                    self.spec.name, level, eid, problem))
+            return
+        realism.grant(eid, level, fields)
 
     def perceived(self, eid, details, level="inspect", exact=()):
         """Render a result dict about eid the way the robot perceives it at `level` (identity unchanged in
@@ -696,8 +732,14 @@ class Ctx:
         """A step-independent Random seeded from (episode seed, parts): instrument error or an estimate's noise
         that must be the same every time the same quantity is judged again (ctx.rng is seeded per step and action,
         so noise drawn from it redraws every step and averages out). Seeding a Random with a string is stable across
-        processes and PYTHONHASHSEED."""
-        return random.Random("kernel-fixed|{}|{}".format(getattr(self.env, "seed", 0), "|".join(str(p) for p in parts)))
+        processes and PYTHONHASHSEED. With an episode nonce (realism.NONCE_KEY, set by an agent harness) the nonce is
+        mixed in, so a domain instrument's error is episode-secret like the kernel's own fixed draws (review H8,
+        K-LEAK's request); without one the draws are exactly as before."""
+        from .realism import episode_nonce
+        nonce = episode_nonce(self.env)
+        seed = getattr(self.env, "seed", 0)
+        head = "kernel-fixed|{}|n:{}".format(seed, nonce) if nonce else "kernel-fixed|{}".format(seed)
+        return random.Random("{}|{}".format(head, "|".join(str(p) for p in parts)))
 
     # ----- identification (realistic perception) ------------------------
     def unresolved(self, eid):
@@ -757,8 +799,16 @@ class Ctx:
     def forbid(self, eid, record, flag, message, category):
         """A permission rule (`flag`: private | off_limits | requires_approval | risk) forbids this act on eid.
         Oracle mode, or a rule the robot can perceive: refuse (kernel_access). Otherwise (realistic): the act
-        proceeds and counts as a privacy/authority violation, once per entity and rule within the action."""
-        if not self.realistic or self.rule_perceived(eid, record, flag):
+        proceeds and counts as a privacy/authority violation, once per entity and rule within the action.
+        A private thing whose owner gave the current instruction (owner_asks) is theirs to have handled: no refusal
+        in oracle mode and no violation where the robot cannot tell the rule; where it can (a PRIVATE label read) it
+        still asks first, since it cannot verify whose request it is (phase 1, admin_inventory's request)."""
+        perceived = None
+        if flag == "private" and owner_asks(self.w.s, record):
+            perceived = self.realistic and self.rule_perceived(eid, record, flag)
+            if not perceived:
+                return
+        if not self.realistic or (perceived if perceived is not None else self.rule_perceived(eid, record, flag)):
             raise access_error(message, category)
         key = (eid, flag)
         if key in self._violations:

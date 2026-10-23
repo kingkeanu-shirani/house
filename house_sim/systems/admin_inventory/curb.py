@@ -199,6 +199,8 @@ def run_collection(w):
             entry["taken_bags"].append(cart)
     log.append(entry)
     w.emit("waste_collection", **{k: v for k, v in entry.items() if k != "date"})
+    if entry["emptied"] or entry["taken_bags"]:
+        visual_event(w, "waste_collection", room=room, size_m=2.5)      # the truck and its crew at the curb
     notice(w, "collection_truck", room=room)      # the truck is heard (kernel v3.1 notices: wait until it has come)
     return entry
 

@@ -1005,10 +1005,20 @@ def _loose_on_floor(rec, rid):
         and not rec.get("mounted")
 
 
+def rug_cells(state, rid):
+    """Floor cells under the rugs of a room."""
+    cells = set()
+    for eid in geometry.room_entities(state, rid):
+        if (state["entities"][eid] or {}).get("category") == "rug":
+            cells.update(geometry.footprint(state["entities"][eid]))
+    return cells
+
+
 def _move_beside(p, config, device, outlet):
-    """Stand a loose floor device on a free cell next to the receptacle (keep_access: the move cuts no route).
-    Returns the old pos (to restore) or None when nothing fits."""
-    from .cords import cell_of
+    """Stand a loose floor device on a free cell next to the receptacle (keep_access: the move cuts no route; a
+    portable heater never onto a rug, which it would scorch). Returns the old pos (to restore) or None when nothing
+    fits."""
+    from .cords import _heat_source, cell_of
     rec = config["entities"][device]
     rid = rec.get("location")
     if rid not in config["rooms"] or not _loose_on_floor(rec, rid):
@@ -1017,7 +1027,9 @@ def _move_beside(p, config, device, outlet):
     o_room, o_cell = cell_of(state, outlet)
     if o_room != rid or o_cell is None:
         return None
-    cell = geometry.free_floor_cell(state, rid, near=tuple(o_cell), ignore=(device,), record=rec, keep_access=True)
+    avoid = rug_cells(state, rid) if _heat_source(rec) else ()
+    cell = geometry.free_floor_cell(state, rid, near=tuple(o_cell), ignore=(device,), record=rec, keep_access=True,
+                                    avoid=avoid)
     if cell is None or geometry.chebyshev(tuple(cell), tuple(o_cell)) > 2:
         return None
     old = list(rec["pos"])

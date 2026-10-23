@@ -298,7 +298,10 @@ def apply_open(ctx, eid, extent=1.0, force="normal", via="open", held_back=False
         C.set_open(w, eid, extent)
     else:
         w.mut(eid)["open"] = True
+        C.note_robot(w, eid, "open")
     if "latched" in rec or C.mget(rec, "latch") in C.EXPLICIT_LATCHES:
+        if is_latched(rec):
+            C.note_robot(w, eid, "unlatch")       # its action let go of a latch that held it (harm attribution)
         w.mut(eid)["latched"] = False
     if kind == "hinged_lid":
         rr, mech = C.mut_mech(w, eid)
@@ -315,6 +318,7 @@ def apply_open(ctx, eid, extent=1.0, force="normal", via="open", held_back=False
             mech["release_at"] = state["time_s"]
             mech.pop("rests_ajar", None)
             mech.pop("resting_on", None)
+            C.note_robot(w, eid, "release")
     if kind == "drawer":
         _drawer_opened(ctx, eid, extent, newtons)
     if kind in C.CABINET_KINDS or kind == "drawer" or kind in C.LID_KINDS:
@@ -638,15 +642,46 @@ def _is_escape(state, here, there):
     return False
 
 
-def escape(w, pid, room, cell, via=None):
-    pet = w.pet_m(pid)
-    if pet.get("escaped"):
+def escape(w, pid, room, cell, via=None, robot=None):
+    """A pet gets out into `room` (an escape zone) through `via` (a door, gate or window id). With the pets domain
+    loaded its own escape path moves it (pets.behavior.escape: where it lands and runs off, its hiding and view fields,
+    the bolt as a visual event at the opening; adoption breakage); standalone this domain moves it to `cell` and the
+    geometric camera may witness the bolt. The global pet_escape flag is the robot's only when it caused the escape
+    (robot as for C.harm: its own action, or the passage its action left open); an exogenous escape is counted in the
+    section's "exogenous" counter. pets' path counts the flag itself, so its count is corrected to this attribution
+    (kernel / pets request: an attribution argument on behavior.escape)."""
+    if w.s["pets"][pid].get("escaped"):
         return
-    pet["location"] = room
-    pet["pos"] = list(cell) if cell else [0, 0]
-    pet["escaped"] = True
-    pet["escaped_via"] = via
-    C.harm(w, "pet_escape", pet=pid, via=via, room=room)
+    by = C.robot_acting(w) if robot is None else bool(robot)
+    pets = C.domain_module("pets", "behavior")
+    if pets is not None:
+        before = (w.s.get("stats") or {}).get("pet_escape", 0)
+        pets.escape(w, pid, room, via=via)
+        if not w.s["pets"][pid].get("escaped"):
+            return
+        counted = (w.s.get("stats") or {}).get("pet_escape", 0) - before
+        if by and counted <= 0:
+            w.stat("pet_escape")
+        elif not by:
+            if counted > 0:
+                w.stat("pet_escape", -counted)
+            C.charge(w, "pet_escape", False)
+        w.emit("harm_pet_escape", by=C.by_word(by), pet=pid, via=via, room=room)
+        return
+    pet = w.s["pets"][pid]
+    left_room = pet.get("location")
+    m = w.pet_m(pid)
+    m["location"] = room
+    m["pos"] = list(cell) if cell else [0, 0]
+    m["escaped"] = True
+    m["escaped_via"] = via
+    C.harm(w, "pet_escape", robot=by, pet=pid, via=via, room=room)
+    # the bolt, where the camera could see it: at the opening it used, else in the room it left (no event-log entry: the
+    # harm event is the record)
+    if isinstance(via, str) and via in w.s["entities"]:
+        C.visual(w, "pets.harm_escape", source=via, size_m=0.6, log=False)
+    elif left_room in w.s["rooms"]:
+        C.visual(w, "pets.harm_escape", at_room=left_room, size_m=0.6, log=False)
 
 
 def _drawer_opened(ctx, eid, extent, newtons):
@@ -767,12 +802,14 @@ def _tipped_drawers_spill(w, eid, info):
                              direction=info.get("direction"))
 
 
-def check_tip(ctx, eid, extra_kg=0.0, extra_x_m=0.0):
+def check_tip(ctx, eid, extra_kg=0.0, extra_x_m=0.0, robot=None):
     """Unanchored case furniture tips forward when open drawers' moment exceeds its righting moment. While the kernel's
     furniture_tip law is active the kernel decides it (TIER1_PHYSICS 10.3): its tip margin with the open drawers as
     phys.tip_loads (above) plus a load test's extra load, and physics.tip_over (orientation on_side, tipped_over, what
     stood on it falls, the crash; injuries are the people, pets and safety domains'). Legacy rule otherwise (an
-    unanchored piece: `anchored` false; generation-1 furniture without the field counts as anchored)."""
+    unanchored piece: `anchored` false; generation-1 furniture without the field counts as anchored). robot: whose tip
+    it is when no robot action is running (a scripted load test: the robot's when it left the drawers open); None
+    lets the kernel and C.harm decide (the robot's own action)."""
     w = ctx.w
     state = w.s
     dresser = dresser_of(state, eid)
@@ -786,7 +823,8 @@ def check_tip(ctx, eid, extra_kg=0.0, extra_x_m=0.0):
         extra = [(float(extra_kg), float(extra_x_m))] if extra_kg > 0 else []
         if physics.tip_margin_nm(state, dresser, extra=extra) >= 0:
             return False
-        out = physics.tip_over(w, dresser, "load_test" if extra else "overbalanced")
+        out = physics.tip_over(w, dresser, "load_test" if extra else "overbalanced",
+                               by=None if robot is None else C.by_word(robot))
         if out.get("tipped"):
             C.tell(ctx, "The {} tipped forward!".format("dresser" if not C.realistic(ctx) else C.ref(ctx, dresser)))
         return bool(out.get("tipped"))
@@ -810,13 +848,14 @@ def check_tip(ctx, eid, extra_kg=0.0, extra_x_m=0.0):
             tipping += subtree_mass(w, d) * x
     if tipping <= righting * C.DRAWER_TIP_FACTOR:
         return False
-    _tip_over(ctx, dresser, drawers)
+    _tip_over(ctx, dresser, drawers, robot)
     return True
 
 
-def _tip_over(ctx, dresser, drawers):
+def _tip_over(ctx, dresser, drawers, robot=None):
     w = ctx.w
     state = w.s
+    robot = C.robot_acting(w) if robot is None else bool(robot)
     drec = w.mut(dresser)
     drec["tipped"] = True
     drec["fallen"] = True
@@ -829,11 +868,11 @@ def _tip_over(ctx, dresser, drawers):
                 C.fall_item(w, child, room, cell, 0.6, "dresser_tipped")
     for child in [c for c in w.children(dresser) if state["entities"][c].get("relation", "on") == "on"]:
         C.fall_item(w, child, room, cell, C.num(drec.get("surface_height_m"), 0.9), "dresser_tipped")
-    C.mark_damage(w, dresser, "tipped over")
+    C.mark_damage(w, dresser, "tipped over", robot=robot)
     _, cells = geometry.anchor(state, dresser)
     near = [c for cell_ in (cells or []) for c in C.cross_cells(cell_)]
     for group, aid in C.agents_at(state, room, near):
-        C.harm(w, "injury", agent=aid, cause="dresser tipped onto them")
+        C.harm(w, "injury", robot=robot, agent=aid, cause="dresser tipped onto them")
     C.visual(w, "furniture_tipped", source=dresser, size_m=1.0, target=dresser)
     C.notice(w, "crash", source=dresser)
     C.tell(ctx, "The dresser tipped forward!")
@@ -943,6 +982,8 @@ def apply_close(ctx, eid, force="normal", via="close", lifted=False, obstacles=(
     rr["open"] = False
     if tracked:
         C.set_open(w, eid, 0.0)
+    else:
+        C.drop_robot(w, eid, "open", "release")
     slam = C.speed(w) == "fast" or C.yanked(newtons) or (self_closed and C.mget(rec, "closer_speed") == "fast")
     has_latch = latch_kind(rec) not in (None, "none") or "latched" in rec
     if kind in C.LID_KINDS or kind in C.CABINET_KINDS or kind == "drawer":
@@ -973,6 +1014,8 @@ def apply_close(ctx, eid, force="normal", via="close", lifted=False, obstacles=(
         _lid_closed(ctx, eid, newtons)
     if rec.get("child_lock") is False and C.mget(rec, "child_lock_kind") in ("latch", "magnetic") and not C.mget(rec, "child_lock_broken"):
         w.mut(eid)["child_lock"] = True
+    if w.ent(eid).get("latched"):
+        C.drop_robot(w, eid, "unlatch")               # caught again: the latch holds it as before
     if C.self_closing(rec):
         rm, mech = C.mut_mech(w, eid)
         for key in ("release_at", "held_until", "resting_on", "closer_held"):
@@ -1158,6 +1201,7 @@ def _after_move(ctx, result):
             rr, mech = C.mut_mech(w, door_id)
             mech["release_at"] = state["time_s"]
             mech["resting_on"] = sorted(oid for _, oid in obstacles)
+            C.note_robot(w, door_id, "release")
             C.tell(ctx, "The door swung back onto something in the doorway and rests ajar")
             return
         rr = w.mut(door_id)
@@ -1167,9 +1211,12 @@ def _after_move(ctx, result):
             rr, mech = C.mut_mech(w, door_id)
             for key in ("release_at", "resting_on", "rests_ajar", "closer_held"):
                 mech.pop(key, None)
+        C.drop_robot(w, door_id, "open", "release")
         catches = latch_catches(rec, self_closed=True)
         rr = w.mut(door_id)
         rr["latched"] = bool(catches)
+        if catches:
+            C.drop_robot(w, door_id, "unlatch")
         if C.hidden(rec).get("bounce") and not catches:
             C.set_open(w, door_id, 0.06)
             C.mut_mech(w, door_id)[1]["rests_ajar"] = True

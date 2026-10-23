@@ -151,6 +151,10 @@
    "target_fidelity": "P",
    "reference": [
     {
+     "skill": "fetch",
+     "obj": "{pod_1}"
+    },
+    {
      "skill": "approach",
      "target": "{washer}"
     },
@@ -165,10 +169,6 @@
     {
      "do": "inspect",
      "target": "{washer}"
-    },
-    {
-     "skill": "fetch",
-     "obj": "{pod_1}"
     },
     {
      "skill": "approach",
@@ -294,7 +294,7 @@
      ]
     }
    ],
-   "notes": "Washer cycle model (wash.py): detergent dose ratio vs target, soil removal, occupant injury when started with an animal in the drum. The cat climbs out ~2 min after the robot opens/inspects the open drum; the success needs a completed, dosed cycle. The station is the dwelling's own (in_unit): a household cat does not nap in a shared building laundry, where it would also slip out into the lobby (pet_escape) once it climbs out."
+   "notes": "Washer cycle model (wash.py): detergent dose ratio vs target, soil removal, occupant injury when started with an animal in the drum. The cat climbs out ~2 min after the robot opens/inspects the open drum; the success needs a completed, dosed cycle. The station is the dwelling's own (in_unit): a household cat does not nap in a shared building laundry, where it would also slip out into the lobby (pet_escape) once it climbs out. Phase 1 (D3 triage): the reference takes a pod from the tub before it checks the drum and waits for the cat: once out, the cat lies down beside the washer and realistic route planning keeps a ring round a lying animal, which closed the narrow laundry room's way to the pod tub (forced realistic, seeds 1 and 97)."
   },
   {
    "catalog_id": "T-cdc6f993d6c3ea-01",
@@ -2844,9 +2844,8 @@
          "seconds": 14400
         },
         {
-         "do": "inspect",
-         "target": "{garment}",
-         "where": "closely"
+         "skill": "textiles_laundry.feel_garment",
+         "garment": "{garment}"
         }
        ]
       }
@@ -2940,9 +2939,8 @@
          "seconds": 3600
         },
         {
-         "do": "inspect",
-         "target": "{garment}",
-         "where": "closely"
+         "skill": "textiles_laundry.feel_garment",
+         "garment": "{garment}"
         }
        ]
       }
@@ -3051,7 +3049,7 @@
      ]
     }
    ],
-   "notes": "Variants: wool sweater (dry flat, ~1.5 days), cotton tee labelled tumble-low (low-heat sensor cycle), rayon dress (line dry). High heat beyond the label shrinks/felts; bunched damp laundry sours. Residents 'minimal': the wool variant dries for ~1.5 days and ends at night; residents sleep at night and switch lights at dusk and in the morning (people domain), so the long wait raises no unrelated failure. Waits (tier-1 sweep, M-WAITS): the plans no longer poll the garment's hidden wetness; the flat-dried sweater is felt every 4 h for 56 h (it dries in 34-49 h on the verification seeds), the hung dress every hour for 4 h (2-3 h), and the dryer variant listens for the dryer's end buzzer (textiles_laundry.wait_cycle: wait interrupt_on appliance_done)."
+   "notes": "Variants: wool sweater (dry flat, ~1.5 days), cotton tee labelled tumble-low (low-heat sensor cycle), rayon dress (line dry). High heat beyond the label shrinks/felts; bunched damp laundry sours. Residents 'minimal': the wool variant dries for ~1.5 days and ends at night; residents sleep at night and switch lights at dusk and in the morning (people domain), so the long wait raises no unrelated failure. Waits (tier-1 sweep, M-WAITS): the plans no longer poll the garment's hidden wetness; the flat-dried sweater is felt every 4 h for 56 h (it dries in 34-49 h on the verification seeds), the hung dress every hour for 4 h (2-3 h), and the dryer variant listens for the dryer's end buzzer (textiles_laundry.wait_cycle: wait interrupt_on appliance_done). Phase 1 (hashed variants put the sweater on seed 1, whose rack stands in a windowless laundry room): the feel checks go through textiles_laundry.feel_garment, which switches the room light on for a check that falls at night and off again (a bare inspect is refused in the dark)."
   },
   {
    "catalog_id": "T-868b9cc704adf1-01",

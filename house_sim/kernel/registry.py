@@ -28,12 +28,21 @@ TYPE_DIR = Path(__file__).resolve().parent.parent / "data" / "types"
 GROUP_KEYS = ("descriptor", "resolve", "kind", "candidates", "label_fields", "portion_descriptor", "color", "size_m",
               "size_class")
 CAMERA_RESOLUTION_M = 0.05      # sizes closer than this (or 10 %) look the same to the robot's camera
+# the size difference the geometric camera's geometry resolves (pixels to two significant figures, range to 0.1 m at
+# arm's length): the look-alike size-spread lint's threshold (lookalike_size_spreads)
+SPREAD_RESOLUTION_M = 0.01
 TYPE_KEYS = ("is_a", "props", "doc", "perception", "view")
 META_KEYS = ("perception", "view")      # type metadata kept out of types[name] (never copied into records)
 
 
 class LookalikeWarning(UserWarning):
     """Members of one look-alike group declare glance values (color, size) a camera would tell apart."""
+
+
+class LookalikeSizeWarning(LookalikeWarning):
+    """Members of one look-alike group differ in true size beyond the camera's resolution although the group shows one
+    size_m: the geometric camera's geometry (elevation, occlusion, bearing, lidar, whether it is listed) still tells
+    them apart (phase-1 red team, review L2 residual). Align the member sizes or split the group."""
 
 # Fields every entity has. Domains add their own through type props.
 BASE_PROPS = {
@@ -70,6 +79,7 @@ class TypeRegistry:
         self.view, self._view_cache = {}, {}
         self._groups = self._group_types = None
         self.lookalike_warnings = []
+        self.lookalike_spreads = []
         files = sorted(Path(folder).glob("*.json")) if Path(folder).is_dir() else []
         from .plugins import enabled_domains
         only = enabled_domains()
@@ -129,6 +139,16 @@ class TypeRegistry:
                    "color/size; set the group's \"color\"/\"size_m\" or align the types): " + "; ".join(self.lookalike_warnings[:8]) \
                    + ("; and {} more".format(len(self.lookalike_warnings) - 8) if len(self.lookalike_warnings) > 8 else "")
             warnings.warn(text, LookalikeWarning, stacklevel=3)     # shown once per process by the default filter
+        try:
+            self.lookalike_spreads = self.lookalike_size_spreads()
+        except (KeyError, TypeError, ValueError):
+            self.lookalike_spreads = []
+        if self.lookalike_spreads:
+            warnings.warn("look-alike group members differ in true size although the group shows one size_m (the "
+                          "geometric camera's geometry tells them apart; align the members or split the group): " +
+                          "; ".join(self.lookalike_spreads[:8]) + ("; and {} more".format(len(self.lookalike_spreads) - 8)
+                                                                   if len(self.lookalike_spreads) > 8 else ""),
+                          LookalikeSizeWarning, stacklevel=3)
 
     # ----- look-alike groups (realistic perception) ----------------------------------------------------------
     def lookalike_groups(self):
@@ -210,6 +230,33 @@ class TypeRegistry:
                     if column and column[-1] - column[0] > max(CAMERA_RESOLUTION_M, 0.1 * column[(len(column) - 1) // 2]):
                         out.append("{}: size {:.2f}-{:.2f} m".format(name, column[0], column[-1]))
                         break
+        return out
+
+    def lookalike_size_spreads(self):
+        """Groups whose member types' true sizes differ on some side by more than SPREAD_RESOLUTION_M and 5 % of the
+        median (what the geometric camera's pixels, to two significant figures, and its range resolve), whether or not
+        the group declares a size_m to show instead: ["group: size 0.45-0.55 m (cup_plunger, flange_plunger)", ...]. A
+        group size_m fixes what the record shows, not what the geometric camera's geometry implies (LookalikeSizeWarning;
+        phase-1 red team)."""
+        out = []
+        for name, types in sorted(self.lookalike_types().items()):
+            sizes = []
+            for t in types:
+                try:
+                    size = [float(v) for v in (self.resolve(t).get("size_m") or [])[:3]]
+                except (TypeError, ValueError):
+                    continue
+                if len(size) == 3:
+                    sizes.append((size, t))
+            if len(sizes) < 2:
+                continue
+            for dim in range(3):
+                column = sorted((s[dim], t) for s, t in sizes)
+                low, high = column[0][0], column[-1][0]
+                if high - low > max(SPREAD_RESOLUTION_M, 0.05 * column[(len(column) - 1) // 2][0]) + 1e-9:
+                    out.append("{}: size {:.2f}-{:.2f} m ({}, {})".format(name, low, high, column[0][1],
+                                                                          column[-1][1]))
+                    break
         return out
 
     def known(self, name):

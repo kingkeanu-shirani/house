@@ -165,6 +165,33 @@ class GraspTests(unittest.TestCase):
         ok(self, e.step("pick_up", "oil", grip="underneath"))
         self.assertEqual(ent(e, "oil")["location"], "robot")
 
+    def test_lift_monotonicity_a_one_hand_lift_never_slips_on_mass_alone(self):
+        """Review H11 / P2-gate probe row 4: the kernel's lift plan gives one hand up to its 8.0 kg rating, but the
+        normal grip's 50 N cap dropped a dry 7.65-8.0 kg item while an 8.01 kg one (two hands) was held. For masses
+        m1 < m2 <= the hand limit, if pick_up holds m2 it holds m1; dry items up to the rating are held one-handed
+        in every material, the lowest-friction film included. A slippery surface still slips, and monotonically."""
+        def lift(mass, **props):
+            m = Mini()
+            m.add("table", "table", "living", pos=[1, 1])
+            m.add("item", "generic_item", "table", label="box", mass_kg=mass, size_m=[0.3, 0.3, 0.3], spos=[0.1, 0.1],
+                  phys_exact=True, **props)
+            e = m.env()
+            r = e.step("pick_up", "item")
+            return r, ent(e, "item")
+        for material in (None, "glass", "steel", "film", "wood"):
+            props = {"material": material} if material else {}
+            for mass in (0.5, 4.0, 7.5, 7.65, 7.9, 8.0, 8.01, 12.0):
+                with self.subTest(material=material, mass=mass):
+                    r, rec = lift(mass, **props)
+                    self.assertTrue(r["ok"], r["message"])
+                    self.assertEqual(rec["location"], "robot", r["message"])
+                    self.assertEqual(rec["held_hand"], "both" if mass > 8.0 else "right")
+        held = [lift(mass, material="glass", surface_state="wet")[1]["location"] == "robot" for mass in (0.5, 2.0, 4.0, 6.0, 8.0)]
+        self.assertEqual(held, sorted(held, reverse=True))          # lighter wet items hold whenever heavier ones do
+        self.assertFalse(all(held))                                 # and a wet surface does make heavy ones slip
+        r, rec = lift(8.0, grip_damage={})
+        self.assertEqual(rec["held_grip"], "normal")
+
     def test_pinching_soft_bread_squashes_it(self):
         e = self.m.env()
         ok(self, e.step("pick_up", "bread", grip="pinch"))
@@ -390,18 +417,32 @@ class PlacementTests(unittest.TestCase):
         self.assertNotIn("scorch", ent(e, "table").get("damage") or {})
         self.assertEqual(stat(e, "damage"), 0)
 
-    def test_fast_set_down_chips_fragile_ware_on_stone(self):
-        m = Mini()
-        m.add("counter", "counter", "kitchen", pos=[1, 1])
-        m.add("bowl", "generic_item", "kitchen", label="porcelain bowl", material="porcelain", fragile=True, size_m=[0.15, 0.15, 0.07])
-        e = m.env(room="kitchen", pos=(1, 3), hold={"right": "bowl"})
-        e.step("set_speed", "fast")
-        ok(self, e.step("place", "bowl", "counter"))
-        self.assertTrue(ent(e, "bowl").get("chipped"))
-        e = m.env(room="kitchen", pos=(1, 3), hold={"right": "bowl"})
-        ok(self, e.step("place", "bowl", "counter"))
-        self.assertFalse(ent(e, "bowl").get("chipped", False))
-        self.assertIsNotNone(ent(e, "bowl").get("edge_margin_m"))
+    def test_fast_set_down_and_a_toss_of_fragile_ware_on_stone(self):
+        """Adoption breakage (setdown), re-authored for the integrator's decision: a fast set-down is the kernel's 6 cm
+        effective drop, which porcelain survives; only this domain's legacy copy (while the law is deferred) chips it.
+        A toss is a drop from about a metre and breaks it on the tile with or without the law; a normal set-down
+        never hurts it."""
+        from house_sim.kernel.phys import lawbook
+        for law in (False, True):
+            with self.subTest(setdown=law), lawbook.forced(setdown=law):
+                m = Mini()
+                m.add("counter", "counter", "kitchen", pos=[1, 1])
+                m.add("bowl", "generic_item", "kitchen", label="porcelain bowl", material="porcelain", fragile=True,
+                      size_m=[0.15, 0.15, 0.07], phys_exact=True)
+                e = m.env(room="kitchen", pos=(1, 3), hold={"right": "bowl"})
+                e.step("set_speed", "fast")
+                ok(self, e.step("place", "bowl", "counter"))
+                self.assertFalse(ent(e, "bowl").get("broken"))
+                self.assertEqual(bool(ent(e, "bowl").get("chipped")), not law)
+                e = m.env(room="kitchen", pos=(1, 3), hold={"right": "bowl"})
+                ok(self, e.step("place", "bowl", "counter"))
+                self.assertFalse(ent(e, "bowl").get("chipped", False))
+                self.assertIsNotNone(ent(e, "bowl").get("edge_margin_m"))
+                e = m.env(room="kitchen", pos=(1, 3), hold={"right": "bowl"})
+                ok(self, e.step("throw", "bowl", "counter", force="soft"))
+                self.assertEqual(ent(e, "bowl")["location"], "kitchen")
+                self.assertTrue(ent(e, "bowl")["broken"])
+                self.assertGreaterEqual(stat(e, "breakages"), 1)
 
     def test_overfilled_bin_lid_will_not_close(self):
         m = Mini()
@@ -437,6 +478,37 @@ class HandOverTests(unittest.TestCase):
         ok(self, e.step("hand_over", "knife", "ana"))
         self.assertGreater(stat(e, "injury"), 0)
         self.assertIn("injury", e.evaluate()["failures"])
+
+    def test_hot_handover_burns_follow_the_kernel_burn_time_like_the_people_domain(self):
+        """Adoption breakage (people cross-domain report 2): a hot hand-over burned above a fixed 55 C here while the
+        people domain uses thermal.burn_seconds over a ~2 s grip. Both now agree: an adult at about 65 C and above, a
+        child at about 60 C; never when offered by the handle or insulated; the surface temperature decides, not a
+        "hot" hazard tag."""
+        from house_sim.kernel import plugins
+        people_hook = any(name.endswith("_hot_handover") for _, name, _ in plugins.AFTER["hand_over"])
+        cases = (({"temperature_c": 60.0}, "adult", False), ({"temperature_c": 64.0}, "adult", False),
+                 ({"temperature_c": 66.0}, "adult", True), ({"temperature_c": 60.0}, "child", True),
+                 ({"temperature_c": 57.0}, "child", False), ({"temperature_c": 80.0, "insulated": True}, "adult", False),
+                 ({"hazards": ["hot"]}, "adult", False), ({"temperature_c": 70.0, "hazards": ["hot"]}, "adult", True),
+                 ({"surface_temp_c": 40.0, "temperature_c": 90.0}, "adult", False))
+        for props, role, burns in cases:
+            with self.subTest(props=props, role=role):
+                m = Mini()
+                m.add("mug", "generic_item", "living", label="mug", mass_kg=0.35, size_m=[0.12, 0.09, 0.1], **props)
+                m.person("ana", "living", [2, 3], role=role, authority=2 if role == "adult" else 0)
+                e = m.env(hold={"right": "mug"})
+                ok(self, e.step("hand_over", "mug", "ana"))
+                self.assertEqual(stat(e, "burns") > 0, burns)
+                if people_hook and "temperature_c" in props:
+                    self.assertEqual(stat(e, "injury") > 0, burns)     # the people domain's count agrees
+        m = Mini()
+        m.add("mug", "generic_item", "living", label="mug", mass_kg=0.35, size_m=[0.12, 0.09, 0.1], temperature_c=80.0,
+              features={"handle": 0}, has_handle=True)
+        m.person("ana", "living", [2, 3])
+        e = m.env(hold={"right": "mug"})
+        ok(self, e.step("set_orientation", "mug", toward="ana", feature="handle"))
+        ok(self, e.step("hand_over", "mug", "ana"))
+        self.assertEqual(stat(e, "burns"), 0)
 
     def test_heavy_item_to_weak_grip_is_dropped(self):
         e = self.m.env(hold={"left": "pot", "right": "pot"})
@@ -655,13 +727,77 @@ class SlideRollTests(unittest.TestCase):
         e = m.env(room="drive", pos=(1, 4))
         ok(self, e.step("tilt", "cart", angle_deg=40))
         ok(self, e.step("roll", "cart", release=True))
+        # let go: nobody balances it on its wheels any more (the kernel's roll never free-rolls a cart held tilted)
+        self.assertFalse(ent(e, "cart").get("tilted_on_wheels"))
+        ok(self, e.step("wait", seconds=10))
         self.assertEqual(ent(e, "cart")["location"], "street")
-        self.assertTrue(ent(e, "cart").get("ran_away"))
+        from house_sim.systems.manipulation import common as C
+        if C.kernel_owns("slope"):
+            self.assertGreaterEqual(stat(e, "phys_rolls"), 1)      # the kernel's slope law rolled it
+        else:
+            self.assertTrue(ent(e, "cart").get("ran_away"))
         e = m.env(room="drive", pos=(1, 4))
         ok(self, e.step("tilt", "cart", angle_deg=40))
         ok(self, e.step("roll", "cart", direction="south", distance_m=2.0, speed="careful"))
+        ok(self, e.step("wait", seconds=10))
         self.assertEqual(ent(e, "cart")["location"], "drive")
+        self.assertTrue(ent(e, "cart").get("tilted_on_wheels"))
         self.assertFalse(ent(e, "cart").get("ran_away", False))
+        self.assertEqual(stat(e, "phys_rolls"), 0)
+
+    def test_releasing_a_tilted_cart_lets_it_settle_on_its_wheels_with_any_slope_law(self):
+        """Adoption breakage (slope): roll release=true clears tilted_on_wheels and tilt_deg in the same step, so with
+        the kernel's slope law a released cart on the driveway runs out into the street; on a flat garage floor it
+        just stands."""
+        from house_sim.kernel.phys import lawbook
+        for law in (False, True):
+            with self.subTest(slope=law), lawbook.forced(slope=law):
+                m = Mini()
+                m.add("cart", "storage_bin", "drive", label="wheeled trash cart", pos=[2, 4], mass_kg=35.0,
+                      size_m=[0.6, 0.7, 1.05], wheeled=True, tilt_to_roll=True, open=False)
+                m.add("cart2", "storage_bin", "garage", label="wheeled trash cart", pos=[2, 3], mass_kg=35.0,
+                      size_m=[0.6, 0.7, 1.05], wheeled=True, tilt_to_roll=True, open=False)
+                e = m.env(room="drive", pos=(1, 4))
+                ok(self, e.step("tilt", "cart", angle_deg=40))
+                self.assertTrue(ent(e, "cart")["tilted_on_wheels"])
+                ok(self, e.step("roll", "cart", release=True))
+                self.assertFalse(ent(e, "cart")["tilted_on_wheels"])
+                self.assertEqual(ent(e, "cart")["tilt_deg"], 0.0)
+                ok(self, e.step("wait", seconds=10))
+                self.assertEqual(ent(e, "cart")["location"], "street")
+                e = m.env(room="garage", pos=(1, 3))
+                ok(self, e.step("tilt", "cart2", angle_deg=40))
+                ok(self, e.step("roll", "cart2", direction="south", distance_m=1.0, release=True, speed="careful"))
+                self.assertFalse(ent(e, "cart2")["tilted_on_wheels"])
+                ok(self, e.step("wait", seconds=10))
+                self.assertEqual(ent(e, "cart2")["location"], "garage")
+                self.assertEqual(stat(e, "phys_rolls"), 0)
+
+    def test_walking_off_lets_go_of_a_cart_balanced_on_its_wheels(self):
+        """The robot balances a tilted cart only while it stays within reach: walking off lets go of it in that step,
+        so with the kernel's slope law an abandoned cart on the driveway runs into the street, while one the robot
+        stays beside stays balanced."""
+        from house_sim.kernel.phys import lawbook
+        m = Mini()
+        m.add("cart", "storage_bin", "drive", label="wheeled trash cart", pos=[2, 4], mass_kg=35.0, size_m=[0.6, 0.7, 1.05],
+              wheeled=True, tilt_to_roll=True, open=False)
+        with lawbook.forced(slope=True):
+            e = m.env(room="drive", pos=(1, 4))
+            ok(self, e.step("tilt", "cart", angle_deg=40))
+            ok(self, e.step("move", "garage"))
+            self.assertFalse(ent(e, "cart")["tilted_on_wheels"])
+            ok(self, e.step("wait", seconds=10))
+            self.assertEqual(ent(e, "cart")["location"], "street")
+            e = m.env(room="drive", pos=(1, 4))
+            ok(self, e.step("tilt", "cart", angle_deg=40))
+            ok(self, e.step("approach", "cart"))
+            ok(self, e.step("wait", seconds=10))
+            self.assertTrue(ent(e, "cart")["tilted_on_wheels"])
+            self.assertEqual(ent(e, "cart")["location"], "drive")
+        e = m.env(room="drive", pos=(1, 4))
+        ok(self, e.step("tilt", "cart", angle_deg=40))
+        ok(self, e.step("move", "garage"))
+        self.assertFalse(ent(e, "cart")["tilted_on_wheels"])      # the same release while the law is deferred
 
     def test_rolling_a_two_wheel_bin_on_its_base_tips_it(self):
         m = Mini()
@@ -3177,6 +3313,42 @@ class PerceptionHardeningTests(unittest.TestCase):
                 diffs.append((verb, answers))
         self.assertEqual(diffs, [])
 
+    def test_aiming_at_an_unresolved_lookalike_uses_the_size_the_robot_sees(self):
+        """Review (P3 identity sweep, rotate face_toward): aiming at an unresolved look-alike whose members differ in
+        true size gave each member its own yaw ("to 178 deg" vs "to 182 deg"), because the bearing used the member's
+        true centre. rotate face_toward, arrange relative_to / facing and align center now aim at the group's displayed
+        size, so every member gets the same answer and the same resulting pose; once identified, the true size."""
+        def scene(type_name, size):
+            m = Mini()
+            m.add("table", "table", "living", pos=[1, 1])
+            m.add("stone", type_name, "table", spos=[0.5, 0.4], size_m=size)
+            m.add("mug", "generic_item", "table", label="mug", features={"handle": 0}, size_m=[0.12, 0.09, 0.1],
+                  spos=[0.05, 0.05])
+            m.add("cup", "generic_item", "living", label="cup", size_m=[0.08, 0.08, 0.1], mass_kg=0.2, pos=[3, 3])
+            return m
+        twins = (("decor_stone", [0.30, 0.22, 0.12]), ("faux_stone", [0.12, 0.10, 0.08]))
+        for cmd in (("rotate", "mug", {"face_toward": "stone", "feature": "handle"}),
+                    ("arrange", "cup", {"destination": "table", "relative_to": "stone", "side": "left", "gap_m": 0.05}),
+                    ("arrange", "cup", {"destination": "table", "spos": [0.05, 0.6], "facing": "stone"})):
+            out = []
+            for type_name, size in twins:
+                hold = {"right": "cup"} if cmd[1] == "cup" else None
+                e = scene(type_name, size).env(pos=(1, 2), hold=hold, perception="realistic")
+                h = e.realism.handles.handle
+                args = {k: h(v) if v in ("stone", "table") else v for k, v in cmd[2].items()}
+                r = e.step(cmd[0], h(cmd[1]), **args)
+                rec = ent(e, cmd[1])
+                out.append((r["ok"], H.sub("<H>", r["message"]), rec.get("yaw_deg"), rec.get("spos")))
+            self.assertEqual(out[0], out[1], cmd)
+            self.assertTrue(out[0][0], out[0])
+        # oracle mode (and an identified stone) aims at the true centre: the two sizes give different yaws
+        yaws = []
+        for type_name, size in twins:
+            e = scene(type_name, size).env(pos=(1, 2))
+            ok(self, e.step("rotate", "mug", face_toward="stone", feature="handle"))
+            yaws.append(ent(e, "mug")["yaw_deg"])
+        self.assertNotEqual(yaws[0], yaws[1])
+
 
 class KernelRound5AdoptionTests(unittest.TestCase):
     """Kernel round 5: grips are never picked from an unidentified thing's hidden values, and a brittle break shows
@@ -3314,6 +3486,51 @@ class TierOneAdoptionTests(unittest.TestCase):
                              ("manipulation.items", topic))
         r = ok(self, e.step("ask", "ana", aspect="keep", about="jar"))
         self.assertIs(r["observation"]["last_answer"]["value"], True)
+
+    def test_the_items_route_is_a_catch_all_for_things_without_the_hidden_truth(self):
+        """Adoption breakage: manipulation.items claimed every how / keep / status / intended question about any
+        entity, shadowing plants:care / plants:keep and laundry:rewear / keep_out / hang_or_fold. It now answers
+        plainly only for a thing that carries the hidden truth (`_<key>`, `_ambiguous_<key>`, `_ask_<key>`) and is
+        a weak fallback otherwise."""
+        from house_sim.kernel import dialogue
+        from house_sim.systems.manipulation import world as manip_world
+        m = Mini()
+        m.add("jar", "generic_item", "kitchen", pos=[2, 2], label="jar", _keep=True)
+        m.add("box", "generic_item", "kitchen", pos=[3, 2], label="box", _ask_in_use=True)
+        m.add("mug", "generic_item", "kitchen", pos=[4, 2], label="mug")
+        reg_types = m.reg.types
+        if "garden_plant" in reg_types:
+            m.add("plant", "garden_plant", "yard", pos=[3, 3])
+        if "coat" in reg_types:
+            m.add("coat", "coat", "living", pos=[2, 2])
+        m.person("ana", "kitchen", [3, 3])
+        e = m.env(room="kitchen", pos=(2, 3))
+        st = e.world.s
+        S = dialogue.Subject
+        route = manip_world._route_manip
+        self.assertNotIsInstance(route(st, "ana", S("entity", "jar"), "keep", None, None), dialogue.WeakTopic)
+        self.assertNotIsInstance(route(st, "ana", S("entity", "box"), "status", None, None), dialogue.WeakTopic)
+        for subject, aspect, detail in ((S("entity", "jar"), "status", None), (S("entity", "mug"), "keep", None),
+                                        (S("entity", "mug"), "how", None), (S("entity", "mug"), "intended", None)):
+            topic = route(st, "ana", subject, aspect, detail, None)
+            self.assertIsInstance(topic, dialogue.WeakTopic, (subject, aspect))
+            # with nothing more specific registered, the fallback still answers
+            if subject.id == "mug":
+                self.assertEqual(dialogue.find_route(st, "ana", subject, aspect, detail, None)[0], "manipulation.items")
+        self.assertEqual(dialogue.find_route(st, "ana", S("entity", "jar"), "keep", None, None),
+                         ("manipulation.items", "manip:keep:jar"))
+        names = {name for name, _, _ in dialogue.ROUTES}
+        if "plants.care" in names and "garden_plant" in reg_types:
+            self.assertEqual(dialogue.find_route(st, "ana", S("entity", "plant"), "how", None, None),
+                             ("plants.care", "plants:care:plant"))
+            self.assertEqual(dialogue.find_route(st, "ana", S("entity", "plant"), "keep", None, None),
+                             ("plants.keep", "plants:keep:plant"))
+        if "laundry.item" in names and "coat" in reg_types:
+            for words, aspect, topic in ((("dirty",), "status", "laundry:rewear:coat"),
+                                         (("dryer",), "how", "laundry:keep_out:coat"),
+                                         (("hang",), "how", "laundry:hang_or_fold:coat")):
+                self.assertEqual(dialogue.find_route(st, "ana", S("entity", "coat", words), aspect, None, None),
+                                 ("laundry.item", topic))
 
     def test_every_system_has_an_exact_idle_probe_and_a_quiet_house_is_idle(self):
         from house_sim.kernel import plugins

@@ -212,6 +212,55 @@ class TestLeakage(Temp):
         self.assertIsNone(A.filter_result(None))
 
 
+class TestEpisodeNonce(Temp):
+    """Review H8, the harness half of K-LEAK's fix (phase 1, INT): every agent episode runs with a secret nonce
+    (house_sim.kernel.realism.NONCE_KEY), so its handles and fixed draws cannot be recomputed from the public spec,
+    seed and code, and differ between episodes; public logs keep it for replays, test-split logs never do."""
+
+    def test_each_public_episode_has_its_own_nonce_and_replays_from_its_log(self):
+        runs = []
+        for out in ("a", "b"):
+            spy = SpyAgent(n=3)
+            rec = R.run_episode(record(WET), episode(WET), spy, out_dir=self.tmp / out)
+            log = json.loads((self.tmp / out / rec["log"]).read_text(encoding="utf-8"))
+            runs.append((rec, log, sorted(spy.reset_args[1]["visible_entities"])))
+        (rec_a, log_a, handles_a), (rec_b, log_b, handles_b) = runs
+        self.assertRegex(log_a["episode_nonce"], r"^[0-9a-f]{32}$")
+        self.assertNotEqual(log_a["episode_nonce"], log_b["episode_nonce"])
+        self.assertTrue(handles_a)
+        self.assertNotEqual(handles_a, handles_b, "the same episode shows other handles under another nonce")
+        for rec, log in ((rec_a, log_a), (rec_b, log_b)):
+            again = R.replay_log(log, record(WET))
+            self.assertEqual((again["success"], again["steps"]), (rec["success"], rec["steps"]))
+
+    def test_the_privileged_oracle_shares_the_episodes_nonce(self):
+        rec = R.run_episode(record(WET), episode(WET), A.make_agent("oracle"), out_dir=self.tmp)
+        self.assertTrue(rec["success"], rec)
+        log = json.loads((self.tmp / rec["log"]).read_text(encoding="utf-8"))
+        self.assertTrue(R.replay_log(log, record(WET))["success"])
+
+    def test_a_test_split_nonce_is_never_logged_and_the_key_holder_recomputes_it(self):
+        key = bytes.fromhex(THROWAWAY_KEY)
+        first = R.episode_nonce(True, WET, "test:0123456789ab", key)
+        self.assertEqual(first, R.episode_nonce(True, WET, "test:0123456789ab", key))     # a rerun reproduces it
+        self.assertNotEqual(first, R.episode_nonce(True, WET, "test:0123456789ac", key))
+        self.assertNotEqual(first, R.episode_nonce(True, WET, "test:0123456789ab", bytes(32)))
+        log = {"catalog_id": WET, "seed_tag": "test:0123456789ab", "episode_nonce_scheme": R.NONCE_SCHEME}
+        self.assertEqual(R.log_nonce(log, key=key), first)
+        self.assertIsNone(R.log_nonce(log))                  # no key here: only the key holder can rebuild it
+        self.assertIsNone(R.log_nonce({"catalog_id": WET}))  # a log from before harness version 3
+
+    def test_a_cache_backed_agent_sees_the_same_handles_on_a_rerun(self):
+        cache = L.ResponseCache(self.tmp / "cache")
+        key = cache.nonce_key("anthropic|network")
+        self.assertEqual(key, L.ResponseCache(self.tmp / "cache").nonce_key("anthropic|network"))
+        self.assertNotEqual(key, cache.nonce_key("mock|mock"))
+        self.assertNotEqual(key, L.ResponseCache(self.tmp / "other").nonce_key("anthropic|network"))
+        self.assertEqual(R.episode_nonce(False, WET, "dev:0", public_key=key),
+                         R.episode_nonce(False, WET, "dev:0", public_key=key))
+        self.assertNotEqual(R.episode_nonce(False, WET, "dev:0"), R.episode_nonce(False, WET, "dev:0"))
+
+
 class TestDoneProtocol(Temp):
     def test_oracle_succeeds_and_achieve_then_undo_fails(self):
         good = A.make_agent("oracle")

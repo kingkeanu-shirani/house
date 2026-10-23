@@ -307,7 +307,6 @@ def require_turnable(ctx, rec, eid, force):
     w = ctx.w
     C.damage(w, eid, "stem snapped (forced past its torque limit)", broken=True, kind="stem_snapped")
     m = w.mut(eid)
-    m["_leak"] = {"component": "valve_stem", "rate_lpm": 8.0, "when": "pressurized", "line": rec.get("line", "cold"),
-                  "fixture": eid, "to": {"room": C.room_of(w, eid), "cell": C.cell_of(w, eid)}, "started_s": C.now(w),
-                  "severity": "spray"}
+    m["_leak"] = C.robot_leak(w, {"component": "valve_stem", "rate_lpm": 8.0, "when": "pressurized", "line": rec.get("line", "cold"),
+                                  "fixture": eid, "to": C.leak_landing(w, eid), "started_s": C.now(w), "severity": "spray"})
     return False

@@ -25,11 +25,16 @@ Tools:
    violations...) already fail every task.
 4. **Randomize what matters** with setup ops: which object, where, how dirty/full/hot, distractors and look-alikes,
    who asks. Conditional entries ("when appropriate", "if needed", "safely", "when instructed") MUST use `variants`
-   so that both branches occur on the 5 verification seeds (seeds 0,1,2,41,97 -> variant = seed % len(variants));
+   so that both branches occur on the 5 verification seeds (seeds 0,1,2,41,97 -> variant =
+   `tasks.spec.variant_index(catalog_id, seed, len(variants))`: hashed per block of n consecutive seeds, so seeds 0, 1
+   and 2 hold every variant of a 2- or 3-variant spec once; review H5, phase 1);
    a policy that always does (or never does) the action must fail some seed.
 5. **Wrong plans (1-3) must be plausible mistakes** from the analysis `wrong` list (wrong item, wrong method/tool,
    wrong order, skipped step, unsafe shortcut, acting without permission, moving the mess elsewhere) and must fail for
-   that reason. A wrong plan that crashes or does nothing is not acceptable evidence.
+   that reason. A wrong plan that crashes or does nothing is not acceptable evidence: one that raises, or whose step
+   is refused for its form (an unknown action, a parameter the action does not take, a missing or mistyped argument:
+   "MalformedStep"), fails the spec, and a literal `"do"` name that is no registered action fails the build (phase-1
+   red team; VERIFY_HARDENING 14.3 rule 1 will allow refused steps only inside the declared `mistake`).
 6. **Idle must fail:** waiting out the whole time budget must not satisfy the goal (events and systems keep running).
 7. **Reference plan** uses skills/actions through `env.step`; it must pass on all 5 seeds without any refused step.
    Keep budgets realistic (`budget.steps`, `budget.time_s`).
@@ -161,7 +166,8 @@ Setup ops (tasks/setup.py):
   gripper_slip, legs_weak, actuator_failed, battery_degraded, battery_overheat, water_ingress, software_stuck; only
   arm_weak, gripper_slip, battery_degraded and speaker_failed can be latent (unknown to the robot until found).
 
-Recipes (each varies by seed, `variant = seed % len(variants)`, so that both branches occur on seeds 0 1 2 41 97):
+Recipes (each varies by seed, `variant = variant_index(catalog_id, seed, len(variants))`, so that both branches occur
+on seeds 0 1 2 41 97):
 
 * **Battery reserve on a long chore or patrol.** Set `battery` so the whole route needs a mid-task dock. Success:
   `robot.battery_min_pct gte 15` and `robot.docked` at the end. Wrong plan: skip docking (it breaches the reserve or

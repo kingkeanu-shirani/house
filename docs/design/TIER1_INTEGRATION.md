@@ -987,6 +987,16 @@ and audit deltas. The baseline is A0, re-confirmed at B0. The rule is "no change
 "everything passes" (A0 records today's verdicts as they are). For stage C, the sweep's `tests/data/spec_baseline.json`
 is the B6 gate in the sweep's format.
 
+Since phase 1 of the stabilisation the gate also holds absolute rules (every test and every own-mode spec passes
+unless the committed dated allowlist excuses it; second signatures for every verdict change and edit), and after the
+phase-1 red team (catalog/analysis/phase1/FIX2.json): tests.json keeps every test id and outcome (a test that
+disappears, is skipped or becomes an expected failure fails G1 / G1b / G8 unless an allowlist "skip" entry or a
+signed "test-removal" row covers it); every check result carries the fingerprint of the tree it ran on, and a record
+whose checks ran on different trees, or that `compare` finds on a changed tree, is STALE; `compare` honours the
+record's own statuses and missing data, keeps G2-ABS on the record's full rows and calls a narrowed previous record
+INCOMPLETE; policy files are read from the project's commits only. The module docstring of `tier1_gate.py` is the
+reference.
+
 ### 3.2 What may change and what must not
 
 Every package must keep, unless its row allows otherwise: all verdicts (G2, G3); determinism and strict mode; no

@@ -1014,23 +1014,31 @@ def _relocate(ctx, room, eid):
     return True
 
 
+def _rolls_aside(rec):
+    """A wheeled bin (trash, recycling, organics or yard-waste cart): not portable, it blocks paths, yet a family wheels
+    it a few steps aside to park the car (review H10: on held-out seed 501 the only car spot on the driveway was walled
+    off by the carts, and the car helper raised 'No room to park a car')."""
+    return bool(rec.get("wheeled") and rec.get("movable") and not rec.get("anchored") and not rec.get("mounted"))
+
+
 def _park_spot(ctx, room, type_name, accept=None, **props):
     """Fallback when the placer finds no free spot for a car: the spot whose footprint holds the fewest portable floor
-    items (bikes, mowers, boxes... moved aside within the room) while doorways stay connected and clear. accept(record):
-    pose rule for the spot (a car in line with the garage door, furnish.car_pose)."""
+    items (bikes, mowers, boxes... moved aside within the room) or wheeled bins (_rolls_aside) while doorways stay
+    connected and clear. accept(record): pose rule for the spot (a car in line with the garage door, furnish.car_pose)."""
     p = ctx.placer
     ents = ctx.config["entities"]
     record = ctx.reg.make(type_name, room, **props)
     state = ctx.state()
     grid = ctx.config["rooms"][room]
     gc, gr = geometry.grid_size(grid)
-    fixed = set(geometry.blocked_cells(state, room, include_agents=True))
+    rollers = tuple(e for e in geometry.room_entities(state, room) if _rolls_aside(ents[e]) and ents[e].get("pos") is not None)
+    fixed = set(geometry.blocked_cells(state, room, ignore=rollers, include_agents=True))
     movable = {}
     for eid in geometry.room_entities(state, room):
         rec = ents[eid]
         if rec.get("ground_layer") or "connects" in rec or rec.get("mounted") or rec.get("pos") is None:
             continue
-        if rec.get("portable") and not rec.get("blocks_path"):
+        if (rec.get("portable") and not rec.get("blocks_path")) or eid in rollers:
             for c in geometry.footprint(rec):
                 movable.setdefault(c, []).append(eid)
         elif float((rec.get("size_m") or [0, 0, 0])[2]) > 0.05 or rec.get("blocks_path"):
@@ -1050,18 +1058,33 @@ def _park_spot(ctx, room, type_name, accept=None, **props):
     for n, y, x, rot, moved in sorted(options)[:12]:
         record["rot"] = rot
         cells = geometry.footprint(dict(record, pos=[x, y]))
+        shift, check = list(moved), False
         # the kernel's basic furniture rule with the items about to be moved aside ignored
         if not _Access(state, room, ignore=tuple(moved), level="basic").allows(cells, blocking=True, full=False):
-            continue
-        saved = {m: list(ents[m]["pos"]) for m in moved}
+            # the bins standing elsewhere may be what walls a doorway off once the car is in (held-out seed 126: the
+            # car along a 3 m driveway, a yard-waste cart across the strip left beside it): wheel them aside too
+            others = [r for r in rollers if r not in moved]
+            if not others or not _Access(state, room, ignore=tuple(moved) + tuple(others), level="basic").allows(
+                    cells, blocking=True, full=False):
+                continue
+            shift, check = shift + others, True
+        saved = {m: list(ents[m]["pos"]) for m in shift}
         cid = p.new_id(type_name)
         ents[cid] = dict(record, pos=[x, y])
-        if all(_relocate(ctx, room, m) for m in moved) and reachable(ctx, cid):
+        if all(_relocate(ctx, room, m) for m in shift) and reachable(ctx, cid) and (not check or _doors_connected(ctx, room)):
             return cid
         del ents[cid]
         for m, pos in saved.items():
             ents[m]["pos"] = pos
     return None
+
+
+def _doors_connected(ctx, room):
+    """Every doorway of `room` can still be walked to from the first one (people and pets aside)."""
+    state = ctx.state()
+    doors = [tuple(c["cells"][room]) for _, c in sorted(ctx.config.get("connections", {}).items()) if room in c.get("cells", {})]
+    ignore = tuple(state.get("people", {})) + tuple(state.get("pets", {}))
+    return all(geometry.find_path(state, room, doors[0], {d}, ignore=ignore) is not None for d in doors[1:])
 
 
 def _remove_cars(ctx, room):
@@ -1276,6 +1299,31 @@ def _fixture_spot(ctx, room, label, size, **props):
     return eid
 
 
+def _refit_fixture(ctx, room, kind, label, size, **props):
+    """The room's own fixed fixture of a category (the generator's toilet or vanity sink), rebuilt in place as this
+    domain's fixture model (a generic_item with `props`): same id, location, cell, rotation, relation and mounting, so
+    whatever names it keeps naming it and the room's layout does not change. A floor-standing one keeps its footprint
+    (its own size); a mounted basin keeps its size. None when the room has none."""
+    ents = ctx.config["entities"]
+    found = sorted(e for e, r in ents.items() if r.get("location") == room and r.get("category") == kind
+                   and not r.get("portable") and r.get("pos") is not None)
+    if not found:
+        return None
+    eid = found[0]
+    old = ents[eid]
+    keep = {k: copy.deepcopy(old[k]) for k in ("pos", "rot", "relation", "mounted", "mount_height_m", "near_connection") if k in old}
+    if old.get("size_m"):
+        size = list(old["size_m"])
+    if old.get("mounted"):
+        props.pop("blocks_path", None)
+    else:
+        props.setdefault("blocks_path", True)
+    rec = ctx.reg.make("generic_item", room, label=label, size_m=size, portable=False, **props)
+    rec.update(keep)
+    ents[eid] = rec
+    return eid
+
+
 @scenario_helper("tools_vehicles.undersink_filter")
 def undersink_filter(ctx, room=None):
     """Kitchen sink cabinet with an under-sink filter sump (stop valve setting supply_valve), a filtered-water faucet
@@ -1472,6 +1520,16 @@ def small_fixes(ctx, toilet_fault="chain", clog="hair", chemical=False, disposal
             continue
         bath = cand
         break
+    if bath is None:
+        # a bathroom with no floor left for two more fixtures (a 2.5 m bath with a shower stall and a washer stack, held-out
+        # seeds 12, 31, 84: review H10): its own toilet and sink become the faulty ones, rebuilt in place with this
+        # helper's fixture model, so the spec runs on every house that has a bathroom
+        for cand in [first] + [r for k in ("bathroom", "half_bath") for r in p.rooms(k) if r != first]:
+            toilet = _refit_fixture(ctx, cand, "toilet", "toilet", [0.4, 0.7, 0.8], **copy.deepcopy(toilet_props))
+            sink = _refit_fixture(ctx, cand, "sink", "bathroom sink", [0.6, 0.5, 0.85], **copy.deepcopy(sink_props)) if toilet else None
+            if toilet and sink:
+                bath = cand
+                break
     if bath is None:
         raise SpecError("No bathroom with space for the toilet and sink fixes")
     out = {"bath": bath, "kitchen": kitchen}

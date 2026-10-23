@@ -294,7 +294,7 @@ def _ml_key(k):
     return "ml" if k in ("g", "grams") else k[:-2] + "_ml"
 
 
-def _honest(ctx, eid, key, value, path, measured=(), density=None):
+def _honest(ctx, eid, key, value, path, measured=(), density=None, volumes=None):
     env = ctx.env
     if isinstance(value, dict):
         out = {}
@@ -309,8 +309,10 @@ def _honest(ctx, eid, key, value, path, measured=(), density=None):
                 out[new_key] = fn(v)
                 continue
             if density and _grams_key(k) and _is_num(v):
-                # the robot cannot weigh by eye what it has not identified: it sees a volume
-                out[_ml_key(k)] = millilitres(env, eid, "result_ml", float(v) / density)
+                # the robot cannot weigh by eye what it has not identified: it sees a volume (the volume the handler
+                # moved when it says so -- a level cup is a cup whatever powder fills it -- else the food's own)
+                ml = (volumes or {}).get(k)
+                out[_ml_key(k)] = millilitres(env, eid, "result_ml", float(ml) if _is_num(ml) else float(v) / density)
                 continue
             shown = _honest(ctx, eid, k, v, path + "." + str(k), density=density)
             if shown is None and v is not None:
@@ -365,15 +367,17 @@ def honest_result(ctx, out):
     """Realistic mode: an action's result dict as the robot perceived it (see module doc). Oracle: unchanged.
     A handler may list keys it measured with an instrument in out["_measured"] (realistic mode only); those keep the
     instrument's resolution instead of becoming visual estimates. A handler may name the food its amounts are about
-    in out["_subject"] (default: source, else target)."""
+    in out["_subject"] (default: source, else target), and in out["_volume_ml"] {grams key: ml} the volume it actually
+    moved for amounts of something unidentified (a measuring cup's volume, not grams over the food's density)."""
     if not isinstance(out, dict):
         return out
     if not active(ctx.env):
-        if "_subject" in out or "_measured" in out:
-            out = {k: v for k, v in out.items() if k not in ("_subject", "_measured")}
+        if "_subject" in out or "_measured" in out or "_volume_ml" in out:
+            out = {k: v for k, v in out.items() if k not in ("_subject", "_measured", "_volume_ml")}
         return out
     out = dict(out)
     measured = tuple(out.pop("_measured", ()) or ())
+    volumes = out.pop("_volume_ml", None)
     subject = out.pop("_subject", None) or _subject(ctx, out)
     eid = out.get("target") if isinstance(out.get("target"), str) else ctx.args.get("target")
     eid = eid if isinstance(eid, str) else ""
@@ -381,7 +385,7 @@ def honest_result(ctx, out):
     srec = ctx.w.s["entities"].get(subject) if subject else None
     if srec is not None and M.food(srec) and unidentified(ctx.env, subject):
         density = M.density(srec)
-    return _honest(ctx, eid, "", out, "result", measured, density)
+    return _honest(ctx, eid, "", out, "result", measured, density, volumes if isinstance(volumes, dict) else None)
 
 
 def perceived_result(fn):

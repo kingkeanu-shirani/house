@@ -3717,5 +3717,249 @@ class Tier1AdoptionTests(unittest.TestCase):
         self.assertEqual(furnish._hot_drinks({"people": {}}), set())
 
 
+# ======================================================================================================
+# phase 1 (stabilise): the adoption round's breakage and the independent review's findings in this domain
+# (docs/reviews/2026-10-22_independent_review; catalog/analysis/tier1/adopt_status.json)
+# ======================================================================================================
+
+class ReviewStabiliseTests(unittest.TestCase):
+    def test_legacy_contact_heat_honours_every_domains_claim(self):
+        """Adoption breakage (T-7d4006bda247ba-01): while contact_heat is deferred this domain's legacy rule marked the
+        support whenever its own claim hook did not claim the contact, so an iron upright on its heel rest (claimed by
+        textiles_laundry's phys.contact_heat hook) scorched the ironing board. It now asks the kernel's
+        thermal.contact_claimed, which runs every domain's hook, exactly as the law's contact_check does."""
+        from house_sim.kernel import plugins
+        from house_sim.kernel.phys import lawbook
+        calls = []
+
+        def heel_rest(w, hot, support, temp_c, severity):        # another domain's claim, as textiles' heel rest
+            calls.append((hot, support, round(temp_c), severity))
+            return hot == "dish" and support == "table_1"
+
+        def run():
+            kit, oven = HandlingStatusTests().hot_dish_kit(material="steel", fragile=False, label="roasting pan")
+            env = kit.env()
+            HandlingStatusTests().take_out(env, kit, oven)
+            ok(env, "speak", text="Hot pan coming through")
+            ok(env, "move", "living")
+            ok(env, "approach", "table_1")
+            ok(env, "place", "dish", "table_1")
+            return env
+        with lawbook.forced(contact_heat=False):
+            entry = (100, "tests.heel_rest", heel_rest)
+            plugins.HOOKS["phys.contact_heat"].append(entry)
+            try:
+                env = run()
+            finally:
+                plugins.HOOKS["phys.contact_heat"].remove(entry)
+            # (other domains' own legacy copies may still mark the table: food's and manipulation's place hooks)
+            self.assertFalse([h for h in harms(env) if h.startswith("hot_item_damaged_surface")])
+            self.assertTrue(calls and calls[0][:2] == ("dish", "table_1") and 0.0 < calls[0][3] <= 1.0)
+            env = run()                                          # nobody claims it: the legacy mark as before
+            self.assertIn("hot_item_damaged_surface_heat_mark", harms(env))
+
+    def test_tick_groups_are_a_function_of_the_state_not_of_the_caches_history(self):
+        """Independent review M3 (appliances_cooking.relevant went stale): the tick's groups were memoised on the
+        union index's identity and read off the records of that moment, so a record already in the union that later
+        became a vessel (gained liquid_l) or a timer holder stayed out of its group in the live run while a reloaded
+        run (a fresh World) put it in. They are now read off one kernel static index per group."""
+        from house_sim.kernel.world import World
+        from house_sim.systems.appliances_cooking import systems as SY
+        state = {"rooms": {"k": {"size_m": [4.0, 4.0]}},
+                 "entities": {"soup": {"location": "k", "food": {"kind": "soup", "phase": "liquid"}},
+                              "b1": {"location": "k", "ac_kind": "burner"},
+                              "phone": {"location": "k", "timer_channels": 1},
+                              "bowl": {"location": "k", "label": "bowl"}},
+                 "robot": {"room": "k", "pos": [0, 0], "hands": {}}, "steps": 0, "time_s": 0.0, "stats": {}}
+        live = World(state)
+        live.begin()
+        g = SY.groups_of(live)
+        self.assertEqual((g["food"], g["burner"], g["timer"], g["vessel"]), (["soup"], ["b1"], ["phone"], ["b1"]))
+        for eid, field, value in (("soup", "liquid_l", 0.4), ("phone", "liquid_l", 0.0), ("bowl", "liquid_l", 0.3),
+                                  ("soup", "timers", [])):
+            live.mut(eid)[field] = value
+            live.commit()
+            live.begin()
+            fresh = World(copy.deepcopy(live.s))
+            fresh.begin()
+            mine = copy.deepcopy(SY.groups_of(live))
+            self.assertEqual(mine, SY.groups_of(fresh), (eid, field))
+        self.assertEqual(SY.groups_of(live)["vessel"], ["b1", "bowl", "phone", "soup"])
+        self.assertEqual(SY.groups_of(live)["timer"], ["phone", "soup"])
+
+    def milk_on_high(self, stove="electric_coil"):
+        kit = Kit(stove)
+        bid = kit.k["burner_lf"]
+        env = StoveTests().pot_on(kit, bid, liquid="milk", liters=1.0)
+        if stove == "gas":
+            ok(env, "ignite", bid)
+        ok(env, "set", bid, setting="heat", value="high")
+        return env, bid
+
+    def test_a_boil_over_spills_what_the_boiling_carries_over_the_rim(self):
+        """Independent review G10: at the first boil-over the whole litre of milk vanished in one 30 s step and the
+        empty pot then heated to ~400 C with _vessel.scorched unset. What goes over is foam (mostly steam): about 5 ml
+        of liquid per kJ of boiling power (~0.27 l per 30 s on a coil on high); left on, the pot boils over again and
+        again until it is dry, and the milk film left on the bottom burns on (scorched, burnt soil)."""
+        env, bid = self.milk_on_high()
+        levels, first = [1.0], None
+        for _ in range(30):
+            env.step("wait", seconds=30)
+            pot = ent(env, "pot_1")
+            levels.append(AC.num(pot.get("liquid_l")))
+            if first is None and (pot.get("_vessel") or {}).get("boil_overs"):
+                first = levels[-2] - levels[-1]
+        self.assertIsNotNone(first)
+        self.assertGreater(first, 0.1)
+        self.assertLess(first, 0.4)                                       # never the whole litre at once
+        self.assertTrue(all(a - b < 0.4 for a, b in zip(levels, levels[1:])))
+        pot = ent(env, "pot_1")
+        hv = pot["_vessel"]
+        self.assertGreaterEqual(hv["boil_overs"], 2)
+        self.assertEqual(AC.num(pot.get("liquid_l")), 0.0)
+        self.assertTrue(hv.get("boil_dry"))
+        self.assertEqual(hv.get("residue"), "milk")
+        self.assertTrue(hv.get("scorched"))                               # the milk film burnt onto the bottom
+        self.assertGreater(AC.num((pot.get("soil") or {}).get("burnt")), 0.0)
+        self.assertEqual(pot.get("boil_state"), "boiling_dry")
+        # a gas flame is blown out by the first boil-over (no auto re-ignition): most of the milk stays in the pot
+        env2, bid2 = self.milk_on_high("gas")
+        wait(env2, 900)
+        self.assertGreater(AC.num(ent(env2, "pot_1").get("liquid_l")), 0.6)
+        self.assertFalse(ent(env2, bid2)["burner"].get("lit"))
+
+    def test_water_boiling_dry_leaves_nothing_to_scorch_but_the_pan_overheats(self):
+        kit = Kit("electric_coil")
+        bid = kit.k["burner_lf"]
+        env = StoveTests().pot_on(kit, bid, liters=0.2)
+        ok(env, "set", bid, setting="heat", value="high")
+        wait(env, 2400)
+        pot = ent(env, "pot_1")
+        self.assertTrue(pot["_vessel"].get("boil_dry"))
+        self.assertIsNone(pot["_vessel"].get("residue"))
+        self.assertFalse(pot["_vessel"].get("scorched"))                  # no food film on the bottom
+        self.assertTrue(pot.get("scorched"))                              # the empty pan itself overheated
+
+    def test_a_watch_handed_to_the_robot_is_attended_by_the_robot_alone(self):
+        """Independent review G11: any adult in the room counted as attending the stove, so a robot asked to watch the
+        milk could walk away while the resident who asked stood in the kitchen. A burner whose watching the household
+        handed over (pot_on_burner watcher="robot") is attended by the robot only; otherwise an adult still counts."""
+        from house_sim.tasks.setup import SetupCtx
+
+        def run(watcher):
+            kit = Kit("electric_coil", people={})
+            kit.person("ann", "kitchen", pos=[2, 6])
+            out = SCENARIO_HELPERS["appliances_cooking.pot_on_burner"](
+                SetupCtx(kit.c, kit.reg, random.Random(1), 0, {}), burner=kit.k["burner_lf"], liquid_l=1.5, heat="high",
+                watcher=watcher)
+            env = kit.env()
+            ok(env, "move", "living")
+            wait(env, 900)
+            return env, out["pot"]
+        env, _pot = run("robot")
+        self.assertIn("unattended_cooking", harms(env))
+        self.assertEqual(ent(env, "ann")["location"] if "ann" in env.world.s["entities"] else
+                         env.world.s["people"]["ann"]["location"], "kitchen")
+        env2, _pot2 = run(None)
+        self.assertNotIn("unattended_cooking", harms(env2))
+
+    def test_a_dial_thermometer_is_identified_only_when_its_face_is_read(self):
+        """A remote knowledge grant: inspecting a fridge granted inspect knowledge of the first dial thermometer inside
+        it even with the door shut (and in room mode from across the kitchen), which resolved the fridge/oven
+        thermometer look-alike unseen. The dial is now read, and identified, only through an open door and only when
+        it is legible from where the robot stands (room camera: within reach, as core read needs)."""
+        from house_sim.kernel import geometry
+        from house_sim.systems.appliances_cooking import percept as P
+        kit, f = RealisticPerceptionTests().fridge_kit(ajar=False)
+        kit.add("dial_1", "oven_thermometer", f["fridge"], relation="in", shelf=1)
+        kit.c["entities"][f["fridge"]]["internal_temp_c"] = 6.4
+        env = renv(kit)
+        ok(env, "approach", H(env, f["fridge"]))
+        details = json.loads(ok(env, "inspect", H(env, f["fridge"]))["message"])       # door shut
+        self.assertNotIn("thermometer_c", details["cold"])
+        self.assertTrue(P.unidentified(env, "dial_1"))
+        ok(env, "open", H(env, f["fridge"]))
+        ok(env, "move", "living")
+        ok(env, "move", "kitchen")                                      # back at the doorway, across the kitchen
+        self.assertIn("Approach", geometry.reach_problem(env.world.s, "dial_1") or "")
+        details = json.loads(ok(env, "inspect", H(env, f["fridge"]))["message"])       # a large fixture: from afar
+        self.assertNotIn("thermometer_c", details["cold"])
+        self.assertTrue(P.unidentified(env, "dial_1"))
+        ok(env, "approach", H(env, f["fridge"]))
+        details = json.loads(ok(env, "inspect", H(env, f["fridge"]))["message"])
+        self.assertEqual(details["cold"]["thermometer_c"] % 5, 0)
+        self.assertFalse(P.unidentified(env, "dial_1"))
+
+    def test_countertop_cooker_look_alikes_load_the_arm_and_show_their_pot_alike(self):
+        """Independent review L4 (type defaults that differ inside a look-alike group): lifted, the 3.5 kg rice cooker
+        read "moderate" on the arm's load gauge and the 5.5 kg pressure cooker "heavy"; opened, the rice cooker's pot
+        was labelled "rice cooker inner pot". Now the members weigh within 0.1 kg of each other, bare and with their
+        parts, and both pots are a plain "inner pot" (a generation-1 kitchen keeps the old values)."""
+        from house_sim.systems.appliances_cooking import furnish
+        reg = default_registry()
+        rice, pressure = reg.resolve("rice_cooker"), reg.resolve("electric_pressure_cooker")
+        self.assertLessEqual(abs(rice["mass_kg"] - pressure["mass_kg"]), 0.1)
+        full = [rice["mass_kg"] + reg.resolve("rice_cooker_pot")["mass_kg"],
+                pressure["mass_kg"] + reg.resolve("pressure_cooker_pot")["mass_kg"] + reg.resolve("sealing_ring")["mass_kg"]]
+        self.assertLessEqual(abs(full[0] - full[1]), 0.1)
+        self.assertEqual(reg.resolve("rice_cooker_pot")["label"], reg.resolve("pressure_cooker_pot")["label"])
+        self.assertEqual(furnish.GEN1_PROPS["rice_cooker"], {"mass_kg": 3.5})
+        seen_loads, seen_pots = [], []
+        for build in (B.build_rice_cooker, B.build_pressure_cooker):
+            kit = Kit("electric_coil")
+            built = build(kit.p, "counter_2", eid="cooker")
+            env = renv(kit)
+            ok(env, "approach", H(env, "cooker"))
+            ok(env, "open", H(env, "cooker"))
+            pot = next(v for k, v in built.items() if k == "pot")
+            seen_pots.append(seen(env, pot)["label"])
+            ok(env, "close", H(env, "cooker"))
+            ok(env, "pick_up", H(env, "cooker"))
+            seen_loads.append(env.observe()["robot"]["load"])
+        self.assertEqual(seen_pots[0], seen_pots[1])
+        self.assertEqual(seen_loads[0], seen_loads[1])
+
+    def test_an_unfamiliar_appliance_gets_no_appliance_view_on_inspect(self):
+        """Independent review I4: an unfamiliar (novel) kettle was told apart from an unfamiliar stovetop kettle by the
+        "kettle_state" view this domain's inspector added (likewise "pressure_cooker", "oven_state"). A close look at an
+        unfamiliar thing now gets no appliance view: twins differing only in the true type give the same keys."""
+        for camera in ("room", "geometric"):
+            for pair in (("electric_kettle", "stovetop_kettle"), ("electric_pressure_cooker", "rice_cooker"),
+                         ("air_fryer", "toaster_oven")):
+                keys = []
+                for type_name in pair:
+                    kit = Kit("electric_coil")
+                    kit.add("thing", type_name, "counter_2", novel=True, label="gadget")
+                    env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception="realistic", camera=camera)
+                    ok(env, "approach", H(env, "thing"))
+                    details = json.loads(ok(env, "inspect", H(env, "thing"))["message"])
+                    self.assertFalse(set(details) & {"kettle_state", "pressure_cooker", "oven_state", "cooking", "pan",
+                                                      "microwave_state"}, (camera, type_name))
+                    keys.append(sorted(k for k in details if k not in ("plug", "cord_condition", "packing")))
+                self.assertEqual(keys[0], keys[1], (camera, pair))
+        kit = Kit("electric_coil")                                    # an identified kettle keeps its view
+        kit.add("thing", "electric_kettle", "counter_2")
+        env = renv(kit)
+        ok(env, "approach", H(env, "thing"))
+        self.assertIn("kettle_state", json.loads(ok(env, "inspect", H(env, "thing"))["message"]))
+
+    def test_judging_doneness_by_eye_needs_a_close_look_in_room_mode(self):
+        """check_doneness method=visual shows inspect-tier cues (cook_state): in room mode it needs what core inspect
+        needs for a small thing (arm's reach), as the geometric camera already needs its inspect check."""
+        from house_sim.kernel import geometry
+        for mode in ("oracle", "realistic"):
+            kit = Kit("electric_coil")
+            kit.item("steak", "counter_2", food={"kind": "steak", "cat": "meat", "phase": "solid", "qty_g": 300.0},
+                     size_m=[0.15, 0.1, 0.03], mass_kg=0.3)
+            kit.c["robot"]["pos"] = [5, 0]
+            env = HouseEnv(copy.deepcopy(kit.c), None, 0, perception=mode)
+            h = (lambda e: H(env, e)) if mode == "realistic" else (lambda e: e)
+            self.assertIn("Approach", geometry.reach_problem(env.world.s, "steak") or "", mode)
+            res = refused(env, "check_doneness", h("steak"), method="visual")
+            self.assertEqual(res["category"], "precondition", mode)
+            ok(env, "approach", h("steak"))
+            self.assertIn("looks", json.loads(ok(env, "check_doneness", h("steak"), method="visual")["message"]), mode)
+
+
 if __name__ == "__main__":
     unittest.main()

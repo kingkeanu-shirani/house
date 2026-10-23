@@ -17,6 +17,7 @@ import math
 from ...kernel import body, geometry, physics
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
+from ...kernel.phys import statics
 from ...kernel.plugins import after, before, hook
 from ..core import place_item, release_from_hands, check_handling
 from . import model as M
@@ -890,6 +891,12 @@ def _stack_root(w, dest):
 
 @before("place", order=55)
 def textile_stack_fit(ctx):
+    """A folded textile laid on a stack of folded textiles in a drawer, bin or shelf: the container's volume must take
+    it, and the stack must clear the drawer top or the shelf above, else the drawer or door would not close (refused
+    before anything moves). The clearance and the stack height are the kernel's (phys.statics.clearance_above_m and
+    stack_height_m, the stack law's own numbers: independent review A1 / M4 found this a private copy of the clearance
+    rule), so the refusal pre-empts exactly the stacks the stack law would topple and never double-counts with it;
+    the volume check is this domain's (the law has none)."""
     w = ctx.w
     target, dest = ctx.args.get("target"), ctx.args.get("destination")
     if not (isinstance(target, str) and target in w.s["entities"] and isinstance(dest, str) and dest in w.s["entities"]):
@@ -905,22 +912,23 @@ def textile_stack_fit(ctx):
                 used = sum(float(w.ent(d).get("volume_l", 0.0)) for d in w.descendants(root)
                            if w.ent(d).get("relation") not in ("part", "attached"))
                 require(used + float(rec.get("volume_l", 0.5)) <= capacity + 1e-9, "No room left; the stack would overfill it")
-                inner = rrec.get("inner_size_m")
-                height = sum(float((w.ent(s).get("size_m") or [0, 0, 0.02])[2]) for s in stack) + float((rec.get("size_m") or [0, 0, 0.02])[2])
-                limit = None
-                heights = rrec.get("shelf_heights")
-                base_item = stack[-1] if stack else dest
-                shelf = w.ent(base_item).get("shelf")
-                if heights and shelf is not None and int(shelf) + 1 < len(heights):
-                    limit = float(heights[int(shelf) + 1]) - float(heights[int(shelf)]) - 0.02
-                elif inner:
-                    limit = float(inner[2])
+                limit, height = stack_clearance(w.s, stack, rec)
                 if limit is not None:
                     if ctx.realistic:
                         # trying it shows the stack does not fit; the exact heights would need a tape measure
                         require(height <= limit + 1e-9, "The stack would be too tall for the space (the drawer/shelf would not close)")
                     require(height <= limit + 1e-9, "The stack would be {:.2f} m tall; only {:.2f} m clearance (the drawer/shelf would not close)".format(height, limit))
     # loose items on a crushable textile/hat are checked after placement
+
+
+def stack_clearance(state, stack, rec):
+    """(clearance m or None, height m) of a folded stack (top member first, as _stack_root lists it) with `rec` laid on
+    top: the kernel's clearance above the stack's bottom member and the kernel's stack height plus the new item's
+    height lying flat."""
+    members = list(reversed(stack))
+    limit = statics.clearance_above_m(state, members[0]) if members else None
+    height = statics.stack_height_m(state, members) + float((rec.get("size_m") or [0, 0, 0.02])[2])
+    return limit, height
 
 
 @before("place", order=56)

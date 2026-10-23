@@ -568,6 +568,11 @@ class TestSplitPrivacyTests(_TempDirCase):
         html_text = (out / "leaderboard.html").read_text(encoding="utf-8")
         self.assertIn("aggregate only", html_text)
         self.assertRegex(html_text, r'href="[^"]*run_dev/logs/T-entry\d\d__dev-\d\.html"')
+        # phase-1 red team: public-split scores are labelled not comparable (offline rebuild of public seeds)
+        self.assertEqual((rows["test"]["comparable"], rows["dev"]["comparable"]), (True, False))
+        self.assertEqual(summary["public_splits"], lb.PUBLIC_SPLIT_NOTE)
+        self.assertIn("not comparable across agents", (out / "leaderboard.md").read_text(encoding="utf-8"))
+        self.assertIn("not comparable across agents", html_text)
 
     def test_html_is_self_contained(self):
         run = write_run(self.tmp, "run_html", mixed_outcomes(5, agent="alpha"), agent="alpha", viewers=True)

@@ -3,7 +3,8 @@
 * train: unlimited public seeds in [TRAIN_BASE, PRIVATE_BASE) (a per-entry offset, consecutive from there);
 * dev:   DEV_SEEDS (the public verification seeds) plus the small published DEV_EXTRA;
 * test:  hidden. Candidate seeds are HMAC-SHA256(secret key, "<catalog_id>:<i>") mapped into
-         [PRIVATE_BASE, PRIVATE_END). `build_test_manifest` runs the verifier on each candidate, skips failing ones
+         [PRIVATE_BASE, PRIVATE_END) = [9e8, 2**53): too many houses to tabulate, so the structure the robot sees
+         cannot be looked up to find its seed (phase-1 red team). `build_test_manifest` runs the verifier on each candidate, skips failing ones
          deterministically, makes every variant appear, assigns held-out phrasings from the private paraphrase pool
          and returns the private manifest. `save_manifest` writes it to %USERPROFILE%/.house_ai/test_manifest.json and
          the PUBLIC commitment (per-entry SHA-256 + Merkle root) to reports/test_commitment.json.
@@ -36,7 +37,11 @@ DEV_SEEDS = (0, 1, 2, 41, 97)            # the public verification seeds (house_
 DEV_EXTRA = (3, 8, 13, 24, 55)           # small published extra dev set (fixed; mixes parities and residues mod 3)
 TRAIN_BASE = 1_000_000                   # public train range [TRAIN_BASE, PRIVATE_BASE)
 PRIVATE_BASE = 900_000_000               # hidden test seeds live in [PRIVATE_BASE, PRIVATE_END)
-PRIVATE_END = 2 ** 31 - 1
+# 2**53 (the largest range of integers a JSON reader in any language keeps exact): with 9e15 candidates a table of the
+# houses of the hidden range is out of reach. The old end 2**31 - 1 left 1.25e9 seeds whose generated house structure
+# (visible from the first observation) identified the seed with a one-time table of about 1,300 core-hours, and with
+# the seed the hidden variant and the whole world (phase-1 red team, review I1 second stage)
+PRIVATE_END = 2 ** 53
 TRAIN_SPAN = PRIVATE_BASE - TRAIN_BASE
 PRIVATE_SPAN = PRIVATE_END - PRIVATE_BASE
 
@@ -205,7 +210,10 @@ def _as_seed(seed):
 
 def train_seeds(catalog_id, n, start=0):
     """n deterministic seeds in the train range: a per-entry offset (SHA-256 of the catalog id) then consecutive
-    seeds, so seed % len(variants) cycles through every variant. Distinct while start + n <= TRAIN_SPAN."""
+    seeds. The variant rule (tasks.spec.variant_index, review H5) rotates the variants inside blocks of len(variants)
+    consecutive seeds aligned at multiples of it, so any 2 x len(variants) - 1 consecutive seeds hold every variant
+    (the first len(variants) need not: they may straddle two blocks; before phase 1, seed % len(variants) cycled).
+    Distinct while start + n <= TRAIN_SPAN. (Kept unaligned so published train data keeps its seeds.)"""
     n, start = int(n), int(start)
     if n < 0 or start < 0:
         raise ValueError("n and start must be >= 0")
@@ -247,12 +255,13 @@ test_candidates.__test__ = False   # not a test function for pytest-style collec
 
 
 def is_private_seed(seed):
-    """seed in the private range [PRIVATE_BASE, PRIVATE_END). Always checkable, no key needed."""
+    """seed at or above PRIVATE_BASE (the private range [PRIVATE_BASE, PRIVATE_END) and anything beyond it, which no
+    public split uses). Always checkable, no key needed."""
     try:
         value = _as_seed(seed)
     except ValueError:
         return False
-    return PRIVATE_BASE <= value < PRIVATE_END
+    return PRIVATE_BASE <= value
 
 
 def is_test_seed(catalog_id, seed):
@@ -276,8 +285,8 @@ def guard_not_test(catalog_id, seed):
 
 def seed_tag(catalog_id, seed, key=None):
     """Public per-episode tag: "dev:<seed>", "train:<seed>", "test:<12 hex>" or "seed:<seed>" (other public seeds).
-    Test tags are HMAC-SHA256(key, "tag:<catalog_id>:<seed>")[:12]: an unkeyed hash of a ~30-bit seed could be
-    brute-forced back to the seed, so test tags need the key (SplitKeyMissing otherwise)."""
+    Test tags are HMAC-SHA256(key, "tag:<catalog_id>:<seed>")[:12]: an unkeyed hash of a seed from a guessable range
+    could be brute-forced back to the seed, so test tags need the key (SplitKeyMissing otherwise)."""
     value = _as_seed(seed)
     if is_test_seed(catalog_id, value):
         mac = hmac.new(_coerce_key(key), "tag:{}:{}".format(catalog_id, value).encode("utf-8"), hashlib.sha256)
@@ -387,9 +396,16 @@ def _unique(items):
     return out
 
 
+def _variant_of(catalog_id, seed, n_variants):
+    """The variant a seed runs (tasks.spec.variant_index: hashed per block of n seeds, review H5), None without
+    variants."""
+    from ..tasks.spec import variant_index
+    return variant_index(catalog_id, seed, n_variants) if n_variants else None
+
+
 def _variant_phrasings(expanded, variant):
-    from ..tasks.spec import choose_variant
-    chosen = choose_variant(expanded, variant)[0] if variant is not None else expanded
+    from ..tasks.spec import select_variant
+    chosen = select_variant(expanded, variant)[0] if variant is not None else expanded
     return list(chosen.get("phrasings") or [chosen.get("instruction") or ""])
 
 
@@ -457,9 +473,9 @@ def _trial_reason(trial):
     return text
 
 
-def _select(candidates, k, n_variants, trial_fn, fail_limit=FAIL_LIMIT):
+def _select(candidates, k, n_variants, trial_fn, fail_limit=FAIL_LIMIT, catalog_id=None):
     """Walk the candidates in order; verify each with trial_fn(seed) -> trial dict; keep passing ones until k are
-    chosen and every variant (seed % n_variants) appears. A candidate whose variant is already covered is passed over
+    chosen and every variant (the one the seed runs: _variant_of(catalog_id, seed, n_variants)) appears. A candidate whose variant is already covered is passed over
     (unverified, reason "variant_quota") when the remaining slots are needed for uncovered variants. Pure and
     deterministic given trial_fn."""
     chosen, chosen_v, skipped = [], [], []
@@ -469,7 +485,7 @@ def _select(candidates, k, n_variants, trial_fn, fail_limit=FAIL_LIMIT):
     for index, seed in enumerate(candidates):
         if len(chosen) >= k:
             break
-        variant = seed % n_variants if n_variants else None
+        variant = _variant_of(catalog_id, seed, n_variants)
         if n_variants and variant in covered and (k - len(chosen)) <= len(needed - covered):
             skipped.append({"index": index, "seed": seed, "variant": variant, "reason": "variant_quota"})
             continue
@@ -512,7 +528,8 @@ def _entry_job(job):
     spec, mode = job["spec"], job["mode"]
     expanded = expand(spec)
     n_variants = len(expanded.get("variants") or [])
-    picked = _select(job["candidates"], job["k"], n_variants, lambda seed: run_trial(spec, seed, mode))
+    picked = _select(job["candidates"], job["k"], n_variants, lambda seed: run_trial(spec, seed, mode),
+                     catalog_id=expanded.get("catalog_id", spec.get("catalog_id")))
     phrasings, index, public = _assign_phrasings(expanded, picked["seeds"], picked["variants"], job["pool"])
     error = picked["error"]
     for seed, pidx in zip(picked["seeds"], index):

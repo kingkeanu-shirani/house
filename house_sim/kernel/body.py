@@ -477,9 +477,17 @@ def stairs_direction(state, conn, a, b):
     return "up" if fb > fa else "down"
 
 
+def felt_load_kg(state, loads=None):
+    """The carried load the energy model charges for: proprio.felt_load_kg (each hand's load word, never the exact
+    mass: review L3, the battery is no scale). loads: held_loads(state) when the caller has them."""
+    from . import proprio
+    return proprio.felt_load_kg(state, loads)
+
+
 def motion_work_wh(state, record):
-    """Walking and stair work of a motion record (the hotel load is charged over the action's seconds)."""
-    return walk_wh(state, record["meters"], record["speed"], record["load_kg"]) + \
+    """Walking and stair work of a motion record (the hotel load is charged over the action's seconds); the load term
+    is the felt load the record carries (energy_kg; a record without one: its exact load_kg)."""
+    return walk_wh(state, record["meters"], record["speed"], record.get("energy_kg", record["load_kg"])) + \
         stairs_wh(state, record["stairs_up"], record["stairs_down"])
 
 
@@ -1425,9 +1433,11 @@ def motion(ctx, path, start, speed=None, stairs=(0, 0), extra_s=0.0, connection=
             steps = int(conn.get("steps", 12)) if way else 0
             up, down = (steps, 0) if way == "up" else (0, steps)
     crossing = CONNECTION_CROSSING_M if connection is not None else 0.0
-    load = carried_kg(w)
-    power = activity_power_w(state, "motion", held_kg=load) + _hook_power(w, ctx.spec.name)
-    k, finish_ok = affordable_prefix(state, segments, mode, load, (up, down), extra_s, crossing, power)
+    loads = held_loads(state)
+    load = sum(kg for _, _, kg in loads)
+    felt = felt_load_kg(state, loads)       # energy follows the load words (review L3); physics keeps load_kg
+    power = activity_power_w(state, "motion", held_kg=felt) + _hook_power(w, ctx.spec.name)
+    k, finish_ok = affordable_prefix(state, segments, mode, felt, (up, down), extra_s, crossing, power)
     complete = k == len(segments) and finish_ok
     p = profile(state)
     v = p["speeds_mps"][mode]
@@ -1447,8 +1457,8 @@ def motion(ctx, path, start, speed=None, stairs=(0, 0), extra_s=0.0, connection=
     record = {"path": walked, "start": list(cells[0]), "from_room": here,
               "to_room": other if complete and other is not None else here,
               "connection": connection if complete else None, "meters": meters, "planned_m": planned,
-              "seconds": seconds, "speed": mode, "load_kg": round(load, 4), "stairs_up": up, "stairs_down": down,
-              "cut": None if complete else "battery", "exhausts": not complete}
+              "seconds": seconds, "speed": mode, "load_kg": round(load, 4), "energy_kg": felt, "stairs_up": up,
+              "stairs_down": down, "cut": None if complete else "battery", "exhausts": not complete}
     ctx.data["motion"] = record
     ctx.data.update(path=[list(c) for c in walked], from_room=here, connection=record["connection"], seconds=seconds)
     return walked
@@ -1592,7 +1602,7 @@ def settle_energy(w, ctx, own_s, hold_check=True):
     loads = refresh_held(w)                      # also for waits: the body system's idle drain reads the cache
     if getattr(spec, "idle", False) or not is_on(state):
         return None
-    load = sum(kg for _, _, kg in loads)
+    load = felt_load_kg(state, loads)           # hold power follows the load words (review L3)
     record = ctx.data.get("motion")
     if _source_rate(w) > 0:
         need = 0.0
@@ -1652,7 +1662,7 @@ def _idle_drain(w, dt, start):
         t_awake = 0.0
     else:
         t_awake = min(dt, max(0.0, auto - idle_s))
-    held = float(get(state, "_held_kg"))
+    held = felt_load_kg(state)                  # the load words, not the exact mass (review L3)
     p_awake = activity_power_w(state, "awake", held_kg=held) + _hook_power(w, "idle")
     p_standby = activity_power_w(state, "standby", held_kg=held)
     e_awake = p_awake * t_awake / 3600.0

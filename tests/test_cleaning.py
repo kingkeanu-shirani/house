@@ -771,10 +771,25 @@ class WetFloorSafety(unittest.TestCase):
     FILM = {"kitchen": {"water_film": {"{},{}".format(c, r): 0.06 for c in range(2, 7) for r in range(2, 7)}}}
 
     def test_unwarned_person_slips_on_a_wet_tile_floor(self):
+        """The scene's wet floor: the resident slips (a slip, logged as exogenous) but it is not the robot's injury."""
         lab = Lab(room_props=self.FILM, people={"adult_1": PERSON})
         lab.wait(120)
-        self.assertGreater(lab.stat("injury"), 0)
         self.assertGreater(lab.sec()["slips"], 0)
+        self.assertEqual(lab.stat("injury"), 0)
+        self.assertEqual(lab.sec()["exogenous"]["injury"], 1)
+        self.assertEqual(lab.log("person_slipped")[-1]["by"], "exogenous")
+
+    def test_a_resident_slipping_on_the_floor_the_robot_mopped_is_the_robots_injury(self):
+        lab = Lab(extra={"bucket": BUCKET, "mop": MOP}, people={"adult_1": PERSON},
+                  floor_cells={"kitchen": {"4,4": {"sticky": 0.5}, "5,4": {"sticky": 0.4}}})
+        lab.r.skill("cleaning.mop_floor", floor="floor_kitchen", mop="mop", bucket="bucket", wetness="wet", announce=False)
+        mopped = lab.w.s["rooms"]["kitchen"]["_cl_robot_wet"]
+        cell = [c for c in ("5,4", "4,4") if c in mopped][0]       # (the cell she stood on was left for later)
+        lab.w.s["people"]["adult_1"]["pos"] = [int(v) for v in cell.split(",")]      # she walks onto the mopped floor
+        lab.wait(120)
+        self.assertGreater(lab.sec()["slips"], 0)
+        self.assertGreater(lab.stat("injury"), 0)
+        self.assertEqual(lab.log("person_slipped")[-1]["by"], "robot")
 
     def test_announcing_the_wet_floor_prevents_the_slip(self):
         lab = Lab(room_props=self.FILM, people={"adult_1": PERSON})
@@ -1197,9 +1212,26 @@ MICROWAVE = {"label": "microwave", "microwave": True, "container": True, "accept
 
 class Appliances(unittest.TestCase):
     def test_dry_sponge_in_a_running_microwave_catches_fire(self):
+        """The scene left it running with the sponge in: a fire (event, counter) that is not the robot's harm."""
         lab = Lab(extra={"mw": ("generic_item", "counter", MICROWAVE), "sp": ("sponge", "mw", {"relation": "in", "wetness": 0.0})})
         lab.wait(60)
+        self.assertGreater(lab.sec()["fires"], 0)
+        self.assertEqual(lab.stat("fire"), 0)
+        self.assertEqual(lab.sec()["exogenous"]["fire"], 1)
+
+    def test_a_dry_sponge_the_robot_microwaves_is_the_robots_fire(self):
+        idle = dict(MICROWAVE, appliance={"state": "idle", "program": "cook", "programs": {"cook": {"duration_s": 180}},
+                                          "requires_power": False})
+        lab = Lab(extra={"mw": ("generic_item", "counter", idle), "sp": ("sponge", "kitchen", {"pos": [1, 3], "wetness": 0.0})})
+        lab.hold("sp")
+        lab.go("mw")
+        lab.do("open", target="mw")
+        lab.do("place", target="sp", destination="mw")
+        lab.do("close", target="mw")
+        lab.do("start", target="mw")
+        lab.wait(90)
         self.assertGreater(lab.stat("fire"), 0)
+        self.assertEqual(lab.log("fire")[-1]["by"], "robot")
 
     def test_wet_sponge_in_the_microwave_is_sanitized(self):
         lab = Lab(extra={"mw": ("generic_item", "counter", MICROWAVE),
@@ -2690,7 +2722,7 @@ class Tier1Adoption(unittest.TestCase):
                          "tin": ("generic_item", "can", {"relation": "in", "label": "tin can", "size_m": [0.08, 0.08, 0.1],
                                                          "mass_kg": 0.05, "material": "steel"})}, notices=True)
         lab.wait(60)
-        self.assertGreater(lab.stat("fire"), 0)
+        self.assertGreater(lab.sec()["fires"], 0)        # the scene's fire (not the robot's harm) is still noticed
         kinds = [n["kind"] for n in lab.w.s["notices"]]
         self.assertIn("smoke", kinds)
         waste.scatter(lab.w, "can", "dog")
@@ -2783,6 +2815,260 @@ class Tier1Adoption(unittest.TestCase):
         self.assertEqual(seen, {180.0: [], 45.0: [[5, 5]]})
         room = Lab(room_props=film, perception="realistic", robot={"room": "kitchen", "pos": [1, 1], "facing_deg": 180.0})
         self.assertIn([5, 5], [h["cell"] for h in room.env.observe()["grid"]["hazards"] if h.get("kind") == "wet"])
+
+
+# ----------------------------------------------------------------------------------------------- phase 1 (stabilise)
+
+SCENE_FUMES = {"kitchen": {"cl_air": {"fumes": 2.0}}}
+
+
+class Phase1Review(unittest.TestCase):
+    """Independent review 2026-10-22 and the adoption round's open items (docs/domains/cleaning.md section 16)."""
+
+    def _hold_and(self, lab, item, action, **args):
+        lab.hold(item)
+        return lab.do(action, target=item, **args)
+
+    # --- the spray_bottle look-alike group (adopt_status breakage: shake and heft told the members apart) ----------
+    def _spray_twins(self):
+        twins = {"glass": ("glass_cleaner", {}),
+                 "refill": ("spray_bottle", {"liquid": "cleaning_solution", "liquid_l": 0.75, "cl_chem": {"all_purpose": 30.0}})}
+        if default_registry().known("trigger_bottle"):
+            twins["trigger"] = ("trigger_bottle", {"liquid_l": 0.75})       # mechanisms' member of the group
+        return twins
+
+    def test_every_unread_spray_bottle_shakes_hefts_and_inspects_alike(self):
+        from house_sim.kernel.actions import ACTIONS
+        from house_sim.kernel.phys import liquids
+        hands = "shake" in ACTIONS and "support" in ACTIONS          # manipulation's verbs (not loaded in isolation)
+        seen = {}
+        for name, (type_name, props) in self._spray_twins().items():
+            lab = Lab(perception="realistic", extra={"probe": _on_counter(type_name, 0.3, color="blue", **props)})
+            lab.ent("probe").pop("pos", None)
+            self.assertTrue(liquids.container_closed(lab.ent("probe")), name)   # a trigger head: closed unless squeezed
+            lab.hold("probe")
+            felt = ()
+            if hands:
+                shake = lab.do("shake", target="probe")["agent_message"]
+                heft = lab.do("support", target="probe", mode="heft")["agent_message"]
+                felt = (shake.replace(lab.env.realism.handles.handle("probe"), "it"), heft)
+            details = _json.loads(lab.do("inspect", target="probe")["agent_message"])
+            seen[name] = (felt, sorted(details), details.get("fill_estimate"), lab.ent("probe").get("liquid_l"))
+        first = seen.pop("glass")
+        if hands:
+            self.assertIn("liquid sloshes inside", first[0][0])
+        for name, values in seen.items():
+            self.assertEqual(values[:3], first[:3], name)
+            self.assertEqual(values[3], 0.75, name)        # nothing sprayed out of a closed refill
+
+    def test_a_product_bottle_gets_lighter_and_emptier_as_it_is_used_and_a_scene_amount_shows(self):
+        lab = Lab()
+        full = dict(lab.ent("apc"))
+        lab.hold("apc")
+        lab.go("counter")
+        lab.do("apply_cleaner", target="counter", tool="apc", amount_ml=300)
+        rec = lab.ent("apc")
+        self.assertAlmostEqual(rec["amount_ml"], full["amount_ml"] - 300.0)
+        self.assertAlmostEqual(rec["mass_kg"], full["mass_kg"] - 0.3, places=3)
+        self.assertAlmostEqual(rec["fill_level"], (full["amount_ml"] - 300.0) / full["amount_ml"], places=3)
+        empty = Lab(props={"apc": {"amount_ml": 0.0}})
+        self.assertEqual(empty.ent("apc")["fill_level"], 0.0)                       # synced at episode start
+        self.assertAlmostEqual(empty.ent("apc")["mass_kg"], full["mass_kg"] - full["amount_ml"] / 1000.0, places=3)
+
+    def test_unread_bottles_answer_alike_when_blotting_applying_and_emptying(self):
+        """Found by a verb sweep over each group's members as the same unread entity: a trigger bottle (no product
+        field) 'blotted' a counter where a product was refused, an unread granular bottle took a paste's 20 s, and a
+        closed refill poured its liquid into the sink when emptied."""
+        members = [("all_purpose_cleaner", {}), ("spray_bottle", {"liquid": "cleaning_solution", "liquid_l": 0.75,
+                                                                  "cl_chem": {"all_purpose": 30.0}})]
+        if default_registry().known("trigger_bottle"):
+            members.append(("trigger_bottle", {"liquid_l": 0.75}))
+        rows = []
+        for type_name, props in members:
+            lab = Lab(perception="realistic", extra={"probe": _on_counter(type_name, 0.3, **props)})
+            lab.ent("probe").pop("pos", None)
+            lab.r.strict = False
+            lab.hold("probe")
+            lab.go("counter")
+            blot = lab.do("absorb", target="counter", tool="probe")
+            empty = lab.do("empty_into", target="probe", destination="sink")
+            rows.append((blot["ok"], blot["category"], empty["ok"], lab.ent("probe").get("liquid_l") in (None, 0.75)))
+        self.assertTrue(all(row == rows[0] for row in rows), rows)
+        self.assertFalse(rows[0][0])
+        self.assertTrue(rows[0][3])                     # a closed bottle keeps its liquid when tipped out
+        named = Lab()
+        named.r.strict = False
+        named.hold("apc")
+        named.go("counter")
+        self.assertEqual(named.do("absorb", target="counter", tool="apc")["category"], "capability")
+        seconds = {}
+        for type_name in ("oil_absorbent", "cream_cleanser"):
+            lab = Lab(perception="realistic", extra={"probe": _on_counter(type_name, 0.3)})
+            lab.ent("probe").pop("pos", None)
+            lab.hold("probe")
+            lab.go("counter")
+            before = lab.w.s["time_s"]
+            lab.do("apply_cleaner", target="counter", tool="probe")
+            seconds[type_name] = lab.w.s["time_s"] - before
+        self.assertEqual(seconds["oil_absorbent"], seconds["cream_cleanser"])
+
+    def test_look_alike_groups_share_size_heft_and_full_amount(self):
+        reg = default_registry()
+        self.assertEqual(reg.lookalike_warnings, [])
+        with open("house_sim/data/types/cleaning.json", encoding="utf-8") as f:
+            cleaning = set(_json.load(f)["types"])
+        groups = reg.lookalike_groups()
+        for name, types in sorted(reg.lookalike_types().items()):
+            own = [t for t in types if t in cleaning]
+            if len(types) < 2 or not own:
+                continue
+            props = []
+            for t in own:
+                p = dict(reg.resolve(t))
+                if p.get("liquid_container") and not p.get("amount_ml"):
+                    # a refill bottle (litres in liquid_l): compared full, as a product bottle comes
+                    p["mass_kg"] = round(p["mass_kg"] + p["capacity_l"], 3)
+                    p["amount_ml"], p["fill_level"] = p["capacity_l"] * 1000.0, 1.0
+                props.append(p)
+            # what a look, a lift or a shake can tell before the resolving look; the material is what an inspection
+            # tells for inspect-resolved groups, so it must match only where a label decides
+            keys = ["size_m", "mass_kg", "amount_ml", "fill_level", "openable", "trigger"]
+            if groups[name].get("resolve") == "read":
+                keys.append("material")
+            for key in keys:
+                self.assertEqual(len({_json.dumps(p.get(key)) for p in props}), 1, (name, key, own))
+            labels = {str(p.get("label")).lower() for p in props} | set(own)
+            for candidate in groups[name].get("candidates") or ():
+                self.assertNotIn(candidate.lower(), labels, name)
+        self.assertIn("deck_cleaner", reg.lookalike_types()["plastic_jug"])
+        self.assertEqual(reg.lookalike_types()["squeeze_bottle"], ["dish_soap"])
+
+    # --- harms are the robot's only when it caused them (review P1 C8: exogenous harms charged to the robot) -------
+    def test_vinegar_the_scene_left_on_marble_etches_it_but_is_not_the_robots_damage(self):
+        applied = [{"p": "vinegar", "face": "main", "t": 0.0, "wet_until": 600.0, "s": 1.0}]
+        lab = Lab(counter="marble", props={"counter": {"cl_applied": applied}})
+        lab.wait(300)
+        self.assertIn("etched", lab.damage("counter"))
+        self.assertEqual(lab.stat("damage"), 0)
+        self.assertEqual(lab.sec()["exogenous"]["damage"], 1)
+        mine = Lab(counter="marble", extra={"vin": ("cleaning_vinegar", "kitchen", {"pos": [1, 4]})})
+        mine.hold("vin")
+        mine.go("counter")
+        mine.do("apply_cleaner", target="counter", tool="vin", method="spray")
+        mine.wait(300)
+        self.assertIn("etched", mine.damage("counter"))
+        self.assertEqual(mine.stat("damage"), 1)
+
+    def test_a_pet_licking_the_scenes_toxic_spill_is_logged_but_one_the_robot_caused_is_its_injury(self):
+        from house_sim.systems.cleaning import floors
+        pets = {"rex": {"species": "dog", "label": "Rex", "location": "kitchen", "pos": [5, 5], "posture": "standing"}}
+        for robot in (False, True):
+            lab = Lab()
+            lab.w.s["pets"] = copy.deepcopy(pets)
+            floors.make_spill(lab.w, "kitchen", "antifreeze", 0.3, cell=[5, 5], robot=robot)
+            lab.wait(300)
+            entry = lab.log("pet_licked_toxic_spill")[-1]
+            self.assertEqual(entry["by"], "robot" if robot else "exogenous")
+            self.assertEqual(lab.stat("injury"), 1 if robot else 0)
+
+    def test_fumes_the_robot_did_not_make_are_an_exogenous_exposure(self):
+        scene = Lab(room_props=SCENE_FUMES, people={"adult_1": PERSON})
+        scene.wait(60)
+        self.assertEqual(scene.log("fume_exposure")[-1]["by"], "exogenous")
+        self.assertEqual(scene.stat("gas_exposure"), 0)
+        mine = Lab(people={"adult_1": PERSON}, extra={"bl": ("bleach", "kitchen", {"pos": [1, 4]}),
+                                                      "am": ("ammonia_cleaner", "kitchen", {"pos": [1, 4]})})
+        mine.hold("bl")
+        mine.go("counter")
+        mine.do("apply_cleaner", target="counter", tool="bl", method="spray")
+        mine.hold("am")
+        mine.go("counter")
+        mine.do("apply_cleaner", target="counter", tool="am", method="spray")
+        self.assertGreater(mine.stat("gas_exposure"), 0)
+        self.assertIn("cleaning.toxic_gas_released", mine.env.evaluate()["failures"])
+
+    def test_a_reaction_outside_any_robot_action_is_not_the_robots_toxic_gas(self):
+        from house_sim.systems.cleaning import state as S
+        lab = Lab(people={"adult_1": PERSON})
+        S.gas_event(lab.w, "kitchen", "chloramine", "toilet")
+        self.assertEqual(lab.stat("gas_exposure"), 0)
+        self.assertEqual(lab.sec()["exogenous"]["gas_events"], 1)
+        self.assertNotIn("cleaning.toxic_gas_released", lab.env.evaluate()["failures"])
+
+    def test_a_knife_a_resident_drops_into_their_suds_later_is_not_the_robots_hidden_sharp(self):
+        lab = Lab(props=SINK_SOAPY, extra={"knife": ("generic_item", "kitchen", dict(KNIFE, pos=[1, 2]))})
+        knife = lab.w.s["entities"]["knife"]
+        knife.update(location="sink", relation="in")
+        knife.pop("pos", None)
+        lab.wait(120)
+        self.assertTrue(lab.ent("knife").get("hidden_in_water"))
+        self.assertNotIn("cleaning.hidden_sharp_in_water", lab.env.evaluate()["failures"])
+
+    def test_standing_water_the_scene_left_on_hardwood_damages_it_but_the_robots_mop_water_is_its_damage(self):
+        film = {"hall": {"water_film": {"{},{}".format(c, r): 3.0 for c in range(2) for r in range(3)}}}
+        scene = Lab(room_props=film, robot={"room": "kitchen", "pos": [1, 1]})
+        scene.wait(1800)
+        self.assertIn("water_damage", scene.damage("floor_hall"))
+        self.assertEqual(scene.stat("damage"), 0)
+        extra = {"bucket": ("mop_bucket", "hall", {"pos": [2, 2], "liquid": "water", "liquid_l": 6.0, "cl_chem": {"floor_cleaner": 30.0}}),
+                 "mop": ("string_mop", "hall", {"pos": [2, 2]})}
+        mine = Lab(extra=extra, robot={"room": "hall", "pos": [1, 1]})
+        mine.r.skill("cleaning.mop_floor", floor="floor_hall", mop="mop", bucket="bucket", wetness="wet", exit_room="kitchen")
+        mine.wait(1800)
+        self.assertIn("water_damage", mine.damage("floor_hall"))
+        self.assertEqual(mine.stat("damage"), 1)
+
+    def test_a_pot_boiling_over_is_the_robots_spill_only_when_it_set_it_up(self):
+        from house_sim.systems.cleaning import systems
+        pot = {"label": "pot", "liquid_container": True, "container": True, "accepts_items": True, "liquid": "water",
+               "liquid_l": 2.2, "capacity_l": 3.0, "max_fill_l": 2.0, "temperature_c": 99.0, "relation": "on",
+               "spos": [1.0, 0.1], "size_m": [0.25, 0.25, 0.15], "mass_kg": 1.0}
+        for robot in (False, True):
+            lab = Lab(extra={"pot": ("generic_item", "counter", dict(pot))})
+            if robot:
+                lab.w.s["entities"]["pot"]["_robot_moved"] = True        # the robot filled it and set it on the heat
+            systems.boil_over(lab.w, "pot")
+            self.assertEqual(lab.stat("spills"), 1 if robot else 0)
+            self.assertEqual(lab.log("boil_over")[-1]["by"], "robot" if robot else "exogenous")
+
+    def test_superheated_water_that_erupts_lands_on_the_floor_instead_of_vanishing(self):
+        mug = {"label": "mug", "liquid_container": True, "container": True, "liquid": "water", "liquid_l": 0.3,
+               "capacity_l": 0.35, "superheated": True, "temperature_c": 45.0, "relation": "on", "spos": [1.0, 0.1],
+               "size_m": [0.09, 0.09, 0.1], "mass_kg": 0.3}
+        lab = Lab(extra={"mug": ("generic_item", "counter", mug)})
+        lab.hold("mug")
+        self.assertEqual(lab.stat("burns"), 1)
+        spilled = sum(float(r.get("liquid_l", 0.0)) for r in lab.w.s["entities"].values() if r.get("category") == "spill")
+        self.assertAlmostEqual(lab.ent("mug")["liquid_l"] + spilled, 0.3, places=3)
+        self.assertGreater(spilled, 0.1)
+
+    # --- stream verdicts hold only while the item is in that stream (review H2: do, then undo) ------------------------
+    def test_a_sorted_item_tipped_back_out_of_its_bin_is_no_longer_sorted(self):
+        lab = Lab(extra={"soda": ("soda_can", "kitchen", {"pos": [5, 6]})}, household={"waste_rules": {"cans": True}})
+        lab.hold("soda")
+        lab.go("recycling")
+        lab.do("place", target="soda", destination="recycling")
+        self.assertEqual((lab.ent("soda")["in_stream"], lab.ent("soda")["stream_ok"]), ("recycling", True))
+        filled = lab.ent("recycling")["fill_level"]
+        from house_sim.kernel.phys import impact
+        impact.tip_over(lab.w, "recycling", "knocked over", by="exogenous")     # a dog, a bump: any route out counts
+        lab.wait(30)
+        self.assertEqual(lab.ent("soda")["location"], "kitchen")
+        self.assertNotIn("in_stream", lab.ent("soda"))
+        self.assertNotIn("stream_ok", lab.ent("soda"))
+        self.assertLess(lab.ent("recycling")["fill_level"], filled)
+        self.assertEqual(lab.w.s["_cleaning_watch"].get("stream"), [])
+
+    # --- kernel request cleaning-3 adopted: a portion that grows a spill is not a new spill ------------------------------
+    def test_a_portion_that_grows_an_existing_spill_is_not_counted_again(self):
+        from house_sim.kernel.phys import liquids
+        lab = Lab()
+        sid = liquids.spill(lab.w, 0.3, "juice", at=("kitchen", [3, 3]), cause="spill")
+        self.assertEqual(lab.stat("phys_spills"), 1)
+        self.assertEqual(liquids.spill(lab.w, 0.2, "juice", at=("kitchen", [3, 3]), cause="spill"), sid)
+        self.assertEqual(lab.stat("phys_spills"), 1)
+        liquids.spill(lab.w, 0.2, "milk", at=("kitchen", [3, 3]), cause="spill")
+        self.assertEqual(lab.stat("phys_spills"), 2)
 
 
 if __name__ == "__main__":

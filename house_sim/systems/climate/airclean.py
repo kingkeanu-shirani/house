@@ -313,7 +313,8 @@ def purifier_tick(w, pid, dt, pm25):
     if any(rec.get(k) != v for k, v in changes.items()):
         w.mut(pid).update(changes)
     if on and not filters:
-        C.hazard(w, "purifier_without_filter_s", dt)
+        # the robot's harm when it pulled the filters or switched the unit on (attribution, common.robot_touched)
+        C.hazard(w, "purifier_without_filter_s", dt, robot=C.robot_touched(w, pid))
     return cadr, carbon
 
 

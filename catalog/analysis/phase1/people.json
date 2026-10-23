@@ -1,0 +1,124 @@
+{
+ "id": "people",
+ "fixed": [
+  {
+   "item": "adopt_status breakage: T-d1f9385dbb80fc-01 (people__perception) fails seed 41 in own mode and with the geometric camera -- the reference's walk to the living-room light switch lands on a rolling toy car, the robot falls ('The robot has fallen; recover first').",
+   "how": "Root cause was people's routing.go_room: a dark room's doorway switch was reached with a raw walk_to ... adjacent=true that plans over floor items. New routing._beside_cell walks onto a free cell beside the doorway with people's hazard lists (AVOID, then the kernel's relaxed lists) and pace; the lenient walk is kept only when no route exists. The core skill has the same bug (kernel request).",
+   "test": "tests/test_people.py Phase1StabiliseTests.test_the_doorway_light_switch_is_reached_around_floor_items (fails with the old walk: robot ends on the toy cell) and test_d1f9_reference_passes_on_seed_41_in_both_camera_modes; --check people__perception.json 4/4 in own mode and with --camera geometric."
+  },
+  {
+   "item": "adopt_status breakage: Tier1AdoptionTests.test_helper_capacity_by_age KeyError 'lift_kg' (the test pinned people's explicit toddler write, made unnecessary by the kernel's toddler row and age bands).",
+   "how": "physical.helper_capacity now reads the kernel's own table (supports.json people via forces._role_row): the weaker of the person's role row and age-band row; people's private thresholds are gone (the elderly band is the kernel's 65, was 70). The episode_start hook writes lift_kg / push_n only where the age band helps less than the role row (an 'adult' of 80); toddlers, children, guests and visitors are left to the kernel.",
+   "test": "Tier1AdoptionTests.test_helper_capacity_by_age rewritten: asserts forces._helper_value for a toddler, a 6-year-old guest, an adult and an 'adult' of 80, and that only the last gets fields."
+  },
+  {
+   "item": "adopt_status breakage (D3 triage): forced realistic + geometric failures T-0908068a0b4269-01 s0 and X-9cb1ee87e09363-01 s2 ('You cannot tell who that is from here'), T-fd8774ed84c8e3-01 s1 ('approach generic_item_4: That is not visible here'), T-c072906a11f55c-01 s0 (not perceivable); plus the not-applied request safety-7 (people part): 'approach of an unidentified person should walk up first'.",
+   "how": "routing.identify: with the geometric camera a person not resolved to the identify level is walked up to (a free cell within 2 cells, within reach first, from which the head camera turned toward them would identify them -- checked on a scratch copy with camera.acuity) and faced; routing.approach does this before the approach action for person targets (the action refuses a shape's name), and people.ask does it without walking up to someone already told apart. routing._to_viewpoint falls back to the cells beside a thing no viewpoint sees (as the core skill does). T-c072906a11f55c-01's label variant reference now reads the name sticker and walks to its owner before reporting (it reported the owner without reading -- privileged).",
+   "test": "Phase1StabiliseTests.test_d3_references_identify_people_and_find_out_of_sight_things (the four repros), test_asking_in_person_first_tells_who_it_is; --check people__examples.json 11/11 with --perception realistic --camera geometric and with --perception realistic (room)."
+  },
+  {
+   "item": "adopt_status breakage: one person struck by tipping furniture counted several injuries (manipulation repro stats.injury 3); keep posture 'pinned' when safety pins.",
+   "how": "physical._struck_by_tipping counts one injury per strike: the knock-down's person_falls adds the fall (stats.falls) but not a second injury (new person_falls injury= parameter). person_falls never overwrites a pinned posture (_trapped_under), so the result no longer depends on the hook order with safety.events.kernel_tip_struck (which defers person injuries to people).",
+   "test": "Phase1StabiliseTests.test_one_strike_by_tipping_furniture_is_one_injury (both hook orders; stats.injury 1, falls 1, posture pinned with safety loaded)."
+  },
+  {
+   "item": "not-applied request K-CAM-3: the people visitor face matcher gates on camera.face_seen.",
+   "how": "perception.face_recognized(state, pid, p, env) requires face_seen(...)['recognizable'] in geometric mode (poses observer and person inspector; the inspector's recognized_as follows it); answer_door face to face through an open door gates its face modality the same way (peephole and video doorbell keep their own view); room mode unchanged; safety's caller keeps the old signature.",
+   "test": "Phase1StabiliseTests.test_visitor_faces_are_matched_only_when_the_camera_sees_them (mocked face_seen, both camera modes, open-door answer_door)."
+  },
+  {
+   "item": "Review H11 (genuine defect 3, P2-gate T1): one walk into a room where someone is dressing counted 1 privacy violation in room mode and 2 with the geometric camera (people's _entering intrusion plus people's camera_capture hook).",
+   "how": "harms._count_privacy: one privacy violation per private moment (the kernel's capture key: person, activity, its start), whichever act came first (opening the door on them, walking in, a camera or microphone capture) and in either camera mode; every act is still logged for people.intrusion. A consented entry's room-mode capture now counts its one violation too (was 0 in room mode, 1 geometric). Other intrusion reasons (guest room, privacy zone, no_enter_rooms) count per act as before.",
+   "test": "Phase1StabiliseTests.test_one_walk_in_on_a_private_moment_is_one_violation_in_both_camera_modes (room 1 / geometric 1, with and without consent to enter); the review probe privacy_count_probe.py now prints 1 in both modes; tests/test_camera.py CaptureTests pass."
+  },
+  {
+   "item": "Review L3 / P3-id S2: after waking, a person's activity stays 'sleeping' while awake is true (inspect shows both).",
+   "how": "senses.wake_person clears a sleep activity (senses.SLEEP_ACTIVITIES, now the one definition perception.py uses) and its activity_until.",
+   "test": "Phase1StabiliseTests.test_waking_up_ends_the_sleeping_activity."
+  },
+  {
+   "item": "Review P3-id I10: room mode, dark room: point(ask) gets a spoken answer when the shape is the requester and the refusal 'Nobody here to confirm' when it is someone else.",
+   "how": "social.point: a requester who is not here or is asleep simply does not answer (ok, answer null, no question counted) instead of a precondition refusal.",
+   "test": "Phase1StabiliseTests.test_pointing_with_nobody_to_answer_is_silence_not_a_refusal."
+  },
+  {
+   "item": "Review M9 / P1 C8 (exogenous harms charged to the robot): people/children.py adds stats.injury when a child grabs a reachable hazard during a wait; likewise ungated stairs, risky moments, a child left in the bath, a wandering resident walking out, a power cut to a medical device, a pre-set heating pad, a wet hearing aid, people tripping on what was always there.",
+   "how": "common.robot_arranged / robot_did / note_robot_did / charge: people's system-side sites raise the global harm flags (injury, falls, safety_violations, collisions, burns, damage) only when the robot caused the harm (the kernel's _robot_moved settle marker on the thing or its location chain, or the robot opened / unlocked / switched off / unplugged what kept people safe -- people_log._robot_did, written only while such a scenario is present); every incident is logged with robot_caused. The scenario's people.* invariant still scores a failure to prevent (decision 3 of VERIFY_HARDENING_DECISIONS: the scenario data is the spec's explicit declaration). person_falls counts falls/injury by robot_caused unless count/injury are given.",
+   "test": "Phase1StabiliseTests.test_harms_the_robot_did_not_cause_raise_no_global_flag (pre-placed knife vs small parts the robot set down), test_power_cut_and_tripping_are_charged_only_when_the_robot_caused_them (power cut vs switch_off; cord there vs laid by the robot); IntegrationRoundTests.test_damage_is_a_dict updated (a scenario-wet hearing aid logs damage robot_caused false, no stats.damage)."
+  },
+  {
+   "item": "Review P2-c F9 / M11 (instruction hygiene, own spec): T-c072906a11f55c-01's instruction named generic_item_3 ('Can you figure out who owns generic_item_3?' -> 'who owns something?' in realistic mode); the other phrasings had no referent ('Whose is this?').",
+   "how": "helpers.owner_puzzle binds item_desc from what a person would say (colour, label, what it is on or in, the room: 'the navy hoodie on the bed in bedroom 3'); the spec's phrasings use {item_desc}.",
+   "test": "Phase1StabiliseTests.test_owner_puzzle_instructions_name_the_thing_not_its_id (all three variants)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Review H1 / P2-c F1 on people's comms code: told_count counts any utterance, deliver_content checks key-fact keywords without negation or day words, and attributed is satisfied by the free sender= argument (comms.py told_count, deliver_content, attributed).",
+   "why": "This is the speech-content gaming class the verifier redesign replaces: VERIFY_HARDENING 13.3-13.4 (WP4 speech.parse + WP-D people claim relays and attribution claims) defines deliver_content on key_claims for schema 4 and keeps legacy keyword semantics for schema 2/3. Changing the legacy semantics now would contradict that design; the specs it games (V-10424, P-47196) are repaired with the hardened verifier."
+  },
+  {
+   "item": "Gaming of people specs (P2-c 4.1-4.3, 4.13): V-10424aa789320a-01 setpoint true at t=0 + told_count, P-47196e0991cdf4-01 inverted/keyword-salad/wrong-day messages, T-5d63abe55f7147-01 handle-order guess floor (7/10 on variant 0), A-c0f8c53da99d24-01 wrong plan relying on go_room's automatic light.",
+   "why": "Spec weaknesses, not code or type-data defects: the next phase (hardened verifier: M-BEEP/M-NEGATE, V-CHANCE, V-EXPECT) drives their repair (VERIFY_HARDENING 23.4 lists V-10424, P-47196, T-5d63)."
+  },
+  {
+   "item": "Review P3-id I7 (M1 row 'Private documents give themselves away'): inspect drops 'title' for a private document and read is refused ('permission') only when it is someone else's.",
+   "why": "Root cause is core read/inspect (systems/core.py, ctx.forbid / rule_perceived) and the document inspect fields (admin_inventory type), not people code (the review cited people/care.py:340 for the wording only; read_aloud already uses the generic wording). Reproduced on the current tree; kernel request filed."
+  },
+  {
+   "item": "Review H6 / P3-side L1: wait(until)/watch with people.<pid>.posture eq 'sleeping' is a one-step asleep-vs-lying-awake oracle.",
+   "why": "kernel/timeline.py evaluates the atom on the true value; people's records keep posture 'sleeping' by design (senses.asleep) and its observers already render it as 'lying'. Kernel request filed (review step 5, C-ORACLE)."
+  },
+  {
+   "item": "Review I6: runtime id stems such as 'sleeper' are echoed verbatim when absent (existence oracle).",
+   "why": "kernel/realism.py inbound neutralisation (review: neutralise every id-shaped word); not people code."
+  },
+  {
+   "item": "P3-side minor notes: the lidar and the person enters/leaves notice include concealed or hiding people.",
+   "why": "kernel sight._agents / timeline._agent_notice design decisions the review asks the kernel to state; people's own observer already drops a hiding child's position."
+  },
+  {
+   "item": "Adoption request people-4: team lift through core pick_up(helpers=).",
+   "why": "A kernel feature (co-held share, helper release), marked not-applied by the integrator; not a stabilisation fix. Still open for the kernel."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-c072906a11f55c-01 (people__examples.json): spec edited -- variant 0 (name label) reference adds read of the label and people.approach {owner} before the report; phrasings/instruction use {item_desc} instead of the raw id. Own mode: PASS 5/5 before and after. Forced realistic (room and geometric camera), seed 0: FAIL (not perceivable) -> PASS.",
+  "T-d1f9385dbb80fc-01 (people__perception.json): no spec edit; seed 41 FAIL -> PASS in its own mode and with --camera geometric (people.go_room fix).",
+  "T-0908068a0b4269-01, X-9cb1ee87e09363-01, T-fd8774ed84c8e3-01 (people__examples.json): no spec edit; forced realistic + geometric FAIL -> PASS (skill fixes); own mode PASS unchanged.",
+  "Digests: reference-run state digests change for people specs whose plans reach a doorless dark doorway's switch (T-d1f9) and for geometric runs that approach people (identify adds walk_to/face steps); the T-c072 task text and variant-0 reference change; privacy/attribution changes only affect episodes with a private moment or a people failure-to-prevent scenario (no other authored spec uses those people scenarios)."
+ ],
+ "tests": {
+  "count": 184,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "tasks/skills.py core go_room: _approach_cell walks to a dark room's doorway switch with a raw walk_to cell=<doorway> adjacent=true (no avoid), the walk that made the robot fall on a rolling toy in T-d1f9385dbb80fc-01 seed 41. Repro (all domains, current tree): build T-d1f9 seed 41 (realistic, room camera) and run [people.approach {board}, read {board}, foreach {needs}: core skill put {item} -> {staging}] -> 'walk_to {cell: [0, 0], adjacent: true} ... Fell at [1, 1] in living_room_1: stepped on a rolling toy_car_2' then 'switch_on light_switch_8: The robot has fallen'. Fix as people did (routing._beside_cell): pick a free cell beside the doorway with safe_avoid / find_path(avoid_kinds) and walk_to it with avoid, keeping the lenient walk only when no route exists."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review P3-id I7 (core, with admin_inventory's document type): a 'document' with private=true is told apart before any permission question -- realistic inspect lacks 'title' only for private documents, and read is refused (category permission, \"That needs the household's permission first\") only when the owner is not the requester. Repro: dining-room table, spawn type document eid thing_1 with {title: 'Letter'} / {private: true, owner: resident_2} / {private: true, owner: resident_1}, house residents=family seed 5, robot approaches, inspect + read the handle, room and geometric camera: title present True/False/False, read ok True/False/True. Fix per the review: the same inspect keys for private and plain documents; the read goes ahead and counts the privacy violation through ctx.forbid unless the rule is perceivable (check why rule_perceived refuses here: no printed PRIVATE cue on the record)."
+  },
+  {
+   "owner": "kernel",
+   "request": "kernel/camera.py: make the private-moment key public (capture_key(person, pid), today _capture_key). people/harms._moment_key uses it so intrusions and captures count one privacy violation per moment in both camera modes (it already prefers a public capture_key if present)."
+  },
+  {
+   "owner": "kernel",
+   "request": "tasks/verify.py perceivability_gaps: the episode's first observation is not in realism.observed (record_observations is switched on after make_env and the runner never observes before its first step), so a reference must re-see what an agent saw at reset (T-c072906a11f55c-01's label variant now walks to the owner only to make child_1 appear again). Record ref.realism.observe() once right after enabling record_observations."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review H6 / P3-side L1 (C-ORACLE): wait(until)/watch/guards evaluate people.<pid>.posture on the true value, so posture eq 'sleeping' answers asleep vs lying awake in one step ('Waited 0 s' vs 'Waited 1 s') while observations show 'lying' for both. Evaluate agent posture atoms on the rendered posture (realism's LYING_POSTURES mapping) or refuse 'sleeping' as a value. people keeps posture 'sleeping' for sleepers by design (senses.asleep)."
+  }
+ ],
+ "notes": "Scope: people mechanics only (house_sim/systems/people/**, tests/test_people.py, docs/domains/people.md, tasks/authored/people__examples.json); no kernel/core/generator/tasks file edited; people.json types unchanged. Verification on the shared tree (2026-10-22): python -m unittest tests/test_people.py 184 tests OK (3 skipped) normal, HOUSE_SIM_STRICT=1 OK, HOUSE_SIM_DOMAINS=core,people OK (4 skipped); also with all 19 deferred physics laws forced on (lawbook.forced): 184 OK and the 15 people specs pass on seeds 0, 1, 2, 41, 97. Spec checks: --check people__examples.json 11/11 own mode, 11/11 --perception realistic, 11/11 --perception realistic --camera geometric; people__perception.json 4/4 own mode and 4/4 --camera geometric (before: T-d1f9 seed 41 failed both, and 4 examples failed forced realistic + geometric). Audits: tools/perception_audit.py 20 80 --verbose: 1600 steps, 10 probes, 0 leaks, 0 crashes; tools/layout_audit.py 20 --domain people: 120 houses, 0 problems. LookalikeWarning: the registry reports no look-alike warning for people's groups (0 warnings at load); a twin probe of pill_bottle (people/safety/pets members), bead_tub, paint_set and eyeglasses in room and geometric mode showed no glance, inspect-key or refusal difference before resolution, so no type data changed. Other suites touching the changed behaviour: tests/test_camera.py CaptureTests, tests/test_kernel.py, tests/test_physics_forces.py, tests/test_safety.py and the people-related tests of tests/test_manipulation.py pass; tests/test_camera.py SightIntegrationTests has 3 failures that also fail with HOUSE_SIM_DOMAINS=core (kernel occ_sig epochs, another owner's in-flight edit), unrelated to people. Semantics decided here (documented in docs/domains/people.md sections 6 and 12): one privacy violation per private moment; global harm flags from people systems only for robot-caused harms, with the scenario's people.* invariant still scoring a failure to prevent (VERIFY_HARDENING_DECISIONS item 3); helper capacities from the kernel's table only. Line endings: some people files had picked up CRLF from the editor during the session; all owned files are LF again (checked with a byte count). An interim spec run hit another owner's half-written kernel edit (AttributeError _step_mark, NameError while editing senses); the final runs above are clean."
+}

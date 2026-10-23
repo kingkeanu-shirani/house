@@ -21,8 +21,9 @@ from . import percept as P
 from . import systems as S
 
 
-def _source_food(ctx, sid, item=None):
-    """The food entity to draw from: the target itself, or the (named) food inside a vessel."""
+def _source_food(ctx, sid, item=None, whole=False):
+    """The food entity to draw from: the target itself, or the (named) food inside a vessel. whole: the caller moves
+    the food whole (whole units, or all of it); anything less needs the food out of its shell."""
     w = ctx.w
     rec = ctx.obj(sid, touch=True)
     if M.food(rec):
@@ -30,6 +31,7 @@ def _source_food(ctx, sid, item=None):
         parent = w.s["entities"].get(rec.get("location"), {})
         if parent.get("openable") and not parent.get("open") and parent.get("container"):
             raise ActionError("Open the {} first".format(P.name(ctx, rec.get("location"), "container")), "precondition")
+        _out_of_shell(rec, whole)
         return sid, rec, rec.get("location")
     require(not (rec.get("openable") and not rec.get("open")), "Open it first", "precondition")
     foods = M.vessel_foods(w.s, sid)
@@ -38,7 +40,25 @@ def _source_food(ctx, sid, item=None):
         foods = [item]
     require(foods, "It is empty", "precondition")
     foods.sort(key=lambda e: (-M.qty(w.ent(e)), e))
+    _out_of_shell(w.ent(foods[0]), whole)
     return foods[0], w.ent(foods[0]), sid
+
+
+def _out_of_shell(frec, whole):
+    """Nothing pours, scoops or portions out of an egg still in its shell (a transfer used to pour 41 ml out of an
+    intact egg, raw or hard-boiled): crack or peel it first. Moving it whole is fine. The refusal is the same for a raw
+    and a hard-boiled egg, so it tells them apart no more than a look does."""
+    f = M.food(frec) or {}
+    require(whole or not (f.get("cat") == "egg" and "shell" in (f.get("parts") or [])),
+            "It is still in its shell: crack or peel it first", "precondition")
+
+
+def _moves_whole(args):
+    """A transfer that moves the food whole: whole units, or no amount at all (all of it)."""
+    if args.get("units"):
+        return True
+    fraction = float(args.get("fraction") or 0.0)
+    return not (args.get("amount_g") or args.get("amount_ml") or args.get("until_reading") or 0.0 < fraction < 1.0)
 
 
 def _grams_by_eye(ctx, fid):
@@ -188,6 +208,12 @@ def scoop(ctx):
         portion, grams = M.take(w, fid, per)
         if grams <= 0:
             break
+        if ml * fill > 0 and grams >= per - 1e-6:
+            # a full measure fills the measure: its bulk density is the technique's (spooned flour 0.53 g/ml, packed
+            # 0.63), so the scoop takes the cup's volume in the bowl whatever powder it is
+            pf = portion["food"]
+            pf["density"] = round(per / (ml * fill), 4)
+            portion["volume_l"] = round(grams / pf["density"] / 1000.0, 4)
         total += grams
         M.contact(w, tool_id, fid, 0.5)
         target = dest or tool_id
@@ -196,6 +222,10 @@ def scoop(ctx):
         news.append(new)
     require(total > 0, "Nothing left to scoop", "precondition")
     out.update({"grams": round(total, 1), "per_scoop_g": round(per, 1), "into": dest or tool_id, "portion": news[-1] if news else None})
+    # what a camera sees of an unidentified powder is the volume scooped: the measure's own (a level half cup of flour
+    # and one of sugar are the same half cup), not the grams over the food's density (percept.honest_result)
+    vol = ml * fill
+    out["_volume_ml"] = {"grams": round(vol * total / per, 1) if per > 0 else 0.0, "per_scoop_g": round(vol, 1)}
     C.seconds(ctx, (8.0 if technique == "spoon_and_level" else 4.0) * count)
     return out
 
@@ -218,7 +248,7 @@ def scoop(ctx):
 def transfer(ctx):
     w = ctx.w
     src_arg = ctx.args["target"]
-    fid, frec, src_vessel = _source_food(ctx, src_arg, ctx.args.get("item"))
+    fid, frec, src_vessel = _source_food(ctx, src_arg, ctx.args.get("item"), whole=_moves_whole(ctx.args))
     dest = ctx.args["destination"]
     require(dest != fid and dest != src_arg, "Choose a different destination", "argument")
     drec = ctx.obj(dest, touch=True)
@@ -499,7 +529,8 @@ def _alive(w, fid, placed):
 @P.perceived_result
 def plate(ctx):
     w = ctx.w
-    fid, frec, src_vessel = _source_food(ctx, ctx.args["target"], ctx.args.get("item"))
+    fid, frec, src_vessel = _source_food(ctx, ctx.args["target"], ctx.args.get("item"),
+                                         whole=not (ctx.args.get("amount_g") or ctx.args.get("pieces")))
     dest = ctx.args["destination"]
     drec = C.vessel_reach(ctx, dest)
     tool_id = ctx.args.get("tool")

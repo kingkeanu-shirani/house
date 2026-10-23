@@ -354,6 +354,9 @@ class ScriptedOracle(Agent):
         if episode.get("phrasing"):
             from ..tasks.spec import substitute
             task["instruction"] = substitute(episode["phrasing"], oracle["bindings"])
+        from ..kernel.realism import NONCE_KEY
+        if episode.get(NONCE_KEY):
+            task[NONCE_KEY] = episode[NONCE_KEY]    # the harness episode's nonce: the shadow's handles are its handles
         shadow = HouseEnv(copy.deepcopy(config), copy.deepcopy(task), seed, perception=perception, camera=camera, trace=True,
                           observe_on_step=True)
         shadow.observe()        # the harness observes once before the first act

@@ -1,0 +1,114 @@
+{
+ "id": "outdoor_plants",
+ "fixed": [
+  {
+   "item": "Adoption breakage (adopt_status breakages[10], cross_domain_bugs_resolved[2]): generation-2 wind (6.8 m/s, gusts 10.2) blew hung rescue gear off its post (ring_buoy_1 4-46 m), the hose off its hanger, 4 kg patio chairs 1.5-3.8 m and watering cans onto the patio's doorway cell (blocking every route), a 1.5 kg coir doormat 11 m (reproduced on gen-2 seeds 0, 1, 2, 41, 97 before the fix).",
+   "how": "weather._object_wind (this domain's copy of the deferred wind law for loose things) now routes through the kernel's own model and calibration: kernel.phys.environment.wind_effect at object_wind_mps (0.4 of the 10 m mean, 0.6 of the 10 m gust near the ground; sustained wind slides, gusts lift real sheets and tip tall things; hung/held/inside/worn/mounted/anchored never move -- kenv.FIXED_RELATIONS, so hung items honour their hang ratings, which are the statics law's), exposure by kenv.exposed (porch roofs, covers, phys.exposed). This domain adds only weather.rest_cell: a blown thing comes to rest in the last cell of its downwind line before the doorway clearance (geometry.door_clearance) or a path-blocking footprint (its own support chain ignored); a floor item whose first cell is such a stop stays (pressed against it); a landing still in clearance goes to geometry.free_floor_cell. Covers torn off (furniture covers, plant covers) fall through phys.impact.fall at the same rest cell (a plant cover used to be moved to the room's [0,0] corner first). Manipulation's light sheets (explicit wind_lift_mps) and laid covers are skipped (its own copy). Wind pass cost 0.15-0.23 ms per substep at 10 m/s gusts, 0.4-0.5 ms in a 25 m/s gale on gen-2 houses (outdoor children map instead of two O(all entities) passes).",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_hung_rescue_gear_and_hoses_stay_on_their_hangers_in_a_gale (gen-2 seed 1, 15/25 m/s gale, both law states), test_an_ordinary_windy_day_moves_nothing_as_with_the_kernels_wind_law (gen-2 seed 97, 6.8/10.2 m/s, both law states: no outdoor thing moves), test_a_blown_thing_never_comes_to_rest_in_a_doorway, test_loose_things_take_the_kernels_wind_model_in_both_law_states; TierOneAdoptionTests.test_loose_objects_are_the_kernels_once_the_wind_law_is_active updated (the 0.3 kg box no longer slides at 9/16 m/s, as under the law)"
+  },
+  {
+   "item": "Adoption breakage (adopt_status breakages[17], D3 preview): T-0caf47d0f789f5-01 'inspect fence_1: Too far to make out the details' on every seed with forced realistic + geometric.",
+   "how": "Root cause in this domain's records: the fence record was a 1 x 0.1 x 1.8 m stub at the yard's [0,0] corner while its panels run round three edges, so camera.inspect_check judged a far-away stub. furnish.fence_extent: the fence record's size_m is its yard (pos [0,0], ground layer: no occlusion, no lidar span, no floor cells, no placement change); the inspector still reports only panels within FENCE_VIEW_M that the frames covered. Spec unchanged; passes 5/5 forced realistic+geometric.",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_the_fence_can_be_surveyed_with_the_geometric_camera (realistic + geometric survey reports exactly the expected defects)"
+  },
+  {
+   "item": "Adoption breakage (adopt_status breakages[17], D3 preview): T-d182fc681f310d-01 'approach garden_bed_2: That is not visible here' (seeds 0, 1, 2, 97).",
+   "how": "Root cause in this domain's code: lawn.hidden_in_grass (visible_veto) hid the scenario helper's 3 m x 1 m, 5 cm tall garden bed in the lawn's 9 cm grass, because the garden_bed helper never told the lawn grid about the bed (patches stayed turf 'L'). The veto now hides only things no longer than a 1 m patch and never fixtures, path-blocking or mounted things; the garden_bed helper rebuilds the room lawn's patch kinds (furnish.rebuild_lawn_kinds: 'B' under the bed, as the finishing furnisher does for generated beds). Spec unchanged; passes 5/5 forced realistic+geometric.",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_tall_grass_hides_small_loose_things_never_a_garden_bed (bed patches are 'B'; the bed is never hidden; a golf ball 2 m off is, a 1.6 m rake is not)"
+  },
+  {
+   "item": "Adoption request outdoor_plants-5 (cleanup, not applied): delete the GEN1_RENAMED / GEN1_ADDED generation-1 record shims.",
+   "how": "furnish.gen1_records and its tables removed: generation-1 roof faces carry `sightline` (no string `view`, which realistic perception showed as a field), wheelbarrows carry `chocked`. yard.roof_sightline still reads an old saved state's `view` word. Needs the gen-1 digest re-record (request below).",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_generation_1_houses_carry_the_tier_1_record_fields; TierOneAdoptionTests.test_season_ground_state_of_generation_2_houses updated (gen-1 records now carry the tier-1 fields)"
+  },
+  {
+   "item": "Review M9 / P1 C8 (exogenous harms charged to the robot) in this domain's time systems: an umbrella the scene left open and unlocked collapsing (damage, injury) or tipping in a gale onto a glass table (breakages), the scene's hot ash flaring in the wind (fire), de-icer the scene spread spalling young concrete (damage), the scene's indoor-rated cord plugged in out in the rain (electrical_hazard, every slow tick), the wind dumping a cover's pooled water into a grill (damage).",
+   "how": "common.py harm attribution: C.harm(w, flag, source, marks) raises the global flag only when the robot caused it (its action phase; a robot mark ROBOT_MARK '_op_robot' left by its own action -- 'open' on an umbrella it opened, dropped on close/collapse; 'ash' on a holder it moved hot ash into; 'deicer' on a surface it spread chloride on; 'plug' on a decoration it plugged in, dropped on unplug; or kernel phys.impact.robot_caused for things it arranged); otherwise it counts state['outdoor_plants']['exogenous_harms'] {flag: n}. Sites: patio.slow_umbrellas, patio.slow_fire, patio.remove_cover (grill water), yard.slow_surfaces, yard.slow_decor. The glass table under a tipping umbrella now breaks through kernel phys.impact.break_entity(by=robot|exogenous) (shattered glass, sharp floor hazard, breakages/damage only for the robot's) -- and breaks at all: the old code read never-written in_base / under_table fields. Robot-action harms (verbs, @after hooks) unchanged.",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_a_scene_umbrella_wrecking_a_glass_table_is_exogenous_the_robots_is_not, test_an_unlocked_canopy_collapsing_is_the_robots_only_when_it_opened_it, test_hot_ash_flaring_in_the_wind_and_a_scene_cord_in_the_rain_are_exogenous"
+  },
+  {
+   "item": "Missing visual events (review camera checklist): an unlocked umbrella canopy collapsing and hot ash flaring in the wind changed visible state with only an event-log note; blown loose things now come from the kernel (phys.blown consequence = its visual event).",
+   "how": "C.visual (camera.visual_event) 'umbrella_collapsed' (size = canopy) and 'ash_flared', with by robot/exogenous; the old outdoor_plants.umbrella_collapsed event-log entry is the same kind. Plant covers log one specific visual event (no duplicate 'blown').",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_an_unlocked_canopy_collapsing_is_the_robots_only_when_it_opened_it (event_log has outdoor_plants.umbrella_collapsed by exogenous)"
+  },
+  {
+   "item": "Review P3-side minor note (duration side channel): trim_plant spent 5 s per 5 g of trimmings, so the clock read the hidden foliage mass to 5 g (the realistic 5 s quantum did not coarsen it).",
+   "how": "verbs.trim_plant: time = 10 s + 5 s per leaf it reports picking off (removed_dead / removed_live / collected; part=discolored now also reports removed_dead) or 5 s per cut for tips / flower_buds / leggy (fraction x 20 x the glance size class factor: tiny 0.5 .. huge 4), 20 s for infested; never the foliage mass.",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_trim_time_never_reads_back_the_foliage_mass (60 g vs 140 g foliage: identical clock)"
+  },
+  {
+   "item": "Review M1 (P3-side L2 / L4) and K-LEAK request (look-alike groups of different true size: granule_bag, soil_bag, ...): members of this domain's look-alike groups differed in true size and heft (bags of granules 1.5-13.6 kg in four sizes, soil bags 3.5-19 kg in three sizes, a 0.6 m pusher vs a 0.5 m shovel, pruners 0.25/0.28 kg, covers 1.0/1.2 kg) -- occlusion, lidar, touch bucket and carried load told them apart before reading.",
+   "how": "Type data aligned: granule_bag -- every member a 4.5 kg (10 lb) 0.3 x 0.12 x 0.4 m bag (ice melt's furnished size unchanged; qty and labels follow); soil_bag -- garden soil, topsoil, compost, mulch all 15 kg 28 L 0.45 x 0.15 x 0.65 m; small mixes split into a new group potting_bag ('small bag of potting mix': potting, cactus, seed-starting, all 4.5 kg 8.8 L 0.35 x 0.12 x 0.5 m) -- an 8.8 L and a 28 L bag never looked alike; snow_pusher blade/size 0.5 m and 1.9 kg like the shovel; anvil pruners 0.25 kg; grill cover 1.2 kg. Group glance size_m follows; no LookalikeWarning for this domain's groups (there was none at load either).",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_look_alike_members_share_size_and_heft; RealisticPerceptionTests look-alike tests unchanged and green"
+  },
+  {
+   "item": "K-GATE request to all domains (coverage fuzz): 18 of 30 outdoor_plants actions never succeeded in a spec-seeded walk.",
+   "how": "Every one has a success path from a scenario helper in the suite; aerate, edge, overseed, thin_seedlings and transplant had none and now do; the map action -> test is in docs/domains/outdoor_plants.md section 0c. Why the walks miss: multi-step preconditions (the right tool held, a plant held by its pot, a held seed packet, a germinated sowing, snow on paving, a pool) that a random walk from the 15 spec setups rarely assembles (fuzz --coverage on this domain's specs: 32 of 427 actions succeed overall, refusals 'That is not visible here', 'Hold the plant (by its pot) first', 'Hold a cutting tool').",
+   "test": "tests/test_outdoor_plants.py Phase1StabiliseTests.test_lawn_and_seedling_actions_reach_their_success_path"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Adoption request outdoor_plants-2 (drip attribution): the kernel side is in (K-FIX: phys.liquids.drip_start(..., by=)); pot drainage stays immediate within the watering action.",
+   "why": "A timed drain changes verified watering outcomes (water_plant until=drainage, moisture checks and saucer levels read right after watering in specs and tests) for no correctness gain: the drainage already happens inside the robot's action and is the robot's. Left as a documented design choice (docs 0c); revisit with the verifier-hardening re-run."
+  },
+  {
+   "item": "Adoption request outdoor_plants-1 (wind lift model for seat cushions).",
+   "why": "Still a kernel calibration request needing cited data; with the kernel's model (now also this domain's copy) a 1.2 kg 0.5 x 0.5 x 0.08 m cushion is not a sheet and never lifts in either law state. No invented numbers."
+  },
+  {
+   "item": "adopt_status laws.rain note (appliances_cooking): raised_bed_1/2 got damage.water_ring 0.3 with rain forced.",
+   "why": "Does not reproduce: T-d8355138bcf9fb-01 seed 41 with rain forced passes with no damage; 5 generation-2 houses, 3 h of 6 mm/h rain, law deferred and forced: no damage, no water ring anywhere. The ring rule is plumbing_liquids' (leaks.ring_and_mildew_step treats a raised bed's wood frame as a finished wooden surface); plumbing now charges it as exogenous. Not changed here (setting 'sealed' on beds would trip other domains' container rules)."
+  },
+  {
+   "item": "Spec weaknesses found by the review in this domain's specs (H2 the raked leaf tarp hauled indoors, T-e262f715d0bd60-01; H4 constant dry plants, T-d8d0ca913007d4-01; patio-chairs indoors is climate's).",
+   "why": "Out of phase-1 scope by instruction: the hardened verifier (next phase) drives spec repair."
+  }
+ ],
+ "specs_changed_outcome": [
+  "No spec file changed. Outcome changes from code: T-0caf47d0f789f5-01 and T-d182fc681f310d-01 FAIL -> PASS under forced realistic + geometric (D3 preview; own mode PASS before and after).",
+  "Specs other owners held on generation 1 because of the wind breakage now pass --gen 2 on all 5 seeds (moving them is their spec change): safety T-89530941a65283-01, T-301e5aee8a71a0-01; pets T-79a861877a2a67-01, T-0adf708ce0749a-01; mechanisms T-259d38eb6707f0-01, T-fffb3941b40c87-01, T-94a0a940224c22-01 (mechanisms__perception).",
+  "manipulation__perception A-a67431128da2e1-01 seed 97: one new phys.blown consequence (this domain's wind copy now uses the kernel's model, which emits it); spec still PASS."
+ ],
+ "tests": {
+  "count": 141,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "phys.environment.wind_effect lands blown things on doorway cells and inside furniture footprints: _downwind_cell clamps the target to the grid with no regard to geometry.door_clearance or path-blocking footprints, so with the wind law active a blown thing can come to rest on the doorway cell and cut every route through it (the adoption breakage this domain fixed for the deferred law). Repro (scratch door_probe.py): house seed 0 {dwelling: house, require: [patio]}, a generic_item paper napkin (0.004 kg, size [0.4, 0.4, 0.001], portable) at 5 cells from patio_1's house door along the wall's inward normal, weather {condition: wind, wind_mps: 9, gust_mps: 14} blowing toward the door; after 600 s with lawbook.forced(wind=True) it rests at patio_1 [0, 0] (the doorway cell); with the law deferred (this domain's copy) at [2, 0]. Change: walk the downwind line and stop in the last cell before the first door_clearance cell or path-blocking footprint (ignoring the thing's own support chain); a floor thing whose first cell is such a stop stays (pressed against it). outdoor_plants.weather.rest_cell is a reference implementation. Optional: make _free_to_move / _cannot_move public (free_to_move, cannot_move) so a deferred-law copy can gate cheaply without reimplementing them."
+  },
+  {
+   "owner": "kernel",
+   "request": "Adoption request outdoor_plants-1 stays open: a seat cushion's wind lift. With environment's model a 1.2 kg 0.5 x 0.5 x 0.08 m outdoor_cushion is not a sheet (h > 10 % of the footprint) and never lifts; real cushions blow off chairs in strong gusts. Needs a calibration row with cited data (e.g. wind_lift_mps or C_eff for cushions on seats); this domain no longer has a divergent copy (its deferred copy is the kernel's model)."
+  },
+  {
+   "owner": "main session",
+   "request": "Re-record tests/data/gen1_digests.json and tests/data/room_golden.json (together with K-LEAK's address/handles re-record) for outdoor_plants record changes in every generated house: fence records' size_m is the yard (furnish.fence_extent), generation-1 roof faces carry `sightline` instead of `view` and wheelbarrows `chocked` (shims removed, request outdoor_plants-5), snow_pusher size [0.5, 0.1, 1.3] / blade_m 0.5 / mass 1.9 kg (hung on a rack or floor-placed: review the golden diff for a placement change of the pusher). ice_melt_bag, potting_mix_bag and furniture_cover (the other furnished look-alikes) are unchanged."
+  },
+  {
+   "owner": "manipulation",
+   "request": "manipulation.wind (world._apply_wind) lifts items carrying an explicit wind_lift_mps when the weather's 10 m wind or gust reaches it (world._wind_mps), while the kernel reads wind_lift_mps as the speed AT the item (environment.lift_speed_mps, compared with object_wind_mps: 0.6 of the 10 m gust near the ground). While the wind law is deferred such items lift at 1/0.6 of the wind they would need under the law. Use phys.environment.object_wind_mps(state, eid)[1] (as admin_inventory's curb litter does). outdoor_plants' deferred copy skips items with wind_lift_mps and laid covers, so there is no double handling."
+  },
+  {
+   "owner": "K-GATE / verify-hardening",
+   "request": "Coverage: outdoor_plants' 18 never-succeeding actions in fuzz --coverage each have a helper-built success path in tests/test_outdoor_plants.py (map in docs/domains/outdoor_plants.md section 0c); a coverage walk that starts from scenario helpers (or the next phase's authored specs) will reach them."
+  },
+  {
+   "owner": "kernel (K-FIX's test)",
+   "request": "Observation while re-running other suites' weather tests in one process with every domain loaded (scratch wind_tests_elsewhere.py, 278 tests, 277 green): tests/test_physics_fluids.py OpenSpillTests.test_a_drip_or_leak_started_by_the_robot_is_the_robots errors with 'World has no type registry' -- the drip deposits on a registry-less test World and cleaning's phys.spill_sink hook (cleaning/floors.py make_spill) spawns a spill entity. Not outdoor_plants code; the test (or the hook) should cope with a World without a registry."
+  },
+  {
+   "owner": "safety, pets, mechanisms",
+   "request": "Your specs held on generation 1 because of outdoor_plants' generation-2 wind breakage pass --gen 2 on seeds 0, 1, 2, 41, 97 now (safety T-89530941a65283-01, T-301e5aee8a71a0-01; pets T-79a861877a2a67-01, T-0adf708ce0749a-01; mechanisms T-259d38eb6707f0-01, T-fffb3941b40c87-01, T-94a0a940224c22-01); they can move to {gen: 2}."
+  }
+ ],
+ "notes": "Files changed: house_sim/systems/outdoor_plants/{common,furnish,helpers,lawn,patio,verbs,weather,yard}.py, house_sim/data/types/outdoor_plants.json, tests/test_outdoor_plants.py (13 new Phase1StabiliseTests, 2 updated TierOneAdoptionTests), docs/domains/outdoor_plants.md (new section 0c; 0b, 1, 5a, 6 updated). No spec, vocab, kernel or other-domain file touched. Evidence and scratch scripts (wind_repro.py, door_probe.py, rain_houses.py, forced_run.py, wind_bench.py, fuzz_cov.json, check logs): <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_outdoor_plants. Verification on the final tree: tests 141 OK in normal (335 s), HOUSE_SIM_STRICT=1 (349 s) and HOUSE_SIM_DOMAINS=core,outdoor_plants (40 s, 1 skipped: needs mechanisms' and cleaning's types), and 141 OK with lawbook.forced(wind, rain, slope); --check examples 12/12 and perception 3/3 (5 seeds, own modes), perception --camera geometric 3/3, examples --perception realistic --camera geometric 12/12 (was 10/12), both files with the three laws forced 15/15; perception_audit 20 80 --verbose: 0 leaks 0 crashes (room and geometric); layout_audit 20 --domain outdoor_plants: 0 problems (gen 1: 120 houses; gen 2: 220 houses, 0 domain follow-ups); physics_audit --data: no gap attributed to outdoor_plants; other suites' 278 weather/wind tests in one process: 277 pass, the 1 error is not this domain's (requests). Still ready to flip: wind, rain, slope."
+}

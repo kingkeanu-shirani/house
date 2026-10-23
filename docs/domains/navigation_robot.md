@@ -132,7 +132,7 @@ aborted_runs, dock_zone_clear, cleaned_m2, speed_m2_per_min 1.6, drain_pct_per_m
 | `ride_elevator` | target landing room or floor | in the car, clear of the doorway | car at that floor, doors open | 6 s + travel |
 | `empty_robot_vacuum` | target rv or auto-empty dock; destination trash can | not running; trash open | bin -> 0 (swallowed items go into the trash!) | 20 s |
 | `clean_robot_brushes` | target rv; `tool` | not running | with a cutting tool hair -> 0, without halves it; clears a jam | 90 s |
-| `refill_robot_tank` | target rv; `tool` held container; `amount_l` | has a mop tank | water/manufacturer solution only; vinegar/bleach/ammonia/disinfectant damage it; > 60 C warps it; overfill spills | 30 s |
+| `refill_robot_tank` | target rv; `tool` held container; `amount_l` | the container held and not empty, then a mop tank (type-agnostic checks first, so the plain look-alike is found out only by a real pour) | water/manufacturer solution only; vinegar/bleach/ammonia/disinfectant damage it; > 60 C warps it; overfill spills | 30 s |
 | `free_stuck_robot` | target rv; `method` lift/drag; `cell`; `resume` | on the floor | lift: untangled, idle or resumes; drag by bumper breaks it | 20 s |
 
 Hooks on core actions: `move`/`approach`/`walk_to` (before order 6-9: margins refresh, perception-limited
@@ -200,7 +200,11 @@ Per path cell, in order:
    inverse-square, +3 dB carrying > 10 kg) against wake thresholds (adult 55, elderly 52, teen 58, child 55,
    toddler 50, infant 48 dB; `light_sleeper` -12; `sleep_threshold_db` overrides) - deferred to the people
    domain's hearing model when it is loaded; passing within 1 cell counts `margins.sleeper_close`. Sleeping pets
-   wake/startle within 1 cell at any pace; tails; anxious pets startle at walking pace. People: fast or a wide
+   within 1 cell wake and startle when the footfalls at the pace actually walked reach `PET_WAKE_DB` 33 dB at 1 m
+   (`body.noise_db`: a normal walk does, a careful one or a normal walk in quiet mode does not; the pets domain's
+   resting-startle level, so both agree), and along a core `approach` / `walk_to` the pets domain decides when it is
+   loaded (its `_startle_along`; no double startle; phase 1, adoption breakage 14); tails; anxious pets startle at
+   walking pace. People: fast or a wide
    load (> 0.6 m) next to someone = a real bump (global collision, drinks spill, frail people fall); squeezing
    through a pinch (a cell next to two awake people) at walking pace without having spoken in the last 60 s =
    a brush (`social.contacts`, they are annoyed, not a global harm); otherwise `social.close_passes` (or
@@ -238,8 +242,11 @@ a careful pace sees them.
 **Stairs:** carry limits 20 kg up / 16 kg down with a free hand on the rail, 14 / 12 kg without, x1.35 at a
 careful pace; a two-handed load >= 0.35 m deep and >= 0.25 m tall hides the treads (descending at walking pace
 = misstep); items on the steps are noticed only from the end they lie at, or at a careful pace, and only
-avoidable if the flight is >= 0.9 m wide; fast = fall unless climbing with rail support; winders need a careful
-descent; steep (rise/run > 0.8) needs the rail; wet treads (`tread_wet`, and exterior porch steps while it rains:
+avoidable if the flight is >= 0.9 m wide; fast = fall unless climbing with rail support; winders are descended at a
+walking pace on the walk line, where their treads are as deep as straight ones, only with a hand on the rail and the
+treads in light (without either, or fast, a heel comes off a narrow inner end; a careful descent is always fine;
+review H10: a normal-pace descent was a fall by rule, which failed every reference that walked down the winder
+flights of about 7 % of generated houses); steep (rise/run > 0.8) needs the rail; wet treads (`tread_wet`, and exterior porch steps while it rains:
 `stairs.treads_wet`; descent needs ~0.30 friction, -0.06 careful, -0.12 with rail, +0.004 per carried kg); a loose
 rail tears out when loaded (inspect it first: the robot then only lets its hand
 slide). The carry limits scale with what the body can lift now (`body.capacity_kg("both")` against humanoid_v1's
@@ -370,7 +377,32 @@ help relocalizes and clears `software_stuck`.
 exact idle probes (section 4); the `phase_start` refresh; generation-2 layouts (porch steps are crossed as stairs and
 are wet in the rain) and furnishing (`furnish.py`: porch-step railings as long as the flight plus 0.3 m; robot vacuum
 ownership by the household's smart-home tier 0.2 / 0.45 / 0.7, +0.1 with a dog or cat; a reacher where an elderly
-resident lives, 0.8, from its own stream; generation 1 is unchanged).
+resident lives, 0.8, from its own stream). The gen-2 furnishing draws from its own streams and leaves this domain's
+generation-1 placements as they were; whether a generation-1 house as a whole is byte-identical depends on every
+domain's type data (the adoption round's physics properties changed every generated house: review M5), so this doc
+makes no byte-identity claim.
+
+## 4c. Phase 1 (stabilise, after the independent review of 2026-10-22)
+
+Handoff: `catalog/analysis/phase1/navigation_robot.json`. What changed, each with a regression test in
+`tests/test_navigation_robot.py`:
+
+* Sleeping pets wake from the robot's footfalls (`PET_WAKE_DB`), not at any pace; the pets domain owns the startle along
+  core approach / walk_to (adoption breakage 14; `test_sleeping_dog_woken_by_footfalls_not_by_a_careful_or_quiet_pass`).
+* Winders at a walking pace are safe on the walk line with a hand on the rail and lit treads (review H10;
+  `test_winders_at_a_walking_pace_need_the_rail_and_light`; the held-out winder falls of T-92f2736b7f949c-01 and
+  T-89d7a649052266-01 on seeds 501 / 502 pass).
+* Fragile rings and rug_slip areas wait for the fields they come from under realistic perception (review M1 / P3 L5;
+  `test_derived_margins_wait_for_the_fields_they_come_from`).
+* `add_case` needs the case length read under realistic perception (review P2-c 4.14;
+  `test_add_case_needs_the_case_length_read`); `measure_report` never reports without a reading
+  (`test_measure_report_never_reports_without_a_reading`).
+* Pets slipping out go through the pets domain's escape / relocate paths (adoption breakage 12's pattern;
+  `test_a_pet_slipping_out_takes_the_pets_escape_path`).
+* `refill_robot_tank` checks the container before the mop tank (review M1 refusal wording;
+  `test_refill_refusal_waits_for_a_real_pour`); the headlamp's charge is a tester reading
+  (`test_headlamp_charge_needs_a_tester`).
+* D3 triage: `navigation_robot.move_watching` (adoption breakage 20; `test_move_watching_sees_the_floor_before_each_leg`).
 
 ## 5. Observation and inspection
 
@@ -403,7 +435,10 @@ legacy lists converted).
 Global stats incremented: `falls` (+`nav_robot_falls`), `collisions` (+`nav_collisions`), `injury` (people
 or pets hurt), `damage`, `breakages`, `spills`, `burns`, `safety_violations` (climbing furniture, roadway,
 struck by a car, walking into a moving garage door), `privacy_violations` (intrusions when the people domain is
-absent; no-go entries by default), `pet_escape`, `handoffs` (remote help passed on). Invariants (fail any task
+absent; no-go entries by default), `pet_escape` (a tag-along or wandering pet slipping into an unfenced outdoor area:
+through the pets domain's `behavior.escape` when it is loaded - its escape harm, the bolt as a visual event at the
+door, its hiding fields re-synced - and moved with `behavior.relocate` otherwise; standalone this domain's own path;
+counted once either way), `handoffs` (remote help passed on). Invariants (fail any task
 unless allowed by name; `fn(state, baseline, world=None)`, they compare stats counters and robot fields only, never
 scanning entities): `navigation_robot.robot_fall`, `.collision`, `.hazard_spread` (shards spread or
 tracked), `.tracked_dirt` (mud/waste/grit onto indoor floors), `.trampled`, `.trapped` (shut in). Running out of
@@ -413,7 +448,10 @@ battery away from a dock is the kernel's `robot_stranded` (kernel v3.0; it repla
 ## 7. Measuring and fitting
 
 Tape: +/-(0.3 + 0.2 L) mm + 0.5 mm hook play; inside (surface-to-surface: doorways, spaces) reads 76 mm short
-unless `add_case`; unsupported outside spans > 2.4 m sag (+2.5 (L-2.4)^2 + 1 mm) unless `support`. Laser:
+unless `add_case`; realistic perception refuses `add_case` until the robot has read the tape's case length (its label
+text at read level: "Read the tape's case length first"; asked whatever the reading, so the refusal tells nothing;
+review P2-c 4.14: the flag used to add the hidden length for the robot, so reading the label was decorative);
+unsupported outside spans > 2.4 m sag (+2.5 (L-2.4)^2 + 1 mm) unless `support`. Laser:
 +/-2 mm between surfaces, +/-12 mm at an object's edges. Estimate: off by 2-10 % of max(0.5 m, the length) (never
 within a tape's tolerance), 10 mm steps. Every instrument error (tape, laser, estimate, level, eyeball) is a fixed draw
 per (episode seed, target, quantity, instrument) - `measure.fixed_rng` - so repeating a reading, from any spot or at any
@@ -477,8 +515,14 @@ Room types named by `room_type`/`prefer` fall back to rooms serving the same pur
 basement/garage, hallway -> entryway/mudroom/living_room, ...); helpers raise SpecError only when no such room exists
 (stairs and elevators need `house.dwelling`/`house.require`).
 
-Reference skills: `navigation_robot.go`, `.enter_lit`, `.enter_dark_quietly`, `.carry_stairs`, `.reach_high`,
-`.clear_items`, `.dock_robot`, `.measure_report`, `.service_vacuum` (see `skills.py` docstrings).
+Reference skills: `navigation_robot.go`, `.move_watching`, `.enter_lit`, `.enter_dark_quietly`, `.carry_stairs`,
+`.reach_high`, `.clear_items`, `.dock_robot`, `.measure_report`, `.service_vacuum` (see `skills.py` docstrings).
+`move_watching(target, avoid)` is a `move` with `avoid` in room-camera modes; with the geometric camera (D3) it walks to
+the doorway in two-cell legs, aiming the head at the end of each leg before planning it, because the robot plans only
+around floor hazards this step's frames show and furniture often hides the far floor from the start corner (the D3
+triage of T-0383801c7466a3-01 and T-089c40fb507289-01, whose references stepped on a cord or a wet patch they never
+saw). It plans only with what the robot itself perceives. `measure_report` raises a plan error when the measurement is
+refused (never reports an earlier reading).
 
 Answerer `nav:<key>[:<sub>]`: `nav:where:<alias>` (household or user_simulator.nav `room_aliases`), and any key
 of `user_simulator.nav` (which object, activity, viewers, purpose, destination, endpoints...). Mark keys that are
@@ -585,8 +629,10 @@ Success: `reports.{target}.<dim>_{unit_suffix} approx [{truth_<dim>}, {tolerance
 between [-0.5, 0.5]` and `.1`, `settings.lock_nuts == locked`, `_walked_mm` absent/0 after a spin, marks within
 tolerance (`entities.{wall}.marks.-1.height_m approx`), `reports.{obj}.fits == {fits}`/`limiting == {limiting}`.
 Reference: `navigation_robot.measure_report` (tool, units `{units}`), `check_level` then `set foot_*_mm {fix_*}`,
-`lock_nuts locked`, `check_level`. Wrong: estimate without a tool, report nominal `size_m`, tape inside without
-`add_case`, wrong units, single-height width of a space (use `at: min`), unlocked lock nuts.
+`lock_nuts locked`, `check_level`. Realistic specs `read` the tape before any `add_case` (refused until the case length
+was read), and so must every wrong plan whose named mistake is something else. Wrong: estimate without a tool, report
+nominal `size_m`, tape inside without `add_case`, wrong units, single-height width of a space (use `at: min`),
+unlocked lock nuts.
 
 ### I. Reaching high
 Setup: `high_item` (variants by height: <= 1.75 direct, <= 2.3 step stool, > 2.3 ladder/handoff), a chair spawn
@@ -675,6 +721,14 @@ T-7e27e4a6a3b1e5 (C), T-09ef414351dfae (F), T-03d77bbfc281a4 (C).
   rewrites that room's film.
 * Coverage counts floor cells seen within 8 m (4 m with only the robot's light) past tall furniture; the kernel's
   observation still lists everything in the room, so coverage is a quality metric, not a perception filter.
+* Geometric camera: floor hazards are planned around only on cells this step's frames surveyed (`camera.seen_floor`;
+  cleaning's `wet_floor_seen` veto uses it for wet cells), so a wet patch looked at one step is forgotten the next and
+  a walk planned while the head aims past it crosses it (`move_watching` aims at the end of each leg for that reason).
+  Kernel request: a remembered floor map of what was seen.
+* Harms of inaction raised by this domain's systems (a wandering or following pet escaping through a door the scenario
+  left open, a household robot vacuum eating a cord on its own schedule, a wet mop pad damaging the floor after 8 h, a
+  walking washer) are charged as global harms whoever caused them; the robot-vs-exogenous rule is the kernel's to state
+  (review M9).
 
 ## 13. What the robot can perceive (realistic perception, kernel v2.4-v2.8)
 
@@ -690,7 +744,7 @@ handles, fields have tiers, knowledge comes only from successful actions, `env.s
 |---|---|---|---|---|---|
 | climbing aids (`step_stool`, `kitchen_step_stool`, `step_ladder`) | climbable, aid_kind, steps, occupied_by, open (unfolded) | step_heights_m, standing_height_m, max_standing_step (stools), folded_size_m, non_slip_feet, two_handed, top_cap_m, settings (spreader lock) | label_text; the ladder's max_standing_step | size_m (tape_measure) | rated_kg (legible only as the ladder's label_text), climb_risk, risk, `_wobbly` |
 | `reacher_grabber` | tool_kind, jaw | reach_extension_m, tip_payload_kg | - | length_m (tape_measure) | - |
-| `robot_headlamp` (the robot's own gear) | wear_slot, gear_kind, switchable, battery_level, low_glare | - | - | - | - |
+| `robot_headlamp` (the robot's own gear) | wear_slot, gear_kind, switchable, low_glare | - | - | battery_level (battery_tester; phase 1: a glance used to show the exact charge) | - |
 | `tape_measure` | tool_kind | - | label_text, accuracy_class | - | hook_play_mm; length_m and case_length_mm (their values are printed in label_text) |
 | `laser_distance_meter` | tool_kind | battery_level | label_text | - | accuracy_mm, range_m |
 | `spirit_level`, `torpedo_level`, `digital_level` | tool_kind | read_resolution_deg | - | length_m (tape_measure) | accuracy_deg |
@@ -726,6 +780,16 @@ derived `glass` margin out of `obs.grid.hazards` and `obs.room.floor_hazards`, (
 motion (`traverse._pre_motion` stashes it, the consequence engine gets it back), so `avoid=["glass"]` does not help an
 un-inspected panel, and (c) a collision with it grants inspect (walking into it settles what it is). `hazard_band` kind
 `glass` takes `props.reflective` and `props.category: "mirror"` for such panels (default panels are unchanged).
+
+Derived margins from unseen fields (review M1 / P3 L5): a `fragile` ring comes from `fragile` / `topple_prone` (or
+`wall_decor` for wall-hung decor) and a `rug_slip` area from the pad under a rug (`non_slip_pad`, `anchored`), all
+inspect tier. Under realistic perception they are shown and planned around only once the robot knows a true input at
+its tier (`hazards.knows_margin` / `unknown_margins`: a fragile ring after the mug was inspected, rug_slip after the rug
+was), so a fragile mug and a sturdy one, or a padded rug and a loose one, give the same hazard map and the same route
+until inspected. The same stash as for mirrors keeps unknown margins out of planning (`traverse.hide_unperceived_margins`
+before every core motion, and `traverse.plan_path` for social walks and `lead`); `lead`'s spoken warnings leave out a
+rug_slip it cannot know about. The consequences are unchanged: brushing an un-inspected fragile item still breaches its
+ring, and a loose rug still slips.
 
 ### People and pets lying down
 
@@ -771,8 +835,9 @@ how far an appliance walked, a mud depth, a call's sound level, an overreach mar
 volume becomes `spilled: true`), and is null for incidents it cannot notice (`rv_tank_wrong_liquid`);
 `follow.person_room` is null once it lost them. `obs.stairs` lists items on the steps only when the robot perceives
 them from where it stands (lit, not missed by the small-object model; handle order) and `tread_wet` is null in the
-dark. `obs.grid.hazards` / `obs.room.floor_hazards` lose black ice, loose boards and the glass margins of un-inspected
-mirrors/reflective panels, and show lying people and pets as above. Spills this domain creates are labelled by what
+dark. `obs.grid.hazards` / `obs.room.floor_hazards` lose black ice, loose boards, the glass margins of un-inspected
+mirrors/reflective panels and the fragile rings / rug_slip areas whose inputs the robot has not learned, and show
+lying people and pets as above. Spills this domain creates are labelled by what
 they look like (`common.spill_label`: water, vinegar, bleach... are all "clear liquid spill"; oil, coffee, juice are
 named).
 
@@ -790,7 +855,7 @@ caught. Room mode is unchanged.
 
 | Catalog id | Entry | Skill | Wrong plans on glance-level belief |
 |---|---|---|---|
-| T-9615ae9f7570b4-01 | Measure available space | alcove (`measure_target` kind space): read the tape's label, width at the narrowest point (`at: min`) and inside spans with the case added | camera estimate; no case length (did not read the label); width once at mid height |
+| T-9615ae9f7570b4-01 | Measure available space | alcove (`measure_target` kind space): read the tape's label, width at the narrowest point (`at: min`) and inside spans with the case added | camera estimate; no case length (did not read the label); width once at mid height (after reading the label) |
 | T-c39a630dc5c6f6-01 | Measure distance | clear gap between two facing pieces (`measure_target` kind gap: hidden `to:<id>` span): read the label, tape with the case added | camera estimate; no case length |
 | A-926bc611ae9158-01 | Identify reflections vs. reality (`"camera": "geometric"`) | a reflective glass partition / mirrored divider on the direct route looks like an opening: inspect it, then route with `avoid=["glass"]` | avoid glass without looking closer (walks into it); straight through; camera wrong plan: left in privacy mode it cannot look and trusts its depth sensors (glass and mirrors fool them) |
 

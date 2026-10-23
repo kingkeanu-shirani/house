@@ -98,8 +98,11 @@ def _gas_after_turn(ctx, eid, setting, value, hold_s):
     if value == off:
         gas.update(flow=False, lit=False, unlit_s=0.0)
         mech["gas"] = gas
+        C.drop_robot(w, eid, "gas")
         return " (gas off)"
     gas["flow"] = bool(supply)
+    if supply:
+        C.note_robot(w, eid, "gas")             # harm attribution: gas it lets flow unlit is the robot's exposure
     if not gas.get("lit"):
         ok = supply and gas.get("igniter_ok", True) and hold_s >= C.num(gas.get("hold_needed_s"), 2.0)
         gas["lit"] = bool(ok)
@@ -699,9 +702,10 @@ def mixer_temp(rec, temp):
 @action("move_lever", params={"target": "entity", "position": "?any", "setting": "?str", "flow": "?number", "temp": "?number",
                               "hold_s": {"type": "number", "default": 0.0, "min": 0.0, "max": 30.0}},
         duration=lambda ctx: 1.5 + ctx.data.get("extra_s", 0.0), energy=0.003, category="physical", timing="commanded",
-        doc="Move a lever: single-lever faucet (flow 0..1 = lift, temp -1 cold..1 hot; read mech.outlet_temp_c), toaster carriage "
-            "(position=down latches only when powered), flush lever (hold_s for a full flush), recliner lever (position=recline|"
-            "upright; check nobody's feet are in the mechanism), vent louvers or any lever-controlled setting (setting+position).")
+        doc="Move a lever: a single-lever faucet or mixer tap of a sink or tub (flow 0..1 = lift, temp -1 cold..1 hot; read "
+            "mech.outlet_temp_c), toaster carriage (position=down latches only when powered), a toilet's flush lever (hold_s "
+            "for a full flush), recliner lever (position=recline|upright; check nobody's feet are in the mechanism), vent "
+            "louvers or any lever-controlled setting (setting+position).")
 def move_lever(ctx):
     w = ctx.w
     eid = ctx.args["target"]
@@ -772,6 +776,7 @@ def move_lever(ctx):
     setting = ctx.args.get("setting") or lever.get("setting")
     if setting is None:
         levers = [s for s, k in sorted((rec.get("control_kinds") or {}).items()) if k == "lever"]
+        require(levers or lever, "It has no lever to move", "capability")
         require(len(levers) == 1, "Name the lever setting", "argument")
         setting = levers[0]
     require((rec.get("control_kinds") or {}).get(setting) in ("lever", "slider", None), "That setting is not on a lever", "capability")

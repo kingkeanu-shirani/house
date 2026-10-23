@@ -105,6 +105,48 @@ for _name in ("place", "pick_up", "close", "open", "lock", "unlock", "install", 
 # ---------------------------------------------------------------------------------------------
 # pegboard outlines, hot items against plastic, wet tools put away
 
+def _hot_on_support(w, eid, support):
+    """The legacy copy of the kernel's contact_heat law while the law is deferred (TIER1_PHYSICS 5.9, 10.3): a hot
+    tool set ON a support hotter than its finish bears marks it, with the kernel's own model -- the face temperature
+    (phys.thermal.contact_temp_c), the support's heat limit (its max_safe_temp_c, else phys.thermal.heat_limit_c: rigid
+    plastic about 100 C, film 80 C ...), the mark of its material class (contact_mark: melted for plastics, a ring in a
+    wood finish, else a scorch) at the kernel's severity, recorded through phys.impact.damage as the robot's (the place
+    is its action) plus heat_damaged. Before marking it asks every domain's phys.contact_heat hook
+    (phys.thermal.contact_claimed), as the law does: a contact another domain owns (an iron on its heel rest, a pot on
+    its burner, a trivet) is not this rule's to mark. Only resting ON a support: a hot thing put INTO a container is
+    admin_inventory's container rule (the kernel has no contact rule inside containers), and the heat_damaged mark
+    makes either rule leave a support the other already marked (adoption request from admin_inventory: this rule melted
+    and broke any plastic parent above 70 C, asked no one and double-charged the container rule)."""
+    state = w.s
+    rec = state["entities"].get(eid)
+    parent = state["entities"].get(support)
+    if rec is None or parent is None or rec.get("relation", "on") != "on" or C.law("contact_heat"):
+        return None
+    if parent.get("heat_damaged"):
+        return None
+    from ...kernel.phys import impact as kimpact
+    from ...kernel.phys import props as kprops
+    from ...kernel.phys import support as ksupport
+    from ...kernel.phys import thermal as kthermal
+    temp = kthermal.contact_temp_c(state, eid)
+    limit = ksupport.finite(parent.get("max_safe_temp_c"))
+    if limit is None:
+        limit = kthermal.heat_limit_c(state, support)
+    if limit is None or temp <= limit:
+        return None
+    severity = round(min(1.0, (temp - limit) / kthermal.CONTACT_SPAN_K), 4)     # the kernel's scale (100 K)
+    if kthermal.contact_claimed(w, eid, support, temp, severity):
+        return None
+    mark = kthermal.contact_mark(kprops.props(state, support).cls, temp)
+    pm = w.mut(support)
+    pm["heat_damaged"] = True
+    if mark == "melted":
+        pm["melted"] = True
+    kimpact.damage(w, support, mark, severity, detail="hot item resting on it", by="robot")
+    C.log(w, "heat_damage", item=eid, against=support, mark=mark)
+    return mark
+
+
 @after("place", order=120)
 def _after_place(ctx, result):
     w = ctx.w
@@ -117,14 +159,8 @@ def _after_place(ctx, result):
         m = w.mut(eid)
         m.pop("on_outline", None)
         m.pop("outline_ok", None)
-    if parent and float(rec.get("temperature_c", 21.0)) > 70.0 and parent.get("material") in ("plastic", "vinyl", "polyethylene")             and not C.law("contact_heat"):          # the kernel's contact_heat law melts a support by its heat limit
-        pm = w.mut(rec["location"])
-        if not pm.get("melted"):
-            pm["melted"] = True
-            pm["broken"] = True
-            C.add_damage(pm, "melted", 1.0)
-            w.stat("damage")
-            C.log(w, "heat_damage", item=eid, against=rec["location"])
+    if parent and float(rec.get("temperature_c", 21.0)) > 60.0:
+        _hot_on_support(w, eid, rec["location"])
     if rec.get("tool_kind") in ("leaf_rake", "bow_rake", "garden_rake", "garden_hoe", "garden_fork") and rec.get("location") in w.s["rooms"]:
         m = w.mut(eid)
         if ctx.args.get("orientation") in ("upside_down",):
@@ -141,6 +177,37 @@ def _after_place(ctx, result):
     if is_tool(rec) and parent and (parent.get("tool_storage") or parent.get("category") in ("toolbox", "pegboard")) and float(rec.get("wetness", 0.0)) > 0.25:
         C.log(w, "stored_wet", item=eid, into=rec["location"])
         w.mut(eid)["_stored_wet_at"] = C.now(w)
+
+
+def refresh_outline(w, eid):
+    """`on_outline` / `outline_ok` describe where a tool hangs now: judged by the place hook when it is hung on a
+    pegboard with outlines, and cleared as soon as it is anywhere else -- picked up, thrown, knocked off or carried
+    away by any verb or process (they were cleared only by the next place, so "hang it on its outline, then take it
+    back down" kept outline_ok true: the latch class of review H2)."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or (rec.get("on_outline") is None and "outline_ok" not in rec):
+        return
+    parent = w.s["entities"].get(rec.get("location")) or {}
+    if isinstance(parent.get("outlines"), dict) and rec.get("relation") == "on":
+        return
+    m = w.mut(eid)
+    m.pop("on_outline", None)
+    m.pop("outline_ok", None)
+
+
+@hook("phys.settle_extra")
+def _tool_settle(w, node, ctx):
+    """phys.settle_extra: a tool the settle pass looks at (it moved, by any verb or process) re-derives its outline
+    judge and its storage state (`_stowed`, once it has one: the verbs listed above write it first), so neither
+    describes a place the tool has left."""
+    rec = w.s["entities"].get(node)
+    if rec is None or not is_tool(rec):
+        return
+    refresh_outline(w, node)
+    if "_stowed" in rec:
+        new = stowage(w, node)
+        if w.ent(node).get("_stowed") != new:
+            w.mut(node)["_stowed"] = new
 
 
 def _judge_outline(w, eid, rec, board):
@@ -829,6 +896,10 @@ def inspect_wall(w, eid, record, details, ctx):
     if not C.realistic(ctx):
         details["holes"] = copy.deepcopy(C.hole_list(record))     # realistic: the surfaces inspector's holes_seen view
     if not finder:
+        return
+    if not C.at_hand(w, eid):
+        # a stud finder senses only through the patch of wall it is slid along: from farther it reads nothing
+        details["stud_finder"] = "hold it against the wall: come within reach"
         return
     shift = 0.04 if w.ent(finder).get("calibrated") == "bad" else 0.0
     # a stud finder marks stud centres to about a centimetre (realistic mode reports that resolution)

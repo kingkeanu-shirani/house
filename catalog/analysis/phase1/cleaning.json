@@ -1,0 +1,132 @@
+{
+ "id": "cleaning",
+ "fixed": [
+  {
+   "item": "Adoption breakage (adopt_status.json breakages, cleaning; round-5 identity finding): members of the spray_bottle look-alike group carried no liquid amount, so manipulation's shake and heft told cleaning's sprays from mechanisms' trigger_bottle. A twin battery found more: an unread refill sprayed its liquid out when shaken (no closure), product sprays were silent while the trigger bottle 'sloshed', and the trigger bottle inspected with a numeric fill_level where every cleaning member showed fill_estimate words.",
+   "how": "Type data: every product spray and the refill spray_bottle carry the trigger head mechanisms already assumed (`trigger` {ml_per_squeeze 1.1, nozzle, modes}), so the kernel's container_closed holds them closed: nothing sprays out when shaken, tipped or emptied. Products carry a hidden `fill_level` (amount over the full amount) kept with amount_ml and mass_kg by the new state.set_product_ml (apply_cleaner, granule spreading, a plumbing pour's after-hook) and synced at episode start from a scene's amount (state.sync_product_fill, which also lightens a bottle whose scene amount kept the full mass), so manipulation's shake feels liquid in a closed product like in the others. The refill weighs 0.1 kg empty (0.85 kg full, as a product). A late inspector cleaning.spray_fill (order 130, after mechanisms 110 and plumbing 120) gives every unresolved member of the group, whichever domain's type, the same keys (fill_estimate words; no litres, level, liquid, murkiness, suds). Residual data of mechanisms' trigger_bottle filed as a request; the full root (a kernel contained-liquid accessor, adoption request cleaning-10) re-filed.",
+   "test": "tests/test_cleaning.py Phase1Review.test_every_unread_spray_bottle_shakes_hefts_and_inspects_alike (glass cleaner, refill, mechanisms' trigger bottle: same shake/heft/inspect, closed, liquid kept); Phase1Review.test_a_product_bottle_gets_lighter_and_emptier_as_it_is_used_and_a_scene_amount_shows; twin battery (scratch group_battery.py): spray_bottle 13 members 0 differences in room mode, only the trigger bottle's true size in geometric mode (request)"
+  },
+  {
+   "item": "Review P1 C8 (exogenous harms charged to the robot): cleaning/systems.py raised spills, injury, fire, burns, gas_exposure and damage from time-driven causes the robot did not make (a resident slipping on the scene's wet floor, a pet at the scene's toxic spill, the scene's microwave fire, a resident's pot boiling over, scene fumes, the scene's vinegar etching marble, scene standing water on hardwood, a knife a resident drops into suds, exogenous toxic gas and pollution counters).",
+   "how": "state.py attribution helpers: robot_acting (the kernel's action phase), robot_caused (kernel phys.impact.robot_caused: the action phase or the _robot_moved marker on the thing or its support chain), spill_is_robots (marker, or make_spill(robot=True) for a robot-caused process later), charge (global flag for the robot, else cleaning.exogenous {stat: n}). Causes are recorded where they are made: cl_applied entries carry by, film cells the robot wets are listed in rooms.<id>._cl_robot_wet, residue the robot leaves marks _cl_residue_robot, room air keeps robot_fumes / robot_gas (an exposure is the robot's when its share is at least half), a cycle is the robot's when an accepted robot action on the appliance is in the kernel's action_log since it began, the spill sink marks a portion leaving something the robot arranged. Changed sites: slips, pet spill/pile, fume/gas exposures, bird and self-clean, microwave fire, boil_over (+ liquid ingress), floor water damage, chemistry etch/finish damage, S.damage default, gas_event and pollute (invariant counters), torn bag juice, hidden_sharp invariant (new hidden_robot watch list). Exogenous harms still happen (state, events, notices, domain counters slips/fires/hidden_sharps) and are logged by: exogenous.",
+   "test": "tests/test_cleaning.py WetFloorSafety.test_unwarned_person_slips_on_a_wet_tile_floor + test_a_resident_slipping_on_the_floor_the_robot_mopped_is_the_robots_injury; Appliances.test_dry_sponge_in_a_running_microwave_catches_fire + test_a_dry_sponge_the_robot_microwaves_is_the_robots_fire; Phase1Review vinegar-on-marble, pet toxic spill, fumes, gas outside an action, resident's knife, hardwood standing water, boil-over tests"
+  },
+  {
+   "item": "Review M1 / P3-side L4 and L2 (type defaults that differ inside look-alike groups; true size behind one group record): in cleaning's groups the cleaner bottles differed in size (dish soap 0.22 m, screen cleaner 0.23 m, oil absorbent), mass (deck/patio 2.0 kg gave a 'moderate' load word vs 'light', screen 0.56) and full amount (200-1900 ml); powder jars in material; sponges in thickness; grill brushes in mass; the refill in empty mass; a rolled-bag candidate repeated a member's label.",
+   "how": "cleaning.json: one container per look -- the cleaner bottle 0.1 x 0.06 x 0.26 m, 750 ml, 0.85 kg full for every cleaning_bottle and white_powder_jar member (plastic); deck and patio cleaner (1.9 l) moved to the plastic_jug group as half-gallon jugs (+ candidate 'outdoor surface concentrate'); dish soap (a smaller squeeze bottle that is furnished by the sink, so its size cannot change without moving generation-1 placements) given its own squeeze_bottle look; non-scratch sponge 0.04 m thick, nylon grill brush 0.3 kg, refill 0.1 kg, candidate 'liner for a wheeled cart'. House check: seeds 0-19 of generation 1 and 2 generated with the old and new type file differ only in record fields of furnished products (trigger, fill_level, amount_ml, dish soap mass) -- no placement.",
+   "test": "tests/test_cleaning.py Phase1Review.test_look_alike_groups_share_size_heft_and_full_amount (per group: size, full mass, full amount, fill, openable, trigger, material for read-resolved groups; no candidate repeats a member label; no LookalikeWarning); twin battery: every cleaning group 0 differences before resolution in both camera modes"
+  },
+  {
+   "item": "Review H2 'do, then undo' (P2-b's open question on cleaning's in_stream / stream_ok): stream verdicts were set at disposal and cleared only by pick_up, so a can tipped back out of its recycling bin (set_orientation, a dog, physics) kept stream_ok true on the kitchen floor and the bin kept its fill.",
+   "how": "waste.judge watch-lists every judged item (_cl_judged_in); a new system cleaning.streams (every substep, exact idle probe) drops in_stream / stream_ok, the container's stream_errors entry and refills the container as soon as the item is no longer inside a waste container of that stream, by any route (drop_verdict, the same bookkeeping as retrieving it by hand); episode_start seeds the watch list from a scene's judged items.",
+   "test": "tests/test_cleaning.py Phase1Review.test_a_sorted_item_tipped_back_out_of_its_bin_is_no_longer_sorted (passes in isolation too: kernel tip_over)"
+  },
+  {
+   "item": "Adoption: kernel request cleaning-3 was applied (liquids._floor_puddle accepts (id, new)) but cleaning's phys.spill_sink still returned a bare id, so every portion that grew a puddle counted as a new spill (phys_spills, and spills when the robot's).",
+   "how": "floors.spill_sink returns (spill id, False) when the portion grows the same liquid's spill on that cell and (id, True) for a new one.",
+   "test": "tests/test_cleaning.py Phase1Review.test_a_portion_that_grows_an_existing_spill_is_not_counted_again"
+  },
+  {
+   "item": "Refusal / outcome / duration tells for unread bottles found by a verb sweep over each group (every cleaning verb with the member as tool or target): absorb with mechanisms' trigger bottle 'blotted' a counter while products were refused, and any named non-absorbent tool (a bottle) blotted; apply_cleaner with an unread granular bottle took a paste's 20 s (24 s vs 4 s); empty_into poured a closed refill's liquid into the sink while products kept theirs.",
+   "how": "floors._unread_bottle also takes any unidentified bottle of a look-alike group (liquid_l or a trigger head, ctx.unresolved); absorb refuses a named tool that soaks nothing up (one capability refusal); surfaces.apply_cleaner times an unread bottle by the application the robot was told to make (apply_to_face timing=); waste.empty_into leaves a closed container's (kernel container_closed) liquid in it. Sweep after: cleaning_bottle, plastic_jug, white_powder_jar 0 differences; spray_bottle only the trigger bottle's default fill (0.5 l vs full, mechanisms data) in plumbing's pour.",
+   "test": "tests/test_cleaning.py Phase1Review.test_unread_bottles_answer_alike_when_blotting_applying_and_emptying"
+  },
+  {
+   "item": "Direct write that bypassed the kernel: superheated water erupting from a lifted cup removed 0.15 l that went nowhere.",
+   "how": "systems.superheated_eruption sends what erupted through the kernel's liquids.spill (by robot) at the robot's cell, which becomes a cleaning spill through the spill sink.",
+   "test": "tests/test_cleaning.py Phase1Review.test_superheated_water_that_erupts_lands_on_the_floor_instead_of_vanishing"
+  },
+  {
+   "item": "Spec T-c49fadcea69182-01 (tasks/authored/cleaning__perception.json) failed --check after the verifier hardening: its first wrong plan read a glance bucket the geometric camera never shows (closed can, open-top bin from beside it) and raised PlanError before its mistake (review H17: a crashing wrong plan is not evidence).",
+   "how": "The wrong plan now opens the can, inspects each bin from where it stands without a deliberate look inside and reports the level that shows; it runs on every seed and fails on the goal (the missing look into the recycling bin). Notes updated.",
+   "test": "python -m house_sim --check tasks/authored/cleaning__perception.json --workers 2 (and --camera geometric): 3 passed, 0 failed"
+  },
+  {
+   "item": "Review P2-gate (claims): docs/domains/cleaning.md section 15 claimed 'generation-1 houses are byte-identical' while the adoption round changed record fields of every house.",
+   "how": "Corrected in section 15; section 16 records this phase's record-field-only changes and how they were checked; section 5 documents the attribution rule, sections 1, 3 and 13 the containers, the streams system and the spray group.",
+   "test": "docs only"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Root of the spray-group breakage: products keep their contents as amount_ml, which the kernel and other domains' liquid rules cannot see (adoption request cleaning-10, contained-liquid accessor).",
+   "why": "A representation shared with manipulation, mechanisms, plumbing and the kernel (carry mass, rendering, shake, squeeze_trigger, pour); cleaning keeps a hidden fill_level mirror and the mass in step meanwhile. Re-filed as a kernel request."
+  },
+  {
+   "item": "Mechanisms' trigger_bottle still differs from the rest of the spray_bottle group: true size 0.09 x 0.06 x 0.25 m (held view px 380 vs 400, bearing after a tip), mass_kg 0.6 with 0.5 l of liquid on top (1.1 kg vs 0.85), default liquid_l 0.5 (pours 0.50 l vs 0.75); squeeze_trigger never empties a cleaning product.",
+   "why": "mechanisms' type data and code (request filed)."
+  },
+  {
+   "item": "Unresolved puddles show their liquid's hazard kind in grid.hazards (oil, soap, cleaning solution 'slip'; water, wine, milk 'wet') while every record reads 'puddle of liquid'.",
+   "why": "The kernel renders grid.hazards; a visible_floor_hazard hook can only veto, not rename (kernel request filed)."
+  },
+  {
+   "item": "Pouring (plumbing pour) from a closed trigger sprayer pours 0.75 l (every member alike, so no tell, but not physical).",
+   "why": "plumbing_liquids' pour checks only openable sources (request filed)."
+  },
+  {
+   "item": "Adoption round's unapplied cleaning-1 / cleaning-4 (a geometric inspect still renders an open bin's fill_level to 5 % without a look inside: repro a realistic geometric Lab, approach the recycling bin, plain inspect -> fill_level 0.65, camera_log.looked_in {}), cleaning-9 (explicit colours of look-alike members), cleaning-11 (refusal wording for a label facing away).",
+   "why": "Kernel camera / generator / main-session decisions (re-filed)."
+  },
+  {
+   "item": "tests/test_generator_compat.py fails after this phase's type data (generation-1 digests pin record fields of furnished products).",
+   "why": "tests/data/gen1_digests.json is kernel-owned; the change is record fields only (checked on seeds 0-19 of generations 1 and 2: 0 non-record differences); re-record requested."
+  },
+  {
+   "item": "Spec weaknesses the review found in cleaning specs (sweep pile moved to the next room, dustpan never emptied, earring tipped down the sink, glass-cleaner spos order, T-c49fadcea69182-01 constant answers).",
+   "why": "Out of scope for phase 1 (the hardened verifier, docs/design/VERIFY_HARDENING.md, drives spec repair next phase)."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-c49fadcea69182-01: wrong plan 1 ('reports the glance buckets it saw before looking in', which raised PlanError on every seed and is no longer evidence under the hardened verifier) replaced by 'inspects each bin from where it stands (the can's lid lifted) without a deliberate look inside and reports the level that shows'; it now runs on all 5 seeds and fails on the goal; the spec passes --check (own mode and --camera geometric)."
+ ],
+ "tests": {
+  "count": 209,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 16,
+  "passed": 16
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "Re-record tests/data/gen1_digests.json (test_generator_compat fails now) and re-check tests/data/room_golden.json for cleaning's type-data change: record fields only of furnished products -- trigger (all_purpose_cleaner, degreaser, disinfectant_spray, glass_cleaner, stone_cleaner), fill_level (every cleaning product), amount_ml 750 (floor_cleaner, toilet_bowl_cleaner, wood_floor_cleaner), dish_soap mass_kg 0.6. Verified: generating seeds 0-19 of generation 1 and 2 with the old and the new house_sim/data/types/cleaning.json gives 0 differences outside those fields (no placement, no RNG shift)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Recompile tasks/specs.jsonl (python -m house_sim --compile): tasks/authored/cleaning__perception.json T-c49fadcea69182-01 changed (wrong plan 1 and notes)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Contained-liquid accessor (adoption request cleaning-10, re-filed): phys.liquids.contents_l(rec) plus a domain hook (e.g. phys.contents -> (liters, liquid)) so a cleaning product's amount_ml/product are the kernel's contents for realism's mass rendering, support.subtree_mass, manipulation's shake/grant_heft, mechanisms' squeeze_trigger/pump and plumbing's pour. Cleaning would then drop its hidden fill_level mirror. Repro of the gap: hold a glass_cleaner and squeeze_trigger it 3 x 50 squeezes -> amount_ml still 750, while a trigger_bottle holding 0.75 l drops to 0.585 l."
+  },
+  {
+   "owner": "kernel",
+   "request": "grid.hazards of an unresolved look-alike source: show the group's kind (puddle -> 'wet') until the thing is identified. Repro: realistic Lab, floors.make_spill(w, 'kitchen', 'cooking_oil' | 'cleaning_solution' | 'water', 0.3, cell=[5, 5]) -> every record 'puddle of liquid', hazard kinds 'slip' vs 'wet' before any inspect. Same for textiles' laundry jug spills (review L4)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Geometric camera, unresolved look-alikes: realism.apparent_view keeps the true view for held items (via 'held') and leaves elev_deg / bearing_deg from the true size, so a member of another true size is told apart in the hand (trigger_bottle 380 px vs 400 px for the cleaning sprays) and by the view elevation (seen with the former dish soap: elev -20 vs -25). Cleaning's groups are aligned now; the rule matters for every group with a size spread."
+  },
+  {
+   "owner": "kernel",
+   "request": "Adoption requests cleaning-1 / cleaning-4 still reproduce: a geometric inspect renders an open bin's fill_level (to 5 %) without any look inside. Repro: Lab(perception='realistic', camera='geometric'), recycling bin with items and fill_level 0.64, skill approach, inspect recycling -> fill_level 0.65, camera_log.looked_in {} (cleaning's inspector passes the record's fill_level; a per-field look-inside gate is the camera's). Also cleaning-9 (explicit colours of look-alike members) and cleaning-11 (refusal wording for a label facing away) remain open."
+  },
+  {
+   "owner": "mechanisms",
+   "request": "Align trigger_bottle (house_sim/data/types/mechanisms.json) with the spray_bottle look-alike group it joins: size_m [0.1, 0.06, 0.26], mass_kg 0.1 (the empty bottle: realism and carry mass add liquid_l; today 0.6 + 0.5 l = 1.1 kg against 0.85 for every other member) and default liquid_l 0.75 (full, like the others; it pours 0.50 l vs 0.75). And squeeze_trigger on a cleaning product (product + amount_ml, no liquid_l) should take the dose from it (from house_sim.systems.cleaning import state; state.set_product_ml(w, eid, amount_ml - ml)) instead of leaving it never empty."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "pour from a closed source: transfer.py checks only openable sources, so a trigger sprayer (record 'trigger', kernel liquids.container_closed) pours 0.75 l; pour nothing or refuse with one wording when phys.liquids.container_closed(source) (a trigger or pump head, a cap on)."
+  },
+  {
+   "owner": "safety",
+   "request": "safety/helpers.py CHEM_PRESETS stage cleaning products as generic_items with their own size/mass/amount (bleach 0.12x0.08x0.3 2.0 kg, glass cleaner 0.09x0.06x0.25 0.8 kg, ammonia 0.1x0.07x0.28 1.5 kg, ...); where they stand in as look-alikes of cleaning's groups, use the group's container (docs/domains/cleaning.md sections 1 and 13) or cleaning's own types, so held size and heft do not tell them apart."
+  }
+ ],
+ "notes": "All GREEN commands pass: python -m unittest tests/test_cleaning.py 209 tests OK (normal, HOUSE_SIM_STRICT=1, HOUSE_SIM_DOMAINS=core,cleaning with 1 skip: people's step_aside); --check cleaning__examples.json 13/13, cleaning__perception.json 3/3 own mode and 3/3 --camera geometric (5 seeds); the 13 examples also pass forced --perception realistic --camera geometric; tools/perception_audit.py 20 80 --verbose: 0 leaks, nothing attributed to cleaning (room and geometric); tools/layout_audit.py 20 --domain cleaning: 0 problems on 120 houses (and 0 on 220 with --gen 2). No LookalikeWarning at registry load (there was none for cleaning's groups at the start either; the group alignment above goes beyond the warning's size/colour check). Neighbouring suites re-run green: test_mechanisms, test_outdoor_plants, test_safety, test_plumbing_liquids, test_physics_data, test_textiles_laundry, test_leaks_review (1 expected failure, kernel's), test_perception, test_admin_inventory; tools/physics_audit.py --data attributes no gap to cleaning. Known breakage: tests/test_generator_compat.py (gen-1 digests, record fields only) until the kernel re-records. Review M3 (static indexes cleaning.floor_cover_candidates / cleaning.liquid_holders went stale): no domain change needed -- both predicates read only their record and the kernel's per-field invalidation (world.static_index contract) now keeps them exact from the next step; systems re-check liquid_l / pos on the returned records. Review I8 (spray-bottle reservoir refusal): climate's reservoir actions now give every unresolved member the same identify-first refusal (verified in the battery). Twin battery and verb sweep scripts: scratchpad p1_cleaning/group_battery.py, verb_sweep.py, house_diff.py. Docs: docs/domains/cleaning.md sections 1, 3, 5, 13, 15 and new 16."
+}

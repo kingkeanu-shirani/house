@@ -1,0 +1,89 @@
+{
+ "id": "manipulation",
+ "fixed": [
+  {
+   "item": "Review H11 genuine defect 1 / P2-gate probe row 4 / top-10 step 2: one-hand pick_up dropped dry items of 7.65-8.0 kg (grip slip limit 7.645 kg against the kernel lift plan's 8.0 kg hand rating) while an 8.01 kg item was lifted with two hands and held (lift monotonicity broken)",
+   "how": "common.grip_outcome: the one-hand 'normal' / 'handle' adaptive squeeze may now rise to common.rated_squeeze_n = the force that holds the hand's rated load (body.hold_capacity_kg, the capacity the kernel's lift plan gives one hand) on a dry surface of the item with a clean hand (forces.friction(rec, wet=False) x body.gripper mu / REF_PAD_MU), clamped to body.grip_limit_n. A lift the kernel gives one hand never slips on mass alone; wet / oily / soapy surfaces, slippery fingers and a gripper_slip fault still slip (monotonically in mass).",
+   "test": "tests/test_manipulation.py GraspTests.test_lift_monotonicity_a_one_hand_lift_never_slips_on_mass_alone (0.5-12 kg x five materials incl. film mu 0.3; wet glass monotone); fails 15x with the fix patched out; test_physics_forces LiftPlanMatchesCorePickUpTests green"
+  },
+  {
+   "item": "Adoption breakage (slope law not ready): roll release=true left tilted_on_wheels True, so with the kernel's slope law the released bin stayed in the driveway",
+   "how": "motion.let_go clears tilted_on_wheels and tilt_deg in the same step on roll release=true and on a runaway (_runaway); tilt now watch-lists a load it balances on its wheels and a new after-hook on the walking verbs (move, approach, walk_to, go_to, drive_to, follow, patrol, dock, undock; order 42) lets go of it when the robot ends out of reach (geometry.reach_problem), so an abandoned cart is not held balanced forever. common.watch_live / WATCH_FIELDS include tilted_on_wheels.",
+   "test": "SlideRollTests.test_releasing_a_tilted_cart_lets_it_settle_on_its_wheels_with_any_slope_law (law off and on), test_walking_off_lets_go_of_a_cart_balanced_on_its_wheels, law-agnostic test_bin_released_on_a_slope_runs_into_the_street; whole file green with slope forced"
+  },
+  {
+   "item": "Adoption breakage (setdown law not ready): T-ce25a2474ffb3d-01's wrong plan 'rushes and sets it down hard on marble' passes with setdown forced; test_fast_set_down_chips_fragile_ware_on_stone fails (integrator decision: a fast set-down stays the kernel's 6 cm drop, no chip outcome)",
+   "how": "Wrong plan re-authored as 'tosses it onto the marble table instead of setting it down' (fetch gentle, approach the table, throw force=soft: a drop from about 1.1 m, it misses the table and lands on the floor; glass/porcelain break on hard floors); notes updated. The chip test became test_fast_set_down_and_a_toss_of_fragile_ware_on_stone, run with the law off (legacy chip) and on (no chip; the toss breaks it in both). The domain's legacy chip copies stay gated by kernel_owns('setdown').",
+   "test": "PlacementTests.test_fast_set_down_and_a_toss_of_fragile_ware_on_stone; T-ce25a2474ffb3d-01 PASS 5/5 with no law forced, with setdown forced and with every ready law + slope + setdown forced"
+  },
+  {
+   "item": "Adoption breakage (cross-domain): manipulation.items dialogue route claimed every how / keep / intended / status question about any entity, shadowing plants:care / plants:keep and laundry:rewear / keep_out / hang_or_fold",
+   "how": "world._route_manip returns a plain topic only for a thing carrying the hidden truth it answers from (_<key>, _ambiguous_<key>, _ask_<key>), else dialogue.weak(topic): later domain routes that know the specific answer win and manipulation's default answers only as the fallback.",
+   "test": "TierOneAdoptionTests.test_the_items_route_is_a_catch_all_for_things_without_the_hidden_truth (garden plant how/keep -> plants.*, coat dirty/dryer/hang -> laundry.item, jar with _keep stays manip, fallback still answers); existing test_canonical_questions_route_to_the_manip_answerer green"
+  },
+  {
+   "item": "Adoption breakage (people cross-domain report 2): hand-over burns counted above a fixed 55 C here while people's hot hand-over uses thermal.burn_seconds over a ~2 s grip; the counters disagreed for 55-65 C",
+   "how": "handling.hot_handover_burns: same rule as people.physical._hot_handover (surface_temp_c else temperature_c; burn_seconds(temp, child) <= 2.0 s; safe when presented by handle/base/grip, held by its handle, insulated / cool_touch / handle_out); a bare 'hot' hazard tag with a room-temperature surface no longer burns.",
+   "test": "HandOverTests.test_hot_handover_burns_follow_the_kernel_burn_time_like_the_people_domain (adult 60/64 no, 66 yes; child 57 no, 60 yes; insulated, handle-first, tag-only; with people loaded asserts people's injury count agrees)"
+  },
+  {
+   "item": "Review P3 identity sweep (e1_sweep 'rotate:face_toward'): rotate face_toward an unresolved look-alike gave member-specific yaws ('to 178 deg' vs 'to 182 deg') because the bearing used the member's true centre (true size) while the record shows the group size",
+   "how": "common.perceived_size / perceived_view: aiming at a reference the robot knows only by eye uses the group's displayed size (realism.group_glance) for an unresolved look-alike (not once measured or identified); used by rotate face_toward, arrange relative_to / facing and align center reference. Contact physics (knocks, fits) keeps true sizes.",
+   "test": "PerceptionHardeningTests.test_aiming_at_an_unresolved_lookalike_uses_the_size_the_robot_sees (twins of different true size give identical message, yaw and spos; oracle still differs); fails without the fix"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Spec weaknesses of manipulation specs found by the review (A-83f6ca95b72b85-01 passes when wrapping with both look-alike rolls without inspecting, 5/5; A-b6bf8052cc5211-01 passes with a 'NOT FRAGILE' label; A-a67431128da2e1-01: both stones without hefting passes on 2 of 5 seeds, a slot guess)",
+   "why": "Spec gaming is for the next phase (hardened verifier drives spec repair); no code fix made them fail."
+  },
+  {
+   "item": "Rotate's swept knock-over and placement overlaps next to an unresolved look-alike follow its true size (e1_sweep laundry_jug / drink_carton)",
+   "why": "Contact physics must use the true size; the tell exists only because those groups' members differ in true size while the record shows one size. Data owners (textiles_laundry laundry_jug, food drink_carton) should align member sizes; kernel lint request filed."
+  },
+  {
+   "item": "L3 battery drain weighs held items; L1 wait(until) oracles; I3 count remote inspect (also resolves this domain's clear_plastic_roll / paper_tape_roll members from afar); I4 novel-object inspect key sets",
+   "why": "Kernel (body / timeline / realism) and admin_inventory code, not this domain. This domain's inspector lists visible mechanical features (zipper, cap, thread, seams ...) of any thing it inspects; if the kernel projects a novel thing's inspect onto a fixed key set, that projection should cover domain inspector keys too."
+  },
+  {
+   "item": "A cart rolled without release moves alone while the robot stays where it was",
+   "why": "Model simplification kept (documented in docs/domains/manipulation.md section 16); the hold is now released when the robot walks out of reach, which closes the slope-law hole."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-ce25a2474ffb3d-01 (tasks/authored/manipulation__examples.json): wrong plan 'rushes and sets it down hard on marble' replaced by 'tosses it onto the marble table instead of setting it down' (required by the setdown breakage and the integrator's 6 cm decision, not by a code fix); spec still PASS 5/5; reference unchanged (golden dump of all 243 references identical with and without this phase's manipulation changes)"
+ ],
+ "tests": {
+  "count": 221,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 14,
+  "passed": 14
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "tests/test_physics_forces.py LiftPlanMatchesCorePickUpTests.test_every_case_matches_core: with manipulation loaded the 8.0 kg one-hand case is now held, so the comment '(manipulation: the 8 kg cube in a one-hand friction grip)' is stale; tighten the ok branch to assert record['location'] == 'robot' for every accepted lift (review H11 lift monotonicity, section 4.6 cross-layer test 1), or add that monotonicity check to tests/test_physics_settle.py CrossLayerContractTests. Repro: env_for({'mass_kg': 8.0}, {}) then pick_up item -> 'Picked up item', location robot."
+  },
+  {
+   "owner": "kernel",
+   "request": "Registry LookalikeWarning (kernel/registry.py lookalike_conflicts) should also flag member types whose true size differs beyond the camera resolution even when the group sets size_m (review L2/L4): contact physics of every domain verb (manipulation's rotate knock, arrange overlap, throw landing) follows the true size and tells such members apart. Repro: review e1_sweep 'sweep:rotate:face_toward' on laundry_jug (bleach 0.30 m vs softener) knocks one member and not the other."
+  },
+  {
+   "owner": "textiles_laundry",
+   "request": "Align the true sizes of the laundry_jug look-alike members (chlorine_bleach_bottle 0.30 m, detergents 0.28 m, booster / presoak 0.20 m) or split the group: physical outcomes (a swept rotate knocking a jug, px size) differ while the record shows one size."
+  },
+  {
+   "owner": "food",
+   "request": "Align the true sizes of the drink_carton look-alike members (heavy cream 0.13 m vs milk 0.25 m) or split the group, for the same reason (e1_sweep: rotate face_toward knocked the milk carton only)."
+  },
+  {
+   "owner": "people",
+   "request": "Optional, one owner per harm: a hot hand-over is now judged by the same rule in both domains but counted twice (people: stats.injury + people_log.burns; manipulation: stats.burns). If one counter should own it, say which; manipulation can step aside when people's _hot_handover hook is loaded."
+  }
+ ],
+ "notes": "GREEN (live tree, 2026-10-22): tests/test_manipulation.py 221 tests OK normal, HOUSE_SIM_STRICT=1, HOUSE_SIM_DOMAINS=core,manipulation (2 pre-existing skips: antifreeze_jug not loaded) and core,manipulation strict. --check manipulation__examples.json --workers 2: 12/12; manipulation__perception.json: 2/2 own mode and 2/2 --camera geometric; examples forced --perception realistic --camera geometric: 12/12. Laws: the test file is green with slope, setdown, every ready law + slope + setdown, and every deferred law forced; both spec files pass 5 seeds with ready + slope + setdown forced, so slope and setdown are now ready (adopt_status laws_not_ready for manipulation can be emptied). tools/perception_audit.py 20 80 --verbose (room): 0 leaks; --camera geometric: 23 'hidden' leaks all attributed to textiles_laundry types (drying_rack_1.view), none to manipulation; --twin-fields 6 40: 0 leaks. tools/layout_audit.py 20 --domain manipulation: 120 houses, 0 problems. Registry load prints no LookalikeWarning (0 warnings overall); this domain's groups (smooth_stone, clear_plastic_roll, paper_tape_roll and the single-type weight groups) share color and size.\nTwin differential sweeps (scratch twins.py: every registered action with the probe in each entity parameter, on the table and held, room and geometric camera): differences only through legitimate resolving channels (touch mass bucket for the stones; inspect / wrap / tape / tear, each an inspect grant on the roll) plus admin_inventory's count (review H7).\nAttribution of side effects: two snapshots of the same tree (with and without this phase's manipulation edits). tools/golden.py dump --all: 275 files compared, 0 changed (all 243 reference plans on seed 0 and the 8 scripted runs identical). Full verification of all 243 specs x 5 seeds in both snapshots: the only differing trials are T-ce25a2474ffb3d-01's re-authored wrong plan; 5 specs fail identically in both (A-d66994a566899c-01, T-3b1a4024d46110-01, T-7d4006bda247ba-01, T-a31398ab2abf54-01, T-c49fadcea69182-01) - other owners' concurrent state, none in manipulation files.\nFull test suite on the live tree (62 files): failures only outside this domain and reproduced without these edits or explained by concurrent work: test_admin_inventory print refusal (fails in both snapshots), test_camera occ_sig epochs x3 (kernel camera), test_camera_realism timing under load, test_generator_compat (generator edited concurrently), test_physics_settle / test_physics_statics wrapped glass (safety's listed breakage; green with HOUSE_SIM_DOMAINS=core,manipulation), test_room_golden (reset digests changed by the generator; this phase adds 0 differences).\nConcurrency: kernel realism.py / world.py were briefly mid-edit by their owner during this phase (AttributeError _named / _step_mark); every check above was re-run after the tree loaded cleanly.\nDocs: docs/domains/manipulation.md updated (verb notes, hooks, ask route, perception section 13, readiness table, new section 16)."
+}

@@ -169,6 +169,15 @@
      "name": "measures the width once at mid height, missing the narrowing at the top of the opening",
      "plan": [
       {
+       "skill": "approach",
+       "target": "{tape}"
+      },
+      {
+       "do": "read",
+       "target": "{tape}",
+       "note": "reads the case length like the reference (add_case needs it), so the only mistake is the single mid-height width"
+      },
+      {
        "skill": "navigation_robot.measure_report",
        "target": "{target}",
        "field": "width_{unit_suffix}",

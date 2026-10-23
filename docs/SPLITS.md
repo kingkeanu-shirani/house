@@ -10,16 +10,25 @@ private phrasings.
 |---|---|---|---|
 | train | `train_seeds(cid, n, start=0)`: unlimited, in `[TRAIN_BASE, PRIVATE_BASE)` = `[1_000_000, 900_000_000)` | spec's own (caller may force) | public phrasings |
 | dev | `DEV_SEEDS = (0, 1, 2, 41, 97)` (the verification seeds) + published `DEV_EXTRA = (3, 8, 13, 24, 55)` | spec's own (caller may force) | public phrasings |
-| test | hidden: k per entry (default 10) in `[PRIVATE_BASE, 2**31 - 1)` | always `realistic` | held-out phrasings |
+| test | hidden: k per entry (default 10) in `[PRIVATE_BASE, PRIVATE_END)` = `[900_000_000, 2**53)` | always `realistic` | held-out phrasings |
 
 * **Train** seeds use a per-entry offset (the SHA-256 of the catalog id) and run consecutively from there, so every
-  entry gets different houses and `seed % len(variants)` covers every variant. They stay distinct while
-  `start + n <= 899_000_000`.
+  entry gets different houses. The variant rule (`tasks.spec.variant_index`, review H5) rotates the variants inside
+  blocks of n seeds aligned at multiples of n, so any 2n - 1 consecutive train seeds of an entry with n variants hold
+  every variant (the first n need not). They stay distinct while `start + n <= 899_000_000`.
 * **Dev** seeds are the same for every entry. `episodes("dev", ...)` uses `DEV_SEEDS`. `seeds_per_entry > 5` or the
   split name `"dev_extra"` adds `DEV_EXTRA`.
 * **Test** candidates are `HMAC-SHA256(key, f"{catalog_id}:{i}")`. The first 8 bytes, as a big-endian integer modulo
   the size of the private range, are added to `PRIVATE_BASE`, for `i = 0, 1, 2, ...`. A collision is skipped.
-  Candidates become hidden seeds only once they are verified (see below).
+  Candidates become hidden seeds only once they are verified (see below). The private range ends at `2**53` (the
+  largest range of integers every JSON reader keeps exact; phase-1 red team): the house structure the robot sees from
+  its first observation is a pure function of the seed and identified it within the old 1.25e9-seed window (about 30
+  bits, 1-2 candidate seeds per structure), and a one-time table of that window cost about 1,300 core-hours; over 9e15
+  seeds no table is possible. Every seed at or above `PRIVATE_BASE` counts as private (`is_private_seed`).
+* **One attempt per hidden seed.** A standard-track test result is the first scored run of each hidden episode: an
+  agent (or its operator) gets one attempt per hidden seed, and test-split runs come from runs the owner executes.
+  Re-running a test episode to learn from its outcome would turn the hidden houses into training data; the episode
+  nonce of a test episode is an HMAC of the split key, so a rerun sees the same handles and draws.
 
 ## The key
 
@@ -56,7 +65,8 @@ python -m house_sim --build-test-manifest [--k 10] [--workers N] [--only IDS/SEC
    declares it, or for every entry with `--perception realistic`. A candidate is kept only if the trial passes.
    A failing candidate is skipped and recorded in `skipped` with `"reason": "verification_failed"` and the failing
    checks.
-3. **Variant coverage.** When a spec has variants, every variant `seed % len(variants)` must appear. A candidate
+3. **Variant coverage.** When a spec has variants, every variant must appear (the variant a seed runs,
+   `tasks.spec.variant_index(catalog_id, seed, len(variants))`). A candidate
    whose variant is already covered is passed over (`"reason": "variant_quota"`, not verified) when the remaining
    slots are needed for uncovered variants. If k is smaller than the number of variants, it is raised to that
    number (`k_requested` keeps the asked value). `k` must be at least 1; the CLI warns about entries without
@@ -125,9 +135,9 @@ by a person. Paraphrases must never be generated with an external model.
   random `nonce`.
 * **Why the nonce.** Apart from the seed, an entry is low-entropy and mostly public: the spec's public phrasings,
   small counters, the spec hash and the code fingerprint (which every `run.json` publishes). `key_digest` is public
-  too. Without a secret blinding value, anyone could rebuild the entry for each candidate seed and hash the ~30-bit
-  private range in a couple of minutes on a laptop. That is how a k=1 entry's hidden seed was recovered blind before
-  nonces were added. With 256 random bits in the hashed entry this is infeasible. `"blinded": true` marks
+  too. Without a secret blinding value, anyone could rebuild the entry for each candidate seed and hash the private
+  range (the ~30-bit one of the time: a couple of minutes on a laptop). That is how a k=1 entry's hidden seed was
+  recovered blind before nonces were added. With 256 random bits in the hashed entry this is infeasible. `"blinded": true` marks
   commitments written this way. `--verify-commitment` warns about manifest entries without a nonce (built before
   nonces existed); rebuild and republish those.
 * The Merkle tree is built as follows:
@@ -172,15 +182,15 @@ root alone.
 
 ## Contamination guards
 
-* `is_private_seed(seed)`: the seed is in the private range. You can always check this; no key is needed.
+* `is_private_seed(seed)`: the seed is at or above `PRIVATE_BASE`. You can always check this; no key is needed.
 * `is_test_seed(cid, seed)`: the seed is in the private range, or the private manifest lists it under any entry (a
   seed fixes the house). A manifest that exists but cannot be read raises an error rather than allowing the seed.
 * `guard_not_test(cid, seed)` raises `ValueError("test seed refused")`. `episodes()` calls it for every train and
   dev seed, including explicit `seeds=`, and `build_episode()` calls it for non-test episodes.
 * `seed_tag(cid, seed, key=None)` returns `"dev:<seed>"`, `"train:<seed>"`, `"test:<12 hex>"`, or `"seed:<seed>"`
   for other public seeds.
-  * The test tag is `HMAC-SHA256(key, "tag:<cid>:<seed>")[:12]`. A plain hash of a ~30-bit seed could be
-    brute-forced back to the seed, so test tags need the key.
+  * The test tag is `HMAC-SHA256(key, "tag:<cid>:<seed>")[:12]`. A plain hash of a seed from a guessable range
+    could be brute-forced back to the seed, so test tags need the key.
   * `resolve_test_tag(cid, tag)` maps a tag back to its seed when you have the key and the manifest. This is for
     re-scoring.
   * `safe_tag(tag)` replaces `:` so the tag works in Windows file names.

@@ -450,6 +450,8 @@ def inspect_assembly(w, eid, record, details, ctx):
                 details["caution" if C.realistic(ctx) else "warning"] = "sealed unit: high-voltage capacitor inside - do not open"
     if record.get("_shelf_state") is not None:
         level = next((h for h in w.held_items() if w.ent(h).get("tool_kind") in ("spirit_level", "torpedo_level", "digital_level")), None)
+        if level and not C.at_hand(w, eid):
+            level = None            # a level reads only the shelf it is laid on: from farther the eye judges the slope
         view = {}
         for shelf, st in sorted(record["_shelf_state"].items()):
             if not st.get("supported"):

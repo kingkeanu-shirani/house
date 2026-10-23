@@ -71,6 +71,17 @@ def turn_head(ctx, eid, value, direction):
     return "Twisted the pump head {}".format("up: unlocked" if want_unlock else "down: locked")
 
 
+def _set_product_ml(w, eid, ml):
+    """A product bottle's amount after a dose: cleaning's state.set_product_ml (it keeps the bottle's mass and its hidden
+    fill level with the amount) when that domain is loaded, else the amount alone."""
+    cleaning = C.domain_module("cleaning", "state")
+    setter = getattr(cleaning, "set_product_ml", None) if cleaning is not None else None
+    if setter is not None:
+        setter(w, eid, ml)
+    else:
+        w.mut(eid)["amount_ml"] = round(max(0.0, float(ml)), 1)
+
+
 def _amount(ctx, trig):
     """What the robot knows of a dose it sprayed: its own squeezes or trigger time (realistic perception)."""
     if trig.get("flow_lpm"):
@@ -123,14 +134,15 @@ def _neighbours(w, target):
                                    "distance_m": {"type": "number", "default": 0.25, "min": 0.03, "max": 6.0}},
         duration=lambda ctx: 0.8 * ctx.args["squeezes"] + ctx.args["hold_s"] + 0.5, energy=0.003, noise=0.01, category="physical",
         timing="commanded",
-        doc="Squeeze a held trigger sprayer or hose nozzle at a destination (surface, item, person/pet) from distance_m: "
-            "squeezes for bottles (dose = squeezes x ml per squeeze), hold_s for nozzles. The cone footprint beyond the target "
-            "is overspray onto neighbours (electronics are damaged when wetted). Set the nozzle first (turn part=nozzle).")
+        doc="Squeeze a held spray bottle (a trigger sprayer: a cleaning spray, a plant mister) or hose nozzle at a "
+            "destination (surface, item, person/pet) from distance_m: squeezes for bottles (dose = squeezes x ml per "
+            "squeeze), hold_s for nozzles. The cone footprint beyond the target is overspray onto neighbours (electronics "
+            "are damaged when wetted). Set the nozzle first (turn part=nozzle).")
 def squeeze_trigger(ctx):
     w = ctx.w
     state = w.s
     eid = ctx.args["target"]
-    require(ctx.holding(eid), "Hold the sprayer first", "precondition")
+    require(ctx.holding(eid), "Hold it first (pick the sprayer up)", "precondition")
     rec = w.ent(eid)
     trig = trigger_of(rec)
     require(trig, "It has no trigger", "precondition")
@@ -148,8 +160,16 @@ def squeeze_trigger(ctx):
     else:
         ml = C.num(trig.get("ml_per_squeeze"), 1.1) * ctx.args["squeezes"]
         liquid = rec.get("liquid") or rec.get("product") or "water"
-        if rec.get("liquid_l") is None and rec.get("product"):
-            pass        # a store-bought spray keeps no liquid amount (cleaning's products): it is not emptied here
+        if rec.get("liquid_l") is None and rec.get("amount_ml") is not None:
+            # a store-bought spray keeps its contents as a product amount (cleaning's products): the dose comes out of
+            # it, like a trigger bottle's litres (cleaning's phase-1 request: they never emptied)
+            have = C.num(rec.get("amount_ml"))
+            if have <= 0:
+                return "Only air sputters out: it is empty"
+            ml = min(ml, have)
+            _set_product_ml(w, eid, have - ml)
+        elif rec.get("liquid_l") is None and rec.get("product"):
+            pass        # a product without an amount: nothing to take the dose from
         else:
             have = C.num(rec.get("liquid_l")) * 1000.0
             if have <= 0:

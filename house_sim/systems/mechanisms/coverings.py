@@ -93,7 +93,9 @@ def covering_coverage(state, eid):
 
 
 def refresh(w, eid):
-    """Recompute derived covering fields and the window's covered value."""
+    """Recompute derived covering fields and the window's covered value. A robot action that leaves the covering drawn
+    (coverage 0.4 or more, where fabric over a flame catches) marks it "covering", one that leaves it open drops the
+    mark (harm attribution of a curtain fire: world._robot_fire)."""
     rec = w.ent(eid)
     rm, mech = C.mut_mech(w, eid)
     if C.kind_of(rec) == "curtain":
@@ -104,6 +106,11 @@ def refresh(w, eid):
         nums = blind_numbers(rec)
         mech.update(nums)
         rm["open"] = nums["coverage"] < 0.5
+    if C.robot_acting(w):
+        if nums["coverage"] >= 0.4:
+            C.note_robot(w, eid, "covering")
+        else:
+            C.drop_robot(w, eid, "covering")
     sync_window(w, eid)
     wid = window_of(w.ent(eid))
     if wid:

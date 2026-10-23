@@ -634,6 +634,10 @@ def resolve_subject(env, pid, about):
                         ("person", _people(state)), ("pet", state.get("pets") or {})):
         if text in table:
             return Subject(kind, text)
+    if text in remembered_ids(env):
+        # a thing the robot saw that has since gone (eaten, thrown out, merged): asked about like one out of view, so
+        # the answer's kind does not tell that it no longer exists (red_leaks: "I don't know." vs an answer)
+        return Subject("entity", text)
     for event in _calendar_events(state):
         if event["id"] == text:
             return Subject("event", text)
@@ -870,6 +874,28 @@ def perceived_ever(env, eid):
         return bool(env.perception.visible(state, eid))
     except Exception:  # noqa: BLE001
         return False
+
+
+def remembered_ids(env):
+    """Ids of things the robot perceived this episode (or knew from prior knowledge) that no longer exist: the Mind's
+    beliefs and, in realistic perception, the things whose handles were issued. A report or a question about one of
+    them is handled like one about a thing out of view (red_leaks: the report refusal "You have not seen that" was an
+    existence oracle for things destroyed out of sight)."""
+    if env is None:
+        return frozenset()
+    state = env.world.s
+    present = set(state.get("entities", {})) | set(state.get("rooms", {})) | set(state.get("people") or {}) | \
+        set(state.get("pets") or {})
+    found = set()
+    mind = getattr(env, "mind", None)
+    for eid, belief in (getattr(mind, "seen", None) or {}).items():
+        if eid not in present and not (isinstance(belief, dict) and belief.get("agent")):
+            found.add(eid)
+    realism = getattr(env, "realism", None)
+    if realism is not None:
+        found |= {e for e in realism.handles.by_id if isinstance(e, str) and e not in present
+                  and not e.startswith("shape:") and e in realism._ever}
+    return frozenset(found)
 
 
 def evidence_known(env, item):

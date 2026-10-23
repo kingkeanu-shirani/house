@@ -12,6 +12,9 @@ usage:
   python tools/orchestration/tier1_gate.py isolate --out DIR [--package PKG] [--files PATH ...] [--base REV]
   python tools/orchestration/tier1_gate.py packages [PKG ...]
   python tools/orchestration/tier1_gate.py gen1-digests [--write] [--jobs N]
+  python tools/orchestration/tier1_gate.py signoff [PREV [ID]] [--package PKG] [--by NAME] [--out FILE]
+  python tools/orchestration/tier1_gate.py policy        (the committed allowlist and second signatures, as the gate
+                                                          reads them)
 
 A package id with a colon (ADOPT:cleaning) is written with "_" in folder names (gate/ADOPT_cleaning,
 handoff_ADOPT_cleaning.md). On a shared tree (the adoption round) a package records on an isolated copy
@@ -36,13 +39,15 @@ gate summary; the exit status is 0 only for PASS.
   G4   python tools/perception_audit.py 6 150 --workers 4 (also --camera geometric once the tool has it)
   G5   python tools/layout_audit.py 40 (counts equal to the previous gate) and the generation-1 house digests of
        tests/data/gen1_digests.json (TIER1_SWEEP 14.1)
-  G6   python tools/fuzz.py 6 300 --workers 4 (strict plus a cross-process replay; also --camera geometric and
-       --battery 5 --faults random once the tool has them)
+  G6   python tools/fuzz.py 6 300 --workers 4 (strict plus a cross-process replay of every house; also --camera
+       geometric and --battery 5 --faults random once the tool has them) and python tools/fuzz.py --coverage
+       --workers 4 (spec-seeded walks toward every action's success path; per-action success coverage)
   G7   python tools/bench_systems.py 40 0 1 2 3 and the 1 h wait on seeds 0-3 (best of --bench-repeats, run alone)
   G8   python -m unittest tests.test_room_golden, also with HOUSE_SIM_GOLDEN_ALL=1 (required from B1 on)
   G9   package extras: physics_audit --data --bench, body_audit --baseline, generator compat and gen-2 layout,
        sweep_bench, geometric camera tools
-  G10  scope: changed and untracked files (git) against the package's file list, its handoff and its gate folder
+  G10  scope: changed and untracked files (git) against the package's file list, its handoff and its gate folder;
+       the gate's policy files (gate_policy/) are the main session's alone; FAIL when git is unavailable
 
 Comparison with the previous gate (TIER1_INTEGRATION 3.2-3.4): a verdict change (G2/G3) passes only when a reviewed
 row covers it (a row of the package's handoff table, gate/<ID>/reviewed.json or --reviewed FILE naming the catalog
@@ -50,6 +55,49 @@ id, the seeds, the mode and one of the package's R codes); digest changes (refer
 digests, the reference observation digest), an action fingerprint change and layout or generation-1 changes pass only
 for packages whose row allows them; benchmarks may not exceed the reference by more than the package's factor.
 The package table (PACKAGES) is TIER1_INTEGRATION section 2 transcribed; `packages` prints it.
+
+Hardening (phase 1 of the stabilisation; REVIEW_REPORT H12, top-10 item 3; phases/p2_tests_gate.md T3-T5):
+* Absolute rules beside the delta rule. G2-ABS: every authored spec passes in its own mode on every seed (new specs
+  included, in `record` and in `compare`). G1 / G1b / G8: every test passes. The only exception is an entry of the
+  dated allowlist tools/orchestration/gate_policy/known_failing.json (kind "test" or "spec", owner, expiry date,
+  reason); an expired or malformed entry excuses nothing.
+* Second signature. A reviewed row is bound to the files its package owns (a domain package reviews only its own
+  tasks/authored/<domain>__*.json specs), and every verdict change, every edited spec (spec_hash changed) and every
+  action the coverage fuzz no longer drives to success also needs a row of tools/orchestration/gate_policy/signoffs/
+  <ID>.json naming the exact new verdict digest / spec hash / action (`signoff` drafts it). Policy files count only
+  as committed (git HEAD; in an isolated copy, unchanged since its base commit): agents never commit, so only the main
+  session signs, and G10 fails any package that edits them.
+* Wrong plans: each trial record keeps every wrong plan's reason classes ("reasons"), labels, goal fraction, whether
+  it ran fully and its error class; a change of the reasons is a verdict change (compared when both records have
+  them). A wrong plan that raises fails its spec (house_sim/tasks/verify.py).
+* SKIP counts as FAIL; a check that does not apply to the package is "N/A". G10 without git (and not an isolated
+  copy) FAILS. `compare` fails on any G4 leak or crash and any G6 defect or nondeterminism (absolute, and on every
+  increase or missing variant), and on the current record's own G1c / G9 (and G10) failures.
+* G6 also runs `tools/fuzz.py --coverage` (every registered action driven toward success from every authored spec's
+  setup) and reports per-action success coverage; actions that stop succeeding need a signature.
+
+Phase-1 red team (catalog/analysis/phase1/red_defects.json; FIX2):
+* Per-test outcomes. Every test process runs through the `_unittest` worker (the same report and exit status as
+  `python -m unittest`) and tests.json keeps each test id and every outcome that is not "ok" (skip, xfail, xpass,
+  fail, error). Against the previous record a test id that disappears, becomes skipped or an expected failure, a test
+  file that is gone, or (when either side lacks per-test ids) a file that ran fewer tests or skipped more fails G1 /
+  G1b / G8 in `record` and in `compare`, unless the committed allowlist has a dated entry of kind "skip" naming the
+  test (or its class or module) or the record's committed signoff has a row {"kind": "test-removal", "test", "mode"?}.
+* Tree fingerprints. Every check result carries the fingerprint of the tree it ran on (tree_fingerprint: the content
+  of house_sim, tasks, tests, tools, docs and the CI files) and the record keeps the tree it was written on. A record
+  whose checks ran on different trees (a partial re-run merged with an earlier run, or files edited while the gate
+  ran) is STALE: never a hand-over, exit status 1. `compare` recomputes the fingerprint of the record's tree and
+  fails a record that does not match it (STALE); a record without one is INCOMPLETE; --any-tree turns the check off
+  for historical comparisons.
+* Honest compare. Every check a record lists in "recorded" whose data is missing is SKIP (FAIL); the record's own
+  statuses of G0, G1c, G4, G5, G7, G9 and G10 count (G1 / G1b / G8, G2, G3 and G6 are recomputed with the current
+  allowlist and signatures); G2-ABS runs over the record's full own-mode rows whatever the previous record ran; a
+  partial or narrowed previous record makes the result INCOMPLETE, and `record --prev` refuses one.
+* Policy root. The allowlist and the second signatures are read only from the commits of the project this script
+  belongs to (policy_root), never from --root: an isolated copy (whose manifest and files are writable) or any other
+  folder is never a policy source, and G10 in an isolated copy compares its files with the project's base commit
+  through git, not with the copy's own manifest. `compare` refuses a --root other than the project unless
+  --foreign-root is given; meta.json records the policy root.
 
 Stdlib only; Python 3.9+. No network. Worker processes import house_sim from --root.
 """
@@ -87,7 +135,26 @@ KERNEL_TESTS = ("test_kernel*.py", "test_perception.py", "test_physics_*.py", "t
 RUNTIME_ENV = ("HOUSE_SIM_DOMAINS", "HOUSE_SIM_STRICT", "HOUSE_SIM_SAFE", "HOUSE_SIM_GOLDEN_ALL")
 TRANSIENT = ("tools/.fuzz_replay_*.json",)        # written and removed by tools/fuzz.py while G6 runs
 CATALOG_ID = re.compile(r"\b[A-Z]-[0-9a-f]{14}-\d{2}\b")
-CODE = re.compile(r"(?<![\w-])(?:[A-Z]-)?R\d+(?![\w-])|(?<![\w-])(?:D[123]|ADOPT)(?![\w-])")
+CODE = re.compile(r"(?<![\w-])(?:[A-Z]-)?R\d+(?![\w-])|(?<![\w-])(?:D[123]|ADOPT|P1)(?![\w-])")
+# the gate's policy files (main session only): the dated allowlist of known failures and the second signatures. They
+# count only as committed (trusted_json); no package may change them (G10) except K-GATE, which defines their format
+POLICY_DIR = "tools/orchestration/gate_policy"
+KNOWN_FAILING = POLICY_DIR + "/known_failing.json"
+SIGNOFF_DIR = POLICY_DIR + "/signoffs"
+PROTECTED = (POLICY_DIR + "/*",)
+# what a gate record's checks depend on (tree_fingerprint, FIX2): code, data, specs, tests, tools, docs and the CI files --
+# not the gate records, results and analysis reports written beside them
+FINGERPRINT_PATHS = ("house_sim", "tasks", "tests", "tools", "docs", ".github", "setup.py", "setup_project.py",
+                     "house_env.py", "MANIFEST.in")
+# the record's own statuses compare honours (the other checks it recomputes, with the allowlist and signatures as
+# committed now): FIX2
+OWN_STATUS = ("G0", "G1c", "G4", "G5", "G7", "G9", "G10")
+KNOWN_FAILING_FORMAT = "house-gate-known-failing-v1"
+SIGNOFF_FORMAT = "house-gate-signoff-v1"
+# statuses: PASS, FAIL, INFO (recorded, no condition), SKIP (a check that should have run did not: counts as FAIL),
+# N/A (the check does not apply to this package: counts as passing)
+FAILING = ("FAIL", "SKIP")
+TEST_MODES = ("normal", "strict", "isolated", "core", "golden", "golden_all")
 
 # ----------------------------------------------------------------------------------------------------------------
 # packages (TIER1_INTEGRATION.md sections 2.2-2.6, 3.2 and 3.4)
@@ -116,9 +183,12 @@ COMPILED_SPECS = ("tasks/specs.jsonl", "tasks/id_to_family.jsonl")
 EMPTY_DIRS = ("tasks/templates", "house_sim/data/actions")
 
 
-def _pkg(stage, files, allow=(), codes=(), extras=(), inert=(), bench=(1.05, "prev"), requires=(), aka=(), note=""):
+def _pkg(stage, files, allow=(), codes=(), extras=(), inert=(), bench=(1.05, "prev"), requires=(), aka=(), note="",
+         policy=False):
+    """policy: the package may change the gate's policy files (PROTECTED; only K-GATE, which defines their format)."""
     return {"stage": stage, "files": list(files), "allow": list(allow), "codes": list(codes), "extras": list(extras),
-            "inert": list(inert), "bench": list(bench), "requires": list(requires), "aka": list(aka), "note": note}
+            "inert": list(inert), "bench": list(bench), "requires": list(requires), "aka": list(aka), "note": note,
+            "policy": bool(policy)}
 
 
 PACKAGES = {
@@ -333,14 +403,53 @@ PACKAGES["ADOPT-ALL"] = _pkg("ADOPT", sorted({f for pid, pkg in PACKAGES.items()
                              allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT"], aka=["ADOPT"],
                              extras=["physics", "camera", "body", "sweep", "gen"],
                              note="the merged adoption round (16 domains, K-EVAL, K-CAM)")
-STAGE_ORDER = ("A0", "A", "B0", "B1", "B2", "B3", "B4", "B5", "B6", "C", "C1", "ADOPT", "D1", "D2", "D3")
-DEFAULT_PREV = {"A": "A0", "B0": "A0", "B1": "B0", "ADOPT": "C1"}
+# phase 1 of the stabilisation after the independent review (REVIEW_REPORT top-10 item 3): the gate and process
+# tooling. Its verify.py change (a wrong plan that raises is not evidence) changes verdicts of specs it does not own:
+# each one needs a reviewed row (code P1) and the main session's signature like any other package's
+PACKAGES["K-GATE"] = _pkg("P1", [
+    "tools/orchestration/*", "tools/fuzz.py", "house_sim/tasks/verify.py", "house_sim/eval/run.py",
+    ".github/workflows/ci.yml", "tests/test_gate_tool.py", "tests/test_verify_records.py", "docs/EVAL_HARNESS.md",
+    "catalog/analysis/phase1/K-GATE.json", "catalog/analysis/tier1/handoff_K-GATE.md"],
+    allow=["verdict"], codes=["P1"], policy=True,
+    note="phase-1 kernel agent: gate and process tooling; may write the policy files' format (the main session "
+         "commits them)")
+# the phase-1 kernel agents K-FIX and K-LEAK and the phase-1 integrator (INT: kernel requests of the round, the
+# re-records, the phase reports in catalog/analysis/phase1/): the kernel side (ADOPT-INT's files) plus the files those
+# packages add outside it -- K-LEAK's tests/test_leaks_review.py, the integrator's results and folder keepers, the
+# embodiment design note on the felt load and the verifier-hardening decision record committed with this phase
+PACKAGES["P1-INT"] = _pkg("P1", sorted(set(PACKAGES["ADOPT-INT"]["files"]) | {
+    "tests/test_leaks_review.py", "catalog/analysis/phase1/*", "docs/design/TIER1_EMBODIMENT.md",
+    "docs/design/VERIFY_HARDENING_DECISIONS.md", "tasks/templates/.gitkeep", "house_sim/data/actions/.gitkeep"}),
+    allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["P1"],
+    extras=["physics", "camera", "body", "sweep", "gen"],
+    note="phase-1 kernel agents (K-FIX, K-LEAK) and the phase-1 integrator: kernel-side fixes and requests, re-records")
+# the phase-1 red team's fix pass on the non-domain files (FIX2: catalog/analysis/phase1/FIX2.json): the kernel side
+# (P1-INT's files), the gate and process tooling it hardened (K-GATE's), the CI workflow and the one factual update of
+# the verifier-hardening design (the hidden seed range)
+PACKAGES["P1-FIX2"] = _pkg("P1", sorted(set(PACKAGES["P1-INT"]["files"]) | set(PACKAGES["K-GATE"]["files"]) | {
+    "docs/design/VERIFY_HARDENING.md"}),
+    allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["P1"],
+    extras=["physics", "camera", "body", "sweep", "gen"],
+    note="phase-1 red-team fix pass (non-domain files): kernel leaks, gate honesty, verifier interim rule, CI, tools")
+# the main session's phase-1 integration record (`record --id P1 --package P1 --prev ADOPT`): the domains' fixes
+# (their ADOPT:<domain> files), the kernel side (ADOPT-INT's, P1-INT's and P1-FIX2's files) and K-GATE's; it may change
+# the policy files (the main session signs) and, like every package, needs reviewed rows plus signatures for each
+# verdict change and edit
+PACKAGES["P1-ALL"] = _pkg("P1", sorted(set(PACKAGES["ADOPT-ALL"]["files"]) | set(PACKAGES["K-GATE"]["files"])
+                                       | set(PACKAGES["P1-INT"]["files"]) | set(PACKAGES["P1-FIX2"]["files"])),
+                          allow=["state", "obs", "verdict", "fingerprint", "gen1"], codes=["ADOPT", "P1"], aka=["P1"],
+                          extras=["physics", "camera", "body", "sweep", "gen"], policy=True,
+                          note="phase 1 of the stabilisation, merged (16 domains' fixes, kernel agents, K-GATE)")
+STAGE_ORDER = ("A0", "A", "B0", "B1", "B2", "B3", "B4", "B5", "B6", "C", "C1", "ADOPT", "P1", "D1", "D2", "D3")
+DEFAULT_PREV = {"A": "A0", "B0": "A0", "B1": "B0", "ADOPT": "C1", "P1": "ADOPT"}
 # packages that run in parallel inside one sub-stage (G10 --shared-tree attributes their files instead of failing)
 SUBSTAGES = {"A": ("PHYS-DATA", "PHYS-STATICS", "PHYS-FLUIDS", "CAM-SIGHT", "BODY-MODEL", "GEN", "TIME-EVAL-LIB",
                    "PEOPLE-IO-LIB"),
              "B3": ("CAM-ACTIONS", "CAM-RENDER"), "B4": ("BODY-ENGINE", "NAV-M2"),
              "B5": ("BODY-CORE", "NAV-M5", "BODY-FAULTS"), "C": ("TIME-EVAL", "PEOPLE-IO"),
-             "ADOPT": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-EVAL", "K-CAM", "ADOPT-INT"])}
+             "ADOPT": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-EVAL", "K-CAM", "ADOPT-INT"]),
+             # phase 1: the 16 domain owners fix their own files (their ADOPT:<domain> packages) beside K-GATE
+             "P1": tuple(["ADOPT:" + _d for _d in DOMAINS] + ["K-GATE"])}
 
 
 def gate_dirname(name):
@@ -377,11 +486,12 @@ def resolve_package(name):
 def policy_for(names, stage=None):
     """Union policy of one or more packages ("BODY-ENGINE+NAV-M2"). names: list of canonical ids (may be empty)."""
     pol = {"packages": list(names), "files": [], "allow": set(), "codes": set(), "extras": [], "inert": [],
-           "bench": [1.05, "prev"], "requires": set(), "stage": stage or "A0"}
+           "bench": [1.05, "prev"], "requires": set(), "stage": stage or "A0", "policy": False}
     stages = []
     for pid in names:
         pkg = PACKAGES[pid]
         pol["files"] += pkg["files"]
+        pol["policy"] = pol["policy"] or pkg.get("policy", False)
         pol["allow"] |= set(pkg["allow"])
         pol["codes"] |= set(pkg["codes"])
         pol["extras"] += [e for e in pkg["extras"] if e not in pol["extras"]]
@@ -474,6 +584,163 @@ def source_has(root, rel, needle):
         return needle in (Path(root) / rel).read_text(encoding="utf-8")
     except OSError:
         return False
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# the gate's policy files: read as committed (agents never commit, so only the main session can sign)
+
+def policy_root():
+    """The project whose committed policy files apply: the repository this gate script belongs to (FIX2). Never a
+    record's or a comparison's --root: an isolated copy carries a writable manifest and files, and any other folder
+    could be a git repository with forged commits. When this script itself runs from a copy that is no git work tree,
+    no policy file is trusted (fail closed)."""
+    return DEFAULT_ROOT
+
+
+def trusted_bytes(root, rel):
+    """(bytes or None, note) of a policy file as the main session committed it in the git work tree `root`: the blob
+    at HEAD (working-tree edits do not count until committed; the note says when there are some). An isolated copy is
+    never a policy source (FIX2: its manifest is writable, so it could vouch for forged files); elsewhere: None. The
+    gate reads policy files from policy_root()."""
+    root = Path(root)
+    if (root / ISOLATE_MANIFEST).exists():
+        return None, "an isolated copy is never a policy source (the gate reads them from the project: policy_root)"
+    try:
+        probe = subprocess.run(["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"], capture_output=True,
+                               text=True, encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return None, "git unavailable ({})".format(exc)
+    if probe.returncode != 0 or probe.stdout.strip() != "true":
+        return None, "not a git work tree: policy files cannot be trusted"
+    show = subprocess.run(["git", "-C", str(root), "show", "HEAD:" + rel], capture_output=True)
+    if show.returncode != 0:
+        return None, "not committed"
+    note = "committed at HEAD"
+    try:
+        local = (root / rel).read_bytes()
+        if local.replace(b"\r\n", b"\n") != show.stdout.replace(b"\r\n", b"\n"):
+            note += " (working-tree edits ignored until the main session commits them)"
+    except OSError:
+        note += " (deleted in the working tree; the committed version counts)"
+    return show.stdout, note
+
+
+def trusted_json(root, rel):
+    """(data or None, note): trusted_bytes parsed as JSON."""
+    raw, note = trusted_bytes(root, rel)
+    if raw is None:
+        return None, note
+    try:
+        return json.loads(raw.decode("utf-8")), note
+    except ValueError as exc:
+        return None, "unreadable JSON ({})".format(exc)
+
+
+def _today():
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def load_known_failing(root, today=None):
+    """The dated allowlist (KNOWN_FAILING) as committed: {"entries": usable entries, "expired": [...], "invalid":
+    [(entry, why)], "note"}. An entry is {"kind": "test", "test": "tests.test_x.Class[.test_name]", "modes": [...]
+    (default all), ...} or {"kind": "spec", "catalog_id", "seeds": [..] or "all", "mode": "own" | "realistic" | "both"
+    (default own), ...}, each with "owner", "expires" (YYYY-MM-DD; the entry excuses nothing after that day) and
+    "reason". FIX2: kind "skip" ({"kind": "skip", "test": "tests.test_x.Class[.test_name]", "modes"?}) excuses a test that
+    became skipped or an expected failure, or was removed (test_regressions)."""
+    today = today or _today()
+    data, note = trusted_json(root, KNOWN_FAILING)
+    out = {"entries": [], "expired": [], "invalid": [], "note": note}
+    if data is None:
+        return out
+    if not isinstance(data, dict) or data.get("format") != KNOWN_FAILING_FORMAT:
+        out["invalid"].append((short(data, 120), "not a {} file".format(KNOWN_FAILING_FORMAT)))
+        return out
+    for entry in data.get("entries") or []:
+        if not isinstance(entry, dict):
+            out["invalid"].append((short(entry, 120), "not an object"))
+            continue
+        missing = [k for k in ("kind", "owner", "expires", "reason") if not entry.get(k)]
+        what = {"test": "test", "spec": "catalog_id", "skip": "test"}.get(entry.get("kind"))
+        if what is None:
+            missing.append("kind test|spec|skip")
+        elif not entry.get(what):
+            missing.append(what)
+        if not missing and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(entry["expires"])):
+            missing.append("expires as YYYY-MM-DD")
+        if missing:
+            out["invalid"].append((short(entry, 160), "missing " + ", ".join(missing)))
+        elif str(entry["expires"]) < today:
+            out["expired"].append(entry)
+        else:
+            out["entries"].append(entry)
+    return out
+
+
+def test_allowed(allow, test_id, mode):
+    """The allowlist entry excusing a failing test (a dotted id; a class or module entry covers its tests), or None."""
+    for entry in (allow or {}).get("entries", []):
+        if entry.get("kind") != "test":
+            continue
+        name = str(entry["test"])
+        if test_id != name and not test_id.startswith(name + "."):
+            continue
+        if mode in (entry.get("modes") or TEST_MODES):
+            return entry
+    return None
+
+
+def skip_allowed(allow, test_id, mode):
+    """The allowlist entry of kind "skip" excusing a removed, skipped or expected-failure test (a dotted id; a class or
+    module entry covers its tests), or None (FIX2)."""
+    for entry in (allow or {}).get("entries", []):
+        if entry.get("kind") != "skip":
+            continue
+        name = str(entry["test"])
+        if test_id != name and not test_id.startswith(name + "."):
+            continue
+        if mode in (entry.get("modes") or TEST_MODES):
+            return entry
+    return None
+
+
+def spec_allowed(allow, catalog_id, seed, mode):
+    """The allowlist entry excusing a failing spec trial (mode "own" or "realistic"), or None."""
+    for entry in (allow or {}).get("entries", []):
+        if entry.get("kind") != "spec" or entry.get("catalog_id") != catalog_id:
+            continue
+        seeds = entry.get("seeds", "all")
+        if seeds not in ("all", "*") and not (isinstance(seeds, list) and seed in seeds) and seeds != seed:
+            continue
+        if entry.get("mode", "own") in ("both", mode):
+            return entry
+    return None
+
+
+def load_signoff(root, gate_id):
+    """The second signatures of one gate record (SIGNOFF_DIR/<gate id>.json) as committed: {"verdict": {(key, seed,
+    mode): digest}, "edit": {key: spec_hash}, "coverage": set(actions), "tests": set((test id, mode or None)), "note",
+    "by"}."""
+    rel = "{}/{}.json".format(SIGNOFF_DIR, gate_dirname(gate_id))
+    data, note = trusted_json(root, rel)
+    out = {"verdict": {}, "edit": {}, "coverage": set(), "tests": set(), "note": "{}: {}".format(rel, note), "by": None}
+    if not isinstance(data, dict) or data.get("format") != SIGNOFF_FORMAT:
+        if data is not None:
+            out["note"] = "{}: not a {} file (ignored)".format(rel, SIGNOFF_FORMAT)
+        return out
+    out["by"] = data.get("signed_by")
+    for row in data.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        kind = row.get("kind")
+        if kind == "verdict" and row.get("key") is not None:
+            out["verdict"][(row["key"], row.get("seed"), row.get("mode"))] = row.get("digest")
+        elif kind == "edit" and row.get("key") is not None:
+            out["edit"][row["key"]] = row.get("spec_hash")
+        elif kind == "coverage" and row.get("action"):
+            out["coverage"].add(row["action"])
+        elif kind == "test-removal" and row.get("test"):
+            out["tests"].add((str(row["test"]), row.get("mode")))     # FIX2: a test removed or skipped on purpose
+    return out
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -623,9 +890,30 @@ def _safe_digest(digest, fn):
         return "error:{}".format(type(exc).__name__)
 
 
+WRONG_KEYS = ("fails", "ran", "refusals", "reasons", "goal_fraction", "error_class", "steps_run", "steps_total")
+
+
+def wrong_item(record, env=None, digest=None):
+    """The compact trial-record form of one wrong-plan record of verify.run_trial: its verdict fields (fails, ran
+    fully, the sorted reason classes, the goal fraction), the error class and message when it raised, its first
+    failure labels, and the digest of its final state when the environment was captured."""
+    item = {k: record[k] for k in WRONG_KEYS if k in record}
+    item["name"] = short(str(record.get("name", "")), 60)
+    if record.get("error"):
+        item["error"] = short(record["error"], 200)
+    if record.get("labels"):
+        item["labels"] = [short(str(label), 80) for label in record["labels"][:12]]
+    if record.get("harness_error"):
+        item["harness_error"] = True
+    if env is not None and digest is not None:
+        item["state_hash"] = _safe_digest(digest, lambda: env.world.s)
+    return item
+
+
 def worker_trials(chunk_path, out_path):
     """Run verify.run_trial for every (spec, seed) of a chunk; append one compact JSON line per trial. The reference,
-    idle and wrong-plan environments are captured (by wrapping verify.run_plan / verify.idle) to add their digests."""
+    idle and wrong-plan environments are captured (run_trial(capture=...); with an older verify.py by wrapping
+    verify.run_plan / verify.idle) to add their digests."""
     chunk = read_json(chunk_path)
     _quiet_imports(chunk["root"])
     os.environ.setdefault("HOUSE_SIM_WORKER", "1")
@@ -634,39 +922,47 @@ def worker_trials(chunk_path, out_path):
     from house_sim.kernel.predicates import digest
     from house_sim.tasks import verify
     load_domains()
+    params = inspect.signature(verify.run_trial).parameters
+    takes_camera, takes_capture = "camera" in params, "capture" in params
     captured = {"plans": [], "idle": None}
-    run_plan, idle = verify.run_plan, verify.idle
+    if not takes_capture:
+        run_plan, idle = verify.run_plan, verify.idle
 
-    def run_plan_spy(env, plan, bindings, strict=True):
-        captured["plans"].append((strict, env))
-        return run_plan(env, plan, bindings, strict=strict)
+        def run_plan_spy(env, plan, bindings, strict=True):
+            captured["plans"].append((strict, env))
+            return run_plan(env, plan, bindings, strict=strict)
 
-    def idle_spy(env, task):
-        result = idle(env, task)
-        captured["idle"] = env
-        return result
+        def idle_spy(env, task):
+            result = idle(env, task)
+            captured["idle"] = env
+            return result
 
-    verify.run_plan, verify.idle = run_plan_spy, idle_spy
-    takes_camera = "camera" in inspect.signature(verify.run_trial).parameters
+        verify.run_plan, verify.idle = run_plan_spy, idle_spy
     with open(out_path, "w", encoding="utf-8", newline="\n") as out:
         for job in chunk["jobs"]:
             for seed in chunk["seeds"]:
                 captured["plans"], captured["idle"] = [], None
+                capture = {}
+                kwargs = {"capture": capture} if takes_capture else {}
                 start = time.perf_counter()
                 if chunk.get("camera") and not takes_camera:
                     raw = {"seed": seed, "passed": False,
                            "error": "camera={} requested but verify.run_trial has no camera parameter".format(chunk["camera"])}
                 elif chunk.get("camera"):
-                    raw = verify.run_trial(job["spec"], seed, chunk["perception"], camera=chunk["camera"])
+                    raw = verify.run_trial(job["spec"], seed, chunk["perception"], camera=chunk["camera"], **kwargs)
                 else:
-                    raw = verify.run_trial(job["spec"], seed, chunk["perception"])
+                    raw = verify.run_trial(job["spec"], seed, chunk["perception"], **kwargs)
                 trial = {k: raw[k] for k in TRIAL_KEYS if k in raw}
-                refs = [env for strict, env in captured["plans"] if strict]
-                wrongs = [env for strict, env in captured["plans"] if not strict]
-                if refs:
-                    trial["reference_obs_hash"] = _safe_digest(digest, refs[-1].observe)
-                if captured["idle"] is not None:
-                    trial["idle_state_hash"] = _safe_digest(digest, lambda: captured["idle"].world.s)
+                if takes_capture:
+                    ref_env, idle_env, wrongs = capture.get("reference"), capture.get("idle"), capture.get("wrong") or []
+                else:
+                    refs = [env for strict, env in captured["plans"] if strict]
+                    ref_env, idle_env = (refs[-1] if refs else None), captured["idle"]
+                    wrongs = [env for strict, env in captured["plans"] if not strict]
+                if ref_env is not None:
+                    trial["reference_obs_hash"] = _safe_digest(digest, ref_env.observe)
+                if idle_env is not None:
+                    trial["idle_state_hash"] = _safe_digest(digest, lambda: idle_env.world.s)
                 for key in ("error", "reference_error"):
                     if raw.get(key):
                         trial[key] = short(raw[key], 400)
@@ -674,21 +970,70 @@ def worker_trials(chunk_path, out_path):
                     trial["reference_failures"] = [short(f, 200) for f in raw["reference_failures"][:5]]
                 if raw.get("perceivability_gaps"):
                     trial["perceivability_gaps"] = short(raw["perceivability_gaps"], 300)
-                wrong = []
-                for i, record in enumerate(raw.get("wrong", [])):
-                    item = {k: record[k] for k in ("fails", "ran", "refusals") if k in record}
-                    item["name"] = short(str(record.get("name", "")), 60)
-                    if record.get("error"):
-                        item["error"] = short(record["error"], 200)
-                    if len(wrongs) == len(raw.get("wrong", [])):
-                        item["state_hash"] = _safe_digest(digest, lambda: wrongs[i].world.s)
-                    wrong.append(item)
-                trial["wrong"] = wrong
+                records = raw.get("wrong", [])
+                envs = wrongs if len(wrongs) == len(records) else [None] * len(records)
+                trial["wrong"] = [wrong_item(record, env, digest) for record, env in zip(records, envs)]
                 trial.update(key=job["key"], catalog_id=job["spec"].get("catalog_id"), file=job["file"],
                              spec_hash=job["spec_hash"], mode=chunk["mode"], own_mode=job["own_mode"],
                              secs=round(time.perf_counter() - start, 2))
                 out.write(json.dumps(trial, sort_keys=True, default=str) + "\n")
                 out.flush()
+
+
+def worker_unittest(out_path, target):
+    """Run one test target exactly as `python -m unittest <target>` does (the same report on stderr, exit status 0 /
+    1, and 5 when no test ran) and write every test's outcome to out_path: {"tests": {test id: "ok" | "skip" | "xfail"
+    | "xpass" | "fail" | "error"}, "ran"} (FIX2: the gate only read exit codes, so a failing test skipped with
+    @unittest.skip, or a deleted test file, passed). Returns the exit status."""
+    import unittest
+    sys.path[:] = [p for p in sys.path if p and Path(p).resolve() != HERE]
+    sys.path.insert(0, os.getcwd())          # like `python -m unittest`: the project (cwd) first, not this folder
+    outcomes = {}
+
+    def note(test, outcome):
+        tid = test.id() if hasattr(test, "id") else str(test)
+        if outcomes.get(tid) not in ("fail", "error"):
+            outcomes[tid] = outcome
+
+    class Result(unittest.TextTestResult):
+        def addSuccess(self, test):
+            super().addSuccess(test)
+            note(test, "ok")
+
+        def addFailure(self, test, err):
+            super().addFailure(test, err)
+            note(test, "fail")
+
+        def addError(self, test, err):
+            super().addError(test, err)
+            note(test, "error")
+
+        def addSkip(self, test, reason):
+            super().addSkip(test, reason)
+            note(test, "skip")
+
+        def addExpectedFailure(self, test, err):
+            super().addExpectedFailure(test, err)
+            note(test, "xfail")
+
+        def addUnexpectedSuccess(self, test):
+            super().addUnexpectedSuccess(test)
+            note(test, "xpass")
+
+        def addSubTest(self, test, subtest, err):
+            super().addSubTest(test, subtest, err)
+            if err is not None:
+                note(test, "fail" if issubclass(err[0], test.failureException) else "error")
+
+    class Runner(unittest.TextTestRunner):
+        resultclass = Result
+
+    program = unittest.main(module=None, argv=["python -m unittest", target], testRunner=Runner, exit=False)
+    result = program.result
+    write_json(out_path, {"tests": dict(sorted(outcomes.items())), "ran": result.testsRun})
+    if result.testsRun == 0 and not result.skipped:
+        return 5
+    return 0 if result.wasSuccessful() else 1
 
 
 def worker_gen1(root, out_path, part, parts):
@@ -817,6 +1162,16 @@ def test_row(job):
     s = SKIPPED.search(verdicts[-1]) if verdicts else None
     row = {"file": job.meta["file"], "mode": job.meta["mode"], "rc": res["rc"], "ran": int(m.group(1)) if m else 0,
            "skipped": int(s.group(1)) if s else 0, "secs": res["secs"]}
+    # per-test outcomes written by the _unittest worker (FIX2): every test id, and the ids of each outcome that is not
+    # "ok"; absent when the process died before writing them (then only the counts are compared)
+    data = read_json(job.meta["outcomes"]) if job.meta.get("outcomes") else None
+    if isinstance(data, dict) and isinstance(data.get("tests"), dict):
+        row["ids"] = sorted(data["tests"])
+        quiet = defaultdict(list)
+        for tid, outcome in sorted(data["tests"].items()):
+            if outcome != "ok":
+                quiet[str(outcome)].append(tid)
+        row["outcomes"] = dict(sorted(quiet.items()))
     if res["rc"]:
         row["tail"] = tail(text, 3000)
         failed = set()
@@ -824,6 +1179,59 @@ def test_row(job):
             failed.add(where if where.endswith("." + name) else "{}.{}".format(where, name))
         row["failed_tests"] = sorted(failed) or ["{} (rc {}, no test failure parsed)".format(job.meta["file"], res["rc"])]
     return row
+
+
+def _module_of(file):
+    """The dotted module of a tests/ file name ("test_mind.py" -> "tests.test_mind")."""
+    return "tests." + file[:-3] if str(file).endswith(".py") else str(file)
+
+
+def _named(test, names):
+    return any(test == n or test.startswith(n + ".") for n in names)
+
+
+def test_regressions(prev, cur, allow=None, signoff=None, checks=("G1", "G1b", "G8")):
+    """Tests that went quiet between two tests.json records (FIX2: a failing test skipped with @unittest.skip, or a
+    test file deleted, passed both record and compare): ([(check, file, mode, test, what)] not excused, [...] excused).
+    With per-test ids on both sides: every id of the previous record that is gone, or that became skipped or an
+    expected failure; otherwise the counts: a file that is gone, ran fewer tests or skipped more. Excused by an
+    allowlist entry of kind "skip" or a committed signoff row {"kind": "test-removal", "test", "mode"?} naming the
+    test, its class or its module. A check missing from `cur` is not compared here (missing data is reported)."""
+    signed = (signoff or {}).get("tests") or set()
+    bad, excused = [], []
+    for check in checks:
+        a_rows, b_rows = (prev or {}).get(check) or [], (cur or {}).get(check)
+        if not a_rows or not b_rows:
+            continue
+        a = {(r["file"], r["mode"]): r for r in a_rows}
+        b = {(r["file"], r["mode"]): r for r in b_rows}
+        for key in sorted(a):
+            file, mode = key
+            old, new = a[key], b.get(key)
+            found = []
+            if new is None:
+                found.append((_module_of(file), "test file gone ({} test(s) before)".format(old.get("ran"))))
+            elif old.get("ids") is not None and new.get("ids") is not None:
+                before, now = set(old["ids"]), set(new["ids"])
+                quiet_old = {t for k in ("skip", "xfail") for t in (old.get("outcomes") or {}).get(k, [])}
+                quiet_new = {t for k in ("skip", "xfail") for t in (new.get("outcomes") or {}).get(k, [])}
+                found += [(t, "removed") for t in sorted(before - now)]
+                found += [(t, "now skipped or an expected failure") for t in sorted(quiet_new - quiet_old)
+                          if t in before]
+            else:
+                if int(new.get("ran") or 0) < int(old.get("ran") or 0):
+                    found.append((_module_of(file), "ran {} -> {} test(s)".format(old.get("ran"), new.get("ran"))))
+                if int(new.get("skipped") or 0) > int(old.get("skipped") or 0):
+                    found.append((_module_of(file), "skipped {} -> {}".format(old.get("skipped"), new.get("skipped"))))
+            for test, what in found:
+                ok = skip_allowed(allow, test, mode) is not None or \
+                    _named(test, [t for t, m in signed if m in (None, mode)])
+                (excused if ok else bad).append((check, file, mode, test, what))
+    return bad, excused
+
+
+def describe_regressions(items, n=600):
+    return short(["{} ({} {}): {}".format(test, check, mode, what) for check, _, mode, test, what in items], n)
 
 
 def new_failures(rows, prev_rows, mode):
@@ -865,13 +1273,37 @@ def summarize_leaks(data):
 
 
 def summarize_fuzz(data, text):
+    """A fuzz run's summary: defects, nondeterministic replays, examples, the command counts and (tools/fuzz.py from
+    phase 1 on) the per-action success coverage: registered and succeeding counts and the sorted action names."""
     data = data or {}
     m = re.search(r"houses (\d+)\s+commands (\d+)\s+succeeded (\d+)", text or "")
     out = {"defects": len(data.get("defects", [])), "nondeterministic": len(data.get("nondeterministic", [])),
            "examples": [short(d, 400) for d in data.get("defects", [])[:8]] + [short(n, 300) for n in data.get("nondeterministic", [])[:4]]}
     if m:
         out.update(houses=int(m.group(1)), commands=int(m.group(2)), succeeded=int(m.group(3)))
+    actions = data.get("actions")
+    if isinstance(actions, dict) and actions:
+        ok = sorted(a for a, v in actions.items() if isinstance(v, (list, tuple)) and v and v[0] > 0)
+        out.update(actions_registered=len(actions), actions_succeeded=len(ok), succeeded_actions=ok,
+                   never_actions=sorted(set(actions) - set(ok)))
+    coverage = data.get("coverage") if isinstance(data.get("coverage"), dict) else {}
+    if coverage.get("noop_only") is not None:
+        # actions whose only "successes" changed nothing (tools/fuzz.py from FIX2 on): not counted as succeeding
+        out["noop_only"] = list(coverage.get("noop_only") or [])
     return out
+
+
+def action_coverage(variants):
+    """Per-action success coverage over every fuzz variant of a gate: {"registered", "succeeded": sorted names,
+    "never": sorted names}; None when no variant reports actions."""
+    names, ok = set(), set()
+    for summary in (variants or {}).values():
+        if isinstance(summary, dict) and summary.get("succeeded_actions") is not None:
+            ok |= set(summary["succeeded_actions"])
+            names |= set(summary["succeeded_actions"]) | set(summary.get("never_actions") or [])
+    if not names:
+        return None
+    return {"registered": len(names), "succeeded": sorted(ok), "never": sorted(names - ok)}
 
 
 def summarize_layout(rows):
@@ -911,23 +1343,45 @@ def parse_reviewed_markdown(text):
 
 
 def load_reviewed(root, gate_dir, packages, extra_file=None):
+    """Reviewed rows (the first signature): the rows of each package's handoff table (bound to that package), of
+    gate/<ID>/reviewed.json and of --reviewed FILE (bound to the row's "package" when it names one of `packages`,
+    else to all of them). Every reviewed difference also needs the main session's second signature (load_signoff)."""
     rows = []
     for pid in packages:
         for name in [pid] + PACKAGES[pid]["aka"]:
             path = Path(root) / HANDOFF_DIR / "handoff_{}.md".format(name.replace(":", "_"))
             if path.exists():
-                rows += parse_reviewed_markdown(path.read_text(encoding="utf-8"))
+                rows += [dict(row, packages=[pid]) for row in parse_reviewed_markdown(path.read_text(encoding="utf-8"))]
     for path in [Path(gate_dir) / "reviewed.json"] + ([Path(extra_file)] if extra_file else []):
         data = read_json(path)
         for item in data or []:
+            if not isinstance(item, dict):
+                continue
             code = item.get("code") or item.get("codes") or []
+            named = resolve_package(item.get("package")) if item.get("package") else None
             rows.append({"catalog_id": item.get("catalog_id"), "seeds": item.get("seeds", item.get("seed", "all")),
                          "mode": item.get("mode", "both"), "codes": code if isinstance(code, list) else [code],
-                         "source": str(path.name)})
+                         "source": str(path.name),
+                         "packages": [named] if named in packages else list(packages)})
     return rows
 
 
-def reviewed_covers(rows, cid, seed, mode, codes):
+def spec_globs(pid):
+    """The tasks/authored globs a package owns ([] for a package that owns no spec file: a kernel package)."""
+    return [g for g in PACKAGES[pid]["files"] if g.startswith("tasks/authored/")]
+
+
+def package_covers_spec(pid, spec_file):
+    """Review codes are bound to the files a package owns (REVIEW_REPORT H12): a package that owns spec files reviews
+    only those (ADOPT:cleaning: tasks/authored/cleaning__*.json); a kernel package, whose changes reach every domain's
+    specs, may review any spec, behind the main session's second signature like everyone else."""
+    globs = spec_globs(pid)
+    return not globs or (bool(spec_file) and match_any("tasks/authored/" + str(spec_file), globs))
+
+
+def reviewed_covers(rows, cid, seed, mode, codes, spec_file=None):
+    """The first reviewed row covering one trial's difference: same catalog id, seed and mode, one of the policy's
+    codes, and a package that owns the spec's file (spec_file None: no binding, for callers without the file)."""
     for row in rows:
         if row["catalog_id"] != cid:
             continue
@@ -936,8 +1390,12 @@ def reviewed_covers(rows, cid, seed, mode, codes):
             continue
         if row["mode"] not in ("both", mode):
             continue
-        if any(c in codes for c in row["codes"]):
-            return row
+        if not any(c in codes for c in row["codes"]):
+            continue
+        if spec_file is not None and row.get("packages") and \
+                not any(pid in PACKAGES and package_covers_spec(pid, spec_file) for pid in row["packages"]):
+            continue
+        return row
     return None
 
 
@@ -949,11 +1407,26 @@ STATE_KEYS = ("reference_state_hash", "idle_state_hash", "initial_hash", "task_h
               "reference_time_s")
 
 
-def trial_verdict(t):
+def has_reasons(t):
+    """True when every wrong plan of a trial record carries its reason classes (records from phase 1 on)."""
+    return all("reasons" in w for w in t.get("wrong", []))
+
+
+def trial_verdict(t, reasons=True):
+    """The verdict fields of a trial record; with reasons, each wrong plan's sorted reason classes too (a wrong plan
+    that used to fail on its goal and now fails only on a harm flag is a verdict change)."""
     v = {k: t.get(k) for k in VERDICT_KEYS}
     v["error"] = bool(t.get("error"))
-    v["wrong"] = [(w.get("name"), w.get("fails"), w.get("ran")) for w in t.get("wrong", [])]
+    v["wrong"] = [(w.get("name"), w.get("fails"), w.get("ran")) + ((tuple(w.get("reasons") or ()),) if reasons else ())
+                  for w in t.get("wrong", [])]
     return v
+
+
+def verdict_digest(t):
+    """The digest a second signature names for a trial's new verdict (16 hex digits of sha256)."""
+    import hashlib
+    text = json.dumps(trial_verdict(t, reasons=has_reasons(t)), sort_keys=True, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def trial_state(t):
@@ -966,11 +1439,35 @@ def index_trials(rows):
     return {(r["key"], r["seed"]): r for r in rows}
 
 
-def compare_specs(prev_rows, cur_rows, mode, policy, reviewed):
-    """Verdict and digest changes of one mode. Returns a dict with lists and a status."""
+def failing_specs(rows, mode, allow=None):
+    """G2-ABS: ({key: [seeds]} of the trials of `rows` that did not pass and are not excused by the allowlist, every
+    key counted, new ones included; {key: [seeds]} of the excused ones)."""
+    failing, excused = defaultdict(list), defaultdict(list)
+    for r in rows:
+        if r.get("passed") is True:
+            continue
+        if spec_allowed(allow, r.get("catalog_id") or str(r["key"]).split("#")[0], r["seed"], mode):
+            excused[r["key"]].append(r["seed"])
+        else:
+            failing[r["key"]].append(r["seed"])
+    return dict(failing), dict(excused)
+
+
+def describe_failing(failing, n=12):
+    return ", ".join("{} (seeds {})".format(k, ",".join(map(str, v))) for k, v in sorted(failing.items())[:n]) + \
+        (", ..." if len(failing) > n else "")
+
+
+def compare_specs(prev_rows, cur_rows, mode, policy, reviewed, signoff=None):
+    """Verdict and digest changes of one mode. Returns a dict with lists and a status. A verdict change passes with a
+    reviewed row (bound to the files its package owns) AND the main session's signature of its exact new verdict; an
+    edited spec (spec_hash changed) needs a signature of its new spec hash. signoff None checks no signature (only a
+    caller that judges nothing may omit it)."""
     prev, cur = index_trials(prev_rows), index_trials(cur_rows)
+    sign = signoff if signoff is not None else {"verdict": {}, "edit": {}}
     out = {"mode": mode, "verdict_changes": [], "state_changes": [], "obs_changes": [], "new": [], "removed": [],
-           "edited_specs": set()}
+           "edited_specs": set(), "unsigned_edits": []}
+    edited = {}
     for k in sorted(set(prev) | set(cur), key=lambda x: (x[0], x[1])):
         a, b = prev.get(k), cur.get(k)
         if a is None:
@@ -981,14 +1478,18 @@ def compare_specs(prev_rows, cur_rows, mode, policy, reviewed):
             continue
         if a.get("spec_hash") != b.get("spec_hash"):
             out["edited_specs"].add(k[0])
-        va, vb = trial_verdict(a), trial_verdict(b)
+            edited[k[0]] = b.get("spec_hash")
+        reasons = has_reasons(a) and has_reasons(b)
+        va, vb = trial_verdict(a, reasons), trial_verdict(b, reasons)
         if va != vb:
             what = [x for x in va if va[x] != vb[x]]
-            row = reviewed_covers(reviewed, b.get("catalog_id") or k[0], k[1], mode, policy["codes"]) \
-                if "verdict" in policy["allow"] else None
+            row = reviewed_covers(reviewed, b.get("catalog_id") or k[0], k[1], mode, policy["codes"],
+                                  spec_file=b.get("file") or "") if "verdict" in policy["allow"] else None
+            digest_now = verdict_digest(b)
+            signed = signoff is not None and sign["verdict"].get((k[0], k[1], mode)) == digest_now
             out["verdict_changes"].append({"key": k[0], "seed": k[1], "passed": [a.get("passed"), b.get("passed")],
-                                           "fields": what, "reviewed": bool(row),
-                                           "codes": row["codes"] if row else [],
+                                           "fields": what, "reviewed": bool(row), "signed": signed,
+                                           "digest": digest_now, "codes": row["codes"] if row else [],
                                            "detail": short({x: [va[x], vb[x]] for x in what}, 300)})
         sa, sb = trial_state(a), trial_state(b)
         if sa != sb:
@@ -996,10 +1497,20 @@ def compare_specs(prev_rows, cur_rows, mode, policy, reviewed):
         if a.get("reference_obs_hash") != b.get("reference_obs_hash"):
             out["obs_changes"].append({"key": k[0], "seed": k[1]})
     out["edited_specs"] = sorted(out["edited_specs"])
+    out["edits"] = edited
+    if signoff is not None:
+        out["unsigned_edits"] = sorted(key for key, spec_hash in edited.items() if sign["edit"].get(key) != spec_hash)
     problems = []
     unreviewed = [c for c in out["verdict_changes"] if not c["reviewed"]]
+    unsigned = [c for c in out["verdict_changes"] if c["reviewed"] and not c["signed"] and signoff is not None]
     if unreviewed:
         problems.append("{} unreviewed verdict change(s)".format(len(unreviewed)))
+    if unsigned:
+        problems.append("{} reviewed verdict change(s) without the main session's second signature".format(
+            len(unsigned)))
+    if out["unsigned_edits"]:
+        problems.append("{} edited spec(s) without the main session's second signature".format(
+            len(out["unsigned_edits"])))
     if out["state_changes"] and "state" not in policy["allow"]:
         problems.append("{} trial(s) with changed state digests".format(len(out["state_changes"])))
     if out["obs_changes"] and "obs" not in policy["allow"]:
@@ -1038,10 +1549,89 @@ def scoped_rows(rows, globs):
     return rows
 
 
-def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=None):
+def unexplained_test_failures(rows, allow, core_required=True):
+    """(unexplained, excused) failing tests of tests.json rows (G1, G1b, G8): [(file, mode, test id)] not excused by
+    the allowlist (a failing run whose failures could not be parsed is never excused), and the excused ones.
+    core_required False: HOUSE_SIM_DOMAINS=core failures are recorded only (stage A packages, before B1)."""
+    unexplained, excused = [], []
+    for r in rows or []:
+        if not r.get("rc"):
+            continue
+        if r.get("mode") == "core" and not core_required:
+            continue
+        failed = r.get("failed_tests") or []
+        parsed = [f for f in failed if " (rc " not in f]
+        if not parsed:
+            unexplained.append((r["file"], r["mode"], (failed or ["rc {}".format(r["rc"])])[0]))
+            continue
+        for test_id in parsed:
+            entry = test_allowed(allow, test_id, r["mode"])
+            (excused if entry else unexplained).append((r["file"], r["mode"], test_id))
+    return unexplained, excused
+
+
+def audit_regressions(check, prev, cur):
+    """G4 / G6 in compare: (lines, bad). Absolute: no leak or crash (G4), no defect or nondeterministic replay (G6), a
+    tool exit status of 0; delta: no increase and no variant the previous gate ran that this one did not."""
+    keys = ("leaks", "errors") if check == "G4" else ("defects", "nondeterministic")
+    lines, bad = [], False
+    for variant in sorted(set(prev or {}) | set(cur or {})):
+        a, b = (prev or {}).get(variant), (cur or {}).get(variant)
+        if not isinstance(b, dict):
+            if isinstance(a, dict):
+                bad = True
+                lines.append("{}: MISSING (the previous gate ran it)".format(variant))
+            continue
+        problems = []
+        for k in keys:
+            now, before = int(b.get(k) or 0), int((a or {}).get(k) or 0)
+            if now > 0:
+                problems.append("{} {}".format(now, k))
+            if a is not None and now > before:
+                problems.append("{} {} -> {}".format(k, before, now))
+        if b.get("rc"):
+            problems.append("exit status {}".format(b["rc"]))
+        bad = bad or bool(problems)
+        parts = ", ".join("{} {} -> {}".format(k, (a or {}).get(k), b.get(k)) for k in keys)
+        if check == "G6":
+            parts += ", commands {} -> {}, succeeded {} -> {}".format((a or {}).get("commands"), b.get("commands"),
+                                                                    (a or {}).get("succeeded"), b.get("succeeded"))
+            if b.get("actions_succeeded") is not None:
+                parts += ", actions succeeding {} -> {} of {}".format((a or {}).get("actions_succeeded"),
+                                                                   b["actions_succeeded"], b.get("actions_registered"))
+        lines.append("{}: {}{}".format(variant, parts, ("  [" + "; ".join(problems) + "]") if problems else ""))
+    return lines, bad
+
+
+def coverage_loss(prev, cur, signoff=None):
+    """Actions the previous gate's coverage fuzz drove to success that this gate's does not (G6 "coverage" variant),
+    minus actions no longer registered: ([lost, unsigned], [lost, signed])."""
+    a, b = (prev or {}).get("coverage"), (cur or {}).get("coverage")
+    if not isinstance(a, dict) or not isinstance(b, dict) or a.get("succeeded_actions") is None or \
+            b.get("succeeded_actions") is None:
+        return [], []
+    registered = set(b.get("succeeded_actions") or []) | set(b.get("never_actions") or [])
+    lost = sorted(x for x in set(a["succeeded_actions"]) - set(b["succeeded_actions"]) if x in registered)
+    signed = (signoff or {}).get("coverage") or set()
+    return [x for x in lost if x not in signed], [x for x in lost if x in signed]
+
+
+RECORD_ONLY = ("G1c", "G9", "G10")       # checks compare does not recompute at all (their own status: OWN_STATUS)
+
+
+def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=None, root=None, signoff=None,
+                 allow=None, shared_tree_scope=False):
     """Full comparison of two gate folders. Returns (sections, ok) where sections is a list of dicts
-    {"check", "status", "lines"}. Spec trials are compared on the spec files both records ran (spec_scope)."""
+    {"check", "status", "lines"}. Spec trials are compared on the spec files both records ran (spec_scope).
+    root: the project whose committed policy files apply (default: DEFAULT_ROOT); signoff / allow: the second
+    signatures of the current record and the allowlist (default: read from root). shared_tree_scope: the caller
+    checks G10 on the working tree itself (the record's own G10 is not used)."""
     prev_dir, cur_dir = Path(prev_dir), Path(cur_dir)
+    root = Path(root) if root is not None else DEFAULT_ROOT
+    if signoff is None:
+        signoff = load_signoff(root, cur_dir.name)
+    if allow is None:
+        allow = load_known_failing(root)
     sections = []
 
     def add(check, status, lines):
@@ -1049,6 +1639,18 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
 
     pm, cm = read_json(prev_dir / "meta.json", {}), read_json(cur_dir / "meta.json", {})
     globs = spec_scope(pm, cm, spec_files)
+    recorded = cm.get("recorded") or list(CHECKS)
+    # a record lists the checks it recorded: missing data of one of them is SKIP (FIX2); older synthetic records
+    # without the list are not held to it
+    explicit = "recorded" in cm
+
+    def missing(check, what):
+        """A check without results in this record: not recorded (a partial record: noted, never a hand-over) or
+        SKIP (it was recorded and left nothing: counts as FAIL)."""
+        if check not in recorded:
+            add(check, "N/R", ["{} not recorded in this (partial) record".format(what)])
+        else:
+            add(check, "SKIP", ["no {} in this gate (SKIP counts as FAIL)".format(what)])
     # G0 fingerprints
     pf, cf = pm.get("fingerprints", {}), cm.get("fingerprints", {})
     if pf.get("actions_fingerprint") and cf.get("actions_fingerprint"):
@@ -1059,40 +1661,63 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
                 "allowed for this package" if ok else "not allowed for this package")])
         else:
             add("G0", "PASS", ["action fingerprint unchanged ({})".format(cf["actions_fingerprint"][:12])])
-    # G2 / G3
+    elif explicit and "G0" in recorded and not cf.get("actions_fingerprint"):
+        missing("G0", "action fingerprint")
+    # G2 / G3: the delta rule, and G2-ABS (every spec passes in its own mode)
     for check, mode, name in (("G2", "own", "specs_own.jsonl"), ("G3", "realistic", "specs_realistic.jsonl")):
         a, b = scoped_rows(read_jsonl(prev_dir / name), globs), scoped_rows(read_jsonl(cur_dir / name), globs)
-        if not a or not b:
-            add(check, "SKIP", ["no {} trials in {}{}".format(mode, "previous gate" if not a else "this gate",
-                                                             " for spec files " + " & ".join(globs) if globs else "")])
+        where = " for spec files " + " & ".join(globs) if globs else ""
+        if not b:
+            missing(check, "{} trials{}".format(mode, where))
             continue
-        res = compare_specs(a, b, mode, policy, reviewed)
-        lines = ["{} trials vs {}: {} verdict change(s) ({} reviewed), {} with changed state digests{}, {} with a "
-                 "changed observation digest{}".format(
-                     len(b), len(a), len(res["verdict_changes"]), sum(c["reviewed"] for c in res["verdict_changes"]),
-                     len(res["state_changes"]), " (allowed)" if "state" in policy["allow"] else "",
-                     len(res["obs_changes"]), " (allowed)" if "obs" in policy["allow"] else "")]
-        if globs:
-            lines.append("  spec files: {} (both records compared on these files only)".format(" & ".join(globs)))
-        for c in res["verdict_changes"][:40]:
-            lines.append("  verdict {} seed {}: passed {} -> {} [{}] {}{}".format(
-                c["key"], c["seed"], c["passed"][0], c["passed"][1], ",".join(c["fields"]),
-                "reviewed " + ",".join(c["codes"]) if c["reviewed"] else "UNREVIEWED", "" if c["reviewed"] else " " + c["detail"]))
-        if res["state_changes"] and "state" not in policy["allow"]:
-            for c in res["state_changes"][:15]:
-                lines.append("  state {} seed {}: {}".format(c["key"], c["seed"], ",".join(c["fields"])))
-        if res["obs_changes"] and "obs" not in policy["allow"]:
-            for c in res["obs_changes"][:15]:
-                lines.append("  obs {} seed {}".format(c["key"], c["seed"]))
-        if res["new"]:
-            lines.append("  {} new trial(s) (new specs or seeds)".format(len(res["new"])))
-        if res["removed"]:
-            lines.append("  missing: " + ", ".join(res["removed"][:10]))
-        if res["edited_specs"]:
-            lines.append("  edited specs (spec_hash changed): " + ", ".join(res["edited_specs"][:20]))
-        for p in res["problems"]:
+        problems, lines = [], []
+        if a:
+            res = compare_specs(a, b, mode, policy, reviewed, signoff)
+            lines.append("{} trials vs {}: {} verdict change(s) ({} reviewed, {} signed), {} with changed state "
+                         "digests{}, {} with a changed observation digest{}".format(
+                             len(b), len(a), len(res["verdict_changes"]),
+                             sum(c["reviewed"] for c in res["verdict_changes"]),
+                             sum(c["reviewed"] and c["signed"] for c in res["verdict_changes"]),
+                             len(res["state_changes"]), " (allowed)" if "state" in policy["allow"] else "",
+                             len(res["obs_changes"]), " (allowed)" if "obs" in policy["allow"] else ""))
+            if globs:
+                lines.append("  spec files: {} (both records compared on these files only)".format(" & ".join(globs)))
+            for c in res["verdict_changes"][:40]:
+                state = "reviewed {} and signed".format(",".join(c["codes"])) if c["reviewed"] and c["signed"] else \
+                    ("reviewed {}, UNSIGNED (digest {})".format(",".join(c["codes"]), c["digest"]) if c["reviewed"]
+                     else "UNREVIEWED")
+                lines.append("  verdict {} seed {}: passed {} -> {} [{}] {}{}".format(
+                    c["key"], c["seed"], c["passed"][0], c["passed"][1], ",".join(c["fields"]), state,
+                    "" if c["reviewed"] else " " + c["detail"]))
+            if res["state_changes"] and "state" not in policy["allow"]:
+                for c in res["state_changes"][:15]:
+                    lines.append("  state {} seed {}: {}".format(c["key"], c["seed"], ",".join(c["fields"])))
+            if res["obs_changes"] and "obs" not in policy["allow"]:
+                for c in res["obs_changes"][:15]:
+                    lines.append("  obs {} seed {}".format(c["key"], c["seed"]))
+            if res["new"]:
+                lines.append("  {} new trial(s) (new specs or seeds; they must pass: G2-ABS)".format(len(res["new"])))
+            if res["removed"]:
+                lines.append("  missing: " + ", ".join(res["removed"][:10]))
+            if res["edited_specs"]:
+                lines.append("  edited specs (spec_hash changed): " + ", ".join(res["edited_specs"][:20]))
+            if res["unsigned_edits"]:
+                lines.append("  edited specs without a signature: " + ", ".join(res["unsigned_edits"][:20]))
+            problems += res["problems"]
+        else:
+            lines.append("{} trials; no previous {} trials{} (the absolute rule only)".format(len(b), mode, where))
+        if check == "G2":
+            # G2-ABS over the record's full own-mode rows, whatever the previous record ran (FIX2: a narrowed previous
+            # record narrowed the absolute rule too)
+            failing, excused = failing_specs(read_jsonl(cur_dir / name) if not spec_files else b, "own", allow)
+            if failing:
+                problems.append("G2-ABS: {} spec(s) fail in their own mode: {}".format(len(failing),
+                                                                                    describe_failing(failing)))
+            if excused:
+                lines.append("  allowlisted failing specs ({}): {}".format(len(excused), describe_failing(excused)))
+        for p in problems:
             lines.append("  problem: " + p)
-        add(check, "FAIL" if res["problems"] else "PASS", lines)
+        add(check, "FAIL" if problems else "PASS", lines)
     # G5 layout and generation 1
     pa, ca = read_json(prev_dir / "audits.json", {}), read_json(cur_dir / "audits.json", {})
     if pa.get("G5") and ca.get("G5"):
@@ -1118,12 +1743,29 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
             lines.append("generation-1 digests vs previous gate: {}/{} equal".format(len(common) - len(diff), len(common)))
             lines += ["  changed: " + k[:160] for k in diff[:10]]
         add("G5", "FAIL" if bad else "PASS", lines)
-    # G4 / G6 deltas (their own pass conditions are absolute)
-    for check, label, keys in (("G4", "perception audit", ("leaks", "errors")),
-                               ("G6", "fuzz", ("defects", "nondeterministic", "commands", "succeeded"))):
-        if pa.get(check) and ca.get(check):
-            a, b = pa[check].get("room", pa[check]), ca[check].get("room", ca[check])
-            add(check, "INFO", ["{}: {}".format(label, ", ".join("{} {} -> {}".format(k, a.get(k), b.get(k)) for k in keys))])
+    elif not ca.get("G5") and (pa.get("G5") or (explicit and "G5" in recorded)):
+        missing("G5", "layout / generation-1 results")
+    # G4 / G6: absolute, and every increase or dropped variant fails (they were INFO before phase 1)
+    for check, label in (("G4", "perception audit"), ("G6", "fuzz")):
+        if not ca.get(check):
+            if pa.get(check) or (explicit and check in recorded):
+                missing(check, label + " results")
+            continue
+        lines, bad = audit_regressions(check, pa.get(check), ca.get(check))
+        if check == "G6":
+            cov = ca[check].get("coverage")
+            if isinstance(cov, dict) and cov.get("actions_registered"):
+                lines.append("coverage: {} of {} registered actions succeed at least once; never: {}".format(
+                    cov.get("actions_succeeded"), cov.get("actions_registered"),
+                    short(", ".join(cov.get("never_actions") or []) or "none", 600)))
+            unsigned, signed = coverage_loss(pa.get(check), ca.get(check), signoff)
+            if signed:
+                lines.append("coverage lost (signed): " + ", ".join(signed[:30]))
+            if unsigned:
+                bad = True
+                lines.append("coverage LOST without a signature (actions the previous gate drove to success): " +
+                             ", ".join(unsigned[:30]))
+        add(check, "FAIL" if bad else "PASS", ["{}: {}".format(label, lines[0] if lines else "no variant")] + lines[1:])
     # G7 bench
     factor, ref_dir, ref_name = bench_reference(policy, prev_dir, gates_root)
     rb, cb = read_json(Path(ref_dir) / "bench.json", {}), read_json(cur_dir / "bench.json", {})
@@ -1145,27 +1787,91 @@ def compare_dirs(prev_dir, cur_dir, policy, reviewed, gates_root, spec_files=Non
         if worst:
             lines.append("largest per-system increases: " + ", ".join("{} {:+.3f} ms".format(k, d) for d, k in worst))
         add("G7", "FAIL" if bad else "PASS", lines)
-    # tests: counts (informational; failures are G1's own condition)
+    elif explicit and "G7" in recorded and not cb.get("G7"):
+        missing("G7", "benchmark results")
+    # tests: every test passes except the dated allowlist (absolute); no test removed, skipped or turned into an
+    # expected failure against the previous record (FIX2); the counts (informational)
     pt, ct = read_json(prev_dir / "tests.json", {}), read_json(cur_dir / "tests.json", {})
-    if pt.get("G1") and ct.get("G1"):
-        pr = {(r["file"], r["mode"]): r for r in pt["G1"]}
-        cr = {(r["file"], r["mode"]): r for r in ct["G1"]}
-        lines = []
-        for k in sorted(set(pr) | set(cr)):
-            a, b = pr.get(k), cr.get(k)
-            if a is None:
-                lines.append("new test file {} ({}): {} tests".format(k[0], k[1], b["ran"]))
-            elif b is None:
-                lines.append("test file {} ({}) is gone".format(k[0], k[1]))
-            elif a["ran"] != b["ran"] or a.get("skipped") != b.get("skipped"):
-                lines.append("{} ({}): ran {} -> {}, skipped {} -> {}".format(k[0], k[1], a["ran"], b["ran"],
-                                                                             a.get("skipped"), b.get("skipped")))
-        add("G1", "INFO", lines or ["test counts unchanged"])
-    ok = not any(s["status"] == "FAIL" for s in sections)
+    if any(ct.get(c) for c in ("G1", "G1b", "G8")) or pt.get("G1") or explicit:
+        lines, bad = [], False
+        if pt.get("G1") and not ct.get("G1"):
+            if "G1" in recorded:
+                bad = True
+                lines.append("no unit-test results in this gate (SKIP counts as FAIL)")
+            else:
+                lines.append("unit tests not recorded in this (partial) record")
+        for check in ("G1", "G1b", "G8") if explicit else ():
+            if check in recorded and not ct.get(check) and not (check == "G1" and pt.get("G1")) and \
+                    (cm.get("checks") or {}).get(check, {}).get("status") != "N/A":
+                bad = True
+                lines.append("no {} results in this record although it lists {} as recorded (SKIP counts as "
+                             "FAIL)".format(check, check))
+        quiet, quiet_ok = test_regressions(pt, ct, allow, signoff)
+        if quiet:
+            bad = True
+            lines.append("{} test(s) removed, skipped or turned into expected failures vs {} without an allowlist "
+                         "'skip' entry or a signature: {}".format(len(quiet), prev_dir.name,
+                                                                  describe_regressions(quiet)))
+        if quiet_ok:
+            lines.append("{} test(s) removed or quiet, allowlisted or signed: {}".format(
+                len(quiet_ok), describe_regressions(quiet_ok, 300)))
+        rows = [r for c in ("G1", "G1b", "G8") for r in ct.get(c) or []]
+        unexplained, excused = unexplained_test_failures(rows, allow, "kernel_core" in policy["requires"])
+        if unexplained:
+            bad = True
+            lines.append("{} failing test(s) not on the allowlist: {}".format(len(unexplained), short(
+                ["{} ({})".format(t, m) for _, m, t in unexplained], 600)))
+        if excused:
+            lines.append("{} allowlisted failing test(s): {}".format(len(excused), short(
+                ["{} ({})".format(t, m) for _, m, t in excused], 400)))
+        if pt.get("G1") and ct.get("G1"):
+            pr = {(r["file"], r["mode"]): r for r in pt["G1"]}
+            cr = {(r["file"], r["mode"]): r for r in ct["G1"]}
+            for k in sorted(set(pr) | set(cr)):
+                a, b = pr.get(k), cr.get(k)
+                if a is None:
+                    lines.append("new test file {} ({}): {} tests".format(k[0], k[1], b["ran"]))
+                elif b is None:
+                    lines.append("test file {} ({}) is gone".format(k[0], k[1]))
+                elif a["ran"] != b["ran"] or a.get("skipped") != b.get("skipped"):
+                    lines.append("{} ({}): ran {} -> {}, skipped {} -> {}".format(k[0], k[1], a["ran"], b["ran"],
+                                                                                 a.get("skipped"), b.get("skipped")))
+        status = "FAIL" if bad else ("N/R" if not rows and "G1" not in recorded else "PASS")
+        add("G1", status, lines or ["every test passes; test counts unchanged"])
+    # the record's own statuses that count (OWN_STATUS: G1c, G9 and G10 are not recomputed at all; G0, G4, G5 and G7
+    # are, from the same data) -- G10 unless checked live
+    own = cm.get("checks") or {}
+    rec = [c for c in OWN_STATUS if c in own and not (c == "G10" and shared_tree_scope)]
+    if rec:
+        failing = [c for c in rec if own[c].get("status") in FAILING]
+        add("REC", "FAIL" if failing else "PASS", ["this record's own {}: {}".format(
+            ", ".join(rec), ", ".join("{} {}".format(c, own[c].get("status")) for c in rec))] +
+            ["  {} {}: {}".format(c, own[c].get("status"), short(own[c].get("note", ""), 300)) for c in failing])
+    ok = not any(s["status"] in FAILING for s in sections)
     return sections, ok
+def record_incomplete(meta):
+    """Why a record can never be a hand-over (some checks not recorded, or the specs narrowed), or None."""
+    meta = meta or {}
+    recorded = meta.get("recorded") or list(CHECKS)
+    why = []
+    if recorded != list(CHECKS):
+        why.append("recorded " + ",".join(recorded))
+    if meta.get("spec_files"):
+        why.append("specs limited to " + meta["spec_files"])
+    return "; ".join(why) or None
 
 
-def render_compare(prev_dir, cur_dir, policy, sections, ok):
+def compare_verdict(ok, incomplete):
+    """(word, exit status): PASS 0, FAIL 1, INCOMPLETE 0 (nothing failed in what was recorded, but the record is
+    partial or narrowed: an iteration aid, never a hand-over; meta.json "handover" is false)."""
+    if not ok:
+        return "FAIL", 1
+    if incomplete:
+        return "INCOMPLETE", 0
+    return "PASS", 0
+
+
+def render_compare(prev_dir, cur_dir, policy, sections, ok, incomplete=None):
     head = "compare {} -> {} (packages: {}; allowed: {}; codes: {})".format(
         Path(prev_dir).name, Path(cur_dir).name, "+".join(policy["packages"]) or "none",
         ",".join(sorted(policy["allow"])) or "nothing", ",".join(sorted(policy["codes"])) or "none")
@@ -1173,7 +1879,9 @@ def render_compare(prev_dir, cur_dir, policy, sections, ok):
     for s in sections:
         lines.append("{:4} {:5} {}".format(s["check"], s["status"], s["lines"][0] if s["lines"] else ""))
         lines += ["           " + l for l in s["lines"][1:]]
-    lines.append("compare result: {}".format("PASS" if ok else "FAIL"))
+    word, _ = compare_verdict(ok, incomplete)
+    lines.append("compare result: {}{}".format(word, " (partial record, not a hand-over: {})".format(incomplete)
+                                                if word == "INCOMPLETE" else ""))
     return "\n".join(lines)
 
 
@@ -1246,16 +1954,107 @@ def tree_files(root, rules=None):
     return out
 
 
+def _git_blob_sha(path):
+    """The git blob id of a file's content (sha1 of "blob <size>\\0" + content)."""
+    import hashlib
+    data = Path(path).read_bytes()
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+
+
 def isolated_changes(root):
     """(changed, error) of an isolated copy (cmd_isolate): every file added, edited or deleted since the copy was made
-    from its base commit, by content hash (the copy is not a git work tree, so nothing is ever committed)."""
+    from its base commit. The base is read from the project's own git object store (policy_root(): `git ls-tree` of
+    the manifest's base commit), never from the copy's manifest, whose file list the copy could rewrite to hide an
+    edit (FIX2). A base commit the project does not have fails the scope check."""
     manifest = read_json(Path(root) / ISOLATE_MANIFEST)
     if not isinstance(manifest, dict) or manifest.get("format") != ISOLATE_FORMAT:
         return None, "not an isolated copy"
-    base = manifest.get("base_files") or {}
-    now = tree_files(root)
-    changed = {rel for rel, sha in now.items() if base.get(rel) != sha} | {rel for rel in base if rel not in now}
+    base = str(manifest.get("base") or "")
+    project = policy_root()
+    listing = subprocess.run(["git", "-C", str(project), "ls-tree", "-r", "-z", "--full-tree", base],
+                             capture_output=True) if base else None
+    if listing is None or listing.returncode != 0:
+        return None, "the isolated copy's base commit {!r} is not a commit of the project {}".format(base, project)
+    rules = _ignore_rules(root)
+    committed = {}
+    for item in listing.stdout.decode("utf-8", "replace").split("\0"):
+        head, _, rel = item.partition("\t")
+        parts = head.split()
+        if len(parts) == 3 and parts[1] == "blob" and rel and not _ignored(rel, rules):
+            committed[rel] = parts[2]
+    now = {}
+    for folder, dirs, files in os.walk(str(root)):
+        dirs[:] = sorted(d for d in dirs if d not in ISOLATE_SKIP_DIRS)
+        for name in sorted(files):
+            path = Path(folder) / name
+            rel = path.relative_to(root).as_posix()
+            if rel == ISOLATE_MANIFEST or name.endswith(".pyc") or _ignored(rel, rules):
+                continue
+            now[rel] = _git_blob_sha(path)
+    changed = {rel for rel, sha in now.items() if committed.get(rel) != sha} | {rel for rel in committed if rel not in now}
     return sorted(f for f in changed if not match_any(f, TRANSIENT)), None
+
+
+def tree_fingerprint(root):
+    """sha256 over the content of every file a gate record's checks depend on (FINGERPRINT_PATHS as git sees them: no
+    caches, ignored or transient files): the tree a check ran on (FIX2)."""
+    import hashlib
+    root = Path(root)
+    rules = _ignore_rules(root)
+    digest = hashlib.sha256()
+    for top in FINGERPRINT_PATHS:
+        base = root / top
+        items = []
+        if base.is_file():
+            items.append((top, base))
+        elif base.is_dir():
+            for folder, dirs, files in os.walk(str(base)):
+                dirs[:] = sorted(d for d in dirs if d not in ISOLATE_SKIP_DIRS)
+                for name in sorted(files):
+                    path = Path(folder) / name
+                    items.append((path.relative_to(root).as_posix(), path))
+        for rel, path in items:
+            if rel.endswith(".pyc") or _ignored(rel, rules) or match_any(rel, TRANSIENT):
+                continue
+            try:
+                sha = _file_sha(path)
+            except OSError:
+                sha = "unreadable"
+            digest.update("{}\0{}\n".format(rel, sha).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def tree_check(meta, root, any_tree=False):
+    """(section or None, incomplete reason or None) of a record against the tree it describes (FIX2): the
+    fingerprint of the record's tree now (meta "tree_root", else `root`) must equal the record's, and every check
+    result must carry it. STALE (FAIL) otherwise; a record without a fingerprint, or whose tree is gone, cannot be
+    verified (INCOMPLETE). any_tree: historical comparisons, not checked."""
+    tree = (meta or {}).get("tree")
+    if any_tree:
+        return {"check": "TREE", "status": "N/A", "lines": ["tree not checked (--any-tree): not a hand-over check"]}, \
+            "tree not checked (--any-tree)"
+    if not tree:
+        return {"check": "TREE", "status": "N/R", "lines": ["the record carries no tree fingerprint (recorded before "
+                                                            "FIX2, or files changed while it ran): cannot be verified"]}, \
+            "no tree fingerprint"
+    where = Path((meta or {}).get("tree_root") or root)
+    if not where.exists():
+        return {"check": "TREE", "status": "N/R", "lines": ["the record's tree {} is gone".format(where)]}, \
+            "the record's tree is gone"
+    now = tree_fingerprint(where)
+    stale = sorted(c for c, v in ((meta or {}).get("checks") or {}).items()
+                   if isinstance(v, dict) and v.get("tree") != tree)
+    lines = []
+    if now != tree:
+        lines.append("STALE: {} has changed since the record was made (fingerprint {} -> {})".format(
+            where, tree[:12], now[:12]))
+    if stale:
+        lines.append("STALE: check(s) {} ran on another tree than the record's (a partial re-run merged with an "
+                     "earlier run)".format(",".join(stale)))
+    if lines:
+        return {"check": "TREE", "status": "FAIL", "lines": lines}, None
+    return {"check": "TREE", "status": "PASS", "lines": ["the record was made on this tree ({}; {})".format(
+        tree[:12], where)]}, None
 
 
 def changed_files(root):
@@ -1280,11 +2079,16 @@ def changed_files(root):
 
 
 def scope_check(root, policy, gate_id, shared_tree=False):
+    """G10: every changed file in the package's list, its handoff or its gate folder (with --shared-tree, files of
+    the packages running beside it are attributed to them). Without git (and outside an isolated copy) the scope
+    cannot be checked: FAIL, never a silent skip. The gate's policy files (PROTECTED) are the main session's: a
+    package that changes them fails, whatever its globs say (K-GATE, which defines their format, excepted)."""
     if not policy["packages"]:
-        return {"status": "SKIP", "note": "no --package given (main-session gate)"}
+        return {"status": "N/A", "note": "no --package given (main-session gate: no package scope to check)"}
     files, error = changed_files(root)
     if files is None:
-        return {"status": "SKIP", "note": "git unavailable: " + error}
+        return {"status": "FAIL", "note": "scope cannot be checked: {} (a gate record needs git or an isolated copy; "
+                                          "SKIP counts as FAIL)".format(error)}
     allowed = list(policy["files"])
     for pid in policy["packages"]:
         names = [pid] + PACKAGES[pid]["aka"]
@@ -1303,22 +2107,30 @@ def scope_check(root, policy, gate_id, shared_tree=False):
         for members in SUBSTAGES.values():
             if any(p in members for p in policy["packages"]):
                 peers += [m for m in members if m not in policy["packages"] and m not in peers]
+    protected = []
     for f in files:
-        if match_any(f, allowed):
+        guarded = match_any(f, PROTECTED)
+        if match_any(f, allowed) and (not guarded or policy.get("policy")):
             continue
-        # a concurrent package's files, handoff and gate folder (its own gate record) are attributed to it
-        owner = next((p for p in peers if match_any(f, PACKAGES[p]["files"] + [
+        # a concurrent package's files, handoff and gate folder (its own gate record) are attributed to it (a policy
+        # file only to a package that may write them)
+        owner = next((p for p in peers if (not guarded or PACKAGES[p].get("policy")) and match_any(f, PACKAGES[p]["files"] + [
             "{}/handoff_{}.md".format(HANDOFF_DIR, gate_dirname(name)) for name in [p] + PACKAGES[p]["aka"]] + [
             "{}/{}/*".format(GATE_DIR, gate_dirname(name)) for name in [p] + PACKAGES[p]["aka"]])), None)
         if owner:
             attributed[f] = owner
         else:
             outside.append(f)
+            if guarded:
+                protected.append(f)
     status = "FAIL" if outside else "PASS"
     note = "{} changed file(s); {} outside the list of {}".format(len(files), len(outside), "+".join(policy["packages"]))
+    if protected:
+        note += "; {} of the gate's policy files changed (main session only: {})".format(len(protected), POLICY_DIR)
     if attributed:
         note += "; {} attributed to concurrent packages (--shared-tree)".format(len(attributed))
-    return {"status": status, "note": note, "changed": files, "outside": outside, "attributed": attributed}
+    return {"status": status, "note": note, "changed": files, "outside": outside, "attributed": attributed,
+            "protected": protected}
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -1352,6 +2164,21 @@ class Gate:
         self.python = sys.executable
         self.script = str(Path(__file__).resolve())
         self.started = time.perf_counter()
+        self._allow = self._signoff = None
+
+    @property
+    def allow(self):
+        """The dated allowlist as committed (read once per run)."""
+        if self._allow is None:
+            self._allow = load_known_failing(policy_root())
+        return self._allow
+
+    @property
+    def signoff(self):
+        """The main session's second signatures for this record, as committed (read once per run)."""
+        if self._signoff is None:
+            self._signoff = load_signoff(policy_root(), self.id)
+        return self._signoff
 
     @staticmethod
     def _selected(only, skip):
@@ -1385,6 +2212,11 @@ class Gate:
                 path = self.gates_root / arg
             if not (path / "meta.json").exists():
                 raise SystemExit("previous gate {} has no meta.json".format(path))
+            narrowed = record_incomplete(read_json(path / "meta.json", {}))
+            if narrowed:
+                # FIX2: a partial or narrowed previous record silently narrowed the comparison (G2-ABS included)
+                raise SystemExit("previous gate {} is partial or narrowed ({}): compare with a complete record".format(
+                    path, narrowed))
             return path.resolve()
         # default: stage A packages and B0 compare with A0, B1 with B0, the adoption round with C1 (TIER1_INTEGRATION
         # 2.4, 3.1); any other gate with the latest complete gate of an earlier stage (parallel packages of one
@@ -1408,34 +2240,42 @@ class Gate:
         tests = sorted(Path(p).name for p in glob.glob(str(self.root / "tests" / "test_*.py")))
         est = self.test_estimates()
         jobs = []
+        outcomes = self.work / "tests"
+
+        def unit(check, target, name, mode):
+            # each test process runs through the _unittest worker: `python -m unittest`'s report and exit status plus
+            # every test's outcome (FIX2)
+            path = outcomes / "{}_{}_{}.json".format(check, name[:-3], mode)
+            return self.py(self.script, "_unittest", str(path), target), {"file": name, "mode": mode,
+                                                                          "outcomes": str(path)}
         if "G1" in self.selected:
             for name in tests:
                 for mode in ("normal", "strict"):
                     extra = {"HOUSE_SIM_STRICT": "1"} if mode == "strict" else None
-                    jobs.append(Job("G1 {} {}".format(name, mode), "G1",
-                                    self.py("-m", "unittest", "tests/" + name), self.env(extra),
+                    cmd, meta = unit("G1", "tests/" + name, name, mode)
+                    jobs.append(Job("G1 {} {}".format(name, mode), "G1", cmd, self.env(extra),
                                     est=est.get((name, mode), est.get((name, "normal"), 30.0)) * 1.1,
-                                    timeout=self.args.test_timeout, meta={"file": name, "mode": mode}))
+                                    timeout=self.args.test_timeout, meta=meta))
         if "G1b" in self.selected:
             for d in DOMAINS:
                 name = "test_{}.py".format(d)
                 if name in tests:
-                    jobs.append(Job("G1b {} isolated".format(name), "G1b",
-                                    self.py("-m", "unittest", "tests.test_" + d), self.env({"HOUSE_SIM_DOMAINS": d}),
+                    cmd, meta = unit("G1b", "tests.test_" + d, name, "isolated")
+                    jobs.append(Job("G1b {} isolated".format(name), "G1b", cmd, self.env({"HOUSE_SIM_DOMAINS": d}),
                                     est=est.get((name, "isolated"), est.get((name, "normal"), 30.0) * 0.7),
-                                    timeout=self.args.test_timeout, meta={"file": name, "mode": "isolated"}))
+                                    timeout=self.args.test_timeout, meta=meta))
             for name in tests:
                 if any(fnmatch.fnmatchcase(name, p) for p in KERNEL_TESTS):
-                    jobs.append(Job("G1b {} core".format(name), "G1b",
-                                    self.py("-m", "unittest", "tests/" + name), self.env({"HOUSE_SIM_DOMAINS": "core"}),
+                    cmd, meta = unit("G1b", "tests/" + name, name, "core")
+                    jobs.append(Job("G1b {} core".format(name), "G1b", cmd, self.env({"HOUSE_SIM_DOMAINS": "core"}),
                                     est=est.get((name, "core"), est.get((name, "normal"), 30.0) * 0.5),
-                                    timeout=self.args.test_timeout, meta={"file": name, "mode": "core"}))
+                                    timeout=self.args.test_timeout, meta=meta))
         if "G8" in self.selected and (self.root / "tests" / "test_room_golden.py").exists():
             for mode, extra in (("golden", None), ("golden_all", {"HOUSE_SIM_GOLDEN_ALL": "1"})):
-                jobs.append(Job("G8 test_room_golden.py {}".format(mode), "G8",
-                                self.py("-m", "unittest", "tests.test_room_golden"), self.env(extra),
+                cmd, meta = unit("G8", "tests.test_room_golden", "test_room_golden.py", mode)
+                jobs.append(Job("G8 test_room_golden.py {}".format(mode), "G8", cmd, self.env(extra),
                                 est=est.get(("test_room_golden.py", mode), 60.0), timeout=self.args.test_timeout,
-                                meta={"file": "test_room_golden.py", "mode": mode}))
+                                meta=meta))
         return jobs
 
     def spec_jobs(self):
@@ -1513,6 +2353,13 @@ class Gate:
                 jobs.append(Job("G6 fuzz {}".format(name), "G6", self.py("tools/fuzz.py", "6", "300", "--workers", "4",
                                 *flags, "--json", str(path)), self.env(), weight=4, est=120.0,
                                 meta={"variant": name, "json": str(path)}))
+            if source_has(self.root, "tools/fuzz.py", "--coverage"):
+                # every registered action driven toward its success path from every authored spec's setup (phase 1;
+                # REVIEW_REPORT H13): the per-action success coverage the gate reports and compares
+                path = audit / "g6_coverage.json"
+                jobs.append(Job("G6 fuzz coverage", "G6", self.py("tools/fuzz.py", "--coverage", "--workers", "4",
+                                                                  "--json", str(path)), self.env(), weight=4, est=2400.0,
+                                meta={"variant": "coverage", "json": str(path)}))
         if "G1c" in self.selected:
             modules = self.inert_modules()
             if modules:
@@ -1576,6 +2423,8 @@ class Gate:
 
     # ---- evaluation of finished jobs
     def collect_tests(self, jobs, prev=None):
+        """G1, G1b, G8: every test passes (absolute) except entries of the dated allowlist; a new failure against the
+        previous gate is named in the note."""
         rows = defaultdict(list)
         for job in jobs:
             if job.check in ("G1", "G1b", "G8"):
@@ -1583,14 +2432,37 @@ class Gate:
         for check in rows:
             rows[check].sort(key=lambda r: (r["file"], r["mode"]))
         self.data["tests"].update(rows)
+        allow = self.allow
+        # tests that went quiet against the previous record (FIX2): removed, skipped, expected failures, files gone
+        prev_tests = read_json(prev / "tests.json", {}) if prev else None
+        quiet, quiet_ok = test_regressions(prev_tests, rows, allow, self.signoff)
+        quiet_by = defaultdict(list)
+        for item in quiet:
+            quiet_by[item[0]].append(item)
+
+        def quiet_note(check):
+            items = quiet_by.get(check)
+            if not items:
+                return ""
+            return "; {} test(s) removed or quiet vs {} without an allowlist 'skip' entry or a signature: {}".format(
+                len(items), prev.name, describe_regressions(items, 400))
+
+        def excused_note(excused):
+            return "; {} allowlisted failing test(s) ({})".format(len(excused), short(
+                ["{} ({})".format(t, m) for _, m, t in excused], 300)) if excused else ""
+
         if "G1" in self.selected:
             g1 = rows.get("G1", [])
             bad = [r for r in g1 if r["rc"]]
+            unexplained, excused = unexplained_test_failures(g1, allow)
             files = len({r["file"] for r in g1})
-            self.set("G1", "FAIL" if bad or not g1 else "PASS",
-                     "{} test files x normal+strict: {} tests (normal), {} failing run(s){}".format(
+            self.set("G1", "FAIL" if unexplained or not g1 or quiet_by.get("G1") else "PASS",
+                     "{} test files x normal+strict: {} tests (normal), {} failing run(s){}{}{}{}".format(
                          files, sum(r["ran"] for r in g1 if r["mode"] == "normal"), len(bad),
-                         (": " + ", ".join("{} ({})".format(r["file"], r["mode"]) for r in bad[:8])) if bad else ""))
+                         (": " + ", ".join("{} ({})".format(r["file"], r["mode"]) for r in bad[:8])) if bad else "",
+                         "; NOT on the allowlist: {}".format(short(["{} ({})".format(t, m) for _, m, t in unexplained],
+                                                                   400)) if unexplained else "",
+                         excused_note(excused), quiet_note("G1")))
         if "G1b" in self.selected:
             g1b = rows.get("G1b", [])
             iso = [r for r in g1b if r["mode"] == "isolated"]
@@ -1600,41 +2472,39 @@ class Gate:
             required = "kernel_core" in self.policy["requires"]
             prev_rows = (read_json(prev / "tests.json", {}) or {}).get("G1b") if prev else None
             fresh_iso = new_failures(g1b, prev_rows, "isolated")
-            fresh_core = new_failures(g1b, prev_rows, "core")
-            # isolated domain failures present in the previous gate are carried as known (A0 recorded the ones that
-            # existed at HEAD); a new failing test fails the gate. Kernel files with core only must all pass from B1.
-            if fresh_iso is None:
-                status = "INFO" if bad_iso else "PASS"
-            else:
-                status = "FAIL" if fresh_iso else "PASS"
-            if bad_core and (required or (fresh_core is not None and fresh_core)):
-                status = "FAIL"
-            elif bad_core and status == "PASS" and fresh_core is None:
+            # absolute from phase 1 on: every isolated-domain test and (from B1 on) every kernel test with
+            # HOUSE_SIM_DOMAINS=core passes, except allowlisted ones (a carried failure is no longer excused)
+            unexplained, excused = unexplained_test_failures(g1b, allow, core_required=required)
+            status = "FAIL" if unexplained or not g1b or quiet_by.get("G1b") else "PASS"
+            if not required and bad_core and status == "PASS":
                 status = "INFO"
             n_iso = sum(len(r.get("failed_tests", [])) for r in bad_iso)
             note = "isolated domains {}/{} files ok{}; kernel files with HOUSE_SIM_DOMAINS=core {}/{} ok{}".format(
                 len(iso) - len(bad_iso), len(iso),
-                (" ({} failing test(s) in {}; {})".format(
+                (" ({} failing test(s) in {}{})".format(
                     n_iso, ", ".join(r["file"] for r in bad_iso[:8]),
-                    "baseline recorded as known failures" if fresh_iso is None else
-                    ("NEW vs {}: {}".format(prev.name, short([f for _, f in fresh_iso], 300)) if fresh_iso
-                     else "all known from " + prev.name))) if bad_iso else "",
+                    "; NEW vs {}: {}".format(prev.name, short([f for _, f in fresh_iso], 300)) if fresh_iso else ""))
+                if bad_iso else "",
                 len(core) - len(bad_core), len(core),
                 ("" if not bad_core else " (failing: {}; {})".format(
                     ", ".join(r["file"] for r in bad_core[:8]),
                     "required from B1 on" if required else "recorded only: required from B1 on")))
-            self.set("G1b", status, note)
+            if unexplained:
+                note += "; NOT on the allowlist: {}".format(short(["{} ({})".format(t, m) for _, m, t in unexplained],
+                                                                 400))
+            self.set("G1b", status, note + excused_note(excused) + quiet_note("G1b"))
         if "G8" in self.selected:
             g8 = rows.get("G8", [])
             if not g8:
                 required = "golden" in self.policy["requires"]
-                self.set("G8", "FAIL" if required else "SKIP",
+                self.set("G8", "FAIL" if required else "N/A",
                          "tests/test_room_golden.py not present ({})".format(
                              "required from B1 on" if required else "PHYS-INT creates it in B1"))
             else:
-                bad = [r for r in g8 if r["rc"]]
-                self.set("G8", "FAIL" if bad else "PASS", "room golden: {}".format(
-                    ", ".join("{} {}".format(r["mode"], "FAIL" if r["rc"] else "ok") for r in g8)))
+                unexplained, excused = unexplained_test_failures(g8, allow)
+                self.set("G8", "FAIL" if unexplained or quiet_by.get("G8") else "PASS", "room golden: {}{}{}".format(
+                    ", ".join("{} {}".format(r["mode"], "FAIL" if r["rc"] else "ok") for r in g8),
+                    excused_note(excused), quiet_note("G8")))
 
     def gather_specs(self, jobs):
         rows = {"own": [], "realistic": []}
@@ -1679,6 +2549,9 @@ class Gate:
         self.spec_mismatch = mismatch
 
     def evaluate_specs(self, prev):
+        """G2 / G3: the delta rule against the previous gate (verdict changes reviewed by the package and signed by
+        the main session, digests only where allowed, no missing trial) and, for G2, the absolute rule G2-ABS (every
+        spec passes in its own mode on every seed, new specs included, unless allowlisted)."""
         reviewed = load_reviewed(self.root, self.out, self.policy["packages"], self.args.reviewed)
         self.reviewed = reviewed
         for check, mode in (("G2", "own"), ("G3", "realistic")):
@@ -1692,24 +2565,31 @@ class Gate:
             # a record narrowed by --spec-files is compared on those files only (and a narrowed previous gate on its)
             globs = spec_scope(read_json(prev / "meta.json", {}) if prev else {}, {"spec_files": self.args.spec_files})
             prev_rows = scoped_rows(prev_rows, globs)
+            problems = []
             if prev_rows:
-                res = compare_specs(prev_rows, scoped_rows(self.spec_rows[mode], globs), mode, self.policy, reviewed)
-                note += "; vs {}: {} verdict change(s) ({} reviewed), {} state-digest change(s), {} observation-digest " \
-                        "change(s)".format(prev.name, len(res["verdict_changes"]),
-                                           sum(c["reviewed"] for c in res["verdict_changes"]), len(res["state_changes"]),
-                                           len(res["obs_changes"]))
-                if res["problems"]:
-                    status = "FAIL"
-                    note += " [" + "; ".join(res["problems"]) + "]"
+                res = compare_specs(prev_rows, scoped_rows(self.spec_rows[mode], globs), mode, self.policy, reviewed,
+                                    self.signoff)
+                note += "; vs {}: {} verdict change(s) ({} reviewed, {} signed), {} state-digest change(s), {} " \
+                        "observation-digest change(s)".format(
+                            prev.name, len(res["verdict_changes"]), sum(c["reviewed"] for c in res["verdict_changes"]),
+                            sum(c["reviewed"] and c["signed"] for c in res["verdict_changes"]),
+                            len(res["state_changes"]), len(res["obs_changes"]))
+                problems += res["problems"]
             elif mode == "own":
-                if s["passed"] != s["specs"]:
-                    status = "FAIL"
-                    note += " (no previous gate: every spec must pass in its own mode)"
-                else:
-                    note += " (baseline recorded)"
+                note += " (no previous gate)"
             else:
                 status = "INFO"
                 note += " (baseline recorded; forced-realistic results are not required to pass)"
+            if mode == "own":
+                failing, excused = failing_specs(self.spec_rows[mode], "own", self.allow)
+                if failing:
+                    problems.append("G2-ABS: {} spec(s) fail in their own mode: {}".format(
+                        len(failing), describe_failing(failing, 8)))
+                if excused:
+                    note += "; {} allowlisted failing spec(s)".format(len(excused))
+            if problems:
+                status = "FAIL"
+                note += " [" + "; ".join(problems) + "]"
             if self.spec_crashes:
                 status = "FAIL"
                 note += "; {} worker crash(es)".format(len(self.spec_crashes))
@@ -1765,17 +2645,32 @@ class Gate:
                     if check == "G4":
                         parts.append("{}: {} leaks, {} crashes".format(v, s["leaks"], s["errors"]))
                     else:
-                        parts.append("{}: {} commands, {} defects, {} nondeterministic".format(
-                            v, s.get("commands"), s["defects"], s["nondeterministic"]))
+                        parts.append("{}: {} commands, {} defects, {} nondeterministic{}".format(
+                            v, s.get("commands"), s["defects"], s["nondeterministic"],
+                            ", {} of {} actions succeed".format(s["actions_succeeded"], s.get("actions_registered"))
+                            if s.get("actions_succeeded") is not None else ""))
                 missing = []
+                if check == "G6" and source_has(self.root, "tools/fuzz.py", "--coverage") and "coverage" not in variants:
+                    missing.append("the coverage fuzz (--coverage) did not run")
                 if check == "G4" and "camera_tools" in self.policy["requires"] and "geometric" not in variants:
                     missing.append("--camera geometric missing from tools/perception_audit.py")
                 if check == "G6" and "camera_tools" in self.policy["requires"] and "geometric" not in variants:
                     missing.append("--camera geometric missing from tools/fuzz.py")
                 if check == "G6" and "fuzz_battery" in self.policy["requires"] and "battery" not in variants:
                     missing.append("--battery/--faults missing from tools/fuzz.py")
+                coverage = ""
+                if check == "G6":
+                    union = action_coverage(variants)
+                    if union:
+                        coverage = "; per-action success coverage (all variants): {} of {} registered actions " \
+                                   "succeed at least once; never: {}".format(
+                                       len(union["succeeded"]), union["registered"],
+                                       short(", ".join(union["never"]) or "none", 500))
+                        audits["G6"]["union"] = {"registered": union["registered"],
+                                                 "succeeded": len(union["succeeded"]), "never": union["never"]}
                 self.set(check, "FAIL" if bad or missing or not variants else "PASS",
-                         "{} {}{}".format(label, "; ".join(parts) or "did not run", (" [" + "; ".join(missing) + "]") if missing else ""))
+                         "{} {}{}{}".format(label, "; ".join(parts) or "did not run",
+                                            (" [" + "; ".join(missing) + "]") if missing else "", coverage))
         if "G5" in self.selected:
             g5 = audits.get("G5", {})
             digests = {}
@@ -1816,7 +2711,7 @@ class Gate:
             report = self.data["tests"].get("G1c")
             modules = self.inert_modules()
             if not modules:
-                self.set("G1c", "SKIP", "no import-inert modules listed for this package")
+                self.set("G1c", "N/A", "no import-inert modules listed for this package")
             elif not report or "error" in report:
                 self.set("G1c", "FAIL", "inert-import worker failed: {}".format(short((report or {}).get("error", "no report"), 300)))
             else:
@@ -1839,7 +2734,7 @@ class Gate:
             return
         extras = self.extras
         if not extras:
-            self.set("G9", "SKIP", "no extras for this package")
+            self.set("G9", "N/A", "no extras for this package")
             return
         notes, bad = [], False
         for extra in extras:
@@ -1962,6 +2857,9 @@ class Gate:
         started = now_iso()
         for rel in EMPTY_DIRS:          # an isolated copy made from `git archive` lacks the empty directories
             (self.root / rel).mkdir(parents=True, exist_ok=True)
+        # the tree the checks run on (FIX2): compared with the tree when the record is written; any change between
+        # (another owner's edit, a test writing into the project) makes this run's results STALE
+        self.tree_start = tree_fingerprint(self.root)
         self.run_info()
         if "G0" in self.selected and prev and "G0" in self.results and self.results["G0"]["status"] == "PASS":
             pf = (read_json(prev / "meta.json", {}) or {}).get("fingerprints", {}).get("actions_fingerprint")
@@ -2051,18 +2949,22 @@ class Gate:
         write_json(out / "bench.json", merged("bench.json", self.data["bench"]))
         write_json(out / "extras.json", merged("extras.json", self.data["extras"]))
         write_json(out / "scope.json", merged("scope.json", self.data["scope"]))
+        tree_now = tree_fingerprint(self.root)
+        tree = tree_now if tree_now == getattr(self, "tree_start", tree_now) else None
+        for result in self.results.values():
+            result["tree"] = tree           # None: the tree changed while this run's checks ran
         checks = dict(old_meta.get("checks", {})) if partial else {}
         checks.update(self.results)
         statuses = {c: checks[c]["status"] for c in CHECKS if c in checks}
-        self.passed = not any(s == "FAIL" for s in statuses.values())
+        failing = [c for c, s in statuses.items() if s in FAILING]
         counts = Counter(statuses.values())
-        summary = "TIER1-GATE {}{}{}: {} ({})".format(
-            self.id, " [{}]".format("+".join(self.policy["packages"])) if self.policy["packages"] else "",
-            " vs {}".format(prev.name) if prev else " (no previous gate)", "PASS" if self.passed else "FAIL",
-            ", ".join("{} {}".format(counts[s], s.lower()) for s in ("PASS", "FAIL", "INFO", "SKIP") if counts[s]) +
-            ("; this run: " + ",".join(self.selected) if partial else "") +
-            ("; record incomplete: " + ",".join(recorded) if recorded != list(CHECKS) else "") +
-            ("; specs limited to " + self.args.spec_files if self.args.spec_files else ""))
+        # FIX2: every check of a hand-over ran on the tree the record describes (a partial re-run merged with an
+        # earlier run on another tree, or edits while the gate ran, are STALE)
+        stale = [c for c in recorded if c in checks and checks[c].get("tree") != tree_now]
+        incomplete = record_incomplete({"recorded": recorded, "spec_files": self.args.spec_files})
+        if prev is not None and record_incomplete(read_json(prev / "meta.json", {})):
+            incomplete = "; ".join(x for x in (incomplete, "previous record {} is partial or narrowed".format(
+                prev.name)) if x)
         files, _ = changed_files(self.root)
         isolated = read_json(self.root / ISOLATE_MANIFEST)
         head = subprocess.run(["git", "-C", str(self.root), "rev-parse", "HEAD"], capture_output=True, text=True)
@@ -2079,29 +2981,58 @@ class Gate:
                 "jobs": self.jobs_n, "seeds": list(self.seeds), "camera": self.args.camera, "extras": self.extras,
                 "spec_files": self.args.spec_files,
                 "fingerprints": self.fingerprints or old_meta.get("fingerprints", {}), "checks": checks,
+                "tree": tree_now, "tree_root": str(self.root), "tree_changed_during_run": tree is None,
+                "stale": stale,
                 "allowed": sorted(self.policy["allow"]), "codes": sorted(self.policy["codes"]),
-                "requires": sorted(self.policy["requires"]), "summary": summary,
+                "requires": sorted(self.policy["requires"]),
+                "policy": {"root": str(policy_root()), "known_failing": self.allow["note"],
+                           "allowlist_entries": len(self.allow["entries"]),
+                           "allowlist_expired": len(self.allow["expired"]),
+                           "allowlist_invalid": len(self.allow["invalid"]), "signoff": self.signoff["note"],
+                           "signed_by": self.signoff["by"]},
                 "human_check": "python -m house_sim --check {} --workers 4{}".format(
                     (self.work / "all_specs.json").as_posix(), "")}
-        write_json(out / "meta.json", meta)
+        write_json(out / "meta.json", meta)            # compare_dirs reads it (the record's own statuses)
         lines = ["tier-1 gate {}  ({})".format(self.id, meta["finished"]),
                  "packages: {}   stage: {}   previous gate: {}   seeds: {}   jobs: {}".format(
                      "+".join(self.policy["packages"]) or "none", self.policy["stage"], meta["prev"] or "none",
                      " ".join(map(str, self.seeds)), self.jobs_n),
                  "allowed differences: {}   reviewed codes: {}".format(
-                     ", ".join(meta["allowed"]) or "none", ", ".join(meta["codes"]) or "none"), ""]
+                     ", ".join(meta["allowed"]) or "none", ", ".join(meta["codes"]) or "none"),
+                 "policy: allowlist {} ({} entries, {} expired, {} invalid); second signatures {}".format(
+                     self.allow["note"], len(self.allow["entries"]), len(self.allow["expired"]),
+                     len(self.allow["invalid"]), self.signoff["note"]), ""]
         for check in CHECKS:
             if check in checks:
                 lines.append("{:4} {:5} {}".format(check, checks[check]["status"], checks[check]["note"]))
+        compare_ok = True
         if prev:
             reviewed = getattr(self, "reviewed", None)
             if reviewed is None:
                 reviewed = load_reviewed(self.root, self.out, self.policy["packages"], self.args.reviewed)
-            sections, ok = compare_dirs(prev, out, self.policy, reviewed, self.gates_root)
-            text = render_compare(prev, out, self.policy, sections, ok)
+            sections, compare_ok = compare_dirs(prev, out, self.policy, reviewed, self.gates_root, root=self.root,
+                                                signoff=self.signoff, allow=self.allow)
+            text = render_compare(prev, out, self.policy, sections, compare_ok, incomplete)
             write_text(out / "compare.txt", text)
-            write_json(out / "compare.json", {"prev": prev.name, "sections": sections, "ok": ok})
+            write_json(out / "compare.json", {"prev": prev.name, "sections": sections, "ok": compare_ok})
             lines += ["", text]
+        self.passed = not failing and compare_ok and not stale
+        word = "FAIL" if failing or not compare_ok else ("STALE" if stale else ("INCOMPLETE" if incomplete else "PASS"))
+        summary = "TIER1-GATE {}{}{}: {} ({})".format(
+            self.id, " [{}]".format("+".join(self.policy["packages"])) if self.policy["packages"] else "",
+            " vs {}".format(prev.name) if prev else " (no previous gate)", word,
+            ", ".join("{} {}".format(counts[s], s.lower()) for s in ("PASS", "FAIL", "SKIP", "INFO", "N/A")
+                      if counts[s]) +
+            ("; failing: " + ",".join(failing) if failing else "") +
+            ("; compare FAIL" if not compare_ok else "") +
+            ("; this run: " + ",".join(self.selected) if partial else "") +
+            ("; record incomplete: " + ",".join(recorded) if recorded != list(CHECKS) else "") +
+            ("; specs limited to " + self.args.spec_files if self.args.spec_files else "") +
+            ("; STALE (checks run on another tree: {}{})".format(",".join(stale), "; the tree changed while the gate "
+                                                                "ran" if tree is None else "") if stale else "") +
+            ("; never a hand-over" if incomplete and self.passed else ""))
+        meta.update(summary=summary, verdict=word, handover=word == "PASS", compare_ok=compare_ok)
+        write_json(out / "meta.json", meta)
         lines += ["", summary]
         write_text(out / "summary.txt", "\n".join(lines))
         print("\n".join(lines), flush=True)
@@ -2139,18 +3070,13 @@ def default_prev_dir(gates_root, stage, exclude=None):
     return best[1] if best else None
 
 
-def cmd_compare(args):
-    """compare [PREV [CUR]] [--package PKG] [--shared-tree] [--spec-files GLOB] [--reviewed FILE]
-
-    CUR defaults to the package's own record (gate/<PKG>, a colon written as "_"), PREV to the previous gate that
-    record names, else the stage's default (the adoption round: C1); one positional names PREV. --shared-tree also
-    checks the scope (G10) of the working tree now, attributing the files of the packages running concurrently in the
-    same sub-stage (the adoption round: every ADOPT:<domain>, K-EVAL and K-CAM) instead of failing them. --spec-files
-    narrows the spec trials of both records to the matching files (a record made with --spec-files is always compared
-    on its own files only). Exit 0 on PASS, 1 on FAIL, 2 when there is no record to compare."""
+def resolve_records(args, verb="compare"):
+    """(root, gates_root, names, cur, prev, meta, policy) for compare / signoff, or an exit status (2) after
+    printing how to make the missing record."""
     root = Path(args.root).resolve()
     gates_root = Path(args.gates_root).resolve() if args.gates_root else root / GATE_DIR
     names = _package_names(args.package)
+    shared_tree = getattr(args, "shared_tree", False)
 
     def locate(name):
         path = Path(name)
@@ -2167,16 +3093,16 @@ def cmd_compare(args):
         cur = next((c.resolve() for c in candidates if (c / "meta.json").exists()), None)
         if cur is None:
             pid = names[0] if names else None
-            print("compare: no gate record for {} in {}.".format("+".join(names) or "this package", gates_root))
+            print("{}: no gate record for {} in {}.".format(verb, "+".join(names) or "this package", gates_root))
             if pid is not None:
                 print("Record one first (a domain package can narrow it to its own spec files), e.g.:\n"
                       "  python tools/orchestration/tier1_gate.py record --id {} --package {}{}\n"
                       "  python tools/orchestration/tier1_gate.py record --id {} --package {} --only G0,G2,G3,G10{}"
-                      "{}".format(gate_dirname(pid), "+".join(names), " --shared-tree" if args.shared_tree else "",
+                      "{}".format(gate_dirname(pid), "+".join(names), " --shared-tree" if shared_tree else "",
                                   gate_dirname(pid), "+".join(names),
                                   " --spec-files '{}__*'".format(pid.split(":", 1)[1]) if pid.startswith("ADOPT:")
-                                  else "", " --shared-tree" if args.shared_tree else ""))
-            if args.shared_tree and names:
+                                  else "", " --shared-tree" if shared_tree else ""))
+            if shared_tree and names:
                 scope = scope_check(root, policy_for(names), gate_dirname(names[0]), True)
                 print("G10  {:5} {}".format(scope["status"], scope["note"]))
                 for f in scope.get("outside", []):
@@ -2196,8 +3122,42 @@ def cmd_compare(args):
         prev = prev or default_prev_dir(gates_root, policy["stage"], exclude=cur)
         if prev is None:
             raise SystemExit("no previous gate for {} (pass PREV)".format(cur.name))
+    return root, gates_root, names, cur, prev, meta, policy
+
+
+def cmd_compare(args):
+    """compare [PREV [CUR]] [--package PKG] [--shared-tree] [--spec-files GLOB] [--reviewed FILE]
+
+    CUR defaults to the package's own record (gate/<PKG>, a colon written as "_"), PREV to the previous gate that
+    record names, else the stage's default (the adoption round: C1); one positional names PREV. --shared-tree also
+    checks the scope (G10) of the working tree now, attributing the files of the packages running concurrently in the
+    same sub-stage (the adoption round: every ADOPT:<domain>, K-EVAL and K-CAM) instead of failing them. --spec-files
+    narrows the spec trials of both records to the matching files (a record made with --spec-files is always compared
+    on its own files only). The rules are the record's own package's: --package naming other packages than the
+    record was made for fails. Exit 0 on PASS (and on INCOMPLETE: nothing failed, but the record is partial or
+    narrowed, never a hand-over), 1 on FAIL, 2 when there is no record to compare."""
+    if Path(args.root).resolve() != DEFAULT_ROOT and not getattr(args, "foreign_root", False):
+        # FIX2: --root chose where reviewed rows, the scope and the tree came from; the main session passes
+        # --foreign-root when it means it (policy files always come from policy_root())
+        print("compare: --root {} is not this project ({}); pass --foreign-root to compare from another folder".format(
+            Path(args.root).resolve(), DEFAULT_ROOT))
+        return 2
+    resolved = resolve_records(args, "compare")
+    if isinstance(resolved, int):
+        return resolved
+    root, gates_root, names, cur, prev, meta, policy = resolved
     reviewed = load_reviewed(root, cur, names, args.reviewed)
-    sections, ok = compare_dirs(prev, cur, policy, reviewed, gates_root, spec_files=args.spec_files)
+    sections, ok = compare_dirs(prev, cur, policy, reviewed, gates_root, spec_files=args.spec_files,
+                                root=policy_root(), shared_tree_scope=args.shared_tree)
+    tree_section, tree_incomplete = tree_check(meta, root, getattr(args, "any_tree", False))
+    sections.insert(0, tree_section)
+    ok = ok and tree_section["status"] not in FAILING
+    recorded_for = meta.get("packages") or []
+    if recorded_for and set(recorded_for) != set(names):
+        sections.insert(0, {"check": "POL", "status": "FAIL", "lines": [
+            "the record was made for {}; compare it with its own package's rules, not {}".format(
+                "+".join(recorded_for), "+".join(names))]})
+        ok = False
     if args.shared_tree:
         scope = scope_check(root, policy, cur.name, True)
         lines = [scope["note"]] + ["outside: " + f for f in scope.get("outside", [])[:40]]
@@ -2205,9 +3165,107 @@ def cmd_compare(args):
             owners = Counter(scope["attributed"].values())
             lines.append("attributed: " + ", ".join("{} {}".format(k, v) for k, v in sorted(owners.items())))
         sections.append({"check": "G10", "status": scope["status"], "lines": lines})
-        ok = ok and scope["status"] != "FAIL"
-    print(render_compare(prev, cur, policy, sections, ok))
-    return 0 if ok else 1
+        ok = ok and scope["status"] not in FAILING
+    incomplete = record_incomplete(meta)
+    if args.spec_files:
+        incomplete = "; ".join(x for x in (incomplete, "compared on spec files " + args.spec_files) if x)
+    prev_narrow = record_incomplete(read_json(Path(prev) / "meta.json", {}))
+    if prev_narrow:
+        incomplete = "; ".join(x for x in (incomplete, "previous record {} is partial or narrowed ({})".format(
+            Path(prev).name, prev_narrow)) if x)
+    if tree_incomplete:
+        incomplete = "; ".join(x for x in (incomplete, tree_incomplete) if x)
+    print(render_compare(prev, cur, policy, sections, ok, incomplete))
+    return compare_verdict(ok, incomplete)[1]
+
+
+def signoff_draft(prev, cur, policy, reviewed, by=None, root=None):
+    """The second-signature file a main session would commit for record `cur` against `prev`: one row per verdict
+    change (with the digest of its new verdict, whether the package reviewed it and the codes), per edited spec (its
+    new spec hash) and per action the coverage fuzz no longer drives to success. Rows without the package's review
+    stay unaccepted even when signed (both signatures are needed)."""
+    pm, cm = read_json(Path(prev) / "meta.json", {}), read_json(Path(cur) / "meta.json", {})
+    globs = spec_scope(pm, cm)
+    rows, edits = [], {}
+    empty = {"verdict": {}, "edit": {}, "coverage": set()}
+    for mode, name in (("own", "specs_own.jsonl"), ("realistic", "specs_realistic.jsonl")):
+        a = scoped_rows(read_jsonl(Path(prev) / name), globs)
+        b = scoped_rows(read_jsonl(Path(cur) / name), globs)
+        if not a or not b:
+            continue
+        res = compare_specs(a, b, mode, policy, reviewed, empty)
+        for c in res["verdict_changes"]:
+            rows.append({"kind": "verdict", "key": c["key"], "seed": c["seed"], "mode": mode, "digest": c["digest"],
+                         "passed": c["passed"], "fields": c["fields"], "reviewed_by_package": c["reviewed"],
+                         "codes": c["codes"], "detail": c["detail"]})
+        edits.update(res.get("edits") or {})
+    for key in sorted(edits):
+        rows.append({"kind": "edit", "key": key, "spec_hash": edits[key]})
+    pa, ca = read_json(Path(prev) / "audits.json", {}), read_json(Path(cur) / "audits.json", {})
+    unsigned, _ = coverage_loss(pa.get("G6"), ca.get("G6"), empty)
+    rows += [{"kind": "coverage", "action": action} for action in unsigned]
+    return {"format": SIGNOFF_FORMAT, "gate": Path(cur).name, "prev": Path(prev).name, "signed_by": by,
+            "date": _today(),
+            "about": "Second signatures of gate record {} (tools/orchestration/tier1_gate.py). Drafted by `signoff`: "
+                     "the main session reviews every row, deletes the rows it does not accept and commits this file; "
+                     "only the committed version counts.".format(Path(cur).name),
+            "rows": rows}
+
+
+def cmd_signoff(args):
+    """signoff [PREV [CUR]] [--package PKG] [--by NAME] [--out FILE | --write]
+
+    Draft the main session's second signature for a record (signoff_draft). Printed, or written to --out FILE, or
+    with --write to tools/orchestration/gate_policy/signoffs/<CUR>.json in the working tree (it counts only once the
+    main session commits it)."""
+    resolved = resolve_records(args, "signoff")
+    if isinstance(resolved, int):
+        return resolved
+    root, gates_root, names, cur, prev, meta, policy = resolved
+    reviewed = load_reviewed(root, cur, names, args.reviewed)
+    draft = signoff_draft(prev, cur, policy, reviewed, by=args.by, root=root)
+    target = Path(args.out) if args.out else (root / SIGNOFF_DIR / "{}.json".format(cur.name) if args.write else None)
+    if target is None:
+        print(json.dumps(draft, indent=1, sort_keys=True))
+    else:
+        write_json(target, draft)
+        counts = Counter(r["kind"] for r in draft["rows"])
+        print("wrote {} ({} verdict, {} edit, {} coverage row(s); review, then commit it)".format(
+            target, counts["verdict"], counts["edit"], counts["coverage"]))
+    return 0
+
+
+def cmd_policy(args):
+    """policy: the allowlist and the second-signature files as the gate reads them (committed versions only, from
+    policy_root(): never from --root)."""
+    root = policy_root()
+    if Path(args.root).resolve() != root:
+        print("note: --root {} is ignored; policy files are read from the project {}".format(
+            Path(args.root).resolve(), root))
+    allow = load_known_failing(root)
+    print("policy root: {}".format(root))
+    print("allowlist {}: {}".format(KNOWN_FAILING, allow["note"]))
+    for entry in allow["entries"]:
+        print("  {} {} owner {} expires {}: {}".format(entry["kind"], entry.get("test") or entry.get("catalog_id"),
+                                                      entry["owner"], entry["expires"], short(entry["reason"], 120)))
+    for entry in allow["expired"]:
+        print("  EXPIRED {} {} owner {} expired {}".format(entry["kind"], entry.get("test") or entry.get("catalog_id"),
+                                                         entry["owner"], entry["expires"]))
+    for entry, why in allow["invalid"]:
+        print("  INVALID {}: {}".format(entry, why))
+    for entry in allow["entries"]:
+        if entry.get("kind") == "skip":
+            print("  (skip entries excuse removed, skipped or expected-failure tests: {})".format(entry["test"]))
+    listing = subprocess.run(["git", "-C", str(root), "ls-tree", "--name-only", "HEAD", SIGNOFF_DIR + "/"],
+                             capture_output=True, text=True)
+    names = [Path(line).stem for line in listing.stdout.splitlines() if line.endswith(".json")] \
+        if listing.returncode == 0 else []
+    print("second signatures committed in {}: {}".format(SIGNOFF_DIR, len(names)))
+    for name in names:
+        sign = load_signoff(root, name)
+        print("  {}: {} verdict, {} edit, {} coverage row(s); signed by {}".format(
+            name, len(sign["verdict"]), len(sign["edit"]), len(sign["coverage"]), sign["by"]))
+    return 0
 
 
 def cmd_isolate(args):
@@ -2293,7 +3351,7 @@ def cmd_scope(args):
         print("  outside: " + f)
     for f, owner in sorted(result.get("attributed", {}).items()):
         print("  {} (concurrent package {})".format(f, owner))
-    return 1 if result["status"] == "FAIL" else 0
+    return 1 if result["status"] in FAILING else 0
 
 
 def cmd_packages(args):
@@ -2405,6 +3463,11 @@ def build_parser():
     c.add_argument("--shared-tree", action="store_true",
                    help="also check the working tree's scope (G10), attributing concurrent packages' files")
     c.add_argument("--spec-files", help="compare only the spec trials of these spec files, e.g. 'cleaning__*'")
+    c.add_argument("--any-tree", action="store_true",
+                   help="do not check that the record was made on its tree as it is now (historical comparisons; "
+                        "never a hand-over)")
+    c.add_argument("--foreign-root", action="store_true",
+                   help="allow a --root other than this project (main session only)")
     s = sub.add_parser("scope", help="G10 only")
     s.add_argument("--package", required=True)
     s.add_argument("--id")
@@ -2416,6 +3479,17 @@ def build_parser():
     i.add_argument("--base", help="base revision (default HEAD)")
     k = sub.add_parser("packages", help="print the package table")
     k.add_argument("names", nargs="*")
+    o = sub.add_parser("signoff", help="draft the main session's second signature for a record (verdict changes, "
+                                       "edited specs, coverage losses)")
+    o.add_argument("prev", nargs="?", help="previous gate id or folder (default: the one CUR names)")
+    o.add_argument("cur", nargs="?", help="gate id or folder (default: the package's own record)")
+    o.add_argument("--package", help="package id(s), joined with + (default: CUR's)")
+    o.add_argument("--reviewed")
+    o.add_argument("--by", help="who signs (the main session)")
+    o.add_argument("--out", help="write the draft here (default: print it)")
+    o.add_argument("--write", action="store_true", help="write it to " + SIGNOFF_DIR + "/<CUR>.json (counts once "
+                                                         "committed)")
+    sub.add_parser("policy", help="print the committed allowlist and second signatures as the gate reads them")
     g = sub.add_parser("gen1-digests", help="check (default) or --write tests/data/gen1_digests.json")
     g.add_argument("--write", action="store_true")
     g.add_argument("--by", default="A0")
@@ -2428,6 +3502,8 @@ def build_parser():
 def main(argv):
     if argv and argv[0].startswith("_"):
         name, rest = argv[0], argv[1:]
+        if name == "_unittest":
+            return worker_unittest(rest[0], rest[1])
         if name == "_trials":
             worker_trials(rest[0], rest[1])
         elif name == "_gen1":
@@ -2462,6 +3538,10 @@ def main(argv):
         return cmd_packages(args)
     if args.cmd == "gen1-digests":
         return cmd_gen1(args)
+    if args.cmd == "signoff":
+        return cmd_signoff(args)
+    if args.cmd == "policy":
+        return cmd_policy(args)
     build_parser().print_help()
     return 2
 

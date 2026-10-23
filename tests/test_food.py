@@ -2767,5 +2767,320 @@ class TierOneSweep(unittest.TestCase):
         self.assertFalse(S._air_settled(st, b["box"], rec))
 
 
+class PhaseOneStabilise(unittest.TestCase):
+    """Independent review 2026-10-22 (docs/reviews/2026-10-22_independent_review), phase 1: food's share of the
+    findings, each with its regression."""
+
+    def test_a_warm_appliance_is_never_a_fridge(self):
+        # M3: food's cold-space index was keyed on internal_temp_c, which a toaster gains when it heats; the toaster
+        # (and every oven and dishwasher) then got a fridge's free volume and a cold unit's heat load
+        from house_sim.systems.food import scenarios as SC, systems as S
+        toaster = {"ac_kind": "toaster", "container": True, "capacity_l": 2.0, "internal_temp_c": 180.0}
+        oven = {"ac_kind": "oven", "container": True, "capacity_l": 75.0, "internal_temp_c": 21.0}
+        fridge = {"ac_kind": "fridge", "container": True, "capacity_l": 400.0, "internal_temp_c": 3.5}
+        standin = dict(SC.STANDIN_FRIDGE)
+        lunch = {"food_air_model": True, "insulated": True, "capacity_l": 4.0, "internal_temp_c": 21.0}
+        for rec in (toaster, oven):
+            self.assertFalse(S.cold_unit(rec) or S.cold_storage(rec) or S._checked(rec), rec)
+        for rec in (fridge, standin):
+            self.assertTrue(S.cold_unit(rec) and S.cold_storage(rec) and S._checked(rec), rec)
+        self.assertTrue(S.cold_unit(lunch))
+        self.assertFalse(S.cold_storage(lunch))                        # an air model, not a refrigerator
+        # end to end: bread in a hot unit that is not a fridge toasts, and the unit gets no fridge bookkeeping
+        env, b, r = scene([{"op": "spawn", "var": "unit", "type": "storage_container_large", "on": "{counter}",
+                            "props": {"open": True, "lid": False, "internal_temp_c": 200.0, "heat_coupling": 1.0}},
+                           {"op": "spawn", "var": "slice", "type": "bread_slice", "in": "{unit}"}],
+                          kitchen_args={"need": ["fridge"]})
+        for _ in range(3):
+            r.do("wait", seconds=60)
+        unit, fridge_rec = ent(env, b["unit"]), ent(env, b["fridge"])
+        self.assertGreater(food(env, b["slice"]).get("toast", 0.0), 0.0)   # it really heats in there
+        self.assertNotIn("_free_l", unit)
+        self.assertNotIn("heat_load_w", unit)
+        self.assertIn("_free_l", fridge_rec)                           # the refrigerator keeps its free volume
+
+    def test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees(self):
+        # M3 repro (T-50c78da60ad2a8-01, k = 12): the uninterrupted run and a saved and reloaded one must agree, and
+        # neither may give the toaster a fridge's free volume or a heat load
+        import tempfile
+        from pathlib import Path
+        from house_sim.kernel.registry import default_registry
+        from house_sim.tasks.runner import make_env, run_plan
+        path = Path(__file__).resolve().parent.parent / "tasks" / "authored" / "appliances_cooking__examples.json"
+        specs = [s for s in json.loads(path.read_text(encoding="utf-8"))["specs"]
+                 if s["catalog_id"] == "T-50c78da60ad2a8-01"] if path.exists() else []
+        if not specs or not default_registry().known("toaster"):
+            self.skipTest("the toaster spec needs appliances_cooking (HOUSE_SIM_DOMAINS without it)")
+        config, task, oracle = build(specs[0], 41)
+        ref = make_env(config, task, 41, fast=False)
+        run_plan(ref, oracle["reference"], oracle["bindings"], strict=False)
+        history = list(ref._history)
+
+        def do(env, rec):
+            return env.phase_done() if rec.get("phase_done") else env.step(**dict(rec["command"]))
+        whole = make_env(config, task, 41, fast=False)
+        for rec in history:
+            do(whole, rec)
+        part = make_env(config, task, 41, fast=False)
+        for rec in history[:12]:
+            do(part, rec)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "state.json")
+            part.save(path)
+            loaded = HouseEnv.load(path)
+        for rec in history[12:]:
+            do(loaded, rec)
+        self.assertEqual(digest(loaded.world.s), digest(whole.world.s))
+        toaster = ent(whole, oracle["bindings"]["toaster"])
+        self.assertNotIn("_free_l", toaster)
+        self.assertNotIn("heat_load_w", toaster)
+
+    def test_nothing_pours_out_of_an_egg_in_its_shell(self):
+        # found by the phase-1 twin probe: transfer amount_ml=50 poured 41 ml out of an intact egg (raw or boiled)
+        for perception in ("realistic", None):
+            env, b, r = scene([{"op": "spawn", "var": "egg", "type": "hen_egg", "on": "{counter}"},
+                               {"op": "spawn", "var": "boiled", "type": "hard_boiled_egg", "on": "{counter}"},
+                               {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"},
+                               {"op": "spawn", "var": "cup", "type": "measuring_spoon_tbsp", "on": "{counter}"}],
+                              perception=perception)
+            key = "agent_message" if perception else "message"
+            refusals = set()
+            for egg in ("egg", "boiled"):
+                for args in ({"amount_ml": 50}, {"fraction": 0.5}, {"amount_g": 20}):
+                    out = r.do("transfer", target=b[egg], destination=b["bowl"], expect="fail", **args)
+                    refusals.add((out["category"], out[key].replace(env.realism.handles.handle(b[egg]), "EGG")
+                                  if perception else out[key]))
+                self.assertEqual(food(env, b[egg])["qty_g"], 57.0)
+            self.assertEqual(len(refusals), 1, refusals)                # one refusal, whichever egg it is
+            self.assertIn("shell", next(iter(refusals))[1])
+            r.skill("fetch", obj=b["cup"])
+            self.assertIn("shell", r.do("scoop", target=b["egg"], tool=b["cup"], destination=b["bowl"],
+                                        expect="fail")[key])
+            r.skill("put", obj=b["cup"], dest=b["counter"])
+            moved = msg_json(r.do("transfer", target=b["boiled"], destination=b["bowl"])["message"])   # whole: fine
+            self.assertEqual(food(env, moved["new"])["parts"], ["shell"])
+
+    def test_a_level_cup_of_any_white_powder_looks_the_same(self):
+        # found by the phase-1 twin probe: a level half cup scooped from an unidentified bag read 93 ml of flour and
+        # 96 ml of sugar (grams over the bag's density, not the cup's volume), and the piles differed in size
+        seen = {}
+        for t in ("all_purpose_flour", "sugar_bag", "powdered_sugar_bag"):
+            # (the same id for every bag: estimates are fixed draws per entity, so twins share theirs)
+            env, b, r = scene([{"op": "spawn", "var": "bag", "type": t, "on": "{counter2}", "eid": "powder_bag_1",
+                                "props": {"open": True}},
+                               {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"},
+                               {"op": "spawn", "var": "cup", "type": "measuring_cup_half", "on": "{counter}"}],
+                              perception="realistic")
+            r.skill("fetch", obj=b["cup"])
+            r.skill("approach", target=b["bag"])
+            out = r.do("scoop", target=b["bag"], tool=b["cup"], destination=b["bowl"])
+            data = msg_json(out["agent_message"])
+            pile = env.observe()["visible_entities"][data["portion"]]        # the agent message gives its handle
+            true_pile = ent(env, msg_json(out["message"])["portion"])
+            # (the pile's own size estimate is a fixed draw per pile, whose id is the scooped kind's: compare its truth)
+            seen[t] = (data["ml"], data["per_scoop_ml"], pile["label"], true_pile["size_m"])
+            self.assertAlmostEqual(true_pile["food"]["qty_g"] / true_pile["food"]["density"], 118.3, delta=1.0)
+        self.assertEqual(len(set(json.dumps(v) for v in seen.values())), 1, seen)
+
+    def test_a_scoop_of_powder_stirred_into_soup_leaves_it_soup(self):
+        # found by the phase-1 twin probe: a soup (no water in its composition) with a scoop of baking soda or flour
+        # was reclassified as a "dry mix" powder; a finished dish keeps its kind, a mixing base still becomes a batter
+        env, b, r = scene([{"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter}"},
+                           {"op": "spawn", "var": "soup", "type": "soup", "in": "{bowl}",
+                            "props": {"food": {"qty_g": 300.0}, "mass_kg": 0.3, "volume_l": 0.3}},
+                           {"op": "spawn", "var": "jug", "type": "liquid_measuring_cup", "on": "{counter}"},
+                           {"op": "spawn", "var": "milk", "type": "food_item", "in": "{jug}",
+                            "props": {"food": {"kind": "milk", "cat": "dairy", "phase": "liquid", "qty_g": 240.0, "density": 1.03},
+                                      "mass_kg": 0.24, "volume_l": 0.23}},
+                           {"op": "spawn", "var": "flour", "type": "all_purpose_flour", "on": "{counter2}", "props": {"open": True}},
+                           {"op": "spawn", "var": "cup", "type": "measuring_cup_half", "on": "{counter}"}])
+        r.skill("fetch", obj=b["cup"])
+        r.skill("approach", target=b["flour"])
+        r.do("scoop", target=b["flour"], tool=b["cup"], destination=b["bowl"])
+        soup = food(env, b["soup"])
+        self.assertEqual((soup["kind"], soup["phase"]), ("soup", "liquid"))
+        self.assertIn("all_purpose_flour", soup["composition"])          # it is in there (allergens follow it)
+        self.assertIn("wheat", ent(env, b["soup"])["allergens"])
+        for _ in range(2):
+            r.do("scoop", target=b["flour"], tool=b["cup"], destination=b["jug"])
+        self.assertEqual(food(env, b["milk"])["kind"], "batter")        # flour into milk: a batter, as before
+
+    def test_the_person_eats_extension_point_applies_the_eater_checks(self):
+        # P4: food listens to person_eats, which no domain runs yet; the listener is a documented, tested extension
+        # point that gives a person eating on their own the eater checks of a hand-over. M9: it is their own choice,
+        # so no harm flag is charged to the robot (a hand-over by the robot is)
+        from house_sim.kernel.plugins import run_hooks
+        env, b, r = scene(Serving()._kids() + [
+            {"op": "spawn", "var": "bowl", "type": "serving_bowl", "on": "{counter}"},
+            {"op": "spawn", "var": "nuts", "type": "food_item", "in": "{bowl}",
+             "props": {"food": {"kind": "peanuts", "cat": "nut", "phase": "pieces", "qty_g": 80.0},
+                       "allergens": ["peanut"], "mass_kg": 0.08}}])
+        issues = [i for out in run_hooks("person_eats", env.world, "guest_1", b["bowl"]) for i in (out or [])]
+        self.assertTrue(any(i.startswith("allergen") for i in issues), issues)
+        self.assertEqual(env.world.s["stats"].get("safety_violations", 0), 0)
+        self.assertEqual(env.world.s["food_log"]["served"][-1]["by"], "volition")
+        self.assertEqual(env.world.s["food_log"]["meals"][-1]["person"], "guest_1")
+        r.skill("give", obj=b["bowl"], person="guest_1")                 # the robot handing it over is charged
+        self.assertEqual(env.world.s["stats"]["safety_violations"], 1)
+
+    def test_a_utensil_melting_in_someone_elses_hot_pan_is_not_the_robots_damage(self):
+        # M9: food.safety charged stats.damage for every melted utensil, even one a resident left in a hot pan while
+        # the robot only waited; the kernel's attribution (impact.damage) decides now
+        def hot_pan(spatula_in_pan):
+            ops = [{"op": "spawn", "var": "pan", "type": "frying_pan", "on": "{counter}",
+                    "props": {"temperature_c": 200.0, "fixed_temperature": True}}]
+            ops.append({"op": "spawn", "var": "spatula", "type": "plastic_spatula", "props": {"size_m": [0.22, 0.05, 0.01]},
+                        **({"in": "{pan}"} if spatula_in_pan else {"on": "{counter2}"})})     # a short one fits the pan
+            return scene(ops)
+        env, b, r = hot_pan(True)
+        r.do("wait", seconds=60)
+        rec = ent(env, b["spatula"])
+        self.assertTrue(rec["broken"])
+        self.assertEqual(rec["damage"].get("melted"), 1.0)
+        self.assertEqual(env.world.s["stats"].get("damage", 0), 0)       # exogenous: not the robot's
+        env, b, r = hot_pan(False)
+        r.skill("put", obj=b["spatula"], dest=b["pan"])                  # the robot leaves it in the hot pan
+        r.do("wait", seconds=60)
+        self.assertTrue(ent(env, b["spatula"])["broken"])
+        self.assertEqual(env.world.s["stats"]["damage"], 1)
+
+    def test_bleach_or_dirty_water_reaching_food_makes_it_unsafe(self):
+        # G10 / L3: bleach mop water over a loaf left it only wet, and food judged neither chemical nor germ marks
+        from house_sim.kernel.phys import liquids
+        env, b, r = scene(Serving()._kids() + [
+            {"op": "spawn", "var": "plate", "type": "dinner_plate", "on": "{counter}"},
+            {"op": "spawn", "var": "slice", "type": "bread_slice", "on": "{plate}"},
+            {"op": "spawn", "var": "apple", "type": "apple", "on": "{counter}"},
+            {"op": "spawn", "var": "soda", "type": "canned_soda", "on": "{counter}"},
+            {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter2}"},
+            {"op": "spawn", "var": "salad", "type": "green_salad", "in": "{bowl}"}])
+        w = env.world
+        liquids.spill(w, 0.05, "bleach", onto=b["slice"])               # a splash of bleach runs down onto the bread
+        liquids.spill(w, 0.05, "dirty_water", onto=b["apple"])          # dirty water over the apple
+        liquids.spill(w, 0.05, "bleach", onto=b["soda"])                # the sealed can keeps it out
+        bowl = w.mut(b["bowl"])                                          # the salad bowl filled with mop water
+        bowl.update(liquid="mop_water", liquid_l=0.5, _mix={"water": 0.45, "bleach": 0.05})
+        r.do("wait", seconds=1)
+        for key in ("slice", "salad"):
+            self.assertGreaterEqual(ent(env, b[key])["contamination"]["chemical"], 0.05, key)
+            self.assertEqual(ent(env, b[key])["_food_status"]["class"], "unsafe", key)
+            self.assertIn("chemical_contamination", ent(env, b[key])["_food_status"]["reasons"])
+        # the plate under the bread: a chemical on a food-contact surface is what sanitizing is, germs are not
+        self.assertNotIn("chemical", ent(env, b["plate"]).get("contamination") or {})
+        liquids.spill(w, 0.05, "dirty_water", onto=b["plate"])
+        self.assertEqual(ent(env, b["plate"])["contamination"]["bacteria"], 0.5)
+        self.assertEqual(ent(env, b["salad"])["contamination"]["bacteria"], 0.5)           # mop water carries germs
+        self.assertNotIn("chemical", ent(env, b["soda"]).get("contamination") or {})
+        self.assertNotEqual(ent(env, b["soda"])["_food_status"]["class"], "unsafe")
+        apple = ent(env, b["apple"])
+        self.assertEqual(apple["contamination"]["bacteria"], 0.5)
+        self.assertNotEqual(apple["_food_status"]["class"], "unsafe")    # germs wash off produce: an eater check only
+        self.assertFalse(ent(env, b["plate"])["_dish"]["ok_for"]["guest_1"])
+        r.skill("give", obj=b["plate"], person="guest_1")
+        self.assertEqual(w.s["stats"]["food_poisoning_risk"], 1)
+        self.assertTrue(any(i.startswith("chemical:") for i in w.s["food_log"]["served"][-1]["issues"]))
+        r.skill("give", obj=b["apple"], person="teen_1")
+        self.assertIn("pathogen:" + b["apple"], w.s["food_log"]["served"][-1]["issues"])
+
+    def test_mop_water_poured_over_bread_leaves_it_unsafe(self):
+        # G10 repro: bleach mop water poured over a loaf left it wet with no contamination (plumbing's pour)
+        from house_sim.kernel.plugins import SCENARIO_HELPERS, load_domains
+        load_domains()
+        if "plumbing_liquids.dirty_bucket" not in SCENARIO_HELPERS:
+            self.skipTest("the mop bucket is plumbing_liquids' (HOUSE_SIM_DOMAINS without it)")
+        env, b, r = scene([{"op": "spawn", "var": "slice", "type": "bread_slice", "on": "{counter}"},
+                           {"op": "helper", "name": "plumbing_liquids.dirty_bucket",
+                            "args": {"room": "{kitchen}", "liters": 1.0, "chemical": True}}])
+        r.skill("plumbing_liquids.dump", container=b["bucket"], dest=b["slice"])
+        r.do("wait", seconds=1)
+        rec = ent(env, b["slice"])
+        self.assertGreaterEqual(rec["contamination"].get("chemical", 0.0), 0.05)
+        self.assertGreaterEqual(rec["contamination"].get("bacteria", 0.0), 0.05)
+        self.assertEqual(rec["_food_status"]["class"], "unsafe")
+
+    def test_only_liquid_tight_kitchen_containers_hold_poured_liquid(self):
+        # L3 / G10: a bread box, a colander and a sieve held poured liquid; holes and a roll-top front now let it out
+        from house_sim.kernel.phys import liquids
+        from house_sim.kernel.registry import default_registry
+        reg = default_registry()
+        for name in ("colander", "fine_mesh_sieve"):
+            self.assertTrue(reg.resolve(name)["perforated"], name)
+        for name, tight in (("bread_box", False), ("grocery_bag", False), ("zip_top_bag", True), ("freezer_bag", True),
+                            ("utensil_crock", True)):
+            self.assertIs(reg.resolve(name)["watertight"], tight, name)
+        env, b, r = scene([{"op": "spawn", "var": "colander", "type": "colander", "on": "{counter}"},
+                           {"op": "spawn", "var": "bowl", "type": "mixing_bowl", "on": "{counter2}"}])
+        w = env.world
+        self.assertFalse(liquids.holds_liquid(w.s, b["colander"]))       # the kernel's liquid model: it runs through
+        self.assertTrue(liquids.holds_liquid(w.s, b["bowl"]))
+        liquids.spill(w, 0.3, "water", onto=b["colander"])
+        self.assertFalse(ent(env, b["colander"]).get("liquid_l"))
+
+    # look-alike groups whose members are tools of different sizes (the size is the measure): a 1-cup measure is
+    # visibly bigger than a 1/4-cup one; only the stamped size needs a close look
+    SIZED_TOOL_GROUPS = ("measuring_cup", "measuring_spoon")
+
+    def _food_groups(self):
+        from pathlib import Path
+        from house_sim.kernel.registry import default_registry
+        path = Path(__file__).resolve().parent.parent / "house_sim" / "data" / "types" / "food.json"
+        names = sorted(json.loads(path.read_text(encoding="utf-8"))["looks_like"])
+        reg = default_registry()
+        return reg, {g: reg.lookalike_types()[g] for g in names if g not in self.SIZED_TOOL_GROUPS}
+
+    def test_look_alike_members_share_one_package(self):
+        # L2 / L4 / I9 / L5: members of a food look-alike group differed in true size (pixels, placement), mass (touch
+        # bucket, load word), material (a clink), fragility (a fragile ring) and piece format; now each group is one
+        # package format, so only reading (or opening and looking) tells the contents apart
+        from house_sim.kernel import proprio
+        from house_sim.kernel.realism import MASS4
+        reg, groups = self._food_groups()
+
+        def bucket(value, scheme):
+            return next((name for edge, name in zip(scheme[0], scheme[1]) if value < edge), scheme[1][-1])
+        for group, members in sorted(groups.items()):
+            self.assertGreaterEqual(len(members), 2, group)
+            recs = {t: reg.resolve(t) for t in members}
+            for key in ("size_m", "tare_kg", "package", "material", "fragile", "openable", "open", "transparent",
+                        "color", "shape"):
+                values = {json.dumps(rec.get(key)) for rec in recs.values()}
+                self.assertEqual(len(values), 1, (group, key, {t: rec.get(key) for t, rec in recs.items()}))
+            for key in ("count", "unit_g", "unit_size_m"):
+                values = {json.dumps((rec.get("food") or {}).get(key)) for rec in recs.values()}
+                self.assertEqual(len(values), 1, (group, "food." + key))
+            views = {json.dumps(reg.view_props(t), sort_keys=True) for t in members}
+            self.assertEqual(len(views), 1, (group, "view"))
+            masses = sorted(float(rec["mass_kg"]) for rec in recs.values())
+            self.assertEqual(len({bucket(m, MASS4) for m in masses}), 1, (group, masses))         # touch
+            self.assertEqual(len({proprio.bucket_load(m / 8.0) for m in masses}), 1, (group, masses))   # load word
+            self.assertLessEqual(masses[-1] - masses[0], max(0.05, 0.06 * masses[-1]), (group, masses))
+        self.assertEqual(reg.lookalike_warnings, [])
+
+    def test_look_alike_members_cannot_be_told_apart_by_handling(self):
+        # the same scene with each member in the same spot: what the robot sees, holds, hears and where it lies are the
+        # same (handles mapped back to true ids, analysis side only) until the member is identified
+        reg, groups = self._food_groups()
+
+        def canon(env, value):
+            text = json.dumps(value, sort_keys=True)
+            for handle, eid in sorted(env.realism.handles.by_handle.items()):
+                text = text.replace(handle, eid)
+            return text
+        for group, members in sorted(groups.items()):
+            seen = {}
+            for t in members:
+                env, b, r = scene([{"op": "spawn", "var": "probe", "type": t, "on": "{counter2}", "eid": "probe_item"}],
+                                  perception="realistic")
+                h = env.realism.handles.handle(b["probe"])
+                trail = [env.observe()["visible_entities"].get(h)]
+                for action, args in (("approach", (h,)), ("pick_up", (h,)), ("place", (h, env.realism.handles.handle(b["counter2"])))):
+                    out = env.step(action, *args)
+                    obs = env.observe()
+                    trail.append([out["ok"], out["message"], obs["visible_entities"].get(h), obs["robot"].get("load"),
+                                  obs.get("sounds"), obs.get("smells"), (obs.get("grid") or {}).get("hazards")])
+                seen[t] = canon(env, trail)
+            self.assertEqual(len(set(seen.values())), 1, (group, sorted(seen)))
+
+
 if __name__ == "__main__":
     unittest.main()

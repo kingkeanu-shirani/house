@@ -18,7 +18,9 @@ machine when the drawn one does not fit; none only on a counter with no room lef
 mostly has none. The same random draws are taken in both generations, so generation-1 houses are
 unchanged; a generation-1 kitchen also keeps the field values the adoption round changed in the type data (GEN1_PROPS:
 burners and the electric griddle own their temperature through the older fixed_temperature alias, a pressure cooker
-is put away lid open), because generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2).
+is put away lid open, a rice cooker keeps its 3.5 kg and its pot 0.6 kg and the label "rice cooker inner pot" that
+named its appliance at a glance: independent review, phase 1), because generation-1 houses stay byte-identical
+(TIER1_INTEGRATION 3.2).
 """
 from ...generator.place import Placer
 from ...kernel import geometry
@@ -28,7 +30,8 @@ from . import common as C
 
 # type-data changes made after generation 1 was frozen: what a generation-1 kitchen keeps instead (_generation_one)
 GEN1_PROPS = {"burner": {"fixed_temperature": True}, "electric_griddle": {"fixed_temperature": True},
-              "electric_pressure_cooker": {"open": True}}
+              "electric_pressure_cooker": {"open": True}, "rice_cooker": {"mass_kg": 3.5},
+              "rice_cooker_pot": {"label": "rice cooker inner pot", "mass_kg": 0.6}}
 
 STOVES = {
     "us": [("electric_coil", 0.4), ("radiant", 0.25), ("gas", 0.3), ("induction", 0.05)],

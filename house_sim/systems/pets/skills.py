@@ -94,6 +94,42 @@ def _put_back(r, eid, home):
 # ----------------------------------------------------------------------
 # feeding
 
+def _geometric(r):
+    from ...kernel import camera
+    return camera.mode(r.state) == "geometric"
+
+
+def _walk_beside(r, eid, avoid=None):
+    """Walk (privileged routing) to the nearest free cell within reach of eid in the robot's room, if there is a path."""
+    state = r.state
+    rid = state["robot"]["room"]
+    anchor_room, cells = geometry.anchor(state, eid)
+    if anchor_room != rid or not cells:
+        return
+    start = tuple(state["robot"]["pos"])
+    goals = [tuple(c) for c in sorted(geometry.near_cells(cells, state["rooms"][rid], 1) - set(cells))]
+    ignore = geometry.target_sources(state, eid)
+    # the kernel approach skill's own route choice: every hazard kind it can avoid (mud, wet, waste...) is avoided
+    kinds = S.safe_avoid(state, rid, start, goals, avoid, ignore_sources=ignore, strict=True)
+    path = geometry.find_path(state, rid, start, goals, avoid_kinds=tuple(kinds or ()), ignore_sources=ignore)
+    if path and tuple(path[-1]) != start:
+        args = {"cell": list(path[-1])}
+        if kinds:
+            args["avoid"] = list(kinds)
+        r.do("walk_to", **args)
+
+
+def _scale_for(r, bowl):
+    """A kitchen scale standing out (not shut away) in the bowl's room, or None."""
+    state = r.state
+    room = C.room_of(state, bowl)
+    for eid, rec in sorted(state["entities"].items()):
+        if rec.get("tool_kind") in ("kitchen_scale", "scale", "postal_scale") and C.room_of(state, eid) == room \
+                and not C.enclosed(state, eid):
+            return eid
+    return None
+
+
 @skill("pets.feed_meal")
 def feed_meal(r, bowl, food, amount, unit="g", measure=None, scoop=None, put_back=True, log=True):
     home = _home_of(r, food)
@@ -106,6 +142,13 @@ def feed_meal(r, bowl, food, amount, unit="g", measure=None, scoop=None, put_bac
         scoop = scoop or next((e for e, rec in sorted(r.state["entities"].items()) if rec.get("scoop_ml")), None)
         scoop_home = _home_of(r, scoop)
         S.fetch(r, scoop)
+    scale = _scale_for(r, bowl) if unit == "g" and measure == "scale" and _geometric(r) else None
+    if scale:
+        # geometric camera: the scale on the counter is often out of sight from the bowl on the floor, and feed uses a
+        # scale the robot has seen (feeding.scale_near): walk up to it and look at it first (room camera: the room view
+        # shows it; feed's 12 s already include the walk to the scale and back)
+        S.approach(r, scale)
+        r.do("look", target=scale)
     S.approach(r, bowl)
     args = {"target": bowl, "food": food, "amount": amount, "unit": unit, "log": log}
     if measure:
@@ -245,6 +288,48 @@ def _sweep_points(r, yard, step):
     return [p for line in lines for p in line]
 
 
+def _pile_cells(r, yard):
+    return {tuple(rec["pos"]) for rec in r.state["entities"].values()
+            if rec.get("location") == yard and rec.get("type") == "dog_waste" and rec.get("pos")}
+
+
+def _walk_clear_of_piles(r, yard, cell):
+    """Geometric camera: the robot's route planner keeps clear only of the piles its cameras have made out, and a 4 cm
+    pile in the grass is made out only from close by, so a long leg can cross one it has not seen. Walk a route that
+    steps on no pile (privileged, as a person who knows the yard would) in straight legs: each leg's shortest route is
+    the straight line itself, so the planner cannot pick another one through a pile."""
+    state = r.state
+    start = tuple(state["robot"]["pos"])
+    piles = _pile_cells(r, yard) - {tuple(cell)}
+    path = geometry.find_path(state, yard, start, [tuple(cell)], avoid_kinds=("waste",), extra_blocked=piles)
+    if not path:
+        r.do("walk_to", cell=cell, avoid=["waste"])
+        return
+    cells = [start] + [tuple(c) for c in path]
+    stops = [cells[i] for i in range(1, len(cells) - 1)
+             if (cells[i][0] - cells[i - 1][0], cells[i][1] - cells[i - 1][1]) !=
+             (cells[i + 1][0] - cells[i][0], cells[i + 1][1] - cells[i][1])]
+    for c in stops + [cells[-1]]:
+        r.do("walk_to", cell=list(c), avoid=["waste"])
+
+
+def _clean_cell_near(r, yard, cell):
+    """The nearest free cell of the yard holding no pile, or None."""
+    room = r.state["rooms"][yard]
+    blocked = geometry.blocked_cells(r.state, yard)
+    piles = _pile_cells(r, yard)
+    cols, rows = geometry.grid_size(room)
+    best = None
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            c = (cell[0] + dx, cell[1] + dy)
+            if (dx or dy) and 0 <= c[0] < cols and 0 <= c[1] < rows and c not in blocked and c not in piles:
+                key = (abs(dx) + abs(dy), c)
+                if best is None or key < best[0]:
+                    best = (key, c)
+    return list(best[1]) if best else None
+
+
 @skill("pets.yard_sweep")
 def yard_sweep(r, yard, roll, bin_id, step=5):
     """Take the bags, look closely on entering the yard, then walk a serpentine coverage grid looking closely every ~2.5 m
@@ -258,9 +343,18 @@ def yard_sweep(r, yard, roll, bin_id, step=5):
     for cell in _sweep_points(r, yard, step):
         if tuple(cell) in geometry.blocked_cells(r.state, yard):
             continue
+        if tuple(cell) in _pile_cells(r, yard):
+            # never stop on a pile (with the geometric camera a pile the robot has not seen yet is no hazard to its
+            # route planner): look from a clean cell beside it instead
+            cell = _clean_cell_near(r, yard, cell)
+            if cell is None:
+                continue
         if geometry.find_path(r.state, yard, tuple(r.state["robot"]["pos"]), [tuple(cell)], avoid_kinds=("waste",)) is None:
             continue
-        r.do("walk_to", cell=cell, avoid=["waste"])
+        if _geometric(r):
+            _walk_clear_of_piles(r, yard, cell)
+        else:
+            r.do("walk_to", cell=cell, avoid=["waste"])
         r.do("inspect", target=floor, where="closely")
     bag = None
     piles = [e for e, rec in sorted(r.state["entities"].items()) if rec.get("location") == yard and rec.get("type") == "dog_waste"
@@ -268,6 +362,10 @@ def yard_sweep(r, yard, roll, bin_id, step=5):
     for pile in piles:
         if pile not in r.state["entities"]:
             continue
+        if _geometric(r) and not r.env.perception.visible(r.state, pile):
+            # geometric camera: a 4 cm pile in the grass is made out only from close by, and the kernel's best viewpoint
+            # for it can lie metres away: walk to a cell beside it first (as a person goes back to the pile they found)
+            _walk_beside(r, pile, avoid=["waste"])
         S.approach(r, pile, avoid=["waste"])
         r.do("crouch")
         before = set(r.state["entities"])
@@ -458,6 +556,9 @@ def medicate(r, pet, med, carrier, owner, method="in_treat"):
     _open_if_closed(r, carrier)
     S.fetch(r, carrier)
     S.fetch(r, med)
+    # read the label before dosing (who it is for, the drug, the schedule): with realistic perception an unread amber
+    # bottle is refused, whichever bottle it is
+    r.do("read", target=med)
     S.approach(r, pet)
     r.do("give_pet_medication", target=pet, medication=med, carrier=carrier, method=method)
 

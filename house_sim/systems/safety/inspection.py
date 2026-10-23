@@ -26,11 +26,11 @@ pressing a cracked glass top (`_defects` crack) makes it shatter; scrubbing/dust
 import json
 
 from ...kernel import body, body_faults, geometry
+from ...kernel.actions import motion_record
 from ...kernel.perception import light_level, flashlight_on
 from ...kernel.plugins import after, inspector
 from . import alarms as AL
 from . import common as C
-from . import hazards as H
 
 # how far the robot drops when a compromised section gives way under it (m): a leg through a deck board drops the body
 # about half a metre, a broken stair tread one riser, a floor bay a joist depth; a record's fall_height_m wins
@@ -342,14 +342,22 @@ def score_report(ctx, result):
                 sec["false_reports"] = sec.get("false_reports", 0) + 1
     findings.setdefault(target, {})[field] = entry
     if ctx.args.get("to"):
+        # a report to a person warns them of what it names (warn.py, VERIFY_HARDENING 13.5): the hazard its value
+        # names, or the hazard its target is (the fire, the broken glass), in the target's room; "none" warns of nothing
         from . import people_care as P
-        hz = H.active_hazards(state)
-        kinds = sorted(k for k in hz if k != "smoke")
-        sec["alerts"].append({"time_s": C.now(state), "kind": value, "via": "report", "heard": [ctx.args["to"]], "target": target,
-                              "field": field})
-        if kinds or value not in CLAIM_NONE:
-            P.mark_alerted(w, [ctx.args["to"]], kinds[0] if kinds else value, "report")
-            P._warn_hazard_zones(w, [ctx.args["to"]])
+        from . import warn as WN
+        to = ctx.args["to"]
+        if value in CLAIM_NONE:
+            content = WN.Content()
+        else:
+            content = WN.warning_content(state, "{} {}".format(field, value).replace("_", " "),
+                                         speaker_room=state["robot"].get("room"),
+                                         extra_kinds=WN.entity_classes(state, target) | {value},
+                                         extra_rooms={C.root_room(state, target)} - {None})
+        P.warn(w, [to], content, "report", extra={"target": target, "field": field, "value": value})
+        if value not in CLAIM_NONE and not content.kinds and isinstance(to, str) and to in state.get("people", {}):
+            # a detection reported while no hazard is active (a smell, a defect): the person is told of it
+            P.mark_alerted(w, [to], value, "report")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -390,8 +398,11 @@ def _walk_load(name):
     def hook(ctx, result):
         w = ctx.w
         state = w.s
-        path = ctx.data.get("path") or []
-        rid = ctx.data.get("from_room") if name == "move" else w.robot["room"]
+        # the cells actually walked (the motion record after navigation's cut, order 30): a section past the point
+        # where the robot slipped or stopped never carried its weight
+        record = motion_record(ctx)
+        path = (record or {}).get("path") or []
+        rid = (record or {}).get("from_room") or w.robot["room"]
         if rid not in state["rooms"]:
             return
         load = body.total_mass_kg(w)            # the robot and everything it carries

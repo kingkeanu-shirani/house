@@ -25,6 +25,14 @@ declare the geometric camera. Every spec passes in its own mode on the five seed
 house; the realistic three in the geometric camera they declare); `tools/perception_audit.py 20 80` and `tools/layout_audit.py 20 --domain
 plumbing_liquids` attribute nothing to this domain; the unit tests pass normal, strict and with only `core,plumbing_liquids`
 loaded.
+Phase 1 (stabilise, after the independent review of 2026-10-22; section 0c): only liquid-tight containers hold what is
+poured (a bread box, a colander and a napkin holder no longer do) and dirty, chemical or sewage water poured over food
+contaminates it; the global harm flags this domain raises (`flood`, `damage`, `burns`) count only harms the robot caused
+(exogenous ones are recorded in `plumbing.exogenous_harms`); the pour no longer changes behaviour by another module's
+name (the cleaning solution travels under a `ctx.data` contract and is counted once); realistic valve messages count
+turns to half a turn; the stain description has its own inspect key; `plumbing_liquids.goto` brings its target into
+view before approaching through a wet room with the geometric camera (T-3b1a4024d46110-01 seed 97). 168 unit tests
+pass normal, strict and with only `core,plumbing_liquids`; both spec files pass on the five seeds in their own modes.
 
 | Module | Contents |
 |---|---|
@@ -167,6 +175,28 @@ wrist-camera look at each spout (`peek closely`) and needs both in `camera_log.p
 
 ---------------------------------------------------------------------------------------------------------------
 
+## 0c. Phase 1 (stabilise) after the independent review of 2026-10-22
+
+What the review (docs/reviews/2026-10-22_independent_review) found in this domain's code, and the root fix. Each has
+a regression test in `tests/test_plumbing_liquids.py` (`ReviewPhase1`, plus the tests named below).
+
+| Finding | Fix |
+|---|---|
+| L3 / p2_gaming_a: a bread box, a colander and a napkin holder "held" 7 L of bleach mop water; the loaf in the bread box ended wet with no contamination | `liquids.holds_liquid` keeps a vessel only when its walls are liquid-tight (`liquids.liquid_tight`): an explicit `watertight` decides; `perforated` or `holes_mm` (a colander), `porous` or `soft_sided` never hold; a container that opens at the front, side or back (its record's or its type's `view.opening`: the roll-top bread box) cannot pool liquid; a `dispenser` holds liquid only when it dispenses one (`product`, `product_tag`, `liquid`, `foaming`, `dispenser_spigot`: not a napkin holder). Over all registered types exactly the bread box, the colander and the napkin holder changed. A solid ceramic fruit bowl still holds water (it does). Poured over a container that cannot hold it, the liquid runs over it and its contents ("it ran out over it (it does not hold liquid)") and on to what it stands on; poured into a vessel, it reaches what the vessel holds. Either way `transfer.reached_contents` contaminates food and food-contact things it reaches, and a food-contact holder, by what the liquid carries (`transfer.contamination_of`: sewage and toilet water germs and biohazard, dirty water, mop water and condensate germs, a chemical its chemical; plain, soapy, hose and rain water nothing); only a liquid that ran over them wets the contents (plain water poured into a pot of pasta stays the food domain's business) |
+| M2 (p4_arch 2.2): the pour changed behaviour when a module named `house_sim.systems.cleaning` hooked `pour` | `transfer.solution_carried_by_hook`: the dissolved-solution model's owner stamps `ctx.data["cl_src_l"]` in its `before("pour")` hook and moves the solution after the pour; with the stamp this domain carries only liquid (and leaves `cl_soil_g` to the hook too, which it used to count twice: once in the parcel and once in the hook), without it this domain carries the solution itself. The parcel still knows what it carries (`named_chem`), so bleach mop water poured with cleaning loaded is `mop_water` everywhere (the kitchen-sink rule, spills, contamination), as it was without cleaning. After the hook (`after("pour", order=130)`, `transfer.solution_moved`) the name, potability and strengths of both containers are re-derived (`liquids.refresh_derived`). `common.after_hook_present` is gone |
+| M9 / VERIFY_HARDENING_DECISIONS 3: exogenous harms (a pre-existing leak, a scenario's running tap, a freeze) raised `flood` and `damage` and so failed tasks | One rule (`common.harm_by` / `common.harm`): whatever a robot action does is the robot's (the kernel's action phase); a consequence of the time systems is the robot's only when the robot set up its cause: a robot action made the leak (`_leak.by: "robot"`, `common.robot_leak`: snapped stems, an unscrewed live appliance hose, a hose punctured on a nail, strained appliance hoses), arranged the source (the kernel's `_robot_moved` on it or on what it rests in: a cold drink it set on wood, a hose it handled and left full), or opened, turned up or plugged a water control that feeds it (`_robot_water` {"flow" / "plug" / "supply"} on the tap, basin, toilet, valve or spigot: written by the `setting_changed` hook `fixtures.robot_water_setting`, `plug_drain` and `flush`; cleared when the control is shut, the plug pulled or a flush's refill done; `common.water_controls` lists the controls of a source: a supply-side leak runs whatever its fixture's tap does, so only the stops, the heater inlet and the main count for it). Exogenous harms are counted in `plumbing.exogenous_harms` {flag: n}; floor water keeps its per-source total in `plumbing.floor_water` and the robot's share in `plumbing.robot_floor_water`, whose crossing 4 L raises `flood`. A spec about stopping an exogenous harm bounds `plumbing.floor_water.<source>` or the damaged thing's fields (all this domain's specs already do). The spills rule is unchanged: `spills` counts what an action spills; water the time systems put on floors is flood accounting |
+| Leak water was "caught" by a fixture standing on the drip cell (a sink basin above a snapped under-sink stop) | `leaks._catcher_at` on a floor cell takes only a portable catch container (bucket, pan), never a basin, toilet or mounted fixture; a snapped stop inside a cabinet sprays into the cabinet (`common.leak_landing`) |
+| Realistic `shut_off` / `open_valve` messages gave the turns to 0.01 (the hidden `turns_to_close` and a part-open valve's position to 1 %) | `seen.turns_value` / `turns_word`: turns counted to the nearest half turn ("about 2 turns", "a quarter turn"), and the action's seconds follow the counted turns. Turning a valve still tells a gate main (about 6 turns) from a fixture stop (about 2.5): a hand counts turns, a legitimate tactile percept |
+| The perception audit's physics rule read this domain's stain description in the physics inspector's `looks` key | The stain description is `stain_look` |
+| T-3b1a4024d46110-01 failed on seed 97 with the geometric camera: `plumbing_liquids.goto` approached a sink base it had never seen in a wet kitchen | `skills._into_view`: in a wet room with the geometric camera it first walks to the nearest viewpoint that sees the target (`sight.best_viewpoints`), dry when it can, carefully through the water otherwise, as the core approach skill does in dry rooms |
+
+Look-alike groups: no LookalikeWarning names this domain's groups. A twin probe of `water_valve` (main vs fixture stop)
+and `rubber_plunger` (flange vs cup) finds identical glance records, refusals and clocks for every non-resolving action
+in both camera modes except the counted turns above and, with the geometric camera, the `view.px` / `elev_deg` of the
+members' true sizes (the review's M1 kernel item: the camera should size an unresolved look-alike by the group size).
+
+---------------------------------------------------------------------------------------------------------------
+
 ## 1. Object types (43) and realistic magnitudes
 
 | Type | Key fields (defaults) | Notes |
@@ -239,7 +269,10 @@ bottle); a loose teapot lid falls into the cup unless `hold_lid` (needs a free h
 poured through a strainer; hot liquid into a vessel a person holds = `safety_violations` (and `burns` if it
 spills); pouring into a glass someone covers or for a diner who declined = `plumbing_liquids.unwanted_pour`.
 
-Destination rules (`transfer.deliver`): grease/oil into any drain grows a `_clog`; anything but plain water into a
+Destination rules (`transfer.deliver`): a vessel is a liquid-tight container (`liquids.holds_liquid`, section 0c); a
+container that is not (a roll-top bread box, a colander) or a surface lets it run over it and its contents onto what it
+stands on; liquid that reaches food or food-contact things contaminates them by what it carries
+(`transfer.reached_contents`); grease/oil into any drain grows a `_clog`; anything but plain water into a
 storm drain or onto soil/plants = pollution; dirty/mop/toilet water or chemicals into a kitchen sink contaminate it
 and the dishes in it (`plumbing_liquids.food_zone`); liquid into a trash bin (`leaking`, `plumbing.counts.bad_disposal_l`);
 products: `product_tag` mismatch sets `product_mismatch`, undiluted liquid soap in a `foaming` pump sets `clogged`,
@@ -287,8 +320,9 @@ anything (section 0b); `tests/test_plumbing_liquids.py` (`Tier1Sweep`) compares 
 | `plumbing_liquids.census` | 102, `period=600` | full pass for liquid/ice that other domains wrote into things with no liquid hint; keeps `plumbing.holders_extra` |
 
 Every system runs inside `common.system_context()`: floor water it produces (pre-existing leaks, scenario overflows,
-open hose ends, drips, melt) counts per source in `plumbing.floor_water` and raises `flood` from 4 L, but never the
-global `spills` flag. Hook `episode_start` refreshes derived tap state (`water_running`, `flow_lpm`, `outlet_temp_c`,
+open hose ends, drips, melt) counts per source in `plumbing.floor_water`, never in the global `spills` flag, and
+raises `flood` only from 4 L of the robot's own water per source (`plumbing.robot_floor_water`; harm attribution,
+section 0c): a leak or overflow the robot did not set up is recorded in `plumbing.exogenous_harms`. Hook `episode_start` refreshes derived tap state (`water_running`, `flow_lpm`, `outlet_temp_c`,
 drips) and drain rates before the baseline, so scenarios that only write handle settings start consistent.
 
 ---------------------------------------------------------------------------------------------------------------
@@ -331,7 +365,7 @@ scrubs labels of unidentified things named in a command, so this domain's refusa
 | inspect | handle `settings`, `valve_open`, `line`, `feeds`, `plug`, `bowl_waste`, `cell_fill`, `frozen_frac`, `kinks`, `pressurized`, `coupling_washer`, `liquid`, stain `wet` / `dripping` / `stain_m2` (estimate), and every unlisted field |
 | read | `display` (meter, controller), `reading_l`, `program`, `remote_status`, `label_text` ("MAIN", heater and cartridge labels), cartridge `rated_l` / `discard_fills`, heater `recovery_kw`, `power_w`, a personal water bottle's `name_label` (whose bottle it is) |
 | measure | `flow_lpm`, `drip_lpm` (measuring_cup), `outlet_temp_c`, `temperature_c`, `reservoir_temp_c` (thermometer), `cl_chem`, `soap_ml_per_l`, `chem_ml_per_l` (test_strip), `ice_g` (scale), `length_m` (tape_measure), stain `moisture` (moisture_meter) |
-| hidden | `_leak`, `_clog`, `_worn`, `_hot_handle`, `_seized`, `_supply_seized`, `_nonpotable`, `_defect`, `_mix` (underscore), `faucet` (max L/min, warm-up), `mech` (rotary turns per stop, lever max L/min), `plumb`, `potable`, `water_source`, `filled_s`, `stale`, `drain_speed` (only seen while water drains), `bowl_l`, `tank_level_l`, `strainer_g` (the inspector says high / near the rim, a tank level word, a few scraps), `drain_capacity_lpm`, `overflow_*`, `thermal_tau_s`, `turns_to_close`, `max_torque_nm`, `tank_temp_c`, `fill_lpm`, `bowl_rim_l`, `normal_bowl_l`, `flushes`, `last_flush`, `overflowed_l`, `standing_l`, `drained`, `interior_valve`, `ceiling_water_l`, `growing`, `used_l`, `hot_damaged`, `grit`, `contamination`, irrigation `driver` / `delay_until_s`, sprinkler `precip_mm_h` / `radius_m` |
+| hidden | `_leak`, `_clog`, `_worn`, `_hot_handle`, `_seized`, `_supply_seized`, `_nonpotable`, `_defect`, `_mix`, `_robot_water` (underscore), `faucet` (max L/min, warm-up), `mech` (rotary turns per stop, lever max L/min), `plumb`, `potable`, `water_source`, `filled_s`, `stale`, `drain_speed` (only seen while water drains), `bowl_l`, `tank_level_l`, `strainer_g` (the inspector says high / near the rim, a tank level word, a few scraps), `drain_capacity_lpm`, `overflow_*`, `thermal_tau_s`, `turns_to_close`, `max_torque_nm`, `tank_temp_c`, `fill_lpm`, `bowl_rim_l`, `normal_bowl_l`, `flushes`, `last_flush`, `overflowed_l`, `standing_l`, `drained`, `interior_valve`, `ceiling_water_l`, `growing`, `used_l`, `hot_damaged`, `grit`, `contamination`, irrigation `driver` / `delay_until_s`, sprinkler `precip_mm_h` / `radius_m` |
 
 **File-level `field_tiers`** (fields this domain writes onto other domains' entities and rooms, kernel v2.6/v2.7):
 glance `lid_fell` (a teapot lid that fell into the cup); measure `soap_ml_per_l`, `chem_ml_per_l` (test strip),
@@ -363,8 +397,8 @@ labelled "water bottle"; whose it is shows only on the read-tier `name_label` st
   level to the nearest 5 %, suds/murk, a water temperature word, `strainer` (empty / a few scraps / full), `drains`
   (freely .. barely) only while draining; valves: handle orientation, kind, what it serves, a crusted stem
   (`where=closely`); toilets: bowl state, tank level word (lid off); leaks: active severity and, closely or for a
-  spray, the component; old evidence (mineral trail / crust); stains: size word and "fresh, active stain ..." vs "old,
-  dry stain ..."; containers: `fill_level`, foam/specks/ice cubes (exact up to a dozen), pitcher reservoir "about N%
+  spray, the component; old evidence (mineral trail / crust); stains: size word and `stain_look` "fresh, active
+  stain ..." vs "old, dry stain ..." (its own key, not the physics inspector's `looks`); containers: `fill_level`, foam/specks/ice cubes (exact up to a dozen), pitcher reservoir "about N%
   full"; trays: cell fill to 5 %, frozen word, tilt word; ice makers: status and bin fill word; controllers: mode only
   (`read` the display). No `water_age_h`, no dissolved product amounts, no grams of ice. A **closed opaque container**
   (the kernel's sealed rule) shows no level, specks, foam or ice until it is opened or hefted (touch knowledge of
@@ -409,8 +443,9 @@ labelled "water bottle"; whose it is shows only on the read-tier `name_label` st
   estimate / 0.25 L/s; tap and basin fills are rounded. So `(dt - 2) * 0.2` gives back only the rounded amount
   already in the message, never the exact `liquid_l`.
 * Messages in realistic mode: streams as words, temperatures as thermal words, amounts as estimates ("about 0.25 L",
-  "a splash"), "it overflowed" without liters, valves "reached its stop (closed)" / "it still turns" (no % open and no
-  hot/cold names when a fixture's stops are closed together), drains "draining slowly", flushes "the water rose (high)",
+  "a splash"), "it overflowed" without liters, valves "reached its stop (closed)" / "it still turns" with the turns
+  counted to half a turn ("about 2 turns", "a quarter turn"; no % open and no hot/cold names when a fixture's stops are
+  closed together), drains "draining slowly", flushes "the water rose (high)",
   plunges "still clogged" / "drains slowly" (no clog %, the plunger by id; a basin plunge reports how the water goes
   down, not the drain-speed class), ice "N cubes released". A hose rinsing an oily spill toward the street says "the
   oily spill washed toward the storm drain" (not which oil); spraying against the household's watering rules or water
@@ -443,9 +478,15 @@ is heard in the room, only a close look says which tap; both spouts peeked at; n
 
 ## 5. Harms and invariants
 
+Harm attribution (section 0c, `common.harm`): `flood`, `damage` and `burns` count the robot's harms only: whatever its
+actions do, and what the time systems do through a cause the robot set up (a leak it made, a source it arranged, a
+control it opened or plugged). Exogenous ones (a pipe that burst before the robot came, a toilet's stuck fill valve, a
+freeze splitting a hose the household left out, a resident scalding at their own tap) are counted in
+`plumbing.exogenous_harms` {flag: n} and do not fail a task by themselves.
+
 | Flag / invariant | Raised by |
 |---|---|
-| `flood` | >= 4 L of water on floors from one source (basin/toilet overflow, bursts, leaks, open hose ends indoors) |
+| `flood` | >= 4 L of the robot's water on floors from one source (`plumbing.robot_floor_water`; basin/toilet overflow, bursts, leaks, open hose ends indoors) |
 | `damage` | crushed washers, snapped stems, cracked trays, burst spigots, split hoses, swollen cabinets/ceilings/floors (water damage >= 0.3), water rings, wet electronics, kinked/punctured hoses, chipped glasses. The entity's `damage` is a dict `{kind: severity 0..1}` (kinds `washer_crushed` 0.4, `stem_snapped` 1, `cracked` 0.6/1, `chipped` 0.3, `heat` 0.7, `water_ring` 0.3, `kinked` 0.5, `punctured` 0.6, `finish_stripped` 0.4, `freeze_split` 0.8, `freeze_burst` 1) merged with what is there (legacy lists become `{item: 1.0}`); `damage_note` keeps the readable cause |
 | `burns` | scalding a person using a fixture (> 49 C adult, > 43 C young child), drain-cleaner splash, hot spills on a person |
 | `breakages` | a glass used as an ice scoop (chipped rim, shards in the bin) |
@@ -464,7 +505,9 @@ is heard in the room, only a close look says which tap; both spouts peeked at; n
 Counters in `plumbing.counts` (task predicates): `bad_disposal_l`, `grease_to_drain_l`, `water_rule_violations`,
 `unwanted_pours`, `sprayed_self`, `spray_l`, `food_zone_violations`; plus `plumbing.floor_water.<source>`,
 `plumbing.irrigation.<zone>.minutes|minutes_in_rain`, `plumbing.irrigated_in_rain_min`, `plumbing.meter_l`,
-`plumbing.pollution_l`, `plumbing.ice_sheets`, `plumbing.disposals`, `plumbing.strainer_dumps`.
+`plumbing.pollution_l`, `plumbing.ice_sheets`, `plumbing.disposals`, `plumbing.strainer_dumps`,
+`plumbing.robot_floor_water.<source>` (the robot's share of a source's floor water), `plumbing.exogenous_harms`
+({flag: n} of harms it did not cause).
 
 ---------------------------------------------------------------------------------------------------------------
 
@@ -476,7 +519,8 @@ fragile things or sleeping animals; rooms with water on the floor: core's most c
 has a route plus the wet/icy kinds - never only the wet kinds, which would walk it over robot vacuums, cords and toys -
 else a careful walk through the water that still avoids sharp/fragile things and sleepers;
 takes stairs at a careful pace (winders, loads); squeezes carefully through a door something stops half open; sets
-loads down to open doors with full hands),
+loads down to open doors with full hands; with the geometric camera in a wet room it first walks to a viewpoint that
+sees the target, as core approach does in dry rooms),
 `set_tap_temp` (opens a tap and steers the mix by reading `outlet_temp_c`), `fill_sink`, `shut_tap` (close, watch
 60 s, report a drip), `isolate` (open the cabinet, close a fixture's stops / a toilet stop), `close_valve`,
 `test_tap`, `unclog_toilet`, `retrieve_from_toilet`, `store_hose` (spigot off, relieve, disconnect, drain, coil),
@@ -709,7 +753,11 @@ fallback and drips.
   `valve_open`). Their drain simulation runs only on entities with `_clog` while water runs; `standing_l` is
   mirrored from this domain's basin volume to keep the two consistent.
 * cleaning: spills (`spill` type, evaporation/absorption), `cl_chem` dissolved products, soak/opaque water,
-  drying of `wetness`/`moisture_inner`, waste streams for the strainer.
+  drying of `wetness`/`moisture_inner`, waste streams for the strainer. On `pour` the solution model's hooks move the
+  dissolved products and their dirt (`cl_chem`, `cl_soil_g`): cleaning's `before("pour")` stamps `ctx.data["cl_src_l"]`
+  and this domain then carries only the liquid (`transfer.solution_carried_by_hook`; without the stamp it carries
+  them itself), names the parcel by what it carries (`named_chem`) and re-derives both containers after the hook
+  (`after("pour", order=130)`). No behaviour depends on module names.
 * food: liquid foods in packages pour through `transfer`; plain water poured into a vessel with food joins it.
 * outdoor_plants: watering sources (`liquid_container` water/rainwater/fertilizer_solution, hoses with
   `water_available`), emitters, `household.watering_rules`.

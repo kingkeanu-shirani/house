@@ -21,7 +21,7 @@ CLI: `python -m house_sim <flag> ...` — house_sim/cli.py hands any argv contai
 DEV_SEEDS = (0, 1, 2, 41, 97)            # the public verification seeds
 DEV_EXTRA = (...)                        # small published extra set (e.g. 5 seeds, fixed)
 TRAIN_BASE = 1_000_000                   # public train range [TRAIN_BASE, PRIVATE_BASE)
-PRIVATE_BASE = 900_000_000               # hidden test seeds live in [PRIVATE_BASE, 2**31 - 1)
+PRIVATE_BASE = 900_000_000               # hidden test seeds live in [PRIVATE_BASE, 2**53) (phase 1: was 2**31 - 1)
 
 class SplitKeyMissing(RuntimeError)      # raised when the test split is requested without a key
 

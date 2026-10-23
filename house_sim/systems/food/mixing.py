@@ -281,6 +281,14 @@ def state_words(rec):
     return ", ".join(words)
 
 
+def _finished(f):
+    """A food that is a dish, drink or sauce in its own right (soup, stew, juice, sour cream, ketchup ...) rather than a
+    mixing base the classifier knows (water, milk, cream, eggs, flour, fats, a batter, a dough or a mixture)."""
+    kind = f.get("kind")
+    return bool(kind) and f.get("cat") not in ("mixture", "dough") and not (
+        kind in WATER_FRACTION or kind in LIQUIDS or kind in FLOURS or kind in FATS or kind in EGG_PARTS or kind in ACIDS)
+
+
 def add(w, rec, vessel, relation=None):
     """Deposit a portion into a vessel/surface. Liquids, powders and pastes poured into a vessel that
     already holds a liquid/paste/dough join it immediately (they cannot be picked back out)."""
@@ -310,6 +318,11 @@ def add(w, rec, vessel, relation=None):
                 if orec.get("package") or of.get("phase") not in ("liquid", "paste", "dough"):
                     continue
                 if of.get("phase") == "liquid" and f.get("phase") == "liquid" and of.get("kind") == f.get("kind"):
+                    M.merge_into(w, other, rec)
+                elif _finished(of):
+                    # stirred into a finished dish, drink or sauce (cornstarch into a stew, sugar into sour cream): it
+                    # joins the dish, which stays what it was (it used to be reclassified from a composition whose
+                    # main part carried no water, so a soup with a scoop of powder became a "dry mix" powder)
                     M.merge_into(w, other, rec)
                 else:
                     g_old, g_new = M.qty(orec), float(f.get("qty_g", 0.0))

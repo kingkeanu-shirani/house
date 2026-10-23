@@ -28,6 +28,7 @@ from ...kernel import geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from . import common as C
+from . import percept
 from . import power as P
 
 LATCHING = {"rj45", "displayport"}
@@ -131,6 +132,7 @@ def connect_cable(ctx):
     cid, dev, port = ctx.args["target"], ctx.args["destination"], ctx.args["port"]
     crec = ctx.obj(cid)
     drec = ctx.obj(dev, touch=True)
+    percept.refuse_unfamiliar(ctx, cid, dev)
     dangling = is_cable(crec) and crec.get("relation") == "attached"
     if not (ctx.holding(cid) or dangling or not crec.get("portable")):
         if not (crec.get("usb_device") or crec.get("captive_connector")):
@@ -238,6 +240,7 @@ def disconnect_cable(ctx):
     state = w.s
     target = ctx.args["target"]
     trec = ctx.obj(target)
+    percept.refuse_unfamiliar(ctx, target, ctx.args.get("destination"))
     if not (trec.get("captive_connector") or is_cable(trec) and trec.get("relation") == "attached"):
         ctx.obj(target, touch=True)   # captive plugs and dangling cable ends are handled at the device end
     port = ctx.args.get("port")
@@ -530,6 +533,7 @@ def sync_links(w):
             dlink = next((link_by_cable[v["cable"]] for _, v in sorted(links_here.items()) if v["cable"] in link_by_cable), None)
             data_ok = bool(dlink and dlink["data"])
             recog = bool(host and device_on(state, host) and data_ok)
+            old_host = rec.get("host")
             C.set_if(w, eid, "recognized", recog)
             C.set_if(w, eid, "host", host if recog else None)
             if C.storage_device(rec):
@@ -541,7 +545,11 @@ def sync_links(w):
                     if C.num(m.get("transfer_remaining_s"), 0.0) > 0:
                         m["corrupted"] = True
                         m["transfer_remaining_s"] = 0.0
-                        C.harm(w, "electrical.data_corruption:" + eid, cause="host_lost")
+                        # the robot's when it cut the host or the link (its action, or a cut it caused): a grid outage
+                        # or a resident's doing mid-copy is exogenous (common.consequence)
+                        ids = {eid, old_host} | (P.cut_ids(state, old_host) if old_host in ents else set())
+                        by = "exogenous" if not C.grid_on(state) and not C.robot_acting(w) else None
+                        C.consequence(w, "electrical.data_corruption:" + eid, ids, by=by, cause="host_lost")
                 if not host and rec.get("ejected"):
                     w.mut(eid)["ejected"] = False
         if any((p or {}).get("connector") == "rj45" for p in ports(rec).values()) and rec.get("category") != "network":

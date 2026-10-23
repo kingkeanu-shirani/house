@@ -100,6 +100,10 @@ def _catcher_at(w, rid, cell, inside=None):
         return None
     for child in w.children(rid):
         rec = w.ent(child)
+        # a catch container standing on the floor (a bucket, a pan): never a fixture on that cell - a sink basin or a
+        # toilet bowl above a leaking stop does not catch what sprays out below it
+        if not rec.get("portable") or L.is_basin(rec) or rec.get("toilet") or rec.get("mounted"):
+            continue
         if rec.get("pos") and list(rec.get("pos")) == list(cell) and L.holds_liquid(rec) and not rec.get("category") == "spill":
             if (rec.get("open", True) or not rec.get("openable")) and L.liters(rec) < L.cap_l(rec) - 1e-4:
                 return child
@@ -121,7 +125,9 @@ def _absorber_at(w, rid, cell, inside=None):
     return None
 
 
-def accrue_damage(w, eid, liters_, material=None):
+def accrue_damage(w, eid, liters_, material=None, cause=None):
+    """Water damage on what water reaches (factor per liter by material); crossing 0.3 swells it and counts one
+    damage: the robot's when it set up the water's cause (cause: the leak host or dripping item, common.harm_by)."""
     rec = w.ent(eid)
     mat = material or rec.get("base_material") or rec.get("material", "wood")
     factor = DAMAGE_FACTOR.get(mat, 0.03)
@@ -130,7 +136,7 @@ def accrue_damage(w, eid, liters_, material=None):
     m = w.mut(eid)
     m["water_damage"] = C.rnd(after_, 4)
     if before < 0.3 <= after_:
-        w.stat("damage")
+        C.harm(w, "damage", cause or eid)
         C.plog(w, "water_damage", target=eid, level=C.rnd(after_, 3))
         m["swollen"] = mat in ("particleboard", "mdf", "laminate")
 
@@ -156,7 +162,7 @@ def deliver_leak_water(w, eid, leak, liters_):
         m["cabinet_water_l"] = C.rnd(C.num(m.get("cabinet_water_l")) + liters_, 4)
         m["wetness"] = max(C.num(m.get("wetness")), 0.8)
         m["moisture"] = "wet"
-        accrue_damage(w, cab, liters_, material=w.ent(cab).get("base_material", "particleboard"))
+        accrue_damage(w, cab, liters_, material=w.ent(cab).get("base_material", "particleboard"), cause=eid)
         if C.num(m["cabinet_water_l"]) > 0.8:
             out = C.num(m["cabinet_water_l"]) - 0.8
             m["cabinet_water_l"] = 0.8
@@ -172,7 +178,7 @@ def deliver_leak_water(w, eid, leak, liters_):
             m["wet"] = True
             m["growing"] = True
             m["moisture"] = "wet"
-            accrue_damage(w, stain, liters_, material="drywall")
+            accrue_damage(w, stain, liters_, material="drywall", cause=eid)
             if C.num(m["ceiling_water_l"]) < 2.0:
                 return "ceiling"
             if not m.get("dripping"):
@@ -204,7 +210,7 @@ def deliver_leak_water(w, eid, leak, liters_):
     C.add_floor_water(w, rid, cell, "water", liters_, source=eid)
     floor = C.floor_entity(w, rid)
     if floor:
-        accrue_damage(w, floor, liters_ * 0.2, material=C.floor_material(w, rid))
+        accrue_damage(w, floor, liters_ * 0.2, material=C.floor_material(w, rid), cause=eid)
     return "floor"
 
 
@@ -361,16 +367,19 @@ def drip_step(w, dt):
         drip_onto(w, eid, liters_, rec.get("drip_liquid") or "water")
 
 
-def drip_onto(w, eid, liters_, liquid, depth=0):
+def drip_onto(w, eid, liters_, liquid, depth=0, cause=None):
+    """Drips from eid land on what it stands on (a catcher, an absorbent, a surface, the floor), passing on what that
+    does not keep. cause: the item that drips (a harm is the robot's when the robot set it there, common.harm_by)."""
     rec = w.ent(eid)
     support = rec.get("location")
+    cause = cause or eid
     if depth > 4 or support is None:
         return
     if support in w.s["rooms"]:
-        C.add_floor_water(w, support, rec.get("pos") or C.cell_of(w, eid), liquid, liters_, source=eid)
+        C.add_floor_water(w, support, rec.get("pos") or C.cell_of(w, eid), liquid, liters_, source=eid, cause=cause)
         floor = C.floor_entity(w, support)
         if floor and C.floor_material(w, support) in ("hardwood", "wood", "laminate", "carpet"):
-            accrue_damage(w, floor, liters_ * 0.5, material=C.floor_material(w, support))
+            accrue_damage(w, floor, liters_ * 0.5, material=C.floor_material(w, support), cause=cause)
         return
     if support not in w.s["entities"] or support == "robot":
         return
@@ -392,7 +401,7 @@ def drip_onto(w, eid, liters_, liquid, depth=0):
         if L.holds_liquid(srec):
             over = L.add(w, support, L.make_parcel(liquid, kept, source=eid))
             if over:
-                drip_onto(w, support, over["liters"], liquid, depth + 1)
+                drip_onto(w, support, over["liters"], liquid, depth + 1, cause)
         else:
             m = w.mut(support)
             m["pooled_l"] = C.rnd(C.num(m.get("pooled_l")) + kept, 4)
@@ -400,10 +409,10 @@ def drip_onto(w, eid, liters_, liquid, depth=0):
             if C.num(m["pooled_l"]) > capacity:
                 extra = C.num(m["pooled_l"]) - capacity
                 m["pooled_l"] = C.rnd(capacity, 4)
-                drip_onto(w, support, extra, liquid, depth + 1)
+                drip_onto(w, support, extra, liquid, depth + 1, cause)
         caught[support] = C.rnd(C.num(caught.get(support)) + kept, 4)
         if miss > 0:
-            _onto_below(w, support, liters_ * miss, liquid, depth)
+            _onto_below(w, support, liters_ * miss, liquid, depth, cause)
         return
     if absorb_cap_l(w, support) > 0 or srec.get("material") in ABSORBENT_MATS or srec.get("absorbent"):
         # an absorbent catcher (towel, cardboard, paper) soaks the drips up to saturation (the kernel's wet, by its
@@ -416,32 +425,32 @@ def drip_onto(w, eid, liters_, liquid, depth=0):
         if srec.get("material") in ("cardboard", "paper"):
             w.mut(support)["soggy"] = True
         if liters_ - kept > 1e-9:
-            drip_onto(w, support, liters_ - kept, liquid, depth + 1)
+            drip_onto(w, support, liters_ - kept, liquid, depth + 1, cause)
         return
     # not waterproof and not absorbent: the water sits on it (wood rings, electronics)
     m = w.mut(support)
     m["wetness"] = max(C.num(srec.get("wetness")), 0.7)
     if srec.get("material") in ("wood", "hardwood", "mdf", "particleboard") and not srec.get("sealed"):
-        accrue_damage(w, support, liters_, material=srec.get("material"))
+        accrue_damage(w, support, liters_, material=srec.get("material"), cause=cause)
         m = w.mut(support)
         m["_water_ring"] = C.rnd(C.num(m.get("_water_ring")) + liters_ * 10.0, 3)
     if srec.get("electronic") or srec.get("water_safe") is False:
         if not srec.get("water_damaged"):
             w.mut(support)["water_damaged"] = True
-            w.stat("damage")
+            C.harm(w, "damage", cause)
     if C.num(w.ent(support).get("pooled_l")) > 0.05:
-        drip_onto(w, support, liters_, liquid, depth + 1)
+        drip_onto(w, support, liters_, liquid, depth + 1, cause)
     else:
         w.mut(support)["pooled_l"] = C.rnd(C.num(w.ent(support).get("pooled_l")) + liters_, 4)
 
 
-def _onto_below(w, support, liters_, liquid, depth):
+def _onto_below(w, support, liters_, liquid, depth, cause=None):
     srec = w.ent(support)
     parent = srec.get("location")
     if parent in w.s["rooms"]:
-        C.add_floor_water(w, parent, srec.get("pos") or C.cell_of(w, support), liquid, liters_, source=support)
+        C.add_floor_water(w, parent, srec.get("pos") or C.cell_of(w, support), liquid, liters_, source=support, cause=cause)
     elif parent in w.s["entities"]:
-        drip_onto(w, support, liters_, liquid, depth + 1)
+        drip_onto(w, support, liters_, liquid, depth + 1, cause)
 
 
 RING_SURFACES = ("wood", "hardwood", "walnut", "oak", "pine")
@@ -476,7 +485,7 @@ def ring_and_mildew_step(w, dt):
             m["_water_ring"] = C.rnd(ring, 4)
             if ring >= 1.0 and not parent.get("water_ring"):
                 m["water_ring"] = True
-                C.damage(w, loc, "water ring on the wood", kind="water_ring", severity=0.3)
+                C.damage(w, loc, "water ring on the wood", kind="water_ring", severity=0.3, cause=eid)
         if C.num(rec.get("wetness")) >= 0.3 and rec.get("relation") == "in" and parent.get("openable") and not parent.get("open") \
                 and parent.get("category") not in ("appliance", "washer", "dryer", "dishwasher") and not parent.get("appliance"):
             m = w.mut(eid)
@@ -674,9 +683,9 @@ def strain_hoses(w, appliance, why):
         m = w.mut(hose)
         m["strained"] = True
         rate = 2.0 if defect in ("crack", "bulge") else 0.15
-        m["_leak"] = {"component": "hose_fitting" if defect == "none" else "hose_" + defect, "rate_lpm": rate, "when": "pressurized",
-                      "line": rec.get("line", "cold"), "fixture": appliance, "to": {"room": C.room_of(w, appliance), "cell": C.cell_of(w, appliance)},
-                      "started_s": C.now(w)}
+        m["_leak"] = C.robot_leak(w, {"component": "hose_fitting" if defect == "none" else "hose_" + defect, "rate_lpm": rate,
+                                      "when": "pressurized", "line": rec.get("line", "cold"), "fixture": appliance,
+                                      "to": {"room": C.room_of(w, appliance), "cell": C.cell_of(w, appliance)}, "started_s": C.now(w)})
         C.plog(w, "hose_strained", hose=hose, appliance=appliance, why=why)
 
 

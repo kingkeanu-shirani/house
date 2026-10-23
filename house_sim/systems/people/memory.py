@@ -166,5 +166,8 @@ def wandering_system(w, dt, tick):
                 M.relocate(w, pid, outside)
                 m = w.person_m(pid)
                 m["activity"] = "lost_outside"
-                C.log_event(w, "wandered_out", person=pid, door=door)
-                w.stat("safety_violations")
+                # the robot's when it opened or unlocked that door; otherwise a harm it failed to prevent
+                # (people.care_harm still scores it)
+                robot = C.robot_did(state, door, ("open", "unlock"))
+                C.log_event(w, "wandered_out", person=pid, door=door, robot_caused=robot)
+                C.charge(w, "safety_violations", robot)

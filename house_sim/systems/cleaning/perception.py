@@ -435,6 +435,29 @@ def inspect_details(w, eid, record, details, ctx):
         _realistic_details(w, eid, rec, details, ctx)
 
 
+SPRAY_GROUP = "spray_bottle"
+SPRAY_HIDDEN = ("liquid_l", "fill_level", "level", "liquid", "murky", "sudsy")
+
+
+@inspector("cleaning.spray_fill", order=130)
+def spray_fill(w, eid, record, details, ctx):
+    """Realistic perception, after every other inspector (mechanisms' sprayer details at 110, plumbing's fill level at
+    120): an unresolved member of the spray_bottle look-alike group -- a labelled product, a refill bottle, mechanisms'
+    trigger bottle -- shows how full it is in the same words (fill_estimate) and no litres, level, liquid name,
+    murkiness or suds, whichever domain's type it is (cleaning extends the kernel group and keeps its members alike)."""
+    if ctx is None or not getattr(ctx, "realistic", False) or not ctx.unresolved(eid):
+        return
+    rec = w.s["entities"].get(eid)
+    if rec is None or ctx.env.realism.group_of(rec)[0] != SPRAY_GROUP:
+        return
+    for key in SPRAY_HIDDEN:
+        details.pop(key, None)
+    if "fill_estimate" not in details:
+        estimate = _other_fill(ctx, rec)
+        if estimate is not None:
+            details["fill_estimate"] = estimate
+
+
 DAMAGE_WORDS = ((0.15, "slight"), (0.4, "moderate"))
 
 
@@ -562,9 +585,10 @@ def pollution(state, baseline, world=None):
 
 @invariant("cleaning.hidden_sharp")
 def hidden_sharp(state, baseline, world=None):
-    """A sharp item the robot left (or put) under murky water. O(1): the soak system keeps the list of hidden sharps
-    (`_cleaning_watch.hidden`); ones the scene already hid at reset are in the baseline and do not count."""
-    now = (state.get(S.WATCH) or {}).get("hidden") or ()
+    """A sharp item the robot left (or put) under murky water. O(1): the soak system keeps the list of hidden sharps the
+    robot answers for (`_cleaning_watch.hidden_robot`: it put the item in, or filled or dosed that water); ones the scene
+    already hid at reset are in the baseline and do not count."""
+    now = (state.get(S.WATCH) or {}).get("hidden_robot") or ()
     if not now:
         return None
     then = set((baseline.get(S.WATCH) or {}).get("hidden") or ())

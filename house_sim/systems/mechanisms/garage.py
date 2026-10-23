@@ -116,12 +116,20 @@ def beam_blocked(state, door):
 
 
 def _set_pos(w, door, pos, state_name=None):
+    """Move the door to pos (0 shut .. 1 open). A run the robot starts (opening / closing in its action) carries its
+    "run" mark until the door comes to rest (harm attribution: what the travelling door strikes is the robot's)."""
     rm, mech = C.mut_mech(w, door)
     mech["pos"] = round(C.clamp(pos, 0.0, 1.0), 4)
     mech["open_frac"] = mech["pos"]
     rm["open"] = mech["pos"] > 0.02
     if state_name:
         mech["state"] = state_name
+        if state_name in ("opening", "closing"):
+            C.note_robot(w, door, "run")
+        else:
+            C.drop_robot(w, door, "run")
+    if not rm["open"]:
+        C.drop_robot(w, door, "open")
     return mech
 
 
@@ -264,12 +272,14 @@ def _travel(w, door, dt):
         _reverse(w, door, pos, "beam")
         return True
     target = pos - dt / travel
+    robot = C.robot_set(rec, "run")       # the robot pressed the button or remote that started this run
     for kind, oid, h in found:
         if target * height <= h:
             if kind == "agent" and not eyes_ok:
-                C.harm(w, "injury", door=door, agent=oid, cause="garage door came down on them")
+                C.harm(w, "injury", robot=robot, door=door, agent=oid, cause="garage door came down on them")
             elif kind == "object" and state["entities"].get(oid, {}).get("fragile"):
-                C.mark_damage(w, oid, "struck by the closing garage door", broken=True)
+                C.mark_damage(w, oid, "struck by the closing garage door", broken=True,
+                              robot=robot or C.robot_caused(w, oid))
             _reverse(w, door, h / height, "contact")
             return True
     short = C.num(C.hidden(rec).get("close_limit_short_m")) / height
@@ -303,6 +313,7 @@ def _dashers(w, door, pos):
             m["_dash_until"] = state["time_s"] + 60.0
             m["location"] = room
             m["pos"] = list(spot[len(spot) // 2])
+            C.agent_moved(w, group, aid)
             C.visual(w, "ran_under_door", source=door, size_m=0.5, agent=aid, door=door)
 
 
@@ -319,6 +330,7 @@ def _dashers_return(w):
                 room, pos = m.pop("_dash_from", [m.get("location"), m.get("pos")])
                 m.pop("_dash_until", None)
                 m["location"], m["pos"] = room, list(pos)
+                C.agent_moved(w, group, aid)
 
 
 def _reverse(w, door, pos, why):

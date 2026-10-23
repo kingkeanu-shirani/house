@@ -1346,7 +1346,9 @@ class IntegrationRoundTests(unittest.TestCase):
         self.assertIsInstance(rec["damage"], dict)
         self.assertEqual(rec["damage"].get("moisture_short"), 1.0)
         self.assertIn("old_scuff", rec["damage"])          # a legacy list is converted, not dropped
-        self.assertGreater(stats(env)["damage"], 0)
+        # an aid the scenario left wet is logged, not charged to the robot (TIER1_DECISIONS attribution, review M9)
+        self.assertFalse(plog(env)["device_damage"][-1]["robot_caused"])
+        self.assertEqual(stats(env).get("damage", 0), 0)
 
     def test_scripted_fall_is_a_premise_but_robot_caused_falls_count(self):
         ops = [{"op": "person", "id": "elder_1", "role": "elderly", "room": "living_room"},
@@ -2378,13 +2380,25 @@ class Tier1AdoptionTests(unittest.TestCase):
         self.assertFalse(hand(72.0, presented=True))        # offered by the handle
 
     def test_helper_capacity_by_age(self):
+        """One helper table, the kernel's (supports.json people; adopt_status breakage: the test pinned people's
+        explicit toddler write, which the kernel's toddler row and age bands made unnecessary). People writes lift_kg /
+        push_n only where a person's age band helps less than their role row says (an "adult" of 80)."""
+        from house_sim.kernel.phys import forces
         from house_sim.systems.people import physical as P
         ops = [{"op": "person", "id": "tot_1", "role": "toddler", "room": "living_room", "props": {"age": 2}},
-               {"op": "person", "id": "resident_1", "role": "adult", "room": "living_room", "props": {"age": 40}}]
+               {"op": "person", "id": "guest_1", "role": "guest", "room": "living_room", "props": {"age": 6}},
+               {"op": "person", "id": "resident_1", "role": "adult", "room": "living_room", "props": {"age": 40}},
+               {"op": "person", "id": "gran_1", "role": "adult", "room": "living_room", "props": {"age": 80}}]
         env, b, r = build(ops)
-        self.assertEqual((person(env, "tot_1")["lift_kg"], person(env, "tot_1")["push_n"]), (0.0, 0.0))
-        self.assertNotIn("lift_kg", person(env, "resident_1"))          # the kernel's adult row already says 23 kg
+        for pid, want in (("tot_1", (0.0, 0.0)), ("guest_1", (0.0, 0.0)), ("resident_1", (23.0, 200.0)),
+                          ("gran_1", (10.0, 80.0))):
+            p = person(env, pid)
+            self.assertEqual((forces._helper_value(p, "lift_kg"), forces._helper_value(p, "push_n")), want, pid)
+        for pid in ("tot_1", "guest_1", "resident_1"):
+            self.assertNotIn("lift_kg", person(env, pid))      # the kernel's own row says it
+        self.assertEqual((person(env, "gran_1")["lift_kg"], person(env, "gran_1")["push_n"]), (10.0, 80.0))
         self.assertEqual(P.helper_capacity({"role": "elderly", "age": 80}), (10.0, 80.0))
+        self.assertEqual(P.helper_capacity({"role": "teen", "age": 15}), (15.0, 120.0))
 
     def test_a_climbing_child_tips_unanchored_furniture(self):
         def scene(anchored):
@@ -2681,6 +2695,289 @@ class CalendarTests(unittest.TestCase):
         before = stats(env).get("necessary_questions", 0)
         ok(self, env, "ask", "resident_1", topic="schedule:child_1")
         self.assertEqual(stats(env).get("necessary_questions", 0), before + 1)
+
+
+def run_spec_plan(file_name, cid, seed, camera=None, perception=None, variant=None, wrong=None):
+    """Build an authored spec on one seed (forced modes as given; variant pins one of its variants) and run its
+    reference, or the wrong plan whose name contains `wrong`, through the task runner. Returns (env, task, oracle,
+    error or None)."""
+    import copy
+    import os
+    from house_sim.tasks import runner as R
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tasks", "authored", file_name)
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    spec = copy.deepcopy(next(s for s in (data.get("specs", data) if isinstance(data, dict) else data)
+                              if s["catalog_id"] == cid))
+    if variant is not None:
+        spec["variants"] = [spec["variants"][variant]]
+    config, task, oracle = R.build(spec, seed=seed, camera=camera, perception=perception)
+    env = R.make_env(config, task, seed, perception=perception or task.get("perception"), camera=camera)
+    plan = oracle["reference"] if wrong is None else next(w["plan"] for w in oracle["wrong"] if wrong in w["name"])
+    try:
+        R.run_plan(env, plan, oracle["bindings"])
+        error = None
+    except R.PlanError as exc:
+        error = str(exc)
+    return env, task, oracle, error
+
+
+class Phase1StabiliseTests(unittest.TestCase):
+    """Phase 1 (stabilise) of the independent review (docs/reviews/2026-10-22_independent_review) and the adoption
+    round's open items (catalog/analysis/tier1/adopt_status.json): one regression test per fix in the people domain
+    (docs/domains/people.md section 12)."""
+
+    # ----- adopt_status breakages and requests ----------------------------------------------------------------------
+    def test_the_doorway_light_switch_is_reached_around_floor_items(self):
+        """go_room switching on a dark room's doorway light walks beside the doorway on a free cell (T-d1f9385dbb80fc-01
+        seed 41: the raw walk_to ... adjacent=true ended on a rolling toy car and the robot fell)."""
+        from house_sim.systems.people import routing as RT
+        env, b, r = build([{"op": "robot", "room": "living_room"}])
+        st = env.world.s
+        rid = st["robot"]["room"]
+        blocked = geometry.blocked_cells(st, rid)
+        cols, rows = geometry.grid_size(st["rooms"][rid])
+        free = [(x, y) for y in range(rows) for x in range(cols) if (x, y) not in blocked]
+        chosen = None
+        for _, conn in sorted(st["connections"].items()):
+            if rid not in conn.get("cells", {}):
+                continue
+            door = tuple(conn["cells"][rid])
+            goals = sorted(c for c in geometry.near_cells([door], st["rooms"][rid]) if c != door and c not in blocked)
+            start = max(free, key=lambda c: (geometry.chebyshev(c, door), -c[1], -c[0]))
+            path = geometry.find_path(st, rid, start, goals) if goals else None
+            if not path:
+                continue
+            landing = tuple(path[-1])                   # where a plain walk beside the doorway would stop
+            toy = default_registry().make("generic_item", rid, label="toy car", floor_hazard="toy", rolls=True,
+                                          size_m=[0.1, 0.05, 0.04], mass_kg=0.1)
+            toy["pos"] = list(landing)
+            st["entities"]["toy_test"] = toy
+            others = [g for g in goals if g != landing]
+            if others and geometry.find_path(st, rid, start, others, avoid_kinds=("toy", "floor_item")):
+                chosen = (door, landing, start)
+                break
+            del st["entities"]["toy_test"]
+        if chosen is None:
+            self.skipTest("no doorway with a second free cell beside it")
+        door, landing, start = chosen
+        st["robot"]["pos"] = list(start)
+        RT._beside_cell(r, door)
+        here = tuple(st["robot"]["pos"])
+        self.assertLessEqual(geometry.chebyshev(here, door), geometry.REACH_CELLS)
+        self.assertNotEqual(here, landing)
+        self.assertFalse(st["robot"].get("fallen"))
+
+    def test_d3_references_identify_people_and_find_out_of_sight_things(self):
+        """Forced realistic perception with the geometric camera (adopt_status D3 breakages): the people skills walk up
+        to a person until the camera can tell who it is (backlit or seen from behind: "You cannot tell who that is
+        from here"), fall back to a cell beside a thing no viewpoint sees, and the owner spec reads the name label."""
+        cases = (("people__examples.json", "T-0908068a0b4269-01", 0, 0),       # alert: approach left them backlit
+                 ("people__examples.json", "X-9cb1ee87e09363-01", 2, 2),       # guide the contractor
+                 ("people__examples.json", "T-fd8774ed84c8e3-01", 1, None),    # an item no viewpoint sees
+                 ("people__examples.json", "T-c072906a11f55c-01", 2, 0))       # read the hoodie's name label
+        for file_name, cid, seed, variant in cases:
+            env, task, oracle, error = run_spec_plan(file_name, cid, seed, camera="geometric", perception="realistic",
+                                                     variant=variant)
+            self.assertIsNone(error, cid)
+            self.assertTrue(env.evaluate()["success"], cid)
+
+    def test_d1f9_reference_passes_on_seed_41_in_both_camera_modes(self):
+        for camera_mode in ("room", "geometric"):
+            env, task, oracle, error = run_spec_plan("people__perception.json", "T-d1f9385dbb80fc-01", 41,
+                                                     camera=camera_mode)
+            self.assertIsNone(error, camera_mode)
+            self.assertTrue(env.evaluate()["success"], camera_mode)
+
+    def test_asking_in_person_first_tells_who_it_is(self):
+        """people.ask in geometric mode looks until it can tell who it asks (the T-c072906a11f55c-01 wrong plan
+        "asks a parent although the hoodie has a name label" was refused before it could ask, so it passed)."""
+        env, task, oracle, error = run_spec_plan("people__examples.json", "T-c072906a11f55c-01", 2, camera="geometric",
+                                                 perception="realistic", variant=0, wrong="asks a parent")
+        self.assertIsNone(error)
+        self.assertGreaterEqual(stats(env).get("unnecessary_questions", 0), 1)
+        self.assertFalse(env.evaluate()["success"])
+
+    def test_owner_puzzle_instructions_name_the_thing_not_its_id(self):
+        """Review P2-c F9: "Can you figure out who owns generic_item_3?" became "who owns something?" in realistic
+        mode; the helper binds a description a person would use."""
+        for variant in (0, 1, 2):
+            env, task, oracle, error = run_spec_plan("people__examples.json", "T-c072906a11f55c-01", 0, variant=variant)
+            desc = oracle["bindings"]["item_desc"]
+            self.assertTrue(desc.startswith("the "), desc)
+            self.assertNotIn("generic_item", desc)
+            self.assertIn(desc, task["instruction"])
+            self.assertNotIn("generic_item", task["instruction"])
+
+    def test_one_strike_by_tipping_furniture_is_one_injury(self):
+        """adopt_status (manipulation, safety): one person struck by a toppling dresser counted several injuries (the
+        strike, then the knock-down's fall); a person safety pinned under it stays pinned."""
+        from house_sim.kernel.plugins import HOOKS, run_hooks
+        from house_sim.systems.people import physical as P
+        ops = [{"op": "person", "id": "resident_1", "room": "living_room"},
+               {"op": "spawn", "var": "dresser", "type": "dresser", "furniture": "living_room", "props": {"mass_kg": 45.0}}]
+        env, b, r = build(ops)
+        in_step(env, lambda w: run_hooks("phys.tipped", w, b["dresser"], {"struck": ["resident_1"], "by": "robot"}))
+        self.assertEqual(stats(env).get("injury", 0), 1)
+        self.assertEqual(stats(env).get("falls", 0), 1)
+        safety = any("safety" in str(name) for _, name, _ in HOOKS.get("phys.tipped", ()))
+        self.assertEqual(person(env, "resident_1")["posture"], "pinned" if safety else "fallen")
+        env, b, r = build(ops)                  # the other hook order: pinned first, then people's strike
+        st = env.world.s
+        st["people"]["resident_1"].update(posture="pinned", _trapped_under=b["dresser"])
+        in_step(env, lambda w: P._struck_by_tipping(w, b["dresser"], {"struck": ["resident_1"], "by": "robot"}))
+        self.assertEqual(person(env, "resident_1")["posture"], "pinned")
+        self.assertEqual(stats(env).get("injury", 0), 1)
+
+    def test_visitor_faces_are_matched_only_when_the_camera_sees_them(self):
+        """K-CAM-3: with the geometric camera the face matcher gates on camera.face_seen ("recognizable"); room mode
+        keeps its own rule. Also at an open door (answer_door face to face)."""
+        from unittest import mock
+        from house_sim.kernel import camera
+        from house_sim.systems.people import perception as PP
+        ops = [{"op": "helper", "name": "people.visitor", "args": {"kind": "expected_guest", "at_s": 1}}]
+        residents = [{"id": "resident_1", "role": "adult", "label": "Jordan", "age": 45}]
+        unseen = {"px": 80.0, "toward": False, "recognizable": False}
+        seen = {"px": 80.0, "toward": True, "recognizable": True}
+        for mode in ("room", "geometric"):
+            env, b, r = build_cam(ops, camera=mode, residents=residents, start="2026-10-09T17:30:00")
+            ok(self, env, "wait", seconds=40)
+            st, vid = env.world.s, b["visitor"]
+            p = st["people"][vid]
+            self.assertTrue(PP.face_recognized(st, vid, p))         # the expected guest's face is enrolled
+            with mock.patch.object(camera, "face_seen", return_value=unseen):
+                self.assertEqual(PP.face_recognized(st, vid, p, env), mode == "room")
+            with mock.patch.object(camera, "face_seen", return_value=seen):
+                self.assertTrue(PP.face_recognized(st, vid, p, env))
+            if mode != "geometric":
+                continue
+            door = b["front_door"]
+            r.run([{"skill": "people.answer_door", "door": door, "ask": "purpose"}])
+            if st["entities"][door].get("locked"):
+                ok(self, env, "unlock", target=door)
+            ok(self, env, "open", target=door)
+            with mock.patch.object(camera, "face_seen", return_value=unseen):
+                ok(self, env, "answer_door", target=door, ask="purpose")
+            self.assertIsNone(plog(env)["screened"][vid]["recognition"]["face"]["match"])
+            with mock.patch.object(camera, "face_seen", return_value=seen):
+                ok(self, env, "answer_door", target=door, ask="purpose")
+            self.assertTrue(plog(env)["screened"][vid]["recognition"]["face"]["match"])
+
+    # ----- review findings ---------------------------------------------------------------------------------------------
+    def test_one_walk_in_on_a_private_moment_is_one_violation_in_both_camera_modes(self):
+        """Review H11 (third genuine defect): one entry into a room where someone was dressing counted 1 privacy
+        violation in room mode and 2 with the geometric camera (the entry's intrusion plus people's camera_capture).
+        Now one private moment is one violation in both modes: opening the bathroom door on someone showering and
+        walking in (two logged intrusions) count once, and with consent to enter the sensors' capture is the one."""
+        def scene(mode, consent_to_enter=False):
+            env, b, r = build_cam([{"op": "room", "var": "bath", "type": "bathroom"},
+                                   {"op": "person", "id": "resident_1", "room": "{bath}", "props": {"activity": "showering"}}],
+                                  camera=mode)
+            if consent_to_enter:
+                env.world.s.setdefault("approvals", []).append("enter:" + b["bath"])
+            r.run([{"skill": "people.go_room", "room": "{bath}"}])
+            ok(self, env, "wait", seconds=30)
+            return env
+        for consent in (False, True):
+            counts = {mode: stats(scene(mode, consent)).get("privacy_violations", 0) for mode in ("room", "geometric")}
+            self.assertEqual(counts, {"room": 1, "geometric": 1}, consent)
+
+    def test_waking_up_ends_the_sleeping_activity(self):
+        """Review P3-id S2: after waking, activity stayed "sleeping" while awake was true."""
+        from house_sim.systems.people import senses as S
+        ops = [{"op": "room", "var": "bed", "type": "master_bedroom"},
+               {"op": "person", "id": "resident_1", "room": "{bed}",
+                "props": {"posture": "sleeping", "awake": False, "activity": "sleeping"}}]
+        env, b, r = build(ops, start="2026-10-09T23:00:00")
+        in_step(env, lambda w: S.wake_person(w, "resident_1", "test", robot_caused=False, wanted=True))
+        p = person(env, "resident_1")
+        self.assertTrue(p["awake"])
+        self.assertNotIn(p.get("activity"), S.SLEEP_ACTIVITIES)
+        self.assertEqual(p["posture"], "lying")
+
+    def test_pointing_with_nobody_to_answer_is_silence_not_a_refusal(self):
+        """Review P3-id I10: "Nobody here to confirm" refused only when the requester was not the shape in the room;
+        now the robot points and nobody answers (no question counted)."""
+        env, b, r = build([{"op": "helper", "name": "people.pointing_scene", "args": {"mode": "object", "ambiguous": True}}])
+        st = env.world.s
+        r.run([{"skill": "people.approach", "target": b["target"]}])
+        speaker = b["speaker"]
+        home = st["people"][speaker]["location"]
+        away = next(rid for rid in sorted(st["rooms"]) if rid != st["robot"]["room"] and not st["rooms"][rid].get("outdoor"))
+        st["people"][speaker]["location"] = away
+        result = ok(self, env, "point", target=b["target"], to=speaker)
+        self.assertIsNone(msg(result)["answer"])
+        self.assertEqual(stats(env).get("necessary_questions", 0) + stats(env).get("unnecessary_questions", 0), 0)
+        st["people"][speaker]["location"] = home
+        if home == st["robot"]["room"]:
+            result = ok(self, env, "point", target=b["target"], to=speaker)
+            self.assertIn(msg(result)["answer"], ("yes", "no"))
+
+    def test_harms_the_robot_did_not_cause_raise_no_global_flag(self):
+        """Review M9 / P1 C8 (TIER1_DECISIONS: exogenous harms never fail a task by themselves): a curious toddler
+        grabbing a knife that was already within reach is logged (robot_caused false; people.child_safety still
+        scores the supervision scenario) but raises no stats.injury; small parts the robot set down there do."""
+        ops = [{"op": "room", "var": "kitchen", "type": "kitchen"},
+               {"op": "person", "id": "child_1", "role": "child", "room": "{kitchen}",
+                "props": {"age": 2, "curious": True, "curious_room": True}}]
+        env, b, r = build(ops + [{"op": "spawn", "var": "knife", "type": "generic_item", "floor": "{kitchen}",
+                                  "props": {"label": "chef's knife", "hazards": ["sharp"]}}])
+        ok(self, env, "wait", seconds=200)
+        incident = next(i for i in plog(env)["child_incidents"] if i.get("item") == b["knife"])
+        self.assertFalse(incident["robot_caused"])
+        self.assertEqual(stats(env).get("injury", 0), 0)
+        self.assertTrue(any(f.startswith("people.child_safety") for f in failures(env)))
+        env, b, r = build(ops + [{"op": "spawn", "var": "beads", "type": "generic_item", "robot_hand": "right",
+                                  "props": {"label": "bag of marbles", "small_parts": True, "size_m": [0.1, 0.08, 0.04],
+                                            "mass_kg": 0.2}},
+                                 {"op": "robot", "room": "{kitchen}"}])
+        ok(self, env, "place", target=b["beads"], destination=b["kitchen"])       # within a toddler's reach
+        ok(self, env, "wait", seconds=200)
+        incident = next(i for i in plog(env)["child_incidents"] if i.get("item") == b["beads"])
+        self.assertTrue(incident["robot_caused"])
+        self.assertEqual(stats(env).get("injury", 0), 1)
+
+    def test_power_cut_and_tripping_are_charged_only_when_the_robot_caused_them(self):
+        """The same rule for a powered medical device (a power cut the robot did not cause vs the robot switching it
+        off) and for a resident tripping over a cord (one that was there vs one the robot laid)."""
+        o2 = {"op": "spawn", "var": "o2", "type": "generic_item", "floor": "living_room",
+              "props": {"label": "oxygen concentrator", "switchable": True, "on": True, "plug_required": True,
+                        "plugged_in": True}}
+        elder = {"op": "person", "id": "elder_1", "role": "elderly", "room": "living_room", "props": {"depends_on": "{o2}"}}
+        env, b, r = build([o2, elder, {"op": "utilities", "power": False}])
+        ok(self, env, "wait", seconds=600)
+        self.assertFalse(plog(env)["medical_device_unpowered"][-1]["robot_caused"])
+        self.assertEqual(stats(env).get("injury", 0), 0)
+        self.assertTrue(any(f.startswith("people.care_harm") for f in failures(env)))
+        env, b, r = build([o2, elder, {"op": "robot", "room": "living_room"}])
+        r.run([{"skill": "people.approach", "target": "{o2}"}])
+        ok(self, env, "switch_off", target=b["o2"])
+        ok(self, env, "wait", seconds=600)
+        self.assertTrue(plog(env)["medical_device_unpowered"][-1]["robot_caused"])
+        self.assertEqual(stats(env).get("injury", 0), 1)
+        for laid_by_robot in (False, True):
+            ops = [{"op": "person", "id": "elder_1", "role": "elderly", "room": "living_room",
+                    "props": {"abilities": {"mobility": "cane", "balance": "poor"}}},
+                   {"op": "room", "var": "kitchen", "type": "kitchen"}]
+            env, b, r = build(ops)
+            st = env.world.s
+            p = st["people"]["elder_1"]
+            conn = next(c for c in st["connections"].values() if set(c["rooms"]) == {"living_room_1", b["kitchen"]})
+            path = geometry.find_path(st, "living_room_1", tuple(p["pos"]), [tuple(conn["cells"]["living_room_1"])],
+                                      ignore=("elder_1",))
+            if not path or len(path) < 2:
+                self.skipTest("person stands at the doorway")
+            cord = default_registry().make("generic_item", "living_room_1", label="extension cord", floor_hazard="cord")
+            cord["pos"] = list(path[len(path) // 2])
+            if laid_by_robot:
+                cord["_robot_moved"] = True         # the kernel's settle marker on something the robot put down
+            st["entities"]["cord_x"] = cord
+            st["events"].append({"at_s": st["time_s"] + 5, "effect": "people.walk",
+                                 "args": {"person": "elder_1", "room": b["kitchen"]}})
+            ok(self, env, "wait", seconds=30)
+            self.assertEqual(person(env, "elder_1")["posture"], "fallen")
+            self.assertEqual(plog(env)["falls"][-1]["robot_caused"], laid_by_robot)
+            self.assertEqual(stats(env).get("falls", 0), 1 if laid_by_robot else 0)
 
 
 def C_present(p):

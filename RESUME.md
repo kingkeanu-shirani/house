@@ -38,3 +38,22 @@ python tools/fuzz.py 12 300
   owner first; hand work between agents through files, never inline-truncated JSON.
 - Local-only material: archive/review_2026-10-22_workdir.zip (the reviewers' probe scripts and logs),
   archive/partial_adopt_*.patch (now obsolete), catalog/analysis/tier1/gate/ (gate records).
+
+## Phase 1 "stabilise" (2026-10-22, owner said "finish the project", then paused)
+
+Plan (docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md section 3, adopted): P1 stabilise -> P2 implement
+docs/design/VERIFY_HARDENING.md (decisions: VERIFY_HARDENING_DECISIONS.md) -> P3 one re-baseline for D1-D3 -> P4
+re-harden the 243 specs -> P5 LLM pilot (owner approval needed) -> P6 author core-500, then the rest -> P7 final
+verification, docs, final review, packaging.
+
+P1 result (catalog/analysis/phase1/STATUS.md, FIX2.json): all 19 fix agents, integrator, two red teams and the fix
+pass finished (the workflow's last return was cut by a session end; the per-domain repair step did not run).
+4,681 unit tests pass (normal, strict, domain-isolated); 241/243 specs in own mode; 51/51 realistic specs with the
+geometric camera; perception audit 0 (upgraded auditor), layout 0, fuzz 0, coverage fuzz 286/427 actions.
+Open: catalog/analysis/phase1/breakages.json (53 domain rows, incl. T-7d4006bda247ba-01); red-team items left for P2
+(placement roles by position -> WP9; public-seed rebuild; averaging/correlation audits -> WP7/WP6; gate-tool holes in
+red_defects.json); G7 perf regression (3.85 vs 3.21 ms/substep, domains' share); gate sign-off draft
+P1_signoff_draft.json to review.
+Next: run the P1 repair step for the domains in breakages.json (tools/orchestration workflow phase1_stabilize.js,
+resumable), sign the P1 gate, then start P2 (VERIFY_HARDENING WP order in its section 25).
+Owner decisions pending: create the split key (private gate stages); approve the paid LLM pilot.

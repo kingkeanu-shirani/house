@@ -2119,23 +2119,23 @@
   },
   "router_power_adapter_19v": {
    "is_a": "laptop_charger",
+   "doc": "A power brick of the look-alike group power_adapter (read-resolved): it keeps the group's size and the laptop charger's mass (0.25 kg), so neither touch nor the robot's load can tell the bricks apart before the label is read (independent review L4).",
    "props": {
     "label": "power adapter (19 V barrel)",
     "captive_connector": "barrel_5.5",
     "output_v": 19.0,
     "source_w": 40.0,
-    "mass_kg": 0.2,
     "label_text": "AC adapter - output 19V 2.1A (40W)"
    }
   },
   "router_power_adapter_12v": {
    "is_a": "laptop_charger",
+   "doc": "A power brick of the look-alike group power_adapter (read-resolved): it keeps the group's size and the laptop charger's mass (0.25 kg), so neither touch nor the robot's load can tell the bricks apart before the label is read (independent review L4).",
    "props": {
     "label": "power adapter (12 V barrel)",
     "captive_connector": "barrel_5.5",
     "output_v": 12.0,
     "source_w": 24.0,
-    "mass_kg": 0.15,
     "label_text": "AC adapter - output 12V 2A (24W)"
    }
   },

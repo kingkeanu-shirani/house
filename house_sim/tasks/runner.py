@@ -33,7 +33,7 @@ from ..generator import generate_house
 from ..kernel import camera as camera_mod
 from ..kernel.engine import HouseEnv
 from ..kernel.errors import SpecError
-from ..kernel.plugins import SKILLS, load_domains
+from ..kernel.plugins import ACTIONS, SKILLS, load_domains
 from ..kernel.predicates import MISSING, check, get_path, validate_predicate
 from . import skills  # noqa: F401  (registers core reference skills)
 from ..kernel.registry import default_registry
@@ -185,9 +185,33 @@ def build(spec, seed=0, registry=None, camera=None, perception=None, gen=None):
     for phase in task.get("phases") or []:
         for rule in (phase.get("success") or []) + (phase.get("failure") or []):
             validate_predicate(rule)
+    _check_plan_actions(chosen)
     oracle = {"bindings": bindings, "reference": chosen.get("reference", []), "wrong": chosen.get("wrong", []),
               "variant": variant, "seed": seed}
     return config, task, oracle
+
+
+def _plan_steps(steps):
+    for step in steps or []:
+        if isinstance(step, dict):
+            yield step
+            for key in ("steps",):
+                if isinstance(step.get(key), list):
+                    yield from _plan_steps(step[key])
+
+
+def _check_plan_actions(chosen):
+    """Every literal "do" action name in the chosen variant's reference and wrong plans is a registered action
+    (phase-1 red team: a wrong plan naming an unknown action was refused at every step and still counted as
+    evidence). A templated name ("{action}") is checked when it runs. Raises SpecError."""
+    plans = [("reference", chosen.get("reference") or [])]
+    plans += [("wrong plan {!r}".format(w.get("name", i)), w.get("plan") or [])
+              for i, w in enumerate(chosen.get("wrong") or []) if isinstance(w, dict)]
+    for where, steps in plans:
+        for step in _plan_steps(steps):
+            name = step.get("do")
+            if isinstance(name, str) and "{" not in name and name.strip().lower() not in ACTIONS:
+                raise SpecError("{}: unknown action {!r}".format(where, name))
 
 
 class Runner:
@@ -195,6 +219,7 @@ class Runner:
         self.env, self.bindings, self.strict = env, dict(bindings), strict
         self.last = None
         self.failures = []
+        self.refusals = []              # (action, category, message, malformed) of every refused step (verify.py)
         self.privileged_waits = 0       # schema-2 wait_until steps (they poll hidden state; migration debt)
 
     @property
@@ -231,6 +256,9 @@ class Runner:
             return result
         if not result["ok"]:
             self.failures.append("{} {}: {}".format(action, target, result["message"]))
+            # malformed: refused for its form (an unknown action or arguments it does not take): never attempted
+            self.refusals.append((action, result.get("category") or "", str(result["message"]),
+                                  bool(getattr(self.env, "last_step_malformed", False))))
             if self.strict:
                 raise PlanError("{} {} {} failed: {}".format(action, target, destination, result["message"]))
         return result

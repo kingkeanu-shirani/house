@@ -92,7 +92,7 @@ in `phys_*` statistics and events only. Kernel calls take `by="robot"` or `by="e
 | consequence | fields written | event |
 |---|---|---|
 | fall | `fell`, new location (floor cell or a lower surface), `orientation: on_side` for tall items | `phys.fall` |
-| break | `broken`, `condition: broken`, `damage.broken`; glass and ceramics: `shattered`, hazard `sharp`, a sharp floor hazard; liquid runs out | `phys.break` |
+| break | `broken`, `condition: broken`, `damage.broken`; glass and ceramics: `shattered`, hazard `sharp`, a sharp floor hazard (not for a contained break, below); liquid runs out | `phys.break` |
 | chip / bruise / crush / dent / scratch | `damage.<kind>` levels 0..1 (never lowered) | `phys.chip`, `phys.crush`, `phys.dent`, `phys.scratch` |
 | shelf or surface collapse, pull-out, tear | `collapsed_shelves`, `damage.collapsed`, `damage.pulled_out` / `hole`, `torn` | `phys.collapse`, `phys.pullout`, `phys.tear` |
 | tip, slide, roll | `tipped_over`, `orientation`, `spos`; `in_motion: rolling` while rolling | `phys.tip`, `phys.slide`, `phys.roll` |
@@ -104,13 +104,42 @@ in `phys_*` statistics and events only. Kernel calls take `by="robot"` or `by="e
 Statistics: `phys_falls`, `phys_breaks`, `phys_spills`, `phys_tips`, `phys_collapses`, `phys_blown`, `phys_rolls`,
 `phys_budget_hits`. Hooks a domain may register: `phys.props`, `phys.spill_sink`, `phys.wetted`, `phys.broke`,
 `phys.fell`, `phys.tipped`, `phys.collapsed`, `phys.contact_heat`, `phys.carry_motion`, `phys.tip_loads`,
-`phys.items_above`, `phys.exposed`, `phys.settle_extra` (signatures in TIER1_PHYSICS 7.3).
+`phys.items_above`, `phys.exposed`, `phys.settle_extra` (signatures in TIER1_PHYSICS 7.3), `phys.uncontained`
+(`fn(w, eid, info)`, below).
+
+**Wrap containment (a contract for every domain).** A break inside a full wrap (`wrapped.coverage` >= 0.95, any
+material, or a plain `wrapped` flag) or inside intact packaging (`packaged`) is *contained*:
+`physics.impact.contained(record)` is true, the pieces stay in the wrap, the item is sharp to handle (`hazards`,
+`handled_with`) but no floor hazard, and `phys.broke` hooks and the `phys.break` event carry `contained: true` (the key
+is absent otherwise). While it holds, no domain may scatter, spread or spawn the pieces (no shard field, no shard
+outside the wrap, no shard spreading on a walk); once the wrap or the packaging comes off they are the domain's to
+scatter. An opaque wrap also hides the break (`shattered` stays off); a see-through one (bubble wrap, cling film)
+contains the pieces but shows them. A fallen fully wrapped container keeps its loose contents (they are jolted, not
+thrown out); liquid soaks through. The cross-layer test is `tests/test_physics_settle.py`
+`CrossLayerContractTests` (independent review 2026-10-22, H11 defect 2). **Containment ends** with
+`physics.impact.uncontained(w, eid, by=None)`, which the domain that removes the wrap or the packaging calls after
+clearing `wrapped` / `packaged` (phase-1 red team: an unwrapped broken glass left no shards and no floor hazard): a
+shattered sharp break shows (`shattered`), gets the sharp floor hazard on a floor, runs the `phys.uncontained` hook
+(info: by, room, mode; a domain answers it with what it scatters for an open break, e.g. safety's shard field) and is
+recorded as a `phys.uncontained` consequence; idempotent (`_pieces_out`). Hooking it up is manipulation's (unwrap)
+and safety's (shards) -- catalog/analysis/phase1/breakages.json.
+
+**Stacks.** Each member of a stack is judged against the top of the one below it: its declared `surface_size_m` (a
+kitchen scale's weighing platform, a trivet, a charging pad, an ironing board's top) while it stands upright, else its
+footprint, in that member's own frame. The oversize rule compares the part that bears on it (its footprint, or its foot
+`base_m` when it stands on one), so a 0.29 m mixing bowl rests on a scale with a 0.32 m platform and a bowl on its foot
+ring rests on a small saucer; a 0.5 m tray on a dinner plate still rocks off. Something that opens out into another
+shape has its in-use size while it is open (`open_size_m`: an ironing board set up on its legs, an opened drying
+rack); folded it offers only its folded footprint (independent review H14: forcing the `stack` law broke 8 specs, the
+bowl on the scale among them).
 
 ## 5. Processes, heat, wind and rain
 
 * `physics.processes` (system order 48): timed checks (wet-contact rings, staged creep, handle creep) and continuous
   processes (rolling, dripping, leaking, contact heat, freezing and thawing, melting). The state section `physics`
-  appears only once a process exists.
+  appears only once a process exists. `physics.drip_start(w, eid, l_per_h, until_l=None, by=None)` and `phys.liquids.leak_start(...,
+  by=None)` take who started them: with `by="robot"` every portion they deposit is the robot's (a pot it over-watered
+  drains into a puddle as its spill), with `by=None` each portion is judged like any consequence.
 * Kernel `thermal` (order 50, every 120 s): Newton relaxation of every entity toward its ambient (parent heat source,
   conducting or insulated parent, else room air or the weather outdoors), skipping bodies within 0.05 K of it and
   anything a domain owns (`thermal_owner`, or the older `fixed_temperature`). The time constant is the legacy
@@ -122,7 +151,18 @@ Statistics: `phys_falls`, `phys_breaks`, `phys_spills`, `phys_tips`, `phys_colla
   sliding needs the sustained wind (a calibration choice kept from the stage-A review; it under-predicts how often
   light things blow about in gusty weather, see `docs/KNOWN_LIMITS.md`). Wheeled things stand on rubber tyres: they
   skid only at rubber's friction on the floor, so a wheelie bin blows over in a gust (about 19 m/s at 10 m) instead of
-  skidding away; free-rolling casters roll at the floor's rolling resistance.
+  skidding away; free-rolling casters roll at the floor's rolling resistance. A blown thing travels along the downwind
+  line and comes to rest in the last cell before the room's edge, a doorway's clearance or a path-blocking footprint
+  (its own support excepted; phase 1, outdoor_plants' request: it used to land on the doorway cell and cut every
+  route through it); one already pressed against such a cell stays.
+* Liquid holders (`phys.liquids.holds_liquid`, phase 1, review L3; the rule plumbing_liquids' verbs use): an open,
+  waterproof (or explicitly `watertight`) holder with a capacity that is liquid-tight (`liquids.liquid_tight`): an
+  explicit `watertight` decides; perforated (`perforated`, `holes_mm` > 0) or open-weave bodies (wire, coated-wire
+  racks, mesh, wicker: `OPEN_WEAVE_MATERIALS`) let poured liquid run through to what is below (`drains_through`);
+  porous or soft-sided ones, open shelving (`open_shelving`: a shelving unit's capacity is storage) and those opening
+  at the front, side, back or bottom (the type's view `opening`) are not holders (poured liquid is spilled onto
+  them). Types that are open frames or vented (a pet crate, a firewood rack, a toaster) need their own flags in the
+  type data.
 
 ## 6. Perturbation events
 
@@ -175,6 +215,13 @@ own rating applies; only weight the robot adds can make it give way.
 * `pick_up` plans the lift with `physics.lift_plan` (two hands above 8 kg, for anything wider than 0.7 m or marked
   `two_handed`; at most 20 kg) and refuses with the same texts as before. The mass is the kernel's one subtree mass:
   liquids weigh their `liquids.json` density (a jug of bleach 1.1 kg/L, honey 1.42).
+* **Lift monotonicity (a contract for every domain).** A lift the plan accepts holds: a domain's grip model may not
+  drop a clean, dry item the plan gives one hand with the default grip (the one-hand squeeze rises to what holds the
+  hand's rated load, `body.hold_capacity_kg`, clamped to `body.grip_limit_n`); a wet, oily or soapy surface,
+  slippery fingers, a `gripper_slip` fault or a grip the command chose (pinch, gentle) may still let it slip. So for
+  masses m1 < m2 within the robot's capacity, if `pick_up` holds m2 it holds m1 (independent review H11 defect 1: a
+  50 N normal grip dropped 7.65-8.0 kg items the plan handed to one hand, while 8.01 kg was held with two). The
+  cross-layer test is `tests/test_physics_forces.py` `LiftMonotonicityTests`.
 * `place` checks containment with `physics.fits` (box with diagonal fits, the opening, nested and compressed volume:
   "It does not fit inside", "It does not fit through the opening", "Not enough room inside"), refuses a collapsed shelf
   ("That shelf is broken") and a support that gave way or broke to pieces ("It is broken and cannot hold anything"),

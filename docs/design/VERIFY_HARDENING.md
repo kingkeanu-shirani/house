@@ -1571,8 +1571,9 @@ owner's standing rule, whoever creates it stops and asks the owner to back up `%
 
 **Private held-out seeds** `H_priv(spec)`: `PRIVATE_BASE + HMAC(salt, "heldout:<catalog_id>:<spec_hash>:<i>") mod
 PRIVATE_SPAN` for i = 0, 1, ..., skipping any seed in the spec's hidden test candidate list and duplicates, until 10
-seeds with every variant on at least 2 (cap 16). They live in the hidden range `[900,000,000, 2^31 - 1)` with the test
-seeds (`eval/splits.py`) [read], so they are as unpublished as the test houses. The **private audit pool** is 2,000
+seeds with every variant on at least 2 (cap 16). They live in the hidden range `[PRIVATE_BASE, PRIVATE_END)` with the
+test seeds (`eval/splits.py`) [read; `[900,000,000, 2^53)` since phase 1, which widened it from `2^31 - 1` so the
+houses of the range cannot be tabulated], so they are as unpublished as the test houses. The **private audit pool** is 2,000
 seeds `PRIVATE_BASE + HMAC(salt, "pool:<i>") mod PRIVATE_SPAN` in the same range (test candidates skipped), generated
 once per generator fingerprint and cached under `%USERPROFILE%\.house_ai\cache\houses\` on the gate machine; P7 and
 the private repeats of the audits sample 200 of them per spec with the salt.

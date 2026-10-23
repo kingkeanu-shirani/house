@@ -274,13 +274,16 @@ def check_water(w, eid, wetness, source="wet tool"):
     return False
 
 
-def liquid_ingress(w, eid, source):
+def liquid_ingress(w, eid, source, robot=None):
+    """Liquid got into electronics or a motor base. The robot's harm (robot=None: S.robot_caused) or an exogenous one
+    (a resident's kettle boiling over, a device the scene left soaking)."""
     rec = w.ent(eid)
-    S.damage(w, eid, "liquid_ingress", 0.6, source)
+    robot = S.robot_caused(w, eid) if robot is None else bool(robot)
+    S.damage(w, eid, "liquid_ingress", 0.6, source, robot=robot)
     powered = rec.get("on") or (rec.get("plug_required") and rec.get("plugged_in")) or rec.get("live")
     if powered:
-        w.stat("electrical_hazard")
-        S.glog(w, "electrical_hazard", target=eid, source=source)
+        S.charge(w, "electrical_hazard", robot)
+        S.glog(w, "electrical_hazard", target=eid, source=source, by=S.by_word(robot))
 
 
 def hot_surface(w, eid):

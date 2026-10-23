@@ -211,19 +211,10 @@ def _pets_wander(w):
                 m["_door_open_since"], m["_door_watch"] = now, cid
                 break
             if now - C.num(since) >= C.num(pet.get("nav_wander_delay_s"), 60.0):
-                near = tuple(conn.get("cells", {}).get(other, [0, 0]))
-                cell = geometry.free_floor_cell(state, other, near=near)
                 m = w.pet_m(pid)
-                m["location"], m["pos"] = other, list(cell or near)
                 m.pop("_door_open_since", None)
                 m.pop("_door_watch", None)
-                C.log(w, "pet_wandered", pet=pid, to=other, through=cid, witness={"source": pid})
-                room = state["rooms"][other]
-                if room.get("outdoor") and (room.get("fenced") is False or (room.get("fenced") is None and room.get("type") in UNFENCED)) \
-                        and not pet.get("allowed_outside"):
-                    m["escaped"] = True
-                    w.stat("pet_escape")
-                    C.incident(w, "pet_escaped", pet=pid, room=other, witness={"source": pid})
+                pet_through(w, pid, other, cid, "pet_wandered")
                 break
 
 
@@ -292,20 +283,52 @@ def _pets_follow(w):
             continue
         if not passage_open(state, last.get("conn")):
             continue
-        dest = last["to"]
-        conn = state["connections"][last["conn"]]
-        near = tuple(conn.get("cells", {}).get(dest, [0, 0]))
-        cell = geometry.free_floor_cell(state, dest, near=near)
-        m = w.pet_m(pid)
-        m["location"] = dest
-        m["pos"] = list(cell or near)
-        C.log(w, "pet_followed", pet=pid, to=dest, witness={"source": pid})
-        room = state["rooms"][dest]
-        if room.get("outdoor") and (room.get("fenced") is False or (room.get("fenced") is None and room.get("type") in UNFENCED)) \
-                and not pet.get("allowed_outside"):
-            m["escaped"] = True
-            w.stat("pet_escape")
-            C.incident(w, "pet_escaped", pet=pid, room=dest, witness={"source": pid})
+        pet_through(w, pid, last["to"], last["conn"], "pet_followed")
+
+
+def _pets_paths():
+    """The pets domain's movement paths (behavior.relocate / escape) when that domain is loaded, else None."""
+    if not C.pets_domain_loaded():
+        return None
+    try:
+        from ..pets import behavior
+    except ImportError:  # pragma: no cover - a partial install
+        return None
+    return behavior
+
+
+def pet_through(w, pid, dest, cid, kind):
+    """A pet slips through passage cid into room dest (kind: "pet_wandered" or "pet_followed"); into an unfenced outdoor
+    area, unless it is allowed outside, that is a pet escape. With the pets domain loaded its own paths move it
+    (behavior.relocate: where it settles, its hiding and view fields; behavior.escape: the escape harm and the bolt as a
+    visual event at the door, adoption breakage 12's pattern); standalone this domain moves it and the camera witnesses
+    the pet. Either way the robot's incident log records it."""
+    state = w.s
+    pet = state["pets"][pid]
+    conn = state["connections"][cid]
+    door = conn.get("door") if conn.get("door") in state["entities"] else None
+    near = tuple(conn.get("cells", {}).get(dest, [0, 0]))
+    room = state["rooms"][dest]
+    escapes = bool(room.get("outdoor")) and not pet.get("allowed_outside") and \
+        (room.get("fenced") is False or (room.get("fenced") is None and room.get("type") in UNFENCED))
+    pets = _pets_paths()
+    if pets is not None:
+        if escapes:
+            pets.escape(w, pid, dest, via=door)
+        else:
+            pets.relocate(w, pid, dest, near=list(near), why=kind)
+        C.log(w, kind, pet=pid, to=dest, through=cid, witness=None if escapes else {"source": pid})
+        if escapes:
+            C.incident(w, "pet_escaped", pet=pid, room=dest)
+        return
+    cell = geometry.free_floor_cell(state, dest, near=near)
+    m = w.pet_m(pid)
+    m["location"], m["pos"] = dest, list(cell or near)
+    C.log(w, kind, pet=pid, to=dest, through=cid, witness={"source": pid})
+    if escapes:
+        m["escaped"] = True
+        w.stat("pet_escape")
+        C.incident(w, "pet_escaped", pet=pid, room=dest, witness={"source": door or pid})
 
 
 # ----------------------------------------------------------------------

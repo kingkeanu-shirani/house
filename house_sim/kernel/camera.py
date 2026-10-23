@@ -2125,13 +2125,18 @@ def private_activity(state, pid):
     return person.get("activity") in PRIVATE_ACTIVITIES
 
 
-def _capture_key(person, pid):
+def capture_key(person, pid):
     """"pid:activity:episode": one capture per person per private moment, whichever sensor took it first. People
     records carry no activity start; the episode is the activity's start when a domain records one
-    (activity_start_s), else its scheduled end (activity_until), else "-" (one per activity)."""
+    (activity_start_s), else its scheduled end (activity_until), else "-" (one per activity). Public (phase 1): the
+    people domain keys its intrusions by it, so an entry and a frame of the same moment count one privacy violation
+    in both camera modes."""
     start = _finite(person.get("activity_start_s", person.get("activity_until")))
     episode = "-" if start is None else str(int(round(start)))
     return "{}:{}:{}".format(pid, person.get("activity"), episode)
+
+
+_capture_key = capture_key      # the former private name (domains written before phase 1)
 
 
 def _camera_captures(state, sc, frame, world):
@@ -2254,7 +2259,7 @@ def _log_capture(w, capture):
     fn(w, info), or without one count it in privacy_violations (the kernel fallback, a decision of TIER1_DECISIONS)."""
     state = w.s
     person = state.get("people", {}).get(capture["person"]) or {}
-    key = _capture_key(person, capture["person"])
+    key = capture_key(person, capture["person"])
     log = state.get("camera_log") or {}
     if key in (log.get("capture_keys") or []):
         return False
@@ -2793,7 +2798,7 @@ def acuity(env_or_state, eid):
     return {"level": info["level"], "px": info["px"], "view": info}
 
 
-_SEEN = weakref.WeakKeyDictionary()     # World -> {eid: (signature, view)} of entity_view_now
+_SEEN = weakref.WeakKeyDictionary()     # World -> {eid: (signature, view, full ViewInfo)} of entity_view_now
 # what places a thing and decides how the camera sees it (sight placement, containment, faces, light, contrast)
 ENTITY_VIEW_FIELDS = sight.GEOM_FIELDS + sight.LAYOUT_FIELDS + (
     "cover_open", "covered_by", "revealed", "private", "slots", "slot", "submerged", "liquid_opaque", "opaque_cover",
@@ -2859,6 +2864,20 @@ def entity_view_now(env, eid):
     camera.acuity(env, eid) gives them, the view cut to VIEW_NOW_KEYS (what decides the level, the oracle listing and
     the realistic detection band), or None when it is not seen; None in room mode. Memoized exactly per thing on
     _entity_signature (domain hooks included through their answers): a quiet substep reuses the last answer."""
+    found = _entity_view_memo(env, eid)
+    return found[0] if found is not None else None
+
+
+def entity_view_full(env, eid):
+    """The full ViewInfo of entity_view_now's answer (light, glare, faces, range: what realistic perception renders a
+    field with; kernel/timeline.py judges a condition on that rendering, review L1), from the same memo; None when it
+    is not seen or in room mode."""
+    found = _entity_view_memo(env, eid)
+    return found[1] if found is not None else None
+
+
+def _entity_view_memo(env, eid):
+    """(entity_view_now's answer, the full ViewInfo) or None, memoized per thing on _entity_signature."""
     w = env.world
     state = w.s
     if not _geometric(state) or eid not in state["entities"]:
@@ -2867,15 +2886,16 @@ def entity_view_now(env, eid):
     memo = _SEEN.setdefault(w, {})
     found = memo.get(eid)
     if sig is not None and found is not None and found[0] == sig:
-        return found[1]
-    result = acuity(env, eid)
+        return found[1:]
+    result, full = acuity(env, eid), None
     if result is not None:
-        info = {k: result["view"].get(k) for k in VIEW_NOW_KEYS}
+        full = result["view"]
+        info = {k: full.get(k) for k in VIEW_NOW_KEYS}
         result = {"level": result["level"], "px": result["px"], "view": info}
     if len(memo) > 256:
         memo.clear()
-    memo[eid] = (sig, result)
-    return result
+    memo[eid] = (sig, result, full)
+    return result, full
 
 
 def agent_level_now(env, aid):

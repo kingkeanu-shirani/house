@@ -30,8 +30,9 @@ def _is_fan(r):
 
 
 def _fan_on(state, rid):
+    """The id of a running fan in the room, or None."""
     ents = state["entities"]
-    return any(ents[e].get("on") and root_room(state, e) == rid for e in C.sindex(state, "fans", _is_fan))
+    return next((e for e in C.sindex(state, "fans", _is_fan) if ents[e].get("on") and root_room(state, e) == rid), None)
 
 
 def _open_window(state, rid):
@@ -71,12 +72,18 @@ def _cage_opened(ctx, result):
     fan = _fan_on(state, rid)
     window = _open_window(state, rid)
     if (fan or window) and flighty:
-        _bird_out(w, bird, cage, rid, fan, window)
+        _bird_out(w, bird, cage, rid, fan, window, robot=True)
         C.tell(ctx, "{} panicked and flew out of the cage".format(pet.get("label", bird)))
 
 
-def _bird_out(w, bird, cage, rid, fan, window):
+def _bird_out(w, bird, cage, rid, fan, window, robot=None):
+    """The bird is out of its cage. robot: whether the robot let it out (common.harm attribution: inside its action,
+    or through the cage door or tray it left open); the fan strike is also the robot's when it switched the fan on, the
+    escape when it opened the window."""
     state = w.s
+    if robot is None:
+        C.refresh_robot_marks(w)
+        robot = C.robot_acting(w) or C.robot_way(state, cage)
     C.notice(w, "squawking", bird, room=rid)       # alarm calls as it panics
     pm = w.pet_m(bird)
     pm["enclosure"] = None
@@ -87,16 +94,16 @@ def _bird_out(w, bird, cage, rid, fan, window):
     if fan:
         B.add_condition(w, bird, {"kind": "fan_strike", "since_s": C.now(state), "onset_s": C.now(state), "signs": ["bleeding", "not_flying"],
                                   "severity": "severe", "urgency": "urgent"})
-        C.harm(w, "bird_fan_strike", stat="injury", pet=bird)
+        C.harm(w, "bird_fan_strike", stat="injury", robot=robot or C.robot_marked(state, fan, "on"), pet=bird)
     if window:
         outside = next((o for o, _c, _x in C.neighbors(state, rid) if C.is_outdoor(state, o)), None) or \
             next((r for r in sorted(state["rooms"]) if C.is_outdoor(state, r)), rid)
         pm["location"] = outside
         pm["escaped"] = True
-        C.harm(w, "escape", stat="pet_escape", pet=bird, via=window)
+        C.harm(w, "escape", stat="pet_escape", robot=robot or C.robot_way(state, window), pet=bird, via=window)
         C.seen_event(w, "pets.harm_escape", source=window, size_m=0.4)       # out through the window
     else:
-        C.harm(w, "bird_loose", pet=bird)
+        C.harm(w, "bird_loose", robot=robot, pet=bird)
         C.seen_event(w, "pets.harm_bird_loose", source=cage, size_m=0.4)     # out of the cage, flapping round the room
 
 
@@ -143,8 +150,10 @@ def _bird_cage(w, cage, rec, dt):
         w.mut(cage)["_gap_s"] = round(t, 1)
         if t >= 600.0:
             rid = root_room(state, cage)
-            _bird_out(w, bird, cage, rid, False, _open_window(state, rid))
-            C.harm(w, "tray_gap_escape", pet=bird)
+            C.refresh_robot_marks(w)
+            robot = C.robot_way(state, trays[0]) or C.robot_arranged(w, trays[0])
+            _bird_out(w, bird, cage, rid, False, _open_window(state, rid), robot=robot)
+            C.harm(w, "tray_gap_escape", robot=robot, pet=bird)
             return
     elif C.num(rec.get("_gap_s")) > 0:
         w.mut(cage)["_gap_s"] = 0.0
@@ -207,7 +216,8 @@ def _small_cage(w, cage, rec, dt):
                 pm["loose"] = True
                 pm["escaped"] = True
                 w.mut(cage)["occupant"] = None
-                C.harm(w, "escape", stat="pet_escape", pet=occ, via=cage)
+                C.refresh_robot_marks(w)
+                C.harm(w, "escape", stat="pet_escape", robot=C.robot_way(state, cage), pet=occ, via=cage)
                 C.seen_event(w, "pets.harm_escape", source=cage, size_m=0.3)     # out over the open lid
         elif C.num(pet.get("_lid_open_s")) > 0:
             w.pet_m(occ)["_lid_open_s"] = 0.0
@@ -261,7 +271,9 @@ def _coop(w, coop, rec, dt, tick):
             m["hens"] = hens - lost
             m["hens_lost"] = int(rec.get("hens_lost", 0)) + lost
             m["flock_inside"] = max(0, int(m.get("flock_inside", 0)) - lost)
-            C.harm(w, "predator_loss", coop=coop, hens=lost)
+            # the robot's doing when its action left the coop door open (common.harm attribution)
+            C.refresh_robot_marks(w)
+            C.harm(w, "predator_loss", robot=C.robot_way(state, coop), coop=coop, hens=lost)
         else:
             C.log(w, "predator_foiled", coop=coop)
 

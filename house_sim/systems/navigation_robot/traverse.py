@@ -96,19 +96,11 @@ def _pre_motion(ctx):
     elif H.PLAN_EXCLUDE in robot:
         w.robot_m().pop(H.PLAN_EXCLUDE, None)
     H.refresh(w, rid, exclude)
-    if H.PLAN_HIDDEN in robot:
-        w.robot_m().pop(H.PLAN_HIDDEN, None)
+    for field in (H.PLAN_HIDDEN, H.PLAN_UNKNOWN):
+        if field in robot:
+            w.robot_m().pop(field, None)
     if C.realistic(ctx):
-        # realistic perception: a mirror or reflective panel the robot has not inspected looks like an opening, so the
-        # planner cannot route around it (even with avoid=["glass"]); its margin is put back before the consequences
-        hidden = H.unperceived_glass(ctx.env, w.s, rid)
-        if hidden:
-            entries = w.s["rooms"][rid].get("floor_hazards") or []
-            stash = [h for h in entries if h.get("nav_derived") and h.get("kind") == "glass" and h.get("source") in hidden]
-            if stash:
-                w.room_m(rid)["floor_hazards"] = [h for h in entries if h not in stash]
-                w.robot_m()[H.PLAN_HIDDEN] = sorted(hidden)
-                ctx.data["nav_hidden_glass"] = (rid, stash)
+        hide_unperceived_margins(ctx, rid)
     speed = pace(ctx)
     level = C.light_level(w.s, rid)
     if speed != "careful" and level < LOW_LIGHT and not C.robot_has_light(w.s):
@@ -124,6 +116,30 @@ def _pre_motion(ctx):
 
 for _verb in ("move", "approach", "walk_to"):
     before(_verb, order=6)(_pre_motion)
+
+
+def hide_unperceived_margins(ctx, rid):
+    """Realistic perception, before planning a motion in room rid: the derived margins the robot cannot know are there
+    leave room.floor_hazards until the motion's consequences (put back by _restore_hidden), and the robot fields
+    PLAN_HIDDEN / PLAN_UNKNOWN keep the path_blocked hook from adding them back:
+      * a mirror or reflective panel the robot has not inspected looks like an opening, so the planner cannot route
+        around its glass margin (even with avoid=["glass"]);
+      * a fragile ring or a rug_slip area whose inputs it has not learned (hazards.unknown_margins) is not avoided."""
+    w = ctx.w
+    hidden = H.unperceived_glass(ctx.env, w.s, rid)
+    unknown = H.unknown_margins(ctx.env, w.s, rid)
+    if not hidden and not unknown:
+        return
+    entries = w.s["rooms"][rid].get("floor_hazards") or []
+    stash = [h for h in entries if h.get("nav_derived") and ((h.get("kind") == "glass" and h.get("source") in hidden)
+                                                            or (h.get("kind"), h.get("source")) in unknown)]
+    if stash:
+        w.room_m(rid)["floor_hazards"] = [h for h in entries if h not in stash]
+        ctx.data["nav_hidden_glass"] = (rid, stash)
+    if hidden and any(h.get("kind") == "glass" for h in stash):
+        w.robot_m()[H.PLAN_HIDDEN] = sorted(hidden)
+    if unknown:
+        w.robot_m()[H.PLAN_UNKNOWN] = [list(k) for k in sorted(unknown)]
 
 
 def _low_contrast(rec):
@@ -145,14 +161,35 @@ def _restore_hidden(ctx, result=None):
         if eid in ctx.w.s["entities"] and "_nav_hidden_hazard" in ctx.w.s["entities"][eid]:
             m = ctx.w.mut(eid)
             m["floor_hazard"] = m.pop("_nav_hidden_hazard")
+    restore_hidden_margins(ctx)
+
+
+def plan_path(ctx, rid, start, goals, avoid_kinds=(), extra_blocked=()):
+    """geometry.find_path as the robot plans a walk of its own (a social walk, a lead): with ctx.route_filter (the
+    hazards it perceives) and, in realistic perception, without the margins it cannot know are there
+    (hide_unperceived_margins, put back before returning)."""
+    hide = C.realistic(ctx)
+    if hide:
+        hide_unperceived_margins(ctx, rid)
+    try:
+        return geometry.find_path(ctx.w.s, rid, start, goals, avoid_kinds=tuple(avoid_kinds or ()),
+                                  extra_blocked=extra_blocked, hazard_filter=ctx.route_filter)
+    finally:
+        if hide:
+            restore_hidden_margins(ctx)
+
+
+def restore_hidden_margins(ctx):
+    """Put back what hide_unperceived_margins took out of room.floor_hazards and clear its robot fields."""
     stashed = ctx.data.pop("nav_hidden_glass", None)
     if stashed:
         rid, entries = stashed
         if rid in ctx.w.s["rooms"]:
             current = list(ctx.w.s["rooms"][rid].get("floor_hazards") or [])
             ctx.w.room_m(rid)["floor_hazards"] = current + [h for h in entries if h not in current]
-    if H.PLAN_HIDDEN in ctx.w.robot:
-        ctx.w.robot_m().pop(H.PLAN_HIDDEN, None)
+    for field in (H.PLAN_HIDDEN, H.PLAN_UNKNOWN):
+        if field in ctx.w.robot:
+            ctx.w.robot_m().pop(field, None)
 
 
 for _verb in ("move", "approach", "walk_to"):
@@ -699,6 +736,10 @@ def _foot_soil(w, kind, amount):
     r["nav_foot_soil"] = soil
 
 
+# motions whose passing startle of pets the pets domain owns when it is loaded (its after-approach / after-walk_to hook)
+PETS_OWN_STARTLE = ("approach", "walk_to")
+
+
 def _proximity(trip, c, i, agents, social):
     w = trip.w
     state = w.s
@@ -719,8 +760,12 @@ def _proximity(trip, c, i, agents, social):
                 C.bump(w, "contacts.pets")
                 continue
             if C.asleep(agent) and d <= 1:
-                C.wake_agent(w, "pets", aid, "robot passed within reach")
-                C.startle_pet(w, aid, "woken by the robot passing")
+                # body-aware: the footfalls at the pace actually walked (quiet mode 4 dB lower) wake it only from
+                # PET_WAKE_DB; along a core approach / walk_to the pets domain, when loaded, decides (no double startle)
+                if not (C.pets_domain_loaded() and trip.kind in PETS_OWN_STARTLE) and \
+                        body.noise_db(state, "footsteps", trip.speed) >= C.PET_WAKE_DB:
+                    C.wake_agent(w, "pets", aid, "robot passed within reach")
+                    C.startle_pet(w, aid, "woken by the robot passing")
                 continue
             if d <= 1 and not (trip.kind == "approach" and trip.target == aid and last):
                 anxious = C.num(agent.get("anxiety"), 0.2) >= 0.6

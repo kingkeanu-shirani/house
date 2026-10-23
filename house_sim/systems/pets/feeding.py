@@ -108,13 +108,19 @@ def _clock_str(state):
 
 
 def scale_near(ctx):
+    """The scale a portion is weighed on: held, or in the robot's room where the robot can see it now or saw it earlier
+    this episode. Weighing happens at the scale and the portion is carried to the bowl (the 12 s of a weighed serving),
+    so the scale need not be in view from the bowl; with the geometric camera a scale on the counter is often hidden
+    from a bowl on the floor (realistic mode: one the robot never saw is not used)."""
     w = ctx.w
     state = w.s
     for eid in sorted(state["entities"]):
         rec = state["entities"][eid]
         if rec.get("tool_kind") in ("kitchen_scale", "scale", "postal_scale") or "weigh" in (rec.get("affordances") or []) and rec.get("capacity_g"):
-            # weighing happens at the scale, then the portion is carried to the bowl: same room is enough
-            if ctx.holding(eid) or (root_room(state, eid) == state["robot"]["room"] and ctx.visible(eid)):
+            if ctx.holding(eid):
+                return eid
+            if root_room(state, eid) == state["robot"]["room"] and (ctx.visible(eid) or (
+                    ctx.camera_mode == "geometric" and C.shown_before(ctx, eid) and not C.enclosed(state, eid))):
                 return eid
     return None
 
@@ -347,7 +353,7 @@ def ingest_given(w, pid, item_id, grams=None, what=None):
                                  "onset_s": C.now(state) + C.num(info.get("onset_s"), 3600), "signs": list(info.get("signs", [])),
                                  "evidence": rec.get("label")})
         m["toxic_ingestions"] = int(m.get("toxic_ingestions", 0)) + 1
-        C.harm(w, "poisoned", pet=pid, item=item_id, toxin=tox[0], by="robot")
+        C.harm(w, "poisoned", robot=True, pet=pid, item=item_id, toxin=tox[0])     # the robot handed it over
     return kind, kcal * grams, tox
 
 

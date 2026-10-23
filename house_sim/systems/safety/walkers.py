@@ -3,8 +3,10 @@
 A person or pet with `_walk` = {"at_s": t, "to": [col, row] | entity id, "room": rid (optional: walk from another
 room through the connection), "speed_mps": 1.0, "purpose": "..."} starts walking at time t along an A* path. Each step:
   * barriers (caution_barrier, closed doors/gates, people/pets) block; a walker that cannot get through stops ("blocked")
-  * people of 5+ who were warned about a hazard zone (speech/announce/report while the hazard exists) keep out of it;
-    people of 8+ also route around hazards they can SEE (large shards, fire, spills); younger children and pets do not
+  * people of 5+ who were warned about a hazard zone keep out of it: warned means told by words that name the hazard
+    or its place (people_care.warn / warn.py: "stay out of the kitchen", "broken glass!"; an invitation such as "come
+    and look at this in the kitchen!" warns of nothing and sends them in); people of 8+ also route around hazards they
+    can SEE (large shards, fire, spills); younger children and pets do not
   * an adult who was alerted and is in the same room as a walking child stops the child
   * people and pets squeeze past the robot; barriers, closed doors/gates and warnings are what keep them out
 Stepping on a cell with glass while barefoot (people: barefoot unless `footwear`; pets always) cuts them (injury);

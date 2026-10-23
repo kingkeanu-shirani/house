@@ -301,8 +301,11 @@ def exposure_tick(w, dt, tick, room_of=None):
                     if rng.random() < 1.0 - math.exp(-per_hour * hours):
                         from .harms import protected
                         valuable = protected(rec) or any(protected(entities[d]) for d in w.descendants(eid))
+                        # a thief is exogenous (review M9): the loss is the robot's only for a parcel it set out there
+                        # itself (phys.impact.robot_caused: it or its support carries the robot's _robot_moved marker)
                         household(w).setdefault("stolen", {})[eid] = {"time_s": state["time_s"], "room": room, "label": rec.get("label"),
-                                                                       "protected": bool(valuable)}
+                                                                       "protected": bool(valuable),
+                                                                       "robot": bool(phys_impact.robot_caused(w, eid))}
                         visual_event(w, "package_stolen", source=eid, room=room, size_m=1.0)   # someone walks off with it
                         doorbell_alert(w, room, eid, "Motion at the front door")
                         for item in w.descendants(eid):

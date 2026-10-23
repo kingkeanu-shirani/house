@@ -1,0 +1,111 @@
+{
+ "id": "textiles_laundry",
+ "fixed": [
+  {
+   "item": "Review L2/L4 (phases/p3_leaks_side.md L2, L4; p3_leaks_identity I9) + K-LEAK request 'align member sizes' + manipulation request 'align the true sizes of the laundry_jug members': the read-resolved laundry_jug look-alike group's member types differed in true size (bleach 0.30 m, booster 0.20 m, softener 0.25 m), empty mass (0.07-0.17 kg), outline volume (1.2-3.2 L) and, through the kernel's 'bottle' noun row of supports.json, shape/com_frac/mouth_frac (the bleach jug a narrow-necked cylinder, the others wide-mouthed boxes): geometric pixels, detection, a swept knock, a pour rate or a tip told members apart before the label was read",
+   "how": "house_sim/data/types/textiles_laundry.json: every member (liquid_detergent and its free_clear/regular children, fabric_softener, chlorine_bleach_bottle, oxygen_laundry_booster, enzyme_presoak) carries the same jug props: size_m [0.15, 0.1, 0.28], volume_l 3.0, mass_kg 0.17 (empty), liquid_l 2.5, capacity_l 2.95, shape box, com_frac 0.5, mouth_frac 0.3 (a 4 cm screw neck); the kernel's phys.props of the seven types are now identical field by field; only liquid and label differ. Docs updated. Placements verified unchanged: 60 generation-1 and 60 generation-2 houses (seeds 0-19 x 3 option sets) generated with HEAD vs new jug props place every entity identically (record fields only).",
+   "test": "tests/test_textiles_laundry.py PhaseOneStabiliseTests.test_laundry_jug_members_are_one_jug_to_every_physical_channel (resolved props, kernel props_of field by field, registry lint empty, geometric-camera records of unread bleach/booster/softener twins identical incl. view.px; fails on HEAD). tests/test_leaks_review.py ApparentSizeTests now skips by its own rule ('the members no longer differ in size')."
+  },
+  {
+   "item": "A-d66994a566899c-01 failed in its own mode on seed 1 ('inspect sweater_2: That is not visible here'): K-LEAK's hashed variant rule (review H5) moved the 1.5-day wool sweater variant to seed 1, whose drying rack is in a windowless laundry room; the feel checks that fall at night were refused, and the room's wall switch is too small to make out from inside in the dark (perception.visible SHAPE_M rule)",
+   "how": "New reference skill textiles_laundry.feel_garment (skills.py): inspects the garment closely; when the garment's room is dark it switches the light on from the doorway the way base go_room does on entering a dark room (stepping out first when the robot is inside; _light_dark_room), feels the garment and switches the light off again. _room_light factored out of light_for_close_work (message unchanged). The spec's two repeat loops call the skill instead of a bare inspect (spec notes updated).",
+   "test": "PhaseOneStabiliseTests.test_feeling_a_drying_garment_at_night_lights_the_room_from_its_doorway_and_leaves_it_dark (dark room: bare inspect and switch refused, skill does switch_on / inspect / switch_off and leaves the light off; lit room: inspect only); python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids A-d66994a566899c-01: 5/5 seeds pass (failed seed 1 before)."
+  },
+  {
+   "item": "Adoption breakage (adopt_status.json, textiles_laundry): T-28ff695081cd2c-01 under forced realistic (room camera, seeds 1 and 97) and realistic + geometric: 'approach pod_tub_1 failed: No clear path to it' (the cat that leaves the drum lies beside the washer and realistic route planning rings a lying agent, closing the narrow laundry room's way to the pod tub)",
+   "how": "D3 triage of the reference: it takes a pod from the tub before it checks the drum and waits for the cat (the robot then never has to cross the room after the cat has lain down); own-mode outcome unchanged; spec notes updated.",
+   "test": "python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-28ff695081cd2c-01 with --perception realistic (room) and --perception realistic --camera geometric: 5/5 seeds each (seeds 1 and 97 failed before); own mode 5/5."
+  },
+  {
+   "item": "Review A1 / M4 (phases/p4_arch.md: 'duplicated_by is incomplete: textiles has its own stack code, fold.py _stack_root, textile_stack_fit') + K-FIX request 'stack.duplicated_by now includes textiles_laundry: report stack readiness for D1'",
+   "how": "fold.textile_stack_fit measures the clearance and stack height with the kernel's own functions (phys.statics.clearance_above_m and stack_height_m, new helper fold.stack_clearance) instead of a private copy, so the refusal ('the drawer/shelf would not close') pre-empts exactly the stacks the stack law would topple, before anything moves, with the law deferred or active (the private copy also overestimated the room on a cabinet's top shelf: inner height instead of inner height minus the shelf's height); the container volume check stays the domain's (the law has none). Readiness: stack is ready (all 19 deferred laws ready).",
+   "test": "PhaseOneStabiliseTests.test_a_folded_stack_too_tall_for_its_drawer_is_refused_by_the_kernels_clearance (drawer, stack law deferred and forced: refused at the kernel's clearance, nothing topples; top shelf of a shelved cabinet: refused at 0.20 m, fails on HEAD). Forced-law evidence (scratch forced_tests.py / forced_check.py, every domain loaded): the domain's tests pass with stack forced and with all 19 deferred laws forced; both spec files (15 specs x 5 seeds, own modes) pass with all 19 forced (15/15) and with stack alone 14/15 (only T-7d4006bda247ba-01, which fails unforced for the contact-heat reason below)."
+  },
+  {
+   "item": "Adoption cross-domain bug textiles_laundry-6 (adopt_status breakage listed under manipulation): catch-all routes (manipulation.items, admin.keep) answered every status / how / keep question about any thing, so laundry:rewear, keep_out and hang_or_fold were never reached",
+   "how": "Resolved by manipulation's weak fallback, admin_inventory's narrowed routes and the kernel's dialogue.weak (their phase-1 / adoption work); this domain re-checked it with every domain loaded and pinned it; doc section 10 'Sweep' corrected (it still described the shadowing).",
+   "test": "PhaseOneStabiliseTests.test_garment_questions_reach_the_laundry_answerer_through_the_dialogue_routes (dialogue.find_route for a coat and a tee: status/clean, hang-or-fold, dryer ok/how, stain why -> laundry.item)."
+  },
+  {
+   "item": "Adoption breakage T-7d4006bda247ba-01 / request textiles_laundry-8 (this domain's half): the heel-rest claim must answer other domains' legacy contact-heat copies through the public kernel helper",
+   "how": "No code change needed in this domain (physical.heel_rest already claims through phys.contact_heat); pinned with the law deferred and active. admin_inventory and appliances_cooking now ask phys.thermal.contact_claimed; manipulation's copy does not yet (not_fixed / requests).",
+   "test": "PhaseOneStabiliseTests.test_the_heel_rest_claim_reaches_every_domains_legacy_contact_heat_through_the_kernel_helper (contact_claimed True for an upright hot iron on the board, False face-down, under contact_heat deferred and active)."
+  },
+  {
+   "item": "K-GATE coverage request (all 16 domains): the coverage fuzz never drove depill, lace_shoes, polish_shoes, repair_seam, soak, steam, take_off_hanger, tuck (and, in a run over this domain's specs alone, unroll_sleeves) to success",
+   "how": "Recorded why for each (the preparation the walk's generic repairs do not make: a held tool, a held textile and a basin, a pilled knit, a garment on a hanger, a bed with a top sheet, rolled sleeves; the refusal messages) in docs/domains/textiles_laundry.md section 11; tuck and unroll_sleeves, which had no unit test at all, now have success and refusal cases (the other six already had unit-tested success paths).",
+   "test": "PhaseOneStabiliseTests.test_tucking_and_unrolling_have_a_success_path_and_a_refusal; python tools/fuzz.py --coverage --specs 'textiles_laundry__*.json' (scratch cov_base.json) for the refusal digest."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Adoption breakage T-7d4006bda247ba-01 (own mode, seeds 0 and 41 under the hashed variants: reference 'damage'): an iron set upright on its heel rest on the ironing board still gets damage.scorch",
+   "why": "The remaining cause is manipulation's legacy contact-heat copy (house_sim/systems/manipulation/handling.py place hook, the 'heat damage to finishes' block, C.mark_damage(loc, 'scorch') while contact_heat is deferred), which does not ask phys.thermal.contact_claimed; that file is not this domain's. Evidence: the spec passes with contact_heat forced (all copies stand down), and passes in its own mode with only that block monkeypatched to honour contact_claimed (scratch manip_stub.py); the control run without the patch fails on seeds 0 and 41. admin_inventory's and appliances_cooking's copies already ask the helper. Request filed (manipulation)."
+  },
+  {
+   "item": "Adoption breakage T-ed45170be6256e-01 under forced realistic + geometric camera (all seeds: 'pick_up generic_item_N: That is not visible here'; a D3 preview, the spec is an oracle spec and passes in its own mode and under forced realistic room camera)",
+   "why": "No plan can pick the phone up under the kernel's camera rules: it lies under the duvet at the middle of a queen bed (sight.entity_box centres things 'under' a support), the head camera cannot see under the duvet, and camera.wrist_access/_within_wrist_depth measures the wrist's 1.0 m depth from the edge of the duvet's box nearest the robot -- the duvet overhangs the bed by 0.09-0.35 m -- so the phone is 1.05 m deep from every free cell even though peek_access(duvet, under) lifts it. Tried in this phase and reverted: a reference that walks to the bed side nearest the phone before fetch/peek (still 1.05 m). Needs a kernel camera rule (request filed) or a new domain verb to turn back the duvet (a feature, not this phase)."
+  },
+  {
+   "item": "K-FIX request: sofa cushions in generation 2 (layer the throw and pillows on the sofa_cushion entities and let the generator place the cushions first; review T10: 'no spot for sofa_cushions' in 220/220 gen-2 houses)",
+   "why": "It changes every generation-2 living room and so every domain's generation-2 spec house, and needs the generator's furnisher order and data/generator/furnishings.json (main session / GEN), which this domain cannot edit; adopt_status already deferred it to the GEN follow-up with its own re-verification. This domain's half is ready to follow (its linens furnisher, order 75, would put the folded throw and two pillows on cushions it finds on the sofa); request restated with the plan."
+  },
+  {
+   "item": "Review L4 residue: after a spill an unresolved laundry jug's puddle shows the kernel's floor-hazard kind of its true liquid (bleach 'wet', detergents/softener/presoak 'slip'), and a full jug's heft follows the liquid's density (bleach 2.92 kg, booster 2.68 kg; the same touch bucket)",
+   "why": "Kernel data and rendering (data/physics/liquids.json floor_hazard, grid.hazards of an unresolved source); cleaning already filed the kernel request (show the group's kind until identified) and names laundry jugs; the density difference is physical and stays inside one touch bucket once body's L3 battery-scale fix (K-LEAK request) lands."
+  },
+  {
+   "item": "Adoption request textiles_laundry-2 (support.own_mass counting absorbed water)",
+   "why": "Not applied by the kernel by decision (KNOWN_LIMITS: a reviewed physics change with its own re-verification); this domain keeps modelling wet mass in its own verbs. Nothing to do in this phase."
+  },
+  {
+   "item": "Coverage fuzz still reports 8 (9 over this domain's specs) of this domain's actions as never succeeding",
+   "why": "Each needs a preparation the fuzz walk's generic repairs (approach, pick up, open) never make, from spec houses that do not stage it; the success paths are unit-tested and documented. Making the fuzz count them needs spec authoring (a later round) or a smarter walk (fuzz owner, request filed)."
+  }
+ ],
+ "specs_changed_outcome": [
+  "A-d66994a566899c-01 (examples): the reference's feel checks call textiles_laundry.feel_garment (a dark room is lit from its doorway for the check and darkened again) instead of a bare inspect; cause: K-LEAK's hashed variant rule put the sweater variant on seed 1 (a windowless laundry room), where the night checks were refused. Outcome: own mode 4/5 -> 5/5 seeds; the reference is longer on seeds whose checks fall at night (more steps and a few seconds per check, well inside the 140-step budget); success predicates and wrong plans unchanged.",
+  "T-28ff695081cd2c-01 (examples): reference reordered (fetch the pod first, then approach / inspect / wait / inspect / place) for the adoption breakage under forced realistic. Outcome: own mode 5/5 unchanged (end state reached by a reordered plan, so the reference state hash differs); forced realistic room camera seeds 1 and 97 fail -> pass, realistic + geometric 5/5. Success predicates and wrong plans unchanged."
+ ],
+ "tests": {
+  "count": 147,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 14
+ },
+ "requests": [
+  {
+   "owner": "manipulation",
+   "request": "house_sim/systems/manipulation/handling.py, place hook, the legacy contact-heat block ('heat damage to finishes', C.mark_damage(w, loc, 'scorch', ...) under `if not C.kernel_owns(\"contact_heat\")`): return before marking when phys.thermal.contact_claimed(w, eid, loc, temp, severity) is true (severity = min(1, (temp - limit) / thermal.CONTACT_SPAN_K)), as admin_inventory's _hot_contact and appliances_cooking's _marks_support now do. Repro: python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-7d4006bda247ba-01 -> seeds 0 and 41 'damage' (ironing_board damage.scorch after textiles_laundry.iron_garment sets the iron upright on its heel rest); it passes with contact_heat forced and with only that block made to ask contact_claimed. Contract pinned on this side by tests/test_textiles_laundry.py PhaseOneStabiliseTests.test_the_heel_rest_claim_reaches_every_domains_legacy_contact_heat_through_the_kernel_helper."
+  },
+  {
+   "owner": "kernel",
+   "request": "Camera (K-CAM): a thing under a lifted light cover in the middle of a bed can never be seen or picked up in geometric mode. camera._within_wrist_depth (used by wrist_access, hence can_see / pick_up) measures HW.wrist.deep_m (1.0 m) from the edge of the cover's box nearest the robot, and a duvet's box overhangs the bed (sight.entity_box: duvet x 1.41-3.59, y -0.345-1.945 over a bed of x 1.5-3.5, y 0-1.6 -- y0 even lies past the room's wall), while a thing 'under' a support is centred under it. Repro: python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-ed45170be6256e-01 --perception realistic --camera geometric -> every seed 'pick_up generic_item_N: That is not visible here'; probe (seed 1, robot at the nearest free cell (2,1) after approaching the bed): peek_access(duvet_cover_2, 'under') = (True, None, lift=True), peek succeeds, phone not revealed; wrist_access(phone) = (False, 'You cannot see it from here'): depth 1.055 m. Suggested: for a liftable cover (the lift branch) measure the depth from the support it rests on (the bed's edge) or let lifting a cover expose what lies under it within the arm's reach; and clip a cover's box to its support / the room. Room mode is unaffected (inspect where=under reveals it)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Support cleaning's request (grid.hazards / puddle kind of an unresolved look-alike source shows the group's kind until identified) for laundry jugs too: after a spill, an unread chlorine bleach jug's puddle is 'wet' and a detergent / softener / presoak jug's 'slip' (data/physics/liquids.json floor_hazard of bleach vs laundry_detergent), which identifies the jug without reading it (review L4)."
+  },
+  {
+   "owner": "main session",
+   "request": "Re-record after phase 1 (with K-LEAK's address re-record): tests/data/gen1_digests.json -- this domain's type data changed record fields of the laundry jugs every generation-1 laundry room holds (chlorine_bleach_bottle, fabric_softener: size_m, volume_l, mass_kg, shape, com_frac, mouth_frac; liquid_detergent: shape, com_frac, mouth_frac), class 'type data', no placement change (verified on 60 gen-1 and 60 gen-2 houses, scratch jug_placement_check.py); and tests/data/room_golden.json for T-28ff695081cd2c-01 (reference reordered) and A-d66994a566899c-01 (feel_garment adds the doorway light steps on seeds whose checks fall at night); recompile tasks/specs.jsonl (python -m house_sim --compile) for the two changed references."
+  },
+  {
+   "owner": "main session / GEN (data/generator/furnishings.json, generator furnisher order)",
+   "request": "Sofa cushions (K-FIX's request to textiles_laundry): when the GEN follow-up re-verifies generation 2, either place the sofa_cushions item before textiles_laundry.linens (order 75) or give it 'at_least'/'unless_any' semantics; textiles_laundry will then put its folded throw and two decorative pillows on the cushions (the stack law judges 0.45 m pillows on 0.6 m cushions stable). Not done in phase 1 because it changes every generation-2 living room and so every domain's generation-2 spec house."
+  },
+  {
+   "owner": "D1 owner (law flips)",
+   "request": "textiles_laundry reports ready to flip: all 19 deferred laws, stack included (fold.textile_stack_fit now uses statics.clearance_above_m / stack_height_m). Evidence (every domain loaded): tests/test_textiles_laundry.py passes with stack forced and with all 19 deferred laws forced; both spec files pass 15/15 with all 19 forced; with stack alone 14/15, the failing one being T-7d4006bda247ba-01, which fails the same way unforced (manipulation's contact-heat copy)."
+  },
+  {
+   "owner": "tools/fuzz.py owner (K-GATE)",
+   "request": "Coverage walk: this domain's never-succeeding actions (depill, lace_shoes, polish_shoes, repair_seam, soak, steam, take_off_hanger, tuck, unroll_sleeves) fail on preparations the generic repairs never make -- a tool or the item held in the other hand ('Hold the garment steamer', 'Hold the tool', 'Hold the item to soak'), a target of the right state ('It is not on a hanger', 'Nothing is rolled or balled up', 'That shoe has no eyelets'), or a bed rather than another surface ('Tuck bedding on a bed'). A repair that fetches the action's tool parameter's best-ranked entity before retrying would reach most of them; the success paths are unit-tested in tests/test_textiles_laundry.py and documented in docs/domains/textiles_laundry.md section 11."
+  }
+ ],
+ "notes": "Files changed (all in this domain's grant): house_sim/data/types/textiles_laundry.json (laundry_jug member props), house_sim/systems/textiles_laundry/skills.py (feel_garment, _light_dark_room, _room_light factored out of light_for_close_work), house_sim/systems/textiles_laundry/fold.py (textile_stack_fit on the kernel's statics; stack_clearance), tasks/authored/textiles_laundry__examples.json (A-d66994a566899c-01 and T-28ff695081cd2c-01 references and notes), tests/test_textiles_laundry.py (PhaseOneStabiliseTests, 6 tests: 141 -> 147), docs/domains/textiles_laundry.md (sections 6, 9, 10 updated; new section 11). Nothing else edited; no commits.\n\nGREEN on the shared tree at the end (other owners editing concurrently): unit tests 147/147 normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,textiles_laundry; also 147/147 with stack forced and with all 19 deferred laws forced. --check examples (own mode, 5 seeds, --workers 2): 11/12 -- T-7d4006bda247ba-01 fails seeds 0 and 41 ('damage') only through manipulation's legacy contact-heat copy (proved: passes with contact_heat forced and with only that copy patched to ask contact_claimed; request filed). --check perception file: 3/3 own mode and 3/3 --camera geometric. tools/layout_audit.py 20 --domain textiles_laundry: 120 houses, 0 problems. tools/perception_audit.py 20 80 --verbose: 1600 steps, 10 probes, 0 leaks, 0 crashes (nothing attributed to textiles_laundry). Registry LookalikeWarning: none for any group this domain owns (and none at all with every domain loaded or core+textiles_laundry).\n\nForced runs (D1 / D3 previews): spec files with all 19 deferred laws forced 15/15; with stack alone 14/15 (T-7d4006bda247ba-01 as unforced). Examples under forced realistic (room camera) 11/12 (only T-7d4006bda247ba-01) and realistic + geometric 10/12 (T-7d4006bda247ba-01; T-ed45170be6256e-01, the kernel wrist-depth request). With the perception file (realistic already; 3/3 in both camera modes) that is 14/15 forced-room and 13/15 forced-geometric over both files, against 13/15 and 12/15 at ADOPT; T-28ff695081cd2c-01 is fixed in both.\n\nBaseline at the start of this phase (shared tree): examples own mode 10/12 -- T-7d4006bda247ba-01 (listed breakage) and A-d66994a566899c-01 seed 1, a new failure caused by K-LEAK's hashed variants (K-LEAK lists it among the 'variant-coverage defects the hashed variants exposed').\n\nEvidence scripts are in the scratch dir (trace_spec.py, dark_probe.py, bed_probe.py, forced_check.py, forced_tests.py, manip_stub.py, jug_placement_check.py, idle_harm_probe.py, route_probe.py). idle_harm_probe: 6 seeds x generation 1 and 2 idle for 24 h raise no harm flag and no textile event (no exogenous harm charged to the robot through this domain in generated houses).\n\nNot done and why, in short: the ironing spec waits on manipulation; the geometric bed-phone D3 case needs a kernel camera rule; sofa cushions need GEN (furnishings.json, furnisher order) and a generation-2 re-verification; laundry-jug puddle kinds are kernel liquid data; spec-level coverage of 8 actions needs new specs (unit-tested instead). The generation-1 digests and the room golden need the main session's re-record (type data and two references changed; placements verified unchanged); tasks/specs.jsonl needs a recompile. The verifier redesign (VERIFY_HARDENING) was not touched; no spec was weakened (success predicates and wrong plans unchanged)."
+}

@@ -3243,6 +3243,342 @@ class Tier1ScenarioFixes(unittest.TestCase):
         self.assertEqual(lab.ledger().get("shards_spread", 0), 0)
 
 
+KID_TO_GLASS = {"kid": {"label": "Ava (6)", "role": "child", "age": 6, "location": "hall", "pos": [1, 2], "barefoot": True,
+                        "_walk": {"at_s": 5.0, "to": [4, 6], "room": "kitchen", "speed_mps": 1.0}}}
+
+
+def glass_lab(people=None, robot=None, extra=None):
+    lab = Lab(extra=fx(GLASS_TOOLS, extra or {}), people=copy.deepcopy(people), robot=robot or {"room": "hall", "pos": [1, 3]})
+    shatter(lab)
+    return lab
+
+
+class Phase1Stabilise(unittest.TestCase):
+    """Phase 1 (stabilise) of the independent review 2026-10-22 and the adoption round's open items, one regression
+    test each (docs/domains/safety.md section 13)."""
+
+    # ----- wrap containment (adoption breakage; review H11 defect 2) -----
+
+    WRAPS = {"newspaper": {"wrapped": {"coverage": 1.0, "padding_mm": 0.0, "material": "newspaper"}},
+             "bubble_wrap": {"wrapped": {"coverage": 1.0, "padding_mm": 0.0, "material": "bubble_wrap"}},
+             "flag": {"wrapped": True}, "packaged": {"packaged": True}}
+
+    def test_a_break_inside_a_full_wrap_or_its_packaging_scatters_no_shards(self):
+        from house_sim.kernel.phys import impact as KI
+        from house_sim.systems.safety import glass as G
+        for name, cover in sorted(self.WRAPS.items()):
+            for how in ("kernel", "safety"):
+                with self.subTest(wrap=name, broken_by=how):
+                    extra = fx(GLASS_TOOLS)
+                    extra["glass"][2].update(copy.deepcopy(cover))
+                    lab = Lab(extra=extra)
+                    if how == "kernel":
+                        lab.edit(lambda w: KI.break_entity(w, "glass", "test", by="exogenous"))
+                    else:
+                        self.assertEqual(lab.edit(lambda w: G.shatter(w, "glass", impact_cell=(4, 6))), [])
+                    lab.wait(120)               # the glass system ticks: it must not shatter a contained break later
+                    rec = lab.ent("glass")
+                    self.assertTrue(rec["broken"])
+                    self.assertIn("sharp", rec["hazards"])
+                    self.assertIsNone(rec.get("floor_hazard"))
+                    self.assertFalse([e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard"])
+                    self.assertFalse(G.has_shard_field(lab.s, "glass"))
+        # control: a half wrap contains nothing
+        extra = fx(GLASS_TOOLS)
+        extra["glass"][2]["wrapped"] = {"coverage": 0.5, "padding_mm": 0.0, "material": "newspaper"}
+        lab = Lab(extra=extra)
+        lab.edit(lambda w: KI.break_entity(w, "glass", "test", by="exogenous"))
+        self.assertTrue([e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard"])
+
+    # ----- spreading along the walk actually made (adoption breakage) -----
+
+    def test_wheels_spread_only_glass_on_the_cells_actually_walked(self):
+        """A walk another domain cut short (a slip, a stop) spreads no shard past the stop and collapses no rotten
+        section past it; a glass that breaks during the walk itself is not pushed along cells already passed."""
+        from house_sim.kernel import geometry, plugins
+        from house_sim.systems.safety import glass as G
+        extra = {"s_near": ("glass_shard", "kitchen", {"pos": [4, 4], "origin": "old"}),
+                 "s_far": ("glass_shard", "kitchen", {"pos": [4, 7], "origin": "old"}),
+                 "deck": ("structural_section", "kitchen", {"pos": [4, 8], "_load_limit_kg": 1.0, "size_m": [0.5, 0.5, 0.03]}),
+                 "glass2": ("generic_item", "kitchen", {"pos": [4, 3], "label": "drinking glass", "material": "glass",
+                                                        "fragile": True, "mass_kg": 0.3, "size_m": [0.08, 0.08, 0.14]})}
+        seen = {}
+
+        def stop(ctx, result):          # a domain stops the walk on its 3rd cell, where a carried glass breaks
+            record = ctx.data["motion"]
+            cells = [tuple(record["start"])] + [tuple(c) for c in record["path"]]
+            ctx.w.robot_m()["pos"] = list(cells[3])
+            ctx.cut_motion(geometry.path_length_m(cells[:4]), "stopped")
+            seen["shards"] = {sid: tuple(ctx.w.s["entities"][sid]["pos"])
+                              for sid in G.shatter(ctx.w, "glass2", impact_cell=cells[1])
+                              if ctx.w.s["entities"][sid].get("pos")}
+            seen["walked"] = cells[1:4]
+        saved = list(plugins.AFTER["walk_to"])
+        plugins.AFTER["walk_to"].append((25, "tests.test_safety.stop", stop))
+        plugins.AFTER["walk_to"].sort(key=lambda t: (t[0], t[1]))
+        try:
+            lab = Lab(extra=extra, robot={"room": "kitchen", "pos": [4, 2]})
+            lab.do("walk_to", cell=[4, 9])
+        finally:
+            plugins.AFTER["walk_to"][:] = saved
+        self.assertIn((4, 4), seen["walked"][:-1], "the stub walk passes the near shard")
+        self.assertNotEqual(tuple(lab.ent("s_near")["pos"]), (4, 4), "a shard on a walked cell is pushed along")
+        self.assertEqual(tuple(lab.ent("s_far")["pos"]), (4, 7), "nothing past the stop moves")
+        self.assertFalse(lab.ent("deck").get("collapsed"), "the robot never reached the rotten section")
+        moved = {sid: cell for sid, cell in seen["shards"].items() if tuple(lab.ent(sid).get("pos") or ()) != cell}
+        self.assertEqual(moved, {}, "glass that broke during the walk is not pushed along cells already passed")
+        # control: the whole walk, uncut, spreads the far shard and loads the rotten section
+        lab = Lab(extra=extra, robot={"room": "kitchen", "pos": [4, 2]})
+        lab.do("walk_to", cell=[4, 9])
+        self.assertTrue(lab.ent("deck").get("collapsed") or tuple(lab.ent("s_far")["pos"]) != (4, 7))
+
+    # ----- one injury per strike by toppling furniture (adoption breakage, people + safety) -----
+
+    def test_a_person_struck_by_toppling_furniture_counts_one_injury_and_stays_pinned(self):
+        """One strike, one injury, whoever judges it: the people domain when its physics hooks are loaded (safety then
+        only logs its harm), safety itself otherwise; safety's pin (from 15 kg) leaves the person pinned."""
+        from house_sim.kernel.plugins import run_hooks
+        people = {"kid": {"label": "Kid", "role": "child", "age": 5, "location": "living", "pos": [1, 2]}}
+        extra = {"shelf": ("bookshelf", "living", {"pos": [1, 1], "mass_kg": 40.0, "anchored": False})}
+        for by, injuries in (("robot", 1), ("exogenous", 0)):
+            with self.subTest(by=by):
+                lab = Lab(extra=extra, people=people, robot={"room": "living", "pos": [3, 3]})
+                lab.edit(lambda w: run_hooks("phys.tipped", w, "shelf", {"struck": ["kid"], "by": by}))
+                self.assertEqual(lab.stat("injury"), injuries)
+                self.assertEqual(lab.s["people"]["kid"]["posture"], "pinned")
+                harm = [e for e in lab.ledger()["log"] if e.get("cause") == "struck_by_toppling_furniture"]
+                self.assertEqual(len(harm), 1, "safety logs the strike once")
+
+    # ----- content-gated warnings (review H1; VERIFY_HARDENING 13.5) -----
+
+    def test_the_warning_parser_reads_hazards_places_and_invitations(self):
+        from house_sim.systems.safety import warn as WN
+        state = {"rooms": {"kitchen": {"label": "Kitchen", "type": "kitchen"}, "hall": {"label": "Hallway", "type": "hallway"},
+                           "living": {"label": "Living room", "type": "living_room"}},
+                 "entities": {"fire_1": {"category": "fire", "stage": "growing", "location": "living", "pos": [1, 1]}},
+                 "people": {"kid": {"label": "Ava (6)"}},
+                 "safety": {"zones": {"glass:g": {"kind": "sharp", "room": "kitchen", "center": [3, 3]}}}}
+        cases = [("Hi Ava! Dinner will be ready soon!", [], [], []),
+                 ("Beep.", [], [], []),
+                 ("Ava, come and look at this in the kitchen!", [], [], ["glass:g"]),
+                 ("Come and see the glass!", ["broken_glass"], [], ["glass:g"]),
+                 ("Broken glass in the kitchen, stay out.", ["broken_glass"], ["glass:g"], []),
+                 ("Please stay out of the kitchen.", ["broken_glass"], ["glass:g"], []),
+                 ("Don't go into the kitchen.", ["broken_glass"], ["glass:g"], []),
+                 ("Watch your step, there is glass on the floor.", ["broken_glass"], ["glass:g"], []),
+                 ("There is no glass anywhere.", [], [], []),
+                 ("No entry, there's broken glass.", ["broken_glass"], ["glass:g"], []),   # negation stops at the comma
+                 ("The dishwasher is broken.", [], [], []),
+                 ("Fire in the living room!", ["fire"], [], []),
+                 ("Fire in the kitchen!", [], [], []),                 # the fire is not there: no alert of it
+                 ("Fire in the living room, come outside with me.", ["fire"], [], []),
+                 ("Everyone get out of the house now!", ["broken_glass", "fire"], ["glass:g"], []),
+                 ("I'll get out the extinguisher.", [], [], []),
+                 ("Careful!", [], [], [])]
+        for text, kinds, zones, invited in cases:
+            content = WN.warning_content(state, text, speaker_room="hall")
+            self.assertEqual((content.kinds, content.zones, content.invited), (kinds, zones, invited), text)
+        self.assertEqual(WN.warning_content(state, "Come here.", speaker_room="kitchen").invited, ["glass:g"])
+        self.assertEqual(WN.warning_content(state, "Come here.", speaker_room="hall").invited, [])
+
+    def test_only_words_that_warn_keep_a_child_off_broken_glass(self):
+        for text, kept in (("Hi Ava! Dinner will be ready soon!", False), ("Beep.", False),
+                           ("There is no glass anywhere, all good.", False),
+                           ("Ava, please stay out of the kitchen.", True), ("Careful - broken glass!", True)):
+            with self.subTest(text=text):
+                lab = glass_lab(people=KID_TO_GLASS)
+                lab.ok("announce", text=text)
+                lab.wait(60)
+                kid = lab.s["people"]["kid"]
+                self.assertEqual(kid["_walk"].get("result") == "kept_away", kept, kid["_walk"])
+                self.assertEqual(lab.ledger().get("zone_entries", 0) == 0, kept)
+
+    def test_an_invitation_into_the_hazard_is_not_a_warning_and_sends_the_listener_in(self):
+        lab = glass_lab(people=KID_TO_GLASS)
+        lab.ok("announce", text="Ava, come and look at this in the kitchen!")
+        kid = lab.s["people"]["kid"]
+        self.assertEqual(kid.get("_warned_zones") or [], [])
+        self.assertEqual(kid.get("_invited_zones"), ["glass:glass"])
+        lab.wait(60)
+        self.assertGreater(lab.ledger().get("zone_entries", 0), 0)
+        self.assertEqual(lab.ledger()["alerts"][-1]["invited"], ["glass:glass"])
+        # someone with nowhere to go is sent there by the invitation
+        people = {"mia": {"label": "Mia", "role": "child", "age": 7, "location": "hall", "pos": [1, 2], "barefoot": True}}
+        lab = glass_lab(people=people)
+        lab.ok("announce", text="Mia, come into the kitchen!")
+        self.assertEqual(lab.s["people"]["mia"]["_walk"]["room"], "kitchen")
+        lab.wait(60)
+        self.assertGreater(lab.ledger().get("zone_entries", 0), 0)
+
+    def test_a_fire_alert_must_say_what_or_where(self):
+        people = {"mom": {"label": "Mom", "role": "adult", "age": 40, "location": "hall", "pos": [1, 4]}}
+        for text, alerted in (("Beep.", False), ("Dinner is ready.", False), ("There's a fire in the kitchen!", True),
+                              ("Everyone get out of the house now!", True), ("Smoke! Stay out of the kitchen.", True)):
+            with self.subTest(text=text):
+                lab = Lab(extra=fx(BASKET), people=people, robot={"room": "hall", "pos": [1, 3]})
+                ignite(lab, "basket", 3.0)
+                lab.ok("announce", text=text)
+                self.assertEqual(bool(lab.s["people"]["mom"].get("_alerted")), alerted)
+                if alerted:
+                    self.assertEqual(lab.s["people"]["mom"]["_alerted"]["kind"], "fire")
+
+    def test_a_report_to_a_person_warns_of_what_it_names(self):
+        people = {"mom": {"label": "Mom", "role": "adult", "age": 40, "location": "kitchen", "pos": [1, 4]}}
+        lab = glass_lab(people=people, robot={"room": "kitchen", "pos": [1, 3]})
+        shard = sorted(e for e, r in lab.s["entities"].items() if r.get("type") == "glass_shard" and r.get("shard_size") == "large")[0]
+        lab.ok("approach", shard)
+        lab.ok("inspect", shard)
+        lab.ok("report", shard, field="hazard", value="none", to="mom")
+        self.assertFalse(lab.s["people"]["mom"].get("_warned_zones"), "a report of no hazard warns of nothing")
+        lab.ok("report", shard, field="hazard", value="broken_glass", to="mom")
+        self.assertEqual(lab.s["people"]["mom"].get("_warned_zones"), ["glass:glass"])
+        self.assertEqual(lab.s["people"]["mom"]["_alerted"]["kind"], "broken_glass")
+
+    def test_the_alert_verb_warns_only_whom_it_reaches_of_what_it_names(self):
+        if "alert" not in ACTIONS:
+            self.skipTest("the alert verb is the people domain's")
+        people = {"mom": {"label": "Mom", "role": "adult", "age": 40, "location": "hall", "pos": [1, 4]}}
+        lab = glass_lab(people=people)
+        lab.ok("alert", "mom", issue="dinner", urgency="normal", channel="in_person")
+        self.assertFalse(lab.s["people"]["mom"].get("_warned_zones"))
+        lab.ok("alert", "mom", issue="glass", where="kitchen", urgency="high", channel="in_person")
+        self.assertEqual(lab.s["people"]["mom"].get("_warned_zones"), ["glass:glass"])
+        # an alert whose issue is a person in a medical emergency names that emergency
+        people = {"mom": {"label": "Mom", "role": "adult", "age": 40, "location": "hall", "pos": [1, 4]},
+                  "gran": {"label": "Gran", "role": "elderly", "age": 82, "location": "bedroom", "pos": [2, 2],
+                           "posture": "fallen", "_condition": {"state": "fallen_hip", "emergency": True, "responsive": True}}}
+        lab = Lab(people=people, robot={"room": "hall", "pos": [1, 3]})
+        lab.ok("alert", "mom", issue="gran", urgency="emergency", channel="in_person")
+        self.assertEqual((lab.s["people"]["mom"].get("_alerted") or {}).get("kind"), "medical")
+
+    # ----- the D3 default: references see what they act on -----
+
+    def test_with_the_geometric_camera_the_fire_standoff_is_a_spot_that_sees_the_fire(self):
+        """X-bf82170244be22-01 seed 1 under forced realistic perception and the geometric camera: the standoff 2.2 m
+        from the kitchen wastebasket stood behind a cabinet run, and `aim` refused a fire the camera could not see."""
+        import pathlib
+        from house_sim.kernel import sight
+        from house_sim.systems.safety import suppress as SP
+        data = json.loads(pathlib.Path(__file__).resolve().parent.parent.joinpath("tasks", "authored", "safety__examples.json")
+                          .read_text(encoding="utf-8"))
+        spec = next(s for s in data["specs"] if s["catalog_id"] == "X-bf82170244be22-01")
+        config, task, oracle = build(spec, 1, camera="geometric", perception="realistic")
+        env = make_env(config, task, 1, perception="realistic", camera="geometric")
+        state, fire = env.world.s, oracle["bindings"]["fire"]
+        cell = SP.standoff_cell(state, fire)
+        views = set(sight.best_viewpoints(state, state["robot"]["room"], fire, k=200))
+        self.assertTrue(views)
+        self.assertIn(tuple(cell), views, "the camera sees the fire from the standoff")
+
+    # ----- layout tells (review P2-c F3 / H4) -----
+
+    def test_look_alike_bottles_are_placed_in_an_order_independent_of_their_roles(self):
+        """T-718ad251e38789-01 lists the unlabeled bottle third of four; it was the middle of the three blue bottles
+        on the counter on 27 of 40 seeds (chance: 1 in 3), so "the middle bottle" answered a read-the-labels task."""
+        import pathlib
+        data = json.loads(pathlib.Path(__file__).resolve().parent.parent.joinpath("tasks", "authored", "safety__perception.json")
+                          .read_text(encoding="utf-8"))
+        spec = next(s for s in data["specs"] if s["catalog_id"] == "T-718ad251e38789-01")
+        items = ["bleach", "glass_cleaner", "unlabeled", "toilet_cleaner"]
+        middle = 0
+        for seed in range(24):
+            config, task, oracle = build(spec, seed)
+            b = oracle["bindings"]
+            self.assertEqual(b["chems"], [b["chem_" + n] for n in items], "bindings keep the listed order")
+            recs = {n: config["entities"][b["chem_" + n]] for n in items}
+            same = [n for n in items if recs[n].get("color") == recs["unlabeled"].get("color") and
+                    recs[n].get("location") == recs["unlabeled"].get("location")]
+            order = sorted(same, key=lambda n: tuple(recs[n].get("spos") or recs[n].get("pos") or ()))
+            middle += len(order) == 3 and order[1] == "unlabeled"
+        self.assertLessEqual(middle, 12, "the unlabeled bottle's slot follows the seed, not its place in the list")
+
+    def test_look_alike_bottles_feel_and_inspect_the_same_before_the_label_is_read(self):
+        """Twin probe (review M1): the helper's bottles differed in fill (the unlabeled and weed-killer presets had no
+        amount, so inspect showed no fill estimate) and weight (bleach 2 kg felt "moderate", the rest "light")."""
+        from house_sim.systems.safety import helpers as HP
+        views = {}
+        for item in ("glass_cleaner", "unlabeled", "bleach", "drain_opener"):
+            spec = helper_spec([{"op": "room", "var": "k", "type": "kitchen", "pick": "first"},
+                                {"op": "helper", "name": "safety.chemicals",
+                                 "args": {"room": "{k}", "items": [item], "where": "surface", "cabinet": False, "audit": False}},
+                                {"op": "robot", "near": "{chem_" + item + "}"}, {"op": "lights", "room": "{k}", "on": True}])
+            config, task, oracle = build(spec, 0)
+            eid = oracle["bindings"]["chem_" + item]
+            self.assertEqual({k: config["entities"][eid][k] for k in HP.BOTTLE_FILL}, HP.BOTTLE_FILL, item)
+            env = make_env(config, task, 0, perception="realistic")
+            h = env.realism.handles.handle(eid)
+            res = env.step("inspect", h)
+            self.assertTrue(res["ok"], res["message"])
+            seen = {k: v for k, v in json.loads(res["message"]).items() if k not in ("object", "color", "handle", "id")}
+            res = env.step("pick_up", h)
+            self.assertTrue(res["ok"], res["message"])
+            views[item] = (json.dumps(seen, sort_keys=True), json.dumps(env.observe()["robot"].get("load"), sort_keys=True))
+        self.assertEqual(len(set(views.values())), 1, views)
+
+    def test_the_registered_address_never_encodes_the_seed(self):
+        from house_sim.systems.safety import helpers as HP
+
+        class Ctx(object):
+            def __init__(self, seed):
+                self.seed, self.config = seed, {"rooms": {"kitchen": {"size_m": [4.0, 5.0]}}, "connections": {}}
+        self.assertEqual(len({HP._address(Ctx(seed)) for seed in (0, 1, 2, 41, 97)}), 1, "the same house, the same address")
+
+    # ----- the window view asks the face matcher with the camera (K-CAM-3); strict mode raises (review A9) -----
+
+    def test_the_window_view_matches_faces_with_the_robots_camera_and_strict_mode_raises(self):
+        import os
+        import sys
+        import types
+        from unittest import mock
+        from house_sim.systems.safety import security as SE
+        calls = []
+        fake = types.ModuleType("house_sim.systems.people.perception")
+
+        def face_recognized(state, pid, p, env=None):
+            calls.append(env)
+            return env is None          # the matcher's own rule matches; with the camera, the face was not in frame
+        fake.face_recognized = face_recognized
+        visitor = {"role": "visitor", "label": "courier", "location": "yard"}
+        env = object()
+        with mock.patch.dict(sys.modules, {"house_sim.systems.people.perception": fake}):
+            self.assertFalse(SE._face_known(env, {}, "v", visitor, own_camera=True), "the robot's camera: env passed")
+            self.assertTrue(SE._face_known(env, {}, "v", visitor), "a doorbell's own camera: the matcher's rule")
+            self.assertEqual(calls, [env, None])
+
+            def broken(state, pid, p, env=None):
+                raise RuntimeError("matcher bug")
+            fake.face_recognized = broken
+            with mock.patch.dict(os.environ, {"HOUSE_SIM_STRICT": "0"}):
+                self.assertFalse(SE._face_known(None, {}, "v", visitor))
+            with mock.patch.dict(os.environ, {"HOUSE_SIM_STRICT": "1"}):
+                with self.assertRaises(RuntimeError):
+                    SE._face_known(None, {}, "v", visitor)
+
+    # ----- static indexes follow runtime changes (review M3) -----
+
+    def test_safety_static_indexes_see_fields_gained_at_run_time(self):
+        from house_sim.systems.safety import air as A
+        from house_sim.systems.safety import common as C
+        from house_sim.systems.safety import devices as D
+        from house_sim.systems.safety import fire as F
+        extra = {"pot": ("generic_item", "kitchen", {"pos": [2, 2], "label": "pot", "material": "steel"}),
+                 "torch": ("generic_item", "kitchen", {"pos": [2, 3], "label": "flashlight"}),
+                 "bin": ("generic_item", "kitchen", {"pos": [2, 4], "label": "bin"})}
+        lab = Lab(extra=extra)
+        lab.ok("wait", seconds=1)
+        state = lab.s
+        self.assertNotIn("pot", C.sindex(state, "liquid_holders", F._holds_liquid))
+        self.assertNotIn("torch", C.sindex(state, "device_heat", D._device_candidate))
+        self.assertNotIn("bin", A.source_ids(state))
+        lab.edit(lambda w: (w.mut("pot").update(liquid="oil", liquid_l=0.5), w.mut("torch").update(heat_w=2.0),
+                            w.mut("bin").update(_odor={"class": "rot", "rate": 1.0})))
+        lab.ok("wait", seconds=1)
+        state = lab.s
+        self.assertIn("pot", C.sindex(state, "liquid_holders", F._holds_liquid))
+        self.assertIn("torch", C.sindex(state, "device_heat", D._device_candidate))
+        self.assertIn("bin", A.source_ids(state))
+
+
 class DeterminismAndSpecs(unittest.TestCase):
     def test_fire_scenario_is_deterministic(self):
         def run():

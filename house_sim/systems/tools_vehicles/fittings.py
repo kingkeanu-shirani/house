@@ -557,6 +557,16 @@ def water_filters_idle(w):
     return True
 
 
+def _filter_causes(w, host, item):
+    """The causal set of a filter housing's leak or flush (C.consequence): the housing, its cartridge and its linked
+    supply valve."""
+    rec = w.s["entities"].get(host) or {}
+    out = [host, item]
+    if rec.get("supply_valve_id"):
+        out.append(rec["supply_valve_id"])
+    return [e for e in out if isinstance(e, str)]
+
+
 @system("tools_vehicles.water_filters", order=140, max_dt=30.0, idle=water_filters_idle)
 def water_filter_system(w, dt, tick):
     """Per substep (leaks and flushing follow valve/faucet actions within seconds) over the static host index."""
@@ -577,8 +587,9 @@ def water_filter_system(w, dt, tick):
             m["leaked_l"] = C.rnd(before + rate * dt / 60.0, 3)
             m["wetness"] = 1.0
             if before < 1.0 <= m["leaked_l"]:
-                w.stat("flood")
-                w.stat("spills")
+                # the robot's harm when it worked on this housing, its cartridge or its supply valve (review M9); a
+                # housing the scenario staged unlocked leaks all the same but fails no task
+                C.consequence(w, "filter_leak:" + host, ("flood", "spills"), ids=_filter_causes(w, host, item), host=host)
                 C.log(w, "filter_leak", seen=host, host=host)
                 C.notice(w, "splash", source=host)
             continue
@@ -615,7 +626,9 @@ def water_filter_system(w, dt, tick):
             om = w.mut(outlet)
             om["spilled_l"] = C.rnd(float(om.get("spilled_l", 0.0)) + overflow, 3)
             if om["spilled_l"] >= 0.2 and om["spilled_l"] - overflow < 0.2:
-                w.stat("spills")
+                # the robot's when it ran the flush or set up what catches it (review M9)
+                C.consequence(w, "flush_spill:" + outlet, ("spills",),
+                              ids=_filter_causes(w, host, item) + [outlet] + ([dest] if dest else []), outlet=outlet)
                 C.notice(w, "splash", source=outlet)
                 # the first 0.2 l on the floor under the dispenser: a kernel spill (its puddle and wet cell)
                 liquids.spill(w, om["spilled_l"], "water", source=outlet, cause="overflow")

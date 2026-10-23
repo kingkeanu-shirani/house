@@ -106,6 +106,12 @@ TRACKS = ("standard", "non-standard", "privileged")
 TRACK_NOTE = ("Rows are ranked within (split, track): standard; non-standard (done protocol off, protocol caps that "
               "differ from the harness defaults, incomplete runs); privileged (a privileged agent or any perception "
               "other than realistic, which hands the agent true ids and hidden fields).")
+# public-split rows (dev, train): the world of a public (spec, seed) is a pure function of public data, so an agent
+# that runs code or was trained on the generator can rebuild it offline and decode what it sees by content, whatever
+# the episode nonce does to handles (phase-1 red team; review H8). Their scores are not comparable with other agents'
+PUBLIC_SPLIT_NOTE = ("Dev and train rows run on public seeds: an agent that can run code or was trained on the generator "
+                     "can rebuild those houses offline and decode what it sees, so public-split scores are not "
+                     "comparable across agents; only test-split rows (hidden seeds, one attempt per hidden seed) are.")
 END_ITEM_REASON = {"done": "done", "discarded": "step_budget", "error": "sim_error"}
 PHASE_DONE = {"action": "phase_done"}     # a logged phase end of a multi-phase episode (env.phase_done(), no step)
 VERIFIER_KEY_ENV = "HOUSE_AI_VERIFIER_KEY"
@@ -1443,6 +1449,7 @@ def _row(key, trials, runs, resamples, seed, statuses, verified_only):
     row["protocol"] = "; ".join(t for t in tags if not t.startswith("options ")) or "standard"
     row["config"] = config
     row["privileged"] = row["track"] == "privileged"
+    row["comparable"] = bool(test)          # public-split rows: PUBLIC_SPLIT_NOTE (phase-1 red team)
     row["aggregate_only"] = test
     row["run_ids"] = sorted({run["run_id"] for run in runs})
     row["fingerprints"] = sorted({run.get("fingerprint") or "missing" for run in runs})
@@ -1565,6 +1572,7 @@ def aggregate(runs, resamples=DEFAULT_RESAMPLES, seed=DEFAULT_CI_SEED, spec_stat
                         "not comparable") if reasons else ""
     summary["ci"] = OrderedDict([("method", CI_METHOD), ("resamples", int(resamples)), ("seed", seed)])
     summary["tracks"] = TRACK_NOTE
+    summary["public_splits"] = PUBLIC_SPLIT_NOTE
     summary["verified_only"] = bool(verified_only)
     summary["verification_scope"] = VERIFY_SCOPE
     summary["runs"] = [OrderedDict([("run_id", r["run_id"]), ("agent", r["agent"]), ("split", r["split"]),
@@ -1837,10 +1845,12 @@ def _sim_time(env):
 
 
 def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=False, caps=None, require_done=None,
-                   camera=None):
+                   camera=None, nonce=None):
     """Rebuild the episode exactly as the harness does (runner.build, phrasing, HouseEnv(perception, camera,
     trace=False, observe_on_step=True), one observe()) and re-issue the logged commands. Returns (scores, issues, info).
     camera: the log's camera mode (None: the spec's own, as harness logs from before kernel v3.0 ran).
+    nonce: the episode's secret nonce (run.log_nonce: the log's own for a public episode, derived with the split key
+    for a test one; None for a log from before harness version 3, which ran without one).
 
     With caps (run.json caps) the replay also enforces the harness's episode limits (episode_limits): no more
     environment steps than the step cap, none once the simulated time budget has run out or after
@@ -1854,6 +1864,9 @@ def replay_episode(spec, seed, log, perception="realistic", phrasing=None, safe=
     if phrasing:   # EVAL_CONTRACTS shared facts / the harness: the test phrasing, placeholders bound like runner.build
         from ..tasks.spec import substitute
         task["instruction"] = substitute(phrasing, oracle["bindings"])
+    if nonce:
+        from ..kernel.realism import NONCE_KEY
+        task[NONCE_KEY] = nonce
     limits = episode_limits(task, caps)
     issues, protocol = [], []
     info = {"replayed_steps": 0, "unstepped": 0, "sim_error": False, "attempts": 0,
@@ -2180,9 +2193,10 @@ def _verify_one(job):
     claims_internal = "internal_errors" in (rec.get("failures") or []) or "internal_errors" in _harm_set(rec)
     try:
         camera = log.get("camera") if log.get("camera") in ("room", "geometric") else None
+        from .run import log_nonce
         scores, issues, info = replay_episode(spec, seed, log, perception, phrasing, safe or claims_internal,
                                               caps=ctx.get("caps") or {}, require_done=ctx.get("require_done", True),
-                                              camera=camera)
+                                              camera=camera, nonce=log_nonce(log))
     except Exception as exc:  # noqa: BLE001  (any simulator/build failure rejects this episode)
         return {"reason": "simulator raised during replay: {}: {}".format(type(exc).__name__, exc)}
     if issues:
@@ -2650,6 +2664,8 @@ def render_markdown(summary):
     lines.append("")
     lines.append(summary.get("tracks") or TRACK_NOTE)
     lines.append("")
+    lines.append(summary.get("public_splits") or PUBLIC_SPLIT_NOTE)
+    lines.append("")
     lines.append("Verified: a verdict produced in this process or signed with this machine's verifier key, bound to the "
                  "run's files and the current code; {}.".format(summary.get("verification_scope") or VERIFY_SCOPE))
     if summary.get("verified_only"):
@@ -2870,6 +2886,7 @@ def render_html(summary, out_dir="reports"):
     parts.append('<p class="meta">95% CIs: {} (B={}, seed {}). Test-split rows are aggregates only. Click a column header '
                  'to sort.</p>'.format(_e(summary["ci"]["method"]), summary["ci"]["resamples"], summary["ci"]["seed"]))
     parts.append('<p class="meta">{}</p>'.format(_e(summary.get("tracks") or TRACK_NOTE)))
+    parts.append('<p class="meta">{}</p>'.format(_e(summary.get("public_splits") or PUBLIC_SPLIT_NOTE)))
     parts.append('<p class="meta">Verified: a verdict produced in this process or signed with this machine\'s verifier '
                  'key, bound to the run\'s files and the current code; {}.</p>'.format(
                      _e(summary.get("verification_scope") or VERIFY_SCOPE)))

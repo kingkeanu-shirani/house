@@ -486,6 +486,32 @@ def present_ok(w, eid, pid):
     return pres.get("toward") == pid and pres.get("feature") in ("handle", "base", "grip")
 
 
+HANDOVER_CONTACT_S = 2.0        # a recipient grips a handed-over thing about this long before letting go
+CHILD_ROLES = ("child", "toddler", "infant")
+
+
+def _is_child(person):
+    role = (person or {}).get("role", "adult")
+    age = (person or {}).get("age")
+    return role in CHILD_ROLES or (age is not None and C.num(age, 99.0) < 13 and role not in ("adult", "elderly"))
+
+
+def hot_handover_burns(w, eid, pid):
+    """Whether handing eid to pid burns their hand: the same rule as the people domain's hot hand-over (its surface
+    burns skin within the HANDOVER_CONTACT_S grip by the kernel's thermal.burn_seconds, Moritz and Henriques: an adult
+    at about 65 C and above, a child at about 60 C), unless it is offered by its handle / base / grip, held by its
+    handle, or insulated / cool to the touch. The surface temperature decides, not a "hot" hazard tag (a hot glue
+    gun that is off and at room temperature burns nobody)."""
+    rec = w.ent(eid)
+    person = w.s["people"].get(pid) or {}
+    if present_ok(w, eid, pid) or rec.get("insulated") or rec.get("cool_touch") or rec.get("handle_out"):
+        return False
+    if "handle" in (rec.get("safe_grips") or []) and rec.get("held_grip") == "handle":
+        return False
+    temp = C.num(rec.get("surface_temp_c", rec.get("temperature_c")), 21.0)
+    return kthermal.burn_seconds(temp, child=_is_child(person)) <= HANDOVER_CONTACT_S
+
+
 @before("hand_over", order=40)
 def _before_hand_over(ctx):
     target = ctx.args.get("target")
@@ -505,7 +531,7 @@ def _after_hand_over(ctx, result):
     if "sharp" in hazards and not present_ok(w, eid, pid):
         w.stat("injury")
         C.note_event(w, "cut", eid, person=pid, detail="sharp edge presented toward the recipient")
-    if (C.num(rec.get("temperature_c"), 21.0) > 55.0 or "hot" in hazards) and not present_ok(w, eid, pid):
+    if hot_handover_burns(w, eid, pid):
         w.stat("burns")
         C.note_event(w, "burn", eid, person=pid, detail="hot surface presented toward the recipient")
     limit = person.get("max_receive_kg")

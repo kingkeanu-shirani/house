@@ -24,6 +24,7 @@ loaded.
 """
 import copy
 import json
+import os
 import tempfile
 import time
 import unittest
@@ -500,6 +501,8 @@ class DeterminismAndBudgetTests(unittest.TestCase):
                   "arm_weak_left": {"kind": "arm_weak", "part": "left", "latent": True}}
         env = make({"fault_state": faults})
         state = env.world.s
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for realistic in (False, True):
             best = float("inf")
             for _ in range(5):

@@ -2,83 +2,83 @@
  "about": "Generation-1 house digests pinned before any tier-1 generator work (docs/design/TIER1_SWEEP.md 14.1). tests/test_generator_compat.py (GEN) must keep every entry equal; only a main-session commit naming the round and the reason re-records this file (python tools/orchestration/tier1_gate.py gen1-digests --write --by ID --reason TEXT).",
  "defaults": [
   {
-   "digest": "e2a4208c168b72d5f88674119ac47a620dac4979a7ddffe3e612e22ecd7dcb09",
+   "digest": "1e73dba80ff406c1b88dfec1e9e34a7130ff611415fe5c3b5695929018696fbd",
    "seed": 0
   },
   {
-   "digest": "4bf7f39aeeed9a89b9caf72cefd6c7800ca16d1b20e90becce0a3c920095d545",
+   "digest": "2235bf8e4d3079cee67930ab8fcdc1d734a2f4793852c6a35a05747fd6b8b3d8",
    "seed": 1
   },
   {
-   "digest": "33e7cbfbf461d70f504d6fcc43d143043fea0faad9f1c3553262d35ca2553564",
+   "digest": "bb13cd196331dd498496a87f0e2c1f7d1b8d361c5cf0db92fe9ef18838182639",
    "seed": 2
   },
   {
-   "digest": "64abfa65ab4f507eeb870022187de7adaaa6cd8250d726de8034710aacdd2719",
+   "digest": "6e315457140683da9178426c1f5f22a36688d02f6a53a5d8eb49038a0bacc2a8",
    "seed": 3
   },
   {
-   "digest": "45da0e05f336fbc2a76671c6d4b92acddcc840233b45aae225520e57f325b50d",
+   "digest": "74bc390388654e9035f6ca51e31687d1a603dfd5c35ae3aac1af5334a5f0158b",
    "seed": 4
   },
   {
-   "digest": "eba89b9d5ee7d9a6e1b47c0b00ccda342caa633c42d6e665e138b0cf5d009ea4",
+   "digest": "0d31289cf168bc68d0375d9e895d1bb8b7849ec4a322f219497bed694ea316af",
    "seed": 5
   },
   {
-   "digest": "ed23daa0c1b23e369a87691b0ac2c379be8b594b56cb6d45511faf1808f4374b",
+   "digest": "dbb4d8314f7b9012d2ddf1ff07047e210e065f1e1e8d0d908fe12e7e4f67054e",
    "seed": 6
   },
   {
-   "digest": "c9512e17a9a5caab87c0b315892781ef7ae665929f15b88ee418982771c1ef50",
+   "digest": "5dd20b9e1f8ab093accafa18dcb2b6f021cfdbe4b1b7f6d00328aebf610785c5",
    "seed": 7
   },
   {
-   "digest": "7bfe75a2a0c5a1dcd4197e24005ce1b798f5e8bdb12c6f27485390e6296c1553",
+   "digest": "0281a287ee45a7c42bd63f697d82c284c973d551f75d14e500fbc81bd3b97c41",
    "seed": 8
   },
   {
-   "digest": "d20e99b79b620ed407ae9dc47aa90e6586905925e7e81c9b78d1ba9ab6941d3d",
+   "digest": "077113009210566747b4db940c746ec8278b3a71e31fbd0c3479478da2ad2be7",
    "seed": 9
   },
   {
-   "digest": "874583faf7d282c3a631e9f2e36a5644c1838c7c9b285a53ef4ca96ffd9ea6e3",
+   "digest": "63030ba0c8a74ff09830acf99c52ece575019928e981fcf6796413de06a1e934",
    "seed": 10
   },
   {
-   "digest": "85fce876526f903914481ec726fd4b9102f660560af74d31aa0e8eead127334d",
+   "digest": "7a715b85a4396a701722d83c182640770a41a6b1729b03eed89c0044546b7c6e",
    "seed": 11
   },
   {
-   "digest": "474f0f2ff3d77eef6bc8226de5fbe78b45d7416fedfe5b0ce2d896036dfd4248",
+   "digest": "c7ec02781b03fb54b6e1eed6c9e0f6458c6be9e29145296e6acad21dc563dfca",
    "seed": 12
   },
   {
-   "digest": "a4166af1778b5e2ee2fcc23debbbece921400959dadc3b6d92636a16bdc9f1d0",
+   "digest": "1c4f1c0fd26b75abdca22221b7e255af41fb317b00e9e45d54ae191b036800c5",
    "seed": 13
   },
   {
-   "digest": "fd40b5ad9c9ac6be153c4a29cce5a2cb5635c264254e29bb8d700fc7a0d406be",
+   "digest": "6205ae2cd36b5cb4ad9f83aba4452977fa554a4f38b0280e32fee7216301dd85",
    "seed": 14
   },
   {
-   "digest": "62ba619b1164fdb37f3054491b117a45bde66369e107a66b6411536d98c142f1",
+   "digest": "5739f48104bc9c5d8d47925df65d95982f1ea86393121fec75284e56c75af375",
    "seed": 15
   },
   {
-   "digest": "702e37e9c364b164e2f6f3220251d73c759309538eedb3ff8929aa1422712d30",
+   "digest": "7ed9487fb803d79963af622dfe3229a0b2e71a6cc49c4fac0450d0d6ad2e128a",
    "seed": 16
   },
   {
-   "digest": "10a7d3de4c0ff8b0b167b7c10abebafa9f5f16afd5a33ea8851ee1962087f08e",
+   "digest": "c4e61b9ba34dffb092739963003dc9c6f6b921a66a4c34ceaf30d4640b704ea8",
    "seed": 17
   },
   {
-   "digest": "66a982c72045045ddb5fa68ece7c80a1ad42a73ddece5fc8b1933b5d83fd6022",
+   "digest": "d14fbbfbbf9ee4884da6417dcbef99d1db370af51c01e15a64c4b0ef7cc536a2",
    "seed": 18
   },
   {
-   "digest": "a26b6aef5f8e39953691978288516a21c107c258381c55dd4bca00babe004364",
+   "digest": "73b3fd9846111fd224b89c00dd0a88f178f986abbc31247bc73055c71ef47881",
    "seed": 19
   }
  ],
@@ -93,6 +93,11 @@
    "by": "ADOPT",
    "date": "2026-10-22",
    "reason": "tier-1 adoption round: domain type data changed generation-1 entity records (no placement change: every generation-1 layout identical apart from the robot battery pack's size): hang_load_kg on curtains, heat_limit_c for max_surface_temp_c on trivets, wash/dry_capacity_kg for max_load_kg on washers and dryers, load_rating_text on boxes, hooks and hand trucks, drop_tolerance_m 0.3 on vases and centerpieces, the 2.4 kWh 14 kg robot battery pack (TIER1_DECISIONS), bleach and softener fills, ironing-board surface_heat_limit_c; generation-2 spec house blocks are no longer pinned here (most specs moved to gen 2; reviewed by the adoption integrator)"
+  },
+  {
+   "by": "INT",
+   "date": "2026-10-22",
+   "reason": "phase 1 (2026-10-22) reviewed re-record: K-LEAK printed address from the house-structure hash (every house) and hashed spec variants (spec houses); domain type data on furnished records (cleaning products: trigger/fill_level/amount_ml/dish_soap mass; textiles laundry jugs; food sugar/cumin/baking soda/colander/watertight containers with one cumin jar shelf; outdoor_plants fence size/roof sightline/wheelbarrow chocked/snow_pusher); electrical cord labels and outlet placement; attribution in catalog/analysis/phase1/INT.json (gen1_diff)"
   }
  ],
  "method": "digest = house_sim.kernel.predicates.digest(house_sim.generator.generate_house(seed, **house)) with every domain loaded (HOUSE_SIM_DOMAINS unset) and the default registry; defaults: seeds 0-19 with house {}; spec_houses: every distinct `house` block of tasks/authored/*.json after spec.expand and spec.choose_variant(spec, seed), on seeds 0, 1, 2, 41 and 97",
@@ -105,7 +110,7 @@
  ],
  "spec_houses": [
   {
-   "digest": "3695c5f612dae649c3ff267e4f9a9379d8ba92a2eec06657f1dd3d5ceaef323d",
+   "digest": "47f5f37084ee31658a052c89a18e3ea2cb1b37fd5eaa10e979a278d96182211b",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -138,7 +143,7 @@
    ]
   },
   {
-   "digest": "4314963b75c19ec7ea3576e4cd6f300c680642f04bc1fa1b02b2af4e6d00d16a",
+   "digest": "f39bc563ff7379d9f65e746e1bc9bed45a39be042eac6c1dd87be105753cd584",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -171,7 +176,7 @@
    ]
   },
   {
-   "digest": "0ce06d269f29ab210586d4ae4601042b9b636a595deb8df9a3173206ebe7bf31",
+   "digest": "38516edb069d0e93dd11a38cfd1ca2d237439a0ea8f0c3c8a551a71422e07930",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -204,7 +209,7 @@
    ]
   },
   {
-   "digest": "94f302e8502044f7062ac38c81048fcc8a39349e466ab56e74d3db8785f369e8",
+   "digest": "a252b21253853500da6b6a704c86d6a1871db1835dbbfa17cbde25a4b37c5eaf",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -237,7 +242,7 @@
    ]
   },
   {
-   "digest": "ac4e9f41aee5928e2ee8395b9dab47fdb069cb7369fc61d72c9b14e2c21c9af4",
+   "digest": "92993de9a60fd4017689d3ae07df9fc77c18b7293919aa2bc2e14d7434bdfbd4",
    "house": {
     "bedrooms": 3,
     "pets": "none",
@@ -270,7 +275,7 @@
    ]
   },
   {
-   "digest": "fe59d3547c0738425fd75ed08bd08c83051f5add0c64c6c7e98e35ce461b8832",
+   "digest": "06b6c0d1cfaa556a98d760ce6a834cb12114397ee65c4fa87dafbeb0d216e8a0",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -285,7 +290,7 @@
    ]
   },
   {
-   "digest": "effacf93a50a9525e682262baacbbd5d071fc3f5b134a801750884c9e7414509",
+   "digest": "d2a97a4fd0bbedf309fa1c892dcebfcc262b530445fcd3eaf3b67e52b5d97756",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -300,7 +305,7 @@
    ]
   },
   {
-   "digest": "08bb4ce2942084aa6b2dd96d9e787524871435a036c35747ec6cdd46d26b9671",
+   "digest": "a6143e07b46d22c0d20e37d086afa1b2d3fafd53a278cdcf8774506dbc3a9bc6",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -315,7 +320,7 @@
    ]
   },
   {
-   "digest": "13b1592cf24c70bc2457822c2e6b958a38bef5d815e2f9d028a13940a7286ee2",
+   "digest": "8efebd9adaf6f3f9b41022175c544701da03c1062298a94d60044897cb934656",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -330,7 +335,7 @@
    ]
   },
   {
-   "digest": "42fe55fbe9253bacefa00f1f2a63748ff393a88fd76053b8898f3a010550c248",
+   "digest": "ec6b49f61bba9d60d42cee53c21898a474d3656a3afdae52acd3fc24af2425f9",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -345,7 +350,7 @@
    ]
   },
   {
-   "digest": "2b3559a976cf594b642acd6ad201bd2cabcc9cc89ec5fab0c6838e93ea7114a8",
+   "digest": "c48c3a75ed4044dd47be9771a9c53dec9cd970bd4575b19b58b1f755db8c6290",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -358,7 +363,7 @@
    ]
   },
   {
-   "digest": "8d7743f9fb494e6a7b5fa2ad651a61e3814f1e382aab776c4d9d2415879c1906",
+   "digest": "0dbdcfec0780fe6b7e37d8e64fb35d80c6b591f742f3acca338b4b776c19668d",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -371,7 +376,7 @@
    ]
   },
   {
-   "digest": "e3dd7ff2278e49caea9875467254e7874426ec2ff8f4f12a115606d449c90841",
+   "digest": "a86358621872ccd95729ed1b4a9626364c33ad2ef141946855142c2566a3f85b",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -384,7 +389,7 @@
    ]
   },
   {
-   "digest": "7262d36ba8b795de81c53ff3ebfd4c815ea6aee28b1ab933e7e5f55b19bea6d7",
+   "digest": "81f2a5e4ae2d87db9b63e1dc8f3d33e99c679ab04abb33a467f43e16709ff0bb",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -397,7 +402,7 @@
    ]
   },
   {
-   "digest": "272c574555dc9b815839614866ac260daac3f37dc631fd810512939b8f85af64",
+   "digest": "207ea6bbad66034ae27bf3546c51a1f040590eec5ed286484bbc88a4c78a5b09",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -410,7 +415,7 @@
    ]
   },
   {
-   "digest": "54b68f1730576f6a5ee2cdb8e03725414f886d32744cc5751490c99a2071fccb",
+   "digest": "560f6f207b182caa7dd7fa633920b0fdd831feed6e4aa5f31a0dc838409f0371",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -423,7 +428,7 @@
    ]
   },
   {
-   "digest": "ab3b61e33c6e97d328dfb15e69b04e6b596ff1c5ef4415810b079bae578145ff",
+   "digest": "563711f642a4326cce9fcfaa4060437405eb674b6e7c807ea47ecd384bec8c04",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -436,7 +441,7 @@
    ]
   },
   {
-   "digest": "e82d76b5a0978fbc6f307cb69cdc9b212d7ace98b100da8a0f4343fd595bb69d",
+   "digest": "8aa5e23a1876d074ca6195bdac3f944a192bded56f79f85caaec9f32c0b8cd9c",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -449,7 +454,7 @@
    ]
   },
   {
-   "digest": "617a98b02274500910266b793bd8435df62f7d7f00487b3fa03b6d08eeb737ca",
+   "digest": "ab6c86243a8b9892879ea15a7733a71a9940eb7b011f1c36d9bad3685767bdae",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -462,7 +467,7 @@
    ]
   },
   {
-   "digest": "6817fae615e0dda0c68dba8987d32cebbc63d5464c4b3a7c26e89941c051ad6e",
+   "digest": "9a455a11c8d6d35a01ff65e6d99c209fd78b4036e960bd2ec345298bd08fc3e9",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -475,7 +480,7 @@
    ]
   },
   {
-   "digest": "cb29640fb858ba6c9a753412dd053abcb92f167ef38d856fade1b832c56c5862",
+   "digest": "526b3eec9984dbc056766921cd9266959abede01e15b6078bf0028208b861c70",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -488,7 +493,7 @@
    ]
   },
   {
-   "digest": "4376dcd79eec3c1868614d55bdb4db5acee8052a16d74bef4d37c19fa5d796ba",
+   "digest": "7a44048c7e1ba3b0cc3f9ad4cc593d40b00e3c13eca229feb21db93b46c57af3",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -501,7 +506,7 @@
    ]
   },
   {
-   "digest": "08bb4ce2942084aa6b2dd96d9e787524871435a036c35747ec6cdd46d26b9671",
+   "digest": "a6143e07b46d22c0d20e37d086afa1b2d3fafd53a278cdcf8774506dbc3a9bc6",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -514,7 +519,7 @@
    ]
   },
   {
-   "digest": "770998695aec90655f5d73f7a9d761f15539787da0f833b3b953e5f1f8b62921",
+   "digest": "31545b1b029766f10a3348be874a86d1f61eb4312f1ba2cf3bc801afa7f45a9b",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -527,7 +532,7 @@
    ]
   },
   {
-   "digest": "5f040ac3aad33302585f2601ef581165671154f8283fb37ec9a65115212f3144",
+   "digest": "333c7df49bcd4ae1cd1c2cffedf414d0ad6d91407dd99ef7fbea4a7ac49d118a",
    "house": {
     "dwelling": "house",
     "pets": "none",
@@ -540,7 +545,7 @@
    ]
   },
   {
-   "digest": "7089f99c5ad64fd0b77061fa998fb755dcc2d2fc2cacb999a33e085c4ca55f23",
+   "digest": "87332b31305206dad40e247a660d5df3b3186ccefb2a7c80197975e618adae61",
    "house": {
     "pets": "none",
     "require": [
@@ -554,7 +559,7 @@
    ]
   },
   {
-   "digest": "9692712baf68d1e0ce57a7e9cc372619f38606edb4dd720f49d04bf2a11f2c2a",
+   "digest": "b75bf855d10635ce7fc861ac3a746d9d48fb5529386e2f4a8dfb4d4fe5f71984",
    "house": {
     "pets": "none",
     "require": [
@@ -568,7 +573,7 @@
    ]
   },
   {
-   "digest": "31fb848d5f7e88e57bf8f1b98b296b68414325f3314c042b32e7ffaa3ed20c27",
+   "digest": "7a2344824d12ebd0f0488af9334d49b01e93fd7bcf227758f6fc2aee806ba129",
    "house": {
     "pets": "none",
     "require": [
@@ -582,7 +587,7 @@
    ]
   },
   {
-   "digest": "017df5c25e715bca6684241d1c4cc2ad375d2ac458e5f635f3161f9a95729cec",
+   "digest": "064e1f4a6ddb7cff455fd6139148b3e6627b2a1d297c218a74dfff8ae011a90f",
    "house": {
     "pets": "none",
     "require": [
@@ -596,7 +601,7 @@
    ]
   },
   {
-   "digest": "b240ca84b4b3f5571b71ad0a3e77b11549fbf606878a5dfbb36f69d35e938c14",
+   "digest": "85892ece5a25ee8fabee09ea70c37a15848617bc551112328af7bead70e0e9d9",
    "house": {
     "pets": "none",
     "require": [
@@ -610,7 +615,7 @@
    ]
   },
   {
-   "digest": "446d1303eb31e2bf18daacbb5344ca4068c15e5dd0ff01c189648bae98833d6f",
+   "digest": "7c0dd53fd16a985f405a2c79a1cfd5624b69aabf087a2557425ea13a125f537a",
    "house": {
     "pets": "none",
     "require": [
@@ -624,7 +629,7 @@
    ]
   },
   {
-   "digest": "4376dcd79eec3c1868614d55bdb4db5acee8052a16d74bef4d37c19fa5d796ba",
+   "digest": "7a44048c7e1ba3b0cc3f9ad4cc593d40b00e3c13eca229feb21db93b46c57af3",
    "house": {
     "pets": "none",
     "require": [
@@ -638,7 +643,7 @@
    ]
   },
   {
-   "digest": "284269f81492b7e4aa126d503ac2303654e11eaf747d30dbcce3bf9ec8c47c0c",
+   "digest": "afe8a9dabff04082f9ae2ba614e54c0e138a10dc5383c0310852a78e3bb0969b",
    "house": {
     "pets": "none",
     "require": [
@@ -652,7 +657,7 @@
    ]
   },
   {
-   "digest": "1e2eaa3561f9a132f195b1bccb5099f524014b1526a25c1a2cb61b70bbf773b2",
+   "digest": "8aa61b85903bc002c09bc8f7b649e3f452613adbf9dd1e42fe0697b3d44a1980",
    "house": {
     "pets": "none",
     "require": [
@@ -666,7 +671,7 @@
    ]
   },
   {
-   "digest": "2c3ebeb74b4c63292bc46c6433acc8992f0cef048140b1498111fe993faa393a",
+   "digest": "32eb0f4901b02286c3e84fc9b29d428491e85ba2a9961f2f9c808b6835d1cca8",
    "house": {
     "pets": "none",
     "require": [
@@ -680,7 +685,7 @@
    ]
   },
   {
-   "digest": "fe59d3547c0738425fd75ed08bd08c83051f5add0c64c6c7e98e35ce461b8832",
+   "digest": "06b6c0d1cfaa556a98d760ce6a834cb12114397ee65c4fa87dafbeb0d216e8a0",
    "house": {
     "pets": "none",
     "require": [
@@ -694,7 +699,7 @@
    ]
   },
   {
-   "digest": "effacf93a50a9525e682262baacbbd5d071fc3f5b134a801750884c9e7414509",
+   "digest": "d2a97a4fd0bbedf309fa1c892dcebfcc262b530445fcd3eaf3b67e52b5d97756",
    "house": {
     "pets": "none",
     "require": [
@@ -708,7 +713,7 @@
    ]
   },
   {
-   "digest": "08bb4ce2942084aa6b2dd96d9e787524871435a036c35747ec6cdd46d26b9671",
+   "digest": "a6143e07b46d22c0d20e37d086afa1b2d3fafd53a278cdcf8774506dbc3a9bc6",
    "house": {
     "pets": "none",
     "require": [
@@ -722,7 +727,7 @@
    ]
   },
   {
-   "digest": "13b1592cf24c70bc2457822c2e6b958a38bef5d815e2f9d028a13940a7286ee2",
+   "digest": "8efebd9adaf6f3f9b41022175c544701da03c1062298a94d60044897cb934656",
    "house": {
     "pets": "none",
     "require": [
@@ -736,7 +741,7 @@
    ]
   },
   {
-   "digest": "42fe55fbe9253bacefa00f1f2a63748ff393a88fd76053b8898f3a010550c248",
+   "digest": "ec6b49f61bba9d60d42cee53c21898a474d3656a3afdae52acd3fc24af2425f9",
    "house": {
     "pets": "none",
     "require": [

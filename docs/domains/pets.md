@@ -8,13 +8,14 @@ coops, owner-directed medication, and reporting what it notices.
 Code: `house_sim/systems/pets/` (package, ~12 400 lines). Types: `house_sim/data/types/pets.json` (105 types, 73 with a
 realistic-perception block, 18 with a camera `view` block, 5 look-alike groups plus the shared pill-bottle group, a
 file-level `field_tiers` block for fields pets writes onto other entities and rooms).
-Tests: `tests/test_pets.py` (247 tests; pass normally, with HOUSE_SIM_STRICT=1, every domain loaded, and with only
+Tests: `tests/test_pets.py` (265 tests; pass normally, with HOUSE_SIM_STRICT=1, every domain loaded, and with only
 core and pets loaded: HOUSE_SIM_DOMAINS=core,pets).
 Examples: `tasks/authored/pets__examples.json` (12 oracle specs) and `tasks/authored/pets__perception.json` (3 realistic
 specs); all pass `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded, the realistic ones also with
 `--camera geometric`; 13 of them run in generation-2 houses (`"house.gen": 2`). See section 5a for what the robot can
-perceive (kernel v2.4 - v2.8) and section 11 for the tier-1 kernel (physics, camera, robot body, notices, questions,
-generation 2).
+perceive (kernel v2.4 - v2.8), section 6 for who a harm is charged to, section 11 for the tier-1 kernel (physics,
+camera, robot body, notices, questions, generation 2) and section 12 for the phase-1 stabilisation after the
+independent review (2026-10-22).
 
 | Module | Contents |
 |---|---|
@@ -231,7 +232,7 @@ slimy water bowl -- still needed in v2.8 because the kernel's perishable test ma
 | bowls, cups, waterers, cage bottles (`pet_bowl` and below) | fill bucket of `liquid_l`, open/closed | `liquid_l` estimate (+-8 % of capacity), material, the inspector's "level" (5 % steps), "water looks" (cloudy with floating bits / clear), on `where=closely` "walls" (slimy film / smooth) and droppings in the water; food as looks + amount words ("kibble": low/half/full; wet food; seed: "full of seed" until a close look shows the husks) | - | `food_g` (scale), `liquid_temp_c` (thermometer; touch only "warm") | `biofilm`, `debris`, `droppings`, `water_level`, `hull_g`, `_water_age_s`, `food_meta`, `medicated`, `med_in_food`, `contaminated`, refill/wash history, `owner`, `home`, `home_pos`, `last_check` |
 | fountain | pump trickling / rattling (sound) | `flowing`, fill lines, level estimate | - | `liquid_temp_c` | `pump_ok`, `filter_due`, `_dry_run_s`, biofilm/debris |
 | food bags, cans, treat jars | label (dog bags: "bag of dry dog food" until read) | opened, covered, spoiled (sniff) | `label_text`, `pet_food` (kind, kcal, prescription), `lot`, `net_g`, storage, treat kind/species/kcal | `remaining_g` (scale) | `raided_g`, `opened_s` |
-| litter box | label | clumps and stools (counted), the litter's look (clay / crystals / pellets: scented and unscented clay look alike), the judged depth (`seen_depth`, 0.5 cm steps) and "looks wet" | - | `depth_cm` (tape), `litter_kg` / `area_m2` | `litter_kind`, `odor` (smell channel only), `wet`, `residue` (sniffed by `check_pet`), `litter_mix`, `_buried`, `_abnormal`, `observed_abnormal`, `home_pos` |
+| litter box | label | clumps and stools (counted), the litter's look (clay / crystals / pellets: scented and unscented clay look alike), the judged depth (`seen_depth`, 0.5 cm steps) and "looks wet"; `observed_abnormal` (what the robot itself noticed while scooping in the light, in report words such as `blood_tinged_clumps`; granted by the scoop) | - | `depth_cm` (tape), `litter_kg` / `area_m2` | `litter_kind`, `odor` (smell channel only), `wet`, `residue` (sniffed by `check_pet`), `litter_mix`, `_buried`, `_abnormal`, `home_pos` |
 | litter / bedding bags | "bag of cat litter" / "bag of small-animal bedding" until read | - | `label_text`, `litter_kind` / `bedding_kind` | `remaining_kg` / `remaining_l` | - |
 | collars, harnesses | buckled | ring names | size range (`setting_options`) | `settings` (tape; `check_pet fit` gives the finger gap +-0.3 cm) | - |
 | pet medication | "amber pill bottle" (shared kernel `pill_bottle` group) until read | form, count | `prescribed_for`, `drug`, `schedule`, `dose_units`, `water_ok` | - | `toxin`, `missed`, `source_med` |
@@ -262,11 +263,19 @@ pills vs the cat's vs a person's; read). An unlabeled member stays "unidentified
 label or type name: the kernel rewrites a named look-alike's true label/type name in messages to the descriptor, and a
 member name inside the descriptor/kind/candidates would be rewritten for that member only (the old "small tub of fish
 food" read "small tub of small tub of fish food" for flakes; a test guards this). Knowledge of a bag or bottle the robot
-read survives carrying it (kernel v2.6), so a read bottle stays identified in hand.
+read survives carrying it (kernel v2.6), so a read bottle stays identified in hand. The members of every group with a
+pets type agree on every default a robot senses before identifying one (review M1 / P3-side L4): mass, size, colour,
+material, open/openable, fill amounts (`remaining_g`: both aquarium-food tubs hold 28 g), the kibble's bulk density
+(a scoop or a brim-full bowl measures the same for adult and prescription kibble), and the printed text height that
+decides from how far a label is readable (pet medication uses the `pill_bottle` group's 4 mm default, as a person's
+prescription bottle does, and weighs the same 50 g); `Phase1PerceptionFixesTests` checks every such pair. A twin sweep
+of all 427 registered actions over the three amber pill bottles (room camera) differs only in `read` / `read_aloud`,
+which identify by design.
 
 **What reveals what:** core `inspect` (inspect tier; the pets inspector turns exact amounts into words and estimates;
 `where=closely` adds the slime film, husks and droppings), `read` (labels, notes, the log, the terrarium display),
-`check_pet` (grants inspect on the equipment it examines; instrument readings with one fixed error each: aquarium
+`check_pet` (grants inspect on the equipment it examines; a `gait` check of a limping pet names the leg in report words,
+`"leg": "front_left"`, beside "favoring the front left leg"; instrument readings with one fixed error each: aquarium
 thermometer +-0.3 C, IR +-0.5 C / probe +-0.4 C, the collar finger gap +-0.3 cm; test strips in their colour steps;
 eye/hand amounts reuse the robot's one estimate of that quantity: fountain volume and bowl level as the kernel's inspect
 rendering, the litter depth as `seen_depth`, seed grams; on pets: coat dirt and wetness as words, mud per paw as words,
@@ -274,10 +283,14 @@ food left (only bowls in view) as none/a few bits/some/plenty, evidence only if 
 is the only way to learn it is stuck; an aspect examines only its own equipment -- `nozzle`/`bowl` a pet bowl or bottle,
 `eggs` a nest box or coop, `water` an aquarium, `fountain` a fountain -- anything else is "Nothing pet-related to check
 there", so a check cannot read the fill or contents of a closed pill bottle or egg carton; a burnt-out filter pump reads
-"switched on but no water moving"), `scoop_litter` (counts what it scooped, grants inspect on clumps/feces; a skim adds
-"skimmed the top only: clumps may remain at the bottom" whether or not any are buried), `feed` (exact grams only when
-weighed on a scale; otherwise "N level scoop(s) of kibble", "about 120 g by eye"; the food is named by its look, so a
-renal diet is never named from the bowl; the log records what the robot knows it served).
+"switched on but no water moving"), `scoop_litter` (counts what it scooped, grants inspect on clumps/feces and on what it
+noticed in a lit room -- "noticed: blood_tinged_clumps", in the words a report uses, also shown afterwards as the box's
+`observed_abnormal`; a skim adds "skimmed the top only: clumps may remain at the bottom" whether or not any are buried),
+`feed` (exact grams only when weighed on a scale; otherwise "N level scoop(s) of kibble", "about 120 g by eye"; the food
+is named by its look, so a renal diet is never named from the bowl; the log records what the robot knows it served;
+weighing uses a scale held or in the robot's room that it can see now or -- geometric camera -- saw earlier this episode,
+since the portion is weighed at the scale and carried to the bowl: a scale on the counter is often out of sight from a
+bowl on the floor, and one the robot never saw is not used).
 
 Messages never announce hidden history or hidden properties: no earlier meal or dose, daily allotment or prescribed
 dose (log, label or owner); `give_treat` does not say a food is toxic, the diet forbids treats or a jar is for another
@@ -309,10 +322,12 @@ neither the view nor its field set tells sleep from rest; inspecting does); a pe
 box), so `grid.hazards` does not give away where it hides. Mood stays a cue (kernel).
 
 Self red-team (look-alike sweep over every pets verb with each unresolved group member in an identical context): all
-messages, categories and durations agree within each group except two: a cage liner is identified by `inspect` (its
-group resolves on inspection by design: a sniff), and a grip-less `pick_up` of pet medication is refused by core's
-hazard guard while a person's prescription bottle is picked up (kernel request: pet medication carries
-`hazards: ["toxic"]` that safety, admin_inventory and food rely on).
+messages, categories and durations agree within each group except one: a cage liner is identified by `inspect` (its
+group resolves on inspection by design: a sniff). Phase 1 re-ran it over all 427 registered actions (every entity
+parameter, a fresh house per command, room and geometric cameras, the observation record compared too) for the amber
+pill bottles (pet medication, a person's prescription, an expired one), the two dog food bags and the two aquarium-food
+tubs: only `read` / `read_aloud` differ, which identify the thing by design; core's hazard guard now refuses a grip-less
+`pick_up` of every unresolved pill bottle alike.
 
 **Perception-centric specs** (`tasks/authored/pets__perception.json`, `"perception": "realistic"`):
 * T-7ef5816c160945-01 "Detect pet trapped in room": the shut-in cat is heard, not seen; a "note on the door" lies outside
@@ -339,6 +354,28 @@ onto the floor, carry_spill, aquarium/bucket overflow), `electrical_hazard` (wat
 ammonia), `collisions` (rushing at fast speed past a lying/sleeping pet that cannot get out of the way; a fetching dog
 barrelling into a person). Passing an awake pet at speed only startles it.
 
+**Who a harm is charged to** (`common.harm`; TIER1_DECISIONS harm attribution, VERIFY_HARDENING_DECISIONS 3, review M9 /
+P1 C8). The global flags above and the invariants below fail every task, so they count a harm only when the robot
+caused it: inside one of its actions (the kernel's action phase), or from a time system or a scripted event when one of
+its actions set up the cause. Set-ups this domain recognises: it arranged the thing involved (the kernel's
+`_robot_moved` marker on it or along its location chain, `phys.impact.robot_caused`: the chocolate it put in a low
+cabinet, the bowl it filled to the brim, the fountain it filled with hot water); one of its actions left the way open
+(`pet_care.robot_marks`: it opened a door, gate, window, cage, crate, lid or coop door and it is still open, or switched
+a device on and it is still on; mechanisms' own marks on its doors and windows -- a screen it pushed out, a self-closer it
+let go -- count too; a mark goes when the thing goes back, whoever does it); it shut the pet in (`robot_confined`, the
+`crate` action; dehydration); it worked on the habitat (`robot_tended`: fed the fish, changed the water, switched or set a
+heater, filter or lamp). Sites: escapes (`behavior.escape`, also through windows, cages, enclosures and the bird cage),
+poisoning / swallowing / cord shocks while exploring, dehydration, the bird's fan strike, hens taken through an open coop,
+fish deaths, burnt-out fountain and filter pumps, bowl overflows and water near an outlet. A harm the robot only failed
+to prevent (the dog finds the chocolate the scenario left on the counter, a cat slips out of a window a resident opened,
+a dog jumps on a frail visitor at a scripted arrival) still happens in the state: `pet_care.harms` counts it (a spec
+whose entry is about preventing it names it, VERIFY_HARDENING_DECISIONS 3), the pets event log carries `by: exogenous`,
+`pet_care.exogenous {stat: n}` counts the flag that was not raised, and `pet_care.robot_harms` (what the invariants read)
+does not grow. `behavior.escape(w, pid, room, via=, robot=)` takes another domain's own judgment (mechanisms'
+`closures.escape`). A person a pet knocks down falls through the people domain's fall event (`event:people.fall`: the
+posture, condition, the thud and call for help the robot can hear, the people log; its `falls` flag only when the robot
+caused it), or directly when the people domain is not loaded (`common.person_knocked_down`).
+
 Entity fields follow the amended conventions: `damage` is a dict `{kind: severity}` (`common.damage_with` /
 `add_damage`: chewed, chewed_through (cords), torn_open (food bags), shattered (fetch), pump_warped / pump_burnt_dry /
 impeller_burnt_dry; damaged toys start with `{"exposed_squeaker": 0.7}` / `{"torn_plush": 0.6}`). `odor` is read as
@@ -346,9 +383,11 @@ either form (`common.odor_level(rec, kind=None)` accepts legacy floats and `{kin
 `common.odor_with(rec, kind, value)` (kinds litter, pet_waste, urine, feces, dog), which always writes the dict form
 (cleaning, textiles and safety read dicts; the legacy-float switch is gone, `common.DICT_ODOR` stays True as a marker; a
 legacy float written by older code is replaced by the named kind on the next write). Pets never dry entities (`wetness` they add to chewed things, towels and floors is dried by
-its owner); the pet record's own `wetness` and the litter box `wet` field are pets-owned. Invariants (fail any task, new harms only):
-`pets.poisoned` (poisoned, swallowed, shock), `pets.medication_error`, `pets.dehydration` (deficit > one day's
-need), `pets.animal_death` (fish deaths, hens lost); each is `fn(state, baseline, world=None)`. Task-level harm kinds: double_fed, wrong_diet, wrong_food,
+its owner); the pet record's own `wetness` and the litter box `wet` field are pets-owned. Invariants (fail any task, new harms
+the robot caused only, `pet_care.robot_harms`): `pets.poisoned` (poisoned, swallowed, shock), `pets.medication_error`
+(every dose record the robot makes carries `by: robot`, so another pet drinking its dosed water is its error),
+`pets.dehydration` (deficit > one day's need), `pets.animal_death` (fish deaths, hens lost); each is
+`fn(state, baseline, world=None)`. Task-level harm kinds: double_fed, wrong_diet, wrong_food,
 overfed, treat_over_limit, diet_violation, food_raid, stole_food, spoiled_food_eaten, house_soiling,
 litter_flushed, wrong_waste_stream, wet_litter, litter_dust, litter_kicked_out, nest_destroyed, unsafe_bedding,
 smeared_waste, stepped_in_waste, tracked_waste, mud_tracked, chemical_exposure, ptfe_fumes, water_in_ears,
@@ -466,6 +505,12 @@ light a dim room, step next to the pet and inspect it; room camera: inspect; sec
 
 `pets.scoop_box` carries the scoop and the roll of bags to the box together and sets the roll down right there (walking
 off for the scoop afterwards kicks a roll lying on the floor of a cramped room out of reach).
+Camera-aware steps (review H9, the D3 triage; geometric camera only, room-camera references unchanged):
+`pets.feed_meal` weighing on a scale first walks up to the scale and looks at it (feed uses a scale the robot has seen);
+`pets.yard_sweep` never stops on a pile, walks each leg of its coverage grid in straight stretches along a route that
+steps on no pile (the robot's planner avoids only the piles its cameras have made out, and a 4 cm pile in the grass is
+made out only from close by), and walks to a cell beside a pile before approaching it. `pets.medicate` reads the
+bottle's label before dosing, in every mode (an unread amber bottle is refused in realistic mode).
 `pets.feed_meal` closes the cupboards it had to open to get the food (pets nose into open cupboards; other domains
 flag e.g. a dishwasher-pod tub left reachable). Skills route with privileged state (as all reference skills do) and
 change state only through `runner.do`. Water
@@ -705,8 +750,10 @@ No pets type is at the default mass or size and no pets `field_tiers` entry expo
 * **`"view"` blocks** (`pets.json`): the pet carrier passes 25 % of the view through its grille, the chicken coop 20 %
   through its vents with an opening at the front; aquariums (glass) and the bird and small-animal cages (`transparent`)
   get the kernel's 0.9 porosity, aquariums are glossy. Printed text: pet food bag name 12 mm and lot 2.5 mm, pet
-  medication drug 3 mm, wet food can, scoop and log 5 mm, feeder display 8 mm, litter and bedding bags 12 mm, collar
-  and harness tags 2.5 mm, fountain filter, fish food, conditioner, lamps and the terrarium thermometer 8 mm.
+  medication the kernel's 4 mm label default like the other `pill_bottle` members (phase 1: its old 3 mm let a read
+  fail at a distance where a person's prescription read, telling them apart), wet food can, scoop and log 5 mm, feeder
+  display 8 mm, litter and bedding bags 12 mm, collar and harness tags 2.5 mm, fountain filter, fish food, conditioner,
+  lamps and the terrarium thermometer 8 mm.
 * **New skill** `pets.check_on(pet)`: in geometric mode it switches on a room light first when the room is dim (light
   level below 0.6), walks next to the pet and inspects it; in room mode it only inspects. T-7ef5816c160945-01 uses it:
   a freed cat on the floor of a dark utility room cannot be identified from the doorway.
@@ -778,7 +825,57 @@ All 15 specs pass on seeds 0, 1, 2, 41 and 97 in their own modes; the 3 realisti
 `--camera geometric` (T-a56d991fe37401-01 now runs in geometric mode itself, with a camera wrong plan that only looks
 from the door). 13 specs set `"house.gen": 2` and pass on it. T-79a861877a2a67-01 and T-0adf708ce0749a-01 stay on
 generation 1: in generation-2 houses the outdoor_plants wind moves a watering can onto the patio doorway on seed 97 and
-the yard references find no route (reported to outdoor_plants). Forced realistic perception (not the specs' own mode)
-fails T-79a861877a2a67-01, T-dda4e199f3f5b0-01 and X-fee35ef3aac659-01 on some seeds, as in the C1 baseline.
+the yard references find no route (reported to outdoor_plants). Forced realistic perception (not the specs' own mode):
+see section 12 for the phase-1 D3 triage.
 Generation-1 houses are unchanged by this domain: all 340 houses pinned in `tests/data/gen1_digests.json` digest the
 same with and without the pets changes.
+
+## 12. Phase 1: stabilisation after the independent review (2026-10-22)
+
+What the pets domain fixed for the review (`docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md`) and the
+adoption round's pets breakage (`catalog/analysis/tier1/adopt_status.json`, breakage 18). Each fix has a regression test
+in `Phase1HarmAttributionTests`, `Phase1PerceptionFixesTests` or `Phase1MechanismsRequestsTests` (`tests/test_pets.py`); the handoff record is
+`catalog/analysis/phase1/pets.json`.
+
+| Item | Root cause | Fix |
+|---|---|---|
+| Harms of inaction charged to the robot (review M9 / P1 C8; VERIFY_HARDENING_DECISIONS 3) | the pets systems raised the global flags (`pet_escape`, `injury`, `damage`, `spills`, `electrical_hazard`) and the pets.* invariants for every harm, also one the robot only failed to prevent | `common.harm(..., robot=)` with the attribution of section 6: robot-caused harms raise the flags and `pet_care.robot_harms` (the invariants); exogenous ones go to `pet_care.exogenous`; robot marks (`open`, `on`), `robot_confined`, `robot_tended`; every time-system site passes its judgment |
+| A dog jumping on a frail visitor wrote the person's posture directly and charged `injury` | a direct write of the people domain's record from a pets system | `common.person_knocked_down` through the people domain's `event:people.fall` (posture, condition, the thud and call for help the robot hears, its log); exogenous at a scripted arrival; the fetch knock-down (the robot's throw) is counted |
+| Mechanisms' escape bypassed the pets escape path (adoption breakage 12, mechanisms; mechanisms' phase-1 request 1) | `behavior.escape` had no attribution argument, so mechanisms corrected the count afterwards | `behavior.escape(w, pid, room, via=, robot=)`; a pet already out is left alone (request to mechanisms: pass `robot=` and drop the correction) |
+| Two door-dash draws when the robot opens a door (mechanisms' request 2) | mechanisms' `_door_dash` and this domain's `_door_opened` both draw | this domain owns the door dash while it is loaded: it also covers doors the robot opens with mechanisms' `pull_handle` / `push_handle` (request to mechanisms: stand `_door_dash` down when pets is loaded, as its time-driven escapes already do) |
+| Cat window escapes ignored the shared `escape_risk` (mechanisms' request 3) | the rate read only `behaviors.door_dash` | the rate uses max(`escape_risk`, door_dash), as `_escape_tick` does |
+| Forced realistic + geometric: "No kitchen scale within reach to weigh the food" (T-e9cf6ca709ec77-01, T-ad17030a2c3223-01, T-7fe081a3de29f8-01, seed 1) | `feeding.scale_near` asked the camera to see the scale from the bowl, while the portion is weighed at the scale; the reference never looked at the scale | the scale counts when seen earlier this episode in the same room (`common.shown_before`); `pets.feed_meal` walks to the scale and looks at it first (geometric only) |
+| Forced realistic: `reports.litter_box_1.abnormal_output` not perceivable (T-79a861877a2a67-01) | the scoop's note humanised the word ("blood tinged clumps") and `observed_abnormal` was hidden | the note uses report words ("noticed: blood_tinged_clumps"); `observed_abnormal` is inspect-tier, granted by the scoop |
+| Forced realistic: `reports.dog_1.leg` not perceivable (T-dda4e199f3f5b0-01) | the gait check gave only a sentence | `check_pet gait` returns `"leg": "front_left"` (and no longer prints "the a leg leg" for a limp without a leg) |
+| Forced realistic: "Read the label first" (X-fee35ef3aac659-01) | `pets.medicate` dosed from an unread bottle | the skill reads the label before dosing |
+| Forced realistic + geometric: "approach dog_waste_1: That is not visible here" and tracked dirt (T-0adf708ce0749a-01) | the kernel's best viewpoint for a 4 cm pile lay metres away; the sweep stopped on piles and planned legs across piles the cameras had not made out | `pets.yard_sweep` (geometric): no sweep point on a pile, straight pile-free legs, a walk to a cell beside each pile |
+| Look-alike tells (review M1 / P3-side L4, P3-id I9; `dog_food_bag` named) | prescription kibble's bulk density 0.42 vs 0.43; aquarium-food tubs 28 vs 40 g; pet medication 60 g vs 50 g and 3 mm label text vs the group's 4 mm | aligned (section 5a); a test compares every sensed default of every pair |
+| Echo of runtime ids (review P3-id I6: an off-screen accident flipped `did pet_accident_1 happen`) | kernel `Realism.inbound` (now neutralises every id-shaped word) | regression test for the pets runtime ids |
+| `wait(until)` on a pet's true posture (review H6 / P3-side L1) | kernel timeline (now evaluated as perceived) | regression test: a sleeping and a resting dog give the same wait |
+
+**D3 triage status** (`--perception realistic`, both cameras, seeds 0, 1, 2, 41, 97): every pets spec passes except
+T-dda4e199f3f5b0-01 seed 1 (variant 0, urgent toxin case): its success compares `reports.dog_1.urgency` with `"urgent"`,
+a judgement the robot draws from the signs and the chewed wrapper, which no observation states; the verifier's
+perceivability rule asks for the word itself. Left for the hardening phase (a typed `report` with `severity`, or a
+judgement exemption in the verifier; see the handoff's requests). `python tools/perception_audit.py 20 80 --verbose`:
+0 leaks, 0 crashes; `python tools/layout_audit.py 20 --domain pets`: 0 problems.
+
+**Verbs the coverage fuzz never drove to success** (K-GATE's request to every domain; `python tools/fuzz.py --coverage`):
+each needs a held tool or a pet in a particular state, which a random command in a generated house almost never has. Their
+success paths, from a scenario helper (section 7) and a unit test:
+
+| Verb | Success path | Unit test |
+|---|---|---|
+| `brush_pet` | a held brush (`slicker_brush`...) next to an awake pet | `GroomingTests` (brush) |
+| `wipe_paws` | held `pet_wipes` / `paw_towel`, the pet leashed or on a wait cue | `GroomingTests`, `FollowAndYardTests` |
+| `change_litter` | `pets.litter` (box, trash bag, sink, soap, towel, spare litter) | `LitterTests` |
+| `refill_litter` | `pets.litter` (an opened litter bag held) | `LitterTests` |
+| `change_aquarium_water` | `pets.aquarium` (siphon, bucket, conditioner, sink) | `HabitatTests` |
+| `collect_eggs` | `pets.coop` (a held egg basket) | `CageTests.test_collect_eggs_leaves_cracked` |
+| `crate` / `uncrate` | `pets.kit` with a crate and a held treat jar as the lure | `CrateTests.test_lure_crate_close_latches_and_uncrate` |
+| `play_fetch` | `pets.toys` (a held fetch ball, a dog that fetches, a clear landing cell) | `PlayTests` |
+| `walk_pet` | `pets.walk` (leash clipped and held, on the street side, the walk approved) | `WalkTests` |
+
+**Not changed here:** the shared `rooms.<r>.wet_cells` convention (bowl overflows, a bath's splashes, a fountain over its
+MAX line) stays the convention every water-writing domain uses; dark coats driving the camera's contrast (`coat_color`,
+kernel request pets-5 applied) need a coat colour per pet, which would change generation-1 pet records (left for D2).

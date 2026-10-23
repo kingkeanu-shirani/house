@@ -24,6 +24,7 @@ The houses are built by hand (no furnishers), so the file passes with HOUSE_SIM_
 loaded.
 """
 import copy
+import os
 import time
 import unittest
 
@@ -782,6 +783,8 @@ class PerformanceTests(CoreTestCase):
         env.world.robot_m()["docked"] = False
         ctx = Ctx(env, ACTIONS["pick_up"], {"target": cups[0]}, None)
         best = None
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for _ in range(5):
             start = time.perf_counter()
             for _ in range(100):

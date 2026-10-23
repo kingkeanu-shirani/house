@@ -25,15 +25,27 @@ of sight, light and resolution; see "Geometric camera" below). Both work with bo
 ## Handles
 
 Every entity is exposed under a per-episode opaque handle such as `obj_7f3a19c2` (a hash of the seed, a digest of the
-initial house that agents never see, and the true id). Handles appear as keys of `visible_entities`, in `location`
-values, connection `door` fields, the known map, action messages and every observer channel. Room, person and pet
-ids stay readable (the robot knows its house and residents).
+initial house that agents never see, the episode nonce and the true id). Handles appear as keys of `visible_entities`,
+in `location` values, connection `door` fields, the known map, action messages and every observer channel. Room,
+person and pet ids stay readable (the robot knows its house and residents).
 
-`env.step` accepts handles only: a true entity id, or a handle the robot was never shown, is refused exactly like an
-invisible object ("That is not visible here"). Handles inside strings (for example `watch` predicate paths) are
+`env.step` accepts handles only, and only the handles this episode issued (shown in an observation or a message,
+brought in by prior knowledge): a true entity id, a handle the robot was never shown, or a handle remembered from
+another episode of the same house and seed is refused exactly like an invisible object ("That is not visible here"),
+in every parameter (`realism.handles.handle(eid)` issues a handle; a domain that only sorts ids by handle uses
+`realism.handles.peek(eid)`, which issues nothing). Handles inside strings (for example `watch` predicate paths) are
 translated too. Results are translated back, so domains never deal with handles. Evaluators, specs, replays and
 `privileged_state()` keep true ids. Entities mentioned by sound/smell channels that the robot cannot see become
 "something", so channels cannot be used to identify unseen things.
+
+**The episode nonce** (review H8 / I5). An agent harness gives every episode a secret nonce in its task
+(`task["episode_nonce"]`, any non-empty string; `realism.new_nonce()` makes one). It is mixed into the handle salt and
+into every fixed draw (noise, bucket slips, missed small things, the detection band, range noise), so two episodes of
+the same spec and seed share neither handles nor noise, and neither can be recomputed offline from the public spec,
+seed and code. Saved states and replays keep the task, so they reproduce it; the harness keeps it private, as it keeps
+a test seed. Without one (verification, tests, tools) handles and draws follow (seed, initial house) exactly as
+before, deterministically. Domain instrument errors drawn with `ctx.fixed_rng` follow it too (phase 1). The agent
+harness (house_sim/eval/run.py, harness version 3) gives every episode one: docs/EVAL_HARNESS.md "Episode protocol".
 
 ## Field tiers
 
@@ -82,6 +94,13 @@ knowledge lapses back to glance: it may have changed since. Knowledge of things 
 displaced itself during the step (a `"displaced": true` marker the step set, e.g. navigation_robot kicking a toy
 aside) survives the move.
 
+**The grant gate** (review H7 / I3, check R4). An inspect or touch grant is applied only when the robot could have
+looked closely at the thing, or touched it, from where it is now -- held, within arm's reach (room camera: also a
+fixture of 1 m or more, or an `inspect_from_afar` thing, as core `inspect` allows), or (geometric camera, inspect)
+passing `camera.inspect_check` -- whatever action grants it, so no action is a remote inspection (`count <room>` was
+one). A refused grant is dropped; under `HOUSE_SIM_STRICT=1` it raises an AssertionError naming the action
+(`Realism.grant_problem`, `Ctx.grant`). Read and measure grants stay the domains' own (a display, an instrument).
+
 ## Quantization and noise
 
 Continuous values are rendered by knowledge level:
@@ -92,7 +111,8 @@ Continuous values are rendered by knowledge level:
 * fill: empty/low/half/full/overflowing; inspect to 5 %; measure exact
 * mass: touch light/medium/heavy/very heavy; scale exact -- both include the liquid inside (`liquid_l` x
   `liquid_density`, default 1 kg/l), as core carry-mass does
-* size: camera estimate to 5 cm; tape exact
+* size: camera estimate to 5 cm (one fixed relative error of about 8 % per thing; worse viewing conditions read it
+  in coarser steps of whole 5 cm multiples, never with a larger error); tape exact
 * count: a few/several/many; inspect exact up to 12; counting exact
 * odor `{kind: intensity}`: faint/noticeable/strong; damage `{kind: severity}`: light/moderate/severe (amounts below
   2 % are not perceptible); exact only with a tool the type declares (`"measure": {"odor": ...}`)
@@ -101,8 +121,10 @@ Continuous values are rendered by knowledge level:
   `faded`, `dye_damage`, and any float whose type default lies in [0, 1]
 
 Uncertainty grows with distance, low light, a dirty camera, fast motion, glare (low sun through an uncovered window)
-and steam or smoke. Noise and bucket slips are a pure function of (seed, entity, field, knowledge level, viewpoint),
-so repeated glances from the same spot give the same estimate (no free averaging).
+and steam or smoke. Noise and bucket slips are a fixed draw per (seed, episode nonce, entity, field, knowledge
+level) -- the viewing conditions only coarsen how precisely it is read -- so repeated glances give the same estimate
+(no free averaging; the glance size estimate's error no longer grows with the conditions, whose term the agent
+controls: a regression over a few distances recovered the true size to millimetres -- review L8, fixed in phase 1).
 
 ## Detection, look-alikes, novel objects, reflections
 
@@ -115,7 +137,20 @@ so repeated glances from the same spot give the same estimate (no free averaging
   groups with `"looks_like"` in their type JSON (file-level `"looks_like": {"group": {"descriptor", "resolve",
   "members"}}` or per type `perception.looks_like`).
 * Types with `novel: true` are described only by visual attributes (size class, shape, color; material after
-  inspection), never by name.
+  inspection), never by name. While unidentified (a novel thing never is identified) the glance, the view and inspect
+  show one fixed key set whatever the thing is (`realism.NOVEL_FIELDS`: label, kind, shape, material_guess, color,
+  size, place, held hand, soil, wetness, temperature, broken/shattered, printed text once read): no `openable`,
+  `container`, `surface`, `portable`, fill or domain inspector extra (review I4: a kettle's glance `openable`, a jug's
+  fill and a lamp's `bulb_hot` told the types apart). Instrument readings a domain passes as exact stay.
+* An unfamiliar thing is handled as an object -- looked at, inspected, moved, carried, placed -- but not operated:
+  an action registered with `operates=True` (core: open, close, open_cover, close_cover, lock, unlock, switch_on,
+  switch_off, set, start, pause, cancel, set_mode) on one is refused before any domain hook with one message for
+  every unfamiliar thing (`actions.NOVEL_OPERATE_MESSAGE`, the kernel's identify-first refusal that
+  `ctx.refuse_unidentified` gives; engine.step). Before, switch_on answered "That does not
+  work on it", "No power" or "It has no supported switch" by its type. Domains declare `operates=True` on their own
+  device verbs (catalog/analysis/phase1/breakages.json lists take_photo, pull_handle, push_handle, press, ...).
+  Oracle mode operates it as before. (Kernel decision of phase 1; the owner may revisit it: physical trials whose
+  outcomes name no class would be the alternative.)
 * Group keys: `descriptor`, `resolve`, `kind`, `candidates`, `label_fields`, and (round 5) `portion_descriptor`,
   `color`, `size_m`, `size_class`. An unresolved member shows the group's color and size instead of the ones its
   type gives it: the group's keys, else the most common member color and the typical (per-dimension median) member
@@ -123,8 +158,12 @@ so repeated glances from the same spot give the same estimate (no free averaging
   type's default, e.g. a red sock among same-type socks) is what the camera sees and stays, unless the group sets that
   key; a tape-measured size stays the measured one. The registry warns (`LookalikeWarning`,
   `registry.lookalike_warnings`) when members declare colors or sizes a camera would tell apart (sizes more than
-  5 cm and 10 % apart) without group keys; `registry.lookalike_groups()` / `lookalike_types()` list the merged groups
-  and the types each covers.
+  5 cm and 10 % apart) without group keys, and (`LookalikeSizeWarning`, `registry.lookalike_spreads`) when members
+  differ in true size by more than 1 cm and 5 % (`registry.SPREAD_RESOLUTION_M`: what the view's pixels and range
+  resolve) even though the group shows one `size_m`: the record is then aligned but the
+  geometric camera's geometry (elevation, occlusion, bearing, lidar, listing) still tells them apart (review L2
+  residual; the owners align the members or split the group); `registry.lookalike_groups()` / `lookalike_types()`
+  list the merged groups and the types each covers.
 * What a container holds (`liquid`, `contents`, `product`, `chemical`... -- core `CONTENT_FIELDS`) never counts as a
   label: an unlabelled member stays unidentified after reading.
 * Portions (`"derived_from": <source id>`) are identified when the source is (at the source's knowledge level), or
@@ -137,9 +176,15 @@ so repeated glances from the same spot give the same estimate (no free averaging
   ("unidentified liquid/contents" for a novel source); it clears once the source is identified.
 * Inspect results of unresolved members drop domain extras whose key contains a word that tells members apart
   (true type, category, label words, ancestors), not words every member of the group shares ("food").
+* Floor hazards (`obs.grid.hazards`): the sources sharing a cell are listed by handle (peeked, never issued), never
+  in spawn order (review I11). A wet / slip / sticky hazard whose source the robot cannot identify yet (an
+  unidentified puddle, the spill of an unresolved jug) shows its group's `floor_hazard` word, default "wet", and route
+  planning keeps out of it whenever the avoid list names any of the three (review L4: chlorine bleach showed "wet",
+  detergent "slip"). Domains' own `path_blocked` hooks still read true kinds (breakages.json).
 * Public helpers: `realism.unresolved(eid, record=None)` (an unresolved look-alike, unidentified portion or novel
   thing at the robot's current knowledge; False for unknown ids) -- `ctx.unresolved/identified` wrap it --
-  `realism.sealed(record)` (closed opaque container), `realism.group_glance(name, group)`.
+  `realism.novel_unidentified(eid, record=None)` (taken for an unfamiliar thing), `realism.sealed(record)` (closed
+  opaque container), `realism.group_glance(name, group)`.
 * Mirrors and reflective glass show an "open doorway" percept until inspected.
 * People and pets: posture and activity at a glance; moods only as cues (crying, pacing, wincing, raised voice);
   sleeping looks like "lying still" until inspected. Lying awake and asleep look the same: posture "lying", activity
@@ -151,10 +196,25 @@ so repeated glances from the same spot give the same estimate (no free averaging
 
 Action messages are translated after the step: ids of things perceived now or named in the command become handles,
 other ids "something" -- including ids of things the step destroyed (merged, consumed, pulled), which become their
-handle if the robot had one. Free-text (and other non-entity string) arguments neutralise every true id and every
-word shaped like a generated id on a registry type name (`fabric_softener_1`), whether or not such a thing exists, so
-the echo of the agent's own words never tells which ids exist; words naming parts of the command's target (a slot
-`layer_2`) stay. True names of unresolved look-alikes the command named -- the names of their whole group: every
+handle if the robot had one. Non-entity string arguments neutralise to "something", whether or not such a thing
+exists, every true id and every word shaped like a generated id (a numeric part: `fabric_softener_1`, `letter_6`,
+`parcel_1_item_2`); free text (text parameters: speak, explain, notes...) also every other id-like word (an underscore
+or a digit: `main_water_valve`, `m9`); words naming parts of the command's target (a slot `layer_2`) stay -- built from
+what the robot knows of the target (`Realism._target_part_names`): an identified thing's non-hidden fields and type;
+an unresolved look-alike or unfamiliar thing only its perceived identity and, for a look-alike, the names of every
+member of its group alike (phase-1 red team: the true record's type, liquid and product were kept, so listing every
+member's type name in `apply_label` told which member an unresolved jug was); a non-text parameter also keeps the key
+words of the target's record (a slot `battery_1` of a remote the robot cannot tell apart: the action acts on the part
+anyway). So the echo of the agent's own words
+never tells which ids exist (review I6: item counts in closed parcels, off-screen events, a spec's variant) nor what
+the target is. A hand-written id without a number in a non-text parameter is the known residual (authored ids
+should be id-shaped). An issued handle in a non-entity parameter resolves even when its thing was destroyed since,
+and every thing the command named by handle comes back as that handle (also when a domain writes an unknown id out in
+words, "apple 3"), so a reply about something seen earlier never says it is gone; an entity parameter refuses an
+out-of-view and a destroyed thing alike. A typed `report` about a thing the robot saw that has gone since, and `ask`
+about it, resolve it like one out of view (`dialogue.remembered_ids`: the Mind's beliefs and issued handles); the
+report names it by the label it showed and the room it was last seen in (red_leaks: "You have not seen that" and "I
+don't know." were existence oracles). (What a person answers about a thing is the people domain's.) True names of unresolved look-alikes the command named -- the names of their whole group: every
 member type's label and type name, every in-house member's label -- and the label/type of unfamiliar things are
 replaced by their perceived label in one pass (an inserted descriptor is never re-scanned; the perceived descriptor,
 kind and candidate strings are kept verbatim), so every member of a group gets byte-identical messages for the same
@@ -220,7 +280,30 @@ are shapes in a dark observation; a plain descriptive word that equals a hand-wr
 JSON that stays in true-id order, secret or
 never-tier fields, exact values above the robot's knowledge unless remembered by design, unperceived hazard sources,
 exact values in action messages, robot self-state beyond its proprioception tiers and broken sensor gates) attributed
-to the emitting module.
+to the emitting module. Since K-LEAK it also checks every step for knowledge laundered through a grant (kind `grant`:
+the robot's knowledge of a thing rose to inspect level while it could not have looked closely at it; the walk counts
+whole rooms for it), and each run adds differential probes in its camera mode (`--no-probes` skips them): `oracle`
+(wait / watch answers on twins whose true values differ but render alike), `twin` (look-alike members of different
+true size and unfamiliar things with the same visual props: rendering, listing, and what the view's pixels imply
+about the size; `--twin-fields` compares every field of look-alike twins; unfamiliar twins -- electric kettle,
+smartphone, hair dryer, remote control, all required with every domain loaded -- are always compared on every field
+and on what operating them answers), `episode` (a handle of another episode accepted; handles shared by episodes with
+different nonces), `echo` (replies to id-shaped words that exist or not, and to the handle of a thing destroyed out
+of view: speak, explain, remember, recall, report's subject, ask's about, wait) and `target` (free text naming every
+member type of an unresolved look-alike; the hazard order of one cell). The per-output rules could not see these classes (review H13): differential leaks, the
+condition oracle, laundered grants, cross-episode state and existence echoes. Still outside it: cross-seed
+correlations and permutations (review R2, R3) and estimate averaging over many episodes (the next phase's ledger,
+VERIFY_HARDENING 9.7), and the type-data tells of look-alike members (the registry lint's class, review L4).
+
+## Seeds, variants and printed text (review H5 / I1)
+
+A spec's variant comes from `tasks/spec.py` `variant_index(catalog_id, seed, n)`: blocks of n consecutive seeds, each
+rotated by a domain-separated SHA-256 of (catalog id, n, block), so every block holds every variant once (seeds 0, 1,
+2 cover a 2- or 3-variant spec, as `seed % n` did) while nothing short of the whole seed predicts it. The printed street
+address (`metadata.address`, which mail, packages and alarm dispatch print) is a domain-separated hash of the house's
+structure (`generator.house_address`: its rooms and connections, which the robot sees for itself), never of the seed:
+it adds nothing to a seed search and says nothing about the variant. (With `100 + seed % 900` and `seed % n`, one
+envelope gave the hidden variant away, on the hidden test seeds too.)
 
 ## Physics (kernel v3.0)
 
@@ -235,7 +318,9 @@ to the emitting module.
   drip (`dripping`) keeps the default inspect tier: it is noticed close up, and a kernel drip shows by its wet spot.
 * **Feel and looks** (inspector `physics`): `feel` ("hard, rigid", "soft, flexible", ...) once the robot has touched
   the thing, unless a domain's inspector already gave its own, more specific feel (laundry's "damp" / "dry"); `looks` ("sturdy" / "flimsy") for a rated support on a close look (`inspect` with `where="closely"`), from
-  its type's nominal rating class (never the per-instance threshold). No numbers.
+  its type's nominal rating class (never the per-instance threshold), unless a domain's inspector already gave its
+  own `looks` (a fastener's "visibly tilted", a filter's state; phase 1). No numbers. The auditor holds both keys to
+  the leak rule (no number, no hidden field name), not to the physics vocabulary, since domains write them too.
 * **Sounds** (observer `physics.sounds`, channel `sounds`): `{"kind", "source_hint", "loudness"}` with words only;
   sounds in the robot's room name their `source` (a handle, or "something" when the robot does not perceive it).
 * **Notes.** Physics consequence notes in action messages name ids only ("cup_1 fell and broke"), which realistic
@@ -322,6 +407,15 @@ within the depth camera's 0.2-6 m for targets of 24 px or more, a fixed draw wit
 depth shapes). `view` and `inner_spos` record fields are never shown (a domain's own `view` word, outdoor_plants' roof
 faces, keeps its tier).
 
+**Apparent size** (review M1 / L2). `px` is the camera's pixels for the size the record shows -- its 5 cm size
+estimate (a tape-measured size exactly) -- so `px x range_m / focal` gives back no more than `size_m` does. An
+unresolved look-alike whose size comes from its type is seen at its group's apparent size (`Realism.apparent_view`):
+its pixels are scaled by apparent / true size and its view level, detection band, noise term and fill threshold
+follow from them, so members of different true size are listed, leveled and rendered alike (a size the instance was
+given itself, or one the robot measured, is its own). What follows from the true shape -- where the thing is
+(bearing, elevation, range), what occludes it, the lidar -- stays physical: members whose true sizes differ by a lot
+remain a type-data issue for the registry's look-alike lint (review L4).
+
 **Camera and lidar blocks.** `obs.camera` = `{"pose": {"cell", "facing_deg", "facing", "pan_deg", "tilt_deg",
 "height_m"}, "frames", "glare", "light", "coverage", "tracking", "events"}`: the pose exactly (proprioception; its cell
 mirrors `obs.robot.pos`), this step's frame count, sun glare, the light at the eye (realistic: a word), the current
@@ -377,6 +471,16 @@ fields, latent faults, and any robot field nobody registered (`body.register_rob
 `@hook("proprio") fn(state, out, realistic)`, respecting the tiers. Without the `"proprioception"` sensor `obs.robot`
 keeps only `pos`, `posture` and `hands`. Domain channels that still show exact self-state (navigation_robot's
 `obs.nav`: `battery_pct`, `camera_clean`) move to proprio buckets in the domain adoption round.
+
+**The battery is no scale** (review L3; closed in phase 1, INT). Idle, standby and walking power used to include
+`hold_per_kg` times the exact held mass, so the time the gauge took to drop -- and the energy a full recharge took --
+weighed what the robot held (1.30 and 2.71 kg recovered while touch said "medium" for both); no readout change can
+hide such a drain. Hold power and the walking work's load term now follow each hand's `load` word
+(`proprio.felt_load_kg`: the middle of the word's band of the hand's believed capacity, the capacity itself for
+`at_limit`; `body.felt_load_kg`), so two loads the robot feels alike drain the pack alike; physics (stairs, floors,
+the hold safety net) keeps the exact mass (`motion` records carry `load_kg` and the energy's `energy_kg`). P-approx:
+the power is at most about an eighth of a hand's capacity times `hold_per_kg` off. `tests/test_leaks_review.py`
+BatteryScaleTests checks waits and walks.
 
 **Sensor gates.**
 
@@ -441,7 +545,15 @@ docs/DIALOGUE.md is the reference; what perception does for it (TIER1_SWEEP 7, 1
   geometric: identified in the view), "someone comes in / leaves" (a location compared with the robot's room) while
   it watches its room, an alarm by its sound, the weather by the weather rule (never its bookkeeping; through a window
   without the network only the condition word); a condition the robot cannot observe now is refused when issued.
-  Notices name their source only when the robot perceives it.
+  Notices name their source only when the robot perceives it. With realistic perception every atom is judged on what
+  the robot perceives, never on the true value (review H6 / L1): a thing's field as the observation renders it now
+  (`realism.shown_entity`: `wetness` "looks dry" / "wet", `level` "half", an unresolved look-alike's group values;
+  a status app's or an audible status's glance rendering), so `{"op": "eq", "value": "half"}` ends a wait and
+  `{"op": "startswith", "value": "0.4"}` never does; a field the rendering does not show cannot be watched; a
+  person's posture as shown (asleep and lying awake are both "lying"), a pet's ("resting" for asleep, lying or
+  resting); an alarm known only by its sound reads "alarm" while it sounds (a test sounds the same) and "quiet"
+  otherwise. A condition that holds ends the wait at once whatever the true state, so no wait, standing order or
+  guard is a yes/no question about hidden state. Oracle perception compares the true values as before.
 
 `tools/perception_audit.py` exercises canonical questions, typed reports, recall, snapshot and diff on its walk (its
 houses run with the notice bus on and half its waits listen with `interrupt_on`) and checks them (leak kind `people`): no handle in clarify options or `refers_to`; no handle in a memory message that was

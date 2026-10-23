@@ -113,8 +113,11 @@ def finite(value):
 
 
 def dims(rec):
-    """(w, d, h) of a record's size_m in its own frame (defaults for missing or malformed sizes)."""
-    size = rec.get("size_m") or DEFAULT_SIZE_M
+    """(w, d, h) of a record's size_m in its own frame (defaults for missing or malformed sizes). Something that opens
+    out into another shape (a folding stand: an ironing board set up on its legs, an opened drying rack) has its in-use
+    size, open_size_m, while it is open, whatever its size_m still says."""
+    size = rec.get("open_size_m") if rec.get("open") is True and rec.get("open_size_m") else None
+    size = size or rec.get("size_m") or DEFAULT_SIZE_M
     w = num(size[0], DEFAULT_SIZE_M[0]) if len(size) > 0 else DEFAULT_SIZE_M[0]
     d = num(size[1], w) if len(size) > 1 else w
     h = num(size[2], DEFAULT_SIZE_M[2]) if len(size) > 2 else DEFAULT_SIZE_M[2]

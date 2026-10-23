@@ -6,7 +6,9 @@ Person fields (people domain owns people; these are hidden safety facts set by s
               "breathing": "normal"|"abnormal"|"none", "injury": [...], "pain": 0-10, "says": "...", "wants_up": bool,
               "no_move": bool (do not lift/move), "emergency": bool (needs emergency services), "needs": item kind,
               "fall_time_s": t}
-  _alerted   {"kind", "time_s", "by"}  set when the person heard an alarm, a warning or a report
+  _alerted   {"kind", "time_s", "by"}  set when the person heard an alarm, or a warning or report that names an active
+             hazard or its place (warn.py: the words decide, not just being spoken to while a hazard exists)
+  _warned_zones / _invited_zones  the hazard zones a warning named / an invitation sent them into (walkers.py)
 Emergency calls are the people domain's `call` verb; this module records every call in safety.calls with
 service, address_ok (registered address said), symptoms/what happened, warranted (a real emergency exists).
 Monitored-panel dispatches (alarms.sound_alarm dispatch=true) are recorded the same way.
@@ -22,6 +24,7 @@ from . import air as A
 from . import common as C
 from . import fire as F
 from . import hazards as H
+from . import warn as WN
 
 RESPONSE_S = {"fire_department": 480.0, "ambulance": 540.0, "police": 600.0}
 EMERGENCY_CALLEES = ("911", "112", "999", "000", "emergency", "emergency_services", "ambulance", "fire", "fire_department",
@@ -257,12 +260,38 @@ def mark_alerted(w, pids, kind, by):
         m["_alerted"] = {"kind": kind, "time_s": C.now(state), "by": by}
 
 
+NO_TO = object()        # an alert or report entry has no "to" key (a speech entry always has one, None included)
+
+
+def warn(w, pids, content, via, text="", to=NO_TO, extra=None):
+    """Apply what a robot warning said (warn.Content, see warn.py and VERIFY_HARDENING 13.5) to the people who heard
+    it: alerted of the hazard kinds it names (_alerted), warned off the hazard zones it names (_warned_zones), sent
+    into the zones it invited them to (_invited_zones and a walk there). Every warning is logged in safety.alerts,
+    with what it named ("none" when it named no active hazard)."""
+    state = w.s
+    sec = C.ledger(w)
+    entry = {"time_s": C.now(state), "kind": ",".join(content.kinds) or "none", "via": via, "heard": list(pids),
+             "text": str(text or "")[:200]}
+    if to is not NO_TO:
+        entry["to"] = to
+    if content.zones:
+        entry["zones"] = list(content.zones)
+    if content.invited:
+        entry["invited"] = list(content.invited)
+    entry.update(extra or {})
+    sec["alerts"].append(entry)
+    del sec["alerts"][:-100]
+    if content.kinds:
+        mark_alerted(w, pids, content.alert_kind(), via)
+    _warn_hazard_zones(w, pids, content.zones)
+    _invite_into_zones(w, pids, content.invited)
+
+
 def _speech_hook(name):
     @after(name, order=150)
     def hook(ctx, result):
         w = ctx.w
         state = w.s
-        hz = H.active_hazards(state)
         messages = state.get("messages", [])
         if not messages:
             return
@@ -270,14 +299,9 @@ def _speech_hook(name):
         if entry.get("speaker") != "robot" or entry.get("step") != state.get("steps"):
             return
         audience = list(entry.get("audience") or [])
-        kinds = sorted(k for k in hz if k != "smoke") or (["smoke"] if hz.get("smoke") else [])
-        sec = C.ledger(w)
-        sec["alerts"].append({"time_s": C.now(state), "kind": ",".join(kinds) or "none", "via": name, "heard": audience,
-                              "to": entry.get("to"), "text": entry.get("text", "")[:200]})
-        del sec["alerts"][:-100]
-        if kinds:
-            mark_alerted(w, audience, kinds[0], name)
-            _warn_hazard_zones(w, audience)
+        text = entry.get("text", "")
+        content = WN.warning_content(state, text, speaker_room=state["robot"].get("room"))
+        warn(w, audience, content, name, text=text, to=entry.get("to"))
     hook.__name__ = "speech_" + name
     return hook
 
@@ -286,28 +310,44 @@ for _n in ("speak", "announce", "explain", "confirm", "handoff"):
     _speech_hook(_n)
 
 
+def _received(state, pid, issue):
+    """Whether the people domain's alert reached pid (its alerts record; True when it keeps none)."""
+    record = ((state.get("people", {}).get(pid) or {}).get("alerts") or {}).get(issue)
+    return True if not isinstance(record, dict) else bool(record.get("received", True))
+
+
 @after("alert", order=150)
 def alert_hook(ctx, result):
+    """The people domain's alert verb: the person it reached is warned of what its issue, place and text name (an
+    issue that is a hazard's entity -- the fire, the broken glass -- names that hazard and its room)."""
     w = ctx.w
+    state = w.s
     args = ctx.args
+    issue = args.get("issue")
     targets = []
     for key in ("target", "to", "destination"):
         value = args.get(key)
-        if isinstance(value, str) and value in w.s.get("people", {}):
+        if isinstance(value, str) and value in state.get("people", {}) and _received(state, value, issue):
             targets.append(value)
-    hz = H.active_hazards(w.s)
-    kind = sorted(k for k in hz if k != "smoke")
-    sec = C.ledger(w)
-    sec["alerts"].append({"time_s": C.now(w.s), "kind": ",".join(kind) or "none", "via": "alert", "heard": targets,
-                          "text": _text_of(args)[:200]})
-    mark_alerted(w, targets, kind[0] if kind else "general", "alert")
-    _warn_hazard_zones(w, targets)
+    kinds, rooms = set(), set()
+    if isinstance(issue, str) and (issue in state["entities"] or issue in state.get("people", {})):
+        kinds = WN.entity_classes(state, issue)
+        rooms = {C.root_room(state, issue)} - {None}
+    where = args.get("where")
+    if isinstance(where, str) and where in state["rooms"]:
+        rooms.add(where)
+    words = " ".join(str(v).replace("_", " ") for v in (issue, where, args.get("text"), args.get("subject"))
+                     if isinstance(v, str) and v not in state["entities"] and v not in state.get("people", {}))
+    content = WN.warning_content(state, words, speaker_room=state["robot"].get("room"), extra_kinds=kinds,
+                                 extra_rooms=rooms)
+    warn(w, targets, content, "alert", text=_text_of(args))
 
 
-def _warn_hazard_zones(w, pids):
-    """People who are told about a hazard know to keep away from its cells (see walkers.py)."""
+def _warn_hazard_zones(w, pids, zones):
+    """People told about a hazard zone (named by the warning) know to keep away from its cells (see walkers.py)."""
     state = w.s
-    zones = C.ledger_r(state).get("zones", {})
+    known_zones = C.ledger_r(state).get("zones", {})
+    zones = [z for z in zones if z in known_zones]
     if not zones:
         return
     for pid in sorted(set(pids)):
@@ -317,6 +357,37 @@ def _warn_hazard_zones(w, pids):
         known = set(m.get("_warned_zones", []))
         known |= set(zones)
         m["_warned_zones"] = sorted(known)
+
+
+INVITED_SPEED_MPS = 1.0
+
+
+def _invite_into_zones(w, pids, zones):
+    """An invitation into a hazard zone ("come and look at this in the kitchen!") sends the listener there: they
+    remember it (_invited_zones) and, when free to walk (awake, on their feet, not evacuating or already walking),
+    walk to the zone's centre (walkers.py; a barefoot listener is cut on the glass, entering the zone breaches it)."""
+    state = w.s
+    known_zones = C.ledger_r(state).get("zones", {})
+    zones = [z for z in zones if z in known_zones and not known_zones[z].get("cleared")]
+    if not zones:
+        return
+    for pid in sorted(set(pids)):
+        p = state.get("people", {}).get(pid)
+        if p is None:
+            continue
+        m = w.person_m(pid)
+        m["_invited_zones"] = sorted(set(m.get("_invited_zones") or []) | set(zones))
+        walk = p.get("_walk") or {}
+        busy = (walk and not walk.get("done")) or (p.get("_evac") and not (p.get("_evac") or {}).get("done"))
+        down = p.get("posture") in ("fallen", "pinned", "lying", "sleeping") or not p.get("awake", True)
+        if busy or down or (p.get("_condition") or {}).get("no_move") or p.get("evacuated"):
+            continue
+        z = known_zones[zones[0]]
+        new = {"at_s": C.now(state), "to": list(z.get("center") or [0, 0]), "speed_mps": INVITED_SPEED_MPS,
+               "purpose": "invited by the robot"}
+        if p.get("location") != z.get("room"):
+            new["room"] = z.get("room")
+        m["_walk"] = new
 
 
 # ---------------------------------------------------------------------------------------------

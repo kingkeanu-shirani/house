@@ -7,10 +7,11 @@ refrigerators and freezers (seals, frost, defrost), dishwashers (loading rules, 
 outdoor gas and charcoal grills, cooking timers, oven mitts and hot-item handling, appliance noises and faults.
 
 Code: `house_sim/systems/appliances_cooking/` (package). Types: `house_sim/data/types/appliances_cooking.json` (96 types).
-Tests: `tests/test_appliances_cooking.py` (181 tests, 32 of them realistic-perception, kernel v2.8 hardening and round-3
-follow-ups, 24 of the tier-1 adoption round (section 10); pass with every other domain loaded, with `HOUSE_SIM_STRICT=1`,
-isolated (`HOUSE_SIM_DOMAINS=core,appliances_cooking`, also strict) and with every deferred physics law but `stack`
-forced active, section 10). Perception specs: `tasks/authored/appliances_cooking__perception.json` (5 realistic-mode
+Tests: `tests/test_appliances_cooking.py` (190 tests, 32 of them realistic-perception, kernel v2.8 hardening and round-3
+follow-ups, 24 of the tier-1 adoption round (section 10), 9 of the phase-1 stabilisation after the independent review
+(section 11); pass with every other domain loaded, with `HOUSE_SIM_STRICT=1`, isolated
+(`HOUSE_SIM_DOMAINS=core,appliances_cooking`, also strict) and with all 19 deferred physics laws forced active, `stack`
+and `rain` included since the kernel's fixes, section 11). Perception specs: `tasks/authored/appliances_cooking__perception.json` (5 realistic-mode
 specs, section 4a; T-22bc2280c7e6be-01 runs with the geometric camera). Examples:
 `tasks/authored/appliances_cooking__examples.json` (12 specs). Every spec of both files declares `"house": {"gen": 2}`
 and passes `--check` on seeds 0, 1, 2, 41, 97 with every domain loaded, in its own mode, with `--camera geometric`
@@ -147,10 +148,13 @@ breaks protruding jars), `close` (dishwasher door blocked by protruding items, a
 
 `appliances_cooking.tick` (order 55, every <= 30 s substep; event-sensitive, so not periodic):
 
-* **No full scans.** One kernel static index `appliances_cooking.relevant` (type-level fields only: `ac_kind`, a
-  `food` dict, `conducts_heat` / `liquid_container` / `liquid_l` / cookware, `timer_channels` / `timers`) is regrouped
-  (`systems.groups_of`) only when entities are created or destroyed. The observer `appliances_cooking.senses` reads the
-  same index; the fallback air uses a static index of windows/hoods.
+* **No full scans.** Kernel static indexes (`systems.INDEXES`): `appliances_cooking.relevant` (the union: an
+  `ac_kind`, a `food` dict, `conducts_heat` / `liquid_container` / `liquid_l` / cookware, `timer_channels` / `timers`)
+  and one per group (`.appliances` by `ac_kind`, `.timer_holders`, `.vessels`, `.foods`). The groups
+  (`systems.groups_of`) are read off those indexes alone and rebuilt only when one of them changes; under the kernel's
+  index contract (independent review M3) a record that gains `liquid_l` or a `timers` list joins its group from the
+  next step on, in the live run exactly as in a reloaded one (section 11). The observer `appliances_cooking.senses`
+  reads the same groups; the fallback air uses a static index of windows/hoods.
 * **Idle predicates** (own record only; idle appliances are not stepped): burner - knob off, unlit, no error /
   residual heat / leak / CO marker / unlit or no-pan timers, element <= room + 2 C, every vessel on it cool (below);
   oven/toaster oven/air fryer - not running, door closed, not preheated/locked/heating, cavity within 1 C of the room,
@@ -195,10 +199,14 @@ Sub-models:
 * **Burners and vessels**: gas flow, flame colour (blue/yellow with a misaligned cap), CO source, induction pan
   detection (no pan 60 s -> off), element temperatures and residual heat; per vessel the lumped balance with
   regimes cold/warm/steaming/simmering/rolling_boil, shimmering/smoking for oil, boiling_dry/hot_dry; foam growth
-  for starch/protein liquids (milk foam factor 2), boil-over (soils the cooktop, can blow out a gas flame),
-  scorch of thick contents unstirred > 5 min, boil-dry damage, oil smoke point -> autoignition at ~370 C,
-  handle out over a front edge with a child home, flame licking plastic handles, unattended limits (10 min,
-  2 min when hot or oil).
+  for starch/protein liquids (milk foam factor 2), boil-over (soils the cooktop, can blow out a gas flame; what goes
+  over is foam: at most `BOIL_OVER_L_PER_KJ` 5 ml of liquid per kJ of boiling power per substep, about 0.27 l per 30 s
+  on a coil on high, so an unwatched pot boils over again and again until dry), scorch of thick contents unstirred
+  > 5 min, a pot that boils dry (by evaporation or by boiling over) with milk, stock, sauce or food left in it scorches
+  its bottom above 150 C (`_vessel.residue`, `_vessel.scorched`, burnt soil on the pot), boil-dry damage of the empty
+  pan above 260 C, oil smoke point -> autoignition at ~370 C, handle out over a front edge with a child home, flame
+  licking plastic handles, unattended limits (10 min, 2 min when hot or oil; a person in the room attends it, unless
+  the household handed the watching to the robot: `_burner.watcher` "robot", then only the robot does).
 * **Ovens**: thermostat +-3 C (preheat ~15-17 min to 177 C), door-open loss, broil cap 300 C, pans on racks heated
   as a lump with their contents (h ~18 W/m2K, 26 with the fan: a 23 cm cake is done in ~32-35 min), contents
   hazards, self-clean (480 C, lock, smoke and fumes, birds harmed, racks discoloured), air-fryer and toaster-oven
@@ -321,17 +329,22 @@ Whether a thing is identified is the kernel's `Realism.unresolved` (`percept.uni
   on, on its base); `grill_state` (lid, lit, knobs, tank valve, the lid dial, how the charcoal looks); `pressure_cooker`
   (float valve up/down, valve, lid, display); `espresso_state` (ready light); `noise` (`closely`, on a running
   appliance: what the fault sounds like - "grinding_rattle", "loud_click_every_few_minutes", "loud_buzzing" - never the
-  diagnosis); `cooking` (the food's surface colour, shape, texture - never firmness or the colour of the juices). For an
-  unfamiliar thing the kernel drops views named after its true type (`kettle_state`).
+  diagnosis); `cooking` (the food's surface colour, shape, texture - never firmness or the colour of the juices). An
+  unfamiliar (`novel`) thing gets no view at all: the views' keys and fields are the appliance kind's (`kettle_state`
+  with its MIN/MAX marks, `pressure_cooker` with its float valve), so they would name what it is (section 11).
 * Reading a dial thermometer's face through the oven or fridge door means looking at it closely: its scale shows which
-  kind it is (`inspect` knowledge of the dial, which resolves the look-alike).
+  kind it is (`inspect` knowledge of the dial, which resolves the look-alike). It is read, and the knowledge granted,
+  only through an open door or a lit window and only when the dial is legible from where the robot stands
+  (`percept.dial_legible`: the geometric camera's reading rule for that dial; room camera, within reach, as core `read`
+  needs for a small thing), never for a dial behind a shut door (section 11).
 * `read` on an oven or fridge thermometer: its dial (the surroundings to 5 C / 1 C; refreshed when read); on a timer:
   the soonest channel's label and time left; on appliances with a display: the display text.
 * `check_doneness`: `thermometer` grants `measure` on the food's core (`_core_c`) and reads it to the probe's
   `accuracy_c` at the probed point (the edge reads hotter); the probe's error for one food is a single fixed draw
   (kernel `ctx.fixed_rng("ac", "probe", probe, food)`), so probing again gives the same reading and cannot be averaged; `water_drop` grants `touch` on
   the pan's `temperature_c` (a word, not a number); `visual` gives the cues without firmness (use `press`) and without
-  the juices (use `fork`: "juices run pink/clear"); `toothpick` / `fork` / `press` give words.
+  the juices (use `fork`: "juices run pink/clear") and needs a close look (geometric: the camera's inspect check; room
+  camera: arm's reach, as core inspect needs for a small thing); `toothpick` / `fork` / `press` give words.
 * Sounds (observer `appliances_cooking.senses`): kind, loudness and the room; no `normal` verdict; fault noises as heard
   (`percept.HEARD`); operating sounds whose names would give away a type or a mode are renamed (`kettle_rumble` ->
   `water_rumbling`, `kettle_click` -> `loud_click`, `self_clean_ticking_and_fan` -> `ticking_and_fan`); a sound is
@@ -418,7 +431,7 @@ Scenario helpers (`{"op": "helper", "name": "appliances_cooking.<name>", "args":
 | `kitchen` | room, stove (gas/electric_coil/radiant/induction: rebuilds the range; gas also turns the gas service on), unit/oven_unit (F/C), oven_panel, brand (dishwasher panel), dishwasher, microwave, toaster, kettle, coffee_maker, mitts, thermometer, timer, pods, fridge, auto_reignite, dishwasher_rules | kitchen, range, burners, burner_lf/lr/rf/rr, stove_kind, oven, racks, rack_low, rack_mid, unit, hood, fridge, freezer, door_bin, crisper, fridge_gasket, freezer_gasket, dishwasher, rack_bottom, rack_top, basket, detergent_cup, rinse_aid, dw_filter, dw_sump, dw_gasket, dw_counter, pod_tub, pod, counter, counter2 (reachable, least cluttered first), cabinet, upper, upper2, drawer, microwave, toaster, kettle, kettle_base, coffee_maker, carafe, brew_basket, mitts, thermometer, timer, stand; keeps the kitchen workable with every domain's furniture (below) |
 | `cookware` | kind (saucepan, stock_pot, frying_pan, nonstick_pan, aluminum_pan, cast_iron_skillet, dutch_oven, baking_sheet, cake_pan, glass_casserole, broiler_pan, roasting_pan, plastic_handle_pan), on/into, shelf, props, var | var (default `pan`) |
 | `food` | kind (chicken_breast, whole_chicken, steak, salmon, bread_slice, thick_bread, cake_batter, cookie_dough, vegetables, soup, casserole, pine_nuts, bacon, egg_in_shell), on/into, props, count, var | var, var_1..n |
-| `pot_on_burner` | burner, vessel, liquid, liquid_l, temp_c, heat, lit, foods, handle, props, var | var (`pot`), food_1.. |
+| `pot_on_burner` | burner, vessel, liquid, liquid_l, temp_c, heat, lit, foods, handle, props, var, watcher (`"robot"`: the household handed the watching of this burner to the robot, so only the robot attends it) | var (`pot`), food_1.. |
 | `place_item` | on / into, shelf, type (generic_item), props, var | var; falls back to other reachable counters/tables (then a table next door) when the surface is full |
 | `dishes` | on, on2, kinds (plate, bowl, mug, glass, fork, spoon, table_knife, chef_knife, cast_iron_pan, wooden_board, plastic_container, saucepan, baking_sheet, insulated_mug, wine_glass), count, soil, burnt, var | var list, `<kind>_<n>` |
 | `dishwasher_load` | dishwasher, state clean/dirty_partial/misloaded, plates, cups, bowls, cutlery, dish_home, cutlery_home | dw_items, dw_top, dw_bottom, dw_cutlery, dw_dishes |
@@ -649,7 +662,10 @@ which is `lawbook.active`; TIER1_PHYSICS 10.3):
   still mark nothing at once). Once the law is active the kernel marks the support (accrued over the
   first minute) and this domain claims (hook `phys.contact_heat`) only the contacts its own heat model owns: whatever
   rests on one of its heaters or hot holders (`handling.HOT_SUPPORTS`: a pot on a burner, a kettle on its base, a
-  carafe on the warmer, a pan on an oven rack) and a vessel it is heating. The deferred rule skips the same contacts.
+  carafe on the warmer, a pan on an oven rack) and a vessel it is heating. The deferred rule skips every contact any
+  domain claims (`thermal.contact_claimed`, which runs every `phys.contact_heat` hook as the law's `contact_check`
+  does; section 11: it used to ask only this domain's own hook and scorched an ironing board under an iron on its
+  heel rest).
 * `thermal_shock`: every check goes through the kernel (`common.shock` -> `thermal.shock_check`, kernel tolerances and
   couplings: soda-lime glass 45 K, ceramic and stoneware 100 K, porcelain 120 K, tempered glass 150 K, borosilicate
   160 K, +-15 % per instance; contact 0.6, oven 0.5, freezer 0.3, immersion 1.0) and a failure breaks through the
@@ -685,7 +701,8 @@ which is `lawbook.active`; TIER1_PHYSICS 10.3):
   perception specs also with the geometric camera; `lawbook.forced` around unittest and `--check` in one process):
   `contact_heat`, `thermal_shock`, `thermal_tau`, `phase`, `overload`, and as far as this domain is concerned carry,
   crush, edge, furniture_tip, handle, hang, melt, open_spill, setdown, slope, wet_contact and wind. With `melt` active
-  the kernel also deforms a plastic utensil this domain melts on a burner (both marks; harmless). **Not ready:**
+  the kernel also deforms a plastic utensil this domain melts on a burner (both marks; harmless). **Not ready** at the
+  time (both since resolved by the kernel's fixes; section 11: every test and spec passes with all 19 laws forced):
   `stack` - an oven rack is a portable item, so a dish on it counts as a stack and the kernel's clearance above it is
   the next rack position (6 cm) even when no rack sits there: on opening the door the dish topples to the oven floor and
   can no longer be lifted standing (8 tests and T-1aea0c41439b0a-01 fail with the law forced; kernel request below);
@@ -822,3 +839,83 @@ the kitchen (kernel request); a camera wrong plan would not fail honestly until 
 look); (3) `thermal.shock_exposure` should know a wet film on any top, not only conductive ones; (4) the report
 vocabulary file above; (5) the realistic inspect message rewrites names word by word ("kitchen obj_...",
 "boiled obj_..." in candidates).
+
+-----------------------------------------------------------------------------------------------
+
+## 11. Phase 1 (stabilise) after the independent review (2026-10-22)
+
+Sources: `catalog/analysis/tier1/adopt_status.json` (the adoption round's breakages and open requests) and
+`docs/reviews/2026-10-22_independent_review` (REVIEW_REPORT.md section 1 and the phase records). Every fix has a
+regression test in `ReviewStabiliseTests`; the handoff is `catalog/analysis/phase1/appliances_cooking.json`.
+
+**Fixed (code and type data):**
+
+* Adoption breakage (textiles' T-7d4006bda247ba-01): the legacy contact-heat rule (`handling._marks_support`, while
+  `contact_heat` is deferred) now returns when `thermal.contact_claimed` is true, so every domain's `phys.contact_heat`
+  claim (textiles' iron upright on its heel rest) is honoured, as by the law's own `contact_check`. The spec still fails
+  on seeds 0 and 41 through two other domains' legacy copies (admin_inventory's `_hot_contact`, listed; manipulation's
+  place hook in `manipulation/handling.py`, which does not ask `contact_claimed` either): with both of those stepped
+  aside it passes. Test `test_legacy_contact_heat_honours_every_domains_claim`.
+* Review M3 (`appliances_cooking.relevant` went stale): the tick's groups were memoised on the union index's identity
+  and read off the records of that moment, so a record already in the union that later gained `liquid_l` or a `timers`
+  list stayed out of its group in the live run while a reloaded run put it in. The groups are now read off one kernel
+  static index per group (section 3). A per-step audit of all 17 reference runs (live groups against a fresh World on
+  a copy of the state) finds no difference. Test
+  `test_tick_groups_are_a_function_of_the_state_not_of_the_caches_history`.
+* Review G10 / L3 (milk): at the first boil-over the whole litre went in one 30 s step, and the empty pot then heated to
+  ~400 C with `_vessel.scorched` unset. A boil-over now carries over the rim at most 5 ml per kJ of boiling power
+  (foam is mostly steam; at least a 20 ml splash; never more than stands above the rim), so an unwatched litre of milk
+  on a coil boils over four times in about two minutes before it is dry; a pot that boils dry by boiling over is
+  `boil_dry` too, and its milk film, sauce or food burns onto the bottom above 150 C (`_vessel.residue`,
+  `_vessel.scorched`, burnt soil). Plain water leaves nothing to scorch (the empty pan's own `scorched` at 260 C is
+  unchanged). Tests `test_a_boil_over_spills_what_the_boiling_carries_over_the_rim`,
+  `test_water_boiling_dry_leaves_nothing_to_scorch_but_the_pan_overheats`.
+* Review G11 / L3: any adult in the room attended the stove, so a robot asked to watch the milk could walk away while
+  the resident who asked stood in the kitchen. `pot_on_burner(watcher="robot")` records that the household handed the
+  watching to the robot (`_burner.watcher`), and then only the robot attends that burner. No spec opts in yet: spec
+  repair (A-2bbd9d39ff1512-01) belongs to the verifier-driven next phase (VERIFY_HARDENING 23.3 lists this as a WP-D
+  prerequisite). Test `test_a_watch_handed_to_the_robot_is_attended_by_the_robot_alone`.
+* Remote knowledge grant: inspecting a fridge or oven granted `inspect` of the first dial thermometer inside it even
+  with the door shut (and, in room mode, from across the kitchen), resolving the fridge/oven-thermometer look-alike
+  unseen. The dial is read and the knowledge granted only through an open door or lit window and only when the dial
+  itself is legible from where the robot stands (section 4a). Test
+  `test_a_dial_thermometer_is_identified_only_when_its_face_is_read`.
+* Remote inspect: `check_doneness method=visual` shows inspect-tier cues but worked from anywhere in the room with the
+  room camera; it now needs core inspect's reach rule for a small thing (the geometric camera already needed its
+  inspect check). Test `test_judging_doneness_by_eye_needs_a_close_look_in_room_mode`.
+* Review I4 / M1 (unfamiliar objects identified by inspect keys): this domain's inspector added kind-named views
+  (`kettle_state`, `pressure_cooker`, `oven_state`) for a novel thing; it adds none now. Remaining key differences
+  between unfamiliar twins are other owners' (electrical's `plug` / `cord_condition` on corded things, manipulation's
+  `packing`, the kernel's fill fields). Test `test_an_unfamiliar_appliance_gets_no_appliance_view_on_inspect`.
+* Review L4 / M1 (type defaults that differ inside a look-alike group; found with a twin differential over every verb
+  of this domain on the three groups, both cameras): lifted, the rice cooker (3.5 kg) read "moderate" on the arm's load
+  gauge and the pressure cooker (5.5 kg) "heavy"; the rice cooker is now a heavy-bodied 10-cup (1.8 L, matching its
+  pot) model of 5.4 kg with a 0.95 kg multi-layer pot, within 0.1 kg of the pressure cooker bare and with its parts.
+  Opened, the rice cooker's pot was labelled "rice cooker inner pot": both pots are a plain "inner pot" now. The dial
+  thermometers' true sizes and masses differed (6 x 3 vs 7 x 4 cm; the depth camera's range to them differed): both
+  are 7 x 4 x 8 cm, 70 g. Generation-1 kitchens keep the old values (`furnish.GEN1_PROPS`; checked in-process on 112
+  generation-1 houses, 27 with rice cookers: identical digests with and without these edits). Test
+  `test_countertop_cooker_look_alikes_load_the_arm_and_show_their_pot_alike`.
+* The LookalikeWarning at registry load names no group of this domain (unchanged).
+
+**Checked, nothing to fix in this domain:** a realistic-mode leak sweep over every reference and wrong-plan run of the
+17 specs (seeds 0, 1, 2, 41, 97 room; 0, 41 geometric: no true id, no unresolved member's label in any message, no
+field beyond the look-alike set except what the robot felt); the twin differential (room mode: the only differences
+left are `read`, which resolves the item; geometric: `view.px` / `range_m` of the cookers and kettles, whose true sizes
+differ - the kernel's L2 fix, below; generation-1 sizes cannot change without moving generation-1 layouts); all 17
+specs on seven held-out seeds (3, 6, 500-504) and with all 19 deferred laws forced (both cameras for the perception
+file); the other domains' specs that run this domain's heat mechanics (safety X-d734ea3e299b16-01, T-e95dd4ba6e8734-01,
+A-d9e7a4d5d112d2-01; people T-0908068a0b4269-01; cleaning, manipulation, electrical, mechanisms, food and textiles
+specs with ovens, kettles, irons or hot items) pass as before, apart from the iron spec above.
+
+**Not fixed here (owners named in the handoff):** the geometric `view.px` and depth range follow the true size of an
+unresolved look-alike (kernel, review L2); the battery gauge weighs what the robot holds to 0.1 kg (kernel, L3);
+`wait(until)` on true values (kernel, H6); a novel thing's glance `openable` and core `open` (kernel, I4); harms of
+inaction such as `unattended_cooking` or a forgotten pot boiling dry are charged to the robot during an idle run (kernel
+M9 rule pending: one harm API with a cause); the `appliances -> safety` coupling through `sys.modules`
+(`common.safety_module`; needs a kernel capabilities registry, review M2); per-field inspect acuity and the wet-film
+thermal-shock rule (open kernel requests, section 10); realistic messages still rewrite a word of a label that equals an
+entity id ("stovetop obj_..." for a kettle with the id `kettle` in a hand-written house; kernel); spec weaknesses
+(memorised burner, fixed milk timer, unguarded oven clock, delayed-start acceptance) are the next phase's.
+Generation-1 digests (`tests/test_generator_compat.py`) currently differ on every pinned house through other owners'
+concurrent edits; this domain's edits leave them unchanged (checked as above).

@@ -98,7 +98,7 @@ class DerivationAndKeyTests(Isolated):
         self.assertEqual(S.DEV_SEEDS, tuple(SEEDS))
         self.assertFalse(set(S.DEV_EXTRA) & set(S.DEV_SEEDS))
         self.assertTrue(all(0 <= s < S.TRAIN_BASE for s in S.DEV_SEEDS + S.DEV_EXTRA))
-        self.assertEqual((S.TRAIN_BASE, S.PRIVATE_BASE, S.PRIVATE_END), (1_000_000, 900_000_000, 2 ** 31 - 1))
+        self.assertEqual((S.TRAIN_BASE, S.PRIVATE_BASE, S.PRIVATE_END), (1_000_000, 900_000_000, 2 ** 53))
         self.assertEqual(S.COMMITMENT_FILE, self.commit_path)
         self.assertEqual(S.key_path(), self.home / ".house_ai" / "split_key")
         self.assertEqual(S.manifest_path(), self.home / ".house_ai" / "test_manifest.json")
@@ -108,8 +108,15 @@ class DerivationAndKeyTests(Isolated):
         self.assertEqual(a, b)
         self.assertEqual(len(set(a)), 50)
         self.assertTrue(all(S.TRAIN_BASE <= s < S.PRIVATE_BASE for s in a))
-        self.assertEqual({s % 2 for s in a[:2]}, {0, 1})
-        self.assertEqual({s % 3 for s in a[:3]}, {0, 1, 2})
+        # the variant rule (spec.variant_index) rotates variants inside blocks of n seeds aligned at multiples of n:
+        # any 2n - 1 consecutive train seeds of a spec with n variants hold every variant (phase 1, INT)
+        from house_sim.tasks.spec import variant_index
+        for cid in (SHRED, PAPER, "T-x"):
+            seeds = S.train_seeds(cid, 24)
+            for n in (2, 3, 4, 6):
+                for start in range(0, 24 - (2 * n - 1)):
+                    window = seeds[start:start + 2 * n - 1]
+                    self.assertEqual({variant_index(cid, s, n) for s in window}, set(range(n)), (cid, n, start))
         self.assertEqual(S.train_seeds(SHRED, 3, start=2), a[2:5])
         self.assertNotEqual(S.train_seeds(PAPER, 5), a[:5])
         self.assertFalse(any(S.is_test_seed(SHRED, s) for s in a))
@@ -129,6 +136,15 @@ class DerivationAndKeyTests(Isolated):
         self.assertNotEqual(S.test_candidates(SHRED, 6, bytes.fromhex(OTHER_KEY_HEX)), seeds)
         self.assertNotEqual(S.test_candidates(PAPER, 6, self.key), seeds)
         self.assertEqual(S.test_candidates(SHRED, 6, None), seeds)   # None -> load_key() (env key here)
+
+    def test_hidden_seeds_cannot_be_tabulated(self):
+        """Phase-1 red team (review I1, second stage): hidden seeds lay in a 1.25e9 window whose houses could be
+        tabulated once (the structure the robot sees identified the seed); they now spread over [9e8, 2**53)."""
+        self.assertGreaterEqual(S.PRIVATE_SPAN, 2 ** 52)
+        self.assertLessEqual(S.PRIVATE_END, 2 ** 53)                       # exact in every JSON reader
+        seeds = S.test_candidates(SHRED, 200, self.key)
+        self.assertGreater(sum(s > 2 ** 31 for s in seeds), 190)
+        self.assertTrue(all(S.PRIVATE_BASE <= s < S.PRIVATE_END for s in seeds))
 
     def test_key_from_env_and_digest(self):
         self.assertEqual(S.load_key(), self.key)
@@ -200,7 +216,7 @@ class GuardTests(Isolated):
                 with self.assertRaises(ValueError) as caught:
                     S.guard_not_test(PAPER, seed)
                 self.assertEqual(str(caught.exception), "test seed refused")
-            self.assertFalse(S.is_private_seed(S.PRIVATE_END))
+            self.assertTrue(S.is_private_seed(S.PRIVATE_END))         # anything at or above the base (phase 1)
             self.assertFalse(S.is_private_seed(S.PRIVATE_BASE - 1))
             for seed in S.DEV_SEEDS + S.DEV_EXTRA + (S.TRAIN_BASE, S.PRIVATE_BASE - 1):
                 S.guard_not_test(PAPER, seed)
@@ -244,8 +260,31 @@ class GuardTests(Isolated):
         self.assertNotIn(":", S.safe_tag(tag))
 
 
+class HashedVariantSelectionTests(unittest.TestCase):
+    def test_the_walk_uses_the_hashed_variant_rule(self):
+        """Review H5 / phase 1: the variant a candidate counts for is the one the seed runs (spec.variant_index of
+        the entry's catalog id), never seed % n; phrasings are taken from the variant by index (select_variant)."""
+        from house_sim.tasks.spec import expand, select_variant, variant_index
+        candidates = list(range(500, 520))
+        result = S._select(candidates, 6, 3, lambda seed: {"passed": True}, catalog_id=SHRED)
+        self.assertEqual(result["variants"], [variant_index(SHRED, s, 3) for s in result["seeds"]])
+        self.assertEqual(set(result["variants"]), {0, 1, 2})
+        self.assertNotEqual([variant_index(SHRED, s, 3) for s in candidates], [s % 3 for s in candidates])
+        shred = expand(example_specs(SHRED)[0])
+        for index in range(len(shred["variants"])):
+            chosen = select_variant(shred, index)[0]
+            self.assertEqual(S._variant_phrasings(shred, index),
+                             list(chosen.get("phrasings") or [chosen.get("instruction") or ""]))
+
+
 class SelectionTests(unittest.TestCase):
-    """The seed-selection walk, with a fake verifier (no simulator)."""
+    """The seed-selection walk, with a fake verifier (no simulator) and, for the walk's own logic, seed % n as the
+    variant rule (the real rule, spec.variant_index, is checked in test_the_walk_uses_the_hashed_variant_rule)."""
+
+    def setUp(self):
+        patcher = mock.patch.object(S, "_variant_of", lambda cid, seed, n: seed % n if n else None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def walk(self, candidates, k, n_variants, failing=(), limit=S.FAIL_LIMIT):
         calls = []
@@ -342,7 +381,8 @@ class ManifestBuildTests(Isolated):
                 self.assertEqual(stream[item["index"]], item["seed"])
         shred = self.manifest[SHRED]
         self.assertEqual(shred["n_variants"], 2)
-        self.assertEqual(shred["variants"], [s % 2 for s in shred["seeds"]])
+        from house_sim.tasks.spec import variant_index
+        self.assertEqual(shred["variants"], [variant_index(SHRED, s, 2) for s in shred["seeds"]])
         self.assertEqual(set(shred["variants"]), {0, 1})
         self.assertEqual(self.manifest[PAPER]["variants"], [None, None])
 

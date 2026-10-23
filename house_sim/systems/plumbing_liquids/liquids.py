@@ -33,19 +33,59 @@ MATERIAL_DENSITY = {"ceramic": 2.4, "porcelain": 2.4, "stoneware": 2.3, "glass":
                     "copper": 8.9, "plastic": 1.05, "silicone": 1.2, "wood": 0.7, "bamboo": 0.7, "melamine": 1.5}
 SOLID_CONTAINER_MATS = ("plastic", "glass", "ceramic", "porcelain", "stainless_steel", "steel", "metal", "aluminum",
                         "copper", "cast_iron", "silicone", "stoneware", "crystal", "melamine", "enamel", "rubber")
-LIQUID_CATEGORIES = ("dish", "cookware", "food_container", "bucket", "dispenser", "liquid_container", "pitcher",
-                     "bottle", "watering_can")
+LIQUID_CATEGORIES = ("dish", "cookware", "food_container", "bucket", "liquid_container", "pitcher", "bottle",
+                     "watering_can")
+# a dispenser holds liquid when it dispenses one (soap, lotion, a drink): a napkin holder is a dispenser too
+LIQUID_DISPENSER_KEYS = ("product", "product_tag", "liquid", "foaming", "dispenser_spigot")
+SIDE_OPENINGS = ("front", "side", "back", "bottom")
+
+
+def _opening(rec):
+    """Where a container opens: the record's own view block, else its type's (registry metadata, never copied into
+    records): "front" for a roll-top bread box; None when neither declares one."""
+    own = rec.get("view")
+    if isinstance(own, dict) and own.get("opening"):
+        return own["opening"]
+    name = rec.get("type")
+    if not name:
+        return None
+    from ...kernel.registry import default_registry
+    reg = default_registry()
+    if not reg.known(name):
+        return None
+    return reg.view_props(name).get("opening")
+
+
+def liquid_tight(rec):
+    """Whether a container's walls and floor keep liquid in (independent review L3: a bread box, a colander and a napkin
+    holder held poured mop water): not perforated (a colander's holes, `perforated`), not porous or soft-sided, and
+    opening at the top (what is poured into a roll-top bread box, which opens at the front, runs straight out). An
+    explicit `watertight` decides."""
+    if "watertight" in rec:
+        return bool(rec.get("watertight"))
+    if rec.get("perforated") or C.num(rec.get("holes_mm")) > 0:
+        return False
+    if rec.get("porous") or rec.get("soft_sided"):
+        return False
+    return _opening(rec) not in SIDE_OPENINGS
 
 
 def holds_liquid(rec):
+    """Whether liquid poured into rec stays in it: a liquid container or basin, or a solid portable vessel of a
+    liquid-holding category (a cup, pot, bowl, bucket, pitcher, bottle, food tub) whose walls are liquid-tight."""
     if not rec:
+        return False
+    if rec.get("watertight") is False or rec.get("perforated"):
         return False
     if rec.get("liquid_container") or rec.get("watertight") or rec.get("basin_l") or rec.get("toilet"):
         return True
     if rec.get("porous") or rec.get("soft_sided") or rec.get("surface") and not rec.get("container"):
         return False
     if rec.get("container") and rec.get("portable") and C.num(rec.get("capacity_l")) > 0:
-        if rec.get("category") in LIQUID_CATEGORIES and rec.get("material", "plastic") in SOLID_CONTAINER_MATS:
+        if rec.get("material", "plastic") not in SOLID_CONTAINER_MATS:
+            return False
+        liquid_dispenser = rec.get("category") == "dispenser" and any(rec.get(k) for k in LIQUID_DISPENSER_KEYS)
+        if (rec.get("category") in LIQUID_CATEGORIES or liquid_dispenser) and liquid_tight(rec):
             return True
     return False
 
@@ -241,6 +281,40 @@ def alcoholic(rec):
     return sum(v for k, v in mix.items() if C.info(k).get("alcohol")) / total >= 0.005
 
 
+def _concentrations(rec, total):
+    """The derived per-liter values of a holder's dissolved products: soap_ml_per_l (surfactants) and chem_ml_per_l
+    ({product: ml/L}); only the keys the record carries or now needs."""
+    out = {}
+    chem_now = rec.get("cl_chem") or {}
+    surf = sum(C.num(v) for k, v in chem_now.items() if C.info(k).get("surfactant") or k in ("dish_soap", "hand_soap", "laundry_detergent"))
+    if surf > 0 or "soap_ml_per_l" in rec:
+        out["soap_ml_per_l"] = C.rnd(surf / total, 3) if total > 1e-6 else 0.0
+    if chem_now or "chem_ml_per_l" in rec:
+        out["chem_ml_per_l"] = {k: C.rnd(C.num(v) / total, 3) for k, v in sorted(chem_now.items())} if total > 1e-6 else {}
+    return out
+
+
+def refresh_derived(w, eid):
+    """Re-derive the name, potability and concentrations of what eid holds from its current composition and dissolved
+    products, amounts unchanged: another domain's pour hook (cleaning's solution model) moved cl_chem after this
+    domain's own write. Writes only the values that changed."""
+    rec = w.ent(eid)
+    total = liters(rec)
+    if total <= 1e-6:
+        return
+    mix = mix_of(rec)
+    want = dict(_concentrations(rec, total))
+    name = derive_name(mix, rec.get("cl_chem"), sum(mix.values()))
+    if name is not None:
+        want["liquid"] = name
+    pot = potable_of(rec, mix)
+    if pot is not None:
+        want["potable"] = pot
+    changed = {k: v for k, v in want.items() if rec.get(k) != v}
+    if changed:
+        w.mut(eid).update(changed)
+
+
 def write_state(w, eid, mix, chem=None, temp=None, extra=None):
     """Store a composition (journaled), deriving liquid name, liters and potability."""
     before = w.ent(eid)
@@ -264,12 +338,7 @@ def write_state(w, eid, mix, chem=None, temp=None, extra=None):
     pot = potable_of(m, clean)
     if pot is not None:
         m["potable"] = pot
-    chem_now = m.get("cl_chem") or {}
-    surf = sum(C.num(v) for k, v in chem_now.items() if C.info(k).get("surfactant") or k in ("dish_soap", "hand_soap", "laundry_detergent"))
-    if surf > 0 or "soap_ml_per_l" in m:
-        m["soap_ml_per_l"] = C.rnd(surf / total, 3) if total > 1e-6 else 0.0
-    if chem_now or "chem_ml_per_l" in m:
-        m["chem_ml_per_l"] = {k: C.rnd(C.num(v) / total, 3) for k, v in sorted(chem_now.items())} if total > 1e-6 else {}
+    m.update(_concentrations(m, total))
     if total <= 1e-6:
         m["liquid_l"] = 0.0
         m.pop("foam_l", None)
@@ -286,7 +355,9 @@ def write_state(w, eid, mix, chem=None, temp=None, extra=None):
 
 def take(w, eid, amount, carry_chem=True):
     """Remove `amount` liters (proportional composition; at most the unfrozen part, free_l: the ice stays, so the
-    holder's ice_frac grows). Returns a parcel dict."""
+    holder's ice_frac grows). Returns a parcel dict. carry_chem=False: the dissolved-solution model (cl_chem and the
+    dirt in it, cl_soil_g) stays put for its owner's pour hook to move (transfer.solution_carried_by_hook), so the
+    parcel carries neither and the source keeps both until that hook rescales them."""
     rec = w.ent(eid)
     have = liters(rec)
     frozen = frozen_frac(rec)
@@ -298,15 +369,19 @@ def take(w, eid, amount, carry_chem=True):
               "mix": {k: v * frac for k, v in mix.items()}, "chem": {k: C.num(v) * frac for k, v in chem.items()} if carry_chem else {},
               "solids": {k: C.num(v) * frac for k, v in (rec.get("solids") or {}).items()},
               "flags": {k: rec.get(k) for k in ("carbon_fines", "_nonpotable", C.UNIDENTIFIED) if rec.get(k)},
-              "filled_s": rec.get("filled_s"), "source": eid, "origin": origin_of(w, eid), "soil_g": C.num(rec.get("cl_soil_g")) * frac,
+              "filled_s": rec.get("filled_s"), "source": eid, "origin": origin_of(w, eid),
+              "soil_g": C.num(rec.get("cl_soil_g")) * frac if carry_chem else 0.0,
               "ice_g": C.num(rec.get("ice_g")) * frac}
+    if not carry_chem and chem:
+        # what the hook will move with it: the parcel is still bleach mop water (its name and the harm it does)
+        parcel["named_chem"] = {k: C.num(v) * frac for k, v in chem.items()}
     rest = {k: v - parcel["mix"].get(k, 0.0) for k, v in mix.items()}
     new_chem = {k: C.num(v) - parcel["chem"].get(k, 0.0) for k, v in chem.items()} if carry_chem else None
     extra = {}
     if rec.get("solids"):
         extra["solids"] = {k: C.rnd(C.num(v) - parcel["solids"].get(k, 0.0), 3) for k, v in rec["solids"].items()
                            if C.num(v) - parcel["solids"].get(k, 0.0) > 0.01}
-    if rec.get("cl_soil_g"):
+    if rec.get("cl_soil_g") and carry_chem:
         extra["cl_soil_g"] = C.rnd(C.num(rec.get("cl_soil_g")) - parcel["soil_g"], 3)
     if rec.get("ice_g"):
         extra["ice_g"] = C.rnd(C.num(rec.get("ice_g")) - parcel["ice_g"], 2)
@@ -390,6 +465,8 @@ def add(w, eid, parcel, now_s=None, limit=None):
         scale = (amount - into) / amount
         over.update(liters=amount - into, mix={k: v * scale for k, v in parcel.get("mix", {}).items()},
                     chem={k: C.num(v) * scale for k, v in parcel.get("chem", {}).items()}, solids={})
+        if parcel.get("named_chem"):
+            over["named_chem"] = {k: C.num(v) * scale for k, v in parcel["named_chem"].items()}
         return over
     return None
 
@@ -421,8 +498,11 @@ def clear_provenance(w, eid):
 
 
 def parcel_name(parcel):
+    """What a parcel is: named from its composition and the dissolved products it carries (or that the solution
+    model's pour hook moves with it, named_chem)."""
     total = sum(parcel.get("mix", {}).values()) or parcel.get("liters", 0.0)
-    return derive_name(parcel.get("mix", {}), parcel.get("chem"), total) or parcel.get("liquid") or "water"
+    chem = parcel.get("chem") or parcel.get("named_chem")
+    return derive_name(parcel.get("mix", {}), chem, total) or parcel.get("liquid") or "water"
 
 
 def is_drinking_water(rec, now_s=None, max_age_s=86400.0):

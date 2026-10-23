@@ -413,13 +413,28 @@ class GateTests(unittest.TestCase):
         self.assertGreater(stat(e2, "damage"), 0)
 
     def test_dog_pushes_unlatched_gate_and_escapes(self):
+        # the scene left the sagging gate open; the robot shuts it but the latch misses: the dog gets out, a failure to
+        # prevent (harm attribution, review M9): no global flag, counted as exogenous
         self.h.mech("side_gate", {"kind": "gate"}, {"sag_mm": 11.0})
         self.h.pet("dog_1", "back", [14, 5])
         self.h.c["events"] = [{"at_s": 20, "effect": "mechanisms.load_test", "args": {"target": "side_gate", "by": "dog_1"}}]
         e = self.h.env(room="back", pos=(14, 7))
         ok(self, e.step("close", "side_gate"))
         ok(self, e.step("wait", seconds=60))
-        self.assertIn("pet_escape", failures(e))
+        self.assertTrue(e.world.s["pets"]["dog_1"].get("escaped"))
+        self.assertNotIn("pet_escape", failures(e))
+        self.assertEqual(1, e.world.s["mechanisms"]["exogenous"]["pet_escape"])
+        # a latched gate the robot unlatched and left: the dog's escape is the robot's doing
+        h = House()
+        h.c["entities"]["side_gate"].update(open=False, latched=True)
+        h.mech("side_gate", {"kind": "gate"})
+        h.pet("dog_1", "back", [14, 5])
+        h.c["events"] = [{"at_s": 20, "effect": "mechanisms.load_test", "args": {"target": "side_gate", "by": "dog_1"}}]
+        e2 = h.env(room="back", pos=(14, 7))
+        ok(self, e2.step("unlatch", "side_gate"))
+        ok(self, e2.step("wait", seconds=60))
+        self.assertTrue(e2.world.s["pets"]["dog_1"].get("escaped"))
+        self.assertIn("pet_escape", failures(e2))
 
 
 # ======================================================================================
@@ -633,8 +648,22 @@ class WindowTests(unittest.TestCase):
         with lawbook.forced(rain=False):
             ok(self, e.step("wait", seconds=3600))
         self.assertTrue(ent(e, "book").get("water_damaged"))
-        self.assertIn("damage", failures(e))
+        # the scene left the window open: the weather's damage, not the robot's (harm attribution, review M9)
+        self.assertNotIn("damage", failures(e))
+        self.assertEqual(1, e.world.s["mechanisms"]["exogenous"]["damage"])
         self.assertTrue(e.world.s["rooms"]["living"].get("wet_cells"))
+        # the robot opens the closed window before the rain: the soaked book is its damage
+        h3 = House()
+        h3.mech("win_living", {"kind": "sash_window"}, locked=False)
+        h3.add("sill", "window_sill", "living", pos=[2, 0], window="win_living", mount_height_m=0.9, size_m=[1.0, 0.18, 0.03])
+        h3.add("book", "book", "sill")
+        h3.c["events"] = [{"at_s": 60, "effect": "mechanisms.rain", "args": {"mm_h": 8.0}}]
+        e3 = h3.env(room="living", pos=(2, 1))
+        with lawbook.forced(rain=False):
+            ok(self, e3.step("raise", "win_living", to_frac=0.6))
+            ok(self, e3.step("wait", seconds=3600))
+        self.assertTrue(ent(e3, "book").get("water_damaged"))
+        self.assertIn("damage", failures(e3))
         h2 = House()
         h2.add("sill", "window_sill", "living", pos=[2, 0], window="win_living", mount_height_m=0.9, size_m=[1.0, 0.18, 0.03])
         h2.add("book", "book", "sill")
@@ -3224,6 +3253,303 @@ class Tier1SweepAdoptionTests(unittest.TestCase):
         r = ok(self, e.step("squeeze_trigger", "plain", squeezes=3))
         self.assertIn("Sprayed", r["message"])
         self.assertAlmostEqual(0.4 - 0.0033, ent(e, "plain")["liquid_l"], places=4)
+
+
+def exogenous(env, name):
+    return ((env.world.s.get("mechanisms") or {}).get("exogenous") or {}).get(name, 0)
+
+
+def robot_marks(env, eid):
+    return list((ent(env, eid).get("_mech") or {}).get("robot") or ())
+
+
+class Phase1StabiliseTests(unittest.TestCase):
+    """Stabilisation phase 1 (docs/reviews/2026-10-22_independent_review; catalog/analysis/tier1/adopt_status.json):
+    harm attribution of this domain's time systems and scripted events (review M9 / P1 C8), the pets escape path, the
+    merged app view, handle sort keys, the spray-bottle and child-lock groups and product sprays."""
+
+    def test_wind_slams_crack_the_frame_once_and_are_not_the_robots(self):
+        # adoption breakage: a generation-2 gale counted the slam damage as the robot's, once per slam (99 times)
+        h = House()
+        h.c["entities"]["front_door"].update(open=True, latched=False, locked=False)
+        h.c["weather"].update(wind_mps=9.0, gust_mps=13.0)
+        e = h.env(room="living", pos=(2, 3))
+        ok(self, e.step("wait", seconds=4 * 3600))
+        self.assertGreaterEqual(mech(e, "front_door").get("slams", 0), 7)
+        self.assertIn("frame cracking from repeated slams", ent(e, "front_door").get("damage_notes") or [])
+        self.assertEqual(0, stat(e, "damage"))
+        self.assertNotIn("damage", failures(e))
+        self.assertEqual(1, exogenous(e, "damage"), "the cracked frame is one damage, however often it slams")
+
+    def test_a_door_the_robot_slams_counts_its_damage_once(self):
+        h = House()
+        h.mech("door_bed", {"kind": "hinged_door"}, open=True)
+        e = _env_with(h, room="hall", pos=(2, 2), robot={"speed_mode": "fast"})
+        for _ in range(6):
+            ok(self, e.step("close", "door_bed"))
+            ok(self, e.step("open", "door_bed"))
+        self.assertEqual(6, mech(e, "door_bed")["slams"])
+        self.assertIn("hinges loosened by slamming", ent(e, "door_bed")["damage_notes"])
+        self.assertEqual(1, stat(e, "damage"), "the loosened hinges are one damage, not one per slam past the fourth")
+
+    def test_a_closer_the_robot_released_onto_a_toddler_is_its_harm_a_scenes_is_not(self):
+        def house(open_):
+            h = House()
+            h.c["entities"]["garage_entry"]["open"] = open_
+            h.person("tod_1", "hall", [1, 1], role="toddler", age=2)
+            # the toddler toddles into the doorway just before the spring swings it shut
+            h.c["events"] = [{"at_s": 4, "effect": "mechanisms.agent_to", "args": {"agent": "tod_1", "cell": [0, 6]}}]
+            return h
+        e = house(True).env(room="hall", pos=(1, 4))           # a door the household left open: its closer starts
+        for _ in range(12):
+            ok(self, e.step("wait", seconds=5))
+        self.assertEqual(["tod_1"], mech(e, "garage_entry").get("resting_on"))
+        self.assertNotIn("injury", failures(e))
+        self.assertNotIn("collisions", failures(e))
+        self.assertEqual(1, exogenous(e, "injury"))
+        self.assertEqual(1, exogenous(e, "collisions"))
+        e2 = house(False).env(room="hall", pos=(1, 5))         # the robot opens it and lets it go
+        ok(self, e2.step("open", "garage_entry"))
+        self.assertIn("release", robot_marks(e2, "garage_entry"))
+        for _ in range(12):
+            ok(self, e2.step("wait", seconds=5))
+        self.assertEqual(["tod_1"], mech(e2, "garage_entry").get("resting_on"))
+        self.assertIn("injury", failures(e2))
+        self.assertIn("collisions", failures(e2))
+
+    def test_gas_the_scene_left_flowing_is_exogenous_the_robots_knob_is_not(self):
+        def house(flow):
+            h = House()
+            h.add("dev", "control_panel_device", "counter", label="gas burner", settings={"flame": "lite" if flow else "off"},
+                  setting_options={"flame": ["off", "lite", "low", "med", "high"]}, control_kinds={"flame": "knob"},
+                  mech={"dials": {"flame": {"push_to_turn": True}},
+                        "gas": {"setting": "flame", "off": "off", "lit": False, "flow": flow}})
+            return h
+        e = house(True).env(room="kitchen", pos=(1, 1))
+        ok(self, e.step("wait", seconds=30))
+        self.assertNotIn("gas_exposure", failures(e))
+        self.assertEqual(1, exogenous(e, "gas_exposure"))
+        e2 = house(False).env(room="kitchen", pos=(1, 1))
+        ok(self, e2.step("turn", "dev", setting="flame", value="lite", push=True))
+        self.assertIn("gas", robot_marks(e2, "dev"))
+        ok(self, e2.step("wait", seconds=30))
+        self.assertIn("gas_exposure", failures(e2))
+        ok(self, e2.step("turn", "dev", setting="flame", value="off", push=True))
+        self.assertNotIn("gas", robot_marks(e2, "dev"))
+
+    def test_a_curtain_the_scene_left_over_a_scene_candle_is_not_the_robots_fire(self):
+        h, cov, sill = CoveringTests.house(None, panels={"left": 1.0, "right": 1.0})
+        h.add("candle", "generic_item", sill, label="candle", open_flame=True, lit=True, size_m=[0.08, 0.08, 0.12])
+        e = h.env(room="bedroom", pos=(3, 1))
+        ok(self, e.step("wait", seconds=300))
+        self.assertTrue(ent(e, cov).get("burnt"))
+        self.assertEqual(1, exogenous(e, "fire"), "the ignition is the household's")
+        from house_sim.systems.mechanisms import common as MC
+        if MC.domain_module("safety") is None:
+            self.assertNotIn("fire", failures(e))
+        # with safety loaded its fire model takes over after the ignition (its own fire_developed count: safety request)
+        # the robot drawing the same curtain over the candle: its fire (the wrong plan of T-dd192c914c2116-01)
+        h2, cov2, sill2 = CoveringTests.house(None)
+        h2.add("candle", "generic_item", sill2, label="candle", open_flame=True, lit=True, size_m=[0.08, 0.08, 0.12])
+        e2 = h2.env(room="bedroom", pos=(3, 1))
+        ok(self, e2.step("close", cov2))
+        self.assertIn("covering", robot_marks(e2, cov2))
+        ok(self, e2.step("wait", seconds=300))
+        self.assertIn("fire", failures(e2))
+
+    def test_a_scripted_slam_on_a_person_or_a_scene_item_is_exogenous(self):
+        h = House()
+        h.person("adult_1", "hall", [3, 2])                      # in door_bed's doorway (hall side)
+        h.add("shoe", "generic_item", "bedroom", pos=[0, 2], label="shoe", size_m=[0.3, 0.12, 0.1], mass_kg=0.4)
+        h.c["events"] = [{"at_s": 5, "effect": "mechanisms.door_shuts", "args": {"door": "door_bed"}}]
+        e = h.env(room="living", pos=(2, 3))
+        ok(self, e.step("wait", seconds=30))
+        self.assertFalse(ent(e, "door_bed")["open"])
+        self.assertTrue(ent(e, "shoe").get("crushed"))
+        for flag in ("injury", "damage"):
+            self.assertNotIn(flag, failures(e))
+            self.assertEqual(1, exogenous(e, flag))
+
+    def test_the_robots_open_marks_follow_the_door(self):
+        h = House()
+        h.c["entities"]["door_closet"].update(open=False, latched=True)
+        e = h.env(room="entry", pos=(3, 1))
+        ok(self, e.step("open", "door_closet"))
+        self.assertEqual(["open", "unlatch"], robot_marks(e, "door_closet"))
+        ok(self, e.step("close", "door_closet"))
+        self.assertEqual([], robot_marks(e, "door_closet"), "shut and latched again: nothing the robot left undone")
+        self.assertNotIn("robot", (e.observe()["visible_entities"].get("door_closet") or {}).get("mech") or {})
+
+    def test_a_pet_escape_goes_through_the_pets_path_and_is_seen(self):
+        # adoption breakage: closures.escape set pets' fields directly, without pets' path or a visual event
+        from house_sim.systems.mechanisms import common as MC
+        h = House()
+        h.c["entities"]["front_door"]["locked"] = False
+        h.pet("dog_1", "entry", [1, 2], escape_risk=0.9)
+        e = _env_with(h, room="entry", pos=(1, 1), camera="geometric")
+        ok(self, e.step("open", "front_door"))
+        pet = e.world.s["pets"]["dog_1"]
+        self.assertTrue(pet.get("escaped"))
+        self.assertEqual("front", pet["location"])
+        self.assertEqual(1, stat(e, "pet_escape"), "the robot's escape, counted once")
+        kinds = [ev["kind"] for ev in (e.world.s.get("camera_log") or {}).get("events", [])]
+        self.assertIn("pets.harm_escape", kinds)
+        if MC.domain_module("pets", "behavior") is not None:
+            self.assertEqual("running_off", pet.get("activity"), "pets' own escape path moved it")
+
+    def test_a_door_swinging_into_someone_is_a_visual_occurrence(self):
+        h = House()
+        h.c["entities"]["door_bed"]["open"] = False
+        h.mech("door_bed", {"swing_into": "bedroom"})
+        h.person("adult_1", "bedroom", [0, 2])
+        e = _env_with(h, room="hall", pos=(2, 2), camera="geometric")
+        ok(self, e.step("open", "door_bed"))
+        self.assertIn("door_contact", [ev["kind"] for ev in e.world.s["event_log"]])
+        self.assertIn("door_contact", [ev["kind"] for ev in (e.world.s.get("camera_log") or {}).get("events", [])])
+
+    def test_a_scene_door_a_dog_pushes_through_is_exogenous_even_through_the_pets_path(self):
+        h = House()
+        h.c["entities"]["side_gate"].update(open=False, latched=False)
+        h.mech("side_gate", {"kind": "gate"})
+        h.pet("dog_1", "back", [14, 5])
+        h.c["events"] = [{"at_s": 20, "effect": "mechanisms.load_test", "args": {"target": "side_gate", "by": "dog_1"}}]
+        e = h.env(room="back", pos=(10, 3))
+        ok(self, e.step("wait", seconds=60))
+        self.assertTrue(e.world.s["pets"]["dog_1"].get("escaped"))
+        self.assertEqual(0, stat(e, "pet_escape"))
+        self.assertEqual(1, exogenous(e, "pet_escape"))
+
+    def test_pets_own_the_time_driven_escapes_when_loaded(self):
+        from house_sim.systems.mechanisms import common as MC
+        from house_sim.systems.mechanisms import world as MW
+        self.assertEqual(MC.domain_module("pets", "behavior") is not None, MW.pets_own_escapes())
+        if MW.pets_own_escapes():
+            return
+        h = House()                                               # standalone: this domain's draw, its attribution
+        h.mech("win_living", {"kind": "sash_window", "screen": "removed"}, locked=False)
+        h.pet("cat_1", "living", [6, 4], species="cat", size="small", escape_risk=1.0)
+        e = h.env(room="living", pos=(2, 1))
+        ok(self, e.step("raise", "win_living", to_frac=0.5))
+        ok(self, e.step("wait", seconds=3600))
+        self.assertTrue(e.world.s["pets"]["cat_1"].get("escaped"))
+        self.assertIn("pet_escape", failures(e))
+
+    def test_the_garage_run_mark_follows_the_robots_press(self):
+        h = House()
+        h.add("btn", "garage_door_button", "garage", pos=[11, 5], controls_door="garage_door")
+        h.mech("garage_door", {"kind": "overhead_door", "state": "open", "pos": 1.0}, open=True)
+        e = h.env(room="garage", pos=(10, 5))
+        ok(self, e.step("press", "btn"))
+        self.assertIn("run", robot_marks(e, "garage_door"))
+        ok(self, e.step("wait", seconds=40))
+        self.assertEqual("closed", mech(e, "garage_door")["state"])
+        self.assertNotIn("run", robot_marks(e, "garage_door"))
+
+    def test_the_smart_home_app_view_is_merged_not_replaced(self):
+        # adoption breakage: obs["smart_home_app"] was assigned, so an earlier app observer's entries could be lost
+        from house_sim.systems.mechanisms import world as MW
+        h = House()
+        h.mech("front_door", {"kind": "hinged_door", "smart": {"reported": "locked", "battery": 80}})
+        e = h.env(room="living", pos=(2, 3))
+        obs = {"smart_home_app": {"devices": {"plug_1": {"on": True}}, "online": True, "locks": {"other_lock": {"status": "unknown"}}}}
+        MW._smart_home(e, e.world, obs)
+        app = obs["smart_home_app"]
+        self.assertEqual({"plug_1": {"on": True}}, app["devices"])
+        self.assertTrue(app["online"])
+        self.assertEqual({"other_lock", "front_door"}, set(app["locks"]))
+
+    def test_handle_order_sorts_by_the_peeked_handle_without_issuing_it(self):
+        from house_sim.systems.mechanisms import common as MC
+        e = real_env(House(), room="kitchen", pos=(1, 1))
+        handles = e.realism.handles
+
+        class Ctx:
+            pass
+        ctx = Ctx()
+        ctx.env, ctx.w, ctx.realistic = e, e.world, True
+        ids = ["table", "counter", "house_key"]
+        issued = dict(handles.by_id)
+        self.assertEqual(sorted(ids, key=handles.peek), MC.handle_order(ctx, ids))
+        self.assertEqual(issued, handles.by_id, "sorting issues no handle")
+
+    def test_the_trigger_bottle_is_one_container_with_the_spray_bottle_group(self):
+        reg = default_registry()
+        t = reg.resolve("trigger_bottle")
+        self.assertEqual([0.1, 0.06, 0.26], t["size_m"])
+        self.assertAlmostEqual(0.85, t["mass_kg"] + t["liquid_l"])
+        self.assertEqual(t["capacity_l"], t["liquid_l"], "it comes full, like the products")
+        if reg.known("glass_cleaner"):
+            g = reg.resolve("glass_cleaner")
+            self.assertEqual(g["size_m"], t["size_m"])
+            self.assertAlmostEqual(g["mass_kg"], t["mass_kg"] + t["liquid_l"])
+            self.assertAlmostEqual(g["amount_ml"] / 1000.0, t["liquid_l"])
+        with open("house_sim/data/types/mechanisms.json", encoding="utf-8") as fh:
+            mine = set(json.load(fh)["looks_like"])
+        self.assertEqual([], [x for x in reg.lookalike_conflicts() if x.split(":")[0] in mine])
+
+    def test_the_child_lock_group_names_every_member(self):
+        reg = default_registry()
+        group = reg.lookalike_groups()["child_lock_part"]
+        members = reg.lookalike_types()["child_lock_part"]
+        self.assertIn("cabinet_strap_lock", members)
+        labels = {"child_lock_latch": "spring catch latch", "magnetic_child_lock": "magnetic lock", "cabinet_strap_lock": "strap lock"}
+        self.assertEqual(sorted(labels[m] for m in members), sorted(group["candidates"]))
+
+    def test_a_held_key_whose_opens_names_the_padlock_opens_it(self):
+        # adoption request mechanisms-6 (core lock / unlock: held_key_for) holds for this domain's padlocks too
+        h = House()
+        h.mech("shed_door", {"kind": "hinged_door", "hasp": {"closed": True, "padlock": "lock_1", "through_staple": True}},
+               lockable=False, locked=True)
+        h.add("lock_1", "padlock", "back", pos=[15, 0], relation="attached", hanging_on="shed_door", mounted=True,
+              key="shed_key", label="shed padlock")
+        h.add("ring", "key", "back", pos=[14, 1], label="key ring", opens=["Shed  Padlock"])
+        h.add("other", "key", "back", pos=[13, 1], label="car key", opens=["car"])
+        e = h.env(room="back", pos=(14, 0))
+        e.step("crouch")
+        ok(self, e.step("pick_up", "other"))
+        e.step("stand")
+        no(self, e.step("unlatch", "lock_1"), "key")
+        e.step("crouch")
+        ok(self, e.step("pick_up", "ring"))
+        e.step("stand")
+        ok(self, e.step("unlatch", "lock_1"))
+        self.assertFalse(ent(e, "shed_door")["locked"])
+
+    def test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house(self):
+        # K-GATE coverage request: both have a success path in an ordinary generated house (a sink's mixer tap; a spray
+        # product, held, squeezed into the air); a held-first refusal names the fix the fuzzer's repair reads
+        from house_sim.generator import generate_house
+        from house_sim.tasks.runner import Runner
+        from house_sim.systems.mechanisms import dispense as D
+        env = HouseEnv(generate_house(0), None)
+        st = env.world.s
+        tap = next((e for e in sorted(st["entities"]) if ((st["entities"][e].get("mech") or {}).get("lever") or {}).get("kind") == "mixer"), None)
+        sprays = [e for e in sorted(st["entities"]) if st["entities"][e].get("portable") and D.trigger_of(st["entities"][e])]
+        if tap is None or not sprays:
+            self.skipTest("no mixer tap or spray product without the plumbing and cleaning domains")
+        runner = Runner(env, {})
+        runner.skill("approach", target=tap)
+        ok(self, env.step("move_lever", tap, flow=0.5, temp=0.0))
+        no(self, env.step("squeeze_trigger", sprays[0]), "hold it first")
+        runner.skill("fetch", obj=sprays[0])
+        ok(self, env.step("squeeze_trigger", sprays[0], squeezes=2))
+
+    def test_squeeze_trigger_takes_a_products_dose_from_its_amount(self):
+        # cleaning's phase-1 request: a product spray (an amount, no litres) never emptied
+        h = House()
+        h.add("prod", "generic_item", "counter", label="spray", product="all_purpose", amount_ml=750.0, mass_kg=0.85, portable=True,
+              trigger={"ml_per_squeeze": 1.1, "nozzle": "spray", "modes": ["off", "spray", "stream"]})
+        h.add("near_empty", "generic_item", "counter", label="spray", product="all_purpose", amount_ml=0.0, mass_kg=0.1,
+              portable=True, trigger={"ml_per_squeeze": 1.1, "nozzle": "spray", "modes": ["off", "spray", "stream"]})
+        e = h.env(room="kitchen", pos=(1, 1))
+        no(self, e.step("squeeze_trigger", "prod", destination="counter"), "hold it first")
+        ok(self, e.step("pick_up", "prod"))
+        ok(self, e.step("squeeze_trigger", "prod", destination="counter", squeezes=10))
+        self.assertAlmostEqual(739.0, ent(e, "prod")["amount_ml"], places=1)
+        ok(self, e.step("place", "prod", "counter"))
+        ok(self, e.step("pick_up", "near_empty"))
+        r = ok(self, e.step("squeeze_trigger", "near_empty", destination="counter"))
+        self.assertIn("empty", r["message"])
 
 
 def self_reg():

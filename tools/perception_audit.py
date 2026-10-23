@@ -2,6 +2,10 @@
 
 usage: python tools/perception_audit.py [houses] [steps] [--first N] [--workers N] [--json OUT] [--verbose]
                                         [--camera room|geometric] [--battery PCT] [--faults random|none]
+                                        [--no-probes] [--twin-fields] [--gen 1|2]
+
+--gen 2 walks generation-2 houses (docs/GENERATOR.md: furnishings, belongings, smart-home and charging devices;
+phase 1, electrical's request 5); the default is each configuration's own (generation 1).
 
 Generates houses, runs random walks in perception="realistic" (approach / inspect / read / pick up / place / move /
 wait and random domain actions, all with handles taken from observations; with --camera geometric also looks around
@@ -61,12 +65,26 @@ and turns) and checks every observation and action message for leaks:
             label that is the true name of a thing the robot cannot tell apart and was never shown that name; a
             person's id typed in a dark room that comes back as a shape handle; a wait(until) accepted on a thing
             the robot does not see now, on a dark shape's field, or on a person in the dark
+  grant     (K-LEAK, review H7 / I3) a step raised the robot's knowledge of a thing to inspect level or better while
+            it could not have looked closely at it from where it is (audit_grant_problem: arm's reach, a large
+            fixture or inspect_from_afar; geometric: camera.inspect_check) -- knowledge laundered through an action's
+            grant; judged on steps that left the robot where it stood (a walk's contacts are the kernel gate's). The
+            walk also counts whole rooms (count <room>) for it
+Differential probes (K-LEAK; run once per audit in its camera mode, --no-probes skips them; see "differential probes"
+below): oracle (wait / watch answers on twins that render alike), twin (look-alike members of different true size and
+unfamiliar things with the same visual props: the rendering, listing, what the view's pixels imply about the size),
+episode (another episode's handle accepted; handles shared by episodes with different nonces), echo (replies to
+id-shaped words that exist or not, and to the handle of a thing destroyed out of view), target (free text naming every
+member type of an unresolved look-alike, and the listing order of hazards sharing a cell). --twin-fields makes the
+look-alike twin probe compare every field (it then also lists the type-data tells of the registry lint's class, owned
+by the domains' type data); unfamiliar things are always compared on every field and on the outcome of operating them.
 --battery PCT and --faults random start the houses with an almost flat pack and random robot faults, as tools/fuzz.py
 does (the same per-seed rules: fuzz.robot_options), so the robot and sensor checks see powered-down, deaf, blind and
 faulty robots.
 Violations are attributed to the emitting module (kernel realism, the type's domain, an observer, or an action's
 owner). Exit status 1 if any leak is found.
 """
+import copy
 import json
 import math
 import os
@@ -83,7 +101,7 @@ sys.path.insert(0, str(ROOT))
 
 TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 # the keys of realism.view_dict: the "view" a geometric observation shows for every record it saw
-CAMERA_VIEW_KEYS = frozenset(("bearing_deg", "elev_deg", "px", "occluded", "via", "light", "range_m"))
+CAMERA_VIEW_KEYS = frozenset(("bearing_deg", "elev_deg", "px", "occluded", "via", "light", "range_m", "dist"))
 NUM = re.compile(r"-?\d+\.\d+")
 OPTS = [{}, {"dwelling": "apartment"}, {"dwelling": "house", "require": ["garage", "laundry_room"]}, {"dwelling": "townhouse"},
         {"residents": "minimal", "pets": "none"}]
@@ -601,18 +619,19 @@ def check_physics_obs(env, obs, leaks, where):
 
 
 def check_physics_inspect(env, action, data, leaks):
-    """The physics inspector's words in an inspect message: feel carries no number or hidden field name (a domain's
-    own feel, laundry's "damp" or "dry", takes the key first), looks is "sturdy" / "flimsy"."""
+    """The physics inspector's words in an inspect message: feel and looks carry no number or hidden field name. A
+    domain's own feel (laundry's "damp" or "dry") or looks (a stain, a filter, a tyre, a pet's coat: plumbing's phase-1
+    report) is the more specific percept and takes the key first (phys.observe.inspect keeps it), so looks is not held
+    to the physics inspector's "sturdy" / "flimsy" vocabulary: the rule is the leak rule of every inspector."""
     if not isinstance(data, dict):
         return
-    feel = data.get("feel")
-    if feel is not None:
-        for problem in physics_text_problems(feel if isinstance(feel, str) else repr(feel), _hidden_fields(env),
-                                             FEEL_WORDS):
-            leaks.append(("physics", "inspector:physics", "{} feel {!r}: {}".format(action, feel, problem)))
-    looks = data.get("looks")
-    if looks is not None and looks not in LOOKS_WORDS:
-        leaks.append(("physics", "inspector:physics", "{} looks {!r}".format(action, looks)))
+    hidden = _hidden_fields(env)
+    for key, words in (("feel", FEEL_WORDS), ("looks", LOOKS_WORDS)):
+        value = data.get(key)
+        if value is None:
+            continue
+        for problem in physics_text_problems(value if isinstance(value, str) else repr(value), hidden, words):
+            leaks.append(("physics", "inspector:physics", "{} {} {!r}: {}".format(action, key, value, problem)))
 
 
 _CAPTURED = []
@@ -880,6 +899,578 @@ def people_command(rng, obs, handles, state):
     return {"action": "recall", "target": form}
 
 
+# ----- the grant gate (review I3 / R4) --------------------------------------------------------------------------------
+
+def audit_grant_problem(env, eid):
+    """Why the robot could not have looked closely at entity eid from where it is now (None when it could): the rule
+    of core inspect, computed here so it also judges a tree whose kernel has no grant gate -- held things always; the
+    geometric camera: camera.inspect_check (the head resolving it to 160 px in light, or the wrist within reach); the
+    room camera: arm's reach, a large fixture (1 m or more) or an inspect_from_afar thing."""
+    from house_sim.kernel import geometry
+    state = env.world.s
+    record = state["entities"].get(eid)
+    if record is None or _held_or_worn(state, eid):
+        return None
+    if isinstance(state["robot"].get("view"), dict):
+        from house_sim.kernel import camera
+        ok, reason, _via = camera.inspect_check(state, eid, env.world)
+        return None if ok else (reason or "not resolved")
+    problem = geometry.reach_problem(state, eid)
+    if problem is None or "Crouch" in problem or "Too high" in problem:
+        return None
+    size = max((float(v) for v in (record.get("size_m") or [0.1])[:3]), default=0.1)
+    if "Approach" in problem and (size >= 1.0 - 1e-9 or record.get("inspect_from_afar")):
+        return None
+    return problem
+
+
+def _inspect_levels(realism):
+    """{eid: entity knowledge level} of every thing the robot knows at inspect level or better."""
+    from house_sim.kernel.realism import INSPECT
+    return {eid: entry.get("level", 0) for eid, entry in realism.knowledge.data.items()
+            if isinstance(entry, dict) and entry.get("level", 0) >= INSPECT}
+
+
+def check_grants(env, action, before, leaks):
+    """A step that raised the robot's knowledge of a thing to inspect level (or better) while the robot could not have
+    looked closely at it from where it is (audit_grant_problem): knowledge laundered through an action's grant, which
+    the per-value tier rule cannot see (review H7 / I3: `count <room>` as a remote inspect). The walk calls it for
+    steps that left the robot where it stood."""
+    from house_sim.kernel.plugins import OWNERS
+    after = _inspect_levels(env.realism)
+    for eid in sorted(after):
+        if after[eid] <= before.get(eid, -1):
+            continue
+        problem = audit_grant_problem(env, eid)
+        if problem is not None:
+            leaks.append(("grant", "action:" + OWNERS.get(("action", action), "?"),
+                          "{} granted a close look at {} from where the robot is ({})".format(action, eid, problem)))
+
+
+# ----- differential probes (K-LEAK; review sections 1 and 4: C-ORACLE, R1, R5, R6) -----------------------------------
+#
+# The walk above judges each output alone, so it cannot see a leak that lives in a contrast: two worlds that differ only
+# in a hidden fact and answer differently. These probes build such twins with the task runner's setup ops and run a
+# fixed agent-side battery in each (handles taken from observations; the harness only builds the twins, maps handles
+# back to true ids to compare them, and changes hidden state where a probe says so):
+#   oracle   (C-ORACLE) twins whose true values differ but render the same -- a glance-tier wetness and fill level,
+#            a person asleep or lying awake, a pet asleep or resting: wait(seconds=1, until=...) with every predicate op
+#            on values from both truths and their prefixes, and an auto standing order on the posture, must give
+#            identical (ok, category, message, clock step) in both
+#   twin     (R1) members of a look-alike group with different true sizes, and two unfamiliar ("novel") things with the
+#            same visual props, at the same place under the same id: the camera's rendering of them (identity keys,
+#            size, colour, the view's pixels, whether it is listed) must be identical while they are unresolved
+#            (--twin-fields compares every field, which also lists the type-data tells of the registry lint's class)
+#   episode  (R5 and SECRECY) a handle shown in one episode and not issued in a second episode of the same house and
+#            seed must be refused there, in an entity parameter and in free text; two episodes with different
+#            episode nonces must share no handle
+#   echo     (R6) twins with and without things whose ids are hand-written or id-shaped (letter_6, parcel_9_item_1,
+#            spare_soap_jug, m9), and a thing destroyed out of view versus one merely out of view: speak, remember,
+#            recall, explain, report (subject=), ask (about=) and wait must reply identically (handles compared by
+#            role). Free text is probed with every id-like word, the other parameters with words shaped like generated
+#            ids (a hand-written id without a number in a non-text parameter is the known residual: authored ids should
+#            be id-shaped)
+#   target   (phase-1 red team) one unresolved member per twin of a look-alike group, free text listing every member's
+#            type name through apply_label must echo identically (the kept "part names" came from the true record);
+#            and two unresolved members on one floor cell spawned in either order must be listed in the same hazard
+#            order (review I11)
+# Unfamiliar ("novel") twins are compared on every field (their glance and inspect key sets are fixed) and on the
+# outcome of operating them (open, switch_on, switch_off, take_photo): review I4.
+
+PROBE_SPEC = {"catalog_id": "T-auditprobe-01", "title": "perception audit probe", "perception": "realistic",
+              "house": {"residents": "minimal", "pets": "none"}, "instruction": "probe",
+              "phrasings": ["probe", "probe.", "probe!"], "success": [{"path": "time_s", "op": "gt", "value": 1e12}],
+              "risk_level": 1, "fidelity": "S", "budget": {"steps": 100000, "time_s": 10 ** 7}, "reference": [],
+              "wrong": []}
+ORACLE_OPS = ("eq", "ne", "in", "not_in", "startswith", "contains", "is_true", "is_false")
+TWIN_KEYS = ("label", "kind", "candidates", "shape", "size_class", "size_m", "color")
+TWIN_GROUPS = 6           # look-alike groups with a size spread twin-tested per audit run
+ECHO_IDS = ("letter_6", "parcel_9_item_1", "spare_soap_jug", "m9")     # free text: every id-like word
+ECHO_SHAPED_IDS = ("letter_6", "parcel_9_item_1")    # other parameters: words shaped like generated ids
+# the unfamiliar things the novel twin probe compares (real registry types: an unknown name was silently dropped
+# before, so only two were twinned -- phase-1 red team); every one must exist when every domain is loaded
+NOVEL_TWINS = ("electric_kettle", "smartphone", "hair_dryer", "remote_control")
+NOVEL_OPERATE = (("open", {}), ("switch_on", {}), ("switch_off", {}), ("take_photo", {}))
+# the look-alike group of the target-name echo probe: its member types (all must be known for the probe to run)
+TARGET_ECHO_GROUP = ("chlorine_bleach_bottle", "liquid_detergent", "fabric_softener")
+AGENT_SHOWN_KEYS = ("label", "species", "role", "posture", "activity", "cues")
+
+
+def _probe_env(setup, seed, camera, task_extra=None, mutate=None):
+    """A realistic env of a generated house with setup ops (tasks/runner.py build + make_env: the verifier's path)."""
+    from house_sim.tasks.runner import build, make_env
+    spec = dict(copy.deepcopy(PROBE_SPEC), setup=setup)
+    if camera == "geometric":
+        spec["camera"] = "geometric"
+    config, task, oracle = build(spec, seed=seed, camera=camera, perception="realistic")
+    bindings = oracle.get("bindings", {}) if isinstance(oracle, dict) else {}
+    if mutate is not None:
+        mutate(config, bindings)
+    if task_extra:
+        task.update(task_extra)
+    env = make_env(config, task, seed, fast=False, perception="realistic", camera=camera)
+    return env, bindings
+
+
+def _agent_step(env, action, target="", destination="", **kwargs):
+    """One agent step: (ok, category, message, seconds the agent's clock advanced)."""
+    t0 = env.observe().get("time_s")
+    result = env.step(action, target, destination, **kwargs)
+    t1 = (result.get("observation") or env.observe()).get("time_s")
+    return (bool(result.get("ok")), result.get("category") or "", result.get("message") or "",
+            round(float(t1 or 0) - float(t0 or 0), 3))
+
+
+def _canon(env, value):
+    """Handles mapped to the true ids they stand for (harness side, to compare twins built with the same ids)."""
+    realism = env.realism
+    if isinstance(value, str):
+        return HANDLE_IN.sub(lambda m: "<{}>".format(realism.handles.by_handle.get(m.group(0), "?")), value)
+    if isinstance(value, list):
+        return [_canon(env, v) for v in value]
+    if isinstance(value, dict):
+        return {_canon(env, k) if isinstance(k, str) else k: _canon(env, v) for k, v in value.items()}
+    return value
+
+
+def _handle_of(env, obs, eid):
+    """The handle observation `obs` shows for eid, if it shows it (harness side: never issues a handle)."""
+    handle = env.realism.handles.by_id.get(eid)
+    return handle if handle and handle in (obs.get("visible_entities") or {}) else None
+
+
+def _first_room(seed, rtype="living_room"):
+    return {"op": "room", "var": "lr", "type": rtype}
+
+
+def _type(name):
+    """A domain type the probes use, or the kernel's generic_item when the domains that define it are not loaded
+    (HOUSE_SIM_DOMAINS=core): the probed fields are kernel tiers (wetness, level, open), so the probe still holds."""
+    from house_sim.kernel.registry import default_registry
+    return name if default_registry().known(name) else "generic_item"
+
+
+def _probe_oracle(seed, camera):
+    """C-ORACLE: wait(until) / watch on twins that render alike. Each target is a section: what the observation shows of
+    it, then the answers. A section counts only where both twins show the target alike (people and pets act on their
+    own, so a twin whose sleeper woke up or whose dog wandered off compares nothing; a thing that renders differently
+    makes the probe itself wrong, reported as an error)."""
+    leaks, errors = [], []
+    truths = {"a": {"wet": 0.1732, "level": 0.4371, "person": "sleeping", "pet": "sleeping"},
+              "b": {"wet": 0.0321, "level": 0.3611, "person": "lying", "pet": "resting"}}
+    runs = {}
+    for twin, truth in sorted(truths.items()):
+        setup = [_first_room(seed),
+                 {"op": "spawn", "var": "u", "type": _type("rain_umbrella"), "floor": "{lr}",
+                  "eid": "probe_umbrella", "props": {"wetness": truth["wet"], "size_m": [0.1, 0.05, 0.8]}},
+                 {"op": "spawn", "var": "b", "type": _type("utility_bucket"), "floor": "{lr}", "eid": "probe_bucket",
+                  "props": {"level": truth["level"], "size_m": [0.3, 0.3, 0.35]}},
+                 {"op": "robot", "room": "{lr}", "near": "{u}"},
+                 {"op": "person", "id": "probe_sleeper", "role": "adult", "room": "{lr}",
+                  "props": {"posture": truth["person"], "awake": truth["person"] != "sleeping",
+                            "activity": "sleeping" if truth["person"] == "sleeping" else "resting"}},
+                 {"op": "pet", "id": "probe_dog", "room": "{lr}",
+                  "props": {"species": "dog", "label": "Rex", "posture": truth["pet"],
+                            "activity": "sleeping" if truth["pet"] == "sleeping" else "resting"}},
+                 {"op": "lights", "room": "{lr}", "on": True}]
+        if camera == "geometric":
+            setup.append({"op": "camera", "face": "{u}"})
+        try:
+            env, _ = _probe_env(setup, seed, camera)
+        except Exception as exc:  # noqa: BLE001
+            errors.append("oracle probe build: {}: {}".format(type(exc).__name__, exc))
+            return leaks, errors
+        sections = []
+        for group, aid, values in (("people", "probe_sleeper", ("sleeping", "lying", "resting", "sitting")),
+                                   ("pets", "probe_dog", ("sleeping", "resting", "lying", "standing"))):
+            if camera == "geometric":
+                _agent_step(env, "face", aid)
+            obs = env.observe()
+            shown = (obs.get(group) or {}).get(aid)
+            section = [("shown", aid, {k: v for k, v in shown.items() if k in AGENT_SHOWN_KEYS}
+                        if isinstance(shown, dict) else shown, True)]
+            for op in ("eq", "ne", "in", "startswith"):
+                for value in values:
+                    value = [value] if op == "in" else value
+                    section.append((aid, "posture", op, value, _agent_step(
+                        env, "wait", seconds=1, until={"path": "{}.{}.posture".format(group, aid), "op": op,
+                                                       "value": value})))
+            if aid == "probe_sleeper":
+                order = _agent_step(env, "watch", condition={"path": "people.probe_sleeper.posture", "op": "in",
+                                                            "value": ["sleeping"]},
+                                    commands=[{"action": "look"}], mode="auto")
+                section.append(("watch", "posture in sleeping", order, _agent_step(env, "wait", seconds=60)))
+            sections.append(section)
+        for eid, field, values in (("probe_umbrella", "wetness",
+                                    (0.1732, 0.0321, "0.1", "0.17", "0.0", "looks dry", "wet")),
+                                   ("probe_bucket", "level", (0.4371, 0.3611, "0.4", "0.3", "half", "low", "full"))):
+            if camera == "geometric":
+                handle = env.realism.handles.by_id.get(eid)
+                if handle:
+                    _agent_step(env, "face", handle)
+                    _agent_step(env, "look", handle)
+            obs = env.observe()
+            handle = _handle_of(env, obs, eid)
+            shown = (obs.get("visible_entities") or {}).get(handle) if handle else None
+            section = [("shown", eid, _canon(env, shown), False)]
+            if handle is not None:
+                for op in ORACLE_OPS:
+                    for value in values:
+                        if op in ("in", "not_in"):
+                            value = [value]
+                        elif op in ("startswith", "contains"):
+                            value = str(value)
+                        section.append((eid, field, op, value, _agent_step(
+                            env, "wait", seconds=1, until={"path": "entities.{}.{}".format(handle, field), "op": op,
+                                                           "value": value})))
+            sections.append(section)
+        runs[twin] = sections
+    for left_section, right_section in zip(runs.get("a", []), runs.get("b", [])):
+        head, other = left_section[0], right_section[0]
+        if head[2] != other[2]:
+            if not head[3]:
+                errors.append("oracle probe twins render {} differently: {} / {}".format(head[1], str(head[2])[:160],
+                                                                                        str(other[2])[:160]))
+            continue
+        for left, right in zip(left_section[1:], right_section[1:]):
+            if left != right:
+                leaks.append(("oracle", "kernel:timeline", "{} answers differently for twins that look the same: {} vs "
+                              "{}".format(" ".join(str(x) for x in left[:-1]), left[-1], right[-1])))
+    return leaks, errors
+
+
+def _px_size_problem(rec):
+    """What a geometric record's view gives away about the thing's size beyond its record (review L2): the size that
+    px x range / focal implies differs from the record's shown size by more than the camera's own precision (5 cm
+    estimates, pixels to 2 significant figures, range to 0.1 m), else None."""
+    from house_sim.kernel import sight
+    view = rec.get("view") if isinstance(rec, dict) else None
+    size = rec.get("size_m") if isinstance(rec, dict) else None
+    if not (isinstance(view, dict) and isinstance(size, list) and size and view.get("px") and view.get("range_m")):
+        return None
+    try:
+        shown = max(float(v) for v in size[:3])
+        implied = float(view["px"]) * float(view["range_m"]) / float(sight.HW["head"]["focal_px"])
+    except (TypeError, ValueError):
+        return None
+    if abs(implied - shown) > 0.15 * shown + 0.03:
+        return "px x range implies {:.2f} m while the record shows {:.2f} m".format(implied, shown)
+    return None
+
+
+def _twin_battery(env, eid, camera, fields, operate=()):
+    """The passive battery of a twin: the reset view; with the geometric camera a fixed scan (body yaws and head
+    tilts, as an agent looking for it would turn) when it is not in view yet, then a look at it; approaching it and a
+    wait. Each time the target's rendering (TWIN_KEYS, or every field but the view with fields=True) or that it is not
+    listed, whether the robot can tell what it is, and what its view's pixels imply about its size (_px_size_problem).
+    The view itself is not compared: where the thing is (bearing, range, occlusion) follows its true shape."""
+    out = []
+
+    def listed():
+        handle = env.realism.handles.by_id.get(eid)
+        return bool(handle) and handle in (env.observe().get("visible_entities") or {})
+
+    def snap(tag):
+        obs = env.observe()
+        handle = env.realism.handles.by_id.get(eid)
+        rec = (obs.get("visible_entities") or {}).get(handle) if handle else None
+        if rec is None:
+            out.append((tag, "not listed", None, None))
+            return
+        shown = {k: v for k, v in rec.items() if k != "view" and (fields or k in TWIN_KEYS)}
+        out.append((tag, _canon(env, shown), env.realism.unresolved(eid), _px_size_problem(rec)))
+    snap("reset")
+    if camera == "geometric":
+        for scan, (deg, tilt) in enumerate((d, t) for d in (None, 0, 90, 180, 270) for t in (0, -25, -45)):
+            if listed():
+                out.append(("scan", scan, None, None))
+                break
+            if deg is not None and tilt == 0:
+                _agent_step(env, "face", deg=deg)
+            _agent_step(env, "look", pan=0, tilt=tilt)
+        else:
+            out.append(("scan", "not found", None, None))
+    handle = env.realism.handles.by_id.get(eid)
+    if camera == "geometric" and handle:
+        _agent_step(env, "look", handle)
+        snap("look")
+    if handle:
+        _agent_step(env, "approach", handle)
+        snap("approach")
+        for action, args in operate:
+            # what operating it answers (an unfamiliar thing: one refusal whatever it is, review I4); a step that
+            # succeeded on one twin and not the other already differs here
+            ok, category, message, dt = _agent_step(env, action, handle, **args)
+            out.append((action, (ok, category, _canon(env, message), dt), env.realism.unresolved(eid), None))
+    _agent_step(env, "wait", seconds=30)
+    snap("wait")
+    return out
+
+
+def _probe_twins(seed, camera, kind, members, fields=False):
+    """R1: twins differing only in the member type (or, for unfamiliar things, the true type behind the same visual
+    props) of the thing at eid probe_twin_1: while the thing is unresolved in both, its rendering and whether it is
+    listed must be the same, and its view's pixels must not imply another size than its record shows."""
+    leaks, errors = [], []
+    runs = {}
+    for type_name in members:
+        props = {}
+        if kind == "novel":
+            props = {"novel": True, "size_m": [0.2, 0.15, 0.25], "color": "grey", "material": "plastic"}
+        # on the floor beside the robot, in the open and in frame (the head turned to it and tilted down), so nothing
+        # but the twins' own difference can change what the camera shows
+        setup = [_first_room(seed),
+                 {"op": "spawn", "var": "x", "type": type_name, "floor": "{lr}", "eid": "probe_twin_1", "props": props},
+                 {"op": "robot", "room": "{lr}", "near": "{x}"},
+                 {"op": "lights", "room": "{lr}", "on": True}]
+        if camera == "geometric":
+            setup.append({"op": "camera", "face": "{x}", "tilt": -60})
+        try:
+            env, _ = _probe_env(setup, seed, camera)
+        except Exception as exc:  # noqa: BLE001
+            errors.append("twin probe {} {}: {}: {}".format(kind, type_name, type(exc).__name__, str(exc)[:160]))
+            continue
+        novel = kind == "novel"
+        runs[type_name] = _twin_battery(env, "probe_twin_1", camera, fields or novel,
+                                        NOVEL_OPERATE if novel else ())
+    names = sorted(runs)
+    for name in names:
+        for tag, _shown, unresolved, problem in runs[name]:
+            if problem and unresolved:
+                leaks.append(("twin", "kernel:realism", "{} {} at {}: {}".format(kind, name, tag, problem)))
+    for other in names[1:]:
+        for left, right in zip(runs[names[0]], runs[other]):
+            if left[:3] == right[:3]:
+                continue
+            unresolved = bool(left[2]) and bool(right[2])
+            if left[1] == "not listed" or right[1] == "not listed" or unresolved or left[0] == "scan":
+                leaks.append(("twin", "kernel:realism", "{} {} vs {} at {}: {} / {}".format(
+                    kind, names[0], other, left[0], str(left[1])[:200], str(right[1])[:200])))
+    return leaks, errors
+
+
+def _probe_episodes(seed, camera):
+    """R5 and SECRECY: handles of one episode in another episode of the same house and seed."""
+    leaks, errors = [], []
+    setup = [_first_room(seed), {"op": "lights", "room": "{lr}", "on": True}]
+    try:
+        first, _ = _probe_env(setup, seed, camera)
+        seen = set()
+        obs = first.observe()
+        seen.update(obs.get("visible_entities") or {})
+        if camera == "geometric":
+            for where in ("around", "left", "right"):
+                result = first.step("look", where)
+                seen.update((result.get("observation") or {}).get("visible_entities") or {})
+        exits = (obs.get("room") or {}).get("exits") or []
+        if exits:
+            result = first.step("move", exits[0])
+            seen.update((result.get("observation") or {}).get("visible_entities") or {})
+        second, _ = _probe_env(setup, seed, camera)
+        shown = set(HANDLE_IN.findall(json.dumps(second.observe())))
+        foreign = sorted(h for h in seen if h not in shown and h not in second.realism.handles.by_handle)[:4]
+        for handle in foreign:
+            for action, args in (("approach", {"target": handle}), ("inspect", {"target": handle}),
+                                 ("speak", {"text": "where is {}".format(handle)})):
+                ok, _category, message, _dt = _agent_step(second, action, **args)
+                if ok:
+                    leaks.append(("episode", "kernel:realism", "{} accepted {}, a handle of another episode never "
+                                  "issued in this one: {}".format(action, handle, message[:80])))
+        handles = []
+        for nonce in ("audit-nonce-a", "audit-nonce-b"):
+            env, _ = _probe_env(setup, seed, camera, task_extra={"episode_nonce": nonce})
+            handles.append(set(HANDLE_IN.findall(json.dumps(env.observe()))))
+        if handles[0] & handles[1]:
+            leaks.append(("episode", "kernel:realism", "{} handle(s) shared by two episodes with different nonces "
+                          "(e.g. {})".format(len(handles[0] & handles[1]), sorted(handles[0] & handles[1])[0])))
+    except Exception as exc:  # noqa: BLE001
+        errors.append("episode probe: {}: {}".format(type(exc).__name__, str(exc)[:200]))
+    return leaks, errors
+
+
+def _probe_echo(seed, camera):
+    """R6: replies to id-shaped words and to handles of things out of view or destroyed."""
+    leaks, errors = [], []
+    texts = ["is {} here".format(i) for i in ECHO_IDS]
+    runs = {}
+    for twin in ("with", "without"):
+        setup = [_first_room(seed), {"op": "room", "var": "k", "type": "kitchen"},
+                 {"op": "spawn", "var": "a", "type": _type("apple"), "floor": "{lr}", "eid": "probe_apple_1"},
+                 {"op": "spawn", "var": "c", "type": _type("apple"), "floor": "{lr}", "eid": "probe_apple_2"},
+                 {"op": "robot", "room": "{lr}", "near": "{a}"},
+                 {"op": "person", "id": "probe_resident", "role": "adult", "room": "{k}", "props": {"has_phone": True}},
+                 {"op": "lights", "room": "{lr}", "on": True}]
+        if twin == "with":
+            setup += [{"op": "spawn", "var": "p{}".format(i), "type": _type("cardboard_box"), "floor": "{k}",
+                       "eid": eid} for i, eid in enumerate(ECHO_IDS)]
+        if camera == "geometric":
+            setup.append({"op": "camera", "face": "{a}"})
+        try:
+            env, _ = _probe_env(setup, seed, camera)
+        except Exception as exc:  # noqa: BLE001
+            errors.append("echo probe build: {}: {}".format(type(exc).__name__, str(exc)[:200]))
+            return leaks, errors
+        out = []
+        for text in texts:
+            out.append(("speak", text, _agent_step(env, "speak", text=text)))
+            out.append(("explain", text, _agent_step(env, "explain", text=text)))
+        for word in ECHO_SHAPED_IDS:
+            out.append(("remember", word, _agent_step(env, "remember", "note:{}".format(word), value=word)))
+            out.append(("report", word, _agent_step(env, "report", kind="finding", subject=word, issue="leak")))
+            out.append(("wait", word, _agent_step(env, "wait", seconds=1, until={
+                "path": "entities.{}.open".format(word), "op": "eq", "value": True})))
+        runs[twin] = out
+        if twin == "with":
+            # a thing destroyed out of view answers like one that is merely out of view (handles compared by role)
+            obs = env.observe()
+            kept, gone = _handle_of(env, obs, "probe_apple_1"), _handle_of(env, obs, "probe_apple_2")
+            exits = (obs.get("room") or {}).get("exits") or []
+            if kept and gone and exits:
+                env.step("move", exits[0])
+                env.world.begin()
+                env.world.destroy("probe_apple_2")
+                env.world.commit()
+                for handle, role in ((kept, "out_of_view"), (gone, "destroyed")):
+                    reply = []
+                    for action, args in (("speak", {"text": "where is {}".format(handle)}),
+                                         ("explain", {"text": "about {}".format(handle)}),
+                                         ("remember", {"target": "where:{}".format(handle), "value": "kitchen"}),
+                                         ("recall", {"target": "seen:{}".format(handle)}),
+                                         ("report", {"kind": "finding", "subject": handle, "issue": "missing"}),
+                                         ("ask", {"target": "probe_resident", "about": handle, "aspect": "where",
+                                                  "channel": "text"}),
+                                         ("wait", {"seconds": 1, "until": {"path": "entities.{}.open".format(handle),
+                                                                          "op": "eq", "value": True}})):
+                        ok, category, message, dt = _agent_step(env, action, **args)
+                        reply.append((action, ok, category, message.replace(handle, "<H>"), dt))
+                    runs[role] = reply
+    for left, right in zip(runs.get("with", []), runs.get("without", [])):
+        if left != right:
+            leaks.append(("echo", "kernel:realism", "{} {!r} replies differently when {} exists: {} vs {}".format(
+                left[0], left[1], left[1], left[2][:3], right[2][:3])))
+    for left, right in zip(runs.get("out_of_view", []), runs.get("destroyed", [])):
+        if left != right:
+            leaks.append(("echo", "kernel:realism", "{} on a handle answers differently for a destroyed thing: {} vs "
+                          "{}".format(left[0], left[1:4], right[1:4])))
+    return leaks, errors
+
+
+def _probe_target(seed, camera):
+    """Phase-1 red team: free text naming every member type of an unresolved look-alike (apply_label) must echo the
+    same for every member; two unresolved members on one floor cell must be listed in the same hazard order whatever
+    order they were spawned in (review I11)."""
+    leaks, errors = [], []
+    from house_sim.kernel.plugins import ACTIONS
+    from house_sim.kernel.registry import default_registry
+    reg = default_registry()
+    members = [t for t in TARGET_ECHO_GROUP if reg.known(t)]
+    if len(members) == len(TARGET_ECHO_GROUP) and "apply_label" in ACTIONS:
+        text = " ".join(members)
+        echoes = {}
+        for type_name in members:
+            setup = [_first_room(seed),
+                     {"op": "spawn", "var": "x", "type": type_name, "floor": "{lr}", "eid": "probe_target_1"},
+                     {"op": "robot", "room": "{lr}", "near": "{x}"},
+                     {"op": "lights", "room": "{lr}", "on": True}]
+            if camera == "geometric":
+                setup.append({"op": "camera", "face": "{x}", "tilt": -60})
+            try:
+                env, _ = _probe_env(setup, seed, camera)
+            except Exception as exc:  # noqa: BLE001
+                errors.append("target probe {}: {}: {}".format(type_name, type(exc).__name__, str(exc)[:160]))
+                return leaks, errors
+            handle = env.realism.handles.by_id.get("probe_target_1")
+            if camera == "geometric" and handle:
+                _agent_step(env, "look", handle)
+            obs = env.observe()
+            handle = _handle_of(env, obs, "probe_target_1")
+            if handle is None or not env.realism.unresolved("probe_target_1"):
+                echoes[type_name] = ("not shown unresolved", None)
+                continue
+            _agent_step(env, "approach", handle)
+            ok, category, message, dt = _agent_step(env, "apply_label", handle, text=text)
+            echoes[type_name] = ((ok, category, _canon(env, message), dt), env.realism.unresolved("probe_target_1"))
+        base = members[0]
+        for other in members[1:]:
+            if echoes.get(other) != echoes.get(base):
+                leaks.append(("target", "kernel:realism", "free text naming every member echoes differently for {} and "
+                              "{}: {} / {}".format(base, other, str(echoes.get(base))[:160],
+                                                   str(echoes.get(other))[:160])))
+    orders = []
+    for order in (("probe_cell_a", "probe_cell_b"), ("probe_cell_b", "probe_cell_a")):
+        setup = [_first_room(seed)]
+        setup += [{"op": "spawn", "var": eid, "type": "generic_item", "floor": "{lr}", "eid": eid, "cell": [2, 2],
+                   "props": {"label": "spray bottle", "looks_like": "spray_bottle", "portable": True,
+                             "size_m": [0.1, 0.07, 0.25]}} for eid in order]
+        setup += [{"op": "robot", "room": "{lr}", "cell": [2, 1]}, {"op": "lights", "room": "{lr}", "on": True}]
+        try:
+            env, _ = _probe_env(setup, seed, camera)
+        except Exception as exc:  # noqa: BLE001
+            errors.append("hazard order probe: {}: {}".format(type(exc).__name__, str(exc)[:160]))
+            return leaks, errors
+        back = {env.realism.handles.peek(e): e for e in order}
+        orders.append([back.get(h.get("source")) for h in (env.observe().get("grid") or {}).get("hazards") or []
+                       if h.get("source") in back])
+    if orders[0] != orders[1]:
+        leaks.append(("target", "kernel:realism", "hazards of one cell listed in spawn order: {} / {}".format(*orders)))
+    return leaks, errors
+
+
+def probe_jobs(first, camera, fields=False):
+    """The probe jobs of one audit run (camera None or "room": the room camera)."""
+    from house_sim.kernel import plugins
+    from house_sim.kernel.registry import default_registry
+    plugins.load_domains()
+    reg = default_registry()
+    jobs = [("probe", "oracle", first, camera, None), ("probe", "episode", first, camera, None),
+            ("probe", "echo", first, camera, None), ("probe", "target", first, camera, None)]
+    spread = []
+    for group, types in sorted(reg.lookalike_types().items()):
+        sizes = sorted((max(float(v) for v in (reg.resolve(t).get("size_m") or [0.1])[:3]), t) for t in types)
+        if len(sizes) >= 2 and sizes[-1][0] - sizes[0][0] > 0.03:
+            # the groups whose members differ most in true size (relative spread) are the most sensitive twins
+            spread.append((-sizes[-1][0] / max(sizes[0][0], 1e-3), group,
+                           sorted({sizes[0][1], sizes[len(sizes) // 2][1], sizes[-1][1]})))
+    for _rank, group, members in sorted(spread)[:TWIN_GROUPS]:
+        jobs.append(("probe", "twin", first, camera, ("lookalike:" + group, members, fields)))
+    novel = [t for t in NOVEL_TWINS if reg.known(t)]
+    if plugins.enabled_domains() is None and len(novel) != len(NOVEL_TWINS):
+        # every domain loaded but a twin type is gone: the probe would silently twin fewer things (phase-1 red team)
+        jobs.append(("probe", "config", first, camera, "novel twin types missing from the registry: {}".format(
+            ", ".join(sorted(set(NOVEL_TWINS) - set(novel))))))
+    if len(novel) >= 2:
+        jobs.append(("probe", "twin", first, camera, ("novel", novel, fields)))
+    return jobs
+
+
+def run_probe(job):
+    _, name, seed, camera, params = job
+    from house_sim.kernel import plugins
+    plugins.load_domains()
+    try:
+        if name == "oracle":
+            leaks, errors = _probe_oracle(seed, camera)
+        elif name == "episode":
+            leaks, errors = _probe_episodes(seed, camera)
+        elif name == "echo":
+            leaks, errors = _probe_echo(seed, camera)
+        elif name == "target":
+            leaks, errors = _probe_target(seed, camera)
+        elif name == "config":
+            leaks, errors = [], ["probe configuration: " + str(params)]
+        else:
+            kind, members, fields = params
+            leaks, errors = _probe_twins(seed, camera, kind, members, fields)
+    except Exception as exc:  # noqa: BLE001
+        leaks, errors = [], ["probe {}: {}: {}".format(name, type(exc).__name__, traceback.format_exc()[-400:])]
+    return {"seed": "probe:{}".format(name), "leaks": leaks, "errors": errors, "steps": 0}
+
+
+def run_job(job):
+    """A house walk or a probe (the process pool's single entry point)."""
+    return run_probe(job) if job and job[0] == "probe" else run_house(job)
+
+
 def run_house(job):
     seed, opts, steps = job[:3]
     camera = job[3] if len(job) > 3 else None
@@ -940,6 +1531,10 @@ def run_house(job):
         elif roll < 0.88:
             # questions, typed reports and the robot's memory (kernel v3.1)
             cmd = people_command(rng, obs, handles, env.world.s)
+        elif roll < 0.9 and "count" in plugins.ACTIONS:
+            # an action that grants knowledge of many things at once, scoped to the whole room (the grant check)
+            scope = obs["room_id"] if rng.random() < 0.7 or not handles else rng.choice(handles)
+            cmd = {"action": "count", "target": scope}
         else:
             name = rng.choice(names)
             spec = plugins.ACTIONS[name]
@@ -975,6 +1570,8 @@ def run_house(job):
         target_eid = env.realism.handles.resolve(target) if isinstance(target, str) else None
         start_ids = set(env.world.s["entities"])
         issued_before = set(env.realism.handles.by_handle)
+        levels_before = _inspect_levels(env.realism)
+        where_before = (env.world.s["robot"].get("room"), list(env.world.s["robot"].get("pos") or []))
         del _CAPTURED[:]
         try:
             result = env.step(action, target, destination, **args)
@@ -986,6 +1583,9 @@ def run_house(job):
                 pass
             continue
         check_message(env, action, target_eid, result.get("message"), leaks, start_ids=start_ids, order=order)
+        if (env.world.s["robot"].get("room"), list(env.world.s["robot"].get("pos") or [])) == where_before:
+            # (a step that walked may have touched things on its way: the kernel's gate judges those by the walk)
+            check_grants(env, action, levels_before, leaks)
         if result.get("ok"):
             check_people_message(env, action, args, result.get("message"), leaks, issued_before, shown_labels)
         check_typed_people(env, action, args, result, obs_before, leaks)
@@ -1068,10 +1668,18 @@ def main(argv):
             (battery is not None and not 0.0 <= battery <= 100.0):
         print("--camera must be room or geometric; --battery a % from 0 to 100; --faults random or none")
         return 2
+    gen = argv[argv.index("--gen") + 1] if "--gen" in argv else None
+    if gen not in (None, "1", "2"):
+        print("--gen must be 1 or 2")
+        return 2
     faults = None if faults == "none" else faults
-    jobs = [(first + k, OPTS[k % len(OPTS)], steps, camera, battery, faults) for k in range(houses)]
+    jobs = [(first + k, dict(OPTS[k % len(OPTS)], **({"gen": int(gen)} if gen else {})), steps, camera, battery,
+             faults) for k in range(houses)]
+    if "--no-probes" not in argv:
+        jobs += probe_jobs(first, camera, fields="--twin-fields" in argv)
     with ProcessPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(run_house, jobs))
+        results = list(pool.map(run_job, jobs))
+    probes = sum(1 for r in results if str(r["seed"]).startswith("probe:"))
     by_kind, by_owner, examples = Counter(), Counter(), defaultdict(list)
     seeds_of = defaultdict(set)
     for r in results:
@@ -1088,8 +1696,8 @@ def main(argv):
             if len(examples[(kind, owner)]) < 3:
                 examples[(kind, owner)].append("seed {}: {}".format(r["seed"], detail))
     errors = [e for r in results for e in r["errors"]]
-    print("houses {}  steps {}  leaks {}  crashes {}{}{}".format(
-        len(results), sum(r["steps"] for r in results), sum(by_kind.values()), len(errors),
+    print("houses {}  steps {}  probes {}  leaks {}  crashes {}{}{}".format(
+        len(results) - probes, sum(r["steps"] for r in results), probes, sum(by_kind.values()), len(errors),
         "  camera {}".format(camera) if camera else "",
         "  battery {} faults {}".format(battery, faults or "none") if battery is not None or faults else ""))
     for kind, n in by_kind.most_common():

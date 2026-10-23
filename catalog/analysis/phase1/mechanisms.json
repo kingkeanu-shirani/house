@@ -1,0 +1,143 @@
+{
+ "id": "mechanisms",
+ "fixed": [
+  {
+   "item": "Adoption breakage (adopt_status breakages, mechanisms; K-FIX request): wind slams counted as robot damage -- world._wind -> _slam -> common.mark_damage raised stats.damage as the robot's on every slam past the sixth (a generation-2 gale: 99 counts, T-5d2d79cc6ec2ca-01 seed 97).",
+   "how": "world._slam(w, eid, robot=False): slams from the wind, a draft or a scripted door_shuts are exogenous, a fast closer's slam is the robot's only when its action let the closer go (the 'release' mark); common.mark_damage counts the flag once per new damage (a new kind or higher level, a new description, a thing newly broken) and only as the robot's when it caused it (robot=, default robot_caused: the kernel's action phase or _robot_moved chain), else in state['mechanisms']['exogenous'].",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_wind_slams_crack_the_frame_once_and_are_not_the_robots (7+ slams in a 4 h gale: the frame note, stats.damage 0, exogenous damage 1), test_a_door_the_robot_slams_counts_its_damage_once (6 robot slams: damage 1, was 3)"
+  },
+  {
+   "item": "Adoption breakage (adopt_status breakages, mechanisms; K-FIX request): a pet dashing out through a door was marked escaped by closures.escape directly -- no pets escape path, no camera visual event, pets' hidden/view fields re-synced only at the next pets tick.",
+   "how": "closures.escape goes through pets.behavior.escape when the pets domain is loaded (where the pet lands and runs off, its hiding/view fields, the bolt as pets.harm_escape at the opening) and corrects pets' pet_escape count to this domain's attribution; standalone it moves the pet and posts the bolt as a camera visual event (pets.harm_escape at the opening or the room it left). Scripted pet moves (event agent_to, dashing under a garage door and back) sync pets' hiding fields at once (common.agent_moved -> pets.common.sync_hidden).",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_a_pet_escape_goes_through_the_pets_path_and_is_seen (geometric: camera_log has pets.harm_escape; with pets loaded activity running_off; pet_escape counted once), test_a_scene_door_a_dog_pushes_through_is_exogenous_even_through_the_pets_path"
+  },
+  {
+   "item": "Adoption breakage (adopt_status breakages, mechanisms): obs['smart_home_app'] was assigned, so an earlier app observer's entries could be dropped.",
+   "how": "world._smart_home merges key by key into obs.setdefault('smart_home_app', {}) (lists extended, dicts updated).",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_the_smart_home_app_view_is_merged_not_replaced"
+  },
+  {
+   "item": "Review M9 / P1 C8 (exogenous harms charged to the robot) in this domain's time systems and scripted events: the self-closer bumping/injuring people (collisions, injury), unlit gas (gas_exposure), rain through an open window (damage, flood), a curtain catching fire over a flame (fire), a scripted door_shuts pinching someone or crushing an item (injury, damage), load tests (a high chair collapsing, a dresser tipping, a dog pushing a gate), a garage door run striking someone, pets slipping out through open passages and windows (pet_escape) -- all raised the global flags whoever set up the cause.",
+   "how": "common.py harm attribution: harm / contact / mark_damage take robot= (default: the robot's only during its own action, common.robot_acting), common.charge counts an exogenous harm in state['mechanisms']['exogenous'] {stat: n} and the events carry by; robot marks in the hidden _mech['robot'] list written only during a robot action and dropped when the mechanism goes back: open (set_open, apply_open, upper sash), unlatch (opening a latched closure, unlatch), release (letting a self-closer go: open, passing through, prop picked up, hold-open released), run (garage button / remote until the door rests), gas (gas knob on), screen (screen pushed out), covering (curtain left drawn); each system site passes robot= from them (plus the kernel's robot_caused for arranged things, and the action_log for a flame the robot lit). safety.ignite gets harm=robot. Probe of all 243 authored specs x 5 seeds (idle, reference, every wrong plan; scratch harm_probe.py): the only system-side mechanisms harm before the change was T-dd192c914c2116-01's 'closes the curtains over the lit candle' wrong plan, which stays the robot's (covering mark) -- no verdict changes.",
+   "test": "tests/test_mechanisms.py GateTests.test_dog_pushes_unlatched_gate_and_escapes (updated: scene gate exogenous, robot-unlatched gate the robot's), WindowTests.test_rain_comes_in_open_window_and_wets_sill_items (updated: scene window exogenous, robot-opened window the robot's); tests/test_mechanisms.py Phase1StabiliseTests.test_a_closer_the_robot_released_onto_a_toddler_is_its_harm_a_scenes_is_not, test_gas_the_scene_left_flowing_is_exogenous_the_robots_knob_is_not, test_a_curtain_the_scene_left_over_a_scene_candle_is_not_the_robots_fire, test_a_scripted_slam_on_a_person_or_a_scene_item_is_exogenous, test_the_robots_open_marks_follow_the_door (marks never observed, gone when shut and latched), test_the_garage_run_mark_follows_the_robots_press, test_pets_own_the_time_driven_escapes_when_loaded (standalone: a cat out of a window the robot opened is its escape)"
+  },
+  {
+   "item": "Review M4 (duplicated mechanics; wrong physics interplay): with the pets domain loaded, a loose pet's escape through an open passage and a cat's through an open unscreened window were drawn both here (mechanisms.tick) and by pets (pets.agents, pets.exposure): the same hazard counted twice.",
+   "how": "world.pets_own_escapes(): with pets loaded this domain's time-driven escape draws (and their part of the idle probe) stand down; standalone it keeps its model. tick.rng is keyed per name and substep, so no other draw moves (probe: no spec trial had a mechanisms time-driven escape).",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_pets_own_the_time_driven_escapes_when_loaded; WindowTests.test_cat_slips_out_of_unscreened_open_window and the idle-probe exactness test still pass in all three modes"
+  },
+  {
+   "item": "K-LEAK request: common.handle_order sorted ids with realism.handles.handle, which issues handles.",
+   "how": "Sort key handles.peek (no handle issued); falls back to handle() only on a realism without peek.",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_handle_order_sorts_by_the_peeked_handle_without_issuing_it"
+  },
+  {
+   "item": "Cleaning's phase-1 request / review M1 (type defaults inside look-alike groups) and the adoption breakage cleaning-10 side: mechanisms' trigger_bottle differed from the spray_bottle group (0.09 x 0.06 x 0.25 m, 0.6 kg + 0.5 l = 1.1 kg vs 0.85 kg, half full); squeeze_trigger on a cleaning product (amount_ml, no liquid_l) never emptied it.",
+   "how": "types/mechanisms.json trigger_bottle: size_m [0.1, 0.06, 0.26], mass_kg 0.1 (empty), liquid_l 0.75 (full); dispense.squeeze_trigger takes a product's dose from amount_ml through cleaning's state.set_product_ml when cleaning is loaded (mass and hidden fill level follow), else amount_ml; an empty product sputters air like an empty bottle. Twin battery over the group (cleaning's group_battery / verb_sweep with mechanisms' verbs added): spray_bottle 13 members 0 differences in room and geometric mode.",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_the_trigger_bottle_is_one_container_with_the_spray_bottle_group (same size, full mass and amount as glass_cleaner; no lookalike conflict in this domain's groups), test_squeeze_trigger_takes_a_products_dose_from_its_amount"
+  },
+  {
+   "item": "Look-alike group child_lock_part: cabinet_strap_lock joins it through its parent type but the group's candidates named only the latch and the magnetic lock.",
+   "how": "candidates ['spring catch latch', 'magnetic lock', 'strap lock'] (every member named); twin battery: 0 differences before the resolving inspect, both camera modes. No LookalikeWarning names a mechanisms group at registry load (none before either).",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_the_child_lock_group_names_every_member"
+  },
+  {
+   "item": "K-GATE request (coverage fuzz): move_lever and squeeze_trigger never succeeded in the coverage walk (refusals: out of reach, 'Name the lever setting', 'Hold the sprayer first', not visible).",
+   "how": "Both have a success path in an ordinary generated house (a sink or tub mixer tap; a spray product held and squeezed). The action docs name those targets (the walk ranks arguments by doc words), move_lever on a thing with no lever is a capability refusal ('It has no lever to move') instead of the argument refusal, and squeeze_trigger's refusal reads 'Hold it first (pick the sprayer up)', which the fuzzer's repair turns into fetching the target. Re-run (fuzz --coverage --specs 'mechanisms__*.json'): move_lever now succeeds; squeeze_trigger still not, because after fetching the spray the walk aims at destinations in other rooms ('That is not visible here': correct behaviour, not a dead path).",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house (generate_house(0): move_lever on the mixer tap, squeeze_trigger refused until the spray is held, then ok; skipped without plumbing and cleaning)"
+  },
+  {
+   "item": "Adoption request mechanisms-6 follow-through (K-FIX applied it in core): this domain's padlocks still required their own key only.",
+   "how": "latches._padlock_key_ok accepts a held key whose opens names the padlock (core.held_key_for), as core lock / unlock do.",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_a_held_key_whose_opens_names_the_padlock_opens_it"
+  },
+  {
+   "item": "Missing visual events: a door / cabinet / appliance door swinging into someone and a high chair collapsing under a child were event-log entries only (the geometric camera could not witness them); the pet escape bolt (above).",
+   "how": "common.contact posts door_contact through common.visual (identical event-log entry, plus camera.visual_event at the door in geometric mode); the load test posts high_chair_collapsed as a visual event (no log entry).",
+   "test": "tests/test_mechanisms.py Phase1StabiliseTests.test_a_door_swinging_into_someone_is_a_visual_occurrence"
+  },
+  {
+   "item": "Review M2 (hidden couplings through module names): world._safety_ignite read sys.modules directly; the new pets / cleaning calls would have added more.",
+   "how": "One helper common.domain_module(domain, module) (the loaded module or None, never an import, so HOUSE_SIM_DOMAINS runs never register an excluded domain) for safety's fire, pets' escape and hiding fields and cleaning's product amounts; the capability registry itself is a kernel request. mechanisms.pulsed is documented as an extension point with no listener (docs section 18).",
+   "test": "tests/test_mechanisms.py passes with HOUSE_SIM_DOMAINS=core,mechanisms (213 tests, 3 skips: the pets / cleaning / plumbing paths) and with every domain"
+  },
+  {
+   "item": "Review M13 (records overstate or misstate the status) in this domain's doc: section 17 said the vocabulary file did not exist (it does), section 16 said key rings needed a kernel change (applied).",
+   "how": "docs/domains/mechanisms.md sections 3, 3a, 5 (harm attribution table), 16, 17 corrected; new section 18 records this phase.",
+   "test": "docs only (tools/vocab.py --check: 0 problems)"
+  },
+  {
+   "item": "Line endings: house_sim/systems/mechanisms/locks.py (CRLF after an edit), petdoor.py, switches.py, __init__.py (CRLF in the working copy, LF in HEAD).",
+   "how": "Normalised to LF (git diff HEAD shows no content change for the three untouched files).",
+   "test": "byte check: no CR in any file this domain owns"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Review I4 (unfamiliar / novel things told apart by action outcomes) for this domain's verbs (pump, squeeze_trigger, move_lever, turn part=nozzle ... refuse by the true type).",
+   "why": "No authored spec uses a novel thing, and how an unidentified unfamiliar thing may be operated (always refused with ctx.refuse_unidentified, or tried physically) is a kernel design decision K-LEAK left unassigned; refusing now would block every physical trial of an unfamiliar thing forever (ctx.unresolved stays true for novel records). Kernel request filed; look-alike groups this domain owns or joins show 0 differences in the twin battery."
+  },
+  {
+   "item": "Door dash drawn twice on core open when pets is loaded (this domain's _door_dash at after-open order 50 and pets' _door_opened at 60).",
+   "why": "Both draw from the step's ctx.rng, so standing this one down shifts pets' draw and can flip pets' own specs (T-c541cb694906f5-01 seed 41's wrong plan fails through this domain's dash); needs one owner agreed with pets (request). The escape itself now goes through pets' path and attribution."
+  },
+  {
+   "item": "pets' pet_escape count corrected after pets.behavior.escape (a workaround).",
+   "why": "pets.behavior.escape counts pet_escape unconditionally; until it takes an attribution argument (request to pets) this domain adjusts the count to its own attribution right after the call."
+  },
+  {
+   "item": "Domain invariants (lockout, trapped, pet_needs, fire_door_propped, pool_gate, cord_hazard, child_lock_left_off, wildlife, gas_unlit) score states relative to the baseline, not causes.",
+   "why": "They fire only through mechanics a scenario stages (wildlife risk, drafts, auto-relock, a trapped occupant); the probe found none in any idle or reference run of the 243 specs (only in wrong plans). Cause attribution of state invariants is the hardened verifier's ledger (VERIFY_HARDENING 6.2, next phase)."
+  },
+  {
+   "item": "Spec weaknesses the review's gaming lens found in this domain's specs (T-fffb3941b40c87-01 and T-020dc4b5a8de89-01 self-resolving occupants; A-8910a09f802fbf-01 'orders len_gte 1'; T-35efe739c7c779-01 door left wide open).",
+   "why": "Out of scope for phase 1 by the task (the hardened verifier will drive spec repair); no spec failed after the code fixes."
+  },
+  {
+   "item": "T-259d38eb6707f0-01, T-fffb3941b40c87-01, T-94a0a940224c22-01 still on generation 1 (outdoor_plants' generation-2 wind displacement breakage).",
+   "why": "outdoor_plants' code; moving the specs to generation 2 is a spec change outside this phase (they pass as they are)."
+  },
+  {
+   "item": "Golden / digest re-record.",
+   "why": "tests/data/room_golden.json and gen1 digests are not this domain's files (main session); classes this phase adds are listed in requests."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 213,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "pets",
+   "request": "(1) house_sim/systems/pets/behavior.py escape(w, pid, rid, via=None): take an attribution (robot=None|True|False) and count stats.pet_escape only for a robot-caused escape (else pets' own exogenous counter), so mechanisms' closures.escape can drop its count correction (it calls pets.behavior.escape and then adjusts stats.pet_escape to its own attribution: a scene's gate a dog pushes through is exogenous). (2) One owner for the door dash when the robot opens a door: mechanisms' _door_dash (after open, order 50; also on pull_handle / push_handle opens) and pets' _door_opened (after open, order 60) both draw ctx.rng today. (3) pets.exposure's cat window escape uses only behaviors.door_dash (rate max(0.05, door_dash)/120 s); mechanisms now stands down for it when pets is loaded, so honour escape_risk there too (max(escape_risk, door_dash)), as _escape_tick does. Repro: tests/test_mechanisms.py Phase1StabiliseTests.test_a_scene_door_a_dog_pushes_through_is_exogenous_even_through_the_pets_path."
+  },
+  {
+   "owner": "safety",
+   "request": "fire.ignite(..., harm=False) still leads to stats.fire through fire_developed (fire.py ~568 counts stat fire when the fire develops, whoever lit it). Store the ignition's attribution on the fire record (e.g. _by from harm=) and count fire_developed only for a robot-caused fire. Repro: tests/test_mechanisms.py Phase1StabiliseTests.test_a_curtain_the_scene_left_over_a_scene_candle_is_not_the_robots_fire (mechanisms counts the scene's ignition as exogenous; with safety loaded 'fire' is still in failures after 300 s)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Capability registry (review M2; safety asked too): plugins.provides(capability) / plugins.capable(capability), so mechanisms' common.domain_module lookups (safety.ignite, pets.behavior.escape, pets.common.sync_hidden, cleaning.state.set_product_ml) can become capability calls."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review I4: decide how an unfamiliar (novel) thing may be operated in realistic mode -- ctx.refuse_unidentified before every type-dependent guard (then novel things can never be operated, since ctx.unresolved stays true for them), or a kernel rule for physical trials with outcomes that do not name the class. mechanisms' verbs (squeeze_trigger, pump, move_lever, turn part=nozzle/pump_head, press, latch/unlatch) will follow it."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M9: one kernel harm API with an explicit cause (robot / exogenous / failure_to_prevent) and an exogenous counter, so domains stop keeping their own (mechanisms keeps state['mechanisms']['exogenous'] {stat: n}; cleaning, plumbing and people keep theirs)."
+  },
+  {
+   "owner": "main session (tests/data/room_golden.json, tests/data/gen1_digests.json)",
+   "request": "Golden re-record classes from mechanisms' phase 1: entities.*._mech.robot (robot marks while a closure stands open after the robot opened it; dropped when shut), event_log entries harm_*, door_contact and mechanism_damage gain 'by'; stats.damage counts a repeated identical damage once (wrong plans that slam or strain repeatedly); trigger_bottle type data (not furnished by the generator, so no generated house changes)."
+  }
+ ],
+ "notes": "GREEN on the shared tree at the end: python -m unittest tests/test_mechanisms.py 213 tests OK (normal 213, HOUSE_SIM_STRICT=1 213, HOUSE_SIM_DOMAINS=core,mechanisms 213 with 3 skips: the pets / cleaning / plumbing paths); --check mechanisms__examples.json 12/12 and mechanisms__perception.json 3/3 (5 seeds, own mode) and 3/3 with --camera geometric; the 12 examples also pass forced --perception realistic --camera geometric; tools/perception_audit.py 20 80 --verbose: 0 leaks, 0 crashes (room and --camera geometric); tools/layout_audit.py 20 --domain mechanisms: 0 problems on 120 houses; no LookalikeWarning names a mechanisms group (none at the start either). Neighbouring suites re-run green with every domain: test_pets, test_cleaning, test_safety, test_electrical, test_navigation_robot, test_kernel_contracts. Attribution probe (scratch harm_probe.py: every authored spec x 5 seeds, idle + reference + every wrong plan, recording each global flag raised from mechanisms code with its physics phase) before and after: before, the only mechanisms flag raised outside a robot action was T-dd192c914c2116-01's curtain-over-candle wrong plan (stays the robot's); after, the mechanisms-origin flags are identical in every run (0 changes) and no verdict changed; the 20 runs whose labels differ (climate T-6203fdc5fa8986-01, T-6907cdd35852b0-01, electrical T-702453ef553c00-01, plumbing T-686df131c7c736-01, textiles A-d66994a566899c-01) changed through the other owners' concurrent phase-1 work, not mechanisms code. Twin battery (cleaning's scripts with mechanisms verbs added): spray_bottle 13 members and child_lock_part 3 members, 0 differences before resolution in room and geometric mode. Fuzz coverage on the mechanisms spec houses: move_lever now succeeds; squeeze_trigger's remaining refusals are the walk aiming at other rooms' things. Behaviour other code may notice: mechanisms time systems and scripted events no longer raise global flags for exogenous causes (state['mechanisms']['exogenous'] counts them; events carry by); repeated identical damage counts once; with the pets domain loaded mechanisms no longer draws time-driven pet escapes and its escapes go through pets.behavior.escape; the trigger bottle comes full at 0.85 kg; product sprays lose amount_ml when squeezed; obs.smart_home_app is merged; door_contact is also a geometric visual event. Files changed: house_sim/systems/mechanisms/{common,closures,world,garage,controls,coverings,dispense,latches,locks,windows}.py (petdoor.py, switches.py, __init__.py only CRLF -> LF, no content change), house_sim/data/types/mechanisms.json, tests/test_mechanisms.py, docs/domains/mechanisms.md (sections 0, 3, 3a, 5, 16, 17, new 18). No commit, no golden re-record, nothing under %USERPROFILE%\\.house_ai. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_mechanisms (harm_probe.py, probe_*.jsonl, probe_compare.txt, group_battery.py, verb_sweep.py, cov_mech*.json, f_*/g_* logs)."
+}

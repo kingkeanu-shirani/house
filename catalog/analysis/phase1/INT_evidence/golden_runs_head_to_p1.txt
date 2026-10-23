@@ -1,0 +1,280 @@
+  1097  visible_entities.*.temperature_c  
+           0_oracle_final_obs.json visible_entities.dish_soap_1.temperature_c: 21.663 -> 21.677
+  1092  visible_entities.*.relation  
+           0_realistic_final_obs.json visible_entities.obj_cc162bdf.relation: 'part' -> '<absent>'
+  1092  visible_entities.*.label  
+           0_realistic_final_obs.json visible_entities.obj_03eec235.label: '<absent>' -> 'dishwasher door gasket'
+  1092  visible_entities.*.portable  
+           0_realistic_final_obs.json visible_entities.obj_6d214e11.portable: False -> '<absent>'
+  1092  visible_entities.*.openable  
+           0_realistic_final_obs.json visible_entities.obj_f0a56b80.openable: True -> '<absent>'
+  1092  visible_entities.*.location  
+           0_realistic_final_obs.json visible_entities.obj_3c4990a8.location: '<absent>' -> 'kitchen_1'
+  1092  visible_entities.*.kind  
+           0_realistic_final_obs.json visible_entities.obj_69f925d0.kind: 'blind' -> '<absent>'
+  1092  visible_entities.*.size_class  
+           0_realistic_final_obs.json visible_entities.obj_328dc0a4.size_class: '<absent>' -> 'medium'
+  1092  visible_entities.*.size_m  
+           0_realistic_final_obs.json visible_entities.obj_58c80f74.size_m: [0.05, 0.05, 0.15] -> '<absent>'
+  1092  visible_entities.*.open  
+           0_realistic_final_obs.json visible_entities.obj_76df2637.open: False -> '<absent>'
+  1092  visible_entities.*.color  
+           0_realistic_final_obs.json visible_entities.obj_62349a1d.color: None -> '<absent>'
+  1076  visible_entities.*.soil.overall  
+           0_realistic_final_obs.json visible_entities.obj_3590ef69.soil.overall: '<absent>' -> 'clean'
+  1068  visible_entities.*.wetness  
+           0_realistic_final_obs.json visible_entities.obj_cdc4c4aa.wetness: '<absent>' -> 0.02
+  1032  visible_entities.*.accepts_items  
+           0_realistic_final_obs.json visible_entities.obj_507680c7.accepts_items: '<absent>' -> False
+   508  visible_entities.*.pos  
+           0_realistic_final_obs.json visible_entities.obj_b96ee5bb.pos: '<absent>' -> [5, 4]
+   392  visible_entities.*.container  
+           0_realistic_final_obs.json visible_entities.obj_460cf342.container: False -> '<absent>'
+   300  visible_entities.*.mount_height_m  
+           0_realistic_final_obs.json visible_entities.obj_76df2637.mount_height_m: 0.9 -> '<absent>'
+   284  visible_entities.*.mounted  
+           0_realistic_final_obs.json visible_entities.obj_836a4b60.mounted: '<absent>' -> True
+   276  visible_entities.*.spos  
+           0_realistic_final_obs.json visible_entities.obj_5a142800.spos: [0.65, 0.0] -> '<absent>'
+   226  visible_entities.*.rot  
+           0_realistic_final_obs.json visible_entities.obj_4f45a670.rot: '<absent>' -> 90
+   182  visible_entities.*.surface  
+           0_realistic_final_obs.json visible_entities.obj_c4c07a09.surface: '<absent>' -> True
+   136  entities.*.fill_level  {'glass_cleaner': 32, 'toilet_bowl_cleaner': 16, 'dish_soap': 16, 'all_purpose_cleaner': 16}
+           0_oracle_final_state.json entities.glass_cleaner_2.fill_level: '<absent>' -> 1.0
+    98  visible_entities.*.surface_size_m  
+           0_realistic_final_obs.json visible_entities.obj_d7e55fa3.surface_size_m: '<absent>' -> [0.76, 0.6]
+    80  entities.*.mass_kg  {'chlorine_bleach_bottle': 24, 'fabric_softener': 24, 'dish_soap': 16, 'ground_cumin_jar': 16}
+           0_oracle_final_state.json entities.dish_soap_1.mass_kg: 0.85 -> 0.6
+    80  visible_entities.*.tool_kind  
+           0_realistic_final_obs.json visible_entities.obj_5dd1c9d8.tool_kind: 'wooden_spoon' -> '<absent>'
+    76  entities.*.trigger.ml_per_squeeze  {'glass_cleaner': 32, 'all_purpose_cleaner': 16, 'disinfectant_spray': 12, 'degreaser': 12}
+           0_oracle_final_state.json entities.glass_cleaner_1.trigger.ml_per_squeeze: '<absent>' -> 1.1
+    76  entities.*.trigger.modes  {'glass_cleaner': 32, 'all_purpose_cleaner': 16, 'disinfectant_spray': 12, 'degreaser': 12}
+           0_oracle_final_state.json entities.glass_cleaner_1.trigger.modes: '<absent>' -> ['off', 'spray', 'stream']
+    76  entities.*.trigger.nozzle  {'glass_cleaner': 32, 'all_purpose_cleaner': 16, 'disinfectant_spray': 12, 'degreaser': 12}
+           0_oracle_final_state.json entities.all_purpose_cleaner_1.trigger.nozzle: '<absent>' -> 'spray'
+    72  entities.*.com_frac  {'chlorine_bleach_bottle': 24, 'liquid_detergent': 24, 'fabric_softener': 24}
+           0_oracle_final_state.json entities.chlorine_bleach_bottle_1.com_frac: '<absent>' -> 0.5
+    72  entities.*.shape  {'chlorine_bleach_bottle': 24, 'fabric_softener': 24, 'liquid_detergent': 24}
+           0_oracle_final_state.json entities.chlorine_bleach_bottle_1.shape: '<absent>' -> 'box'
+    72  entities.*.size_m  {'chlorine_bleach_bottle': 24, 'fabric_softener': 24, 'baking_soda_box': 16, 'fence': 8}
+           0_oracle_final_state.json entities.chlorine_bleach_bottle_1.size_m: [0.15, 0.1, 0.3] -> [0.15, 0.1, 0.28]
+    69  grid.hazards.*.source  
+           0_realistic_reset_obs.json grid.hazards.4.source: 'obj_85d6a46e' -> 'obj_635eaa47'
+    68  visible_entities.*.on  
+           0_realistic_final_obs.json visible_entities.obj_3c9b59a1.on: True -> '<absent>'
+    64  entities.*.volume_l  {'chlorine_bleach_bottle': 24, 'fabric_softener': 24, 'ground_cumin_jar': 16}
+           0_oracle_final_state.json entities.chlorine_bleach_bottle_2.volume_l: 3.2 -> 3.0
+    64  visible_entities.*.liquid_l  
+           0_realistic_final_obs.json visible_entities.obj_bb9f125b.liquid_l: '<absent>' -> 'half'
+    60  visible_entities.*.candidates  
+           0_realistic_final_obs.json visible_entities.obj_bb9f125b.candidates: '<absent>' -> ['dish soap pump', 'foaming soap pump', 'hand soap pump']
+    56  rooms.*.floor_hazards.*.cell  
+           2_oracle_final_state.json rooms.living_room_1.floor_hazards.5.cell: [5, 10] -> [6, 10]
+    50  visible_entities.*.window  
+           0_realistic_final_obs.json visible_entities.obj_5b0f8fa3.window: '<absent>' -> 'obj_4f45a670'
+    50  visible_entities.*.shelf  
+           0_realistic_reset_obs.json visible_entities.obj_2d87d7df.shelf: '<absent>' -> 2
+    48  entities.*.mouth_frac  {'liquid_detergent': 24, 'fabric_softener': 24}
+           0_oracle_final_state.json entities.liquid_detergent_2.mouth_frac: '<absent>' -> 0.3
+    44  entities.*.temperature_c  {'fabric_softener': 10, 'dish_soap': 8, 'chlorine_bleach_bottle': 8, 'ground_cumin_jar': 8}
+           0_oracle_final_state.json entities.dish_soap_1.temperature_c: 21.663 -> 21.677
+    40  visible_entities.*.covered  
+           0_realistic_final_obs.json visible_entities.obj_4f45a670.covered: '<absent>' -> 0.0
+    40  visible_entities.*.brightness  
+           0_realistic_final_obs.json visible_entities.obj_6c2990ff.brightness: '<absent>' -> 'dim'
+    36  visible_entities.*.yaw_deg  
+           0_realistic_reset_obs.json visible_entities.obj_d74603e5.yaw_deg: 0.0 -> '<absent>'
+    32  entities.*.amount_ml  {'toilet_bowl_cleaner': 16, 'floor_cleaner': 16}
+           0_oracle_final_state.json entities.toilet_bowl_cleaner_1.amount_ml: 710.0 -> 750.0
+    32  action_log.*.target  
+           0_realistic_final_state.json action_log.2.target: 'obj_165bc38a' -> 'obj_cdc4c4aa'
+    30  visible_entities.*.near_connection  
+           0_realistic_final_obs.json visible_entities.obj_87af7b5c.near_connection: 'conn_kitchen_1__living_room_1' -> '<absent>'
+    28  entities.*.watertight  {'utensil_crock': 16, 'bread_box': 12}
+           0_oracle_final_state.json entities.bread_box_1.watertight: '<absent>' -> False
+    24  visible_entities.*.lit  
+           0_realistic_final_obs.json visible_entities.obj_3c9b59a1.lit: True -> '<absent>'
+    24  visible_entities.*.flicker  
+           0_realistic_final_obs.json visible_entities.obj_3c9b59a1.flicker: False -> '<absent>'
+    24  visible_entities.*.dim_level  
+           0_realistic_final_obs.json visible_entities.obj_b20701c2.dim_level: '<absent>' -> 'bright'
+    24  visible_entities.*.folded  
+           0_realistic_reset_obs.json visible_entities.obj_3bda18f5.folded: 'thirds_half' -> '<absent>'
+    24  grid.hazards.*.cell  
+           2_oracle_reset_obs.json grid.hazards.15.cell: [8, 6] -> [9, 2]
+    20  entities.*._free_l  {'dishwasher': 12, 'air_fryer': 8}
+           0_oracle_final_state.json entities.dishwasher_1._free_l: 527.1 -> '<absent>'
+    20  visible_entities.*.features.front  
+           0_realistic_reset_obs.json visible_entities.obj_4a805dc0.features.front: 90 -> '<absent>'
+    16  entities.*.perforated  {'colander': 16}
+           0_oracle_final_state.json entities.colander_1.perforated: '<absent>' -> True
+    16  household.address  
+           0_oracle_final_state.json household.address: '100 Example Lane' -> '962 Example Lane'
+    16  metadata.address  
+           0_oracle_final_state.json metadata.address: '100 Example Lane' -> '962 Example Lane'
+    16  entities.*.full_g  {'ground_cumin_jar': 16}
+           0_oracle_final_state.json entities.ground_cumin_jar_1.full_g: 45.0 -> 50.0
+    16  entities.*._peak_c  {'ground_cumin_jar': 8, 'baking_soda_box': 8}
+           0_oracle_final_state.json entities.ground_cumin_jar_1._peak_c: 21.58 -> 21.56
+    16  entities.*._core_c  {'ground_cumin_jar': 8, 'baking_soda_box': 8}
+           0_oracle_final_state.json entities.ground_cumin_jar_1._core_c: 21.363 -> 21.349
+    16  entities.*._peak_core_c  {'ground_cumin_jar': 8, 'baking_soda_box': 8}
+           0_oracle_final_state.json entities.ground_cumin_jar_1._peak_core_c: 21.36 -> 21.35
+    16  entities.*.food.qty_g  {'ground_cumin_jar': 16}
+           0_oracle_final_state.json entities.ground_cumin_jar_1.food.qty_g: 45.0 -> 50.0
+    16  visible_entities.*.switchable  
+           0_realistic_final_obs.json visible_entities.obj_a91e0fdb.switchable: True -> '<absent>'
+    16  visible_entities.*.locked  
+           0_realistic_final_obs.json visible_entities.obj_cdc4c4aa.locked: '<absent>' -> False
+    16  visible_entities.*.capacity_l  
+           0_realistic_final_obs.json visible_entities.obj_cdc4c4aa.capacity_l: '<absent>' -> 0.0
+    16  visible_entities.*.material  
+           0_realistic_final_obs.json visible_entities.obj_165bc38a.material: 'paper' -> '<absent>'
+    16  visible_entities.*.low_glare  
+           0_realistic_final_obs.json visible_entities.obj_a91e0fdb.low_glare: True -> '<absent>'
+    16  visible_entities.*.hazards  
+           0_realistic_final_obs.json visible_entities.obj_b96ee5bb.hazards: '<absent>' -> []
+    16  visible_entities.*.fragile  
+           0_realistic_final_obs.json visible_entities.obj_e7235d42.fragile: False -> '<absent>'
+    16  visible_entities.*.broken  
+           0_realistic_final_obs.json visible_entities.obj_165bc38a.broken: False -> '<absent>'
+    16  visible_entities.*.water_safe  
+           0_realistic_final_obs.json visible_entities.obj_b96ee5bb.water_safe: '<absent>' -> True
+    16  visible_entities.*.wear_slot  
+           0_realistic_final_obs.json visible_entities.obj_6c2990ff.wear_slot: '<absent>' -> 'robot_light_mount'
+    16  visible_entities.*.gear_kind  
+           0_realistic_final_obs.json visible_entities.obj_6c2990ff.gear_kind: '<absent>' -> 'headlamp'
+    16  rooms.*.floor_hazards.*.source  
+           2_oracle_final_state.json rooms.living_room_1.floor_hazards.11.source: 'robot_vacuum_dock_1' -> '<absent>'
+    16  rooms.*.floor_hazards.*.kind  
+           2_oracle_final_state.json rooms.living_room_1.floor_hazards.11.kind: 'dock_zone' -> '<absent>'
+    14  visible_entities.*.affordances  
+           0_realistic_final_obs.json visible_entities.obj_165bc38a.affordances: [] -> '<absent>'
+    14  visible_entities.*.tags  
+           0_realistic_final_obs.json visible_entities.obj_b96ee5bb.tags: '<absent>' -> []
+    14  visible_entities.*.package  
+           0_realistic_final_obs.json visible_entities.obj_4d1f4591.package: 'shaker' -> '<absent>'
+    14  room.floor_hazards.*.cell  
+           2_oracle_reset_obs.json room.floor_hazards.9.cell: [6, 11] -> [4, 12]
+    12  visible_entities.*.fill_level  
+           0_oracle_final_obs.json visible_entities.dish_soap_1.fill_level: '<absent>' -> 1.0
+    12  visible_entities.*.mass_kg  
+           0_oracle_final_obs.json visible_entities.dish_soap_1.mass_kg: 0.85 -> 0.6
+    12  visible_entities.*.fabric  
+           0_realistic_reset_obs.json visible_entities.obj_4f8bf4f5.fabric: 'standard' -> '<absent>'
+    12  entities.*._spoil  {'baking_soda_box': 6, 'ground_cumin_jar': 6}
+           1_oracle_final_state.json entities.baking_soda_box_1._spoil: 0.0500944 -> 0.0500948
+    12  entities.*.view  {'roof_face': 12}
+           1_oracle_final_state.json entities.roof_face_1.view: 'clear' -> '<absent>'
+    12  rooms.*.floor_hazards.*.cord  
+           2_oracle_final_state.json rooms.living_room_1.floor_hazards.0.cord: True -> '<absent>'
+    12  entities.*.cord_hazard  {'power_strip': 8, 'box_fan': 4}
+           2_oracle_final_state.json entities.power_strip_1.cord_hazard: ['walkway'] -> []
+    10  visible_entities.*.features.good_side  
+           0_realistic_reset_obs.json visible_entities.obj_4a805dc0.features.good_side: 90 -> '<absent>'
+    10  grid.hazards.*.kind  
+           2_oracle_reset_obs.json grid.hazards.16.kind: 'trip' -> '<absent>'
+     8  entities.*.thermal_tau_s  {'upper_cabinet': 8}
+           0_oracle_final_state.json entities.upper_cabinet_3.thermal_tau_s: 2691.1 -> 2691.7
+     8  visible_entities.*.water_running  
+           0_realistic_final_obs.json visible_entities.obj_f5b8e8e8.water_running: False -> '<absent>'
+     8  nav.dock  
+           0_realistic_final_obs.json nav.dock: 'obj_faee6f5a' -> 'obj_37373060'
+     8  visible_entities.*.roll_orientation  
+           0_realistic_final_obs.json visible_entities.obj_03bcc97e.roll_orientation: '<absent>' -> 'over'
+     8  visible_entities.*.finish  
+           0_realistic_final_obs.json visible_entities.obj_b96ee5bb.finish: '<absent>' -> 'granite'
+     8  visible_entities.*.board_use  
+           0_realistic_final_obs.json visible_entities.obj_460cf342.board_use: 'produce' -> '<absent>'
+     8  visible_entities.*.battery_level  
+           0_realistic_final_obs.json visible_entities.obj_a91e0fdb.battery_level: 1.0 -> '<absent>'
+     8  visible_entities.*.blocks_path  
+           0_realistic_final_obs.json visible_entities.obj_e7235d42.blocks_path: True -> '<absent>'
+     8  visible_entities.*.surface_height_m  
+           0_realistic_final_obs.json visible_entities.obj_e7235d42.surface_height_m: 0.861 -> '<absent>'
+     8  visible_entities.*.floor_scratch_risk  
+           0_realistic_final_obs.json visible_entities.obj_b96ee5bb.floor_scratch_risk: '<absent>' -> True
+     8  visible_entities.*.movable  
+           0_realistic_final_obs.json visible_entities.obj_e7235d42.movable: False -> '<absent>'
+     8  robot.home  
+           0_realistic_final_obs.json robot.home: 'obj_faee6f5a' -> 'obj_37373060'
+     8  visible_entities.*.connects  
+           0_realistic_reset_obs.json visible_entities.obj_76c7cdb6.connects: '<absent>' -> ['living_room_1', 'balcony_1']
+     8  visible_entities.*.orientation  
+           0_realistic_reset_obs.json visible_entities.obj_2d87d7df.orientation: '<absent>' -> 'upright'
+     8  visible_entities.*.hang_slots  
+           0_realistic_reset_obs.json visible_entities.obj_cffe3171.hang_slots: 2 -> '<absent>'
+     8  visible_entities.*.game_kind  
+           0_realistic_reset_obs.json visible_entities.obj_9b2482ac.game_kind: '<absent>' -> 'board_game'
+     8  visible_entities.*.game  
+           0_realistic_reset_obs.json visible_entities.obj_9b2482ac.game: '<absent>' -> True
+     8  visible_entities.*.aid_kind  
+           1_realistic_final_obs.json visible_entities.obj_5215c77f.aid_kind: 'step_stool' -> '<absent>'
+     8  entities.range_electric_1_oven._free_l  {'range_oven': 8}
+           2_oracle_final_state.json entities.range_electric_1_oven._free_l: 65.0 -> '<absent>'
+     8  rooms.*.floor_hazards.*.nav_derived  
+           2_oracle_final_state.json rooms.living_room_1.floor_hazards.11.nav_derived: True -> '<absent>'
+     7  visible_entities.*.watertight  
+           0_oracle_final_obs.json visible_entities.utensil_crock_1.watertight: '<absent>' -> True
+     6  climate.sunlit_windows  
+           0_realistic_final_obs.json climate.sunlit_windows: ['obj_7c9e35b6'] -> ['obj_3c4990a8']
+     6  visible_entities.*.lever  
+           0_realistic_final_obs.json visible_entities.obj_328dc0a4.lever: '<absent>' -> 'up'
+     6  visible_entities.*.stackable  
+           0_realistic_final_obs.json visible_entities.obj_cdc4c4aa.stackable: '<absent>' -> True
+     6  visible_entities.*.status_light  
+           0_realistic_final_obs.json visible_entities.obj_d036ff2e.status_light: None -> '<absent>'
+     6  visible_entities.*.edge_margin_m  
+           0_realistic_final_obs.json visible_entities.obj_165bc38a.edge_margin_m: 0.148 -> '<absent>'
+     6  visible_entities.*.text  
+           0_realistic_final_obs.json visible_entities.obj_cdc4c4aa.text: '<absent>' -> 'Atlas of the World'
+     6  visible_entities.*.climbable  
+           1_realistic_final_obs.json visible_entities.obj_5215c77f.climbable: True -> '<absent>'
+     6  visible_entities.*.steps  
+           1_realistic_final_obs.json visible_entities.obj_5215c77f.steps: 1 -> '<absent>'
+     4  visible_entities.*.thermal_tau_s  
+           0_oracle_final_obs.json visible_entities.upper_cabinet_3.thermal_tau_s: 2691.1 -> 2691.7
+     4  entities.range_radiant_1_oven._free_l  {'range_oven': 4}
+           0_oracle_final_state.json entities.range_radiant_1_oven._free_l: 65.0 -> '<absent>'
+     4  visible_entities.*.inflated  
+           0_realistic_reset_obs.json visible_entities.obj_635eaa47.inflated: '<absent>' -> True
+     4  connections.*.door  
+           0_realistic_reset_obs.json connections.0.door: 'obj_cffe3171' -> 'obj_76c7cdb6'
+     4  pet_care.log  
+           1_oracle_final_state.json pet_care.log: '<absent>' -> []
+     4  entities.range_induction_1_oven._free_l  {'range_oven': 4}
+           1_oracle_final_state.json entities.range_induction_1_oven._free_l: 65.0 -> '<absent>'
+     4  visible_entities.*.count  
+           1_realistic_final_obs.json visible_entities.obj_428e8ecc.count: '<absent>' -> 'many'
+     4  visible_entities.*.rv_dock  
+           1_realistic_reset_obs.json visible_entities.obj_04dc03a6.rv_dock: True -> '<absent>'
+     4  room.floor_hazards.*.source  
+           2_oracle_reset_obs.json room.floor_hazards.0.source: 'power_strip_1' -> 'robot_vacuum_dock_1'
+     4  room.floor_hazards.*.kind  
+           2_oracle_reset_obs.json room.floor_hazards.0.kind: 'trip' -> 'dock_zone'
+     3  room.floor_hazards.*.cord  
+           2_oracle_reset_obs.json room.floor_hazards.0.cord: True -> '<absent>'
+     3  visible_entities.*.cord_hazard  
+           2_oracle_reset_obs.json visible_entities.power_strip_1.cord_hazard: ['walkway'] -> []
+     2  visible_entities.*.zipped  
+           0_realistic_reset_obs.json visible_entities.obj_b783b2dd.zipped: True -> '<absent>'
+     2  visible_entities.*.tagged  
+           0_realistic_reset_obs.json visible_entities.obj_381754d1.tagged: '<absent>' -> False
+     2  room.floor_hazards.*.nav_derived  
+           2_oracle_reset_obs.json room.floor_hazards.0.nav_derived: '<absent>' -> True
+     2  visible_entities.*.spinning  
+           2_realistic_reset_obs.json visible_entities.obj_1f392332.spinning: False -> '<absent>'
+     2  visible_entities.*.light_lit  
+           2_realistic_reset_obs.json visible_entities.obj_644bda41.light_lit: '<absent>' -> False
+     2  visible_entities.*.product  
+           3_realistic_final_obs.json visible_entities.obj_cd99757d.product: 'dish_soap' -> '<absent>'
+     2  visible_entities.*.label_text  
+           3_realistic_final_obs.json visible_entities.obj_cd99757d.label_text: 'Dish Soap. Add 1-2 ml per litre of warm water or a drop to a sponge. Rinse dishes.' -> '<absent>'
+     2  visible_entities.*.tip  
+           3_realistic_reset_obs.json visible_entities.obj_0ff056b0.tip: 'quad' -> '<absent>'
+     2  visible_entities.*.running  
+           3_realistic_reset_obs.json visible_entities.obj_a4883bcf.running: '<absent>' -> False
+     2  visible_entities.*.mobility_aid  
+           3_realistic_reset_obs.json visible_entities.obj_0ff056b0.mobility_aid: True -> '<absent>'

@@ -64,10 +64,12 @@ def turn_valve(ctx, eid, closing, turns=None, force="normal", direction=None):
         C.plog(w, "main_valve", target=eid, position=new)
     word = "closed" if new <= 0.001 else "fully open" if new >= 0.999 else "{:.0f}% open".format(new * 100)
     if V.realistic(ctx):
-        # the hand feels the stem reach its stop; how far open a part-turned valve is cannot be seen or felt
+        # the hand feels the stem reach its stop and counts the turns roughly (to half a turn); how far open a
+        # part-turned valve is cannot be seen or felt (the exact turns would give it away, and turns_to_close)
         word = "it reached its stop (closed)" if new <= 0.001 else "it reached its stop (fully open)" if new >= 0.999 else             "it still turns (not at a stop)"
-        return "Turned {} {} ({:.2f} turns): {}".format(eid, "clockwise" if direction == "cw" else "counter-clockwise",
-                                                        abs(pos - new) * full, word), _valve_seconds(rec, abs(pos - new) * full)
+        counted = V.turns_value(abs(pos - new) * full)
+        return "Turned {} {} ({}): {}".format(eid, "clockwise" if direction == "cw" else "counter-clockwise",
+                                              V.turns_word(counted), word), _valve_seconds(rec, counted)
     return "Turned {} {} ({:.2f} turns): {}".format(eid, "clockwise" if direction == "cw" else "counter-clockwise",
                                                     abs(pos - new) * full, word), _valve_seconds(rec, abs(pos - new) * full)
 
@@ -95,8 +97,9 @@ def _toilet_supply(ctx, eid, rec, closing, force, method):
         C.damage(w, eid, "supply stop stem snapped", stat=True, kind="stem_snapped")
         m = w.mut(eid)
         m["_supply_seized"] = False
-        m["_leak"] = {"component": "supply_stop_stem", "rate_lpm": 6.0, "when": "pressurized", "line": "cold", "fixture": eid,
-                      "to": {"room": C.room_of(w, eid), "cell": C.cell_of(w, eid)}, "started_s": C.now(w), "severity": "spray"}
+        m["_leak"] = C.robot_leak(w, {"component": "supply_stop_stem", "rate_lpm": 6.0, "when": "pressurized", "line": "cold",
+                                      "fixture": eid, "to": {"room": C.room_of(w, eid), "cell": C.cell_of(w, eid)}, "started_s": C.now(w),
+                                      "severity": "spray"})
         return "The seized stop's stem snapped and water sprays from behind the toilet", 3.0
     from ..core import apply_setting
     apply_setting(ctx, eid, "supply_valve", "closed" if closing else "open")

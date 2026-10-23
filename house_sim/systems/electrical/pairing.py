@@ -22,6 +22,7 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before
 from . import common as C
 from . import hub as hub_mod
+from . import percept
 from . import power as P
 
 # the robot's static charge is this domain's robot field (kernel v3.0 robot body field registry): hidden, since a robot
@@ -55,6 +56,7 @@ def pair_device(ctx):
     eid, dest = ctx.args["target"], ctx.args["destination"]
     rec = ctx.obj(eid, touch=True)
     hub = ctx.obj(dest)
+    percept.refuse_unfamiliar(ctx, eid, dest)
     pairing = rec.get("pairing")
     hold = C.num(ctx.args.get("hold_s"), 0.0)
     if not isinstance(pairing, dict) and ctx.realistic and rec.get("category") == "light_bulb":

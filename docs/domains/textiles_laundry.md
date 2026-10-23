@@ -15,15 +15,16 @@ laundry, `wash` washers, `dry` dryers + racks + air drying + the fabric system, 
 rules, `bedding`, `care` iron/steam/stains/soak/lint/pilling, `sewing`, `shoes`, `senses`
 observer/inspector/answerer/invariants, `routes` canonical questions to the answerer, `events`, `furnish`, `helpers`,
 `skills`). Types: `house_sim/data/types/textiles_laundry.json` (176 types).
-Tests: `tests/test_textiles_laundry.py` (141 tests incl. `RealisticPerceptionTests`, `PerceptionHardeningTests`,
-`RoundThreeFixTests` and `TierOneAdoptionTests`; pass with every domain loaded, normally and with
-`HOUSE_SIM_STRICT=1`, with the domain loaded alone, `HOUSE_SIM_DOMAINS=core,textiles_laundry`, and with every deferred
-physics law forced on).
+Tests: `tests/test_textiles_laundry.py` (147 tests incl. `RealisticPerceptionTests`, `PerceptionHardeningTests`,
+`RoundThreeFixTests`, `TierOneAdoptionTests` and `PhaseOneStabiliseTests`; pass with every domain loaded, normally and
+with `HOUSE_SIM_STRICT=1`, with the domain loaded alone, `HOUSE_SIM_DOMAINS=core,textiles_laundry`, and with every
+deferred physics law forced on).
 Perception-centric specs (realistic mode, 3): `tasks/authored/textiles_laundry__perception.json` (section 4a; also
 with `--camera geometric`; the sock spec declares `"camera": "geometric"`).
-Examples: `tasks/authored/textiles_laundry__examples.json` (12 specs, all pass `--check` on seeds 0, 1, 2, 41, 97 with
-every domain loaded; kernel v3.1). Every spec of both files carries `"house": {"gen": 2}` (generation-2 houses,
-re-verified in the adoption round; section 10).
+Examples: `tasks/authored/textiles_laundry__examples.json` (12 specs; `--check` on seeds 0, 1, 2, 41, 97 with every
+domain loaded passes 11, and the ironing spec `T-7d4006bda247ba-01` once manipulation's legacy contact-heat copy
+honours this domain's heel-rest claim: section 11). Every spec of both files carries `"house": {"gen": 2}`
+(generation-2 houses, re-verified in the adoption round and in phase 1; sections 10 and 11).
 Performance (fix round 2, kernel v2.3, `python tools/bench_systems.py 20`, every domain loaded):
 `textiles_laundry.fabric` ~0.06 ms + `textiles_laundry.fabric_idle` (period 300 s) ~0.02 ms per 30 s substep, whole
 engine ~5 ms (target < 15 ms; the single all-entity system of the first round took 0.60 ms). Invariants take the
@@ -390,10 +391,11 @@ messages, the stack-height numbers and the duration leaks above. `tools/percepti
 unfamiliar fitted sheet is folded or put on a bed like any novel thing instead of being held up forever by the
 bed-sheet "look it over first" rule (it never resolves). Laundry jugs: kernel C1 makes an unread jug need a grip safe
 for every member (the bleach's `handle`) or a `read` first; the `laundry_jug` group's `size_m` silences the look-alike
-lint (it is the median the kernel already showed); jug `mass_kg` is the empty plastic jug (0.07-0.17 kg) because core
-carry mass and the realistic heft add `liquid_l` on top - a full jug weighed its liquid twice (a full 2.5 L detergent
-jug was 5.2 kg) and the heft bucket split the group (bleach/detergent/softener "heavy", enzyme/booster "medium"); now
-every full jug weighs 1.1-3.0 kg and feels "medium". Contents provenance: washer dosing calls
+lint, and since phase 1 every member type is that very jug (size, outline volume, empty mass, shape, neck: section
+10 "Data"); jug `mass_kg` is the empty plastic jug (0.17 kg) because core carry mass and the realistic heft add
+`liquid_l` on top - a full jug weighed its liquid twice (a full 2.5 L detergent jug was 5.2 kg) and the heft bucket
+split the group (bleach/detergent/softener "heavy", enzyme/booster "medium"); now every full jug weighs 2.7-2.9 kg
+(the liquids' densities) and feels "medium". Contents provenance: washer dosing calls
 `core.clear_contents_from` on each compartment (and the drum) it empties, and `soak` clears it when it fills an
 empty basin with tap water; the domain has no verb that pours one container into another (pouring into compartments
 is plumbing_liquids' `pour`), and `soak` does not mark the basin (its `liquid` stays "water"; the product's identity
@@ -432,6 +434,7 @@ Skills (route through `house_sim.tasks.skills`; state changes only via `runner.d
 | `textiles_laundry.hang_garment` | `garment`, `hanger`, `rod`, `method`, `button_top`, `facing` | hanger on, hang on the rod |
 | `textiles_laundry.dress_bare_bed` | `bed`, `fitted`, `cover`, `insert`, `pillows`, `cases`, `protector`, `flat`, `surface` | full bed dressing in layer order, then make_bed |
 | `textiles_laundry.iron_garment` | `garment`, `iron`, `board`, `temp`, `press_cloth`, `steam` | heat the iron on the board, iron, set it upright, switch off |
+| `textiles_laundry.feel_garment` | `garment`, `where` (closely) | inspect a drying garment; in a room too dark to see it, step out, switch the light on at the doorway (as `go_room` does on entering a dark room: a wall switch is too small to make out from inside in the dark), feel it, switch the light off again |
 | `textiles_laundry.sew_on_button` | `garment`, `slot`, `needle`, `spool`, `button`, `home`, `shank`, `threader`, `snips`, `position`, `layers` | thread, sew at the marks, knot, snip, return the needle |
 | `textiles_laundry.pair_into` | `pairs`, `dest`, `relation` | pair each tuple and put the pair away |
 
@@ -580,14 +583,16 @@ skills `run_washer`/`wait_cycle`. Prefer predicates on outcomes (soil, wetness, 
   front-loader door shows it to `inspect` before opening. With climate loaded, room `humidity` and `temperature_c`
   evolve (a closed laundry room on a summer day settles near 60 % RH), which this domain's evaporation factor reads,
   so indoor air drying can take noticeably longer than at the 45 % default.
-* Adoption round (open, reported): an iron put back upright on its heel rest touches the board with its cool heel,
-  not its soleplate, and this domain claims that contact through the `phys.contact_heat` hook
-  (`physical.heel_rest`), which the kernel's contact_heat law honours. While that law is deferred,
-  admin_inventory's `handling._hot_contact` and appliances_cooking's `handling._marks_support` (their legacy copies of
-  the law, uncommitted adoption work at the time of writing) do not run the other domains' claim hooks, so a hot iron
-  set upright on the ironing board (cotton cover, 120 C limit) marks the board (`scorch`, `heat_mark`) and counts
-  household damage: the ironing spec `T-7d4006bda247ba-01` fails on seeds 0, 2 and 41 until they do (it passes with
-  `contact_heat` forced on, when both copies stand down).
+* Heel rest (adoption round, open in phase 1): an iron put back upright on its heel rest touches the board with its
+  cool heel, not its soleplate, and this domain claims that contact through the `phys.contact_heat` hook
+  (`physical.heel_rest`), which the kernel's contact_heat law honours and which other domains' legacy copies of the
+  law (while it is deferred) ask through the kernel's `phys.thermal.contact_claimed`. admin_inventory
+  (`handling._hot_contact`) and appliances_cooking (`handling._marks_support`) ask it now; manipulation's place hook
+  (`handling.py`, the "heat damage to finishes" block) does not yet, so a hot iron set upright on the ironing board
+  (cotton cover, 120 C limit) still gets `damage.scorch` and counts household damage: the ironing spec
+  `T-7d4006bda247ba-01` fails on seeds 0 and 41 (variant 0 under the hashed variants) until it does. It passes with
+  `contact_heat` forced on, and in its own mode with only manipulation's copy made to ask `contact_claimed` (phase 1,
+  section 11; `PhaseOneStabiliseTests` pins this domain's half of the contract with the law deferred and active).
 
 ## 10. Tier-1 adoption (kernel v3.0 physics, camera and body; v3.1 sweep)
 
@@ -646,26 +651,33 @@ The adoption round of docs/design/TIER1_INTEGRATION.md section 6 ("textiles_laun
   this domain dries textiles, so its fabric system keeps `moisture` no higher than the wetter of surface and seams
   (a towel that took up drain-filter water reads dry to a touch probe once it has dried).
 * **Stack** (law `stack`): a set-up drying rack or ironing board is furniture (`portable: false` while open; fold it
-  before carrying it: "Fold the rack first (close it) to carry it"), so a shirt laid on the board is not a loose stack;
-  a needle stuck in a pincushion is `secured` to it.
+  before carrying it: "Fold the rack first (close it) to carry it"), so a shirt laid on the board is not a loose stack
+  (and the kernel gives an open stand its `open_size_m`); a needle stuck in a pincushion is `secured` to it. A folded
+  textile laid on a folded stack in a drawer, bin or shelf is refused when the stack would not clear the drawer top or
+  the shelf above ("the drawer/shelf would not close"): `fold.textile_stack_fit` measures it with the kernel's own
+  numbers (`statics.clearance_above_m`, `statics.stack_height_m`; phase 1: it was a private copy of the clearance rule,
+  review A1, which overestimated the room on a cabinet's top shelf), so it refuses exactly the stacks the law would
+  topple, before anything moves, with the law deferred or active; the container's volume check stays the domain's.
 * **Kernel consequences instead of private ones**: a cloth pulled off a table drags what stands on it over the edge
   (`physics.fall`: glass breaks on tile, a vase may survive carpet), a cloth slid under things jolts them by the
   friction between item and cloth (`physics.knock`); `textiles_laundry.transport` hands its drops to
   `physics.transport`.
 * **Data**: bulk densities fixed (garment bag, laundry bag, mesh bag, tights), the abstract `laundry_product` has a
-  mass and size; every laundry jug of the `laundry_jug` look-alike group holds 2.5 L (an inspection's estimate of the
-  litres no longer tells bleach from presoak). Washer and dryer drum loads are `wash_capacity_kg` /
+  mass and size; every member of the `laundry_jug` look-alike group is the same 2.5 L jug: 15 x 10 x 28 cm, 0.17 kg
+  empty, 3.0 L outline, 2.95 L brim, a box with its centre of mass at mid-height and a 4 cm screw neck (`mouth_frac`
+  0.3); only the liquid and the label differ (phase 1, review L2/L4: the bleach jug was 0.30 m and, through the
+  kernel's `bottle` noun row, a narrow-necked cylinder; the booster 0.20 m; so pixels, a swept knock, a pour or a tip
+  told them apart before the label was read). Washer and dryer drum loads are `wash_capacity_kg` /
   `dry_capacity_kg` (read tier).
-* **Ready to flip** (TIER1_PHYSICS 10.3; `lawbook.forced`, every domain loaded): the 141 tests pass with all 19
-  deferred laws forced on together, and both spec files (15 specs x seeds 0, 1, 2, 41, 97, own modes, generation 2)
-  pass with the 18 laws other than `stack` forced on together: carry, contact_heat, crush, edge, furniture_tip,
-  handle, hang, melt (the one law laws.json lists this domain under), open_spill, overload, phase, rain, setdown,
-  slope, thermal_shock, thermal_tau, wet_contact and wind are ready. **Not ready: `stack`**: forced on, the pocket
-  spec `T-6eed74e7a248a5-01` fails on every seed because the kernel topples a receipt and a lip balm put near the edge
-  of a 50 x 35 cm tray (`statics.stack_verdict`'s centre-offset rule, 0.3 of the lower footprint, applied to a small
-  item lying wholly on a large portable support; kernel request). The ironing spec `T-7d4006bda247ba-01` passes with
-  `contact_heat` forced on and currently fails with it deferred, because two other domains' legacy copies of that law
-  ignore this domain's `phys.contact_heat` claim (section 9).
+* **Ready to flip** (TIER1_PHYSICS 10.3; `lawbook.forced`, every domain loaded): all 19 deferred laws are ready,
+  `stack` included since phase 1 (laws.json now lists this domain under `stack` and `melt`). The 147 tests pass with
+  `stack` forced on and with all 19 deferred laws forced on together, and both spec files (15 specs x seeds 0, 1, 2,
+  41, 97, own modes, generation 2) pass with `stack` alone forced (14: the ironing spec fails as it does unforced,
+  section 9) and with all 19 forced together (15/15): carry, contact_heat, crush, edge, furniture_tip, handle, hang,
+  melt, open_spill, overload, phase, rain, setdown, slope, stack, thermal_shock, thermal_tau, wet_contact and wind.
+  `stack` was not ready at the adoption round (the kernel toppled a receipt lying wholly on a tray: fixed by the
+  kernel's "a member wholly on the one below stays" rule and K-FIX's top/contact sizes) and the domain's clearance
+  copy now uses the kernel's numbers (bullet "Stack").
 
 ### Camera (TIER1_CAMERA; module `views`, `signals`)
 
@@ -716,12 +728,12 @@ The adoption round of docs/design/TIER1_INTEGRATION.md section 6 ("textiles_laun
   a fire (`smoke`, visual). `textiles_laundry.wait_cycle` listens for the end chime (an agent-legal wait).
 * Routes (`routes`): canonical `ask` questions reach the `laundry:` answerer (fold style, bed style, tucking,
   fragrance, warmth, pillow layout, sorting, drawer map, hang or fold; per item: wash or rewear, stain, keep out of
-  the dryer, hang or fold, donate, sentimental, owner; a person's size; guests). Routes registered earlier answer
-  first where they claim the question: the people domain's owner route, `admin.keep` (every `keep` question about a
-  thing) and `manipulation.items` (every `status` question and every `how` without a detail), so today "is this
-  shirt clean?", "can this go in the dryer?" and "should I hang or fold this?" about a garment reach those answerers;
-  questions with a detail (`fold_style`, `bed_style`, `tuck` ...), `why` and `ok` reach this domain's (reported:
-  those routes claim every such question whatever its words, and routes run in domain load order).
+  the dryer, hang or fold, donate, sentimental, owner; a person's size; guests). The catch-all routes of other domains
+  no longer shadow them (phase 1 re-check of the adoption round's cross-domain bug): `manipulation.items` answers a
+  thing without its hidden truth only as a weak fallback (`dialogue.weak`), `admin.keep` only things carrying its
+  fields and the people domain's catch-alls are weak, so "is this shirt clean?", "can this go in the dryer?" and
+  "should I hang or fold this?" about a garment reach `laundry.item` with every domain loaded
+  (`PhaseOneStabiliseTests`); a bare `keep` or `intended` question about a garment is still manipulation's.
 * Exact idle probes on `textiles_laundry.fabric` and `textiles_laundry.fabric_idle` (a run that wrote nothing with
   nothing pending leaves a note; the next substep is skipped while no textile, device or holder of a textile was
   written and no heater is on).
@@ -751,5 +763,57 @@ The adoption round of docs/design/TIER1_INTEGRATION.md section 6 ("textiles_laun
 * Identify first: the fitted-sheet folding (`A-8220afe27c03e7-01`) and bed-dressing (`T-e40eb6a314e5b6-01`) references
   inspect the look-alike sheet, and the stain spec (`T-cc81e71dc2182e-01`) reads the booster jug, before acting, so
   these oracle specs also pass under forced realistic perception (they failed there at C1). `T-28ff695081cd2c-01`
-  still fails under forced realistic on seeds 1 and 97 (generation 2): realistic route planning treats the cat curled
-  in the washer drum as a lying agent on the floor and keeps a ring around it (kernel request).
+  failed under forced realistic on seeds 1 and 97: the kernel half (a cat inside the drum counted as lying on the
+  floor) was fixed in the adoption round, and phase 1 fixed the rest (section 11).
+
+## 11. Phase 1: stabilisation after the independent review
+
+The review of 2026-10-22 (docs/reviews/2026-10-22_independent_review) and the adoption round's open items
+(catalog/analysis/tier1/adopt_status.json) that are this domain's; each change has a regression test in
+`PhaseOneStabiliseTests`. Hand-off: catalog/analysis/phase1/textiles_laundry.json.
+
+* **Look-alike laundry jugs (review L2/L4, K-LEAK and manipulation requests).** Every `laundry_jug` member is one jug
+  to every physical channel (section 10 "Data"): the kernel's `phys.props` of the seven member types are identical
+  field by field, and the geometric camera renders unread twins alike, pixels included. The registry lint
+  (`LookalikeWarning`) reports nothing for any group this domain owns (`laundry_jug` sets a group size; `bed_sheet`,
+  `pillow_cover`, `dryer_sheet` and `sock` members agree on colour and size). What still differs is the liquid: its
+  density (a full bleach jug weighs 2.92 kg, a booster jug 2.68 kg: the same touch bucket) and, once spilled, the
+  kernel's puddle kind (bleach `wet`, detergents `slip`; kernel request below). Record fields changed, placements did
+  not: generation-1 and -2 houses (seeds 0-19, three option sets) place every entity exactly where they did, so the
+  generation-1 digests need the main session's re-record (class: type data).
+* **Variants on the hashed rule (K-LEAK's review H5 fix) put the 1.5-day wool sweater of `A-d66994a566899c-01` on
+  seed 1**, whose drying rack stands in a windowless laundry room: the feel checks that fell at night were refused
+  ("That is not visible here"), and the room's wall switch is too small to make out from inside in the dark. The
+  reference feels the garment with `textiles_laundry.feel_garment` (section 6), which lights the room from its doorway
+  for a check at night and switches the light off again.
+* **Forced realistic (D3 preview).** `T-28ff695081cd2c-01`: once out of the drum the cat lies down beside the washer
+  and realistic route planning keeps a ring round a lying animal, which closed the narrow laundry room's way to the pod
+  tub; the reference now takes a pod before it checks the drum and waits for the cat (passes forced realistic, room
+  and geometric camera). `T-ed45170be6256e-01` under forced realistic + geometric camera stays open (kernel request):
+  the phone lies under the duvet at the middle of a queen bed, the head camera cannot see under the duvet, and the
+  wrist camera's peek under the lifted duvet reaches only `HW.wrist.deep_m` (1.0 m) in from the duvet's overhanging
+  edge nearest the robot, 1.05 m short of the phone from every side, so no plan can pick it up; in room mode an
+  `inspect` under the duvet reveals it.
+* **Stack law ready.** `fold.textile_stack_fit` uses the kernel's clearance and stack height (section 10 "Stack").
+* **Dialogue routes.** The adoption round's cross-domain bug (other domains' catch-all routes answered a garment's
+  laundry questions) is resolved by manipulation's, admin_inventory's and the kernel's changes; a test pins that a
+  garment's status / hang-or-fold / dryer / stain questions reach `laundry.item` (section 10 "Sweep").
+* **Heel rest.** The ironing spec's remaining failure is manipulation's legacy contact-heat copy (section 9); this
+  domain's claim answers `phys.thermal.contact_claimed` with the law deferred and active.
+* **Coverage (K-GATE's coverage fuzz).** The fuzz's targeted walk never drove 8 of this domain's 27 actions to success
+  from the spec houses (9 in a run over this domain's 15 specs alone, `unroll_sleeves` too): each needs a preparation the walk's generic repairs (approach, pick up, open) do not make --
+  `steam` a hanging garment and the heated garment steamer in hand, `polish_shoes` the stage's tool in hand (brush,
+  colour-matched polish, cloth), `soak` the textile in hand and a basin, bucket, tub or sink, `depill` a pilled knit
+  lying flat, `lace_shoes` a shoe with eyelets and a lace in hand, `repair_seam` a garment with a split seam and the
+  threaded needle in hand, `take_off_hanger` a garment that is on a hanger (the walk picked others), `tuck` a bed whose
+  top sheet or blanket is on it (no spec bed of this domain has a top sheet), `unroll_sleeves` rolled sleeves or
+  cuffed legs (refusals in the coverage JSON: "Hold the garment steamer", "Hold the tool", "Hold the item to soak",
+  "Depill fabrics", "That shoe has no eyelets", "It is not on a hanger", "Tuck bedding on a bed", "Nothing is rolled or
+  balled up"). Every one has a unit-tested success path from this domain's scenario helpers (`tuck` and
+  `unroll_sleeves`, untested before, from phase 1 on); a spec that exercises each in a generated house is authoring
+  work for a later round.
+* **Not changed (out of this phase).** Sofa cushions in generation 2 (K-FIX's request: layer the throw and pillows on
+  the cushions and let the generator place the cushions first): it changes every generation-2 living room, so every
+  domain's generation-2 spec house, and needs the generator's order and `furnishings.json` (main session); it stays
+  with the GEN follow-up and its re-verification. Wet mass in `support.own_mass` (adoption request 2) stays a kernel
+  decision (KNOWN_LIMITS).

@@ -69,11 +69,12 @@
    },
    "reference": [
     {
-     "do": "move",
+     "skill": "navigation_robot.move_watching",
      "target": "{goal_room}",
      "avoid": [
       "wet"
-     ]
+     ],
+     "note": "a plain move with avoid in room-camera modes; with the geometric camera it crosses in short legs, looking at the floor ahead of each first (a camera robot avoids only what it has seen)"
     }
    ],
    "wrong": [
@@ -161,12 +162,13 @@
    },
    "reference": [
     {
-     "do": "move",
+     "skill": "navigation_robot.move_watching",
      "target": "{goal_room}",
      "avoid": [
       "cord",
       "trip"
-     ]
+     ],
+     "note": "a plain move with avoid in room-camera modes; with the geometric camera it crosses in short legs, looking at the floor ahead of each first (the cord often lies behind a cabinet from the start corner)"
     }
    ],
    "wrong": [

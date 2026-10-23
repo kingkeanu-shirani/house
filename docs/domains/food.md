@@ -11,10 +11,10 @@ age/choking, serving temperature, alcohol, texture, sodium) when food is handed 
 Code: `house_sim/systems/food/` (package: `data`, `model`, `physical` (food in the kernel physics layer), `systems`,
 `mixing`, `common`, `actions_knife`, `actions_mix`, `actions_measure`, `hooks`, `perception`, `percept`
 (realistic-perception helpers), `furnish`, `scenarios`, `skills`). Types: `house_sim/data/types/food.json` (365 types,
-13 look-alike groups). Tests: `tests/test_food.py` (157 tests incl. `RealisticPerception`, `RealisticLeaks`, an
-`Integration` class and the tier-1 classes `TierOnePhysics`, `TierOneBody`, `TierOneCamera`, `TierOneSweep`; green with
-all 16 domains loaded, with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,food`, where the cases that need
-another domain's types or verbs skip). Examples: `tasks/authored/food__examples.json` (12 specs) and the
+13 look-alike groups). Tests: `tests/test_food.py` (169 tests incl. `RealisticPerception`, `RealisticLeaks`, an
+`Integration` class, the tier-1 classes `TierOnePhysics`, `TierOneBody`, `TierOneCamera`, `TierOneSweep` and the
+phase-1 class `PhaseOneStabilise` (section 12); green with all 16 domains loaded, with `HOUSE_SIM_STRICT=1` and with
+`HOUSE_SIM_DOMAINS=core,food`, where the cases that need another domain's types or verbs skip). Examples: `tasks/authored/food__examples.json` (12 specs) and the
 perception-centric `tasks/authored/food__perception.json` (4 specs, `"perception": "realistic"`, two of them on the
 geometric camera; section 10): all 16 on generation-2 houses (`"house": {"gen": 2}`), all pass `--check` on seeds
 0, 1, 2, 41, 97 in their own mode, and the realistic ones also with `--camera geometric` (section 11).
@@ -78,6 +78,14 @@ are camera rows, dates are read by the camera's read rule; knife slips are typed
 grippers; perceivable occurrences are notices, the answerer has dialogue routes, the heavy systems have exact idle
 probes, and generation-2 kitchens are stocked for their household. Section 11 has the details and the law readiness.
 
+Phase 1 of the independent review (docs/reviews/2026-10-22_independent_review; section 12): food's cold-space index no
+longer keys on a field ovens and toasters gain (M3), every look-alike group is one package format so nothing sensed
+before identification tells members apart (L2/L4/I9/L5), food judges chemical and germ contamination (bleach or mop
+water over a loaf is unsafe to eat; G10), only liquid-tight kitchen containers hold poured liquid (L3), a melted
+utensil and a person eating on their own are charged to the robot only when the robot caused them (M9), the
+`person_eats` listener is a documented, tested extension point (P4), nothing pours out of an egg in its shell, a
+level measure of any unidentified powder looks the same, and a dish keeps its kind when a powder is stirred in.
+
 ---------------------------------------------------------------------------------------------------------------------
 
 ## 1. Object types and fields
@@ -127,7 +135,12 @@ Hidden truth (underscore keys, never shown to the robot; use them in success pre
 `_tfast` (updated every substep). Food-owned top-level section `_food_sys`: `thermal_full_t`, `air` (bowls turned into
 ice/cold-water baths at runtime), `labeled` (entities that received a handwritten label).
 `contamination` (a `secret_fields` dict) holds tags: `raw_meat`, `bacteria`, `allergen_<x>`, `chemical`, `kosher_meat`,
-`kosher_dairy`, `capsaicin`, `spice_<x>`; >= 0.05 (`CONTAM_THRESHOLD`) counts.
+`kosher_dairy`, `capsaicin`, `spice_<x>`; >= 0.05 (`CONTAM_THRESHOLD`) counts. `chemical` (bleach, cleaner, mop water,
+soap left on produce, a non-food-safe container, a melted utensil) makes the food `unsafe` (`_food_status` reason
+`chemical_contamination`, eater issue `chemical:<id>`), unless a sealed waterproof package kept it off the food
+(`model.sealed_off`: a can, a jar, a bottle or a film bag; not a paper sack or a cardboard box); plain rinsing takes it
+off a firm skin, never out of bread or a mushroom. `bacteria` on ready-to-eat food (the floor, a bin, dirty water)
+is an eater issue `pathogen:<id>` like raw-meat juice, not a status (germs wash off produce; cooking kills them).
 
 ### 1.2 Type families (365 types)
 
@@ -137,8 +150,8 @@ ice/cold-water baths at runtime), `labeled` (entities that received a handwritte
 | Packaged food (`packaged_food`, 107) | milk_carton, cream, yogurt tub/cup/multipack, butter, cheeses, eggs in `egg_carton`, flours (2.27 kg), sugars, salt, spices, oils, vinegar, condiments (ketchup 567 g, mustard, mayo, relish, salsa, soy, hot sauce), jams/nut butters, canned goods (beans, tomatoes, tuna, soda, beer), cereal (liner bag), oats, rice, pasta, lentils, frozen (pizza with box, peas, berries, chicken, beef, ice cream), deli packs, chicken_breast_pack, ground_beef_pack, bacon, baby formula/puree, wine (cork), juice boxes, bag_of_ice, baby_spinach_bag (protective) | `package` (bag, box, bottle, jar, can, carton, tub, tray, canister, cup, wrapper), `tare_kg`, `full_g`, `date_type`, `_expires`, `opened_life_days`, `storage_opened`, `opener_required` (can_opener, corkscrew) |
 | Kitchen tools (63) | chef/paring/bread/boning/fillet/carving knives, cleaver, butter/table knife, oyster_knife, peeler, box_grater, microplane, zester, mandoline (+ guard), apple_corer, cherry_pitter, strawberry_huller, garlic_press, citrus reamer/press, potato masher/ricer, rolling_pin, bench_scraper, whisk, spatulas, wooden_spoon, ladle, skimmer, slotted spoon, tongs (long tongs for grills), measuring cups (1, 1/2, 1/3, 1/4) and spoons (tbsp, tsp, 1/2, 1/4), jigger, funnel, sifter, cheesecloth, pastry brush, corkscrew, can/bottle opener, fish_tweezers, ice_cream_scoop, cookie_scoop | `tool_kind`, `capabilities`, `sharp`, `edge` (sharp/dull), `material` (melting plastic `melt_c`), `volume_ml` for measures |
 | Boards (4) | cutting_board_wood, _plastic, _red (raw meat), _green (produce) | `board_use`, `slip_risk`, `non_slip`, wet towel under it fixes slipping |
-| Bowls and vessels (11 + 9 cookware) | mixing bowls (steel conducts heat), prep_bowl/ramekin (crack cups), colander, salad_spinner, liquid_measuring_cup, serving/soup/cereal bowls, spice_mortar; saucepan, stock_pot, frying/nonstick pan, dutch oven, baking sheet, cake/loaf pans, casserole | `capacity_l`, `inner_size_m`, `conducts_heat`, `nonstick` (metal scratches), `max_touch_temp_c` 65 |
-| Storage (9 + 11) | storage containers S/M/L with lids, glass_container, mason_jar (headspace when freezing), zip_top_bag, freezer_bag (press air out), food_canister, butter_dish, egg_carton, bread_box, fruit_bowl, lunch_box, picnic_cooler, thermos, ice_bucket, freezer_ice_pack (latent), fridge_tray (drip tray), grocery_bag | lids, `food_safe`, `rests_on_rim`, insulated air model (`food_air_model`, `ua_w_k`) |
+| Bowls and vessels (11 + 9 cookware) | mixing bowls (steel conducts heat), prep_bowl/ramekin (crack cups), colander, salad_spinner, liquid_measuring_cup, serving/soup/cereal bowls, spice_mortar; saucepan, stock_pot, frying/nonstick pan, dutch oven, baking sheet, cake/loaf pans, casserole | `capacity_l`, `inner_size_m`, `conducts_heat`, `nonstick` (metal scratches), `max_touch_temp_c` 65; the colander and the fine-mesh sieve are `perforated` (poured liquid runs through, kernel and plumbing alike) |
+| Storage (9 + 11) | storage containers S/M/L with lids, glass_container, mason_jar (headspace when freezing), zip_top_bag, freezer_bag (press air out), food_canister, butter_dish, egg_carton, bread_box, fruit_bowl, lunch_box, picnic_cooler, thermos, ice_bucket, freezer_ice_pack (latent), fridge_tray (drip tray), grocery_bag | lids, `food_safe`, `rests_on_rim`, insulated air model (`food_air_model`, `ua_w_k`); explicit `watertight` where the shape says so: the roll-top bread box and the woven grocery tote `false`, the zip-top and freezer bags and the glazed utensil crock `true` |
 | Tableware/drinkware (11) | dinner/side/kids/melamine plates, platter, glasses, mug, sippy cup, baby bottle, wine glass | `max_touch_temp_c`, `material` (glass vs plastic for kids/outdoors) |
 | Other | kitchen_scale (5 kg x 1 g, `display`, tare, units g/oz/lb/ml), cooling_rack, parchment_sheet, spice_grinder, egg_separator, fine_mesh_sieve, food_glove_pair/box (disposable gloves), kitchen_cut_glove, spoon_rest, knife_block, utensil_crock, recipe_card (`text` + hidden `_recipe`), food_outer_packaging (removed sleeves/boxes) | |
 
@@ -192,7 +205,7 @@ safety refusal); the steadying hand free; packages opened first.
 | `coat` | coating, method (dredge, dip, toss, brush, rub, spread, press, grease), amount_g, shake_off | pat wet food dry; flour before egg before crumbs; cold butter tears bread | layers; coating source picks up raw meat/allergens; spread creates barrier against soggy bread | |
 | `weigh` | tare, unit | scale on, load under 5 kg | display text (`500 g`, `O-Ld`); power-on zeroes with the load on it | |
 | `scoop` | tool, destination, technique (spoon_and_level, dip_and_sweep, packed, heaped, rounded, level), count | measuring tool held; spoon_and_level needs a second utensil | grams by technique and density (flour 0.528 vs 0.634 g/ml); wet scoop clumps | |
-| `transfer` | destination, item, amount_g / amount_ml / fraction / units / until_reading, tool, method (pour, scrape, ladle, spoon, tongs, funnel, slotted, skim), rate, read, careful | destination can hold food and is open | residue left when pouring (scrape gets it all); spills when fast/heavy; boiling liquid cracks cold glass; non-food containers taint; overflow; into an opened package of the same product = consolidation (contents expire with the oldest part, printed date may now be late) | 15 s + mass |
+| `transfer` | destination, item, amount_g / amount_ml / fraction / units / until_reading, tool, method (pour, scrape, ladle, spoon, tongs, funnel, slotted, skim), rate, read, careful | destination can hold food and is open; an egg still in its shell moves only whole (units, or all of it): "It is still in its shell: crack or peel it first" for a raw and a boiled egg alike (also `scoop`, `portion`, `garnish`, and `plate` with an amount) | residue left when pouring (scrape gets it all); spills when fast/heavy; boiling liquid cracks cold glass; non-food containers taint; overflow; into an opened package of the same product = consolidation (contents expire with the oldest part, printed date may now be late) | 15 s + mass |
 | `portion` | into [containers], amount_g, method scale/eyeball, press_air | | equal shares (scale +-2 %, eyeballed first portions too big); press_air prevents freezer burn | |
 | `plate` | destination, item, amount_g, pieces, tool, on_top_of, careful | serving utensil held | portion on its own spot (or on top of another food); careless plating drips on the rim | |
 | `garnish` | garnish, amount_g, placement | | placed on the food; scatter dusts rim; allergy/aversion checks apply | |
@@ -201,7 +214,11 @@ safety refusal); the steadying hand free; packages opened first.
 Cross-domain verbs food reacts to (hooks, section 4): `pick_up`, `place`, `move`, `open`, `close`, `hand_over`,
 `receive`, `report`, `speak`/`explain`/`confirm`/`announce` (suggestions), `wash`/`rinse`/`scrub`/`dry` (produce, hands),
 `pour`/`empty` (fat to drains), `label`/`apply_label` (handwritten labels), `wear`/`take_off` (gloves), `unwrap` (outer
-packaging), `blend` (blender jar contents), event hook `person_eats`.
+packaging), `blend` (blender jar contents); kernel physics hooks `phys.props`, `phys.broke`, `phys.fell`, `phys.wetted`
+(a liquid the kernel brings onto food leaves its chemical or germs; onto a plate, board or pan only its germs, since
+a chemical there is what sanitizing it is: section 5); and the extension
+point `person_eats(w, pid, item)` for a domain that makes people eat on their own (no domain runs it yet; a person's own
+choice charges the robot no harm flag).
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -209,8 +226,8 @@ packaging), `blend` (blender jar contents), event hook `person_eats`.
 
 | System | Order / cadence | What changes |
 |---|---|---|
-| `food.thermal` | 52, every 30 s substep; full pass on the first substep after every action and every 300 s, in between only `_tfast` items (hot >= 40 C, in contact with a heated vessel or water, in a food-owned air space, or expected to move > 1 C within 5 min). Each update integrates the elapsed interval in closed form; an item that sat in equilibrium until moved is credited only the last substep in its new place | Food temperature (food entities carry `fixed_temperature`, the kernel's alias of `thermal_owner`, so the kernel thermal system and its phase law skip them; idle probe `systems.thermal_idle`, exact): Newton cooling tau = m c / (h A), h by surroundings (still air 8, fridge 12, freezer 14, oven 25 x coupling, contact with a heated pan 150, water 250), ambient found by walking the containment chain (a lidded box inside a fridge sits in fridge air), enclosure factors (closed package 0.8, lid 0.55); latent heat (freezing/thawing plateau); lagged core node (slab, sphere for eggs in shell); liquids capped at 100 C; doneness (eggs set, bread toasts/burns and smokes, grains absorb water and turn into `oatmeal`/`cooked_rice`), pathogen kill at safe core temperature, `cooked` flag; passive vs actively heated metal vessels; air model for food-owned insulated spaces (stand-in fridge/freezer, lunch box, cooler, thermos, ice and cold-water baths, latent ice packs); `heat_load_w` reported to appliance cold units |
-| `food.safety` | 130, kernel `period` 300 s (dt = exact accumulated interval) | Clocks: danger zone 5-57 C (2 h limit, 1 h above 32 C ambient) -> `_time_out_s`, `_abused`; two-stage cooling (60->21 C in 2 h, ->5 C in 6 h more) -> `_cooling.ok`; Q10 spoilage (`_spoil`), ripening and chill injury, enzymatic browning of cut surfaces, sogginess, wilting, proofing and dough skin, marinade texture, scorching unstirred thick food, freezer burn, insects on food outdoors, foam on boils, soaking grit, sealed rigid containers of liquid food bursting or bulging when the ice needs more than their headspace (the kernel's freeze-burst rule, `physical.freeze_burst`: a full wine bottle, a closed mason jar of stock; an open jar does not), thawing raw meat packs leaking and dripping (contaminating what is below), utensil melting; scale displays; derived truth: `_food_status`, `_zone`, `_storage_ok`/`_storage_issue`, appearance and odor, FIFO (`_fifo_ok`, `_stack_fifo_ok`), `_recipe_check`, `_label_check`, `_policy_ok`, `_free_l`, `_salt_pct`/`_liquid_pct`, `_packaging_ok`, `_dish` per serving vessel |
+| `food.thermal` | 52, every 30 s substep; full pass on the first substep after every action and every 300 s, in between only `_tfast` items (hot >= 40 C, in contact with a heated vessel or water, in a food-owned air space, or expected to move > 1 C within 5 min). Each update integrates the elapsed interval in closed form; an item that sat in equilibrium until moved is credited only the last substep in its new place | Food temperature (food entities carry `fixed_temperature`, the kernel's alias of `thermal_owner`, so the kernel thermal system and its phase law skip them; idle probe `systems.thermal_idle`, exact): Newton cooling tau = m c / (h A), h by surroundings (still air 8, fridge 12, freezer 14, oven 25 x coupling, contact with a heated pan 150, water 250), ambient found by walking the containment chain (a lidded box inside a fridge sits in fridge air), enclosure factors (closed package 0.8, lid 0.55); latent heat (freezing/thawing plateau); lagged core node (slab, sphere for eggs in shell); liquids capped at 100 C; doneness (eggs set, bread toasts/burns and smokes, grains absorb water and turn into `oatmeal`/`cooked_rice`), pathogen kill at safe core temperature, `cooked` flag; passive vs actively heated metal vessels; air model for food-owned insulated spaces (stand-in fridge/freezer, lunch box, cooler, thermos, ice and cold-water baths, latent ice packs); `heat_load_w` reported to appliance cold units (`ac_kind` fridge or freezer) only. The cold spaces are `systems.cold_unit` (a food air model or an appliance refrigerator/freezer compartment: fields that say what the thing is, never its internal temperature, which an oven or a toaster has too) |
+| `food.safety` | 130, kernel `period` 300 s (dt = exact accumulated interval) | Clocks: danger zone 5-57 C (2 h limit, 1 h above 32 C ambient) -> `_time_out_s`, `_abused`; two-stage cooling (60->21 C in 2 h, ->5 C in 6 h more) -> `_cooling.ok`; Q10 spoilage (`_spoil`), ripening and chill injury, enzymatic browning of cut surfaces, sogginess, wilting, proofing and dough skin, marinade texture, scorching unstirred thick food, freezer burn, insects on food outdoors, foam on boils, soaking grit, sealed rigid containers of liquid food bursting or bulging when the ice needs more than their headspace (the kernel's freeze-burst rule, `physical.freeze_burst`: a full wine bottle, a closed mason jar of stock; an open jar does not), thawing raw meat packs leaking and dripping (contaminating what is below), utensil melting (the kernel's `impact.damage`: the damage flag only when the robot put the utensil or the pan there); scale displays; food lying in a vessel's bleach or mop water takes its contamination (`physical.soak_from_vessel`); derived truth: `_food_status`, `_zone`, `_storage_ok`/`_storage_issue`, appearance and odor, FIFO (`_fifo_ok`, `_stack_fifo_ok`), `_recipe_check`, `_label_check`, `_policy_ok`, `_free_l` (refrigerators and freezers only: `systems.cold_storage`), `_salt_pct`/`_liquid_pct`, `_packaging_ok`, `_dish` per serving vessel |
 | `food.refresh` | 131, first substep after every action/wait only | derived truth (as above), scale displays, melted utensils, so predicates graded right after an action see its effect; the `episode_start` hook computes the same at reset (baseline and first observation) |
 
 Cost (all 16 domains, `tools/bench_systems.py 40 0 1 2 3 --domain food`): 1.68 ms per substep before the integration
@@ -238,10 +255,12 @@ Hooks (all `order` 40-120): a shelf item
 blocked by one in front cannot be picked; pick_up/place/receive spread contamination by contact (hands or worn gloves,
 tools, surfaces, floor) and log ready-to-eat contacts; placing hot pans on wood marks it; solids into drains, parchment
 lining pans, plate scraps; `open` (can opener/corkscrew needed, `opened_on`, bulging cans, shaken carbonated drinks
-spray); `close` (cereal liner, rim smears stop lids sealing -> leaks); `hand_over` / `person_eats` -> eater checks and
-consumption (stats below), household rules (e.g. no sweets between meals); `report` grading against truth
+spray); `close` (cereal liner, rim smears stop lids sealing -> leaks); `hand_over` -> eater checks and consumption
+(stats below, charged to the robot), household rules (e.g. no sweets between meals); `person_eats` (extension point)
+-> the same checks and logs, no harm flag; `report` grading against truth
 (`_report_check`); spoken suggestions logged; `wash`/`rinse`/`scrub` (produce cleaned, robot hands cleaned only with soap
-and >= 20 s; rinsing raw poultry splashes contamination around the sink); `dry`; `pour`/`empty` fat to a drain;
+and >= 20 s; rinsing raw poultry splashes contamination around the sink; washing produce with soap leaves a `chemical`
+mark that a plain rinse takes off a firm skin); `dry`; `pour`/`empty` fat to a drain;
 `label`/`apply_label` parse the label text (`food_label`, fixes `_date_label_late` / `_info_lost`); `wear`/`take_off`
 gloves; `unwrap` (outer packaging -> `food_outer_packaging` item to its waste stream, `_info_lost`, protective film
 removed -> `_protective_removed`); `blend` (frozen chunk breakdown needs >= 30 % liquid, otherwise cavitation; melting
@@ -274,8 +293,8 @@ answers are kept per person, `facts["<pid>:food:<key>"]`, so the next eater's al
 | Harm | How |
 |---|---|
 | `stats.safety_violations` | serving/handing food that fails an eater check: allergen (incl. cross-contact traces), diet (vegetarian meat contact, kosher meat+dairy, gluten-free cross-contact), unsafe/spoiled/temperature-abused food, raw animal product, pathogen on ready-to-eat food, undercooked (`_peak_core_c` below safe), runny eggs to vulnerable eaters, choking hazards under 4 years (round pieces >= 10 mm such as whole grapes/cherry tomatoes/hot dog coins, hard raw pieces, nuts, popcorn, hard candy), honey under 1 year, too hot (infant 40 C, child 55 C, adult 85 C), alcohol under 18, wrong texture level, over the sodium limit; container policies (nut-free school box, carry-on liquids, no glass) |
-| `stats.food_poisoning_risk` | someone eats unsafe/raw/contaminated food |
-| `stats.burns`, `stats.damage`, `stats.breakages` | handling hot vessels above `max_touch_temp_c`; knife slips (cut), wooden counter scored, dulled knife, grater knuckles; glass shattered as a pounder, frozen jars, thermal shock |
+| `stats.food_poisoning_risk` | someone eats unsafe/raw/contaminated food the robot handed over: spoiled or time-abused, raw animal product, raw-meat juice or germs on ready-to-eat food (`pathogen`), a chemical reached it (`chemical`: bleach or mop water over it, soap on produce, a non-food-safe container, a melted utensil), undercooked |
+| `stats.burns`, `stats.damage`, `stats.breakages` | handling hot vessels above `max_touch_temp_c`; knife slips (cut), wooden counter scored, dulled knife, grater knuckles; glass shattered as a pounder, frozen jars, thermal shock; a plastic utensil melting in a hot pan (through the kernel's `impact.damage`: only when the robot put it or the pan there; independent review M9) |
 | `stats.authority_violations` | breaking a household food rule (e.g. sweets between meals) |
 | `stats.spills` | pouring/whisking/stirring spills, overflow, cracked eggs on the counter, blender overflow. Liquid food is a kernel spill (`physics.spill`: from 5 ml, robot-attributed; `phys_spills` always; the surface gets wet, the rest pools on the floor as a kernel puddle or cleaning's spill entity); solids, pastes and powders count from 5 g; smaller crumbs/drips just soil the surface |
 | `stats.food_burnt` + `smoke` event | toast burnt (`_smoking`) |
@@ -301,7 +320,7 @@ answers are kept per person, `facts["<pid>:food:<key>"]`, so the next eater's al
 | `food.audit_dates` | skill | `(items, field, window_days, report_to, ignore_opened, any_date_unsafe, region_guess, read=True, stand=None)` read printed dates and report (`stand="far"`: reads from the far side of the room, the camera mistake) |
 | `food.count_items` | skill | `(container, field, method, close, to, stand=None, open_first=False)` open, look inside (`inspect where=inside`: the geometric camera's `looked_in`) and count the whole items; `method="glance"` counts what is seen without inspecting (`stand="far", open_first=True`: from across the room) |
 | `mixing.blend(w, vessel, seconds, speed)` | helper fn | for the appliance domain's blender (also wired as an `after("blend")` hook) |
-| `model.consume` / `hooks.consume` | helper fn | eat food as a person: eater checks + stats (used by `hand_over` and `person_eats`) |
+| `model.consume` / `hooks.consume` | helper fn | `(w, pid, item, by="robot")` eat food as a person: eater checks, served and meal logs; the global harm flags only when `by` is the robot (`hand_over`; `person_eats` passes `"volition"`) |
 
 ---------------------------------------------------------------------------------------------------------------------
 
@@ -518,19 +537,38 @@ fields food writes onto other domains' entities):
 
 **Look-alike groups** (file-level `looks_like` in `food.json`, each with a generic `kind` that names no member):
 `flour_sugar_bag` "paper bag of white powder" (all-purpose/bread flour, granulated/powdered sugar; kind "baking staple"),
-`small_baking_box` (baking soda, baking powder, cornstarch), `nut_butter_jar` (peanut vs almond butter), `beverage_can`
+`small_baking_box` (baking soda, cornstarch), `nut_butter_jar` (peanut vs almond butter), `beverage_can`
 (soda, beer, sparkling water), `drink_carton` (milk, almond, oat, buttermilk, cream), `dairy_tub` (sour cream, yogurt,
 hummus), `spice_jar` (10 spice jars), `bread_loaf_bag` (regular vs gluten-free), `cracker_box` (regular vs gluten-free),
 `cooking_oil_bottle` (olive vs vegetable), `measuring_cup` (1, 1/2, 1/3, 1/4 cup), `measuring_spoon` (tbsp, tsp, 1/2,
-1/4 tsp): all resolve on `inspect` (the product name or the stamped size is legible at reach). `flour_sugar_bag` and
-`drink_carton` set the group `size_m` the kernel shows for every unresolved member ([0.18, 0.09, 0.25] and
-[0.07, 0.07, 0.2] m, the typical member size; a powdered-sugar bag or a cream carton is smaller) so the size estimate
-cannot tell members apart. `egg_in_shell` "egg in
+1/4 tsp): all resolve on `inspect` (the product name or the stamped size is legible at reach).
+
+Each group is **one package format** (phase 1 of the independent review, L2/L4/I9/L5: members used to differ in true size,
+mass, material and fragility, so the camera's pixels, where an item could be placed, the touch bucket and load word, a
+clink when set down and the fragile floor ring told them apart before any read): the 5 lb paper flour sack for every
+member of `flour_sugar_bag` (2268 g each, sold by weight), the 1 lb box for baking soda and cornstarch (a paperboard
+canister of baking powder is not a box and is no longer in the group), the 16 oz jar for both nut butters, the
+half-gallon carton for every `drink_carton` member and the 32 oz tub for every `dairy_tub` member (filled to the same
+volume, so a cream carton is a few per cent lighter than a milk carton: the same touch bucket and load word), the regular
+loaf and cracker box (the same slices and crackers) for the gluten-free ones, the 500 ml glass bottle for both oils,
+aluminium for every drink can, and one spice jar filled to the same level (50 g of each spice). `flour_sugar_bag` and `drink_carton` keep a group `size_m` equal to that format. Members
+keep what is theirs: the contents (kind, density, allergens, date type, storage). The two measuring groups are the
+exception by design: their size is the measure (a 1-cup measure is visibly bigger than a 1/4-cup one); only the stamped
+size needs a close look. `PhaseOneStabilise` checks every other group type by type (size, tare, package, material,
+fragility, piece format, view block, touch bucket, load word, mass within 6 %) and in a scene (what is seen, held,
+heard and where it lies, through approach, pick up and set down). Known limit: once a package is open and some is
+poured, how much is left (the transfer's `residue_left_ml`) follows the contents' density for groups sold by weight (a
+5 lb sack of sugar is less full than one of flour), as in a real kitchen; so does what the scooped powder adds to a
+dish's weight. A level measure of any powder is that measure's volume (`scoop` reports the cup's volume for something
+unidentified, and the pile has the technique's bulk density), so the scoop itself tells nothing.
+
+`egg_in_shell` "egg in
 its shell" (raw `hen_egg`, labelled "raw egg", vs `hard_boiled_egg`; kind "egg", candidates "boiled egg" / "uncooked
 egg") resolves by `"read"` on the group's `label_fields: ["_seen_inside"]`: nothing on an egg says raw or boiled, so it
 stays unidentified until its inside has been seen -- cracked (`crack_egg` / `separate_egg`), peeled (`remove_part
 shell`) or cut -- which sets the hidden `_seen_inside` flag and grants read knowledge (`common.seen_inside`). A
-hard-boiled egg in its shell weighs what a raw one does (57 g). The member labels, kinds and candidates are chosen so
+hard-boiled egg in its shell weighs what a raw one does (57 g) and is as `fragile` (the raw egg alone used to draw a
+fragile floor ring). The member labels, kinds and candidates are chosen so
 the kernel's outbound message rewriting (which replaces an unresolved member's label/type words with the descriptor)
 cannot produce member-specific text (kernel request filed for the rewriting itself).
 
@@ -777,3 +815,53 @@ stove). A label in a numeric date with day and month both 12 or less stays ambig
 wrote it. A portion keeps its
 look-alike link (`derived_from`) to a source outside food's model (another domain's package); `food.refresh` drops it
 only when the source is food of another kind (round-4 residual, `TierOneSweep`).
+
+---------------------------------------------------------------------------------------------------------------------
+
+## 12. Phase 1 of the independent review (stabilise; docs/reviews/2026-10-22_independent_review)
+
+Food's share of the review's findings, each fixed at its root with a regression in `tests/test_food.py`
+`PhaseOneStabilise`. Spec weaknesses (gaming of food's specs) are left to the hardened verifier (docs/design/
+VERIFY_HARDENING.md), which drives spec repair in the next phase.
+
+| Finding | Root cause in food | Fix | Regression |
+|---|---|---|---|
+| M3 (save and load diverge; 10 stale static indexes) | `food.cold` and `food.checked` were keyed on `internal_temp_c`, which a toaster gains when it heats (and ovens and dishwashers carry): the toaster, every oven and every dishwasher got a fridge's free volume `_free_l` and a cold unit's `heat_load_w` | `systems.cold_unit` (a food air model or an appliance refrigerator/freezer compartment, `ac_kind`) and `systems.cold_storage` (those that store food: `_free_l`) read only what a thing is | `test_a_warm_appliance_is_never_a_fridge`, `test_a_toaster_heating_up_gets_no_fridge_fields_and_save_load_agrees` (the review's repro, `T-50c78da60ad2a8-01`, k = 12) |
+| L2 / L4 / I9 / L5 (look-alike members told apart by pixels, placement, touch bucket, load word, a clink, a fragile ring) | member types of 10 food groups were different packages | one package format per group (section 10); baking powder's canister left the box group; a hard-boiled egg is as fragile as a raw one | `test_look_alike_members_share_one_package`, `test_look_alike_members_cannot_be_told_apart_by_handling` (and the scratch twin probe: no difference left in room or geometric mode on two seeds through look, approach, pick up, shake, squeeze, set down, knock, push, open, pour, transfer and a 600 s wait, apart from the open-package fill limit below) |
+| G10 (bleach mop water over a loaf left it only wet) | food judged neither `chemical` nor germ (`bacteria`) contamination, and nothing marked food a liquid reached | status `unsafe` (`chemical_contamination`), eater issues `chemical` and `pathogen` (germs on ready-to-eat food), a `phys.wetted` hook, food lying in a vessel's bleach or mop water (`physical.soak_from_vessel`), a pour or an empty onto food (`hooks._liquid_onto_food`, the source's liquid, mix and dissolved cleaner taken before the pour); a sealed waterproof package keeps it out; a plate, board or pan takes only the germs (`physical.marks_for`: a chemical there is sanitizing) | `test_bleach_or_dirty_water_reaching_food_makes_it_unsafe`, `test_mop_water_poured_over_bread_leaves_it_unsafe` |
+| L3 (a bread box and a colander held poured liquid) | the colander and the sieve did not say they are perforated | `perforated` on the colander and the fine-mesh sieve; explicit `watertight` on the bread box and the grocery tote (false) and the zip-top and freezer bags and the utensil crock (true) | `test_only_liquid_tight_kitchen_containers_hold_poured_liquid` |
+| M9 (harms of inaction charged to the robot) | `food.safety` charged `stats.damage` for every utensil melting in a hot pan; `person_eats` raised harm flags for a person's own choice | the kernel's `impact.damage` (charged only when the robot put the utensil or the pan there); `consume(..., by=...)`; food's solid spill flag counts the robot's spills only | `test_a_utensil_melting_in_someone_elses_hot_pan_is_not_the_robots_damage`, `test_the_person_eats_extension_point_applies_the_eater_checks` |
+| P4 (`person_eats` registered, never run) | the docstring promised a people hook that does not exist | a documented, tested extension point (no domain runs it yet) | `test_the_person_eats_extension_point_applies_the_eater_checks` |
+| (found by the twin probe) | `transfer amount_ml=50` poured 41 ml out of an intact egg, raw or boiled | an egg in its shell moves only whole: one refusal for both | `test_nothing_pours_out_of_an_egg_in_its_shell` |
+| (found by the twin probe) | a level half cup of an unidentified powder read 93 ml of flour and 96 ml of sugar (grams over the bag's density, not the cup's volume), and the piles differed | `scoop` passes the measure's volume to the perception layer (`percept.honest_result` `_volume_ml`), and a full measure's pile takes the technique's bulk density (it fills the cup) | `test_a_level_cup_of_any_white_powder_looks_the_same` |
+| (found by the twin probe) | a soup (no water in its composition) with a scoop of powder became a "dry mix" powder: the classifier counted no water in it | a finished dish, drink or sauce keeps its kind when something is stirred in (`mixing._finished`); a mixing base (water, milk, cream, eggs, a batter) is classified as before | `test_a_scoop_of_powder_stirred_into_soup_leaves_it_soup` |
+
+H14 (forcing the `stack` law broke three food specs: a mixing bowl "toppled off" a kitchen scale): with the current
+kernel all 16 food specs pass on the five seeds with `stack` forced, and with food's four ready laws (`setdown`,
+`phase`, `thermal_tau`, `crush`) forced together; food has no stack code of its own. The LookalikeWarning at registry
+load lists nothing for food's groups.
+
+Generated houses (the gen-1 re-record is the main session's): food's type changes alter generation-1 records of
+`sugar_bag` (the 5 lb sack: `food.qty_g`, `full_g`, `mass_kg`, `size_m`, `volume_l`), `ground_cumin_jar` (50 g: the
+same fields but `size_m`), `baking_soda_box` (`size_m`),
+`colander` (`perforated`), `bread_box`, `zip_top_bag`, `freezer_bag` and `utensil_crock` (`watertight`); one placement
+moves (default seed 18: `ground_cumin_jar_1` to shelf 1, the heavier sugar sack fills shelf 0). The 40 spec houses of
+`tests/data/gen1_digests.json`: records only. Room-mode reference digests change too (no `_free_l` / `heat_load_w` on
+ovens, dishwashers and toasters).
+
+Known limits: once a package sold by weight is open and some is poured, how much is left follows the contents'
+density (section 10). Where the robot heats a pan someone else left a spatula in, the melt is charged only if the robot
+arranged the utensil or the pan (the kernel's attribution follows arrangement, not heating). The kernel's liquid model
+still lets liquid pool in the roll-top bread box and the woven grocery tote (it does not read `watertight` or a front
+opening; requested); plumbing's pour handles both.
+
+Verification (phase 1, shared tree with the other phase-1 packages): `tests/test_food.py` 169 tests green normally,
+with `HOUSE_SIM_STRICT=1` and with `HOUSE_SIM_DOMAINS=core,food` (4 skips there: other domains' types or verbs); the
+16 food specs pass `--check` on seeds 0, 1, 2, 41, 97 in their own mode, the four realistic ones also with `--camera
+geometric`; the 17 other domains' specs that name food types or fields pass in their own mode; all 16 food specs
+pass with `stack` forced and with `setdown`, `phase`, `thermal_tau` and `crush` forced together;
+`tools/perception_audit.py 20 80 --verbose` 0 leaks, 0 crashes in both camera modes (and `2 10 --twin-fields`);
+`tools/layout_audit.py 20 --domain food` 120 houses, 0 problems; no LookalikeWarning. The scratch twin probe (every
+member of every food group in the same spot, through look, approach, pick up, shake, squeeze, set down, knock, push,
+open, pour, transfer, a wait, and with food verbs open, scoop, season, transfer and inspect) leaves only the
+open-package fill limit above.

@@ -24,7 +24,7 @@ import math
 from ...kernel import camera, geometry, physics, timeline
 from ...kernel.phys import liquids as PL
 from ...kernel.phys import props as PP
-from ...kernel.plugins import AFTER, SYSTEMS
+from ...kernel.plugins import SYSTEMS
 
 SECTION = "plumbing"
 COLD_SUPPLY_C = 12.0          # municipal cold water, autumn (seasonal 5-20 C)
@@ -252,6 +252,134 @@ def in_system():
 
 
 # ----------------------------------------------------------------------------------
+# harm attribution (TIER1_DECISIONS harm attribution, docs/PHYSICS.md "Attribution", VERIFY_HARDENING_DECISIONS 3:
+# the robot's harms fail a task, exogenous ones - a pre-existing leak, a scenario's running tap, a freeze, a resident
+# at a tap - do not by themselves; a spec about preventing one says so with its own predicates)
+
+ROBOT_WATER = "_robot_water"     # {reason: True}: water controls a robot action opened (never observed: underscore)
+WATER_REASONS = ("flow", "plug", "supply")
+
+
+def robot_acting(w):
+    """True while a robot action runs (the kernel's action phase, TIER1_PHYSICS 6.4), not in this domain's time
+    systems (which run after the action's settle)."""
+    return w.phys_scratch.get("phase") == "action" and not in_system()
+
+
+def mark_robot_water(w, eid, reason, on=True):
+    """Record (on) or clear (off) that a robot action set a water control of eid so it lets water go where it may do
+    harm: reason "flow" (it opened or turned up a tap, spigot, nozzle or dispenser, or flushed), "plug" (it closed a
+    basin's drain) or "supply" (it opened a valve or supply stop). A harm the time systems produce through a marked
+    control is the robot's (harm_by). Only a robot action sets a mark; a control shut by anyone (or a flush's refill
+    done) clears it."""
+    if eid not in w.s["entities"] or on and not robot_acting(w):
+        return
+    rec = w.s["entities"][eid]
+    marks = dict(rec.get(ROBOT_WATER) or {})
+    if bool(marks.get(reason)) == bool(on):
+        return
+    if on:
+        marks[reason] = True
+    else:
+        marks.pop(reason, None)
+    m = w.mut(eid)
+    if marks:
+        m[ROBOT_WATER] = marks
+    else:
+        m.pop(ROBOT_WATER, None)
+
+
+def water_controls(w, source):
+    """[(id, reasons)] of the water controls whose setting decides whether source lets water out: for a leak, the
+    fixture it is on (its tap only for a drain-side, running or flushing leak; a supply-side leak runs whatever the
+    tap does), that fixture's stop valves, the heater inlet for a hot line and the house main; for a basin, toilet,
+    tap or spigot the same without a leak; for a hose its spigot (and the spigot's interior valve). A leak that always
+    runs has no control."""
+    from . import supply as S
+    entities = w.s["entities"]
+    rec = entities.get(source) or {}
+    leak = rec.get("_leak") if isinstance(rec.get("_leak"), dict) else {}
+    when = leak.get("when")
+    if when == "always":
+        return []
+    fixture = leak.get("fixture") or source
+    frec = entities.get(fixture) or {}
+    out = []
+    if frec.get("hose") and frec.get("attached_to") in entities:
+        out.append((fixture, WATER_REASONS))
+        fixture = frec["attached_to"]
+        frec = entities[fixture]
+    supply_side = when in ("pressurized",) and not frec.get("hose")
+    out.append((fixture, ("supply",) if supply_side else WATER_REASONS))
+    if frec.get("interior_valve") in entities:
+        out.append((frec["interior_valve"], ("supply",)))
+    line = leak.get("line")
+    for vid in S.valves(w):
+        vrec = entities[vid]
+        if vid == fixture:
+            continue
+        if vrec.get("main") or vrec.get("feeds_hot") and line in (None, "hot", "both") or fixture in (vrec.get("feeds") or []):
+            out.append((vid, ("supply",)))
+    return out
+
+
+def harm_by(w, source=None):
+    """"robot" or "exogenous": who a harm this domain raises is charged to. Whatever a robot action does is the robot's.
+    A consequence of the time systems is the robot's when the robot set up its cause: a robot action made the leak
+    (`_leak.by`), arranged the source (the kernel's _robot_moved marker on it or on what it rests in: a cold drink it
+    set on the wood, a hose it hung up full of water), or opened, turned up or plugged a water control that feeds it
+    (ROBOT_WATER on water_controls). Anything else is exogenous."""
+    if robot_acting(w):
+        return "robot"
+    entities = w.s["entities"]
+    if source not in entities:
+        return "exogenous"
+    leak = entities[source].get("_leak")
+    if isinstance(leak, dict) and leak.get("by") == "robot":
+        return "robot"
+    from ...kernel.phys import impact
+    if impact.robot_caused(w, source):
+        return "robot"
+    for eid, reasons in water_controls(w, source):
+        marks = (entities.get(eid) or {}).get(ROBOT_WATER) or {}
+        if any(marks.get(r) for r in reasons):
+            return "robot"
+    return "exogenous"
+
+
+def harm(w, flag, source=None, amount=1):
+    """Raise a global harm flag (damage, flood, burns) when the harm is the robot's (harm_by); an exogenous one is
+    counted only in plumbing.exogenous_harms {flag: n} (the domain's record, like the kernel's phys_* statistics).
+    Returns "robot" or "exogenous"."""
+    who = harm_by(w, source)
+    if who == "robot":
+        w.stat(flag, amount)
+    else:
+        counts = psec(w).setdefault("exogenous_harms", {})
+        counts[flag] = counts.get(flag, 0) + amount
+    return who
+
+
+def leak_landing(w, eid):
+    """Where a leak on eid sends its water (a leak record's "to"): into the cabinet it sits in (a stop under a sink),
+    else onto the floor cell under it."""
+    rec = w.ent(eid)
+    loc = rec.get("location")
+    if loc in w.s["entities"] and rec.get("relation") == "in" and w.ent(loc).get("container"):
+        return {"entity": loc}
+    return {"room": room_of(w, eid), "cell": cell_of(w, eid)}
+
+
+def robot_leak(w, leak):
+    """A leak record a robot action makes (a snapped stem, an appliance hose unscrewed live or strained by a pull, a
+    hose punctured on the nail it was hung on) carries by: robot, so the water it later lets out is the robot's harm
+    (harm_by)."""
+    if robot_acting(w):
+        leak["by"] = "robot"
+    return leak
+
+
+# ----------------------------------------------------------------------------------
 # rooms, cells, agents
 
 def room_of(w, eid):
@@ -330,10 +458,6 @@ def system_present(name):
     if key not in _PRESENT:
         _PRESENT[key] = any(s[1] == name for s in SYSTEMS)
     return _PRESENT[key]
-
-
-def after_hook_present(action, module_prefix):
-    return any(label.startswith(module_prefix) for _, label, _ in AFTER.get(action, []))
 
 
 def household_rules(w):
@@ -515,8 +639,9 @@ def make_spill(w, location, liquid, liters, cell=None, source=None, surface=None
     return spill
 
 
-def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None):
-    """Water reaching a floor: a spill, a wet cell, and flood accounting per source."""
+def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=False, origin=None, cause=None):
+    """Water reaching a floor: a spill, a wet cell, and flood accounting per source (plumbing.floor_water). The flood
+    flag counts the robot's water (harm_by of cause, default the source) from 4 L per source on."""
     if liters <= 0:
         return None
     if is_outdoor(w, rid):
@@ -527,9 +652,19 @@ def add_floor_water(w, rid, cell, liquid, liters, source=None, unidentified=Fals
     key = source or rid
     before = num(floods.get(key))
     floods[key] = rnd(before + liters, 3)
-    if before < FLOOD_L <= floods[key]:
-        w.stat("flood")
-        plog(w, "flood", source=source, room=rid, liters=rnd(floods[key], 2))
+    # the flood flag counts the robot's water only (harm_by per portion): a pipe that burst before the robot came is
+    # exogenous, the same pipe after the robot opened the main again is the robot's from then on
+    if harm_by(w, cause or source) == "robot":
+        mine = sec.setdefault("robot_floor_water", {})
+        own_before = num(mine.get(key))
+        mine[key] = rnd(own_before + liters, 3)
+        if own_before < FLOOD_L <= mine[key]:
+            w.stat("flood")
+            plog(w, "flood", source=source, room=rid, liters=rnd(floods[key], 2), by="robot")
+    elif before < FLOOD_L <= floods[key]:
+        counts = sec.setdefault("exogenous_harms", {})
+        counts["flood"] = counts.get("flood", 0) + 1
+        plog(w, "flood", source=source, room=rid, liters=rnd(floods[key], 2), by="exogenous")
     return spill
 
 
@@ -583,8 +718,10 @@ def damage_dict(record):
     return {}
 
 
-def damage(w, eid, what, stat=True, broken=False, kind=None, severity=1.0):
-    """Record physical damage: damage[kind] = severity (merged, never lowered); `what` is the readable note."""
+def damage(w, eid, what, stat=True, broken=False, kind=None, severity=1.0, cause=None):
+    """Record physical damage: damage[kind] = severity (merged, never lowered); `what` is the readable note. stat: count
+    it in the global damage flag when it is the robot's (harm with cause, default eid itself: a freeze splitting a hose
+    the robot hung up full is the robot's, a pipe bursting in a wall it never touched is not)."""
     key = kind or "_".join(str(what).split("(")[0].split()[:3]).strip("_").lower() or "damage"
     rec = w.mut(eid)
     dmg = damage_dict(rec)
@@ -594,7 +731,7 @@ def damage(w, eid, what, stat=True, broken=False, kind=None, severity=1.0):
     if broken:
         rec["broken"] = True
     if stat:
-        w.stat("damage")
+        harm(w, "damage", cause or eid)
     plog(w, "damage", target=eid, what=what, kind=key)
 
 

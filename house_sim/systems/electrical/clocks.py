@@ -20,6 +20,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import system
 from . import common as C
+from . import percept
 from . import power as P
 
 
@@ -192,6 +193,7 @@ def set_time(ctx):
     state = w.s
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
+    percept.refuse_unfamiliar(ctx, eid)
     require(has_clock(rec), "It has no settable clock", "argument")
     mode = ctx.args.get("mode") or "clock"
     clk = rec["clock"]

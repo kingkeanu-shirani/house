@@ -782,6 +782,8 @@ class Houses(unittest.TestCase):
         """Budget (TIER1_INTEGRATION 3.4): generate_house(gen=2) <= +20 % over generation 1; this test fails at 3x the
         budget (+60 %) so it is not flaky; the gate measures the budget itself (G9)."""
         best = {}
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         for gen in (1, 2):
             for _ in range(2):
                 start = time.perf_counter()
@@ -790,6 +792,63 @@ class Houses(unittest.TestCase):
                 spent = time.perf_counter() - start
                 best[gen] = min(best.get(gen, spent), spent)
         self.assertLessEqual(best[2] / best[1], 1.6, best)
+
+
+class EntryKeysTests(unittest.TestCase):
+    """Phase 1 (K-FIX) adoption requests: admin_inventory 5 (a key bowl with no entry bench or side table was skipped
+    in 47 of 220 houses: it falls back to the shoe rack or a console top) and mechanisms 6 / GEN (the residents' key
+    rings open the front door: their `opens` names its id, which core lock / unlock accept)."""
+
+    @classmethod
+    def setUpClass(cls):
+        load_domains()
+
+    def test_a_key_bowl_falls_back_to_the_shoe_rack(self):
+        from house_sim.generator import furnishings as F
+        from house_sim.generator.place import Placer
+        config, _ = generated(0)
+        entry = F.rooms_of(config, "entryway")[0]
+        ents = config["entities"]
+        idx = F.Index(config)
+        for eid in idx.find(entry, ("bench", "side_table", "key_bowl")):     # an entryway with neither (and no bowl yet)
+            for child in [c for c in ents if ents[c].get("location") == eid]:
+                ents.pop(child, None)
+            ents.pop(eid, None)
+        racks = F.Index(config).find(entry, ("shoe_rack",))
+        self.assertTrue(racks)
+        for child in [c for c in ents if ents[c].get("location") in racks]:
+            del ents[child]                                                     # a rack with room on top
+        item = [i for i in F.data()["items"] if i["kind"] == "key_bowl"][0]
+        p, idx = Placer(config, default_registry(), random.Random(0)), F.Index(config)
+        bowl = F._place_item(p, idx, config, item, "key_bowl")
+        self.assertIsNotNone(bowl)
+        self.assertIn(ents[bowl]["location"], racks)
+
+    def test_key_rings_open_the_front_door(self):
+        from house_sim.generator import furnishings as F
+        checked = 0
+        for seed, opts in ((0, {}), (1, {}), (3, {"dwelling": "apartment"}), (6, {"residents": {"composition": "roommates"}})):
+            config, _ = generated(seed, **opts)
+            door, inside, _, conn = F.front_door(config)
+            rings = [e for e, rec in sorted(config["entities"].items()) if rec.get("label") == "key ring"]
+            for ring in rings:
+                self.assertIn(door, config["entities"][ring]["opens"], (seed, ring))
+                checked += 1
+            if rings and config["entities"][door].get("lock_kind") == "key":
+                # held, a key ring works the front door's lock like the door's own key
+                ents = config["entities"]
+                ring = rings[0]
+                ents[door].update(locked=True, open=False)
+                ents[ring].update(location="robot", relation="held", held_hand="right")
+                for key in ("pos", "spos", "shelf", "in_pocket"):
+                    ents[ring].pop(key, None)
+                config["robot"].update(room=inside, pos=list(conn["cells"][inside]), hands={"left": None, "right": ring})
+                env = HouseEnv(config, seed=seed)
+                self.assertTrue(env.step("approach", door)["ok"])
+                result = env.step("unlock", door)
+                self.assertTrue(result["ok"], result["message"])
+                self.assertFalse(env.world.s["entities"][door]["locked"])
+        self.assertGreater(checked, 0)
 
 
 if __name__ == "__main__":

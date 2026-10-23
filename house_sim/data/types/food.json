@@ -7,9 +7,9 @@
    "resolve": "inspect",
    "portion_descriptor": "pile of white powder",
    "size_m": [
-    0.18,
-    0.09,
-    0.25
+    0.2,
+    0.1,
+    0.28
    ],
    "members": [
     "all_purpose_flour",
@@ -25,7 +25,6 @@
    "portion_descriptor": "small heap of white powder",
    "members": [
     "baking_soda_box",
-    "baking_powder_can",
     "cornstarch_box"
    ]
   },
@@ -56,9 +55,9 @@
    "resolve": "inspect",
    "portion_descriptor": "white liquid",
    "size_m": [
-    0.07,
-    0.07,
-    0.2
+    0.095,
+    0.095,
+    0.25
    ],
    "members": [
     "milk_carton",
@@ -233,16 +232,16 @@
      "kind": "almond_butter",
      "cat": "condiment",
      "phase": "paste",
-     "qty_g": 340.0,
+     "qty_g": 454.0,
      "density": 1.1,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.08,
-     0.08,
-     0.11
+     0.09,
+     0.09,
+     0.12
     ],
     "storage": "pantry",
     "perishable": false,
@@ -252,13 +251,13 @@
     "diet_tags": [
      "almond"
     ],
-    "mass_kg": 0.38,
-    "volume_l": 0.3331,
+    "mass_kg": 0.514,
+    "volume_l": 0.4487,
     "package": "jar",
     "date_type": "best_before",
-    "tare_kg": 0.04,
-    "tare_volume_l": 0.024,
-    "full_g": 340.0,
+    "tare_kg": 0.06,
+    "tare_volume_l": 0.036,
+    "full_g": 454.0,
     "storage_opened": "fridge"
    }
   },
@@ -270,16 +269,16 @@
      "kind": "almond_milk",
      "cat": "beverage",
      "phase": "liquid",
-     "qty_g": 1000.0,
+     "qty_g": 1931.0,
      "density": 1.02,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.07,
-     0.07,
-     0.2
+     0.095,
+     0.095,
+     0.25
     ],
     "storage": "fridge",
     "perishable": true,
@@ -289,13 +288,13 @@
     "diet_tags": [
      "almond"
     ],
-    "mass_kg": 1.04,
-    "volume_l": 1.0044,
+    "mass_kg": 1.971,
+    "volume_l": 1.9171,
     "package": "carton",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 1000.0,
+    "full_g": 1931.0,
     "opened_life_days": 7
    },
    "view": {
@@ -725,7 +724,7 @@
     "size_m": [
      0.1,
      0.06,
-     0.13
+     0.15
     ],
     "storage": "pantry",
     "perishable": false,
@@ -928,7 +927,8 @@
     "tare_kg": 0.015,
     "tare_volume_l": 0.009,
     "full_g": 360.0,
-    "reseal_needed": false
+    "reseal_needed": false,
+    "material": "aluminum"
    },
    "view": {
     "glossy": true,
@@ -1032,7 +1032,7 @@
      "kind": "black_pepper",
      "cat": "spice",
      "phase": "granular",
-     "qty_g": 70.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -1047,13 +1047,13 @@
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.11,
-    "volume_l": 0.164,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 70.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -1223,7 +1223,8 @@
     "tags": [
      "bread_box"
     ],
-    "portable": true
+    "portable": true,
+    "watertight": false
    },
    "view": {
     "opening": "front",
@@ -1689,16 +1690,16 @@
      "kind": "buttermilk",
      "cat": "dairy",
      "phase": "liquid",
-     "qty_g": 980.0,
+     "qty_g": 1950.0,
      "density": 1.03,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.07,
-     0.07,
-     0.2
+     0.095,
+     0.095,
+     0.25
     ],
     "storage": "fridge",
     "perishable": true,
@@ -1709,13 +1710,13 @@
      "dairy",
      "lactose"
     ],
-    "mass_kg": 1.02,
-    "volume_l": 0.9755,
+    "mass_kg": 1.99,
+    "volume_l": 1.9172,
     "package": "carton",
     "date_type": "use_by",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 980.0,
+    "full_g": 1950.0,
     "opened_life_days": 10
    },
    "view": {
@@ -2315,7 +2316,7 @@
      "kind": "cayenne",
      "cat": "spice",
      "phase": "granular",
-     "qty_g": 45.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -2331,13 +2332,13 @@
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.085,
-    "volume_l": 0.114,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 45.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -2902,7 +2903,7 @@
      "kind": "chili_flakes",
      "cat": "spice",
      "phase": "granular",
-     "qty_g": 40.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -2918,13 +2919,13 @@
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.08,
-    "volume_l": 0.104,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 40.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -3234,7 +3235,8 @@
      0.12
     ],
     "mass_kg": 0.5,
-    "holes_mm": 4.0
+    "holes_mm": 4.0,
+    "perforated": true
    }
   },
   "cooked_pasta": {
@@ -3942,7 +3944,7 @@
      "kind": "oregano",
      "cat": "spice",
      "phase": "granular",
-     "qty_g": 20.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -3957,13 +3959,13 @@
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.06,
-    "volume_l": 0.064,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 20.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -4193,7 +4195,8 @@
     ],
     "mass_kg": 0.2,
     "food_safe": true,
-    "rests_on_rim": true
+    "rests_on_rim": true,
+    "perforated": true
    }
   },
   "fish_tweezers": {
@@ -4460,7 +4463,8 @@
     "soft_sided": true,
     "air_removed": false,
     "volume_l": 0.05,
-    "transparent": true
+    "transparent": true,
+    "watertight": true
    }
   },
   "freezer_ice_pack": {
@@ -4951,24 +4955,24 @@
      "kind": "gluten_free_bread",
      "cat": "bread",
      "phase": "pieces",
-     "qty_g": 500.0,
-     "density": 0.35,
+     "qty_g": 680.0,
+     "density": 0.3,
      "rte": true,
      "raw": false,
      "parts": [],
-     "count": 16,
-     "unit_g": 31.25,
+     "count": 20,
+     "unit_g": 34.0,
      "discrete": true,
      "unit_size_m": [
-      0.1,
-      0.1,
+      0.11,
+      0.11,
       0.012
      ]
     },
     "size_m": [
-     0.24,
-     0.11,
-     0.11
+     0.28,
+     0.12,
+     0.12
     ],
     "storage": "bread_box",
     "perishable": false,
@@ -4978,13 +4982,13 @@
     "diet_tags": [
      "egg"
     ],
-    "mass_kg": 0.51,
-    "volume_l": 1.4346,
+    "mass_kg": 0.69,
+    "volume_l": 2.2727,
     "package": "bag",
     "date_type": "best_before",
     "tare_kg": 0.01,
     "tare_volume_l": 0.006,
-    "full_g": 500.0,
+    "full_g": 680.0,
     "transparent": true
    }
   },
@@ -5038,36 +5042,36 @@
      "kind": "gluten_free_crackers",
      "cat": "snack",
      "phase": "pieces",
-     "qty_g": 140.0,
+     "qty_g": 230.0,
      "density": 0.4,
      "rte": true,
      "raw": false,
      "parts": [],
-     "count": 40,
-     "unit_g": 3.5,
+     "count": 60,
+     "unit_g": 3.83,
      "discrete": true,
      "unit_size_m": [
-      0.045,
-      0.045,
+      0.05,
+      0.05,
       0.004
      ]
     },
     "size_m": [
-     0.18,
-     0.05,
-     0.14
+     0.2,
+     0.06,
+     0.15
     ],
     "storage": "pantry",
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.18,
-    "volume_l": 0.374,
+    "mass_kg": 0.27,
+    "volume_l": 0.599,
     "package": "box",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 140.0,
+    "full_g": 230.0,
     "liner_closed": true
    }
   },
@@ -5262,7 +5266,8 @@
     "category": "bag",
     "material": "polypropylene",
     "soft_sided": true,
-    "handle_rating_kg": 15.0
+    "handle_rating_kg": 15.0,
+    "watertight": false
    },
    "perception": {
     "hidden": [
@@ -5390,7 +5395,7 @@
      "kind": "ground_cumin",
      "cat": "spice",
      "phase": "powder",
-     "qty_g": 45.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -5405,13 +5410,13 @@
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.085,
-    "volume_l": 0.114,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 45.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -5563,7 +5568,8 @@
      "egg"
     ],
     "mass_kg": 0.057,
-    "volume_l": 0.0553
+    "volume_l": 0.0553,
+    "fragile": true
    }
   },
   "hard_candy_bag": {
@@ -5608,16 +5614,16 @@
      "kind": "heavy_cream",
      "cat": "dairy",
      "phase": "liquid",
-     "qty_g": 470.0,
+     "qty_g": 1874.0,
      "density": 0.99,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.07,
-     0.07,
-     0.13
+     0.095,
+     0.095,
+     0.25
     ],
     "storage": "fridge",
     "perishable": true,
@@ -5628,13 +5634,13 @@
      "dairy",
      "lactose"
     ],
-    "mass_kg": 0.51,
-    "volume_l": 0.4987,
+    "mass_kg": 1.914,
+    "volume_l": 1.9169,
     "package": "carton",
     "date_type": "use_by",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 470.0,
+    "full_g": 1874.0,
     "opened_life_days": 7
    },
    "view": {
@@ -5841,16 +5847,16 @@
      "kind": "hummus",
      "cat": "prepared",
      "phase": "paste",
-     "qty_g": 283.0,
+     "qty_g": 907.0,
      "density": 1.05,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.11,
-     0.11,
-     0.06
+     0.12,
+     0.12,
+     0.11
     ],
     "storage": "fridge",
     "perishable": true,
@@ -5860,13 +5866,13 @@
     "diet_tags": [
      "sesame"
     ],
-    "mass_kg": 0.323,
-    "volume_l": 0.2935,
+    "mass_kg": 0.947,
+    "volume_l": 0.8878,
     "package": "tub",
     "date_type": "use_by",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 283.0,
+    "full_g": 907.0,
     "opened_life_days": 7
    },
    "view": {
@@ -7650,28 +7656,28 @@
      "kind": "oat_milk",
      "cat": "beverage",
      "phase": "liquid",
-     "qty_g": 1000.0,
+     "qty_g": 1950.0,
      "density": 1.03,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.07,
-     0.07,
-     0.2
+     0.095,
+     0.095,
+     0.25
     ],
     "storage": "pantry",
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 1.04,
-    "volume_l": 0.9949,
+    "mass_kg": 1.99,
+    "volume_l": 1.9172,
     "package": "carton",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 1000.0,
+    "full_g": 1950.0,
     "opened_life_days": 7,
     "storage_opened": "fridge"
    },
@@ -8979,28 +8985,28 @@
      "kind": "powdered_sugar",
      "cat": "sugar",
      "phase": "powder",
-     "qty_g": 907.0,
+     "qty_g": 2268.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.15,
-     0.08,
-     0.2
+     0.2,
+     0.1,
+     0.28
     ],
     "storage": "pantry",
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.927,
-    "volume_l": 1.826,
+    "mass_kg": 2.288,
+    "volume_l": 4.548,
     "package": "bag",
     "date_type": "best_before",
     "tare_kg": 0.02,
     "tare_volume_l": 0.012,
-    "full_g": 907.0
+    "full_g": 2268.0
    }
   },
   "prep_bowl": {
@@ -9738,7 +9744,7 @@
      "kind": "sesame_seeds",
      "cat": "spice",
      "phase": "granular",
-     "qty_g": 60.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -9757,13 +9763,13 @@
     "diet_tags": [
      "sesame"
     ],
-    "mass_kg": 0.1,
-    "volume_l": 0.144,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 60.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -10000,16 +10006,16 @@
      "kind": "sour_cream",
      "cat": "dairy",
      "phase": "paste",
-     "qty_g": 454.0,
+     "qty_g": 864.0,
      "density": 1.0,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.1,
-     0.1,
-     0.08
+     0.12,
+     0.12,
+     0.11
     ],
     "storage": "fridge",
     "perishable": true,
@@ -10020,13 +10026,13 @@
      "dairy",
      "lactose"
     ],
-    "mass_kg": 0.494,
-    "volume_l": 0.478,
+    "mass_kg": 0.904,
+    "volume_l": 0.888,
     "package": "tub",
     "date_type": "use_by",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 454.0,
+    "full_g": 864.0,
     "opened_life_days": 10
    },
    "view": {
@@ -10113,7 +10119,8 @@
     "tare_kg": 0.015,
     "tare_volume_l": 0.009,
     "full_g": 355.0,
-    "reseal_needed": false
+    "reseal_needed": false,
+    "material": "aluminum"
    },
    "view": {
     "glossy": true,
@@ -10483,28 +10490,28 @@
      "kind": "sugar",
      "cat": "sugar",
      "phase": "granular",
-     "qty_g": 1814.0,
+     "qty_g": 2268.0,
      "density": 0.845,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.18,
-     0.09,
-     0.25
+     0.2,
+     0.1,
+     0.28
     ],
     "storage": "pantry",
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 1.834,
-    "volume_l": 2.1587,
+    "mass_kg": 2.288,
+    "volume_l": 2.696,
     "package": "bag",
     "date_type": "best_before",
     "tare_kg": 0.02,
     "tare_volume_l": 0.012,
-    "full_g": 1814.0
+    "full_g": 2268.0
    }
   },
   "sweet_potato": {
@@ -11057,7 +11064,8 @@
      0.17
     ],
     "mass_kg": 0.9,
-    "material": "ceramic"
+    "material": "ceramic",
+    "watertight": true
    }
   },
   "vegetable_oil_bottle": {
@@ -11068,28 +11076,29 @@
      "kind": "vegetable_oil",
      "cat": "oil",
      "phase": "liquid",
-     "qty_g": 1300.0,
+     "qty_g": 465.0,
      "density": 0.92,
      "rte": true,
      "raw": false,
      "parts": []
     },
     "size_m": [
-     0.09,
-     0.09,
-     0.3
+     0.07,
+     0.07,
+     0.28
     ],
     "storage": "pantry",
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 1.34,
-    "volume_l": 1.437,
+    "mass_kg": 0.815,
+    "volume_l": 0.7154,
     "package": "bottle",
     "date_type": "best_before",
-    "tare_kg": 0.04,
-    "tare_volume_l": 0.024,
-    "full_g": 1300.0
+    "tare_kg": 0.35,
+    "tare_volume_l": 0.21,
+    "full_g": 465.0,
+    "material": "glass"
    },
    "view": {
     "glossy": true
@@ -11376,7 +11385,7 @@
      "kind": "nutmeg",
      "cat": "spice",
      "phase": "granular",
-     "qty_g": 30.0,
+     "qty_g": 50.0,
      "density": 0.5,
      "rte": true,
      "raw": false,
@@ -11392,13 +11401,13 @@
     "perishable": false,
     "allergens": [],
     "diet_tags": [],
-    "mass_kg": 0.07,
-    "volume_l": 0.084,
+    "mass_kg": 0.09,
+    "volume_l": 0.124,
     "package": "jar",
     "date_type": "best_before",
     "tare_kg": 0.04,
     "tare_volume_l": 0.024,
-    "full_g": 30.0,
+    "full_g": 50.0,
     "reseal_needed": true
    },
    "view": {
@@ -11717,7 +11726,8 @@
     "soft_sided": true,
     "volume_l": 0.02,
     "freezer_safe": false,
-    "transparent": true
+    "transparent": true,
+    "watertight": true
    }
   },
   "zucchini": {

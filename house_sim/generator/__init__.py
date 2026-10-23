@@ -15,6 +15,7 @@ generation-2 furnishers (generator/furnishings.py, generator/belongings.py; orde
 that return at once for generation 1.
 """
 import copy
+import hashlib
 import json
 import random
 
@@ -35,6 +36,19 @@ REGIONS = {
     "jp": {"units": "metric", "voltage": 100, "washer": "top_load", "stove": "gas", "shoes_off": True},
     "ca": {"units": "metric", "voltage": 120, "washer": "front_load", "stove": "gas", "shoes_off": True},
 }
+
+
+ADDRESS_SALT = "house_ai/address/v1"
+
+
+def house_address(rooms, connections):
+    """The printed street address ("<100-999> Example Lane"): a domain-separated hash of the house's structure (its
+    rooms and connections, which the robot can see for itself), never of the seed. So reading it tells nothing about
+    the seed (no seed residue, no prefilter for a seed search) and nothing about a task's variant, which comes from its
+    own hash of spec id and seed (tasks/spec.py variant_index; review H5 / I1)."""
+    digest = hashlib.sha256((ADDRESS_SALT + "|" + json.dumps([rooms, connections], sort_keys=True, default=str))
+                            .encode("utf-8")).digest()
+    return "{} Example Lane".format(100 + int.from_bytes(digest[:8], "big") % 900)
 
 
 def generate_house(seed=0, **opts):
@@ -73,7 +87,7 @@ def _generate(seed, registry=None, furnish=True, start="2026-10-09T10:00:00", re
         "name": "Generated {} ({} floors, {} bedrooms)".format(plan["dwelling"], plan["floors"], plan["bedrooms"]),
         "metadata": dict(REGIONS[region], dwelling_type=plan["dwelling"], region=region, floors=plan["floors"],
                          bedrooms=plan["bedrooms"], bathrooms=plan["bathrooms"], features=sorted(plan["features"]),
-                         fidelity="S/G", address="{} Example Lane".format(100 + seed % 900)),
+                         fidelity="S/G", address=house_address(builder.rooms, builder.connections)),
         "clock": {"start": start, "hemisphere": "north"},
         "start_room": living,
         "rooms": builder.rooms,

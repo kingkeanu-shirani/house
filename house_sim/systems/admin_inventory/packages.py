@@ -470,6 +470,7 @@ def _event_parcel_pickup(w, args, env):
             continue
         from .common import household
         household(w).setdefault("shipped", {})[eid] = {"time_s": w.s["time_s"], "spot": spot, "order_id": rec.get("order_id")}
+        visual_event(w, "parcel_picked_up", source=eid, size_m=1.7)        # the carrier walks off with it
         for item in w.descendants(eid):
             w.destroy(item)
         w.destroy(eid)

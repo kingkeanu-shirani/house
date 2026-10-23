@@ -577,6 +577,56 @@ class StaticsTests(PhysCase):
         s["entities"]["receipt"]["stack_offset_m"] = [0.23, 0.0]                       # reaches 2 cm past the rim
         self.assertEqual(statics.stack_verdict(s, "tray"), [("receipt", "topple")])
 
+    def test_a_member_is_judged_against_the_top_it_rests_on(self):
+        """Independent review H14 / A1 (forcing the stack law broke 8 specs): a 0.29 m mixing bowl on a kitchen scale
+        (body 0.22 x 0.18 m, weighing platform declared 0.32 x 0.32 m) toppled off because the oversize rule compared
+        it with the scale's body. A member is judged against the top it rests on (surface_size_m when declared) and
+        by the part that bears on it (its foot, Phys.base_m); a tray on a plate still rocks off."""
+        s = house()
+        put(s, "table", "table", "room", pos=[0, 4])
+        put(s, "scale", "generic_item", "table", relation="on", spos=[0.2, 0.2], size_m=[0.22, 0.18, 0.025],
+            surface=True, accepts_items=True, surface_size_m=[0.32, 0.32])
+        put(s, "bowl", "generic_item", "scale", relation="on", size_m=[0.29, 0.29, 0.12], material="stainless_steel")
+        self.assertEqual(statics.top_wd(s, "scale"), (0.32, 0.32))
+        self.assertEqual(statics.stack_verdict(s, "scale"), [])
+        s["entities"]["scale"].pop("surface_size_m")                                   # judged by its body: rocks off
+        self.assertEqual(statics.stack_verdict(s, "scale"), [("bowl", "topple")])
+        s["entities"]["bowl"]["base_m"] = 0.14                                         # ... unless it stands on a foot
+        self.assertEqual(statics.contact_wd(s, "bowl"), (0.14, 0.14))
+        self.assertEqual(statics.stack_verdict(s, "scale"), [])
+        s["entities"]["bowl"]["orientation"] = "on_side"                               # lying, it rests on its side
+        self.assertEqual(statics.stack_verdict(s, "scale"), [("bowl", "topple")])
+
+    def test_offsets_are_measured_on_the_lower_members_own_top(self):
+        """The offset rule measures a member's centre on the top of the one below it, in that one's own frame: a
+        board turned a quarter turn on the table still has its long side along its own x."""
+        s = house()
+        put(s, "table", "table", "room", pos=[0, 4])
+        put(s, "board", "generic_item", "table", relation="on", spos=[0.3, 0.3], size_m=[0.5, 0.2, 0.02], rot=90,
+            surface=True, accepts_items=True)
+        put(s, "cup", "mug", "board", relation="on", stack_offset_m=[0.16, 0.0])        # 0.16 m along the long side
+        self.assertEqual(statics.top_wd(s, "board"), (0.5, 0.2))
+        self.assertEqual(statics.stack_verdict(s, "board"), [])
+        s["entities"]["cup"]["stack_offset_m"] = [0.0, 0.08]                           # past the narrow side's edge
+        self.assertEqual(statics.stack_verdict(s, "board"), [("cup", "topple")])
+
+    def test_a_folding_stand_set_up_has_its_in_use_size(self):
+        """Independent review H14 / A1: the kernel read an ironing board's folded size_m (0.38 x 0.10 x 1.37 m) and
+        ignored its open_size_m, so a shirt laid on the board set up toppled the stack. While open it has its in-use
+        size and its declared top; folded it offers only its folded footprint."""
+        s = house()
+        put(s, "board", "generic_item", "room", pos=[1, 1], size_m=[0.38, 0.1, 1.37], folded_size_m=[0.38, 0.1, 1.37],
+            open_size_m=[1.2, 0.38, 0.9], surface_size_m=[1.2, 0.38], surface=True, accepts_items=True,
+            openable=True, open=True, mass_kg=6.0)
+        put(s, "shirt", "generic_item", "board", relation="on", size_m=[0.35, 0.3, 0.12], mass_kg=0.25)
+        self.assertEqual(support.dims(s["entities"]["board"]), (1.2, 0.38, 0.9))
+        self.assertEqual(statics.top_wd(s, "board"), (1.2, 0.38))
+        self.assertEqual(statics.stack_verdict(s, "board"), [])
+        s["entities"]["board"]["open"] = False                                         # folded: a thin upright slab
+        self.assertEqual(support.dims(s["entities"]["board"]), (0.38, 0.1, 1.37))
+        self.assertEqual(statics.top_wd(s, "board"), (0.38, 0.1))
+        self.assertEqual(statics.stack_verdict(s, "board"), [("shirt", "topple")])
+
     def test_the_gap_above_an_oven_rack_is_to_the_next_rack(self):
         """Adoption-round request (appliances_cooking 1): an empty rack position is no shelf. In a cavity whose shelves
         are removable racks, the room above a rack reaches the next position a rack takes, else the cavity top; fixed
@@ -744,6 +794,54 @@ class FallAndBreakTests(PhysCase):
         self.assertNotIn("shattered", s["entities"]["jar"])                    # an opaque wrap hides the pieces
         self.assertIn("sharp", s["entities"]["jar"]["hazards"])
         self.assertTrue(impact.impact(w, "egg", 1.0, "again") is False)       # already broken
+
+    def test_a_break_inside_a_full_wrap_is_contained(self):
+        """Wrap containment (independent review H11 / 4.6): the pieces of a break inside a full wrap of any material,
+        or inside intact packaging, stay in it: the item is sharp to handle but no floor hazard, and the phys.broke
+        hooks and the phys.break event say contained, so no domain scatters them. A partial wrap contains nothing; a
+        see-through full wrap contains but leaves the break in view. The kernel's own hooks only (the domains' are the
+        cross-layer test's, test_physics_settle)."""
+        s = house()
+        cases = {"paper": {"wrapped": {"coverage": 1.0, "padding_mm": 0.0, "material": "newspaper"}},
+                 "bubble": {"wrapped": {"coverage": 1.0, "padding_mm": 0.0, "material": "bubble_wrap"}},
+                 "flag": {"wrapped": True},
+                 "boxed": {"packaged": True},
+                 "half": {"wrapped": {"coverage": 0.5, "padding_mm": 0.0, "material": "newspaper"}},
+                 "bare": {}}
+        for row, (eid, extra) in enumerate(sorted(cases.items())):
+            put(s, eid, "drinking_glass", "room", pos=[1, row], **extra)
+        w = self.world(s)
+        seen = {}
+        with mock.patch.object(impact, "run_hooks", lambda name, w_, eid, info: seen.setdefault(eid, (name, info))):
+            for eid in sorted(cases):
+                self.assertEqual(impact._impact(w, eid, 1.0, "test", "exogenous"), "broke", eid)
+        for eid in sorted(cases):
+            rec = s["entities"][eid]
+            inside = eid in ("paper", "bubble", "flag", "boxed")
+            self.assertEqual(impact.contained(rec), inside, eid)
+            self.assertIn("sharp", rec["hazards"], eid)                          # sharp to handle either way
+            self.assertEqual(rec.get("floor_hazard"), None if inside else "sharp", eid)
+            self.assertEqual(seen[eid][0], "phys.broke")
+            self.assertEqual(seen[eid][1].get("contained"), True if inside else None, eid)
+            event = [e for e in s["event_log"] if e["kind"] == "phys.break" and e["target"] == eid][0]
+            self.assertEqual(event.get("contained"), True if inside else None, eid)
+        self.assertNotIn("shattered", s["entities"]["paper"])                    # an opaque wrap hides the pieces
+        self.assertTrue(s["entities"]["bubble"]["shattered"])                     # a see-through one shows them
+        self.assertTrue(s["entities"]["half"]["shattered"])
+
+    def test_a_fallen_fully_wrapped_box_keeps_what_is_in_it(self):
+        """Wrap containment: an open box falling from 0.9 m throws its loose contents out; wrapped whole (a parcel),
+        it keeps them in and they are only jolted."""
+        for wrapped, expected in ((None, "room"), ({"coverage": 1.0, "material": "kraft_paper"}, "box")):
+            s = house()
+            put(s, "counter", "counter", "room", pos=[0, 0], surface_height_m=0.9)
+            extra = {"wrapped": wrapped} if wrapped else {}
+            put(s, "box", "cardboard_box", "counter", relation="on", spos=[0.1, 0.1], **extra)
+            put(s, "toy", "book", "box", relation="in", size_m=[0.1, 0.1, 0.05], mass_kg=0.2)
+            w = self.world(s)
+            out = impact.fall(w, "box")
+            self.assertTrue(out["fell"])
+            self.assertEqual(s["entities"]["toy"]["location"], expected, wrapped)
 
     def test_break_entity_is_idempotent_releases_liquid_and_attributes(self):
         s = house()
@@ -1657,6 +1755,8 @@ class DeterminismAndCostTests(PhysCase):
         size = len(state["entities"])                    # about 930 with every domain, 220 with core only
         self.assertGreater(size, 100)
         # TIER1_PHYSICS 5.1: the children map is O(N), about 0.15 ms on 900 entities (tests fail at 3x a budget)
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         self.assertLess(self.best_ms(lambda: support.children_map(state)), 0.45 * max(1.0, size / 900.0))
         cmap = support.children_map(state)
         furniture = sorted(e for e, r in state["entities"].items() if r.get("shelf_heights"))[0]
@@ -1669,6 +1769,8 @@ class DeterminismAndCostTests(PhysCase):
         w.rollback()
 
     def test_a_64_consequence_cascade_stays_within_budget(self):
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         def cascade():
             s = house(cols=12, rows=12)
             put(s, "shelf", "shelf_unit", "room", pos=[4, 0])

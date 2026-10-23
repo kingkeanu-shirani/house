@@ -1,0 +1,22 @@
+275 file(s) compared, 197 changed, 7 path pattern(s)
+   495  action_log.*.target
+          runs/0_realistic_final_state.json:action_log.1.target: "obj_cdc4c4aa" -> "book_9"
+          runs/0_realistic_final_state.json:action_log.2.target: "obj_cdc4c4aa" -> "book_9"
+   167  robot.battery
+          runs/0_oracle_final_state.json:robot.battery: 98.773510834 -> 98.771920758
+          runs/0_realistic_final_state.json:robot.battery: 98.77379186 -> 98.772199853
+   167  robot.battery_min_pct
+          runs/0_oracle_final_state.json:robot.battery_min_pct: 98.773510834 -> 98.771920758
+          runs/0_realistic_final_state.json:robot.battery_min_pct: 98.77379186 -> 98.772199853
+   167  robot.energy_wh_used
+          runs/0_oracle_final_state.json:robot.energy_wh_used: 29.435741457 -> 29.473903277
+          runs/0_realistic_final_state.json:robot.energy_wh_used: 29.42899684 -> 29.467205014
+   167  stats.energy
+          runs/0_oracle_final_state.json:stats.energy: 1.2264891660000015 -> 1.2280792420000013
+          runs/0_realistic_final_state.json:stats.energy: 1.2262081400000013 -> 1.2278001470000013
+     4  obs.battery
+          runs/0_oracle_final_obs.json:obs.battery: 98.774 -> 98.772
+          runs/1_oracle_final_obs.json:obs.battery: 98.772 -> 98.771
+     4  obs.robot.battery
+          runs/0_oracle_final_obs.json:obs.robot.battery: 98.773510834 -> 98.771920758
+          runs/1_oracle_final_obs.json:obs.robot.battery: 98.772325105 -> 98.7706647

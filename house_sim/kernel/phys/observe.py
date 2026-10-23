@@ -271,13 +271,14 @@ def _touched(ctx, eid, rec):
 def inspect(w, eid, rec, details, ctx):
     """Inspector physics: feel (after a touch) and, on a close look (inspect where=closely), looks for a rated
     support. People and pets are left alone. A domain's own feel (laundry's dampness: inspectors of lower order run
-    first) is the more specific percept and is kept."""
+    first) or looks (a fastener's "visibly tilted", a stain, a filter: phase 1, plumbing_liquids' report of the key
+    collision) is the more specific percept and is kept."""
     if eid not in w.s["entities"]:
         return
     from .props import props
     if "feel" not in details and _touched(ctx, eid, rec):
         details["feel"] = feel_of(props(w.s, eid))
-    if (getattr(ctx, "args", None) or {}).get("where") == "closely":
+    if (getattr(ctx, "args", None) or {}).get("where") == "closely" and "looks" not in details:
         looks = looks_of(rec)
         if looks is not None:
             details["looks"] = looks

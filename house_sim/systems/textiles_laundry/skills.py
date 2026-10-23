@@ -10,6 +10,7 @@
     textiles_laundry.hang_garment(garment, hanger, rod, method=None, button_top=False)
     textiles_laundry.dress_bare_bed(bed, fitted, cover, insert, pillows, cases, protector=None, flat=None)
     textiles_laundry.iron_garment(garment, iron, board, temp)
+    textiles_laundry.feel_garment(garment, where="closely")        inspect it, lighting a dark room for the look
     textiles_laundry.sew_on_button(garment, slot, needle, spool, button=None, home=None, shank=False)
     textiles_laundry.pair_into(pairs, dest)
 """
@@ -198,6 +199,21 @@ def iron_garment(r, garment, iron, board, temp, press_cloth=None, steam=None):
 CLOSE_WORK_LIGHT = 0.35     # body.precision_mm: a room dimmer than this (no robot light) makes the hand 1.5x less precise
 
 
+def _room_light(r, room, why):
+    """A light the robot can switch on in `room`: a wall switch wired to the room's lights (all of them off), else a
+    lamp standing in it. Raises a plan error naming `why` when the room has neither."""
+    state = r.state
+    ents = state["entities"]
+    switches = [e for e in sorted(ents) if ents[e].get("category") == "switch" and ents[e].get("location") == room
+                and ents[e].get("controls") and not any(ents[c].get("on") for c in ents[e]["controls"] if c in ents)]
+    lamps = [e for e in sorted(ents) if ents[e].get("category") == "light" and ents[e].get("portable")
+             and not ents[e].get("on") and root_room(state, e) == room]
+    target = (switches or lamps or [None])[0]
+    if target is None:
+        raise base._plan_error("{} is {} and has no light within reach".format(room, why))
+    return target
+
+
 def light_for_close_work(r, near):
     """Close work (threading a needle, sewing a button) needs the room lit: when it is dim, switch on a light the robot
     can reach -- a wall switch wired to the room's lights, else a lamp -- and come back to `near`. Raises a plan error
@@ -206,17 +222,55 @@ def light_for_close_work(r, near):
     room = state["robot"]["room"]
     if perception.light_level(state, room) >= CLOSE_WORK_LIGHT or perception.flashlight_on(state):
         return
-    ents = state["entities"]
-    switches = [e for e in sorted(ents) if ents[e].get("category") == "switch" and ents[e].get("location") == room
-                and ents[e].get("controls") and not any(ents[c].get("on") for c in ents[e]["controls"] if c in ents)]
-    lamps = [e for e in sorted(ents) if ents[e].get("category") == "light" and ents[e].get("portable")
-             and not ents[e].get("on") and root_room(state, e) == room]
-    target = (switches or lamps or [None])[0]
-    if target is None:
-        raise base._plan_error("{} is too dim for close work and has no light within reach".format(room))
+    target = _room_light(r, room, "too dim for close work")
     base.approach(r, target)
     r.do("switch_on", target=target)
     base.approach(r, near)
+
+
+def _switches_on(state):
+    ents = state["entities"]
+    return {e for e in ents if ents[e].get("category") == "switch" and ents[e].get("on")}
+
+
+def _light_dark_room(r, room):
+    """Switch on the light of a dark `room` the way the kernel's go_room does when it walks into one: from the
+    threshold, by the doorway switch (a wall switch is too small to make out in the dark from inside the room, so a
+    robot already in it steps out through that doorway first). Returns the switches it turned on."""
+    state = r.state
+    doorway = sorted(e for e, rec in state["entities"].items() if rec.get("category") == "switch"
+                     and rec.get("location") == room and rec.get("near_connection") in state.get("connections", {}))
+    if not doorway:
+        raise base._plan_error("{} is too dark to see the garment and has no doorway switch".format(room))
+    before = _switches_on(state)
+    if state["robot"]["room"] == room:
+        conn = state["connections"][state["entities"][doorway[0]]["near_connection"]]
+        outside = next((rid for rid in sorted(conn.get("cells") or {}) if rid != room), None)
+        if outside is None:
+            raise base._plan_error("No way out of {} to reach its light switch".format(room))
+        base.go_room(r, outside)
+    base.go_room(r, room)               # switches the doorway light on from the threshold when the room is dark
+    return sorted(_switches_on(r.state) - before)
+
+
+@skill("textiles_laundry.feel_garment")
+def feel_garment(r, garment, where="closely"):
+    """Check a drying garment by feel, as a person does on the way past: inspect it closely (`where`). In a room too
+    dark to see it (night, lights off: the inspection is refused there) the robot switches the room's light on at its
+    doorway first (_light_dark_room) and off again once the garment has been felt, so the room is left as it was found.
+    Reference plans that wait out a long air-dry call this instead of a bare inspect, which fails on the checks that
+    fall at night."""
+    state = r.state
+    room = root_room(state, garment)
+    switched = []
+    if room in state.get("rooms", {}) and not r.env.perception.lit(state, room):
+        switched = _light_dark_room(r, room)
+    _approach(r, garment)
+    r.do("inspect", target=garment, where=where)
+    for switch in switched:
+        if r.state["entities"][switch].get("on"):
+            base.approach(r, switch)
+            r.do("switch_off", target=switch)
 
 
 @skill("textiles_laundry.sew_on_button")

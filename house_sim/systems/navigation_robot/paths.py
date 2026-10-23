@@ -706,9 +706,9 @@ def _social_walk(ctx, goal_cells, avoid, speed):
     rid = state["robot"]["room"]
     start = C.cell(state["robot"].get("pos") or [0, 0])
     extra = social_cells(state, rid, realistic=C.realistic(ctx)) - {C.cell(g) for g in goal_cells} - {start}
-    # realistic perception: plan around the hazards the robot perceives (ctx.route_filter), as core motion does
-    path = geometry.find_path(state, rid, start, goal_cells, avoid_kinds=tuple(avoid or ()), extra_blocked=sorted(extra),
-                              hazard_filter=ctx.route_filter)
+    # realistic perception: plan around the hazards the robot perceives, as core motion does (traverse.plan_path)
+    from . import traverse as T
+    path = T.plan_path(ctx, rid, start, goal_cells, avoid_kinds=tuple(avoid or ()), extra_blocked=sorted(extra))
     require(path is not None, "No socially acceptable path; wait for people to move or ask them", "precondition")
     return _walk_cells(ctx, path, avoid, speed)
 

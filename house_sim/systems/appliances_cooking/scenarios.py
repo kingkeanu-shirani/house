@@ -683,7 +683,11 @@ def food(ctx, kind="chicken_breast", on=None, into=None, shelf=None, eid=None, p
 
 @scenario_helper("appliances_cooking.pot_on_burner")
 def pot_on_burner(ctx, burner, vessel="saucepan", liquid="water", liquid_l=1.5, temp_c=21.0, heat="off", lit=False, foods=None,
-                  handle="side", props=None, var="pot"):
+                  handle="side", props=None, var="pot", watcher=None):
+    """A pot on a burner. watcher "robot": the household handed the watching of this burner to the robot ("watch this
+    while it cooks"), so only the robot's presence attends it (stove._attendance)."""
+    if watcher not in (None, "robot"):
+        raise SpecError("watcher must be \"robot\" or absent")
     ents = ctx.config["entities"]
     spec = COOKWARE.get(vessel, COOKWARE["saucepan"])
     base = {"category": "cookware", "conducts_heat": True, "accepts_items": True, "container": True, "food_safe": True,
@@ -714,6 +718,8 @@ def pot_on_burner(ctx, burner, vessel="saucepan", liquid="water", liquid_l=1.5, 
         ents[pot]["_ac_heat"] = burner
     brec = ents[burner]
     brec["settings"] = dict(brec.get("settings") or {}, heat=heat)
+    if watcher:
+        brec["_burner"] = dict(brec.get("_burner") or {}, watcher=watcher)
     if lit:
         brec["burner"] = dict(brec["burner"], lit=True, flame="steady blue flame")
         brec["temperature_c"] = 200.0

@@ -37,26 +37,28 @@ SCALD_MIN_C = 44.0              # below this no contact burns (thermal.BURN_TABL
 
 
 def helper_capacity(p):
-    """(lift_kg, push_n) a person can contribute to a team lift or push (forces.lift_plan / max_push_n helpers): the
-    revised NIOSH load constant 23 kg and about 200 N of sustained push for adults, 15 kg / 120 N for teenagers,
-    10 kg / 80 N from 70 (or role elderly), nothing for children under 13 -- by age as well as role, so a toddler,
-    or a six-year-old guest, is never counted as an adult helper."""
-    age = C.age_of(p)
-    if C.is_child(p) or age < 13.0:
-        return 0.0, 0.0
-    if C.role(p) == "teen" or age < 18.0:
-        return 15.0, 120.0
-    if C.role(p) == "elderly" or age >= 70.0:
-        return 10.0, 80.0
-    return 23.0, 200.0
+    """(lift_kg, push_n) a person can contribute to a team lift or push (forces.lift_plan / max_push_n helpers), from
+    the kernel's own helper table (supports.json people: revised NIOSH 23 kg / about 200 N for adults, 15 kg / 120 N
+    for teenagers, 10 kg / 80 N for older adults, nothing for children and toddlers): the row of their role and the
+    row of their age band (age_roles), whichever helps less -- by age as well as role, so a 72-year-old listed as an
+    adult helps like an elderly resident and a six-year-old guest like a child. One table, the kernel's (people's own
+    thresholds are gone)."""
+    from ...kernel.phys import forces
+    rows = [forces._role_row(p)]
+    if p.get("age") is not None:
+        rows.append(forces._role_row({"age": p.get("age")}))
+    lift = min(float(row["lift_kg"]) for row in rows)
+    push = min(float(row["push_n"]) for row in rows)
+    return lift, push
 
 
 @hook("episode_start", order=15)
 def _helper_capacities(w, env):
-    """The kernel's helper table (supports.json people) is keyed by role and falls back to an adult for roles it does
-    not list (toddler, guest, visitor...). Where people's own estimate by age and role differs from what the kernel
-    would use, the person gets explicit lift_kg / push_n (a person's own values win in forces._helper_value); everyone
-    else is left as the kernel sees them."""
+    """The kernel's helper table counts a person by their role's row (age bands only for roles without a row: the
+    kernel's answer to people's K-HELPER-ROLES request). Where the person's age band helps less than their role says
+    (an "adult" of 80), the person gets explicit lift_kg / push_n (a person's own values win in
+    forces._helper_value); everyone else -- toddlers, children, guests and visitors included -- is left as the kernel
+    sees them."""
     from ...kernel.phys import forces
     for pid in sorted(w.s.get("people", {})):
         p = w.s["people"][pid]
@@ -141,9 +143,13 @@ def _struck_by_tipping(w, eid, info):
         injury = "blunt" if energy >= blunt_threshold(p) else None
         _record(w, pid, eid, info.get("cause") or "tipped", energy, injury, robot, tipped=True)
         knock = KNOCKDOWN_J * (CHILD_FACTOR if C.is_child(p) else 1.0)
-        if energy >= knock and p.get("posture") in ("standing", "walking", "sitting", None) and not S.asleep(p):
+        if energy >= knock and p.get("posture") in ("standing", "walking", "sitting", "pinned", None) and \
+                not S.asleep(p):
+            # one strike, one injury (adopt_status breakage: a knock-down counted stats.injury again through the fall);
+            # the fall itself still counts in stats.falls when the robot caused it, and a person safety already pinned
+            # under the piece stays pinned (person_falls keeps the posture)
             M.person_falls(w, pid, "struck by {} tipping over".format(rec.get("label") or eid), robot_caused=robot,
-                           count=robot)
+                           count=robot, injury=robot and injury is None)
 
 
 def _offered_safely(rec, pid):

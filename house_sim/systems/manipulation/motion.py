@@ -25,7 +25,7 @@ from ...kernel import body as kbody, geometry
 from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.phys import forces as kforces, impact as kimpact, props as kprops
-from ...kernel.plugins import run_hooks
+from ...kernel.plugins import after, run_hooks
 from ..core import add_soil, check_handling
 from . import common as C
 
@@ -886,9 +886,40 @@ def roll(ctx):
         dx, dy = resolve_delta(ctx, rec, default_dir="away")
     out = floor_move(ctx, eid, dx, dy, "drag" if on_base else "push", aid_kind=None if on_base else "caster")
     ctx.data["manip_s"] = 2.0 + out.get("moved_m", 0.0) / (0.6 if speed != "careful" else 0.4)
+    if ctx.args.get("release") and eid in w.s["entities"]:
+        let_go(w, eid)      # nobody balances it any more: on a slope the kernel's slope law rolls it from here
     if "kickstand" in rec:
         return _move_result(eid, out) + "; " + _park_bike(ctx, eid)
     return _move_result(eid, out)
+
+
+def let_go(w, eid):
+    """The robot lets go of a load it was balancing on its wheels (tilted by `tilt`): it settles back onto its wheels
+    and base in the same step, so tilted_on_wheels (which keeps the kernel's roll from free-rolling a cart someone
+    holds) and tilt_deg are cleared. Nothing changes for a load that was not tilted."""
+    rec = w.ent(eid)
+    if not rec.get("tilted_on_wheels") and not C.num(rec.get("tilt_deg")):
+        return
+    m = w.mut(eid)
+    m["tilted_on_wheels"] = False
+    m["tilt_deg"] = 0.0
+
+
+def _let_go_when_walked_off(ctx, result):
+    """The robot balances a load it tilted onto its wheels only while it stays within arm's reach of it: walking off
+    (out of reach or into another room) lets go of it in that step (let_go), so on a slope the kernel's slope law
+    rolls an abandoned cart instead of leaving it balanced on its wheels. Only watched records are looked at (tilt
+    puts a tilted load on the watch list)."""
+    w = ctx.w
+    if not C.section(w).get("watch"):
+        return
+    for eid in C.watched(w):
+        if w.ent(eid).get("tilted_on_wheels") and geometry.reach_problem(w.s, eid) is not None:
+            let_go(w, eid)
+
+
+for _verb in ("move", "approach", "walk_to", "go_to", "drive_to", "follow", "patrol", "dock", "undock"):
+    after(_verb, order=42)(_let_go_when_walked_off)
 
 
 def _park_bike(ctx, eid):
@@ -933,6 +964,7 @@ def _runaway(ctx, eid, rec, rid, slope):
     w = ctx.w
     room = w.s["rooms"][rid]
     W, D = room_bounds(w, rid)
+    let_go(w, eid)          # out of the robot's hands: nobody balances it on its wheels any more
     m = w.mut(eid)
     downhill = room.get("downhill") or "south"
     dx, dy = DIRS.get(downhill, (0.0, 1.0))
@@ -1230,7 +1262,8 @@ def rotate(ctx):
         return "Holding {} with its {} toward {}".format(eid, feature, toward)
     current = C.yaw_of(rec)
     if toward:
-        tpose = C.world_pose(w, toward)
+        # aimed at where the robot sees the target (an unresolved look-alike: its group's size, not its own)
+        tpose = C.world_pose(C.perceived_view(ctx, toward), toward)
         pose = C.world_pose(w, eid)
         require(tpose is not None and pose is not None and tpose[0] == pose[0], "Face toward something in this room", "argument")
         want_world = C.bearing(pose[1], pose[2], tpose[1], tpose[2])
@@ -1429,6 +1462,8 @@ def tilt(ctx):
         require(C.subtree_mass(w, eid) <= 120.0, "Too heavy to tilt; get help", "capability")
         m["tilted_on_wheels"] = angle >= 30.0
         m["tilt_deg"] = round(angle, 1)
+        if angle >= 30.0:
+            C.watch(w, eid)         # balanced by the robot only while it stays within reach (_let_go_when_walked_off)
         if angle > 70:
             tip_over(ctx, eid, "tilted past its balance point")
             return "It went over"

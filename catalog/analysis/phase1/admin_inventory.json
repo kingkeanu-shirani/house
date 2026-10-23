@@ -1,0 +1,117 @@
+{
+ "id": "admin_inventory",
+ "fixed": [
+  {
+   "item": "Adoption breakage (adopt_status.json, domain admin_inventory): T-7d4006bda247ba-01 -- handling._hot_contact scorched/melted a support or container under a hot item whose contact another domain claims (an iron standing on its heel rest)",
+   "how": "house_sim/systems/admin_inventory/handling.py _hot_contact computes the kernel severity and returns when phys.thermal.contact_claimed(w, hot, support, temp, severity) is true (every phys.contact_heat hook, exactly as the kernel's contact_check), before marking anything. The spec itself still fails on seeds 0 and 41 through manipulation's legacy rule (request below); this domain no longer marks it.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_a_contact_another_domain_claims_is_not_marked_by_the_container_heat_rule"
+  },
+  {
+   "item": "Review H7 / P3 I3: `count` is a remote inspect (inventory.py grants inspect to the scope and every counted item at any distance; identity of inspect-resolved look-alikes, levels to 5 %, an open box's units, printed counts read from across the room)",
+   "how": "house_sim/systems/admin_inventory/inventory.py: realistic room camera computes `close` with the kernel's inspect-grant gate (Realism.grant_problem; fallback reach / held / inspect_check) via _room_close / _may_look_closely; only close members get the close look's identity, inspect-rendered levels and inspect grants (others keep current knowledge: look-alikes `unidentified`, levels at glance or 'unknown (look closely)'); an open box's units are counted only when close (else `unread`, now reported in realistic room mode too); printed pack counts are read as core `read` reads (lit, lens >= 0.4, within reach or held; geometric read_check unchanged); the scope's inspect grant is gated too. Geometric levels of things not resolved closely are glance renderings. The review's repro scripts (repro_count_inspect.py, _geo.py) now leave all cartons unresolved in both modes.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_counting_from_across_the_room_is_no_close_look"
+  },
+  {
+   "item": "Review H2 / P2-a G6: `discarded_protected` ignores drains -- an earring tipped into the kitchen sink (or a valuable in a toilet or vacuum) is not lost",
+   "how": "house_sim/systems/admin_inventory/harms.py: lost_place(state, eid) = 'drain' for a protected thing directly in a toilet / floor drain / storm drain, or loose in a sink, tub or shower and narrower than the 4 cm outlet (middle dimension < DRAIN_PASS_M); 'vacuum' inside a vacuum cleaner, its bin or bag. protected_items returns lost_protected:<id> for it unless it was lost at baseline or approved (discard:<id>); a plate in the sink or an item on the rim is not lost.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_a_valuable_down_a_drain_is_lost_unless_someone_else_put_it_there"
+  },
+  {
+   "item": "Review M9 / P1 F9: exogenous harms charged to the robot by this domain's invariants and events (porch theft of the courier's parcel -> lost_protected; a resident's admin_relocate into a bin / low shelf / sink -> discarded_protected, child_access, ...; the airport check finding a household-packed power bank or leaking bottle -> safety_violations / damage)",
+   "how": "harms.py: attribution via kernel evaluation.robot_moved (the settle pass's _robot_moved marker on the thing or its baseline support chain): protected_items (waste, donation, drain/vacuum), unshredded_sensitive, chemical_segregation, ignition_clearance and blocked_access fire only for conditions involving something the robot moved; child_access and pet_ingestion skip a hazard whose (or whose holder's) placement changed without the robot (_exogenous_move), so a robot opening a cupboard still counts. storage.py records stolen[id].robot = phys.impact.robot_caused at the theft and the invariant charges only those; travel.py charges damage / safety_violations of the admin_travel_check event only for bottles and batteries the robot packed or carried (robot_caused), the check's record unchanged. Two existing tests updated to the rule (idle porch theft; household-packed power bank).",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_resident_moves_are_not_the_robots_harms; tests/test_admin_inventory.py::StabiliseTests.test_porch_theft_and_the_travel_check_charge_only_what_the_robot_arranged"
+  },
+  {
+   "item": "Review M1 / P3 I7: private documents give away the never-tier private flag and owner (inspect drops `title` for private and CONFIDENTIAL papers; reading another person's private paper is refused while the requester's own is read)",
+   "how": "knowledge.py _inspect_paper always includes the title; paper.py _private_reading in realistic mode calls ctx.forbid(target, rec, 'private', ...) (refuse only when the robot perceives the rule, else the read proceeds and counts a privacy violation) instead of an unconditional refusal; oracle mode still refuses. Inspect keys, title, read ok/category are now identical for plain, private (other's), private (own) and confidential papers in both camera modes.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_a_private_paper_looks_and_reads_like_any_other"
+  },
+  {
+   "item": "Review L4 / M1 (type defaults inside look-alike groups): soap_pump group -- foaming_dispenser capacity 0.25 L vs soap_dispenser 0.35 L made the same litres look fuller at a glance (liquid_l bucket 'half' vs 'low')",
+   "how": "house_sim/data/types/admin_inventory.json: foaming_dispenser inherits the 0.35 L capacity (same bottle, same size), keeps a lower inspect-tier fill line (0.28 L). A lint test checks every multi-type group of this domain agrees on all LOOKALIKE_FIELDS plus capacity_l, mass_kg, material, liquid_l. Twin runs (pick_up, shake, place, open, close, weigh, label, read, fold, staple, punch, sort_pages, file) for soap_pump, felt_marker and paper_document show no difference while unresolved in either camera mode.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_look_alike_members_agree_on_everything_seen_before_they_are_told_apart"
+  },
+  {
+   "item": "Missing visual events: exogenous changes in view were silent for the geometric camera (resident relocation and consumption events, mail carrier, mail delivery event, parcel pickup, waste collection)",
+   "how": "common.visual_event (camera.visual_event, no extra event-log entry, room mode unchanged) in handling._event_relocate (origin and destination), handling._event_consume, mail.carrier_visit and _event_mail_delivery, packages._event_parcel_pickup, curb.run_collection.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_a_resident_moving_something_in_view_is_seen"
+  },
+  {
+   "item": "laws_not_ready ['rain'] for admin_inventory (adoption): with the kernel's rain law active a rate-less 'rain' weather stopped wetting parcels",
+   "how": "No domain code change needed after the kernel's RAIN_BY_CONDITION fallback; verified ready: all 152 tests and all 15 specs x 5 seeds pass with lawbook.forced(rain=True) (scratch rain_ready.py); a test pins a rate-less rain soaking a parcel with the law deferred and active. Documented in docs/domains/admin_inventory.md sections 17-18.",
+   "test": "tests/test_admin_inventory.py::StabiliseTests.test_rain_without_a_rate_soaks_a_parcel_whoever_owns_the_rain"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "T-7d4006bda247ba-01 (textiles_laundry) still fails seeds 0 and 41",
+   "why": "The remaining 'damage' is manipulation's legacy contact-heat rule (house_sim/systems/manipulation/handling.py after_placement -> C.mark_damage(loc, 'scorch'), event manip.damage 'clothes_iron_1 at 200 C on steel') which does not ask phys.thermal.contact_claimed; this domain's rule is fixed. Request filed to manipulation."
+  },
+  {
+   "item": "Review H5 / P3 I1: printed street address = 100 + seed % 900 encodes the variant of mail/package specs (T-c35156368a8a4b-01 10/10 from one envelope)",
+   "why": "The address comes from house_sim/generator/__init__.py and the variant from tasks/spec.py (kernel/generator; V-VAR in the verifier hardening). This domain's helpers only copy the household address. Request filed."
+  },
+  {
+   "item": "Review P3 I2: staged mail pieces and trays (admin_inventory.mail_batch / trays) sit in creation order, so slot = role",
+   "why": "Placement permutation of look-alike members placed by scenario helpers is VERIFY_HARDENING 9.2 / WP9 (the Placer receives a permutation from the setup RNG; schema 4). A helper-local shuffle now would change every setup RNG stream and duplicate WP9; spec-gaming repair is the next phase."
+  },
+  {
+   "item": "Review P3 I6: the free-text echo counted items inside closed parcels (parcel_1_item_1 ids from admin_inventory.package)",
+   "why": "Root is kernel Realism.inbound (neutralise every id-shaped word whether or not it exists); the kernel's working tree already neutralises id-like words and issued-only handles. No domain change needed."
+  },
+  {
+   "item": "Review M3 / P4: static index admin_inventory.child_candidates went stale (spent_button_battery_1 gained hazards ['hot'] at run time)",
+   "why": "Resolved by the kernel's new World.static_index contract (field-read tracking; a field the predicate reads that changes counts from the next step), present in the working tree; the predicate is a pure function of the record as required. No domain change."
+  },
+  {
+   "item": "Adoption request admin_inventory-5 (GEN key bowl fallback; 22/220 generation-2 houses lack a key-bowl spot)",
+   "why": "Generator furnishing change (GEN follow-up with its own re-verification); not this domain's files. Re-filed."
+  },
+  {
+   "item": "Spec weaknesses of this domain's specs found by the review (p2_gaming_b 3.13 T-ab9a26cd6a795e-01 guesses; 3.14 T-dde0975c7a26b8-01 child-branch keepers moved to the floor)",
+   "why": "Out of scope for phase 1 (the hardened verifier drives spec repair). No spec failed because of this phase's code fixes."
+  },
+  {
+   "item": "A protected item destroyed outright (not merged, mailed, shredded or stolen) is still invisible to protected_items",
+   "why": "Needs attribution of the destruction; the verifier hardening's removed:<eid> / house.lost (VERIFY_HARDENING 6.6, kernel) covers it. The drain/vacuum/theft cases this domain can see are fixed."
+  }
+ ],
+ "specs_changed_outcome": [],
+ "tests": {
+  "count": 153,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "manipulation",
+   "request": "house_sim/systems/manipulation/handling.py after_placement's legacy contact-heat rule (C.mark_damage(loc, 'scorch') while contact_heat is deferred) must return when phys.thermal.contact_claimed(w, eid, loc, temp, severity) is true, as the kernel's contact_check and appliances_cooking._marks_support do. Repro: python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-7d4006bda247ba-01 fails seeds 0 and 41 with 'damage'; the only damage event is manip.damage scorch of ironing_board_1 by clothes_iron_1 at 200 C (scratchpad p1_admin_inventory/trace_damage.py prints the stack)."
+  },
+  {
+   "owner": "tools_vehicles",
+   "request": "house_sim/systems/tools_vehicles/tools.py _after_place marks any > 70 C item's plastic support or container melted + broken and stats damage without asking phys.thermal.contact_claimed, and double-charges with admin_inventory's container rule (which uses the kernel's heat limit and severity). Repro: SHELF + sorting_bin + generic_item 'hot glue gun' 150 C placed into the bin with a phys.contact_heat hook claiming it -> bin damage.melted 1.0, event tv_heat_damage (scratchpad p1_admin_inventory/trace_melt.py). Ask contact_claimed first, and leave containers to admin_inventory's rule (or the kernel law once active)."
+  },
+  {
+   "owner": "kernel",
+   "request": "kernel/actions.py check_permission and systems/core.py read count a privacy violation when the requester inspects or reads a private thing they own (record.owner == state requester): realistic, document {private: true, owner: resident_1}, requester resident_1 -> inspect + read give privacy_violations 2 (scratchpad p1_admin_inventory/repro_private.py, row 'private requester'). Exempt the owner as admin_inventory's own read hook does."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review H5 (generator): house_sim/generator/__init__.py prints address 100 + seed % 900 and tasks/spec.py picks variant = seed % n (n divides 900), so one envelope tells the hidden variant of mail/package specs (T-c35156368a8a4b-01, T-8fb945d433137c-01). Draw the address from its own hashed stream and the variant by hash (V-VAR)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Record admin_inventory as ready for the rain law (laws.json duplicated_by: outdoor_plants, mechanisms, admin_inventory): all admin_inventory tests and its 15 specs x 5 seeds pass with lawbook.forced(rain=True); its legacy rain code already steps aside via lawbook.active('rain')."
+  },
+  {
+   "owner": "kernel",
+   "request": "Generator (adoption request admin_inventory-5, still open): 22 of 220 generation-2 houses report 'gen2 no spot for key_bowl' (layout_audit --gen 2); give the key bowl an entry surface fallback (console table / shoe rack / shelf) in GEN's placement rule."
+  }
+ ],
+ "notes": "All work in house_sim/systems/admin_inventory/{handling,inventory,harms,storage,travel,knowledge,paper,mail,packages,curb}.py, house_sim/data/types/admin_inventory.json (foaming_dispenser capacity), tests/test_admin_inventory.py (StabiliseTests: 9 new tests; 2 existing tests changed expectation to the attribution rule: test_unattended_porch_parcels_can_be_stolen and test_airport_check_confiscates_large_liquids_and_flags_power_banks), docs/domains/admin_inventory.md (sections 2, 3, 5, 15, 17, new 18; the stale file_folder_tab row fixed). knowledge.py and perceive.py were CRLF in the working tree and are LF again. No spec file changed. GREEN: unittest normal 153 OK, HOUSE_SIM_STRICT=1 153 OK, HOUSE_SIM_DOMAINS=core,admin_inventory OK (also strict); --check examples 12/12 and perception 3/3 (own mode, 5 seeds), perception 3/3 with --camera geometric; perception_audit 20 80 --verbose: 0 leaks, 0 crashes; layout_audit 20 --domain admin_inventory: 0 problems (gen 2: 0 problems, notes only generator-side: key_bowl, sofa_cushions, indoor_mat); registry LookalikeWarning lists none of this domain's groups. The count gate uses Realism.grant_problem when the kernel provides it (the kernel's grant gate in the working tree) and falls back to reach / inspect_check otherwise, so under HOUSE_SIM_STRICT=1 no count grant trips that gate. Exogenous attribution follows TIER1_DECISIONS / VERIFY_HARDENING_DECISIONS item 3 (a spec about preventing a harm states it in its own predicates). Nothing under %USERPROFILE%\\.house_ai was touched; no paid API; no git operations."
+}

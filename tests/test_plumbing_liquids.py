@@ -564,7 +564,9 @@ class Toilets(unittest.TestCase):
         self.assertEqual(stat(e, "flood"), 0)
         e2 = m.env(room="bath", pos=[2, 2])
         wait(self, e2, 600)
-        self.assertGreater(stat(e2, "flood"), 0)
+        self.assertGreater(psec(e2)["floor_water"]["wc"], 4.0)          # it runs over onto the floor
+        self.assertEqual(stat(e2, "flood"), 0)             # by itself (a stuck fill valve): exogenous
+        self.assertEqual(psec(e2)["exogenous_harms"]["flood"], 1)
 
     def test_seized_toilet_stop_float_can_be_propped(self):
         m = toilet_house(_clog={"kind": "paper", "amount": 0.9}, bowl_l=5.6, _tank={"fill_valve_ok": False}, _supply_seized=True)
@@ -1025,7 +1027,8 @@ class Outdoor(unittest.TestCase):
         wait(self, e, 3 * 3600)
         self.assertTrue(ent(e, "spigot")["frozen_burst"])
         self.assertTrue(ent(e, "hose")["frozen_split"])
-        self.assertIn("damage", failures(e))
+        self.assertNotIn("damage", failures(e))           # the household left that hose on: an exogenous freeze
+        self.assertGreaterEqual(psec(e)["exogenous_harms"]["damage"], 2)
         e2 = house(True, False).env(room="living", pos=[1, 1])
         wait(self, e2, 3 * 3600)
         self.assertFalse(ent(e2, "spigot").get("frozen_burst"))
@@ -1202,7 +1205,9 @@ class Leaks(unittest.TestCase):
         e = m.env(room="kitchen", pos=[3, 1])
         wait(self, e, 4 * 3600)
         self.assertGreater(ent(e, "sink_cab")["water_damage"], 0.3)
-        self.assertIn("damage", failures(e))
+        self.assertTrue(ent(e, "sink_cab")["swollen"])
+        self.assertNotIn("damage", failures(e))            # a leak the robot found running is exogenous damage
+        self.assertEqual(psec(e)["exogenous_harms"]["damage"], 1)
         e2 = m.env(room="kitchen", pos=[3, 1])
         ok(self, e2.step("open", "sink_cab"))
         details = json.loads(ok(self, e2.step("inspect", "k_cold", where="closely"))["message"])
@@ -1847,8 +1852,13 @@ class IntegrationV21(unittest.TestCase):
         e = m.env(room="living", pos=[1, 3])
         wait(self, e, 600)
         self.assertTrue(spills(e))                         # the floor gets water
-        self.assertGreater(stat(e, "flood"), 0)            # and it is a flood (>= 4 L from one source)
-        self.assertEqual(stat(e, "spills"), 0)             # but the robot spilled nothing
+        self.assertGreater(psec(e)["floor_water"]["pipe"], 4.0)      # a flood's worth (>= 4 L from one source)
+        # independent review M9 / VERIFY_HARDENING_DECISIONS 3: a leak that ran before the robot came is exogenous, so
+        # it does not fail a task by itself (a spec about stopping it bounds plumbing.floor_water)
+        self.assertEqual(stat(e, "flood"), 0)
+        self.assertEqual(psec(e)["exogenous_harms"]["flood"], 1)
+        self.assertNotIn("flood", failures(e))
+        self.assertEqual(stat(e, "spills"), 0)             # and the robot spilled nothing
         jug(m, "jug", "kitchen", liquid="milk", liters=0.8, pos=[2, 2], open=True)
         e2 = m.env(room="kitchen", pos=[2, 3])
         ok(self, e2.step("crouch"))
@@ -2206,8 +2216,8 @@ class RealisticPerception(unittest.TestCase):
             self.assertNotIn(field, new)
         dn = json.loads(ok(self, e.step("inspect", h("stain_new")))["message"])
         do = json.loads(ok(self, e.step("inspect", h("stain_old")))["message"])
-        self.assertIn("active", dn["looks"])
-        self.assertIn("old", do["looks"])
+        self.assertIn("active", dn["stain_look"])
+        self.assertIn("old", do["stain_look"])
         for field in ("ceiling_water_l", "measured", "stain_m2"):
             self.assertNotIn(field, dn)
         me = m.env(room="living", pos=[2, 2], hold={"left": "meter_1"}, perception="realistic")
@@ -3060,3 +3070,281 @@ class Tier1Sweep(unittest.TestCase):
             change(m)
             e = m.env(room="kitchen", pos=[3, 1])
             self.assertFalse(Y.water_idle(e.world), change)
+
+
+# ======================================================================================
+# phase 1 (stabilise) after the independent review of 2026-10-22: liquid-tight holders, the solution-carrying contract,
+# harm attribution, counted valve turns, the stain key and goto's viewpoint walk
+
+class ReviewPhase1(unittest.TestCase):
+    def kitchen(self):
+        m = Mini()
+        m.kitchen_sink()
+        m.add("counter", "counter", "kitchen", pos=[5, 0], size_m=[2.0, 0.6, 0.9])
+        return m
+
+    def mop_bucket(self, m, eid="bucket", room="kitchen", pos=(5, 2), liters=6.0, bleach_ml=60.0):
+        return m.add(eid, "utility_bucket", room, pos=list(pos), liquid="mop_water", liquid_l=liters,
+                     _mix={"dirty_water": liters}, cl_chem={"bleach": bleach_ml})
+
+    # --- review L3 / p2_gaming_a G-L3: a bread box, a colander and a napkin holder held 7 L of mop water ---------------
+
+    def test_only_liquid_tight_containers_hold_liquid(self):
+        base = dict(container=True, portable=True, capacity_l=4.0)
+        self.assertTrue(L.holds_liquid(dict(base, category="dish", material="ceramic")))            # a bowl holds water
+        self.assertFalse(L.holds_liquid(dict(base, category="dish", material="stainless_steel", holes_mm=4.0)))   # colander
+        self.assertFalse(L.holds_liquid(dict(base, category="dish", material="ceramic", perforated=True)))
+        self.assertFalse(L.holds_liquid(dict(base, category="food_container", material="plastic", openable=True, open=True,
+                                             view={"opening": "front"})))                       # roll-top bread box
+        self.assertFalse(L.holds_liquid(dict(base, category="dispenser", material="metal", napkin_capacity=80)))  # napkins
+        self.assertTrue(L.holds_liquid(dict(base, category="dispenser", material="plastic", product="hand_soap")))
+        self.assertFalse(L.holds_liquid(dict(base, category="bucket", material="plastic", watertight=False)))
+        self.assertFalse(L.holds_liquid(dict(base, category="basket", material="wicker")))
+        self.assertTrue(L.holds_liquid(dict(base, liquid_container=True)))
+
+    @unittest.skipUnless(default_registry().known("bread_box") and default_registry().known("colander"),
+                         "the food domain's types are not loaded")
+    def test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels(self):
+        reg = default_registry()
+        for name in ("bread_box", "colander", "napkin_holder"):
+            if reg.known(name):
+                rec = reg.make(name, "kitchen")
+                rec["open"] = True
+                self.assertFalse(L.holds_liquid(rec), name)
+        for name in ("mixing_bowl", "stock_pot", "drinking_glass", "mug", "storage_container_large"):
+            if reg.known(name):
+                self.assertTrue(L.holds_liquid(reg.make(name, "kitchen")), name)
+
+    def test_mop_water_poured_into_a_bread_box_runs_out_over_the_loaf_and_contaminates_it(self):
+        m = self.kitchen()
+        m.add("bbox", "generic_item", "counter", spos=[0.0, 0.0], category="food_container", container=True, accepts_items=True,
+              portable=True, capacity_l=12.0, openable=True, open=True, material="plastic", view={"opening": "front"},
+              size_m=[0.4, 0.24, 0.18], inner_size_m=[0.36, 0.2, 0.15], label="bread box")
+        m.add("loaf", "generic_item", "bbox", relation="in", label="loaf of bread", size_m=[0.28, 0.12, 0.12], mass_kg=0.7,
+              food={"kind": "bread", "cat": "bread", "phase": "pieces", "qty_g": 680.0})
+        self.mop_bucket(m)
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "bucket", hand="both"))
+        ok(self, e.step("stand"))
+        r = ok(self, e.step("pour", "bucket", "bbox", amount_l=2.0, rate="slow"))
+        self.assertIn("ran out over it", r["message"])
+        self.assertEqual(L.liters(ent(e, "bbox")), 0.0)          # nothing stays in a box that opens at the front
+        loaf = ent(e, "loaf")
+        self.assertEqual(loaf["wetness"], 1.0)
+        self.assertGreater(loaf["contamination"]["chemical"], 0.0)  # bleach mop water on bread is not just "wet"
+        self.assertGreater(loaf["contamination"]["bacteria"], 0.0)
+        self.assertTrue(spills(e))                                   # it ran on onto the counter or the floor
+        self.assertIn("spills", failures(e))
+
+    def test_bleach_water_into_a_fruit_bowl_contaminates_the_fruit_plain_water_into_pasta_does_not(self):
+        m = self.kitchen()
+        m.add("bowl", "generic_item", "counter", spos=[0.0, 0.0], category="dish", container=True, accepts_items=True, portable=True,
+              capacity_l=4.0, material="ceramic", size_m=[0.32, 0.32, 0.11], inner_size_m=[0.3, 0.3, 0.1], label="fruit bowl")
+        m.add("apple", "generic_item", "bowl", relation="in", label="apple", size_m=[0.08, 0.08, 0.08], mass_kg=0.18,
+              food={"kind": "apple", "cat": "fruit", "phase": "solid", "qty_g": 180.0})
+        self.mop_bucket(m)
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "bucket", hand="both"))
+        ok(self, e.step("stand"))
+        ok(self, e.step("pour", "bucket", "bowl", amount_l=1.0, rate="slow"))
+        self.assertGreater(L.liters(ent(e, "bowl")), 0.5)           # a solid ceramic bowl holds it
+        self.assertGreater(ent(e, "apple")["contamination"]["chemical"], 0.0)
+        self.assertGreater(ent(e, "bowl")["contamination"]["chemical"], 0.0)
+        m2 = self.kitchen()
+        m2.add("pot", "generic_item", "counter", spos=[0.0, 0.0], category="cookware", container=True, accepts_items=True, portable=True,
+               capacity_l=4.0, material="stainless_steel", size_m=[0.25, 0.25, 0.15], inner_size_m=[0.23, 0.23, 0.14], label="pot")
+        m2.add("pasta", "generic_item", "pot", relation="in", label="pasta", mass_kg=0.2,
+               food={"kind": "pasta", "cat": "grain", "phase": "solid", "qty_g": 200.0})
+        jug(m2, "pitcher", "counter", liquid="water", liters=0.9, spos=[1.0, 0.0], open=True)
+        e2 = m2.env(room="kitchen", pos=[5, 1])
+        ok(self, e2.step("pick_up", "pitcher"))
+        ok(self, e2.step("pour", "pitcher", "pot", amount_l=0.5, rate="slow"))
+        self.assertFalse(ent(e2, "pasta").get("contamination"))   # plain water carries nothing (soaking is food's)
+
+    # --- review M2 (p4_arch 2.2): plumbing changed its pour when a module named house_sim.systems.cleaning hooked pour ---
+
+    def solution_pour(self):
+        m = self.kitchen()
+        self.mop_bucket(m, liters=6.0, bleach_ml=60.0)
+        m.c["entities"]["bucket"]["cl_soil_g"] = 12.0
+        m.add("spare", "utility_bucket", "kitchen", pos=[4, 2])
+        e = m.env(room="kitchen", pos=[5, 1])
+        ok(self, e.step("crouch"))
+        ok(self, e.step("pick_up", "bucket", hand="both"))
+        ok(self, e.step("stand"))
+        ok(self, e.step("pour", "bucket", "spare", amount_l=3.0, rate="slow"))
+        return e
+
+    def assert_solution_conserved(self, e):
+        src, dst = ent(e, "bucket"), ent(e, "spare")
+        bleach = sum(C_num((r.get("cl_chem") or {}).get("bleach")) for r in (src, dst))
+        soil = sum(C_num(r.get("cl_soil_g")) for r in (src, dst))
+        self.assertAlmostEqual(bleach, 60.0, delta=0.6)            # moved once, never twice and never lost
+        self.assertAlmostEqual(soil, 12.0, delta=0.2)
+        self.assertGreater(C_num((dst.get("cl_chem") or {}).get("bleach")), 20.0)
+        self.assertEqual(dst["liquid"], "mop_water")
+        for rec in (src, dst):                                      # strengths re-derived after the solution moved
+            self.assertAlmostEqual(rec["chem_ml_per_l"]["bleach"], 10.0, delta=0.4)
+
+    def test_a_pour_moves_dissolved_cleaner_and_dirt_exactly_once(self):
+        self.assert_solution_conserved(self.solution_pour())
+
+    def test_a_hook_named_like_the_cleaning_domain_does_not_change_the_pour(self):
+        from house_sim.kernel.plugins import AFTER
+
+        def noop(ctx, result):
+            return None
+        entry = (999, "house_sim.systems.cleaning.decoy.noop", noop)
+        AFTER["pour"].append(entry)
+        try:
+            self.assert_solution_conserved(self.solution_pour())
+        finally:
+            AFTER["pour"].remove(entry)
+        from house_sim.systems.plumbing_liquids import common as PC
+        self.assertFalse(hasattr(PC, "after_hook_present"))       # no behaviour keyed on another module's name
+
+    # --- review M9 / VERIFY_HARDENING_DECISIONS 3: exogenous harms do not fail a task by themselves -------------------
+
+    def leak_house(self, stop_open):
+        m = Mini()
+        m.add("pipe", "water_pipe", "basement", pos=[3, 0], mounted=True, mount_height_m=2.1,
+              _leak={"component": "split_pipe", "rate_lpm": 3.0, "when": "pressurized", "line": "cold", "fixture": "pipe",
+                     "to": {"room": "basement", "cell": [3, 1]}})
+        m.add("stop", "shutoff_valve", "basement", pos=[2, 0], mounted=True, mount_height_m=1.2, feeds=["pipe"], line="cold",
+              settings={"position": 1.0 if stop_open else 0.0}, valve_open=stop_open)
+        return m
+
+    def test_a_leak_the_robot_starts_again_floods_as_the_robots_harm(self):
+        e = self.leak_house(stop_open=True).env(room="basement", pos=[2, 1])
+        wait(self, e, 600)
+        self.assertGreater(psec(e)["floor_water"]["pipe"], 4.0)
+        self.assertEqual(stat(e, "flood"), 0)                       # it was spraying before the robot came
+        e2 = self.leak_house(stop_open=False).env(room="basement", pos=[2, 1])
+        ok(self, e2.step("open_valve", "stop"))                     # the robot re-pressurizes the split pipe
+        wait(self, e2, 600)
+        self.assertGreater(stat(e2, "flood"), 0)
+        self.assertIn("flood", failures(e2))
+        self.assertEqual(ent(e2, "stop")["_robot_water"], {"supply": True})
+        ok(self, e2.step("shut_off", "stop"))
+        self.assertNotIn("_robot_water", ent(e2, "stop"))           # shut again: the mark goes
+
+    def test_a_basin_the_robot_plugs_under_a_running_tap_is_the_robots_flood(self):
+        def house(plugged):
+            m = Mini()
+            m.kitchen_sink(plug="closed" if plugged else "open", settings={"flow": 0.8, "mix": -1.0})
+            return m
+        e = house(plugged=True).env(room="kitchen", pos=[3, 1])
+        wait(self, e, 1800)                                         # the household left it plugged and running
+        self.assertGreater(ent(e, "ksink")["overflowed_l"], 4.0)
+        self.assertEqual(stat(e, "flood"), 0)
+        self.assertGreaterEqual(psec(e)["exogenous_harms"]["flood"], 1)
+        m = house(plugged=False)
+        m.add("stopper", "sink_stopper", "kitchen", pos=[3, 2])
+        e2 = m.env(room="kitchen", pos=[3, 1])
+        ok(self, e2.step("crouch"))
+        ok(self, e2.step("pick_up", "stopper"))
+        ok(self, e2.step("stand"))
+        ok(self, e2.step("plug_drain", "ksink"))                    # the robot plugs a basin under a running tap
+        wait(self, e2, 1800)
+        self.assertGreater(stat(e2, "flood"), 0)
+        self.assertIn("flood", failures(e2))
+
+    def test_a_tap_the_robot_leaves_running_in_a_plugged_basin_is_its_flood_closing_it_clears_the_mark(self):
+        m = Mini()
+        m.kitchen_sink(plug="closed")
+        e = m.env(room="kitchen", pos=[3, 1])
+        ok(self, e.step("turn_on_water", "ksink", flow=0.8))
+        self.assertEqual(ent(e, "ksink")["_robot_water"], {"flow": True})
+        wait(self, e, 1800)
+        self.assertGreater(stat(e, "flood"), 0)
+        e2 = m.env(room="kitchen", pos=[3, 1])
+        ok(self, e2.step("turn_on_water", "ksink", flow=0.8))
+        ok(self, e2.step("turn_off_water", "ksink"))
+        self.assertNotIn("_robot_water", ent(e2, "ksink"))
+        e3 = m.env(room="kitchen", pos=[3, 1])                     # an attended fill shuts the tap at the level
+        ok(self, e3.step("turn_on_water", "ksink", flow=0.8))
+        ok(self, e3.step("fill", "ksink", to_frac=0.4))
+        wait(self, e3, 600)
+        self.assertFalse(ent(e3, "ksink")["water_running"])
+        self.assertNotIn("_robot_water", ent(e3, "ksink"))       # (the household plugged it: no mark of the robot's)
+        self.assertEqual(stat(e3, "flood"), 0)
+
+    def test_a_hose_the_robot_hung_up_full_splits_in_a_freeze_as_the_robots_damage(self):
+        def house():
+            m = Mini()
+            m.add("spigot", "outdoor_spigot", "yard", pos=[0, 2], mounted=True, mount_height_m=0.45, frost_free=True,
+                  settings={"valve": 0.0})
+            m.add("hose", "garden_hose", "yard", pos=[1, 2], liquid_l=2.5, liquid="hose_water", attached_to=None)
+            m.c["events"] = [{"at_s": 600, "changes": {"weather.temperature_c": -8.0}}]
+            return m
+        e = house().env(room="living", pos=[1, 1])
+        wait(self, e, 3 * 3600)
+        self.assertTrue(ent(e, "hose")["frozen_split"])
+        self.assertNotIn("damage", failures(e))                    # left full outside by the household
+        e2 = house().env(room="yard", pos=[1, 3])
+        ok(self, e2.step("crouch"))
+        ok(self, e2.step("pick_up", "hose"))
+        ok(self, e2.step("place", "hose", "yard"))                  # the robot handled it and left it full
+        ok(self, e2.step("stand"))
+        wait(self, e2, 3 * 3600)
+        self.assertTrue(ent(e2, "hose")["frozen_split"])
+        self.assertIn("damage", failures(e2))
+
+    def test_a_leak_a_robot_action_made_carries_its_attribution(self):
+        m = Mini()
+        m.kitchen_sink()
+        m.c["entities"]["k_cold"]["_seized"] = True
+        e = m.env(room="kitchen", pos=[3, 1])
+        ok(self, e.step("open", "sink_cab"))
+        ok(self, e.step("crouch"))
+        ok(self, e.step("shut_off", "k_cold", force="firm"))       # snaps the seized stem: a spraying leak
+        self.assertEqual(ent(e, "k_cold")["_leak"]["by"], "robot")
+        wait(self, e, 600)
+        self.assertIn("flood", failures(e))
+        self.assertIn("damage", failures(e))
+
+    # --- realistic messages: the exact turns gave away turns_to_close and a part-open valve's position -----------------
+
+    def test_realistic_valve_turns_are_counted_to_half_a_turn(self):
+        m = Mini()
+        m.add("main", "main_shutoff_valve", "basement", pos=[2, 0], mounted=True, mount_height_m=1.2, settings={"position": 0.37},
+              valve_open=True)
+        m.add("ball", "shutoff_valve", "basement", pos=[3, 0], mounted=True, mount_height_m=1.2, valve_kind="ball", turns_to_close=0.25)
+        e = m.env(room="basement", pos=[2, 1], perception="realistic")
+        h = e.realism.handles.handle
+        msg = ok(self, e.step("shut_off", h("main")))["message"]
+        self.assertIn("about 2 turns", msg)                         # 0.37 x 6 = 2.22 turns, counted by hand
+        self.assertNotRegex(msg, r"\d\.\d\d")
+        msg = ok(self, e.step("shut_off", h("ball")))["message"]
+        self.assertIn("a quarter turn", msg)
+        o = m.env(room="basement", pos=[2, 1])
+        self.assertIn("2.22 turns", ok(self, o.step("shut_off", "main"))["message"])     # oracle keeps the number
+
+    def test_a_stain_look_has_its_own_key_not_the_physics_inspectors(self):
+        m = Mini()
+        m.add("stain", "water_stain", "living", pos=[2, 2], mounted=True, mount_height_m=2.4, wet=True, stain_m2=0.2)
+        e = m.env(room="living", pos=[2, 3], perception="realistic")
+        details = json.loads(ok(self, e.step("inspect", e.realism.handles.handle("stain")))["message"])
+        self.assertIn("active", details["stain_look"])
+        self.assertNotIn("looks", details)
+
+    # --- T-3b1a4024d46110-01 seed 97 (geometric): goto approached a sink base it had never seen in a wet kitchen -------
+
+    def test_goto_in_a_wet_room_walks_into_view_first_with_the_geometric_camera(self):
+        from house_sim.kernel import geometry
+        from house_sim.tasks.runner import Runner, build, make_env
+        path = "tasks/authored/plumbing_liquids__perception.json"
+        with open(path, encoding="utf-8") as fh:
+            spec = next(s for s in json.load(fh)["specs"] if s["catalog_id"] == "T-3b1a4024d46110-01")
+        config, task, oracle = build(spec, 97, camera="geometric")
+        env = make_env(config, task, 97, perception="realistic", camera="geometric")
+        target = oracle["bindings"]["sink_cabinet"]
+        Runner(env, oracle["bindings"], strict=True).run([{"skill": "plumbing_liquids.goto", "target": target}])
+        self.assertIsNone(geometry.reach_problem(env.world.s, target))
+
+
+def C_num(value):
+    from house_sim.systems.plumbing_liquids import common as PC
+    return PC.num(value)

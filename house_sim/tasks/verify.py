@@ -27,6 +27,20 @@ merge): a schema-3 reference run must pass the dialogue lints ("dialogue_lint": 
 required questions asked and answered, a wrong plan beside them, no legacy-topic ask), else the reference fails; with
 realistic perception every typed report a report / report_set success predicate scores must rest on perceived
 evidence, else its gap joins "perceivability_gaps" ({"report": ...}). Both checks read the phases' success too.
+
+Wrong plans (phase 1 of the stabilisation, REVIEW_REPORT H17; docs/design/VERIFY_HARDENING.md 14.3 and 14.5): each
+wrong plan runs leniently one top-level step at a time in its own environment. A step refused for its form (an unknown
+action, a parameter the action does not take, a missing or mistyped argument: env.last_step_malformed) never reached
+the robot: the plan did not run fully either ("error_class" "MalformedStep"; phase-1 red team). Literal "do" action
+names of the chosen variant's plans must be registered actions (runner.build: SpecError otherwise). A wrong plan that raises anything
+(PlanError, SpecError or any other exception) did not run fully: "ran" is false, "error_class", "error",
+"steps_run" / "steps_total" and a "not_evidence" message are recorded, the other wrong plans still run, and the trial
+fails ("wrong_ran" false, "wrong_not_run" lists the messages). A wrong plan that never performs its mistake proves
+nothing about that mistake. Every wrong-plan record keeps its failure labels in full ("labels", sorted), their
+classes ("reasons": the label before the first ":", plus "goal" when a success predicate is unmet) and the
+"goal_fraction"; "why" (the first five labels, or "goal_fraction=...") is kept for the tools and tests that read it.
+run_trial(..., capture={}) also hands back the reference, idle and wrong-plan environments (the tier-1 gate digests
+them).
 """
 import copy
 import json
@@ -40,10 +54,98 @@ from ..kernel.errors import SpecError
 from ..kernel.plugins import load_domains
 from ..kernel.predicates import digest
 from ..kernel.predicates import check
-from .runner import PlanError, build, make_env, run_plan
+from .runner import PlanError, Runner, build, make_env, run_plan
 from .spec import expand
 
 SEEDS = (0, 1, 2, 41, 97)
+WRONG_LABELS_MAX = 40       # failure labels kept per wrong plan (sorted; a longer list notes how many were cut)
+WRONG_REFUSALS_KEPT = 3     # refusal messages kept per wrong plan (diagnosis only)
+
+
+def failure_reasons(outcome):
+    """The reason classes of an evaluation (REVIEW_REPORT 4.6 WRONG-REASON): the label before its first ":" for every
+    failure label ("failure_predicate_0", "changed", "question_missing", "injury", ...), plus "goal" when a success
+    predicate is unmet (goal_fraction below 1). Sorted; empty for a success."""
+    reasons = {str(label).split(":", 1)[0] for label in outcome.get("failures") or ()}
+    try:
+        if float(outcome.get("goal_fraction", 0.0) or 0.0) < 1.0:
+            reasons.add("goal")
+    except (TypeError, ValueError):
+        reasons.add("goal")
+    return sorted(reasons)
+
+
+def run_wrong_plan(env, plan, bindings):
+    """Run a wrong plan leniently (refused steps are allowed), one top-level step at a time, exactly as
+    run_plan(strict=False) would. Returns (runner, steps_run, exception or None): a plan that raises stops there."""
+    runner = Runner(env, bindings, strict=False)
+    reached = 0
+    try:
+        for step in plan or []:
+            runner.run([step])
+            reached += 1
+    except Exception as exc:                # noqa: BLE001  (any exception means the plan did not run fully)
+        return runner, reached, exc
+    return runner, reached, None
+
+
+def short_error(record, n=200):
+    """"<error_class>: <error>" of a wrong-plan record, cut to n characters."""
+    text = "{}: {}".format(record.get("error_class", "error"), record.get("error", ""))
+    return text if len(text) <= n else text[:n] + "..."
+
+
+def wrong_plan_record(env, item, bindings):
+    """Run one wrong plan in its own environment and return its record: name, ran (fully, no exception), the
+    not-evidence message when it did not, fails, the failure labels ("labels"), their classes ("reasons"),
+    goal_fraction, refusals, steps_run / steps_total and the legacy "why"."""
+    plan = item.get("plan") or []
+    record = {"name": item.get("name", "wrong")}
+    runner, reached, exc = run_wrong_plan(env, plan, bindings)
+    record["ran"] = exc is None
+    if exc is not None:
+        record["not_evidence"] = ("stopped at top-level step {} of {} ({}): a wrong plan that raises never performs "
+                                  "its mistake, so it is not evidence; fix the plan".format(
+                                      reached + 1, len(plan), type(exc).__name__))
+        record["error_class"] = type(exc).__name__
+        record["error"] = str(exc)
+        if not isinstance(exc, (PlanError, SpecError)):
+            # skill or kernel code raised something that is neither a refusal nor a spec problem: a harness error
+            record["harness_error"] = True
+            record["trace"] = traceback.format_exception(type(exc), exc, exc.__traceback__)[-4:]
+    record["steps_run"] = reached
+    record["steps_total"] = len(plan)
+    record["refusals"] = len(runner.failures)
+    if runner.failures:
+        record["refused"] = [str(f)[:160] for f in runner.failures[:WRONG_REFUSALS_KEPT]]
+        record["refused_categories"] = sorted({category or "refused" for _, category, _, _ in runner.refusals})
+    malformed = [(action, message) for action, _, message, bad in runner.refusals if bad]
+    if malformed and exc is None:
+        # phase-1 red team (interim, VERIFY_HARDENING 14.3 rule 1 is the full rule): a step refused for its form -- an
+        # unknown action, a parameter the action does not take, a missing or mistyped argument -- never reached the
+        # robot, so the plan never performed what its name says; like a plan that raises, it is not evidence
+        record["ran"] = False
+        record["error_class"] = "MalformedStep"
+        record["error"] = "{}: {}".format(malformed[0][0], malformed[0][1])
+        record["not_evidence"] = ("{} step(s) refused for their form ({} {!r}): the robot never attempted them, so the "
+                                  "plan is not evidence; fix the plan".format(len(malformed), malformed[0][0],
+                                                                              malformed[0][1][:120]))
+    try:
+        outcome = env.evaluate()
+    except Exception as exc:                # noqa: BLE001  (recorded: the plan cannot be shown to fail)
+        record["fails"] = False
+        record["evaluate_error"] = "{}: {}".format(type(exc).__name__, exc)
+        return record
+    failures = outcome.get("failures") or []
+    record["fails"] = not outcome["success"]
+    record["why"] = failures[:5] if failures else "goal_fraction={}".format(outcome["goal_fraction"])
+    labels = sorted({str(label) for label in failures})
+    record["labels"] = labels[:WRONG_LABELS_MAX]
+    if len(labels) > WRONG_LABELS_MAX:
+        record["labels_cut"] = len(labels) - WRONG_LABELS_MAX
+    record["reasons"] = failure_reasons(outcome)
+    record["goal_fraction"] = outcome.get("goal_fraction")
+    return record
 
 
 def _early_exit(env, task):
@@ -109,11 +211,15 @@ def temporal_lint(env, task):
     return errors, warnings
 
 
-def run_trial(spec, seed, perception=None, camera=None, gen=None):
+def run_trial(spec, seed, perception=None, camera=None, gen=None, capture=None):
     """perception: None -> each spec's own mode ("perception" field, default oracle); "realistic" forces it.
     camera: None -> each spec's own camera ("camera" field, default room); "room" | "geometric" forces it.
-    gen: None -> the spec's house generation; 1 | 2 forces it (CLI --gen)."""
+    gen: None -> the spec's house generation; 1 | 2 forces it (CLI --gen).
+    capture: a dict that receives the run's environments ("idle", "reference", "wrong": [one per wrong plan]) for a
+    caller that digests them (tools/orchestration/tier1_gate.py); None keeps nothing."""
     trial = {"seed": seed, "passed": False}
+    if capture is not None:
+        capture.update(idle=None, reference=None, wrong=[])
     try:
         config, task, oracle = build(spec, seed, camera=camera, perception=perception, gen=gen)
         mode = perception or task.get("perception") or "oracle"
@@ -143,9 +249,16 @@ def run_trial(spec, seed, perception=None, camera=None, gen=None):
             trial["gesture_dropped"] = True
         idle_env = make_env(config, task, seed, perception=mode, camera=camera)
         trial["idle_fails"] = not idle(idle_env, task)["success"]
+        if capture is not None:
+            capture["idle"] = idle_env
         ref = make_env(config, task, seed, perception=mode, camera=camera)
+        if capture is not None:
+            capture["reference"] = ref
         if ref.realism is not None:
             ref.realism.record_observations = True
+            # the episode's first observation (made at reset, before recording was on) is what an agent sees first:
+            # it counts as observed (phase 1, the people domain's request; observing changes no state)
+            ref.observe()
         try:
             runner = run_plan(ref, oracle["reference"], oracle["bindings"], strict=True)
             if runner.privileged_waits:
@@ -176,21 +289,16 @@ def run_trial(spec, seed, perception=None, camera=None, gen=None):
         wrongs = []
         for item in oracle["wrong"]:
             bad = make_env(config, task, seed, perception=mode, camera=camera)
-            record = {"name": item.get("name", "wrong")}
-            try:
-                runner = run_plan(bad, item["plan"], oracle["bindings"], strict=False)
-                record["ran"] = True
-                record["refusals"] = len(runner.failures)
-            except (PlanError, SpecError) as exc:
-                record["ran"] = isinstance(exc, PlanError)
-                record["error"] = str(exc)
-            outcome = bad.evaluate()
-            record["fails"] = not outcome["success"]
-            record["why"] = outcome["failures"][:5] if outcome["failures"] else ("goal_fraction={}".format(outcome["goal_fraction"]))
-            wrongs.append(record)
+            if capture is not None:
+                capture["wrong"].append(bad)
+            wrongs.append(wrong_plan_record(bad, item, oracle["bindings"]))
         trial["wrong"] = wrongs
         trial["wrong_fails"] = bool(wrongs) and all(w["fails"] for w in wrongs)
         trial["wrong_ran"] = bool(wrongs) and all(w.get("ran") for w in wrongs)
+        not_run = ["wrong plan {!r}: {} ({})".format(w["name"], w["not_evidence"], short_error(w))
+                   for w in wrongs if not w.get("ran")]
+        if not_run:
+            trial["wrong_not_run"] = not_run
         trial["passed"] = all(trial.get(k) for k in ("initial_fails", "idle_fails", "reference_passes", "wrong_fails", "wrong_ran"))
     except Exception as exc:  # recorded as evidence of failure, never swallowed silently
         trial["error"] = "{}: {}".format(type(exc).__name__, exc)

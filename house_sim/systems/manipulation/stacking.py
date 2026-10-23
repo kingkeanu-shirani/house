@@ -1258,27 +1258,29 @@ def arrange(ctx):
         w.log_move(eid, "robot", dest)
         return "Arranged {} on the floor".format(eid)
     drec = ctx.obj(dest, touch=True)
+    # references are aimed at as the robot sees them (an unresolved look-alike: its group's size, not its own)
+    seen = C.perceived_view(ctx, ref, ctx.args.get("facing"))
     if ref and side and side not in ("on",):
         parent_dims = C.surface_wd(drec)
         if side == "center":
             iw, idp = C.footprint_wd(rec)
             spos = [round((parent_dims[0] - iw) / 2.0, 3), round((parent_dims[1] - idp) / 2.0, 3)]
             if ref != dest:
-                rp = C.world_pose(w, ref)
+                rp = C.world_pose(seen, ref)
                 local = C.surface_local(w, dest, rp[1], rp[2])
                 spos = [round(local[0] - iw / 2.0, 3), round(local[1] - idp / 2.0, 3)]
         else:
             f, r = _frame_vectors(w, ctx.args.get("frame"), dest)
             vec = {"left": (-r[0], -r[1]), "right": r, "front": (-f[0], -f[1]), "behind": f}[side]
-            rpose = C.world_pose(w, ref)
+            rpose = C.world_pose(seen, ref)
             item_yaw = (C.world_pose(w, dest)[3] + C.num(yaw if yaw is not None else rec.get("yaw_deg", 0))) % 360.0
-            dist = _extent_along(w.ent(ref), rpose[3], vec[0], vec[1]) + _extent_along(rec, item_yaw, vec[0], vec[1]) + C.num(ctx.args.get("gap_m"), 0.03)
+            dist = _extent_along(seen.s["entities"][ref], rpose[3], vec[0], vec[1]) + _extent_along(rec, item_yaw, vec[0], vec[1]) + C.num(ctx.args.get("gap_m"), 0.03)
             px, py = rpose[1] + vec[0] * dist, rpose[2] + vec[1] * dist
             local = C.surface_local(w, dest, px, py)
             iw, idp = C.footprint_wd(rec)
             spos = [round(local[0] - iw / 2.0, 3), round(local[1] - idp / 2.0, 3)]
     if ctx.args.get("facing"):
-        target_pose = C.world_pose(w, ctx.args["facing"])
+        target_pose = C.world_pose(seen, ctx.args["facing"])
         require(target_pose is not None, "Unknown facing target", "argument")
         feature = ctx.args.get("feature") or "front"
         offset = C.num((rec.get("features") or {}).get(feature, 0.0))
@@ -1379,7 +1381,7 @@ def align(ctx):
     off = C.num(ctx.args.get("offset_m"))
     if mode == "center":
         if ref and ref != loc:
-            rpose = C.world_pose(w, ref)
+            rpose = C.world_pose(C.perceived_view(ctx, ref), ref)      # as the robot sees it
             local = C.surface_local(w, loc, rpose[1], rpose[2])
             x, y = local[0] - iw / 2.0, local[1] - idp / 2.0
         else:

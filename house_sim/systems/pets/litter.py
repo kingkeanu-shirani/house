@@ -357,7 +357,9 @@ def scoop_litter(ctx):
             seen.append("worms_in_stool")
     if seen:
         m["observed_abnormal"] = sorted(set(list(rec.get("observed_abnormal") or []) + seen))
-        notes.append("noticed: " + ", ".join(s.replace("_", " ") for s in seen))
+        # in the words a report uses (blood_tinged_clumps, loose_stool, no_urine_clumps, worms_in_stool), as check_pet
+        # names signs: the robot can report exactly what it saw
+        notes.append("noticed: " + ", ".join(seen))
     if C.realistic(ctx):
         # realistic perception: a skim does not show whether clumps are buried underneath (hidden _buried); the note is
         # about what the robot did, so it reads the same whatever is down there
@@ -366,8 +368,10 @@ def scoop_litter(ctx):
     elif left_buried:
         notes.append("clumps may remain at the bottom")
     C.log(w, "scooped", box=box, clumps=got_clumps, stools=stools, into=bag)
-    # the robot counts what it scoops; the depth left is judged by eye in realistic mode
-    ctx.grant(box, "inspect", ["clumps", "feces"])
+    # the robot counts what it scoops; the depth left is judged by eye in realistic mode. What it noticed in the clumps
+    # (observed_abnormal, written only while the room is lit) is its own observation of the box: it shows on the box
+    # from now on, with the same words a report uses (blood_tinged_clumps, loose_stool, ...)
+    ctx.grant(box, "inspect", ["clumps", "feces", "observed_abnormal"] if seen else ["clumps", "feces"])
     return "Scooped {} clump(s) and {} stool(s) into {}; litter now {}{}".format(
         got_clumps, stools, bag, depth_text(ctx, box), "; " + "; ".join(notes) if notes else "")
 

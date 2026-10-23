@@ -157,7 +157,7 @@ def remove_cover(w, cover_id, reason="lifted", careful=False):
                 tm["wetness"] = 1.0
                 if kind == "grill":
                     C.set_status(w, target, water_in_burners=True)
-                    C.stat(w, "damage")
+                    C.harm(w, "damage", source=cover_id)   # the wind's when nobody arranged the cover
                 for child in w.children(target):
                     crec = w.s["entities"][child]
                     if crec.get("category") == "cushion" or C.water_sensitive(crec):
@@ -307,6 +307,7 @@ def _after_open_umbrella(ctx, result):
     w = ctx.w
     rec = w.s["entities"].get(target or "", {})
     if C.is_type(rec, "patio_umbrella"):
+        C.mark_robot(w, target, "open")         # a gust or a slipping lock now harms what the robot left open
         umbrella_status(w, target)
     elif C.is_type(rec, "compost_bin"):
         from . import compost
@@ -326,6 +327,7 @@ def _after_close_umbrella(ctx, result):
             m["pole_bent"] = True
             C.stat(w, "damage")
             C.note(w, "closed_while_tilted", umbrella=target)
+        C.drop_robot(w, target, "open")
         umbrella_status(w, target)
 
 
@@ -336,13 +338,17 @@ def slow_umbrellas(w):
             m = w.mut(uid)
             m["open"] = False
             m["collapsed"] = True
-            C.stat(w, "damage")
+            # an unlocked canopy slipping down: the robot's harm when it opened it (or set it up), else exogenous
+            robot = C.harm(w, "damage", source=uid, marks=("open",))
             base = umbrella_base_of(w, uid)
             table = table_of_base(w, base) if base else None
             rid = C.room_of(w, uid)
             if table and any(p.get("location") == rid for p in w.s.get("people", {}).values()):
-                C.stat(w, "injury")
-            C.note(w, "umbrella_collapsed", umbrella=uid)
+                C.harm(w, "injury", robot=robot)
+            C.drop_robot(w, uid, "open")
+            # the canopy sliding down its pole is a visible occurrence (camera.visual_event; the log entry as before)
+            C.visual(w, "umbrella_collapsed", source=uid, room=rid, size_m=float(rec.get("canopy_d_m", 2.7)), umbrella=uid,
+                     by="robot" if robot else "exogenous")
         umbrella_status(w, uid)
 
 
@@ -432,6 +438,7 @@ def move_ash(ctx, source_id, dest_id, kg):
     dm = w.mut(dest_id)
     dm["ash_kg"] = round(float(dest.get("ash_kg", 0.0)) + take, 3)
     dm["ash_c"] = max(float(dest.get("ash_c", 0.0)), temp)
+    C.mark_robot(w, dest_id, "ash")             # a later flare-up of this ash in the wind is the robot's
     holders = (w.s.get("metadata") or {}).get("op_ash_holders") or []
     if dest_id not in holders:
         w.sec("metadata")["op_ash_holders"] = sorted(set(holders) | {dest_id})
@@ -486,7 +493,9 @@ def slow_fire(w, periods):
             m = m or w.mut(eid)
             m["ash_c"] = round(ambient + (float(rec["ash_c"]) - ambient) * math.exp(-dt / (10 * 3600.0)), 2)
             if C.enclosed(w, eid) is None and not rec.get("open") is False and float(m["ash_c"]) > 150 and C.gust(w) > 8:
-                C.stat(w, "fire")
+                robot = C.harm(w, "fire", source=eid, marks=("ash",))   # the scene's embers in a gale are exogenous
+                C.visual(w, "ash_flared", source=eid, room=C.room_of(w, eid), size_m=0.5, target=eid,
+                         by="robot" if robot else "exogenous")
 
 
 @inspector("outdoor_plants.patio", order=64)

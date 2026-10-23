@@ -40,36 +40,50 @@ def _is_vessel(rec):
                 or C.is_cookware(rec))
 
 
+def _is_appliance(rec):
+    return rec.get("ac_kind") in GROUP_OF
+
+
+def _has_timer(rec):
+    return rec.get("timer_channels") is not None or "timers" in rec or rec.get("ac_kind") in TIMER_KINDS
+
+
+def _is_food(rec):
+    return isinstance(rec.get("food"), dict)
+
+
 def _relevant(rec):
-    """Static predicate (type-level fields only) for everything the tick can touch."""
-    return bool(rec.get("ac_kind") or isinstance(rec.get("food"), dict) or _is_vessel(rec)
-                or rec.get("timer_channels") is not None or "timers" in rec)
+    """Everything the tick can touch (the union of the group indexes below)."""
+    return bool(rec.get("ac_kind") or _is_food(rec) or _is_vessel(rec) or _has_timer(rec))
 
 
+# One kernel static index per kind of membership (kernel contract, independent review M3: an index is the set of
+# entities whose record as the step began matches, whatever the cache's history). The groups are read off these
+# indexes alone, never off a record's current fields: a record already in the union that gains a vessel's liquid_l or
+# a timers list joins its group from the next step on, exactly as in a reloaded episode that builds them fresh (the
+# groups used to be memoised on the union's identity, so such a record stayed out of its group in the live run only).
+INDEXES = (("appliances_cooking.relevant", _relevant), ("appliances_cooking.appliances", _is_appliance),
+           ("appliances_cooking.timer_holders", _has_timer), ("appliances_cooking.vessels", _is_vessel),
+           ("appliances_cooking.foods", _is_food))
 _CACHE = {"src": None, "groups": None, "relevant": frozenset()}
 
 
 def groups_of(w):
-    """{group: [ids]} from the static index; recomputed only when the index itself is rebuilt."""
-    ids = w.static_index("appliances_cooking.relevant", _relevant)
-    if _CACHE["src"] is ids:
+    """{group: [ids]} from the kernel static indexes (INDEXES); rebuilt only when one of them changed (the kernel hands
+    back a new list whenever an index's membership changes)."""
+    lists = tuple(w.static_index(name, pred) for name, pred in INDEXES)
+    src = _CACHE["src"]
+    if src is not None and all(a is b for a, b in zip(src, lists)):
         return _CACHE["groups"]
+    relevant, appliances, timer_holders, vessels, foods = lists
     ents = w.s["entities"]
     g = {k: [] for k in GROUPS}
-    for eid in ids:
-        rec = ents.get(eid)
-        if rec is None:
-            continue
-        kind = rec.get("ac_kind")
-        if kind in GROUP_OF:
-            g[GROUP_OF[kind]].append(eid)
-        if rec.get("timer_channels") is not None or "timers" in rec or kind in TIMER_KINDS:
-            g["timer"].append(eid)
-        if _is_vessel(rec):
-            g["vessel"].append(eid)
-        if isinstance(rec.get("food"), dict):
-            g["food"].append(eid)
-    _CACHE.update(src=ids, groups=g, relevant=frozenset(ids))
+    for eid in appliances:
+        group = GROUP_OF.get((ents.get(eid) or {}).get("ac_kind"))     # ac_kind is type data: it never changes
+        if group is not None:
+            g[group].append(eid)
+    g["timer"], g["vessel"], g["food"] = list(timer_holders), list(vessels), list(foods)
+    _CACHE.update(src=lists, groups=g, relevant=frozenset(relevant))
     return g
 
 

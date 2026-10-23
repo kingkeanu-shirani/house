@@ -21,6 +21,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, system
 from . import common as C
+from . import percept
 from . import power as P
 from . import sightlines
 
@@ -177,7 +178,7 @@ def _shutdown(ctx, result):
     else:
         m["power_state"] = "off"
     m.pop("boot_remaining_s", None)
-    if rec.get("always_on"):
+    if C.shared_equipment(rec):
         C.harm(w, "electrical.always_on_interrupted:" + eid, cause="switched_off")
     if rec.get("must_stay_powered"):
         C.harm(w, "electrical.critical_power_loss:" + eid, cause="switched_off", kind=rec.get("critical_kind"))
@@ -220,35 +221,38 @@ def _use_interrupt_check(ctx, eid, starting):
 
 @P.on_power_lost(50)
 def _device_power_lost(w, eid, cause):
+    """Data, updates, jobs and recordings lost with mains power. They count against the robot only when the robot cut
+    the power (P.loss_by): a scenario's grid outage or a cut the robot had no part in is exogenous (it used to charge
+    data_loss, update_corrupted and job_interrupted even for a grid outage)."""
     rec = w.ent(eid)
     if not electronics(rec) and not C.storage_device(rec):
         return
     m = w.mut(eid)
     was = rec.get("power_state")
+    by = P.loss_by(cause)
     if rec.get("category") in COMPUTERS and not rec.get("battery_capacity_wh"):
         if was in ("on", "booting"):
             if rec.get("unsaved_work"):
                 m["unsaved_work"] = False
                 m["data_lost"] = True
-                C.harm(w, "electrical.data_loss:" + eid, cause=cause)
+                C.consequence(w, "electrical.data_loss:" + eid, by=by, cause=cause)
             if rec.get("job") in ("update", "os_update", "firmware_update"):
                 m["os_corrupted"] = True
-                C.harm(w, "electrical.update_corrupted:" + eid, cause=cause)
+                C.consequence(w, "electrical.update_corrupted:" + eid, by=by, cause=cause)
             elif rec.get("job") in ("backup", "download", "print", "render"):
                 m["job_interrupted"] = rec.get("job")
-                C.harm(w, "electrical.job_interrupted:" + eid, cause=cause, job=rec.get("job"))
+                C.consequence(w, "electrical.job_interrupted:" + eid, by=by, cause=cause, job=rec.get("job"))
             m["job"] = None
     if rec.get("category") in COMPUTERS and rec.get("battery_capacity_wh"):
         return  # laptops ride through on battery
     if rec.get("updating") and was in ("on", "rest"):
         m["updating"] = False
         m["os_corrupted"] = True
-        C.harm(w, "electrical.update_corrupted:" + eid, cause=cause)
+        C.consequence(w, "electrical.update_corrupted:" + eid, by=by, cause=cause)
     if rec.get("recording"):
         m["recording"] = False
         m["recording_lost"] = True
-        if cause != "outage":
-            C.harm(w, "electrical.recording_lost:" + eid, cause=cause)
+        C.consequence(w, "electrical.recording_lost:" + eid, by=by, cause=cause)
     if rec.get("category") == "network":
         _network_down(w, eid, cause)
     if electronics(rec):
@@ -279,8 +283,8 @@ def _device_power_restored(w, eid):
 def _network_down(w, eid, cause):
     state = w.s
     for pid, p in sorted(state.get("people", {}).items()):
-        if p.get("activity") in CALLING and cause != "outage":
-            C.harm(w, "electrical.call_interrupted:" + pid, device=eid, cause=cause)
+        if p.get("activity") in CALLING:
+            C.consequence(w, "electrical.call_interrupted:" + pid, by=P.loss_by(cause), device=eid, cause=cause)
 
 
 # ----------------------------------------------------------------------------------------
@@ -319,12 +323,12 @@ DEVICES_IDLE = C.IdleNote("electrical.devices", ("electronics", "network", "powe
 
 
 def _devices_inputs(w):
-    """The device step's inputs outside the entity table: the robot's network and the body's network fault (the
-    router sync reads them)."""
+    """The device step's inputs outside the entity table: the robot's network, the body's network fault and the house
+    outages it records (the router sync reads them)."""
     from ...kernel import body
     state = w.s
     return {"net": bool(w.robot.get("network", True)), "fault": body.fault(state, "network_down") is not None,
-            "router": bool(C.section(state).get("net_down_by_router"))}
+            "router": router_outage(w.robot)}
 
 
 def devices_idle(w):
@@ -410,21 +414,28 @@ def _devices_step(w, dt, tick):
         C.refresh(w)
 
 
+ROUTER_OUTAGE = "router"       # the cause this domain records in the body's house-outage list (body.set_network)
+
+
+def router_outage(robot):
+    """True while the household router's outage is one of the robot's house-caused network outages."""
+    return ROUTER_OUTAGE in ((robot or {}).get("network_outages") or ())
+
+
 def sync_robot_network(w, ok):
     """The robot's connectivity follows the household router (only when the house has one): the Wi-Fi going down takes
-    the robot's network with it, and the router coming back restores only what it took (never over the body's own
-    network_down fault, kernel v3.0 robot body: body_faults owns that state)."""
+    the robot's network with it, and the router coming back restores only what it took. The body owns the field: a
+    house-caused outage goes through body.set_network(cause="router") (no robot fault is logged; the network returns
+    only when no outage cause and no network_down fault remain), never a direct write of robot.network (adoption
+    breakage, electrical kernel request 3)."""
     if ok is None:
         return
     from ...kernel import body
-    s = C.section(w.s)
-    if not ok and w.robot.get("network", True):
-        w.robot_m()["network"] = False
-        C.sec(w)["net_down_by_router"] = True
-    elif ok and s.get("net_down_by_router"):
-        if body.fault(w.s, "network_down") is None:
-            w.robot_m()["network"] = True
-        C.sec(w)["net_down_by_router"] = False
+    down = router_outage(w.robot)
+    if not ok and not down:
+        body.set_network(w, False, cause=ROUTER_OUTAGE)
+    elif ok and down:
+        body.set_network(w, True, cause=ROUTER_OUTAGE)
 
 
 @C.refresher(50)
@@ -482,7 +493,7 @@ def _authorized(ctx, eid):
     w = ctx.w
     state = w.s
     rec = state["entities"][eid]
-    if not (rec.get("always_on") or rec.get("shared_infrastructure") or rec.get("category") == "network"):
+    if not C.shared_equipment(rec):
         return
     requester = state.get("requester")
     person = state.get("people", {}).get(requester or "") or {}
@@ -507,6 +518,7 @@ def restart_device(ctx):
     state = w.s
     eid = ctx.args["target"]
     rec = ctx.obj(eid, touch=True)
+    percept.refuse_unfamiliar(ctx, eid)
     require(electronics(rec), "That device has no restart function", "argument")
     _authorized(ctx, eid)
     method = ctx.args.get("method") or ("power_cycle" if rec.get("category") == "network" else "soft")

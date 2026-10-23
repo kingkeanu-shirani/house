@@ -56,6 +56,7 @@ well:
                             per-id perceivability rules can read its perception, camera view and realism
 """
 import marshal
+import os
 
 from .errors import ActionError
 from .predicates import MISSING, differences, get_path, is_within, root_room
@@ -66,6 +67,10 @@ RESERVED_IDS = {"hand", "robot", "floor", "nobody", "household"}
 LIST_SECTIONS = {"events", "orders", "pending", "event_log", "approvals", "messages", "action_log",
                  "notices", "order_log", "report_log", "dialogue_log", "requests"}
 NOTICES_CAP = 200
+STRUCT_CAP = 20000      # creations, destructions and rollbacks kept for the static indexes (older: a full rebuild)
+READS_ALL = "*"        # a static-index predicate that iterated its record (or would not take a read view) reads it all
+# strict mode also checks that every static-index predicate answers the same on its read view as on the record
+STRICT_INDEX = os.environ.get("HOUSE_SIM_STRICT") == "1"
 # event-log kind -> fn(w, entry): notices derived from what w.emit logs (kernel/timeline.py fills it: the body's battery
 # warnings and detected faults become "battery" / "fault" notices)
 EMIT_NOTICES = {}
@@ -80,6 +85,113 @@ def _plain(value):
     return value if value is MISSING or isinstance(value, (int, float, str, bool, type(None))) else clone(value)
 
 
+class _ReadView(object):
+    """A read-only view of an entity record that notes the keys a static-index predicate reads (World.static_index).
+    get, [] and in behave as on the record; iterating it (keys, items, values, iter, len) notes that the predicate
+    reads the whole record."""
+    __slots__ = ("_record", "_keys")
+
+    def __init__(self, record, keys):
+        self._record = record
+        self._keys = keys
+
+    def get(self, key, default=None):
+        self._keys.add(key)
+        return self._record.get(key, default)
+
+    def __getitem__(self, key):
+        self._keys.add(key)
+        return self._record[key]
+
+    def __contains__(self, key):
+        self._keys.add(key)
+        return key in self._record
+
+    def __bool__(self):
+        return bool(self._record)           # "if not rec" (records are never empty): no field read
+
+    def __iter__(self):
+        self._keys.add(READS_ALL)
+        return iter(self._record)
+
+    def __len__(self):
+        self._keys.add(READS_ALL)
+        return len(self._record)
+
+    def keys(self):
+        self._keys.add(READS_ALL)
+        return self._record.keys()
+
+    def items(self):
+        self._keys.add(READS_ALL)
+        return self._record.items()
+
+    def values(self):
+        self._keys.add(READS_ALL)
+        return self._record.values()
+
+
+class _StartView(_ReadView):
+    """A _ReadView of a record whose quiet fields (World.set_quiet) changed this step, with their step-start values
+    (the journal's field values; MISSING: the field was absent). No copy of the record is made."""
+    __slots__ = ("_start",)
+
+    def __init__(self, record, keys, start):
+        _ReadView.__init__(self, record, keys)
+        self._start = start
+
+    def get(self, key, default=None):
+        self._keys.add(key)
+        if key in self._start:
+            value = self._start[key]
+            return default if value is MISSING else value
+        return self._record.get(key, default)
+
+    def __getitem__(self, key):
+        self._keys.add(key)
+        if key in self._start:
+            value = self._start[key]
+            if value is MISSING:
+                raise KeyError(key)
+            return value
+        return self._record[key]
+
+    def __contains__(self, key):
+        self._keys.add(key)
+        if key in self._start:
+            return self._start[key] is not MISSING
+        return key in self._record
+
+    def _whole(self):
+        out = dict(self._record)
+        for key, value in self._start.items():
+            if value is MISSING:
+                out.pop(key, None)
+            else:
+                out[key] = value
+        return out
+
+    def __iter__(self):
+        self._keys.add(READS_ALL)
+        return iter(self._whole())
+
+    def __len__(self):
+        self._keys.add(READS_ALL)
+        return len(self._whole())
+
+    def keys(self):
+        self._keys.add(READS_ALL)
+        return self._whole().keys()
+
+    def items(self):
+        self._keys.add(READS_ALL)
+        return self._whole().items()
+
+    def values(self):
+        self._keys.add(READS_ALL)
+        return self._whole().values()
+
+
 class World:
     def __init__(self, state, registry=None):
         self.s = state
@@ -87,8 +199,12 @@ class World:
         self._journal = {}
         self._quiet = {}                # eid -> {field: value at step start}: field-level journal of set_quiet
         self._index = None
-        self._version = 0
-        self._static = {}
+        self._version = 0               # +1 on every create, destroy and rollback (camera and sight memos read it)
+        self._static = {}               # name -> [sorted ids, id set, struct cursor, pending ids]
+        self._struct = []               # entity ids created, destroyed or rolled back (static indexes apply them at once)
+        self._struct_base = 0           # absolute position of _struct[0]
+        self._readers = {}              # field -> names of the static indexes whose predicates read it
+        self._read_all = set()          # names of the static indexes whose predicates read whole records
         self._touched = []              # entity ids written this step, in order (append-only within a step)
         self._touched_base = 0          # absolute position of _touched[0] (trim_touched drops read prefixes)
         self._touch_readers = {}        # consumer -> absolute cursor it has read up to
@@ -104,6 +220,8 @@ class World:
 
     # ----- journaling -------------------------------------------------
     def begin(self):
+        if self._static and (self._journal or self._quiet):
+            self._absorb(self.changes())        # writes nobody committed: the static indexes still learn of them
         self._journal = {}
         self._quiet = {}
         self._layers = []
@@ -180,6 +298,7 @@ class World:
             self._touched_base += drop
 
     def rollback(self):
+        restored = [name for kind, name in self._journal if kind == "entities"] + list(self._quiet)
         for key, value in self._journal.items():
             kind, name = key
             container = self.s if kind in ("section", "scalar") else self.s[kind]
@@ -203,6 +322,7 @@ class World:
         self._version += 1
         self.mutation_count += 1
         self._reset_transient()
+        self._structural(restored)
 
     # ----- savepoints (TIER1_SWEEP 6.4, TIER1_INTEGRATION 1.8) ----------
     def savepoint(self):
@@ -225,7 +345,10 @@ class World:
         field writes too; the touch log is truncated to its length at sp (every consumer cursor clamped to it), the
         physics scratch and the heard-notice buffer are what they were at sp; mutation_count increments."""
         self._check_sp(sp)
+        restored = []
         for layer in reversed(self._layers[sp - 1:]):
+            restored.extend(name for kind, name in layer["journal"] if kind == "entities")
+            restored.extend(layer["quiet"])
             for (kind, name), value in layer["journal"].items():
                 container = self.s if kind in ("section", "scalar") else self.s[kind]
                 if value is MISSING:
@@ -253,6 +376,7 @@ class World:
         self._index = None
         self._version += 1
         self.mutation_count += 1
+        self._structural(restored)
 
     def release(self, sp):
         """End savepoint sp (and the ones opened after it) keeping its changes: its first values merge into the layer
@@ -301,6 +425,8 @@ class World:
 
     def commit(self):
         changed = self.changes()
+        if self._static:
+            self._absorb(changed)
         self._journal = {}
         self._quiet = {}
         self._layers = []
@@ -364,6 +490,7 @@ class World:
         self._version += 1
         self._snap(("entities", eid), MISSING)
         self.s["entities"][eid] = record
+        self._structural((eid,))
         return record
 
     def new_id(self, stem):
@@ -386,6 +513,7 @@ class World:
         record = self.ent(eid)
         self._snap(("entities", eid), record)
         del self.s["entities"][eid]
+        self._structural((eid,))
 
     # ----- other keyed collections -----------------------------------
     def _keyed(self, kind, key, mutable):
@@ -464,21 +592,134 @@ class World:
     def robot_m(self):
         return self.sec("robot")
 
-    def static_index(self, name, predicate):
-        """Sorted ids of entities matching a predicate over STATIC fields (type, is_a, category,
-        fixed tags...). Cached until an entity is created or destroyed. Use it in systems instead of
-        scanning every entity each tick; re-check dynamic fields on the returned records."""
-        cached = self._static.get(name)
-        if cached is not None and cached[0] == self._version and cached[1] == len(self.s["entities"]):
-            return cached[2]
-        ids = [eid for eid in sorted(self.s["entities"]) if predicate(self.s["entities"][eid])]
-        self._static[name] = (self._version, len(self.s["entities"]), ids)
-        return ids
+    def static_index(self, name, predicate, reads=None):
+        """Sorted ids of entities matching a predicate of one entity record (type, is_a, category, fixed tags, ...),
+        cached per name. Use it in systems instead of scanning every entity each tick; re-check on the returned
+        records what can change within a step.
+
+        Contract (independent review M3: a stale index made a saved and reloaded episode compute something the
+        uninterrupted one did not): the index is the set of entities whose record *as it was when the current step
+        began* matches, plus or minus the entities created or destroyed since (those at once, a created one with its
+        current record). A field the predicate reads that changes during a step counts from the next step on. So the
+        content is a pure function of the state, never of the cache's history: a reloaded episode, a replay and the
+        uninterrupted run see the same index at every lookup. A predicate must read only its record.
+
+        How it stays cheap: every evaluation reads the record through a view that notes the fields the predicate
+        reads; when a step commits, an entity enters the pending set of exactly the indexes that read one of its
+        changed fields (thermal's temperature writes, read by none, cost nothing); creations, destructions and
+        rollbacks are applied at the next lookup. A caller that knows every field its predicate reads may declare them
+        (reads=("type", "is_a")); the predicate then sees the plain record (strict mode checks the declaration)."""
+        entry = self._static.get(name)
+        end = self._struct_base + len(self._struct)
+        if entry is None or entry[2] < self._struct_base:
+            members = self._matching(name, predicate, self.s["entities"], reads)
+            ids = sorted(members)
+            self._static[name] = [ids, members, end, set()]
+            return ids
+        if entry[3] or entry[2] != end:
+            check = entry[3]
+            check.update(self._struct[entry[2] - self._struct_base:])
+            members = entry[1]
+            inside = self._matching(name, predicate, check, reads)
+            if any((eid in inside) != (eid in members) for eid in check):
+                members.difference_update(check)
+                members.update(inside)
+                entry[0] = sorted(members)
+            entry[2], entry[3] = end, set()
+        return entry[0]
+
+    def _start_view(self, eid, record, keys):
+        """A read view of eid's record as the step began: its journal snapshot when it was written this step (with
+        its quiet fields' step-start values), else the record itself (created this step, or untouched)."""
+        before = self._journal.get(("entities", eid))
+        if before is MISSING:
+            before = None                       # created this step: as it is
+        start = self._quiet.get(eid)
+        if start:
+            return _StartView(record if before is None else before, keys, start)
+        return _ReadView(record if before is None else before, keys)
+
+    def _matching(self, name, predicate, ids, reads=None):
+        """The ids among `ids` whose step-start record matches the predicate. The fields it reads (through a read
+        view; `reads`: the fields the caller declares it reads) join the index's read set."""
+        entities, journal, quiet = self.s["entities"], self._journal, self._quiet
+        keys, out = set(), set()
+        for eid in ids:
+            record = entities.get(eid)
+            if record is None:
+                continue
+            if reads is not None and not (journal or quiet):
+                if predicate(record):
+                    out.add(eid)
+                continue
+            view = self._start_view(eid, record, keys) if journal or quiet else _ReadView(record, keys)
+            try:
+                result = predicate(view)
+            except Exception:  # noqa: BLE001 -- a predicate that needs a real dict reads it whole (real errors re-raise)
+                plain = view._whole() if isinstance(view, _StartView) else view._record
+                result = predicate(plain)
+                keys.add(READS_ALL)
+            if STRICT_INDEX:
+                plain = view._whole() if isinstance(view, _StartView) else view._record
+                if bool(result) != bool(predicate(plain)):
+                    raise RuntimeError("Static index {!r}: its predicate answers differently on a read view".format(name))
+            if result:
+                out.add(eid)
+        if reads is not None:
+            if STRICT_INDEX and not keys <= set(reads):
+                raise RuntimeError("Static index {!r} reads {} beyond its declared fields".format(
+                    name, sorted(keys - set(reads))))
+            keys = set(reads)
+        for key in keys:
+            if key == READS_ALL:
+                self._read_all.add(name)
+                continue
+            readers = self._readers.get(key)
+            if readers is None:
+                self._readers[key] = {name}
+            elif name not in readers:
+                readers.add(name)
+        return out
+
+    def _absorb(self, changed):
+        """A step's committed changes (changes() leaf diffs): each changed entity becomes pending in the static indexes
+        that read one of its changed fields (all of them for a record created or removed as a whole)."""
+        fields = {}
+        for diff in changed:
+            path = diff["path"]
+            if path[:9] != "entities.":
+                continue
+            parts = path.split(".", 3)
+            fields.setdefault(parts[1], set()).add(parts[2] if len(parts) > 2 else None)
+        static, readers, read_all = self._static, self._readers, self._read_all
+        for eid, names in fields.items():
+            if None in names:
+                targets = static.keys()
+            else:
+                targets = set(read_all)
+                for field in names:
+                    targets.update(readers.get(field, ()))
+            for name in targets:
+                entry = static.get(name)
+                if entry is not None:
+                    entry[3].add(eid)
+
+    def _structural(self, ids):
+        """Entities created, destroyed or restored by a rollback: every static index applies them at its next lookup."""
+        if not self._static:
+            return
+        self._struct.extend(ids)
+        if len(self._struct) > STRUCT_CAP:
+            # an index whose cursor falls before the kept part rebuilds in full at its next lookup (the same content)
+            drop = len(self._struct) // 2
+            del self._struct[:drop]
+            self._struct_base += drop
 
     def of_type(self, type_name):
         """Entity ids whose type is type_name or derives from it (cached)."""
         return [e for e in self.static_index("type:" + type_name,
-                lambda r: r.get("type") == type_name or type_name in r.get("is_a", [])) if e in self.s["entities"]]
+                lambda r: r.get("type") == type_name or type_name in r.get("is_a", []), reads=("type", "is_a"))
+                if e in self.s["entities"]]
 
     def children(self, parent):
         # A scan is always current, even when a handler edits "location" after mut().

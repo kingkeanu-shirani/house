@@ -490,30 +490,37 @@ def _pool_audit(w):
 # what the robot can see outside / at the door
 
 
-def _face_known(env, state, pid, p):
+def _face_known(env, state, pid, p, own_camera=False):
     """Realistic perception: does the robot recognise this person's face? Household members yes; a visitor only when
     the people domain's face recognition matches them (>= 0.7) or the robot already identified them (kernel
     knowledge). Same rule as the people view, so a window or a doorbell camera never names someone the people view
-    shows as an "unfamiliar person"."""
+    shows as an "unfamiliar person". own_camera: the robot's own head camera is looking (through a window), so with
+    the geometric camera the match also needs the face in its frames (people.perception.face_recognized with env:
+    camera.face_seen, K-CAM-3); a doorbell's own camera faces the visitor and keeps the matcher's rule. Under
+    HOUSE_SIM_STRICT=1 an error in the other domain's matcher is raised, not swallowed (review A9)."""
+    import os
     import sys
     if not (C.role_is_visitor(p) or p.get("role") in KERNEL_VISITOR_ROLES or p.get("at_door") or p.get("visiting")):
         return True
     people_perception = sys.modules.get("house_sim.systems.people.perception")
     if people_perception is not None and hasattr(people_perception, "face_recognized"):
         try:
-            if people_perception.face_recognized(state, pid, p):
+            args = (state, pid, p, env) if own_camera and env is not None else (state, pid, p)
+            if people_perception.face_recognized(*args):
                 return True
-        except Exception:       # another domain's recognition must never break this view
-            pass
+        except Exception:       # another domain's recognition must never break this view (except in strict mode)
+            if os.environ.get("HOUSE_SIM_STRICT") == "1":
+                raise
     realism = C.realism_of(env)
     knowledge = getattr(realism, "knowledge", None)
     return bool(knowledge is not None and (getattr(knowledge, "data", {}) or {}).get(pid, {}).get("level"))
 
 
-def _visitor_view(state, pid, env=None, dark=False):
+def _visitor_view(state, pid, env=None, dark=False, own_camera=False):
     """What the robot sees of a person outside / at the door. Oracle: the person's label and visible details. Realistic:
     an unrecognised visitor is an "unfamiliar person" (name and kind come only from answers, badges or recognition);
-    what they wear, carry or drive is visible; in the dark through a window only a figure shows."""
+    what they wear, carry or drive is visible; in the dark through a window only a figure shows. own_camera: seen by
+    the robot's own camera (through a window), not a device's (see _face_known)."""
     p = state["people"][pid]
     where = state["rooms"].get(p.get("location"), {}).get("label")
     if C.realism_of(env) is None:
@@ -524,7 +531,7 @@ def _visitor_view(state, pid, env=None, dark=False):
         return info
     if dark:
         return {"who": "person", "where": where}
-    who = p.get("label", "a person") if _face_known(env, state, pid, p) else "unfamiliar person"
+    who = p.get("label", "a person") if _face_known(env, state, pid, p, own_camera=own_camera) else "unfamiliar person"
     activity = p.get("activity")
     if activity in ("sleeping", "napping", "asleep", "resting", "lying"):
         activity = "lying down"
@@ -557,7 +564,7 @@ def outside_view(env, w, obs):
             p = state["people"][pid]
             if p.get("gone"):
                 continue
-            seen.append(_visitor_view(state, pid, env, dark=dark))
+            seen.append(_visitor_view(state, pid, env, dark=dark, own_camera=True))
     if seen:
         obs["outside_view"] = seen
 

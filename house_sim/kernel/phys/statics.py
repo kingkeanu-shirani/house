@@ -10,9 +10,10 @@ live there). Thresholds, in units of g for accelerations:
   (b 8 cm, z 5 cm) would need 0.8 g, so with mu 0.5 it slides first.
 * on a slope or tilted support of angle theta: slide when tan(theta) > mu, tip when tan(theta) > b / (2 z), and a
   rollable item rolls when tan(theta) > c_rr (rolling resistance).
-* a stack (two or more portable items, each resting on the one below) topples when an upper item's footprint is more
-  than 1.25x the one below it, when it sits more than 0.3 of the lower footprint off centre, when its height exceeds 6x
-  its base or the clearance above it; above 4x its base it is wobbly (manipulation's rules, unchanged).
+* a stack (two or more portable items, each resting on the one below) topples when the part of an upper item that
+  bears on the one below (its footprint, or its foot) is more than 1.25x that one's top (its declared surface, else its
+  footprint), when it sits more than 0.3 of that top off centre and reaches past it, when its height exceeds 6x its base
+  or the clearance above it; above 4x its base it is wobbly (manipulation's rules; the top and foot since phase 1).
 * furniture tips forward when the moments about its front bottom edge (open drawers through ``phys.tip_loads``, a
   pull at a height, a climber) exceed the righting moment of its own mass at half its depth; ``anchored`` never tips.
 * a rated slot fails when its load exceeds max(rating, baseline load + 0.5 kg) (a staged support: its rating, once its
@@ -84,6 +85,34 @@ def footprint_wd(state, eid):
     w, d, _ = support.resting_size(state, eid)
     if int(round(support.yaw_of(state["entities"][eid]) / 90.0)) % 2 == 1:
         w, d = d, w
+    return w, d
+
+
+def top_wd(state, eid):
+    """(w, d) of the area eid's top offers what rests on it, in eid's own frame (the frame its spots and a stack
+    member's offset are in): the declared surface_size_m (a kitchen scale's weighing platform, a trivet, a charging
+    pad, an ironing board's top) while it stands upright, else its resting footprint. A folding stand that is folded
+    (it declares open_size_m and is not open) offers only its folded footprint."""
+    rec = state["entities"][eid]
+    top = rec.get("surface_size_m")
+    folded = bool(rec.get("open_size_m")) and rec.get("open") is not True
+    if isinstance(top, (list, tuple)) and len(top) >= 2 and not folded and \
+            rec.get("orientation") in (None, "upright"):
+        w, d = support.num(top[0]), support.num(top[1])
+        if w > 0 and d > 0:
+            return w, d
+    w, d, _ = support.resting_size(state, eid)
+    return w, d
+
+
+def contact_wd(state, eid):
+    """(w, d) of the part of eid that bears on what it rests on, in its parent's frame: its footprint, narrowed to
+    its foot (Phys.base_m: a bowl's foot ring, a wine glass's foot) while it stands upright on one."""
+    w, d = footprint_wd(state, eid)
+    if state["entities"][eid].get("orientation") in (None, "upright"):
+        foot = support.finite(support.phys(state, eid).base_m)
+        if foot is not None and foot > 0:
+            w, d = min(w, foot), min(d, foot)
     return w, d
 
 
@@ -371,7 +400,12 @@ def stack_height_m(state, members):
 def stack_verdict(state, base_id, cmap=None):
     """[(eid, "topple" | "wobbly")] for the stack whose bottom member is base_id (a portable item): every member from
     the first unstable one up topples; otherwise every member of a stack taller than 4x its base is wobbly. [] for a
-    sound stack or a non-portable base."""
+    sound stack or a non-portable base.
+
+    Each member is judged against the top of the one below it (top_wd: its declared surface_size_m, else its
+    footprint, both in the lower member's own frame, the frame the member's offset is measured in): the oversize rule
+    compares the part that bears on it (contact_wd: the member's foot when it stands on one), so a wide mixing bowl on
+    a kitchen scale's platform, or a bowl on its foot ring, rests; the offset rule compares the member's centre."""
     entities = state["entities"]
     if not entities[base_id].get("portable"):
         return []           # a table or shelf with one item on it is a support, not a stack
@@ -380,14 +414,15 @@ def stack_verdict(state, base_id, cmap=None):
     for i in range(1, len(members)):
         upper, lower = entities[members[i]], entities[members[i - 1]]
         uw, ud = footprint_wd(state, members[i])
-        lw, ld = footprint_wd(state, members[i - 1])
+        cw, cd = contact_wd(state, members[i])
+        lw, ld = top_wd(state, members[i - 1])
         dx, dy = _centre_offset(state, members[i])
         if i == 1 and support.resting_size(state, members[0])[2] <= LOW_BASE_M + 1e-9 and                 abs(dx) <= lw / 2.0 + 1e-9 and abs(dy) <= ld / 2.0 + 1e-9:
             # a low flat base under an item centred over it (a phone on a Qi pad, a watch on its puck): the item rests
             # on the base and the surface around it, so neither the oversize nor the offset rule applies (adoption
             # request electrical 1)
             continue
-        u_long, u_short = sorted((uw, ud), reverse=True)
+        u_long, u_short = sorted((cw, cd), reverse=True)
         l_long, l_short = sorted((lw, ld), reverse=True)
         if not _nests(upper, lower) and (u_long > l_long * STACK_OVERSIZE + 1e-6 or u_short > l_short * STACK_OVERSIZE + 1e-6):
             unstable_at = i

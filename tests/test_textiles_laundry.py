@@ -2879,6 +2879,229 @@ class TierOneAdoptionTests(unittest.TestCase):
             self.assertIn("care_label", ok(env, "inspect", shirt)["message"])      # up close; room mode as before
 
 
+class PhaseOneStabiliseTests(unittest.TestCase):
+    """Phase 1 of the stabilisation after the independent review (docs/reviews/2026-10-22_independent_review): the
+    review's findings and the adoption round's breakages that are this domain's, each pinned here."""
+
+    JUG_FIELDS = ("size_m", "volume_l", "mass_kg", "liquid_l", "capacity_l", "shape", "com_frac", "mouth_frac")
+
+    def test_laundry_jug_members_are_one_jug_to_every_physical_channel(self):
+        """Review L2/L4 (K-LEAK and manipulation requests): the read-resolved laundry_jug group's members differed in
+        true size (bleach 0.30 m, booster 0.20 m), empty mass, outline volume and, through the kernel's 'bottle' noun
+        row, shape and neck (the bleach jug a narrow-necked cylinder): camera pixels, a swept knock, a pour or a tip
+        told them apart before the label was read. Every member now carries the same jug props."""
+        from house_sim.kernel.phys import props as phys_props
+        reg = default_registry()
+        members = reg.lookalike_types()["laundry_jug"]
+        self.assertGreaterEqual(len(members), 7)
+        for key in self.JUG_FIELDS:
+            values = {repr(reg.resolve(t).get(key)) for t in members}
+            self.assertEqual(len(values), 1, (key, {t: reg.resolve(t).get(key) for t in members}))
+        phys = {t: phys_props.props_of(dict(reg.resolve(t), type=t)) for t in members}
+        first = phys[members[0]]
+        for t in members[1:]:
+            diff = [f for f in first._fields if getattr(phys[t], f) != getattr(first, f)]
+            self.assertEqual(diff, [], t)
+        self.assertEqual(first.shape, "box")
+        self.assertLess(first.mouth_frac, 0.6)                    # a screw neck: on its side it keeps some (5.7)
+        self.assertEqual(reg.lookalike_conflicts(), [])          # the registry lint stays quiet for every group
+        # the geometric camera renders unread twins alike, pixels included
+        rows = []
+        for kind in ("chlorine_bleach_bottle", "oxygen_laundry_booster", "fabric_softener"):
+            config, p, s = build()
+            jug = p.on(s["table"], kind, eid="laundry_jug_probe_1")
+            env = HouseEnv(config, seed=0, perception="realistic", camera="geometric")
+            H = env.realism.handles.handle
+            ok(env, "approach", H(s["table"]))
+            record = env.observe()["visible_entities"].get(H(jug))
+            self.assertIsNotNone(record, kind)
+            view = dict(record.get("view") or {})
+            rows.append({"view": view, **{k: record.get(k) for k in ("label", "kind", "size_m", "size_class", "color")}})
+        self.assertEqual(rows[0], rows[1])
+        self.assertEqual(rows[0], rows[2])
+
+    def test_feeling_a_drying_garment_at_night_lights_the_room_from_its_doorway_and_leaves_it_dark(self):
+        """A-d66994a566899c-01 (hashed variants put the 1.5-day wool sweater on seed 1): a bare inspect of the garment
+        is refused in a dark windowless laundry room, and its wall switch is too small to make out from inside in the
+        dark. textiles_laundry.feel_garment steps out, switches the light on at the doorway (as go_room does when it
+        walks into a dark room), feels the garment and switches the light off again; in a lit room it only inspects."""
+        from house_sim.tasks.runner import Runner
+        config, p, s = build(start="2026-10-09T23:30:00", people={}, pets={})
+        reg = default_registry()
+        light = next(e for e, r in config["entities"].items()
+                     if r.get("type") == "ceiling_light" and r.get("location") == "laundry")
+        config["entities"][light]["on"] = False
+        cid = next(c for c, conn in config["connections"].items() if "laundry" in (conn.get("cells") or {}))
+        switch = reg.make("light_switch", "laundry", controls=[light], on=False, near_connection=cid, mounted=True,
+                          pos=list(config["connections"][cid]["cells"]["laundry"]))
+        config["entities"]["laundry_light_switch_1"] = switch
+        sweater = p.on(s["table"], "sweater", wetness=0.4)
+        env = env_of(config)
+        self.assertEqual(env.world.s["robot"]["room"], "laundry")
+        self.assertEqual(no(env, "inspect", sweater, where="closely")["message"], "That is not visible here")
+        self.assertEqual(no(env, "switch_on", "laundry_light_switch_1")["message"], "That is not visible here")
+        steps = self._recorded(env)
+        Runner(env, {}, strict=True).skill("textiles_laundry.feel_garment", garment=sweater)
+        self.assertEqual([(a, t) for a, t, _ in steps if a in ("switch_on", "inspect", "switch_off")],
+                         [("switch_on", "laundry_light_switch_1"), ("inspect", sweater),
+                          ("switch_off", "laundry_light_switch_1")])
+        self.assertTrue(all(done for _, _, done in steps), steps)
+        self.assertIn('"feel"', self._last_inspect)                         # the garment was felt
+        self.assertFalse(ent(env, "laundry_light_switch_1")["on"])           # left as it was found
+        self.assertFalse(ent(env, light)["on"])
+        self.assertEqual(env.world.s["robot"]["room"], "laundry")
+        # a lit room: just the inspection, no switching
+        config, p, s = build(start="2026-10-09T11:00:00", people={}, pets={})
+        sweater = p.on(s["table"], "sweater", wetness=0.4)
+        env = env_of(config)
+        steps = self._recorded(env)
+        Runner(env, {}, strict=True).skill("textiles_laundry.feel_garment", garment=sweater)
+        self.assertEqual([a for a, _, _ in steps if a != "approach"], ["inspect"])
+
+    def test_a_folded_stack_too_tall_for_its_drawer_is_refused_by_the_kernels_clearance(self):
+        """Review A1 / M4 (K-FIX: stack.duplicated_by now lists this domain): fold.textile_stack_fit kept a private copy
+        of the clearance rule. It now refuses by the kernel's numbers (statics.clearance_above_m, stack_height_m), so
+        with the stack law deferred or forced the same placement is refused before anything moves and nothing
+        topples; a stack that fits is left alone by the law."""
+        from house_sim.kernel.phys import lawbook, statics
+        for forced in (False, True):
+            with lawbook.forced(stack=forced):
+                config, p, s = build()
+                drawer = p.floor_item("laundry", "portable_object", label="linen drawer", container=True,
+                                      accepts_items=True, openable=True, open=True, capacity_l=60.0,
+                                      inner_size_m=[0.5, 0.4, 0.12], size_m=[0.55, 0.45, 0.5], portable=False)
+                towels = [p.on(s["table"], "hand_towel", folded="half", size_m=[0.3, 0.25, 0.05]) for _ in range(3)]
+                env = env_of(config)
+                hold(env, towels[0])
+                ok(env, "approach", drawer)
+                ok(env, "place", towels[0], drawer, relation="in")
+                hold(env, towels[1])
+                ok(env, "approach", drawer)
+                ok(env, "place", towels[1], towels[0])
+                state = env.world.s
+                self.assertAlmostEqual(statics.clearance_above_m(state, towels[0]), 0.12)
+                self.assertEqual(statics.stack_verdict(state, towels[0]), [], forced)        # two fit: sound
+                hold(env, towels[2])
+                ok(env, "approach", drawer)
+                message = no(env, "place", towels[2], towels[1])["message"]
+                self.assertIn("0.15 m tall; only 0.12 m clearance", message, forced)
+                self.assertEqual((ent(env, towels[1])["location"], ent(env, towels[0])["location"]), (towels[0], drawer))
+                self.assertFalse(ent(env, towels[1]).get("fell"), forced)
+        # the top shelf of a shelved cabinet: the room is up to the cabinet's top, not its whole inner height (the
+        # private copy allowed 0.50 m there)
+        config, p, s = build()
+        cabinet = p.floor_item("laundry", "portable_object", label="linen cabinet", container=True, accepts_items=True,
+                               openable=True, open=True, capacity_l=200.0, inner_size_m=[0.5, 0.4, 0.5],
+                               shelf_heights=[0.0, 0.3], size_m=[0.55, 0.45, 0.55], portable=False)
+        towels = [p.on(s["table"], "hand_towel", folded="half", size_m=[0.3, 0.25, 0.05]) for _ in range(5)]
+        env = env_of(config)
+        hold(env, towels[0])
+        ok(env, "approach", cabinet)
+        ok(env, "place", towels[0], cabinet, relation="in", shelf=1)
+        for below, item in zip(towels, towels[1:4]):
+            hold(env, item)
+            ok(env, "approach", cabinet)
+            ok(env, "place", item, below)
+        self.assertAlmostEqual(statics.clearance_above_m(env.world.s, towels[0]), 0.2)
+        hold(env, towels[4])
+        ok(env, "approach", cabinet)
+        self.assertIn("0.25 m tall; only 0.20 m clearance", no(env, "place", towels[4], towels[3])["message"])
+
+    def test_tucking_and_unrolling_have_a_success_path_and_a_refusal(self):
+        """K-GATE coverage request (the coverage fuzz never drove tuck or unroll_sleeves to success, and no test did):
+        a top sheet on a dressed bed tucks at the foot with hospital corners and untucks; a duvet-only bed has no
+        sheet to tuck; rolled sleeves and cuffed legs unroll, and plain ones are refused."""
+        from house_sim.systems.textiles_laundry.helpers import bed_helper
+        config, p, s = build()
+        bed = p.furniture("bedroom", "bed", size_m=[1.6, 2.0, 0.55])
+        bed_helper(Ctx(config, p), bed=bed, state="made", flat=True)
+        bare = p.furniture("bedroom", "bed", size_m=[1.0, 2.0, 0.55])
+        bed_helper(Ctx(config, p), bed=bare, state="made")
+        stand = p.furniture("bedroom", "nightstand")
+        shirt = p.on(s["table"], "dress_shirt", sleeves_rolled=True)
+        jeans = p.on(s["table"], "jeans", cuffed=True)
+        tee = p.on(s["table"], "t_shirt")
+        env = env_of(config)
+        ok(env, "approach", s["table"])
+        for item in (shirt, jeans):
+            ok(env, "unroll_sleeves", item)
+            self.assertFalse(ent(env, item).get("sleeves_rolled") or ent(env, item).get("cuffed"), item)
+        self.assertEqual(no(env, "unroll_sleeves", tee)["message"], "Nothing is rolled or balled up")
+        ok(env, "move", "hall")
+        ok(env, "move", "bedroom")
+        ok(env, "approach", bed)
+        sheet = next(e for e, r in env.world.s["entities"].items()
+                     if r.get("location") == bed and r.get("bed_role") == "flat")
+        ok(env, "tuck", bed, edges=["foot", "left", "right"], corners="hospital")
+        self.assertEqual(ent(env, sheet)["tucked"], ["foot", "left", "right"])
+        self.assertEqual(ent(env, sheet)["hospital_corners"], 2)
+        ok(env, "tuck", bed, edges=["foot"], untuck=True)
+        self.assertEqual(ent(env, sheet)["tucked"], ["left", "right"])
+        ok(env, "approach", bare)
+        self.assertEqual(no(env, "tuck", bare)["message"], "There is no flat on the bed")
+        ok(env, "approach", stand)
+        self.assertEqual(no(env, "tuck", stand)["message"], "Tuck bedding on a bed")
+
+    def test_garment_questions_reach_the_laundry_answerer_through_the_dialogue_routes(self):
+        """Adoption cross-domain bug (textiles_laundry-6; manipulation's and admin_inventory's catch-all routes claimed
+        every status / how / keep question about any thing, so laundry:rewear, keep_out and hang_or_fold were never
+        reached): with every domain loaded, dialogue.find_route now sends a garment's laundry questions here."""
+        from house_sim.kernel.dialogue import Subject, find_route
+        config, p, s = build()
+        coat = p.on(s["table"], "coat")
+        tee = p.on(s["table"], "t_shirt", soil={"stain_wine": 0.4})
+        env = env_of(config)
+        state = env.world.s
+        for eid in (coat, tee):
+            for words, aspect, detail, topic in ((("wash",), "status", None, "laundry:rewear:"),
+                                                 (("clean",), "status", None, "laundry:rewear:"),
+                                                 ((), "how", "hang_or_fold", "laundry:hang_or_fold:"),
+                                                 (("hang",), "how", None, "laundry:hang_or_fold:"),
+                                                 (("dryer",), "ok", None, "laundry:keep_out:"),
+                                                 (("dryer",), "how", None, "laundry:keep_out:"),
+                                                 (("stain",), "why", None, "laundry:stain:")):
+                found = find_route(state, "resident_1", Subject("entity", eid, words), aspect, detail, None, env=env)
+                self.assertEqual(found, ("laundry.item", topic + eid), (eid, words, aspect, detail))
+
+    def _recorded(self, env):
+        """Record (action, target, ok) of every step env takes from now on (and the last inspection's message)."""
+        steps, step = [], env.step
+
+        def recording(action, target="", destination="", **kw):
+            result = step(action, target, destination, **kw)
+            steps.append((action, target, result["ok"]))
+            if action == "inspect":
+                self._last_inspect = result["message"]
+            return result
+        env.step = recording
+        return steps
+
+    def test_the_heel_rest_claim_reaches_every_domains_legacy_contact_heat_through_the_kernel_helper(self):
+        """Adoption breakage T-7d4006bda247ba-01 (admin_inventory and appliances_cooking breakages, request
+        textiles_laundry-8): another domain's legacy contact-heat rule asks phys.thermal.contact_claimed before it
+        marks a support; this domain's heel-rest hook must answer it with the law deferred too -- an upright iron on its
+        heel rest is claimed, a face-down one is not."""
+        from house_sim.kernel.phys import lawbook, thermal
+        from house_sim.systems.textiles_laundry.helpers import station
+        for law_state in ("deferred", "active"):
+            with lawbook.forced(contact_heat=law_state):
+                for orientation, claimed in (("upright", True), ("flat", False)):
+                    config, p, s = build()
+                    s.update(station(Ctx(config, p), need=["iron", "board"], iron_on_board=True))
+                    config["entities"][s["iron"]].update(plugged_in=True, auto_off=False)
+                    env = env_of(config)
+                    ok(env, "approach", s["board"])
+                    ok(env, "pick_up", s["iron"])
+                    ok(env, "switch_on", s["iron"])
+                    ok(env, "set", s["iron"], setting="temp", value="high")
+                    ok(env, "wait", seconds=120)
+                    ok(env, "place", s["iron"], s["board"], orientation=orientation)
+                    temp = thermal.contact_temp_c(env.world.s, s["iron"])
+                    self.assertGreater(temp, 150.0)
+                    self.assertEqual(thermal.contact_claimed(env.world, s["iron"], s["board"], temp, 0.5), claimed,
+                                     (law_state, orientation))
+
+
 def sewing_kit_for(config, p, s):
     from house_sim.systems.textiles_laundry.helpers import sewing_kit
     return sewing_kit(Ctx(config, p), s["table"], frayed=False)

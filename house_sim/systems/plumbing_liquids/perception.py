@@ -396,7 +396,8 @@ def _seen_details_body(w, eid, rec, details, ctx):
     stain = rec.get("category") == "stain" or rec.get("water_stain")
     if stain:
         details["stain_size"] = V.stain_size(rec.get("stain_m2"))
-        details["looks"] = "fresh, active stain: dark damp-looking centre, soft paint" if rec.get("wet") else             "old, dry stain: brown tide-line edges, firm paint"
+        # its own key: "looks" is the kernel physics inspector's (sturdy / flimsy on a close look at a support)
+        details["stain_look"] = "fresh, active stain: dark damp-looking centre, soft paint" if rec.get("wet") else             "old, dry stain: brown tide-line edges, firm paint"
         details["dripping"] = bool(rec.get("dripping"))
         if meter:
             _measure(details, "moisture", V.stain_moisture(rec))

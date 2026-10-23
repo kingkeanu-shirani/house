@@ -28,6 +28,7 @@ from . import common as C
 AROUSAL_TAU_S = 240.0
 CRY_DB = 76.0
 GRADUAL_LIGHT_STEP = 0.03     # largest per-tick rise still treated as natural (dawn adds ~0.004 per 30 s)
+SLEEP_ACTIVITIES = ("sleeping", "napping", "asleep")    # activity words that end when the person wakes
 
 
 # ----------------------------------------------------------------------
@@ -188,6 +189,11 @@ def wake_person(w, pid, cause, robot_caused, wanted=False, db=None, method=None)
     m["awake"] = True
     if m.get("posture") == "sleeping":
         m["posture"] = "lying"
+    if m.get("activity") in SLEEP_ACTIVITIES:
+        # awake now: no longer "sleeping" (review P3-id S2: inspect showed awake true beside activity "sleeping")
+        m["activity"] = None
+        if m.get("activity_until") is not None:
+            m["activity_until"] = None
     m["woken_at"] = C.now_s(w.s)
     m["woken_by"] = cause
     m["_arousal"] = 0.0

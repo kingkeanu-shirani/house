@@ -12,9 +12,9 @@ Tier-1 adoption round (kernel v3.0 physics, camera and body, v3.1 sweep): sectio
 
 | module | contents |
 |---|---|
-| `common.py` | constants, realistic-perception helpers (`realistic`, `seen_keys`, `drop_keys`, `mass_feel`, `temp_feel`, `fill_word`, `unresolved`, `require_identified`, `gone_refs`, `approx`, `amount_word`, `water_word`, `perceived_liters`; `find_held`/`nearby_entity` take `by_identity`), shared helpers (`set_status`, cached indexes `type_index`/`find_types`/`kids_of_type`/`static_ids`/`outdoor_map`, `reach_with_tool`, weather/wind helpers, `add_spill` (the kernel's spill), `drop_cell`, `pinfo`, house-wall geometry), tier-1 helpers (`visual` visual events, `notice` notices, `seen_cells` the geometric camera's surveyed floor, `soil_hands` / `soil_from` / `gloved` hand soil through the body) |
+| `common.py` | constants, realistic-perception helpers (`realistic`, `seen_keys`, `drop_keys`, `mass_feel`, `temp_feel`, `fill_word`, `unresolved`, `require_identified`, `gone_refs`, `approx`, `amount_word`, `water_word`, `perceived_liters`; `find_held`/`nearby_entity` take `by_identity`), shared helpers (`set_status`, cached indexes `type_index`/`find_types`/`kids_of_type`/`static_ids`/`outdoor_map`, `reach_with_tool`, weather/wind helpers, `add_spill` (the kernel's spill), `drop_cell`, `pinfo`, house-wall geometry), tier-1 helpers (`visual` visual events, `notice` notices, `seen_cells` the geometric camera's surveyed floor, `soil_hands` / `soil_from` / `gloved` hand soil through the body), harm attribution (`harm`, `robot_caused`, `mark_robot` / `drop_robot`, `ROBOT_MARK`; section 0c) |
 | `species.py` | growing media table (saturation / field capacity / wilting point), ~75 species profiles |
-| `weather.py` | weather events, the generation-2 weather process and its forecasts (`process_value`, `process_forecast`, `forecast_for`), rain/thunder notices, forecast observer, wind (drag/lift), rain/snow wetting, drying, mildew, drip trails, `phys.exposed`, outdoor haze for the geometric camera |
+| `weather.py` | weather events, the generation-2 weather process and its forecasts (`process_value`, `process_forecast`, `forecast_for`), rain/thunder notices, forecast observer, wind (loose things through the kernel's `environment.wind_effect`; umbrellas, covers, plant covers and leaf piles this domain's; `rest_cell`: where a blown thing comes to rest), rain/snow wetting, drying, mildew, drip trails, `phys.exposed`, outdoor haze for the geometric camera |
 | `plants.py` | container water balance, light/heat zones, plant status, health/pests/lean, inspector, answerer, one-time derivation |
 | `garden.py` | beds, digging/planting/filling/firming, mulch grids, sowing/germination/thinning/hardening, weeds, supports, covers, produce |
 | `lawn.py` | 1 m patch grid: height, moisture, leaves, clippings, seed, amendments, aeration, edges, emitters, mowing |
@@ -23,7 +23,7 @@ Tier-1 adoption round (kernel v3.0 physics, camera and body, v3.1 sweep): sectio
 | `pool.py` | pool debris, skimming zones, skimmer basket, toys/flotation, pool chemical invariant |
 | `compost.py` | compost pile model (C:N, moisture, O2, temperature, maturity, contaminants, worms), smells observer, realistic-only compost inspector and turning feel |
 | `verbs.py` | the 30 domain actions |
-| `furnish.py` | generation furnishers (yard, houseplants, outdoor items, finish), the shared floor placement (`floor_place`/`floor_spot`, hidden-mount avoidance) and the serviceable-light guard (`guarded`); `gen1_records` keeps generation-1 houses byte-identical |
+| `furnish.py` | generation furnishers (yard, houseplants, outdoor items, finish), the shared floor placement (`floor_place`/`floor_spot`, hidden-mount avoidance) and the serviceable-light guard (`guarded`), `fence_extent` (a fence record's box is its yard) |
 | `season.py` | generation 2: the season ground state (snow and ice from the process's last week, leaf litter, pool season, garden stage, frost) and the porch steps of the exterior stairs |
 | `helpers.py` | scenario helpers |
 | `skills.py` | reference skills |
@@ -38,7 +38,7 @@ also"), and how this domain now meets the kernel's physics, cameras, body and ti
 
 | Law (laws.json) | What this domain did | Ready to flip |
 |---|---|---|
-| `wind` | `weather._object_wind` (loose objects: drag and lift with the weather's gust against friction, tie-downs and ballast) returns at once while the law is active: the kernel's environment system moves loose outdoor items then, with the wind at the item (0.4 of the 10 m mean, 0.6 of the gust in a yard), the sustained wind sliding and gusts lifting sheets and tipping tall things. Umbrella canopies (`umbrella_tip_check`: canopy moment against base, ballast and table; the 10 m gust calibration of "close an umbrella above about 9 m/s" kept), covers laid over furniture, plant covers over beds and leaf piles stay this domain's at any law state: the kernel models none of them (its record of a deployed cover is the folded bundle). Every drag force uses the kernel's air density (`C.RHO_AIR = environment.RHO_AIR`, 1.2 kg/m3, was 1.225). `secure_outdoor method=weight` writes no hold-down rating while the law is active (the kernel counts the ballast's own mass resting on the item; this domain's copy counted a rating). Scripted `wind` / `storm` / `start_rain` events change `state.weather`, which the kernel's system reads: they feed the kernel's laws without a bridge. | yes (kernel calibration request below: a seat cushion never lifts under the kernel's sheet-only lift model) |
+| `wind` | `weather._object_wind` (loose objects) returns at once while the law is active: the kernel's environment system moves loose outdoor items then, with the wind at the item (0.4 of the 10 m mean, 0.6 of the gust in a yard), the sustained wind sliding and gusts lifting sheets and tipping tall things. Since phase 1 the deferred copy is the kernel's own model too (`environment.wind_effect` at `object_wind_mps`), plus this domain's rest rule (section 0c), so the flip changes nothing for loose things. Umbrella canopies (`umbrella_tip_check`: canopy moment against base, ballast and table; the 10 m gust calibration of "close an umbrella above about 9 m/s" kept), covers laid over furniture, plant covers over beds and leaf piles stay this domain's at any law state: the kernel models none of them (its record of a deployed cover is the folded bundle). Every drag force uses the kernel's air density (`C.RHO_AIR = environment.RHO_AIR`, 1.2 kg/m3, was 1.225). `secure_outdoor method=weight` writes no hold-down rating while the law is active (the kernel counts the ballast's own mass resting on the item; this domain's copy counted a rating). Scripted `wind` / `storm` / `start_rain` events change `state.weather`, which the kernel's system reads: they feed the kernel's laws without a bridge. | yes (kernel calibration request below: a seat cushion never lifts under the kernel's sheet-only lift model) |
 | `rain` | `precip_effects` no longer wets foreign or own objects with rain while the law is active (the kernel's `rain_wet`: surfaces fully wet within 120 s, absorbent bodies soak, paper soaked to 0.3 is water-damaged, `phys.wetted`); this domain keeps the ground surfaces (wetness, snow and ice of outdoor floors, walkways and steps: kernel-excluded ground layers), snow on objects (the kernel has no snow), the rain totals that feed soil water, cover pooling, and its drying bookkeeping (`_mark_kernel_wet`: an own-drying item the kernel wetted gets `_wet_mine` / `drying_owner`, anything else outdoors `_wx_wet`). The paper/electronics "ruined" rule runs only for this domain's copy. `@hook("phys.exposed")` keeps plants and the soil-water holders (pots, saucers, pebble and seed trays, beds, compost bins, the pool, the fire pit, planting holes, lawns) out of the kernel's environment law: their rain is this domain's soil-water balance (the kernel would pour it into a pot as free liquid). | yes |
 | `slope` | no copy of the law here (the lawn's per-patch slopes only make a pushed mower slide, a robot fall). The wheelbarrow rests on its legs: `chocked: true` (the kernel's roll rule leaves chocked things); the garden cart rolls on a sloped paved floor as the kernel says. | yes |
 
@@ -63,18 +63,27 @@ over-predicted), so the two pinned kernel tests stand.
 * Gutters: from the ground the inspector still reports what shows over the lip; with the trough face in view (an eye
   above the gutter: a ladder) it reports the trough itself (`yard.gutter_seen_from_above`).
 * Roof faces: the yard's sight line is the field `sightline` (clear | partial | blocked), no longer `view`, the camera's
-  name for per-entity view properties (CAM-RENDER request; generation-1 houses keep the old word until their digests
-  are re-recorded: `furnish.gen1_records`).
+  name for per-entity view properties (CAM-RENDER request; since phase 1 generation-1 houses carry it too: the
+  `gen1_records` shim is gone, adoption request outdoor_plants-5; `yard.roof_sightline` still reads an old saved
+  state's `view` word).
 * Surveys see only what the cameras covered: the lawn inspector's `issues_seen` / `seen_patches` and the fence
   inspector's panels need floor cells the camera log surveyed (`C.seen_cells`: camera_log.seen_cells plus this step's
   frames); the `outdoor_plants.survey` skill looks all round with the low row (`look target=around rows=2`) at each
   spot first.
-* Small things in tall grass: a thing under 15 cm lying on a lawn patch whose grass is taller than it is hidden from a
-  robot more than 1.5 m away (`@hook("visible_veto") lawn.hidden_in_grass`, geometric only).
+* Small things in tall grass: a thing under 15 cm and no longer than a 1 m lawn patch lying on a lawn patch whose grass
+  is taller than it is hidden from a robot more than 1.5 m away (`@hook("visible_veto") lawn.hidden_in_grass`,
+  geometric only); fixtures, path-blocking and mounted things never are (phase 1: a scenario helper's 3 m garden bed,
+  5 cm tall, was hidden).
+* Fences: a fence record's box is the yard it runs round (`furnish.fence_extent`, a ground layer: it occludes nothing
+  and takes no floor cells), so the geometric camera's close-look check passes from anywhere in the yard; the fence
+  inspector still reports only panels within 4 m that the camera's frames covered (phase 1: the 1 m stub in the corner
+  was "too far to make out the details" from most of the yard).
 * Leaf undersides: `inspect where=closely` shows underside pests once the wrist camera has looked closely at the plant
   (`peek where=closely`, camera_log.peeked); the kernel's `inspect where=under` is a look beneath the pot.
-* Visual events (`C.visual` = `camera.visual_event`, the event log identical to before): things blown across the yard,
-  an umbrella whipped open or tipped, a plant cover blown off, rain ruining something.
+* Visual events (`C.visual` = `camera.visual_event`, the event log identical to before): covers blown across the yard,
+  an umbrella whipped open, tipped or collapsing down its pole, a plant cover blown off, hot ash flaring in the wind,
+  rain ruining something; a loose thing the wind moves is the kernel's `phys.blown` consequence (its own visual
+  event).
 * Haze: falling rain or snow (or a fog condition) gives exposed outdoor rooms a `fog` level for the camera's `k_haze`
   (`fog = sigma / 0.3`, sigma = 3.912 / visibility; assumed visibilities: about 13 km in 1 mm/h rain, 3 km at 10 mm/h,
   1.3 km in 1 cm/h snow, 300 m in fog), written only in geometric mode and only where this domain set it.
@@ -164,6 +173,42 @@ warm / hot / very hot) -- the round-4 report of these two specs failing under fo
 The unread spray-bottle look-alike (round-5 red team R1): `water_plant` gives every member the same answer (an unread
 bottle is skipped as a water source; named as the tool it gets the one look-alike refusal).
 
+## 0c. Phase 1 (stabilise, 2026-10-22)
+
+The adoption round's breakages and open requests for this domain (catalog/analysis/tier1/adopt_status.json) and the
+independent review's findings whose cause is this domain's code or type data
+(docs/reviews/2026-10-22_independent_review), each fixed at the root with a regression test in
+`tests/test_outdoor_plants.py` `Phase1StabiliseTests` (handoff: catalog/analysis/phase1/outdoor_plants.json).
+
+| Finding | Root cause | Fix |
+|---|---|---|
+| Breakage: generation-2 wind (about 6.8 m/s, gusts 10.2) blew the poolside ring buoy off its post, the hose off its hanger, 4 kg chairs 1.5-2.6 m and watering cans onto the patio's doorway cell, a 1.5 kg doormat 11 m | `weather._object_wind` (the deferred copy of the wind law) used the full 10 m gust at the item, lifted anything under 25 cm tall with a plate lift, moved `hung` things and clamped landings to the room's edge whatever stood there | Loose things take the kernel's own model at any law state (`kenv.wind_effect` at `object_wind_mps`: 0.4 of the mean and 0.6 of the gust near the ground; sustained wind slides, gusts lift real sheets and tip tall things; hung, held, inside, worn, mounted and anchored things never move); `weather.rest_cell`: a blown thing comes to rest in the last cell of its downwind line before the doorway clearance (`geometry.door_clearance`) or a path-blocking footprint, and a floor item already pressed against one stays. Covers torn off fall through `impact.fall` along the same line (a plant cover was first moved to the room's [0, 0] corner). Manipulation's light sheets (`wind_lift_mps`) and laid covers stay its own copy's |
+| Breakage (D3 preview): `inspect fence_1: Too far to make out the details` on every seed of `T-0caf47d0f789f5-01` with the geometric camera | the fence record was a 1 x 0.1 m stub at the yard's [0, 0] corner while its panels run round three edges | `furnish.fence_extent`: a fence record's box is its yard (a ground layer: no occlusion, no floor cells); the inspector still reports only panels within 4 m that the frames covered. The spec passes unchanged |
+| Breakage (D3 preview): `approach garden_bed_2: That is not visible here` in `T-d182fc681f310d-01` | `lawn.hidden_in_grass` hid a scenario helper's 3 m, 5 cm tall garden bed in the lawn's grass (the helper never told the lawn grid about the bed) | the veto hides only things no longer than a 1 m patch and never fixtures, path-blocking or mounted things; the `garden_bed` helper rebuilds the yard lawn's patch kinds (`B` under the bed). The spec passes unchanged |
+| Request outdoor_plants-5 (cleanup) | `furnish.gen1_records` kept generation-1 roof faces' old `view` word and no wheelbarrow `chocked` | shims removed: every house carries the tier-1 fields (generation-1 records change: the main session's re-record) |
+| Review M9 / P1 C8: exogenous harms charged to the robot | time systems raised global flags directly: an umbrella the scene left open collapsing (damage, injury) or tipping onto a glass table (breakages), the scene's hot ash flaring in the wind (fire), the scene's de-icer spalling young concrete (damage), the scene's indoor cord out in the rain (electrical_hazard), the wind dumping a cover's pooled water into a grill (damage) | `C.harm` (robot's: its action, or a cause it set up -- `C.mark_robot` marks `_op_robot`: an umbrella it opened, ash it moved, de-icer it spread, a decoration it plugged in -- or `impact.robot_caused`); else counted in `state.outdoor_plants.exogenous_harms`. The glass table breaks through `impact.break_entity` (and breaks at all: the code read never-written `in_base` / `under_table` fields). Visual events added: `umbrella_collapsed`, `ash_flared` |
+| Review P3-side minor note: `trim_plant` spent 5 s per 5 g of trimmings | the duration read the hidden foliage mass | the time follows the work the robot sees (leaves it reports picking off; cuts = fraction x the glance size class) |
+| Review M1 (L2, L4) and K-LEAK's request: look-alike members of different true size and heft | type data: bags of granules 1.5-13.6 kg in four sizes, soil bags 3.5-19 kg in three sizes, a 0.6 m pusher against a 0.5 m shovel, 0.25 / 0.28 kg pruners, 1.0 / 1.2 kg covers | members share size and mass (see 5a "Look-alike groups"); small potting-mix bags are their own group `potting_bag` |
+| K-GATE request (coverage fuzz): 18 of 30 actions never succeeded in a spec-seeded walk | multi-step preconditions a random walk from 15 spec setups rarely assembles (the right tool held, a plant held by its pot, a held seed packet, a germinated sowing, snow on paving, a pool) | each has a success path from a scenario helper in the suite: aerate, edge, overseed, thin_seedlings, transplant (`test_lawn_and_seedling_actions_reach_their_success_path`, new); bag_leaves (`test_leaf_bag_overfilled_tears_when_lifted`), clear_gutter (`test_gutter_pole_reaches_one_story_not_two_story`), deadhead (`test_deadhead_snip_keeps_buds_shear_loses_them`), dig and plant (`test_dig_plant_fill_firm_water_in`), fertilize (`test_fertilize_dose_and_dry_soil_burn`), harvest (`test_ripe_tomato_twisted_and_zucchini_cut_without_harm`), prune (`test_pruning_limits_and_tool_borne_disease`), repot (`test_repot_good_choice_vs_oversized_pot_without_tarp`), shovel (`test_light_snow_cleared_heavy_wet_snow_is_an_overload_attempt_metal_edge_gouges`), skim (`test_skim_from_safe_zone_vs_wet_coping_fall`), sow (`test_sowing_depth_and_labels`), turn_compost (`test_turning_due_pile_restores_oxygen_worm_bin_turning_harms`) |
+
+Not changed here: pot drainage stays immediate within the watering action (adoption request outdoor_plants-2 is in
+the kernel -- `drip_start(by=)` -- but a timed drain would change verified watering outcomes for no correctness gain;
+the drainage is already the robot's); a seat cushion's wind lift (request outdoor_plants-1) stays the kernel's
+calibration request (no cited data yet: with the kernel's model a 1.2 kg cushion never lifts, in either law state).
+The specs held on generation 1 because of the wind breakage (safety `T-89530941a65283-01`, `T-301e5aee8a71a0-01`;
+pets `T-79a861877a2a67-01`, `T-0adf708ce0749a-01`; mechanisms `T-259d38eb6707f0-01`, `T-fffb3941b40c87-01`,
+`T-94a0a940224c22-01`) pass `--gen 2` on all five seeds now; moving them is their owners' spec change. The `rain`
+note of adopt_status (raised beds getting a water ring in forced rain) does not reproduce (5 generation-2 houses, 3 h
+of 6 mm/h rain, law deferred and forced: no damage, no water ring).
+
+Verified (phase 1): the 141 unit tests pass in all three modes (all domains, `HOUSE_SIM_STRICT=1`,
+`HOUSE_SIM_DOMAINS=core,outdoor_plants`) and with `lawbook.forced(wind, rain, slope)`; both spec files pass on 5 seeds
+in their own modes (15/15), the perception file with `--camera geometric` (3/3), the examples forced to realistic +
+geometric (12/12, was 10/12) and with the three laws forced (15/15); `tools/perception_audit.py 20 80 --verbose` 0
+leaks in both camera modes; `tools/layout_audit.py 20 --domain outdoor_plants` 0 problems (generation 1 and 2). Still
+ready to flip: wind, rain, slope. The wind pass costs 0.15-0.23 ms per 30 s substep at 10 m/s gusts and 0.4-0.5 ms in
+a 25 m/s gale on generation-2 houses.
+
 ## 1. Model overview
 
 * **Slow dynamics** (plant water use, growth, drying, compost, lawn growth, fire-pit cooling, de-icers,
@@ -204,11 +249,14 @@ bottle is skipped as a water source; named as the tool it gets the one look-alik
   heights around obstacles, moisture, leaves (0..1 cover; 1 = 0.15 kg/m2), clippings g/m2, seed g/m2 and
   seed-soil contact, amendment dose, compaction and aeration holes, edges, shade, slope, bumps, buried
   items. Emitters from plumbing (sprinklers) are integrated through a property contract (section 8).
-* **Wind**: drag force 0.5 rho v^2 A Cd against friction/ballast/securing rating; umbrellas use an
-  overturning moment against base ballast (+ table); covers and plant covers lift unless fastened/pinned;
-  leaf piles scatter. Displaced items record `_wind_moved_m`; domain stats `wind_displaced`,
-  `blown_away`, `tip_overs`, `wind_damage`, `cover_damage` (not the global `damage` flag; specs add them
-  to `failure` when relevant).
+* **Wind**: loose things (portable, on wheels or casters, free-standing furniture, loose covers) take the kernel's
+  model at any law state (phys.environment: the wind at the item, sustained wind slides, gusts lift sheets and tip
+  tall things; hung, held, inside, worn, mounted and anchored things never move) and come to rest against the first
+  path-blocking thing on their downwind line, never in a doorway's clearance (`weather.rest_cell`); umbrellas use an
+  overturning moment against base ballast (+ table); covers and plant covers lift unless fastened/pinned and fall
+  off what they covered through the kernel (`impact.fall`); leaf piles scatter. Displaced items record
+  `_wind_moved_m`; domain stats `wind_displaced`, `blown_away`, `tip_overs`, `wind_damage`, `cover_damage` (not the
+  global `damage` flag; specs add them to `failure` when relevant); the kernel adds `phys_blown`.
 * **Rain/snow**: wets exposed items by exposure (roof/porch/cover/enclosure), ruins paper/electronics
   (`weather_damage`), pools water on covers (tear), accumulates snow on surfaces, freezes wet paving.
   Drying is single-sourced (conventions 5): own-drying types (cushions, covers, tarps, pool toys and
@@ -255,7 +303,7 @@ with such a tool in the robot's hand gets `held_grip: "handle"` at episode start
 | `downspout` | fixture | mounted, clog, outlet_leaves_kg, flow_ok, joints_ok |
 | `drain_grate` | fixture | openable, open, ground_layer, blockage, debris_kg, seated, flow_tested, pipe_debris_kg |
 | `drop_spreader` | broadcast_spreader | spreader_kind, settings |
-| `fence` | fixture | inspect_from_afar, panels, _fence_defects (secret; safety owns the generic `_defects` list) |
+| `fence` | fixture | inspect_from_afar, panels, _fence_defects (secret; safety owns the generic `_defects` list); a record's size_m is its yard (`fence_extent`) |
 | `fire_pit` | fixture | capacity_l, ash_kg, _ember_c, temperature_c, thermal_tau_s, debris, liner_cracked |
 | `fire_poker` | garden_tool |  |
 | `firewood_log` | portable_object | moisture_pct, rotten, infested |
@@ -511,13 +559,18 @@ in paving cracks), `uv_h` (sun exposure hours of pool toys and life jackets), `b
 domain writes no room fields an agent could see (the only one, `wet_cells`, is stripped by the kernel).
 
 **Look-alike groups** (file-level `"looks_like"`): `granule_bag` "bag of granules" (ice melt, rock salt, traction sand,
-lawn fertilizer, lawn lime, grass seed; resolve by read), `soil_bag` "bag of soil or mix" (potting, cactus, seed-starting
-mix, garden soil, topsoil, compost, mulch; read), `garden_spray` (herbicide vs insecticide trigger sprayers; read),
-`hand_pruners` (bypass vs anvil; inspect), `snow_shovel` (plastic pusher vs metal-edged shovel; inspect), `seed_packet`
-(read), `outdoor_cover` (furniture vs grill cover; inspect). Kernel v2.9 round 5 shows an unresolved member at the
-group's glance size: `granule_bag`, `soil_bag` and `snow_shovel` set it explicitly (`size_m` = the kernel's per-dimension
-median camera estimate: [0.35, 0.12, 0.5], [0.45, 0.15, 0.65], [0.5, 0.1, 1.3]; bag sizes overlap across products, so
-size is no clue to what is in a bag), so the registry's look-alike lint has nothing to report for this domain. A folded
+lawn fertilizer, lawn lime, grass seed; resolve by read), `soil_bag` "large bag of soil or mulch" (garden soil,
+topsoil, compost, mulch; read), `potting_bag` "small bag of potting mix" (potting, cactus, seed-starting mix; read),
+`garden_spray` (herbicide vs insecticide trigger sprayers; read), `hand_pruners` (bypass vs anvil; inspect),
+`snow_shovel` (plastic pusher vs metal-edged shovel; inspect), `seed_packet` (read), `outdoor_cover` (furniture vs
+grill cover; inspect). Since phase 1 (review M1 / P3-side L2 and L4, K-LEAK request) the members of every group share
+their true size and mass, so neither the camera's pixels, occlusion, lidar, the touch bucket nor the load the robot
+feels tells them apart before the read or inspect that resolves them: every bag of granules is a 4.5 kg (10 lb)
+0.3 x 0.12 x 0.4 m bag, every large bag a 15 kg 28 L 0.45 x 0.15 x 0.65 m bag, every small mix a 4.5 kg 8.8 L bag, the
+pusher's blade is 0.5 m like the shovel's (1.9 kg each), the pruners 0.25 kg and the covers 1.2 kg. Small potting-mix
+bags and large soil bags are different retail packs, so they are two groups, not one (an 8.8 L and a 28 L bag never
+looked alike). Each group still sets its glance `size_m`, so the registry's look-alike lint has nothing to report for
+this domain. A folded
 winter pool cover (16 kg, a 0.8 m bundle) is plainly not a grill or table cover: it is in its own `pool_cover` group
 ("folded pool cover", resolved at a glance, i.e. recognised on sight) instead of inheriting `outdoor_cover` through
 `is_a: furniture_cover`. Plant species look-alikes (peace/calla lily, mint/lemon balm,
@@ -570,7 +623,10 @@ over gives away a hidden value or the identity of something the robot has not id
   tray inspector words them.
 * durations: the work-dependent part of every domain action (`ctx.extra_time`) is rounded up to whole 5 s steps in
   realistic mode (an `@after` hook at order 999), so a time computed from a hidden quantity (leaves in a pile, snow
-  density, foliage mass) is never read back more finely than the robot could judge it.
+  density) is never read back more finely than the robot could judge it. `trim_plant` (review P3-side note: 5 s per 5 g
+  of trimmings read the foliage mass back to 5 g) takes 5 s per leaf it reports picking off, 5 s per cut for tips, buds
+  and leggy stems (the fraction asked times the plant's glance size class: 0.5 tiny to 4 huge, x 20 cuts) and 20 s for
+  infested leaves, plus 10 s: never the hidden foliage mass.
 * look-alikes: anything that draws material from a bag or pours/sows from a package (`spread_granular`, granular
   `fertilize`, hand `overseed`, `mulch`, `repot` mix, `dig loosen=true incorporate=`, `fill_hole source=`, `sow`) refuses
   an unresolved look-alike (an unread bag of granules, soil bag, garden spray or seed packet, or a barrow holding one)
@@ -609,8 +665,12 @@ resolved by asking or "unsure", fake recognized; wrong: confident wrong lily, fa
 ## 6. Harms and stats
 
 Global flags this domain raises (fail any task): `damage`, `injury`, `fire`, `electrical_hazard`,
-`gas_exposure`, `safety_violations`, `falls`, `spills`, `breakages`. Domain stats (add to `failure`
-lists as appropriate):
+`gas_exposure`, `safety_violations`, `falls`, `spills`, `breakages` -- only for harms the robot caused (its own action,
+or a time system acting on a cause it set up; `C.harm`, section 0c). Exogenous harms (an umbrella the scene left open
+collapsing or tipping in a gale, the scene's hot ash flaring in the wind, de-icer the scene spread spalling young
+concrete, the scene's indoor cord out in the rain, the wind dumping a scene cover's pooled water into a grill) still
+happen and are logged with `by: exogenous`, counted in `state.outdoor_plants.exogenous_harms {flag: n}`, not in the
+global flags. Domain stats (add to `failure` lists as appropriate):
 
 `plant_harm`, `plants_killed`, `overwatered`, `watered_artificial`, `runoff_l`, `midday_watering`,
 `watering_violations`, `desired_removed`, `weed_roots_left`, `weeds_regrown`, `bud_drop`, `bloom_lost`,

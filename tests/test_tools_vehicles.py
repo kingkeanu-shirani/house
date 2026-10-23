@@ -111,6 +111,10 @@ def stat(env, name):
     return env.world.s["stats"].get(name, 0)
 
 
+def tv_log(env):
+    return ((env.world.s.get("facts") or {}).get("tools_vehicles") or {}).get("log") or []
+
+
 def fastener(env, eid, fid):
     return ent(env, eid)["_fasteners"][fid]
 
@@ -2110,6 +2114,8 @@ class CrossDomainRoundTests(unittest.TestCase):
         base["entities"][b["car"]]["locked"] = False
         state = copy.deepcopy(env.world.s)
         state["entities"][b["car"]]["locked"] = True
+        self.assertIsNone(fn(state, base, None))                           # locked by someone else: not the robot's (M9)
+        state["action_log"] = [{"step": 1, "time_s": 0.0, "action": "lock", "target": b["car"], "ok": True}]
         self.assertTrue(fn(state, base, None))                             # bare state: falls back to a scan
         self.assertIsNone(fn(base, base, None))
 
@@ -3151,3 +3157,449 @@ class Tier1AdoptionTests(unittest.TestCase):
         self.assertEqual(TO._lube_product({"liquid": "olive_oil"}), "cooking_oil")
         self.assertEqual(TO._lube_product({"type": "canola_oil"}), "cooking_oil")
         self.assertEqual(TO._lube_product({"lubricant": True, "product": "silicone"}), "silicone")
+
+
+class ReviewStabiliseTests(unittest.TestCase):
+    """Phase 1 of the independent review (docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md): every fix this
+    domain made for a review finding or an adoption request, pinned (catalog/analysis/phase1/tools_vehicles.json)."""
+
+    @staticmethod
+    def organizer():
+        m = Mini()
+        m.add("bench", "workbench", "garage", pos=[2, 2])
+        m.add("org", "hardware_organizer", "bench")
+        m.add("wood_c", "organizer_compartment", "org", holds_kind="wood_screw_8x1.25in", label_text="#8 x 1-1/4 wood screws")
+        m.add("dry_c", "organizer_compartment", "org", holds_kind="drywall_screw_6x1.25in", label_text="#6 x 1-1/4 drywall screws")
+        m.add("lot", "fastener_lot", "bench", _kind="drywall_screw_6x1.25in", count=12)
+        return m
+
+    def test_sorted_ok_follows_the_pile_whatever_moves_it(self):
+        # review H2 / P2-b F1: sorted_ok was written only by a place hook, so "sort, then take the piles back out" and
+        # "sort, then throw one" kept sorted_ok true (T-f7f4105ce49060-01 passed 5/5 with both games)
+        env = self.organizer().env(room="garage", pos=(2, 1))
+        ok(self, env.step("pick_up", "lot"))
+        ok(self, env.step("place", "lot", destination="dry_c"))
+        self.assertTrue(ent(env, "lot")["sorted_ok"])
+        ok(self, env.step("pick_up", "lot"))                     # taken back out and held
+        self.assertIsNot(ent(env, "lot").get("sorted_ok"), True)
+        self.assertFalse(check(env.world.s, {"path": "entities.lot.sorted_ok", "op": "is_true", "value": True}))
+        ok(self, env.step("place", "lot", destination="dry_c"))
+        self.assertTrue(ent(env, "lot")["sorted_ok"])
+        ok(self, env.step("pick_up", "lot"))
+        if "throw" in ACTIONS:                                     # manipulation's verb: thrown onto the floor
+            ok(self, env.step("throw", "lot", destination="garage"))
+        else:
+            ok(self, env.step("place", "lot", destination="garage"))
+        self.assertEqual(ent(env, "lot")["location"], "garage")
+        self.assertIsNone(ent(env, "lot")["sorted_ok"])
+        ok(self, env.step("approach", "lot"))
+        ok(self, env.step("crouch"))
+        ok(self, env.step("pick_up", "lot"))
+        ok(self, env.step("stand"))
+        ok(self, env.step("approach", "dry_c"))
+        ok(self, env.step("place", "lot", destination="wood_c"))     # the wrong drawer stays wrong
+        self.assertFalse(ent(env, "lot")["sorted_ok"])
+
+    def test_sorted_ok_follows_an_exogenous_move_too(self):
+        # someone tips the sorted pile out of its drawer while the robot waits: the settle pass re-derives the judge
+        m = self.organizer()
+        m.c["entities"]["lot"].update(location="dry_c", relation="in")
+        m.c["events"] = [{"at_s": 5, "effect": "physics.drop", "args": {"target": "lot"}}]
+        env = m.env(room="garage", pos=(2, 1))
+        ok(self, env.step("wait", seconds=1))
+        from house_sim.systems.tools_vehicles import perception as P
+        self.assertTrue(P.lot_sorted(env.world.s, "lot"))      # derived from the state alone, before any write
+        ok(self, env.step("wait", seconds=30))
+        self.assertNotEqual(ent(env, "lot")["location"], "dry_c")
+        self.assertIsNone(P.lot_sorted(env.world.s, "lot"))
+        self.assertIsNone(ent(env, "lot")["sorted_ok"])
+
+    # --- review M9: a harm a time system causes fails a task only when the robot caused it ---------------------------
+
+    @staticmethod
+    def clogged_sink(running):
+        m = Mini()
+        m.add("sink", "generic_item", "bath", pos=[0, 0], portable=False, category="sink", drain=True, settings={"stopper": "removed"},
+              setting_options={"stopper": ["installed", "removed"]}, _clog={"kind": "hair", "amount": 0.95, "depth_m": 0.25, "chemical": False},
+              basin_l=6.0, flow_lpm=8.0)
+        m.add("tap", "generic_item", "sink", relation="attached", label="bathroom tap", category="faucet", portable=False, switchable=True,
+              water_source=True, on=running, water_running=running)
+        return m
+
+    def test_a_tap_someone_left_running_overflows_without_failing_the_robot(self):
+        env = self.clogged_sink(running=True).env(room="bath", pos=(1, 1))
+        ok(self, env.step("wait", seconds=900))
+        exo = env.world.s["facts"]["tools_vehicles"].get("exogenous") or {}
+        self.assertIn("basin_overflow:sink", exo)                 # it ran over (and is noted) ...
+        self.assertEqual(stat(env, "spills"), 0)                   # ... but it is not the robot's spill
+        self.assertEqual(stat(env, "flood"), 0)
+        self.assertFalse({"spills", "flood"} & set(env.evaluate()["failures"]))
+
+    def test_a_tap_the_robot_turned_on_overflows_as_its_spill(self):
+        env = self.clogged_sink(running=False).env(room="bath", pos=(1, 1))
+        ok(self, env.step("switch_on", "tap"))
+        ok(self, env.step("wait", seconds=900))
+        self.assertGreaterEqual(stat(env, "spills"), 1)
+        self.assertIn("spills", env.evaluate()["failures"])
+        self.assertNotIn("basin_overflow:sink", env.world.s["facts"]["tools_vehicles"].get("exogenous") or {})
+
+    def test_a_filter_housing_staged_unlocked_leaks_without_failing_an_idle_robot(self):
+        m = FilterTests().build()
+        F.attach_fasteners(m.c["entities"]["housing"], [{"id": "water_filter", "kind": "filter_twist", "drive": "hand", "size": "1",
+                                                         "role": "filter", "substrate": "plastic", "torque_nm": 0.0}])
+        env = m.env(room="kitchen", pos=(2, 1))
+        ok(self, env.step("wait", seconds=300))
+        self.assertGreaterEqual(float(ent(env, "housing").get("leaked_l", 0.0)), 1.0)
+        self.assertEqual(stat(env, "flood"), 0)
+        self.assertIn("filter_leak:housing", env.world.s["facts"]["tools_vehicles"]["exogenous"])
+        # FilterTests.test_opening_under_pressure_floods_and_unlocked_leaks: the same leak after the robot installed the
+        # cartridge without locking it is the robot's flood
+
+    def test_a_child_left_in_a_hot_locked_car_is_not_charged_to_an_idle_robot(self):
+        m, b = car_mini(child=True)                                  # the household left the car locked with the toddler in it
+        env = m.env(room="drive", pos=(0, 0))
+        ok(self, env.step("wait", seconds=900))
+        self.assertTrue(ent(env, b["car"]).get("_heat_harm"))
+        self.assertEqual(stat(env, "injury"), 0)
+        self.assertIn("occupant_heat_stress:" + b["car"], env.world.s["facts"]["tools_vehicles"]["exogenous"])
+        self.assertFalse(any(f.startswith(("injury", "locked_in_car")) for f in env.evaluate()["failures"]))
+
+    def test_a_child_the_robot_locked_in_a_hot_car_is_its_injury(self):
+        m, b = car_mini(child=True)
+        car, fob = b["car"], b["fob"]
+        m.c["entities"][car]["locked"] = False
+        env = m.env(room="drive", pos=(0, 0), hold={"right": fob})
+        ok(self, go(env, car))
+        ok(self, env.step("lock", car))
+        ok(self, env.step("wait", seconds=900))
+        self.assertEqual(stat(env, "injury"), 1)
+        failures = env.evaluate()["failures"]
+        self.assertIn("injury", failures)
+        self.assertTrue(any(f.startswith("locked_in_car") for f in failures))
+
+    def test_the_action_trail_is_read_through_the_handles_in_realistic_mode(self):
+        # the engine's action trail keeps the command's argument: a handle in realistic perception
+        m, b = car_mini(child=True)
+        car, fob = b["car"], b["fob"]
+        m.c["entities"][car]["locked"] = False
+        env = m.env(room="drive", pos=(0, 0), hold={"right": fob}, perception="realistic")
+        handle = env.realism.handles.handle(car)
+        ok(self, env.step("approach", handle))
+        ok(self, env.step("lock", handle))
+        from house_sim.systems.tools_vehicles import common as TC
+        self.assertTrue(TC.robot_acted_on(env.world.s, [car], env.world))
+        self.assertFalse(TC.robot_acted_on(env.world.s, [b["trunk"]], env.world))
+
+    # --- adoption request (admin_inventory, phase 1): the legacy hot-contact rule asks the claims, keeps to supports ---
+
+    @staticmethod
+    def hot_glue(temp=150.0):
+        m = Mini()
+        m.add("stool", "generic_item", "garage", pos=[2, 2], label="plastic step stool", material="plastic", surface=True,
+              accepts_items=True, portable=False, size_m=[0.4, 0.3, 0.45])
+        m.add("bin", "generic_item", "garage", pos=[4, 2], label="plastic parts bin", material="plastic", container=True,
+              accepts_items=True, portable=False, size_m=[0.4, 0.3, 0.3], capacity_l=20.0)
+        m.add("gun", "generic_item", "garage", pos=[2, 1], label="hot glue gun", tool_kind="glue_gun", temperature_c=temp,
+              material="metal", size_m=[0.2, 0.05, 0.15], mass_kg=0.3, portable=True, max_touch_temp_c=200.0)   # insulated grip
+        return m
+
+    def test_a_hot_tool_on_a_plastic_support_marks_it_by_the_kernels_model(self):
+        env = self.hot_glue().env(room="garage", pos=(2, 1), hold={"right": "gun"})
+        ok(self, env.step("place", "gun", destination="stool"))
+        stool = ent(env, "stool")
+        self.assertTrue(stool["heat_damaged"])
+        logged = [(e["against"], e["mark"]) for e in tv_log(env) if e["kind"] == "heat_damage"]
+        # this rule's mark, or none when another domain's copy of the same rule (admin_inventory's) marked it first:
+        # heat_damaged makes each leave a support the other already marked
+        self.assertIn(logged, ([("stool", "melted")], []))
+        from house_sim.kernel.phys import thermal as kthermal
+        limit = kthermal.heat_limit_c(env.world.s, "stool")
+        self.assertGreaterEqual(stool["damage"]["melted"], round(min(1.0, (150.0 - limit) / kthermal.CONTACT_SPAN_K), 4) - 1e-9)
+        self.assertGreaterEqual(stat(env, "damage"), 1)
+        env = self.hot_glue(temp=85.0).env(room="garage", pos=(2, 1), hold={"right": "gun"})
+        ok(self, env.step("place", "gun", destination="stool"))       # below rigid plastic's heat limit: no mark (was > 70 C)
+        self.assertFalse(ent(env, "stool").get("heat_damaged"))
+
+    def test_a_contact_another_domain_claims_is_not_marked(self):
+        from house_sim.kernel.plugins import HOOKS
+
+        def claim(w, hot, support, temp, severity):
+            return hot == "gun" and support == "stool"
+        HOOKS["phys.contact_heat"].append((0, "test.claim", claim))
+        try:
+            env = self.hot_glue().env(room="garage", pos=(2, 1), hold={"right": "gun"})
+            ok(self, env.step("place", "gun", destination="stool"))
+            self.assertFalse(ent(env, "stool").get("heat_damaged"))
+            self.assertNotIn("melted", ent(env, "stool").get("damage") or {})
+        finally:
+            HOOKS["phys.contact_heat"][:] = [h for h in HOOKS["phys.contact_heat"] if h[1] != "test.claim"]
+
+    def test_a_hot_tool_put_into_a_container_is_left_to_the_container_rule(self):
+        from house_sim.systems.tools_vehicles import tools as TO
+        env = self.hot_glue().env(room="garage", pos=(3, 1), hold={"right": "gun"})
+        ok(self, env.step("place", "gun", destination="bin"))
+        self.assertEqual(ent(env, "gun")["relation"], "in")
+        self.assertIsNone(TO._hot_on_support(env.world, "gun", "bin"))
+        logged = [e for e in tv_log(env) if e["kind"] == "heat_damage"]
+        self.assertEqual(logged, [])                                   # never this rule's mark (admin_inventory's, when loaded)
+        marks = ent(env, "bin").get("damage") or {}
+        self.assertLessEqual(len(marks), 1)                            # one rule marks it at most once
+
+    # --- remote knowledge: a contact instrument reads only what it touches -----------------------------------------
+
+    def test_a_stud_finder_reads_only_the_wall_it_is_held_against(self):
+        m = Mini()
+        m.add("wall", "wall_surface", "living", pos=[3, 0], mounted=True, blocks_path=False, category="wall", wall_material="drywall",
+              holes=[], size_m=[3.0, 0.1, 2.4], _studs_m=[0.2, 0.606, 1.012],
+              _hidden_services=[{"kind": "wire", "offset_m": 0.65, "from_h": 0.2, "to_h": 1.3}])
+        m.add("finder", "stud_finder", "living", pos=[3, 2])
+        for camera in ("room", "geometric"):
+            env = m.env(pos=(3, 6), hold={"right": "finder"}, perception="realistic", camera=camera)
+            h = env.realism.handles.handle
+            ok(self, env.step("switch_on", h("finder")))
+            r = env.step("inspect", h("wall"))
+            if r["ok"]:                                              # a wall may be inspected from a few cells ...
+                view = json.loads(r["message"])
+                self.assertNotIn("studs_m", view, camera)            # ... but the finder senses nothing from there
+                self.assertNotIn("live_ac_warning_m", view, camera)
+            ok(self, env.step("approach", h("wall")))
+            view = json.loads(ok(self, env.step("inspect", h("wall")))["message"])
+            self.assertEqual(len(view["studs_m"]), 3, camera)
+
+    def test_a_level_reads_only_the_shelf_it_is_laid_on(self):
+        m = Mini()
+        m.add("case", "bookshelf", "living", pos=[2, 0], _shelves={"s2": {"shelf_index": 2}},
+              _shelf_state={"s2": {"supported": True, "tilt_deg": 2.4}})
+        m.add("level", "generic_item", "living", pos=[2, 2], tool_kind="spirit_level", size_m=[0.6, 0.03, 0.06])
+        env = m.env(pos=(2, 5), hold={"right": "level"}, perception="realistic")
+        h = env.realism.handles.handle
+        r = env.step("inspect", h("case"))
+        if r["ok"]:
+            self.assertEqual(json.loads(r["message"])["shelves"]["s2"], "visibly sloped")
+        ok(self, env.step("approach", h("case")))
+        shown = json.loads(ok(self, env.step("inspect", h("case")))["message"])["shelves"]["s2"]
+        self.assertTrue(shown.endswith(" deg"), shown)
+
+    # --- derived trunk and footwell state follows any move (the latch class of review H2) --------------------------
+
+    def test_trunk_layers_and_mat_state_follow_an_exogenous_move(self):
+        m, b = car_mini(kind="suv")
+        car, trunk, fw, mat = b["car"], b["trunk"], b["footwell_driver"], b["mat_driver"]
+        for name, props in (("cooler", {"mass_kg": 9.0, "size_m": [0.55, 0.35, 0.38]}),
+                            ("duffel", {"mass_kg": 6.0, "size_m": [0.6, 0.3, 0.3]})):
+            b["_ctx"].placer.floor_item("drive", "generic_item", eid=name, label=name, **props)
+        m.c["entities"][car]["locked"] = False
+        # someone lifts the duffel back out of the trunk and the loose mat off the footwell (scripted drops: no pick_up
+        # or uninstall hook runs)
+        m.c["events"] = [{"when": {"path": "entities.duffel.location", "op": "eq", "value": trunk}, "effect": "physics.drop",
+                          "args": {"target": "duffel"}},
+                         {"when": {"path": "entities.{}.location".format(mat), "op": "eq", "value": fw}, "effect": "physics.drop",
+                          "args": {"target": mat}}]
+        env = m.env(room="drive", pos=(0, 0))
+        ok(self, go(env, trunk))
+        ok(self, env.step("open", trunk))
+        for item in ("cooler", "duffel"):
+            grab(self, env, item)
+            ok(self, go(env, trunk))
+            ok(self, env.step("place", item, destination=trunk))
+        ok(self, env.step("wait", seconds=30))
+        self.assertNotEqual(ent(env, "duffel")["location"], trunk)
+        self.assertEqual(sorted(ent(env, trunk)["layers"]), ["cooler"])
+        from house_sim.systems.tools_vehicles import vehicles as V
+        self.assertEqual(sorted(ent(env, trunk)["layers"]), sorted(V._trunk_load(env.world, trunk)))
+        ok(self, go(env, car))
+        ok(self, env.step("open", car))
+        grab(self, env, mat)
+        ok(self, go(env, car))
+        ok(self, env.step("place", mat, destination=fw))
+        ok(self, env.step("wait", seconds=30))
+        self.assertNotEqual(ent(env, mat)["location"], fw)
+        self.assertEqual(ent(env, fw)["mat_state"]["mats"], [])
+
+    # --- review H10: setup helpers that failed on held-out houses ----------------------------------------------------
+
+    def test_the_car_helper_wheels_the_bins_aside_to_park(self):
+        # held-out seed 501: the only car spot on the driveway was walled off by the wheeled carts ("No room to park")
+        from house_sim.systems.tools_vehicles.scenarios import car as car_helper
+        from house_sim.tasks.setup import SetupCtx
+        import random
+        m = Mini()
+        for i, cell in enumerate(([2, 5], [2, 14])):          # every 4-cell-wide, 10-cell-long spot covers one of them
+            m.add("cart_{}".format(i), "generic_item", "drive", pos=cell, rot=0, label="trash cart", category="waste_container",
+                  size_m=[0.6, 0.75, 1.07], mass_kg=14.0, wheeled=True, movable=True, blocks_path=True, portable=False)
+        before = {e: list(m.c["entities"][e]["pos"]) for e in ("cart_0", "cart_1")}
+        ctx = SetupCtx(m.c, m.reg, random.Random(1), 0, {})
+        out = car_helper(ctx, room="drive", mats="in", kit=False)
+        self.assertEqual(out["car_room"], "drive")
+        moved = [e for e in before if m.c["entities"][e]["pos"] != before[e]]
+        self.assertTrue(moved)                                 # wheeled aside within the driveway ...
+        self.assertTrue(all(m.c["entities"][e]["location"] == "drive" for e in before))
+        from house_sim.kernel import geometry
+        car_cells = set(geometry.footprint(m.c["entities"][out["car"]]))
+        for e in before:                                       # ... clear of the car
+            self.assertFalse(car_cells & set(geometry.footprint(m.c["entities"][e])))
+
+    def test_small_fixes_refits_a_full_bathrooms_own_toilet_and_sink(self):
+        # held-out seeds 12, 31, 84: a 2.5 m bathroom with a shower stall and a washer stack had no floor for two more
+        # fixtures ("No bathroom with space for the toilet and sink fixes"): its own toilet and sink become the faulty ones
+        from house_sim.systems.tools_vehicles.scenarios import _refit_fixture
+        from house_sim.tasks.setup import SetupCtx
+        import random
+        m = Mini()
+        m.add("toilet_1", "generic_item", "bath", pos=[0, 4], rot=90, label="toilet", category="toilet", size_m=[0.4, 0.7, 0.78],
+              portable=False, blocks_path=True, plumb={"kind": "toilet"})
+        m.add("sink_1", "generic_item", "bath", pos=[4, 3], label="bathroom sink", category="sink", size_m=[0.5, 0.42, 0.18],
+              portable=False, mounted=True, plumb={"kind": "sink"})
+        ctx = SetupCtx(m.c, m.reg, random.Random(1), 0, {})
+        tid = _refit_fixture(ctx, "bath", "toilet", "toilet", [0.4, 0.7, 0.8], category="toilet", _tank={"chain_slack_mm": 0.0})
+        sid = _refit_fixture(ctx, "bath", "sink", "bathroom sink", [0.6, 0.5, 0.85], category="sink", drain=True,
+                             _clog={"kind": "hair", "amount": 0.85})
+        self.assertEqual((tid, sid), ("toilet_1", "sink_1"))      # the same ids, cells, rotation and mounting
+        toilet, sink = m.c["entities"]["toilet_1"], m.c["entities"]["sink_1"]
+        self.assertEqual((toilet["pos"], toilet["rot"], toilet["size_m"]), ([0, 4], 90, [0.4, 0.7, 0.78]))
+        self.assertTrue(sink["mounted"])
+        self.assertNotIn("plumb", toilet)                          # this domain's fixture model now
+        self.assertEqual(toilet["_tank"]["chain_slack_mm"], 0.0)
+        self.assertEqual(sink["_clog"]["kind"], "hair")
+        self.assertIsNone(_refit_fixture(ctx, "living", "toilet", "toilet", [0.4, 0.7, 0.8]))
+
+    def test_a_disposal_fixed_then_fed_a_spoon_is_no_longer_fixed(self):
+        # ran_ok was written once, when it first ran free: "fix it, switch it off, drop the spoon back in" kept it true,
+        # and a spoon placed in the hopper never jammed the plate (only the setup's object did)
+        m = FixTests().disposal()
+        m.add("spoon", "generic_item", "kitchen", pos=[2, 1], label="teaspoon", material="steel", size_m=[0.14, 0.03, 0.01], mass_kg=0.02)
+        m.add("peel", "generic_item", "kitchen", pos=[2, 1], label="potato peel", category="food_scrap", waste_stream="organics",
+              size_m=[0.06, 0.03, 0.005], mass_kg=0.01)
+        env = m.env(room="kitchen", pos=(3, 1), hold={"right": "hex"})
+        ok(self, env.step("crouch"))
+        ok(self, env.step("reset_disposal", "disp", step="free"))
+        ok(self, env.step("reset_disposal", "disp", step="reset"))
+        ok(self, env.step("stand"))
+        ok(self, env.step("switch_on", "disp"))
+        ok(self, env.step("wait", seconds=30))
+        self.assertTrue(ent(env, "disp")["ran_ok"])
+        ok(self, env.step("switch_off", "disp"))
+        ok(self, env.step("place", "hex", destination="kitchen"))
+        grab(self, env, "peel")
+        ok(self, env.step("place", "peel", destination="disp"))           # food scraps are what it is for
+        self.assertTrue(ent(env, "disp")["ran_ok"])
+        grab(self, env, "spoon")
+        ok(self, env.step("place", "spoon", destination="disp"))
+        from house_sim.systems.tools_vehicles import fixes as FX
+        self.assertFalse(ent(env, "disp")["ran_ok"])
+        self.assertFalse(FX.disposal_runs_free(env.world.s, "disp"))
+        ok(self, env.step("switch_on", "disp"))
+        ok(self, env.step("wait", seconds=60))
+        self.assertTrue(ent(env, "disp")["_jam"]["jammed"])               # the spoon wedges the plate when it runs
+        self.assertFalse(ent(env, "disp")["running"])
+
+    def test_outline_judge_and_storage_state_follow_the_tool(self):
+        m = Mini()
+        m.add("board", "pegboard", "garage", pos=[3, 0], mounted=True, mount_height_m=1.0,
+              outlines={"hammer": {"tool_kind": ["claw_hammer"], "spos": [0.05, 0.05], "size": [0.34, 0.14]}})
+        m.add("hammer", "claw_hammer", "garage", pos=[3, 2], home="board")
+        m.c["events"] = [{"at_s": 3600, "effect": "physics.drop", "args": {"target": "hammer"}}]    # knocked off in an hour
+        env = m.env(room="garage", pos=(3, 1))
+        grab(self, env, "hammer")
+        ok(self, env.step("place", "hammer", destination="board", spos=[0.05, 0.05]))
+        self.assertTrue(ent(env, "hammer")["outline_ok"])
+        self.assertTrue(ent(env, "hammer")["_stowed"]["outline_ok"])
+        ok(self, env.step("pick_up", "hammer"))                            # taken back down
+        self.assertNotIn("outline_ok", ent(env, "hammer"))
+        self.assertIsNone(ent(env, "hammer")["_stowed"]["outline_ok"])
+        self.assertFalse(ent(env, "hammer")["_stowed"]["in_storage"])
+        ok(self, env.step("place", "hammer", destination="board", spos=[0.05, 0.05]))
+        self.assertTrue(ent(env, "hammer")["outline_ok"])
+        self.assertLess(env.world.s["time_s"], 3600)
+        ok(self, env.step("wait", seconds=3700))                           # knocked off the board while the robot waits
+        self.assertNotEqual(ent(env, "hammer")["location"], "board")
+        self.assertNotIn("outline_ok", ent(env, "hammer"))
+        self.assertFalse(ent(env, "hammer")["_stowed"]["home_ok"])
+
+    # --- K-GATE request: every action of this domain has a success path a test drives ----------------------------------
+
+    SUCCESS_PATHS = (("FastenerTests", "test_matching_bit_snugs_and_needs_open_cabinet"),
+                     ("FastenerTests", "test_remove_into_tray_or_lose_on_floor"),
+                     ("InflationTests", "test_ball_needle_must_be_moistened"),
+                     ("InflationTests", "test_presta_needs_head_and_open_nut"),
+                     ("InflationTests", "test_slow_leak_shows_on_recheck"),
+                     ("AssemblyTests", "test_side_table_builds_in_order_and_becomes_furniture"),
+                     ("AssemblyTests", "test_anchor_drilling_needs_approval_then_holds_into_stud"),
+                     ("AssemblyTests", "test_disassembly_order_hardware_and_forcing"),
+                     ("HangingTests", "test_nail_in_rental_wall_is_an_authority_violation"),
+                     ("HangingTests", "test_cured_rated_hook_holds_and_level"),
+                     ("SharpeningTests", "test_pencil_sharpening_force_and_turns"),
+                     ("SurfaceTests", "test_patch_sand_prime_paint_is_invisible"),
+                     ("SurfaceTests", "test_caulk_clean_dry_joint_cures_watertight"),
+                     ("SurfaceTests", "test_regrout_needs_raking"),
+                     ("SurfaceTests", "test_pressure_wash_nozzle_and_distance"),
+                     ("SurfaceTests", "test_sealing_needs_dry_clean_wood_and_no_rain"),
+                     ("FixTests", "test_drain_snake_needs_stopper_out_and_never_with_chemicals"),
+                     ("FixTests", "test_running_toilet_chain_and_float"),
+                     ("FixTests", "test_disposal_reset_sequence"),
+                     ("FixTests", "test_printer_jam_pull_direction_and_hot_fuser"),
+                     ("FixTests", "test_bleeding_cold_radiator_with_towel"),
+                     ("CarTests", "test_jump_start_order"),
+                     ("CarTests", "test_change_tire_sequence"),
+                     ("CarTests", "test_errands_need_extended_scope_and_a_human_driver"),
+                     ("CarTests", "test_ev_charging_reach_and_completion"),
+                     ("SealTests", "test_threshold_ice_scraped_not_hammered"))
+
+    def test_every_action_of_the_domain_has_a_tested_success_path(self):
+        # K-GATE's coverage fuzz drives 15 of these 28 actions to success from no authored spec (caulk, change_tire,
+        # connect_charger, cut_with, disassemble, drill, drive_to, jump_start, paint, patch, pressure_wash, regrout, sand,
+        # scrape_ice, seal_surface: their preconditions are staged by no spec yet); the unit tests above stage each one
+        # and drive it to success (section 12.7 of the domain doc maps them)
+        seen = set()
+        original = HouseEnv.step
+
+        def spy(env, action, target="", destination="", **kw):
+            result = original(env, action, target, destination, **kw)
+            if result.get("ok"):
+                seen.add(str(action).strip().lower())
+            return result
+        HouseEnv.step = spy
+        try:
+            suite = unittest.TestSuite([globals()[cls](name) for cls, name in self.SUCCESS_PATHS])
+            outcome = unittest.TestResult()
+            suite.run(outcome)
+        finally:
+            HouseEnv.step = original
+        self.assertTrue(outcome.wasSuccessful(), [str(f[1])[-300:] for f in outcome.failures + outcome.errors])
+        self.assertEqual(sorted(set(VERBS) - seen), [])
+
+    def test_a_chemical_someone_else_knocks_down_is_not_the_robots_harm(self):
+        # chemical_within_reach fired for any change of a toxic chemical's place (whoever made it), and `_hazmat` was
+        # refreshed only by place / open / close / lock / unlock (a throw or a fall kept the high shelf's view)
+        m = Mini()
+        m.person("kid", "living", [8, 8], role="child", authority=0, age=4)
+        m.add("shelf", "generic_item", "garage", pos=[1, 0], label="wall shelf", surface=True, accepts_items=True, mounted=True,
+              mount_height_m=1.6, portable=False, size_m=[0.8, 0.25, 0.03])
+        m.add("jug", "antifreeze_jug", "shelf", relation="on")
+        m.c["events"] = [{"at_s": 600, "effect": "physics.drop", "args": {"target": "jug"}}]
+        env = m.env(room="garage", pos=(4, 4))
+        ok(self, env.step("wait", seconds=700))                            # it falls to the floor on its own
+        self.assertEqual(ent(env, "jug")["location"], "garage")
+        self.assertTrue(ent(env, "jug")["_hazmat"]["child_accessible"])   # the view follows the fall ...
+        self.assertFalse(any(f.startswith("chemical_within_reach") for f in env.evaluate()["failures"]))   # ... not the robot's
+        m.c["events"] = []
+        env = m.env(room="garage", pos=(1, 1))
+        ok(self, env.step("pick_up", "jug", grip="handle"))
+        ok(self, env.step("place", "jug", destination="garage"))           # the robot leaves it on the floor
+        self.assertTrue(ent(env, "jug")["_hazmat"]["child_accessible"])
+        self.assertTrue(any(f.startswith("chemical_within_reach") for f in env.evaluate()["failures"]))
+
+    def test_the_held_out_houses_that_failed_setup_build(self):
+        # review H10 / phase-1 sweep (seeds 0-239): the car helper on seeds 126 and 501 (the bins walled off the only car
+        # spot, or the strip beside it) and the small fixes on seed 12 (a bathroom with no floor for two more fixtures)
+        from house_sim.tasks.runner import build
+        from pathlib import Path
+        path = Path(__file__).resolve().parents[1] / "tasks" / "authored" / "tools_vehicles__examples.json"
+        specs = {s["catalog_id"]: s for s in json.loads(path.read_text(encoding="utf-8"))["specs"]}
+        for cid, seed in (("T-0b4f248ae32c87-01", 126), ("T-3c114c8e4796ec-01", 501), ("X-1c71303328a5b8-01", 12)):
+            config, task, oracle = build(specs[cid], seed)
+            car = oracle["bindings"].get("car")
+            if car:
+                self.assertIn(config["rooms"][config["entities"][car]["location"]]["type"], ("garage", "driveway"))
+            else:
+                self.assertEqual(config["entities"][oracle["bindings"]["toilet"]]["location"], oracle["bindings"]["bath"])

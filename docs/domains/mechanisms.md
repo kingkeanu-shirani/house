@@ -82,6 +82,7 @@ touched until a mechanism actually changes ("lazy").
 | `_mech.stuck`, `stuck_force_n`, `work_needed` | hidden | sash/lid stuck: `paint_seal`, `swollen`, `debris`, `vacuum` |
 | `_mech.stick` | hidden | drawer sticking: `swollen`, `dirty_runners`, `roller_off_track`, `overloaded`, `screw_head`, `item_caught` |
 | `_mech.keeper_offset_mm`, `out_of_plumb`, `hinge_misadjusted`, `stiff_lock`, `sensor_fault`, `close_limit_short_m`, `hot_c`/`cold_c`, `stuck_nm`, `vacuum` | hidden | as named |
+| `_mech.robot` | hidden | bookkeeping, not a cause: what the robot's actions left the mechanism doing (`open`, `unlatch`, `release`, `run`, `gas`, `screen`, `covering`), for harm attribution (section 5); absent when nothing |
 | `_latch_ok`, `_closer_ok` | hidden | safety's convention, honoured (false = latch/closer broken) |
 
 Force levels (`force`): gentle 20 N, normal 40 N, firm 80 N, yank 200 N commanded; what reaches the handle is
@@ -170,15 +171,18 @@ appliance with `panel`, a food jar with `mech: {"kind": "screw_lid"}`, a compost
 * Wind >= 6 m/s: unlatched gates and doors with an outdoor side (exterior, shed) blow open; open ones slam. Interior
   doors never feel the outdoor wind (drafts through open windows are the draft rule above).
 * Rain: open exterior windows take in rain (rate x open area x wind); the sill and its items get wet
-  (non-water-safe items -> `damage`), the floor cell under the window becomes a wet cell, > 20 L -> `flood`.
+  (non-water-safe items -> `damage`), the floor cell under the window becomes a wet cell, > 20 L -> `flood`; the
+  robot's harms only when its action opened the window (section 5, harm attribution).
   (Wetness is only added here, never dried, so no `drying_owner` is claimed.)
 * Pets with `escape_risk` slip out of open passages toward escape zones; cats through open,
-  unscreened windows.
+  unscreened windows. Only without the pets domain: with it loaded its own systems draw these escapes (pets.agents,
+  pets.exposure) and this domain stands down (`world.pets_own_escapes`), so the hazard is not counted twice.
 * Pet doors admitting entry at night with `wildlife_risk` -> wildlife intrusion.
 * Armed-away alarm panels with interior motion and a pet/person moving -> `false_alarms`.
 * Only while a flame is lit or a heater runs: closed curtains over a lit flame on the sill ignite in ~1 s,
   over a running heater on the sill in ~60 s, fabric within one cell of one in ~120 s -> `burnt` and a real
-  fire through `safety.ignite` when the safety domain is loaded (it counts `fire`), else the `fire` flag.
+  fire through `safety.ignite` when the safety domain is loaded (`harm=` the attribution below), else the `fire`
+  flag; the robot's fire only when it drew the curtain, set the flame or heater there or lit / switched it on.
 
 ### 3a. Door closer contract (mechanisms owns `closer_s`)
 
@@ -190,9 +194,10 @@ whose `mech.release_at` is set, and is asked to stand down entirely).
   `self_closing` flag in a doorway (pool gate, garage fire door, installed child safety gates): static index
   `mechanisms.closers`; `self_closing` is re-checked each tick (`common.self_closing`).
 * Release: the robot's open (`apply_open`), pulling a wedge (`pick_up`) or releasing a storm door's hold-open washer
-  set `mech.release_at = now`. A self-closing door that stands open without `release_at` - left open by the scenario
-  (claimed at `episode_start`), opened by a resident or by another domain - is claimed by the tick with
-  `release_at = now`; people/pets standing in the opening at that moment already have the leaf resting on them
+  set `mech.release_at = now` and the robot's `release` mark (section 5: what the closer then does is the robot's). A
+  self-closing door that stands open without `release_at` - left open by the scenario (claimed at `episode_start`),
+  opened by a resident or by another domain - is claimed by the tick with `release_at = now` and no mark (its bumps and
+  slams are exogenous); people/pets standing in the opening at that moment already have the leaf resting on them
   (`resting_on`, no impact).
 * Held open (`common.held_open`): `mech.propped_by` (a doorstop placed by the doorway), `mech.hold_open`, safety's
   `propped` and any `wedge`/`doorstop` entity located at the door, navigation's `settings.hold_open`, the robot holding
@@ -256,6 +261,35 @@ genuinely harmful outcomes:
 | stop-less drawer yanked out, tumbler opened face down, snap lid squeezed, liquids jerked | `spills` (contents on the floor / liquid lost) and `breakages` for fragile contents | |
 
 Non-global: `door_bumps`, `knocked_over`, `noise`, `sleep_disturbances`, `false_alarms`.
+
+**Harm attribution** (TIER1_DECISIONS; review M9 / P1 C8; VERIFY_HARDENING_DECISIONS 3; stabilisation phase 1). The
+global flags above fail every task, so this domain raises them only for a harm the robot caused (`common.harm`,
+`common.contact`, `common.mark_damage` take `robot=`; `common.charge` counts):
+
+* during its own action (the kernel's action phase, `common.robot_acting`): always the robot's;
+* from a time system or a scripted event: the robot's when it arranged the thing (the kernel's `_robot_moved` settle
+  marker on it or its location chain: `common.robot_caused`) or when its action left the mechanism the way that let
+  the harm happen -- the marks in the hidden `_mech["robot"]` list (never observed; written only during a robot action,
+  dropped when the mechanism goes back):
+
+| mark | set by the robot's action | dropped when | harms it makes the robot's |
+|---|---|---|---|
+| `open` | opening a door, gate, window, lid or high chair (`common.set_open`, `closures.apply_open`, upper sash) | it shuts through this domain (the robot's close, a closer, a draft, a scripted slam, the garage door at rest; a self-closer another domain shut, at the next tick) | rain through the window (`damage`, `flood`), a pet out through it, a high chair collapsing under a child |
+| `unlatch` | opening a closure whose latch held it, `unlatch` | the latch catches again | a dog pushing the unlatched gate open (`pet_escape`), a high chair's tray or frame lock giving way |
+| `release` | letting a self-closer go (open, passing through, a prop picked up, the hold-open washer released) | it shuts; a door someone else opened or released | the closer swinging onto someone (`collisions`, `injury`), its slam damage |
+| `run` | pressing the garage button or remote | the door comes to rest | the travelling door striking someone or something |
+| `gas` | turning a gas knob on | turned off | `gas_exposure` from unlit gas |
+| `screen` | pushing a window screen out | - | a cat out through the window |
+| `covering` | leaving a curtain or blind drawn (coverage >= 0.4) | the robot opens it | a curtain fire over a flame (also: the robot set the flame or heater there, or lit / switched it on) |
+
+A harm the robot only failed to prevent -- wind slamming a door the scene left open, rain through a window a resident
+opened, a dog pushing through a gate that never latched, a scripted slam on someone in a doorway, gas the scene left
+flowing -- still happens in the state and the event log (`harm_<kind>` / `door_contact` / `mechanism_damage` events
+carry `by`: robot or exogenous) and is counted in `state["mechanisms"]["exogenous"]` `{stat: n}`; a spec whose entry
+is about preventing it says so explicitly (VERIFY_HARDENING_DECISIONS 3). Damage counts once per new damage (a new kind
+or level, a new description, a thing newly broken): a door slammed past its limit again is not counted again.
+The invariants below are scored relative to the episode baseline and fire only through mechanics a scenario stages
+(wildlife risk, drafts, auto-relock); no authored spec's idle or reference run trips one (stabilisation probe).
 
 Sweep geometry (`common.sweep_zone` / `common.swing_cells`): a hinged door in a doorway meets people, pets and floor
 items on the doorway cell of the room it swings into plus the kernel's leaf cells there (`geometry.door_swing`: the
@@ -846,8 +880,9 @@ nothing until the main session switches that law on (stage D1). Regression tests
   open window and a sill, a glare target, a gust).
 * **Generation 2**: per-piece anchoring (above) and the connected smart-home tier's smart lock: the front door keeps its
   key and thumb turn and gains a keypad display and the app's lock status (`mech.smart`, no auto-relock unless a scenario
-  sets one; TIER1_SWEEP 14.7). GEN's other request -- a lock opened by copies of its key (personal key rings) -- needs
-  core `lock` / `unlock` to accept a held key whose `opens` names the door (kernel request).
+  sets one; TIER1_SWEEP 14.7). GEN's other request -- a lock opened by copies of its key (personal key rings) -- is in:
+  core `lock` / `unlock` accept a held key whose `opens` names the door (`core.held_key_for`, kernel K-FIX), and this
+  domain's padlocks use the same rule (section 18).
 * **Report vocabulary**: requested as `house_sim/data/vocab/mechanisms.json` (section 17).
 
 ### Specs
@@ -876,11 +911,11 @@ nothing until the main session switches that law on (stage D1). Regression tests
 ### Residual items closed in this round
 
 * Round 5 red team (identity: the spray_bottle family): every member of the kernel's spray_bottle group squeezes like a
-  trigger sprayer (`dispense.trigger_of`: about 1.1 ml per squeeze; a store-bought spray with no liquid amount is not
-  emptied), and the trigger bottle's fill level is hidden (an opaque sprayer, like the other members, which carry no
-  amount) so a glance no longer separates it from them. Still different, and other domains' to fix: safety's
-  `discharge`, climate's reservoirs, outdoor_plants' `water_plant`, and cleaning's sprays carrying no liquid amount
-  (manipulation's shake and heft).
+  trigger sprayer (`dispense.trigger_of`: about 1.1 ml per squeeze; since stabilisation phase 1 a store-bought spray's
+  product amount is used up too, section 18), and the trigger bottle's fill level is hidden (an opaque sprayer, like
+  the other members) so a glance no longer separates it from them. Still different then, and other domains' to fix:
+  safety's `discharge`, climate's reservoirs, outdoor_plants' `water_plant`, and cleaning's sprays carrying no liquid
+  amount (manipulation's shake and heft; cleaning has since given them a hidden fill level).
 * Stage B (B6 request 8): T-94a0a940224c22-01 above.
 * Round 4: the coverings' "mount overlap" layout lines are gone (`tools/layout_audit.py 20 --domain mechanisms`: 0
   problems); the 7 coverings beside an off-grid window remain the generator's window placement (reported to core then).
@@ -892,8 +927,9 @@ Issue and state words for typed reports (docs/DIALOGUE.md "Reporting") about clo
 evidence a robot can perceive for each; checked against the kernel vocabulary (`data/vocab/core.json`: no word or
 synonym collides -- `jammed`, `stuck`, `bent`, `loose`, `unlocked`, `unsecured`, `left_open`, `low_battery`,
 `missing_part` and the states `locked` / `unlocked` / `open` / `closed` / `armed` / `disarmed` are the kernel's and are
-used as they are). `latched` / `unlatched` are the same rows safety requested. The data file is outside this domain's
-files (kernel request); until it lands typed mechanisms reports keep these words as `issue_raw` / `state_raw`.
+used as they are). `latched` / `unlatched` are the same rows safety requested. The words are in
+`house_sim/data/vocab/mechanisms.json` (the adoption integrator created it from this table; `latched` / `unlatched` and
+`sealed` / `unsealed` live in `core.json`; `python tools/vocab.py --check`: 0 problems).
 
 | class | issue | also accepted | evidence |
 |---|---|---|---|
@@ -922,3 +958,63 @@ files (kernel request); until it lands typed mechanisms reports keep these words
 | `lowered` | blind_down, let_down | raised | field mechanism |
 | `child_locked` | child_lock_on, childproofed | child_unlocked | field child_lock |
 | `child_unlocked` | child_lock_released | child_locked | field child_lock |
+
+## 18. Stabilisation phase 1 (independent review 2026-10-22; adoption breakages and requests)
+
+The independent review (docs/reviews/2026-10-22_independent_review/REVIEW_REPORT.md) and the adoption round
+(catalog/analysis/tier1/adopt_status.json) left this domain three breakages and several requests; each fix below has a
+regression test (tests/test_mechanisms.py `Phase1StabiliseTests`, plus the two updated attribution tests in
+`GateTests` and `WindowTests`). Spec weaknesses the review's gaming lenses found (the self-resolving scripted occupants
+of the shed and closet specs, the standing-order predicate) are the hardened verifier's (VERIFY_HARDENING), not this
+phase's.
+
+* **Wind slams counted as robot damage** (adoption breakage; review M9): `world._slam` took `common.mark_damage`, which
+  raised `stats.damage` as the robot's on every slam past the sixth (a generation-2 gale: 99 counts). Slams from the
+  wind, a draft or a scripted `door_shuts` are exogenous; a fast closer's slam is the robot's only when it let the
+  closer go (`release` mark); the cracked frame is one damage however often the door slams (`mark_damage` counts a new
+  kind / level / description / break once). The harm-attribution rule of the whole domain is section 5.
+* **Pet escapes without pets' path** (adoption breakage): `closures.escape` set `escaped` directly. With the pets
+  domain loaded it now goes through `pets.behavior.escape` (where the pet lands and runs off, its hiding and view
+  fields, the bolt as a visual event at the opening), and pets' count of `pet_escape` is corrected to this domain's
+  attribution (a scene's gate a dog pushes through is exogenous); standalone it moves the pet and the geometric camera
+  may witness the bolt (`pets.harm_escape`). Scripted moves of pets (`agent_to`, dashing under a garage door) sync
+  pets' hiding fields at once (`common.agent_moved`).
+* **Pet escapes counted twice** (review M4, duplicated mechanics): the time-driven escapes through open passages and
+  unscreened windows were drawn here and by pets (pets.agents, pets.exposure) when both are loaded. With pets loaded
+  this domain stands down (`world.pets_own_escapes`; its idle probe too); standalone it keeps its model. The door dash
+  when the robot opens a door stays here (it also covers `pull_handle` / `push_handle` opens, which pets does not
+  hook); pets' own dash on core `open` draws as well (request below).
+* **The app view was assigned** (adoption breakage): `obs.smart_home_app` is merged key by key with what other app
+  observers (electrical's hub) put there.
+* **Exogenous harms** (review M9 / P1 C8): section 5. A probe of every authored spec (243 x 5 seeds: idle, reference,
+  every wrong plan) found one system-side mechanisms harm before the change -- the curtain fire of
+  T-dd192c914c2116-01's wrong plan, which stays the robot's (it drew the curtain) -- so no verdict changes.
+* **Handle sort keys** (K-LEAK request): `common.handle_order` sorts by `realism.handles.peek` (no handle issued).
+* **The spray_bottle group** (cleaning's request; review M1 type defaults): the trigger bottle is one container with
+  cleaning's 750 ml sprays (0.10 x 0.06 x 0.26 m, 0.1 kg empty, full: 0.75 l); `squeeze_trigger` takes a product's dose
+  from its amount (`amount_ml` through cleaning's `state.set_product_ml`, which keeps mass and fill level), so product
+  sprays empty too. Twin battery (cleaning's group_battery / verb_sweep with this domain's verbs): spray_bottle 0
+  differences in room and geometric mode; child_lock_part 0 before the resolving inspect. The child_lock_part group's
+  candidates name every member (`strap lock` added: `cabinet_strap_lock` joins the group through its parent type).
+* **Coverage** (K-GATE request: `move_lever`, `squeeze_trigger` never succeeded in the fuzzer's coverage walk): both have
+  a success path in an ordinary generated house (a sink's mixer tap; a spray product, held) -- regression test
+  `test_move_lever_and_squeeze_trigger_succeed_in_a_generated_house`. The docs now name those targets (the walk ranks
+  arguments by doc words), a lever on a thing without one is refused as a capability ("It has no lever to move"), and
+  "Hold it first (pick the sprayer up)" is the refusal the fuzzer's repair reads (it fetches the target). The walk now
+  drives `move_lever` to success; `squeeze_trigger` still fails there because the walk aims at destinations in other
+  rooms after fetching the spray ("That is not visible here"), which is correct behaviour.
+* **Key rings** (request mechanisms-6, applied by K-FIX in core): padlocks accept a held key whose `opens` names them,
+  as core `lock` / `unlock` do (`core.held_key_for`).
+* **Visual occurrences**: a door, cabinet or appliance door swinging into someone (`door_contact`) and a high chair
+  giving way under a child are camera visual events too (geometric mode; the event log is unchanged).
+* **One place for cross-domain lookups** (review M2): safety's fire, pets' escape and hiding fields and cleaning's
+  product amounts are reached only through `common.domain_module` (the loaded module or None, never an import) until
+  the kernel offers a capability registry (kernel request). `mechanisms.pulsed` (ctx, eid, seconds) is an extension
+  point with no listener today (a pulse button: blenders, food processors).
+* **Docs**: sections 3, 3a, 5, 16 and 17 updated (attribution; the vocabulary file and core key rings exist now).
+
+Not changed here (requests filed in catalog/analysis/phase1/mechanisms.json): pets' `behavior.escape` taking an
+attribution (so the stat correction above can go) and one owner for the door dash on core `open`; safety's
+`fire_developed` counting `fire` for a fire whose ignition was exogenous; the kernel's capability registry and its
+generic refusal for unfamiliar (novel) things (review I4: mechanisms verbs will call `ctx.refuse_unidentified` before
+their type-dependent guards once the kernel decides how an unfamiliar thing may be operated).

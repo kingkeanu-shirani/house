@@ -3985,9 +3985,12 @@
     ],
     "volume_l": 3.0,
     "mass_kg": 0.17,
+    "shape": "box",
+    "com_frac": 0.5,
+    "mouth_frac": 0.3,
     "label_text": "HE liquid detergent. Normal load: fill cap to line 1 (30 mL); large/heavily soiled: line 3 (45 mL). Pour into the MAIN compartment."
    },
-   "doc": "HE liquid laundry detergent, 2.5 L (~30 mL per normal load; cap has dose lines)."
+   "doc": "HE liquid laundry detergent, 2.5 L (~30 mL per normal load; cap has dose lines). The laundry_jug look-alike group's common jug: 15 x 10 x 28 cm HDPE with a handle and a 4 cm screw neck (mouth_frac 0.3), 0.17 kg empty, 2.95 L brim; every member carries the same jug props."
   },
   "free_clear_detergent": {
    "is_a": "liquid_detergent",
@@ -4063,15 +4066,18 @@
     "capacity_l": 2.95,
     "scented": true,
     "size_m": [
-     0.12,
-     0.08,
-     0.25
+     0.15,
+     0.1,
+     0.28
     ],
-    "volume_l": 1.8,
-    "mass_kg": 0.1,
+    "volume_l": 3.0,
+    "mass_kg": 0.17,
+    "shape": "box",
+    "com_frac": 0.5,
+    "mouth_frac": 0.3,
     "label_text": "Fabric softener. Pour to line 1 (30 mL) in the SOFTENER compartment, never directly on clothes. Not for microfiber, towels that must stay absorbent, athletic wear or children's sleepwear."
    },
-   "doc": "Liquid fabric softener, 1.5 L (softener compartment up to MAX; not for towels/microfiber/athletic/FR wear)."
+   "doc": "Liquid fabric softener, 2.5 L in the laundry_jug group's common jug (softener compartment up to MAX; not for towels/microfiber/athletic/FR wear)."
   },
   "chlorine_bleach_bottle": {
    "is_a": "laundry_product",
@@ -4081,7 +4087,6 @@
     "liquid": "chlorine_bleach",
     "liquid_l": 2.5,
     "capacity_l": 2.95,
-    "mouth_frac": 0.3,
     "chemical_class": "chlorine",
     "hazards": [
      "toxic",
@@ -4096,14 +4101,17 @@
     "size_m": [
      0.15,
      0.1,
-     0.3
+     0.28
     ],
-    "volume_l": 3.2,
-    "mass_kg": 0.15,
+    "volume_l": 3.0,
+    "mass_kg": 0.17,
+    "shape": "box",
+    "com_frac": 0.5,
+    "mouth_frac": 0.3,
     "risk": 1,
     "label_text": "Chlorine bleach (sodium hypochlorite). DANGER: corrosive. Never mix with vinegar, ammonia or other cleaners. Whites only: 1/3 cup (80 mL) in the BLEACH compartment."
    },
-   "doc": "Chlorine laundry bleach, 2.8 L (bleach compartment only; never with ammonia/acids; keep out of children's reach)."
+   "doc": "Chlorine laundry bleach, 2.5 L in the laundry_jug group's common jug (bleach compartment only; never with ammonia/acids; keep out of children's reach). The type name's noun would give it the kernel's bottle row (a round, narrow-necked cylinder): shape, com_frac and mouth_frac are set to the jug's."
   },
   "oxygen_laundry_booster": {
    "is_a": "laundry_product",
@@ -4119,14 +4127,17 @@
     "capacity_l": 2.95,
     "size_m": [
      0.15,
-     0.15,
-     0.2
+     0.1,
+     0.28
     ],
-    "volume_l": 2.5,
-    "mass_kg": 0.08,
+    "volume_l": 3.0,
+    "mass_kg": 0.17,
+    "shape": "box",
+    "com_frac": 0.5,
+    "mouth_frac": 0.3,
     "label_text": "Oxygen laundry booster (non-chlorine, colour-safe). Add 1 scoop (30 mL) to the drum or presoak in warm water."
    },
-   "doc": "Oxygen (percarbonate) laundry booster (colour-safe; tannin stains; soaks)."
+   "doc": "Oxygen (percarbonate) laundry booster, 2.5 L in the laundry_jug group's common jug (colour-safe; tannin stains; soaks)."
   },
   "stain_remover_spray": {
    "is_a": "laundry_product",
@@ -4183,15 +4194,18 @@
     "liquid_l": 2.5,
     "capacity_l": 2.95,
     "size_m": [
-     0.13,
+     0.15,
      0.1,
-     0.26
+     0.28
     ],
-    "volume_l": 1.2,
-    "mass_kg": 0.07,
+    "volume_l": 3.0,
+    "mass_kg": 0.17,
+    "shape": "box",
+    "com_frac": 0.5,
+    "mouth_frac": 0.3,
     "label_text": "Enzyme presoak for protein stains (blood, egg, milk, grass). Soak in COOL water 30 minutes to overnight. Not for wool or silk."
    },
-   "doc": "Enzyme presoak liquid (protein/grass stains; cold water)."
+   "doc": "Enzyme presoak liquid, 2.5 L in the laundry_jug group's common jug (protein/grass stains; cold water)."
   },
   "dryer_sheet": {
    "is_a": "laundry_product",
@@ -5547,7 +5561,7 @@
     "oxygen laundry booster",
     "enzyme presoak"
    ],
-   "doc": "Members are sold in the same 2.5 L household jug (a full jug looks, hefts and sloshes alike whatever is in it: the label tells them apart; red-team round 5 found the litres an inspection estimates told them apart)"
+   "doc": "Members are sold in the same 2.5 L household jug (a full jug looks, hefts and sloshes alike whatever is in it: the label tells them apart; red-team round 5 found the litres an inspection estimates told them apart). Every member type carries the same jug props -- size_m, volume_l, empty mass_kg, liquid_l, capacity_l, shape, com_frac, mouth_frac -- so no camera pixel, contact, pour or tip tells them apart before the label is read (independent review L2/L4: the bleach jug was 0.30 m tall and a bottle-shaped cylinder, the booster 0.20 m)"
   },
   "dryer_sheet": {
    "descriptor": "dryer sheet",

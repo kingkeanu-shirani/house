@@ -63,6 +63,41 @@ def bucket_load(ratio):
     return "at_limit"
 
 
+# The load in energy terms (review L3, K-LEAK's request to body.py): hold power and the walking work's load term
+# follow each hand's load word, never the exact mass. With the exact mass the gauge's drain weighed what the robot
+# held (1.30 and 2.71 kg recovered while touch said "medium" for both): any monotone readout of the true charge times
+# the drain, so no readout change could hide it. A hand's share counts as the middle of its word's band of the hand's
+# believed capacity (at_limit: the capacity itself); P-approx, at most about an eighth of a hand's capacity times
+# hold_per_kg off the true power.
+FELT_LOAD_FRAC = {"none": 0.0, "light": 0.125, "moderate": 0.425, "heavy": 0.75, "at_limit": 1.0}
+
+
+def felt_load_kg(state, loads=None):
+    """The carried load as the robot's load words state it (FELT_LOAD_FRAC of each loaded hand's believed capacity,
+    the same capacities _load renders the words from): what body.py charges hold power and walking work for.
+    loads: body.held_loads(state) when the caller has them (else the settlement cache)."""
+    hands = body.get(state, "hands") or {}
+    if loads is None:
+        per_hand = _hand_loads(state)
+    else:
+        per_hand = {}
+        for _, held, kg in loads:
+            for hand in held:
+                per_hand[hand] = per_hand.get(hand, 0.0) + kg / len(held)
+    total = 0.0
+    for hand in body.HANDS:
+        kg = per_hand.get(hand, 0.0)
+        if kg <= 0:
+            continue
+        if hands.get(hand) and hands.get("left") == hands.get("right"):
+            cap = body.capacity_kg(state, "both", believed=True) / 2.0
+        else:
+            cap = body.capacity_kg(state, hand, believed=True)
+        if cap > 0:
+            total += FELT_LOAD_FRAC[bucket_load(kg / cap)] * cap
+    return round(total, 4)
+
+
 def bucket_temp(t_c):
     """Pack temperature: cold (< 5 C), normal, warm (> 40 C), hot (> 55 C)."""
     if t_c < TEMP_BUCKETS[0][0]:

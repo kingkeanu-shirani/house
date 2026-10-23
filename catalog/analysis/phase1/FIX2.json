@@ -1,0 +1,176 @@
+{
+ "id": "FIX2",
+ "fixed": [
+  {
+   "item": "red_leaks 1 (High, NEW): free text naming an unresolved look-alike or unfamiliar thing echoed its true type, liquid or product in one step (apply_label text listing every member type name: 9/9 laundry-jug, spray and carton members, 3/3 unfamiliar things, room and geometric)",
+   "how": "house_sim/kernel/realism.py: inbound keeps an id-like word only when it names a part of the target the robot can know of (Realism._target_part_names: an identified thing's non-hidden fields and type; an unresolved look-alike or unfamiliar thing only its perceived identity plus every member type's names alike, which the outbound substitution shows as the group label), never from the true record; non-text parameters also keep the key words of the target's record (a slot of an unresolved remote: the action acts on the part anyway; dropping them broke T-fd2d3d767911d8-01 under forced realistic perception in the first gate run, fixed before the final one). Docs: PERCEPTION.md Messages, KERNEL_API.md FIX2 section.",
+   "test": "tests/test_kernel_redteam.py FreeTextEchoTests (5 tests; the echo tests fail on the pre-fix tree, test_a_slot_of_an_unresolved_look_alike_is_kept_outside_free_text guards the non-text rule); the red team's probe_target_names_echo{,2,3}.py now give identical echoes for every member (room and geometric); the auditor's new `target` probe reports 3 leaks on the pre-fix tree and 0 now."
+  },
+  {
+   "item": "red_leaks 6 (Medium): a typed report about a thing destroyed out of view was refused ('You have not seen that') while one out of view was accepted; ask about it answered 'I don't know.' instead of the out-of-view answer (existence oracle)",
+   "how": "kernel/dialogue.py remembered_ids(env) (the Mind's beliefs and issued handles of things that have gone); kernel/reports.py normalize(args, state, remembered) / _subject_ref resolve such a subject or scope as an entity, _label uses the Mind's label_seen, the record's location the room it was last seen in, _perceived_category the belief's new kind_seen (kernel/mind.py); systems/core.py typed report passes remembered_ids; dialogue.resolve_subject resolves `about` alike. realism.gone keeps the perceived category of a destroyed thing with a handle.",
+   "test": "tests/test_kernel_redteam.py RememberedSubjectTests (fails on the pre-fix tree); probe_refusal2.py: report and ask now answer alike for destroyed and out-of-view things; the auditor's echo battery now includes report subject= and ask about= (2 leaks on the pre-fix tree, 0 now). Residual: people's owner answerer (breakages)."
+  },
+  {
+   "item": "red_leaks 5 / review I4 (Medium): unfamiliar (novel) things were told apart by the glance (openable, a jug's liquid_l), inspect extras and the outcome of operating them (switch_on 'That does not work on it' / 'No power' / 'It has no supported switch'; open 'Opened' / 'It does not open')",
+   "how": "kernel/realism.py NOVEL_FIELDS: a fixed key set for unidentified unfamiliar things at a glance, in a view and on inspection (novel_unidentified); kernel/actions.py ActionSpec.operates / @action(operates=True) and NOVEL_OPERATE_MESSAGE; kernel/engine.py refuses an operates action on an unfamiliar target before any domain hook (realistic perception only; not in describe(), the action fingerprint is unchanged); systems/core.py declares open, close, open_cover, close_cover, lock, unlock, switch_on, switch_off, set, start, pause, cancel, set_mode operates. This is the kernel's operation rule mechanisms asked for (documented in PERCEPTION.md as a decision the owner may revisit).",
+   "test": "tests/test_kernel_redteam.py UnfamiliarThingTests (3 tests); repro_novel_inspect.py: glance openable gone, inspect extras gone, open/switch_on one refusal for all six types; the novel sweep's remaining differences are domain verbs (breakages: take_photo, pull/push_handle, food container verbs, fill, empty_into) and physical trials (heft, shake)."
+  },
+  {
+   "item": "red_leaks 9 / review L4 kernel part (Low-Medium): an unresolved jug's spill showed its liquid's hazard kind (bleach 'wet', detergent 'slip') in obs.grid.hazards and in route probing",
+   "how": "kernel/realism.py LIQUID_HAZARD_KINDS, _liquid_unidentified, _liquid_kind_shown: a wet/slip/sticky hazard whose source the robot cannot identify shows its group's floor_hazard word (default 'wet'); route_hazards keeps out of it for any of the three in the avoid list (domain vetoes still get the true kind).",
+   "test": "tests/test_kernel_redteam.py HazardListingTests (puddle tests fail on the pre-fix tree); probe_spill_kind2.py: 'wet' for all three jugs. Residual: domains' path_blocked hooks and the spray_bottle member's heft (breakages, cleaning)."
+  },
+  {
+   "item": "red_leaks 11 / review I11 (Low): obs.grid.hazards listed the sources of one cell in spawn order",
+   "how": "kernel/realism.py _observe sorts hazards by (cell, source handle peeked, kind) (_source_order; people and pets by their dark shape handle, else id).",
+   "test": "tests/test_kernel_redteam.py HazardListingTests.test_one_cell_lists_its_sources_in_the_same_order_whatever_the_spawn_order; repro_hazard_cell_order.py no longer flips; the auditor's `target` probe checks it."
+  },
+  {
+   "item": "red_leaks 12 / review L8 (Low): the glance size estimate's error scaled with the agent-controlled m, so a regression over viewing conditions recovered the true size to millimetres",
+   "how": "kernel/realism.py render size_m: one fixed relative error (sigma 0.08) per thing; m only widens the quantisation step in whole multiples of 5 cm (0.05 x max(1, round(m))); identical to before at m < 1.5.",
+   "test": "tests/test_kernel_redteam.py SizeEstimateTests (fails on the pre-fix tree); probe_size_regression.py: regression errors now +0.12/-0.047/-0.016 m (the fixed draw), was -0.001/+0.002/+0.006. Golden re-recorded (only realistic observation digests changed: the obs.visible_entities.*.size_m class)."
+  },
+  {
+   "item": "red_leaks 3 / review I1 second stage (Medium): hidden test seeds lay in a 1.25e9 window whose generated house structure identifies the seed (about 30 bits; a one-time table about 1,300 core-hours)",
+   "how": "house_sim/eval/splits.py PRIVATE_END = 2**53 (candidates spread over 9e15 seeds; exact in every JSON reader); is_private_seed covers every seed at or above PRIVATE_BASE. Checked that the generator (gen 1 and 2) and verify.run_trial run on 53-bit seeds. Docs: SPLITS.md (range, rationale, the one-attempt-per-hidden-seed rule the review asked to state), EVAL_CONTRACTS.md, VERIFY_HARDENING.md 12.1 (factual range note only).",
+   "test": "tests/test_eval_splits.py test_hidden_seeds_cannot_be_tabulated (new) and the updated constants/guard tests (40 tests OK). No split key exists or was created; tests use their own temporary key."
+  },
+  {
+   "item": "red_leaks 2 / review L7 surviving the nonce (High): public (spec, seed) worlds are rebuilt offline and decoded by content, whatever the nonce does to handles",
+   "how": "Labelling, as the review proposed (the structural fix -- nonce-drawn permutations in scored episodes -- is a choice for VERIFY_HARDENING WP9, not made here): eval/leaderboard.py PUBLIC_SPLIT_NOTE in every output and row['comparable'] (False for dev/train rows); EVAL_HARNESS.md and SPLITS.md state it.",
+   "test": "tests/test_eval_leaderboard.py TestSplitPrivacyTests (extended: comparable flags, note in md and html)."
+  },
+  {
+   "item": "red_leaks 7 (Medium): the perception auditor was green on the live tree while reproduced classes stayed open; its novel twin list named two non-existent types",
+   "how": "tools/perception_audit.py: NOVEL_TWINS = electric_kettle, smartphone, hair_dryer, remote_control (a configuration error when one is missing with every domain loaded); unfamiliar twins compared on every field and on operating them (open, switch_on, switch_off, take_photo); report subject= and ask about= in the destroyed-vs-out-of-view battery; new `target` probe (free text naming every member type; the hazard order of one cell).",
+   "test": "On the pre-fix tree the new auditor reports 23 leaks (18 novel twin, 3 target, 2 echo) in a 1-house run; on the fixed tree it reports exactly the people domain's take_photo twin leak (breakages). R2/R3 seed correlation and averaging checks: not_fixed (next phase's ledger)."
+  },
+  {
+   "item": "red_leaks 8 lint part (Medium): look-alike members of different true size behind a group size_m were not flagged (the geometric camera's geometry still tells them apart)",
+   "how": "kernel/registry.py LookalikeSizeWarning, registry.lookalike_spreads / lookalike_size_spreads(): flags 15 groups (members more than 1 cm and 5 % apart: SPREAD_RESOLUTION_M), the 13 the red team named among them.",
+   "test": "tests/test_kernel_redteam.py LookalikeSizeLintTests. The member data are the owners' (breakages)."
+  },
+  {
+   "item": "red_defects 1 (high): a failing test that is skipped or deleted passed record and compare",
+   "how": "tools/orchestration/tier1_gate.py: every test process runs through the `_unittest` worker (the same report and exit status as python -m unittest) and tests.json keeps each test id and every non-ok outcome; test_regressions fails G1 / G1b / G8 (record) and G1 (compare) for a test that disappears, becomes skipped or an expected failure, a file that is gone, or (without ids on one side) fewer tests or more skips, unless an allowlist entry of the new kind 'skip' or a committed signoff row 'test-removal' covers it.",
+   "test": "tests/test_gate_tool.py RedTeamGateTests (worker, regressions, excuses, compare) -- fail on the pre-fix gate."
+  },
+  {
+   "item": "red_defects 2 (high): a partial re-run merged with an earlier run became a complete hand-over; nothing tied a record to the tree",
+   "how": "tree_fingerprint (house_sim, tasks, tests, tools, docs, CI files) at the start and end of a run; every check result carries the tree it ran on (None when the tree changed during the run); a record with checks from another tree is STALE (exit 1, never a hand-over); compare recomputes the fingerprint of the record's tree (tree_check: STALE fails, no fingerprint is INCOMPLETE; --any-tree for historical comparisons).",
+   "test": "RedTeamGateTests.test_a_partial_run_merged_with_an_earlier_run_on_another_tree_is_stale, test_compare_fails_a_record_made_on_another_tree, test_a_check_run_on_another_tree_is_stale_in_compare."
+  },
+  {
+   "item": "red_defects 3 (medium): the standalone compare passed records whose own verdict was FAIL (missing data and own statuses ignored; a narrowed PREV narrowed G2-ABS)",
+   "how": "compare_dirs: a check the record lists in 'recorded' with missing data is SKIP (G0, G4, G5, G6, G7, G1b, G8); the record's own statuses of G0, G1c, G4, G5, G7, G9, G10 count (OWN_STATUS); G2-ABS over the full own-mode rows; a partial or narrowed previous record makes compare INCOMPLETE and `record --prev` refuses it.",
+   "test": "RedTeamGateTests.test_missing_data_of_a_recorded_check_is_skip, test_the_records_own_failing_status_counts, test_g2_abs_runs_over_the_full_rows_and_a_narrowed_previous_record_is_incomplete, test_record_refuses_a_narrowed_previous_record."
+  },
+  {
+   "item": "red_defects 4 (medium): policy files could be forged in an isolated copy (writable manifest), also hiding edited files from G10; --root chose the policy source",
+   "how": "policy_root(): the allowlist and signatures are read only from the commits of the project the gate script belongs to, never from --root; an isolated copy is never a policy source; isolated_changes compares the copy's files with `git ls-tree` of its base commit in the project (git blob ids), not with the copy's manifest; compare refuses a foreign --root unless --foreign-root; meta.json records the policy root.",
+   "test": "RedTeamGateTests.test_compare_refuses_a_foreign_root, test_the_gate_reads_policy_files_from_the_project_not_from_root, test_an_isolated_copys_changes_come_from_the_project_commit_not_its_manifest; TrustedPolicyTests.test_an_isolated_copy_is_never_a_policy_source (replaces the copy-trust test)."
+  },
+  {
+   "item": "red_defects 5 (medium): wrong plans that never act counted as evidence (unknown action names, steps refused for their form)",
+   "how": "Interim rule (VERIFY_HARDENING 14.3 rule 1 stays the full rule): runner.build raises SpecError for a literal 'do' name that is no registered action (_check_plan_actions); kernel/engine.py sets HouseEnv.last_step_malformed for a step refused for its form (unknown action or ActionSpec.validate); Runner.refusals records it; verify.wrong_plan_record marks such a wrong plan ran False, error_class MalformedStep (not evidence) and records refused_categories. Value refusals by the action itself (an out-of-range setting tried as the mistake) stay possible mistakes.",
+   "test": "tests/test_verify_records.py test_a_wrong_plan_naming_an_unknown_action_fails_to_build, test_a_step_refused_for_its_form_is_not_evidence (fail on the pre-fix tree). A scan of all 243 specs x 5 seeds found one affected spec: T-5a9598c809336a-01's wrong plan {'do': 'look', 'around': true} (breakages, tools_vehicles)."
+  },
+  {
+   "item": "red_defects 6 kernel part (medium): no kernel step ended a containment, so an unwrapped broken glass left no floor hazard or shards",
+   "how": "kernel/phys/impact.py uncontained(w, eid, by=None): shattered, the sharp floor hazard on a floor, the phys.uncontained hook and consequence; idempotent. PHYSICS.md 'Wrap containment'. Hooking it up is manipulation's (unwrap) and safety's (shards): breakages.",
+   "test": "tests/test_physics_settle.py CrossLayerContractTests.test_containment_ends_when_the_wrap_comes_off (normal and HOUSE_SIM_DOMAINS=core)."
+  },
+  {
+   "item": "red_defects 7 (medium): CI would be red for reasons unrelated to regressions (wall-clock bounds under parallel load; the spec sample hits the known failing T-7d4006bda247ba-01 on seed 41)",
+   "how": "The 26 wall-clock test bounds in 18 kernel/tools test files skip only with HOUSE_SIM_PERF_TESTS=0 (default on: local runs and the gate's G1 keep them); .github/workflows/ci.yml sets it for the parallel unit-suite step and runs the bounds alone in a non-blocking step; tools/orchestration/run_check.py --allowlist (the gate's committed allowlist excuses a spec on its failing seeds; 'failing' still lists it) used by the CI spec sample.",
+   "test": "tests/test_gate_tool.py RunCheckTests.test_the_ci_allowlist_excuses_only_allowlisted_seeds and the CI workflow needle test; the CI perf step's discover filter runs the 54 bound tests (OK, 36 s). The main session must add a dated allowlist entry for T-7d4006bda247ba-01 (requests) for CI to go green before manipulation's fix."
+  },
+  {
+   "item": "red_defects 9 (low): a second camera-dependent privacy count (a doorway view of a private moment) was undocumented",
+   "how": "docs/KNOWN_LIMITS.md 6 lists both cases; pinned as an expected difference.",
+   "test": "tests/test_kernel_contracts.py CameraModeHarmTests.test_a_private_moment_seen_through_a_doorway_is_one_violation_at_most. Counting it in room mode is the people domain's (breakages)."
+  },
+  {
+   "item": "red_defects 11 (low): the coverage fuzz counted no-op successes as driven to success",
+   "how": "kernel/engine.py HouseEnv.track_effect / last_step_effect (effect_path: entities, rooms, robot, people, pets, connections; no bookkeeping); tools/fuzz.py counts a physical action's success only when it changed the world (noop_successes, noop_only in the JSON and the printout; the walker keeps trying a no-op); the gate's fuzz summary carries noop_only.",
+   "test": "tests/test_gate_tool.py NoopAndGoldenPolicyTests.test_a_success_that_changes_nothing_is_not_coverage."
+  },
+  {
+   "item": "red_defects 12 (low): room_golden pinned a failing reference (T-7d4006bda247ba-01 seed 0)",
+   "how": "tools/golden.py record refuses failing references unless allowlisted or named with --known-failing (recorded in history; entry stored 'known_failing': true); check reports a known-failing reference that now passes as an expected change, not a difference. Re-recorded --by FIX2 with T-7d4006bda247ba-01 known failing.",
+   "test": "NoopAndGoldenPolicyTests.test_the_golden_refuses_to_pin_a_failing_reference; tests.test_room_golden green (normal and golden-all)."
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "red_leaks 4 / review I2 (High): authored placement fixes look-alike roles by position (cleaning glass spec's spos, admin mail trays, A-a67431128da2e1-01 stones, A-83f6ca95b72b85-01 film rolls)",
+   "why": "VERIFY_HARDENING WP9 (seeded shuffle / arrange setup ops, 9.2, and the 200-build rank audits, 9.7) is the planned fix and the next phase; implementing it now would pre-empt that design. Note for WP9 (red team): a permutation drawn from the public seed is replayed by an offline copy on public seeds (the L7 finding); scored episodes would need permutations drawn from the episode nonce."
+  },
+  {
+   "item": "red_leaks 2 structural part: public-seed worlds can be rebuilt offline by content",
+   "why": "Only labelling is in scope now (PUBLIC_SPLIT_NOTE, row comparable); nonce-drawn permutations and distractor placement in scored episodes are a choice for VERIFY_HARDENING WP9, not a change to its design."
+  },
+  {
+   "item": "red_leaks 7 residual: R2 (seed correlation), R3 (permutation) and AVERAGING checks in the perception auditor",
+   "why": "They need many builds per spec and a per-spec answer model: the red team and the review place them in the next phase's ledger / 200-build audits (VERIFY_HARDENING 9.7). The auditor's hazard-order and target-name checks were added now."
+  },
+  {
+   "item": "Domain-owned findings of the red team (23 new rows)",
+   "why": "Domain files are the domains': catalog/analysis/phase1/breakages.json rows 29-51 (source FIX2) -- the novel-thing verbs (people take_photo, mechanisms pull/push_handle/press, food container verbs, plumbing fill, cleaning empty_into), the spray_bottle member's heft and puddle path_blocked hooks (cleaning), the pill-bottle read_aloud (pets/people), people's owner answer for a destroyed thing, T-5a9598c809336a-01's malformed wrong plan (tools_vehicles), the wrap-containment hand-back (manipulation unwrap, safety shards), damp lift monotonicity (manipulation), the doorway privacy count and the hot hand-over double harm (people), and the 15 look-alike size spreads (tools_vehicles, plumbing_liquids, appliances_cooking, mechanisms, food, climate, electrical, safety)."
+  },
+  {
+   "item": "red_defects 8 (low): lift monotonicity breaks for damp or wet surfaces",
+   "why": "The root cause is manipulation's grip model (the adaptive one-hand cap is the rated dry squeeze, not the hand's hardware limit): breakages row. Changing the kernel lift_plan's hand choice by surface instead would alter every wet-item pick-up of every spec; outside PHYSICS.md 8's clean-and-dry contract until then."
+  },
+  {
+   "item": "Review L4 kernel/domain seam: domains' path_blocked hooks read true puddle kinds",
+   "why": "Domain hooks (breakages row, cleaning); the kernel's own listing and routing are fixed."
+  }
+ ],
+ "specs_changed_outcome": [
+  "T-5a9598c809336a-01 (tools_vehicles__perception.json): PASS -> FAIL on every seed in own mode and forced realistic. Its wrong plan's first step {\"do\": \"look\", \"around\": true} is refused for its form (look takes no 'around'), so the plan never performs its mistake; the verifier's interim rule counts that as not evidence (breakages.json, tools_vehicles). No other spec changed outcome: own mode 241/243 (INT 242/243; T-7d4006bda247ba-01 still fails seeds 0 and 41), forced realistic 240/243 (INT 241/243; T-dda4e199f3f5b0-01 seed 1 as before), the 51 realistic specs with --camera geometric 50/51.",
+  "T-fd2d3d767911d8-01 failed under forced realistic perception in the first gate run (its uninstall slot of an unresolved remote became 'something' once free-text names came from what the robot knows); fixed before the final run (non-text parameters keep the record's key words) and passes 5/5 again."
+ ],
+ "tests": {
+  "count": 4681,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 241
+ },
+ "requests": [
+  {
+   "owner": "main session",
+   "request": "Commit tools/orchestration/gate_policy/ with a dated allowlist entry {\"kind\": \"spec\", \"catalog_id\": \"T-7d4006bda247ba-01\", \"seeds\": [0, 41], \"mode\": \"own\", \"owner\": \"manipulation\", ...} (and realistic for T-dda4e199f3f5b0-01 seed 1 if wanted) so CI's spec sample (run_check --allowlist) and G2-ABS reflect only new regressions; the golden pins T-7d4006bda247ba-01 as known_failing."
+  },
+  {
+   "owner": "main session",
+   "request": "Re-record the P1 gate on a quiet, clean tree after committing, then review and sign: (a) the test-count rows the new removed/skipped-test rule flags against ADOPT (records made before FIX2 carry no per-test ids, so the first comparison uses counts), (b) the coverage-fuzz actions that only ever 'succeeded' as no-ops (coverage loss against P1), (c) T-5a9598c809336a-01's PASS -> FAIL (malformed wrong plan, tools_vehicles), (d) the verdict rows already drafted in P1_signoff_draft.json. Records made while other owners edit files are STALE by design."
+  },
+  {
+   "owner": "main session",
+   "request": "Owner decision recorded in docs/PERCEPTION.md: unidentified unfamiliar (novel) things are moved and inspected but not operated (actions declared operates=True are refused with one message). Revisit if physical trials whose outcomes name no class are preferred."
+  },
+  {
+   "owner": "main session",
+   "request": "No split key exists; the hidden test range is now [9e8, 2**53). Whoever creates the key stops and asks the owner to back up %USERPROFILE%\\.house_ai first (standing rule)."
+  }
+ ],
+ "gate": "TIER1-GATE P1 [P1-ALL] vs ADOPT: FAIL (5 pass, 7 fail, 1 n/a; failing G1b, G2, G3, G4, G6, G7, G9) -- record catalog/analysis/tier1/gate/P1 (tree 2b5cc8a33ff9, unchanged during the 51-minute run, not STALE; the standalone compare finds TREE PASS). G0, G1 (4,681 tests x normal+strict, 0 failing runs), G5, G8 (golden and golden-all), G10 PASS. G1b: every isolated-domain and core test passes; it fails only on the new removed/skipped-test rule against ADOPT, which has no per-test ids: six domain test files skip more tests in isolation than at ADOPT (climate 1->2, food 2->4, mechanisms 2->3, pets 0->1, plumbing_liquids 0->1, safety 2->3) -- the main session reviews them and signs test-removal rows or adds dated 'skip' entries; P1 now records per-test ids, so later comparisons are per test. G2: G2-ABS T-5a9598c809336a-01 and T-7d4006bda247ba-01, 204 unsigned verdict rows, 9 unsigned edits. G3: 240/243, 212 unsigned verdict rows. G4: one leak per camera mode, people's take_photo on unfamiliar things (breakages). G6: 0 defects / 0 nondeterministic in the random fuzz variants; coverage 282 of 427 actions (no-op successes no longer count), 2 domain defects (admin_inventory's close-look heft grant, already row 1; manipulation's velcro on a coiled hose, new row). G7: 3.86 ms/substep, 1.251 s per hour (INT: 3.85 / 1.255; the domains' share). G9 fails only through G4/G6.",
+ "checks": {
+  "unit_suite": "green_tests.py 7: 4,680 tests per mode, the appliances_cooking novel-start test failing until the novel refusal reused the kernel's identify-first message; gate G1 after that: 4,681 per mode, 0 failures (normal and HOUSE_SIM_STRICT=1); G1b 16/16 isolated domains and 33/33 kernel files with HOUSE_SIM_DOMAINS=core pass",
+  "specs_own": "python -m house_sim --check all 243 specs --workers 6: 241/243 (T-7d4006bda247ba-01, T-5a9598c809336a-01)",
+  "specs_realistic_forced": "--perception realistic: 240/243 (+ T-dda4e199f3f5b0-01 seed 1)",
+  "realistic_geometric": "the 51 realistic specs with --camera geometric: 50/51 (T-5a9598c809336a-01)",
+  "perception_audit": "60 x 80 room: 1 leak (people take_photo twin), 0 crashes; 60 x 80 geometric: 1 leak (same), 0 crashes; --gen 2 30 x 80: 1 leak (same), 0 crashes. On the pre-fix tree the new auditor reports 23 leaks in a 1-house run (18 novel twin, 3 target echo / hazard order, 2 report/ask existence)",
+  "layout_audit": "30: generation 1 180 houses 0 problems; --gen 2: 330 houses 0 problems, 4 domain follow-ups (breakages rows 23, 24)",
+  "fuzz": "12 x 300: 0 defects, 0 nondeterministic (46 of 427 actions succeed; 1 no-op-only); --gen 2 8 x 300: 0 defects, 0 nondeterministic",
+  "fuzz_coverage": "gate G6: 44,292 commands, 282 of 427 actions driven to a success that changed the world (INT counted 286 including no-ops; noop_only now: hold_steady, loosen, steady), 0 nondeterministic, 2 strict-mode defects (domain)",
+  "golden": "tools/golden.py dump before/after: one changed path pattern, obs.visible_entities.*.size_m (review L8), realistic observation digests only; re-recorded --by FIX2 with T-7d4006bda247ba-01 known_failing; test_room_golden green normal and golden-all"
+ },
+ "notes": "FIX2 = the phase-1 red team's fix pass on the non-domain files (kernel, core, tasks, eval, tools, kernel and tools tests, docs, CI). Inputs: catalog/analysis/phase1/red_leaks.json (12 findings) and red_defects.json (12 findings), read in full; every non-domain finding fixed at its root with a regression test that fails on the pre-fix tree (snapshot in scratch p1_FIX2/before), the domain-owned parts appended to catalog/analysis/phase1/breakages.json (rows 29-52, 24 rows, source 'FIX2 ...'). Deferred with reasons: review I2 and the structural half of L7 (VERIFY_HARDENING WP9, next phase), the auditor's R2/R3/averaging checks (next phase's ledger), damp-lift monotonicity (manipulation's grip model). Final gate record P1 made on an unchanged tree (not STALE); the integrator's earlier P1 record is kept in scratch p1_FIX2/gate_P1_INT_backup. Nothing committed, no branch/stash/reset; nothing under %USERPROFILE%/.house_ai (no split key exists; the tests use their own temporary keys); no network or paid calls. All files written LF. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_FIX2 (patch scripts, probes, golden dumps and diff, gate logs, audit and fuzz JSON)."
+}

@@ -18,6 +18,14 @@ strict mode holds. Nothing here refuses or raises ActionError: a consequence hap
   sharp), "crack" (electronics, plastics, wax: broken, which only inspection shows), "chip" (stone, enamel, engineered
   wood: damage.chipped), "bruise" (produce: damage.bruised). Liquid in a broken or emptied container runs down its
   support chain (liquids.deposit_below), so it is conserved.
+* **Wrap containment.** A break inside a full wrap (``wrapped`` coverage >= 0.95 of any material, or a plain
+  ``wrapped`` flag) or intact factory packaging (``packaged``) is *contained* (``contained(record)``): its pieces stay
+  inside, so the item gets the sharp handling hazard but no floor hazard, and ``phys.broke`` hooks and the
+  ``phys.break`` event carry ``contained: True``. The contract for every domain: while ``contained(record)`` holds,
+  nothing scatters, spreads or spawns the pieces (no shard field, no shards outside the wrap); once the wrap or the
+  packaging comes off they are the domain's to scatter. A fallen fully wrapped container keeps what is in it (it is
+  jolted, not thrown out). The see-through wraps (``SEE_THROUGH_WRAPS``) contain as well; they only leave the break in
+  view (``shattered``).
 * **Attribution (6.4).** A consequence is the robot's when the caller says ``by="robot"``, when it happens in the
   action-phase settle, or when the robot arranged the entity: it or a support in its location chain carries the
   ``_robot_moved`` marker (settle writes it on structural changes an action made; opening or closing alone writes
@@ -64,6 +72,7 @@ SHARP_CLASSES = ("glass", "tempered_glass", "borosilicate", "glass_ceramic", "cr
                  "ceramic", "terracotta")
 SHARD_GEAR = ("cut_resistant_gloves", "rubber_gloves")       # what makes handling broken glass safe
 SEE_THROUGH_WRAPS = ("bubble_wrap", "plastic_wrap", "stretch_wrap", "cling_film", "cellophane")
+WRAP_FULL = 0.95              # wrap coverage from which a wrap holds a break's pieces in (and an opaque one hides them)
 # fields describing where and how an item rests; a moved item loses them (the last six are manipulation's stack and
 # packing bookkeeping, which a fall or collapse ends)
 PLACEMENT_KEYS = ("spos", "pos", "shelf", "held_hand", "held_grip", "xy_m", "stack_member", "nested",
@@ -484,11 +493,25 @@ def _break_shows(rec):
     break_shows rule)."""
     wrapped = rec.get("wrapped")
     if isinstance(wrapped, dict):
-        if support.num(wrapped.get("coverage")) >= 0.95 and wrapped.get("material") not in SEE_THROUGH_WRAPS:
+        if support.num(wrapped.get("coverage")) >= WRAP_FULL and wrapped.get("material") not in SEE_THROUGH_WRAPS:
             return False
     elif wrapped:
         return False
     return not rec.get("packaged")
+
+
+def contained(rec):
+    """True when a break of this record stays inside what covers it: a full wrap of any material (wrapped coverage
+    >= WRAP_FULL; a plain truthy wrapped flag counts as a full wrap) or its intact factory packaging (packaged). The
+    wrap-containment contract (module docstring): nothing may scatter, spread or spawn the pieces of a contained
+    break."""
+    wrapped = rec.get("wrapped")
+    if isinstance(wrapped, dict):
+        if support.num(wrapped.get("coverage")) >= WRAP_FULL:
+            return True
+    elif wrapped:
+        return True
+    return bool(rec.get("packaged"))
 
 
 def _break(w, eid, cause, who):
@@ -504,6 +527,7 @@ def _break(w, eid, cause, who):
     current = damage_map(m.get("damage"))
     current["broken"] = 1.0
     m["damage"] = current
+    inside = contained(m)
     if mode == "shatter":
         if _break_shows(m):
             m["shattered"] = True
@@ -513,8 +537,8 @@ def _break(w, eid, cause, who):
                 m["hazards"] = hazards + ["sharp"]
             gear = list(m.get("handled_with") or [])
             m["handled_with"] = gear + [g for g in SHARD_GEAR if g not in gear]
-            if m.get("location") in state["rooms"]:
-                m["floor_hazard"] = "sharp"
+            if m.get("location") in state["rooms"] and not inside:
+                m["floor_hazard"] = "sharp"     # a contained break's pieces stay in the wrap: no floor hazard
     liters = support.num(m.get("liquid_l"))
     if liters > 0:
         m["liquid_l"] = 0.0
@@ -524,6 +548,8 @@ def _break(w, eid, cause, who):
         w.stat("breakages")
         w.stat("damage")
     info = {"cause": cause, "by": who, "room": root_room(state, eid), "mode": mode, "liters": round(liters, 4)}
+    if inside:
+        info["contained"] = True        # wrap containment: hooks must not scatter its pieces (only set when True)
     emit_consequence(w, "phys.break", target=eid, **info)
     run_hooks("phys.broke", w, eid, dict(info))
     _record(w, "phys.break", eid, who, "{} broke".format(eid), cause=cause, mode=mode)
@@ -533,12 +559,41 @@ def _break(w, eid, cause, who):
 def break_entity(w, eid, cause, by=None, cmap=None):
     """Break an item (idempotent: False when it is already broken or gone): broken, condition "broken", damage.broken
     1.0, its liquid run down to the floor; a shattering item also shows ``shattered`` (unless an opaque wrap hides
-    it), and glass or ceramic becomes sharp (hazard, shard gear to handle it, a sharp floor hazard on a floor). Runs
-    ``phys.broke``."""
+    it), and glass or ceramic becomes sharp (hazard, shard gear to handle it, a sharp floor hazard on a floor unless
+    the break is contained in a full wrap or its packaging). Runs ``phys.broke`` (info: cause, by, room, mode, liters
+    and, for a contained break, contained True)."""
     rec = w.s["entities"].get(eid)
     if rec is None or rec.get("broken"):
         return False
     return _break(w, eid, cause, _by(w, eid, by, cmap))
+
+
+def uncontained(w, eid, by=None, cmap=None):
+    """Containment ended (phase-1 red team): the wrap or the packaging of a broken item came off, so the pieces it held
+    are out. A shattered sharp break now shows (``shattered``) and, on a floor, gets the sharp floor hazard its break
+    did not give it; ``phys.uncontained`` hooks (info: by, room, mode) let a domain scatter what it scatters for an
+    open break (the safety domain's shard field), and a ``phys.uncontained`` consequence is recorded. The domain that
+    removes the wrap calls it after clearing ``wrapped`` / ``packaged`` (manipulation's unwrap). Returns True when it
+    released anything; False when the item is gone, not broken, still contained or its pieces are already out."""
+    state = w.s
+    rec = state["entities"].get(eid)
+    if rec is None or not rec.get("broken") or contained(rec) or rec.get("_pieces_out"):
+        return False
+    p = support.phys(state, eid)
+    mode = break_mode(p) or "crack"
+    if mode != "shatter":
+        return False                # a crack, a chip or a bruise has no loose pieces to release
+    m = w.mut(eid)
+    m["_pieces_out"] = True
+    m["shattered"] = True
+    if p.cls in SHARP_CLASSES and m.get("location") in state["rooms"]:
+        m["floor_hazard"] = "sharp"
+    who = _by(w, eid, by, cmap)
+    info = {"by": who, "room": root_room(state, eid), "mode": mode}
+    emit_consequence(w, "phys.uncontained", target=eid, **info)
+    run_hooks("phys.uncontained", w, eid, dict(info))
+    _record(w, "phys.uncontained", eid, who, "{}'s pieces came out of its wrap".format(eid))
+    return True
 
 
 def _impact(w, eid, h_eff, cause, who):
@@ -610,6 +665,8 @@ def _spill_and_scatter(w, eid, drop, land, rid, cell, landed_on, who, cmap):
     closed = True
     if liters > 0 or any(entities[c].get("relation") == "in" for c in children):
         closed = bool(_liquids().container_closed(rec))
+    # a full wrap or intact packaging keeps loose contents in (wrap containment); liquid soaks through a wrap
+    keeps = closed or contained(rec)
     if liters > 0 and not closed and not rec.get("broken"):
         orientation = "on_side" if rec.get("orientation") == "on_side" else "upside_down"
         lost = min(liters, max(0.0, support.num(_liquids().tip_spill_l(rec, orientation))))
@@ -622,7 +679,7 @@ def _spill_and_scatter(w, eid, drop, land, rid, cell, landed_on, who, cmap):
         if child not in entities or entities[child].get("location") != eid:
             continue
         crec = entities[child]
-        if crec.get("relation", "on") == "on" or not closed:
+        if crec.get("relation", "on") == "on" or not keeps:
             height = min(drop, SCATTER_MAX_M)
             if landed_on:
                 fall(w, child, height_m=height, cause="scattered", onto=landed_on, by=who, cmap=cmap)

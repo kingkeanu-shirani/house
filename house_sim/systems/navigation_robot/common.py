@@ -45,6 +45,10 @@ HARD_FLOORS = ("tile", "stone", "marble", "hardwood", "laminate", "vinyl", "conc
 PRIVATE_ACTIVITIES = ("bathing", "showering", "toilet", "dressing", "changing", "intimate")
 CALL_ACTIVITIES = ("call", "video_call", "phone_call", "meeting")
 SLEEP_WAKE_DB = {"adult": 55.0, "elderly": 52.0, "teen": 58.0, "child": 55.0, "toddler": 50.0, "infant": 48.0}
+# footfall level (dB at 1 m, body.noise_db) that wakes a sleeping cat or dog the robot passes within one cell: the pets
+# domain's resting-startle level (pets/behavior.py STARTLE_RESTING_DB), so both models agree. humanoid_v1: a normal walk
+# (36 dB) wakes it, a careful one (30 dB) or a normal walk in quiet mode (32 dB) does not.
+PET_WAKE_DB = 33.0
 
 
 def footstep_db_at(state, speed, cells_away, carrying_kg=0.0):
@@ -123,6 +127,11 @@ def people_domain_loaded():
 def mechanisms_loaded():
     """The mechanisms domain owns door/cabinet leaves meeting things in their swing (and door closers)."""
     return "latch" in ACTIONS
+
+
+def pets_domain_loaded():
+    """The pets domain owns the startle of pets along a core approach / walk_to (its body-aware _startle_along)."""
+    return "calm_pet" in ACTIONS
 
 
 # ----------------------------------------------------------------------

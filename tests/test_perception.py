@@ -248,6 +248,8 @@ class RealisticPerceptionTests(unittest.TestCase):
     def test_realistic_observe_overhead_is_small(self):
         env = HouseEnv(generate_house(7), seed=7, perception="realistic", trace=False)
         oracle = HouseEnv(generate_house(7), seed=7, trace=False)
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         def timed(e):
             t = time.perf_counter()
             for _ in range(15):
@@ -798,17 +800,18 @@ class KernelRound5RedTeamFixTests(unittest.TestCase):
         text = "Is fabric_softener_1 or fabric_softener_2 or salt_jar_1 near room_1 or dishwasher_1_basket? Try layer_2."
         res = env.step("speak", text=text)
         self.assertTrue(res["ok"])
-        # an existing id, a guessed one built on a type name and an existing hand-written id all read "something";
-        # rooms and words that are not ids (a slot name) stay
-        self.assertEqual(res["message"], "Is something or something or something near room_1 or something? Try layer_2.")
-        raw = env.realism.inbound({"text": "fabric_softener_1 fabric_softener_2"}, text_keys=("text",))
-        self.assertEqual(raw["text"], "something something")
+        # an existing id, a guessed one built on a type name, an existing hand-written id and any other id-like word
+        # all read "something" in free text (review I6: letter_6 or m9 must echo alike whether or not they exist);
+        # rooms and plain words stay
+        self.assertEqual(res["message"],
+                         "Is something or something or something near room_1 or something? Try something.")
+        raw = env.realism.inbound({"text": "fabric_softener_1 fabric_softener_2 main_water_valve m9 spoon"},
+                                  text_keys=("text",))
+        self.assertEqual(raw["text"], "something something something something spoon")
         self.assertTrue(realism_module.id_shaped("dishwasher_1_basket"))
         self.assertFalse(realism_module.id_shaped("main_water_valve"))
-        # type names that contain digits themselves ("combination_wrench_1_2in") count as stems too
-        self.assertTrue(realism_module._typed_id("combination_wrench_1_2in_3", {"combination_wrench_1_2in"}))
-        self.assertTrue(realism_module._typed_id("dishwasher_1_basket", {"dishwasher"}))
-        self.assertFalse(realism_module._typed_id("layer_2", {"dishwasher"}))
+        self.assertTrue(realism_module._id_like("main_water_valve") and realism_module._id_like("m9"))
+        self.assertFalse(realism_module._id_like("spoon"))
         # a part name of the command's own target is kept even when it is shaped like an id on a type name
         c = fixture()
         c["entities"]["counter_1"]["slots"] = {"dishwasher_2": {"item": None}}
@@ -874,9 +877,12 @@ class KernelRound5RedTeamFixTests(unittest.TestCase):
         for private in (False, True):
             c = fixture()
             c["entities"]["note_1"]["private"] = private
+            # someone else's (legacy records default to resident_1, the requester, whose own things are no violation:
+            # phase 1, INT, actions.owner_asks)
+            c["entities"]["note_1"]["owner"] = "resident_2"
             c["entities"]["box_1"] = object_record("cardboard box", "counter_1", portable=True, size_m=[0.3, 0.3, 0.2], relation="on",
                                                  container=True, openable=True, open=True, accepts_items=True, capacity_l=10,
-                                                 private=private)
+                                                 private=private, owner="resident_2")
             c["entities"]["box_1"].pop("pos", None)
             c["entities"]["ball_1"] = object_record("tennis ball", "box_1", portable=True, size_m=[0.07, 0.07, 0.07], relation="in")
             c["entities"]["ball_1"].pop("pos", None)
@@ -891,9 +897,9 @@ class KernelRound5RedTeamFixTests(unittest.TestCase):
         self.assertEqual(views[False], views[True])
         self.assertEqual(views[True][2], "Dentist at 3pm")
         self.assertTrue(views[True][3])          # an open private box shows what is in it
-        # oracle mode: reading private papers without permission is refused
+        # oracle mode: reading someone else's private papers without permission is refused
         c = fixture()
-        c["entities"]["note_1"]["private"] = True
+        c["entities"]["note_1"].update(private=True, owner="resident_2")
         o = self.env(config=c, mode="oracle")
         o.step("approach", "counter_1")
         self.assertFalse(o.step("read", "note_1")["ok"])

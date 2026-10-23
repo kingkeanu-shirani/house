@@ -231,10 +231,45 @@ def judge(w, item, container, via=None):
         cm["contaminated"] = True
         S.gsec(w)["stream_errors"] += len(errors)
         S.glog(w, "stream_error", container=container, errors=errors[:5])
+    for eid in targets:
+        if w.s["entities"].get(eid, {}).get("in_stream") is not None:
+            w.mut(eid)["_cl_judged_in"] = container
+            S.watch(w, "stream", eid)       # cleaning.streams drops the verdict when it leaves (stream_left)
     update_fill(w, container)
     for anc in w.ancestors(container):
         if anc in w.s["entities"] and S.is_waste_container(w.ent(anc)):
             update_fill(w, anc)
+
+
+def stream_left(w, eid):
+    """A judged item (in_stream / stream_ok) that is gone or no longer inside a waste container of the stream it was
+    judged in: tipped out with its bin, dragged off by a pet, carried away inside something else. Its verdict is
+    stale."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or rec.get("in_stream") is None:
+        return True
+    container = waste_container_of(w, eid)
+    return container is None or w.ent(container).get("waste_stream") != rec.get("in_stream")
+
+
+def drop_verdict(w, eid):
+    """Clear a judged item's stream verdict (in_stream, stream_ok) and the errors its container recorded for it, and
+    refill the container it left; the same bookkeeping as retrieving it by hand (retrieve_from_bin)."""
+    rec = w.s["entities"].get(eid)
+    left = None
+    if rec is not None:
+        left = rec.get("_cl_judged_in")
+        m = w.mut(eid)
+        for key in ("in_stream", "stream_ok", "_cl_judged_in"):
+            m.pop(key, None)
+    for cid in S.waste_containers(w):
+        crec = w.s["entities"].get(cid)
+        if crec and crec.get("stream_errors") and any(e.get("item") == eid for e in crec["stream_errors"]):
+            cm = w.mut(cid)
+            cm["stream_errors"] = [e for e in cm["stream_errors"] if e.get("item") != eid]
+            cm["contaminated"] = bool(cm["stream_errors"])
+    if left in w.s["entities"]:
+        update_fill(w, left)
 
 
 def loose_into_stream(w, container, composition, source=None):
@@ -358,6 +393,7 @@ def retrieve_from_bin(ctx, result):
             m = w.mut(eid)
             m.pop("in_stream", None)
             m.pop("stream_ok", None)
+            m.pop("_cl_judged_in", None)
     for eid in S.waste_containers(w):
         crec = w.s["entities"].get(eid)
         if crec and crec.get("stream_errors") and any(e.get("item") == item for e in crec["stream_errors"]):
@@ -456,6 +492,7 @@ def liner_removed(ctx, device, slot, part):
             m["pos"] = geometry.free_floor_cell(w.s, rid, near=tuple(w.robot.get("pos") or (0, 0)), ignore=(item,)) or list(w.robot.get("pos") or [0, 0])
             m.pop("in_stream", None)
             m.pop("stream_ok", None)
+            m.pop("_cl_judged_in", None)
         if leaky:
             from . import floors
             floors.make_spill(w, rid, "garbage_juice" if "garbage_juice" in floors.SPILL_PROPS else "dirty_water", 0.15, near=device)
@@ -496,8 +533,9 @@ def torn_bag_juice(w, sid, ctx):
         rid, cell = w.root_room(sid), None
     if rid in w.s["rooms"]:
         from . import floors
-        floors.make_spill(w, rid, "garbage_juice", 0.15, cell=cell, near=None if cell else sid)
-        w.stat("spills")
+        robot = S.robot_caused(w, sid)      # torn under the robot's lift (its action), or a bag the robot loaded
+        floors.make_spill(w, rid, "garbage_juice", 0.15, cell=cell, near=None if cell else sid, robot=robot)
+        S.charge(w, "spills", robot)
 
 
 @hook("event:raccoon_raid")
@@ -517,6 +555,7 @@ def scatter(w, container, cause):
         m["pos"] = geometry.free_floor_cell(w.s, rid, ignore=(item,)) or [0, 0]
         m.pop("in_stream", None)
         m.pop("stream_ok", None)
+        m.pop("_cl_judged_in", None)
     for liner in [c for c in w.descendants(container) if w.ent(c).get("liner")]:
         w.mut(liner)["torn"] = True
     S.glog(w, "trash_scattered", container=container, cause=cause)
@@ -556,7 +595,9 @@ def empty_into(ctx):
     from . import floors
     moved = []
     outcome = []
-    if S.is_liquid_container(trec) and float(trec.get("liquid_l", 0.0) or 0.0) > 0:
+    from ...kernel.phys import liquids
+    if S.is_liquid_container(trec) and float(trec.get("liquid_l", 0.0) or 0.0) > 0 and not liquids.container_closed(trec):
+        # a closed container (a trigger head, a cap screwed on) keeps its liquid when tipped, like a product bottle
         outcome.append(floors.dump_liquid(ctx, target, dest))
     load = dict(trec.get("cl_load") or {})
     destination = dest

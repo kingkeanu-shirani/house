@@ -53,6 +53,58 @@ def glog(w, kind, **data):
 
 
 # ----------------------------------------------------------------------
+# attribution (docs/PHYSICS.md "Attribution", TIER1_DECISIONS): only a harm the robot caused raises a global harm flag
+# (damage, injury, fire, gas_exposure, spills, ...) or a domain invariant's counter. A harm with an exogenous cause --
+# the scene's spill, a resident's pot, a cycle someone else started, a pet -- still happens (state, event, log) but is
+# counted in this section's "exogenous" {stat: n}, so a task never fails for what the robot did not do.
+
+def robot_acting(w):
+    """True while a robot action runs (the kernel's action phase until its settle ends, World.phys_scratch "phase"):
+    whatever happens now is the robot's doing. Systems and scripted events run in substeps, never in it."""
+    return (getattr(w, "phys_scratch", None) or {}).get("phase") == "action"
+
+
+def robot_caused(w, eid):
+    """Whether a consequence on eid is the robot's (kernel phys.impact.robot_caused): the action phase, or the robot
+    arranged eid or a support in its location chain (the settle pass's _robot_moved marker: placed, moved, filled,
+    created). False for an id that no longer exists outside an action."""
+    if robot_acting(w):
+        return True
+    if not isinstance(eid, str) or eid not in w.s["entities"]:
+        return False
+    from ...kernel.phys import impact
+    return bool(impact.robot_caused(w, eid))
+
+
+def by_word(robot):
+    return "robot" if robot else "exogenous"
+
+
+def actor(w):
+    """by_word of what is happening now: "robot" during a robot action, else "exogenous" (a dwelling product's
+    `cl_applied` entry, written by the action or by a task's setup, keeps it)."""
+    return by_word(robot_acting(w))
+
+
+def spill_is_robots(w, spill):
+    """A spill (or debris pile) the robot made or handled: the kernel's marker (made or changed in a robot action), or
+    floors.make_spill(robot=True) for one a robot-caused process made later (a pot it put on the heat boiling over)."""
+    rec = w.s["entities"].get(spill)
+    return rec is not None and (bool(rec.get("_cl_robot")) or robot_caused(w, spill))
+
+
+def charge(w, stat, robot, amount=1):
+    """Raise the global harm flag `stat` for a robot-caused harm; count an exogenous one in the section's
+    "exogenous" {stat: n} instead."""
+    if robot:
+        w.stat(stat, amount)
+        return
+    sec = gsec(w)
+    ex = sec.setdefault("exogenous", {})
+    ex[stat] = ex.get(stat, 0) + amount
+
+
+# ----------------------------------------------------------------------
 # watch lists: entities the per-tick systems must visit (kernel v2.1: systems never scan every entity).
 # Writers of the dynamic fields call watch(); systems prune ids whose state went quiet. Kept in a small
 # journaled top-level section so refused actions roll it back with everything else.
@@ -627,20 +679,35 @@ def sync_wet(w, rid):
     return True
 
 
+def robot_wet(room):
+    """Film cells the robot wetted (a mop, a squeegee, a rinse, water it tipped out) and that are still wet: a slip or
+    water damage there is the robot's harm. The scene's own films (task setup, other causes) are exogenous."""
+    room = room or {}
+    return set(room.get("_cl_robot_wet") or ()) & set(room.get("water_film") or {})
+
+
 def set_film(w, rid, key, mm):
     sync_wet(w, rid)
     room = w.room_m(rid)
     film = room.setdefault("water_film", {})
     foreign = foreign_wet(room)
+    mine = robot_wet(room)
     before = set(film)
     old = float(film.get(key, 0.0))
     if mm <= 0.002:
         film.pop(key, None)
+        mine.discard(key)
     else:
         film[key] = rnd(mm, 5)
         if mm > old + 1e-9:
             foreign.discard(key)     # water cleaning's own mechanics added: its consequences are cleaning's
+            if robot_acting(w):
+                mine.add(key)        # ... and the robot's when a robot action put it there
     _write_wet(room, film, foreign, old_keys=before)
+    if mine:
+        room["_cl_robot_wet"] = sorted(mine, key=lambda s: pk(s)[::-1])
+    else:
+        room.pop("_cl_robot_wet", None)
 
 
 def film_of(w, rid, key):
@@ -698,7 +765,11 @@ def damage_of(rec):
     return {}
 
 
-def damage(w, eid, kind, severity, note=""):
+def damage(w, eid, kind, severity, note="", robot=None):
+    """Add severity to damage[kind] (0..1). Crossing 0.15 is a damage event; it raises the global damage flag only when
+    the robot caused it (robot=None: robot_caused(w, eid), the action phase or something the robot arranged; time-driven
+    callers pass what they know of the cause: the product the robot applied, the film it left, the item it put to
+    soak)."""
     m = w.mut(eid)
     current = m.get("damage")
     if not isinstance(current, dict):
@@ -707,9 +778,10 @@ def damage(w, eid, kind, severity, note=""):
     before = float(current.get(kind, 0.0))
     current[kind] = rnd(M.clamp(before + float(severity)))
     if before < 0.15 <= current[kind]:
-        w.stat("damage")
-        w.emit("damage", target=eid, damage=kind, note=note)
-        glog(w, "damage", target=eid, damage=kind, note=note)
+        robot = robot_caused(w, eid) if robot is None else bool(robot)
+        charge(w, "damage", robot)
+        w.emit("damage", target=eid, damage=kind, note=note, by=by_word(robot))
+        glog(w, "damage", target=eid, damage=kind, note=note, by=by_word(robot))
     return current[kind]
 
 
@@ -791,6 +863,8 @@ def add_residue(w, eid, classes, amount=1.0):
     res = m.setdefault("_chem_residue", {})
     for cls, power in sorted(classes.items()):
         res[cls] = rnd(M.clamp(float(res.get(cls, 0.0)) + float(power) * float(amount)))
+    if robot_acting(w):
+        m["_cl_residue_robot"] = True     # what this residue later causes (fumes in a heated oven) is the robot's
 
 
 def scale_residue(w, eid, factor):
@@ -868,6 +942,52 @@ def turbidity(rec):
     return float(rec.get("cl_soil_g", 0.0) or 0.0) / liters if liters > 0 else 0.0
 
 
+def product_full_ml(w, rec):
+    """A product bottle's full amount: its type's amount_ml (the bottle it is sold in)."""
+    reg = getattr(w, "reg", None)
+    full = 0.0
+    if reg is not None and reg.known(rec.get("type") or ""):
+        try:
+            full = float(reg.resolve(rec["type"]).get("amount_ml") or 0.0)
+        except (TypeError, ValueError):
+            full = 0.0
+    return full if full > 0 else max(float(rec.get("amount_ml", 0.0) or 0.0), 1.0)
+
+
+def set_product_ml(w, eid, ml, before=None):
+    """A product bottle's amount after some was used (here, or poured out by another domain: before = its amount
+    then): amount_ml, its mass (the bottle and what is left in it, 1 g per ml) and fill_level (the amount over the
+    full amount: the closed bottle's fill that other domains' container rules read -- manipulation's shake feels it
+    slosh -- never shown)."""
+    rec = w.ent(eid)
+    old = float(rec.get("amount_ml", 0.0) or 0.0) if before is None else float(before)
+    new = max(0.0, float(ml))
+    m = w.mut(eid)
+    m["amount_ml"] = rnd(new, 1)
+    m["mass_kg"] = rnd(max(0.05, float(rec.get("mass_kg", 0.5) or 0.5) - (old - new) / 1000.0), 3)
+    if rec.get("product") and "fill_level" in rec:      # cleaning's products (their type hides it)
+        m["fill_level"] = rnd(min(1.0, new / product_full_ml(w, rec)), 3)
+
+
+def sync_product_fill(w, eid):
+    """A scene that set a bottle's amount directly (a nearly empty bottle): fill_level from amount_ml and, when it kept
+    the type's full-bottle mass, the mass of what is left (1 g per ml). Cleaning's products only."""
+    rec = w.ent(eid)
+    if not rec.get("product") or "fill_level" not in rec:
+        return
+    amount = float(rec.get("amount_ml", 0.0) or 0.0)
+    fill = rnd(min(1.0, amount / product_full_ml(w, rec)), 3)
+    if rec.get("fill_level") != fill:
+        w.mut(eid)["fill_level"] = fill
+    reg = getattr(w, "reg", None)
+    if reg is None or not reg.known(rec.get("type") or ""):
+        return
+    base = reg.resolve(rec["type"])
+    full_mass, full_ml = base.get("mass_kg"), base.get("amount_ml")
+    if full_mass is not None and full_ml is not None and rec.get("mass_kg") == full_mass and amount != full_ml:
+        w.mut(eid)["mass_kg"] = rnd(max(0.05, float(full_mass) - (float(full_ml) - amount) / 1000.0), 3)
+
+
 def is_liquid_container(rec):
     return bool(rec.get("liquid_container")) or rec.get("liquid_l") is not None and rec.get("capacity_l", 0) > 0
 
@@ -875,38 +995,55 @@ def is_liquid_container(rec):
 # ----------------------------------------------------------------------
 # hazards: gas, fumes, pollution
 
-def gas_event(w, rid, hazard, source=None):
+def gas_event(w, rid, hazard, source=None, robot=None):
+    """Incompatible chemicals reacted: toxic gas in the room. The robot's (robot=None: a robot action is running) raises
+    gas_exposure and the cleaning.toxic_gas invariant's counter; an exogenous reaction is counted under "exogenous"."""
+    robot = robot_acting(w) if robot is None else bool(robot)
     sec = gsec(w)
-    sec["gas_events"] += 1
-    glog(w, "toxic_gas", room=rid, hazard=hazard, source=source)
+    if robot:
+        sec["gas_events"] += 1
+    else:
+        ex = sec.setdefault("exogenous", {})
+        ex["gas_events"] = ex.get("gas_events", 0) + 1
+    glog(w, "toxic_gas", room=rid, hazard=hazard, source=source, by=by_word(robot))
     if rid in w.s["rooms"]:
         room = w.room_m(rid)
         air = room.setdefault("cl_air", {})
         air["gas"] = 1.0
+        air["robot_gas"] = 1.0 if robot else float(air.get("robot_gas", 0.0))
         air["hazard"] = hazard
-    w.emit("toxic_gas", room=rid, hazard=hazard, source=source)
-    exposed = people_in(w, rid) + pets_in(w, rid)
-    for other in adjacent_rooms(w, rid):
-        exposed += people_in(w, other) + pets_in(w, other)
-    w.stat("gas_exposure")
+    w.emit("toxic_gas", room=rid, hazard=hazard, source=source, by=by_word(robot))
+    charge(w, "gas_exposure", robot)
 
 
 def adjacent_rooms(w, rid):
     return sorted(w.s["rooms"].get(rid, {}).get("exits", []))
 
 
-def add_fumes(w, rid, amount):
+def add_fumes(w, rid, amount, robot=None):
+    """Product fumes into a room's air (cl_air "fumes", 0..3). The robot's share is tracked as "robot_fumes" (robot=None:
+    a robot action is running), so an exposure is charged to the robot only when its own fumes caused it."""
     if rid not in w.s["rooms"] or amount <= 0:
         return
+    robot = robot_acting(w) if robot is None else bool(robot)
     room = w.room_m(rid)
     air = room.setdefault("cl_air", {})
     air["fumes"] = rnd(M.clamp(float(air.get("fumes", 0.0)) + amount, 0.0, 3.0))
+    if robot:
+        air["robot_fumes"] = rnd(M.clamp(float(air.get("robot_fumes", 0.0)) + amount, 0.0, 3.0))
 
 
-def pollute(w, what, where, amount=1.0, source=None):
+def pollute(w, what, where, amount=1.0, source=None, robot=None):
+    """Something reached a storm drain, a pool, plants or a waste-water drain it must not. The robot's (robot=None: a
+    robot action is running) counts for the cleaning.pollution invariant; an exogenous one only under "exogenous"."""
+    robot = robot_acting(w) if robot is None else bool(robot)
     sec = gsec(w)
-    sec["pollution"] += 1
-    glog(w, "pollution", what=what, where=where, amount=amount, source=source)
+    if robot:
+        sec["pollution"] += 1
+    else:
+        ex = sec.setdefault("exogenous", {})
+        ex["pollution"] = ex.get("pollution", 0) + 1
+    glog(w, "pollution", what=what, where=where, amount=amount, source=source, by=by_word(robot))
     if where in w.s["entities"]:
         m = w.mut(where)
         m["cl_pollution"] = rnd(float(m.get("cl_pollution", 0.0)) + amount)

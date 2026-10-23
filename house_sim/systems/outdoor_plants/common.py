@@ -566,6 +566,78 @@ def spawn(w, type_name, location, eid=None, **props):
     return w.spawn(type_name, location, eid=eid, **props)
 
 
+# ---------------------------------------------------------------------------
+# harm attribution (TIER1_DECISIONS "harm attribution"; review M9 / P1 C8; VERIFY_HARDENING_DECISIONS 3)
+#
+# The global harm flags (stats.damage, injury, fire, breakages, electrical_hazard, ...) fail every task, so this domain
+# raises them only for a harm the robot caused: during its own action (the kernel's action phase), or from a time
+# system when the robot set up the cause -- it arranged the thing (the kernel's _robot_moved settle marker on it or
+# along its location chain) or a robot action left a mark of the cause on it (ROBOT_MARK: an umbrella it opened,
+# de-icer it spread, hot ash it moved into a holder, a decoration it plugged in). A harm the robot only failed to
+# prevent (a gale tipping an umbrella the scene left open, embers the scene left in the pit flaring in the wind, the
+# scene's indoor cord out in the rain) still happens in the state and the event log (by: exogenous) and is counted in
+# state["outdoor_plants"]["exogenous_harms"] {flag: n}; a spec about preventing it says so with its own predicates.
+
+ROBOT_MARK = "_op_robot"        # hidden list of the causes a robot action set up on a thing (never observed)
+
+
+def robot_acting(w):
+    """True while a robot action runs (the kernel's action phase until its settle ends); systems and scripted events
+    run in substeps, never in it."""
+    return (getattr(w, "phys_scratch", None) or {}).get("phase") == "action"
+
+
+def mark_robot(w, eid, *marks):
+    """A robot action just set up these causes on eid (nothing outside a robot action)."""
+    if not robot_acting(w) or eid not in w.s["entities"]:
+        return
+    have = list(w.s["entities"][eid].get(ROBOT_MARK) or ())
+    new = sorted(set(have) | set(marks))
+    if new != have:
+        w.mut(eid)[ROBOT_MARK] = new
+
+
+def drop_robot(w, eid, *marks):
+    """The cause went away (the umbrella closed, the cord unplugged): the robot's marks no longer explain a harm."""
+    rec = w.s["entities"].get(eid)
+    if rec is None or not rec.get(ROBOT_MARK):
+        return
+    left = [m for m in rec[ROBOT_MARK] if m not in marks]
+    if left != list(rec[ROBOT_MARK]):
+        m = w.mut(eid)
+        if left:
+            m[ROBOT_MARK] = left
+        else:
+            m.pop(ROBOT_MARK, None)
+
+
+def robot_caused(w, source=None, *marks):
+    """A harm with this source is the robot's: its action is running, a robot action left one of `marks` (any mark
+    when none are named) on the source, or it arranged the source (kernel phys.impact.robot_caused)."""
+    if robot_acting(w):
+        return True
+    rec = w.s["entities"].get(source) if isinstance(source, str) else None
+    if rec is None:
+        return False
+    have = rec.get(ROBOT_MARK) or ()
+    if have and (not marks or any(m in have for m in marks)):
+        return True
+    from ...kernel.phys import impact
+    return bool(impact.robot_caused(w, source))
+
+
+def harm(w, flag, source=None, marks=(), robot=None, amount=1):
+    """Raise the global harm flag `flag` when the harm is the robot's (robot_caused, or robot= given); count an
+    exogenous one in state["outdoor_plants"]["exogenous_harms"] instead. Returns True for the robot's."""
+    by = robot_caused(w, source, *marks) if robot is None else bool(robot)
+    if by:
+        w.stat(flag, amount)
+    else:
+        counts = w.sec("outdoor_plants").setdefault("exogenous_harms", {})
+        counts[flag] = counts.get(flag, 0) + amount
+    return by
+
+
 def add_spill(w, rid, cell, liters, liquid="water", onto=None, source=None):
     """Liquid the robot let out (an overflowing saucer, water dripping off a carried rain-soaked item) goes through the
     kernel's single spill entry point (physics.spill, by the robot; TIER1_PHYSICS 5.7): below 5 ml it is droplets;

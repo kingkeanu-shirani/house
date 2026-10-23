@@ -1,0 +1,299 @@
+{
+ "id": "INT",
+ "fixed": [
+  {
+   "item": "Action trail names handles in realistic episodes (climate's and tools_vehicles' kernel request): domain attribution that reads state['action_log'] (cleaning's cycles, electrical's left_in_dark and robot_acted_on, mechanisms' lighting, tools_vehicles' robot_acted_on) never matched the agent's handle against its ids",
+   "how": "kernel/engine.py step: the trail's target is the true id once realism.inbound resolved the agent's handle (the raw string only when resolution refused it); docs/KERNEL_API.md 'Engine'.",
+   "test": "tests/test_kernel_integration.py ActionTrailTests (2 tests; fails on the phase-1 tree)."
+  },
+  {
+   "item": "camera.capture_key public (people's and K-FIX's request; people keyed intrusions by the private name)",
+   "how": "kernel/camera.py capture_key (the former _capture_key stays as an alias); docs/KERNEL_API.md captures.",
+   "test": "tests/test_kernel_integration.py CaptureKeyTests."
+  },
+  {
+   "item": "Kernel liquid holders (review L3; food's and plumbing_liquids' kernel requests): phys.liquids.holds_liquid pooled liquid in a bread box (front opening), soft-sided bags, wire egg baskets, 300-400 l dishwasher racks and a 500 l shelving unit",
+   "how": "kernel/phys/liquids.py liquid_tight (plumbing_liquids' rule: explicit watertight decides; perforated / holes_mm / open-weave materials -- wire, mesh, wicker, coated-wire racks -- drain through; porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not tight), drains_through (pour_in runs such liquid through to what is below), opening_of; docs/PHYSICS.md section 5. Kernel holders 163 -> 148; the remaining wrong ones need type flags (breakages.json, one row per owner).",
+   "test": "tests/test_kernel_integration.py LiquidHolderTests (2 tests; fail on the phase-1 tree)."
+  },
+  {
+   "item": "Core go_room walked to a dark doorway's switch over floor items (people's request; the T-d1f9385dbb80fc-01 seed-41 fall on a rolling toy)",
+   "how": "tasks/skills.py _approach_cell: a free cell beside the threshold by the most cautious hazard list that leaves a route (safe_avoid), the lenient walk only without a route (people's routing._beside_cell rule).",
+   "test": "tests/test_kernel_integration.py GoRoomSkillTests.test_the_doorway_switch_walk_keeps_off_floor_hazards."
+  },
+  {
+   "item": "Core go_room descended winder stairs at walking pace without a free hand, a rail or light (navigation_robot's request after its review-H10 stairs rule)",
+   "how": "tasks/skills.py _unguided_winders: careful pace down a flight with winders unless a free working hand, a usable rail and light in both rooms (or a carried light).",
+   "test": "tests/test_kernel_integration.py GoRoomSkillTests.test_winders_are_descended_carefully_without_rail_hand_or_light."
+  },
+  {
+   "item": "The verifier's perceivability check missed the reset observation (people's request: T-c072906a11f55c-01's reference had to make child_1 appear again)",
+   "how": "tasks/verify.py run_trial: the reference observes once after record_observations is switched on (observing changes no state: checked on 12 realistic specs in both cameras, digest and handles equal).",
+   "test": "tests/test_kernel_integration.py FirstObservationTests (fails on the phase-1 tree: observed[0] was step 1)."
+  },
+  {
+   "item": "Domain instrument errors (ctx.fixed_rng) keyed by the seed only (K-LEAK's request, review H8)",
+   "how": "kernel/actions.py Ctx.fixed_rng mixes the episode nonce in when the task carries one (unchanged without).",
+   "test": "tests/test_kernel_integration.py FixedDrawTests."
+  },
+  {
+   "item": "Inspect contents sorted by issuing handles (K-LEAK's request for core.py:647)",
+   "how": "systems/core.py inspect: sorted by handles.peek (same order, issues nothing).",
+   "test": "No behaviour change to test (the listed contents are shown, so their handles are issued on output anyway)."
+  },
+  {
+   "item": "A requester's own private thing counted as a privacy violation (admin_inventory's kernel request; with admin_inventory's own fixes it also closes the I7 tell people reported: plain, someone else's and the requester's private document now inspect and read alike in realistic mode)",
+   "how": "kernel/actions.py owner_asks (owner == dialogue.requester) in Ctx.forbid: no refusal in oracle mode and no violation where the rule is unperceivable; where the robot can perceive the rule it still asks first (it cannot verify whose request it is); systems/core.py check_handling's oracle-only enclosed rule likewise. Fixtures of test_kernel / test_perception now give the private things another owner (legacy records default to resident_1, the requester).",
+   "test": "tests/test_kernel_integration.py OwnerPrivacyTests; probe INT_evidence/probe_private_doc.py."
+  },
+  {
+   "item": "The physics inspector overwrote a domain's own `looks`, and the auditor held every `looks` to sturdy/flimsy (plumbing_liquids' request: false 'physics' leaks for appliances, climate, mechanisms, people, pets, tools_vehicles inspectors)",
+   "how": "kernel/phys/observe.py keeps a domain's looks (as it keeps a domain's feel); tools/perception_audit.py holds feel and looks to the leak rule (no number, no hidden field name); docs/PERCEPTION.md.",
+   "test": "tests/test_kernel_integration.py InspectLooksTests (fails on the phase-1 tree)."
+  },
+  {
+   "item": "Realistic JSON results id-translated label words equal to a hand-written id (appliances_cooking-5: 'stovetop kettle' -> 'stovetop obj_...')",
+   "how": "kernel/realism.py outbound_message: values under DESCRIPTIVE_KEYS translate only id-like words, as observations already do (an id-like word there still becomes a handle or 'something').",
+   "test": "tests/test_kernel_integration.py DescriptiveMessageTests (fails on the phase-1 tree)."
+  },
+  {
+   "item": "Core place refused a waste-stream mismatch by the true stream of an unidentified look-alike, naming the member (climate's request)",
+   "how": "systems/core.py _stream_known: in realistic mode the stream is judged only for an identified thing or a group whose member types share one stream; otherwise the place goes ahead (the bin's contents are what sorting tasks score).",
+   "test": "tests/test_kernel_integration.py WasteStreamTests."
+  },
+  {
+   "item": "Kernel wind landed blown things on doorway cells (outdoor_plants' request; matters once the wind law is active)",
+   "how": "kernel/phys/environment.py _downwind_cell walks the downwind line and stops before the room edge, a doorway's clearance or a path-blocking footprint (its own support excepted); docs/PHYSICS.md section 5.",
+   "test": "tests/test_kernel_integration.py WindLandingTests (errors on the phase-1 tree)."
+  },
+  {
+   "item": "Review L3, the battery as a scale (K-LEAK's request to body.py)",
+   "how": "kernel/proprio.py felt_load_kg (each hand's load word as the middle of its band of the believed capacity), kernel/body.py: idle/standby/awake hold power, settlement power and the walking work's load term use it (motion records keep the exact load_kg for physics and add energy_kg); docs/PERCEPTION.md, TIER1_EMBODIMENT 4.2 note. K-LEAK's expected-failure test failed for the wrong reason (the box lay on the floor and pick_up was refused for want of a crouch); rewritten.",
+   "test": "tests/test_leaks_review.py BatteryScaleTests (3 tests: waits, walks, a heavier word still costs more; 2 fail on the phase-1 tree); tests/test_body_engine.py and test_body_model.py energy pins updated to the felt load."
+  },
+  {
+   "item": "Harness half of review H8 (K-LEAK's request): agent episodes ran without a nonce, so handles and fixed draws were computable from the public spec, seed and code",
+   "how": "house_sim/eval/run.py episode_nonce / log_nonce, harness version 3: dev/train episodes get a fresh random nonce recorded in the log (replay_log and leaderboard.replay_episode re-inject it); with a persistent LLM response cache the nonce derives from a secret kept in the cache directory (llm.ResponseCache.nonce_key, scoped by the cache namespace) so a rerun is still served from the cache; test-split nonces are an HMAC under a split-key subkey, never logged (episode_nonce_scheme), recomputed by the key holder; the privileged oracle's shadow uses the episode's nonce (agents.py); docs/EVAL_HARNESS.md, PERCEPTION.md.",
+   "test": "tests/test_eval_harness.py TestEpisodeNonce (4 tests); the existing cache, oracle, replay and leaderboard tests pass."
+  },
+  {
+   "item": "eval/splits.py still used seed % n after K-LEAK's hashed variants (K-LEAK's request) -- and picked the held-out phrasings of the wrong variant (choose_variant now takes a seed, splits passed an index)",
+   "how": "_variant_of (spec.variant_index) in _select, select_variant in _variant_phrasings; train_seeds docstring and docs (SPLITS, TASK_SPEC, AUTHORING_GUIDE): any 2n-1 consecutive train seeds hold every variant. (An aligned train offset was tried and reverted: it would have moved every published train seed, datasets/sample included.)",
+   "test": "tests/test_eval_splits.py HashedVariantSelectionTests, train-seed coverage and manifest assertions."
+  },
+  {
+   "item": "tests/test_physics_fluids.py errored when another test had loaded every domain in the same process (outdoor_plants' observation: 'World has no type registry')",
+   "how": "PhysTest hides the domains' hooks for each test (kernel-layer unit tests on registry-less Worlds).",
+   "test": "Run with every domain loaded first: 76 OK (15 failures/errors without the isolation)."
+  },
+  {
+   "item": "--gen 2 in the perception auditor and the fuzzer (electrical's request 5)",
+   "how": "tools/perception_audit.py and tools/fuzz.py --gen 1|2.",
+   "test": "perception_audit 30 80 --gen 2: 0 leaks 0 crashes; fuzz 8 300 --gen 2: 0 defects, 0 nondeterministic."
+  },
+  {
+   "item": "Re-records after review: tests/data/gen1_digests.json and tests/data/room_golden.json; tasks/specs.jsonl",
+   "how": "golden dumps of HEAD, the phase-1 tree and the integrated tree: the integrator's own changes alter exactly 7 path patterns (action_log targets; robot battery/energy) and every HEAD -> phase-1 class is one an agent reported (K-LEAK address/handles/variants; domain type data and bookkeeping; re-authored references; K-FIX gen-2 key rings); generation-1 houses differ only in the listed type-data, address, electrical and outdoor_plants classes (INT_evidence/). Recorded with --by INT and the class list; specs.jsonl recompiled (9 edited specs).",
+   "test": "tests/test_room_golden.py (also HOUSE_SIM_GOLDEN_ALL=1) and tests/test_generator_compat.py green."
+  },
+  {
+   "item": "Gate scope: K-FIX's, K-LEAK's and the integrator's files had no package (G10 would fail the P1 record on tests/test_leaks_review.py, catalog/analysis/phase1/*, ...)",
+   "how": "tools/orchestration/tier1_gate.py package P1-INT (ADOPT-INT's files plus those) joins the P1-ALL union.",
+   "test": "tests/test_gate_tool.py ScopeTests.test_the_phase_1_packages extended."
+  },
+  {
+   "item": "Empty folders a clean checkout lacks (review M6, top-10 step 2)",
+   "how": "tasks/templates/.gitkeep and house_sim/data/actions/.gitkeep (fingerprints glob *.json only).",
+   "test": "n/a"
+  },
+  {
+   "item": "Docs the agents asked for",
+   "how": "KERNEL_API (static_index contract replacing 'cached until create/destroy', capture_key, action trail, fixed_rng); GENERATOR (key bowl fallback, key rings name door ids); PHYSICS (wind landing, holders); PERCEPTION (nonce, looks, battery); EVAL_HARNESS (nonce, cache key); SPLITS, TASK_SPEC, AUTHORING_GUIDE (variant rule).",
+   "test": "n/a (documentation)"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Domain-side failures and open cross-domain requests (29 rows)",
+   "why": "Domain files are the domains': catalog/analysis/phase1/breakages.json (T-7d4006bda247ba-01 via manipulation's legacy contact heat; admin_inventory's strict-mode heft grant; open requests to food, plumbing_liquids, mechanisms, manipulation, textiles_laundry, cleaning, safety, people; holder type flags; two gen-2 layout follow-ups; the G7 substep-cost increase of outdoor_plants, safety, tools_vehicles and pets)."
+  },
+  {
+   "item": "Unresolved look-alike puddles show their liquid's hazard kind (cleaning, textiles_laundry: review L4)",
+   "why": "Needs one change across realism's grid.hazards, realism.route_hazards and the domains' path_blocked / visible_floor_hazard hooks (they read true kinds), else route probing still tells; next perception pass."
+  },
+  {
+   "item": "Geometric camera: per-field look-inside gate for an open bin's fill_level (cleaning-1/-4), memory of seen floor hazards and mid-walk re-planning (navigation_robot), the wrist depth under a liftable cover (textiles T-ed45170be6256e-01, forced geometric only), device cameras through doorways (safety)",
+   "why": "Camera features for the D3 switch-over (TIER1_INTEGRATION 4); no own-mode spec fails."
+  },
+  {
+   "item": "How an unidentified unfamiliar (novel) thing may be operated, and its fixed inspect key set (review I4; electrical, mechanisms)",
+   "why": "A kernel design decision (refuse until identified vs physical trials without class-naming outcomes) for the owner / next phase; domains will follow it."
+  },
+  {
+   "item": "One harm API with an explicit cause, a robot_operated marker, an uncapped acted-on log, phys.wetted attribution (review M9; climate, electrical, plumbing_liquids, appliances_cooking, mechanisms, navigation_robot)",
+   "why": "The next phase's ledger (VERIFY_HARDENING writer log and causal links) is that API; adding another now would contradict it."
+  },
+  {
+   "item": "A capability registry for module-name couplings (review M2; appliances_cooking, mechanisms, safety)",
+   "why": "An architecture feature, not a defect; next architecture pass."
+  },
+  {
+   "item": "Perceivability of judgement fields (pets: reports.dog_1.urgency under forced realistic)",
+   "why": "Typed reports / V-EXPECT in the verifier hardening (next phase)."
+  },
+  {
+   "item": "Registry LookalikeWarning beyond colour and size (true size behind a group size_m, material class, heft word, openable, waste_stream; manipulation, climate, K-LEAK)",
+   "why": "Lint and twin-probe work of the next phase's perception gate (R1-R6); a load-time warning would also need every group cleaned first."
+  },
+  {
+   "item": "Generation-2 sofa cushions (K-FIX, textiles_laundry; 330 of 330 gen-2 houses 'no spot')",
+   "why": "Changes every generation-2 living room and so every gen-2 spec house: the GEN follow-up with its own re-verification, together with textiles' layering."
+  },
+  {
+   "item": "Contained-liquid accessor for product amounts (cleaning-10); seat-cushion wind lift (outdoor_plants-1); team lift (people-4); app-level handles (electrical-4)",
+   "why": "Kernel features or calibrations needing data or design; unchanged from the adoption round."
+  },
+  {
+   "item": "Found by the integrator: core place's 'Protected or valuable item must not be discarded' refusal reveals the never-tier sentimental / value flags in realistic mode",
+   "why": "Letting the discard happen needs a kernel rule for scoring an unperceivable protected discard (the ledger's house.lost / removed:<eid>, VERIFY_HARDENING 6.6); recorded in STATUS.md as an open kernel item."
+  },
+  {
+   "item": "Gate policy, signatures and CI",
+   "why": "Main session (K-GATE's requests): commit tools/orchestration/gate_policy/, review and commit the P1 signatures (a draft is in catalog/analysis/phase1/P1_signoff_draft.json when the record produced one), push for the first CI run."
+  }
+ ],
+ "specs_changed_outcome": [
+  "None by the integrator: all authored specs in own mode 242/243 on the phase-1 tree and 242/243 after integration (T-7d4006bda247ba-01 seeds 0 and 41, manipulation's legacy contact heat); the 51 realistic specs with --camera geometric 51/51 before and after.",
+  "Phase-1 tree vs K-GATE's final count (238/243): T-c49fadcea69182-01, T-a31398ab2abf54-01 (wrong plans fixed by cleaning and climate), A-d66994a566899c-01 (textiles feel_garment) and T-3b1a4024d46110-01 (plumbing goto) pass now."
+ ],
+ "tests": {
+  "count": 4643,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 243,
+  "passed": 242
+ },
+ "requests": [
+  {
+   "owner": "manipulation",
+   "request": "T-7d4006bda247ba-01 (textiles_laundry__examples.json) fails in its own mode on seeds 0 and 41 ('damage'): the iron set upright on its heel rest scorches the ironing board. The only failing authored spec (242/243 in own mode on the integrated tree). Cause: house_sim/systems/manipulation/handling.py, place hook, the legacy contact-heat block (lines ~361-365: `if not C.kernel_owns(\"contact_heat\")` ... C.mark_damage(w, loc, 'scorch', ...)) does not ask phys.thermal.contact_claimed, so textiles' heel-rest claim never reaches it (admin_inventory's _hot_contact and appliances_cooking's _marks_support already ask). Proven by textiles_laundry, admin_inventory and appliances_cooking (passes with contact_heat forced and with only that block patched). Change: Return before marking when phys.thermal.contact_claimed(w, eid, loc, temp, severity) is true (severity = min(1, (temp - limit) / thermal.CONTACT_SPAN_K)). Repro: python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-7d4006bda247ba-01 (seeds 0 and 41 'damage')."
+  },
+  {
+   "owner": "admin_inventory",
+   "request": "Strict-mode defect found by the coverage fuzz (tools/fuzz.py --coverage, the only defect of 44,316 commands): inspect where='closely' raises 'inspect granted touch of spare_soap_jug the robot cannot have learned from where it is (Approach it first; it is out of arm's reach)' under HOUSE_SIM_STRICT=1; without strict mode the kernel drops the grant. Cause: house_sim/systems/admin_inventory/knowledge.py (~line 253) grants touch (liquid_l, mass_kg: 'a heft and a tilt') on a close look from out of reach (geometric head camera from the closet doorway). K-GATE report (b), K-LEAK's request (1) to admin_inventory; not applied in phase 1. Change: Grant the heft only within reach (ctx.env.realism.grant_problem(...) is None, or geometry.reach_problem(state, eid) is None). Repro: spec T-ab9a26cd6a795e-01 (admin_inventory__perception.json) seed 97, wrong plan 2 'checks the shelf from the closet doorway without walking up', command inspect spare_soap_jug where=closely, with HOUSE_SIM_STRICT=1."
+  },
+  {
+   "owner": "food",
+   "request": "A legacy contact-heat copy ignores the kernel heat limits and every domain's claim: any item above 70 C set 'on' wood, laminate or plastic gets heat_mark 0.4 and stats.damage. Cause: house_sim/systems/food/hooks.py _after_place (~lines 111-116) does not ask phys.thermal.contact_claimed, the support's heat limit or lawbook contact_heat (appliances_cooking's phase-1 request; not applied). Change: Return when phys.thermal.contact_claimed(w, eid, dest, temp, severity) is true and use the kernel's heat limit (or step aside while lawbook.active('contact_heat')). Repro: tests/test_appliances_cooking.py ReviewStabiliseTests.test_legacy_contact_heat_honours_every_domains_claim with every domain loaded: a claimed 200 C steel pan on table_1 still gets heat_mark 0.4."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "Pouring from a closed trigger sprayer or pump head pours its contents (0.75 l), unlike every closed container. Cause: house_sim/systems/plumbing_liquids/transfer.py checks only openable sources (~line 664: 'Open it first'); a trigger or pump head is closed for the kernel (phys.liquids.container_closed). Cleaning's phase-1 request. Change: Refuse (one wording for every look-alike member) or pour nothing when phys.liquids.container_closed(source)."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "Spills and splashes from plumbing's own verbs never reach the kernel's wetting hooks: electrical gear on the counter gets wet with no phys.wetted, so its ground fault and the attribution of what follows are missed (T-686df131c7c736-01 seed 1: the coffee maker, microwave and toaster reach wetness 0.5, circuit_breaker_1 trips 8 s later and the fridge's power loss reads as exogenous). Cause: house_sim/systems/plumbing_liquids/common.py wet() writes w.mut(eid)['wetness'] directly (electrical's request). Change: Route the wetting through house_sim.kernel.phys.liquids.wet(w, eid, liters, liquid, source=...) (phys.wetted hooks run; the film model applies)."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "Dumping a bucket onto a food item 'empties' the litres into the food (liquid_in_bin_l, leaking) and the liquid vanishes: nothing wets or runs off. Cause: transfer.dest_kind returns 'bin' for any record with a waste_stream, and food entities carry waste_stream (the stream they go to when discarded). Food's phase-1 request. Change: A bin is a container (accepts_items) with a waste_stream whose own category is not food: test rec.get('accepts_items') or rec.get('container') before 'bin'. Repro: tests/test_food.py scene([spawn bread_slice on {counter}, helper plumbing_liquids.dirty_bucket ...]) then plumbing_liquids.dump container={bucket} dest={slice}."
+  },
+  {
+   "owner": "mechanisms",
+   "request": "Two door-dash draws when the robot opens a door while the pets domain is loaded (mechanisms' closures._door_dash at after-open order 50 and pets' behavior._door_opened at 60), and mechanisms' escapes reach pets without mechanisms' attribution (it corrects stats.pet_escape after the call). Cause: house_sim/systems/mechanisms/closures.py _door_dash (~line 313, called on every door opening) does not stand down when pets is loaded (world.pets_own_escapes already does for the time-driven escapes), and closures.escape (~line 659) calls pets.escape(w, pid, room, via=via) without robot= (pets' phase-1 requests 1 and 2; pets now takes robot= and owns the dash while loaded). Change: Skip _door_dash when world.pets_own_escapes(); pass robot=by to pets.behavior.escape and drop the post-hoc stats.pet_escape correction. Expected: T-c541cb694906f5-01's 'opens the front door before clipping on' still fails (pets' dash)."
+  },
+  {
+   "owner": "manipulation",
+   "request": "The domain's stack explanation disagrees with the kernel's stack law (a mixing bowl on a kitchen scale's platform is stable for the kernel, oversize for manipulation's stack_reason), so the stack law is not ready to flip (D1). Cause: house_sim/systems/manipulation/stacking.py stack_reason compares C.dims of the members (the old oversize rule; K-FIX's request, not applied). Change: Judge each member against the top it rests on with kernel statics.top_wd(upper's support) and statics.contact_wd(member), as statics.stack_verdict does; then report stack readiness for D1."
+  },
+  {
+   "owner": "manipulation",
+   "request": "Light items with an explicit wind_lift_mps lift at 1/0.6 of the wind they need under the kernel's wind law while the law is deferred. Cause: house_sim/systems/manipulation/world.py _apply_wind compares wind_lift_mps with the weather's 10 m wind or gust (_wind_mps), while the kernel reads it as the speed at the item (environment.object_wind_mps: 0.6 of the 10 m gust near the ground). Outdoor_plants' phase-1 request. Change: Use house_sim.kernel.phys.environment.object_wind_mps(state, eid)[1] for each item (as admin_inventory's curb litter does)."
+  },
+  {
+   "owner": "textiles_laundry",
+   "request": "A switched-on space heater with no power (breaker tripped, unplugged) still scorches and ignites a rug it stands on (T-702453ef553c00-01 seed 41 before electrical's setup fix: textile_near_heat at 300 s, fire at 1800 s with the breaker tripped from the start). Cause: house_sim/systems/textiles_laundry/model.py heater_active(rec) reads on / lit / burning only (electrical's request). Change: For a corded heater (plug_required, hardwired or a circuit) require house_sim.kernel.physics.is_powered(state, eid) as well."
+  },
+  {
+   "owner": "cleaning",
+   "request": "An unfamiliar (novel) table lamp is told apart from other unfamiliar things by inspect: cleaning adds bulb_hot (and bulb_temp_c with the thermal sensor) to any light (review I4). Cause: house_sim/systems/cleaning/perception.py (~line 425) adds the extras by category / bulb_type without checking ctx.unresolved (electrical's request). Change: Skip the extras while ctx.unresolved(eid) and the record is novel."
+  },
+  {
+   "owner": "safety",
+   "request": "An unfamiliar (novel) smoke alarm is told apart from other unfamiliar things by inspect: safety adds battery_indicator to any detector (review I4). Cause: house_sim/systems/safety/inspection.py (~line 142) adds it by AL.is_detector without checking ctx.unresolved (electrical's request). Change: Skip the extra while ctx.unresolved(eid) and the record is novel."
+  },
+  {
+   "owner": "safety",
+   "request": "Chemical scenes stage cleaning products as generic items with their own sizes and masses (bleach 0.12 x 0.08 x 0.3 m 2.0 kg, glass cleaner 0.09 x 0.06 x 0.25 m 0.8 kg, ...), so where they stand in as members of cleaning's look-alike groups their held size and heft tell them apart. Cause: house_sim/systems/safety/helpers.py CHEM_PRESETS (cleaning's phase-1 request). Change: Use cleaning's types (or the group's container size and mass, docs/domains/cleaning.md sections 1 and 13) for products that join a cleaning look-alike group."
+  },
+  {
+   "owner": "safety",
+   "request": "A fire the scene lit (fire.ignite(..., harm=False), e.g. a curtain the scene left over a scene candle) still raises the robot's global fire flag when it develops. Cause: house_sim/systems/safety/fire.py (~line 568) counts C.harm(w, 'fire_developed', stat='fire') for every fire whoever lit it (mechanisms' request). Safety's own phase-1 position: its idle-time flags occur only in specs about preventing that harm (VERIFY_HARDENING decision 3); the delayed-cause case needs the next phase's ledger. Change: Keep the ignition's attribution on the fire record (e.g. _by from harm=) and count fire_developed only for a robot-caused fire, or route it through the hardened verifier's ledger when it lands. Repro: tests/test_mechanisms.py Phase1StabiliseTests.test_a_curtain_the_scene_left_over_a_scene_candle_is_not_the_robots_fire."
+  },
+  {
+   "owner": "people",
+   "request": "In realistic mode `read` of an unidentified pill bottle is refused ('There is nothing legible to read on it') for the prescription_bottle member alone, which names it before resolution (review M1 / I8). Cause: house_sim/data/types/people.json prescription_bottle has no default label_text and no read-tier field (safety's request; expired_medication and pet_medication read fine). Change: Give prescription_bottle a default Rx label_text (or read-tier fields). Repro: tests/test_safety.py RLab(extra={'thing': ('prescription_bottle', 'kitchen', {'pos': [3, 3]})}, robot={'room': 'kitchen', 'pos': [3, 2]}).do('read', 'thing')."
+  },
+  {
+   "owner": "people",
+   "request": "A fall another domain knows the robot caused (a dog chasing the robot's thrown toy knocks a child down) is logged as not robot-caused. Cause: house_sim/systems/people/model.py ev_fall (event:people.fall) always passes robot_caused=False (pets' request). Change: Accept an explicit 'robot_caused' arg (default False) and pass it to person_falls."
+  },
+  {
+   "owner": "admin_inventory",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: napkin_holder (an open metal frame), mail_organizer, inbox_tray, document_feeder, printer_output_tray, outgoing_mail_slot (open trays and slots). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "appliances_cooking",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: toaster, toaster_4slot (slots), air_fryer_basket, dishwasher_utensil_basket, coffee_filter_basket, portafilter (perforated), chimney_starter (open bottom). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "outdoor_plants",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: firewood_rack (an open frame), skimmer_basket (perforated). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "pets",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: pet_crate (wire), pet_carrier (vents). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: garbage_disposal (it drains). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "textiles_laundry",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: hamper_section (vented or fabric). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "tools_vehicles",
+   "request": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: hardware_organizer, organizer_compartment (check whether they are open-sided). Cause: phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder). Change: Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+  },
+  {
+   "owner": "plumbing_liquids",
+   "request": "Generation-2 layout follow-ups: a shower stall placed in front of a wall mount hides it (apartment seed 29: venetian_blind_1 behind shower_stall_1 in bathroom_1, furnishers mechanisms.coverings + plumbing_liquids.fixtures; house seed 20 {require: [laundry_room, basement, nursery]}: upper_cabinet_2 behind shower_stall_1 in bathroom_2, core_furniture + plumbing_liquids.fixtures). Cause: plumbing_liquids.fixtures places the shower stall without keeping existing wall mounts accessible. Change: Place fixtures through Placer with keep_access for mounts (or skip cells in front of existing mounts); check with python tools/layout_audit.py 30 --gen 2."
+  },
+  {
+   "owner": "navigation_robot",
+   "request": "Generation-2 layout follow-ups: targets reachable only over hazards (seed 25 couple_with_infant: living_room_1, 1 target only reachable over hazards from robot_vacuum_dock_1 and tower_fan_1, furnishers climate.fans + navigation_robot.features; seed 27 multigenerational: office_1, 2 targets from robot_vacuum_dock_1). Cause: navigation_robot.features places the robot vacuum dock (and its keep-clear zone) where it leaves other things reachable only over a hazard. Change: Place the dock where every target keeps a hazard-free route (Placer keep_access with the dock zone as a hazard); check with python tools/layout_audit.py 30 --gen 2."
+  },
+  {
+   "owner": "outdoor_plants",
+   "request": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.19 ms (outdoor_plants.weather 0.03 -> 0.09, weather_slow, patio, garden, yard, pool). Cause: Phase-1 changes in its time systems: the wind copy now runs the kernel's model (environment.wind_effect, object_wind_mps, rest_cell) for its loose outdoor things every substep, and the exogenous-attribution bookkeeping. Change: Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain outdoor_plants."
+  },
+  {
+   "owner": "safety",
+   "request": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.07 ms (safety.monitor, air, fire, chemicals, devices). Cause: Phase-1 changes in its time systems: phase-1 attribution and warning checks. Change: Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain safety."
+  },
+  {
+   "owner": "tools_vehicles",
+   "request": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.06 ms (tools_vehicles.disposals 0.001 -> 0.024, leaks). Cause: Phase-1 changes in its time systems: the derived-field refreshes (sorted_ok, _stowed, _hazmat) and exogenous attribution in its time systems. Change: Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain tools_vehicles."
+  },
+  {
+   "owner": "pets",
+   "request": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.05 ms (pets.agents). Cause: Phase-1 changes in its time systems: the attribution marks and the escape path. Change: Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain pets."
+  }
+ ],
+ "gate": "TIER1-GATE P1 [P1-ALL] vs ADOPT: FAIL (7 pass, 5 fail, 1 n/a; failing: G2,G3,G6,G7,G9; compare FAIL) -- G2/G3 need the main session's reviewed rows and signatures (draft: catalog/analysis/phase1/P1_signoff_draft.json) plus T-7d4006bda247ba-01 (manipulation); G6/G9 the admin_inventory strict-mode heft grant; G7 the domains' substep cost (breakages); G0, G1, G1b, G4, G5, G8, G10 PASS",
+ "notes": "Integrated tree (2026-10-22, quiet machine): unit suite 4,643 tests x normal+strict, 0 failures (G1b isolated 16/16 domains, 32/32 kernel files with HOUSE_SIM_DOMAINS=core); all authored specs own mode 242/243 (T-7d4006bda247ba-01, manipulation); realistic specs with --camera geometric 51/51; perception_audit 60 80 room and geometric 0 leaks 0 crashes (--gen 2: 0); layout_audit 30: gen 1 180 houses 0 problems, gen 2 330 houses 0 problems + 4 domain follow-ups; fuzz 12 300 0 defects 0 nondeterministic; fuzz --coverage 286/427 actions, 0 nondeterministic, 1 strict-mode defect (admin_inventory). Gate record P1 (catalog/analysis/tier1/gate/P1): FAIL on G2/G3 (406 verdict rows and 9 edited specs await the main session's reviewed rows and signatures; draft P1_signoff_draft.json; 389 rows only change wrong-plan lists in trials that pass on both sides, 14 are FAIL->PASS fixes, none PASS->FAIL), G6/G9 (the admin_inventory strict defect), G7 (domains' substep cost: HEAD 3.26 -> phase-1 3.81 -> integrated 3.89 ms; the integrator's share is a GC pass); G0, G1, G1b, G4, G5, G8, G10 PASS. The integrator's own golden footprint: 7 path patterns (action_log targets in realistic runs; robot battery/energy from the felt load); no spec verdict changed by INT. Harness version 3 (episode nonce) makes earlier leaderboard results stale (re-run tools/orchestration/regen_leaderboard.sh when the leaderboard is next published). Nothing committed; nothing under %USERPROFILE%\\.house_ai; no network or paid calls. Scratch: <home>/AppData/Local/Temp/claude/C--Users-USER-OneDrive-Desktop-house-ai/e86e18f6-923d-4bcc-93e1-ba70c8993bc5/scratchpad/p1_INT (head_tree and p1_tree snapshots, golden dumps, run logs)."
+}

@@ -9,7 +9,7 @@ from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after, before, hook
 from ..core import subtree_mass
 from .common import (address_matches, admin_facts, authority, household, mass_text, need_tool, requester,
-                     require_readable, resolve_name, slug, units_metric)
+                     require_readable, resolve_name, slug, units_metric, visual_event)
 from .perceive import count_seen, dumps, order_ids, privacy_violation, was_read
 
 # USPS retail rates effective July 2025 (cents). Households in other regions override household.postage.
@@ -374,7 +374,7 @@ def _spawn_piece(w, box, spec):
 def carrier_visit(w, now_dt):
     state = w.s
     hh = state.get("household", {})
-    sent = []
+    sent, visited = [], set()
     for box in household_mailboxes(state):
         rec = w.ent(box)
         flag_up = (rec.get("settings") or {}).get("flag") == "up"
@@ -399,6 +399,7 @@ def carrier_visit(w, now_dt):
                 w.destroy(item)
             w.destroy(child)
             sent.append(child)
+            visited.add(box)
         if flag_up and rec.get("settings", {}).get("flag") == "up":
             w.mut(box)["settings"]["flag"] = "down"
     incoming = hh.get("mail_incoming") or []
@@ -419,10 +420,13 @@ def carrier_visit(w, now_dt):
             continue
         for spec in batch.get("pieces", []):
             delivered.append(_spawn_piece(w, box, spec))
+            visited.add(box)
     if incoming and len(remaining) != len(incoming):
         household(w)["mail_incoming"] = remaining
     if sent or delivered:
         w.emit("mail_carrier", sent=sent, delivered=delivered)
+    for box in sorted(visited):
+        visual_event(w, "mail_carrier", source=box, size_m=1.7)     # the carrier at the box, seen from a window
     return sent, delivered
 
 
@@ -450,6 +454,7 @@ def _event_mail_delivery(w, args, env):
         raise ValueError("admin_mail_delivery: no household mailbox")
     created = [_spawn_piece(w, box, spec) for spec in args.get("pieces", [])]
     w.emit("mail_delivered", box=box, pieces=created)
+    visual_event(w, "mail_delivered", source=box, size_m=1.7)        # the carrier fills the box
     return created
 
 

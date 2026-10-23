@@ -530,7 +530,30 @@ def owner_puzzle(ctx, mode="label"):
         out.update(item=item, twin=twin, owner=guest, wrong_owner="resident_1", ask_target="resident_1")
     if out.get("item") is None:
         raise SpecError("Could not place the item")
+    out["item_desc"] = _thing_words(ctx, out["item"])
     return out
+
+
+def _thing_words(ctx, eid):
+    """How a person names a thing for the robot: "the navy hoodie in the laundry basket in the living room" (colour,
+    label, what it is on or in, the room) -- never the internal id, which realistic perception scrubs from an
+    instruction (review F9: "who owns generic_item_3?" became "who owns something?")."""
+    entities = ctx.config["entities"]
+    rec = entities.get(eid) or {}
+    parts = ["the " + " ".join(w for w in (rec.get("color"), rec.get("label") or "thing") if w)]
+    room = rec.get("location")
+    if room in entities:
+        holder = entities[room]
+        parts.append("{} the {}".format("in" if rec.get("relation") == "in" else "on", holder.get("label") or "furniture"))
+        seen = set()
+        while room in entities and room not in seen:
+            seen.add(room)
+            room = entities[room].get("location")
+    if room in ctx.config["rooms"]:
+        name = str(ctx.config["rooms"][room].get("label") or ctx.config["rooms"][room].get("type") or "room")
+        name = name.replace("_", " ").lower()
+        parts.append(("in " if name[-1:].isdigit() else "in the ") + name)       # "in bedroom 3", "in the living room"
+    return " ".join(parts)
 
 
 # ----------------------------------------------------------------------

@@ -460,12 +460,14 @@ def refill_robot_tank(ctx):
     target = ctx.args["target"]
     trec = _rv_target(ctx, target)
     data = rv(trec)
-    require(data.get("mop"), "That robot has no mop tank", "argument")
+    # the type-agnostic preconditions first (review M1, refusal wording inside look-alike groups): only an actual pour
+    # attempt, with a filled container in hand, finds out that a plain robot vacuum has no mop tank
     src = ctx.args["tool"]
     require(ctx.holding(src), "Hold the container you are pouring from")
     srec = w.ent(src)
     liters = C.num(srec.get("liquid_l"))
     require(liters > 0, "The container is empty", "resource")
+    require(data.get("mop"), "That robot has no mop tank", "argument")
     liquid = str(srec.get("liquid", "water"))
     space = max(0.0, C.num(data.get("mop_tank_capacity_l"), 0.3) - C.num(data.get("mop_tank_l")))
     amount = min(liters, C.num(ctx.args.get("amount_l"), space) if ctx.args.get("amount_l") is not None else space)

@@ -452,6 +452,18 @@ def house_wall(config, rid):
     return "n"
 
 
+FENCE_HEIGHT_M = 1.8
+
+
+def fence_extent(room):
+    """size_m of a yard fence record: the fence runs along every yard edge but the house wall, so its box is the yard's
+    (pos [0, 0]). The geometric camera judges a close look at the box (camera.inspect_check: a 1 m stub in the corner
+    was "too far to make out the details" from most of the yard -- the D3 preview of T-0caf47d0f789f5-01); the fence
+    inspector still reports only the panels within FENCE_VIEW_M of the robot that its frames covered. A ground layer:
+    it occludes nothing and takes no floor cells."""
+    return [float(room["size_m"][0]), float(room["size_m"][1]), FENCE_HEIGHT_M]
+
+
 def fence_panels(config, rid, house_edge):
     room = config["rooms"][rid]
     cols, rows = geometry.grid_size(room)
@@ -522,7 +534,7 @@ def furnish_yard(config, rng, opts, registry):
         make_lawn(config, registry, rid, rng)
     for rid in by_type.get("backyard", []):
         edge = house_wall(config, rid)
-        fence = registry.make("fence", rid, panels=fence_panels(config, rid, edge), label="backyard fence")
+        fence = registry.make("fence", rid, panels=fence_panels(config, rid, edge), label="backyard fence", size_m=fence_extent(rooms[rid]))
         fence["pos"] = [0, 0]
         fence["ground_layer"] = True
         config["entities"][p.new_id("fence")] = fence
@@ -855,24 +867,6 @@ def furnish_finish(config, rng, opts, registry):
     ents = config["entities"]
     for lid in [e for e in sorted(ents) if ents[e].get("type") == "lawn"]:
         rebuild_lawn_kinds(config, lid)
-    if int(opts.get("gen") or 1) < 2:
-        gen1_records(config)
-
-
-# record fields the tier-1 adoption added to types this domain furnishes, and the fields they replaced: a
-# generation-1 house keeps its pinned records (tests/data/gen1_digests.json) until the main session re-records them
-GEN1_RENAMED = {"roof_face": (("sightline", "view"),)}
-GEN1_ADDED = {"wheelbarrow": ("chocked",)}
-
-
-def gen1_records(config):
-    """Generation-1 houses stay byte-identical (TIER1_INTEGRATION 3.2): the roof faces keep their old `view` word
-    (the code reads `sightline` first, then that word) and the wheelbarrow carries no `chocked` (the deferred slope
-    law is the only reader)."""
-    for rec in config["entities"].values():
-        for old_new in GEN1_RENAMED.get(rec.get("type"), ()):
-            new, old = old_new
-            if new in rec:
-                rec[old] = rec.pop(new)
-        for key in GEN1_ADDED.get(rec.get("type"), ()):
-            rec.pop(key, None)
+    # (phase 1, adoption request outdoor_plants-5: the generation-1 record shims -- roof faces' old `view` word, no
+    # wheelbarrow `chocked` -- are gone; generation-1 houses carry the tier-1 fields like every other house, with
+    # the main session's gen-1 digest re-record)

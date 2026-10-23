@@ -145,6 +145,23 @@ def secret(rec, *fields):
     return any(f in hidden for f in fields)
 
 
+def turns_value(turns):
+    """How far a hand turned a valve handle, as it can count it: to the nearest half turn (a quarter turn for a
+    quarter-turn ball valve). The exact turns would give away the hidden turns_to_close and, from a part-open valve,
+    its position to 1 %."""
+    turns = abs(C.num(turns))
+    if turns < 0.375:
+        return 0.25
+    return max(1, int(round(turns * 2.0))) / 2.0
+
+
+def turns_word(turns):
+    counted = turns_value(turns)
+    if counted == 0.25:
+        return "a quarter turn"
+    return "about {} turn{}".format("{:g}".format(counted), "" if counted <= 1.0 else "s")
+
+
 def drain_word(speed):
     return {"normal": "draining freely", "slow": "draining slowly", "very_slow": "draining very slowly",
             "blocked": "the water is barely going down"}.get(speed or "normal", "draining")

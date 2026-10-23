@@ -168,12 +168,18 @@ def _water_running_into(w, eid):
     rec = w.s["entities"][eid]
     if rec.get("water_running") or rec.get("on"):
         return True
+    return bool(_feeders(w, eid))
+
+
+def _feeders(w, eid):
+    """The faucets, spigots and showerheads on eid that run water into it now (static water-fixture index)."""
     ents = w.s["entities"]
+    out = []
     for fid in C.index(w, "water_fixtures", _water_fixture):
         f = ents.get(fid)
         if f is not None and f.get("location") == eid and (f.get("water_running") or (f.get("on") and f.get("water_source"))):
-            return True
-    return False
+            out.append(fid)
+    return out
 
 
 def drains_idle(w):
@@ -210,9 +216,10 @@ def drain_system(w, dt, tick):
                 C.log(w, "basin_overflow", seen=eid, target=eid)
                 C.notice(w, "splash", source=eid)
             _wet_floor(w, eid, standing - cap)
-            w.stat("spills")
-            if standing - cap > 5.0:
-                w.stat("flood")
+            # the robot's harm only when it ran the water or worked on this basin (review M9): a tap someone else left
+            # running into a clogged sink overflows all the same, but fails no task
+            stats = ("spills", "flood") if standing - cap > 5.0 else ("spills",)
+            C.consequence(w, "basin_overflow:" + eid, stats, ids=[eid] + _feeders(w, eid), target=eid)
             standing = cap
         m["standing_l"] = C.rnd(standing, 3)
 
@@ -460,6 +467,53 @@ def _has_jam(rec):
     return isinstance(rec.get("_jam"), dict)
 
 
+GRINDABLE_STREAMS = ("organics", "compost", "food", "food_waste")
+GRINDABLE_CATEGORIES = ("food", "produce", "food_scrap", "leftovers", "scraps", "peel")
+
+
+def _grindable(rec):
+    """Soft food waste a disposal's plate grinds (anything else in the hopper jams it)."""
+    return bool(rec.get("edible") or rec.get("food") or rec.get("waste_stream") in GRINDABLE_STREAMS
+                or rec.get("category") in GRINDABLE_CATEGORIES or "food" in (rec.get("tags") or []))
+
+
+def _hard_in_hopper(w, eid):
+    """What lies in a disposal's hopper that its plate cannot grind (a spoon, a bottle cap, a ring): it jams the
+    disposal when it runs. Sorted ids."""
+    out = []
+    for child in w.children(eid):
+        rec = w.ent(child)
+        if rec.get("relation", "in") == "in" and not _grindable(rec):
+            out.append(child)
+    return sorted(out)
+
+
+def disposal_runs_free(state, eid):
+    """`ran_ok` derived from the current state (review H2: it was written once, when the disposal first ran free, and
+    stayed true after the robot dropped the spoon back in): the plate is free, nothing it cannot grind lies in the
+    hopper, and it has run free this episode."""
+    rec = state["entities"].get(eid) or {}
+    jam = rec.get("_jam") if isinstance(rec.get("_jam"), dict) else {}
+    if jam.get("jammed") or jam.get("object"):
+        return False
+    for child, crec in state["entities"].items():
+        if crec.get("location") == eid and crec.get("relation", "in") == "in" and not _grindable(crec):
+            return False
+    return bool(rec.get("ran_ok"))
+
+
+@hook("phys.settle_extra")
+def _hopper_settle(w, node, ctx):
+    """phys.settle_extra: something went into or came out of a disposal's hopper (any verb or process): a disposal that
+    ran free no longer counts as fixed while something it cannot grind lies in it (ran_ok False). Running it free
+    again is what sets it back (disposal_system)."""
+    rec = w.s["entities"].get(node)
+    if rec is None or not isinstance(rec.get("_jam"), dict) or not rec.get("ran_ok"):
+        return
+    if _hard_in_hopper(w, node):
+        w.mut(node)["ran_ok"] = False
+
+
 def disposals_idle(w):
     """Exact idle probe: every disposal is off (or tripped) and already shows it (`running` False), and none holds an
     object that is no longer in its hopper (disposal_system would write nothing)."""
@@ -489,6 +543,9 @@ def disposal_system(w, dt, tick):
         if obj and (obj not in w.s["entities"] or w.ent(obj).get("location") != eid):
             w.mut(eid)["_jam"]["object"] = None
             obj = None
+        if not obj and not jam.get("jammed"):
+            hard = _hard_in_hopper(w, eid)
+            obj = hard[0] if hard else None
         live = disposal_live(w, eid) and not rec.get("thermal_tripped")
         if not live:
             if rec.get("running"):
@@ -499,6 +556,9 @@ def disposal_system(w, dt, tick):
             m["humming_s"] = C.rnd(float(m.get("humming_s", 0.0)) + dt, 1)
             if obj and not jam.get("jammed"):
                 m["_jam"]["jammed"] = True
+                m["_jam"]["object"] = obj      # a spoon dropped in since: it wedges the plate
+            if m.get("ran_ok"):
+                m["ran_ok"] = False            # jammed again: it no longer runs free
             if m["humming_s"] >= 20.0:
                 m["thermal_tripped"] = True
                 m["tripped_at"] = C.now(w)

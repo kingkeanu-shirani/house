@@ -378,11 +378,12 @@ def dry_pet(ctx):
 # check_pet
 
 def _gait(pet):
+    """(what the walk looks like, the leg it favours or None)."""
     for cond in (pet.get("_health") or {}).get("conditions") or []:
         if cond.get("kind") == "limp" or "limping" in cond.get("signs", []):
-            leg = cond.get("leg", "a leg")
-            return "favoring the {} leg".format(leg.replace("_", " "))
-    return "even gait"
+            leg = cond.get("leg")
+            return "favoring the {} leg".format(str(leg or "a").replace("_", " ")), leg
+    return "even gait", None
 
 
 def _check_animal(ctx, pid, aspect, tool):
@@ -418,7 +419,10 @@ def _check_animal(ctx, pid, aspect, tool):
         if not C.is_awake(pet):
             result["gait"] = "lying down (wake or call it to see it walk)"
         else:
-            result["gait"] = _gait(pet)
+            result["gait"], leg = _gait(pet)
+            if leg:
+                # the leg it favours, in the words a report uses (front_left, ...): the check watched it walk
+                result["leg"] = leg
             if "limping" in (pet.get("signs") or []) or result["gait"] != "even gait":
                 result["signs"] = sorted(set(list(pet.get("signs") or []) + ["limping"]))
     elif aspect == "parasites":

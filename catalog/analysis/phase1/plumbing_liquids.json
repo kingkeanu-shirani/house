@@ -1,0 +1,128 @@
+{
+ "id": "plumbing_liquids",
+ "fixed": [
+  {
+   "item": "Review L3 / p2_gaming_a 3.3 and G-L3: bread_box, colander, fruit_bowl and napkin_holder all passed holds_liquid, so 7 L of bleach mop water 'poured into the bread box' stayed in it and the loaf ended wet with no contamination (T-151f6733397156-01 relocation game destination)",
+   "how": "liquids.holds_liquid keeps a vessel only when liquids.liquid_tight: explicit watertight decides; perforated or holes_mm (colander), porous, soft_sided never hold; a container whose record or type view opens at the front/side/back/bottom (roll-top bread box) cannot pool liquid; category 'dispenser' holds liquid only when it dispenses one (product, product_tag, liquid, foaming, dispenser_spigot), so not a napkin holder. Over every registered type exactly bread_box, colander and napkin_holder changed (a solid ceramic fruit bowl still holds water, as it does). A pour onto a non-tight container now runs over it and its contents ('it ran out over it (it does not hold liquid)') and on to what it stands on; transfer.reached_contents contaminates food and food-contact things the liquid reaches (and a food-contact holder) by what it carries (transfer.contamination_of: sewage/toilet water bacteria+biohazard, dirty/mop water/condensate bacteria, chemicals chemical; plain/soapy/hose/rain water nothing). Only liquid that ran over them wets the contents (a vessel's contents stay food's contract).",
+   "test": "tests/test_plumbing_liquids.py ReviewPhase1.test_only_liquid_tight_containers_hold_liquid, test_the_registered_bread_box_colander_and_napkin_holder_are_not_vessels, test_mop_water_poured_into_a_bread_box_runs_out_over_the_loaf_and_contaminates_it, test_bleach_water_into_a_fruit_bowl_contaminates_the_fruit_plain_water_into_pasta_does_not (all fail against the HEAD domain code)"
+  },
+  {
+   "item": "Review M2 / p4_arch 2.2 and A2: module-name coupling 'plumbing changes pour behaviour if a cleaning module hooks pour' (common.after_hook_present('pour', 'house_sim.systems.cleaning'))",
+   "how": "transfer.solution_carried_by_hook reads a behaviour contract from the command's data: cleaning's before('pour') stamps ctx.data['cl_src_l'] and moves the solution after the pour; with the stamp this domain carries only liquid, without it carries the solution itself. Root bug found on the way: with cleaning loaded cl_soil_g was counted twice (parcel soil plus cleaning's hook: dest got it twice, source was scaled twice); take(carry_chem=False) now leaves cl_soil_g to the hook too. The parcel keeps what the hook moves as named_chem (scaled on every split), so bleach mop water is 'mop_water' for naming, the kitchen-sink rule, spills and contamination whether or not cleaning is loaded. New after('pour', order=130) transfer.solution_moved re-derives name, potability, soap_ml_per_l and chem_ml_per_l on both containers after the hook (liquids.refresh_derived; liquids._concentrations factored out of write_state). common.after_hook_present deleted.",
+   "test": "ReviewPhase1.test_a_pour_moves_dissolved_cleaner_and_dirt_exactly_once (bleach and dirt conserved, strengths 10 ml/L on both sides; failed with all domains on HEAD: double-counted soil), test_a_hook_named_like_the_cleaning_domain_does_not_change_the_pour (a no-op AFTER entry labelled house_sim.systems.cleaning.decoy.noop; failed on HEAD with only core,plumbing_liquids: the chem was lost)"
+  },
+  {
+   "item": "Review M9 / p1_claims C8 / VERIFY_HARDENING_DECISIONS 3 (exogenous harms charged to the robot): this domain's time systems raised the global flood and damage flags for causes the robot never set up (a pre-existing leak, a scenario's running tap or stuck fill valve, a freeze, water damage from a leak found running); idle trials of T-5d2d79cc6ec2ca-01 (damage, flood), T-3b1a4024d46110-01 seed 1 (damage), T-d25af2202bc025-01 seed 2 (flood), X-c77e2cbe7181f0-01 seeds 1/97 (damage) failed on them",
+   "how": "One rule in common: harm_by / harm. Everything a robot action does (the kernel's action phase) is the robot's; a time-system consequence is the robot's only when the robot set up its cause: a leak a robot action made (common.robot_leak tags _leak.by='robot': snapped stems, an appliance hose unscrewed live or strained by a pull, a hose punctured on its nail), a source it arranged (kernel impact.robot_caused: _robot_moved on it or its support chain), or a water control it opened, turned up or plugged (hidden _robot_water {flow|plug|supply}, written by the setting_changed hook fixtures.robot_water_setting for taps/spigots/nozzles/valves/toilet stops, plug_drain and flush; cleared when the control is shut, the plug pulled, a flush's refill done, a touchless tap times out or an attended fill shuts the tap; common.water_controls lists a source's controls, and a supply-side leak ignores its fixture's tap). Exogenous harms go to plumbing.exogenous_harms {flag: n}; floor water keeps plumbing.floor_water per source and the robot's share in plumbing.robot_floor_water, which raises flood at 4 L. C.damage takes cause= (drip chains carry the dripping item, water rings the drink, leak damage the leak host, a freeze burst the hose left attached); burns from scalds and hot pours go through harm too. The spills rule is unchanged (action-time only).",
+   "test": "ReviewPhase1.test_a_leak_the_robot_starts_again_floods_as_the_robots_harm, test_a_basin_the_robot_plugs_under_a_running_tap_is_the_robots_flood, test_a_tap_the_robot_leaves_running_in_a_plugged_basin_is_its_flood_closing_it_clears_the_mark, test_a_hose_the_robot_hung_up_full_splits_in_a_freeze_as_the_robots_damage, test_a_leak_a_robot_action_made_carries_its_attribution; updated IntegrationV21.test_preexisting_leak_floods_but_is_not_a_robot_spill, Leaks.test_supply_leak_swells_the_cabinet_until_its_stop_is_closed, Outdoor.test_freeze_bursts_a_spigot_with_a_hose_on_it, Toilets.test_stuck_fill_valve_rises_until_the_stop_is_closed (exogenous: no flag, plumbing.exogenous_harms counted)"
+  },
+  {
+   "item": "Leak water was 'caught' by a fixture on the drip cell: a robot-snapped under-sink stop sprayed 80 L into the sink basin above it (found while testing the attribution)",
+   "how": "leaks._catcher_at on a floor cell accepts only a portable catch container (bucket, pan), never a basin, toilet or mounted fixture; common.leak_landing sends a snapped stop's spray into the cabinet it sits in (cabinet water, swelling, then the floor) instead of the floor cell under the cabinet",
+   "test": "ReviewPhase1.test_a_leak_a_robot_action_made_carries_its_attribution (flood and damage from the snapped stem)"
+  },
+  {
+   "item": "Perception leak through this domain's messages: realistic shut_off / open_valve messages gave the turns to 0.01 ('Turned obj clockwise (2.22 turns)'), revealing the hidden turns_to_close and a part-open valve's position to 1 %",
+   "how": "seen.turns_value / turns_word: realistic messages count turns to the nearest half turn ('about 2 turns', 'a quarter turn') and the action's seconds follow the counted turns; oracle unchanged",
+   "test": "ReviewPhase1.test_realistic_valve_turns_are_counted_to_half_a_turn"
+  },
+  {
+   "item": "Key collision with the kernel physics inspector: the stain description was written to inspect key 'looks' (the physics inspector's sturdy/flimsy key); the perception audit's physics rule flagged it on every T-2a55a2133257d0-01 reference and wrong-plan step (60 findings in a spec-run leak scan)",
+   "how": "perception.py writes the stain description to 'stain_look'; test and docs updated",
+   "test": "ReviewPhase1.test_a_stain_look_has_its_own_key_not_the_physics_inspectors; RealisticPerception stain test reads stain_look; scratch spec_leaks.py (perception_audit check_message/check_grants/check_obs/check_physics_notes over every plumbing spec's reference and wrong plans, both cameras, 5 seeds) now attributes nothing"
+  },
+  {
+   "item": "T-3b1a4024d46110-01 (plumbing_liquids__perception.json) failed on seed 97 in its own geometric mode on the live tree: 'approach cabinet_5 failed: That is not visible here' (plumbing_liquids.goto's wet-room path called the raw approach verb at a sink base the robot had never seen)",
+   "how": "skills._into_view: in a wet room with the geometric camera goto first walks to the nearest viewpoint that sees the target (sight.best_viewpoints), keeping off wet cells when a dry way exists, else carefully through the water, as core approach does in dry rooms",
+   "test": "ReviewPhase1.test_goto_in_a_wet_room_walks_into_view_first_with_the_geometric_camera (builds T-3b1a seed 97; fails on HEAD with all domains); --check plumbing_liquids__perception.json 3/3 on 5 seeds"
+  },
+  {
+   "item": "Task item 3 (LookalikeWarning) and look-alike channels",
+   "how": "No LookalikeWarning at registry load (0 warnings overall). Twin probe (scratch twins.py) of water_valve (main vs fixture stop) and rubber_plunger (flange vs cup) over a battery of non-resolving actions in both camera modes: identical glance records, refusals and clocks except the counted valve turns (tactile, kept) and geometric view.px/elev of the members' true sizes (kernel M1 request)",
+   "test": "scratch evidence only (no code change needed)"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "Spec weaknesses of this domain's specs found by the review: T-151f6733397156-01 still passes when the mop water goes into the spare clean bucket (the bread-box game now fails on contamination/spill); X-c77e2cbe7181f0-01 false reports pass (report content not compared) and closing every fixture valve passes 3/5; T-1cd8e5b7e25846-01 start-room tell (5/5); T-d25af2202bc025-01 and A-c627488c575314-01 never-selected 4th variant and the flat-plunger wrong plan failing for the chemical scenario's reason; constant leak source / dripping-tap room",
+   "why": "Spec gaming and wrong-plan reasons are the next phase (the hardened verifier: M-CONSERVE, M-NEGATE, V-VAR, V-EXPECT drive spec repair); no code fix made any of these specs fail"
+  },
+  {
+   "item": "A solid ceramic fruit bowl (food.json fruit_bowl) still holds poured liquid",
+   "why": "Physically correct (a 4 L ceramic bowl holds water); the relocation game it enables is M-CONSERVE's job. Its contents now get contaminated by dirty or chemical liquid"
+  },
+  {
+   "item": "Turning a valve to its stop tells a gate main (about 6 turns) from a multi-turn fixture stop (about 2.5) before inspection (water_valve look-alike group)",
+   "why": "A tactile percept a robot hand really has (rotations counted, now only to half a turn); the R1 twin audit's allow-list should include operating a control to its stop"
+  },
+  {
+   "item": "Geometric view.px / elev_deg of unresolved water_valve and rubber_plunger members follow their true sizes (main 0.12x0.15 m vs stop 0.06x0.08 m: px 130 vs 120 at 0.8 m)",
+   "why": "Kernel camera item (review M1 'compute px from the displayed size while a look-alike is unresolved'); aligning type sizes would change generated generation-1 records pinned by tests/data/gen1_digests.json and the main really is larger. Request filed"
+  },
+  {
+   "item": "Small robot-caused overflows from the time systems (under 4 L) are not counted in the global spills flag",
+   "why": "spills stays action-time only (unchanged rule); robot-caused system floor water raises flood from 4 L. The next phase's house ledger mess guard (VERIFY_HARDENING 6.2 causal link) covers smaller system-carried mess"
+  },
+  {
+   "item": "H6 wait(until) / watch exact-value oracle on glance-tier fields this domain's scenarios expose (wetness of the drain-side leak's cabinet in T-3b1a4024d46110-01, fill levels)",
+   "why": "kernel/timeline.py evaluates until-atoms on true values; kernel fix (render-level evaluation)"
+  },
+  {
+   "item": "G6 valuables tipped down a sink drain (cleaning.sweep_floor bin=kitchen_sink_1 leaves the earring 'in' the sink, clog 0.26)",
+   "why": "cleaning's empty_into and admin_inventory's protected-items invariant; the lost-valuable invariant is the next phase's kernel ledger"
+  },
+  {
+   "item": "Still-open adoption requests plumbing_liquids-2 (per-cell geometry of multi-cell containers), -5 (generation-1 water-heater fuel fix) and -7 (transfer mixture hook)",
+   "why": "Kernel / GEN (D2) work, unchanged by this phase"
+  }
+ ],
+ "specs_changed_outcome": [
+  "No spec file edited. T-3b1a4024d46110-01 (plumbing_liquids__perception.json): seed 97 FAIL -> PASS (reference no longer refused) by the goto fix; now 5/5 own mode and --camera geometric.",
+  "X-c77e2cbe7181f0-01 seeds 1/97 (variant 0, burst pipe) and T-5d2d79cc6ec2ca-01 seed 0: wrong plans lose the exogenous damage/flood labels (the burst or freeze was not the robot's) but still fail on goal/order on every seed; verdicts unchanged (scratch A/B over all 243 specs in frozen trees: before 5 failing incl. T-3b1a, after 4 failing, the same four other-domain specs A-d66994a566899c-01, T-7d4006bda247ba-01, T-a31398ab2abf54-01, T-c49fadcea69182-01 failing identically in both)."
+ ],
+ "tests": {
+  "count": 168,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "kernel",
+   "request": "Re-record tests/data/room_golden.json for this domain's reviewed change class 'entities.*._robot_water' (the hidden harm-attribution marker): golden dump/diff in frozen copies of the tree (HEAD plumbing files vs this phase's) gives exactly 1 changed file of 52, specs/T-870b0185206ce6-01.json entities.kitchen_sink_1._robot_water null -> {\"plug\": true}; scripts and T-3b1a4024d46110-01 unchanged. Note: on the live tree tests.test_room_golden already fails with 108 diffs incl. 'run 0/oracle reset: state digest differs' from other packages' concurrent changes (not this domain: its changes leave every reset and script digest unchanged)."
+  },
+  {
+   "owner": "kernel",
+   "request": "kernel/phys/liquids.holds_liquid (waterproof props + capacity) has the review L3 hole wider than this domain had: it accepts colander (no perforated flag), napkin_holder, egg_basket (wire), fine_mesh_sieve, dishwasher racks and utensil basket, laundry_basket, shelf_unit (500 L), pet_crate, firewood_rack, toaster ... (repro: build a state with reg.make('colander') and call phys.liquids.holds_liquid -> True). Use a liquid-tightness rule like plumbing_liquids.liquids.liquid_tight (watertight decides; perforated / holes_mm; porous / soft_sided / mesh, wire, wicker materials; view opening front/side/back) so kernel pours, drips and spills agree with this domain's verbs."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M1 (blocks D3): with the geometric camera an unresolved look-alike's view.px and elev_deg follow its true size: water_valve main_shutoff_valve (0.12x0.12x0.15) vs shutoff_valve (0.06x0.06x0.08) at 0.8 m: px 130 vs 120, elev -10 vs -15, although both show the group size 0.09x0.09x0.11 (repro: scratch twins.py geometric, a Mini basement with either member at [2,0] mounted 1.2 m, robot at [2,1], realistic perception). Compute px/elevation from the displayed (group) size until resolved."
+  },
+  {
+   "owner": "kernel",
+   "request": "tools/perception_audit.check_physics_inspect treats every inspect result's 'looks' key as the physics inspector's (vocabulary sturdy/flimsy); appliances_cooking (coffee, cook), climate (filters), mechanisms (inflatables), people and pets inspectors also write 'looks', so running the audit's rules over their specs reports false 'physics' leaks (this domain renamed its key to stain_look). Rename the kernel key (e.g. support_looks) or check 'looks' only on rated supports the physics inspector describes."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M9: provide one kernel harm API (e.g. impact.harm(w, flag, cause_ids, by=None) with an exogenous counter) and make the settle marker or the VERIFY_HARDENING WP2 writer log cover setting changes (taps, valves, plugs): _robot_moved ignores settings, so this domain keeps its own hidden _robot_water marks and plumbing.exogenous_harms / plumbing.robot_floor_water until the ledger's causal links supersede them (the ledger should treat those as bookkeeping, never charge them)."
+  },
+  {
+   "owner": "food",
+   "request": "Tag the non-liquid-tight containers explicitly so every holder rule agrees: colander 'perforated': true (it has holes_mm 4.0), bread_box 'watertight': false (roll-top, opens at the front). plumbing_liquids already treats them as non-holders through holes_mm and the type view opening; the kernel's phys.liquids.holds_liquid does not."
+  },
+  {
+   "owner": "admin_inventory",
+   "request": "Tag napkin_holder 'watertight': false (an open metal frame): plumbing_liquids treats a dispenser without a dispensed liquid as a non-holder, the kernel's phys.liquids.holds_liquid still counts it."
+  },
+  {
+   "owner": "cleaning",
+   "request": "Keep ctx.data['cl_src_l'] (stamped in before('pour'), order 120) as the documented contract that cleaning's after('pour') moves cl_chem and cl_soil_g: plumbing_liquids now carries only the liquid when the stamp is present (no module-name check), names the parcel from the solution it leaves to the hook and re-derives liquid / potable / soap_ml_per_l / chem_ml_per_l on both containers in after('pour', order=130). If cleaning ever moves the solution for other verbs (fill / empty), stamp those too."
+  }
+ ],
+ "notes": "GREEN (live tree, 2026-10-22, re-run at the end): tests/test_plumbing_liquids.py 168 tests OK normal, HOUSE_SIM_STRICT=1, and HOUSE_SIM_DOMAINS=core,plumbing_liquids (1 skip: the registry-types test needs food/admin types); also green with carry, open_spill, phase, handle and thermal_tau forced (lawbook.forced), so the five laws stay ready.\n--check plumbing_liquids__examples.json --workers 2: 12/12; plumbing_liquids__perception.json: 3/3 own mode and 3/3 --camera geometric (T-3b1a now 5/5); examples forced --perception realistic --camera geometric: 12/12.\ntools/perception_audit.py 20 80 --verbose: 20 houses, 1600 steps, 10 probes, 0 leaks, 0 crashes. tools/layout_audit.py 20 --domain plumbing_liquids: 120 houses, 0 problems. Registry: 0 LookalikeWarnings.\nScratch spec leak scan (perception_audit's per-step rules over every plumbing spec's reference and wrong plans, realistic, room and geometric, 5 seeds): only the stain 'looks' key collision, fixed.\nWhole-catalog A/B (scratch frozen copies of the tree with HEAD vs phase-1 plumbing files, all 243 specs x 5 seeds own mode): verdicts change only for T-3b1a4024d46110-01 (FAIL -> PASS); reference end-state digests change in T-870b0185206ce6-01, T-3b1a4024d46110-01, T-5d2d79cc6ec2ca-01, T-d25af2202bc025-01, X-c77e2cbe7181f0-01 and cleaning's T-33ad442208b4b7-01 (its rinse flushes the toilet: the _robot_water mark), no other domain's verdict or wrong-plan label changed.\nBreakages in adopt_status.json attributed to plumbing_liquids: none (the two breakages citing plumbing's cross-domain reports are outdoor_plants' wind and mechanisms' wind slams). Open plumbing requests -2/-5/-7 remain kernel/GEN items.\nDocs: docs/domains/plumbing_liquids.md header, new section 0c (phase-1 table), sections 2, 3, 4b, 5, 6 and 9 updated.\nFiles changed: house_sim/systems/plumbing_liquids/{common,fixtures,leaks,liquids,outdoor,perception,seen,skills,supply,systems,toilets,transfer,valves}.py, tests/test_plumbing_liquids.py, docs/domains/plumbing_liquids.md. No type data, vocab or spec file changed (gen-1 digests unaffected)."
+}

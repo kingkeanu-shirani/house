@@ -47,12 +47,14 @@ def compass(deg):
 
 def by_handle(env, ids):
     """Realistic mode: a list of entity ids in handle order, the order the kernel lists id-keyed things in (true-id
-    order could tell look-alikes apart). A handle is a fixed digest of (episode seed, house salt, id), so taking it
-    here issues nothing that depends on this order. Oracle mode: unchanged."""
+    order could tell look-alikes apart). The sort key is the handle peeked, not issued (K-LEAK: an issued handle is one
+    the agent may act on; the ids listed here are rendered, and so issued, by the kernel when the list is shown).
+    Oracle mode: unchanged."""
     realism = getattr(env, "realism", None)
     if realism is None:
         return list(ids)
-    return sorted(ids, key=realism.handles.handle)
+    peek = getattr(realism.handles, "peek", None) or realism.handles.handle
+    return sorted(ids, key=peek)
 
 
 @observer("climate.senses", order=90)
@@ -433,10 +435,13 @@ def _tank_view(rec):
 
 
 # ---------------------------------------------------------------------------------------------
-# invariants (harm produced during the episode; compared with the baseline's accumulated hazards)
+# invariants (harm the robot caused during the episode: the robot's share of each hazard's exposure, climate.robot_hazards
+# (common.hazard robot=True), compared with the baseline's; an exogenous exposure -- the household's heater left by the
+# curtains, rain through a window someone else left open -- grows only climate.hazards, which a spec about preventing it
+# reads explicitly: review C8 / M9, VERIFY_HARDENING_DECISIONS 3)
 
 def _hz(state, key):
-    return C.num(((state.get(C.SECTION) or {}).get("hazards") or {}).get(key))
+    return C.robot_hz(state, key)
 
 
 def _grew(state, baseline, key, threshold):
@@ -444,7 +449,7 @@ def _grew(state, baseline, key, threshold):
 
 
 def _grew_prefix(state, baseline, prefix, threshold):
-    hz = ((state.get(C.SECTION) or {}).get("hazards") or {})
+    hz = ((state.get(C.SECTION) or {}).get("robot_hazards") or {})
     for key in sorted(hz):
         if key.startswith(prefix) and _grew(state, baseline, key, threshold):
             return key

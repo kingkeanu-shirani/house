@@ -318,12 +318,26 @@ def puddles(w):
     return sorted(e for e, r in w.s["entities"].items() if r.get("_phys_spill"))
 
 
+def hide_domain_hooks(test):
+    """These are tests of the kernel layer alone, on Worlds without a type registry: hide the domains' hooks for one
+    test (and restore them), so the result does not depend on whether another test in the same process loaded every
+    domain (cleaning's phys.spill_sink turns a kernel puddle into a cleaning spill entity, which needs a registry;
+    outdoor_plants' phase-1 observation: "World has no type registry" in a one-process run of every weather test)."""
+    for entries in list(plugins.HOOKS.values()):
+        kept = [e for e in entries if not str(e[1]).startswith("house_sim.systems.")]
+        if len(kept) != len(entries):
+            saved = list(entries)
+            entries[:] = kept
+            test.addCleanup(entries.__setitem__, slice(None), saved)
+
+
 class PhysTest(unittest.TestCase):
     active_laws = ()
 
     def setUp(self):
         self.fake = FakeLayer(self.active_laws).install(self)
         self.hooks = Hooks(self)
+        hide_domain_hooks(self)
 
     def assertJournaled(self, w, fn, *args, **kwargs):
         """fn's writes all go through the World journal: rolling back restores the state exactly."""
@@ -793,6 +807,23 @@ class OpenSpillTests(PhysTest):
         [puddle] = puddles(w)
         self.assertAlmostEqual(w.s["entities"][puddle]["liquid_l"], 0.3, places=4)
         self.assertFalse(liquids.leak_start(w, "jug"))
+
+    def test_a_drip_or_leak_started_by_the_robot_is_the_robots(self):
+        """Adoption request outdoor_plants 2: a drip had no `by`, so a pot the robot over-watered drained as an
+        exogenous drip (watering is no structural change the settle marks). drip_start / leak_start take by= and
+        every portion they deposit carries it; without it, the per-portion rule stays (exogenous here)."""
+        for by, robots in ((None, 0), ("robot", 1), ("exogenous", 0)):
+            w = world({"pot": item("kitchen", pos=[2, 2], material="ceramic", size_m=[0.2, 0.2, 0.2], capacity_l=2.0,
+                                   liquid_l=0.5, liquid="water"),
+                       "jug": item("kitchen", pos=[4, 4], capacity_l=2.0, liquid_l=0.3, liquid="water")})
+            self.assertTrue(liquids.drip_start(w, "pot", 6.0, by=by))
+            self.assertTrue(liquids.leak_start(w, "jug", l_per_h=0.6, by=by))
+            advance(w, 1800)
+            self.assertEqual(len(puddles(w)), 2)
+            self.assertEqual(w.s["stats"].get("phys_spills"), 2)
+            self.assertEqual(w.s["stats"].get("spills", 0), 2 * robots, by)
+            self.assertEqual(sorted({r["by"] for r in self.records(w) if r["kind"] == "phys.spill"}),
+                             ["robot" if robots else "exogenous"])
 
 
 # ----- carry dynamics ------------------------------------------------------------------------------------------------
@@ -1307,6 +1338,8 @@ class PerformanceTests(PhysTest):
 
     def test_processes_idle_and_with_ten_active(self):
         w = world({"table": table()})
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         self.assertLess(self.best_ms(lambda: processes.run(w, 30.0, 0)), 3 * 0.02)
         for i in range(10):
             w.s["entities"]["pot%d" % i] = item("table", capacity_l=50.0, liquid_l=50.0)
@@ -1321,6 +1354,8 @@ class PerformanceTests(PhysTest):
         entities.update(("indoor%d" % i, item("kitchen", pos=[1, 1])) for i in range(700))
         w = world(entities, rooms={"patio": room("concrete", size=(10.0, 6.0), outdoor=True), "kitchen": room()},
                   weather={"wind_mps": 3.0})
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         self.assertLess(self.best_ms(lambda: environment.run(w, 30.0, 0), number=10), 3 * 0.3)
         self.fake.lawbook.on = set()
         self.assertLess(self.best_ms(lambda: environment.run(w, 30.0, 0)), 0.01)

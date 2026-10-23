@@ -152,6 +152,8 @@ class DataFilesTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             P.SUPPORTS["types"]["bookshelf"] = {}
         names = ("materials.json", "liquids.json", "floors.json", "supports.json")
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         best = min(_timed(lambda: [P._load(name) for name in names] + [lawbook._load()]) for _ in range(5))
         self.assertLess(best, 0.060, "data load {:.1f} ms (budget 20 ms, test bound 3x)".format(best * 1e3))
 
@@ -627,6 +629,8 @@ class PropsResolutionTests(unittest.TestCase):
         state = tiny_state(entities={"bottle": {"type": "generic_item", "location": "kitchen", "material": "glass",
                                                 "size_m": [0.075, 0.075, 0.3], "max_load_kg": 3}})
         P.props(state, "bottle")
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         best = min(_timed(lambda: [P.props(state, "bottle") for _ in range(2000)]) for _ in range(5)) / 2000
         self.assertLess(best, 15e-6, "props() {:.2f} us (budget 5 us, test bound 3x)".format(best * 1e6))
 

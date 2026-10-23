@@ -25,13 +25,49 @@ Child latches: storage with child_latch "auto" engages (child_locked) whenever i
 Leaks: a bottle on its side/upside down with the cap/nozzle open leaks (~5 ml/s cap open, 0.1 ml/s sprayer); leaked
 incompatible classes on the same holder react: chlorine/chloramine gas into the room (gas_exposure if people breathe it).
 Unknown (unlabeled) chemicals: opening/sniffing, using or pouring one out is a safety violation.
+Realistic perception: a closed look-alike bottle not yet read shows its fill by one rule for every member (bottle_fill),
+so neither the fill estimate nor its absence names the product.
 """
 import math
 
 from ...kernel import geometry
-from ...kernel.plugins import after, before, system
+from ...kernel.plugins import after, before, inspector, system
 from . import air as A
 from . import common as C
+
+BOTTLE_FULL_ML = 950.0          # the helper's look-alike bottles all hold this much (helpers.BOTTLE_FILL)
+FILL_WORDS = ((0.15, "nearly empty"), (0.45, "about a third left"), (0.7, "about half full"), (0.95, "mostly full"))
+
+
+def fill_words(amount_ml, full_ml=BOTTLE_FULL_ML):
+    """How full a closed bottle looks or feels, in words (the cleaning domain's scale for product bottles)."""
+    if amount_ml <= 0:
+        return "empty"
+    frac = amount_ml / full_ml if full_ml > 0 else 1.0
+    for edge, word in FILL_WORDS:
+        if frac < edge:
+            return word
+    return "full"
+
+
+@inspector("safety.bottle_fill", order=61)
+def bottle_fill(w, eid, record, details, ctx):
+    """Realistic perception: a closed look-alike chemical bottle the robot has not read shows how full it is by this one
+    rule, whatever it holds (twin probe, review M1: the cleaning domain's inspector, order 60, gives a fill estimate
+    only for bottles with a product, so the unlabeled bottle alone showed none). Once read, the product's own rules
+    apply."""
+    if not C.realistic_ctx(ctx) or record.get("type") != "chemical_bottle" or record.get("open"):
+        return
+    if C.identified(getattr(ctx, "env", None), eid, record):
+        return
+    amount = record.get("amount_ml")
+    if amount is None:
+        details.pop("fill_estimate", None)
+        return
+    try:
+        details["fill_estimate"] = fill_words(float(amount or 0.0))
+    except (TypeError, ValueError):
+        details.pop("fill_estimate", None)
 
 LEAK_ML_S_CAP = 5.0
 LEAK_ML_S_NOZZLE = 0.1

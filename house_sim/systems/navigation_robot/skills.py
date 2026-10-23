@@ -1,6 +1,8 @@
 """Reference skills for navigation_robot specs (privileged routing; state changes only via runner.do).
 
   navigation_robot.go(target, avoid, speed, social, restore_doors)   go_to wrapper
+  navigation_robot.move_watching(target, avoid, speed, leg)  move to the next room avoiding floor hazards it must see
+                                          first (geometric camera: short legs, looking at the floor ahead of each)
   navigation_robot.enter_lit(room)        stand at the doorway, switch the room's doorway light on, then enter
   navigation_robot.enter_dark_quietly(room)  wear/switch on the headlamp and enter without room lights
   navigation_robot.carry_stairs(obj, room, dest=None)  one-handed carry, careful pace, rail hand free
@@ -22,6 +24,56 @@ def _opt(**kwargs):
 @skill("navigation_robot.go")
 def go(r, target, avoid=None, speed=None, social=False, restore_doors=False):
     r.do("go_to", target=target, **_opt(avoid=avoid, speed=speed, social=social or None, restore_doors=restore_doors or None))
+
+
+def _geometric(r):
+    from ...kernel import camera
+    return camera.mode(r.state) == "geometric"
+
+
+def _robot_plan(r, rid, goal, avoid):
+    """The path the robot itself would plan now from where it stands to `goal` (its route filter: in realistic
+    perception only the hazards it perceives), or None."""
+    state = r.state
+    realism = getattr(r.env, "realism", None)
+    return geometry.find_path(state, rid, tuple(state["robot"]["pos"]), [tuple(goal)], avoid_kinds=tuple(avoid or ()),
+                              hazard_filter=realism.route_hazards if realism is not None else None)
+
+
+@skill("navigation_robot.move_watching")
+def move_watching(r, target, avoid=None, speed=None, leg=2):
+    """Move into the next room `target` keeping out of floor hazards that must be seen first (D3: a camera robot avoids
+    only what it has seen). With the geometric camera the robot walks toward the doorway in legs of `leg` cells, aiming
+    its head at the floor just beyond each leg before planning it, as a careful robot crosses a room whose floor it
+    cannot see from where it stands (furniture hides the far floor; a look around from a corner surveys little of it).
+    The head is aimed at the end of the leg: the frame then spans the floor from about 0.3 m ahead outward, the leg's
+    cells included (the geometric camera plans with what this step's frames show, so the look comes right before the
+    leg it serves). It uses only what the robot itself would plan with. Room camera: one move with avoid."""
+    if not _geometric(r):
+        r.do("move", target=target, **_opt(avoid=avoid, speed=speed))
+        return
+    state = r.state
+    here = state["robot"]["room"]
+    route = S.room_route(state, here, target)
+    if not route:
+        raise S._plan_error("No route to " + target)
+    nxt, cid = route[0]
+    door_cell = tuple(state["connections"][cid]["cells"][here])
+    leg = max(1, int(leg))
+    for _ in range(60):
+        path = _robot_plan(r, here, door_cell, avoid)
+        if not path or len(path) <= leg:
+            break
+        ahead = path[leg - 1]
+        r.do("look", target="[{}, {}]".format(int(ahead[0]), int(ahead[1])))
+        path = _robot_plan(r, here, door_cell, avoid)       # re-planned with what that look showed
+        if not path or len(path) <= leg:
+            break
+        r.do("walk_to", cell=[int(path[leg - 1][0]), int(path[leg - 1][1])], **_opt(avoid=avoid, speed=speed))
+        if r.state["robot"]["room"] != here or r.state["robot"].get("fallen"):
+            return
+    r.do("look", target="[{}, {}]".format(int(door_cell[0]), int(door_cell[1])))
+    r.do("move", target=nxt, **_opt(avoid=avoid, speed=speed))
 
 
 def _doorway_switch(state, room, from_room):
@@ -152,8 +204,11 @@ def measure_report(r, target, field, dimension=None, units="mm", tool=None, meth
             S.go_room(r, room)
         cell = conn["cells"][r.state["robot"]["room"]]
         r.do("walk_to", cell=[int(cell[0]), int(cell[1])], adjacent=True)
-    r.do("measure", target=target, **_opt(dimension=dimension, units=units, tool=tool, method=method, add_case=add_case or None, at=at,
-                                          destination=destination))
+    result = r.do("measure", target=target, **_opt(dimension=dimension, units=units, tool=tool, method=method,
+                                                   add_case=add_case or None, at=at, destination=destination))
+    if not result.get("ok"):
+        # a refused measurement (a lenient wrong-plan run) has no reading to report: never an earlier one
+        raise S._plan_error("measure {} failed: {}".format(target, result.get("message")))
     value = r.state["facts"]["nav_last_measure"]["value"]
     if value_index is not None and isinstance(value, list):
         value = value[int(value_index)]

@@ -1,0 +1,344 @@
+[
+ {
+  "domain": "manipulation",
+  "problem": "T-7d4006bda247ba-01 (textiles_laundry__examples.json) fails in its own mode on seeds 0 and 41 ('damage'): the iron set upright on its heel rest scorches the ironing board. The only failing authored spec (242/243 in own mode on the integrated tree).",
+  "cause": "house_sim/systems/manipulation/handling.py, place hook, the legacy contact-heat block (lines ~361-365: `if not C.kernel_owns(\"contact_heat\")` ... C.mark_damage(w, loc, 'scorch', ...)) does not ask phys.thermal.contact_claimed, so textiles' heel-rest claim never reaches it (admin_inventory's _hot_contact and appliances_cooking's _marks_support already ask). Proven by textiles_laundry, admin_inventory and appliances_cooking (passes with contact_heat forced and with only that block patched).",
+  "change": "Return before marking when phys.thermal.contact_claimed(w, eid, loc, temp, severity) is true (severity = min(1, (temp - limit) / thermal.CONTACT_SPAN_K)). Repro: python -m house_sim --check tasks/authored/textiles_laundry__examples.json --ids T-7d4006bda247ba-01 (seeds 0 and 41 'damage')."
+ },
+ {
+  "domain": "admin_inventory",
+  "problem": "Strict-mode defect found by the coverage fuzz (tools/fuzz.py --coverage, the only defect of 44,316 commands): inspect where='closely' raises 'inspect granted touch of spare_soap_jug the robot cannot have learned from where it is (Approach it first; it is out of arm's reach)' under HOUSE_SIM_STRICT=1; without strict mode the kernel drops the grant.",
+  "cause": "house_sim/systems/admin_inventory/knowledge.py (~line 253) grants touch (liquid_l, mass_kg: 'a heft and a tilt') on a close look from out of reach (geometric head camera from the closet doorway). K-GATE report (b), K-LEAK's request (1) to admin_inventory; not applied in phase 1.",
+  "change": "Grant the heft only within reach (ctx.env.realism.grant_problem(...) is None, or geometry.reach_problem(state, eid) is None). Repro: spec T-ab9a26cd6a795e-01 (admin_inventory__perception.json) seed 97, wrong plan 2 'checks the shelf from the closet doorway without walking up', command inspect spare_soap_jug where=closely, with HOUSE_SIM_STRICT=1."
+ },
+ {
+  "domain": "food",
+  "problem": "A legacy contact-heat copy ignores the kernel heat limits and every domain's claim: any item above 70 C set 'on' wood, laminate or plastic gets heat_mark 0.4 and stats.damage.",
+  "cause": "house_sim/systems/food/hooks.py _after_place (~lines 111-116) does not ask phys.thermal.contact_claimed, the support's heat limit or lawbook contact_heat (appliances_cooking's phase-1 request; not applied).",
+  "change": "Return when phys.thermal.contact_claimed(w, eid, dest, temp, severity) is true and use the kernel's heat limit (or step aside while lawbook.active('contact_heat')). Repro: tests/test_appliances_cooking.py ReviewStabiliseTests.test_legacy_contact_heat_honours_every_domains_claim with every domain loaded: a claimed 200 C steel pan on table_1 still gets heat_mark 0.4."
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "Pouring from a closed trigger sprayer or pump head pours its contents (0.75 l), unlike every closed container.",
+  "cause": "house_sim/systems/plumbing_liquids/transfer.py checks only openable sources (~line 664: 'Open it first'); a trigger or pump head is closed for the kernel (phys.liquids.container_closed). Cleaning's phase-1 request.",
+  "change": "Refuse (one wording for every look-alike member) or pour nothing when phys.liquids.container_closed(source)."
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "Spills and splashes from plumbing's own verbs never reach the kernel's wetting hooks: electrical gear on the counter gets wet with no phys.wetted, so its ground fault and the attribution of what follows are missed (T-686df131c7c736-01 seed 1: the coffee maker, microwave and toaster reach wetness 0.5, circuit_breaker_1 trips 8 s later and the fridge's power loss reads as exogenous).",
+  "cause": "house_sim/systems/plumbing_liquids/common.py wet() writes w.mut(eid)['wetness'] directly (electrical's request).",
+  "change": "Route the wetting through house_sim.kernel.phys.liquids.wet(w, eid, liters, liquid, source=...) (phys.wetted hooks run; the film model applies)."
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "Dumping a bucket onto a food item 'empties' the litres into the food (liquid_in_bin_l, leaking) and the liquid vanishes: nothing wets or runs off.",
+  "cause": "transfer.dest_kind returns 'bin' for any record with a waste_stream, and food entities carry waste_stream (the stream they go to when discarded). Food's phase-1 request.",
+  "change": "A bin is a container (accepts_items) with a waste_stream whose own category is not food: test rec.get('accepts_items') or rec.get('container') before 'bin'. Repro: tests/test_food.py scene([spawn bread_slice on {counter}, helper plumbing_liquids.dirty_bucket ...]) then plumbing_liquids.dump container={bucket} dest={slice}."
+ },
+ {
+  "domain": "mechanisms",
+  "problem": "Two door-dash draws when the robot opens a door while the pets domain is loaded (mechanisms' closures._door_dash at after-open order 50 and pets' behavior._door_opened at 60), and mechanisms' escapes reach pets without mechanisms' attribution (it corrects stats.pet_escape after the call).",
+  "cause": "house_sim/systems/mechanisms/closures.py _door_dash (~line 313, called on every door opening) does not stand down when pets is loaded (world.pets_own_escapes already does for the time-driven escapes), and closures.escape (~line 659) calls pets.escape(w, pid, room, via=via) without robot= (pets' phase-1 requests 1 and 2; pets now takes robot= and owns the dash while loaded).",
+  "change": "Skip _door_dash when world.pets_own_escapes(); pass robot=by to pets.behavior.escape and drop the post-hoc stats.pet_escape correction. Expected: T-c541cb694906f5-01's 'opens the front door before clipping on' still fails (pets' dash)."
+ },
+ {
+  "domain": "manipulation",
+  "problem": "The domain's stack explanation disagrees with the kernel's stack law (a mixing bowl on a kitchen scale's platform is stable for the kernel, oversize for manipulation's stack_reason), so the stack law is not ready to flip (D1).",
+  "cause": "house_sim/systems/manipulation/stacking.py stack_reason compares C.dims of the members (the old oversize rule; K-FIX's request, not applied).",
+  "change": "Judge each member against the top it rests on with kernel statics.top_wd(upper's support) and statics.contact_wd(member), as statics.stack_verdict does; then report stack readiness for D1."
+ },
+ {
+  "domain": "manipulation",
+  "problem": "Light items with an explicit wind_lift_mps lift at 1/0.6 of the wind they need under the kernel's wind law while the law is deferred.",
+  "cause": "house_sim/systems/manipulation/world.py _apply_wind compares wind_lift_mps with the weather's 10 m wind or gust (_wind_mps), while the kernel reads it as the speed at the item (environment.object_wind_mps: 0.6 of the 10 m gust near the ground). Outdoor_plants' phase-1 request.",
+  "change": "Use house_sim.kernel.phys.environment.object_wind_mps(state, eid)[1] for each item (as admin_inventory's curb litter does)."
+ },
+ {
+  "domain": "textiles_laundry",
+  "problem": "A switched-on space heater with no power (breaker tripped, unplugged) still scorches and ignites a rug it stands on (T-702453ef553c00-01 seed 41 before electrical's setup fix: textile_near_heat at 300 s, fire at 1800 s with the breaker tripped from the start).",
+  "cause": "house_sim/systems/textiles_laundry/model.py heater_active(rec) reads on / lit / burning only (electrical's request).",
+  "change": "For a corded heater (plug_required, hardwired or a circuit) require house_sim.kernel.physics.is_powered(state, eid) as well."
+ },
+ {
+  "domain": "cleaning",
+  "problem": "An unfamiliar (novel) table lamp is told apart from other unfamiliar things by inspect: cleaning adds bulb_hot (and bulb_temp_c with the thermal sensor) to any light (review I4).",
+  "cause": "house_sim/systems/cleaning/perception.py (~line 425) adds the extras by category / bulb_type without checking ctx.unresolved (electrical's request).",
+  "change": "Skip the extras while ctx.unresolved(eid) and the record is novel."
+ },
+ {
+  "domain": "safety",
+  "problem": "An unfamiliar (novel) smoke alarm is told apart from other unfamiliar things by inspect: safety adds battery_indicator to any detector (review I4).",
+  "cause": "house_sim/systems/safety/inspection.py (~line 142) adds it by AL.is_detector without checking ctx.unresolved (electrical's request).",
+  "change": "Skip the extra while ctx.unresolved(eid) and the record is novel."
+ },
+ {
+  "domain": "safety",
+  "problem": "Chemical scenes stage cleaning products as generic items with their own sizes and masses (bleach 0.12 x 0.08 x 0.3 m 2.0 kg, glass cleaner 0.09 x 0.06 x 0.25 m 0.8 kg, ...), so where they stand in as members of cleaning's look-alike groups their held size and heft tell them apart.",
+  "cause": "house_sim/systems/safety/helpers.py CHEM_PRESETS (cleaning's phase-1 request).",
+  "change": "Use cleaning's types (or the group's container size and mass, docs/domains/cleaning.md sections 1 and 13) for products that join a cleaning look-alike group."
+ },
+ {
+  "domain": "safety",
+  "problem": "A fire the scene lit (fire.ignite(..., harm=False), e.g. a curtain the scene left over a scene candle) still raises the robot's global fire flag when it develops.",
+  "cause": "house_sim/systems/safety/fire.py (~line 568) counts C.harm(w, 'fire_developed', stat='fire') for every fire whoever lit it (mechanisms' request). Safety's own phase-1 position: its idle-time flags occur only in specs about preventing that harm (VERIFY_HARDENING decision 3); the delayed-cause case needs the next phase's ledger.",
+  "change": "Keep the ignition's attribution on the fire record (e.g. _by from harm=) and count fire_developed only for a robot-caused fire, or route it through the hardened verifier's ledger when it lands. Repro: tests/test_mechanisms.py Phase1StabiliseTests.test_a_curtain_the_scene_left_over_a_scene_candle_is_not_the_robots_fire."
+ },
+ {
+  "domain": "people",
+  "problem": "In realistic mode `read` of an unidentified pill bottle is refused ('There is nothing legible to read on it') for the prescription_bottle member alone, which names it before resolution (review M1 / I8).",
+  "cause": "house_sim/data/types/people.json prescription_bottle has no default label_text and no read-tier field (safety's request; expired_medication and pet_medication read fine).",
+  "change": "Give prescription_bottle a default Rx label_text (or read-tier fields). Repro: tests/test_safety.py RLab(extra={'thing': ('prescription_bottle', 'kitchen', {'pos': [3, 3]})}, robot={'room': 'kitchen', 'pos': [3, 2]}).do('read', 'thing')."
+ },
+ {
+  "domain": "people",
+  "problem": "A fall another domain knows the robot caused (a dog chasing the robot's thrown toy knocks a child down) is logged as not robot-caused.",
+  "cause": "house_sim/systems/people/model.py ev_fall (event:people.fall) always passes robot_caused=False (pets' request).",
+  "change": "Accept an explicit 'robot_caused' arg (default False) and pass it to person_falls."
+ },
+ {
+  "domain": "admin_inventory",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: napkin_holder (an open metal frame), mail_organizer, inbox_tray, document_feeder, printer_output_tray, outgoing_mail_slot (open trays and slots).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "appliances_cooking",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: toaster, toaster_4slot (slots), air_fryer_basket, dishwasher_utensil_basket, coffee_filter_basket, portafilter (perforated), chimney_starter (open bottom).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "outdoor_plants",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: firewood_rack (an open frame), skimmer_basket (perforated).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "pets",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: pet_crate (wire), pet_carrier (vents).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: garbage_disposal (it drains).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "textiles_laundry",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: hamper_section (vented or fabric).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "tools_vehicles",
+  "problem": "Kernel pours, spills, drips and rain still pool liquid in these containers, which do not hold liquid: hardware_organizer, organizer_compartment (check whether they are open-sided).",
+  "cause": "phys.liquids.holds_liquid now follows plumbing_liquids' rule (INT: an explicit watertight decides; perforated, holes_mm, open-weave materials -- wire, mesh, wicker, coated-wire racks --, porous, soft-sided, open_shelving and a front/side/back/bottom view opening are not liquid-tight), but these types carry none of those flags (review L3; plumbing_liquids' list; scratch holders_probe.py lists every kernel holder).",
+  "change": "Tag them in the type data: 'perforated': true or 'holes_mm' for perforated baskets, 'watertight': false for frames, racks, slots and vented bodies (a gen-1 digest re-record class when the type is furnished)."
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "Generation-2 layout follow-ups: a shower stall placed in front of a wall mount hides it (apartment seed 29: venetian_blind_1 behind shower_stall_1 in bathroom_1, furnishers mechanisms.coverings + plumbing_liquids.fixtures; house seed 20 {require: [laundry_room, basement, nursery]}: upper_cabinet_2 behind shower_stall_1 in bathroom_2, core_furniture + plumbing_liquids.fixtures).",
+  "cause": "plumbing_liquids.fixtures places the shower stall without keeping existing wall mounts accessible.",
+  "change": "Place fixtures through Placer with keep_access for mounts (or skip cells in front of existing mounts); check with python tools/layout_audit.py 30 --gen 2."
+ },
+ {
+  "domain": "navigation_robot",
+  "problem": "Generation-2 layout follow-ups: targets reachable only over hazards (seed 25 couple_with_infant: living_room_1, 1 target only reachable over hazards from robot_vacuum_dock_1 and tower_fan_1, furnishers climate.fans + navigation_robot.features; seed 27 multigenerational: office_1, 2 targets from robot_vacuum_dock_1).",
+  "cause": "navigation_robot.features places the robot vacuum dock (and its keep-clear zone) where it leaves other things reachable only over a hazard.",
+  "change": "Place the dock where every target keeps a hazard-free route (Placer keep_access with the dock zone as a hazard); check with python tools/layout_audit.py 30 --gen 2."
+ },
+ {
+  "domain": "outdoor_plants",
+  "problem": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.19 ms (outdoor_plants.weather 0.03 -> 0.09, weather_slow, patio, garden, yard, pool).",
+  "cause": "Phase-1 changes in its time systems: the wind copy now runs the kernel's model (environment.wind_effect, object_wind_mps, rest_cell) for its loose outdoor things every substep, and the exogenous-attribution bookkeeping.",
+  "change": "Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain outdoor_plants."
+ },
+ {
+  "domain": "safety",
+  "problem": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.07 ms (safety.monitor, air, fire, chemicals, devices).",
+  "cause": "Phase-1 changes in its time systems: phase-1 attribution and warning checks.",
+  "change": "Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain safety."
+ },
+ {
+  "domain": "tools_vehicles",
+  "problem": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.06 ms (tools_vehicles.disposals 0.001 -> 0.024, leaks).",
+  "cause": "Phase-1 changes in its time systems: the derived-field refreshes (sorted_ok, _stowed, _hazmat) and exogenous attribution in its time systems.",
+  "change": "Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain tools_vehicles."
+ },
+ {
+  "domain": "pets",
+  "problem": "The P1 gate's G7 fails its budget: 3.85 ms per substep and a 1 h wait of 1.255 s against ADOPT's 3.21 ms and 1.133 s (limit 1.05 x). Measured on one quiet machine the same day: HEAD 3.26, phase-1 tree 3.81, integrated 3.89 ms (the integrator's +0.07 is a garbage-collection pass landing in food.safety: equal per-call cost and equal digests). This domain's share of the phase-1 increase: +0.05 ms (pets.agents).",
+  "cause": "Phase-1 changes in its time systems: the attribution marks and the escape path.",
+  "change": "Restore the substep cost (exact idle probes, static indexes with declared reads, skip unexposed or unchanged things), or ask the main session for a reviewed budget increase; re-measure with python tools/bench_systems.py 40 0 1 2 3 --domain pets."
+ },
+ {
+  "domain": "people",
+  "problem": "An unfamiliar (novel) thing is told apart by take_photo: a smartphone answers 'Nobody to photograph here', every other unfamiliar thing 'That is not a camera' (review I4; phase-1 red team red_leaks finding 5; the upgraded perception auditor reports it as a twin leak in both camera modes, so G4 fails until it is fixed).",
+  "cause": "house_sim/systems/people/social.py take_photo (~line 345) checks the true type before anything else. The kernel now refuses every action registered with operates=True on a thing the robot takes for an unfamiliar thing (actions.NOVEL_OPERATE_MESSAGE, engine.step, before any domain hook; FIX2), but take_photo is not declared operates.",
+  "change": "Register take_photo with operates=True (@action(..., operates=True)); the kernel then answers one refusal for every unfamiliar target. Repro: python tools/perception_audit.py 1 20 --workers 4 --verbose (twin leak 'novel electric_kettle vs smartphone at take_photo'); tests/test_kernel_redteam.py UnfamiliarThingTests shows the core verbs.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "mechanisms",
+  "problem": "An unfamiliar (novel) thing is told apart by pull_handle / push_handle (only the kettle opens: 'Pulled obj open to 100%' vs 'Nothing here opens by pulling') and press (review I4; phase-1 red team novel sweep, twins_generic.py novel_sweep --sweep).",
+  "cause": "house_sim/systems/mechanisms/handles.py pull_handle / push_handle and controls.py press act by the true type of an unidentified unfamiliar thing; they are not declared operates=True, so the kernel's novel-thing refusal (FIX2: actions.NOVEL_OPERATE_MESSAGE) does not reach them. This is also the 'operation rule' mechanisms asked the kernel for: the kernel decided unfamiliar things are moved and inspected, not operated (docs/PERCEPTION.md).",
+  "change": "Register pull_handle, push_handle and press (and any other verb that works a device or mechanism) with operates=True. Repro: the red team's twins_generic.py novel_sweep --sweep (scratch p1_red_leaks/id) or a twin of tests/test_kernel_redteam.py UnfamiliarThingTests with these verbs.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "food",
+  "problem": "An unfamiliar (novel) thing is told apart by garnish / plate / portion / scoop / transfer: 'Open it first' for the electric kettle (openable, closed) vs 'It is empty' for every other unfamiliar thing (review I4; phase-1 red team novel sweep).",
+  "cause": "house_sim/systems/food/actions_measure.py checks openable / open of the true record of a target the robot cannot identify (the kernel's glance no longer shows openable for unfamiliar things: realism.NOVEL_FIELDS, FIX2).",
+  "change": "Declare these container verbs operates=True (the kernel refuses an unfamiliar target alike), or check ctx.unresolved(target) first with one generic refusal. Repro: twins_generic.py novel_sweep --sweep (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "An unfamiliar (novel) thing is told apart by fill (source: 'Hold the container you are pouring from' for the kettle and the bleach jug vs 'That is not a water or liquid source') (review I4; phase-1 red team novel sweep).",
+  "cause": "house_sim/systems/plumbing_liquids/transfer.py fill judges the true record of an unidentified unfamiliar source.",
+  "change": "Declare fill (and pour-type verbs that work a container as a device) operates=True, or refuse an unresolved novel source with one message. Repro: twins_generic.py novel_sweep --sweep (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "cleaning",
+  "problem": "An unfamiliar (novel) thing is told apart by empty_into: the bleach jug 'You cannot pour that there' vs 'Emptied ...' for every other unfamiliar thing as target, and 'Open the lid of obj first' for the kettle as destination (review I4; phase-1 red team novel sweep).",
+  "cause": "house_sim/systems/cleaning/waste.py empty_into judges the true record (liquid, openable) of an unidentified unfamiliar target or destination.",
+  "change": "Refuse an unresolved novel target or destination with one generic message (ctx.refuse_unidentified / operates=True). Repro: twins_generic.py novel_sweep --sweep (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "cleaning",
+  "problem": "Look-alike spray bottles are told apart by heft: support <unresolved spray bottle> answers 'Feels light' for the plain spray_bottle and 'Feels medium' for glass cleaner, mildew remover and disinfectant (the glass-cleaner spec's refill decoy); the plain bottle also differs in default liquid_l and capacity (review L4 residual, phase-1 red team).",
+  "cause": "house_sim/data/types/cleaning.json spray_bottle: mass_kg 0.1, liquid_l 0.0, capacity_l 0.75 vs the cleaner bottles' mass_kg 0.85, liquid_l None, capacity_l 0.0.",
+  "change": "Align the empty spray_bottle's mass and liquid default with the filled cleaner bottles (a staged empty bottle can set its own values per spec), or split it out of the spray_bottle look-alike group. Repro: twins_generic.py lookalike_sweep e1_sweep.json --sweep (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "cleaning",
+  "problem": "Route probing still tells an unidentified puddle's liquid through domain hooks: the kernel now shows one hazard kind for an unresolved puddle ('wet') and keeps routes out of it for any of wet/slip/sticky in the avoid list (FIX2, review L4), but path_blocked hooks that read the true floor_hazard kind of a spill still block a 'slip' route for detergent and not for bleach.",
+  "cause": "The domains' path_blocked / visible_floor_hazard hooks for spills compare avoid kinds with the true floor_hazard (house_sim/systems/cleaning/floors.py and any other owner of puddle hooks).",
+  "change": "For a spill whose source the robot cannot identify (realism unresolved: ctx.unresolved or env.realism.unresolved(source)), treat any of wet/slip/sticky in the avoid list as a match, as realism.route_hazards does (realism.LIQUID_HAZARD_KINDS). Repro: tests/test_kernel_redteam.py HazardListingTests shows the kernel side; probe_spill_kind2.py (scratch p1_red_leaks/id) for the cleaning spill.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "pets",
+  "problem": "Pill-bottle look-alikes: read_aloud of an unresolved member is refused for pet_medication only (phase-1 red team, twins_generic.py lookalike_sweep); together with breakages row 14 (prescription_bottle without printed text, people) the members are told apart before resolution.",
+  "cause": "house_sim/systems/people/care.py read_aloud (people owns the verb) and the pet_medication type data (pets): one member answers differently before the label is read.",
+  "change": "Give every pill-bottle member printed text a read resolves (people: Rx label_text, row 14) and make read_aloud answer alike for every unresolved member (people/pets: check ctx.unresolved first). Repro: probe_twins.py room 0 (scratch p1_red_leaks/side).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "people",
+  "problem": "ask about=<handle> aspect=owner of a thing the robot saw that has been destroyed since answers 'Which one?' while one merely out of view answers 'I don't know.' (an existence oracle; phase-1 red team red_leaks finding 6). The kernel now resolves such an 'about' like one out of view (dialogue.remembered_ids, FIX2); aspect where already answers alike.",
+  "cause": "house_sim/systems/people/knowledge.py owner answerer (~line 88): rec is None -> 'Which one?'.",
+  "change": "Answer a missing record like an out-of-view one (the people's knowledge of the owner from the last record they knew, or the same 'I don't know.' the unknown case gives). Repro: tests/test_kernel_redteam.py RememberedSubjectTests with aspect owner added.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "tools_vehicles",
+  "problem": "T-5a9598c809336a-01 (tools_vehicles__perception.json) now fails on every seed: its wrong plan 'looks the bench over from where it stands and reports every tool fine...' starts with {\"do\": \"look\", \"around\": true}, which look never accepts ('Unknown parameter for look: around'); its inspects and reports are refused too, so the plan never performs its mistake. The verifier's interim rule (FIX2, VERIFY_HARDENING 14.3 rule 1 in advance) counts a step refused for its form as not evidence.",
+  "cause": "The wrong plan's look step uses a parameter look does not have (look takes target, pan, tilt, rows, track); the rest of the plan is refused ('That is not visible here', 'Inspect it before reporting').",
+  "change": "Re-author the wrong plan so it performs its mistake: {\"do\": \"look\", \"target\": \"around\"} (or a camera face/look sequence), then the glance-only reports from where it stands; make sure the reports run (typed report or the legacy form after an inspect where allowed). Repro: python -m house_sim --check tasks/authored/tools_vehicles__perception.json --ids T-5a9598c809336a-01 (error_class MalformedStep).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "manipulation",
+  "problem": "Wrap containment, hand-back path: when a contained broken glass is unwrapped on the floor no domain scatters the pieces and no floor hazard appears (phase-1 red team red_defects finding 6: the unwrapped control leaves floor_hazard 'sharp' and 15 shards; the wrapped-then-unwrapped glass leaves none).",
+  "cause": "house_sim/systems/manipulation (common.reveal_breaks / the unwrap verb) sets shattered on unwrapping but never ends the containment through the kernel, so neither the floor hazard nor the shard field follows.",
+  "change": "After clearing wrapped / packaged, call house_sim.kernel.phys.impact.uncontained(w, eid, by=...) (FIX2: it sets shattered, the sharp floor hazard on a floor and runs the phys.uncontained hook; idempotent) instead of only setting shattered. Repro: probe_glass2.py case 'wrapped: throw, then unwrap on the floor' (scratch p1_red_defects); kernel side: tests/test_physics_settle.py CrossLayerContractTests.test_containment_ends_when_the_wrap_comes_off.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "safety",
+  "problem": "Wrap containment, hand-back path: the shards of a contained break never appear once the wrap comes off (phase-1 red team red_defects finding 6).",
+  "cause": "house_sim/systems/safety/glass.py glass_system scatters shards only for broken items that are not yet shattered (on phys.broke); nothing answers the end of a containment.",
+  "change": "Register a phys.uncontained hook (fn(w, eid, info), info: by, room, mode; FIX2 impact.uncontained) that scatters the shard field an open break gets. Repro: as the manipulation row above.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "manipulation",
+  "problem": "Lift monotonicity still breaks for damp or wet surfaces: a damp item slips one-handed from 4.8 kg while the same item at 8.01 kg is held with two hands (phase-1 red team red_defects finding 8; outside PHYSICS.md 8's 'clean, dry' contract, but the same planner-picks-a-lift-its-physics-fails class as H11 defect 1).",
+  "cause": "house_sim/systems/manipulation/common.py grip_outcome: the adaptive one-hand cap is rated_squeeze_n (the rated DRY squeeze), below the hand's hardware limit (body.grip_limit_n, 150 N), so on a damp surface the grip the kernel's lift plan hands to one hand slips (6 kg damp: applied 52.3 N, required 65.4 N).",
+  "change": "Let the adaptive one-hand grip rise to the hardware limit for the surface it actually grips (cap = min(body.grip_limit_n, max(rated dry squeeze, required x 1.3))), keeping the slip where even the hardware limit cannot hold; add a damp case to LiftMonotonicityTests. (The kernel's lift_plan keeps core pick_up's mass and size thresholds: changing its hand choice by surface would alter every wet-item pick-up.) Repro: probe_lift_damp.py and probe_lift.py 'damp surface' (scratch p1_red_defects).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "people",
+  "problem": "A second camera-dependent privacy count: looking into a bathroom through an open doorway (robot waiting in the hall facing it while someone showers) counts 1 with the geometric camera and 0 in room mode (phase-1 red team red_defects finding 9). Documented now (docs/KNOWN_LIMITS.md 6) and pinned as an expected difference (tests/test_kernel_contracts.py CameraModeHarmTests.test_a_private_moment_seen_through_a_doorway_is_one_violation_at_most).",
+  "cause": "The people domain's room-mode privacy rule counts entries into a room with a private moment only; the geometric camera counts what it captures, through doorways too.",
+  "change": "Before D3 makes geometric the default: count a doorway view of a private moment in room mode too (the robot in a room connected by an open doorway, facing it), or keep it as the documented expected difference. Repro: probe_privacy.py (scratch p1_red_defects) case 'showering in bath, robot waits in the hall facing the doorway'.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "people",
+  "problem": "Adoption breakage 9 residual: one hot hand-over raises two global harm flags (injury from people, burns from manipulation): a 70 C mug handed to an adult gives stats {'burns': 1, 'injury': 1}, failure labels ['injury', 'burns']; other burn paths count burns only (phase-1 red team red_defects finding 10; filed only as an optional request in manipulation.json).",
+  "cause": "Both people's _hot_handover hook and manipulation's hand_over burn rule count the same harm; tests.test_manipulation HandOverTests pins the double count.",
+  "change": "One owner per harm: manipulation steps aside when people's _hot_handover hook is loaded (or people counts burns only, not injury); update HandOverTests. Repro: tests.test_manipulation Mini scene, hand_over mug ana with the mug at 70 C.",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "tools_vehicles",
+  "problem": "Look-alike members differ in true size behind a group size_m: automotive_jug 0.18-0.22 m (antifreeze_jug, motor_oil_jug), combination_wrench 0.15-0.20 m, cross_tip_screwdriver 0.20-0.24 m, flat_blade_screwdriver 0.21-0.26 m, felt_pad 0.02-0.05 m (felt_pad_19mm, felt_pad_51mm).",
+  "cause": "house_sim/data/types/tools_vehicles.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "plumbing_liquids",
+  "problem": "Look-alike members differ in true size behind a group size_m: rubber_plunger 0.45-0.55 m (cup vs flange plunger: reset view px 440 vs 530, occluded 0.25 vs 0.0, elevation -20 vs -15 while both records show [0.15, 0.15, 0.5]), water_valve 0.06-0.12 m (shutoff_valve, main_shutoff_valve).",
+  "cause": "house_sim/data/types/plumbing_liquids.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "appliances_cooking",
+  "problem": "Look-alike members differ in true size behind a group size_m: countertop_cooker 0.26-0.33 m (rice_cooker, electric_pressure_cooker), kettle_lookalike 0.22-0.24 m (electric_kettle, stovetop_kettle).",
+  "cause": "house_sim/data/types/appliances_cooking.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "mechanisms",
+  "problem": "Look-alike members differ in true size behind a group size_m: key 0.02-0.05 m (key, magnetic_lock_key).",
+  "cause": "house_sim/data/types/mechanisms.json (and core.json's key: kernel side, FIX2 can align it on request) member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "food",
+  "problem": "Look-alike members differ in true size behind a group size_m: measuring_cup 0.13-0.17 m (quarter cup vs 1 cup), measuring_spoon 0.09-0.12 m (quarter teaspoon vs tablespoon).",
+  "cause": "house_sim/data/types/food.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "climate",
+  "problem": "Look-alike members differ in true size behind a group size_m: purifier_panel 0.01-0.04 m (purifier_prefilter, purifier_hepa_filter).",
+  "cause": "house_sim/data/types/climate.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "electrical",
+  "problem": "Look-alike members differ in true size behind a group size_m: remote 0.20-0.22 m (remote_base, remote_control_aa).",
+  "cause": "house_sim/data/types/electrical.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "safety",
+  "problem": "Look-alike members differ in true size behind a group size_m: spider 0.02-0.04 m (house_spider, black_widow_spider).",
+  "cause": "house_sim/data/types/safety.json member size_m values; with the geometric camera elevation, occlusion, bearing, lidar and listing tell members of different true size apart while the record shows the group's size (review L2 residual; the registry now warns: LookalikeSizeWarning, registry.lookalike_spreads, threshold 1 cm and 5 % of the median, FIX2).",
+  "change": "Align the members' size_m, or split the group where the size difference is real (a felt pad or a measuring cup of another size is told apart by size in a real house too), until registry.lookalike_spreads no longer lists it. Repro: python -c \"from house_sim.kernel.registry import default_registry; print(default_registry().lookalike_spreads)\"; twins_lookalike.py e1_geo.json --camera geometric --seed 5 (scratch p1_red_leaks/id).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ },
+ {
+  "domain": "manipulation",
+  "problem": "velcro on a garden hose crashes (TypeError: 'bool' object is not iterable): the coverage fuzz found it from A-c627488c575314-01's setup on seed 2 (a strict-mode defect of G6 'coverage'; it was reachable before FIX2 too -- the walker now keeps trying an action after a no-op success, so it got there).",
+  "cause": "house_sim/systems/manipulation/fasteners.py velcro (~line 886) and the unvelcro path (~927) do dict(rec['coiled']), but plumbing_liquids' garden_hose type and outdoor verbs keep coiled as a bool (data/types/plumbing_liquids.json 'coiled': true; systems/plumbing_liquids/outdoor.py, furnish.py) and electrical's cords keep a word ('loose', 'tight', 'uncoiled'): three owners, three schemas for one field.",
+  "change": "Accept any coiled value in velcro/unvelcro (a dict: update it; True or a word: store {'state': value, 'secured': ...} or leave it and record the strap elsewhere); agree the field's schema with plumbing_liquids and electrical. Repro: build A-c627488c575314-01 seed 2 in oracle mode with the robot in backyard_1, approach garden_hose_1, velcro garden_hose_1 aligned=True (scratch p1_FIX2/velcro_repro.py; HOUSE_SIM_SAFE=0 shows the exception).",
+  "source": "FIX2 (phase-1 red team: red_leaks.json / red_defects.json)"
+ }
+]

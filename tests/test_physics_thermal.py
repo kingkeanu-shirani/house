@@ -7,6 +7,7 @@ The sibling packages' modules are the fakes of tests/test_physics_fluids.py (the
 record fields and the material rows of section 4.3).
 """
 import math
+import os
 import time
 import unittest
 
@@ -539,6 +540,8 @@ class ThermalStepTests(PhysTest):
         for tick in range(120):
             physics.thermal_system(settled, 120.0, tick)
 
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         def best(fn):
             times = []
             for _ in range(7):

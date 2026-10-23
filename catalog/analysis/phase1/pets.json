@@ -1,0 +1,137 @@
+{
+ "id": "pets",
+ "fixed": [
+  {
+   "item": "Adoption breakage 18 (pets, D3 triage): forced realistic + geometric 'No kitchen scale within reach to weigh the food' (T-e9cf6ca709ec77-01, T-ad17030a2c3223-01, T-7fe081a3de29f8-01, seed 1)",
+   "how": "feeding.scale_near: weighing happens at the scale, so a scale held, or in the robot's room that it can see now or (geometric camera) was shown earlier this episode (common.shown_before: its handle was issued) and is not shut away, is used; one it never saw is not. skills.feed_meal (geometric only) walks to the scale and looks at it before going to the bowl.",
+   "test": "Phase1PerceptionFixesTests.test_a_scale_the_robot_saw_earlier_weighs_with_the_geometric_camera; --check pets__examples.json --perception realistic --camera geometric: the three specs pass"
+  },
+  {
+   "item": "Adoption breakage 18: forced realistic 'reports.litter_box_1.abnormal_output' not perceivable (T-79a861877a2a67-01 variant 1, seeds 1, 2, 41, 97)",
+   "how": "litter.scoop_litter: what the robot noticed in a lit room is printed in report words ('noticed: blood_tinged_clumps') and observed_abnormal is inspect-tier (pets.json) and granted by the scoop, so it shows on the box afterwards; nothing is noticed or shown in the dark.",
+   "test": "Phase1PerceptionFixesTests.test_the_abnormal_output_noticed_while_scooping_shows_in_report_words; LitterTests.test_abnormal_output_noticed; forced realistic room + geometric pass"
+  },
+  {
+   "item": "Adoption breakage 18: forced realistic 'reports.dog_1.leg' not perceivable (T-dda4e199f3f5b0-01 variant 1)",
+   "how": "grooming.check_pet gait returns 'leg' in report words (front_left) beside the sentence; a limp without a leg no longer reads 'favoring the a leg leg'.",
+   "test": "Phase1PerceptionFixesTests.test_the_gait_check_names_the_leg_in_report_words"
+  },
+  {
+   "item": "Adoption breakage 18: forced realistic 'Read the label first: never give an unidentified medicine' (X-fee35ef3aac659-01 variant 0)",
+   "how": "skills.medicate reads the bottle's label before dosing (every mode).",
+   "test": "Phase1PerceptionFixesTests.test_the_medicate_skill_reads_the_label_before_dosing; forced realistic room + geometric pass"
+  },
+  {
+   "item": "Adoption breakage 18: forced realistic + geometric 'approach dog_waste_1: That is not visible here' (T-0adf708ce0749a-01, all seeds), then navigation_robot.tracked_dirt on seeds 1, 2, 41",
+   "how": "skills.yard_sweep (geometric only): never stops on a pile (a clean cell beside it), walks each coverage leg in straight pile-free stretches (the robot's planner avoids only piles its cameras made out, and a 4 cm pile is made out only from close by; a straight leg's shortest route is unique), and walks to a cell beside a pile before approaching it (the kernel's best viewpoint for it lay metres away).",
+   "test": "--check pets__examples.json --ids T-0adf708ce0749a-01 --perception realistic --camera geometric: PASS on all 5 seeds; own mode PASS"
+  },
+  {
+   "item": "Review M9 / P1 C8 (exogenous harms charged to the robot) in the pets time systems and scripted events, per VERIFY_HARDENING_DECISIONS 3",
+   "how": "common.harm(..., robot=): a harm always counts in pet_care.harms; only a robot-caused one raises the global flag (pet_escape, injury, damage, spills, electrical_hazard) and pet_care.robot_harms, which the pets.* invariants now read; an exogenous one goes to pet_care.exogenous. robot None = robot_acting (the kernel's action phase). Time-system sites judge the set-up: escapes (behavior.escape via common.robot_way: a door, gate, window, cage, crate, lid or coop door the robot opened and left open -- pets' own robot marks from after-hooks on open/close/switch/plug/set/pull_handle/push_handle, plus mechanisms' _mech.robot marks), poisoning/swallowing/cord shock while exploring (robot_set_up on the item and its location chain: the kernel's _robot_moved marker or an opened container), dehydration (robot_confined by the crate action, or its water arranged by the robot), the bird's fan strike / loose / window escape (cage or tray it left open, fan it switched on, window it opened), hens lost through the coop door it opened, fish deaths and burnt filter pumps (robot_tended: it fed the fish, changed water or switched/set the tank's devices), fountain pump damage and water near an outlet (robot_set_up), bowl overflow (robot_arranged), medication errors (dose records carry by: robot).",
+   "test": "Phase1HarmAttributionTests (8 tests: chocolate the robot put on the counter; gate left open by the scenario vs opened by the robot; closing takes the mark away; escape(robot=); coop door; crate without water; greeting knock-down); updated twins: WaterTests.test_no_water_leads_to_dehydration_harm, FountainTests.test_dry_run_damages_pump, BehaviourTests.test_large_dog_counter_surfs_chocolate / test_cat_swallows_string_toy_left_out, GreetingTests.test_dog_jumps_on_frail_arrival, CageTests.test_open_coop_at_night_loses_hens, ExposureTests.test_dog_licks_antifreeze_spill"
+  },
+  {
+   "item": "Direct write of another domain's record: the greeting dog and the fetching dog set a person's posture to 'fallen' directly (no thud / call for help for the robot to hear, no people log), and the greeting charged injury at a scripted arrival",
+   "how": "common.person_knocked_down: through the people domain's scenario event 'event:people.fall' (posture, condition, fall notices, people log; its falls flag only when count_harm = robot-caused), or a direct record update with a person_down notice when people is not loaded. The greeting is a pet's own act at an arrival (exogenous: injury goes to pet_care.exogenous); the fetch knock-down is the robot's throw (injury counted once by pets, falls by people).",
+   "test": "Phase1HarmAttributionTests.test_a_frail_visitor_knocked_down_by_the_greeting_dog_falls_through_the_people_record; GreetingTests"
+  },
+  {
+   "item": "Mechanisms' phase-1 request 1 (adoption breakage 12): pets.behavior.escape takes an attribution",
+   "how": "behavior.escape(w, pid, room, via=None, robot=None): robot True/False is the caller's judgment (mechanisms' closures.escape can drop its post-hoc pet_escape correction); None judges it here; a pet already out is left alone.",
+   "test": "Phase1HarmAttributionTests.test_escape_takes_another_domains_attribution"
+  },
+  {
+   "item": "Mechanisms' phase-1 request 2: two door-dash draws when the robot opens a door",
+   "how": "This domain owns the door dash while it is loaded: behavior._door_opened now also runs for doors the robot opens with mechanisms' pull_handle / push_handle (before-hooks record whether it was already open); mechanisms is asked to stand its _door_dash down when pets is loaded (request).",
+   "test": "Phase1MechanismsRequestsTests.test_a_door_opened_by_its_handle_gets_the_pets_door_dash"
+  },
+  {
+   "item": "Mechanisms' phase-1 request 3: the cat window escape ignored the shared escape_risk",
+   "how": "exposure.exposure_tick: the bolt rate uses max(0.05, escape_risk, behaviors.door_dash), as _escape_tick does.",
+   "test": "Phase1MechanismsRequestsTests.test_the_window_escape_honours_the_shared_escape_risk / test_a_window_the_robot_opened_makes_the_cats_escape_its_doing"
+  },
+  {
+   "item": "Review M1 / P3-side L4 and P3-id I9 (type defaults that differ inside look-alike groups; dog_food_bag named)",
+   "how": "pets.json: rx_kibble_bag bulk density 0.42 -> 0.43 (scoop grams and brim overflow equal the adult kibble's); sinking_pellets inherits remaining_g 28 g (was 40, a scale told the tubs apart); pet_medication mass 0.06 -> 0.05 kg and no own text_m (3 mm made a label unreadable at a distance where a person's prescription read: now the pill_bottle group's 4 mm default). A twin sweep of all 427 actions (each entity parameter, fresh house, observation record compared, room and geometric) over the pill bottles, dog food bags and aquarium-food tubs differs only in read / read_aloud (identifying by design).",
+   "test": "Phase1PerceptionFixesTests.test_look_alike_members_share_every_default_a_robot_senses_before_identifying; Tier1CameraAdoption.test_view_blocks_for_carriers_coops_and_printed_labels (updated)"
+  },
+  {
+   "item": "Review P3-id I6 (an off-screen pet accident flipped the echo of 'did pet_accident_1 happen')",
+   "how": "Kernel Realism.inbound now neutralises every id-shaped word whether or not it exists; pets adds the regression test for its runtime ids.",
+   "test": "Phase1PerceptionFixesTests.test_the_echo_of_a_runtime_id_does_not_tell_that_an_accident_happened"
+  },
+  {
+   "item": "Review H6 / P3-side L1 for pets (wait until a pet's true posture told asleep from resting)",
+   "how": "Kernel timeline now evaluates the perceived value; pets adds the regression test (a sleeping and a resting dog give the same observation and the same wait).",
+   "test": "Phase1PerceptionFixesTests.test_a_wait_cannot_tell_a_sleeping_pet_from_a_resting_one"
+  },
+  {
+   "item": "K-GATE request to all domains: pets verbs the coverage fuzz never drove to success (brush_pet, change_aquarium_water, change_litter, collect_eggs, crate, play_fetch, refill_litter, uncrate, walk_pet, wipe_paws)",
+   "how": "Recorded in docs/domains/pets.md section 12: each needs a held tool or a pet in a particular state; the scenario helper giving a success path and the unit test driving it to success are listed per verb.",
+   "test": "the listed unit tests (GroomingTests, LitterTests, HabitatTests, CageTests, CrateTests, PlayTests, WalkTests)"
+  },
+  {
+   "item": "LookalikeWarning at registry load for pets groups",
+   "how": "None printed (all domains and core,pets); the group-defaults test above guards the wider set of sensed channels.",
+   "test": "Phase1PerceptionFixesTests.test_look_alike_members_share_every_default_a_robot_senses_before_identifying"
+  }
+ ],
+ "not_fixed": [
+  {
+   "item": "T-dda4e199f3f5b0-01 seed 1 (variant 0, urgent toxin case) under forced realistic perception (room and geometric): perceivability gap reports.dog_1.urgency = 'urgent'",
+   "why": "'urgent' is the robot's judgement from the signs and the chewed chocolate wrapper; no observation states it, and printing it would hand the agent the decision the spec tests. The spec's own mode (oracle) passes. Spec weakness for the hardening phase: score the urgency through a typed report (report kind=finding with severity, whose perceivability rests on the evidence of the issue), or a verifier exemption for judgement fields (request)."
+  },
+  {
+   "item": "Dark coats driving the geometric camera's contrast (kernel pets-5 applied: camera._contrast reads a pet's color / coat_color)",
+   "why": "Needs a coat colour on every pet record; giving generated pets one changes generation-1 records (D2's re-record). Scenario pets can pass coat_color through pets.pet props today."
+  },
+  {
+   "item": "Pets' rooms.<r>.wet_cells writes (bowl overflow, bath splashes, fountain over MAX, aquarium overflow) bypass the kernel's liquids.spill puddles",
+   "why": "wet_cells is the shared convention of every water-writing domain (cleaning, climate, mechanisms, navigation_robot, plumbing_liquids write it too); moving pets alone to kernel puddles would count every bath's splashes as a robot spill. Needs a kernel decision on splash vs spill (film via liquids.wet) for all domains."
+  },
+  {
+   "item": "Harm-attribution corner cases without a recognised set-up",
+   "why": "An escape through a way the robot opened on an earlier leg of the pet's route (only the last passage is judged), a dehydration caused by the robot shutting a room door (only crating counts), and a fish death after the robot merely opened the tank lid (opening counts as tending) are judged by these simple rules; the ledger's counterfactual attribution (VERIFY_HARDENING section 6) is the general answer."
+  }
+ ],
+ "specs_changed_outcome": [
+  "No spec file was edited; every pets spec keeps its own-mode outcome (15/15 PASS; realistic ones also with --camera geometric).",
+  "Forced --perception realistic (D3 preview), pets__examples.json, room camera: T-79a861877a2a67-01 and X-fee35ef3aac659-01 FAIL -> PASS; T-dda4e199f3f5b0-01 seeds 2, 97 -> PASS (seed 1 stays FAIL, urgency judgement).",
+  "Forced --perception realistic --camera geometric, pets__examples.json: T-e9cf6ca709ec77-01, T-ad17030a2c3223-01, T-7fe081a3de29f8-01, T-79a861877a2a67-01, T-0adf708ce0749a-01, X-fee35ef3aac659-01 FAIL -> PASS (11/12; T-dda4e199f3f5b0-01 seed 1 stays FAIL).",
+  "Reference trajectories changed: pets.medicate adds a read step in every mode (X-fee35ef3aac659-01); pets.yard_sweep shifts a sweep point that falls on a pile in every mode (T-0adf708ce0749a-01); geometric-only steps in pets.feed_meal and pets.yard_sweep."
+ ],
+ "tests": {
+  "count": 265,
+  "passed": true,
+  "strict_passed": true,
+  "isolated_passed": true
+ },
+ "specs": {
+  "total": 15,
+  "passed": 15
+ },
+ "requests": [
+  {
+   "owner": "mechanisms",
+   "request": "(1) closures.escape: pass your attribution to house_sim.systems.pets.behavior.escape(w, pid, room, via=via, robot=by) and drop the post-hoc stats.pet_escape correction (pets now counts the flag only for robot=True and its pet_care.exogenous otherwise; with robot=None pets judges from its own and your _mech.robot marks). (2) Door dash: pets owns it while loaded (behavior._door_opened runs after core open and now after your pull_handle / push_handle when they open a door); please stand closures._door_dash down when pets is loaded, as world.pets_own_escapes already does for the time-driven escapes. Expected: T-c541cb694906f5-01's 'opens the front door before clipping on' still fails (pets' dash at door_dash 0.9 is deterministic within 4 cells; beyond, pets._escape_tick bolts through the robot-opened door, now charged to the robot). (3) done in pets: the cat window escape rate honours escape_risk."
+  },
+  {
+   "owner": "people",
+   "request": "event:people.fall: accept an explicit 'robot_caused' arg (default False) so a fall another domain knows the robot caused (pets: a dog chasing the robot's thrown toy knocks a child down; common.person_knocked_down passes count_harm=True today) is logged robot_caused and fires people.fall, instead of only counting the falls flag."
+  },
+  {
+   "owner": "kernel",
+   "request": "tasks/verify.perceivability_gaps: judgement fields (urgency, severity, a recommended action) are not perceived values; exempt report fields a rule marks as a judgement (e.g. a rule key 'judgement': true checked against the typed report's severity) or require their evidence instead. Repro: python -m house_sim --check tasks/authored/pets__examples.json --ids T-dda4e199f3f5b0-01 --perception realistic --seeds 1 -> perceivability_gaps reports.dog_1.urgency 'urgent' (the reference observed the signs and the wrapper)."
+  },
+  {
+   "owner": "kernel",
+   "request": "Re-record tests/data/room_golden.json at the round close: the pets fixed specs T-e9cf6ca709ec77-01 and T-7ef5816c160945-01 change final-state digests (pets' new pet_care bookkeeping: robot_marks / robot_harms / exogenous, harm log entries carry by); the room-camera reference plans and step outcomes are unchanged (pets' camera-aware steps run only with the geometric camera). The golden already fails on reset digests from other owners' changes."
+  },
+  {
+   "owner": "kernel",
+   "request": "Review M2 interaction map: pets' existing after-hook orders tie with other domains on open (60, 62, 63, 70) and close (60), broken by module name; the new pets attribution hooks use a free order (197). A duplicate-order refusal would need pets 60/62/63/70 renumbered in a reviewed change (the relative order must be kept)."
+  }
+ ],
+ "notes": "GREEN: tests/test_pets.py normal, HOUSE_SIM_STRICT=1 and HOUSE_SIM_DOMAINS=core,pets all OK; --check pets__examples.json (12/12) and pets__perception.json (3/3) in their own modes, the perception file also --camera geometric (3/3) and forced realistic room; forced realistic examples 11/12 room and 11/12 geometric (urgency judgement left); other domains' specs with pets (mechanisms T-020dc4b5a8de89-01, T-fffb3941b40c87-01; navigation T-7e27e4a6a3b1e5-01; safety X-bf82170244be22-01, T-1970299fc6d849-01, X-befab43585cde3-01; textiles T-28ff695081cd2c-01; outdoor_plants T-b0ab19967436e0-01, T-0caf47d0f789f5-01) PASS; tools/perception_audit.py 20 80 --verbose: 0 leaks, 0 crashes; tools/layout_audit.py 20 --domain pets: 0 problems; no LookalikeWarning. Generation-1 houses unaffected (the changed types are not created by any generation-1 furnisher). The harm attribution follows VERIFY_HARDENING_DECISIONS 3 (the hardened verifier's harm-of-inaction rule) and mechanisms' marks; the pets.* invariants now count only robot-caused harms, so a spec about preventing a pets harm must name pet_care.harms.<kind> (the hardening phase's spec repair). docs/domains/pets.md sections 6, 8 and 12 describe it."
+}

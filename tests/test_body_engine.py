@@ -208,8 +208,10 @@ class SettlementTests(BodyTestCase):
         env = make({"hands": {"left": None, "right": "bag"}},
                    entities={"bag": {"label": "bag", "location": "robot", "relation": "held", "held_hand": "right",
                                      "portable": True, "mass_kg": 5.0, "size_m": [0.3, 0.2, 0.3]}})
-        env.step("look")                                                # holding 5 kg adds 3 W/kg
-        self.assertAlmostEqual(robot(env)["energy_wh_used"], (P_LOOK + 15.0) / 3600.0, places=9)
+        env.step("look")
+        # holding adds 3 W/kg of the load the robot feels (review L3, INT): 5 kg in one 8 kg hand reads "heavy", whose
+        # felt load is 0.75 x 8 = 6 kg (proprio.felt_load_kg), so 18 W
+        self.assertAlmostEqual(robot(env)["energy_wh_used"], (P_LOOK + 18.0) / 3600.0, places=9)
         self.assertEqual((robot(env)["_held_kg"], robot(env)["_hand_kg"]), (5.0, {"right": ["bag", 5.0]}))
 
     def test_a_walk_pays_its_work_and_the_hotel_load_once(self):
@@ -892,6 +894,8 @@ class PerformanceTests(BodyTestCase):
         idle_env = type("E", (), {"_advance_mode": "idle"})()
         tick = Tick(env, 0)
         tick.env = idle_env
+        if os.environ.get("HOUSE_SIM_PERF_TESTS", "1") == "0":
+            self.skipTest("wall-clock bound off (HOUSE_SIM_PERF_TESTS=0: CI runs the bounds alone)")
         per_substep = best_of(lambda: body.system_tick(w, SUBSTEP_S, tick), number=300)
         self.assertLess(per_substep, 3 * 0.02e-3, per_substep)
         self.assertLess(per_substep * 20160, 3 * 0.4)                      # a week-long wait

@@ -159,7 +159,9 @@ def cells_system(w, dt, tick):
                     m["condition"] = "leaking"
                     from ...systems.core import add_soil
                     add_soil(w, eid, "rust", 0.3)
-                    C.harm(w, "electrical.battery_leak:" + item, device=eid)
+                    # the robot's when it fitted or handled the cells or the device (a staged reversed cell is not)
+                    C.consequence(w, "electrical.battery_leak:" + item, [eid] + [i for _, i, _ in cells if i],
+                                  device=eid)
                     C.event(w, "battery_leaking", item)
 
 
@@ -187,6 +189,8 @@ def verdict(rec):
 def _inspect_cells(w, eid, rec, details, ctx):
     from . import percept
     real = ctx is not None and percept.active(ctx)
+    if percept.unfamiliar(ctx, eid):
+        return      # an unfamiliar thing shows no cell or compartment keys (review I4)
     if is_cell(rec):
         details["cell"] = {"type": rec.get("label"), "chemistry": rec.get("chemistry"), "orientation": rec.get("orientation"),
                            "condition": rec.get("condition"), "leaking": bool(rec.get("leaking")),

@@ -427,8 +427,9 @@ def disconnect_hose(ctx):
         m["attached"] = False
         if live:
             _spray_self(ctx, appliance, 3.0, "unscrewed a supply hose with its valve open")
-            m["_leak"] = {"component": "open_supply_line", "rate_lpm": 8.0, "when": "pressurized", "line": line, "fixture": appliance,
-                          "to": {"room": C.room_of(w, appliance), "cell": C.cell_of(w, appliance)}, "started_s": C.now(w)}
+            m["_leak"] = C.robot_leak(w, {"component": "open_supply_line", "rate_lpm": 8.0, "when": "pressurized", "line": line,
+                                          "fixture": appliance, "to": {"room": C.room_of(w, appliance), "cell": C.cell_of(w, appliance)},
+                                          "started_s": C.now(w)})
         return "Unscrewed {} from its valve{}".format(target, ": water is spraying out" if live else "")
     if rec.get("hose"):
         spigot = rec.get("attached_to")
@@ -494,7 +495,7 @@ def hose_stored(ctx, result):
         m["coiled"] = False
         if drec.get("hook_kind") == "nail" or drec.get("sharp_hook"):
             C.damage(w, eid, "punctured by the nail it hangs on", kind="punctured", severity=0.6)
-            m["_leak"] = {"component": "hose_wall", "rate_lpm": 2.0, "when": "pressurized_hose", "started_s": C.now(w)}
+            m["_leak"] = C.robot_leak(w, {"component": "hose_wall", "rate_lpm": 2.0, "when": "pressurized_hose", "started_s": C.now(w)})
 
 
 # ----------------------------------------------------------------------------------
@@ -749,7 +750,7 @@ def spray(ctx):
         if rec.get("electronic") or rec.get("water_safe") is False:
             if not rec.get("water_damaged"):
                 w.mut(target)["water_damaged"] = True
-                w.stat("damage")
+                C.harm(w, "damage", target)
             notes.append("it is not waterproof")
         faces, order = _faces(rec, ctx.args.get("face"))
         passes = C.clamp(seconds / 20.0 / max(1, len(faces)), 0.3, 3.0)
@@ -762,7 +763,7 @@ def spray(ctx):
             m["interior_wetness"] = C.rnd(min(1.0, C.num(m.get("interior_wetness")) + liters / 20.0), 3)
             if not m.get("interior_water_damage"):
                 m["interior_water_damage"] = True
-                w.stat("damage")
+                C.harm(w, "damage", target)
             notes.append("water went in through an open window")
         hardscape = C.floor_material(w, rid) in ("concrete", "stone", "asphalt", "brick", "pavers")
         if removed > 0:
@@ -1049,7 +1050,8 @@ def freeze_step(w, dt):
         m["_leak"] = {"component": "frozen_supply_pipe", "rate_lpm": 12.0, "when": "pressurized", "line": "cold",
                       "fixture": eid, "to": {"room": burst_room, "cell": C.cell_of(w, interior) if interior in w.s["entities"] else C.cell_of(w, eid)},
                       "started_s": C.now(w), "severity": "spray"}
-        C.damage(w, eid, "pipe burst by ice in the wall", kind="freeze_burst")
+        # a hose left attached traps the water (frost-free bibs): then the burst is the robot's when it handled that hose
+        C.damage(w, eid, "pipe burst by ice in the wall", kind="freeze_burst", cause=attached or eid)
         C.plog(w, "freeze_burst", spigot=eid)
 
 

@@ -129,7 +129,7 @@
       "perception": {"looks_like": "dog_food_bag"},
       "doc": "Veterinary prescription diet (renal / weight); kind rx_*. Sold in the same 6.8 kg (15 lb) bag as the adult food: the look-alike group's members match at a glance, only the label tells them apart.",
       "props": {"label": "bag of prescription diet kibble", "lot": "R2026-0222",
-                "pet_food": {"kind": "rx_renal_kibble", "species": "dog", "wet": false, "kcal_per_g": 3.5, "density_g_per_ml": 0.42, "prescription": true},
+                "pet_food": {"kind": "rx_renal_kibble", "species": "dog", "wet": false, "kcal_per_g": 3.5, "density_g_per_ml": 0.43, "prescription": true},
                 "label_text": "VETERINARY DIET - renal support. Feed only under veterinary supervision. Lot R2026-0222."}
     },
     "pet_food_bin": {
@@ -228,8 +228,9 @@
     "litter_box": {
       "is_a": "portable_object",
       "perception": {"measure": {"litter_kg": "scale", "depth_cm": "tape_measure", "area_m2": "tape_measure"},
+                     "inspect": ["observed_abnormal"],
                      "hidden": ["odor", "wet", "residue", "litter_mix", "home_pos", "litter_density_kg_l", "kicked_out_kg", "clumped_kg",
-                                "wet_clumped", "last_scooped_s", "last_check", "freshness", "litter_kind", "observed_abnormal"]},
+                                "wet_clumped", "last_scooped_s", "last_check", "freshness", "litter_kind"]},
       "doc": "Litter box (inner area area_m2). litter_kg of litter_kind -> depth_cm = litter_kg / (density_kg_l * area_m2 * 10). clumps/feces are scoopable waste; _buried clumps need a thorough sift. residue lists cleaner residues. home = room, home_pos = cell where the cat expects it.",
       "props": {"label": "litter box", "category": "litter_box", "pet_item": true, "material": "plastic", "mass_kg": 1.3,
                 "size_m": [0.5, 0.4, 0.15], "volume_l": 30.0, "area_m2": 0.171, "litter_kind": "clumping_clay_unscented",
@@ -503,10 +504,9 @@
       "is_a": "portable_object",
       "perception": {"read": ["prescribed_for", "drug", "schedule", "dose_units", "water_ok"],
                      "hidden": ["toxin", "missed", "source_med", "freshness"], "looks_like": "pill_bottle"},
-      "doc": "Owner/vet-directed pet medicine. prescribed_for = pet id; schedule slots; label_text is readable. Dosing is give_pet_medication (approval give_pet_medication:<pet>).",
-      "view": {"text_m": {"prescribed_for": 0.003, "drug": 0.003, "schedule": 0.003, "dose_units": 0.003, "water_ok": 0.003}},
+      "doc": "Owner/vet-directed pet medicine. prescribed_for = pet id; schedule slots; label_text is readable. Dosing is give_pet_medication (approval give_pet_medication:<pet>). A member of the kernel pill_bottle look-alike group: its mass, size, colour and printed text height (the kernel's 4 mm label default, no text_m of its own) match a person's prescription bottle, so neither weight nor the distance a label becomes readable tells them apart before reading.",
       "props": {"label": "pet medication", "category": "pet_medication", "pet_medication": true, "pet_item": true, "material": "polypropylene",
-                "color": "amber", "mass_kg": 0.06, "size_m": [0.04, 0.04, 0.08], "volume_l": 0.1, "form": "tablet", "count": 30, "dose_units": 1,
+                "color": "amber", "mass_kg": 0.05, "size_m": [0.04, 0.04, 0.08], "volume_l": 0.1, "form": "tablet", "count": 30, "dose_units": 1,
                 "prescribed_for": null, "drug": "carprofen 75 mg", "schedule": ["08:00"], "water_ok": false, "hazards": ["toxic"],
                 "safe_grips": ["normal", "pinch"], "toxin": "nsaid_vet"}
     },
@@ -584,7 +584,7 @@
     "sinking_pellets": {
       "is_a": "fish_food",
       "props": {"label": "sinking wafers", "label_text": "Sinking algae wafers for bottom feeders (corydoras, plecos). Drop in near the bottom.",
-                "fish_food_kind": "sinking", "g_per_pinch": 0.06, "remaining_g": 40.0}
+                "fish_food_kind": "sinking", "g_per_pinch": 0.06}
     },
     "water_conditioner": {
       "is_a": "portable_object",

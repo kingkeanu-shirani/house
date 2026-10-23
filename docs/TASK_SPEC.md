@@ -31,7 +31,7 @@ behaviour they were verified with. Schema 3 turns on, for that spec only:
 | `extends`, `params` | a template from `tasks/templates/*.json` and its `{{param}}` values |
 | `house` | generator options: `dwelling`, `require`, `residents` (`"minimal"`, `"random"`, a list), `pets`, `start`, `region`, `gen` (1 or 2) |
 | `setup` | setup ops (`house_sim/tasks/setup.py`, docs/AUTHORING_GUIDE.md); they bind variables used as `{name}` everywhere else |
-| `variants` | partial specs merged per seed (`seed % len(variants)`); `"+key"` appends to a list key |
+| `variants` | partial specs merged per seed (`variant_index(catalog_id, seed, len(variants))`: hashed per block of n consecutive seeds, so nothing short of the whole seed predicts it; review H5); `"+key"` appends to a list key |
 | `instruction`, `phrasings` | the request text and at least three phrasings (a single-phase spec) |
 | `request` | who asked and how (below) |
 | `success`, `failure` | predicates: all success must hold; any failure defeats success |
@@ -201,8 +201,10 @@ request record says `gesture_dropped`). Specs without `request` (schema 2) post 
 {"phase_done": true}                                      end the active phase (multi-phase specs)
 ```
 
-Reference plans run strictly (any refusal raises); wrong plans run leniently. Skills may read privileged state to
-route but change the world only through `env.step`.
+Reference plans run strictly (any refusal raises); wrong plans run leniently, but a wrong plan that raises or has a
+step refused for its form (an unknown action, a parameter the action does not take, a missing or mistyped argument) is
+not evidence and fails the spec; a literal `"do"` name that is no registered action is a SpecError at build (phase-1
+red team). Skills may read privileged state to route but change the world only through `env.step`.
 
 ## Waiting and standing orders (agent actions)
 

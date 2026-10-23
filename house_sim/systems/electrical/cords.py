@@ -25,6 +25,7 @@ from ...kernel.actions import action
 from ...kernel.errors import ActionError, require
 from ...kernel.plugins import after
 from . import common as C
+from . import percept
 from . import power as P
 
 SEVERE = {"exposed", "chewed", "scorched", "fray"}
@@ -183,11 +184,18 @@ def _heat_source(rec):
 
 
 def cord_hazards(state, device, cells):
-    """Hazard kinds for routed cord cells [(room, cell)]."""
+    """Hazard kinds for routed cord cells [(room, cell)]. The device's own floor footprint is not part of its cord (the
+    CordCheck rule): a heater standing in a walkway or on a rug is itself the obstacle there, not a trip-cord or a cord
+    under the rug. Nor is the device a heat source for its own cord: a space heater's cord leaves the heater by design
+    (a cord near another heater, or near a radiator, still counts)."""
     hazards, trip = set(), []
     by_room = {}
-    wet_rated = P.weather_rated(state["entities"].get(device) or {})   # outdoor/wet-location cords may run by water
+    drec = state["entities"].get(device) or {}
+    wet_rated = P.weather_rated(drec)   # outdoor/wet-location cords may run by water
+    own = set(geometry.footprint(drec)) if drec.get("location") in state.get("rooms", {}) else set()
     for rid, c in cells:
+        if rid == drec.get("location") and tuple(c) in own:
+            continue
         by_room.setdefault(rid, []).append(c)
     for rid, cs in sorted(by_room.items()):
         walk = walkway_cells(state, rid)
@@ -203,7 +211,7 @@ def cord_hazards(state, device, cells):
             if rec.get("water_source") or rec.get("drain") or rec.get("category") in ("sink", "bathtub", "shower"):
                 for fc in geometry.footprint(rec):
                     water.update(geometry.near_cells([fc], state["rooms"][rid]))
-            if _heat_source(rec):
+            if eid != device and _heat_source(rec):
                 for fc in geometry.footprint(rec):
                     heat.update(geometry.near_cells([fc], state["rooms"][rid]))
         for c in cs:
@@ -400,6 +408,7 @@ def plug_in(ctx):
     state = w.s
     target = ctx.args["target"]
     dev = ctx.obj(target)
+    percept.refuse_unfamiliar(ctx, target, ctx.args.get("destination"))
     require(dev.get("plug_required"), "It has no mains plug", "argument")
     dest = ctx.args.get("destination") or (dev.get("outlet") if dev.get("plugged_in") else None)
     require(dest, "Name the outlet, strip or cord to plug into", "argument")
@@ -649,6 +658,7 @@ def unplug(ctx):
     state = w.s
     target = ctx.args["target"]
     rec = ctx.obj(target)
+    percept.refuse_unfamiliar(ctx, target)
     if ctx.args.get("socket") is not None and P.is_provider(rec):
         socket = ctx.args["socket"]
         found = [d for s, d in P.plugs_in(state, target) if s == socket]
@@ -679,7 +689,7 @@ def unplug(ctx):
             C.harm(w, "electrical.cord_kinked:" + device)
         ctx.spend(20.0)
     C.refresh(w)
-    return "Unplugged {} from {}".format(device, outlet)
+    return "Unplugged {} from {}".format(device, outlet) if outlet else "Unplugged {}".format(device)
 
 
 # ----------------------------------------------------------------------------------------

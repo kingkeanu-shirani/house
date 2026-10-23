@@ -121,7 +121,9 @@ sleeper's keep-out ring as a layout problem.
 | household | 1-2 umbrellas (in the umbrella stand, else the coat closet), passports for everyone (0.6), scissors in the junk drawer |
 
 Every item carries `owner` and `home` (its habitual spot: an entity id, or a room for floor spots), phones also
-`phone_of`. Homes depend on the role, the season, the region (shoes at the entry where shoes come off) and the time
+`phone_of`. A key ring's `opens` names the door it opens by id (`door_named`, phase 1: "front door" becomes the id of
+the house's front door, an apartment's door included; another name the lockable entity with that label), and core
+lock / unlock accept a held key whose `opens` names the lock. Homes depend on the role, the season, the region (shoes at the entry where shoes come off) and the time
 of day (a phone charges on the nightstand at night and lives on the kitchen counter or a desk by day). An item with
 alternatives is out of place with probability `0.05 + 0.35 x (1 - tidiness)`; the alternative is drawn by weight among
 those valid at that time of day (sofa, bed, coat pocket, bag, kitchen table, floor). Coat pockets are textiles'
@@ -137,7 +139,8 @@ backpack) count instead of being duplicated; `has_phone` and `reachable_by_phone
   else in its parents' room), a second bed in a shared bedroom.
 * `gen.furnishings` (order 101): sofa cushions, throw pillows and a throw (counting textiles' ones), coasters (0.5),
   an unlit candle (0.4), an ottoman (0.3), an indoor mat, a coir doormat outside the front door (0.85), a key bowl
-  (0.4, on an entry surface), an umbrella stand (0.5), a picnic cooler in the garage (0.5), a high chair for an infant
+  (0.4, on an entry bench or side table, else the shoe rack, a console top or a wall shelf: `SPOT_FALLBACKS`, or an
+  item's own `fallback_spot` list; phase 1), an umbrella stand (0.5), a picnic cooler in the garage (0.5), a high chair for an infant
   (or 0.6 for a toddler), and one material and colour per set of dining chairs.
 
 Everything is placed through `Placer` with access kept (strict for furniture, no plain-route fallback for floor items).
